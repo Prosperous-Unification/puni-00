@@ -38,6 +38,13 @@ are reviewed into the canonical source before regeneration, preserving repo poli
 
 ## Evidence
 
+The subsequent resource-control review amends the same proposed contracts:
+explicit stage edges, one resolved activity plan, authorized overrides, cumulative
+budget accounts and clocks, profile epochs, independent evaluation definitions,
+and organization-snapshot pricing. The execution profile is a proposed input;
+temporary structural probes do not implement its future compiler. Runtime fault
+experiments remain unchecked obligations in the control-plane delivery tasks.
+
 Retain CLI tests and workflow drift regressions under repository tooling. Execute
 real CLI entrypoints on fixtures; remove design traversal and corrupt/delete a
 generated file to observe failures. Test missing and unreadable files separately

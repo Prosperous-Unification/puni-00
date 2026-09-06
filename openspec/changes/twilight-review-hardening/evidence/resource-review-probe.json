@@ -1,0 +1,67 @@
+{
+  "base": "3b0c8c80",
+  "scope": "Uncommitted resource-control review amendments; temporary documentation probe, not the production compiler/runtime.",
+  "command": "bun /tmp/twilight-resource-review.mjs",
+  "source": "import assert from 'node:assert/strict';\nimport { execFileSync } from 'node:child_process';\nimport { existsSync, readFileSync } from 'node:fs';\nimport { dirname, resolve } from 'node:path';\n\nconst repository = '/home/df/wd/puni/puni-00';\nconst profilePath = 'openspec/schemas/twilight-v1/execution.yaml';\nconst execution = Bun.YAML.parse(readFileSync(resolve(repository, profilePath), 'utf8'));\nconst schema = Bun.YAML.parse(readFileSync(resolve(repository, 'openspec/schemas/twilight-v1/schema.yaml'), 'utf8'));\nconst artifactIds = new Set(schema.artifacts.map(artifact => artifact.id));\nconst stageOrder = ['request', 'discovery', 'specification', 'planning', 'implementation', 'review', 'verification', 'acceptance', 'handoff', 'release'];\n\nfunction inspectProfile(definition) {\n  const stages = new Map(definition.stages.map(stage => [stage.id, stage]));\n  const catalog = new Map(definition.activities.map(activity => [activity.id, activity]));\n  assert.equal(stages.size, definition.stages.length, 'duplicate stage');\n  assert.equal(catalog.size, definition.activities.length, 'duplicate activity');\n  const visited = new Set();\n  const visiting = new Set();\n  function visit(stageId) {\n    assert(stages.has(stageId), `undeclared stage ${stageId}`);\n    assert(!visiting.has(stageId), `stage cycle ${stageId}`);\n    if (visited.has(stageId)) return;\n    visiting.add(stageId);\n    const stage = stages.get(stageId);\n    assert(Array.isArray(stage.after), `missing stage edges ${stageId}`);\n    stage.after.forEach(visit);\n    for (const artifactId of [...(stage.artifacts ?? []), ...(stage.artifact ? [stage.artifact] : [])]) {\n      assert(artifactIds.has(artifactId), `unknown artifact ${artifactId}`);\n    }\n    visiting.delete(stageId);\n    visited.add(stageId);\n  }\n  definition.stages.forEach(stage => visit(stage.id));\n  for (let position = 1; position < stageOrder.length; position++) {\n    assert(stages.get(stageOrder[position]).after.includes(stageOrder[position - 1]), `missing shipped edge ${stageOrder[position - 1]} -> ${stageOrder[position]}`);\n  }\n  assert.equal(stages.get('release').command, 'release', 'release requires a command');\n  const events = new Set(['beforeStage', 'afterStage', 'beforeActivity', 'afterActivity', 'beforeTool', 'afterTool', 'onFinding', 'onApproval', 'onRework', 'onFailure', 'onCancel', 'onTrigger', 'onProfileChange']);\n  for (const point of [...Object.keys(definition.policies), ...definition.hooks.flatMap(hook => hook.at)]) {\n    const separator = point.indexOf('.');\n    const event = point.slice(0, separator);\n    const subject = point.slice(separator + 1);\n    assert(events.has(event), `unknown event ${point}`);\n    if (event === 'onTrigger' || event === 'onProfileChange') {\n      assert.equal(subject, '*', `invalid event target ${point}`);\n    } else {\n      assert(subject === '*' || stages.has(subject) || catalog.has(subject), `unknown lifecycle target ${point}`);\n    }\n  }\n  assert(!('rateCard' in definition), 'organization rate card embedded in repository');\n  assert.deepEqual(definition.policies['beforeActivity.*'].admission, { resourcesFrom: 'activity', budgetFrom: 'run' }, 'implicit agent-resource wildcard');\n  for (const [activityId, pool] of [['verification.gate', 'build'], ['verification.browser', 'browser'], ['handoff.evaluate', 'build']]) {\n    assert.equal(catalog.get(activityId).resources[pool], 1, `missing resource ${activityId}.${pool}`);\n    assert(!('agent' in catalog.get(activityId).resources), `tool requires agent ${activityId}`);\n  }\n  assert.equal(definition.quality.id, 'delivery-baseline', 'initial evaluation missing');\n  assert(definition.quality.observationSet.some(observation => observation.activity === 'handoff.evaluate'), 'independent evaluator not bound');\n  for (const observation of definition.quality.observationSet) assert(catalog.has(observation.activity), `unknown observer ${observation.activity}`);\n  const profileNames = Object.keys(definition.profiles).filter(name => name !== 'default');\n  assert(profileNames.includes(definition.profiles.default), 'default profile missing');\n  for (const name of profileNames) {\n    const profile = definition.profiles[name];\n    assert.deepEqual(Object.keys(profile.activities).sort(), [...catalog.keys()].sort(), `incomplete activity map ${name}`);\n    for (const legacy of ['skip', 'review', 'verification']) assert(!(legacy in profile), `duplicate control ${name}.${legacy}`);\n    for (const activity of definition.activities) {\n      assert(stages.has(activity.stage), `unknown activity stage ${activity.id}`);\n      assert(!('floor' in activity), `duplicate floor ${activity.id}`);\n      const settings = profile.activities[activity.id];\n      assert.equal(typeof settings.enabled, 'boolean', `missing enablement ${name}.${activity.id}`);\n      if (activity.executor === 'tool') {\n        assert.match(activity.implementation, /^registered:/, `unregistered tool ${activity.id}`);\n        assert(!('model' in settings), `tool model ${name}.${activity.id}`);\n      } else {\n        assert.equal(activity.executor, 'agent', `unknown executor ${activity.id}`);\n        if (settings.enabled) assert(settings.model ?? profile.models[activity.class], `unresolved agent model ${name}.${activity.id}`);\n      }\n    }\n    for (const activityId of definition.repositoryFloor.activities) {\n      assert(profile.activities[activityId].enabled, `disabled floor ${name}.${activityId}`);\n    }\n    assert.equal(profile.budget.scope, 'run', `budget scope ${name}`);\n    assert(['model', 'delivery'].includes(profile.budget.moneyScope), `money scope ${name}`);\n    assert(['strict', 'advisory'].includes(profile.budget.enforcement), `budget enforcement ${name}`);\n    assert(!('elapsed' in profile.budget.limits), `ambiguous elapsed budget ${name}`);\n    assert(profile.budget.limits.agentTime, `missing agent-time cap ${name}`);\n    if (profile.budget.enforcement === 'advisory') assert(profile.budget.hardLimits, `advisory hard limits missing ${name}`);\n    assert.equal(profile.activities['acceptance.cloud-browser'].enabled, false, `M1 cloud acceptance enabled ${name}`);\n  }\n  assert.equal(definition.profiles.fast.activities['review.judge'].enabled, false, 'fast judge enabled');\n  assert.equal(definition.profiles.fast.activities['verification.browser'].enabled, false, 'fast browser enabled');\n  assert.equal(definition.profiles.balanced.activities['verification.browser'].scope, 'affected', 'balanced browser scope');\n  assert.equal(definition.profiles.thorough.activities['verification.browser'].scope, 'whole', 'thorough browser scope');\n  return { stages: stages.size, activities: catalog.size, profiles: profileNames.length };\n}\n\nconst positive = inspectProfile(execution);\nconst faults = [\n  ['missing review edge', draft => { draft.stages.find(stage => stage.id === 'review').after = []; }, /missing shipped edge/],\n  ['stage cycle', draft => { draft.stages.find(stage => stage.id === 'request').after = ['handoff']; }, /stage cycle/],\n  ['legacy schedule target', draft => { draft.policies['onTrigger.schedule'] = draft.policies['onTrigger.*']; delete draft.policies['onTrigger.*']; }, /invalid event target/],\n  ['duplicate skip switch', draft => { draft.profiles.fast.skip = ['review.judge']; }, /duplicate control/],\n  ['missing agent assignment', draft => { delete draft.profiles.fast.models.implement; }, /unresolved agent model/],\n  ['disabled mandatory gate', draft => { draft.profiles.fast.activities['verification.gate'].enabled = false; }, /disabled floor/],\n  ['unproven cloud acceptance', draft => { draft.profiles.fast.activities['acceptance.cloud-browser'].enabled = true; }, /M1 cloud acceptance/],\n  ['embedded organization prices', draft => { draft.rateCard = {}; }, /organization rate card embedded/],\n  ['advisory without hard caps', draft => { draft.profiles.fast.budget.enforcement = 'advisory'; }, /advisory hard limits missing/],\n  ['missing browser resource', draft => { delete draft.activities.find(activity => activity.id === 'verification.browser').resources.browser; }, /missing resource/],\n  ['all tools charged agent slots', draft => { draft.policies['beforeActivity.*'].admission = { pools: ['agent'], budgetFrom: 'profile' }; }, /implicit agent-resource wildcard/],\n  ['unbound independent evaluator', draft => { draft.quality.observationSet = draft.quality.observationSet.filter(observation => observation.activity !== 'handoff.evaluate'); }, /independent evaluator not bound/],\n];\nconst negatives = faults.map(([name, inject, expected]) => {\n  const draft = structuredClone(execution);\n  inject(draft);\n  assert.throws(() => inspectProfile(draft), expected, name);\n  return { name, detected: true };\n});\ninspectProfile(execution);\n\nconst changed = execFileSync('git', ['diff', '--name-only', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim().split('\\n');\nlet localLinks = 0;\nfor (const pathname of changed.filter(pathname => pathname.endsWith('.md'))) {\n  const markdown = readFileSync(resolve(repository, pathname), 'utf8');\n  for (const match of markdown.matchAll(/\\[[^\\]\\n]+\\]\\(([^\\s)]+)(?:\\s+\"[^\"]*\")?\\)/g)) {\n    const target = match[1];\n    if (/^(?:https?:|mailto:|#)/.test(target)) continue;\n    const [localPath] = target.split('#');\n    assert(existsSync(resolve(repository, dirname(pathname), decodeURIComponent(localPath))), `broken link ${pathname}: ${target}`);\n    localLinks++;\n  }\n}\nconst tasks = readFileSync(resolve(repository, 'openspec/changes/twilight-control-plane/tasks.md'), 'utf8');\nassert.equal((tasks.match(/^- \\[x\\]/gm) ?? []).length, 0, 'product work claimed complete');\nconsole.log(JSON.stringify({ boundary: 'temporary documentation probe; not the production compiler or runtime', positive, negatives, localLinks, productTasksUnchecked: (tasks.match(/^- \\[ \\]/gm) ?? []).length }, null, 2));\n",
+  "exitCode": 0,
+  "observations": {
+    "boundary": "temporary documentation probe; not the production compiler or runtime",
+    "positive": {
+      "stages": 10,
+      "activities": 12,
+      "profiles": 3
+    },
+    "negatives": [
+      {
+        "name": "missing review edge",
+        "detected": true
+      },
+      {
+        "name": "stage cycle",
+        "detected": true
+      },
+      {
+        "name": "legacy schedule target",
+        "detected": true
+      },
+      {
+        "name": "duplicate skip switch",
+        "detected": true
+      },
+      {
+        "name": "missing agent assignment",
+        "detected": true
+      },
+      {
+        "name": "disabled mandatory gate",
+        "detected": true
+      },
+      {
+        "name": "unproven cloud acceptance",
+        "detected": true
+      },
+      {
+        "name": "embedded organization prices",
+        "detected": true
+      },
+      {
+        "name": "advisory without hard caps",
+        "detected": true
+      },
+      {
+        "name": "missing browser resource",
+        "detected": true
+      },
+      {
+        "name": "all tools charged agent slots",
+        "detected": true
+      },
+      {
+        "name": "unbound independent evaluator",
+        "detected": true
+      }
+    ],
+    "localLinks": 104,
+    "productTasksUnchecked": 30
+  }
+}

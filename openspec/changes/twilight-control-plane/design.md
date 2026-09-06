@@ -79,10 +79,15 @@ exercise the public operations with independent effect and resource observations
 
 The repository's OpenSpec schema is the artifact dependency source. The
 [execution profile](../../../openspec/schemas/twilight-v1/execution.yaml) beside it
-maps artifacts onto stages, declares activities, assigns policies to lifecycle points,
-registers hooks and defines delivery profiles. The compiler consumes schema,
+owns the stage dependency graph, maps artifacts onto stages, declares activities,
+assigns lifecycle policies, registers hooks and defines delivery profiles. The compiler consumes schema,
 templates, execution profile, repository manifest, provider capability documents and
-referenced skill/prompt versions. It produces a content digest, the resolved
+referenced skill/prompt versions, plus an explicit `organizationSnapshot`: organization
+identity, floor/pool/rate-card revisions and contents with a content digest. The CLI
+requires `--organization-snapshot <path>`; missing, unreadable or corrupt snapshots
+fail before publication. The same Git inputs **and snapshot** reproduce the digest;
+compilation never silently consults a server's latest organization state.
+It produces a content digest, the resolved
 lifecycle graph, effective policies with their origins, artifact requirements,
 capabilities and schema-driven configuration forms. Unknown fields, missing or
 unreadable required inputs, cycles, unsupported controls and a profile below the
@@ -95,35 +100,56 @@ compiler and the first durable loop show what is missing.
 
 ## Stages, activities and the execution profile
 
-The stage vocabulary is one list, owned by `execution.yaml` and reproduced in
-[SDLC stages](../../../docs/twilight-structure/sdlc-stages.md): `request`,
-`discovery`, `specification`, `planning`, `implementation`, `review`,
-`verification`, `acceptance`, `handoff`, and the separate `release` command.
-Artifact ids map onto stages; a stage may exist without an artifact of its own
-(`review`) and an artifact may serve several stages (`verify`). Activities are
-declared in the profile under their stage with a class (`research`, `plan`,
-`implement`, `review`, `judge`, `verify`, `knowledge`). Adding an activity never
-requires a new Markdown artifact.
+`execution.yaml` owns the stage vocabulary and its `stages[].after` DAG;
+[SDLC stages](../../../docs/twilight-structure/sdlc-stages.md) explains each boundary.
+The compiler checks stage and artifact graphs independently: artifact mappings are
+inputs/evidence, never stage edges. Thus specs and design may share a stage without
+a self-cycle, and verification, acceptance and handoff may share `verify.md` without
+losing their order. A stage with only skipped/inapplicable activities retains its
+boundary and dispositions, not fabricated pass evidence. `release` additionally
+requires its human command; readiness alone cannot trigger it.
+
+Each catalog activity names its stage, class and `executor: agent | tool`. A tool
+names a registered implementation; an enabled agent resolves a model from its
+activity override or class default. The compiler emits a total resolved activity
+plan for the selected delivery profile. Adding an activity requires settings in
+each profile, not another Markdown artifact. Conditional applicability is evaluated
+before admission with its reason recorded; it never removes a floor obligation.
+The catalog's `resources` vector is augmented by the registered executor's minimum
+requirements and resolved provider/model rate limits. The compiler emits this
+complete vector; admission does not infer that every tool consumes agent slots.
+The repository gate reserves build/workspace capacity, browser verification reserves
+browser/workspace capacity, and a cloud-browser agent additionally reserves an
+agent slot. Unknown resource kinds or unsatisfied executor requirements fail.
 
 Lifecycle points are the one key space for policies and hooks. A point is
 `<event>.<stage or activity id>`, with `*` matching all. Events: `beforeStage`,
 `afterStage`, `beforeActivity`, `afterActivity`, `beforeTool`, `afterTool`,
 `onFinding`, `onApproval`, `onRework`, `onFailure`, `onCancel`, `onTrigger` and
-`onProfileChange`. Artifact ids are never policy keys, and the profile carries no
-dependency edges; those stay in the schema.
+`onProfileChange`. Artifact ids are never policy keys. `onTrigger` and
+`onProfileChange` take `*` only; a trigger policy selects `triggerKinds` from
+`manual`, `schedule`, `webhook`. Other targets must name a declared stage/activity
+of the event's kind. `onTrigger.schedule` is invalid: schedule is a trigger kind.
 
 A hook registration names an implementation and version, the points it attaches
 to, whether it is mandatory, its timeout and timeout behaviour, its declared
 capabilities and its idempotency class. Registered implementations and sandboxed
 commands are the only kinds in the first release.
 
-Policy scope, most general first: platform floor, organization floor, repository
-(`execution.yaml`), workflow revision, activity, run. Each level may narrow the
-level above; nothing loosens a floor. A run override is a field of the request's
-profile selection and carries a reason. Per-tool policy is a `beforeTool.<activity>`
-point. Presentation is a per-actor preference, not policy, and sits outside the
-chain. Platform and organization floors, capacity pools and the rate card are
-server records edited through their own privileged operations, listed below.
+Policy scope, most general first: platform floor, organization floor, repository,
+workflow revision, activity, run. Defaults are distinct from authority: a lower
+scope may choose higher or lower resource/review settings within current grants,
+capabilities, approved hard caps and floors. `repositoryFloor` is the sole local
+floor declaration; activity flags do not duplicate it. Override rules are described
+under [Profile resolution](#profile-resolution). Per-tool policy uses
+`beforeTool.<activity>`. Presentation stays outside the authority chain.
+
+Organization floors, capacity pools and rate cards are privileged server records.
+Repository capacity settings request bounded defaults; repository files cannot
+publish organization prices or increase pool authority. Publication retains the
+explicit organization snapshot beside the Git candidate so a clean CLI checkout can
+obtain the identical inputs. Later admissions also check current authority and prices;
+their snapshots are retained per attempt without rewriting the compiled definition.
 
 ## Commands and shared contracts
 
@@ -142,7 +168,7 @@ type CommandScope = {
 type ProfileSelection = {
   name: string;
   revision: string;
-  overrides: Partial<DeliveryProfile>;
+  overrides: DeliveryProfileOverrides;
   reason: string | null;
 };
 
@@ -182,24 +208,28 @@ type RunCommand = CommandScope & {
     | { kind: 'changeProfile'; profile: ProfileSelection };
 };
 
-type UsageObservation =
-  | {
-      status: 'measured';
-      inputTokens: number;
-      outputTokens: number;
-      cacheReadTokens: number | null;
-      estimatedCost: Money | null;
-      billedCost: Money | null;
-    }
-  | { status: 'unavailable'; provider: string; reason: string };
+type Observation<T> = { status: 'measured'; value: T } | { status: 'unavailable'; reason: string };
+
+type UsageObservation = {
+  provider: string;
+  inputTokens: Observation<number>;
+  outputTokens: Observation<number>;
+  cacheReadTokens: Observation<number>;
+  cacheWriteTokens: Observation<number>;
+  estimatedCost: Observation<Money>;
+  billedCost: Observation<Money>;
+};
 ```
 
 A `null` plan means discovery has no work plan yet and cannot pass implementation
 admission. `discoveryEnvelope` names an envelope from the profile; `null` selects
 manual authoring only, and automated discovery admission is refused until an
 envelope is chosen. `estimatedCost` is tokens times the rate-card entry pinned at
-admission and is `null` only when no entry exists, which a strict money budget
-refuses at admission. `billedCost` is the provider's figure when it reports one.
+admission; unavailable rates or required token categories leave the estimate
+unavailable with a reason, never zero. Any hard money cap requires a defensible
+priced upper bound before admission. `billedCost` is the provider's reported figure.
+The adapter declares whether cache tokens are included in input tokens and
+normalizes disjoint charge categories before pricing; it cannot count them twice.
 Invalid trusted persisted records throw; modeled request, permission and conflict
 failures return typed responses.
 
@@ -222,6 +252,7 @@ failures return typed responses.
 | `PUT /api/organizations/:id/rate-card`          | `publish_rate_card`    | Rate card (privileged)               | Task 4 |
 | `GET /api/runs/:id/ledger`                      | `read_ledger`          | Run cost and time                    | Task 4 |
 | `GET /api/repositories/:id/outcomes`            | `read_outcomes`        | Profile comparison                   | Task 7 |
+| `POST /api/repositories/:id/defects`            | `report_defect`        | Report defect against a candidate    | Task 7 |
 | `GET /api/evidence/:id`                         | `read_evidence`        | Evidence detail                      | Task 7 |
 | `POST /api/effects/:id/resolutions`             | `resolve_effect`       | Recovery inbox                       | Task 4 |
 
@@ -265,7 +296,7 @@ Repository workflow files are the authored configuration source. Publication
 carries an expected source revision, validates a draft diff, and publishes a
 repository candidate commit through a serialized compare-and-swap. The compiled
 snapshot is an immutable index of that commit and package closure. A clean
-checkout at that revision compiles to the same digest. Activation is an explicit
+checkout with the retained organization snapshot compiles to the same digest. Activation is an explicit
 server record; a Git edit alone activates nothing. Active runs keep their pinned
 snapshot; current authority still constrains them (next section).
 
@@ -373,8 +404,9 @@ Mandatory hooks return typed allow/deny/error and deny on timeout; optional hook
 may report `degraded` visibly. Critics inspect evidence within read scopes and hold
 no decision authority; judges assess attributed findings against pinned, versioned
 rubrics; a safety critic is a critic with a safety rubric, not a separate authority.
-Authors never judge their own deliverable. Dissent is kept. The number of critics,
-whether a judge runs and the revision-round limit come from the delivery profile;
+Authors never judge their own deliverable. Dissent is kept. The critic count and
+judge enablement come from the resolved activity plan; the revision-round limit is
+the delivery profile's `rework.maxRounds`;
 exhausting the rounds pauses the run with the finding, consumed budget and next
 authorized action visible.
 
@@ -385,7 +417,7 @@ workflow inadmissible, and compile-time validation names the gap.
 
 Admission reserves a vector atomically before launch: agent slots, provider and
 model rate and token limits, workspace writer ownership, build and browser slots,
-and the profile's budget. Starting counts as occupied. Queue order is
+and an attempt allowance from the run budget account. Starting counts as occupied. Queue order is
 deterministic priority plus aging with per-client ceilings; one reviewer slot is
 reserved when fan-out could exhaust worker capacity. Paused human decisions hold
 no worker. Measured consumption reconciles against reservations and never
@@ -394,40 +426,163 @@ elapsed queue time and WBS workdays stay distinct quantities (A12).
 
 ## Levers, ledger and outcomes
 
-The levers a person tunes are cost in money and time, model choice, review and
-verification depth, skipped activities and fan-out. Four objects make each lever a
-setting with a feedback loop, all versioned and inspectable through FE, BE and MCP:
+The [execution profile](../../../openspec/schemas/twilight-v1/execution.yaml)
+defines available fields and starting values; the
+[spec](specs/twilight/control-plane/spec.md) owns their behavioral guarantees.
+The following mechanisms connect settings to accounting and comparison.
 
-- **Delivery profile.** A named bundle in `execution.yaml` `profiles`: model and
-  effort per activity class with an escalation ladder (cheaper first, escalate on
-  refusal, gate failure or blocking finding, bounded steps), review depth, verification
-  tiers and browser-gate mode, skipped activities, fan-out, budget in tokens, money
-  and elapsed time, and a deadline. A request selects one and may override fields
-  downward with a reason; a run may change profile mid-flight through `command_run`,
-  which is an `onProfileChange` event so cost curves split at the boundary. Skipping
-  an activity the profile includes is a recorded decision. Nothing overrides the
-  repository floor or an organization floor.
-- **Rate card.** Per provider and model revision: input, output and cache prices
-  with an effective date, published by the organization. Estimated money is tokens
-  times the entry pinned at admission. Provider-billed cost reconciles against it and
-  never overwrites it. A money-budgeted profile whose models have no entry fails
-  compilation; a strict budget refuses admission without one.
-- **Run ledger.** Per activity attempt: planned, reserved and measured tokens, money,
-  agent elapsed time, queue wait, human wait and human minutes, the model that
-  actually served the attempt, the escalation step if any, and the profile revision
-  in force. Aggregates roll up to run, request and repository.
-- **Outcome record.** Per run and candidate: accepted or not, rework rounds,
-  findings by severity, gate failures, activities skipped and by whom, escaped defects
-  reported within the configured window, and estimate versus actual per task. Each
-  record names the profile revision, so `read_outcomes` can compare cost, time and
-  quality across profiles and answer whether a cheaper model or a skipped review
-  cost more in rework than it saved.
+### Profile resolution
 
-A quality figure cannot improve by weakening its rubric or deleting a failing
-observation (A21 applies to profiles as it does to self-improvement). Proposals to
-change a profile default are ordinary work requests evaluated against pinned
-outcome data. Estimates in `tasks.md` are calibrated from the ledger, never
-overwritten by it.
+`ProfileSelection.overrides` merges maps by key, replaces scalar values and arrays,
+and inherits unspecified fields. Unknown fields fail validation. Per-activity
+model assignments replace the class default; models/effort are capability-checked
+choices, not an ordered cost or quality scale. Escalation is the selected bounded
+ladder, never an implicit provider fallback. Profiles can increase or decrease
+model capability, critic count, optional verification and fan-out within the same
+authority boundary; a profile's defaults do not become limits.
+
+The total `activities` map alone controls enablement and depth. `review.critic.count`
+is positive when enabled and zero when disabled; tool activities cannot carry model
+settings. `verification.gate` invokes the repository's full integrated gate;
+optional browser work uses `verification.browser.scope`. Cloud acceptance is
+explicitly disabled in M1 and enabled only when Task 13 proves its adapter. There
+is no second top-level `skip`, `review` or `browserGate` setting to reconcile.
+Invalid combinations and disabling a floor activity are rejected, not normalized.
+
+Each accepted profile change creates a profile epoch containing the resolved
+settings, digest and effective transition. It affects only work not yet admitted,
+after authority validation and required reapproval. Running/draining attempts keep
+their epoch and reservations. A lower fan-out queues new work until occupied slots
+drain. Budget consumption, unresolved holds, consumed rework rounds and the original
+run start survive every epoch; exhausted rounds with a blocker pause the run.
+`skipActivity` produces the same audited enablement override and can affect only an
+unadmitted activity. It cannot remove existing findings, completions or evidence.
+
+Approval validity is checked against the **attempt's epoch and action**. Changing
+only the profile creates a new subject for unadmitted work; an old epoch's approval
+remains usable solely by already-admitted attempts whose candidate, capabilities
+and reserved allowance are unchanged. Their next effect can dispatch while the new
+epoch awaits approval. Expiry, explicit revocation, source/scope change or tighter
+floors still fence those attempts through current authority. Neither epoch's
+approval authorizes the other; new admissions always need the current subject.
+
+### Budget accounts and clocks
+
+Each run has one budget account. Discovery is a suballocation of that account;
+its envelope's `allowance` is an additional limit, with the same money scope and
+an expiry relative to original run creation, never independent spending authority.
+Children, retries, escalation, rework and cancellation/drain all charge it. Creating
+a replacement run needs distinct explicit spending authority; retries cannot obtain
+fresh budgets by changing run identity. Admission atomically holds a conservative
+**attempt allowance**, not the full delivery-profile budget, in every required unit:
+
+`available = hard cap − settled consumption − outstanding holds`
+
+Unknown consumption retains its hold. A cap change from $12 to $40 with $10 settled
+and $1 held leaves $29 available; setting a cap below $11 is refused. No rate, model
+or profile change clears the account. Holds include bounded cancellation/drain
+costs; without a defensible reservation and stopping mechanism, hard-budget
+admission fails. Reaching a hard cap stops new dispatch and pauses unresolved work.
+
+`budget.scope` is `run`. Under `enforcement: strict`, `limits` are hard caps. Under
+`advisory`, they are warning targets and an explicit same-unit `hardLimits` vector
+at least as large is required; advisory never grants unbounded spend. Crossing a
+target records an overrun and continues only within the authorized hard vector.
+All supplied dimensions constrain admission; changing the mode/caps uses the same
+approval subject as changing a model. For example, an $8 advisory money target
+inside a $12 hard cap warns after $8 and stops new spend at $12.
+`budget.moneyScope` explicitly selects `model` spend (the shipped defaults) or
+`delivery`, which includes tool/service/human charges and requires defensible
+bounds for all of them. Changing the scope changes the approval subject and
+rechecks all prior charges and holds in the new scope; missing history refuses it.
+
+| Quantity                  | Clock and aggregation                                                                                                                                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `budget.limits.agentTime` | Add occupied agent-session intervals across attempts, including provider/tool wait while occupied; exclude pre-launch queues and human-only pauses without a worker. Tool-only activity duration is separate. |
+| Run wall elapsed          | Original `createdAt` to terminal time or the query's `asOf`; includes queueing, approval waits, pauses, drain and recovery.                                                                                   |
+| `deadline`                | Duration from original `createdAt`; changing it never resets the start. Expiry pauses new dispatch and drains existing work within its holds. A duration already elapsed is refused on profile change.        |
+| Queue wait / human wait   | Per-attempt intervals; run totals union intervals within each kind. They can overlap execution or each other and are never summed into wall elapsed.                                                          |
+| Human minutes             | Explicit measured effort, never inferred from approval waiting.                                                                                                                                               |
+
+Four concurrent 30-minute agent sessions consume 120 agent-minutes and about 30
+wall-minutes. Each quantity carries timestamps, units and unavailable reasons;
+resuming a run does not restart any cumulative clock.
+
+### Pricing and the ledger
+
+The organization snapshot used at compilation supplies prices for enabled agent
+choices and permitted escalation. Disabled choices are revalidated when enabled.
+Admission pins the current rate-card entry and snapshot on the attempt, with
+effective date and disjoint input/output/cache-read/cache-write prices. A price
+change re-evaluates the next attempt's reservation; admitted attempts keep their
+original estimate and actual billed reconciliation. No historical repricing occurs.
+
+Per-attempt ledger observations preserve planned, held and measured quantities,
+serving model, escalation step, rate-card revision and profile epoch. Missing token
+telemetry does not erase a separately reported billed amount. Token-priced money
+is labeled **model spend**; known tool/service charges and human costs are separate
+categories, with coverage shown when total delivery cost is incomplete. Monetary
+reservation bounds include every charge category inside the authorized budget's
+scope; an unknown charge is not free. Aggregates retain units and coverage through
+run, request and repository roll-ups, including failed/cancelled attempts and runs.
+
+A charge record is keyed by run, attempt, logical effect and charge category, with
+currency, a conservative maximum, quoted/rate revision, observed amount or unavailable
+reason, and source receipt. Organization snapshots supply non-model rates as
+`{category, service, unit, price, effectiveFrom}`; supported units are per request,
+service minute and human minute. An alternative binding quote supplies a maximum
+amount with expiry. Adapters advertise whether the bound and stopping mechanism
+cover all effects they can cause. Settlement uses provider receipts or approved human
+effort and retains the hold if either is missing. Shared invoices need explicit
+charge allocations whose sum matches the invoice; unallocated charges keep history
+incomplete. Model-to-delivery scope changes resolve the complete charge inventory
+before reapproval; unsupported services or missing history refuse the change.
+
+### Comparable outcomes
+
+Every terminal run gets an outcome record; later defect reports append revisions.
+The record retains all ordered profile epochs and identifies single-profile or
+mixed-profile work. Attempt cost follows its epoch; a fast implementation recovered
+under thorough is a mixed outcome, not a win or loss attributed wholly to either.
+Request cost includes unsuccessful runs. Cost per accepted outcome includes their
+cost in the numerator; no accepted outcome gives an unavailable ratio, not zero.
+
+`execution.yaml.quality` is the canonical authored evaluation definition. Its initial
+`delivery-baseline` binds the independent `handoff.evaluate` task-acceptance tool
+and the integrated gate. Task 8 supplies two clean instances of one versioned task
+fixture and its independently authored assertions; an unavailable task oracle is
+recorded as unavailable. The evaluator's tool activity consumes its catalog resources
+and charges the same budget account. It may be skipped when the floor allows it;
+that loses comparison coverage rather than manufacturing a passing assessment.
+
+The existing workflow preview/publication operations carry evaluation edits.
+Changing `quality` requires the organization's evaluation-publisher capability and
+a subject-bound human decision. The compiler hashes the complete definition, rubric
+and observation set into separate immutable revisions. `submit_request` pins these
+from the selected compiled workflow; cohort identity also pins the task fixture's
+digest. Neither a worker nor a delivery-profile override selects a different judge.
+
+An independent evaluation revision pins the rubric, required observation set,
+task/cohort identity, accepted-outcome definition and defect window. `quality` in
+the execution profile owns this shared definition, not delivery-profile overrides.
+Publishing a changed evaluator preserves prior observations and creates a separate
+comparison cohort. M1 runs the same fixed evaluator on both delivery profiles;
+larger optimization and promotion remain later work.
+
+Each expected observation is passed, failed, skipped or unavailable. Defect records
+show accepted time, observation coverage, `observedThrough`, and whether the window
+is still open, mature or incomplete. No reports in an immature/unobserved window
+are not evidence of zero defects. `read_outcomes` shows all records but ranks only
+matched tasks/cohorts with compatible definitions and exposure; mixed-profile and
+incomparable observations remain visible outside single-profile comparisons.
+Sample counts and denominators accompany comparisons. Two runs prove the plumbing,
+not enough evidence to replace profile defaults automatically.
+
+`report_defect` accepts an authorized candidate reference, source evidence,
+`reportedAt`, expected outcome revision and idempotency key through FE/BE/MCP.
+The server validates repository/candidate lineage and records the report once;
+linking it to an outcome asserts no causal blame for a particular model. Estimates
+remain alongside actuals; profile-default changes are ordinary evaluated work requests.
 
 ## Planning, knowledge and client portability
 
@@ -448,7 +603,7 @@ its own task without the required evidence.
 
 WBS planning capacity and Twilight admission are different quantities. The
 reconciliation contract is: a `WorkPlan` carries resource units per task in A12's
-vocabulary (human minutes, agent elapsed, tokens, money, slots) beside WBS workdays;
+vocabulary (human minutes, agent time, tokens, money, slots) beside WBS workdays;
 Twilight reserves against its pools from those units and writes measured usage back
 as a progress receipt; no unit is converted into another implicitly. Task 2 owns
 the port shape and Task 9 the round trip through Backlog.

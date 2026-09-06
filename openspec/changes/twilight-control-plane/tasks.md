@@ -10,10 +10,10 @@ Each task names the spec requirements it proves; the
 
 All numerical effort/capacity values below are **planning estimates**, not measured
 performance or spending authority. The actor executing an increment receives an
-explicit delivery profile with its budget. Record actual rate-card entries at
-admission, observed tokens, human effort, elapsed time and review cost separately
-in the run ledger. No automatic spending when a budget is missing. The repository
-gate (`bunx nx format:check --all`, `bunx nx run-many -t test lint typecheck build`,
+explicit delivery profile and run budget account. Record pinned organization rates,
+model tokens, known tool/service cost, agent time, run elapsed and human effort as
+their distinct quantities. No automatic spending when budget authority is missing.
+The repository gate (`bunx nx format:check --all`, `bunx nx run-many -t test lint typecheck build`,
 `openspec validate --all`; `bin/h2puni-gate.sh` on h2puni) and R5 failure proofs apply.
 
 ## Milestones and ordering
@@ -67,17 +67,24 @@ shipped `openspec/schemas/twilight-v1/execution.yaml`, which this task turns fro
 proposed document into a validated input. Fold Nx/tsconfig setup into this task.
 
 **Depends on:** M0. **Produces:**
-`compileWorkflow(inputs: WorkflowInputs): CompiledWorkflow`, `CheckpointPort` with
+`compileWorkflow(inputs: WorkflowInputs): CompiledWorkflow`, whose inputs include an
+explicit immutable organization snapshot, `CheckpointPort` with
 persisted run/thread/revision identity, selected package pins and a compatibility
 record, and `WorkflowRestore.restoreRun(runId)` as the only checkpoint-loading
 entry, owning executable resolution, compatibility and revision reconciliation.
 The runtime-validated input schema is canonical.
 
-**Acceptance:** same inputs yield the same digest, forms and effective policies
-with origin scope; a changed prerequisite changes the digest; unknown fields and
-unrepresentable policies are errors. Package selection uses current primary
-release/API docs, respects the LangGraph JS floor that node timeouts and cooperative
-drain require (research recorded `>= 1.4.0`; verify against the release at
+**Acceptance:** the same Git inputs and organization snapshot yield the same digest,
+forms, resolved activity plan and effective policies with origin scope; changing
+either changes the digest. The compiled stage DAG follows `stages[].after`, retains
+ordering boundaries for disabled stages and cannot auto-start the release command;
+artifact readiness edges never become stage edges. Profiles resolve a total activity
+map: agent activities have an allowed class/per-activity model, tool activities have
+a registered implementation and no model, and floors remain enabled. Unknown fields,
+cycles, incomplete maps and inconsistent activity settings are errors. Package
+selection uses current primary release/API docs, respects the LangGraph JS floor
+that node timeouts and cooperative drain require (research recorded `>= 1.4.0`;
+verify against the release at
 selection time) and records actual lockfile pins. Start with synchronous
 checkpointing and change only on the driver's crash-test evidence. Prove the
 selected pair runs under Bun, persists before interrupt, and resumes after process
@@ -86,13 +93,30 @@ store before changing runtime language; record that decision before Task 3.
 
 **Tests:** `compile rejects unreadable required template`, `compile rejects
 unsupported beforeTool policy`, `compile rejects a hook point naming an undeclared
-activity`, `compile rejects a profile override below the repository floor`,
-`compile rejects a money-budgeted profile whose model has no rate-card entry`,
-`checkpoint resumes the same pending decision after SIGKILL`. Delete the required
-input/make it unreadable in separate probes; replace the durable saver with memory
-and observe the restart test fail; remove the floor check and the rate-card check
-separately and observe each negative pass, then restore. This does not yet prove
-external-effect deduplication.
+activity`, `compile rejects an override below a floor`, `compile rejects an enabled
+money-capped model without an organization rate`, and `checkpoint resumes the same
+pending decision after SIGKILL`. The CLI requires `--organization-snapshot`; missing,
+unreadable, wrong-organization and digest-mismatched snapshots fail with no embedded
+fallback. Replace `onTrigger.*` with undeclared `onTrigger.schedule` and require the
+compiler error to name that point. Remove one `after` edge and separately derive
+stage order from artifact requirements: the compiled edge-set or
+cycle/missing-order assertion must fail.
+Delete an activity entry,
+enable cloud acceptance without its agent-class model, attach a model to the fixed
+tool gate, and disable a floor activity; each must fail the profile-completeness
+oracle. Pin the built-in matrix: thorough browser scope is whole, balanced is
+affected, fast browser/judge/discovery review/specification critique are disabled,
+the critic remains enabled, cloud acceptance is disabled until M4, and every profile
+runs the fixed integrated gate with no depth control. Delete the required input/make
+it unreadable in separate probes; replace the durable saver with memory and observe
+the restart test fail; bypass the floor/rate checks separately and observe their
+negatives fail. This does not yet prove external-effect deduplication.
+
+Resolve `quality` through the same workflow publication: hash its definition,
+rubric and observation set, require evaluation-publisher capability plus a human
+decision on changes, and pin those hashes at request creation. Mutate a rubric
+without changing its digest and bypass publication authority separately; the digest
+and denied-publication assertions must fail. Task 7 supplies its registered observer.
 
 Retain controller/graph, compiler, runtime/lock, serializer/saver, application schema
 and hook/adapter digests. Exercise an old pending-approval checkpoint on a compatible
@@ -104,7 +128,8 @@ must increment it after approval. Bypass compatibility to prove those assertions
 can fail. Task 8 adds the uncertain-effect upgrade/rollback fixture once Task 4 exists.
 
 **Commands established by this task:**
-`bunx nx run tool-twilight:compile -- --repository <fixture> --json` and
+`bunx nx run tool-twilight:compile -- --repository <fixture>
+--organization-snapshot <snapshot> --json` and
 `bunx nx test twilight-runtime`. Add lint and source/spec typechecks that compile
 actual files; inject a deliberate type error to prove those targets see them.
 
@@ -226,9 +251,15 @@ Relax a floor and ask for a capability outside the original approval: still refu
 Remove the current/pinned intersection and observe each negative fail.
 
 3.4: derive actor from verified auth; validate the request boundary once. A request
-names its delivery profile, revision and downward overrides with a reason; the
-approval subject digest covers plan, compiled workflow, profile revision with
-overrides, budget, environment and capabilities. Persist decision attempts, subject
+names its delivery profile, revision and keyed overrides with a reason. Overrides
+replace named scalar/map fields, replace arrays wholesale and inherit unspecified
+fields; unknown keys and inconsistent activity controls are refused. They may move
+in either direction within allowed provider/model/effort capabilities, current
+grants, immutable floors and approved spending; categorical models have no inferred
+cheaper/better order, and profile defaults are not authority limits. The approval
+subject digest covers plan, compiled workflow, resolved activity/model settings,
+profile revision, budget, environment and
+capabilities. Persist decision attempts, subject
 revision/digest, expiry, policy revision and effect scope. Return 409 for stale
 revision, 403 for insufficient scope, 422 for invalid workflow or profile
 combination. All writes deduplicate command IDs with parameter digests. Exercise
@@ -237,8 +268,24 @@ lost response then exact retry after expiry returns one receipt and one admissio
 consumed token with another key, changed parameters or wrong consumer is refused;
 an expired unconsumed token is refused. Inject consumed-token checking before
 exact-retry lookup and observe the lost-response test fail; bypass token-to-command
-binding and observe the different-command test fail. A budget or model change
-after approval marks the approval stale and records `onProfileChange`.
+binding and observe the different-command test fail.
+
+An accepted profile change creates an immutable profile epoch for work not yet
+admitted and requires the subject reapproval already specified. Running/draining
+attempts retain their epoch and reservations; usage, holds, rework and the original
+run clock never reset. Ordinary profile publication affects new runs only. Reduced
+fan-out queues surplus new attempts. `skipActivity`
+is the same audited activity-enable override, cannot target running/completed work,
+and cannot erase findings or stale evidence. Hold one attempt running and one queued
+across a change, then assert their different epoch digests and one cumulative budget
+account. Inject an in-place mutation of the running attempt, a rework reset and a
+second skip-state field; each must fail its persisted-transition oracle.
+
+Record an epoch-A effect intent, publish a profile-only epoch B awaiting approval,
+then dispatch A under its unchanged decision: A reaches the receiver once, B never
+starts. Repeat with A's decision revoked before dispatch: no request arrives.
+Inject run-wide approval invalidation and cross-epoch approval reuse separately;
+the positive-A and denied-B receiver counts must detect each fault.
 
 Implement `revise_artifact` and `adopt_plan` with expected revisions, coverage and
 resource validation. A new request uses its selected discovery envelope for
@@ -294,7 +341,8 @@ halves) (A41, A46).
 `admitActivity(command: AdmissionRequest): Promise<AdmissionDecision>`,
 `dispatchEffect(request: EffectRequest): Promise<EffectOutcome>`,
 `reconcileEffect(effectId: string): Promise<EffectOutcome>`, `settleAttempt`,
-`recordLedgerEntry`, and the `get_capacity`, `set_capacity`, `publish_rate_card`,
+one run-scoped `BudgetAccount`, `recordLedgerEntry`, and the `get_capacity`,
+`set_capacity`, `publish_rate_card`,
 `read_ledger` and `resolve_effect` operations. Intent persistence, provider
 transport, fence/authority validation and resource release are private to effect
 execution. Admission outcomes are `queued`, `admitted`, `denied`; effect outcomes
@@ -302,9 +350,16 @@ execution. Admission outcomes are `queued`, `admitted`, `denied`; effect outcome
 
 **Tests (4.1):** barrier-synchronized concurrent requests for one remaining slot;
 two pools with one unavailable (no partial reservation); expired owner tries to
-publish/free a replacement lease; fan-out beyond the profile holds the surplus as
-`queued` naming the profile; queue aging/client ceilings, reviewer reservation and
-hold-free waiting on a human decision.
+publish/free a replacement lease; fan-out beyond the active profile epoch holds the
+surplus as `queued` naming that epoch; queue aging/client ceilings, reviewer
+reservation and hold-free waiting on a human decision. Reducing fan-out below the
+occupied count starts no replacement until occupancy falls; erase occupied slots on
+the profile change and watch the launch-count oracle fail.
+
+Occupy every agent slot and admit the tool-only repository gate with a free build
+slot: it starts without an agent lease. Compete two browser gates for one browser
+slot and admit only one. Inject the old agent wildcard and remove the browser
+resource demand separately; launch counters must observe both errors.
 
 **Tests (4.2):** SIGKILL after an external fixture server records success but
 before acknowledgment; cancellation while the worker ignores its first signal. The
@@ -331,15 +386,36 @@ evidence references and the three dispositions; exercise acknowledgment loss wit
 a provider lacking a receipt query, refuse a second resolution as stale, and prove
 confirming non-application grants no new dispatch.
 
-**Tests (4.3):** every settled attempt has a ledger entry with planned, reserved
-and measured tokens, estimated money from the pinned rate-card entry, billed money
-when reported, agent elapsed, queue wait, human wait, serving model and profile
-revision; unknown usage with a strict budget refuses admission unless a defensible
-reservation and stop mechanism exist; measured usage never overwrites the estimate
-(inject an overwrite and watch the planned-versus-measured assertion fail); a
-provider-billed figure reconciles beside the estimate; a rate card change after
-admission does not reprice the attempt; `set_capacity` and `publish_rate_card`
-refuse a non-administrator and are evented.
+**Tests (4.3):** exercise the run-account, hard/advisory limit, pricing and clock
+rules in the [capacity/budget requirement](specs/twilight/control-plane/spec.md#requirement-capacity-and-budget-admission).
+With cap 40, settled 10 and held 1, 29 is admissible, 30 is not, and a cap below 11
+is refused. Discovery, retries, children and cancellation share that account id.
+Mint an account on retry and bypass the hold separately; the stable
+account-id and receiver-count oracles must fail. Advisory without finite hard limits,
+hard limits below/dimensionally different from their targets, unknown spend without
+a defensible hold/stop, and new dispatch at cap are refused;
+target crossing only warns. Four parallel 30-minute agent sessions report 120 agent
+minutes and 30 wall minutes. A profile change cannot reset original run/deadline
+time; inject summed parallel intervals and a reset clock to fail those exact duration
+and launch assertions.
+
+For `moneyScope: delivery`, supply known tool/service/human charges beside model
+spend and assert all charge the cap; inject omission of a tool charge to admit an
+over-budget dispatch and fail the receiver-count oracle. Switching from model to
+delivery scope with missing historical charges is refused; complete history carries
+those charges and holds into the same account. A model-spend cap is labeled as such.
+Retain stable charge identities, quote/rate revisions, maxima and receipt allocations;
+retry a charge report without double settlement, refuse a service with no bounded
+charge capability, and leave a shared invoice incomplete until its allocations sum
+to the bill. Inject duplicate settlement and a missing-allocation-as-zero fault;
+the account total and refused scope-change assertions must move.
+
+Ledger entries retain profile epoch, actual timestamps, planned/reserved/measured
+token categories, pinned estimated money, separate billed/tool/service cost, waits,
+agent time, serving model and availability. Inject measured-overwrites-planned,
+input-plus-cache double charging and unknown-as-zero; each fails its field assertion.
+Current rates re-evaluate new holds without repricing settled attempts.
+`set_capacity` and `publish_rate_card` refuse a non-administrator and are evented.
 
 **Estimate:** 12–22 human hours; 3–7 agent hours; 200k–560k tokens, one build slot
 and two lightweight child-process slots for race tests.
@@ -385,14 +461,25 @@ remote slot remains visibly held. Start the browser journey with no artifacts or
 plan: create/revise intent/specs/tasks in the workbench or via authorized
 discovery, adopt the complete plan, and approve its exact revision through real
 operations. Include recovery inbox resolution, a skip of a non-floor activity with
-a reason, and a mid-run profile change that stales the approval.
+a reason, and a mid-run profile change that stales the approval. Both clients show
+the resolved total activity plan, per-activity model replacements, budget account,
+deadline origin and ordered profile epochs; a mixed-epoch run is never presented as
+single-profile. Change a profile while an activity is held running and assert the UI
+and MCP retain its old epoch while the queued activity shows the new one; collapse
+both onto latest-profile and watch the parity assertion fail.
 
-**Tests (5.3):** publishing a workflow creates canonical repository inputs: check
-out the published revision and compile with the CLI to the same digest; race a
-competing Git edit and require conflict rather than divergent policy. Configuration
-preview shows every setting's effective value, origin scope and floor; a forbidden
-override is rejected through FE and direct MCP; `publish_floor` by a non-administrator
-is refused and a tightened floor constrains a queued run.
+**Tests (5.3):** publishing a workflow creates canonical repository inputs and pins
+the immutable organization snapshot it used: check out the published revision and
+compile with that snapshot to the same digest; omission, wrong organization and a
+competing Git edit refuse rather than selecting defaults or divergent policy.
+Configuration preview shows repository requests separately from organization
+floor/pool/rate authority, plus every resolved setting's effective value, origin and
+restriction. Exercise scalar/map replacement, whole-array replacement, inheritance,
+unknown keys and both authorized directions without a model-order heuristic. A floor
+violation is rejected through FE and direct MCP; `publish_floor` by a
+non-administrator is refused and a tightened floor constrains a queued run. Remove
+the snapshot pin or merge arrays by index and watch digest parity or resolved-plan
+equality fail.
 
 **Tests (5.4):** the focus brief carries the same failure and decision as the full
 view, offers one next action, retains full evidence access, and resumes after
@@ -429,6 +516,14 @@ transport ACP. The unselected provider is Task 11's second adapter candidate.
 `agy` remains unavailable until its own adapter passes the same suite. A second
 provider must not inherit the first's resume/permission/usage claims.
 
+Dispatch consumes the compiled total activity plan. Agent activities resolve the
+active epoch's per-activity setting before its class default; tool activities invoke
+only their registered implementation and reject model settings. Disabled activities
+record their disposition without dispatch, while a mandatory activity cannot be
+disabled. Run one agent and the fixed repository gate as positive controls; inject a
+model fallback outside the declared ladder and a tool-as-agent dispatch, then observe
+the serving-model or tool-invocation counters fail.
+
 6.1: use a deterministic fake ACP process for protocol/error tests: disconnect/
 resume/reconcile, duplicate start, cancelled process exit, malformed protocol
 frame, denied tool call, missing usage under strict budget, explicit unsupported
@@ -457,11 +552,14 @@ new external action: the broker fence must deny it. Prove workspace reuse waits 
 all old writable access to be detached, and local exit cannot release an
 independently still-active provider session.
 
-Escalation: run an `implement` attempt under a profile whose ladder has one step;
+Escalation: run an `implement` attempt under a profile epoch whose ladder has one step;
 force a gate failure and assert the retry is a new attempt on the escalated model,
-both attempts carry their own measured usage and serving model in the ledger, and
-no third step occurs. Remove the `maxSteps` check and watch the no-third-step
-assertion fail. No real client secrets in this fixture.
+both attempts carry their own measured usage, serving model and same run budget
+account in the ledger, and no third step occurs. Change profile after the first
+attempt and prove only the not-yet-admitted retry sees the new epoch after required
+reapproval. Remove the `maxSteps` check, reset spend on retry, and silently downgrade
+the model separately; watch the no-third-step, account-total and serving-model
+assertions fail. No real client secrets in this fixture.
 
 **Estimate:** 10–22 human hours; 3–7 agent hours; 170k–500k tokens plus separately
 admitted live-provider spend; one provider slot and isolated workspace.
@@ -472,28 +570,42 @@ Proves: Hooks, critics and judges preserve authority; Observable evidence with
 focus access; Lifecycle points are the one key space (`onRework`); Levers are
 configurable and their effects are measured (outcome half) (A48).
 
-- [ ] 7.1 Run mandatory pre/post hooks, one critic and one judge with source-bound evidence and profile-bounded rework.
-- [ ] 7.2 Persist redacted evidence, durable event cursors and the outcome record; expose `read_outcomes`.
+- [ ] 7.1 Run mandatory pre/post hooks and profile-selected critics/judge with source-bound evidence and bounded rework.
+- [ ] 7.2 Persist redacted evidence, durable event cursors, terminal outcomes and defect reports; expose their shared operations.
 
 **Owns:** `libs/twilight-runtime/src/hooks/registry.ts`,
 `libs/twilight-domain/src/review.ts`, `outcome.ts`,
 `libs/twilight-runtime/src/evidence/store.ts`, `redact.ts`,
-`apps/twilight-be/src/events.ts`, `evidence.ts`, `outcomes.ts`,
+`apps/twilight-be/src/events.ts`, `evidence.ts`, `outcomes.ts`, `defects.ts`,
+`apps/twilight-fe/src/routes/evidence.tsx`, `apps/twilight-mcp/src/server.ts`,
 `apps/twilight-be/src/review-flow.db.test.ts`,
 `apps/twilight-fe/e2e/evidence.spec.ts`.
 
 **Depends on:** Tasks 5–6. **Produces:** attributed finding/verdict records, durable
 scoped event cursors, evidence manifests, hook outcomes and outcome records shared
-by all clients, plus `list_run_events`, `read_evidence` and `read_outcomes`.
+by all clients, plus `list_run_events`, `read_evidence`, `read_outcomes` and the
+idempotent revision-checked `report_defect` operation across FE, BE and MCP.
 Mandatory deterministic checks run outside model authority. A safety critic is a
 critic with a safety rubric, not a credential broker or final approver.
+
+Implement `registered:task-acceptance` for the `handoff.evaluate` tool activity.
+It reads independently authored assertions from the pinned task fixture, charges
+its resource/cost usage to the run, and reports unavailable when no oracle exists.
+The initial evaluator comes from the compiled `quality` subtree; workflow edits
+publish it through Task 5's shared editor/operations under Task 1's authority checks.
+Both M1 profile runs use clean instances of one task fixture/digest and evaluator.
+Skip the observer in a third fixture: handoff may still satisfy the floor, but
+comparison requiring its missing observation stays unavailable. Inject a synthetic
+pass for absent assertions and watch that eligibility assertion fail.
 
 **Tests (7.1):** required hook timeout/malformed output keeps the independent
 worker launch counter at zero; optional notification fails visibly as degraded;
 post-hook failure after an effect does not replay the effect; author cannot act as
-independent reviewer; the profile's configured rounds leave a blocker paused, and
-the `onRework` policy is evaluated with the round number (inject a round counter
-that never increments and watch the pause assertion fail). Stale evidence, wrong
+independent reviewer; disabled judge means no judge dispatch while an enabled critic
+still records findings. Rework counts already-consumed rounds across profile epochs;
+zero allows no rework, and exhaustion leaves a blocker paused. The `onRework` policy
+is evaluated with the round number: reset it on profile change and watch the
+pause/attempt-count assertion fail. Stale evidence, wrong
 repo and wrong revision cannot close a task. A prompt-injection source asking to
 weaken the rubric is retained as text and changes no authority.
 
@@ -501,12 +613,22 @@ weaken the rubric is retained as text and changes no authority.
 in persisted blobs, events, error messages and exported bundle, while redaction
 metadata is present; remove redaction at the persistence boundary and watch the
 storage assertion fail. Cursor replay after reconnect yields the same events;
-expired cursor explicitly requests resync. The outcome record for a completed run
-names its profile revision, rework rounds, findings by severity, gate failures,
-skipped activities with deciders and estimate versus actual per task; a skipped
-`review.judge` appears with its actor and reason; a defect reported inside the
-escaped-defect window attaches to that run. Delete the skip record and watch the
-outcome assertion fail. No private model reasoning is part of the contract.
+expired cursor explicitly requests resync.
+
+Exercise the [independent evaluation and outcome rules](specs/twilight/control-plane/spec.md#requirement-levers-are-configurable-and-their-effects-are-measured)
+for every terminal accepted, failed or cancelled run/candidate. Pin definition and
+ordered profile epochs, keep incomplete/immature quality unknown, and compare only
+matched mature cohorts. Delete failed-run cost, relabel a mixed run as
+single-profile, mature the defect window at acceptance, and drop a skipped
+observation separately; each must fail its aggregate, ranking, maturity or
+observation-count oracle. Zero accepted outcomes makes cost-per-accepted unavailable.
+
+`report_defect` appends a versioned report with command id, expected revisions,
+scope, source evidence, `reportedAt` and accepted-candidate lineage; it never infers
+that a model caused the defect. Exact retry returns one report, wrong repository or
+lineage is refused, and publication updates the outcome version. Remove source
+evidence or auto-assign the currently serving model and watch the persisted report
+assertion fail. No private model reasoning is part of the contract.
 
 **Estimate:** 10–20 human hours; 3–6 agent hours; 150k–420k tokens, one reviewer
 slot reserved alongside the implementation slot.
@@ -528,12 +650,21 @@ and the change's eventual `verify.md`/runbook updates.
 **Depends on:** Tasks 1–7.
 
 8.1: test a real harmless source change through request, assumption,
-specification, plan approval, ACP execution, critic/judge, integrated gate and
-knowledge reconciliation, once under `balanced` and once under `fast`. Interrupt
+specification, plan approval, ACP execution, profile-selected review, the fixed
+integrated gate and knowledge reconciliation, once under `balanced` and once under
+`fast`. Balanced runs one critic and judge with affected browser verification; fast
+runs its critic with no judge or browser verification. Cloud acceptance is disabled
+for both until Task 13 enables and proves it. Assert activity dispositions and
+independent dispatch/session counters; enable fast's judge or either profile's cloud
+acceptance as injected faults and observe those counters increment or the unavailable provider
+block M1. Interrupt
 once during approval and once after a controlled effect. `read_outcomes` must show
-both runs with money, elapsed, rework rounds and skipped activities side by side,
-each figure measured or unavailable; the comparison is the first calibration of
-A45's proposed profile values. Repeat against a generated repo with a different
+both runs with money, agent time, run elapsed, rework rounds and activity
+dispositions side by side, each figure measured or unavailable. Pin the same basic
+independent evaluation revision/cohort to both: an immature defect window remains
+unknown, and these two runs prove instrumentation without authorizing automatic
+profile recalibration. Inject a per-profile observation set and watch comparison
+eligibility fail. Repeat against a generated repo with a different
 repository ID and prove it has no puni-specific content, personal paths or shared
 credentials. Pin forbidden content canaries: `/home/df/`, `/Users/danylofedorov`,
 `/root/`, `h2puni`, `h1claw` and the legacy `wbs-tool-v1` identity. Each occurs in

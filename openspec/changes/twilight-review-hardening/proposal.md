@@ -10,6 +10,9 @@ Fix design applicability during fast-forward and archive context failure handlin
 Make the repository's OpenSpec workflow variants reproducible and check their
 consistency through Nx. Tighten the existing proposed runtime and planning
 contracts, including approval retries, parallel plans and receipt lineage.
+Resolve the resource-control review: cumulative budgets and clocks, authorized
+profile overrides, comparable quality observations, explicit stage ordering,
+resolved activity settings and organization-owned pricing.
 
 ## Non-Goals
 

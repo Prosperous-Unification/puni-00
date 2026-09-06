@@ -1,5 +1,52 @@
 # Verification Report — twilight-review-hardening
 
+## Resource-control review — 2026-09-06
+
+Current scope: the uncommitted amendments over `3b0c8c80` on
+`work/twilight-structure-plan`, applying the six accepted review findings. Task 5
+is complete. The earlier rounds below retain their historical scope and evidence;
+their counts, base revisions and limitations are not this round's results.
+
+| Finding                       | Contract correction                                                                                                             | Runtime proof owner, still unrun                                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Budget scope and clocks       | One run account, attempt holds, strict/advisory hard bounds, money scope, explicit clocks and carry-forward                     | Control-plane Tasks 3–4: $40 cap − $10 settled − $1 held = $29; four parallel 30-minute agents consume 120 agent-minutes |
+| Downward-only overrides       | Keyed replacements in either direction within authority; immutable epochs and epoch-bound approvals                             | Tasks 1/3/5/6: model replacement, old/new epoch effects, reapproval, no usage reset                                      |
+| Biased quality comparisons    | Independent published evaluation, observation coverage/maturity, mixed epochs, failed-run costs and attributable defect reports | Tasks 7–8: skipped observer, immature window, mixed recovery and zero accepted denominator                               |
+| Missing stage order           | Explicit `after` DAG separate from artifact readiness; manual release boundary                                                  | Task 1: missing edge, artifact-induced self-cycle and shared evidence                                                    |
+| Conflicting optional controls | Total activity maps, agent/tool executors and resource vectors; explicit M1 profile matrix                                      | Tasks 1/4/7/8: duplicate controls, missing assignment, tool/agent pool contention, actual judge/browser dispatch         |
+| Pricing ownership             | Explicit organization snapshot, per-admission rates and stable model/non-model charge contracts                                 | Tasks 1/4: missing snapshot/rates, cache categories, omitted charge and incomplete invoice allocation                    |
+
+Observed [check record](evidence/resource-review-checks.json): 25 workflow tests
+passed; lint/typecheck and all 40 generated-variant checks passed; 3 pinned CLI
+integration tests passed; OpenSpec validated all 40 changes and the artifact schema;
+repository-wide formatting and the documentation cap check passed. Nx's initial
+isolated-plugin startup failed before tests; the documented in-process settings
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false` ran the checks successfully.
+
+The [temporary documentation probe](evidence/resource-review-probe.json) retains
+its source and observed output: 10 stages, 12 activities, 3 delivery profiles and
+30 unchecked product tasks. All 12 in-memory configuration faults were detected,
+including a removed stage edge, legacy trigger target, omitted browser pool and
+unbound evaluator. This is **structural documentation evidence**, not a production
+compiler, resource gate or quality evaluator. No new runtime safety check or
+observed runtime `Proof:` comment is claimed; those negatives are specified in the
+unchecked product tasks.
+
+Independent review found four integration gaps—tool resource vectors, old-epoch
+approval validity, evaluation publication and non-model charges—and confirmed their
+corrections. The three command-output files that failed the branch whitespace check
+had CRLF terminators normalized to LF only; the
+[normalization record](evidence/resource-review-normalization.json) retains original
+and normalized hashes. Original bytes remain in `3b0c8c80`; historical review
+receipts and command content were not rewritten.
+
+Not run this round: the full workspace test/lint/typecheck/build gate, application
+browser tests, live ACP/LangGraph/resource/evaluation tests, deployment or migration.
+Only proposed contracts and documentation changed. No commit, push, spec sync or
+archive was performed. The product's 30 implementation tasks remain unchecked.
+
+## Earlier workflow-hardening rounds
+
 > Two rounds. Round 1 applied the branch review; round 2 (2026-09-06) applied a
 > second review of round 1 and rewrote this file onto the sdd-lean verify
 > sections, because several of its round-1 rows asserted counts and exit codes

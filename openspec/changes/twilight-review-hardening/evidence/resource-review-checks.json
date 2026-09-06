@@ -1,0 +1,59 @@
+{
+  "base": "3b0c8c80",
+  "host": "pop-os",
+  "runtime": "Bun 1.4.0 (34cbb9a40); OpenSpec 1.12.0",
+  "records": [
+    {
+      "command": "bunx --no-install nx run-many -t test lint typecheck --projects=tool-workflows --skip-nx-cache",
+      "exitCode": 1,
+      "observation": "Nx isolated plugin workers exited before establishing their connections; no tests started."
+    },
+    {
+      "command": "NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install nx run-many -t test lint typecheck --projects=tool-workflows --skip-nx-cache",
+      "exitCode": 0,
+      "observation": "Observed terminal summary: 25 pass, 0 fail, 97 expect() calls; 40 workflow variants checked; test/lint/typecheck and dependent check target succeeded. Full terminal output was observed in this session; this entry retains its summary."
+    },
+    {
+      "command": "NX_DAEMON=false NX_ISOLATE_PLUGINS=false OPENSPEC_CLI=/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js bunx --no-install nx run tool-workflows:integration",
+      "exitCode": 0,
+      "output": "\n> nx run tool-workflows:integration\n\n> bun test tools/tool-workflows/src/cli.integration.test.ts\r\n\r\n\u001b[0m\u001b[1mbun test \u001b[0m\u001b[2mv1.4.0 (34cbb9a40)\u001b[0m\n\u001b[0m\ntools/tool-workflows/src/cli.integration.test.ts:\n\u001b[0m\u001b[32m✓\u001b[0m\u001b[0m\u001b[1m the integration target runs the pinned CLI\u001b[0m \u001b[0m\u001b[2m[\u001b[1m110.44ms\u001b[0m\u001b[2m]\u001b[0m\n\u001b[0m\u001b[32m✓\u001b[0m\u001b[0m\u001b[1m the pinned CLI blocks planning while design.md is absent\u001b[0m \u001b[0m\u001b[2m[\u001b[1m416.35ms\u001b[0m\u001b[2m]\u001b[0m\n\u001b[0m\u001b[32m✓\u001b[0m\u001b[0m\u001b[1m an applicability-only design.md unblocks planning, and apply needs no verify.md\u001b[0m \u001b[0m\u001b[2m[\u001b[1m422.29ms\u001b[0m\u001b[2m]\u001b[0m\n\n\u001b[0m\u001b[32m 3 pass\u001b[0m\n\u001b[0m\u001b[2m 0 fail\u001b[0m\n 20 expect() calls\nRan 3 tests across 1 file. \u001b[0m\u001b[2m[\u001b[1m1008.00ms\u001b[0m\u001b[2m]\u001b[0m\n\n\n\n NX   Successfully ran target integration for project tool-workflows\n\n\n"
+    },
+    {
+      "command": "NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install nx format:check --all",
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "command": "bunx --no-install @fission-ai/openspec@1.12.0 validate --all --json",
+      "exitCode": 0,
+      "observation": "40 changes passed, 0 failures, 0 main specs."
+    },
+    {
+      "command": "bunx --no-install @fission-ai/openspec@1.12.0 schema validate twilight-v1",
+      "exitCode": 0,
+      "observation": "Schema 'twilight-v1' is valid. Artifact schema validation; does not validate execution semantics."
+    },
+    {
+      "command": "bun run tools/tool-git-hooks/src/hooks/doc-caps.ts",
+      "exitCode": 0,
+      "observation": "No cap violations."
+    },
+    {
+      "command": "git diff --check main",
+      "exitCode": 0,
+      "observation": "No whitespace errors after normalizing the three historical command logs."
+    },
+    {
+      "command": "bunx --no-install @fission-ai/openspec@1.12.0 instructions apply --change twilight-review-hardening --json",
+      "exitCode": 0,
+      "observation": "8 total tasks, 8 complete, 0 remaining; state all_done. The separate product plan retains 30 unchecked tasks."
+    }
+  ],
+  "unrun": [
+    "Full workspace test/lint/typecheck/build gate",
+    "Application browser tests",
+    "Live ACP/LangGraph, budget/authority/resource/evaluator runtime proofs",
+    "Deployments, migrations, archive, spec sync, commit and push"
+  ],
+  "review": "Independent reviewer confirmed all four integration findings resolved: executor resource vectors, epoch-specific approval, evaluation publication/selection, and non-model charge contracts."
+}

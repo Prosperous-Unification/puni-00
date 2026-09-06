@@ -43,15 +43,32 @@ readable through the effective-policy operation.
 ### Requirement: Versioned inspectable workflow configuration
 
 The service MUST validate and publish immutable workflow revisions compiled from
-the OpenSpec artifact contract, the execution profile, the repository manifest and
-provider capability documents. The first increment's control set is: stage and
-activity enablement and floor marks, lifecycle-point policies, hook registrations,
-the delivery profiles with their model, escalation, review, verification, skip,
-fan-out, budget and deadline fields, discovery envelopes, capacity defaults,
-presentation defaults and retention defaults. Every control in that set MUST be
-configurable and inspectable through FE, BE and MCP with its effective value,
-origin scope and restriction. Platform and organization floors MUST constrain
-lower scopes, and a profile or run override below a floor MUST be refused.
+the OpenSpec artifact contract, the execution profile, the repository manifest,
+provider capability documents and an explicit immutable organization snapshot.
+The organization snapshot MUST identify the organization and include the content
+and revisions of its floors, pools and rate card; a missing, unreadable or invalid
+snapshot MUST fail compilation. Repository configuration MAY request capacity but
+MUST NOT define organization price or capacity authority.
+
+The execution profile MUST declare one explicit acyclic stage graph. Stage
+prerequisites MUST come only from stage `after` edges; artifact mappings and the
+artifact-readiness graph MUST NOT imply stage edges. Each activity MUST resolve to
+exactly one catalog entry with an `agent` or `tool` executor. A tool entry MUST name
+a registered implementation and MUST NOT receive a model. Every delivery profile
+MUST contain a total activity map keyed by that catalog, and the repository floor
+MUST be the sole catalog-independent list of activities that cannot be disabled.
+The shipped stage graph MUST order request, discovery, specification, planning,
+implementation, review, verification, acceptance and handoff; published custom
+graphs MUST preserve required artifact and authority obligations. Release MUST depend
+on handoff and remain a separate human command that stage completion never starts.
+The first increment's controls MUST be configurable and inspectable through FE,
+BE and MCP with their effective value, origin scope and restriction. Platform and
+organization floors MUST constrain lower scopes.
+
+Each activity MUST declare a minimum resource vector. Compilation MUST combine it
+with registered executor requirements and resolved provider/model limits; admission
+MUST reserve the complete vector. Tool-only gates MUST NOT require agent slots by
+default, and build/browser activities MUST reserve their corresponding scarce pools.
 
 #### Scenario: A running workflow is unaffected by a draft edit
 
@@ -69,9 +86,9 @@ lower scopes, and a profile or run override below a floor MUST be refused.
 #### Scenario: Published configuration is reproduced from Git
 
 - **WHEN** FE publishes against an expected source revision and a clean checkout
-  compiles the resulting repository revision
-- **THEN** it produces the same compiled digest as the service, and a competing
-  stale Git publication is refused as a conflict
+  compiles that revision with the same organization snapshot
+- **THEN** it produces the same compiled digest as the service, while a missing
+  snapshot or competing stale Git publication is refused
 
 #### Scenario: An override reaches below a floor
 
@@ -79,14 +96,86 @@ lower scopes, and a profile or run override below a floor MUST be refused.
   approval or evidence item the repository or organization floor lists
 - **THEN** submission is refused with the floor's origin, and no run is created
 
+#### Scenario: Artifact mappings disagree with stage order
+
+- **WHEN** artifact readiness would permit planning but the explicit stage graph
+  still places specification before planning
+- **THEN** planning remains ordered after specification; artifact mappings do not
+  create or remove a stage edge
+
+#### Scenario: A disabled stage is an ordering boundary
+
+- **WHEN** every activity in an intermediate stage is disabled without violating a floor
+- **THEN** the stage records its activities as inapplicable and its successors wait
+  for that disposition; the service does not invent pass evidence
+
+### Requirement: Profile overrides and epochs are explicit
+
+Profile defaults MUST NOT act as authority limits. A request override or run profile
+change MAY replace named fields in either direction only within current grants,
+allowed provider/model/effort capabilities, approved spending and immutable floors.
+Map fields MUST merge by key, arrays MUST replace wholesale, unspecified fields MUST
+inherit, and unknown fields or inconsistent resolved controls MUST be rejected.
+Categorical models MUST NOT be ordered as cheaper, better, higher or lower; model
+fallback MUST use only the declared bounded escalation ladder. Every override and
+profile change MUST record its reason and expose the fully resolved settings to all
+clients.
+
+Each accepted run profile change MUST create an immutable profile epoch containing
+the resolved settings and digest and its start and end transitions. It MUST apply
+only to work not yet admitted after validation and any required reapproval. Running
+or draining attempts MUST retain their original epoch and reservations. A profile
+change MUST NOT reset budget consumption, outstanding holds, rework rounds, the
+original run start or elapsed deadline clock. Reducing fan-out MUST queue later work rather
+than erase occupied slots. `skipActivity` MUST use this same audited activity-enable
+override and MUST NOT skip an admitted or completed activity, erase a finding or
+make stale evidence current.
+
+Approvals MUST bind the attempt's epoch and action. A profile-only change MUST leave
+an old approval usable solely by already-admitted attempts with unchanged candidate,
+capabilities and reserved allowance. New admissions MUST use the new subject; an
+approval from either epoch MUST NOT authorize the other. Expiry, revocation, changed
+source/scope and tighter floors MUST still invalidate old-epoch dispatch authority.
+
+#### Scenario: An old attempt dispatches while the new epoch awaits approval
+
+- **WHEN** an admitted epoch-A attempt records an unchanged authorized effect, then
+  a profile-only change creates epoch B awaiting approval
+- **THEN** that effect may dispatch against A's still-valid decision and held
+  allowance, no B work starts, and revoking A before dispatch prevents its effect
+
+#### Scenario: A profile changes after one attempt has started
+
+- **WHEN** an admitted attempt under epoch A is draining while an approved profile
+  change creates epoch B with a different model and smaller fan-out
+- **THEN** the attempt settles against epoch A, new admissions use epoch B, occupied
+  slots remain counted, and all prior spend and rework remain on the run
+
+#### Scenario: A model is replaced by request override
+
+- **WHEN** an authorized request replaces an activity's model with another allowed
+  model that has no declared ordering relationship to the default
+- **THEN** validation resolves that exact model without interpreting the change as
+  upward or downward, and any later fallback follows only its declared ladder
+
 ### Requirement: Lifecycle points are the one key space
 
 Policies and hooks MUST be keyed by lifecycle points of the form
 `<event>.<stage or activity id>` over the compiled stage graph, with `beforeStage`,
 `afterStage`, `beforeActivity`, `afterActivity`, `beforeTool`, `afterTool`,
 `onFinding`, `onApproval`, `onRework`, `onFailure`, `onCancel`, `onTrigger` and
-`onProfileChange` as events. Artifact ids MUST NOT be policy or hook keys. A point
-naming an unknown stage or activity MUST be a compile error.
+`onProfileChange` as events. `*` MUST select all valid subjects of the event's
+kind. `onTrigger` and `onProfileChange` MUST use `*` only; trigger policies MUST
+select `triggerKinds` from `manual`, `schedule` and `webhook`. Artifact ids MUST NOT
+be policy or hook keys. A point naming an unknown or wrong-kind stage/activity
+MUST be a compile error.
+
+#### Scenario: A trigger kind is used as a lifecycle target
+
+- **WHEN** a policy names `onTrigger.schedule` rather than selecting `schedule`
+  under `onTrigger.*`
+- **THEN** compilation refuses the target; the wildcard with the typed selector
+  compiles without inventing a schedule stage
 
 #### Scenario: A hook names an activity the profile does not declare
 
@@ -204,7 +293,8 @@ for brokered tools and effectful hooks.
 Approvals MUST be attributable to authorized human decisions and bound to the
 action, candidate digest, delivery profile revision including run overrides,
 budget, target environment, policy revision and expiry. A changed subject MUST
-invalidate the decision. Production MUST require an explicit human command even
+invalidate the decision for that subject; a profile-only epoch change preserves
+only the admitted-attempt authority specified above. Production MUST require an explicit human command even
 if all earlier stages complete automatically.
 
 #### Scenario: Stale plan approval
@@ -270,15 +360,39 @@ revision, or admitting additional work. The receipt MUST NOT confer new authorit
 
 ### Requirement: Capacity and budget admission
 
-Admission MUST atomically reserve every required pool and the profile's budget
-before launching an activity. Planned, reserved and measured consumption MUST
-remain separate. Unknown usage MUST NOT be represented as zero. Expired owners
-MUST be fenced from publishing, dispatching new external effects, writing a
-replacement workspace or freeing another owner's reservation. Expiry MUST NOT be
-treated as terminal evidence. Direct worker egress MUST be denied, and writable
-mounts MUST NOT be reused until all old writers have verifiably lost access.
-Active multi-coordinator operation is outside this increment; multiple trigger
-producers MUST submit to the single admission authority.
+Each run MUST own exactly one budget account. A discovery envelope MUST be a
+suballocation of that account, and retries, escalations, children, cancellation and
+all profile epochs MUST settle against the same account. A retry or profile change
+MUST NOT mint or reset budget authority; another run requires its own explicit
+budget authority.
+
+A budget MUST declare `scope: run`, `moneyScope: model|delivery`,
+`enforcement: strict|advisory`, and limits for
+tokens, money and additive agent time. Strict limits MUST be hard caps. Advisory
+limits MUST be warning targets and MUST include finite hard limits for the same
+dimensions at or above those targets. Admission MUST atomically reserve a
+conservative per-attempt allowance against every required pool and hard cap, rather
+than reserve the whole run cap. For every dimension, settled consumption plus all
+outstanding holds MUST NOT exceed the hard cap. Unknown spend MUST retain its hold;
+work without a defensible bound and stop mechanism MUST be refused under a hard
+cap. Reaching an advisory target MUST emit a visible warning. Reaching a hard cap
+MUST prevent new dispatch and pause unresolved work rather than mark it successful;
+draining in-flight work MUST remain covered by its reservation.
+
+The money scope MUST explicitly select model spend or all delivery charges.
+Delivery scope MUST include tool/service/human charges and require defensible
+bounds for them; model scope MUST NOT be presented as a total delivery-cost cap.
+A scope change MUST recheck prior charges and holds in that scope and refuse
+missing history rather than treating it as zero. A discovery envelope's
+`allowance` MUST constrain its suballocation using the run's same units and money
+scope, in addition to the run's hard caps.
+
+Expired owners MUST be fenced from publishing, dispatching new external effects,
+writing a replacement workspace or freeing another owner's reservation. Expiry
+MUST NOT be treated as terminal evidence. Direct worker egress MUST be denied, and
+writable mounts MUST NOT be reused until all old writers have verifiably lost
+access. Active multi-coordinator operation is outside this increment; multiple
+trigger producers MUST submit to the single admission authority.
 
 #### Scenario: Concurrent admission with one remaining slot
 
@@ -305,35 +419,116 @@ producers MUST submit to the single admission authority.
 - **WHEN** the provider cannot support a defensible consumption reservation or stop limit
 - **THEN** a strictly budgeted activity is refused rather than admitted at zero estimated cost
 
-#### Scenario: A money budget without a rate
+#### Scenario: A profile change replaces the run cap
 
-- **WHEN** a profile carries a money budget and the rate card has no entry for one
-  of its models
-- **THEN** compilation of that profile fails naming the model, and a run cannot
-  select it
+- **WHEN** a run with $10 settled and a $1 outstanding hold requests a profile
+  epoch whose approved hard money cap is $40
+- **THEN** the account exposes $29 available; a requested cap below $11 is refused,
+  and neither the change nor reapproval resets prior consumption
+
+#### Scenario: Parallel attempts contend for one budget account
+
+- **WHEN** two attempts concurrently request holds that cannot both fit beneath the
+  run's remaining token or money cap
+- **THEN** at most one hold commits and the other attempt stays queued or is denied
+  with the constrained budget dimension named
+
+### Requirement: Run clocks preserve distinct time quantities
+
+Agent time MUST be the additive active duration of agent sessions across attempts,
+including provider or tool wait while a session remains occupied. It MUST exclude
+not-started queue time and human-only approval pauses. Tool-only activity duration
+MUST remain separate. Run wall elapsed MUST be measured from the original
+`createdAt` to `terminalAt`, or to an explicit `asOf` for a nonterminal run, and
+MUST include queueing, approval, pause and recovery. A duration deadline MUST use
+that original `createdAt`; a profile change MUST NOT reset it. Once the deadline
+passes, no new work may start and admitted work MUST drain within existing holds.
+
+Queue and human-wait totals MUST be interval unions for their respective kinds, may
+overlap execution or each other, and MUST NOT be summed to derive wall elapsed.
+Human minutes MUST be explicit recorded effort, never inferred from a wait. Every
+time figure MUST include its unit, observation interval and measured or unavailable
+status.
+
+#### Scenario: Four agents run in parallel
+
+- **WHEN** four agent sessions each remain active for 30 minutes over the same
+  30-minute wall-clock interval
+- **THEN** the account consumes 120 agent-minutes while run wall elapsed advances
+  30 minutes; neither figure is substituted for the other
+
+#### Scenario: A profile changes near its deadline
+
+- **WHEN** a run changes profile after three hours and its deadline is four hours
+  from original creation
+- **THEN** the new epoch has one hour remaining, and queue or approval time has not
+  paused or reset the deadline
+
+### Requirement: Model pricing is revision-bound and category-complete
+
+Compilation MUST require an organization-snapshot rate for every enabled model and
+permitted escalation choice under a hard money cap; a disabled optional model MAY
+remain unresolved until enabled. Admission MUST pin the current immutable rate-card
+entry and the provider/model revision actually requested for each attempt. A later
+rate change MUST re-evaluate uncommitted holds before launch but MUST NOT reprice a
+settled or admitted attempt. Missing or unavailable rates MUST refuse admission
+under a hard money cap.
+
+Token observations and rates MUST distinguish input, output, cache-read and
+cache-write categories without double counting. An unsupported category MUST be
+unavailable rather than zero. Estimated model spend and provider-billed model spend
+MUST remain separate. Known tool, service and human costs MUST be recorded in their
+own categories; absent categories MUST prevent aggregate money from being described
+as full cost.
+
+Each non-model charge MUST have a stable run/attempt/effect/category identity,
+currency, maximum reserved amount, quote or rate revision, source receipt and
+measured amount or unavailable reason. Organization snapshots MUST provide supported
+service/request/human-minute rates or a binding maximum quote with expiry. A charge
+adapter MUST declare whether all effects and stopping costs have a defensible bound;
+otherwise delivery-budget admission MUST refuse that combination. Shared-invoice
+allocations MUST sum to its billed amount; unallocated or missing receipts MUST
+leave the charge inventory incomplete and its holds unresolved.
+
+#### Scenario: A money budget lacks an enabled model rate
+
+- **WHEN** an enabled activity or permitted escalation model has no rate in the
+  organization snapshot used for a hard money budget
+- **THEN** compilation fails naming the model and profile, while an unresolved model
+  used only by a disabled optional activity does not fail until enabled
+
+#### Scenario: Cache-write telemetry is unavailable
+
+- **WHEN** a provider reports input, output and cache-read tokens but cannot report
+  cache-write tokens priced by the pinned rate
+- **THEN** cache-write usage and exact estimated model spend are unavailable with a
+  reason; neither is recorded as zero or silently charged as another category
 
 ### Requirement: Levers are configurable and their effects are measured
 
-Model and effort per activity class, escalation, review depth, verification
-depth, skipped activities, fan-out, budget and deadline MUST be settable in a
-named delivery profile, overridable downward per request with a reason, and
-changeable mid-run through the run command. Every activity attempt MUST write a
-run ledger entry with planned, reserved and measured tokens, estimated and billed
-money, agent elapsed time, queue wait, human wait, the serving model and the
-profile revision. Every run MUST produce an outcome record naming its profile
-revision, rework rounds, findings by severity, gate failures, skipped activities
-with their deciders, and estimate versus actual per task. Outcomes MUST be
-comparable across profiles through all clients. A quality figure MUST NOT change
-by weakening its rubric or removing an observation.
+Named delivery profiles MUST expose their resolved activity settings, agent-class
+and per-activity model assignments, escalation ladders, rework maximum, fan-out,
+budget and deadline through all clients. Activity settings MUST be the only source
+for critic count, judge enablement, browser scope and other optional enablement;
+disabled critics with a positive count, model assignments on tool activities and
+disabled floor activities MUST be rejected. Rework rounds MUST count consumed
+rework across profile epochs; zero permits no rework, and exhausting the maximum
+with a blocking finding MUST pause the run.
+
+Every activity attempt MUST write a run-ledger entry with planned, held, settled
+and unavailable consumption, model-pricing categories, agent time, tool time,
+queue wait, human wait, human minutes, the serving provider/model revision,
+escalation step and profile epoch. Aggregates MUST preserve their component status
+and roll up failed attempts and runs rather than reporting only accepted work.
 
 #### Scenario: A review is skipped to save time
 
-- **WHEN** a request overrides the `balanced` profile to skip `review.judge`
-- **THEN** the run records the skip as a decision with actor and reason, the
-  outcome record lists it, and a defect reported inside the escaped-defect window
-  is attributed to that run and profile revision
+- **WHEN** a request disables `review.judge` without violating a floor
+- **THEN** the resolved activity records the override actor and reason, the activity
+  is skipped through that same setting, and its missing observation is not counted
+  as a passed review
 
-#### Scenario: A cheaper model is escalated
+#### Scenario: A declared model ladder escalates
 
 - **WHEN** an `implement` attempt on the profile's first model ends in a gate failure
   and the escalation ladder permits one step
@@ -344,8 +539,8 @@ by weakening its rubric or removing an observation.
 
 - **WHEN** one request ran under `fast` and another under `thorough` in the same
   repository
-- **THEN** `read_outcomes` returns both with money, elapsed, rework rounds and
-  escaped defects side by side, each figure marked measured or unavailable
+- **THEN** `read_outcomes` returns both with their profile epochs, money, time,
+  rework and observation status side by side, each figure marked measured or unavailable
 
 #### Scenario: Fan-out beyond the profile
 
@@ -353,6 +548,65 @@ by weakening its rubric or removing an observation.
   whose fan-out is two
 - **THEN** admission holds the third and fourth as `queued` with the profile named,
   and the ledger records their queue wait separately from agent time
+
+### Requirement: Outcomes use an independent evaluation definition
+
+Every terminal run and candidate, including failed and cancelled work, MUST have an
+outcome record. Each record MUST retain its ordered profile epochs and state whether
+it is single-profile or mixed-profile. Attempt costs MUST remain attributed to their
+epochs; a mixed-profile recovery MUST NOT be ranked as a result of either profile
+alone. Request-level cost MUST include failed runs and retries. Cost per accepted
+outcome MUST include those costs, and MUST be unavailable when its denominator is zero.
+
+Quality evaluation MUST be defined outside delivery-profile overrides and MUST pin
+an evaluation revision, rubric revision, observation-set revision, task or cohort
+identity, accepted-outcome definition and escaped-defect window. Changing any of
+these MUST create a distinct evaluation cohort and preserve prior observations.
+Each observation MUST be `passed`, `failed`, `skipped` or `unavailable`; skipped,
+immature or incomplete evidence MUST NOT be counted as zero failures. Comparisons
+MUST match evaluation definitions and task/cohort identity, report sample count and
+defect-window maturity, and exclude incompatible or mixed-profile records from
+single-profile ranking while still displaying them. M1 MUST support one fixed
+independent evaluation used by both initial profiles; automatic optimization from
+larger samples belongs to a later increment.
+
+The canonical evaluation source MUST be the execution profile's `quality` subtree.
+The existing workflow publication operation MUST require the organization
+evaluation-publisher capability and a subject-bound human decision for its changes.
+Compilation MUST derive immutable evaluation/rubric/observation-set revisions from
+their contents; request submission MUST pin them from its compiled workflow along
+with the independently authored task-fixture digest used for cohort matching. The
+initial `delivery-baseline` MUST resolve the integrated gate and `handoff.evaluate`
+task-acceptance observer. Missing task assertions MUST produce an unavailable
+observation. Running the observer MUST reserve its declared tool resources and
+charge the run account; a permitted skip MUST exclude its outcome from rankings
+requiring that observation, without inventing a new floor obligation.
+
+Escaped-defect reports MUST be revisioned outcome updates submitted through one
+shared FE/BE/MCP operation with caller scope, idempotency key, expected revisions,
+source evidence, `reportedAt` and accepted candidate lineage. The defect window MUST
+open at `acceptedAt`; outcomes MUST expose `observedThrough`, exposure duration,
+window maturity and source coverage. A report MUST attach to the named candidate and
+MUST NOT infer that a model or profile caused the defect.
+
+#### Scenario: A recent run has no reported defect
+
+- **WHEN** an accepted run has no defect report but its evaluation window has not matured
+- **THEN** its escaped-defect observation remains immature rather than zero and is
+  excluded from a mature single-profile defect-rate comparison
+
+#### Scenario: A mixed-profile run recovers after escalation
+
+- **WHEN** a fast epoch fails and a thorough epoch completes the same run
+- **THEN** each attempt's consumption stays with its epoch, the outcome is labeled
+  mixed-profile, and neither profile receives the whole run as a ranked success
+
+#### Scenario: A defect report is retried
+
+- **WHEN** an authorized reporter submits the same defect command and parameters
+  twice for an accepted candidate within its observation window
+- **THEN** one revisioned report is attached to that candidate and the retry returns
+  its original receipt without attributing causation to a model
 
 ### Requirement: Hooks, critics and judges preserve authority
 
@@ -367,9 +621,9 @@ limits MUST stop unresolved work rather than turn it into a pass.
 - **THEN** the worker has not started, the failure is recorded, and no model verdict
   overrides the denied admission
 
-#### Scenario: Review rounds are exhausted
+#### Scenario: Rework rounds are exhausted
 
-- **WHEN** the profile's configured revision rounds leave a blocking finding unresolved
+- **WHEN** the profile's configured rework maximum leaves a blocking finding unresolved
 - **THEN** the run pauses with the finding, consumed budget and next authorized action visible
 
 ### Requirement: Observable evidence with focus access

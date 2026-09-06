@@ -99,3 +99,20 @@ runner. The upgrade document records the measured skill/command divergence
 had compared renamed invocations. `verify.md` is restructured onto the sdd-lean
 verify sections, and every row that asserted a count or an exit now links a
 retained artifact.
+
+## Task 5: Resolve resource-control and configuration gaps
+
+- [x] 5.1 Amend the proposed configuration, specs, design, glossary and delivery
+      tasks for cumulative budgets/clocks, field-specific overrides, profile epochs,
+      comparable observations, explicit stage ordering and organization pricing.
+- [x] 5.2 Check the amended documents and configuration together, run the relevant
+      repository checks and record the six findings' dispositions and limits.
+
+Owns the current Twilight proposal and `execution.yaml`; preserves historical
+reviews and leaves every product implementation task unchecked. Use the accepted
+review's concrete counterexamples: spend/holds across a profile change, concurrent
+agent time versus wall time, skipped observations versus zero findings, mixed-profile
+recovery, unordered shared artifacts, and inconsistent optional activities. Record
+future runtime negatives in the delivery tasks. This slice changes proposed
+contracts, so temporary configuration probes are documentation evidence rather
+than a claim that a production compiler, budget gate or evaluator exists.

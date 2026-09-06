@@ -1,74 +1,137 @@
-# Twilight execution profile, revision 1 (proposed; nothing reads it yet).
+# Twilight execution profile, revision 2 (proposed; no runtime reads it yet).
 #
-# Compiled together with schema.yaml, the repository manifest and provider
-# capability documents into one workflow revision. See
+# Compiled with schema.yaml, the repository manifest, provider capabilities
+# and an explicit immutable organization snapshot into one workflow revision. See
 # openspec/changes/twilight-control-plane/design.md, "Stages, activities and
 # the execution profile" and "Levers, ledger and outcomes". Terms are defined
 # in docs/twilight-structure/CONTEXT.md.
 #
-# Scope: every value here is repository policy. Platform and organization
-# safety floors are server records that sit above this file and can only
-# tighten it. A run may override `profiles` fields downward with a recorded
-# reason; loosening below `repositoryFloor` is refused at compile time.
-# Unknown keys, missing referenced ids and cycles are compile errors.
+# Values here are repository defaults or policy. Profiles are defaults, not
+# ceilings: authorized overrides may increase or decrease settings within
+# current grants, capabilities, approved hard caps and repository/organization
+# floors. The organization snapshot supplies floors, pools and the rate card;
+# it is a required compiler input, never an implicit server lookup or fallback.
+# Unknown keys, missing referenced ids and cycles in either DAG are errors.
 
-version: 1
+version: 2
 
-# Canonical stage ids. schema.yaml artifacts map onto stages here, which is
-# how the compiler derives the stage graph; `release` is a separate human
-# command, never a transition that a completed stage triggers.
+# `after` is the single stage DAG. Artifact mappings describe required inputs
+# or evidence; schema.yaml's separate artifact DAG only decides file readiness.
+# All-inactive stages record dispositions and preserve order, without claiming
+# passed checks. `release` also requires its separate explicit human command.
 stages:
-  - { id: request, artifact: intent }
-  - { id: discovery, artifact: intent }
-  - { id: specification, artifacts: [specs, design] }
-  - { id: planning, artifact: tasks }
-  - { id: implementation, tracks: tasks.md }
-  - { id: review }
-  - { id: verification, artifact: verify }
-  - { id: acceptance, artifact: verify }
-  - { id: handoff, artifact: verify }
-  - { id: release, command: release }
+  - { id: request, after: [], artifact: intent }
+  - { id: discovery, after: [request], artifact: intent }
+  - { id: specification, after: [discovery], artifacts: [specs, design] }
+  - { id: planning, after: [specification], artifact: tasks }
+  - { id: implementation, after: [planning], tracks: tasks.md }
+  - { id: review, after: [implementation] }
+  - { id: verification, after: [review], artifact: verify }
+  - { id: acceptance, after: [verification], artifact: verify }
+  - { id: handoff, after: [acceptance], artifact: verify }
+  - { id: release, after: [handoff], command: release }
 
-# Activities are the finer key. `floor: true` marks an activity no profile or
-# run override may skip. Every other activity may be turned off by a profile
-# or skipped per run; each skip is a recorded decision with a reason.
+# The catalog declares execution kind; repositoryFloor alone declares mandatory
+# activities. Every profile supplies a total activities map. Tools use registered
+# implementations, agents resolve a class model or explicit activity model.
+# resources is a minimum per-attempt vector, augmented by registered executor
+# requirements and resolved provider/model rate limits, never replaced by them.
 activities:
-  - { id: discovery.research, stage: discovery, class: research }
-  - { id: discovery.review, stage: discovery, class: review }
-  - { id: specification.critique, stage: specification, class: review }
-  - { id: planning.plan, stage: planning, class: plan }
-  - { id: implementation.implement, stage: implementation, class: implement }
-  - { id: review.critic, stage: review, class: review }
-  - { id: review.judge, stage: review, class: judge }
-  - { id: verification.gate, stage: verification, class: verify, floor: true }
-  - { id: verification.browser, stage: verification, class: verify }
-  - { id: acceptance.cloud-browser, stage: acceptance, class: verify }
-  - { id: handoff.knowledge, stage: handoff, class: knowledge, floor: true }
+  - {
+      id: discovery.research,
+      stage: discovery,
+      class: research,
+      executor: agent,
+      resources: { agent: 1 },
+    }
+  - {
+      id: discovery.review,
+      stage: discovery,
+      class: review,
+      executor: agent,
+      resources: { agent: 1 },
+    }
+  - {
+      id: specification.critique,
+      stage: specification,
+      class: review,
+      executor: agent,
+      resources: { agent: 1 },
+    }
+  - { id: planning.plan, stage: planning, class: plan, executor: agent, resources: { agent: 1 } }
+  - {
+      id: implementation.implement,
+      stage: implementation,
+      class: implement,
+      executor: agent,
+      resources: { agent: 1, workspace: 1 },
+    }
+  - { id: review.critic, stage: review, class: review, executor: agent, resources: { agent: 1 } }
+  - { id: review.judge, stage: review, class: judge, executor: agent, resources: { agent: 1 } }
+  - {
+      id: verification.gate,
+      stage: verification,
+      class: verify,
+      executor: tool,
+      implementation: registered:repository-gate,
+      resources: { build: 1, workspace: 1 },
+    }
+  - {
+      id: verification.browser,
+      stage: verification,
+      class: verify,
+      executor: tool,
+      implementation: registered:browser-gate,
+      resources: { browser: 1, workspace: 1 },
+    }
+  - {
+      id: acceptance.cloud-browser,
+      stage: acceptance,
+      class: verify,
+      executor: agent,
+      resources: { agent: 1, browser: 1 },
+    }
+  - {
+      id: handoff.knowledge,
+      stage: handoff,
+      class: knowledge,
+      executor: agent,
+      resources: { agent: 1, workspace: 1 },
+    }
+  - {
+      id: handoff.evaluate,
+      stage: handoff,
+      class: verify,
+      executor: tool,
+      implementation: registered:task-acceptance,
+      resources: { build: 1, workspace: 1 },
+    }
 
 # Lifecycle points are `<event>.<stage or activity id>`; `*` matches every
-# stage or activity. Events: beforeStage, afterStage, beforeActivity,
+# valid subject. onTrigger/onProfileChange use `*` only; triggerKinds selects
+# declared trigger kinds (manual, schedule, webhook), never a fictitious stage.
+# Events: beforeStage, afterStage, beforeActivity,
 # afterActivity, beforeTool, afterTool, onFinding, onApproval, onRework,
 # onFailure, onCancel, onTrigger, onProfileChange.
 policies:
   beforeStage.implementation:
     approval: { required: true, decidedBy: human, subject: plan }
   beforeActivity.*:
-    admission: { pools: [agent], budgetFrom: profile }
-  beforeActivity.implementation.implement:
-    admission: { pools: [agent, workspace], budgetFrom: profile }
+    admission: { resourcesFrom: activity, budgetFrom: run }
   beforeTool.*:
     egress: deny
     credentials: scoped
   onFinding.review.critic:
     blockingSeverities: [critical, high]
   onRework.*:
-    maxRounds: { from: profile, path: review.rounds }
+    maxRounds: { from: profile, path: rework.maxRounds }
     exhausted: pause
   onFailure.verification.gate:
     action: pause
   onCancel.*:
     drain: settle-then-release
-  onTrigger.schedule:
+  onTrigger.*:
+    triggerKinds: [schedule]
     timezone: required
     overlap: skip
     missed: skip
@@ -99,12 +162,21 @@ hooks:
     capabilities: [send:notification]
     idempotency: at-least-once
 
-# Delivery profiles bundle the levers a person tunes: model per activity
-# class, escalation, review depth, verification depth, skipped activities,
-# fan-out, budget and deadline. Values are proposed starting points, not
-# measurements (assumption A45). Model ids are provider identifiers; the
-# rate card below must carry an entry for each before a money budget can be
-# enforced.
+# Proposed starting values, not measurements (A45). Enabled agents and every
+# permitted escalation need supported model/effort capabilities and prices for
+# hard money caps. Disabled activities are validated again before enabling.
+# activities is the only enablement/depth source; there are no parallel skip,
+# judge or browserGate switches. verification.gate always runs the full repo
+# gate. Cloud acceptance is disabled until its M4 adapter is proven.
+# Overrides merge maps by key, replace scalars/arrays, and require a reason;
+# per-activity models replace class defaults. Unknown or conflicting fields fail.
+# rework.maxRounds counts consumed rounds across profile epochs, including zero.
+# budget.limits are strict caps; advisory uses them as warning targets and MUST
+# supply explicit hardLimits in the same units, at least as high as each target.
+# moneyScope selects priced model spend or all delivery charges; delivery requires
+# defensible bounds for every charge category. Both scopes expose cost coverage.
+# agentTime adds occupied agent-session time across attempts. deadline is a
+# duration from the ORIGINAL run creation, including all waiting and pauses.
 profiles:
   default: balanced
   thorough:
@@ -114,13 +186,29 @@ profiles:
       implement: { provider: anthropic, model: claude-opus-5, effort: high }
       review: { provider: anthropic, model: claude-fable-5-1 }
       judge: { provider: anthropic, model: claude-fable-5-1 }
+      verify: { provider: anthropic, model: claude-sonnet-5 }
       knowledge: { provider: anthropic, model: claude-sonnet-5 }
     escalation: []
-    review: { critics: 2, judge: true, rounds: 3 }
-    verification: { tiers: [unit, integration, browser], browserGate: whole }
-    skip: []
+    activities:
+      discovery.research: { enabled: true }
+      discovery.review: { enabled: true }
+      specification.critique: { enabled: true }
+      planning.plan: { enabled: true }
+      implementation.implement: { enabled: true }
+      review.critic: { enabled: true, count: 2 }
+      review.judge: { enabled: true }
+      verification.gate: { enabled: true }
+      verification.browser: { enabled: true, scope: whole }
+      acceptance.cloud-browser: { enabled: false }
+      handoff.knowledge: { enabled: true }
+      handoff.evaluate: { enabled: true }
+    rework: { maxRounds: 3 }
     fanOut: 2
-    budget: { tokens: 3000000, money: { amount: 100, currency: USD }, elapsed: PT12H }
+    budget:
+      scope: run
+      moneyScope: model
+      enforcement: strict
+      limits: { tokens: 3000000, money: { amount: 100, currency: USD }, agentTime: PT12H }
     deadline: null
   balanced:
     models:
@@ -129,17 +217,33 @@ profiles:
       implement: { provider: anthropic, model: claude-sonnet-5, effort: medium }
       review: { provider: anthropic, model: claude-opus-5 }
       judge: { provider: anthropic, model: claude-opus-5 }
+      verify: { provider: anthropic, model: claude-sonnet-5 }
       knowledge: { provider: anthropic, model: claude-haiku-4-5-20251001 }
     escalation:
       - class: implement
         to: { provider: anthropic, model: claude-opus-5, effort: high }
         when: [refusal, gateFailure, blockingFinding]
         maxSteps: 1
-    review: { critics: 1, judge: true, rounds: 2 }
-    verification: { tiers: [unit, integration], browserGate: affected }
-    skip: []
+    activities:
+      discovery.research: { enabled: true }
+      discovery.review: { enabled: true }
+      specification.critique: { enabled: true }
+      planning.plan: { enabled: true }
+      implementation.implement: { enabled: true }
+      review.critic: { enabled: true, count: 1 }
+      review.judge: { enabled: true }
+      verification.gate: { enabled: true }
+      verification.browser: { enabled: true, scope: affected }
+      acceptance.cloud-browser: { enabled: false }
+      handoff.knowledge: { enabled: true }
+      handoff.evaluate: { enabled: true }
+    rework: { maxRounds: 2 }
     fanOut: 2
-    budget: { tokens: 1500000, money: { amount: 40, currency: USD }, elapsed: PT6H }
+    budget:
+      scope: run
+      moneyScope: model
+      enforcement: strict
+      limits: { tokens: 1500000, money: { amount: 40, currency: USD }, agentTime: PT6H }
     deadline: null
   fast:
     models:
@@ -148,17 +252,33 @@ profiles:
       implement: { provider: anthropic, model: claude-haiku-4-5-20251001, effort: low }
       review: { provider: anthropic, model: claude-sonnet-5 }
       judge: { provider: anthropic, model: claude-sonnet-5 }
+      verify: { provider: anthropic, model: claude-sonnet-5 }
       knowledge: { provider: anthropic, model: claude-haiku-4-5-20251001 }
     escalation:
       - class: implement
         to: { provider: anthropic, model: claude-sonnet-5, effort: medium }
         when: [refusal, gateFailure]
         maxSteps: 1
-    review: { critics: 1, judge: false, rounds: 1 }
-    verification: { tiers: [unit], browserGate: off }
-    skip: [discovery.review, specification.critique, review.judge, verification.browser]
+    activities:
+      discovery.research: { enabled: true }
+      discovery.review: { enabled: false }
+      specification.critique: { enabled: false }
+      planning.plan: { enabled: true }
+      implementation.implement: { enabled: true }
+      review.critic: { enabled: true, count: 1 }
+      review.judge: { enabled: false }
+      verification.gate: { enabled: true }
+      verification.browser: { enabled: false, scope: affected }
+      acceptance.cloud-browser: { enabled: false }
+      handoff.knowledge: { enabled: true }
+      handoff.evaluate: { enabled: true }
+    rework: { maxRounds: 1 }
     fanOut: 4
-    budget: { tokens: 500000, money: { amount: 12, currency: USD }, elapsed: PT2H }
+    budget:
+      scope: run
+      moneyScope: model
+      enforcement: strict
+      limits: { tokens: 500000, money: { amount: 12, currency: USD }, agentTime: PT2H }
     deadline: PT4H
 
 # What no profile or run override may remove in this repository.
@@ -167,17 +287,6 @@ repositoryFloor:
   hooks: [secrets-scan]
   approvals: [beforeStage.implementation, release]
   evidence: [served-source-identity, redaction, run-ledger]
-  minimumReviewRounds: 1
-
-# Filled by the operator from the provider's price list at the effective
-# date. Money is tokens times the entry pinned at admission; provider-billed
-# cost, when reported, reconciles against it and never overwrites it. The
-# compiler refuses a money-budgeted profile whose models have no entry.
-rateCard:
-  revision: null
-  currency: USD
-  perMillionTokens: []
-  # - { provider: anthropic, model: claude-sonnet-5, input: 0, output: 0, cacheRead: 0, effectiveFrom: 2026-09-06 }
 
 # Named authority for discovery before a plan exists (assumption A29).
 discoveryEnvelopes:
@@ -185,7 +294,8 @@ discoveryEnvelopes:
     writePaths: ['openspec/changes/**', 'docs/**']
     readOnlyCode: true
     providers: [anthropic]
-    budget: { tokens: 300000, money: { amount: 10, currency: USD }, elapsed: PT2H }
+    # Suballocation of the run account, never a second spending allowance.
+    allowance: { tokens: 300000, money: { amount: 10, currency: USD }, agentTime: PT2H }
     deadline: P2D
 
 # Per-repository capacity defaults; organization pools sit above them.
@@ -222,8 +332,22 @@ knowledge:
   benchmark: { questions: 20, correctness: 0.9, traceability: 1.0, effort: recorded }
   claimStatuses: [proposed, observed, accepted, stale, superseded]
 
-# Outcome record settings (design.md, "Levers, ledger and outcomes").
+# Canonical evaluation definition; workflow publication requires the organization
+# evaluation-publisher capability plus a human decision when this subtree changes.
+# Compiler hashes quality, rubric and observationSet independently; submit_request
+# pins those revisions from its compiled workflow. No delivery-profile override.
+# handoff.evaluate uses the task fixture's independently authored assertions; absent
+# assertions are unavailable, never a pass. Skipping it prevents quality ranking,
+# not a handoff otherwise allowed by the floor. Its usage charges the run account.
 quality:
+  id: delivery-baseline
+  rubric:
+    id: contract-and-regression
+    criteria: [task-acceptance, repository-gate]
+  observationSet:
+    - { id: task-acceptance, activity: handoff.evaluate }
+    - { id: repository-gate, activity: verification.gate }
+  cohortFields: [repositoryId, taskFixtureDigest, evaluationRevision]
   escapedDefectWindow: P30D
   acceptedOutcome: candidate-accepted-at-handoff
   estimateCalibration: per-task

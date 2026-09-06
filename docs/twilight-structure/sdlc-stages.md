@@ -11,18 +11,21 @@ bunx @fission-ai/openspec@1.12.0 status --change <name> --json
 bunx @fission-ai/openspec@1.12.0 instructions intent --change <name> --json
 ```
 
-The [schema](../../openspec/schemas/twilight-v1/schema.yaml) owns artifact
-dependencies and templates and invokes contributing methods. The
-[execution profile](../../openspec/schemas/twilight-v1/execution.yaml) beside it
-owns the stage list below, the activities in each stage, lifecycle policies, hooks
-and delivery profiles. Read the schema's actual instructions at each stage. One
-required artifact class each for intent, specs, plan and evidence; `design.md` is
-always present and holds only an applicability statement for a mechanically
-obvious change. Stages have activities without acquiring another Markdown file.
+The [schema](../../openspec/schemas/twilight-v1/schema.yaml) owns the independent
+file-readiness DAG, templates and contributing methods. Artifact mappings supply
+stage inputs and evidence; they do not order stages. The
+[execution profile](../../openspec/schemas/twilight-v1/execution.yaml) beside it is
+the only stage DAG: each stage names its prerequisites, activities and applicable
+policy. It also registers hooks and defines delivery profiles. Read the schema's
+actual instructions when producing an artifact. One required artifact class each
+for intent, specs, plan and evidence; `design.md` is always present and holds only
+an applicability statement for a mechanically obvious change. Stages may contain
+activities without acquiring another Markdown file.
 
 ## Stages, methods and return paths
 
-Stage ids are the ones `execution.yaml` declares; policies and hooks key on them.
+Stage ids and prerequisites are the ones `execution.yaml` declares; this table is
+their explanatory projection, not a second dependency source.
 
 | Stage id         | Work / contributors                                                                          | Canonical output and completion                                                               | Return path                                       |
 | ---------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------- |
@@ -37,11 +40,13 @@ Stage ids are the ones `execution.yaml` declares; policies and hooks key on them
 | `handoff`        | Reconcile glossary/wiki/ADRs/contracts and source provenance; write the outcome record       | `verify.md` links knowledge, sync/archive status, candidate and outcome                       | Reopen stale claims; retain disagreements         |
 | `release`        | Separate explicit human command for candidate/environment                                    | Attributed release record plus observed health/recovery                                       | Controlled recovery; no false success             |
 
-Discovery precedes specification, planning precedes implementation. Per-task tests
-do not replace integrated checks. Knowledge updates as it resolves and is reconciled
-at handoff. Development completion is distinct from production delivery. Which
-activities a run performs, and which it may skip, is the delivery profile's choice
-within the repository floor; a skipped activity is a recorded decision.
+The stage DAG preserves every ordering boundary even when a stage's activities are
+disabled or all inapplicable; their dispositions do not invent passing evidence.
+Per-task tests do not replace the floor's integrated gate. Knowledge updates as it
+resolves and is reconciled at handoff. Development completion is distinct from
+production delivery, and `release` never starts from stage completion. Which
+activities a run performs is the delivery profile's choice within the repository
+and organization floors; changing enablement is one audited activity override.
 
 ## Authority and assumptions
 
@@ -62,14 +67,14 @@ and online; this trial did not install it or activate global preferences.
 
 ## What the CLI establishes
 
-| Check                                  | Establishes                                | Does not establish                                        |
-| -------------------------------------- | ------------------------------------------ | --------------------------------------------------------- |
-| `schema validate twilight-v1 --json`   | Schema graph/templates parse               | Runtime policy or safe effects                            |
-| `status --change … --json`             | Output existence and graph readiness       | Content, approvals, all capability files or passing tests |
-| `instructions … --json`                | Template/guidance/dependencies             | Permission; blocked instructions can still be returned    |
-| `instructions apply --change … --json` | Direct required outputs and checkbox state | Current evidence, actual behavior or deployment           |
-| `validate --all --json`                | Discovered spec structure/scenarios        | Semantic coverage or runtime correctness                  |
-| `archive`                              | Native synchronization/archive operation   | Production delivery or a verified human decision          |
+| Check                                  | Establishes                                | Does not establish                                      |
+| -------------------------------------- | ------------------------------------------ | ------------------------------------------------------- |
+| `schema validate twilight-v1 --json`   | Artifact-readiness graph/templates parse   | Runtime stage policy or safe effects                    |
+| `status --change … --json`             | Output existence and artifact readiness    | Stage progress, approvals, capability coverage or tests |
+| `instructions … --json`                | Template/guidance/dependencies             | Permission; blocked instructions can still be returned  |
+| `instructions apply --change … --json` | Direct required outputs and checkbox state | Current evidence, actual behavior or deployment         |
+| `validate --all --json`                | Discovered spec structure/scenarios        | Semantic coverage or runtime correctness                |
+| `archive`                              | Native synchronization/archive operation   | Production delivery or a verified human decision        |
 
 The trial tests these boundaries against 1.12.0. `apply.requires` lists intent,
 specs and tasks directly: a task file does not recursively establish its ancestors.
@@ -86,7 +91,7 @@ race tests were not run: they are planned, and nothing in this trial executed th
 List them as unrun or inapplicable with reasons.
 
 For application work, identify repository, change, task/attempt, source content,
-compiled policy, profile revision, command/tool version and environment. Dirty
+compiled policy, profile epoch, command/tool version and environment. Dirty
 work needs a content manifest, not only a base commit. Every new safety check has
 a production-path negative whose intended fault was observed before its `Proof:`
 comment. Shared layout/CSS effects require whole-browser coverage. Unknown never
@@ -100,8 +105,9 @@ deterministically. The [migration](client-repositories.md) changes authority exp
 
 The custom `tool-twilight` compiler/verifier fills identified gaps: content and
 capability coverage, design applicability, provenance/digests, stale decisions,
-profile floors and task extraction. BE and CI call the same operations. LangGraph
-persists and executes the compiled workflow while ACP workers act within
+profile floors, organization-snapshot inputs and task extraction. BE and CI call
+the same operations. LangGraph persists and executes the compiled workflow while
+ACP workers act within
 capabilities. Settings and levers use the
 [exposed control matrix](product-experience.md). Implementation order belongs
 only to the [delivery plan](../../openspec/changes/twilight-control-plane/tasks.md).

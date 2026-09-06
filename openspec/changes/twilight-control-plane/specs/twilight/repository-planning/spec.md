@@ -78,10 +78,14 @@ resolve the pinned inputs without consulting a moving planning/receipt head.
 ### Requirement: Plan resource units are carried without conversion
 
 A `WorkPlan` read through the planning port MUST carry each task's resource units
-in the ledger vocabulary (human minutes, agent elapsed time, tokens, money, slots)
-beside WBS workdays, and Twilight MUST reserve and report against those units
-without converting one into another. Measured usage MUST return to the planning
-owner as a progress receipt, never as an edit of the approved task definition.
+in the ledger vocabulary (human minutes, additive agent time, tool time, token
+categories, money categories and concurrent slots) beside WBS workdays. Each value
+MUST retain its unit, uncertainty and measured or unavailable status. Twilight MUST
+reserve and report against those units without converting one into another. Run
+wall elapsed, queue wait and human wait MAY be reported as distinct progress
+observations but MUST NOT be substituted for task effort. Settled usage MUST return
+to the planning owner as a progress receipt naming its run, attempt and profile
+epoch, never as an edit of the approved task definition.
 
 #### Scenario: A plan states workdays only
 
@@ -91,6 +95,13 @@ owner as a progress receipt, never as an edit of the approved task definition.
 
 #### Scenario: Measured usage returns to the plan
 
-- **WHEN** an activity attempt settles with measured tokens and elapsed time
-- **THEN** a progress receipt naming the task and attempt is proposed to the planning
-  owner, and the approved task definition's revision is unchanged
+- **WHEN** an activity attempt settles with measured token categories and agent time
+- **THEN** a progress receipt naming the task, run, attempt and profile epoch is
+  proposed to the planning owner, and the approved task definition's revision is unchanged
+
+#### Scenario: Parallel attempts update one task estimate
+
+- **WHEN** four 30-minute agent attempts overlap during one 30-minute run interval
+  and their progress receipts are aggregated for the task
+- **THEN** the plan records 120 agent-minutes and 30 minutes of run wall elapsed as
+  distinct quantities; neither is converted into WBS workdays

@@ -1,0 +1,20 @@
+[
+  {
+    "path": "openspec/changes/twilight-review-hardening/evidence/ci-integration-step.txt",
+    "originalSha256": "281429e11177b143d858f0bf5fa44fc66c3146a4edef8f077ef109b5f69bbbf6",
+    "normalizedSha256": "d7c1517966bd8fffaf89fe2e9be1ee10a44e3be3f49379dd7c08de2d53eb4d8f",
+    "change": "CRLF to LF only; original bytes retained at HEAD 3b0c8c80"
+  },
+  {
+    "path": "openspec/changes/twilight-review-hardening/evidence/tool-gate-round-2.txt",
+    "originalSha256": "e18274cc483286b81e12d330faf0e7b081c071d1571576c7ea0c6e108757d65e",
+    "normalizedSha256": "2da3850893ea63b3a94e121556a8b4eebd38e063441acea5b7caa8dfb72c5af2",
+    "change": "CRLF to LF only; original bytes retained at HEAD 3b0c8c80"
+  },
+  {
+    "path": "openspec/changes/twilight-review-hardening/evidence/whole-gate-round-3-red.txt",
+    "originalSha256": "966589c4bad1fbaeb8e34daaecba655888e910b77c7ede68c566f3ae843c515c",
+    "normalizedSha256": "2db735833cbd4d9782c3dc3e7eb772d9c759da70fe1270992ab6c95738232447",
+    "change": "CRLF to LF only; original bytes retained at HEAD 3b0c8c80"
+  }
+]

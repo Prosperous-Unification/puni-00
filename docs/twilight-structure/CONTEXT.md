@@ -80,7 +80,8 @@ A bounded supply of an execution resource shared by competing activities.
 _Avoid_: Budget, availability
 
 **Budget**:
-The authorized ceiling on consumption for a defined scope of work.
+The authorized consumption policy for one run, containing warning targets and
+hard caps for its accounted resources.
 _Avoid_: Estimate, capacity
 
 **Knowledge claim**:
@@ -120,19 +121,23 @@ _Avoid_: Agent, sandbox
 
 **Compiled workflow**:
 The immutable, digest-identified result of compiling a workflow definition,
-execution profile, and repository manifest for a run.
+execution profile, repository manifest, and organization snapshot for a run.
 _Avoid_: Config snapshot, graph
 
 **Execution profile**:
-The versioned file beside the schema that maps artifacts to stages, declares
-activities, assigns policies to lifecycle points, registers hooks and defines
-delivery profiles.
+The versioned repository file that defines stage prerequisites, artifact mappings,
+the activity catalog, lifecycle policy, hooks, and delivery profiles.
 _Avoid_: Settings, stage list
 
 **Activity class**:
-The kind of work an activity performs: research, plan, implement, review, judge,
-verify or knowledge; the unit a delivery profile assigns a model to.
+The kind of work an activity performs and the unit that supplies default model
+choices for agent-executed activities.
 _Avoid_: Role, agent type
+
+**Activity executor**:
+The kind of performer an activity requires: an agent using a model or a registered
+tool implementation.
+_Avoid_: Activity class, worker
 
 **Lifecycle point**:
 A named stage, activity, tool, decision, rework, trigger or profile-change event
@@ -181,10 +186,14 @@ _Avoid_: Branch, repository lineage
 ### Levers
 
 **Delivery profile**:
-A named, versioned bundle of the levers a person tunes: model per activity class,
-escalation ladder, review depth, verification depth, skipped activities, fan-out,
-budget and deadline.
+A named, versioned bundle of activity choices, execution choices, resource limits,
+and stopping conditions that a person selects for a run.
 _Avoid_: Starting profile, mode, preset
+
+**Profile epoch**:
+An immutable interval of a run during which one resolved set of delivery-profile
+settings applies to newly admitted work.
+_Avoid_: Current profile, profile change
 
 **Escalation ladder**:
 The bounded sequence of models an activity class moves through when an attempt
@@ -192,21 +201,49 @@ ends in refusal, gate failure or a blocking finding.
 _Avoid_: Fallback, retry policy
 
 **Rate card**:
-The organization's versioned price per token for each provider and model revision,
-with an effective date.
+The organization's versioned prices for measured provider usage, with effective
+dates and explicit charge categories.
 _Avoid_: Pricing, vendor list
 
+**Organization snapshot**:
+The immutable, digest-identified organization floors, capacity pools, and rate
+card supplied when a workflow is compiled for a run.
+_Avoid_: Server defaults, current organization settings
+
+**Budget account**:
+The one run-owned account that holds its authorized targets, hard caps,
+reservations, and consumption across attempts, retries, and child work.
+_Avoid_: Attempt budget, spending estimate
+
+**Delivery charge**:
+An attributable cost of a model, tool, service or person's work on a run, kept
+with its reserved maximum, pricing basis and observed consumption.
+_Avoid_: Token count, budget allowance
+
+**Agent time**:
+The sum of time during which agent sessions occupy execution capacity, including
+provider or tool waits while those sessions remain occupied.
+_Avoid_: Run elapsed, queue wait
+
+**Run elapsed**:
+Wall-clock time from a run's creation to its terminal time or the observation time,
+including queueing, decisions, pauses, and recovery.
+_Avoid_: Agent time, workdays
+
 **Run ledger**:
-The per-attempt record of planned, reserved and measured tokens, money, agent
-elapsed time, queue wait, human wait and human minutes, with the serving model and
-profile revision.
+The run's attributable record of planned, reserved, and measured consumption,
+waits, human effort, serving choices, and profile epochs.
 _Avoid_: Usage, bill
 
 **Outcome record**:
-The per-run record of acceptance, rework rounds, findings, gate failures, skipped
-activities, escaped defects and estimate versus actual, attributed to a profile
-revision.
+The versioned record of a terminal run and candidate under a named evaluation,
+including acceptance, rework, findings, observations, costs, and later defect reports.
 _Avoid_: Score, report
+
+**Evaluation**:
+The shared acceptance definition, rubrics, observations, cohort, and defect window
+under which outcome records can be compared.
+_Avoid_: Delivery profile, score formula
 
 **Accepted outcome**:
 A candidate accepted at handoff with every floor activity passed.
@@ -225,8 +262,8 @@ at bootstrap.
 _Avoid_: Tenant, account
 
 **Safety floor**:
-A mandatory policy at organization or platform level that lower-level overrides
-may tighten but not loosen.
+A mandatory policy at platform, organization, or repository level that lower-level
+settings may not loosen.
 _Avoid_: Default, baseline
 
 **Decision token**:

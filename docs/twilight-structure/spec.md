@@ -57,7 +57,12 @@ each client, with WBS planning backed by per-repo Backlog.md after WBS refactors
 These requirements record the brief. They do not imply that every feature is
 in the first release or that any integration has already been implemented.
 
-## Delivery sequence
+For TS-27, “better” and “cheaper” are observed outcomes rather than a built-in
+ordering of model names. Delivery profiles choose activities and execution
+settings; a separate, pinned evaluation makes their money, time and quality
+outcomes comparable without letting a profile weaken its own measure.
+
+## User-level delivery sequence
 
 1. **Work request:** capture the desired change.
 2. **Discovery:** clarify the request through Q&A, record assumptions, and
@@ -73,11 +78,11 @@ in the first release or that any integration has already been implemented.
 7. **Production deployment:** execute on an explicit human command, with
    reliable deployment management.
 
-Observability spans the entire sequence. Transitions, approval requirements,
-rework paths, cancellation, recovery and completion are specified in the
-[control-plane design](../../openspec/changes/twilight-control-plane/design.md)
-and its [execution profile](../../openspec/schemas/twilight-v1/execution.yaml);
-this list is the delivery sequence, not the workflow engine.
+Observability spans the entire sequence. This list describes the requested
+experience, not a second workflow graph. The
+[execution profile](../../openspec/schemas/twilight-v1/execution.yaml) alone owns
+stage ordering; the [control-plane design](../../openspec/changes/twilight-control-plane/design.md)
+specifies transitions, approvals, rework, cancellation, recovery and completion.
 
 ## Existing stack reference
 
@@ -92,10 +97,10 @@ The current [design](../../openspec/changes/twilight-control-plane/design.md) an
 OIDC primitives and separate Twilight state. These choices require the planned
 integration proofs; similar stack does not establish a shared product database.
 
-## Specification work ahead
+## Specification coverage
 
-The proposed areas below organize the interview; they are not an approved
-service decomposition or implementation order.
+The areas below organize the proposal and later capability deltas; they are not
+a service decomposition or implementation order.
 
 | Area                          | Decisions that need specifications                                                                             |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -103,7 +108,7 @@ service decomposition or implementation order.
 | Agent sessions                | ACP versions and capabilities, provider adapters, concurrency, permissions, workspaces, session recovery.      |
 | Knowledge and specifications  | Exact source projects, canonical artifacts, versioning, review, contradictions, and links to evidence.         |
 | Resource planning             | WBS relationship, dependency ownership, agent/human units, budgets, availability, and coordination costs.      |
-| Levers and quality            | Delivery profiles, rate card, run ledger, outcome record, escalation, skipped activities, fan-out versus cost. |
+| Levers and quality            | Delivery profiles, activity enablement, model routing, budgets, accounting, evaluation and outcome comparison. |
 | Execution and review          | Task ownership, independent reviewers, findings, test adequacy, retry limits, and integration.                 |
 | Integrations and automation   | MCP lifecycle, cron semantics, events, credentials, and the OpenHands feature inventory.                       |
 | Deployment and acceptance     | Cloud-browser evidence, artifact identity, environment state, recovery, and production commands.               |
