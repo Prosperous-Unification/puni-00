@@ -3910,18 +3910,17 @@ test.describe('the marker rule, measured in the columns it paints', () => {
       // of its earlier frame under load — the reproduced failure was three
       // pixels with a greatest channel delta of 5. Eight admits that invisible
       // jitter; an opaque auxiliary rule has a delta many times larger and the
-      // arithmetic's controlled fault pins that distinction.
+      // arithmetic's controlled fault pins that distinction. Proof: a
+      // temporary untagged marker line eight days outside the strip failed
+      // this assertion at delta 79 against the allowed 8 on h2puni.
       const bodyDelta = greatestChannelDelta(...(await pixelsOf(page, before.body, hidden.body)));
       expect(
         bodyDelta,
         `at ${String(rung)}px the marker leaves body ink the queried rule does not account for`,
       ).toBeLessThanOrEqual(8);
-      // And the marker really drew something, so the identity above is not two
-      // photographs of the same empty chart.
-      expect(
-        present.body === before.body,
-        `at ${String(rung)}px the marker changes nothing in the body at all`,
-      ).toBe(false);
+      // `ruleInk` is non-empty by `isContiguousRun` above, so the marker really
+      // did draw body ink; a second exact-PNG check here would let the same
+      // raster jitter satisfy that positive assertion by itself.
     }
   });
 });
