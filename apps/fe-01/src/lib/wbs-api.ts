@@ -1070,6 +1070,55 @@ export interface CreatedProject {
   restricted: boolean;
 }
 
+export type ScheduleEngineView = 'fast' | 'optimized';
+export type ScheduleObjectiveView = 'pri' | 'time';
+
+export interface ProjectOptimizationPatch {
+  readonly optimizationEnabled?: boolean;
+  readonly scheduleEngine?: ScheduleEngineView;
+  readonly scheduleObjective?: ScheduleObjectiveView;
+}
+
+export type OptimizationVariantView =
+  | { readonly state: 'ready' }
+  | { readonly state: 'pending' }
+  | { readonly state: 'retrying' }
+  | {
+      readonly state: 'failed';
+      readonly reason:
+        | 'timeout'
+        | 'invalid-output'
+        | 'no-solution'
+        | 'internal-error'
+        | 'oom'
+        | 'horizon-overflow'
+        | 'objective-overflow';
+    }
+  | { readonly state: 'corrupt'; readonly message: string }
+  | {
+      readonly state: 'plan-infeasible';
+      readonly items: readonly {
+        readonly ownerWorkItemId: string;
+        readonly boundWorkItemId: string;
+        readonly effectiveDeadlineOffset: number;
+      }[];
+    }
+  | { readonly state: 'idle' };
+
+/** The selected schedule and both same-input optimizer states from one plan read. */
+export interface PlanOptimizationView {
+  readonly enabled: boolean;
+  readonly engine: ScheduleEngineView;
+  readonly objective: ScheduleObjectiveView;
+  readonly inputHash: string;
+  readonly generation: number | null;
+  readonly contractVersion: string;
+  readonly budgetMs: number;
+  readonly displayed: 'fast' | ScheduleObjectiveView;
+  readonly variants: Readonly<Record<ScheduleObjectiveView, OptimizationVariantView>>;
+  readonly comparison?: { readonly deltaDays: number; readonly sameOrder: boolean };
+}
+
 /**
  * The project's work items, and the event sequence they were read at.
  *
@@ -1176,6 +1225,8 @@ export interface PlanRead {
    */
   undoable: boolean;
   redoable: boolean;
+  /** Present when this backend has the optional optimizer configured. */
+  optimization?: PlanOptimizationView;
 }
 
 /**
@@ -1279,6 +1330,8 @@ export interface ProjectApi {
    * in the plan may move on it, so the caller reads the tree again.
    */
   setDepReach(projectId: string, reach: DependencyReach): Promise<void>;
+  /** Changes the project-wide optimizer flag or the schedule every collaborator sees. */
+  setOptimizationSettings(projectId: string, patch: ProjectOptimizationPatch): Promise<void>;
   /** Puts the plan on a calendar, or `null` to take it off again. */
   setStartDate(projectId: string, startDate: string | null): Promise<void>;
   /**
@@ -2329,6 +2382,12 @@ export function httpProjectApi(token: string): ProjectApi {
       await send(`/api/projects/${projectId}`, token, {
         method: 'PATCH',
         body: JSON.stringify({ depReach: reach }),
+      });
+    },
+    async setOptimizationSettings(projectId, patch) {
+      await send(`/api/projects/${projectId}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
       });
     },
     async steps(projectId) {

@@ -53,6 +53,7 @@ import {
   type EstimateRoundingView,
   isEstimateMethod,
   type PertWeightsView,
+  type PlanOptimizationView,
   type ProjectApi,
   type SliceView,
   type StepView,
@@ -142,6 +143,7 @@ import {
 } from './live-editing';
 import { splitMention } from './mention';
 import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes';
+import { OptimizationIndicator } from './optimization-indicator';
 import { type CardAssignee, PlanCards } from './plan-cards';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
@@ -2114,6 +2116,8 @@ interface ChartRead {
    */
   pertWeights: PertWeightsView;
   estimateRounding: EstimateRoundingView;
+  /** Optimizer settings and states from this same plan read, when configured. */
+  optimization?: PlanOptimizationView;
   /**
    * Which read this is: `refresh`'s own generation, and 0 before any has
    * landed.
@@ -3930,6 +3934,7 @@ export function WbsTable({
         depReach: tree.depReach,
         pertWeights: tree.pertWeights,
         estimateRounding: tree.estimateRounding,
+        ...(tree.optimization === undefined ? {} : { optimization: tree.optimization }),
         generation,
       });
       setStack({ undoable: tree.undoable, redoable: tree.redoable });
@@ -11443,6 +11448,15 @@ export function WbsTable({
           setArithmetic: (arithmetic) => api.setEstimateArithmetic(projectId, arithmetic),
           onChanged: refreshOrMarkStale,
         }}
+        {...(chartRead.optimization === undefined
+          ? {}
+          : {
+              optimization: {
+                value: chartRead.optimization,
+                setSettings: (patch) => api.setOptimizationSettings(projectId, patch),
+                onChanged: refreshOrMarkStale,
+              },
+            })}
       />
       {/*
         Find. Deliberately without `data-cell`: this is not a cell of the
@@ -11974,6 +11988,17 @@ export function WbsTable({
               </Button>
             )}
         </div>
+      )}
+
+      {chartRead.optimization !== undefined && (
+        <OptimizationIndicator
+          optimization={chartRead.optimization}
+          stale={treeMayBeStale}
+          workItemName={(id) => {
+            const found = flat.find((row) => row.id === id);
+            return found?.name ?? id;
+          }}
+        />
       )}
 
       {/*
