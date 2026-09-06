@@ -7,7 +7,7 @@
 # Dockerfile cannot read a file, so `toolchain-pins.test.ts` holds this line
 # to it. The lockfile is still v1 text: Bun 1.4 reads and writes v1 for an
 # existing lockfile and only starts new ones at v2.
-FROM oven/bun:1.4.2-alpine AS deps
+FROM oven/bun:1.4.2 AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
 # --production: be-01 runs its TypeScript source directly under Bun (no
@@ -18,9 +18,21 @@ COPY package.json bun.lock ./
 # the runtime image.
 RUN bun install --frozen-lockfile --production
 
-FROM oven/bun:1.4.2-alpine AS runtime
+FROM python:3.14.4-slim-trixie AS solver
+WORKDIR /solver
+COPY libs/solver-py/requirements.lock ./requirements.lock
+RUN python3 -m pip install --no-cache-dir --require-hashes -r requirements.lock
+COPY libs/solver-py ./
+RUN python3 -m pip install --no-cache-dir --no-deps .
+
+# Keep the Python stage's Debian runtime libraries as well as /usr/local:
+# ctypes needs libffi and the solve imports native OR-Tools wheels. OR-Tools
+# publishes cp314 manylinux wheels, not musllinux wheels, so the prior Alpine
+# runtime could not install the locked solver at all.
+FROM solver AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
+COPY --from=deps /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json bun.lock tsconfig.base.json ./
 COPY libs ./libs

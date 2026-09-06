@@ -234,13 +234,14 @@ wrong at one end of it whichever value it took.
 
 #### Scenario: a second marker on the same date is accepted
 
-- **WHEN** a marker exists on `2026-09-17` and a second is created on the same
-  date
+- **WHEN** a marker exists on `2026-09-17`, **that date being inside the drawn
+  horizon**, and a second is created on the same date
 - **THEN** both are stored, and the axis cell reports two markers
 
 #### Scenario: overflow collapses to a count
 
-- **WHEN** more markers sit on one date than the band shows at 28px per day
+- **WHEN** more markers sit on one date **inside the drawn horizon** than the
+  band shows at 28px per day
 - **THEN** the cell shows a count, and the full list is reachable by hover or tap
 
 ### Requirement: Markers are drawn without changing the bar layer
@@ -269,8 +270,8 @@ Nothing SHALL be drawn over a bar. Bar fill and the critical-path
 
 **"Fully opaque over it" is false of one bar kind, and the guarantee SHALL be
 stated as it actually holds** (round-12 Sol review, Important). An **assumed**
-bar carries `[fill-opacity:0.35]` by design (`ASSUMED_BAR_CLASSES`,
-`gantt-panel.tsx:706`), so a rule painted behind one shows through it exactly as
+bar carries `[fill-opacity:0.35]` by design (`ASSUMED_BAR_CLASSES` in
+`gantt-panel.tsx`), so a rule painted behind one shows through it exactly as
 the gridlines, zebra band and weekend column beneath it already do. That is the
 treatment's purpose and this feature SHALL NOT special-case it: masking the rule
 under assumed bars alone would give the marker a paint privilege none of the
@@ -293,10 +294,12 @@ crop to the footprint and require a difference inside it.
 **The rule SHALL be 1px on screen at every rung, and that needs a mechanism
 rather than a width** (round-12 Sol review, Important). The chart's SVG user
 space is days by rows and is stretched non-uniformly to `dayPx`
-(`viewBox` days×rows with `preserveAspectRatio="none"`, `gantt-panel.tsx:3940-3943`),
+(`viewBox` days×rows with `preserveAspectRatio="none"` on the chart `<svg>` in
+`gantt-panel.tsx`),
 so a stroke of one user unit is **a day wide** — 28, 12 or 4 CSS pixels across
 the ladder. Today's leading edge already carries `vectorEffect="non-scaling-stroke"`
-for precisely this reason (`gantt-panel.tsx:2984-2995`). The marker rule SHALL
+for precisely this reason (the today leading-edge `<line>` in
+`gantt-panel.tsx`). The marker rule SHALL
 carry `vector-effect: non-scaling-stroke` and SHALL render one CSS pixel wide at
 every rung.
 
@@ -321,9 +324,10 @@ outside the geometry the box measures. The browser proof SHALL therefore be
 **That width SHALL be bounded rather than exact** (round-15 Gemini review,
 Critical). The rule sits at an integer user coordinate and the chart's
 horizontal map is `x * dayPx + CHART_PAD_PX` with all three integers
-(`gantt-panel.tsx:590`), so a 1 CSS pixel non-scaling stroke is centred **on** a
-pixel boundary and rasterizes at partial coverage into the two columns it
-straddles — and nothing in the component sets `shape-rendering` to opt out.
+(`CHART_PAD_PX` in `gantt-panel.tsx`), so a 1 CSS pixel non-scaling stroke is
+centred **on** a pixel boundary and rasterizes at partial coverage into the two
+columns it straddles — and nothing in the component sets `shape-rendering` to
+opt out.
 "Exactly one painted column" would therefore fail the correct renderer, which is
 the same shape of error as the bounding box it replaced. The requirement is a
 hairline against a day: **1 or 2 painted columns**, against the 28 and 4 a
@@ -403,7 +407,7 @@ wash, and at 12px they do not merge.
 
 A marker SHALL find its day by locating its `IsoDate` in the rendered
 `AxisDay[]`, through the same generalised lookup today uses
-(`todayOffset`, `gantt-panel.tsx:872`). A marker SHALL NOT compute its own
+(`todayOffset` in `gantt-panel.tsx`). A marker SHALL NOT compute its own
 offset from a date, and SHALL NOT read `CalendarScale` — that interface takes
 a **workday** number and returns a calendar offset, so an absolute date is
 already past it.
@@ -442,7 +446,8 @@ interval bounds.
 
 #### Scenario: the rule is an opaque 1px line at every rung of the zoom ladder
 
-- **WHEN** the same marker is rendered at 28px, at 12px and at 4px per day —
+- **WHEN** a plan whose only marker is that marker, on an in-horizon date, is
+  rendered at 28px, at 12px and at 4px per day —
   every rung, since a fault conditioned on one of them would otherwise reach no
   rasterized assertion, and the two ends are what make the mechanism visible,
   because one rung alone cannot tell a non-scaling stroke from a width that
@@ -479,19 +484,22 @@ interval bounds.
 
 #### Scenario: many markers on one date are one rule position
 
-- **WHEN** seven markers sit on a single date at 4px per day
+- **WHEN** a plan whose only markers are seven markers sitting on a single
+  date **inside the drawn horizon** is shown at 4px per day
 - **THEN** one rule is drawn in the first marker's colour, the density threshold
   is not reached, and the band shows one chip with `+6`
 
 #### Scenario: a marker on today is visible and today is still findable
 
-- **WHEN** a marker is placed on today's date
+- **WHEN** a plan whose only marker is placed on today's date, **today being
+  inside the drawn horizon**, is shown
 - **THEN** its rule element follows `data-gantt-today-edge` in paint order, and
   the tinted `data-gantt-today` column is still present at that offset
 
 #### Scenario: a marker on a weekend clears the weekend column
 
-- **WHEN** a marker is placed on a Saturday inside the horizon
+- **WHEN** a plan whose only marker is placed on a Saturday inside the horizon
+  is shown
 - **THEN** its rule element follows that day's `data-gantt-weekend` column in
   paint order, and the weekend column is unchanged from the same plan without
   the marker
@@ -502,10 +510,10 @@ The standalone SVG export SHALL draw every marker chip the live axis shows, in
 the same colours and at the same day positions.
 
 `buildStandaloneGanttSvg` nests the live chart SVG but **rebuilds the axis
-band from pixel arithmetic** (`gantt-panel.tsx:1789`), so without this
-requirement the body rule would cross into the download — it lives inside the
-nested chart SVG — while the chip that names it would not. A coloured line
-with nothing saying what it marks is worse than no line: the reader sees a
+band from pixel arithmetic** (`gantt-panel.tsx`, `buildStandaloneGanttSvg`), so
+without this requirement the body rule would cross into the download — it lives
+inside the nested chart SVG — while the chip that names it would not. A coloured
+line with nothing saying what it marks is worse than no line: the reader sees a
 date they cannot identify and has no way to find out.
 
 `StandaloneGanttSvgInput` SHALL therefore carry the markers explicitly, the
@@ -516,38 +524,98 @@ disagree.
 **A chip is a position and a colour, not a name.** On screen the name lives in
 the chip's hover list, and at 4px the chip is a coloured tick; a downloaded
 file has no pointer and no 4px exemption. So the export SHALL also carry a
-**legend**: one row per marker, its swatch, its `date` and its `name`, in the
-list's `(date, created_at, id)` order, at every rung. Every marker name SHALL
-appear as text in the exported markup. A tooltip mechanism does not satisfy
-this — it is the hover answer again, and it is invisible in a printed page or
-a rasterised copy, which is what a downloaded chart is for.
+**legend**: one row per chip **the file draws**, its swatch, its `date` and its
+`name`, in the band's `(date, created_at, id)` order, at every rung. Every name
+the legend names SHALL appear as text in the exported markup. A tooltip
+mechanism does not satisfy this — it is the hover answer again, and it is
+invisible in a printed page or a rasterised copy, which is what a downloaded
+chart is for.
+
+**Per chip drawn, not per marker** (2026-09-06, TASK-287). The clause above
+said "one row per marker" until this change, while `layOutMarkerLegend` has
+taken the drawn band since it was written; TASK-281's 12px case made the two
+contradict each other in writing by asserting a capped marker's _absence_ from
+the legend. The band is what loses ties here, and deliberately: a legend is a
+**key to the picture**. Its stated job two sentences up is to turn the file's
+coloured shapes back into names, so a row whose swatch names a colour that is
+nowhere in the file is a key that sends the reader hunting for a shape that
+does not exist — the same defect as an unnamed shape, pointing the other way.
+A marker off the drawn horizon and a marker past its cell's share of
+`MARKER_BAND_MAX_PER_CELL` are both undrawn, both by
+`markersDrawnInBand`, and neither has a swatch to be the key to.
+
+**What this does not settle.** "The file drops a marker the plan has" is a real
+concern and it is not the legend's to answer. On screen that cell carries a
+`+N` badge and a day card behind it; the export carries neither, so a capped
+marker leaves the download with nothing at all saying it was dropped. That is a
+gap in what the _picture_ records, not in what the _key_ names, and the fix for
+it is the export's own overflow affordance rather than nameless legend rows —
+an undrawn entry has no swatch to show and no chip to point at, so a legend
+built from the full marker list would have to invent both.
 
 The legend SHALL lie wholly inside the exported `viewBox`, which means the
 export SHALL grow its canvas to hold it. `buildStandaloneGanttSvg` fixes
 `totalHeight` and paints the background to it before anything else is appended
-(`gantt-panel.tsx:1755`, `:1762-1764`, `:1771`), so a legend added without that
-growth is text that serializes into the file and appears on no page — which is
-the same failure as no legend, wearing a passing test.
+(`gantt-panel.tsx`, the `totalHeight` binding in `buildStandaloneGanttSvg` and
+the `viewBox`/`height`/background-rect writes that read it), so a legend added
+without that growth is text that serializes into the file and appears on no
+page — which is the same failure as no legend, wearing a passing test.
+
+Cited by symbol rather than by line: these two citations have now drifted twice
+(they last pointed at `:1789` and `:1755`/`:1762-1764`/`:1771`, which today are
+`readGanttTheme` and the XML constants), and a spec that names a line number is
+a spec that goes quietly wrong every time the file above it grows.
 
 #### Scenario: a downloaded chart shows chip and rule together
 
-- **WHEN** a plan with two markers is exported below the density threshold
+- **WHEN** a plan with two markers **on distinct dates inside the drawn
+  horizon** is exported below the density threshold
 - **THEN** the SVG contains a chip for each at its day's x, in its colour, **one
   rule per occupied date** carrying that date and that colour, and each rule has
   a chip at the same date in the same colour
 
-#### Scenario: a downloaded chart names its markers at every rung
+The same constraint as the two scenarios below it, and for the same reason: "a
+chip for each" is a claim about the **drawn** population, so two markers sharing
+one date fail it wherever `MARKER_BAND_MAX_PER_CELL` is 1, and a marker off the
+horizon has no day x to be drawn at. Unconstrained, this was false for a valid
+plan (round-1 Gemini review, TASK-288). It predates TASK-287 and is the last of
+the four scenarios that carried the fault.
 
-- **WHEN** a plan with two markers is exported at 28px per day and again at 4px
+#### Scenario: a downloaded chart names the markers it draws at every rung
+
+- **WHEN** a plan with two markers **on distinct dates inside the drawn
+  horizon** is exported at 28px per day and again at 4px
 - **THEN** both markers' names appear as text in the exported markup at both
   rungs
 
+The dates are distinct **and stated so**, because `MARKER_BAND_MAX_PER_CELL[4]`
+is 1: two markers sharing one date at the 4px rung are one drawn chip and one
+capped-out marker, so the unconstrained version of this scenario was false for a
+valid plan (round-1 Sol review, TASK-287). It asserts the rung ladder, which is
+what it is for, and not the cap — which the scenario below it owns.
+
 #### Scenario: the legend is readable rather than merely present
 
-- **WHEN** a plan with two markers is exported
-- **THEN** the legend carries one row per marker in `(date, created_at, id)`
-  order, each row carrying that marker's swatch colour and its `date` beside
-  its `name`, and the last row lies wholly inside the exported `viewBox`
+- **WHEN** a plan with two markers on distinct in-horizon dates is exported
+- **THEN** the legend carries one row per **drawn chip** in the band's
+  `(date, created_at, id)` order, each row carrying that chip's swatch colour
+  and its `date` beside its `name`, and the last row lies wholly inside the
+  exported `viewBox`
+
+#### Scenario: the legend names what the file draws and nothing else
+
+- **WHEN** a plan whose only markers are three markers sharing one date
+  **inside the drawn horizon** is exported at the 12px rung, where
+  `MARKER_BAND_MAX_PER_CELL` is 2
+- **THEN** the file draws two chips and the legend carries exactly those two
+  rows, and the capped-out marker has **no legend row**
+
+Scoped to the legend and not to the whole markup, deliberately (round-2 Sol
+review, TASK-287): "its name appears nowhere in the file" would be a stronger
+claim than the membership rule makes, and it would pre-empt the overflow
+affordance the paragraph above leaves open — a future `+N` list could name a
+capped marker without giving it a legend row, and this scenario must not forbid
+that in advance.
 
 #### Scenario: the export drops nothing the screen shows
 
@@ -729,8 +797,8 @@ caller overwrite a marker it cannot otherwise address.
 
 #### Scenario: the previewed colour is the created colour
 
-- **WHEN** the composer opens on a date, previews the automatic colour for its
-  generated id, and the marker is submitted
+- **WHEN** the composer opens on an **empty in-horizon date**, previews the
+  automatic colour for its generated id, and the marker is submitted
 - **THEN** the created marker's chip is that same colour
 
 #### Scenario: an omitted id is issued by the server
@@ -771,7 +839,8 @@ SHALL simply not be drawn; it SHALL reappear when the horizon covers it.
 
 #### Scenario: a marker reappears when the horizon grows back
 
-- **WHEN** the plan is lengthened again so its horizon covers that marker's date
+- **WHEN** that marker is the plan's only marker and the plan is lengthened
+  again so its horizon covers its date
 - **THEN** the chip is drawn at that date's axis offset
 
 #### Scenario: no timezone shift
@@ -872,6 +941,7 @@ SHALL be **422**, the malformed-body answer:
 | `color` fails the 3:1 contrast bar         | `contrast`  | 422    | `color`    |
 | `markerId` already exists                  | `taken`     | 409    | `markerId` |
 | the marker is absent, or another project's | `not_found` | 404    | `markerId` |
+| the **project** is absent                  | `not_found` | 404    | —          |
 | the caller may not write the project       | `forbidden` | 403    | —          |
 
 `MARKER_NAME_MAX` SHALL be **120** characters, counted in Unicode code points
@@ -881,9 +951,20 @@ paragraph — it is a label, and a cap that admits a sentence invites one. Empty
 is refused by the same row: the minimum is 1.
 
 Every row SHALL answer with **exactly** the code, status and field its row
-gives. `forbidden` is the one row whose `field` is absent, and that absence is
-part of the contract rather than an omission: the refusal is about the caller,
-not about a field of the body.
+gives. `forbidden` is not the only row whose `field` is absent: an **absent
+project** answers the same `not_found` as an absent marker and SHALL blame
+nothing, on every route including the two addressed at a marker. The marker id
+on `PATCH /…/:markerId` and `DELETE /…/:markerId` is real and well-formed when
+the project is the thing that is missing, and a body naming it would send a
+client to correct the one value that was already right. In both cases the
+absence is part of the contract rather than an omission: the refusal is about
+the caller or the project, not about a field of the request.
+
+A route SHALL NOT read the `field` off the reason, because `not_found` is
+deliberately one reason for two states (below). It SHALL read it off what the
+service says the refusal was **about** — the project, or the marker — and the
+service is the only layer that knows, since the project check and the marker
+check happen in different places.
 
 `taken` reaches 409 through the shared `CONFLICTS` set, `not_found` through the
 shared 404 arm and `forbidden` through the shared 403 arm; only `malformed` and
@@ -911,7 +992,8 @@ stated. A marker of another project answers `not_found` rather than `forbidden`
 
 #### Scenario: a second client sees the change without reloading
 
-- **WHEN** two clients view one project and the first creates a marker
+- **WHEN** two clients view one project and the first creates a marker on an
+  **empty in-horizon date**
 - **THEN** the second re-reads on `calendar_markers_changed` and shows the new
   chip without a reload
 

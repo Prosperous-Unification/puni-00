@@ -16,11 +16,12 @@ import { effectiveTagsOf } from '@wbs/domain/effective-tag';
 import { effectiveTeamsOf } from '@wbs/domain/effective-team';
 import { assignedOutsideTeam, builtByNonOwner } from '@wbs/domain/label-mismatch';
 import { priorityBandOf } from '@wbs/domain/priority-band';
-import { workdaysBetween } from '@wbs/domain/workday';
+import { deadlineOffsetOf, isIsoDate, workdaysBetween } from '@wbs/domain/workday';
 import {
   type ComponentProps,
   type CSSProperties,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useId,
@@ -55,6 +56,7 @@ import {
   type EstimateRoundingView,
   isEstimateMethod,
   type PertWeightsView,
+  type PlanOptimizationView,
   type ProjectApi,
   type SliceView,
   type StepView,
@@ -144,6 +146,7 @@ import {
 } from './live-editing';
 import { splitMention } from './mention';
 import { composeNameCell, normalizeNewlines, splitNameCell } from './name-notes';
+import { OptimizationIndicator } from './optimization-indicator';
 import { type CardAssignee, PlanCards } from './plan-cards';
 import { describeGaps, findEstimateGaps } from './plan-completeness';
 import { type PlanExport, planFileName, planToCsv, planToMarkdown } from './plan-export';
@@ -534,6 +537,11 @@ const POPOVER_COLUMNS: ReadonlySet<string> = new Set([
   'type',
   'actions',
   'not-before',
+  // The deadline cell's editor, for the reason one line up: the same
+  // {@link DATE_EDITOR_WIDTH} field opening in an 84px column. A date column
+  // that took the editor and skipped this set would clip it at the cell edge —
+  // the fault this set's own sentence names.
+  'deadline',
   // The ref cell's hover card, which is the whole list of links hanging off a
   // 40px column: without the exemption it is cut at the cell edge and a reader
   // sees five characters of a URL.
@@ -1995,6 +2003,63 @@ const notBeforeOffsetOf = (startDate: string | null, notBefore: string | null): 
   startDate === null || notBefore === null ? null : workdaysBetween(startDate, notBefore);
 
 /**
+ * What the Work item deadline cell says about a date the project has moved past.
+ *
+ * **"Before the project's first working day", not "before the project starts".**
+ * The two differ, and the difference is visible on screen: a project starting
+ * Saturday 2026-08-08 with a deadline of that same Saturday is impossible —
+ * day zero rolls forward to Monday the 10th and the deadline rolls back to
+ * Friday the 7th — while the two dates the reader can see are *equal*. A
+ * project starting Saturday the 8th with a deadline of Sunday the 9th is
+ * impossible with the start *earlier* than the deadline. Either sentence about
+ * raw calendar order would be a cell contradicting itself. Round 1's OpenAI
+ * seat, Important 1.
+ *
+ * The wording is exactly true whenever the predicate fires: the first working
+ * day is a workday at or after the project start, and if the deadline were on
+ * or after it then the last workday on-or-before the deadline would be too, so
+ * the predicate would not have fired.
+ */
+const DEADLINE_BEFORE_START =
+  "This deadline falls before the project's first working day, so nothing can finish by it. The date is kept; move the deadline or the project start.";
+
+/**
+ * Whether a stored deadline resolves before the project's day zero — the
+ * `work-item-deadline` §2.3 case where somebody moved the project start past a
+ * date that was legal when it was typed.
+ *
+ * **Not a second opinion about lateness.** `Late by N workdays` is be-01's
+ * number and slice 9.2's doctrine is that the view never recomputes it. This is
+ * a different predicate — *whether* a date falls before day zero, not *how far*
+ * a plan misses it — and it is answered by calling the one function be-01's own
+ * write boundary calls (`work-item.service.ts`'s `deadline_before_project_start`
+ * refusal), so the two sides share an implementation rather than holding two
+ * opinions.
+ *
+ * Three modelled absences, all false and none of them a warning:
+ *
+ * - **No deadline.** Nothing to be impossible.
+ * - **No project start date.** With no day zero there is nothing for a date to
+ *   fall before, which is the reasoning be-01 applies to the same state; the
+ *   cell is already rendered disabled there and a disabled cell wearing a
+ *   warning would be claiming to know something it cannot.
+ * - **Either value is not a calendar date.** {@link deadlineOffsetOf} throws on
+ *   one, and a render is not the moment to take the table down over a byte the
+ *   server sent.
+ */
+/**
+ * The width the impossible mark is given inside the deadline cell, and the
+ * padding the date reserves for it. One number so the two cannot drift.
+ */
+const DEADLINE_MARK_PX = 10;
+
+const deadlineBeforeProjectStart = (startDate: string | null, deadline: string | null): boolean => {
+  if (startDate === null || deadline === null) return false;
+  if (!isIsoDate(startDate) || !isIsoDate(deadline)) return false;
+  return deadlineOffsetOf(startDate, deadline).kind === 'before-project-start';
+};
+
+/**
  * What a control that is unavailable **because a save is in flight** looks
  * like, as opposed to one that is unavailable because there is nothing for it
  * to do.
@@ -2054,6 +2119,8 @@ interface ChartRead {
    */
   pertWeights: PertWeightsView;
   estimateRounding: EstimateRoundingView;
+  /** Optimizer settings and states from this same plan read, when configured. */
+  optimization?: PlanOptimizationView;
   /**
    * Which read this is: `refresh`'s own generation, and 0 before any has
    * landed.
@@ -2512,6 +2579,9 @@ const COLUMN_LABELS: ReadonlyMap<string, string> = new Map([
   ['in-parallel', 'People at once'],
   ['final-total', 'Days'],
   ['not-before', 'Not before'],
+  // The whole words here and `Due` on the `<th>`: this list is the `Columns`
+  // control, which has the room the 84px heading does not.
+  ['deadline', 'Work item deadline'],
   ['start', 'Start'],
   ['finish', 'End'],
   ['float', 'Slack'],
@@ -2816,6 +2886,82 @@ function PlanRow({
       {children}
     </tr>
   );
+}
+
+/**
+ * Which row of one date column is being edited, and the focus that owes it.
+ *
+ * One id and never a set, which is the whole of "at most one editor in this
+ * column": every other row shows the short date as text, and a native date
+ * input is {@link DATE_EDITOR_WIDTH} of furniture an 84px column has no room
+ * for. It is also what took `not-before` from 146px to 84 — the column had to
+ * hold an editor on every row until 2026-08-09.
+ *
+ * Written once and taken by both date columns rather than declared twice.
+ * `not-before` and `deadline` want the identical three things and differ only
+ * in which column id they ask the grid for, and a second copy of the focus
+ * effect below is the kind that gets a fix applied to one of them: the effect
+ * is the subtle half, not the state.
+ *
+ * The effect puts the focus where opening or closing has just moved it, in both
+ * directions at once, because both need the same thing and cannot have it any
+ * sooner — the element to focus is rendered by the very pass that mounted or
+ * unmounted the editor. An `autoFocus` would cover the opening half and nothing
+ * at all of the closing half, which is the half the contract is about.
+ */
+function useDateCellEditor(
+  columnId: string,
+  gridElement: RefObject<HTMLElement | null>,
+): { editing: string | null; open: (rowId: string) => void; close: (rowId: string) => void } {
+  const [editing, setEditing] = useState<string | null>(null);
+  /**
+   * The row owed the focus back, once the editor closing on it has actually
+   * gone from the DOM — a ref and an effect rather than a call, because the
+   * cell to focus does not exist yet at the moment the editor asks to close.
+   */
+  const owedFocus = useRef<string | null>(null);
+
+  /** Opens the editor on one row's cell in this column, closing any other. */
+  const open = useCallback((rowId: string) => {
+    setEditing(rowId);
+  }, []);
+
+  /**
+   * Closes the editor and gives the cell it was on the focus back.
+   *
+   * The way out — {@link DateField}'s `onExit` — is not branched on here, and
+   * that is deliberate: the day has been sent or it has not, by then, and the
+   * editor closes either way. What the two answers are for is the editor's own
+   * suppression of the blur an Escape causes, which is `date-field.tsx`'s.
+   */
+  const close = useCallback((rowId: string) => {
+    owedFocus.current = rowId;
+    setEditing((open_) => (open_ === rowId ? null : open_));
+  }, []);
+
+  useEffect(() => {
+    const grid = gridElement.current;
+    if (grid === null) return;
+    if (editing !== null) {
+      const editor = cellIn(grid, { rowId: editing, columnId });
+      // Gone before the focus reached it — a peer deleted the row, or a search
+      // narrowed it away. A modeled absence: there is nothing to focus.
+      if (editor !== undefined) focusCellAt(editor, 'all');
+      return;
+    }
+    const rowId = owedFocus.current;
+    if (rowId === null) return;
+    owedFocus.current = null;
+    // Only where nothing else has claimed it. `Ctrl/⌘ + Enter` from this cell
+    // commits, closes **and** moves to the next row — putting the focus back on
+    // the cell it left would undo the chord.
+    if (document.activeElement !== null && document.activeElement !== document.body) return;
+    const cell = cellIn(grid, { rowId, columnId });
+    if (cell === undefined) return;
+    focusCellAt(cell, 'all');
+  }, [editing, columnId, gridElement]);
+
+  return { editing, open, close };
 }
 
 /**
@@ -3810,6 +3956,7 @@ export function WbsTable({
         depReach: tree.depReach,
         pertWeights: tree.pertWeights,
         estimateRounding: tree.estimateRounding,
+        ...(tree.optimization === undefined ? {} : { optimization: tree.optimization }),
         generation,
       });
       setStack({ undoable: tree.undoable, redoable: tree.redoable });
@@ -6598,6 +6745,30 @@ export function WbsTable({
   );
 
   /**
+   * Sets or clears one work item's deadline — the last day it may finish on.
+   *
+   * **The single field, and deliberately not the floor's pair one function
+   * up.** `setNotBefore` clears in two fields because be-01 refuses a reason
+   * with no date to be about; a deadline has no reason column beside it, which
+   * was slice 1.1's choice, so `{ deadline: null }` is the whole of the clear
+   * and a request naming `startNoEarlierThanReason` here would be sending a key
+   * about a different constraint. Copying the pair across is the mistake this
+   * comment exists to stop.
+   *
+   * Nothing is guarded here. A day before the project's own start is refused by
+   * be-01 with `deadline_before_project_start`, and it is left refused there:
+   * this client holds no project start to compare against on this path, and a
+   * client-side rule the server also keeps is how the two come to disagree —
+   * the doctrine {@link setPriority} writes down.
+   */
+  const setDeadline = useCallback(
+    (id: string, day: string | null) => {
+      void run(() => api.patchWorkItem(id, { deadline: day }));
+    },
+    [api, run],
+  );
+
+  /**
    * Sets or clears the words about one work item's "not before" day.
    *
    * A sentence, not a state. It moves no date and reaches no other row — the
@@ -6713,74 +6884,20 @@ export function WbsTable({
   );
 
   /**
-   * The row whose earliest-start cell is being edited, or none.
-   *
-   * One id rather than a set, which is the whole of "at most one editor on the
-   * page": every other row's cell is the short date as text, and a native date
-   * input is 138px of furniture the 84px column has no room for. It is also
-   * what took `not-before` from 146px to 84 — the column had to hold an editor
-   * on every row until 2026-08-09.
+   * The two date columns a planner types into, each with at most one open
+   * editor — see {@link useDateCellEditor} for why the state and its focus
+   * effect are written once and taken twice.
    */
-  const [editingNotBefore, setEditingNotBefore] = useState<string | null>(null);
-
-  /**
-   * The row whose earliest-start cell is owed the focus back, once the editor
-   * closing on it has actually gone from the DOM.
-   *
-   * A ref and an effect rather than a call, because the cell to focus does not
-   * exist yet at the moment the editor asks to close: it is rendered by the
-   * same pass that unmounts the editor.
-   */
-  const notBeforeOwedFocus = useRef<string | null>(null);
-
-  /** Opens the editor on one row's earliest-start cell, closing any other. */
-  const openNotBefore = useCallback((rowId: string) => {
-    setEditingNotBefore(rowId);
-  }, []);
-
-  /**
-   * Closes the editor and gives the cell it was on the focus back.
-   *
-   * The way out — {@link DateField}'s `onExit` — is not branched on here, and
-   * that is deliberate: the day has been sent or it has not, by then, and the
-   * editor closes either way. What the two answers are for is the editor's own
-   * suppression of the blur an Escape causes, which is `date-field.tsx`'s.
-   */
-  const closeNotBefore = useCallback((rowId: string) => {
-    notBeforeOwedFocus.current = rowId;
-    setEditingNotBefore((editing) => (editing === rowId ? null : editing));
-  }, []);
-
-  /**
-   * Puts the focus where opening or closing an editor has just moved it.
-   *
-   * Both directions in one effect, because both need the same thing and cannot
-   * have it any sooner: the element to focus is rendered by the very pass that
-   * mounted or unmounted the editor. An `autoFocus` would cover the opening
-   * half and nothing at all of the closing half, which is the half the
-   * contract is about.
-   */
-  useEffect(() => {
-    const grid = gridElement.current;
-    if (grid === null) return;
-    if (editingNotBefore !== null) {
-      const editor = cellIn(grid, { rowId: editingNotBefore, columnId: 'not-before' });
-      // Gone before the focus reached it — a peer deleted the row, or a search
-      // narrowed it away. A modeled absence: there is nothing to focus.
-      if (editor !== undefined) focusCellAt(editor, 'all');
-      return;
-    }
-    const rowId = notBeforeOwedFocus.current;
-    if (rowId === null) return;
-    notBeforeOwedFocus.current = null;
-    // Only where nothing else has claimed it. `Ctrl/⌘ + Enter` from this cell
-    // commits, closes **and** moves to the next row — putting the focus back on
-    // the cell it left would undo the chord.
-    if (document.activeElement !== null && document.activeElement !== document.body) return;
-    const cell = cellIn(grid, { rowId, columnId: 'not-before' });
-    if (cell === undefined) return;
-    focusCellAt(cell, 'all');
-  }, [editingNotBefore]);
+  const {
+    editing: editingNotBefore,
+    open: openNotBefore,
+    close: closeNotBefore,
+  } = useDateCellEditor('not-before', gridElement);
+  const {
+    editing: editingDeadline,
+    open: openDeadline,
+    close: closeDeadline,
+  } = useDateCellEditor('deadline', gridElement);
 
   /** Replaces a work item's own team set, whole. */
   const setTeamOf = useCallback(
@@ -7331,6 +7448,7 @@ export function WbsTable({
     setFocusedCell,
     setNotBefore,
     setNotBeforeReason,
+    setDeadline,
     setPriority,
     priorityBands,
     setParallelism,
@@ -7340,6 +7458,9 @@ export function WbsTable({
     editingNotBefore,
     openNotBefore,
     closeNotBefore,
+    editingDeadline,
+    openDeadline,
+    closeDeadline,
     startDate,
     teams,
     tags,
@@ -10136,6 +10257,215 @@ export function WbsTable({
           },
         }),
         column.display({
+          id: 'deadline',
+          // Abbreviated for the same reason `Not bef.` is: 84px. The sentence
+          // is on the `<th>` (`column-hints.ts`), where every column's is.
+          header: () => <span>Due</span>,
+          cell: ({ row }) => {
+            const day = row.original.deadline;
+            // No reason to read beside it. The floor's cell holds two boxes
+            // because a not-before carries words; `work-item-deadline` 1.1 gave
+            // the deadline no reason column, so this cell is one box and its
+            // clear is one field — see {@link setDeadline}.
+            //
+            // Without a project start date there is no day zero to resolve a
+            // deadline against and be-01 applies none of them, exactly as it
+            // ignores the floor. A rendered disabled state rather than an editor
+            // that opens onto nothing.
+            const noCalendar = live.current.startDate === null;
+            // §2.3: the project moved under a stored date. Read here rather
+            // than folded into the row upstream because it is the *cell* the
+            // date was typed into that has to say so — 9.2's `Late by N
+            // workdays` is on the bar and answers "how late", while the
+            // question a reader brings to this cell is "why is this date
+            // impossible".
+            const impossible = deadlineBeforeProjectStart(live.current.startDate, day);
+            const editing = live.current.editingDeadline === row.original.id;
+            const open = (): void => {
+              if (noCalendar) return;
+              live.current.openDeadline(row.original.id);
+            };
+            const close = (): void => {
+              live.current.closeDeadline(row.original.id);
+            };
+            return editing ? (
+              <DateField
+                aria-label={`Deadline for ${row.original.number}`}
+                data-deadline={row.original.id}
+                data-cell={cellKey(row.original.id, 'deadline')}
+                data-hint="The last day this work item may finish on. It does not move the plan; a plan that misses it says so."
+                onKeyDown={(e) => {
+                  // Enter closes the editor, after `DateField`'s own handler has
+                  // already sent the day — its handler is first, deliberately,
+                  // so a `Ctrl/⌘ + Enter` that moves to the next row has saved
+                  // this one on the way out.
+                  if (e.key === 'Enter') close();
+                  // Alt+arrow is taken before the native date input's segment
+                  // stepper sees it, exactly as in every other date cell; the
+                  // arrows themselves stay with the segment under the caret,
+                  // which is why {@link onArrowKey} is absent here.
+                  live.current.onAltMove(e, row.original, 'deadline');
+                  live.current.onCommandKey(e, row.original, 'deadline');
+                  live.current.onTabKey(e, row.original.id, 'deadline');
+                }}
+                // Every way out, and not only Escape — which is where this cell
+                // is simpler than the floor beside it. That one asks its wrapper
+                // about `focusout` because a blur there may be somebody reaching
+                // for the reason box under the date; there is no second box
+                // here, so a blur is an exit and `onExit` can be believed.
+                onExit={() => {
+                  close();
+                }}
+                // Wider than its column, on purpose — see {@link DATE_EDITOR_WIDTH}.
+                style={{
+                  position: 'relative',
+                  zIndex: 10,
+                  width: DATE_EDITOR_WIDTH,
+                  boxSizing: 'border-box',
+                  font: 'inherit',
+                }}
+                value={day ?? ''}
+                commit={(typed) => {
+                  // A date input reports '' when cleared, which is the caller
+                  // saying "no deadline" rather than "an empty date".
+                  live.current.setDeadline(row.original.id, typed === '' ? null : typed);
+                }}
+              />
+            ) : (
+              /*
+              The day at rest, and still a cell of the keyboard grid: Tab lands
+              here, the arrows land here, and `editableGrid` finds it because it
+              is an `<input>` carrying `data-cell` — which is also why it is not
+              `readOnly`, an attribute that selector deliberately excludes.
+              Nothing is ever typed into it: a keystroke opens the editor
+              instead, which is what `onChange` is doing here.
+            */
+              <span
+                // A positioned ancestor so the mark below can sit out of flow.
+                // `display: block` and no padding: the wrapper is not allowed to
+                // change what the 84px column measures, and the mark never
+                // changes the row's height — the same bargain the Links cell's
+                // dots make one file over.
+                style={{ position: 'relative', display: 'block' }}
+              >
+                <input
+                  aria-label={`Deadline for ${row.original.number}`}
+                  disabled={noCalendar}
+                  data-deadline={row.original.id}
+                  data-cell={cellKey(row.original.id, 'deadline')}
+                  data-fact={
+                    noCalendar
+                      ? 'Set the project start date first — without one there are no dates to hold a deadline against.'
+                      : [
+                          day === null ? null : `${day}.`,
+                          impossible
+                            ? DEADLINE_BEFORE_START
+                            : 'The last day this work item may finish on. It does not move the plan; a plan that misses it says so.',
+                        ]
+                          .filter((part) => part !== null)
+                          .join(' ')
+                  }
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    font: 'inherit',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: noCalendar ? 'not-allowed' : 'text',
+                    // The mark is out of flow, so it would otherwise paint over
+                    // the date rather than sit beside it — and the date that
+                    // needs the mark is the long one: `shortIsoDate` prints the
+                    // year on an off-year day, so `20 May 2027` fills the 84px
+                    // column and the `!` at its right edge would cover the last
+                    // characters. Reserved here rather than by shortening the
+                    // date, because the date is what §2.3 says must stay
+                    // readable. Round 1's OpenAI seat, Important 2.
+                    paddingRight: impossible ? DEADLINE_MARK_PX : undefined,
+                  }}
+                  // An em-dash for a row with no deadline, which reads as "none"
+                  // rather than as a cell that failed to load. **The impossible
+                  // date is printed unchanged**, which is §2.3's "not silently
+                  // dropped": it is what the reader typed, it is still what
+                  // be-01 stores, and a cell that blanked it would be deleting
+                  // their input on somebody else's edit.
+                  value={day === null ? '—' : shortIsoDate(day, new Date())}
+                  onChange={open}
+                  // `click`, not `mousedown`: React flushes a discrete update
+                  // inside the `mousedown` dispatch, so the editor mounts and the
+                  // at-rest input is gone before Chromium performs that event's
+                  // default action — focusing the node it hit-tested. Focusing a
+                  // detached node moves focus to `<body>`, which blurs the editor,
+                  // which is an exit, which closes it: the click does nothing at
+                  // all. The floor's cell carries the same note and the same
+                  // measurement.
+                  onClick={open}
+                  onKeyDown={(e) => {
+                    // A bare Enter opens the editor; a chord is the table's and is
+                    // left to it, which is why the modifiers are asked about first.
+                    if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+                      e.preventDefault();
+                      open();
+                      return;
+                    }
+                    live.current.onAltMove(e, row.original, 'deadline');
+                    live.current.onCommandKey(e, row.original, 'deadline');
+                    live.current.onTabKey(e, row.original.id, 'deadline');
+                  }}
+                />
+                {impossible && (
+                  <span
+                    // The affordance §2.3 calls "the existing 'impossible' one".
+                    // There was none to borrow — `rg impossible apps/fe-01/src`
+                    // finds seventeen hits and every one is a comment about a
+                    // union or a memo — so this is it, and it is built to the
+                    // rules the rest of the table's marks already keep.
+                    //
+                    // `aria-label` on a `role="img"` rather than a bare glyph:
+                    // "!" is announced as punctuation or as nothing at all, and
+                    // the whole point of the mark is that it can be read. It
+                    // names the row, like every other label in this grid, so a
+                    // reader hearing it out of context knows which date is meant.
+                    //
+                    // No `data-cell`: `editableGrid` collects `[data-cell]`
+                    // descendants, and a mark that joined the keyboard grid
+                    // would put a stop between Due and Start that a reader
+                    // cannot type into.
+                    // Says the same true thing {@link DEADLINE_BEFORE_START}
+                    // does, for the reason recorded there: raw calendar order
+                    // is not what the predicate tests, and a mark claiming it
+                    // contradicts the two equal dates beside it.
+                    aria-label={`Deadline for ${row.original.number} falls before the project's first working day`}
+                    role="img"
+                    data-deadline-impossible={row.original.id}
+                    // Out of flow, so a marked row and an unmarked one lay out
+                    // identically and the 84px column keeps its measurement.
+                    // `pointerEvents: none` leaves the click that opens the
+                    // editor to the input underneath — the mark is a reading,
+                    // not a target, and the sentence behind it is on the cell's
+                    // own `data-fact`.
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      right: 0,
+                      width: DEADLINE_MARK_PX,
+                      textAlign: 'right',
+                      pointerEvents: 'none',
+                      // The table's own problem colour, defined in both themes
+                      // (`styles.css`), so the mark is legible in dark mode
+                      // without a second value to keep in step.
+                      color: 'var(--destructive)',
+                      fontWeight: 700,
+                      lineHeight: 1,
+                    }}
+                  >
+                    !
+                  </span>
+                )}
+              </span>
+            );
+          },
+        }),
+        column.display({
           id: 'start',
           // A bare `2.5` under "Start" reads as a date that failed to load, and
           // the header used to say which of the two it was — in 52px it cannot,
@@ -11156,6 +11486,15 @@ export function WbsTable({
           setArithmetic: (arithmetic) => api.setEstimateArithmetic(projectId, arithmetic),
           onChanged: refreshOrMarkStale,
         }}
+        {...(chartRead.optimization === undefined
+          ? {}
+          : {
+              optimization: {
+                value: chartRead.optimization,
+                setSettings: (patch) => api.setOptimizationSettings(projectId, patch),
+                onChanged: refreshOrMarkStale,
+              },
+            })}
       />
       {/*
         Find. Deliberately without `data-cell`: this is not a cell of the
@@ -11687,6 +12026,17 @@ export function WbsTable({
               </Button>
             )}
         </div>
+      )}
+
+      {chartRead.optimization !== undefined && (
+        <OptimizationIndicator
+          optimization={chartRead.optimization}
+          stale={treeMayBeStale}
+          workItemName={(id) => {
+            const found = flat.find((row) => row.id === id);
+            return found?.name ?? id;
+          }}
+        />
       )}
 
       {/*

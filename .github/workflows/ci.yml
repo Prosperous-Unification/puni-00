@@ -54,6 +54,12 @@ jobs:
         with:
           bun-version-file: .bun-version
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14.4'
+          cache: pip
+          cache-dependency-path: libs/solver-py/requirements.lock
+
       # `nx run-many -t build` shellchecks the deploy scripts and is no longer
       # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
       # it, but assert rather than discovering the absence as a green build
@@ -63,6 +69,9 @@ jobs:
 
       - name: Install
         run: bun install --frozen-lockfile
+
+      - name: Install solver dependencies
+        run: python3 -m pip install --require-hashes -r libs/solver-py/requirements.lock
 
       # --all, not the default base..HEAD comparison. Without it the scope is
       # whatever `git diff main HEAD` returns, which is EMPTY on a push to main
@@ -96,8 +105,49 @@ jobs:
       # The same reasoning rules out a retry: it would have become the gate
       # people re-run until it is green, a check that cannot fail wearing a
       # different hat.
+      #
+      # The runner's step log also cut this command off at ~760 KB, before
+      # either the failing case or Nx's final summary. Redirecting to the file
+      # keeps the complete output outside that capped path; stream mode only
+      # makes child output reach the retained file incrementally, so a timeout
+      # does not discard everything still held by Nx's aggregate renderer. The
+      # bounded tail is only a convenience; the uploaded file below is the
+      # diagnostic record. The annotation pass restores only exact, located
+      # error commands and cannot replace the gate's original exit status. A
+      # helper fault after a green Nx run intentionally makes the gate red.
+      # Proof: CI 34029234602 at bca2e32d changed `isWithin`'s named root-self
+      # assertion to a real failure. The gate failed, the upload still passed,
+      # and its 1,094,648-byte artifact names the case and `domain:test`.
+      # Green control CI 34028724397 carries the four-target Nx summary.
+      # TASK-283 controls: CI 34033230484 failed before Nx and skipped both Nx
+      # and upload; CI 34033278085 failed Nx while upload retained distinct
+      # nx-gate-log-1/-2 artifacts across attempts; CI 34034640885 restored the
+      # exact source annotation from the parser-fixed artifact.
       - name: Gate — test, lint, typecheck, build
-        run: bunx nx run-many -t test lint typecheck build --parallel=2
+        id: nx_gate
+        run: |
+          set +e
+          bunx nx run-many -t test lint typecheck build --parallel=2 --output-style=stream \
+            > nx-gate.log 2>&1
+          gate_status=$?
+          tail -n 200 nx-gate.log
+          annotation_status=0
+          bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log || annotation_status=$?
+          if [ "$gate_status" -ne 0 ]; then
+            exit "$gate_status"
+          fi
+          exit "$annotation_status"
+
+      - name: Upload gate log
+        if: ${{ always() && steps.nx_gate.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nx-gate-log-${{ github.run_attempt }}
+          path: nx-gate.log
+          if-no-files-found: error
+
+      - name: Solver image smoke
+        run: bunx nx run be-01:solver-image-smoke
 
       # The host-wide heavy-work mutex, which is the only thing keeping two
       # heavy runs off one machine. It went unexercised until 2026-08-30, when

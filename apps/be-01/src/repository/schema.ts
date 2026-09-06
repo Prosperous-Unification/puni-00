@@ -412,6 +412,73 @@ export const workItem = sqliteTable(
      */
     startNoEarlierThanReason: text('start_no_earlier_than_reason'),
     /**
+     * A calendar day this work item is owed by, or null.
+     *
+     * The mirror of {@link workItem.startNoEarlierThan} and deliberately shaped
+     * like it: a nullable date-only `TEXT`, no default, and **no reason column
+     * beside it**. The floor's `start_no_earlier_than_reason` gets no
+     * counterpart here; adding one speculatively would be a second thing to
+     * keep true about a date nobody has asked to explain.
+     *
+     * **It is not a floor pointing the other way.** A floor moves work later
+     * and always wins the placement; a deadline moves work **nowhere**. It
+     * orders the queue — minimum slack, then earliest date, in front of
+     * priority — and where the plan cannot meet it the plan is reported *late*
+     * rather than rewritten. A leaf whose floor stands after its deadline still
+     * starts at its floor. The two folds differ for the same reason: an
+     * ancestor's floor takes the **latest** of the tree, an ancestor's deadline
+     * the **earliest**, because a constraint that binds tightens as it inherits.
+     *
+     * **Null is a real state**: the absence of a deadline, not a date that
+     * happens to be far away. Every existing row reads null after the
+     * migration — measured against a copy of dev's live database in
+     * `openspec/changes/work-item-deadline/verify.md`, not assumed.
+     *
+     * **This column reaches the schedule as of slice 3.4/4.2.**
+     * `WORK_ITEM_COLUMNS` names it, so every row selected carries it and the
+     * patch `SET` writes it (slice 6); the plan read resolves each stored date
+     * against the project's start with `deadlineOffsetsOf` and hands the
+     * offsets to `schedule()` as its seventh argument. So the ordering and the
+     * fold described above are behaviour at this head rather than intent.
+     *
+     * **The lateness is a number, not yet a label.** What ships at this head is
+     * a nullable `lateBy` per slice on the plan payload; the
+     * `Late by N workdays` sentence a reader sees is slice 9.2 and nothing in
+     * `apps/fe-01` consumes the number yet. Said plainly because the paragraph
+     * this replaced blurred the two, and the same blur is the third of three
+     * review Criticals this task has taken, all of them sentences.
+     *
+     * This paragraph has moved three times and each move deleted the sentence
+     * it replaced rather than appending to it: it first said the scheduler had
+     * no `deadlines` argument at all, true of the release that added the column
+     * and false once slices 2–5 landed the seventh argument; it then said
+     * nothing read or wrote the column, true until slice 6 made it writable;
+     * it then said the read still passed a `NO_DEADLINES` placeholder, true
+     * until this slice. `fast-golden-corpus.test.ts` still proves an empty map
+     * schedules identically, which is what makes a plan with no deadline on it
+     * unchanged by all four.
+     *
+     * **Below the floor's reason rather than beside the floor**, deliberately:
+     * `startNoEarlierThanReason` says its words are about "this column and the
+     * one above it", and a deadline slipped between the two would make that
+     * sentence point here. The floor and its reason stay adjacent; a column's
+     * position in this object is not its position in the table anyway, since
+     * `ALTER TABLE ADD COLUMN` appends.
+     *
+     * **Stored as authored, and no later edit rewrites it.** The writes exist
+     * as of slice 6 and this is the rule they keep. A project start moved past
+     * a stored deadline resolves `before-project-start` at **read** time and
+     * the row is reported late by the whole span; the value is left alone and
+     * the request that moved the project is not rejected. Implemented as of
+     * 3.4/4.2 and proved by `deadline-plan-read.test.ts`, which moves a
+     * project's start under a stored date and asserts both halves. It is
+     * written down here,
+     * on the column, because rewriting the value would delete what somebody
+     * typed on an unrelated edit, and the place that argument has to survive
+     * is the definition of the thing being rewritten.
+     */
+    deadline: text('deadline'),
+    /**
      * How important this work is, or null for "nobody has said" — an integer of
      * 1 or more, smaller being more important.
      *

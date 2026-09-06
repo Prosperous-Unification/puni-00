@@ -251,6 +251,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
                 width: 1,
                 effort: 0,
                 capacityPredecessorIds: [],
+                lateBy: null,
               }),
             ),
             // The same two lists `steps` and `listPeople` answer with, on the read
@@ -307,6 +308,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
           dates: options.dated === true ? { ...DATED_PLAN } : null,
           startNoEarlierThan: null,
           startNoEarlierThanReason: null,
+          deadline: null,
           serviceTeamId: null,
           teamIds: [],
           assignees: {},
@@ -2351,6 +2353,7 @@ function aTreeRow(overrides: Partial<TreeRow> = {}): TreeRow {
       dates: null,
       startNoEarlierThan: null,
       startNoEarlierThanReason: null,
+      deadline: null,
       priority: null,
       maxParallel: 1,
       teamIds: [],

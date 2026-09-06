@@ -1,3 +1,4 @@
+import { automaticColor } from '@wbs/domain/marker-color';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { sentenceForRefusal } from './refusal';
@@ -533,6 +534,30 @@ describe('what a refused directory change says', () => {
   });
 });
 
+describe('setting project optimization', () => {
+  it('patches the shared flag, engine, and objective at the project route', async () => {
+    const fetched = stub(() => response(200, JSON.stringify({ project: { id: 'p1' } })));
+    const api = httpProjectApi('t');
+
+    await api.setOptimizationSettings('p1', {
+      optimizationEnabled: true,
+      scheduleEngine: 'optimized',
+      scheduleObjective: 'time',
+    });
+
+    expect(fetched).toHaveBeenCalledTimes(1);
+    expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1');
+    expect(fetched.mock.calls[0]?.[1]).toMatchObject({
+      method: 'PATCH',
+      body: JSON.stringify({
+        optimizationEnabled: true,
+        scheduleEngine: 'optimized',
+        scheduleObjective: 'time',
+      }),
+    });
+  });
+});
+
 /** The JSON a request carried, or an empty string — `RequestInit.body` is wider than string. */
 const bodyOf = (init: RequestInit | undefined): string =>
   typeof init?.body === 'string' ? init.body : '';
@@ -764,7 +789,14 @@ describe('reads asked for twice at once', () => {
 });
 
 describe('the calendar-marker client', () => {
-  const MARKER = { id: 'm1', date: '2026-08-19', name: 'Launch', color: null };
+  /**
+   * What the route *answers*, which is never the unresolved shape: `answered()`
+   * in `calendar-marker.routes.ts` resolves a stored `null` to the automatic
+   * colour before sending, so a fixture spelling `color: null` here would be a
+   * response be-01 cannot produce (task 284). The request bodies below keep
+   * their `null` — that is a client asking for automatic, and it is correct.
+   */
+  const MARKER = { id: 'm1', date: '2026-08-19', name: 'Launch', color: automaticColor('m1') };
 
   it('reads the markers off the project route the panel draws from', async () => {
     const fetched = stub(() => response(200, JSON.stringify({ markers: [MARKER] })));
