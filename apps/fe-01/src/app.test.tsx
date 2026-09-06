@@ -7,7 +7,7 @@ import type * as Api from '@/lib/api';
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
 
-const me = vi.hoisted(() => vi.fn<[], Promise<Api.SessionUser | null>>());
+const me = vi.hoisted(() => vi.fn<() => Promise<Api.SessionUser | null>>());
 
 vi.mock('@/lib/api', async (importOriginal) => ({
   ...(await importOriginal<typeof Api>()),

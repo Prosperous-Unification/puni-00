@@ -57,7 +57,7 @@ afterEach(() => {
 
 describe('whether this node has the routes at all', () => {
   it('reads the served document rather than probing a route', async () => {
-    const fetched = vi.fn<[string, RequestInit?], Promise<Response>>(() =>
+    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
       Promise.resolve(response(200, document(SAVED_PLAN_SPEC_PATHS))),
     );
     vi.stubGlobal('fetch', fetched);
@@ -122,7 +122,7 @@ describe('whether this node has the routes at all', () => {
 
 describe('the shelf', () => {
   it('lists a project’s saved plans', async () => {
-    const fetched = vi.fn<[string, RequestInit?], Promise<Response>>(() =>
+    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
       Promise.resolve(response(200, JSON.stringify({ savedPlans: [WIRE] }))),
     );
     vi.stubGlobal('fetch', fetched);
@@ -167,7 +167,7 @@ describe('the shelf', () => {
 
 describe('saving', () => {
   it('answers the created record', async () => {
-    const fetched = vi.fn<[string, RequestInit?], Promise<Response>>(() =>
+    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
       Promise.resolve(response(201, JSON.stringify({ savedPlan: WIRE }))),
     );
     vi.stubGlobal('fetch', fetched);
@@ -190,7 +190,7 @@ describe('saving', () => {
    * on.
    */
   it('sends no name at all when the caller chose none, rather than an empty one', async () => {
-    const fetched = vi.fn<[string, RequestInit?], Promise<Response>>(() =>
+    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
       Promise.resolve(response(201, JSON.stringify({ savedPlan: WIRE }))),
     );
     vi.stubGlobal('fetch', fetched);
@@ -208,7 +208,7 @@ describe('saving', () => {
    * and comes back a 422, which is where `minLength: 1` is stated once.
    */
   it('passes an empty name through to the route that refuses it', async () => {
-    const fetched = vi.fn<[string, RequestInit?], Promise<Response>>(() =>
+    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
       Promise.resolve(response(422, JSON.stringify({ error: 'validation' }))),
     );
     vi.stubGlobal('fetch', fetched);
@@ -276,7 +276,7 @@ describe('renaming and deleting', () => {
   });
 
   it('reads a 204 delete as done', async () => {
-    const fetched = vi.fn<[string, RequestInit?], Promise<Response>>(() =>
+    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
       Promise.resolve(response(204, '')),
     );
     vi.stubGlobal('fetch', fetched);
@@ -295,7 +295,7 @@ describe('renaming and deleting', () => {
 
 describe('comparing', () => {
   it('sends the reserved literal for the live side', async () => {
-    const fetched = vi.fn<[string, RequestInit?], Promise<Response>>(() =>
+    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
       Promise.resolve(response(200, JSON.stringify({ diff: { input: [], schedule: [] } }))),
     );
     vi.stubGlobal('fetch', fetched);

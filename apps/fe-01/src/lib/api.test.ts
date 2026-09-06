@@ -60,7 +60,7 @@ describe('login error codes', () => {
 
 describe('me', () => {
   it('uses the browser cookie and sends no application token header', async () => {
-    const fetchMock = vi.fn<[string, RequestInit?], Promise<Response>>(() =>
+    const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
       Promise.resolve(response(200, JSON.stringify({ user: { id: 'u', username: 'ada' } }))),
     );
     vi.stubGlobal('fetch', fetchMock);

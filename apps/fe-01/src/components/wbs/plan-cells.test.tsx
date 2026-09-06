@@ -2506,7 +2506,9 @@ describe('the links column', () => {
     // "same fill" fault has to stop at.
     expect(confluence.style.background).toBe('transparent');
     expect(jira.style.background).toBe('oklch(0.55 0.19 255)');
-    expect(jira.style.borderStyle).toBe('');
+    // `'none'` is what jsdom 30 reads back for `border: 'none'`; jsdom 24 read
+    // it as `''`. Either way the filled mark carries no stroke.
+    expect(jira.style.borderStyle).toBe('none');
     // One hue, stated as an assertion rather than as a comment: if these ever
     // stop being the same colour the fill distinction is no longer the thing
     // being relied on and this test is about something else.
