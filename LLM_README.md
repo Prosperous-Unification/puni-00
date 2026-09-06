@@ -1,5 +1,9 @@
 # LLM_README — read this, then only the doc your task needs
 
+TASK-286 is active on `fix/task286-pixels-flakes`: the exact Gantt pixel flake reproduced 2/20,
+its three changed anti-alias pixels are now distinguished from marker ink, and the focused remote
+gate is green. Next action is the full locked h2puni gate, then PR/CI.
+
 TASK-220 is ready for main-session review on `change/optimized-scheduler-coordinator`, PR 216. Its owned coordinator/cache/event scope is landed and terminal-gated; the nonblocking terminal findings and Retry/host-service installation are assigned to TASK-268. Do not merge or install the host service under TASK-220.
 
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
