@@ -104,7 +104,8 @@ being awaited for this plan.
 - Which discovery assumptions may be used provisionally, how they are
   confirmed or rejected, and how contradictions reopen downstream work.
 - Exact `betterpowers` and `llm-wiki` references, and the relationship between
-  source material, accepted specifications, working knowledge, and work plans.
+  source material, accepted specifications, working knowledge, and work plans
+  (working answer: A37).
 - WBS ownership and integration while `wbs-tool-v1` continues development;
   dependency semantics and separate accounting for human effort, agent effort,
   elapsed time, tokens, money, and constrained execution capacity.

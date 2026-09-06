@@ -53,11 +53,11 @@ must ship their form, API/MCP representation, behavior, and tests together.
 
 ## Hooks and authority
 
-Support `beforeStage`, `afterStage`, `beforeActivity`, `afterActivity`,
-`beforeTool`, `afterTool`, `onFinding`, `onApproval`, `onFailure`, and `onCancel`
-where the adapter exposes those points. Deterministic mandatory checks decide
-whether an operation is admissible. Critics and safety agents contribute findings;
-a judge produces an attributed verdict. None can grant itself permissions.
+Hooks register against the compiled workflow's lifecycle points, the one key
+space the [design](../../openspec/changes/twilight-control-plane/design.md#single-workflow-source)
+defines for policy and hooks, where the adapter exposes those points. Who may
+decide what is the [authority requirement](../../openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md)
+and is not restated here.
 
 An optional reporting hook may return `degraded` with a visible cause; a failed
 mandatory hook blocks the action. A callback cannot run arbitrary administrator

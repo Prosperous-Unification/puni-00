@@ -363,10 +363,3 @@ choosing the production persistence/runtime topology. Follow with bounded
 multi-worker, reviewer, schedule, and cloud-browser experiments. Repository
 unit/browser gates, live provider compatibility, cost accuracy, sandbox escape
 resistance, and crash recovery all remain unverified in this research pass.
-
-Document checks: a Bun read-only check verified the final newline, absence of
-trailing whitespace, existence of local link targets, and syntax of HTTPS
-URLs. This does not verify remote link availability beyond the cited browsing.
-`bunx --no-install prettier --check docs/twilight-structure/research/runtime-patterns.md`
-could not run because no existing Prettier binary was available. No dependency
-installation was attempted.

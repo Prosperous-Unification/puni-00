@@ -1,6 +1,7 @@
-# wbs-tool-v1
+# puni-00
 
-Collaborative real-time WBS tool. Nx monorepo, Bun everywhere — never npm.
+Company monorepo; agent orientation is in [LLM_README.md](LLM_README.md).
+WBS (project name `wbs-tool-v1` until 2026-09-06): collaborative real-time WBS tool. Nx monorepo, Bun everywhere — never npm.
 
 | App     | What                                  | Port                      |
 | ------- | ------------------------------------- | ------------------------- |

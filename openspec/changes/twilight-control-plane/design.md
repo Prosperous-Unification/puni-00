@@ -53,12 +53,19 @@ change without duplicating the domain or granting the worker administrator right
 
 ## Single workflow source
 
-The repo's OpenSpec schema is the artifact dependency source. A versioned
-`execution.yaml` beside that schema supplies policies keyed by artifact/apply
-lifecycle point, not a second list of stage dependency edges. The compiler maps
+The repo's OpenSpec schema is the artifact dependency source. The compiler maps
 request/discovery within intent, specification/design, planning, apply activity
 and review, verify/integrated/development/handoff, and a separate release command
 into the runtime model. The mapping itself is versioned and contract-tested.
+
+The compiled workflow has one key space for policy and hooks: its lifecycle
+points, each a stage or activity event (`beforeStage`, `afterStage`,
+`beforeActivity`, `afterActivity`, `beforeTool`, `afterTool`, `onFinding`,
+`onApproval`, `onFailure`, `onCancel`) qualified by the stage or activity it
+belongs to. A versioned `execution.yaml` beside the schema supplies policies
+keyed by those lifecycle points, and hook registrations name the same points.
+Artifact ids are how the compiler derives stages; they are never policy or hook
+keys, and the profile is not a second list of stage dependency edges.
 
 The compiler consumes schema, templates, execution profile, repository manifest,
 provider capabilities and referenced skill/prompt versions. It produces a content
@@ -185,8 +192,11 @@ human-provenance rule. All workflow operations have FE and MCP access; bootstrap
 and interactive token issuance are authority-establishment flows, not permissions
 an agent MCP token can grant itself. Twilight MCP uses authenticated Streamable
 HTTP, the transport [WBS MCP already serves](../../../apps/mcp-01/src/http.ts).
-Task 5.1 reads its per-request bearer forwarding and OAuth verifier before deciding
-reuse; shared transport does not imply shared product identity or permissions.
+Task 5.1 reads its OAuth verifier before deciding reuse, but not its per-request
+bearer forwarding: the MCP authorization specification forbids passing a token
+issued for the MCP server on to another service, and A36 fixes the alternative
+(token exchange, else a service credential carrying the verified actor). Shared
+transport does not imply shared product identity or permissions.
 
 Artifact edits carry expected artifact/run revisions, content digest, kind,
 source basis and author. They live in an isolated repository draft workspace and
@@ -209,8 +219,10 @@ stale publication returns conflict. Active runs keep their pinned snapshot.
 ## Durable execution and effect ownership
 
 The first topology is one active coordinator using a separate durable SQLite
-store and a restart-tested LangGraph JS checkpointer. Select/pin actual compatible
-packages in Task 1; Bun compatibility is an experiment, not inherited from Node
+store and a restart-tested LangGraph JS checkpointer. That store's migrations run
+through be-01's runner extracted into a shared library, with the same `down.sql`
+rule and lint (A38); Twilight does not carry a second migration mechanism.
+Select/pin actual compatible packages in Task 1; Bun compatibility is an experiment, not inherited from Node
 documentation. Never use an in-memory saver in acceptance. No promise of active
 horizontal coordinators until leases and transactional admission pass races.
 

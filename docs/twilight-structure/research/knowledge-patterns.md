@@ -211,10 +211,3 @@ Karpathy raw revision and the ADHD skill's file-history commit above.
 No dependency installation, skill modification, application change, Claw
 Patrol run, QMD run, browser acceptance scenario, or full repository gate was
 performed. Those checks are outside this documentation research task.
-
-All four local Markdown link targets were checked with Bun and exist. The
-checkout has no runnable installed Prettier; its cached Prettier 3.8.3 also
-cannot load the repository's missing Tailwind plugin. The note was therefore
-formatted and checked with that cached version using explicit Markdown
-options matching the repository's relevant settings, without loading plugins.
-This is a file formatting check, not the repository format gate.

@@ -27,8 +27,7 @@ templates and historical changes.
 [1.12.0 spec application](https://github.com/Fission-AI/OpenSpec/blob/v1.12.0/src/core/specs-apply.ts)
 
 Artifact existence still does not establish human approval or verified runtime
-evidence. The proposed distinction between OpenSpec contracts and DDD wiki
-knowledge also remains a design question, unaffected by this version upgrade.
+evidence; the version upgrade changes discovery, not authority.
 
 ## OpenSpec customization and enforcement
 

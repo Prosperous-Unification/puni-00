@@ -32,8 +32,7 @@ compatibility claim.
 
 ## OpenHands and comparable implementations
 
-Local source inspected:
-`/home/df/wd/openhands-setup/repo`, commit
+Local source inspected: a local OpenHands checkout at commit
 `f26d734a848297d8dcf460b0bb739174e76511f0`.
 Its configured origin is `OpenHands/OpenHands`, but the checked-out documentation
 describes **Agent Canvas**. Treat this as an inspected checkout, not a claim
@@ -67,7 +66,7 @@ permissions, usage reporting, recovery, and user-facing inspection. The brief's
 
 ## Lessons from Claire
 
-Local source inspected: `/home/df/wd/personal/claire`, commit
+Local source inspected: a local Claire checkout at commit
 `552c222bb601aa8db40a5d57b28f0c741ae22f48`.
 These are repository findings, not a verification of deployed infrastructure.
 Host details, credentials, and raw operational transcripts are not copied here.

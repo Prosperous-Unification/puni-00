@@ -158,6 +158,10 @@
     {
       "path": "openspec/schemas/twilight-v1/templates/tasks.md",
       "sha256": "9f10ee25f24dbfc636ccc60f513276ecd18fb64242716da2a31a4ab435f7beb0"
+    },
+    {
+      "path": "openspec/schemas/twilight-v1/templates/verify.md",
+      "sha256": "e0d0874a0da1fc4bdf7cbd0a12c6b25191ceafa766549ff17c7531968aec020e"
     }
   ]
 }

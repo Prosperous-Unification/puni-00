@@ -169,8 +169,13 @@ Then run the same domain/repository contract suite against SQLite and the new
 adapter. Include nested work items, all reference types, three-point estimates,
 weights/rounding, capacity calendars, numbering, undo refusals, concurrent commands,
 saved plans, history/actor retention, and fresh-clone reads. Compare canonical
-exports, not merely row counts. Native Backlog CLI and MCP edits must preserve
-extension identity, content, and unknown fields according to the explicit contract.
+exports, not merely row counts. Native Backlog edits are expected to drop unknown
+frontmatter: the [serializer findings](research/backlog-patterns.md) show it
+writes only the fields it knows. So no WBS-owned value lives in a task file's
+frontmatter; the extension lives in its own files under `backlog/wbs/`, keyed by
+stable task identity, and a native edit must leave that identity intact. The
+adapter drives Backlog only through its pinned CLI and MCP surfaces; importing
+its internal Core package is not a verified contract and is not used until proved.
 
 Shadow-read comparisons precede a short write freeze. Export and checksum the
 source database, construct the accepted Git revision, compare full canonical

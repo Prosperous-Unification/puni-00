@@ -144,6 +144,10 @@ Can overlap Task 3 after shared Task 1 contracts are frozen.
 command contracts in design. **Produces:** `submitRequest`, `commandRun`,
 `decideApproval`, and event/outbox interfaces used by worker and clients.
 
+Before the first Twilight migration, extract be-01's migration runner
+(`apps/be-01/src/repository/migrate.ts`, `migrate-down.ts`) into a shared library
+that both apps call, keeping the `down.sql` rule and the migration lint (A38);
+its existing `.db.test.ts` cases run unchanged against the extracted module.
 Reuse `JwksTokenVerifier` and `browserOidcClientFromEnv` from `libs/auth` after
 reading their tests and the existing be-01 auth/boot callers. Configure a separate
 Twilight OIDC client/audience and durable server-side browser session; no copied
@@ -251,9 +255,11 @@ and two lightweight child-process slots for race tests.
 
 **Depends on:** Tasks 2–4. **Consumes:** BE operations in design.
 Read `apps/mcp-01/src/http.ts`, `oauth.ts`, `server.ts` and their request/auth tests
-before deciding reuse of the existing Streamable HTTP and per-request credential
-forwarding pattern. Do not carry WBS-specific identity or permission rules into
-Twilight merely because the transport matches.
+before deciding reuse of the existing Streamable HTTP transport and verifier. Do
+not reuse its per-request bearer forwarding: A36 requires a Twilight-MCP-audience
+token to be refused by BE directly, with token exchange or an actor-carrying service
+credential in between; test both refusals. Do not carry WBS-specific identity or
+permission rules into Twilight merely because the transport matches.
 **Produces:** schema-derived forms and MCP descriptions calling that BE; no
 alternate state transitions or permissions in the clients. Start with registered
 hooks and one agent role; all supported settings for that subset are visible.
@@ -376,10 +382,13 @@ assumption, specification, plan approval, ACP execution, critic/judge, integrate
 gate and knowledge reconciliation. Interrupt once during approval and once after
 a controlled effect. Repeat against a generated repo with a different repository
 ID and prove it has no puni-specific content, personal paths or shared credentials.
-Pin forbidden content canaries such as `/Users/danylofedorov`, `h2puni` and the
-legacy `wbs-tool-v1` identity in generated client configuration. A clean fixture
-passes; inject each into a copied template file and watch the actual acceptance
-gate fail. Do not merely scan an empty or ungenerated output directory.
+Pin forbidden content canaries: `/home/df/`, `/Users/danylofedorov`, `/root/`,
+`h2puni`, `h1claw` and the legacy `wbs-tool-v1` identity. Each occurs in this
+repository's own docs, receipts or archived changes, which is what makes the
+injection meaningful; a canary that never occurs in the source it guards is a
+check that cannot fail. A clean fixture passes; inject each into a copied
+template file and watch the actual acceptance gate fail. Do not merely scan an
+empty or ungenerated output directory.
 
 At M1 acceptance, set `schema: twilight-v1` in puni-00 and the generated client
 template. Before switching, pin every existing change's current schema in its

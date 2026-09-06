@@ -48,11 +48,9 @@ is one approval of the specified, budgeted plan; teams can configure additional
 stage/activity checkpoints. Production retains its separate explicit command.
 This is not a new permission ritual for already authorized repository edits.
 
-Approval covers exact subject revision/digest, action, policy and environment.
-Changed inputs invalidate affected approvals/evidence. Model-authored approval,
-a checkbox, timeout or silence cannot supply a decision. Critics produce findings;
-judges issue attributed verdicts; deterministic policy and authorized humans control
-action. Mandatory unavailable checks block.
+What an approval covers, what invalidates it, and who may decide are the
+[control-plane authority requirements](../../openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md);
+this page does not restate them. Mandatory unavailable checks block.
 
 ## Focus profile across stages
 

@@ -7,7 +7,7 @@ The user's direction is a requirement: each client gets an Nx monorepo similar
 to `puni-00`, and its software is developed there. WBS supplies the planning UI;
 Backlog.md hosted for that client repository replaces SQLite as its planning
 store. `puni-00` must use the same evolving template and delivery workflow.
-Implementation planning follows the `wbs-tool-v1` refactorings landing.
+Implementation planning follows the WBS refactorings landing.
 
 This rules out a design that leaves the authoritative plan in SQLite and merely
 exports tasks to Backlog.md. The remaining work is to specify a complete file
@@ -246,9 +246,3 @@ adapter interoperability.
 Runtime behavior, browser acceptance, migration, concurrency, dependency failure
 injection, and version-pinned binary conformance remain unverified. This note
 does not initialize Backlog.md or alter the current SQLite-backed WBS.
-
-The targeted documentation format command,
-`bunx nx format:check --files=docs/twilight-structure/research/backlog-patterns.md`,
-could not run: Bun reported a read-only temp directory, and this checkout has
-no `node_modules`, Nx installation or Prettier installation. Dependencies were
-not installed for this research task.

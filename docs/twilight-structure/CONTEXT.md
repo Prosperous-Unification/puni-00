@@ -92,3 +92,111 @@ _Avoid_: Requirement, instruction
 A compact view of the current outcome, next action, decisions, and stopping point
 that helps someone start or resume work.
 _Avoid_: Work plan, reduced workflow
+
+### Execution
+
+**Coordinator**:
+The single process that admits activities, owns run state, and advances the
+compiled workflow. One is active at a time.
+_Avoid_: Scheduler, orchestrator, server
+
+**Worker**:
+An isolated process that performs one activity attempt with no access to
+control-plane credentials or policy writes.
+_Avoid_: Agent, sandbox
+
+**Compiled workflow**:
+The immutable, digest-identified result of compiling a workflow definition,
+execution profile, and repository manifest for a run.
+_Avoid_: Config snapshot, graph
+
+**Execution profile**:
+The versioned policy file beside the schema that assigns policies to lifecycle
+points.
+_Avoid_: Settings, stage list
+
+**Lifecycle point**:
+A named stage, activity, tool, or decision event of a compiled workflow, the one
+key space for policies and hooks.
+_Avoid_: Step, phase, trigger
+
+**Hook**:
+A registered, versioned extension invoked at a lifecycle point with declared
+capabilities and an explicit failure policy.
+_Avoid_: Callback, script, plugin
+
+**Admission**:
+The decision to start an activity attempt once every required reservation and
+policy check holds.
+_Avoid_: Scheduling, launch
+
+**Reservation**:
+A claim on part of a capacity pool or budget held for one admitted activity.
+_Avoid_: Allocation, quota
+
+**Lease**:
+Time-bounded ownership of a reservation or workspace, fenced by a token so an
+expired owner cannot act.
+_Avoid_: Lock, session
+
+**Effect**:
+An externally visible action a worker requests, recorded with a stable identity
+before dispatch so its outcome can be reconciled.
+_Avoid_: Side effect, call, tool use
+
+### Authority
+
+**Organization**:
+The owning party for repositories, members, and policy floors; one is configured
+at bootstrap.
+_Avoid_: Tenant, account
+
+**Safety floor**:
+A mandatory policy at organization or platform level that lower-level overrides
+may tighten but not loosen.
+_Avoid_: Default, baseline
+
+**Decision token**:
+A short-lived, single-use credential issued by the interactive browser flow that
+binds one human decision to one subject and consumer.
+_Avoid_: Approval token, bearer token
+
+**Discovery envelope**:
+The displayed, versioned authority a request grants to discovery work before a
+plan exists: write paths, limits, deadline, and read-only code access.
+_Avoid_: Budget, pre-approval
+
+**Critic**:
+A reviewer with read scope that produces findings and holds no decision authority.
+_Avoid_: Judge, safety agent, approver
+
+### Planning and delivery
+
+**Repository manifest**:
+The versioned file that identifies a client repository, its template and adapter
+versions, context roots, and planning ref.
+_Avoid_: Config, settings file
+
+**Planning broker**:
+The one principal per repository that validates and publishes accepted planning
+revisions.
+_Avoid_: Backlog service, writer
+
+**Plan reference**:
+The tuple of repository, plan, change, planning commit, source base commit, and
+requirements digest that names one accepted plan for one source basis. Its type is `PlanRef`.
+_Avoid_: Plan id, plan version
+
+**Source candidate**:
+A source commit that pins a plan reference and its generated task export and is
+the subject of verification and approval.
+_Avoid_: Branch, build, release
+
+**Completion receipt**:
+An attributed record that a planning task was completed on a named source
+candidate, with its tests, verdicts, and integration status.
+_Avoid_: Checkbox, done flag
+
+**Candidate**:
+The exact revision or artifact an approval, verification, or release names.
+_Avoid_: Version, latest

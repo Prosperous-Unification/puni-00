@@ -1,5 +1,10 @@
 # Twilight SDLC trial verification
 
+**Status, 2026-09-06:** trial complete and committed on `work/twilight-structure-plan`
+(`6d0994bd` docs, `989ecfcc` upgrade and cleanup). Nothing below is a claim about
+runtime, deployment or release. Sections after this header are the chronological
+record and say "uncommitted" or "then requested" about the state at that time.
+
 Scope: documentation, workflow configuration, research and product planning on
 2026-09-06. The scoped documentation/schema work and local review are complete;
 Claude Fable 5.1 reviewed the repository and corrections, finding the plan actionable
@@ -11,8 +16,10 @@ development deployment or production release was performed by this trial.
 
 Repository: `puni-00`, base commit `1e87500c6a2e9f5bc1f9962f4ed56161ecec83b4`.
 The checkout already contained workflow-upgrade edits and untracked Twilight docs.
-Changes remain uncommitted; the base commit alone does not identify their content.
-A [content manifest](../../../docs/twilight-structure/evidence/content-manifest.json) identifies the handoff inputs; verification/receipt files are excluded to avoid self-reference. No application behavior,
+At that time the changes were uncommitted and the base commit alone did not identify
+their content, so a [content manifest](../../../docs/twilight-structure/evidence/content-manifest.json)
+identified the handoff inputs; verification/receipt files are excluded to avoid
+self-reference. Since the commits above, Git identifies the content. No application behavior,
 existing WBS plan, user-level skill installation, or default schema was changed.
 The obsolete stdio header in MCP main.ts was removed after checking its actual
 HTTP caller; this was a documentation correction only.
@@ -169,8 +176,12 @@ known factual errors are corrected in the disposition record.
 
 Final closure: 39 OpenSpec changes passed (the same eight pre-existing archive
 INFO findings remain), 42 Markdown files had 159 resolvable local destinations,
-42 handoff hashes matched, all 20 product deliverables were unchecked and all
-seven pilot tasks checked. Scoped cached formatting and the doc-cap command
+42 handoff hashes matched against the manifest as it stood at that check, all 20
+product deliverables were unchecked and all seven pilot tasks checked. The
+committed manifest lists 40 files (it was 39, missing the `verify.md` template,
+which was added on 2026-09-06 with its hash at `989ecfcc`); a later recomputation
+matched every entry against `989ecfcc`, and edits after that commit are
+identified by Git rather than by the manifest. Scoped cached formatting and the doc-cap command
 passed. The application-source diff removes only the stale MCP comment; no
 application behavior was changed or newly tested. The review closure receipt
 was populated with these outputs after the check, preserving their attribution.
