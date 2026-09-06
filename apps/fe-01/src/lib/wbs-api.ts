@@ -129,13 +129,7 @@ export interface ScheduleView {
  * between them.
  */
 export type ScheduleFloorView =
-  | 'projectStart'
-  | 'predecessor'
-  | 'stepOrder'
-  | 'notBefore'
-  | 'person'
-  | 'capacity'
-  | 'optimizer';
+  'projectStart' | 'predecessor' | 'stepOrder' | 'notBefore' | 'person' | 'capacity' | 'optimizer';
 
 /**
  * One placed slice — one work item's work for one step — as be-01 sends it.
@@ -798,8 +792,7 @@ export interface DirectoryUsage {
  * agree to that without being shown what it takes.
  */
 export type DirectoryRemoval =
-  | { ok: true }
-  | { ok: false; reason: 'in_use'; usage: DirectoryUsage };
+  { ok: true } | { ok: false; reason: 'in_use'; usage: DirectoryUsage };
 
 /**
  * What came of renaming a person or a service team, or editing memberships.
@@ -811,8 +804,7 @@ export type DirectoryRemoval =
  * {@link directoryRefusalSentence} turns into a sentence.
  */
 export type DirectoryWrite<T> =
-  | { ok: true; entry: T }
-  | { ok: false; reason: 'taken'; survivingName: string };
+  { ok: true; entry: T } | { ok: false; reason: 'taken'; survivingName: string };
 
 /**
  * The parts of a person a patch may change.
@@ -1791,8 +1783,7 @@ function refusalCodeIn(text: string, status: number): string {
  * makes the other arm out of whatever was thrown.
  */
 export type DirectoryRefusal =
-  | { reason: 'taken'; survivingName: string }
-  | { reason: 'refused'; code: string };
+  { reason: 'taken'; survivingName: string } | { reason: 'refused'; code: string };
 
 /** The refusal a thrown directory call amounts to, code and all. */
 export function directoryRefusedWith(thrown: unknown): DirectoryRefusal {

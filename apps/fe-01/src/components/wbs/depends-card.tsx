@@ -31,10 +31,7 @@ export interface PointerRect {
 }
 
 export type DependencyPointerRegion =
-  | { kind: 'owner' }
-  | { kind: 'corridor' }
-  | { kind: 'row'; id: string }
-  | { kind: 'outside' };
+  { kind: 'owner' } | { kind: 'corridor' } | { kind: 'row'; id: string } | { kind: 'outside' };
 
 const containsPoint = (point: { x: number; y: number }, box: PointerRect): boolean =>
   point.x >= box.left && point.x <= box.right && point.y >= box.top && point.y <= box.bottom;

@@ -52,7 +52,7 @@ here.
       column** — the floor's `start_no_earlier_than_reason` gets no counterpart
       here, and adding one speculatively is out of scope.
 - [ ] 1.2 **`apps/be-01/drizzle/**` is a prod-mode path**
-(`notes/delivery-modes.md`): this slice ships as a reviewed PR and is not
+      (`notes/delivery-modes.md`): this slice ships as a reviewed PR and is not
       self-merged, and it carries **nothing else** — no domain code, no API
       field, no UI. That isolation is the same one TASK-218 applied to the cache
       migration, and it is what lets slices 2–9 self-merge.

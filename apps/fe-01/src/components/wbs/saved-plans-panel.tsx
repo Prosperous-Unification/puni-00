@@ -238,12 +238,10 @@ export function SavedPlansPanel({
         }
         return { kind: 'gone', savedPlanId: result.savedPlanId };
       })
-      .catch(
-        (fault: unknown): SavedPlanComparisonState => ({
-          kind: 'error',
-          code: fault instanceof Error ? fault.message : String(fault),
-        }),
-      )
+      .catch((fault: unknown): SavedPlanComparisonState => ({
+        kind: 'error',
+        code: fault instanceof Error ? fault.message : String(fault),
+      }))
       .then((next) => {
         if (!cancelled) setComparison(next);
       });

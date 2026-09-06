@@ -433,7 +433,7 @@ describe('a priority ladder moves no date', () => {
   ): Record<string, unknown> {
     const byId = new Map(tree.workItems.map((row) => [row.id, row]));
     const effectiveTeamOf = (rowId: string): string | null => {
-      for (let at: string | null = rowId; at !== null; ) {
+      for (let at: string | null = rowId; at !== null;) {
         const row = byId.get(at);
         if (row === undefined) return null;
         if (row.serviceTeamId !== null) return row.serviceTeamId;

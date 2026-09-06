@@ -29,12 +29,10 @@ export interface CalendarMarkerServiceOptions {
 export type CalendarMarkerRefusal = 'not_found' | 'forbidden' | 'taken';
 
 export type CalendarMarkerOutcome =
-  | { ok: true; value: CalendarMarker }
-  | { ok: false; reason: CalendarMarkerRefusal };
+  { ok: true; value: CalendarMarker } | { ok: false; reason: CalendarMarkerRefusal };
 
 export type CalendarMarkerListOutcome =
-  | { ok: true; value: CalendarMarker[] }
-  | { ok: false; reason: CalendarMarkerRefusal };
+  { ok: true; value: CalendarMarker[] } | { ok: false; reason: CalendarMarkerRefusal };
 
 /** What a create carries that is not the project or the actor. */
 export interface NewCalendarMarker {

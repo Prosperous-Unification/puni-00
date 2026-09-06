@@ -1498,8 +1498,7 @@ export interface CalendarMarker {
  * anything is missing.
  */
 export type CalendarMarkerWritten =
-  | { ok: true; marker: CalendarMarker }
-  | { ok: false; reason: 'not_found' | 'taken' };
+  { ok: true; marker: CalendarMarker } | { ok: false; reason: 'not_found' | 'taken' };
 
 /**
  * A project's calendar markers.

@@ -137,8 +137,7 @@ describe('the committed OpenAPI document', () => {
     const paths = document['paths'] as Record<string, Record<string, unknown> | undefined> | null;
     for (const [path, method] of handParsed) {
       const operation = paths?.[path]?.[method] as
-        | { requestBody?: { description?: string; content?: Record<string, unknown> } }
-        | undefined;
+        { requestBody?: { description?: string; content?: Record<string, unknown> } } | undefined;
       // `?? ''` rather than the bare value: a route that has moved arrives here
       // as `undefined`, and `toContain` on it fails with bun's own "must be an
       // array type" rather than with the path that went missing.
