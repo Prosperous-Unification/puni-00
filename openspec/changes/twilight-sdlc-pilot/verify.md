@@ -189,3 +189,17 @@ verbatim text is preserved as reviewText with SHA-256 in their JSON receipts.
 Earlier receipts describe the full reviewed working tree, including local inputs;
 the final content manifest now lists only this documentation commit artifacts.
 The application/full Nx gate was not run for this documentation-only commit.
+
+## Follow-up branch publication
+
+The user then authorized committing and pushing all remaining edits on a separate
+branch, without merging into main. That follow-up includes the OpenSpec 1.12.0
+CI/config/skill upgrade, its report and the MCP comment cleanup. The earlier
+docs-only scope above describes the first commit.
+
+With locked dependencies installed, fresh bunx nx format:check --all passed.
+The pinned 1.12.0 whole-repository validator passed 39 changes with the same eight
+pre-existing archive INFO findings; twilight-v1 schema validation passed.
+Commit hooks run the staged format, secrets and applicable lint/doc-cap checks.
+Application tests/typecheck/build and deployment were not run for this branch
+publication; no main merge or runtime delivery is claimed.

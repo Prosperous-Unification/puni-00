@@ -257,7 +257,7 @@ under `~/.bun/bin` and `~/.local/bin`, and a non-interactive
 
 Present and verified: bun, dagger, shellcheck, docker, node, gh (as
 `dany-fedorov`), `codex`, `claude`. `openspec` is not global — use
-`bunx @fission-ai/openspec@1.3.0`. The full gate passes on h1claw: 20 projects.
+`bunx @fission-ai/openspec@1.12.0`. The full gate passes on h1claw: 20 projects.
 
 ### h1claw over WhatsApp
 

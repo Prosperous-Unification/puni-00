@@ -2,8 +2,8 @@ schema: sdd-lean
 
 # sdd-lean collapses sdd-plus-superpowers' seven artifacts to four required plus
 # one optional: brainstorm+proposal -> intent, plan folded into tasks.
-# The intent artifact writes proposal.md — that filename is hardcoded in the
-# OpenSpec CLI, so a change directory without it is invisible to list/validate/archive.
+# The intent artifact retains proposal.md for compatibility with existing
+# changes and templates. OpenSpec 1.12.0 no longer requires it for discovery.
 
 context: |
   Read AGENTS.md before producing any artifact. Rules R1-R5 there govern every
@@ -30,7 +30,7 @@ context: |
 
   CI runs on GitHub Actions (`.github/workflows/ci.yml`) and is the merge gate:
   `bunx nx format:check --all`, then `bunx nx run-many -t test lint typecheck build`,
-  then `bunx @fission-ai/openspec@1.3.0 validate --all --json`. Locally, gate on h2puni with
+  then `bunx @fission-ai/openspec@1.12.0 validate --all --json`. Locally, gate on h2puni with
   `bin/h2puni-gate.sh`, which takes the host-wide lock; AGENTS.md forbids the
   raw full Nx gate there. The earlier "there is no CI" line was stale and
   under-scoped every plan that inherited it: it omitted format and build.
@@ -68,4 +68,6 @@ rules:
     - 'Include a failure-proof table. For each new or changed check: the fault
       injected, the test that observed it failing, and the result.'
     - A check with no observed failure is not done. Reasoning is not proof.
-    - Record the actual output of `bunx nx run-many -t test lint typecheck`.
+    - Record the actual output of `bunx nx format:check --all` and
+      `bunx nx run-many -t test lint typecheck build`; on h2puni use
+      `bin/h2puni-gate.sh` to run the full gate under its host-wide lock.

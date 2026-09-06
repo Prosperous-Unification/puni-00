@@ -8,12 +8,10 @@ description: >
   grilling + domain-modeling together, so domain vocabulary lands in CONTEXT.md and
   hard-to-reverse decisions land in docs/adr/ as they are made.
 
-  The `intent` artifact writes `proposal.md`, not `intent.md`. That filename is
-  hardcoded in the OpenSpec CLI (utils/item-discovery.js, core/archive.js,
-  commands/change.js): a change directory without `proposal.md` is invisible to
-  `openspec list`, `openspec validate --all`, and `openspec archive`. The
-  artifact id is `intent` because that is what it captures; the filename is a
-  compatibility constraint, not a naming choice.
+  The `intent` artifact continues to write `proposal.md` for compatibility
+  with existing changes and templates. OpenSpec 1.12.0 no longer requires
+  that filename for change discovery. The artifact id remains `intent`
+  because that is what it captures.
 
   Apply uses git worktrees + subagent-driven-development, which brings TDD and
   code-review transitively.

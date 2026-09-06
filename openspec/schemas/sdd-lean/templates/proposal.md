@@ -42,7 +42,7 @@ cover. This section is required — an intent without stated non-goals will grow
 
 <!--
 What the solution has to live with. Backward-compatible migrations (blue/green
-shares one SQLite file), no CI, amd64 build target, existing contracts —
+shares one SQLite file), the CI gate, amd64 build target, existing contracts —
 whatever actually binds this change.
 -->
 

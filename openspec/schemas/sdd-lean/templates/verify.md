@@ -66,10 +66,11 @@
 
 ## 5. Gate Output
 
-> There is no CI. This is the only gate.
+> CI runs these checks. On h2puni, invoke `bin/h2puni-gate.sh` so the
+> host-wide lock controls the full gate; record its output here.
 
-- [ ] `bunx nx run-many -t test lint typecheck`
-- [ ] `bunx nx format:check`
+- [ ] `bunx nx run-many -t test lint typecheck build`
+- [ ] `bunx nx format:check --all`
 
 ```
 <paste the actual output — not a summary of it>

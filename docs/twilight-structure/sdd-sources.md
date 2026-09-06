@@ -2,9 +2,10 @@
 
 Inspected 2026-09-06. This is research for the documentation/workflow pilot,
 not an accepted design or an activated schema. The original findings below
-compare the **1.3.0** repository pin with upstream `main`. This working tree also
-held a separately prepared 1.12.0 upgrade; its CI/skill changes are outside this
-documentation commit. The pilot explicitly invokes 1.12.0 as recorded below.
+compare the former **1.3.0** repository pin with upstream `main`. The first
+docs-only commit excluded the separately prepared upgrade; the work branch now
+includes the [1.12.0 CI/skill upgrade](../2026-09-06-openspec-upgrade.md).
+The pilot explicitly invokes 1.12.0 as recorded below.
 
 Historical record: current schema behavior is freshly exercised in
 [pilot verification](../../openspec/changes/twilight-sdlc-pilot/verify.md).

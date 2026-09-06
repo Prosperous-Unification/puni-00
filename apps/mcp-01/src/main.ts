@@ -4,14 +4,6 @@ import { mcpOAuthFromEnv } from './oauth';
 import { readDocument, toolsFromDocument } from './openapi-tools';
 import { createServer, resolveDocumentFile } from './server';
 
-/**
- * mcp-01's entrypoint: read the document, derive the tools, speak MCP on stdio.
- *
- * **stdout is the protocol.** A `console.log` here writes a line into the JSON-RPC
- * stream and the client drops the connection, so every message this process
- * prints goes to stderr — which the client shows as the server's log.
- */
-
 const config = loadConfig();
 const tools = toolsFromDocument(readDocument(resolveDocumentFile()));
 const oauth = mcpOAuthFromEnv(config, process.env);

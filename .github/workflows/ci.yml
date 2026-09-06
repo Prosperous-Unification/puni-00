@@ -157,10 +157,10 @@ jobs:
       # it only worked locally because volta has the real CLI on PATH. Pinning
       # the version stops a CLI release from changing what this gate means.
       #
-      # Proof: with a change's scenarios written `###` instead of `####`,
-      # this exits 1 with failed: 1. Restored, it exits 0 with passed: 2.
+      # Proof: on 1.12.0, a disposable nested capability's `### Scenario`
+      # exits 1 with failed: 1; restored to `####`, it exits 0 with passed: 1.
       - name: OpenSpec
-        run: bunx @fission-ai/openspec@1.3.0 validate --all --json
+        run: bunx @fission-ai/openspec@1.12.0 validate --all --json
 
   # The eyes. Everything the `gate` job runs sees this table through jsdom,
   # which lays nothing out: the overlap that prompted this job passed 450 unit

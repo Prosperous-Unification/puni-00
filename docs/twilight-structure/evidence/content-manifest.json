@@ -1,7 +1,7 @@
 {
   "baseCommit": "1e87500c6a2e9f5bc1f9962f4ed56161ecec83b4",
-  "recordedAt": "2026-09-06T06:28:55.541Z",
-  "scope": "Documentation commit artifacts only; application/CI/default-schema/skill edits remain local. Full reviewed working-tree snapshots are preserved in Claude receipts. Evidence receipts excluded to avoid self-reference.",
+  "recordedAt": "2026-09-06T06:44:45.243Z",
+  "scope": "Documentation artifact hashes on the combined work branch; upgrade/CI/application-comment changes are identified by Git, and reviewed snapshots remain in Claude receipts. Evidence receipts excluded to prevent self-reference.",
   "files": [
     {
       "path": "CONTEXT-MAP.md",
@@ -73,7 +73,7 @@
     },
     {
       "path": "docs/twilight-structure/sdd-sources.md",
-      "sha256": "28e6855bec052885a4deef180db5b6993521fa38b469cc6d127ba9fa07da35d5"
+      "sha256": "f5e751bcc6d0bb6d71ba0a905987ce4fb7d8368839f4083235cdf97bdefc4981"
     },
     {
       "path": "docs/twilight-structure/sdlc-stages.md",
