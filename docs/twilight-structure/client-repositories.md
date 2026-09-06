@@ -114,17 +114,27 @@ that ref. A materialized Backlog checkout is a view; readers never combine files
 from different revisions. [Proposed transaction ADR](../adr/0015-planning-commits-are-the-transaction-boundary.md).
 
 1. A command carries `repositoryId`, `planId`, stable command ID, expected planning
-   revision, actor, and typed WBS operations. Authorize before reading private files.
+   revision, actor, typed WBS operations and `reconciliation: exact | disjoint`.
+   Missing reconciliation selects `exact`. Authorize before reading private files.
+   The broker derives semantic read/write sets from the versioned command registry:
+   affected task/plan fields, shared references, dependency edges and collection
+   membership/range predicates. Caller-supplied sets cannot narrow them. Unknown
+   command semantics and native imports require exact-basis acceptance.
 2. Resolve that revision into an isolated staging tree. Apply native Backlog edits
    through the pinned adapter and WBS extension edits through their codecs. Validate
    the entire resulting graph, hierarchy, identities, and batch invariants.
 3. Write a commit object containing all changed files plus the command record.
    Advance the accepted ref with expected-old-ref compare-and-swap. A conflict
    returns typed 409 and the current revision; partial work remains unaccepted.
-   This is repository-wide even for edits to disjoint plans: the losing command is
-   never silently rebased or reported accepted. The client fetches that revision,
-   explicitly reconciles, and submits a new command ID/expected revision linked to
-   the conflict. Revalidate the full graph, including cross-plan dependencies.
+   Ref publication is serialized; semantic conflicts are scoped to the derived
+   preconditions. Under `disjoint`, a lost CAS may be recomputed on the current tree
+   only if all original read predicates and write preconditions still hold. The
+   broker reauthorizes and revalidates the full graph, including cross-plan
+   dependencies, before retrying CAS, at most three times. The receipt records the
+   original basis, each reconciliation and the accepted commit under the same
+   idempotency key. Changed predicates, an exact command or exhausted CAS retries
+   return 409; the client then explicitly reconciles and submits a new linked
+   command ID. No losing attempt publishes events or claims acceptance.
 4. Publish events only after acceptance, deduplicated by command/revision. On crash,
    reread the accepted ref and journal to reconcile an uncertain acknowledgment.
    A repeated command returns its prior accepted answer; it cannot apply twice.
@@ -135,9 +145,8 @@ from different revisions. [Proposed transaction ADR](../adr/0015-planning-commit
 
 The broker must own advancement of the accepted ref, including remote pushes:
 Git access controls prevent an external writer bypassing validation. Editing a
-branch elsewhere proposes input, not an accepted mutation. Cross-clone conflicts
-require fetch/import and fresh expected revision; local lock files do not solve
-them. A bare Backlog numeric ID is not durable identity: scope to repository and
+branch elsewhere proposes input, not an accepted mutation. Cross-clone proposals use the same server-derived preconditions and bounded
+reconciliation; local lock files do not establish acceptance. A bare Backlog numeric ID is not durable identity: scope to repository and
 retain a stable task UUID mapping through archive, renumber, and restoration.
 
 The first deployment uses a self-hosted bare Git remote with an SSH forced-command
@@ -189,8 +198,20 @@ conflicts, whose counts and latency are reported separately; no dropped command 
 mixed-revision read is permitted. Restore throughput to at least two accepted
 commands/second for a five-minute uncontended control after the contention run.
 
-Run forced disjoint-plan CAS races separately: one acceptance and one 409, followed
-by explicit resubmission preserving both plans, are correctness criteria. If any
+Run forced disjoint-plan CAS races separately: exact commands yield one acceptance
+and one 409; authorized disjoint commands preserve both edits with one durable
+receipt per command. Inject a changed cross-plan edge, collection member and shared
+reference separately: each must refuse disjoint reconciliation. Hold a response
+across restart and retry its command; one receipt and one accepted effect remain.
+
+Add 1/2/4/8/16 writer sweeps with offered load of one command/second per writer,
+ten readers and ten minutes per point on the same fixture/host. Report offered and
+accepted throughput, command-to-final-answer p50/p95, conflicts, retry count and
+human reconciliation effort, including failed commands in denominators. The
+uncontended disjoint workload must accept at least 95% within three seconds p95
+at eight writers; the contended control must retain typed conflicts without lost
+updates. These are proposed budgets, not observations. A low-load latency pass
+cannot stand in for this sweep. If any
 budget fails, Task 9 remains incomplete; measure batching/index improvements within
 this authority model or explicitly revise the proposed acceptance contract before
 cutover. Never silently reinstate SQLite as plan authority.
@@ -262,8 +283,10 @@ Merging them preserves the union of entries and verifies every entry against the
 merged source basis; no single-value plan lock is overwritten by the second plan.
 
 A shared change key with different references or snapshots, incompatible source
-bases, or cross-plan dependencies produces an explicit conflict. It requires
-reconciliation, a regenerated candidate and reapproval of what it affects.
+bases, or changed cross-plan dependencies produces an explicit conflict. The
+integration queue reconciles only within the approved envelope, regenerates the
+candidate and verifies it. Changed requirements or work outside permitted lineage
+requires a new approval; a fresh source hash alone is not a new authority request.
 
 Even disjoint entries need fresh verification of the merged candidate. Merging
 does not carry candidate-bound greens or approvals to a new commit.
@@ -369,15 +392,17 @@ or explicitly specify any accepted contract change before cutover.
 - Native Backlog editing changes a display ID: WHEN a task is archived, restored,
   renumbered or assigned a reused Backlog ID THEN its stable planning identity and
   historical evidence cannot bind to a different task.
-- Two clones propose edits from one planning revision: WHEN both attempt to
-  publish against the same accepted revision THEN only one publishes and the other
-  receives a conflict requiring explicit reconciliation; local lock success cannot
-  imply global acceptance.
-- Two disjoint plans race on the accepted ref: WHEN separate plans in one
-  repository publish against the same accepted ref THEN one publishes and the
-  other receives 409 even though their files are disjoint; explicit reconciliation
-  and a new command against the current revision can preserve both edits without
-  silently changing the losing command's basis.
+- Two clones propose exact-basis edits from one planning revision: WHEN both
+  attempt to publish against the same accepted revision THEN only one publishes
+  and the other receives a conflict requiring explicit reconciliation; local lock
+  success cannot imply global acceptance.
+- Two disjoint plans race on the accepted ref: WHEN both commands authorize
+  disjoint reconciliation and their derived semantic preconditions remain true
+  THEN both edits can be accepted through bounded CAS retries, with original and
+  accepted bases recorded; exact commands still return 409 on a changed basis.
+- A dependency changes during disjoint reconciliation: WHEN an original read
+  predicate or shared-reference precondition no longer holds THEN acceptance is
+  refused even if the edited files are disjoint; a caller cannot omit that predicate.
 - Cutover comparison loses an estimate: WHEN export/round-trip comparison finds a
   missing estimate, ordering value, reference, capacity rule, command history, or
   other required planning field THEN cutover is refused and the current backend

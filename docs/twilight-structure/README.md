@@ -4,10 +4,11 @@ Start with the [delivery plan](../../openspec/changes/twilight-control-plane/tas
 It builds the smallest usable FE/BE/MCP loop, then adds the client-repo planning
 backend and full factory capabilities in dependency order.
 
-Current outcome: the first SDLC was tried on this request, and the plan was reviewed
-and revised through Claude Fable 5.1 with no remaining blocking correction. The
-[verification record](../../openspec/changes/twilight-sdlc-pilot/verify.md)
-separates observed checks from future runtime tests. Product code is not implemented.
+Current objective: minimize elapsed time to accepted, integrated outcomes within
+approved spending and fixed quality. M1 includes pipelined deliverables, execution
+envelopes, automated integration and a measured scaling gate. Product code is not
+implemented. The [current verification record](../../openspec/changes/twilight-control-plane/verify.md)
+separates document checks from future runtime proofs.
 
 The subsequent [branch-review hardening](../../openspec/changes/twilight-review-hardening/proposal.md)
 amends the proposed contracts and repairs the repository workflow.

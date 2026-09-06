@@ -30,9 +30,9 @@ WBS remains the work-planning editor. Twilight links or embeds it with a scoped
 repository and planning revision, not an independent editable task board. The
 [Backlog-backed migration](client-repositories.md) supplies the later storage change.
 A candidate's evidence view separates pinned prior receipts from completions it
-produces and shows every change's plan reference. Concurrent edits to disjoint plans
-may still conflict on the repository's accepted planning revision; WBS shows the
-conflict and reconciliation action without claiming either edit was auto-merged.
+produces and shows every change's plan reference. Concurrent planning edits show whether semantic preconditions were preserved by
+authorized disjoint reconciliation or a real conflict needs a new decision. The
+accepted receipt names both the requested basis and the committed revision.
 
 ## All supported settings are visible, scoped and versioned
 
@@ -68,22 +68,38 @@ grants and approved spend, and inconsistent combinations are refused.
 Ordinary edits affect new runs; current grant revocations and tighter floors also
 constrain existing runs, and the run view shows the revoked authority beside the
 definition originally approved. A validated mid-run change starts an immutable
-profile epoch for work not yet admitted and requires approval of the changed
-subject. Running or draining attempts retain their epoch and reservations; usage,
+profile epoch for work not yet admitted. Choices within the approved execution
+envelope continue automatically; choices outside it show the exact additional
+authority awaiting approval. Running or draining attempts retain their epoch and reservations; usage,
 holds, rework and the original deadline clock do not reset. An explicit migration
 checks retained executable, checkpoint and hook compatibility and invalidates
 affected evidence and approvals; an unsupported restore shows the missing version
 and the recovery action. Unsupported settings are visible with a reason and cannot
 be selected as enforceable controls.
 
-An admitted attempt retains its own epoch's approval for unchanged work while the
-next epoch awaits approval. Expiry, revocation and tighter floors still stop its
-dispatches; approving one epoch never approves another.
+An admitted attempt retains its envelope for unchanged work while an expansion
+awaits approval. Epochs show their envelope reference and selected values; expiry,
+revocation and tighter floors still stop unauthorized dispatches.
 
 The same configuration schema drives FE forms, API validation, MCP tools, docs and
 configuration diffs. Server-side validation is authoritative. A new control ships
 its form, API/MCP representation, behavior, ledger or outcome field where it is a
 lever, and tests together.
+
+## Buying shorter delivery time
+
+The run view shows the approved outcome, fixed quality obligations, execution
+envelope and current bottleneck. Operators can authorize a range of models,
+concurrency and resources with hard spending ceilings, then watch the scheduler
+use those bounds without a new decision for each adjustment. A capacity increase
+that cannot start more work names the limiting provider, build, browser, integration
+or authority constraint. No setting promises linear scaling.
+
+Deliverables show simultaneous implementation, review and verification progress.
+The integration queue shows composition, exact candidate checks, repair and accepted
+publication. Optional speculative attempts show the selected candidate and losing
+costs. Comparisons expose fixed-quality speedup, accepted outcomes per hour and
+request-to-acceptance percentiles with sample counts, queue time and quality coverage.
 
 ## Hooks and authority
 

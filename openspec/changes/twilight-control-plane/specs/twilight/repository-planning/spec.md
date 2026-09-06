@@ -66,14 +66,14 @@ resolve the pinned inputs without consulting a moving planning/receipt head.
 - **WHEN** branches with disjoint change IDs, plan references and task exports
   merge on a compatible source basis
 - **THEN** the merged lock preserves both entries, validates each pinned export
-  and snapshot, and verifies the new candidate before candidate-bound approval
+  and snapshot, and verifies the new candidate within its approved integration lineage
 
 #### Scenario: Plan lock entries cannot be safely composed
 
 - **WHEN** the same change key has competing plan/snapshot references or the
   merged source basis or cross-plan dependencies are incompatible
 - **THEN** merging refuses automatic acceptance and requires explicit reconciliation,
-  regenerated exports and affected verification/approval
+  regenerated exports and fresh verification; leaving approved scope or lineage requires a new approval
 
 ### Requirement: Plan resource units are carried without conversion
 

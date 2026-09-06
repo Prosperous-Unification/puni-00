@@ -36,12 +36,15 @@ their explanatory projection, not a second dependency source.
 | `implementation` | Isolated execution, TDD and bounded fixes                                                    | Actual changes with attributed evidence; checkboxes reference them                            | Fix the owning slice or its contract              |
 | `review`         | Critics, judge and rework rounds from the delivery profile                                   | Findings, verdicts and dispositions                                                           | Rework to the owning activity within the limit    |
 | `verification`   | Relevant full gates and observed fault injections                                            | `verify.md` identifies exact content/environment and output                                   | Return to the artifact causing failure            |
+| `integration`    | Compose authorized deliverables and verify the combined candidate                            | Exact composed source and full gate evidence                                                  | Recompose changed base or repair failed members   |
 | `acceptance`     | Deploy candidate and test with real cloud browser when applicable                            | Evidence linked from `verify.md`; served revision checked first                               | Recover deployment or reopen implementation       |
 | `handoff`        | Reconcile glossary/wiki/ADRs/contracts and source provenance; write the outcome record       | `verify.md` links knowledge, sync/archive status, candidate and outcome                       | Reopen stale claims; retain disagreements         |
 | `release`        | Separate explicit human command for candidate/environment                                    | Attributed release record plus observed health/recovery                                       | Controlled recovery; no false success             |
 
-The stage DAG preserves every ordering boundary even when a stage's activities are
-disabled or all inapplicable; their dispositions do not invent passing evidence.
+Stage scope controls each ordering boundary: implementation, review and verification
+advance per deliverable; integration and acceptance join candidate members; handoff
+joins required accepted outcomes. Independent deliverables pipeline across stages.
+Disabled activities preserve their scoped dispositions without inventing evidence.
 Per-task tests do not replace the floor's integrated gate. Knowledge updates as it
 resolves and is reconciled at handoff. Development completion is distinct from
 production delivery, and `release` never starts from stage completion. Which

@@ -18,13 +18,13 @@ The repository gate (`bunx nx format:check --all`, `bunx nx run-many -t test lin
 
 ## Milestones and ordering
 
-| Milestone                            | Tasks                                          | Observable exit                                                                                                                                                                   | Dependency                              |
-| ------------------------------------ | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| M0 — repository SDLC trial           | [Pilot tasks](../twilight-sdlc-pilot/tasks.md) | Canonical docs, real CLI counterexamples and attributed plan review; delivered by this request                                                                                    | None                                    |
-| M1 — usable factory core             | 1–8                                            | Operator starts in FE or MCP under a delivery profile, approves a revision with its budget, restarts the service, executes one bounded ACP activity, inspects evidence and ledger | M0; tasks below specify internal edges  |
-| M2 — client planning backend         | 9–10                                           | WBS reads/writes complete plans through per-repo Backlog.md with atomic batches, undo and lossless migration                                                                      | WBS refactor closure + M1 planning port |
-| M3 — full workflow operations        | 11–12                                          | Multiple agent roles, hooks, capacity, schedules, escalation ladders and wiki operations are configurable and inspectable through all clients                                     | M1; M2 for accepting WBS-origin plans   |
-| M4 — client delivery and self-growth | 13–14                                          | Real cloud-browser acceptance, controlled release, tested client template upgrades, and factory self-change use the same workflow                                                 | M1–M3 and deployment/recovery proofs    |
+| Milestone                            | Tasks                                          | Observable exit                                                                                                                                                                                                          | Dependency                              |
+| ------------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------- |
+| M0 — repository SDLC trial           | [Pilot tasks](../twilight-sdlc-pilot/tasks.md) | Canonical docs, real CLI counterexamples and attributed plan review; delivered by this request                                                                                                                           | None                                    |
+| M1 — usable factory core             | 1–8                                            | Operator starts in FE or MCP under a delivery profile, approves a revision with its budget, restarts the service, pipelines deliverables through integration, proves fixed-quality scaling, inspects evidence and ledger | M0; tasks below specify internal edges  |
+| M2 — client planning backend         | 9–10                                           | WBS reads/writes complete plans through per-repo Backlog.md with atomic batches, undo and lossless migration                                                                                                             | WBS refactor closure + M1 planning port |
+| M3 — full workflow operations        | 11–12                                          | Multiple agent roles, hooks, capacity, schedules, escalation ladders and wiki operations are configurable and inspectable through all clients                                                                            | M1; M2 for accepting WBS-origin plans   |
+| M4 — client delivery and self-growth | 13–14                                          | Real cloud-browser acceptance, controlled release, tested client template upgrades, and factory self-change use the same workflow                                                                                        | M1–M3 and deployment/recovery proofs    |
 
 M1 and the WBS refactor can proceed independently. M2 must not alter WBS storage
 before its entry criteria hold. Tasks 9–14 are bounded follow-on increments: create
@@ -37,11 +37,13 @@ verified at the correct revision. They are not permission to begin a migration n
 
 One implementation owner per slice and an independent review at its end. Use
 separate worktrees for concurrent slices and isolate ports, databases, caches and
-credentials. Slices run under the `balanced` delivery profile from the
-[execution profile](../../../openspec/schemas/twilight-v1/execution.yaml): fan-out
-two, one writer per workspace lineage, reviewer capacity reserved, two rework
-rounds; exhausting the rounds pauses unresolved blockers with evidence, and verdicts
-are never averaged into a pass.
+credentials. Slices use the `balanced` quality settings and an explicitly approved execution
+envelope. The [execution profile](../../../openspec/schemas/twilight-v1/execution.yaml)
+owns defaults and acceptance budgets; provision supporting pools within grants
+when increasing fan-out. One writer owns each workspace lineage. Exhausted rework
+pauses affected unresolved work with evidence; verdicts never average into a pass.
+Use deliverable contracts to overlap independent work and feed the integration queue.
+No implementation slice starts merely because this proposed plan names a budget.
 
 For each behavior: write the production-path negative, observe failure, implement
 the minimal contract, observe the positive, inject the named realistic fault and
@@ -77,7 +79,9 @@ The runtime-validated input schema is canonical.
 **Acceptance:** the same Git inputs and organization snapshot yield the same digest,
 forms, resolved activity plan and effective policies with origin scope; changing
 either changes the digest. The compiled stage DAG follows `stages[].after`, retains
-ordering boundaries for disabled stages and cannot auto-start the release command;
+scoped ordering boundaries for disabled stages and cannot auto-start the release command;
+expand implementation/review/verification per deliverable, join only declared
+candidate members at integration, and join required outcomes at handoff;
 artifact readiness edges never become stage edges. Profiles resolve a total activity
 map: agent activities have an allowed class/per-activity model, tool activities have
 a registered implementation and no model, and floors remain enabled. Unknown fields,
@@ -105,7 +109,7 @@ Delete an activity entry,
 enable cloud acceptance without its agent-class model, attach a model to the fixed
 tool gate, and disable a floor activity; each must fail the profile-completeness
 oracle. Pin the built-in matrix: thorough browser scope is whole, balanced is
-affected, fast browser/judge/discovery review/specification critique are disabled,
+affected, economy browser/judge/discovery review/specification critique are disabled,
 the critic remains enabled, cloud acceptance is disabled until M4, and every profile
 runs the fixed integrated gate with no depth control. Delete the required input/make
 it unreadable in separate probes; replace the durable saver with memory and observe
@@ -160,7 +164,10 @@ one owner; Plan resource units are carried without conversion (A43).
 `PlanningPort.readPlan(reference: PlanRef): Promise<WorkPlan>` using the design's
 repository/plan/change/source identity tuple. `WorkPlan` contains stable task IDs,
 dependencies, requirements, owner, resource units in the ledger vocabulary beside
-WBS workdays, and source revision. A future Backlog implementation satisfies that port.
+WBS workdays, source revision, interface outputs, write scope, acceptance oracles,
+and estimated agent-duration provenance. Explicitly model unknown duration without
+workday conversion. Distinguish real predecessor contracts from resource conflicts;
+validate missing/duplicate predecessors and cycles before scheduling. A future Backlog implementation satisfies that port.
 
 Validate stable repository ID/version/context roots, the manifest's planning,
 profile and policy references, and reject required paths outside the authorized
@@ -257,9 +264,10 @@ fields; unknown keys and inconsistent activity controls are refused. They may mo
 in either direction within allowed provider/model/effort capabilities, current
 grants, immutable floors and approved spending; categorical models have no inferred
 cheaper/better order, and profile defaults are not authority limits. The approval
-subject digest covers plan, compiled workflow, resolved activity/model settings,
-profile revision, budget, environment and
-capabilities. Persist decision attempts, subject
+subject digest covers the execution envelope defined by the spec. Derive a schema
+for its pinned scope/quality/lineage, permitted model and capacity ranges, spending
+ceilings, capabilities and expiry; omitted ranges allow only the selected value.
+Expose envelope revision/digest on every decision and attempt. Persist decision attempts, subject
 revision/digest, expiry, policy revision and effect scope. Return 409 for stale
 revision, 403 for insufficient scope, 422 for invalid workflow or profile
 combination. All writes deduplicate command IDs with parameter digests. Exercise
@@ -271,7 +279,8 @@ exact-retry lookup and observe the lost-response test fail; bypass token-to-comm
 binding and observe the different-command test fail.
 
 An accepted profile change creates an immutable profile epoch for work not yet
-admitted and requires the subject reapproval already specified. Running/draining
+admitted. In-envelope choices retain the approved subject; only proposed envelope
+expansions await another decision. Running/draining
 attempts retain their epoch and reservations; usage, holds, rework and the original
 run clock never reset. Ordinary profile publication affects new runs only. Reduced
 fan-out queues surplus new attempts. `skipActivity`
@@ -281,11 +290,15 @@ across a change, then assert their different epoch digests and one cumulative bu
 account. Inject an in-place mutation of the running attempt, a rework reset and a
 second skip-state field; each must fail its persisted-transition oracle.
 
-Record an epoch-A effect intent, publish a profile-only epoch B awaiting approval,
+Record an epoch-A effect intent, propose an out-of-envelope epoch B awaiting approval,
 then dispatch A under its unchanged decision: A reaches the receiver once, B never
 starts. Repeat with A's decision revoked before dispatch: no request arrives.
-Inject run-wide approval invalidation and cross-epoch approval reuse separately;
-the positive-A and denied-B receiver counts must detect each fault.
+Inject run-wide approval invalidation and out-of-envelope authority reuse separately;
+the positive-A and denied-B receiver counts must detect each fault. Also raise fan-out
+and choose a permitted model inside A's envelope through the real API: a new epoch
+starts with no second human decision. Restore unconditional epoch reapproval and
+watch the new-worker launch assertion fail. Exceed each range independently and
+remove its boundary check to observe an unauthorized launch before writing Proof.
 
 Implement `revise_artifact` and `adopt_plan` with expected revisions, coverage and
 resource validation. A new request uses its selected discovery envelope for
@@ -328,6 +341,8 @@ halves) (A41, A46).
 - [ ] 4.1 Reserve resource vectors before launch and fence owners.
 - [ ] 4.2 Persist effect intent, dispatch through the fence, reconcile and settle.
 - [ ] 4.3 Write the run ledger, price it from the rate card and expose capacity and rate-card operations.
+- [ ] 4.4 Schedule feasible ready deliverables and request constrained capacity within existing grants.
+- [ ] 4.5 Prove dispatch latency and isolation under the coordinator acceptance load.
 
 **Owns:** `libs/twilight-domain/src/admission.ts`, `ledger.ts`,
 `libs/twilight-runtime/src/execution/admit.ts`, `lease.ts`, `effects.ts`,
@@ -420,6 +435,36 @@ Current rates re-evaluate new holds without repricing settled attempts.
 **Estimate:** 12–22 human hours; 3–7 agent hours; 200k–560k tokens, one build slot
 and two lightweight child-process slots for race tests.
 
+4.4 owns `libs/twilight-runtime/src/scheduling/ready.ts`, `capacity.ts` and
+`scheduling.db.test.ts`; consumes Task 2's `WorkPlan`, Task 3's execution envelope
+and `admitActivity`. It produces `selectReady` (selected IDs, scores and blocked
+reasons) and `requestCapacity` (requested/granted/refused with pool and reason),
+using a registered provisioner rather than organization-administrator credentials.
+First hold a browser task and observe independent backend work launch; inject
+head-of-queue-only selection and observe no backend launch while the barrier holds.
+Pin two explicit duration chains below the aging window and observe critical-path selection; inject reversed
+ordering to fail the selected-ID assertion. Hold a short feasible task until the
+literal aging window while continuously adding longer unaged chains; it must start
+when capacity is released. Restore chain-first ordering and watch that launch fail.
+Check unknown-estimate fallback and
+bounded reviewer-reserve borrowing. Raise fan-out with an unchanged pool and assert
+the limiting pool is shown; grant supporting capacity and observe additional starts.
+Deny the provisioner and assert refusal remains visible without invented capacity.
+
+**4.4–4.5 planning allowance:** 16–32 human engineering hours, 4–8 agent hours,
+200k–500k tokens, plus separately authorized load-test service charges. These
+unmeasured values supplement admission/accounting work and grant no spending.
+
+4.5 uses `libs/twilight-runtime/src/execution/dispatch-load.test.ts` and a controlled
+external receiver. Run `scalingAcceptance.coordinator` through `dispatchEffect`,
+record host/fixture identities, offered/completed rate, queueing and latency samples.
+Hold one remote response while unrelated effects dispatch. Inject a remote await
+inside the serialized boundary and watch unrelated dispatch exceed its budget;
+separately repeat revocation/fence faults under load. Missing or failed samples
+block the supported-capacity claim; multiple coordinators remain a separately
+specified response to a measured limit. Run these new suites through the runtime's
+Nx test target; record positives and injected failures before Proof comments.
+
 ## Task 5: Deliver the FE/MCP run and configuration loop
 
 Proves: One authorized command surface; Versioned inspectable workflow
@@ -461,7 +506,7 @@ remote slot remains visibly held. Start the browser journey with no artifacts or
 plan: create/revise intent/specs/tasks in the workbench or via authorized
 discovery, adopt the complete plan, and approve its exact revision through real
 operations. Include recovery inbox resolution, a skip of a non-floor activity with
-a reason, and a mid-run profile change that stales the approval. Both clients show
+a reason, and an out-of-envelope mid-run proposal that requires a new approval. Both clients show
 the resolved total activity plan, per-activity model replacements, budget account,
 deadline origin and ordered profile epochs; a mixed-epoch run is never presented as
 single-profile. Change a profile while an activity is held running and assert the UI
@@ -493,6 +538,13 @@ contracts; 5.4 must not change what 5.2 and 5.3 display.
 
 **Estimate:** 18–36 human hours; 4–10 agent hours; 280k–860k tokens, one browser
 slot and one frontend writer. Can overlap Task 6 after contracts are stable.
+
+5.2/5.3 also cover execution-envelope inspection/approval, scoped deliverable
+progress and the constrained-pool explanation. Drive an in-envelope adjustment
+through FE and MCP against held real BE requests: no approval card is created and
+new work starts only after acknowledgement. An expansion shows the changed bounds
+and admits nothing before its human decision. Tests read the pending window; a
+later settled UI cannot prove absence of optimistic authority.
 
 ## Task 6: Execute one real ACP activity inside its authority
 
@@ -572,6 +624,8 @@ configurable and their effects are measured (outcome half) (A48).
 
 - [ ] 7.1 Run mandatory pre/post hooks and profile-selected critics/judge with source-bound evidence and bounded rework.
 - [ ] 7.2 Persist redacted evidence, durable event cursors, terminal outcomes and defect reports; expose their shared operations.
+- [ ] 7.3 Pipeline scoped deliverables through an automated, independently provisioned integration queue.
+- [ ] 7.4 Execute opt-in bounded speculative attempts with independent selection and complete loser accounting.
 
 **Owns:** `libs/twilight-runtime/src/hooks/registry.ts`,
 `libs/twilight-domain/src/review.ts`, `outcome.ts`,
@@ -588,15 +642,16 @@ idempotent revision-checked `report_defect` operation across FE, BE and MCP.
 Mandatory deterministic checks run outside model authority. A safety critic is a
 critic with a safety rubric, not a credential broker or final approver.
 
-Implement `registered:task-acceptance` for the `handoff.evaluate` tool activity.
+Implement `registered:task-acceptance` for the `acceptance.evaluate` tool activity.
 It reads independently authored assertions from the pinned task fixture, charges
 its resource/cost usage to the run, and reports unavailable when no oracle exists.
 The initial evaluator comes from the compiled `quality` subtree; workflow edits
 publish it through Task 5's shared editor/operations under Task 1's authority checks.
 Both M1 profile runs use clean instances of one task fixture/digest and evaluator.
-Skip the observer in a third fixture: handoff may still satisfy the floor, but
-comparison requiring its missing observation stays unavailable. Inject a synthetic
-pass for absent assertions and watch that eligibility assertion fail.
+Disable the observer in a third fixture: publication refuses the floor violation.
+Remove task assertions: candidate acceptance blocks as unavailable. Inject a
+synthetic pass and observe the candidate-acceptance assertion fail; moving the
+observer back to handoff must fail the acceptance-stage execution-order assertion.
 
 **Tests (7.1):** required hook timeout/malformed output keeps the independent
 worker launch counter at zero; optional notification fails visibly as degraded;
@@ -633,6 +688,47 @@ assertion fail. No private model reasoning is part of the contract.
 **Estimate:** 10–20 human hours; 3–6 agent hours; 150k–420k tokens, one reviewer
 slot reserved alongside the implementation slot.
 
+7.3 owns `libs/twilight-runtime/src/integration/queue.ts`, `compose.ts`,
+`integration.test.ts`, `apps/twilight-be/src/candidates.ts` and
+`apps/twilight-fe/e2e/integration.spec.ts`. Consume WorkPlan contracts, envelope,
+source/plan locks, evidence and gate adapters; produce immutable candidate records
+through `composeCandidate` and `publishCandidate`. Expose queue/member/base/check/
+repair state through run events and FE/MCP run views. Preparation and verification
+use separate workspace/build/browser reservations. Integration prepares only;
+acceptance completion publishes through effect execution after the candidate oracle
+and all required checks. Handoff consumes the publication receipt. Hold the oracle
+at a barrier and assert the shared source ref stays unchanged; inject early
+publication and watch that assertion fail. Publication uses source-ref CAS.
+
+Start with an implementation barrier: an independent deliverable must finish review
+and verification before release of that barrier. Inject a run-wide stage join and
+observe it fail in that window. Compose branches that pass alone but violate an
+independently authored cross-contract assertion together; copying branch greens must
+make the candidate-refusal assertion fail. Move the base during verification: no
+publication until recomposition and a fresh gate. Introduce one failing member and
+observe an independent candidate continue. Restore all-or-nothing run blocking to
+prove that observation. Verify source/plan-lock union and reject changed dependency
+contracts. A knowledge edit after candidate checks must trigger new verification;
+reusing the earlier receipt must fail at candidate acceptance. Exercise crash after
+source publication before receipt recording: reconcile once, never republish.
+Run runtime Nx tests plus the FE browser suite on its owned stack. Full composed
+verification remains mandatory; all named Proof comments wait for actual failures.
+
+**7.3–7.4 planning allowance:** 24–48 human engineering hours, 6–12 agent hours,
+300k–800k tokens, plus explicitly authorized integration/speculation experiments.
+Re-estimate from actual gate duration and conflict rates; these are not deadlines.
+
+7.4 owns `libs/twilight-runtime/src/agents/speculation.ts` and
+`speculation.test.ts`. Consume the envelope, shared budget account and session port;
+return selected candidate identity plus terminal/unresolved loser records. Use the
+independent task oracle from 7.1/7.2; this slice depends on those completed slices. A controlled first
+answer fails the oracle while the later one passes: only the latter is selected.
+Inject first-response selection and observe the wrong candidate. Keep a loser alive
+after selection and prove it cannot publish or free holds; remove fencing and observe
+the forbidden effect at the receiver. Exceed the attempt count/budget and assert no
+extra launch. Drive the opt-in control through shared FE/BE/MCP configuration;
+disabled speculation starts one attempt. Run via runtime/worker Nx test targets.
+
 ## Task 8: Accept the first useful factory run
 
 Proves: every M1 requirement end to end; Executable restore compatibility (refusal
@@ -641,21 +737,23 @@ and retained-version recovery) (A39, A45).
 - [ ] 8.1 Run the complete M1 journey on puni-00 and a clean client fixture under two delivery profiles.
 - [ ] 8.2 Switch puni-00 and the template to `twilight-v1` with existing changes pinned.
 - [ ] 8.3 Rehearse incompatible-upgrade refusal and retained-closure recovery.
+- [ ] 8.4 Pass the fixed-quality scaling matrix before M1 acceptance, independently of WBS migration.
 
 **Owns:** `apps/twilight-fe/e2e/first-run.spec.ts`,
 `tools/tool-twilight/src/template.ts`,
 `tools/tool-twilight/fixtures/client-minimal/`, initial versioned starter package,
 and the change's eventual `verify.md`/runbook updates.
 
-**Depends on:** Tasks 1–7.
+**Depends on:** Tasks 1–7. Complete 8.1, 8.3 and 8.4 before 8.2 promotes the
+workflow default; a scaling failure cannot be bypassed by the UI journey.
 
 8.1: test a real harmless source change through request, assumption,
 specification, plan approval, ACP execution, profile-selected review, the fixed
 integrated gate and knowledge reconciliation, once under `balanced` and once under
-`fast`. Balanced runs one critic and judge with affected browser verification; fast
+`economy`. Balanced runs one critic and judge with affected browser verification; economy
 runs its critic with no judge or browser verification. Cloud acceptance is disabled
 for both until Task 13 enables and proves it. Assert activity dispositions and
-independent dispatch/session counters; enable fast's judge or either profile's cloud
+independent dispatch/session counters; enable economy's judge or either profile's cloud
 acceptance as injected faults and observe those counters increment or the unavailable provider
 block M1. Interrupt
 once during approval and once after a controlled effect. `read_outcomes` must show
@@ -696,10 +794,43 @@ stays one. Inject latest-hook substitution or bypass restore validation and obse
 the named refusal/counter assertion fail. Successful migration and rollback
 preserving post-upgrade writes belong to Task 14.
 
-**Estimate:** 10–20 human hours; 3–6 agent hours; 150k–420k tokens, exclusive
-integration/build/browser capacity. M1 aggregate: 87–174 human engineering hours
-and 1.38M–3.90M agent tokens before contingency. Plan 30% rework reserve;
-recalibrate from the Task 8 ledger. These are ranges, not delivery promises.
+**Estimate:** acceptance harness and scaling matrix: 20–40 human hours,
+6–12 agent hours and 300k–840k engineering tokens, excluding benchmark executions.
+Benchmark spend requires a separate explicit allowance within the authorized
+account before launch. Re-estimate M1 after Tasks 1–4 expose measured runtime and
+provisioning costs; no aggregate completion date is asserted from unmeasured slices.
+
+8.4 owns `tools/tool-twilight/src/scaling.ts`, `scaling.test.ts` and versioned
+`fixtures/scaling/` with independently authored outcome assertions. Run through an
+Nx `tool-twilight:scaling` target created with this behavior, consuming the real
+scheduler, ACP workers, integration queue and gate adapters. The canonical capacities,
+repetitions and speedup/coordinator budgets are `execution.yaml.scalingAcceptance`;
+do not copy constants into fixtures or derive test advances from the challenged value.
+
+Use fixed workloads: eight independent small changes; one feature with a stable
+shared interface, four parallel components and a final integration assertion; and
+four changes including a shared-contract conflict, one failed attempt and a moved
+integration base. Pin identical quality, model/effort, oracle and sufficient hard
+budget ceilings at every capacity. Pin the profile's `authorizedControls` fan-out,
+client ceiling and envelope maximum at every point; vary actual worker pool capacity
+and supporting pools only. Independent launch counters must observe 1/2/4/8 useful
+workers on the independent workload; advertised pool sizes alone are not evidence. Randomize
+capacity order across repetitions and report all raw samples, warm/cold conditions,
+provider quota, queue/resource utilization, accepted throughput, elapsed p50/p95,
+costs and quality coverage. Independent speedup is median accepted throughput divided
+by the one-worker median; feature speedup is one-worker median elapsed divided by
+scaled elapsed. The contended control must preserve all outcomes without silent
+loss or duplicate acceptance; report its speedup without promising linearity.
+
+Negative controls: force one worker while advertising eight and observe the speedup
+budget fail; hold integration/build capacity to expose a limiting pool; split a task
+into extra checkboxes and assert the accepted-outcome denominator stays fixed; remove
+loser charges and observe cost reconciliation fail. Repeat the stage, stale-candidate
+and authorization controls on the real runtime. Record actual failures in verify.md;
+a synthetic scheduler test or two-profile comparison cannot substitute for this
+acceptance. Five samples establish the proposed milestone budget, not mature defect
+rates or a universal scaling law. Re-estimate the remaining tasks from measured M1
+costs and elapsed times. M1 duration remains unmeasured until those ledgers exist.
 
 ## Task 9: Prove the Backlog/WBS storage adapter after refactors
 
@@ -753,9 +884,16 @@ exports; assert both entries survive and the merged candidate is verified agains
 each pinned snapshot. Inject a single-value lock/last-writer replacement and watch
 the missing entry assertion fail. Freeze input receipt R, create candidate C, then
 accept C's output receipt; prove C/R remain unchanged and a later candidate can
-consume it. Force two disjoint plans to publish from one ref: one accepted command
-and one 409, then explicit resubmission preserves both edits; remove expected-ref
-checking and observe lost-write or acceptance-count failure.
+consume it. Force two exact commands from one ref: one acceptance and one 409.
+For authorized disjoint commands, preserve both edits with one receipt each through
+bounded CAS retries. Change a cross-plan edge, collection membership and shared
+reference between preparation and publication; each must refuse reconciliation.
+Remove the corresponding broker-derived predicate and observe the forbidden
+acceptance before recording Proof. A caller-supplied empty read set cannot bypass
+registry derivation. Run the storage profile's writer sweep, retain conflicts and
+retries in its denominators, and inject serialization delay to prove its throughput
+budget can fail. Restart after publication before acknowledgement and replay the
+same key: one accepted effect and receipt, including its original/reconciled bases.
 
 **Estimate:** 16–32 human hours for contract/spike, then re-estimate implementation
 from measured model coverage and Git latency. One repo writer; two isolated clones
@@ -916,24 +1054,28 @@ ledgers for agent budgets instead of extrapolating today's untested estimates.
 
 Spec requirement to task:
 
-| Requirement (control-plane unless noted)                       | Tasks      |
-| -------------------------------------------------------------- | ---------- |
-| Bounded request-to-plan authoring                              | 3, 5       |
-| One authorized command surface                                 | 3, 5       |
-| Versioned inspectable workflow configuration                   | 1, 5, 8    |
-| Lifecycle points are the one key space                         | 1, 7       |
-| Executable restore compatibility                               | 1, 8, 14   |
-| Durable stage and activity lifecycle                           | 3, 4       |
-| Current authority constrains pinned runs                       | 3, 4       |
-| Revision-bound human decisions                                 | 3, 5       |
-| Caller identity and human-decision provenance                  | 3, 5       |
-| Capacity and budget admission                                  | 4, 6       |
-| Levers are configurable and their effects are measured         | 4, 6, 7, 8 |
-| Hooks, critics and judges preserve authority                   | 7          |
-| Observable evidence with focus access                          | 5, 7       |
-| Repository planning: client repository contract                | 2, 8, 14   |
-| Repository planning: a planning revision has one owner         | 2, 9, 10   |
-| Repository planning: resource units carried without conversion | 2, 9       |
+| Requirement (control-plane unless noted)                       | Tasks         |
+| -------------------------------------------------------------- | ------------- |
+| Bounded request-to-plan authoring                              | 3, 5          |
+| One authorized command surface                                 | 3, 5          |
+| Versioned inspectable workflow configuration                   | 1, 5, 8       |
+| Lifecycle points are the one key space                         | 1, 7          |
+| Executable restore compatibility                               | 1, 8, 14      |
+| Durable stage and activity lifecycle                           | 3, 4          |
+| Current authority constrains pinned runs                       | 3, 4          |
+| Revision-bound human decisions                                 | 3, 5          |
+| Caller identity and human-decision provenance                  | 3, 5          |
+| Capacity and budget admission                                  | 4, 6          |
+| Levers are configurable and their effects are measured         | 4, 6, 7, 8    |
+| Hooks, critics and judges preserve authority                   | 7             |
+| Observable evidence with focus access                          | 5, 7          |
+| Repository planning: client repository contract                | 2, 8, 14      |
+| Repository planning: a planning revision has one owner         | 2, 9, 10      |
+| Repository planning: resource units carried without conversion | 2, 9          |
+| Scheduling minimizes accepted delivery elapsed time            | 1–2, 4.4, 7.3 |
+| Integration is an independently scalable execution service     | 7.3, 8.4      |
+| Speculation spends only bounded authorized capacity            | 3, 7.4        |
+| Scaling is proved at fixed quality before M1 acceptance        | 4.5, 8.4      |
 
 User requirement to delivery location:
 
@@ -949,6 +1091,7 @@ User requirement to delivery location:
 | TS-23–25: client Nx repos, Backlog-backed WBS, same self-growth               | Tasks 2, 8–10, 14                                                     |
 | TS-26: autonomous assumptions and Claude Fable 5.1 review                     | M0 assumption ledger and review/evidence record                       |
 | TS-27: cost, model, review-depth and parallelism levers with quality tracking | Execution profile; Tasks 4, 6–8, 11                                   |
+| TS-28: money buys shorter accepted delivery at fixed quality                  | Tasks 1–8; Task 9 for planning contention                             |
 
 All future failure experiments above are planned tests. None is an observed R5
 proof until implementation runs the test with its fault and records actual output.

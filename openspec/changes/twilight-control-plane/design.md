@@ -7,6 +7,11 @@ the [assumption ledger](../../../docs/twilight-structure/assumptions.md) and the
 Normative MUSTs live in the [control-plane spec](specs/twilight/control-plane/spec.md);
 this document explains the mechanism and is not a second copy of the rules.
 
+## Applicability
+
+Technical design is required: this change defines durable workflow execution,
+authority, concurrent planning, integration and scaling contracts across services.
+
 ## Boundaries
 
 ```mermaid
@@ -103,7 +108,11 @@ compiler and the first durable loop show what is missing.
 `execution.yaml` owns the stage vocabulary and its `stages[].after` DAG;
 [SDLC stages](../../../docs/twilight-structure/sdlc-stages.md) explains each boundary.
 The compiler checks stage and artifact graphs independently: artifact mappings are
-inputs/evidence, never stage edges. Thus specs and design may share a stage without
+inputs/evidence, never stage edges. It expands deliverable-scoped stages per stable
+deliverable ID. Their edges wait only for that deliverable; integration candidates
+join explicit member sets, while handoff joins all required accepted outcomes.
+Stage state and hooks carry scope identity, so a slow sibling does not block a
+finished deliverable's review or tests. Thus specs and design may share a stage without
 a self-cycle, and verification, acceptance and handoff may share `verify.md` without
 losing their order. A stage with only skipped/inapplicable activities retains its
 boundary and dispositions, not fabricated pass evidence. `release` additionally
@@ -344,7 +353,10 @@ Successful migration and rollback proofs per supported path are Task 14's contra
 
 Run state is a tagged union: `queued`, `running`, `awaiting_approval`, `paused`,
 `reconciling`, `failed`, `cancelled`, `completed`. A run is `reconciling` while any
-of its effects has outcome `unknown`. Admission outcomes are `queued`, `admitted`,
+of its effects has outcome `unknown`. This is an aggregate status: unknown effects,
+failed gates and exhausted deliverable rework block only their dependency closure.
+Independent authorized work may continue. Explicit run pause/cancel, exhausted
+run budget or run-wide authority revocation blocks all new dispatch. Admission outcomes are `queued`, `admitted`,
 `denied`; effect outcomes are `succeeded`, `failed`, `unknown`; a reservation is
 `held`, `draining` or `released`. Stage conclusions carry `current`, `stale` or
 `inapplicable` with a policy reason, and a skipped activity records the decision
@@ -359,7 +371,12 @@ A lease has an owner, a fencing token and a deadline. Expiry withdraws authority
 and proves nothing about whether the process, remote session or resource stopped.
 Every brokered tool and effectful hook passes through `dispatchEffect`, which
 revalidates fence, lease, current authority and cancellation for the persisted
-intent inside one serialized coordinator boundary. A request queued before a
+intent inside one serialized coordinator boundary. That boundary ends at the
+authorized transport handoff; awaiting a remote result happens outside it, then
+settlement records the response in a fresh transaction. A held remote response
+cannot serialize other dispatches. The coordinator load budget is owned by
+`execution.yaml.scalingAcceptance.coordinator`; Task 4 proves it through the public
+operation on an identified host before any supported scale is advertised. A request queued before a
 revocation but not yet admitted is refused; an effect already dispatched is
 reconciled or cancelled, never unsent. New effect keys do not bypass attempt
 fencing. Source writes happen only in the attempt's isolated workspace, and a
@@ -392,11 +409,12 @@ and decision. The run shows the changed authority reason beside the pinned
 definition. Data from a wiki or a tool response cannot alter policy, and missing
 or invalid policy blocks admission.
 
-The approval subject digest covers the full dependency closure: specs, design,
-planning revision, compiled workflow and policy, delivery profile revision with any
-run overrides, budget, environment and requested capabilities. Changing any of
-them marks dependent verdicts and evidence stale; a monotonic subject revision
-stops an old in-flight decision from becoming current again after an A→B→A edit.
+The approval subject is the execution envelope defined by the spec. It pins the
+requirements/plan dependency closure and the permitted execution choices, not each
+scheduler selection. Missing ranges authorize only the pinned choice. Expanding
+scope, ceilings or permitted lineage creates a new subject; a monotonic revision
+prevents an A→B→A edit from reviving an old decision. Candidate evidence remains
+content-bound even when composition is authorized by the envelope.
 Approvals expire and can be revoked, with in-flight behaviour explicit per action
 class.
 
@@ -417,10 +435,17 @@ workflow inadmissible, and compile-time validation names the gap.
 
 Admission reserves a vector atomically before launch: agent slots, provider and
 model rate and token limits, workspace writer ownership, build and browser slots,
-and an attempt allowance from the run budget account. Starting counts as occupied. Queue order is
-deterministic priority plus aging with per-client ceilings; one reviewer slot is
-reserved when fan-out could exhaust worker capacity. Paused human decisions hold
-no worker. Measured consumption reconciles against reservations and never
+and an attempt allowance from the run budget account. Starting counts as occupied.
+The scheduler selects feasible ready tasks subject to client ceilings. Tasks that
+reach the aging window outrank unaged work, oldest first. Among unaged tasks it
+orders estimated remaining dependency-chain duration, declared priority and stable
+ID. Among equally aged tasks stable ID breaks ties. Capacity occupancy cannot be
+preempted without proven drain; report resource blocking separately from starvation.
+Missing agent-duration estimates produce a visible priority/aging fallback, never
+workday conversion. Blocked tasks expose their missing pool while other feasible
+tasks proceed. Review-ready work has reserved capacity; idle reserve may be borrowed
+only by bounded attempts that drain within the fairness window. Paused human
+decisions hold no worker. Measured consumption reconciles against reservations and never
 overwrites estimates; unknown signals carry source and reason. Human effort,
 elapsed queue time and WBS workdays stay distinct quantities (A12).
 
@@ -451,20 +476,20 @@ Invalid combinations and disabling a floor activity are rejected, not normalized
 
 Each accepted profile change creates a profile epoch containing the resolved
 settings, digest and effective transition. It affects only work not yet admitted,
-after authority validation and required reapproval. Running/draining attempts keep
+after authority validation against the execution envelope. In-envelope selections
+need no new human decision; proposed choices outside it wait for approval. Running/draining attempts keep
 their epoch and reservations. A lower fan-out queues new work until occupied slots
 drain. Budget consumption, unresolved holds, consumed rework rounds and the original
-run start survive every epoch; exhausted rounds with a blocker pause the run.
+run start survive every epoch; exhausted rounds pause the affected dependency closure.
 `skipActivity` produces the same audited enablement override and can affect only an
 unadmitted activity. It cannot remove existing findings, completions or evidence.
 
-Approval validity is checked against the **attempt's epoch and action**. Changing
-only the profile creates a new subject for unadmitted work; an old epoch's approval
-remains usable solely by already-admitted attempts whose candidate, capabilities
-and reserved allowance are unchanged. Their next effect can dispatch while the new
-epoch awaits approval. Expiry, explicit revocation, source/scope change or tighter
-floors still fence those attempts through current authority. Neither epoch's
-approval authorizes the other; new admissions always need the current subject.
+Approval validity is checked against the **attempt's envelope, epoch and action**.
+An envelope can authorize several immutable epochs; each records the chosen values
+and why they remain within bounds. An out-of-envelope proposal authorizes no new
+admission until approved. Already-admitted work keeps its unchanged allowance and
+authority while that proposal waits. Revocation, expiry, changed scope or tighter
+floors still constrain all epochs; choosing another epoch cannot expand authority.
 
 ### Budget accounts and clocks
 
@@ -488,8 +513,9 @@ admission fails. Reaching a hard cap stops new dispatch and pauses unresolved wo
 `advisory`, they are warning targets and an explicit same-unit `hardLimits` vector
 at least as large is required; advisory never grants unbounded spend. Crossing a
 target records an overrun and continues only within the authorized hard vector.
-All supplied dimensions constrain admission; changing the mode/caps uses the same
-approval subject as changing a model. For example, an $8 advisory money target
+All supplied dimensions constrain admission. Changing hard ceilings or accounting
+scope changes the envelope; choosing a permitted model or bounded attempt allowance
+does not. Lowering a ceiling below settled usage plus holds is always refused. For example, an $8 advisory money target
 inside a $12 hard cap warns after $8 and stops new spend at $12.
 `budget.moneyScope` explicitly selects `model` spend (the shipped defaults) or
 `delivery`, which includes tool/service/human charges and requires defensible
@@ -542,18 +568,19 @@ before reapproval; unsupported services or missing history refuse the change.
 
 Every terminal run gets an outcome record; later defect reports append revisions.
 The record retains all ordered profile epochs and identifies single-profile or
-mixed-profile work. Attempt cost follows its epoch; a fast implementation recovered
+mixed-profile work. Attempt cost follows its epoch; a economy implementation recovered
 under thorough is a mixed outcome, not a win or loss attributed wholly to either.
 Request cost includes unsuccessful runs. Cost per accepted outcome includes their
 cost in the numerator; no accepted outcome gives an unavailable ratio, not zero.
 
 `execution.yaml.quality` is the canonical authored evaluation definition. Its initial
-`delivery-baseline` binds the independent `handoff.evaluate` task-acceptance tool
+`delivery-baseline` binds the independent `acceptance.evaluate` task-acceptance tool
 and the integrated gate. Task 8 supplies two clean instances of one versioned task
 fixture and its independently authored assertions; an unavailable task oracle is
 recorded as unavailable. The evaluator's tool activity consumes its catalog resources
-and charges the same budget account. It may be skipped when the floor allows it;
-that loses comparison coverage rather than manufacturing a passing assessment.
+and charges the same budget account. It is a candidate acceptance floor; an absent
+oracle blocks acceptance visibly. Handoff cannot supply evidence that acceptance
+was already required to possess.
 
 The existing workflow preview/publication operations carry evaluation edits.
 Changing `quality` requires the organization's evaluation-publisher capability and
@@ -583,6 +610,70 @@ not enough evidence to replace profile defaults automatically.
 The server validates repository/candidate lineage and records the report once;
 linking it to an outcome asserts no causal blame for a particular model. Estimates
 remain alongside actuals; profile-default changes are ordinary evaluated work requests.
+
+## Scheduling, integration and scaling
+
+The optimization objective is accepted elapsed time at fixed quality. Delivery
+profiles choose defaults; the execution envelope bounds permissible adaptation.
+An operator may use a balanced or thorough quality profile with more execution
+capacity. The economy profile trades activities and model choices for lower spend
+and is not a speedup benchmark. A deadline is a stop condition, not a speed policy.
+
+`WorkPlan` deliverables carry interface/acceptance contracts, real predecessors,
+write scope, source basis and duration observations. The scheduler derives readiness
+from those contracts and accepted or explicitly composed predecessor evidence. It
+never turns a shared owner or scarce browser into a semantic dependency. Shared
+contracts are versioned before consumers split; changed contracts invalidate only
+the recorded dependency closure. Read-only evidence/research can be shared by
+content identity inside repository authority; writable workspaces remain isolated.
+
+`selectReady` returns selected IDs and scored/blocked reasons; `requestCapacity`
+requests workers or supporting build/browser capacity from a registered provisioner
+within existing organization grants and the envelope. It cannot call privileged
+`set_capacity` to enlarge its own grant. Provider quota, provisioning failure and
+budget limits are visible constraints. Additional hosts retain their own gate locks;
+provisioning never bypasses h2puni's canonical release lock to fake extra build slots.
+Tool waits release only resources proven
+free; no optimization weakens fencing or terminal-evidence accounting.
+
+The integration queue owns immutable member sets, base commit, composed source
+identity, verification receipts and publication state. `composeCandidate` merges
+compatible outputs and plan locks in an isolated workspace; full Nx and applicable
+browser gates run on that exact composition through the gate adapters. The queue
+can prepare and verify several prospective candidates concurrently. Integration
+prepares candidates without publishing source. Acceptance runs its independent
+oracle and applicable cloud checks; only then does its durable completion path
+invoke `publishCandidate` through effect execution. Handoff requires the accepted
+publication receipt. Publication compares the accepted source ref; a moved base
+regenerates the candidate and its evidence, including candidate acceptance checks. Failed or conflicting members enter bounded owner repair while independent
+candidates continue. Dependent work can use an explicitly composed, tested basis;
+it cannot treat a branch label as an integrated predecessor. Production promotion
+remains the separate human command.
+
+Candidate acceptance joins every required member's reviews, full composed gate,
+applicable browser evidence and independently pinned task oracle. Knowledge handoff
+joins all requested outcomes. Any knowledge/source edit creates a new candidate
+requiring affected and integrated verification before handoff; generated evidence
+is stored outside candidate source so observing completion creates no hash cycle.
+Evidence reuse requires matching declared source inputs, toolchain, environment,
+policy and oracle identity; shared CSS still receives the whole browser gate.
+
+Opt-in speculation races a bounded number of isolated candidates for one critical
+or uncertain deliverable. All branches share the run account and pinned evaluator.
+The first passing independent evaluation can select a candidate; first response
+alone cannot. Losers are fenced and drained with all cost retained. Only selected
+candidates enter the integration queue. Shared publication and production effects
+are unavailable to speculative workers.
+
+Task 8 owns the scaling matrix in `execution.yaml.scalingAcceptance`. It measures
+fixed requested outcomes, not generated task counts. Supporting pools scale with
+workers in the unconstrained controls; separate fixed-pool controls expose queue
+saturation. Each workload has identical quality and model settings across capacities.
+Record raw samples, cold/warm conditions, provider limits, host identity, estimates
+and realized dependency chains. Numerical thresholds are proposed acceptance budgets,
+not performance claims. A failed threshold blocks the scaling milestone and identifies
+the next constrained resource. No automatic change to quality or evaluation can
+manufacture a speedup. M1 remains independent of the Backlog migration.
 
 ## Planning, knowledge and client portability
 

@@ -1,4 +1,4 @@
-# Twilight execution profile, revision 2 (proposed; no runtime reads it yet).
+# Twilight execution profile, revision 3 (proposed; no runtime reads it yet).
 #
 # Compiled with schema.yaml, the repository manifest, provider capabilities
 # and an explicit immutable organization snapshot into one workflow revision. See
@@ -13,21 +13,25 @@
 # it is a required compiler input, never an implicit server lookup or fallback.
 # Unknown keys, missing referenced ids and cycles in either DAG are errors.
 
-version: 2
+version: 3
 
 # `after` is the single stage DAG. Artifact mappings describe required inputs
 # or evidence; schema.yaml's separate artifact DAG only decides file readiness.
 # All-inactive stages record dispositions and preserve order, without claiming
-# passed checks. `release` also requires its separate explicit human command.
+# passed checks. Omitted scope is run. Within deliverable scope an edge binds
+# that deliverable only; candidate scope joins its declared members, not every
+# deliverable in the run. Handoff joins all required accepted outcomes.
+# `release` also requires its separate explicit human command.
 stages:
   - { id: request, after: [], artifact: intent }
   - { id: discovery, after: [request], artifact: intent }
   - { id: specification, after: [discovery], artifacts: [specs, design] }
   - { id: planning, after: [specification], artifact: tasks }
-  - { id: implementation, after: [planning], tracks: tasks.md }
-  - { id: review, after: [implementation] }
-  - { id: verification, after: [review], artifact: verify }
-  - { id: acceptance, after: [verification], artifact: verify }
+  - { id: implementation, after: [planning], scope: deliverable, tracks: tasks.md }
+  - { id: review, after: [implementation], scope: deliverable }
+  - { id: verification, after: [review], scope: deliverable, artifact: verify }
+  - { id: integration, after: [verification], scope: candidate }
+  - { id: acceptance, after: [integration], scope: candidate, artifact: verify }
   - { id: handoff, after: [acceptance], artifact: verify }
   - { id: release, after: [handoff], command: release }
 
@@ -85,6 +89,14 @@ activities:
       resources: { browser: 1, workspace: 1 },
     }
   - {
+      id: integration.compose,
+      stage: integration,
+      class: integrate,
+      executor: tool,
+      implementation: registered:integration-queue,
+      resources: { build: 1, workspace: 1 },
+    }
+  - {
       id: acceptance.cloud-browser,
       stage: acceptance,
       class: verify,
@@ -99,8 +111,8 @@ activities:
       resources: { agent: 1, workspace: 1 },
     }
   - {
-      id: handoff.evaluate,
-      stage: handoff,
+      id: acceptance.evaluate,
+      stage: acceptance,
       class: verify,
       executor: tool,
       implementation: registered:task-acceptance,
@@ -115,7 +127,7 @@ activities:
 # onFailure, onCancel, onTrigger, onProfileChange.
 policies:
   beforeStage.implementation:
-    approval: { required: true, decidedBy: human, subject: plan }
+    approval: { required: true, decidedBy: human, subject: execution-envelope }
   beforeActivity.*:
     admission: { resourcesFrom: activity, budgetFrom: run }
   beforeTool.*:
@@ -124,10 +136,12 @@ policies:
   onFinding.review.critic:
     blockingSeverities: [critical, high]
   onRework.*:
+    scope: affected-dependency-closure
     maxRounds: { from: profile, path: rework.maxRounds }
     exhausted: pause
   onFailure.verification.gate:
     action: pause
+    scope: affected-dependency-closure
   onCancel.*:
     drain: settle-then-release
   onTrigger.*:
@@ -199,9 +213,10 @@ profiles:
       review.judge: { enabled: true }
       verification.gate: { enabled: true }
       verification.browser: { enabled: true, scope: whole }
+      integration.compose: { enabled: true }
       acceptance.cloud-browser: { enabled: false }
       handoff.knowledge: { enabled: true }
-      handoff.evaluate: { enabled: true }
+      acceptance.evaluate: { enabled: true }
     rework: { maxRounds: 3 }
     fanOut: 2
     budget:
@@ -234,9 +249,10 @@ profiles:
       review.judge: { enabled: true }
       verification.gate: { enabled: true }
       verification.browser: { enabled: true, scope: affected }
+      integration.compose: { enabled: true }
       acceptance.cloud-browser: { enabled: false }
       handoff.knowledge: { enabled: true }
-      handoff.evaluate: { enabled: true }
+      acceptance.evaluate: { enabled: true }
     rework: { maxRounds: 2 }
     fanOut: 2
     budget:
@@ -245,7 +261,7 @@ profiles:
       enforcement: strict
       limits: { tokens: 1500000, money: { amount: 40, currency: USD }, agentTime: PT6H }
     deadline: null
-  fast:
+  economy:
     models:
       research: { provider: anthropic, model: claude-haiku-4-5-20251001 }
       plan: { provider: anthropic, model: claude-sonnet-5 }
@@ -269,9 +285,10 @@ profiles:
       review.judge: { enabled: false }
       verification.gate: { enabled: true }
       verification.browser: { enabled: false, scope: affected }
+      integration.compose: { enabled: true }
       acceptance.cloud-browser: { enabled: false }
       handoff.knowledge: { enabled: true }
-      handoff.evaluate: { enabled: true }
+      acceptance.evaluate: { enabled: true }
     rework: { maxRounds: 1 }
     fanOut: 4
     budget:
@@ -283,7 +300,7 @@ profiles:
 
 # What no profile or run override may remove in this repository.
 repositoryFloor:
-  activities: [verification.gate, handoff.knowledge]
+  activities: [verification.gate, integration.compose, acceptance.evaluate, handoff.knowledge]
   hooks: [secrets-scan]
   approvals: [beforeStage.implementation, release]
   evidence: [served-source-identity, redaction, run-ledger]
@@ -305,7 +322,26 @@ capacity:
   reviewerReserve: 1
   buildSlots: 1
   browserSlots: 1
-  queue: { priority: deterministic, aging: PT30M, perClientCeiling: 4 }
+  queue: { priority: critical-path, selection: feasible-ready, aging: PT30M, perClientCeiling: 4 }
+
+# These are proposed controls; publication grants no spending or pool authority.
+# The execution envelope pins permitted choices; a profile only selects defaults.
+execution:
+  objective: minimize-accepted-elapsed
+  quality: fixed-within-envelope
+  envelope: explicit-at-plan-approval
+  capacity: provision-constrained-pool-within-grant
+  speculation: { defaultEnabled: false, maxAttemptsPerDeliverable: 2 }
+
+scalingAcceptance:
+  workers: [1, 2, 4, 8]
+  repetitions: 5
+  workloads: [independent, decomposable, contended-recovery]
+  fixed: [requirements, models, quality, evaluator, fixture]
+  authorizedControls: { fanOut: 8, perClientCeiling: 8, agentSlotsCeiling: 8 }
+  minimumIndependentSpeedup: { at4: 2, at8: 3 }
+  minimumDecomposableSpeedup: { at4: 1.5 }
+  coordinator: { sessions: 64, effectsPerSecond: 100, duration: PT10M, p95DispatchMs: 100 }
 
 # Presentation is a per-actor preference; this is the repository default.
 presentation:
@@ -336,16 +372,16 @@ knowledge:
 # evaluation-publisher capability plus a human decision when this subtree changes.
 # Compiler hashes quality, rubric and observationSet independently; submit_request
 # pins those revisions from its compiled workflow. No delivery-profile override.
-# handoff.evaluate uses the task fixture's independently authored assertions; absent
-# assertions are unavailable, never a pass. Skipping it prevents quality ranking,
-# not a handoff otherwise allowed by the floor. Its usage charges the run account.
+# acceptance.evaluate uses the task fixture's independently authored assertions; absent
+# assertions block candidate acceptance as unavailable, never a pass. This floor
+# activity runs before candidate acceptance completes and charges the run account.
 quality:
   id: delivery-baseline
   rubric:
     id: contract-and-regression
     criteria: [task-acceptance, repository-gate]
   observationSet:
-    - { id: task-acceptance, activity: handoff.evaluate }
+    - { id: task-acceptance, activity: acceptance.evaluate }
     - { id: repository-gate, activity: verification.gate }
   cohortFields: [repositoryId, taskFixtureDigest, evaluationRevision]
   escapedDefectWindow: P30D

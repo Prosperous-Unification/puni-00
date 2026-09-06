@@ -57,6 +57,21 @@ _Avoid_: Stage, session
 A provisional answer used to advance work, with an owner and a condition that
 requires revisiting it. It is neither an observed fact nor a person's approval.
 
+**Execution envelope**:
+A person's authorization of a specified outcome and the bounded execution choices
+permitted to deliver it, with spending limits, quality obligations and expiry.
+_Avoid_: Profile, unlimited autonomy
+
+**Deliverable**:
+An independently assessable part of a work request with its own contract,
+dependencies and acceptance evidence.
+_Avoid_: Agent session, file assignment
+
+**Integration candidate**:
+An identified composition of deliverables and their source basis submitted for
+combined verification and acceptance.
+_Avoid_: Completed branch, individual green
+
 **Approval**:
 An authorized person's decision about an identified action and the exact material
 that decision covers; it remains bounded by current authority.

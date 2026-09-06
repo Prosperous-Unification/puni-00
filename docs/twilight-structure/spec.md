@@ -14,7 +14,10 @@ as the primary interface to coding-agent sessions.
 The desired outcome is a traceable software delivery loop: shape a request,
 specify it, plan resources and dependencies, implement and review it, prove it
 in development, and release to production on an explicit human command.
-Observability must support improving both delivery and the factory itself.
+The primary objective is minimum elapsed time to independently accepted,
+integrated outcomes within an authorized spending envelope and fixed quality
+requirements. Additional agents, tokens and infrastructure should buy measurable
+delivery capacity; observability identifies where they no longer do.
 
 The current scope is an autonomous SDLC/documentation trial and actionable
 product plan, reviewed with Claude Fable 5.1. Questions are answered as explicit
@@ -53,6 +56,8 @@ each client, with WBS planning backed by per-repo Backlog.md after WBS refactors
 | TS-25 | `puni-00` must evolve through the same repo template and workflow that clients receive.                                                                                                                                              |
 | TS-26 | Continue without clarification blockers, record assumptions, and review the resulting plan with Claude Fable 5.1.                                                                                                                    |
 | TS-27 | Measure cost in money and time, with tokens as the money proxy. Make model choice (better or cheaper), removing validation, review or QA steps, and parallelism tunable levers, and track their effect on quality. Added 2026-09-06. |
+
+| TS-28 | Make spending buy shorter accepted delivery time: pipeline independent deliverables, automate integration, scale constrained resources, and measure speedup at fixed quality. Human decisions authorize bounded execution choices rather than every scheduling adjustment. |
 
 These requirements record the brief. They do not imply that every feature is
 in the first release or that any integration has already been implemented.

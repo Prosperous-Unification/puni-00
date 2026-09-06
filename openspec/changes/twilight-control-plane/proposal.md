@@ -2,14 +2,16 @@
 
 Twilight needs a usable shared workflow for its own development and client
 monorepos. Today planning, agent execution, approvals, and evidence have no
-common user-facing authority or durable run identity.
+common user-facing authority or durable run identity. More concurrent sessions
+alone do not establish faster accepted delivery. The objective is minimum elapsed
+time to accepted, integrated outcomes within authorized spending and fixed quality.
 
 ## What Changes
 
 The first increment provides a configurable FE/BE/MCP loop: submit a request under
-a named delivery profile, inspect a versioned workflow and plan, approve the exact
-candidate with its budget, execute one bounded ACP activity, recover from
-interruption, and inspect evidence, the run ledger and the outcome record. It
+a named delivery profile, inspect a versioned workflow and plan, approve the specified plan and execution envelope, pipeline isolated deliverables,
+automatically compose and verify integration candidates, recover from interruption,
+and inspect evidence, the run ledger and scaling measurements. It
 introduces the versioned client-repository contract used by `puni-00` itself and
 the execution profile that carries every lever a person tunes.
 

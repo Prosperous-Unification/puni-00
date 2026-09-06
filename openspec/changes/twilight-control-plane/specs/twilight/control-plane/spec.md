@@ -57,9 +57,13 @@ exactly one catalog entry with an `agent` or `tool` executor. A tool entry MUST 
 a registered implementation and MUST NOT receive a model. Every delivery profile
 MUST contain a total activity map keyed by that catalog, and the repository floor
 MUST be the sole catalog-independent list of activities that cannot be disabled.
-The shipped stage graph MUST order request, discovery, specification, planning,
-implementation, review, verification, acceptance and handoff; published custom
-graphs MUST preserve required artifact and authority obligations. Release MUST depend
+Stage scope MUST be explicit or default to run. The shipped graph MUST order
+request, discovery, specification and planning at run scope, then implementation,
+review and verification per deliverable. Integration and acceptance MUST join the
+members of an integration candidate; handoff MUST join all required accepted
+outcomes. An independent deliverable MUST NOT wait for another's implementation
+to enter review or verification. Published custom graphs MUST preserve required
+artifact and authority obligations. Release MUST depend
 on handoff and remain a separate human command that stage completion never starts.
 The first increment's controls MUST be configurable and inspectable through FE,
 BE and MCP with their effective value, origin scope and restriction. Platform and
@@ -131,16 +135,17 @@ than erase occupied slots. `skipActivity` MUST use this same audited activity-en
 override and MUST NOT skip an admitted or completed activity, erase a finding or
 make stale evidence current.
 
-Approvals MUST bind the attempt's epoch and action. A profile-only change MUST leave
-an old approval usable solely by already-admitted attempts with unchanged candidate,
-capabilities and reserved allowance. New admissions MUST use the new subject; an
-approval from either epoch MUST NOT authorize the other. Expiry, revocation, changed
-source/scope and tighter floors MUST still invalidate old-epoch dispatch authority.
+Each attempt MUST bind its epoch, action and execution envelope. A profile choice
+inside the approved envelope MUST create an attributed epoch without another human
+decision. Choices outside it MUST remain pending until a new envelope is approved;
+unadmitted work under that proposed epoch MUST NOT start. Already-admitted attempts
+MAY continue under their unchanged envelope and reservations. Expiry, revocation,
+changed scope and tighter floors MUST constrain every epoch at dispatch.
 
 #### Scenario: An old attempt dispatches while the new epoch awaits approval
 
 - **WHEN** an admitted epoch-A attempt records an unchanged authorized effect, then
-  a profile-only change creates epoch B awaiting approval
+  an out-of-envelope profile change proposes epoch B awaiting approval
 - **THEN** that effect may dispatch against A's still-valid decision and held
   allowance, no B work starts, and revoking A before dispatch prevents its effect
 
@@ -229,7 +234,9 @@ reservations independently. Each reservation MUST require resource-specific
 terminal evidence before release; local process exit alone MUST NOT release a
 remote session/job or unresolved budget. A retried activity MUST be a new attempt
 under the same activity, and a skipped activity MUST record the decision that
-skipped it.
+skipped it. Aggregate reconciling/failed-stage status MUST block only affected
+dependency closures; independent authorized work MAY continue. Explicit run-wide
+pause/cancel, exhausted run budget and revoked run authority MUST stop all new work.
 
 #### Scenario: Restart during approval wait
 
@@ -290,12 +297,18 @@ for brokered tools and effectful hooks.
 
 ### Requirement: Revision-bound human decisions
 
-Approvals MUST be attributable to authorized human decisions and bound to the
-action, candidate digest, delivery profile revision including run overrides,
-budget, target environment, policy revision and expiry. A changed subject MUST
-invalidate the decision for that subject; a profile-only epoch change preserves
-only the admitted-attempt authority specified above. Production MUST require an explicit human command even
-if all earlier stages complete automatically.
+Plan approval MUST bind a human decision to an immutable execution envelope:
+requirements and plan digest, source basis and permitted integration lineage,
+workflow/policy revision, exact quality obligations and evaluator, permitted
+provider/model/effort choices, fan-out and resource ranges, token/money/agent-time
+hard ceilings, environment, capabilities, speculation allowance and expiry.
+Missing ranges MUST mean the pinned choice only, never unrestricted authority.
+Selection within those bounds MUST NOT change the approval subject. Increasing a
+hard ceiling, changing scope or quality, or leaving permitted lineage MUST require
+a new decision; usage and holds MUST survive it. Evidence MUST still bind exact
+candidate content: authority to compose a candidate never transfers its greens.
+Production MUST require a separate explicit human command bound to the exact
+verified candidate and environment even if earlier stages complete automatically.
 
 #### Scenario: Stale plan approval
 
@@ -305,10 +318,16 @@ if all earlier stages complete automatically.
 
 #### Scenario: A budget change after approval
 
-- **WHEN** the run's profile budget or model assignment is changed after the plan
-  was approved
-- **THEN** the approval is stale, the change is recorded as an `onProfileChange`
-  event, and implementation admission waits for a decision on the new subject
+- **WHEN** a requested hard ceiling or model exceeds the approved execution envelope
+- **THEN** new work under that proposal waits for a human decision, while existing
+  authority and consumption remain intact
+
+#### Scenario: Spare capacity is used within existing authority
+
+- **WHEN** the scheduler raises fan-out and selects a permitted model within the
+  approved envelope and current pool grants
+- **THEN** new work is admitted without another human decision, with the chosen
+  epoch, envelope and cumulative spending visible through FE and MCP
 
 #### Scenario: Model-written approval claim
 
@@ -537,7 +556,7 @@ and roll up failed attempts and runs rather than reporting only accepted work.
 
 #### Scenario: Two runs are compared by profile
 
-- **WHEN** one request ran under `fast` and another under `thorough` in the same
+- **WHEN** one request ran under `economy` and another under `thorough` in the same
   repository
 - **THEN** `read_outcomes` returns both with their profile epochs, money, time,
   rework and observation status side by side, each figure marked measured or unavailable
@@ -576,11 +595,11 @@ evaluation-publisher capability and a subject-bound human decision for its chang
 Compilation MUST derive immutable evaluation/rubric/observation-set revisions from
 their contents; request submission MUST pin them from its compiled workflow along
 with the independently authored task-fixture digest used for cohort matching. The
-initial `delivery-baseline` MUST resolve the integrated gate and `handoff.evaluate`
+initial `delivery-baseline` MUST resolve the integrated gate and `acceptance.evaluate`
 task-acceptance observer. Missing task assertions MUST produce an unavailable
 observation. Running the observer MUST reserve its declared tool resources and
-charge the run account; a permitted skip MUST exclude its outcome from rankings
-requiring that observation, without inventing a new floor obligation.
+charge the run account. It MUST be a floor activity at candidate acceptance;
+missing assertions MUST block acceptance, and disabling it MUST be refused.
 
 Escaped-defect reports MUST be revisioned outcome updates submitted through one
 shared FE/BE/MCP operation with caller scope, idempotency key, expected revisions,
@@ -597,7 +616,7 @@ MUST NOT infer that a model or profile caused the defect.
 
 #### Scenario: A mixed-profile run recovers after escalation
 
-- **WHEN** a fast epoch fails and a thorough epoch completes the same run
+- **WHEN** a economy epoch fails and a thorough epoch completes the same run
 - **THEN** each attempt's consumption stays with its epoch, the outcome is labeled
   mixed-profile, and neither profile receives the whole run as a ranked success
 
@@ -624,7 +643,132 @@ limits MUST stop unresolved work rather than turn it into a pass.
 #### Scenario: Rework rounds are exhausted
 
 - **WHEN** the profile's configured rework maximum leaves a blocking finding unresolved
-- **THEN** the run pauses with the finding, consumed budget and next authorized action visible
+- **THEN** the affected dependency closure pauses with the finding, consumed budget
+  and next authorized action visible; independent authorized work may continue
+
+### Requirement: Scheduling minimizes accepted delivery elapsed time
+
+The scheduler MUST select resource-feasible ready deliverables, prioritize their
+estimated remaining dependency-chain duration under the configured fairness policy,
+and record estimate provenance, blocked resource and selection reason. Feasible
+tasks at or beyond the aging window MUST outrank unaged tasks, oldest first;
+critical-path priority MUST NOT starve them. Workdays
+MUST NOT be converted into agent duration; absent duration estimates MUST use a
+visible deterministic priority/aging policy until measured. Contracts MUST identify
+real predecessors, source basis, outputs, write scope and acceptance oracles.
+Resource contention MUST NOT become a semantic dependency. A blocked task MUST NOT
+prevent an independent feasible task from starting. Capacity requests MUST name
+the constrained pool and stay within organization grants and the execution envelope;
+provisioning failures or exhausted provider quota MUST remain visible constraints.
+Reviewer capacity MUST be protected without reserving idle capacity forever when no
+review is ready; borrowing MUST be bounded by the configured fairness window.
+
+#### Scenario: One deliverable is slow
+
+- **WHEN** one implementation is held at a barrier while an independent deliverable finishes
+- **THEN** the finished deliverable completes its own review and verification before
+  the barrier is released; the unfinished outcome is not reported complete
+
+#### Scenario: Browser contention does not stop backend work
+
+- **WHEN** the first ready task cannot acquire a browser and a backend task has all
+  required resources
+- **THEN** the backend task starts without a browser reservation or waiting for that task
+
+#### Scenario: Critical work receives available capacity
+
+- **WHEN** two equally aged feasible tasks still below the aging window compete with explicit duration estimates
+  and one has a longer remaining dependency chain
+- **THEN** the critical-path policy selects that task, records its inputs and respects
+  the client ceiling and aging policy
+
+#### Scenario: New critical work cannot starve an old feasible task
+
+- **WHEN** a short ready task reaches the aging window while new longer chains arrive
+  and capacity becomes available within its client ceiling
+- **THEN** the aged task is selected before those unaged chains
+
+### Requirement: Integration is an independently scalable execution service
+
+The integration queue MUST compose authorized deliverables on a recorded base,
+preserve plan-lock entries, and run full integrated verification against the exact
+composed candidate. Candidate preparation and verification MAY overlap in isolated
+workspaces. Integration preparation MUST NOT publish shared source. The acceptance
+completion path MUST invoke publication only after its independent oracle and all
+required candidate checks pass; handoff MUST require the publication receipt.
+Publication MUST compare-and-swap the accepted source ref. A moved base
+MUST trigger recomposition and fresh candidate verification. Semantic conflicts MUST
+return to bounded repair; failed members MUST NOT prevent independent candidates
+from progressing. Cross-deliverable contract changes MUST invalidate dependent
+candidates and evidence. Queue age, accepted throughput, repair cost and superseded
+verification MUST be observable; acceptance counts fixed requested outcomes once.
+Evidence reuse MUST require matching declared content, tool and environment inputs;
+a prior candidate's success MUST NOT be accepted solely because its branch was green.
+
+#### Scenario: Independently green branches conflict together
+
+- **WHEN** two branches pass alone but their composed behavior violates a pinned assertion
+- **THEN** the candidate is refused, the failing assertion is recorded, and neither
+  branch's green authorizes the combined candidate
+
+#### Scenario: Integration failure is contained
+
+- **WHEN** one candidate fails or its source base moves while an independent
+  candidate is being prepared
+- **THEN** affected work is recomposed or repaired, the independent candidate can
+  progress, and no stale verification is published as current
+
+### Requirement: Speculation spends only bounded authorized capacity
+
+Speculative attempts MUST be opt-in under the execution envelope, isolated, charged
+to the same account and limited by the configured per-deliverable count. They MAY
+produce local candidate changes and use explicitly allowed research/model services;
+they MUST NOT publish shared source, planning changes or production effects.
+An independent pinned evaluator MUST choose a passing candidate, not the fastest
+response or majority vote. Losing attempts MUST be cancelled and fenced, with holds
+retained until terminal resource and usage evidence arrives. A speculation failure
+MUST NOT consume the successful candidate's authority or hide any losing cost.
+
+#### Scenario: The first answer is wrong
+
+- **WHEN** one speculative attempt answers first but fails the task oracle and another passes
+- **THEN** only the passing candidate can enter integration; both attempts are charged
+  and a late losing writer cannot publish
+
+### Requirement: Scaling is proved at fixed quality before M1 acceptance
+
+M1 MUST execute the execution profile's `scalingAcceptance` matrix before accepting
+its scaling claim, independently of the Backlog migration. Runs MUST pin fixture,
+requirements, model/effort, quality, evaluator and comparable environment identities;
+only worker and required supporting capacity vary. Budget ceilings MUST be equal
+and sufficient across compared runs; failed or exhausted runs MUST remain in the
+report. Request-to-acceptance p50/p95, accepted outcomes per hour, total attributed
+cost including losers, human/queue wait, rework, integration delay, resource
+utilization and defect-observation maturity MUST be reported with samples and raw
+observations. Subdividing tasks MUST NOT increase the accepted-outcome denominator.
+The matrix MUST cover independent changes, a decomposable feature and contended
+recovery. Missing measurements or a missed speedup budget MUST block the scaling
+milestone; they MUST NOT be reported as linear scaling or zero defects.
+
+Coordinator acceptance MUST exercise the profile's offered effect rate and session
+count on an identified host. Dispatch overhead excludes remote service duration but
+includes coordinator queueing and durable authorization; end-to-end effect latency
+is reported separately. Slow external calls MUST NOT occupy the serialized authority
+boundary. Missing the budget MUST require measured improvement or a separate
+partitioned-coordination design and race proofs before increasing supported scale.
+
+#### Scenario: Extra workers only create a longer queue
+
+- **WHEN** the scaling matrix increases workers but integration or browser capacity
+  prevents the required accepted speedup
+- **THEN** acceptance fails with the constrained pool and measured queues, despite
+  a larger number of active sessions
+
+#### Scenario: A remote service stalls
+
+- **WHEN** a dispatched remote effect is held while unrelated authorized effects arrive
+- **THEN** those effects dispatch within the coordinator budget without waiting for
+  the held service; revocation and fencing checks remain effective
 
 ### Requirement: Observable evidence with focus access
 

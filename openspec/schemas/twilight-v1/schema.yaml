@@ -81,14 +81,20 @@ artifacts:
       checkbox per coherent deliverable. TDD steps are prose within that slice.
       Name owning paths, prerequisites, interfaces, actor, write scope, test
       oracle, deliberately injected fault, resource estimates and stop limits.
+      State deliverable interface contracts and real predecessors separately from
+      resource conflicts. Pipeline independent implementation/review/verification;
+      name candidate integration and fixed-quality scaling acceptance when relevant.
+      Link the approved execution envelope; defaults alone grant no authority.
       Separate estimated/measured tokens, currency, human effort, agent elapsed
       time and scarce slots. Missing telemetry is unknown, never zero.
       Per-client Nx repos use the same workflow. The accepted target planning
       backend is per-repo Backlog.md behind WBS, after its refactorings land.
       Until the versioned bridge exists, this is the sole authored plan. Later
       WBS/Backlog edits and this artifact must round-trip through one record whose
-      revision is checked on every write, so a write from a stale revision is
-      refused; never silently maintain competing independently editable plans.
+      semantic preconditions and publication revision are checked on every write.
+      Exact writes refuse a stale basis; explicitly authorized disjoint writes use
+      the broker's bounded reconciliation contract. Never silently maintain
+      competing independently editable plans.
       A focus brief and schedule are projections. Separate required safety
       gates from critic/judge advice. No task is done without evidence.
     # Proof: with `design` removed from this list, cli.integration.test.ts's
@@ -142,8 +148,12 @@ apply:
     When implementation is authorized, use isolated workspaces, meaningful TDD,
     independent review and systematic-debugging on failures. Parallel activity
     requires explicit ownership, dependencies and resource admission; one writer
-    owns each file/workspace lineage. Test the task-brief adapter before trusting
+    owns each writable workspace lineage. Test the task-brief adapter before trusting
     any helper that parses this plan. Record real run identity and unknown usage.
-    Revisions invalidate dependent verdicts and evidence. A budget or review-round
+    Use the execution envelope for in-bounds scheduling choices without another
+    human decision; expansion requires approval. Candidate changes invalidate
+    dependent evidence even when their composition is authorized. Update canonical
+    requirements, instructions and tasks in place; Git retains editing history.
+    A budget or review-round
     limit pauses unresolved work; it cannot make the work pass. Apply completion
     means task progress, not development acceptance. Write verify.md after work.

@@ -9,6 +9,9 @@
 - [ ] 1.1 Deliver the named behavior and evidence.
 
 <!-- Files/owner/write scope:
+     Real predecessors and interface/acceptance contracts:
+     Resource conflicts and integration candidate:
+     Approved execution envelope:
      Depends on:
      Consumes/produces exact interfaces:
      Test name, oracle, real call path, and injected fault:
