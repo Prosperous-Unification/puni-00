@@ -14,6 +14,15 @@ import { describe, expect, it } from 'bun:test';
  * `bun-version-file`, and the Dockerfiles, which cannot read a file, are held
  * to it here.
  *
+ * Every file this suite reads from outside its own project is named in
+ * `tool-devsync:test`'s `inputs`, and that is not bookkeeping: Nx caches the
+ * target, and a read it does not know about is a change it cannot see.
+ * Measured 2026-09-06: with `{workspaceRoot}/apps/*\/Dockerfile` declared, a
+ * Dockerfile put back to 1.3.14 re-ran this suite and failed it; with that
+ * line removed, the same edit answered `nx run tool-devsync:test [local
+ * cache]` — green, having run nothing. `workspace-targets.test.ts` cannot see
+ * these reads (it looks for `'../../../…'` literals), so the list is kept by hand.
+ *
  * Proof: with `apps/be-01/Dockerfile`'s first stage put back to
  * `oven/bun:1.3.14-alpine`, `every Bun image tag equals .bun-version` failed
  * on `- []` / `+ [ "apps/be-01/Dockerfile: 1.3.14" ]` (2026-09-06). And with
