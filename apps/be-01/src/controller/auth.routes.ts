@@ -2,12 +2,18 @@ import { randomBytes } from 'node:crypto';
 
 import {
   booleanFlagOf,
+  browserBindingCookieName,
+  browserBindingsIn,
   browserOidcClientFromEnv,
+  consumeBrowserBinding,
+  type HeldBrowserBinding,
   InMemoryOidcTransactionStore,
   InMemoryTokenStore,
+  MAX_BROWSER_BINDINGS,
   oidcIdentityFromClaims,
   oidcTokenVerifierFromEnv,
   type OidcTransactionStore,
+  selectBrowserBindings,
   type TokenStore,
   type TokenVerifier,
 } from '@wbs/auth';
@@ -291,7 +297,7 @@ export function authRoutes(auth: AuthService, oidc?: OidcRouteOptions): Route[] 
     {
       method: 'GET',
       path: '/api/auth/login',
-      handler: async () => {
+      handler: async (req) => {
         const browserBinding = random();
         const state = random();
         const nonce = random();
@@ -303,7 +309,38 @@ export function authRoutes(auth: AuthService, oidc?: OidcRouteOptions): Route[] 
           state,
           verifier,
         });
-        return empty(302, [cookie('__Host-wbs_oidc', browserBinding, 300)], location.href);
+        // **This login writes its own cookie name and never another login's**
+        // (TASK-272). The route used to write one shared name, so a second
+        // tab's login overwrote the first tab's cookie and the first tab's
+        // callback came back holding a binding that was not its own — a login
+        // lost to nothing but a second tab. `browserBindingCookieName` is
+        // derived from the binding, so two logins cannot collide and neither
+        // write depends on having read the other.
+        //
+        // **The bound is kept by clearing, on the way past.** Anything the
+        // browser is holding that addresses nothing, plus the oldest of what is
+        // left once this login has taken its slot, is cleared here;
+        // `selectBrowserBindings` decides which, ordering by the store's
+        // `expiresAt` rather than by anything the cookie says about itself.
+        // Clearing a name is independent of every other name, so two logins
+        // starting at once agree on what to evict and neither erases the other.
+        //
+        // Proof: dropping the evictions reddens `holds three concurrent logins
+        // per browser and drops the oldest` at the fourth login — the oldest
+        // name is still in the jar and `Set-Cookie` carries no `Max-Age=0` for
+        // it. Writing this binding under the shared old name instead reddens
+        // `lets the first tab finish a login a second tab started after it` at
+        // the late callback, `Expected: 302 Received: 400`.
+        const held = selectBrowserBindings(
+          options.transactions,
+          browserBindingsIn(cookiesOf(req)),
+          now(),
+        );
+        const evicted = [
+          ...held.surplus,
+          ...held.offered.slice(0, Math.max(0, held.offered.length - (MAX_BROWSER_BINDINGS - 1))),
+        ];
+        return empty(302, [bindingCookie(browserBinding), ...clearsFor(evicted)], location.href);
       },
     },
     {
@@ -415,9 +452,56 @@ export function authRoutes(auth: AuthService, oidc?: OidcRouteOptions): Route[] 
         // the identical 400 with the identical cleared cookie. Nothing a caller
         // can observe moves.
         const state = states[0];
-        const binding = cookieOf(req, '__Host-wbs_oidc');
-        if (!state || binding === null) return empty(400, [clear('__Host-wbs_oidc')]);
-        const transaction = options.transactions.consume(binding, state);
+        // **Every answer on this route clears names and sets none** (TASK-272).
+        // `settled` is the complete cookie list of every answer below, refusals
+        // and success alike, and it holds exactly two kinds of name: what
+        // `selectBrowserBindings` returned as surplus — records already gone or
+        // expired, names that do not match their value, repeats, and the
+        // over-the-bound entries the read side has already made unreachable —
+        // and then the one this callback spent. Nothing in it is a login this
+        // browser could still finish.
+        //
+        // A live, reachable login's cookie is never re-sent, which is what makes
+        // a callback unable to erase a login started while it was in flight: a
+        // name no answer mentions is left exactly as the login that wrote it
+        // left it, `Max-Age` included.
+        const held = selectBrowserBindings(
+          options.transactions,
+          browserBindingsIn(cookiesOf(req)),
+          now(),
+        );
+        let settled = held.surplus;
+        // **Two refusals where there was one, because a browser now holds more
+        // than one login** (TASK-272). A browser offering no live binding has
+        // no login to lose, so its dead names are cleared and the callback is
+        // refused. A browser that *is* holding live bindings and sends a
+        // callback with no state has proven nothing about any of them, and
+        // clearing would destroy up to `MAX_BROWSER_BINDINGS` live logins on a
+        // request anyone can cause: the binding cookies are `SameSite=Lax`, so
+        // a hostile page can navigate a browser to this route with no query at
+        // all. That is the TASK-276 denial with a shorter URL, and it is
+        // refused the same way — the bodiless 400, nothing live cleared.
+        //
+        // Proof: clearing every held name here rather than only the dead ones
+        // reddens `refuses a stateless callback without discarding the logins
+        // in flight`, whose surviving cookie is derived from this answer, so
+        // the honest callback that follows fails `Expected: 302 Received: 400`
+        // rather than only the header assertion.
+        if (held.offered.length === 0) return empty(400, clearsFor(settled));
+        if (!state) return empty(400, clearsFor(settled));
+        // Every binding the browser holds is offered and the store decides
+        // which one this state proves; at most one record is consumed, and a
+        // mismatch leaves both the record and the cookie alone
+        // (`consumeBrowserBinding`). `remaining` is what the browser should
+        // still be holding afterwards — the logins in other tabs — so whatever
+        // is not in it has been spent and joins `settled`.
+        const { remaining, transaction } = consumeBrowserBinding(
+          options.transactions,
+          held.offered.map((entry) => entry.binding),
+          state,
+        );
+        const kept = new Set(remaining);
+        settled = [...settled, ...held.offered.filter((entry) => !kept.has(entry.binding))];
         // **The mismatch is the one refusal here that leaves the binding
         // alone** (TASK-276). A state this browser cannot prove it owns is a
         // callback that is not this login — a hostile top-level navigation
@@ -432,20 +516,24 @@ export function authRoutes(auth: AuthService, oidc?: OidcRouteOptions): Route[] 
         // the bodiless 400 the other dead-transaction answers give, because a
         // caller who is told "your state was wrong" while the record survives
         // has been handed the retry signal the old ordering was destroying the
-        // record to deny. The only observable difference is the absent
-        // `Set-Cookie`.
+        // record to deny. The only observable difference is that no login this
+        // browser could still finish is named: `settled` here is the surplus
+        // this request arrived carrying — dead records, misnamed or repeated
+        // cookies, and any live entry already past the bound and so unreachable
+        // — which is usually empty.
         //
         // Proof: `refuses a forged error callback without burning the login it
-        // interrupts` fails with `Received: "__Host-wbs_oidc=; HttpOnly;
-        // Secure; SameSite=Lax; Path=/; Max-Age=0"` against `toBeNull()` when
-        // this clears the binding. That is the red bun reports, because the
-        // header assertion throws first and ends the case; delete that
-        // assertion as well and the honest callback fails `Expected: 302
-        // Received: 400`, which is what the case's derived cookie buys and what
-        // re-sending the string unconditionally did not. The loss is observable
-        // where a browser would suffer it, not only in the header causing it.
-        if (transaction.outcome === 'state_mismatch') return empty(400, []);
-        if (transaction.outcome !== 'consumed') return empty(400, [clear('__Host-wbs_oidc')]);
+        // interrupts` fails with `Received: "__Host-wbs_oidc_<digest>=;
+        // HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0"` against
+        // `toBeNull()` when this clears the mismatched binding. That is the red
+        // bun reports, because the header assertion throws first and ends the
+        // case; delete that assertion as well and the honest callback fails
+        // `Expected: 302 Received: 400`, which is what the case's derived jar
+        // buys and what re-sending the cookie unconditionally did not. The loss
+        // is observable where a browser would suffer it, not only in the header
+        // causing it.
+        if (transaction.outcome === 'state_mismatch') return empty(400, clearsFor(settled));
+        if (transaction.outcome !== 'consumed') return empty(400, clearsFor(settled));
 
         // **An error callback is the authorization server saying this login is
         // over**, and it is the most ordinary thing a person can do: clicking
@@ -539,7 +627,7 @@ export function authRoutes(auth: AuthService, oidc?: OidcRouteOptions): Route[] 
           // provider to learn what the empty value already said.
           if (providerError === '') {
             options.logger?.warn({}, 'oidc callback carried an empty error code');
-            return empty(400, [clear('__Host-wbs_oidc')]);
+            return empty(400, clearsFor(settled));
           }
           const reason = reasonOf(providerError);
           // **The code, never the description.** `error` is a protocol token
@@ -559,7 +647,7 @@ export function authRoutes(auth: AuthService, oidc?: OidcRouteOptions): Route[] 
           } else {
             options.logger?.info(reported, 'oidc callback was refused at the identity provider');
           }
-          return empty(302, [clear('__Host-wbs_oidc')], `/?auth_error=${reason}`);
+          return empty(302, clearsFor(settled), `/?auth_error=${reason}`);
         }
 
         // The provider's client is handed a `Request` because that is its own
@@ -618,10 +706,10 @@ export function authRoutes(auth: AuthService, oidc?: OidcRouteOptions): Route[] 
           });
         } catch (err) {
           options.logger?.error({ err }, 'oidc token exchange failed');
-          return empty(401, [clear('__Host-wbs_oidc')]);
+          return empty(401, clearsFor(settled));
         }
         if (tokenSet.idTokenClaims === undefined) {
-          return empty(401, [clear('__Host-wbs_oidc')]);
+          return empty(401, clearsFor(settled));
         }
         let identity;
         try {
@@ -630,10 +718,10 @@ export function authRoutes(auth: AuthService, oidc?: OidcRouteOptions): Route[] 
             groupsClaim: options.groupsClaim,
           });
         } catch {
-          return empty(401, [clear('__Host-wbs_oidc')]);
+          return empty(401, clearsFor(settled));
         }
         const account = await auth.resolveOidcIdentity(identity);
-        if (account === null) return empty(409, [clear('__Host-wbs_oidc')]);
+        if (account === null) return empty(409, clearsFor(settled));
         const correlation = random();
         if (tokenSet.refreshToken !== undefined) {
           options.tokens.save({
@@ -645,7 +733,7 @@ export function authRoutes(auth: AuthService, oidc?: OidcRouteOptions): Route[] 
         return empty(
           302,
           [
-            clear('__Host-wbs_oidc'),
+            ...clearsFor(settled),
             cookie('__Host-wbs_access', tokenSet.accessToken, tokenSet.expiresIn),
             cookie('__Host-wbs_session', correlation, 30 * 86_400),
           ],
@@ -786,6 +874,49 @@ function cookie(name: string, value: string, maxAge: number): string {
 
 function clear(name: string): string {
   return cookie(name, '', 0);
+}
+
+/**
+ * How long a browser keeps an in-flight binding. Five minutes, matching the
+ * transaction store's TTL (`oidcRouteOptionsFromEnv`), so the cookie and the
+ * record it addresses die together; it is named rather than the literal `300`
+ * the login route carried because the pairing is the point.
+ */
+const OIDC_BINDING_TTL_SECONDS = 300;
+
+/**
+ * The cookie one starting login leaves behind, under the name only it writes
+ * (TASK-272).
+ *
+ * `Max-Age` is set here once and never extended, because no other answer on
+ * these routes re-sends a live binding — see {@link clearsFor}. The store's
+ * `expiresAt` is the authoritative deadline and matches this one, so a cookie
+ * outliving its record presents a binding `consume` answers `expired`, and the
+ * next request past it clears the name.
+ */
+function bindingCookie(binding: string): string {
+  return cookie(browserBindingCookieName(binding), binding, OIDC_BINDING_TTL_SECONDS);
+}
+
+/**
+ * The `Max-Age=0` headers that retire the logins these cookies were holding —
+ * the whole cookie list of every OIDC answer that is not itself a new login
+ * (TASK-272).
+ *
+ * **Clearing by name is what makes these writes independent.** The shape this
+ * replaced kept every binding in one cookie's value, so an answer that wanted
+ * to retire one login had to rewrite the list, and a login started while that
+ * request was in flight was erased by the rewrite it never appeared in (peer
+ * review, TASK-272 r1, Important). An answer that only names finished cookies
+ * cannot say anything about a name it has not heard of.
+ */
+function clearsFor(held: readonly HeldBrowserBinding[]): string[] {
+  return held.map((entry) => clear(entry.cookieName));
+}
+
+/** Every cookie on the request, undecoded — see {@link cookiesIn}. */
+function cookiesOf(req: RouteRequest): Map<string, string> {
+  return cookiesIn(req.headers['cookie']);
 }
 
 function clearSession(): string[] {
