@@ -58,10 +58,7 @@ jobs:
       # it, but assert rather than discovering the absence as a green build
       # that checked nothing.
       - name: Assert shellcheck present
-        run: |
-          shellcheck --version
-          # TASK-283 watched negative: fail before the gate step exists.
-          exit 17
+        run: shellcheck --version
 
       - name: Install
         run: bun install --frozen-lockfile
