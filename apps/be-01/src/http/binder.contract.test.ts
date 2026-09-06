@@ -41,6 +41,13 @@ const ALICE: AuthenticatedUser = {
 const NO_SCOPES: AuthenticatedUser = { id: 'user-2', username: 'bob', scopes: [] };
 
 /**
+ * The store behind `/probe/find/:slug`. One key is ordinary; the other is the
+ * three characters `%ZZ`, which is a legal solution slug and not legal percent
+ * encoding — the pair TASK-270 item 2 measured the two binders apart on.
+ */
+const FINDABLE: ReadonlySet<string> = new Set(['ok', '%ZZ']);
+
+/**
  * The smallest thing that satisfies the guard's one call. A real `AuthService`
  * would drag a database in and prove nothing extra: what is under test is the
  * route layer's behaviour given an answer, not how the answer is reached.
@@ -66,6 +73,18 @@ function routes(auth: AuthService, writes: string[] = []): Route[] {
       method: 'POST',
       path: '/probe/body',
       handler: ({ body }) => Promise.resolve(ok({ received: body })),
+    },
+    /**
+     * `GET /plans/by-solution/:slug` in miniature: an exact lookup keyed by
+     * a path parameter, over a store that holds one ordinary key and one whose
+     * name is a percent sequence no decoder accepts. The echo route above shows
+     * what each binder *puts* in `params`; this one shows what that value can
+     * reach, which is the part TASK-270 item 2 was about.
+     */
+    {
+      method: 'GET',
+      path: '/probe/find/:slug',
+      handler: ({ params }) => Promise.resolve(ok({ found: FINDABLE.has(params['slug']) })),
     },
     /**
      * `POST /api/projects` in miniature: the same `typeof name !== 'string'`
@@ -943,17 +962,70 @@ describe.each(BINDERS)('route contract under the %s binder', (_name, bind) => {
    * Probed rather than reasoned about, and the reading decided the fix:
    * `elysia 200 {"id":null,"mode":null}`, `in-process URIError`. Elysia
    * **matches the route** and runs the handler, so making the in-process binder
-   * 404 would have been a second divergence dressed as a fix. `matchPath` now
-   * hands an undecodable segment over raw and both answer 200.
+   * 404 would have been a second divergence dressed as a fix.
    *
-   * The status is asserted and the parameter's value is not, for the reason the
-   * 422 clause below states: the status is the route module's and both binders
-   * give it, while `null` versus `'%ZZ'` for a request no client sends
-   * deliberately is the framework's own reading.
+   * The first fix handed the segment over **raw** and asserted only the status,
+   * on the argument that `'%ZZ'` and `null` both reach a repository lookup that
+   * answers `not_found`. TASK-270 item 2 measured that argument false — see the
+   * clause below — so the value is asserted too, and the two binders agree on it.
+   *
+   * The table is the whole probe, not one row of it, and that is the point of
+   * its shape: a decoder special-casing `%ZZ` would satisfy a single malformed
+   * case and still disagree with Elysia everywhere else, so the five undecodable
+   * rows pin the failure and the four decodable ones pin that failing is not the
+   * answer to everything. Measured on h2puni at `53d78020` before the fix: both
+   * binders already produced the decoded value for `%20`, `a%2Fb`,
+   * `%F0%9F%98%80` and a plain segment, and only the five malformed rows
+   * differed. So `decodeURIComponent` throwing and Elysia's
+   * `fast-decode-uri-component` returning `null` are the same accept set here.
    */
-  it('answers a malformed percent-encoded parameter rather than throwing', async () => {
-    const res = await get('/probe/echo/%ZZ');
+  it.each([
+    ['a bare percent', '%', null],
+    ['a stray pair of them', '%%', null],
+    ['a truncated multi-byte sequence', '%E0%A4%A', null],
+    ['an overlong encoding', '%C0%80', null],
+    ['two characters that are not hex', '%ZZ', null],
+    ['an encoded space', '%20', ' '],
+    ['an encoded slash', 'a%2Fb', 'a/b'],
+    ['an encoded astral character', '%F0%9F%98%80', '😀'],
+    ['a segment needing no decoding', 'plain', 'plain'],
+  ])('decodes %s the same way under either binder', async (_label, segment, expected) => {
+    const res = await get(`/probe/echo/${segment}`);
     expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: expected, mode: null });
+  });
+
+  /**
+   * Why the clause above asserts the value, and the case that makes it bite.
+   *
+   * The raw-passthrough fix left the in-process binder able to reach a stored
+   * record the production binder cannot. Elysia hands the handler `null`, which
+   * matches no key; the raw `'%ZZ'` matches a record whose key is literally
+   * those three characters. Nothing forbids one: a solution slug is any
+   * non-empty string (`controller/project.routes.ts`), and
+   * `GET /plans/by-solution/:slug` is an exact lookup
+   * (`controller/solution.routes.ts`), so the second binder answered 200 with a
+   * record where the shipped server answers 404.
+   *
+   * Measured on h2puni at `53d78020` before the fix, over the same two keys —
+   * the probe's handler returned the stored value where this one returns only
+   * whether it was found, so the shape below is the probe's and not this
+   * fixture's:
+   * `FIND elysia "%ZZ" -> 200 {"found":false}` and
+   * `FIND in-process "%ZZ" -> 200 {"found":true,...}`. That is the divergence
+   * the second binder exists to catch, found in the second binder itself.
+   *
+   * The clause bites in both directions: it fails if either binder starts
+   * reaching the record, and the `'ok'` half fails if a binder stops reaching a
+   * record it should — so "never find anything" cannot pass it.
+   */
+  it.each([
+    ['an undecodable segment', '%ZZ', { found: false }],
+    ['a decodable one', 'ok', { found: true }],
+  ])('looks up %s the same way under either binder', async (_label, slug, expected) => {
+    const res = await get(`/probe/find/${slug}`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(expected);
   });
 
   /**
