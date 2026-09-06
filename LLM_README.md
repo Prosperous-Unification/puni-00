@@ -2,9 +2,9 @@
 
 Agent orientation. Read this, then only the one doc your task needs.
 
-**wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
-`gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),
-`mcp-01` (MCP server over be-01, stdio, spawned by its client). Nx monorepo, Bun — never npm.
+**puni-00** — company monorepo ([wiki](docs/wiki/README.md)). [Twilight Structure](docs/twilight-structure/README.md): SDLC pilot and delivery plan.
+WBS: `be-01` (Elysia+Drizzle+bun:sqlite, :3100), `gw-01` (WS, :3200),
+`fe-01` (Vite+React, :80 image/:4200 dev), `mcp-01` (Streamable HTTP MCP over be-01, default :3300). Nx and Bun; never npm.
 
 Three facts explain most decisions:
 

@@ -1,0 +1,394 @@
+{
+  "scope": "Disposable native OpenSpec 1.12.0 probes, not runtime service tests",
+  "records": [
+    {
+      "label": "apply-missing-planning-inputs",
+      "command": "bunx @fission-ai/openspec@1.12.0 instructions apply --change probe --json",
+      "chunk_id": "81b9a6",
+      "wall_time_seconds": 0.143324876,
+      "exit_code": 0,
+      "original_token_count": 201,
+      "output": "{\n  \"changeName\": \"probe\",\n  \"changeDir\": \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes/probe\",\n  \"schemaName\": \"twilight-v1\",\n  \"contextFiles\": {\n    \"tasks\": [\n      \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes/probe/tasks.md\"\n    ]\n  },\n  \"progress\": {\n    \"total\": 1,\n    \"complete\": 0,\n    \"remaining\": 1\n  },\n  \"tasks\": [\n    {\n      \"id\": \"1\",\n      \"description\": \"1.1 Observe the fixture behavior.\",\n      \"done\": false\n    }\n  ],\n  \"state\": \"blocked\",\n  \"missingArtifacts\": [\n    \"intent\",\n    \"specs\"\n  ],\n  \"instruction\": \"Cannot apply this change yet. Missing artifacts: intent, specs.\\nUse the openspec-continue-change skill to create the missing artifacts first.\",\n  \"root\": {\n    \"path\": \"/tmp/twilight-20260906-DUYEGK/cli-probe\",\n    \"source\": \"nearest\"\n  }\n}\n"
+    },
+    {
+      "label": "apply-absent-intent",
+      "command": "bunx @fission-ai/openspec@1.12.0 instructions apply --change probe --json > absent-intent.json",
+      "observedAt": "2026-09-06T01:04:29.028Z",
+      "chunk_id": "9df09d",
+      "wall_time_seconds": 0.144244118,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "assert-absent-intent",
+      "command": "bun -e 'import {readFileSync} from \"node:fs\"; const observed=JSON.parse(readFileSync(\"absent-intent.json\",\"utf8\")); if(observed.state!==\"blocked\" || !observed.missingArtifacts.includes(\"intent\")) throw new Error(\"Expected absent intent to block apply; received \"+observed.state); console.log(\"PASS: absent intent blocks apply\");'",
+      "observedAt": "2026-09-06T01:04:29.153Z",
+      "chunk_id": "2e435c",
+      "wall_time_seconds": 0.000009102,
+      "exit_code": 0,
+      "original_token_count": 9,
+      "output": "PASS: absent intent blocks apply\n"
+    },
+    {
+      "label": "inject-omit-intent",
+      "command": "bun -e 'import {readFileSync,writeFileSync} from \"node:fs\";const path=\"openspec/schemas/twilight-v1/schema.yaml\"; const source=readFileSync(path,\"utf8\");writeFileSync(path,source.replace(\"requires: [intent, specs, tasks]\",\"requires: [specs, tasks]\"));'",
+      "observedAt": "2026-09-06T01:04:29.267Z",
+      "chunk_id": "061872",
+      "wall_time_seconds": 0.000008489,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "faulted-apply-absent-intent",
+      "command": "bunx @fission-ai/openspec@1.12.0 instructions apply --change probe --json > absent-intent.json",
+      "observedAt": "2026-09-06T01:04:29.584Z",
+      "chunk_id": "1dd028",
+      "wall_time_seconds": 0.145506865,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "negative-absent-intent",
+      "command": "bun -e 'import {readFileSync} from \"node:fs\"; const observed=JSON.parse(readFileSync(\"absent-intent.json\",\"utf8\")); if(observed.state!==\"blocked\" || !observed.missingArtifacts.includes(\"intent\")) throw new Error(\"Expected absent intent to block apply; received \"+observed.state); console.log(\"PASS: absent intent blocks apply\");'",
+      "observedAt": "2026-09-06T01:04:29.677Z",
+      "chunk_id": "1fde55",
+      "wall_time_seconds": 0.000006755,
+      "exit_code": 1,
+      "original_token_count": 169,
+      "output": "1 | import {readFileSync} from \"node:fs\"; const observed=JSON.parse(readFileSync(\"absent-intent.json\",\"utf8\")); if(observed.state!==\"blocked\" || !observed.missingArtifacts.includes(\"intent\")) throw new Error(\"Expected absent intent to block apply; received \"+observed.state); console.log(\"PASS: absent intent blocks apply\");\n                                                                                                                                                                                                          ^\nerror: Expected absent intent to block apply; received ready\n      at /tmp/twilight-20260906-DUYEGK/cli-probe/[eval]:1:199\n\nBun v1.4.0 (Linux x64)\n"
+    },
+    {
+      "label": "restore-schema",
+      "command": "cp /home/df/wd/puni/puni-00/openspec/schemas/twilight-v1/schema.yaml openspec/schemas/twilight-v1/schema.yaml",
+      "observedAt": "2026-09-06T01:04:29.743Z",
+      "chunk_id": "35fe3f",
+      "wall_time_seconds": 0.00000239,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "restored-apply-absent-intent",
+      "command": "bunx @fission-ai/openspec@1.12.0 instructions apply --change probe --json > absent-intent.json",
+      "observedAt": "2026-09-06T01:04:30.053Z",
+      "chunk_id": "425aec",
+      "wall_time_seconds": 0.133845517,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "restored-assert-absent-intent",
+      "command": "bun -e 'import {readFileSync} from \"node:fs\"; const observed=JSON.parse(readFileSync(\"absent-intent.json\",\"utf8\")); if(observed.state!==\"blocked\" || !observed.missingArtifacts.includes(\"intent\")) throw new Error(\"Expected absent intent to block apply; received \"+observed.state); console.log(\"PASS: absent intent blocks apply\");'",
+      "observedAt": "2026-09-06T01:04:30.141Z",
+      "chunk_id": "c7d0ba",
+      "wall_time_seconds": 0.000003396,
+      "exit_code": 0,
+      "original_token_count": 9,
+      "output": "PASS: absent intent blocks apply\n"
+    },
+    {
+      "label": "remove-spec",
+      "command": "mv openspec/changes/probe/specs /tmp/twilight-20260906-DUYEGK/probe-specs",
+      "observedAt": "2026-09-06T01:04:30.326Z",
+      "chunk_id": "b61447",
+      "wall_time_seconds": 0.000004473,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "apply-absent-specs",
+      "command": "bunx @fission-ai/openspec@1.12.0 instructions apply --change probe --json > absent-specs.json",
+      "observedAt": "2026-09-06T01:04:30.669Z",
+      "chunk_id": "dfb564",
+      "wall_time_seconds": 0.163872749,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "assert-absent-specs",
+      "command": "bun -e 'import {readFileSync} from \"node:fs\";const observed=JSON.parse(readFileSync(\"absent-specs.json\",\"utf8\"));if(observed.state!==\"blocked\" || !observed.missingArtifacts.includes(\"specs\"))throw new Error(\"Expected absent specs to block apply; received \"+observed.state);console.log(\"PASS: absent specs block apply\");'",
+      "observedAt": "2026-09-06T01:04:30.747Z",
+      "chunk_id": "0495f1",
+      "wall_time_seconds": 0.000003886,
+      "exit_code": 0,
+      "original_token_count": 8,
+      "output": "PASS: absent specs block apply\n"
+    },
+    {
+      "label": "inject-omit-specs",
+      "command": "bun -e 'import {readFileSync,writeFileSync} from \"node:fs\";const path=\"openspec/schemas/twilight-v1/schema.yaml\";writeFileSync(path,readFileSync(path,\"utf8\").replace(\"requires: [intent, specs, tasks]\",\"requires: [intent, tasks]\"));'",
+      "observedAt": "2026-09-06T01:04:30.841Z",
+      "chunk_id": "9caa61",
+      "wall_time_seconds": 0.000006602,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "faulted-apply-absent-specs",
+      "command": "bunx @fission-ai/openspec@1.12.0 instructions apply --change probe --json > absent-specs.json",
+      "observedAt": "2026-09-06T01:04:31.162Z",
+      "chunk_id": "e08f81",
+      "wall_time_seconds": 0.149070109,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "negative-absent-specs",
+      "command": "bun -e 'import {readFileSync} from \"node:fs\";const observed=JSON.parse(readFileSync(\"absent-specs.json\",\"utf8\"));if(observed.state!==\"blocked\" || !observed.missingArtifacts.includes(\"specs\"))throw new Error(\"Expected absent specs to block apply; received \"+observed.state);console.log(\"PASS: absent specs block apply\");'",
+      "observedAt": "2026-09-06T01:04:31.236Z",
+      "chunk_id": "3ea277",
+      "wall_time_seconds": 0.000005171,
+      "exit_code": 1,
+      "original_token_count": 166,
+      "output": "1 | import {readFileSync} from \"node:fs\";const observed=JSON.parse(readFileSync(\"absent-specs.json\",\"utf8\"));if(observed.state!==\"blocked\" || !observed.missingArtifacts.includes(\"specs\"))throw new Error(\"Expected absent specs to block apply; received \"+observed.state);console.log(\"PASS: absent specs block apply\");\n                                                                                                                                                                                                     ^\nerror: Expected absent specs to block apply; received ready\n      at /tmp/twilight-20260906-DUYEGK/cli-probe/[eval]:1:194\n\nBun v1.4.0 (Linux x64)\n"
+    },
+    {
+      "label": "restore-schema-after-specs",
+      "command": "cp /home/df/wd/puni/puni-00/openspec/schemas/twilight-v1/schema.yaml openspec/schemas/twilight-v1/schema.yaml",
+      "observedAt": "2026-09-06T01:04:31.314Z",
+      "chunk_id": "48c075",
+      "wall_time_seconds": 0.000003334,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "restored-apply-absent-specs",
+      "command": "bunx @fission-ai/openspec@1.12.0 instructions apply --change probe --json > absent-specs.json",
+      "observedAt": "2026-09-06T01:04:31.627Z",
+      "chunk_id": "a0b85b",
+      "wall_time_seconds": 0.134685989,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "restored-assert-absent-specs",
+      "command": "bun -e 'import {readFileSync} from \"node:fs\";const observed=JSON.parse(readFileSync(\"absent-specs.json\",\"utf8\"));if(observed.state!==\"blocked\" || !observed.missingArtifacts.includes(\"specs\"))throw new Error(\"Expected absent specs to block apply; received \"+observed.state);console.log(\"PASS: absent specs block apply\");'",
+      "observedAt": "2026-09-06T01:04:31.705Z",
+      "chunk_id": "ab0c98",
+      "wall_time_seconds": 0.000005979,
+      "exit_code": 0,
+      "original_token_count": 8,
+      "output": "PASS: absent specs block apply\n"
+    },
+    {
+      "label": "restore-spec",
+      "command": "mv /tmp/twilight-20260906-DUYEGK/probe-specs openspec/changes/probe/specs",
+      "observedAt": "2026-09-06T01:04:31.789Z",
+      "chunk_id": "d6f73e",
+      "wall_time_seconds": 0.00000637,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "valid-probe",
+      "command": "bunx @fission-ai/openspec@1.12.0 validate probe --json",
+      "observedAt": "2026-09-06T01:04:32.112Z",
+      "chunk_id": "dcaa37",
+      "wall_time_seconds": 0.148478935,
+      "exit_code": 0,
+      "original_token_count": 116,
+      "output": "{\n  \"items\": [\n    {\n      \"id\": \"probe\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 9\n    }\n  ],\n  \"summary\": {\n    \"totals\": {\n      \"items\": 1,\n      \"passed\": 1,\n      \"failed\": 0\n    },\n    \"byType\": {\n      \"change\": {\n        \"items\": 1,\n        \"passed\": 1,\n        \"failed\": 0\n      }\n    }\n  },\n  \"version\": \"1.0\",\n  \"root\": {\n    \"path\": \"/tmp/twilight-20260906-DUYEGK/cli-probe\",\n    \"source\": \"nearest\"\n  }\n}\n"
+    },
+    {
+      "label": "inject-malformed-scenario",
+      "command": "bun -e 'import {readFileSync,writeFileSync} from \"node:fs\";const path=\"openspec/changes/probe/specs/twilight/probe/spec.md\";writeFileSync(path,readFileSync(path,\"utf8\").replace(\"#### Scenario:\",\"### Scenario:\"));'",
+      "observedAt": "2026-09-06T01:05:28.374Z",
+      "chunk_id": "65c899",
+      "wall_time_seconds": 0.000006286,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "negative-malformed-scenario",
+      "command": "bunx @fission-ai/openspec@1.12.0 validate probe --json",
+      "observedAt": "2026-09-06T01:05:28.675Z",
+      "chunk_id": "7cfce6",
+      "wall_time_seconds": 0.128425994,
+      "exit_code": 1,
+      "original_token_count": 261,
+      "output": "{\n  \"items\": [\n    {\n      \"id\": \"probe\",\n      \"type\": \"change\",\n      \"valid\": false,\n      \"issues\": [\n        {\n          \"level\": \"INFO\",\n          \"path\": \"twilight/probe/spec.md\",\n          \"line\": 7,\n          \"message\": \"Header \\\"### Scenario: The fixture is inspected\\\" in ADDED Requirements is not a \\\"### Requirement:\\\" header and is ignored by validation. Use \\\"### Requirement: Scenario: The fixture is inspected\\\" if it should be validated as a requirement.\"\n        },\n        {\n          \"level\": \"ERROR\",\n          \"path\": \"twilight/probe/spec.md\",\n          \"message\": \"ADDED \\\"A probe demonstrates a boundary\\\" must include at least one scenario\"\n        }\n      ],\n      \"durationMs\": 7\n    }\n  ],\n  \"summary\": {\n    \"totals\": {\n      \"items\": 1,\n      \"passed\": 0,\n      \"failed\": 1\n    },\n    \"byType\": {\n      \"change\": {\n        \"items\": 1,\n        \"passed\": 0,\n        \"failed\": 1\n      }\n    }\n  },\n  \"version\": \"1.0\",\n  \"root\": {\n    \"path\": \"/tmp/twilight-20260906-DUYEGK/cli-probe\",\n    \"source\": \"nearest\"\n  }\n}\n"
+    },
+    {
+      "label": "restore-scenario",
+      "command": "bun -e 'import {readFileSync,writeFileSync} from \"node:fs\";const path=\"openspec/changes/probe/specs/twilight/probe/spec.md\";writeFileSync(path,readFileSync(path,\"utf8\").replace(\"### Scenario:\",\"#### Scenario:\"));'",
+      "observedAt": "2026-09-06T01:05:28.765Z",
+      "chunk_id": "d02ea3",
+      "wall_time_seconds": 0.000003068,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "restored-scenario-validates",
+      "command": "bunx @fission-ai/openspec@1.12.0 validate probe --json",
+      "observedAt": "2026-09-06T01:05:29.093Z",
+      "chunk_id": "5635c5",
+      "wall_time_seconds": 0.148267276,
+      "exit_code": 0,
+      "original_token_count": 117,
+      "output": "{\n  \"items\": [\n    {\n      \"id\": \"probe\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 12\n    }\n  ],\n  \"summary\": {\n    \"totals\": {\n      \"items\": 1,\n      \"passed\": 1,\n      \"failed\": 0\n    },\n    \"byType\": {\n      \"change\": {\n        \"items\": 1,\n        \"passed\": 1,\n        \"failed\": 0\n      }\n    }\n  },\n  \"version\": \"1.0\",\n  \"root\": {\n    \"path\": \"/tmp/twilight-20260906-DUYEGK/cli-probe\",\n    \"source\": \"nearest\"\n  }\n}\n"
+    },
+    {
+      "label": "inject-schema-cycle",
+      "command": "bun -e 'import {readFileSync,writeFileSync} from \"node:fs\";const path=\"openspec/schemas/twilight-v1/schema.yaml\";writeFileSync(path,readFileSync(path,\"utf8\").replace(\"requires: []\",\"requires: [tasks]\"));'",
+      "observedAt": "2026-09-06T01:05:29.201Z",
+      "chunk_id": "e29a8a",
+      "wall_time_seconds": 0.000005166,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "negative-schema-cycle",
+      "command": "bunx @fission-ai/openspec@1.12.0 schema validate twilight-v1 --json",
+      "observedAt": "2026-09-06T01:05:29.540Z",
+      "chunk_id": "d3d862",
+      "wall_time_seconds": 0.162938974,
+      "exit_code": 1,
+      "original_token_count": 86,
+      "output": "Note: Schema commands are experimental and may change.\n{\n  \"name\": \"twilight-v1\",\n  \"path\": \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/schemas/twilight-v1\",\n  \"valid\": false,\n  \"issues\": [\n    {\n      \"level\": \"error\",\n      \"path\": \"schema.yaml\",\n      \"message\": \"Cyclic dependency detected: intent → tasks → intent\"\n    }\n  ]\n}\n"
+    },
+    {
+      "label": "restore-schema-cycle",
+      "command": "cp /home/df/wd/puni/puni-00/openspec/schemas/twilight-v1/schema.yaml openspec/schemas/twilight-v1/schema.yaml",
+      "observedAt": "2026-09-06T01:05:29.618Z",
+      "chunk_id": "598b32",
+      "wall_time_seconds": 0.000003495,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "inject-missing-template",
+      "command": "mv openspec/schemas/twilight-v1/templates/spec.md /tmp/twilight-20260906-DUYEGK/probe-template.md",
+      "observedAt": "2026-09-06T01:05:29.718Z",
+      "chunk_id": "854300",
+      "wall_time_seconds": 0.000005973,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "negative-missing-template",
+      "command": "bunx @fission-ai/openspec@1.12.0 schema validate twilight-v1 --json",
+      "observedAt": "2026-09-06T01:05:30.008Z",
+      "chunk_id": "c03cb0",
+      "wall_time_seconds": 0.121660019,
+      "exit_code": 1,
+      "original_token_count": 89,
+      "output": "Note: Schema commands are experimental and may change.\n{\n  \"name\": \"twilight-v1\",\n  \"path\": \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/schemas/twilight-v1\",\n  \"valid\": false,\n  \"issues\": [\n    {\n      \"level\": \"error\",\n      \"path\": \"artifacts.specs.template\",\n      \"message\": \"Template file 'spec.md' not found for artifact 'specs'\"\n    }\n  ]\n}\n"
+    },
+    {
+      "label": "restore-template",
+      "command": "mv /tmp/twilight-20260906-DUYEGK/probe-template.md openspec/schemas/twilight-v1/templates/spec.md",
+      "observedAt": "2026-09-06T01:05:30.077Z",
+      "chunk_id": "699475",
+      "wall_time_seconds": 0.000006584,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "restored-schema-validates",
+      "command": "bunx @fission-ai/openspec@1.12.0 schema validate twilight-v1 --json",
+      "observedAt": "2026-09-06T01:05:30.396Z",
+      "chunk_id": "4d94b4",
+      "wall_time_seconds": 0.137634406,
+      "exit_code": 0,
+      "original_token_count": 50,
+      "output": "Note: Schema commands are experimental and may change.\n{\n  \"name\": \"twilight-v1\",\n  \"path\": \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/schemas/twilight-v1\",\n  \"valid\": true,\n  \"issues\": []\n}\n"
+    },
+    {
+      "label": "empty-intent",
+      "command": "cp openspec/changes/probe/proposal.md /tmp/twilight-20260906-DUYEGK/probe-proposal.md\ntruncate -s 0 openspec/changes/probe/proposal.md",
+      "observedAt": "2026-09-06T01:05:30.490Z",
+      "chunk_id": "795316",
+      "wall_time_seconds": 0.000006341,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "empty-intent-status",
+      "command": "bunx @fission-ai/openspec@1.12.0 status --change probe --json",
+      "observedAt": "2026-09-06T01:05:30.814Z",
+      "chunk_id": "976af4",
+      "wall_time_seconds": 0.147055548,
+      "exit_code": 0,
+      "original_token_count": 787,
+      "output": "{\n  \"changeName\": \"probe\",\n  \"schemaName\": \"twilight-v1\",\n  \"planningHome\": {\n    \"kind\": \"repo\",\n    \"root\": \"/tmp/twilight-20260906-DUYEGK/cli-probe\",\n    \"changesDir\": \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes\",\n    \"defaultSchema\": \"spec-driven\"\n  },\n  \"changeRoot\": \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes/probe\",\n  \"artifactPaths\": {\n    \"intent\": {\n      \"outputPath\": \"proposal.md\",\n      \"resolvedOutputPath\": \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes/probe/proposal.md\",\n      \"existingOutputPaths\": [\n        \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes/probe/proposal.md\"\n      ]\n    },\n    \"specs\": {\n      \"outputPath\": \"specs/**/*.md\",\n      \"resolvedOutputPath\": \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes/probe/specs/**/*.md\",\n      \"existingOutputPaths\": [\n        \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes/probe/specs/twilight/probe/spec.md\"\n      ]\n    },\n    \"design\": {\n      \"outputPath\": \"design.md\",\n      \"resolvedOutputPath\": \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes/probe/design.md\",\n      \"existingOutputPaths\": []\n    },\n    \"tasks\": {\n      \"outputPath\": \"tasks.md\",\n      \"resolvedOutputPath\": \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes/probe/tasks.md\",\n      \"existingOutputPaths\": [\n        \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes/probe/tasks.md\"\n      ]\n    },\n    \"verify\": {\n      \"outputPath\": \"verify.md\",\n      \"resolvedOutputPath\": \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes/probe/verify.md\",\n      \"existingOutputPaths\": []\n    }\n  },\n  \"isPlanningComplete\": false,\n  \"isComplete\": false,\n  \"applyRequires\": [\n    \"intent\",\n    \"specs\",\n    \"tasks\"\n  ],\n  \"nextSteps\": [\n    \"Run openspec instructions design --change \\\"probe\\\" --json before writing that artifact.\"\n  ],\n  \"actionContext\": {\n    \"mode\": \"repo-local\",\n    \"sourceOfTruth\": \"repo\",\n    \"planningArtifacts\": [\n      \"intent\",\n      \"specs\",\n      \"design\",\n      \"tasks\",\n      \"verify\"\n    ],\n    \"linkedContext\": [],\n    \"allowedEditRoots\": [\n      \"/tmp/twilight-20260906-DUYEGK/cli-probe\"\n    ],\n    \"requiresAffectedAreaSelection\": false,\n    \"constraints\": [\n      \"Repo-local change artifacts and implementation edits are scoped to this project.\"\n    ]\n  },\n  \"artifacts\": [\n    {\n      \"id\": \"intent\",\n      \"outputPath\": \"proposal.md\",\n      \"status\": \"done\",\n      \"requires\": []\n    },\n    {\n      \"id\": \"specs\",\n      \"outputPath\": \"specs/**/*.md\",\n      \"status\": \"done\",\n      \"requires\": [\n        \"intent\"\n      ]\n    },\n    {\n      \"id\": \"design\",\n      \"outputPath\": \"design.md\",\n      \"status\": \"ready\",\n      \"requires\": [\n        \"intent\",\n        \"specs\"\n      ]\n    },\n    {\n      \"id\": \"tasks\",\n      \"outputPath\": \"tasks.md\",\n      \"status\": \"done\",\n      \"requires\": [\n        \"intent\",\n        \"specs\"\n      ]\n    },\n    {\n      \"id\": \"verify\",\n      \"outputPath\": \"verify.md\",\n      \"status\": \"ready\",\n      \"requires\": [\n        \"tasks\"\n      ]\n    }\n  ],\n  \"root\": {\n    \"path\": \"/tmp/twilight-20260906-DUYEGK/cli-probe\",\n    \"source\": \"nearest\"\n  }\n}\n"
+    },
+    {
+      "label": "restore-intent",
+      "command": "cp /tmp/twilight-20260906-DUYEGK/probe-proposal.md openspec/changes/probe/proposal.md",
+      "observedAt": "2026-09-06T01:05:30.905Z",
+      "chunk_id": "3daf5b",
+      "wall_time_seconds": 0.000006701,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "check-task-without-work",
+      "command": "bun -e 'import {readFileSync,writeFileSync} from \"node:fs\";const path=\"openspec/changes/probe/tasks.md\";writeFileSync(path,readFileSync(path,\"utf8\").replace(\"[ ]\",\"[x]\"));'",
+      "observedAt": "2026-09-06T01:05:31.024Z",
+      "chunk_id": "7a96f0",
+      "wall_time_seconds": 0.000007838,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "label": "checked-tasks-no-runtime",
+      "command": "bunx @fission-ai/openspec@1.12.0 instructions apply --change probe --json",
+      "observedAt": "2026-09-06T01:05:31.362Z",
+      "chunk_id": "cde44b",
+      "wall_time_seconds": 0.16040557,
+      "exit_code": 0,
+      "original_token_count": 241,
+      "output": "{\n  \"changeName\": \"probe\",\n  \"changeDir\": \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes/probe\",\n  \"schemaName\": \"twilight-v1\",\n  \"contextFiles\": {\n    \"intent\": [\n      \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes/probe/proposal.md\"\n    ],\n    \"specs\": [\n      \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes/probe/specs/twilight/probe/spec.md\"\n    ],\n    \"tasks\": [\n      \"/tmp/twilight-20260906-DUYEGK/cli-probe/openspec/changes/probe/tasks.md\"\n    ]\n  },\n  \"progress\": {\n    \"total\": 1,\n    \"complete\": 1,\n    \"remaining\": 0\n  },\n  \"tasks\": [\n    {\n      \"id\": \"1\",\n      \"description\": \"1.1 Observe the fixture behavior.\",\n      \"done\": true\n    }\n  ],\n  \"state\": \"all_done\",\n  \"instruction\": \"All tasks are complete! This change is ready to be archived.\\nConsider running tests and reviewing the changes before archiving.\",\n  \"root\": {\n    \"path\": \"/tmp/twilight-20260906-DUYEGK/cli-probe\",\n    \"source\": \"nearest\"\n  }\n}\n"
+    },
+    {
+      "label": "archive-disposable-only",
+      "command": "bunx @fission-ai/openspec@1.12.0 archive probe --yes",
+      "observedAt": "2026-09-06T01:05:31.686Z",
+      "chunk_id": "dcab90",
+      "wall_time_seconds": 0.154569755,
+      "exit_code": 0,
+      "original_token_count": 61,
+      "output": "Task status: ✓ Complete\n\nSpecs to update:\n  twilight/probe: create\nApplying changes to openspec/specs/twilight/probe/spec.md:\n  + 1 added\nTotals: + 1, ~ 0, - 0, → 0\nSpecs updated successfully.\nChange 'probe' archived as '2026-09-06-probe'.\n"
+    },
+    {
+      "label": "nested-main-spec-list",
+      "command": "bunx @fission-ai/openspec@1.12.0 list --specs --json",
+      "observedAt": "2026-09-06T01:05:31.980Z",
+      "chunk_id": "c6fd45",
+      "wall_time_seconds": 0.120863154,
+      "exit_code": 0,
+      "original_token_count": 47,
+      "output": "{\n  \"specs\": [\n    {\n      \"id\": \"twilight/probe\",\n      \"requirementCount\": 1\n    }\n  ],\n  \"root\": {\n    \"path\": \"/tmp/twilight-20260906-DUYEGK/cli-probe\",\n    \"source\": \"nearest\"\n  }\n}\n"
+    },
+    {
+      "label": "archived-main-validates",
+      "command": "bunx @fission-ai/openspec@1.12.0 validate --all --json",
+      "observedAt": "2026-09-06T01:05:32.285Z",
+      "chunk_id": "ed9bcf",
+      "wall_time_seconds": 0.136122274,
+      "exit_code": 0,
+      "original_token_count": 262,
+      "output": "{\n  \"items\": [\n    {\n      \"id\": \"twilight/probe\",\n      \"type\": \"spec\",\n      \"valid\": true,\n      \"issues\": [\n        {\n          \"level\": \"WARNING\",\n          \"path\": \"overview\",\n          \"line\": 4,\n          \"message\": \"Purpose section is still a placeholder rather than a Purpose anyone wrote (the sentence `openspec archive` writes for a new capability, or a `TBD`/`TODO` marker left in its place). Replace it with what this capability is for, editing the main spec directly: a `## Purpose` in a delta is read only when the capability is created, so it cannot replace this one.\"\n        }\n      ],\n      \"durationMs\": 3\n    }\n  ],\n  \"summary\": {\n    \"totals\": {\n      \"items\": 1,\n      \"passed\": 1,\n      \"failed\": 0\n    },\n    \"byType\": {\n      \"change\": {\n        \"items\": 0,\n        \"passed\": 0,\n        \"failed\": 0\n      },\n      \"spec\": {\n        \"items\": 1,\n        \"passed\": 1,\n        \"failed\": 0\n      }\n    }\n  },\n  \"version\": \"1.0\",\n  \"root\": {\n    \"path\": \"/tmp/twilight-20260906-DUYEGK/cli-probe\",\n    \"source\": \"nearest\"\n  }\n}\n"
+    }
+  ]
+}

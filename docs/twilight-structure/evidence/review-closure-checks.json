@@ -1,0 +1,475 @@
+{
+  "scope": "Final handoff after authorized Claude Fable 5.1 review and correction follow-up",
+  "recordedAt": "2026-09-06T06:19:42.731Z",
+  "correctionChecks": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "312f1d",
+        "wall_time_seconds": 0.119945589,
+        "exit_code": 0,
+        "original_token_count": 117,
+        "output": "{\n  \"items\": [\n    {\n      \"id\": \"twilight-control-plane\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 8\n    }\n  ],\n  \"summary\": {\n    \"totals\": {\n      \"items\": 1,\n      \"passed\": 1,\n      \"failed\": 0\n    },\n    \"byType\": {\n      \"change\": {\n        \"items\": 1,\n        \"passed\": 1,\n        \"failed\": 0\n      }\n    }\n  },\n  \"version\": \"1.0\",\n  \"root\": {\n    \"path\": \"/home/df/wd/puni/puni-00\",\n    \"source\": \"nearest\"\n  }\n}\n"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "1214ba",
+        "wall_time_seconds": 0.110573514,
+        "exit_code": 0,
+        "original_token_count": 116,
+        "output": "{\n  \"items\": [\n    {\n      \"id\": \"twilight-sdlc-pilot\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 8\n    }\n  ],\n  \"summary\": {\n    \"totals\": {\n      \"items\": 1,\n      \"passed\": 1,\n      \"failed\": 0\n    },\n    \"byType\": {\n      \"change\": {\n        \"items\": 1,\n        \"passed\": 1,\n        \"failed\": 0\n      }\n    }\n  },\n  \"version\": \"1.0\",\n  \"root\": {\n    \"path\": \"/home/df/wd/puni/puni-00\",\n    \"source\": \"nearest\"\n  }\n}\n"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "b5e71f",
+        "wall_time_seconds": 0.000002785,
+        "exit_code": 0,
+        "original_token_count": 16,
+        "output": "{\n  \"markdownFiles\": 32,\n  \"localLinks\": 147,\n  \"missing\": []\n}\n"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "e92a4d",
+        "wall_time_seconds": 0.000003535,
+        "exit_code": 0,
+        "original_token_count": 0,
+        "output": ""
+      }
+    }
+  ],
+  "correctionFormatting": {
+    "status": "fulfilled",
+    "value": {
+      "chunk_id": "7e8e83",
+      "wall_time_seconds": 0.290216816,
+      "exit_code": 0,
+      "original_token_count": 17,
+      "output": "Checking formatting...\nAll matched files use Prettier code style!\n"
+    }
+  },
+  "docCapProof": "review-doc-cap.json",
+  "reviewReceipts": ["claude-review-receipt.json", "claude-followup-receipt.json"],
+  "unrun": "Full Nx application gate and live Twilight integrations not executed in docs/schema trial; see verify.md",
+  "formatNote": "Cached Prettier uses scoped config without absent Tailwind plugin. Raw Claude responses are preserved verbatim and excluded from formatting.",
+  "timingNote": "Tool wall_time_seconds is not treated as process execution duration.",
+  "finalChecks": [
+    {
+      "name": "OpenSpec whole repository",
+      "chunk_id": "0ff57a",
+      "wall_time_seconds": 0.190101255,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "name": "Production doc cap",
+      "chunk_id": "9cc03c",
+      "wall_time_seconds": 0.000009837,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "name": "Local Markdown destinations",
+      "chunk_id": "4681b9",
+      "wall_time_seconds": 0.000003582,
+      "exit_code": 0,
+      "original_token_count": 16,
+      "output": "{\n  \"markdownFiles\": 42,\n  \"localLinks\": 159,\n  \"missing\": []\n}\n"
+    },
+    {
+      "name": "Scoped cached formatting",
+      "chunk_id": "86735d",
+      "wall_time_seconds": 0.311789236,
+      "exit_code": 0,
+      "original_token_count": 17,
+      "output": "Checking formatting...\nAll matched files use Prettier code style!\n"
+    },
+    {
+      "name": "Content identity and artifact state",
+      "chunk_id": "b7b55c",
+      "wall_time_seconds": 0.000002645,
+      "exit_code": 0,
+      "original_token_count": 28,
+      "output": "PASS: 42 handoff hashes; 20 unique unimplemented deliverables; 7 completed pilot tasks; 35 unique assumptions.\n"
+    },
+    {
+      "name": "Tracked whitespace",
+      "chunk_id": "12f8d8",
+      "wall_time_seconds": 0.000002544,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    },
+    {
+      "name": "MCP comment-only diff",
+      "chunk_id": "d8f840",
+      "wall_time_seconds": 0.000003093,
+      "exit_code": 0,
+      "original_token_count": 210,
+      "output": "diff --git a/apps/mcp-01/src/main.ts b/apps/mcp-01/src/main.ts\nindex 588e58c1..76bcc37d 100644\n--- a/apps/mcp-01/src/main.ts\n+++ b/apps/mcp-01/src/main.ts\n@@ -4,14 +4,6 @@ import { mcpOAuthFromEnv } from './oauth';\n import { readDocument, toolsFromDocument } from './openapi-tools';\n import { createServer, resolveDocumentFile } from './server';\n \n-/**\n- * mcp-01's entrypoint: read the document, derive the tools, speak MCP on stdio.\n- *\n- * **stdout is the protocol.** A `console.log` here writes a line into the JSON-RPC\n- * stream and the client drops the connection, so every message this process\n- * prints goes to stderr — which the client shows as the server's log.\n- */\n-\n const config = loadConfig();\n const tools = toolsFromDocument(readDocument(resolveDocumentFile()));\n const oauth = mcpOAuthFromEnv(config, process.env);\n"
+    }
+  ],
+  "openSpecReport": {
+    "items": [
+      {
+        "id": "add-button-toggles",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 16
+      },
+      {
+        "id": "audit-columns",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 13
+      },
+      {
+        "id": "clear-estimate",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 10
+      },
+      {
+        "id": "column-widths-drag",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 12
+      },
+      {
+        "id": "combined-trio-entry",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 16
+      },
+      {
+        "id": "compact-columns",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 14
+      },
+      {
+        "id": "contextual-links-default",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 11
+      },
+      {
+        "id": "cycle-aware-dep-picker",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 11
+      },
+      {
+        "id": "deep-indent",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 9
+      },
+      {
+        "id": "dep-add-button",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 11
+      },
+      {
+        "id": "dep-hover-highlights",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 11
+      },
+      {
+        "id": "deps-single-line",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 8
+      },
+      {
+        "id": "directory-crud",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 12
+      },
+      {
+        "id": "directory-page",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 11
+      },
+      {
+        "id": "dual-optimized-scheduler",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 13
+      },
+      {
+        "id": "find-in-the-tree",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 10
+      },
+      {
+        "id": "gantt-bar-hover",
+        "type": "change",
+        "valid": true,
+        "issues": [
+          {
+            "level": "INFO",
+            "path": "wbs-domain/spec.md",
+            "message": "Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec."
+          }
+        ],
+        "durationMs": 11
+      },
+      {
+        "id": "gantt-calendar-axis",
+        "type": "change",
+        "valid": true,
+        "issues": [
+          {
+            "level": "INFO",
+            "path": "wbs-domain/spec.md",
+            "message": "Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec."
+          }
+        ],
+        "durationMs": 10
+      },
+      {
+        "id": "gantt-calendar-markers",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 8
+      },
+      {
+        "id": "gantt-height-column-clamp",
+        "type": "change",
+        "valid": true,
+        "issues": [
+          {
+            "level": "INFO",
+            "path": "wbs-domain/spec.md",
+            "message": "Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec."
+          }
+        ],
+        "durationMs": 9
+      },
+      {
+        "id": "hint-press-cancels",
+        "type": "change",
+        "valid": true,
+        "issues": [
+          {
+            "level": "INFO",
+            "path": "wbs-domain/spec.md",
+            "message": "Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec."
+          }
+        ],
+        "durationMs": 9
+      },
+      {
+        "id": "markdown-work-item-names",
+        "type": "change",
+        "valid": true,
+        "issues": [
+          {
+            "level": "INFO",
+            "path": "wbs-domain/spec.md",
+            "message": "Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec."
+          }
+        ],
+        "durationMs": 8
+      },
+      {
+        "id": "name-column-drag",
+        "type": "change",
+        "valid": true,
+        "issues": [
+          {
+            "level": "INFO",
+            "path": "wbs-domain/spec.md",
+            "message": "Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec."
+          }
+        ],
+        "durationMs": 10
+      },
+      {
+        "id": "plan-json-import",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 13
+      },
+      {
+        "id": "pointed-row-one-ink",
+        "type": "change",
+        "valid": true,
+        "issues": [
+          {
+            "level": "INFO",
+            "path": "wbs-domain/spec.md",
+            "message": "Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec."
+          }
+        ],
+        "durationMs": 10
+      },
+      {
+        "id": "pointed-row-render-cost",
+        "type": "change",
+        "valid": true,
+        "issues": [
+          {
+            "level": "INFO",
+            "path": "wbs-domain/spec.md",
+            "message": "Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec."
+          }
+        ],
+        "durationMs": 10
+      },
+      {
+        "id": "project-dropdown-details",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 9
+      },
+      {
+        "id": "prove-the-gateway-reaches-be-01",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 8
+      },
+      {
+        "id": "provider-agnostic-oidc-auth",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 11
+      },
+      {
+        "id": "reference-cell-escape-and-hover",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 8
+      },
+      {
+        "id": "retired-schema-cleanup",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 7
+      },
+      {
+        "id": "saved-plans",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 7
+      },
+      {
+        "id": "scaffold-tech-setup",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 19
+      },
+      {
+        "id": "share-the-plan",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 8
+      },
+      {
+        "id": "sticky-table-frame",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 6
+      },
+      {
+        "id": "twilight-control-plane",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 9
+      },
+      {
+        "id": "twilight-sdlc-pilot",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 8
+      },
+      {
+        "id": "unestimated-navigator",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 5
+      },
+      {
+        "id": "unified-reference-cell-ux",
+        "type": "change",
+        "valid": true,
+        "issues": [],
+        "durationMs": 4
+      }
+    ],
+    "summary": {
+      "totals": {
+        "items": 39,
+        "passed": 39,
+        "failed": 0
+      },
+      "byType": {
+        "change": {
+          "items": 39,
+          "passed": 39,
+          "failed": 0
+        },
+        "spec": {
+          "items": 0,
+          "passed": 0,
+          "failed": 0
+        }
+      }
+    },
+    "version": "1.0",
+    "root": {
+      "path": "/home/df/wd/puni/puni-00",
+      "source": "nearest"
+    }
+  },
+  "commands": {
+    "openSpec": "bunx @fission-ai/openspec@1.12.0 validate --all --json",
+    "docCap": "bun run tools/tool-git-hooks/src/hooks/doc-caps.ts",
+    "format": "cached prettier@3.8.3 with recorded scoped config; --check on changed docs, receipts and comment-only source",
+    "links": "Bun check-links.ts; 42 Markdown files / 159 local destinations; existence only",
+    "identity": "SHA-256 against content-manifest.json; task/assumption IDs read from actual files"
+  }
+}

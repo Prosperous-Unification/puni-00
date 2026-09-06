@@ -1,0 +1,35 @@
+{
+  "recordedAt": "2026-09-06T01:22:41.951Z",
+  "scope": "Final documentation handoff checks; external Claude review pending",
+  "format": {
+    "tool": "cached Prettier 3.8.3 with explicit repository-equivalent Markdown/YAML/JSON options, without unavailable Tailwind plugin",
+    "exit_code": 0,
+    "output": "Checking formatting...\nAll matched files use Prettier code style!\n"
+  },
+  "checks": [
+    {
+      "check": "local-link-destinations",
+      "chunk_id": "59104d",
+      "wall_time_seconds": 0.000003754,
+      "exit_code": 0,
+      "original_token_count": 16,
+      "output": "{\n  \"markdownFiles\": 32,\n  \"localLinks\": 135,\n  \"missing\": []\n}\n"
+    },
+    {
+      "check": "content-manifest-and-product-progress",
+      "chunk_id": "6c2580",
+      "wall_time_seconds": 0.000003381,
+      "exit_code": 0,
+      "original_token_count": 19,
+      "output": "PASS: 41 content hashes match\nPASS: all 14 product tasks remain unchecked\n"
+    },
+    {
+      "check": "git-diff-whitespace",
+      "chunk_id": "ab9af1",
+      "wall_time_seconds": 0.000003024,
+      "exit_code": 0,
+      "original_token_count": 0,
+      "output": ""
+    }
+  ]
+}

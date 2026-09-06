@@ -1,0 +1,38 @@
+{
+  "scope": "Claude review closure: production doc-cap command and disposable negative",
+  "command": "bun run tools/tool-git-hooks/src/hooks/doc-caps.ts",
+  "faultCommand": "bun run /home/df/wd/puni/puni-00/tools/tool-git-hooks/src/hooks/doc-caps.ts",
+  "faultCwd": "disposable /tmp doc-cap-proof fixture",
+  "lineCount": 150,
+  "injectedLineCount": 151,
+  "checks": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "bd7d7d",
+        "wall_time_seconds": 0.000003322,
+        "exit_code": 0,
+        "original_token_count": 0,
+        "output": ""
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "8d970d",
+        "wall_time_seconds": 0.000003225,
+        "exit_code": 1,
+        "original_token_count": 42,
+        "output": "[tool-git-hooks] doc-caps failed:\n  LLM_README.md: 151 lines, capped at 150 (AGENTS.md). Move detail into a linked runbook, spec or ADR rather than raising the cap.\n"
+      }
+    }
+  ],
+  "restored": {
+    "chunk_id": "abe3c0",
+    "wall_time_seconds": 0.000005462,
+    "exit_code": 0,
+    "original_token_count": 0,
+    "output": ""
+  },
+  "timingNote": "wall_time_seconds is tool-supplied metadata; not interpreted as process duration"
+}

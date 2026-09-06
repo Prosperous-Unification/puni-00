@@ -1,0 +1,126 @@
+name: twilight-v1
+version: 1
+description: >
+  Opt-in Twilight SDLC trial: intent, behavioral specs, one work plan, and
+  post-work evidence; technical design when non-trivial. Stage methods and
+  focus presentation share these artifacts. File progress is not authorization.
+
+artifacts:
+  - id: intent
+    generates: proposal.md
+    description: Request and discovery outcome with explicit assumption links
+    template: proposal.md
+    instruction: |
+      Read LLM_README.md, AGENTS.md, then CONTEXT-MAP.md when present and the
+      owning context's glossary. Repository-specific context rules referring
+      to root CONTEXT.md mean the owning glossary in a multi-context repo.
+      Run one combined discovery using brainstorming, grilling, and
+      domain-modeling; use Wayfinder only when a decision map adds value.
+      When the user authorizes assumptions, answer questions yourself, record
+      their rationale/owner/reopen condition, and continue authorized work.
+      Never turn an assumption into a human approval. Otherwise ask the
+      smallest useful decision, without asking again for existing authority.
+      Use i-have-adhd as an optional interaction profile across every stage:
+      next action, state, bounded decision batch, parking lot, resume cue.
+      It changes presentation, never authority, required detail, or checks.
+      The external skill is explicit-invocation; do not claim it was installed
+      or invoke a disabled router. Link the inspected source/adaptation.
+      Record resolved terms immediately in the owning CONTEXT.md, terms only,
+      using .agents/skills/domain-modeling/CONTEXT-FORMAT.md. Qualifying ADRs
+      use its ADR-FORMAT.md. Sources belong beside the relevant knowledge.
+      Write the intent here, at most 400 words. Put supporting assumptions in
+      a linked canonical record; do not create brainstorm.md or plan.md.
+    requires: []
+
+  - id: specs
+    generates: 'specs/**/*.md'
+    description: Testable proposed behavior in the owning context
+    template: spec.md
+    instruction: |
+      Read the actual intent and linked assumptions. Write one delta spec per
+      named capability at specs/<context>/<capability>/spec.md. Retain specs
+      as the artifact id so native synchronization can find it. Existing
+      capability paths remain unchanged. Use ADDED/MODIFIED/REMOVED/RENAMED
+      requirement sections, SHALL/MUST, and exactly #### Scenario headings.
+      Cover failure, cancellation, applicability and authority as behavior.
+      Identify a concrete oracle for each scenario. Review assumption impact
+      and source provenance. A wiki explanation links the contract, not a copy.
+      Run pinned OpenSpec validation; existence of one matching file does not
+      prove all capabilities are covered. Never pre-write execution evidence.
+    requires: [intent]
+
+  - id: design
+    generates: design.md
+    description: Technical shape and applicability for non-trivial changes
+    template: design.md
+    instruction: |
+      OPTIONAL only for mechanically obvious changes. For architecture,
+      contracts, external effects, security, migrations or workflow behavior,
+      create this artifact and review it before planning. For an omitted design
+      record why it is unnecessary in tasks.md; do not create an empty file.
+      Read intent/specs, inspect affected callers/tests, and describe boundaries,
+      identities, state transitions, errors, recovery, and compatibility.
+      ADR alternatives stay in the linked ADR. Do not duplicate tasks here.
+    requires: [intent, specs]
+
+  - id: tasks
+    generates: tasks.md
+    description: The single ordered implementation plan
+    template: tasks.md
+    instruction: |
+      Use writing-plans with output redirected to this tasks.md; repository
+      conventions override a second Superpowers plan path. Read every spec
+      and technical design if applicable. Use Task N headings and one tracked
+      checkbox per coherent deliverable. TDD steps are prose within that slice.
+      Name owning paths, prerequisites, interfaces, actor, write scope, test
+      oracle, deliberately injected fault, resource estimates and stop limits.
+      Separate estimated/measured tokens, currency, human effort, agent elapsed
+      time and scarce slots. Missing telemetry is unknown, never zero.
+      Per-client Nx repos use the same workflow. The accepted target planning
+      backend is per-repo Backlog.md behind WBS, after its refactorings land.
+      Until the versioned bridge exists, this is the sole authored plan. Later
+      WBS/Backlog edits and this artifact must use one revision-checked round-trip
+      contract; never silently maintain competing independently editable plans.
+      A focus brief and schedule are projections. Separate required safety
+      gates from critic/judge advice. No task is done without evidence.
+    requires: [intent, specs]
+
+  - id: verify
+    generates: verify.md
+    description: Observed checks, review dispositions, applicability and handoff
+    template: verify.md
+    instruction: |
+      Produce after the scoped work, never from a prospective plan. Use
+      verification-before-completion and openspec-verify-change. Record scope,
+      exact source/artifact identity, commands, stdout/stderr or durable links,
+      exits, timestamps, reviewer identity/findings/dispositions and limits.
+      Include the R5 failure-proof table; write Proof comments only from actual
+      failed output. Empty files/checked tasks/CLI all_done are not runtime proof.
+      For docs-only work record build/browser/deploy checks as unrun/inapplicable
+      with reason; for application work run the actual gate and real browser
+      checks on the identified checkout/environment. On h2puni use its locked
+      gate command. Never claim an approval or release from an agent's prose.
+      Reconcile knowledge and source links; list stale or unresolved claims.
+      Record spec sync/archive status. Production is a separate explicit human
+      command bound to candidate and environment, never an automatic final step.
+    requires: [tasks]
+
+apply:
+  # Proof: docs/twilight-structure/evidence/cli-probes.json, negative-absent-intent
+  # and negative-absent-specs each exited 1: "Expected absent ... to block apply;
+  # received ready" when that prerequisite was removed; restored checks passed.
+  requires: [intent, specs, tasks]
+  tracks: tasks.md
+  instruction: |
+    Inspect every planning input and applicable design, selected policy,
+    authorization, budgets and work ownership before executing. These are
+    caller obligations in this pilot; the CLI is not a policy enforcement engine.
+    Follow the user's scope: planning-only requests stop at a reviewable plan.
+    When implementation is authorized, use isolated workspaces, meaningful TDD,
+    independent review and systematic-debugging on failures. Parallel activity
+    requires explicit ownership, dependencies and resource admission; one writer
+    owns each file/workspace lineage. Test the task-brief adapter before trusting
+    any helper that parses this plan. Record real run identity and unknown usage.
+    Revisions invalidate dependent verdicts and evidence. A budget or review-round
+    limit pauses unresolved work; it cannot make the work pass. Apply completion
+    means task progress, not development acceptance. Write verify.md after work.

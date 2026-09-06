@@ -1,0 +1,55 @@
+{
+  "scope": "Documentation/schema checks only; full Nx/runtime gates unavailable or inapplicable",
+  "checkedAt": "2026-09-06T01:20:19.242Z",
+  "schema": {
+    "chunk_id": "f4dc21",
+    "wall_time_seconds": 0.143483951,
+    "exit_code": 0,
+    "original_token_count": 46,
+    "output": "Note: Schema commands are experimental and may change.\n{\n  \"name\": \"twilight-v1\",\n  \"path\": \"/home/df/wd/puni/puni-00/openspec/schemas/twilight-v1\",\n  \"valid\": true,\n  \"issues\": []\n}\n"
+  },
+  "allOpenSpec": {
+    "chunk_id": "6d048c",
+    "wall_time_seconds": 0.213728542,
+    "exit_code": 0,
+    "original_token_count": 2029,
+    "output": "{\n  \"items\": [\n    {\n      \"id\": \"add-button-toggles\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 11\n    },\n    {\n      \"id\": \"audit-columns\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 15\n    },\n    {\n      \"id\": \"clear-estimate\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 16\n    },\n    {\n      \"id\": \"column-widths-drag\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 13\n    },\n    {\n      \"id\": \"combined-trio-entry\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 14\n    },\n    {\n      \"id\": \"compact-columns\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 17\n    },\n    {\n      \"id\": \"contextual-links-default\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 12\n    },\n    {\n      \"id\": \"cycle-aware-dep-picker\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 10\n    },\n    {\n      \"id\": \"deep-indent\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 10\n    },\n    {\n      \"id\": \"dep-add-button\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 11\n    },\n    {\n      \"id\": \"dep-hover-highlights\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 12\n    },\n    {\n      \"id\": \"deps-single-line\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 10\n    },\n    {\n      \"id\": \"directory-crud\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 13\n    },\n    {\n      \"id\": \"directory-page\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 13\n    },\n    {\n      \"id\": \"dual-optimized-scheduler\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 13\n    },\n    {\n      \"id\": \"find-in-the-tree\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 12\n    },\n    {\n      \"id\": \"gantt-bar-hover\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [\n        {\n          \"level\": \"INFO\",\n          \"path\": \"wbs-domain/spec.md\",\n          \"message\": \"Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec.\"\n        }\n      ],\n      \"durationMs\": 12\n    },\n    {\n      \"id\": \"gantt-calendar-axis\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [\n        {\n          \"level\": \"INFO\",\n          \"path\": \"wbs-domain/spec.md\",\n          \"message\": \"Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec.\"\n        }\n      ],\n      \"durationMs\": 11\n    },\n    {\n      \"id\": \"gantt-calendar-markers\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 10\n    },\n    {\n      \"id\": \"gantt-height-column-clamp\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [\n        {\n          \"level\": \"INFO\",\n          \"path\": \"wbs-domain/spec.md\",\n          \"message\": \"Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec.\"\n        }\n      ],\n      \"durationMs\": 11\n    },\n    {\n      \"id\": \"hint-press-cancels\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [\n        {\n          \"level\": \"INFO\",\n          \"path\": \"wbs-domain/spec.md\",\n          \"message\": \"Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec.\"\n        }\n      ],\n      \"durationMs\": 9\n    },\n    {\n      \"id\": \"markdown-work-item-names\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [\n        {\n          \"level\": \"INFO\",\n          \"path\": \"wbs-domain/spec.md\",\n          \"message\": \"Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec.\"\n        }\n      ],\n      \"durationMs\": 10\n    },\n    {\n      \"id\": \"name-column-drag\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [\n        {\n          \"level\": \"INFO\",\n          \"path\": \"wbs-domain/spec.md\",\n          \"message\": \"Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec.\"\n        }\n      ],\n      \"durationMs\": 11\n    },\n    {\n      \"id\": \"plan-json-import\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 14\n    },\n    {\n      \"id\": \"pointed-row-one-ink\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [\n        {\n          \"level\": \"INFO\",\n          \"path\": \"wbs-domain/spec.md\",\n          \"message\": \"Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec.\"\n        }\n      ],\n      \"durationMs\": 10\n    },\n    {\n      \"id\": \"pointed-row-render-cost\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [\n        {\n          \"level\": \"INFO\",\n          \"path\": \"wbs-domain/spec.md\",\n          \"message\": \"Archive would refuse this delta: wbs-domain: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec.\"\n        }\n      ],\n      \"durationMs\": 10\n    },\n    {\n      \"id\": \"project-dropdown-details\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 8\n    },\n    {\n      \"id\": \"prove-the-gateway-reaches-be-01\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 7\n    },\n    {\n      \"id\": \"provider-agnostic-oidc-auth\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 10\n    },\n    {\n      \"id\": \"reference-cell-escape-and-hover\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 7\n    },\n    {\n      \"id\": \"retired-schema-cleanup\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 7\n    },\n    {\n      \"id\": \"saved-plans\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 7\n    },\n    {\n      \"id\": \"scaffold-tech-setup\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 20\n    },\n    {\n      \"id\": \"share-the-plan\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 7\n    },\n    {\n      \"id\": \"sticky-table-frame\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 6\n    },\n    {\n      \"id\": \"twilight-control-plane\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 9\n    },\n    {\n      \"id\": \"twilight-sdlc-pilot\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 7\n    },\n    {\n      \"id\": \"unestimated-navigator\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 5\n    },\n    {\n      \"id\": \"unified-reference-cell-ux\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 4\n    }\n  ],\n  \"summary\": {\n    \"totals\": {\n      \"items\": 39,\n      \"passed\": 39,\n      \"failed\": 0\n    },\n    \"byType\": {\n      \"change\": {\n        \"items\": 39,\n        \"passed\": 39,\n        \"failed\": 0\n      },\n      \"spec\": {\n        \"items\": 0,\n        \"passed\": 0,\n        \"failed\": 0\n      }\n    }\n  },\n  \"version\": \"1.0\",\n  \"root\": {\n    \"path\": \"/home/df/wd/puni/puni-00\",\n    \"source\": \"nearest\"\n  }\n}\n"
+  },
+  "docCap": {
+    "chunk_id": "24ca22",
+    "wall_time_seconds": 0.000002916,
+    "exit_code": 0,
+    "original_token_count": 0,
+    "output": ""
+  },
+  "links": {
+    "chunk_id": "19f2d3",
+    "wall_time_seconds": 0.000002757,
+    "exit_code": 0,
+    "original_token_count": 16,
+    "output": "{\n  \"markdownFiles\": 32,\n  \"localLinks\": 133,\n  \"missing\": []\n}\n"
+  },
+  "linkFault": {
+    "control": {
+      "chunk_id": "177370",
+      "wall_time_seconds": 0.000004712,
+      "exit_code": 0,
+      "original_token_count": 16,
+      "output": "{\n  \"markdownFiles\": 1,\n  \"localLinks\": 1,\n  \"missing\": []\n}\n"
+    },
+    "negative": {
+      "chunk_id": "eb7524",
+      "wall_time_seconds": 0.000004603,
+      "exit_code": 1,
+      "original_token_count": 33,
+      "output": "{\n  \"markdownFiles\": 1,\n  \"localLinks\": 1,\n  \"missing\": [\n    \"/tmp/twilight-20260906-DUYEGK/link-probe/source.md: target.md\"\n  ]\n}\n"
+    },
+    "restored": {
+      "chunk_id": "037b86",
+      "wall_time_seconds": 0.000008701,
+      "exit_code": 0,
+      "original_token_count": 16,
+      "output": "{\n  \"markdownFiles\": 1,\n  \"localLinks\": 1,\n  \"missing\": []\n}\n"
+    }
+  }
+}

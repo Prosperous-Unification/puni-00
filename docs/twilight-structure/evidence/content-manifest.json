@@ -1,0 +1,163 @@
+{
+  "baseCommit": "1e87500c6a2e9f5bc1f9962f4ed56161ecec83b4",
+  "recordedAt": "2026-09-06T06:28:55.541Z",
+  "scope": "Documentation commit artifacts only; application/CI/default-schema/skill edits remain local. Full reviewed working-tree snapshots are preserved in Claude receipts. Evidence receipts excluded to avoid self-reference.",
+  "files": [
+    {
+      "path": "CONTEXT-MAP.md",
+      "sha256": "5fa05c24efc451e486be2f8def16f5eb2b00f1efbd0888811dfd896439aaacde"
+    },
+    {
+      "path": "docs/adr/0014-openspec-contracts-and-linked-knowledge.md",
+      "sha256": "48de96c050699baa738988e2771ec18de45bb91672c387eb52cfd2a52d7f4cf4"
+    },
+    {
+      "path": "docs/adr/0015-planning-commits-are-the-transaction-boundary.md",
+      "sha256": "2a04dbd14e9cb8ee4557d0408ae9c0f0561db3dff21f38c9a206c997310d4f65"
+    },
+    {
+      "path": "docs/twilight-structure/assumptions.md",
+      "sha256": "72f5eebe0d89a36f8e8aa0f198db1f455813e54ad5ddbdbb67e193dccbb5c5c1"
+    },
+    {
+      "path": "docs/twilight-structure/client-repositories.md",
+      "sha256": "c48c0d7354b1149740156dbcfdc3c391ad0c24cf486531aa4ad1795987f51034"
+    },
+    {
+      "path": "docs/twilight-structure/CONTEXT.md",
+      "sha256": "24804858ff986a8e4bc4e4da2f16ced8cfb6a050285578a8665dcd97d65a3e0a"
+    },
+    {
+      "path": "docs/twilight-structure/discovery.md",
+      "sha256": "dd8279d74e8fab28ca735ee4b1aaed0537b2ea1c8fb48ac89f123042ad9e60b5"
+    },
+    {
+      "path": "docs/twilight-structure/knowledge.md",
+      "sha256": "892d73c58022897dbe9c30e47aba641fc0bcd8f178463a75c678223652fa35d4"
+    },
+    {
+      "path": "docs/twilight-structure/product-experience.md",
+      "sha256": "932a0349073e72317a0d10f14b0e7ee5de4c2daf2d02af5e3cf1e8a98f4a6c9f"
+    },
+    {
+      "path": "docs/twilight-structure/README.md",
+      "sha256": "7b5f5caa14edc4101db53dbe439da990a111f26e167b17936d70696fd6094262"
+    },
+    {
+      "path": "docs/twilight-structure/research.md",
+      "sha256": "cffa789a7f9f05122be866f3f663348b131441a9052da6211b716bc8dad1fb07"
+    },
+    {
+      "path": "docs/twilight-structure/research/backlog-patterns.md",
+      "sha256": "50729a9c487a858b4a9e01c9fb8f149c8913a3c355ac3764512c58183860158e"
+    },
+    {
+      "path": "docs/twilight-structure/research/initial-inspection.md",
+      "sha256": "4bea2edef75b5ac9f5c466e0153d5842bdde0a781f803f055a27e367148a5e53"
+    },
+    {
+      "path": "docs/twilight-structure/research/knowledge-patterns.md",
+      "sha256": "f8e7f657b421f9a02d8b55d00aca0522f8ca8b0432a2fc5073314daec2009a56"
+    },
+    {
+      "path": "docs/twilight-structure/research/local-workflow-observations.md",
+      "sha256": "d6b6ad5115ad143d4a3ae21170b4150cf34cc321ce0759b70f182aa838defc61"
+    },
+    {
+      "path": "docs/twilight-structure/research/runtime-patterns.md",
+      "sha256": "42e5a6537ab5ee2d7bae444e06d01636c798b97bded8cdbfd445b0baf2a344e0"
+    },
+    {
+      "path": "docs/twilight-structure/sdd-proposal.md",
+      "sha256": "8101840dbf3adc95217a57c3da9ffbe1bcf2b6bf9b7bf9856bc93b9613cfee0f"
+    },
+    {
+      "path": "docs/twilight-structure/sdd-sources.md",
+      "sha256": "28e6855bec052885a4deef180db5b6993521fa38b469cc6d127ba9fa07da35d5"
+    },
+    {
+      "path": "docs/twilight-structure/sdlc-stages.md",
+      "sha256": "70188208440adb6d49451b26d45ac464edafe15bf66cf7ba2fb9bf0396e41442"
+    },
+    {
+      "path": "docs/twilight-structure/spec.md",
+      "sha256": "ef7f3b61a85053a0f24b7de9d73661d9996cbcef6294739bf49ca9b73779a9f1"
+    },
+    {
+      "path": "docs/wiki/README.md",
+      "sha256": "d110ddebc55d9ec840e8858bdcb8d98ed0b4b4e501a99339fcafe958777c8ec3"
+    },
+    {
+      "path": "LLM_README.md",
+      "sha256": "67091331e1c4b87918a70c2a9dbee35811e49506b00de55aec6870f9b8d88eb6"
+    },
+    {
+      "path": "openspec/changes/twilight-control-plane/.openspec.yaml",
+      "sha256": "a53b2405ad34564450617a77675e9218607aeea9ae76e0df328ca68422288d30"
+    },
+    {
+      "path": "openspec/changes/twilight-control-plane/design.md",
+      "sha256": "9cea3164344a4f894fefcefa91cf4dd42b048581fedc80614176010158b0b118"
+    },
+    {
+      "path": "openspec/changes/twilight-control-plane/proposal.md",
+      "sha256": "980f519fadcb66626d3044ff499e67eb8c895e83a82fe843098e59e93c812897"
+    },
+    {
+      "path": "openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md",
+      "sha256": "f12f4c2db0db0fa0e1eca0c02b2952b0da1c367b867378cffd92b68b6ade45a0"
+    },
+    {
+      "path": "openspec/changes/twilight-control-plane/specs/twilight/repository-planning/spec.md",
+      "sha256": "53626532f27de9b2379c4a2c24d91e920d2e8d13c73ecef82684804c898b72ec"
+    },
+    {
+      "path": "openspec/changes/twilight-control-plane/tasks.md",
+      "sha256": "3f7f65582e1459665e2e0b49818a6a39f45b0a112cb1faf011e2d24d081edcd2"
+    },
+    {
+      "path": "openspec/changes/twilight-sdlc-pilot/.openspec.yaml",
+      "sha256": "a53b2405ad34564450617a77675e9218607aeea9ae76e0df328ca68422288d30"
+    },
+    {
+      "path": "openspec/changes/twilight-sdlc-pilot/design.md",
+      "sha256": "89b5d01ae8ca8f5b2ec244c4062048b2ea1f157b3a840b0ac886dee78f952c2c"
+    },
+    {
+      "path": "openspec/changes/twilight-sdlc-pilot/proposal.md",
+      "sha256": "1c8e49b6e40722bbf612c97a6e875e35d92be1e76e44b8fcd0b419618048626d"
+    },
+    {
+      "path": "openspec/changes/twilight-sdlc-pilot/specs/twilight/knowledge/spec.md",
+      "sha256": "95760b29c362e03bf6e131d65578f43dbd24b73d90be325e9d555c8ca715106d"
+    },
+    {
+      "path": "openspec/changes/twilight-sdlc-pilot/specs/twilight/sdlc/spec.md",
+      "sha256": "99285a4897dd2e55f4dea876007c921337f6a7bbf76bea6ece109b8b46e1eefb"
+    },
+    {
+      "path": "openspec/changes/twilight-sdlc-pilot/tasks.md",
+      "sha256": "b2643b2b82532c48714c417a2bff8522dee7d75235376f43a4123bc577e6d5c5"
+    },
+    {
+      "path": "openspec/schemas/twilight-v1/schema.yaml",
+      "sha256": "0f86472a71195da08615027c61f5e4817169ee4ebdc67ce3063ff00123b23d40"
+    },
+    {
+      "path": "openspec/schemas/twilight-v1/templates/design.md",
+      "sha256": "3cc4b4efc47bfe7493afa3b02f1579850fcb99d99b7ebfd950a0ed813f882b54"
+    },
+    {
+      "path": "openspec/schemas/twilight-v1/templates/proposal.md",
+      "sha256": "7b543ba1e20408ced62dc315dc17824210718120bffb27b8c6e14c1a4128c2b7"
+    },
+    {
+      "path": "openspec/schemas/twilight-v1/templates/spec.md",
+      "sha256": "ebc89aada6294095c1f1ca57c6652078bc10a658b3406fe3e06c6e6db745ce22"
+    },
+    {
+      "path": "openspec/schemas/twilight-v1/templates/tasks.md",
+      "sha256": "9f10ee25f24dbfc636ccc60f513276ecd18fb64242716da2a31a4ab435f7beb0"
+    }
+  ]
+}

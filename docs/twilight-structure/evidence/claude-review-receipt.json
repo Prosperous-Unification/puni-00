@@ -1,0 +1,266 @@
+{
+  "scope": "Authorized read-only repository review through Anthropic Claude CLI; model review is judgment, not runtime verification",
+  "requestedModel": "claude-fable-5-1",
+  "commandExit": 0,
+  "subtype": "success",
+  "isError": false,
+  "durationMs": 407745,
+  "reportedCostUsd": 3.756789000000001,
+  "modelUsage": {
+    "claude-haiku-4-5-20251001": {
+      "inputTokens": 1864,
+      "outputTokens": 18,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0.001954,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000,
+      "canonicalModel": "claude-haiku-4-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    },
+    "claude-fable-5-1": {
+      "inputTokens": 15990,
+      "outputTokens": 29580,
+      "cacheReadInputTokens": 1525895,
+      "cacheCreationInputTokens": 217276,
+      "webSearchRequests": 0,
+      "costUSD": 3.754835000000001,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000,
+      "canonicalModel": "claude-fable-5-1",
+      "provider": "firstParty",
+      "costBasis": "unknown"
+    }
+  },
+  "transcriptSha256": "a12f0a32af264b15b43172551e133b9ffe8511a3040d55cd997b7c5471979ffc",
+  "promptSha256": "7d136867c64f5fcc88c628f2b156b92832eba0132da187ffce9e80171ed22968",
+  "toolCounts": {
+    "Read": 51,
+    "Glob": 4,
+    "Grep": 6
+  },
+  "readPaths": [
+    "LLM_README.md",
+    "AGENTS.md",
+    "docs/twilight-structure/README.md",
+    "docs/twilight-structure/spec.md",
+    "docs/twilight-structure/assumptions.md",
+    "docs/twilight-structure/sdlc-stages.md",
+    "docs/twilight-structure/product-experience.md",
+    "docs/twilight-structure/client-repositories.md",
+    "docs/twilight-structure/knowledge.md",
+    "docs/twilight-structure/CONTEXT.md",
+    "docs/wiki/README.md",
+    "CONTEXT-MAP.md",
+    "openspec/changes/twilight-control-plane/proposal.md",
+    "openspec/changes/twilight-control-plane/design.md",
+    "openspec/changes/twilight-control-plane/tasks.md",
+    "openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md",
+    "openspec/changes/twilight-control-plane/specs/twilight/repository-planning/spec.md",
+    "openspec/changes/twilight-control-plane/.openspec.yaml",
+    "openspec/changes/twilight-sdlc-pilot/proposal.md",
+    "openspec/changes/twilight-sdlc-pilot/design.md",
+    "openspec/changes/twilight-sdlc-pilot/tasks.md",
+    "openspec/changes/twilight-sdlc-pilot/verify.md",
+    "openspec/changes/twilight-sdlc-pilot/specs/twilight/sdlc/spec.md",
+    "openspec/changes/twilight-sdlc-pilot/specs/twilight/knowledge/spec.md",
+    "openspec/schemas/twilight-v1/schema.yaml",
+    "docs/adr/0014-openspec-contracts-and-linked-knowledge.md",
+    "docs/adr/0015-planning-commits-are-the-transaction-boundary.md",
+    "docs/twilight-structure/research.md",
+    "docs/twilight-structure/evidence/plan-review.md",
+    "docs/twilight-structure/research/backlog-patterns.md",
+    "docs/twilight-structure/research/runtime-patterns.md",
+    "docs/twilight-structure/research/knowledge-patterns.md",
+    "docs/twilight-structure/discovery.md",
+    "docs/twilight-structure/sdd-proposal.md",
+    "docs/twilight-structure/research/local-workflow-observations.md",
+    "docs/twilight-structure/evidence/final-checks.json",
+    "docs/twilight-structure/evidence/scoped-checks.json",
+    "docs/twilight-structure/evidence/content-manifest.json",
+    "docs/twilight-structure/evidence/cli-probes.json",
+    "openspec/schemas/twilight-v1/templates/tasks.md",
+    "openspec/schemas/twilight-v1/templates/verify.md",
+    "openspec/schemas/twilight-v1/templates/proposal.md",
+    "openspec/config.yaml",
+    "docs/2026-09-02-refactoring-plan.md",
+    "docs/2026-09-02-refactoring-handoff.md"
+  ],
+  "inputManifest": {
+    "baseCommit": "1e87500c6a2e9f5bc1f9962f4ed56161ecec83b4",
+    "recordedAt": "2026-09-06T01:22:00.305Z",
+    "scope": "Substantive planning/schema inputs and outputs; verification artifacts and evidence receipts excluded to prevent self-reference",
+    "files": [
+      {
+        "path": "AGENTS.md",
+        "sha256": "0b94c29ae74aa1ffdcd07519e38f3109e308b123acf151004398f62cade10958"
+      },
+      {
+        "path": "CONTEXT-MAP.md",
+        "sha256": "5fa05c24efc451e486be2f8def16f5eb2b00f1efbd0888811dfd896439aaacde"
+      },
+      {
+        "path": "LLM_README.md",
+        "sha256": "c2fb10ea2e8a7bc6e2dd6d6bb798353dae7e85f4d9efd99e57dbc6acf03b7671"
+      },
+      {
+        "path": "docs/adr/0014-openspec-contracts-and-linked-knowledge.md",
+        "sha256": "48de96c050699baa738988e2771ec18de45bb91672c387eb52cfd2a52d7f4cf4"
+      },
+      {
+        "path": "docs/adr/0015-planning-commits-are-the-transaction-boundary.md",
+        "sha256": "2a04dbd14e9cb8ee4557d0408ae9c0f0561db3dff21f38c9a206c997310d4f65"
+      },
+      {
+        "path": "docs/twilight-structure/CONTEXT.md",
+        "sha256": "24804858ff986a8e4bc4e4da2f16ced8cfb6a050285578a8665dcd97d65a3e0a"
+      },
+      {
+        "path": "docs/twilight-structure/README.md",
+        "sha256": "66a80fc2016e50539fe40b77ff93c0a150d33d5d09f4976b67a9b01441ea2398"
+      },
+      {
+        "path": "docs/twilight-structure/assumptions.md",
+        "sha256": "009bf7a51f609bc8eb4effb3b1a556b721268ab655d1ed9cfbd3db9fc013fb86"
+      },
+      {
+        "path": "docs/twilight-structure/client-repositories.md",
+        "sha256": "2bb1dd8974c56ecbe7996a83f3915688e2df31ff5d3a2650ee2771f07c6162a8"
+      },
+      {
+        "path": "docs/twilight-structure/discovery.md",
+        "sha256": "dd8279d74e8fab28ca735ee4b1aaed0537b2ea1c8fb48ac89f123042ad9e60b5"
+      },
+      {
+        "path": "docs/twilight-structure/knowledge.md",
+        "sha256": "892d73c58022897dbe9c30e47aba641fc0bcd8f178463a75c678223652fa35d4"
+      },
+      {
+        "path": "docs/twilight-structure/product-experience.md",
+        "sha256": "932a0349073e72317a0d10f14b0e7ee5de4c2daf2d02af5e3cf1e8a98f4a6c9f"
+      },
+      {
+        "path": "docs/twilight-structure/research.md",
+        "sha256": "61fd13d1168021ec750fb4d90bfc4c409e7f90807647158d38a49c7873d13970"
+      },
+      {
+        "path": "docs/twilight-structure/research/backlog-patterns.md",
+        "sha256": "50729a9c487a858b4a9e01c9fb8f149c8913a3c355ac3764512c58183860158e"
+      },
+      {
+        "path": "docs/twilight-structure/research/initial-inspection.md",
+        "sha256": "4bea2edef75b5ac9f5c466e0153d5842bdde0a781f803f055a27e367148a5e53"
+      },
+      {
+        "path": "docs/twilight-structure/research/knowledge-patterns.md",
+        "sha256": "f8e7f657b421f9a02d8b55d00aca0522f8ca8b0432a2fc5073314daec2009a56"
+      },
+      {
+        "path": "docs/twilight-structure/research/local-workflow-observations.md",
+        "sha256": "d6b6ad5115ad143d4a3ae21170b4150cf34cc321ce0759b70f182aa838defc61"
+      },
+      {
+        "path": "docs/twilight-structure/research/runtime-patterns.md",
+        "sha256": "42e5a6537ab5ee2d7bae444e06d01636c798b97bded8cdbfd445b0baf2a344e0"
+      },
+      {
+        "path": "docs/twilight-structure/sdd-proposal.md",
+        "sha256": "8101840dbf3adc95217a57c3da9ffbe1bcf2b6bf9b7bf9856bc93b9613cfee0f"
+      },
+      {
+        "path": "docs/twilight-structure/sdd-sources.md",
+        "sha256": "ef6695b26074b87b8ea003eb6e9ee7ff4ffc1d14573cbda2318f5923eb0275fd"
+      },
+      {
+        "path": "docs/twilight-structure/sdlc-stages.md",
+        "sha256": "70188208440adb6d49451b26d45ac464edafe15bf66cf7ba2fb9bf0396e41442"
+      },
+      {
+        "path": "docs/twilight-structure/spec.md",
+        "sha256": "a6d100999664c9d58586cd74c6247960ab5f537a5a5b0efe074e88975c9e7cd7"
+      },
+      {
+        "path": "docs/wiki/README.md",
+        "sha256": "d110ddebc55d9ec840e8858bdcb8d98ed0b4b4e501a99339fcafe958777c8ec3"
+      },
+      {
+        "path": "openspec/changes/twilight-control-plane/.openspec.yaml",
+        "sha256": "a53b2405ad34564450617a77675e9218607aeea9ae76e0df328ca68422288d30"
+      },
+      {
+        "path": "openspec/changes/twilight-control-plane/design.md",
+        "sha256": "b61009b439c607c4096be66e1b5f01fa2c44200c5f8d91955709d83b715ae0f4"
+      },
+      {
+        "path": "openspec/changes/twilight-control-plane/proposal.md",
+        "sha256": "980f519fadcb66626d3044ff499e67eb8c895e83a82fe843098e59e93c812897"
+      },
+      {
+        "path": "openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md",
+        "sha256": "9852a11e8b462373c339434140e9534005ec3c3dbdbd7d8214cecd4e292ea4b4"
+      },
+      {
+        "path": "openspec/changes/twilight-control-plane/specs/twilight/repository-planning/spec.md",
+        "sha256": "53626532f27de9b2379c4a2c24d91e920d2e8d13c73ecef82684804c898b72ec"
+      },
+      {
+        "path": "openspec/changes/twilight-control-plane/tasks.md",
+        "sha256": "a8b06db31be808ab9468e884111117a8cc3a421e92d911a5d0b09865787f84ce"
+      },
+      {
+        "path": "openspec/changes/twilight-sdlc-pilot/.openspec.yaml",
+        "sha256": "a53b2405ad34564450617a77675e9218607aeea9ae76e0df328ca68422288d30"
+      },
+      {
+        "path": "openspec/changes/twilight-sdlc-pilot/design.md",
+        "sha256": "89b5d01ae8ca8f5b2ec244c4062048b2ea1f157b3a840b0ac886dee78f952c2c"
+      },
+      {
+        "path": "openspec/changes/twilight-sdlc-pilot/proposal.md",
+        "sha256": "1c8e49b6e40722bbf612c97a6e875e35d92be1e76e44b8fcd0b419618048626d"
+      },
+      {
+        "path": "openspec/changes/twilight-sdlc-pilot/specs/twilight/knowledge/spec.md",
+        "sha256": "95760b29c362e03bf6e131d65578f43dbd24b73d90be325e9d555c8ca715106d"
+      },
+      {
+        "path": "openspec/changes/twilight-sdlc-pilot/specs/twilight/sdlc/spec.md",
+        "sha256": "99285a4897dd2e55f4dea876007c921337f6a7bbf76bea6ece109b8b46e1eefb"
+      },
+      {
+        "path": "openspec/changes/twilight-sdlc-pilot/tasks.md",
+        "sha256": "fb6ced07fceec2e211a9899a2d0e4b2317932ce37b3f0a508d5af67e9aba2010"
+      },
+      {
+        "path": "openspec/config.yaml",
+        "sha256": "08cd50368170f357c5d54a5a1e7cab3e0dd071acc2bd87c8ca31096cbfb61ea8"
+      },
+      {
+        "path": "openspec/schemas/twilight-v1/schema.yaml",
+        "sha256": "0f86472a71195da08615027c61f5e4817169ee4ebdc67ce3063ff00123b23d40"
+      },
+      {
+        "path": "openspec/schemas/twilight-v1/templates/design.md",
+        "sha256": "3cc4b4efc47bfe7493afa3b02f1579850fcb99d99b7ebfd950a0ed813f882b54"
+      },
+      {
+        "path": "openspec/schemas/twilight-v1/templates/proposal.md",
+        "sha256": "7b543ba1e20408ced62dc315dc17824210718120bffb27b8c6e14c1a4128c2b7"
+      },
+      {
+        "path": "openspec/schemas/twilight-v1/templates/spec.md",
+        "sha256": "ebc89aada6294095c1f1ca57c6652078bc10a658b3406fe3e06c6e6db745ce22"
+      },
+      {
+        "path": "openspec/schemas/twilight-v1/templates/tasks.md",
+        "sha256": "9f10ee25f24dbfc636ccc60f513276ecd18fb64242716da2a31a4ab435f7beb0"
+      }
+    ]
+  },
+  "limitation": "Read paths can include partial reads. The review incorrectly says no export/no network: CLI read tools were local, model inference used Anthropic. CLI also reports a small Haiku auxiliary charge; review messages identify Fable 5.1.",
+  "reviewText": "# Twilight Structure — review\n\nReviewer identity for A28: this session runs as `claude-fable-5-1`. The review was performed locally on the working tree (base `1e87500c` plus uncommitted/untracked files); no export, no network, no commands, no edits.\n\n## 1. Verdict\n\n**Actionable with corrections.** No P0. The plan is internally consistent enough to start Task 1 today. Three P1 corrections gate later slices (Task 3's identity mechanism, one spec scenario that overpromises multi-coordinator behavior, and an M2 entry criterion that points at an event the repo's own records say has largely already happened). Nothing found blocks Task 1–2. **No blocking findings remain for the first slice.**\n\n## 2. Findings (severity order)\n\n### P1-1 — Task 3 needs a caller-identity decision that no task owns · **blocks Task 3 (not Task 1–2)**\n- `openspec/changes/twilight-control-plane/tasks.md:134` (\"Derive actor from verified auth\"), `:224-226` (human decision token vs agent MCP token), `design.md:78`, `design.md:160-163`, `design.md:48-52` (\"Reuse existing shared auth … only after reading its callers/tests\"); `docs/twilight-structure/spec.md` says reuse of existing authentication is \"still to be evaluated\".\n- Failure: an implementer reaches Task 3, must distinguish interactive human provenance from a service token, and there is no chosen identity provider, no decision on reusing `libs/auth` JWT/OIDC, and no assumption row. Either they invent a local stub (which Task 5's \"agent MCP token cannot approve\" then tests against a fake) or they stall.\n- Smallest fix: add an assumption (A30) choosing one of: reuse `libs/auth` after reading callers (name the file), or M1 dev-only local identity with cloud OIDC moved to Task 13. Add a one-line sub-item under Task 3 that records the choice and its negative test (a bare service token calling `decide_approval` → 403).\n\n### P1-2 — Spec scenario promises two coordinators; design promises one · **blocks spec sync, not implementation**\n- `specs/twilight/control-plane/spec.md:117-120` \"WHEN two coordinators request the same final provider/workspace slot\" vs `design.md:186-190` \"one active coordinator … No promise of active horizontal coordinators until leases and transactional admission pass races.\" Task 4 tests \"barrier-synchronized concurrent requests\" (`tasks.md:185`), i.e. concurrent requests inside one process.\n- Failure: Task 4 passes its in-process race test, the scenario is marked satisfied, and the archived main spec asserts a multi-coordinator guarantee nobody tested. That is exactly the \"check that could pass without proving promised behavior\" class.\n- Smallest fix: reword the scenario to \"two concurrent admission requests within one coordinator\"; add a second scenario, marked deferred to Task 11/13, for multi-coordinator leases.\n\n### P1-3 — M2 entry gate refers to an undefined event · **blocks M2 start, not M1**\n- `tasks.md:345-347` \"Entry: named `wbs-tool-v1` refactor commit … This fact is not yet available and is not guessed\"; `client-repositories.md:126`; `docs/twilight-structure/spec.md:52` (TS-24). But `README.md:1` shows `wbs-tool-v1` is this repository, and `docs/2026-09-02-refactoring-handoff.md:11-44` says every wave row is Done/Refused/Deferred except W4-4 (FE `WbsTable` split), W4-3's command registry (moves command vocabulary into `libs/contracts`, changes mcp-01's surface), W2-1's write half, and the spec-project typecheck (218 errors outside every gate).\n- Failure: Task 9 waits indefinitely for a \"landing\" nobody has defined, while the only open items that actually affect a planning adapter are W4-3 (vocabulary a codec must consume) and the be-01 spec typecheck (Task 9's \"full WBS gate\" entry is not honest until test files compile). Cron/TS-04 and Task 11's WBS-origin scheduling inherit the same undated wait (`tasks.md:405`).\n- Smallest fix: replace \"named refactor commit\" with the concrete gate: W4-3 registry landed (or explicitly refused for M2) and be-01 spec-project typecheck in CI; state that the repository layer (`apps/be-01/src/repository/*`) is already the interface and Task 9's spike may start against it now.\n\n### P2-1 — Trial evidence record for the doc cap cannot show its own check · nonblocking\n- `openspec/changes/twilight-sdlc-pilot/verify.md:41` \"Initially failed on 152 lines; after repair passed at 150\", but the `docCap` entry in `evidence/scoped-checks.json` has `exit_code 0`, empty output; `verify.md:110` says Nx is unavailable (EROFS), so \"existing doc-cap command\" is unidentified. All `wall_time_seconds` values in `final-checks.json:13,22,30` are microseconds — they measure a cached chunk read, not the command.\n- Fix: name the command and paste its output, or downgrade the row to \"not run; manual line count\". Note the wall-time field's meaning in the receipt schema.\n\n### P2-2 — Self-growth parity on the schema default is unstated · nonblocking\n- `openspec/config.yaml:1` `schema: sdd-lean`; 39 existing changes use it; clients receive `twilight-v1` (A24, `sdlc-stages.md`). The user requirement \"identical puni self-growth\" (`pilot/verify.md:16-17`) has no task that switches puni-00's default or states that parity means template version, not default.\n- Fix: one line in Task 8 or 10: \"puni-00 sets `schema: twilight-v1` at M1 acceptance; existing changes keep per-change `.openspec.yaml`.\" Or record the opposite as an assumption.\n\n### P2-3 — Task 1 and Task 5 are single checkboxes over several independent oracles · nonblocking\n- `tasks.md:45-81` (Nx/tsconfig setup + compiler + contracts + Bun/LangGraph durability experiment with its own stop condition, 4–8h) and `:209-244` (four FE routes, MCP server, config publish/CAS race, focus view, a11y, e2e, 12–24h). `templates/tasks.md:5` asks one checkbox per deliverable.\n- Failure: the durability go/no-go (the one experiment that could change runtime language) is invisible in progress until the compiler is also done; the 4–8h estimate is not credible for that bundle.\n- Fix: split 1.1 checkpointer spike (go/no-go, record decision) / 1.2 compiler; split 5 into MCP+contracts, runs/approval UI, publish/CAS, focus view.\n\n### P2-4 — Acceptance checks that could pass vacuously · nonblocking\n- `tasks.md:106` \"fresh fixture needs no home skills\": passes trivially if `HOME` is the developer's machine with skills installed. Require an empty `HOME`/`XDG` and a positive control (fixture referencing `~/.claude/skills/x` must fail).\n- `tasks.md:327-328` \"no puni-specific content, personal paths\": needs a canary list (`/Users/danylofedorov`, `h2puni`, `wbs-tool-v1`) and a run where an injected canary is observed failing.\n- `tasks.md:153-157`: `startedActivityCount === 0` is also 0 when nothing can start anything (no worker exists until Task 6). Add the positive control: approving `revision-b` produces one admitted activity record.\n\n### P2-5 — Backlog native tools vs broker authority left implicit · nonblocking (M2)\n- `research/backlog-patterns.md:192-195` requires bidirectional visibility; `client-repositories.md:82-91` makes outside edits \"input, not accepted mutation\"; authority is `refs/heads/twilight-planning` (`:64-91`) while Backlog CLI/MCP write the working checkout. TS-24 \"Backlog.md hosted per client repository\" (`spec.md:52`) is ambiguous given the researched 127.0.0.1 unauthenticated browser server.\n- Fix: state explicitly that native Backlog tools operate on a materialized view, import is mandatory, and the Backlog web UI is not hosted (WBS is the UI). ID reuse + dropped unknown frontmatter already push extension data to `backlog/wbs/` — say the UUID map is authoritative.\n\n### P2-6 — Task 11 couples role/hook/cron expansion to the Backlog cutover · nonblocking\n- `tasks.md:405` \"Depends on: M1; Task 10 for WBS-origin scheduling\"; cron (TS-04) first appears in Task 11. Combined with P1-3, TS-04 has no reachable date.\n- Fix: split Task 11 so roles/hooks/cron on OpenSpec-origin plans depend on M1 only.\n\n### P3-1 — Parity rule is asymmetric by design but not stated as a rule\n- `design.md:160-163`, `:226-227`: `decide_approval` via MCP needs a UI-issued decision token; `resolve_effect` is exposed on both. Write the parity rule once in the spec: \"every operation is available on FE and MCP; human-provenance operations require a token only the interactive flow issues.\" Also note twilight-mcp is Streamable HTTP while mcp-01 is stdio; say this is intentional.\n\n### P3-2 — Focus profile untested by the trial\n- Pilot spec scenario \"Focus view keeps obligations\" has no row in `pilot/verify.md`; the trial produced no focus brief; TS-18/22 are prose only (`product-experience.md:73-78`). Fix: mark the scenario unrun in verify.md; optionally produce one focus brief for this handoff as the sample.\n\n### P3-3 — Pilot status rows are now stale\n- `pilot/tasks.md:60-67`, `pilot/verify.md:4,117`, `evidence/plan-review.md:33-49` describe the DNS-failed attempt. Update per A28 with this review's date and model identity; Task 7 remains open until the P1 dispositions are recorded.\n\nNon-findings worth stating: the two-store non-atomicity (Twilight SQLite + LangGraph checkpointer) is acknowledged and has a scheduled kill-between-writes test (`tasks.md:164-165`, `design.md:192-198`); interrupt-replay dedup is handled (`design.md:200-204`); unknown-usage-not-zero and fencing have named tests (`tasks.md:185-197`). These are prerequisites already scheduled as experiments, not design blockers.\n\n## 3. Missing requirements / assumptions to make explicit\n\n1. Caller identity provider for twilight-be (P1-1).\n2. Who hosts client Git remotes and how \"unauthorized direct accepted-ref push refused\" (`tasks.md:361-362`) is enforced — server-side hook on a self-hosted remote, GitHub branch protection, or broker-only credentials. It is not implementable without naming one.\n3. Cloud-browser provider for TS-11/Task 13 is unnamed.\n4. `agy` identity and ACP protocol version remain unpinned (A09 says unverified; fine, but Task 6 should say \"second provider = Codex or Claude, whichever fails first pin\" rather than leaving it open).\n5. Where worker-side provider credentials live (Claude CLI auth, Codex keys) and their retention relationship to A17.\n6. Multi-tenant is deferred (A02) — say whether \"organization\" in policy precedence is a single hard-coded org in M1.\n7. Parity meaning for the schema default (P2-2).\n\n## 4. First slice and route to end state\n\nTask 1 is the right first slice: it front-loads the only experiment that could change the runtime language (LangGraph JS + checkpointer under Bun with a SIGKILL resume test), forbids the in-memory saver in acceptance, and produces the compiler that later tasks consume. Its negative (swap durable saver for memory, watch restart test fail) is a genuine failure proof. Split it (P2-3) so the go/no-go is visible on its own.\n\nM1 (Tasks 1–8) is an executable route: dependencies are acyclic, each task names owned files, produced interfaces and injected faults, and Task 8 closes the loop on a clean client fixture. The 60–124h / 1–3M token aggregate is plausible only after the splits; Tasks 1 and 5 are under-estimated as bundled.\n\nM2 (Tasks 9–10) is well-designed (CAS, no dual writers, drop-a-field cutover refusal, rollback-by-replay) but its entry is undefined (P1-3). M3–M4 are coverage ledgers rather than plans; that is acceptable if Task 11 is decoupled from Task 10 (P2-6). Requirement coverage TS-01–26 is complete on paper; TS-04, TS-11, TS-24 have no reachable date until P1-3 and the cloud-browser assumption are resolved.\n\n## 5. Files inspected / checks not run\n\n**Inspected (read-only):** `LLM_README.md`, `AGENTS.md`, `README.md:1`, `openspec/config.yaml`, `docs/twilight-structure/{README,spec,assumptions,sdlc-stages,product-experience,client-repositories,knowledge,CONTEXT,research,discovery,sdd-proposal}.md`, `research/{backlog-patterns,runtime-patterns,knowledge-patterns,local-workflow-observations}.md`, `evidence/{plan-review.md,final-checks.json,scoped-checks.json,content-manifest.json,cli-probes.json}`, `docs/wiki/README.md`, `CONTEXT-MAP.md`, `docs/adr/0014`, `docs/adr/0015`, `openspec/changes/twilight-control-plane/{proposal,design,tasks}.md` + both delta specs + `.openspec.yaml`, `openspec/changes/twilight-sdlc-pilot/{proposal,design,tasks,verify}.md` + both delta specs, `openspec/schemas/twilight-v1/schema.yaml` and templates `proposal/tasks/verify.md` (spec/design templates: existence only), `docs/2026-09-02-refactoring-plan.md` (lines 1–368 plus greps), `docs/2026-09-02-refactoring-handoff.md:1-80`, `apps/be-01/src/repository/` (listing only), grep of `design.md` for auth terms.\n\n**Not inspected:** `apps/mcp-01/README.md`, `docs/capacity.md`, root `CONTEXT.md`, `sdd-sources.md`, `research/initial-inspection.md`, `docs/2026-09-06-openspec-upgrade.md`, `HUMAN_README.md`, `.github/workflows/ci.yml`, the modified `.agents/.claude` skill files, any be-01 source contents, credentials or `.env`.\n\n**Checks not run:** no OpenSpec/Nx/Bun/git commands; no re-execution of the recorded CLI probes; no retrieval of upstream sources (Backlog.md, LangGraph, i-have-adhd, OpenHands, OpenClaw, Claw Patrol, MCP spec) — upstream claims are taken from the repo's research notes as recorded, not verified by me.\n",
+  "reviewSha256": "5f69f24ae2c81f7ff055f68048d601e577da70aa77a688813eab42884ccfb915",
+  "renderingNote": "Verbatim review preserved in reviewText; companion Markdown may be formatted for repository style."
+}
