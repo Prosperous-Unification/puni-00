@@ -1,6 +1,6 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-221 implements project-wide Fast/PRI/Time selection and the same-input comparison indicator on `change/schedule-selector-comparison`. Focused tests, FE typecheck, lint, and formatting are green on h2puni; both terminal seats found no Critical defect and their concrete findings are closed. Next: PR/CI at the final head. Retry and host-service installation remain assigned to TASK-268.
+TASK-292 makes absent solver-supervisor host state valid for unrelated dev syncs; compatibility changes still require the checked-in materializer/installer, while retry hardening remains TASK-268 scope.
 
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),

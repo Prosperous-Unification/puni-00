@@ -28,11 +28,11 @@ the directory existed; that came from reading `libs/contracts/`'s own listing an
 attributing it to a child. Corrected here rather than left standing, because
 "verified at this head" is the sentence TASK-219 reads first.) So:
 
-| Slices            | Owner                                          | Why                                                                                                                                        |
-| ----------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1–6, 9, 10.1–10.3 | **this change's own queue tasks**              | column, converter, fold, `schedule()`'s seventh argument, Fast ordering, API, UI — all against code that exists                            |
-| 7, 8              | **TASK-219 absorbs them**                      | they assert cache-key columns (7.4), hash behaviour (7.1, 7.6) and a wire schema (8.1) belonging to artifacts TASK-219 has not created yet |
-| 10.4              | **both owners, each at its own terminal gate** | AGENTS.md's cross-provider review binds whoever ships a diff; it is not one task's checkbox                                                |
+| Slices            | Owner                                          | Why                                                                                                                                                                                                           |
+| ----------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1–6, 9, 10.2–10.3 | **this change's own queue tasks**              | column, converter, fold, `schedule()`'s seventh argument, Fast ordering, API, UI — all against code that exists                                                                                               |
+| 7, 8              | **TASK-219 absorbs them**                      | they assert cache-key columns (7.4), hash behaviour (7.1, 7.6) and a wire schema (8.1) belonging to artifacts TASK-219 has not created yet                                                                    |
+| 10.1, 10.4        | **both owners, each at its own terminal gate** | AGENTS.md's cross-provider review binds whoever ships a diff; it is not one task's checkbox — and 10.1's six reds are watched three here and three inside TASK-219, so it closes only when both have appended |
 
 Consequently **W1, W3 and W4 are watched here; W2, W5 and W6 are watched inside
 TASK-219**, and 10.1's "all six recorded failing" spans both tasks rather than
@@ -657,6 +657,14 @@ order`, with their tests. A repository assertion that no unqualified
 - [ ] 10.1 All six watched reds (W1–W6) recorded failing before their
       implementation lands, per AGENTS.md R5, each with the exact fault injected
       and the exact assertion that caught it.
+      **Half of it is written and the half is named: `verify.md` § "10.1 — the
+      watched-red ledger" carries W1, W3 and W4** — fault, exact failing
+      assertion text, pass/fail counts, and the restoring md5 on both hosts —
+      plus the eight slice-level reds that are not among the six. **W2 (8.4),
+      W5 (8.6) and W6 (7.6) are slices 7–8 and belong to
+      `dual-optimized-scheduler` (TASK-219/241);** they append to the same
+      section when they land. Deliberately unticked until then: a ledger missing
+      three of six is not the item.
 - [ ] 10.2 Full remote autotest + lint + typecheck gate on h2puni at the exact
       head, for `libs/domain`, `apps/be-01` and `apps/fe-01`. Nothing is built or
       run on the workspace box.
