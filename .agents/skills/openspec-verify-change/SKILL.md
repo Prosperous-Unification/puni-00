@@ -6,8 +6,8 @@ license: MIT
 compatibility: Requires openspec CLI.
 metadata:
   author: openspec
-  version: "1.0"
-  generatedBy: "1.12.0"
+  version: '1.0'
+  generatedBy: '1.12.0'
 ---
 
 Verify that an implementation matches the change artifacts (specs, tasks, design).
@@ -32,9 +32,11 @@ Verify that an implementation matches the change artifacts (specs, tasks, design
    Always announce: "Using change: <name>" and how to override (e.g., `/openspec-verify-change <other>`).
 
 2. **Check status to understand the schema**
+
    ```bash
    openspec status --change "<name>" --json
    ```
+
    Parse the JSON to understand:
    - `schemaName`: The workflow being used (e.g., "spec-driven")
    - `planningHome`, `changeRoot`, `artifactPaths`, and `actionContext`: path and scope context
@@ -117,19 +119,20 @@ Verify that an implementation matches the change artifacts (specs, tasks, design
 8. **Generate Verification Report**
 
    **Summary Scorecard**:
+
    ```markdown
    ## Verification Report: <change-name>
 
    ### Summary
-   | Dimension    | Status           |
-   |--------------|------------------|
-   | Completeness | X/Y tasks, N reqs|
-   | Correctness  | M/N reqs covered |
-   | Coherence    | Followed/Issues  |
+
+   | Dimension    | Status            |
+   | ------------ | ----------------- |
+   | Completeness | X/Y tasks, N reqs |
+   | Correctness  | M/N reqs covered  |
+   | Coherence    | Followed/Issues   |
    ```
 
    **Issues by Priority**:
-
    1. **CRITICAL** (Must fix before archive):
       - Incomplete tasks
       - Missing requirement implementations
@@ -168,6 +171,7 @@ Verify that an implementation matches the change artifacts (specs, tasks, design
 **Output Format**
 
 Use clear markdown with:
+
 - Table for summary scorecard
 - Grouped lists for issues (CRITICAL/WARNING/SUGGESTION)
 - Code references in format: `file.ts:123`

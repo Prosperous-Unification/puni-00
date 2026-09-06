@@ -1,6 +1,6 @@
 ---
-name: "source-command-opsx-sync"
-description: "Sync delta specs from a change to main specs"
+name: 'source-command-opsx-sync'
+description: 'Sync delta specs from a change to main specs'
 ---
 
 # source-command-opsx-sync

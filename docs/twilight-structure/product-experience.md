@@ -8,7 +8,12 @@ The first useful experience is: choose a client repository, describe the outcome
 watch discovery and specifications become a budgeted plan, inspect and approve
 that exact plan, then observe an activity execute and its evidence arrive. FE and
 MCP operate the same BE commands. Reopening the browser or restarting a worker
-does not lose the pending decision or start the activity twice.
+does not lose the pending decision or start the activity twice. If an approval
+response is lost, retrying that exact command displays the original decision receipt;
+it does not ask for another decision or authorize another activity. Reusing its
+decision token for a different command is refused. Cancellation shows each resource
+still draining or awaiting remote confirmation; worker exit alone does not mark a
+remote browser/model job free.
 
 ## Surfaces
 
@@ -25,6 +30,10 @@ does not lose the pending decision or start the activity twice.
 WBS remains the work-planning editor. Twilight links or embeds it with a scoped
 repository and planning revision, not an independent editable task board. The
 [Backlog-backed migration](client-repositories.md) supplies the later storage change.
+A candidate's evidence view separates pinned prior receipts from completions it
+produces and shows every change's plan reference. Concurrent edits to disjoint plans
+may still conflict on the repository's accepted planning revision; WBS shows the
+conflict and reconciliation action without claiming either edit was auto-merged.
 
 ## All supported settings are visible and versioned
 
@@ -42,10 +51,15 @@ repository and planning revision, not an independent editable task board. The
 
 Configuration is draft → validated preview → published revision. Starting a run
 pins its compiled definition, provider capabilities, policy and prompt/skill
-revisions. A later edit affects new runs by default. An explicit migration of an
-active run checks compatibility and invalidates changed evidence/approvals; it
-cannot silently mutate an in-flight activity. Unsupported settings are visible
-with a reason and cannot be selected as enforceable controls.
+revisions. Ordinary definition edits affect new runs by default. Current grant
+revocations and tighter safety floors also constrain existing runs: the run view
+shows the revoked authority and blocked next action while retaining the definition
+originally approved. Loosening policy does not expand that approval. An explicit
+migration checks retained executable/checkpoint/hook compatibility and invalidates
+affected evidence/approvals. If restore is unsupported, show the missing or
+incompatible version and the recovery action; never quietly resume with latest code.
+Unsupported settings are visible with a reason and cannot be selected as enforceable
+controls.
 
 The same configuration schema drives FE forms, API validation, MCP tools, docs,
 and configuration diffs. Server-side validation is authoritative. New controls

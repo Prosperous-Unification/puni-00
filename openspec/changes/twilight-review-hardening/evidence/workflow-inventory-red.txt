@@ -1,0 +1,23 @@
+bun test v1.4.0 (34cbb9a40)
+
+tools/tool-workflows/src/workflows.test.ts:
+107 |
+108 | test('an unrecognized workflow source cannot be silently omitted', () => {
+109 |   const source = '.agents/skills/openspec-unrecognized';
+110 |   cpSync(join(fixture, '.agents/skills/openspec-ff-change'), join(fixture, source), { recursive: true });
+111 |   const rejected = run('--write');
+112 |   expect(rejected.exitCode).toBe(1);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:112:29)
+(fail) an unrecognized workflow source cannot be silently omitted [739.56ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [832.00ms]

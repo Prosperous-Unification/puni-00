@@ -51,6 +51,25 @@ the contract. Existing [MCP forwarding](../../../apps/mcp-01/README.md) is a
 pattern, not permission to reuse a process-wide token. Deployment boundaries can
 change without duplicating the domain or granting the worker administrator rights.
 
+### Invariant ownership
+
+Three deep modules own the ordering that makes the runtime safe. These are internal
+boundaries in `twilight-runtime`, not additional services:
+
+| Module           | Public operation                                                      | Invariants hidden from callers                                                                                                                                                |
+| ---------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Workflow restore | `restoreRun(runId)`                                                   | Resolve retained executable closure, check checkpoint/store compatibility, load state, reconcile revisions, then permit resume.                                               |
+| Authority        | `authorizeAction(request)`                                            | Intersect pinned scope and approval with current identity, grants and safety floors; return a revision-bound decision consumed inside admission/dispatch.                     |
+| Effect execution | `admitActivity`, `dispatchEffect`, `reconcileEffect`, `settleAttempt` | Reserve resources, validate authority and attempt fence at dispatch, persist intent/outcome, reconcile uncertainty and release each resource only with its terminal evidence. |
+
+BE routes, graph nodes, workers and hooks call these operations. They cannot load a
+checkpoint then independently decide compatibility, assemble policy predicates,
+invoke provider transports, or free leases directly. Pure domain predicates remain
+internal building blocks. An authorization response is not a reusable bearer grant:
+effect execution validates its current revisions at the dispatch boundary. Store,
+transport and launcher ports remain private to these modules; tests exercise their
+public operations with independent effect/resource observations.
+
 ## Single workflow source
 
 The repo's OpenSpec schema is the artifact dependency source. The compiler maps
@@ -181,7 +200,16 @@ Do not reuse WBS's identity tables or in-memory session store as Twilight author
 and explicit confirmation of the displayed action/subject digest. It records a
 short-lived, single-use token bound to actor, organization, repository, action,
 subject, expected revision, expiry and intended consumer; consumption and decision
-commit are atomic. A bearer token alone cannot call the mint endpoint, even if it
+commit are atomic. The consumed token is bound to the committed command identity
+(actor, consumer, repository, idempotency key and canonical parameter digest).
+After authenticating the caller and authorizing access to that stored answer,
+an exact retry returns the original decision receipt before token consumption or
+expected-revision checks; it neither creates a new decision nor re-admits work.
+This includes acknowledgment loss and a token that expired after commit. The
+receipt describes the historical decision, not fresh authority to execute.
+A different command using the consumed token is refused, as are different
+parameters under the same idempotency key. Unconsumed expired tokens are refused.
+A bearer token alone cannot call the mint endpoint, even if it
 represents the same user. The token may be handed to the authorized MCP client for
 that exact action. Agents never receive the browser cookie or session's mint
 capability. This is a trusted interactive-session boundary, not a claim to infer
@@ -214,7 +242,8 @@ repository candidate commit through a serialized CAS write. The compiled snapsho
 is an immutable index of that commit/package closure, not another editable config.
 A clean checkout/CLI at that revision compiles the same digest. The activated
 digest is an explicit server record; a Git edit alone cannot activate it. Concurrent
-stale publication returns conflict. Active runs keep their pinned snapshot.
+stale publication returns conflict. Active runs keep their pinned execution
+snapshot; current authority remains independently enforceable as described below.
 
 ## Durable execution and effect ownership
 
@@ -234,6 +263,38 @@ ID. Graph checkpoints reference the transition revision. A crash between store
 and graph writes is recovered through the outbox and revision reconciliation,
 not a fictional transaction spanning two independent databases.
 
+### Executable compatibility and upgrades
+
+Each run retains an immutable compatibility manifest alongside its compiled digest:
+controller/graph implementation build, compiler/mapping version, Bun and dependency
+lock digest, checkpoint format/serializer and saver versions, application store
+schema, and each hook/adapter implementation digest plus input/output protocol.
+Configuration and prompt pins alone are insufficient. Retain the executable package
+closure and a tested compatibility matrix for every resumable run. Never resolve a
+hook name to its latest implementation when restoring an older run.
+
+`restoreRun` verifies availability, readability, integrity and supported compatibility
+before loading a checkpoint into executable code. An absent package, changed hook,
+unknown serializer or incompatible store schema blocks resume with a specific
+recovery reason and zero worker/effect dispatches. No silent latest-version fallback.
+M1 can refuse an upgrade while incompatible nonterminal runs exist; it does not
+promise to host every historical graph. A compatible new controller may host the
+pinned closure only after its old-checkpoint/new-controller fixture passes. Any
+later supported incompatible upgrade needs an explicit, versioned migration of a
+preserved checkpoint copy; revalidate affected authority/evidence and retain the
+original recovery material.
+
+Upgrade rehearsal holds admission, settles or fences outstanding attempts and
+reconciles the application store, outbox and graph checkpoint at a named transition.
+M1 proves incompatible-upgrade refusal and recovery of its retained supported
+closure with a pending approval and recorded uncertain effect. Task 14 adds successful
+migration/rollback proofs for each supported upgrade path. Rollback uses a retained
+compatible executable and tested reverse migration of both stores without discarding
+decisions or effects accepted since upgrade. If this
+cannot preserve accepted state, refuse rollback and retain the paused recovery
+route; restoring an old backup and losing later commands is not recovery. The
+protected recovery command operates without the new controller being healthy.
+
 LangGraph uses thread identity per run. Side-effecting work is isolated behind
 durable tasks/effect IDs, with checkpointing before irreversible boundaries.
 Interrupt resume may replay the interrupted node. Therefore the node's preamble
@@ -244,14 +305,37 @@ State is a tagged union: `queued`, `running`, `awaiting_approval`, `paused`,
 `reconciling`, `failed`, `cancelled`, `completed`. Stage conclusions additionally
 carry `current`, `stale`, or `inapplicable` with policy reason. Each retry is a new
 attempt under the same logical activity. A lease has an owner/fencing token and
-deadline; stale workers cannot publish evidence or free replacement capacity.
+deadline; stale workers cannot publish evidence, initiate new effects, write a
+replacement workspace or free replacement capacity. Expiry withdraws authority;
+it does not prove the process, remote session or resource has stopped.
+
+Every brokered tool and effectful hook passes through `dispatchEffect`. The private
+dispatch path revalidates the run/activity/attempt fence, unexpired lease, current
+authority and cancellation state for the persisted intent when committing dispatch
+admission in one serialized coordinator boundary. Revocation/fence changes
+are ordered with that boundary; a request queued before revocation but not yet
+dispatch-admitted is refused. An already dispatched effect may need reconciliation
+or cancellation; the system cannot unsend it. Unique new logical effect keys do
+not bypass attempt fencing. Worker direct egress is denied, including hooks; source
+writes occur only in that attempt's isolated workspace. Fence before requesting
+stop, and never reuse its writable mount while any old writer can still reach it.
 
 Record effect intent before dispatch, including stable logical effect key,
-parameters digest, authority, target and provider idempotency support. On unknown
-outcome, reconcile by the provider's receipt/query contract. If no safe contract
+parameters digest, attempt fence, authority revisions, target and provider
+idempotency support. On unknown outcome, reconcile by the provider's receipt/query
+contract. If no safe contract
 exists, remain reconciling and require a modeled operator resolution. Never claim
-general exactly-once external execution. Cancellation is controlled: request,
-stop/drain, verify worker exit, then release leases and report cancelled.
+general exactly-once external execution. Cancellation is controlled: fence,
+stop/drain, collect terminal evidence for each resource, then release proven-free
+reservations. `settleAttempt` owns this accounting, including after coordinator
+restart. Local PID exit is evidence only for that process: workspace reuse requires
+all writers/mounts detached; remote model jobs, browser sessions and builds require
+provider-specific terminal status or a verified termination receipt. Unknown remote
+state retains its reservation and visible reconciling state. Budget holds settle
+against measured usage or remain explicitly unresolved under the budget policy;
+process exit does not make spend zero. Report cancellation complete only after its
+resource obligations are settled; abandoning an effect's unknown outcome does not
+free an unproven remote resource.
 
 `resolve_effect` requires a recovery-operator decision capability, expected effect
 and run revisions, evidence references, and `confirm_succeeded`,
@@ -269,6 +353,16 @@ Policy precedence: platform safety floor → organization → repository → wor
 → activity. More specific policy can narrow capability or consumption; privileged
 policy revision is a separate authorized operation. Data/settings from a wiki or
 agent tool response cannot alter policy. Missing/invalid policy blocks admission.
+Pinned workflow policy preserves execution semantics, not perpetual permission.
+At each admission and immediately at effect dispatch, Authority intersects the
+pinned requested scope and approval with current actor/membership/repository grants,
+approval expiry/revocation, integration credential grants and current platform and
+organization safety floors. A current tightening applies to existing runs without
+migrating their definition. A relaxation never enlarges an old approval or requested
+scope; broader work needs a newly reviewed subject and decision. Return the changed
+authority reason while retaining the pinned definition for inspection. An in-flight
+effect is reconciled/cancelled according to its action class; no new dispatch may
+use an authority revision revoked before dispatch admission.
 
 Approval digest covers the full dependency closure: relevant specs, design,
 planning revision, compiled workflow/policy, environment and requested capabilities.
@@ -320,12 +414,14 @@ revisions. Completion updates are proposed until the planning owner accepts them
 a worker cannot check its own task without the required evidence.
 
 `PlanningPort.readPlan(reference: PlanRef)` includes plan/change identity, not only
-repository and revision. Source candidates pin the planning commit and generated
-export in a plan lock; completion receipts bind to their source candidate and
-integration status. An unmerged predecessor cannot unblock an incompatible branch.
+repository and revision. Source candidates pin a change-keyed map of plan references,
+generated exports and immutable input receipt snapshots in their plan lock. An
+unmerged predecessor cannot unblock an incompatible branch. New completion receipts
+are outputs naming the already-created candidate; they are accepted afterward and
+never written back into that same candidate. A later candidate can consume them.
 Progress receipt revisions are distinct from approved task definitions, preventing
-approval churn on each checkbox. The client-repo document defines publication order
-without a self-referential Git hash.
+approval churn on each checkbox. The client-repo document owns the multi-change
+merge/conflict protocol, publication order and storage acceptance budgets.
 
 Template versions and upgrades are themselves work requests in `puni-00`, with
 clean-client fixture generation and deterministic checks. Repo IDs scope retrieval,

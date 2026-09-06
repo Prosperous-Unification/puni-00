@@ -2,7 +2,7 @@
 name: 'OPSX: Apply'
 description: 'Implement tasks from an OpenSpec change (Experimental)'
 allowed-tools: Bash(openspec:*)
-category: 'Workflow'
+category: Workflow
 tags: ['workflow', 'artifacts', 'experimental']
 ---
 

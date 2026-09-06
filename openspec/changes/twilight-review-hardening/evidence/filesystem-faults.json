@@ -1,0 +1,62 @@
+[
+  {
+    "fault": "variant drift",
+    "command": [
+      "bun",
+      "/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts",
+      "--check",
+      "/tmp/twilight-generator-proof-7ih_29v5"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "129 |   );\n130 |   for (const [pathname, text] of rendered) {\n131 |     const absolute = join(root, pathname);\n132 |     if (mode === '--check') {\n133 |       if (readFileSync(absolute, 'utf8') !== text)\n134 |         throw new Error(`Workflow drift: ${pathname}; run bunx nx run tool-workflows:generate`);\n                        ^\nerror: Workflow drift: .claude/commands/opsx/archive.md; run bunx nx run tool-workflows:generate\n      at generate (/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts:134:19)\n\nBun v1.4.0 (Linux x64)\n"
+  },
+  {
+    "fault": "variant absence",
+    "command": [
+      "bun",
+      "/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts",
+      "--check",
+      "/tmp/twilight-generator-proof-7ih_29v5"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "128 |     ),\n129 |   );\n130 |   for (const [pathname, text] of rendered) {\n131 |     const absolute = join(root, pathname);\n132 |     if (mode === '--check') {\n133 |       if (readFileSync(absolute, 'utf8') !== text)\n                ^\nENOENT: no such file or directory, open '/tmp/twilight-generator-proof-7ih_29v5/.claude/commands/opsx/archive.md'\n    path: \"/tmp/twilight-generator-proof-7ih_29v5/.claude/commands/opsx/archive.md\",\n syscall: \"open\",\n   errno: -2,\n    code: \"ENOENT\"\n\n      at generate (/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts:133:11)\n\nBun v1.4.0 (Linux x64)\n"
+  },
+  {
+    "fault": "variant unreadable",
+    "command": [
+      "bun",
+      "/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts",
+      "--check",
+      "/tmp/twilight-generator-proof-7ih_29v5"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "128 |     ),\n129 |   );\n130 |   for (const [pathname, text] of rendered) {\n131 |     const absolute = join(root, pathname);\n132 |     if (mode === '--check') {\n133 |       if (readFileSync(absolute, 'utf8') !== text)\n                ^\nEACCES: permission denied, open '/tmp/twilight-generator-proof-7ih_29v5/.claude/commands/opsx/archive.md'\n    path: \"/tmp/twilight-generator-proof-7ih_29v5/.claude/commands/opsx/archive.md\",\n syscall: \"open\",\n   errno: -13,\n    code: \"EACCES\"\n\n      at generate (/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts:133:11)\n\nBun v1.4.0 (Linux x64)\n"
+  },
+  {
+    "fault": "source absence",
+    "command": [
+      "bun",
+      "/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts",
+      "--check",
+      "/tmp/twilight-generator-proof-7ih_29v5"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "25 | /** Throws on unreadable/malformed source; command bodies cannot silently become empty. */\n26 | function readSource(\n27 |   root: string,\n28 |   pathname: string,\n29 | ): { text: string; description: string; body: string } {\n30 |   const text = readFileSync(join(root, pathname), 'utf8');\n                    ^\nENOENT: no such file or directory, open '/tmp/twilight-generator-proof-7ih_29v5/.agents/skills/openspec-archive-change/SKILL.md'\n    path: \"/tmp/twilight-generator-proof-7ih_29v5/.agents/skills/openspec-archive-change/SKILL.md\",\n syscall: \"open\",\n   errno: -2,\n    code: \"ENOENT\"\n\n      at readSource (/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts:30:16)\n      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts:75:14)\n      at map (1:11)\n      at generate (/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts:66:29)\n      at /home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts:148:7\n\nBun v1.4.0 (Linux x64)\n"
+  },
+  {
+    "fault": "source unreadable",
+    "command": [
+      "bun",
+      "/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts",
+      "--check",
+      "/tmp/twilight-generator-proof-7ih_29v5"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "25 | /** Throws on unreadable/malformed source; command bodies cannot silently become empty. */\n26 | function readSource(\n27 |   root: string,\n28 |   pathname: string,\n29 | ): { text: string; description: string; body: string } {\n30 |   const text = readFileSync(join(root, pathname), 'utf8');\n                    ^\nEACCES: permission denied, open '/tmp/twilight-generator-proof-7ih_29v5/.agents/skills/openspec-archive-change/SKILL.md'\n    path: \"/tmp/twilight-generator-proof-7ih_29v5/.agents/skills/openspec-archive-change/SKILL.md\",\n syscall: \"open\",\n   errno: -13,\n    code: \"EACCES\"\n\n      at readSource (/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts:30:16)\n      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts:75:14)\n      at map (1:11)\n      at generate (/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts:66:29)\n      at /home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts:148:7\n\nBun v1.4.0 (Linux x64)\n"
+  }
+]

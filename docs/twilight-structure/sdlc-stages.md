@@ -78,8 +78,11 @@ it through workflow configuration and supported native entry points.
 
 The trial tests these boundaries against 1.12.0. `apply.requires` lists intent,
 specs and tasks directly: a task file does not recursively establish its ancestors.
-Technical-design applicability is a caller obligation today; the future verifier
-must enforce it. The schema is not a complete workflow engine.
+Design is a dependency of tasks so fast-forward traverses its conditional
+instruction before planning. Technical-design applicability remains a caller
+obligation today: the future verifier must enforce it, while the current workflow
+records the reason for a mechanically obvious change's omission. The schema is
+not a complete workflow engine.
 
 ## Applicability and completion
 

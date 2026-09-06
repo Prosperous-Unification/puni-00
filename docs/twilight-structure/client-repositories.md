@@ -79,6 +79,10 @@ from different revisions. [Proposed transaction ADR](../adr/0015-planning-commit
 3. Write a commit object containing all changed files plus the command record.
    Advance the accepted ref with expected-old-ref compare-and-swap. A conflict
    returns typed 409 and the current revision; partial work remains unaccepted.
+   This is repository-wide even for edits to disjoint plans: the losing command is
+   never silently rebased or reported accepted. The client fetches that revision,
+   explicitly reconciles, and submits a new command ID/expected revision linked to
+   the conflict. Revalidate the full graph, including cross-plan dependencies.
 4. Publish events only after acceptance, deduplicated by command/revision. On crash,
    reread the accepted ref and journal to reconcile an uncertain acknowledgment.
    A repeated command returns its prior accepted answer; it cannot apply twice.
@@ -112,21 +116,60 @@ versioned stable UUID map is authoritative across native ID reuse; numeric task
 names are display/interop identifiers. Test native edit → import → WBS and WBS
 edit → materialize → native read in both directions, including extension fields.
 
-Git-object/ref behavior, Backlog invocation, and WBS round trips must be measured
-in a storage spike. This design does not claim they are implemented. If latency
-is unacceptable, batch several UI operations using the existing command batch
-contract and rebuild indexes; never silently reinstate SQLite as plan authority.
+### Storage workload acceptance budget
+
+The Task 9 spike must measure the real broker, remote CAS, native Backlog adapter
+and WBS reads on a pinned fixture: 20 plans, 10,000 active tasks, 10,000 archived
+tasks, 100,000 accepted command/receipt records, and all WBS extension fields. Run
+five writer clients and ten readers for 30 minutes at two offered commands/second;
+90% are single-task edits and 10% are atomic 100-operation batches. Writers cycle
+across disjoint plans and deliberately contend on one plan. Record host/storage,
+network latency, package pins, fixture digest, warm/cold cache conditions, sample
+counts, accepted/conflicted commands and raw latency distributions.
+
+Proposed acceptance budgets, **not measurements**: p95 command-to-accepted-ref
+latency ≤ 1 second for single edits and ≤ 3 seconds for batches; p95 complete-plan
+read ≤ 500 ms warm and ≤ 2 seconds cold; typed conflict response p95 ≤ 1 second;
+accepted revision visible to subscribed WBS clients within 2 seconds p95; restart
+reconciliation ≤ 30 seconds with that history. Successful-command latency excludes
+conflicts, whose counts and latency are reported separately; no dropped command or
+mixed-revision read is permitted. Restore throughput to at least two accepted
+commands/second for a five-minute uncontended control after the contention run.
+
+Run forced disjoint-plan CAS races separately: one acceptance and one 409, followed
+by explicit resubmission preserving both plans, are correctness criteria. If any
+budget fails, Task 9 remains incomplete; measure batching/index improvements within
+this authority model or explicitly revise the proposed acceptance contract before
+cutover. Never silently reinstate SQLite as plan authority.
 
 ## Joining planning and source revisions
 
 A `PlanRef` carries repository, plan and change IDs, immutable planning commit,
 source base commit and requirements digest. The planning commit records the source
 basis and requirement/workflow inputs; it does not contain its own commit hash.
-The source candidate contains `.twilight/plan-lock.json` naming that `PlanRef`
-and the generated `openspec/changes/<change>/tasks.md`. Generate those after the
-planning commit exists, then commit the source candidate. This avoids a circular
-hash dependency. CI checks exports against the pinned planning commit, not the
-latest planning branch at verification time.
+The source candidate contains `.twilight/plan-lock.json` with a versioned
+`changes` map keyed by change ID. Each entry names its `PlanRef`, immutable input
+receipt snapshot revision/digest and deterministic export digest/path
+(`openspec/changes/<change>/tasks.md`). The empty snapshot is explicit and immutable;
+missing or unreadable snapshots are errors, not an empty default. Validate that
+map key, plan change ID, repository and export path agree. Different changes can
+pin different accepted planning commits; they need not track one moving head.
+
+Publication order is acyclic: accept planning definitions and prior completion
+receipts → freeze input receipt snapshots → generate the lock/exports → commit the
+source candidate → verify/execute it → accept new completion receipts naming it.
+CI resolves only pinned inputs. The candidate never pins its own output receipt or
+rewrites its own checkbox export after completion. A later source candidate may
+pin those outputs as prior inputs and regenerate its export.
+
+Two independent branches add distinct change entries and distinct task exports.
+Merging them preserves the union of entries and verifies every entry against the
+merged source basis; no single-value plan lock is overwritten by the second plan.
+A shared change key with different references/snapshots, incompatible source bases
+or cross-plan dependencies produces an explicit conflict requiring reconciliation,
+a regenerated candidate and affected reapproval. Even disjoint entries need fresh
+verification of the merged candidate: merging does not carry candidate-bound greens
+or approvals to a new commit.
 
 Accepted completion receipts identify task, approved plan commit, source candidate,
 tests/verdicts and integration status. Completion on an unmerged feature branch
@@ -137,7 +180,10 @@ invalidates affected evidence; task IDs alone cannot carry greens across branche
 
 Progress receipts do not mutate the run's approved task definition. Progress-only
 commits retain the approved planning commit reference and are separately versioned;
-the exported checkbox view names both plan and receipt revisions. Editing intent,
+the exported checkbox view names the plan and input receipt snapshot revisions.
+Changes in a receipt's integration status are new attributed records, not mutations
+of a pinned snapshot. Current authority can still block dispatch; it never replaces
+the historical inputs CI is verifying. Editing intent,
 estimates, dependencies, ownership or resource policy creates a new plan definition
 and revalidates affected admission/approvals. The broker classifies changes against
 its versioned schema. This avoids invalidating unrelated tasks on each completed

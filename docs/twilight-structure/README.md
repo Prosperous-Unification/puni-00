@@ -9,6 +9,11 @@ and revised through Claude Fable 5.1 with no remaining blocking correction. The
 [verification record](../../openspec/changes/twilight-sdlc-pilot/verify.md)
 separates observed checks from future runtime tests. Product code is not implemented.
 
+The subsequent [branch-review hardening](../../openspec/changes/twilight-review-hardening/proposal.md)
+amends the proposed contracts and repairs the repository workflow. The earlier
+review receipts describe their original snapshots; current acceptance obligations
+are in the linked design/specs/tasks.
+
 | Need                                           | Read                                                                            |
 | ---------------------------------------------- | ------------------------------------------------------------------------------- |
 | What the user asked for                        | [Requirement catalog](spec.md)                                                  |

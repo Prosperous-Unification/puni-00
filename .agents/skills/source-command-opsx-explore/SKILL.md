@@ -1,6 +1,6 @@
 ---
-name: "source-command-opsx-explore"
-description: "Enter explore mode - think through ideas, investigate problems, clarify requirements"
+name: 'source-command-opsx-explore'
+description: 'Enter explore mode - think through ideas, investigate problems, clarify requirements'
 ---
 
 # source-command-opsx-explore

@@ -57,7 +57,11 @@ pure predicates do not replace request, restart, race or browser tests below.
 **Depends on:** M0. **Produces:**
 `compileWorkflow(inputs: WorkflowInputs): CompiledWorkflow` and
 `CheckpointPort` with persisted run/thread/revision identity, selected package
-pins and a compatibility record. The runtime-validated input schema is canonical.
+pins and a compatibility record. Add `WorkflowRestore.restoreRun(runId)` as the
+only checkpoint-loading/resume entry; it owns executable resolution, compatibility
+and revision reconciliation. Its implementation belongs under
+`libs/twilight-runtime/src/workflow/restore.ts`, with production-path fixtures in
+`restore.db.test.ts`. The runtime-validated input schema is canonical.
 
 **Acceptance:** same inputs yield the same digest/forms/effective policies; a
 changed prerequisite changes the digest; unknown fields and unrepresentable
@@ -72,6 +76,18 @@ unsupported beforeTool policy`, `checkpoint resumes the same pending decision
 after SIGKILL`. Delete the required input/make it unreadable in separate probes;
 replace the durable saver with memory and observe the restart test fail. This
 does not yet prove external-effect deduplication.
+
+Retain controller/graph, compiler, runtime/lock, serializer/saver, application schema
+and hook/adapter digests. Exercise an old pending-approval checkpoint on a compatible
+new controller and assert the same subject/transition and pinned hook behavior.
+Separately remove a pinned executable, make it unreadable, substitute the latest
+hook under the same name, and present an unsupported serializer/schema. Each must
+refuse before a fixture worker/effect counter increments; a compatible positive
+must increment it after approval. Bypass compatibility to prove those assertions
+can fail. Task 8 adds a real uncertain-effect upgrade/rollback fixture once Task 4
+exists, limited to incompatibility refusal and retained-version recovery. No retained
+package or format is assumed compatible from its version name; M1 may refuse an
+upgrade while incompatible nonterminal runs exist.
 
 **Commands established by this task:**
 `bunx nx run tool-twilight:compile -- --repository <fixture> --json` and
@@ -114,6 +130,12 @@ each other's plans`, `task briefs preserve dependency and proof fields`,
 skill package, duplicate task ID and old parser format; each must fail before run
 admission. Test symlink escape at the actual read boundary.
 
+Use a versioned change-keyed plan-lock fixture with two changes and immutable input
+receipt snapshots, including an explicit empty snapshot. Reject missing/unreadable
+snapshots separately, mismatched map key/change/export path, and a lock that tries
+to consume its candidate's own output receipt. Verify that adding a later output
+receipt leaves the earlier candidate and its exported checkbox view byte-identical.
+
 Run the clean-client fixture in a disposable container with empty home and XDG
 directories, passed through the container runtime's supported options. Do not
 repurpose the shell's `HOME`/`CODEX_HOME` variables. It must succeed using packaged
@@ -143,6 +165,10 @@ Can overlap Task 3 after shared Task 1 contracts are frozen.
 **Depends on:** Task 1; Task 2 to bind real repo/plan identity. **Consumes:** the
 command contracts in design. **Produces:** `submitRequest`, `commandRun`,
 `decideApproval`, and event/outbox interfaces used by worker and clients.
+`libs/twilight-runtime/src/authority/authorize.ts` owns `authorizeAction`: pinned
+requested/approved scope intersected with current grants/floors. BE routes and
+Task 4's dispatch use that module; callers cannot construct their own authorization
+ordering or treat an earlier decision response as an enduring dispatch grant.
 
 Before the first Twilight migration, extract be-01's migration runner
 (`apps/be-01/src/repository/migrate.ts`, `migrate-down.ts`) into a shared library
@@ -165,7 +191,16 @@ attempts, subject revision/digest, expiry, policy revision and effect scope.
 Return 409 for stale revision, 403 for insufficient scope, 422 for invalid workflow
 combination. A human decision capability is separate from an agent's ordinary
 user-delegated token. All writes deduplicate command IDs with parameter digests;
-reusing a key for different parameters is a conflict.
+reusing a key for different parameters is a conflict. Atomically bind token
+consumption to canonical command identity and the decision receipt. Lose the
+response after commit, advance beyond token expiry, then retry the identical
+command against the actual BE endpoint with authenticated caller contexts and
+access to that answer: assert the same receipt and one committed decision/admission.
+Task 5 repeats this scenario through the implemented FE and MCP clients. Use the consumed token with another
+key, changed parameters and wrong consumer separately; assert refusal and no extra
+admission. An expired token never committed must fail. Inject consumed-token
+checking before exact retry lookup and observe the lost-response test fail; bypass
+token-to-command binding and observe the different-command test fail.
 
 Implement `revise_artifact` and `adopt_plan` with expected revisions, coverage and
 resource validation. A new request uses its explicitly selected discovery envelope
@@ -199,6 +234,13 @@ while client-A reads it. Remove the subject/actor predicates independently and
 observe the relevant assertions fail. Kill between store transaction and graph
 checkpoint and prove outbox reconciliation preserves one transition.
 
+Hold approved work queued, then independently revoke membership, repository grant,
+approval or integration grant and tighten a safety floor. Each admission must refuse
+with its reason and no launch. Relax a floor and ask for a capability outside the
+original approval: it still refuses. Remove the relevant current/pinned intersection
+and observe each negative fail; restore it and execute an authorized positive.
+Task 6 repeats the admitted-record oracle against a real worker launch.
+
 **Estimate:** 12–24 human hours; 3–7 agent hours; 190k–500k tokens, one writer slot.
 
 ## Task 4: Admit resources and recover uncertain effects
@@ -212,8 +254,11 @@ checkpoint and prove outbox reconciliation preserves one transition.
 
 **Depends on:** Task 3. **Produces:**
 `admitActivity(command: AdmissionRequest): Promise<AdmissionDecision>`,
-`recordEffect(intent: EffectIntent): Promise<EffectRecord>`, and
-`reconcileEffect(effectId: string): Promise<EffectOutcome>`.
+`dispatchEffect(request: EffectRequest): Promise<EffectOutcome>`,
+`reconcileEffect(effectId: string): Promise<EffectOutcome>`, and `settleAttempt`.
+Intent persistence, provider transport, fence/authority validation and resource
+release are private to effect execution; graph nodes and workers cannot call
+`recordEffect` then dispatch or release resources independently.
 Discriminated outcomes include `queued`, `admitted`, `denied`, and
 effect `succeeded`, `failed`, `unknown`; every reason is visible.
 
@@ -229,7 +274,20 @@ Unknown usage with a strict budget refuses admission unless a defensible
 reservation and stop mechanism exist. Test queue aging/client ceilings, reviewer
 reservation and hold-free waiting on a human decision. A cancelled worker's slot
 remains occupied until its exit is observed; mutation releases it early while the
-process is alive and must fail a launch-count assertion.
+process is alive and must fail a launch-count assertion. Add these distinct
+production-path experiments; none is covered by deduplicating a repeated key:
+
+| Proposed fault                             | Scenario and independent oracle                                                                                                                                                                                                                                                  |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Skip attempt-fence validation on dispatch  | Keep expired attempt A alive, grant replacement B an isolated workspace/fence, then have A submit a new effect key. Receiver request count stays zero for A and increments for authorized B; removing the fence must increment A's counter.                                      |
+| Check authority only at admission          | Hold a recorded tool/hook intent before dispatch, revoke its grant or tighten the floor, then release the barrier. External receiver sees zero requests; removing dispatch revalidation must produce one.                                                                        |
+| Reuse a writable workspace on lease expiry | Keep an old writer modifying a sentinel after expiry. Replacement cannot mount that workspace until the writer/mount is verifiably detached; remove that condition and observe conflicting writes.                                                                               |
+| Release remote resource on local PID exit  | Worker exits while fixture provider/browser job remains active. Replacement stays queued; only independently queried terminal state releases it. Missing/unreadable remote state retains the hold. Remove remote terminal validation and observe a second concurrent remote job. |
+
+Exercise cancellation/revocation ordered on both sides of dispatch admission: before
+commit must prevent the request; after dispatch must reconcile/stop it without
+claiming it was unsent. Unknown spend remains unresolved in accounting; abandoning
+unknown effect outcome does not release a still-active remote reservation.
 
 Add `resolve_effect` with scoped decision authority, expected effect/run revisions,
 evidence references and explicit confirmation/terminal-abandonment dispositions.
@@ -270,6 +328,10 @@ submit returns same run; approval UI displays exact diff and issues a subject-bo
 human decision token; an agent MCP token cannot approve without it. Block a
 request in flight and assert the UI has not optimistically accepted the decision.
 Restart BE during approval, reload the page, and recover the same pending state.
+Drop the decision response after commit and retry with the same command identity:
+the UI and MCP show the original receipt without minting a second token. Show live
+revocation against the retained pinned definition, incompatible-restore recovery,
+and a cancelled local worker whose remote slot remains visibly held.
 
 Start the browser journey with no artifacts or plan: create/revise intent/specs/
 tasks in the workbench or via authorized discovery, adopt the complete plan, and
@@ -331,7 +393,11 @@ The real ACP path must use the effect boundary from Task 4. For M1, all external
 visible effects use brokered tools; unmediated shell tools are limited to isolated
 scratch/source writes with network denied. A live ACP activity attempting direct
 egress must hit the actual sandbox denial. Test acknowledgment loss and replay
-through the brokered ACP tool path, not only a standalone effects fixture.
+through the brokered ACP tool path, not only a standalone effects fixture. Keep a
+stale ACP process alive after expiry and request a new external action: the broker
+fence must deny it, and a direct egress attempt must hit sandbox enforcement.
+Prove workspace reuse waits for all old writable access to be detached, and local
+exit cannot release an independently still-active provider session.
 
 **Estimate:** 8–20 human hours; 2–6 agent hours; 150k–450k tokens plus separately
 admitted live-provider spend; one provider slot and isolated workspace.
@@ -402,6 +468,17 @@ before integration. Package/template clean-clone checks are part of the gate.
 M1 acceptance is a working local/development core; cloud-browser deployment and
 production machinery are additional requirements in Task 13.
 
+Rehearse incompatible-upgrade refusal using Task 1's retained packages and Task 4's
+actual effect fixture. With a pending approval and uncertain effect, present an
+unsupported executable/checkpoint/hook closure and assert zero new worker/effect
+dispatches. Use the protected recovery command with the rejected controller
+unavailable to return to the retained supported closure: preserve the pending
+subject, transition/outbox identity and unknown effect; receiver count stays one.
+Inject latest-hook substitution or bypass restore validation and observe the named
+refusal/counter assertion fail. M1 can refuse an incompatible upgrade with nonterminal
+runs. Successful schema/graph migration and rollback preserving post-upgrade writes
+belong to Task 14 for explicitly supported paths.
+
 **Estimate:** 8–16 human hours; 2–5 agent hours; 120k–350k tokens, exclusive
 integration/build/browser capacity. M1 aggregate rough estimate: 72–148 human
 engineering hours and 1.19M–3.46M agent tokens before contingency. Plan 30% rework
@@ -443,6 +520,23 @@ Pin `PlanRef` and source-candidate export publication. Test a predecessor comple
 only on an unmerged branch: a dependent candidate from main must remain blocked.
 Test incompatible requirements/source basis, two plans in the same repo, stale
 exports, and progress-only receipt updates that preserve the approved task definition.
+Merge source branches with disjoint change-keyed plan-lock entries and exports;
+assert both entries survive and the merged candidate is verified against each pinned
+snapshot. Inject a single-value lock/last-writer replacement and watch the missing
+entry assertion fail. Competing same-change entries and incompatible dependencies
+must require explicit reconciliation. Freeze input receipt R, create candidate C,
+then accept C's output receipt; prove C/R remain unchanged and a later candidate can
+consume it. Point CI at latest receipts to prove a concurrently accepted receipt
+changes the oracle and is detected.
+
+Force two disjoint plans to publish from one ref: assert one accepted command and
+one 409, then explicitly resubmit against the new ref and assert both edits survive.
+Remove expected-ref checking and observe lost-write or acceptance-count failure.
+Run the pinned [storage workload/budgets](../../../docs/twilight-structure/client-repositories.md#storage-workload-acceptance-budget)
+through actual broker/native adapter/WBS paths, retaining timing samples and conflict
+counts. These are proposed thresholds, not claimed capacity. Inject receiver delay
+above the single-edit budget and watch acceptance refuse; a full-field round trip
+cannot compensate for an exceeded latency or restart budget.
 
 **Estimate:** 16–32 human hours for contract/spike, then re-estimate implementation
 from measured model coverage and Git latency. One repo writer; two isolated clones
@@ -468,10 +562,14 @@ fresh clone renders the same plan. Deliberately drop one estimate/reference/hist
 field and watch cutover refuse before switching authority. Restore-backup-only is
 not an acceptable rollback once Git accepted new writes.
 
-Generate the source candidate's plan lock/export after the immutable planning
-commit exists. CI resolves the pinned commit and receipt revision, never the
-latest branch. Test a planning update during source CI and require deterministic
-results for the pinned candidate; substantive plan changes require fresh admission.
+Generate the source candidate's change-keyed plan lock/exports after immutable
+planning commits and input receipt snapshots exist. CI resolves those pinned
+inputs, never the latest branch. Output completion receipts are accepted afterward
+and appear only in later candidates' input snapshots/exports. Test planning and
+receipt updates during source CI and require deterministic results for the pinned
+candidate; substantive plan changes require fresh admission. Exercise the merged
+two-change candidate through the real WBS/export/CI path, including a shared-key
+conflict that cannot silently discard either plan.
 
 **Estimate:** 16–32 human hours after adapter proof; reserve one exclusive cutover
 window whose duration is measured in rehearsal, not chosen in advance.
@@ -572,6 +670,16 @@ template upgrade can be rolled back without the new controller; secrets/content
 never copied across clients; package pins and migrations are reproducible from a
 clean clone; user overrides survive a supported upgrade or produce an explicit
 conflict. Only then label the setup reusable for clients.
+
+For every supported executable/schema upgrade, extend Task 8's refusal/recovery
+fixture with actual migration: upgrade during an approval wait, commit a decision
+and lose an effect acknowledgment under the new controller, then roll back with
+that controller unavailable. Assert the decision, application/checkpoint/outbox
+transition and unknown effect survive and the external receiver count stays one.
+Inject backup-only rollback and observe lost accepted records; inject an unsupported
+reverse migration and require refusal before state is changed. Pin the tested
+compatibility matrix and retained executable/hook closure. No successful migration
+or rollback is promised for unsupported old/new combinations.
 
 **Estimate:** 16–32 human hours plus a complete canary cycle; use measured M1–M3
 costs for agent budgets instead of extrapolating today's untested estimates.

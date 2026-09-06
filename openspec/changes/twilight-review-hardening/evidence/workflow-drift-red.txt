@@ -1,0 +1,23 @@
+bun test v1.4.0 (34cbb9a40)
+
+tools/tool-workflows/src/workflows.test.ts:
+24 | }
+25 |
+26 | test('generation repairs a divergent provider command and preserves provider invocations', () => {
+27 |   writeFileSync(join(fixture, variant), 'corrupted workflow\n');
+28 |   const rejected = run();
+29 |   expect(rejected.exitCode).toBe(1);
+                                 ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:29:29)
+(fail) generation repairs a divergent provider command and preserves provider invocations [748.73ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [830.00ms]

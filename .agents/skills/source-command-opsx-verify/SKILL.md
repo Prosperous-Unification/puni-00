@@ -1,6 +1,6 @@
 ---
-name: "source-command-opsx-verify"
-description: "Verify implementation matches change artifacts before archiving"
+name: 'source-command-opsx-verify'
+description: 'Verify implementation matches change artifacts before archiving'
 ---
 
 # source-command-opsx-verify

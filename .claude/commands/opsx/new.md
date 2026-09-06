@@ -2,7 +2,7 @@
 name: 'OPSX: New'
 description: 'Start a new change using the experimental artifact workflow (OPSX)'
 allowed-tools: Bash(openspec:*)
-category: 'Workflow'
+category: Workflow
 tags: ['workflow', 'artifacts', 'experimental']
 ---
 

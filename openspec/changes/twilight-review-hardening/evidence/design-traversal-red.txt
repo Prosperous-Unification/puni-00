@@ -1,0 +1,29 @@
+bun test v1.4.0 (34cbb9a40)
+
+tools/tool-workflows/src/cli.integration.test.ts:
+33 |     if (!artifact) throw new Error(`Missing CLI artifact ${id}`);
+34 |     artifact.requires.forEach(visit);
+35 |     visited.push(id);
+36 |   }
+37 |   status['applyRequires'].forEach(visit);
+38 |   expect(visited).toEqual(['intent', 'specs', 'design', 'tasks']);
+                       ^
+error: expect(received).toEqual(expected)
+
+  [
+    "intent",
+    "specs",
+-   "design",
+    "tasks",
+  ]
+
+- Expected  - 1
++ Received  + 0
+
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/cli.integration.test.ts:38:19)
+(fail) pinned CLI exposes conditional design to fast-forward while apply accepts its recorded omission [302.18ms]
+
+ 0 pass
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [381.00ms]

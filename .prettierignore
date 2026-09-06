@@ -14,8 +14,9 @@ apps/be-01/drizzle/**/snapshot.json
 
 *.env.sops
 
-# Vendored skill definitions — content-hashed in skills-lock.json, so
-# reformatting them invalidates the hash and is undone on the next sync.
+# Most skill definitions are vendored and content-hashed in skills-lock.json.
+# The repository-owned OpenSpec variants are not in that lock: tool-workflows
+# formats and checks them through its uncached Nx lint dependency instead.
 .agents/skills/
 .claude/skills/
 

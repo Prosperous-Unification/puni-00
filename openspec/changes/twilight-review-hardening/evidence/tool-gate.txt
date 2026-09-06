@@ -1,0 +1,59 @@
+
+ NX   Running targets test, lint, typecheck for project tool-workflows and 1 task it depends on:
+
+- tool-workflows
+
+
+
+> nx run tool-workflows:typecheck
+
+> bunx tsc --build --force tools/tool-workflows/tsconfig.json
+
+
+> nx run tool-workflows:check
+
+> bun tools/tool-workflows/src/generate.ts --check
+
+(node:109) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `bun --trace-warnings ...` to show where the warning was created)
+Checked 40 workflow variants
+
+> nx run tool-workflows:lint
+
+> bunx eslint tools/tool-workflows/src
+
+
+> nx run tool-workflows:test
+
+> bun test tools/tool-workflows/src/workflows.test.ts tools/tool-workflows/src/schema.test.ts
+
+[0m[1mbun test [0m[2mv1.4.0 (34cbb9a40)[0m
+[0m
+tools/tool-workflows/src/workflows.test.ts:
+[0m[32m✓[0m[0m[1m generation repairs a divergent provider command and preserves provider invocations[0m [0m[2m[[1m2382.86ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m generation restores a missing installed variant[0m [0m[2m[[1m2933.65ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m absent canonical .agents/skills/openspec-archive-change/SKILL.md blocks check and generation[0m [0m[2m[[1m95.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unreadable canonical .agents/skills/openspec-archive-change/SKILL.md blocks check and generation[0m [0m[2m[[1m90.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m absent canonical .agents/skills/source-command-opsx-ff/SKILL.md blocks check and generation[0m [0m[2m[[1m88.75ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unreadable canonical .agents/skills/source-command-opsx-ff/SKILL.md blocks check and generation[0m [0m[2m[[1m87.38ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m an unreadable installed variant fails check[0m [0m[2m[[1m736.32ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m a damaged source wrapper cannot silently erase a command[0m [0m[2m[[1m42.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m archive policy changes propagate to bulk and command forms[0m [0m[2m[[1m2186.82ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m damaged source boundary description: in .agents/skills/openspec-archive-change/SKILL.md stops generation before writes[0m [0m[2m[[1m44.61ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m damaged source boundary **Load current archive inputs in .agents/skills/openspec-archive-change/SKILL.md stops generation before writes[0m [0m[2m[[1m52.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m damaged source boundary ## Command Template in .agents/skills/source-command-opsx-ff/SKILL.md stops generation before writes[0m [0m[2m[[1m52.39ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m damaged source boundary **Load current archive inputs in .agents/skills/openspec-bulk-archive-change/SKILL.md stops generation before writes[0m [0m[2m[[1m50.96ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unsupported CLI arguments fail without writing[0m [0m[2m[[1m49.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m an unrecognized workflow source cannot be silently omitted[0m [0m[2m[[1m46.14ms[0m[2m][0m
+[0m
+tools/tool-workflows/src/schema.test.ts:
+[0m[32m✓[0m[0m[1m fast-forward visits conditional design before tasks and leaves verification for after work[0m [0m[2m[0.58ms[0m[2m][0m
+
+[0m[32m 16 pass[0m
+[0m[2m 0 fail[0m
+ 55 expect() calls
+Ran 16 tests across 2 files. [0m[2m[[1m9.01s[0m[2m][0m
+
+
+
+ NX   Successfully ran targets test, lint, typecheck for project tool-workflows and 1 task it depends on

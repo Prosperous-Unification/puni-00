@@ -2,7 +2,7 @@
 name: 'OPSX: Bulk Archive'
 description: 'Archive multiple completed changes at once'
 allowed-tools: Bash(openspec:*)
-category: 'Workflow'
+category: Workflow
 tags: ['workflow', 'archive', 'experimental', 'bulk']
 ---
 
@@ -33,30 +33,40 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
 
    **IMPORTANT**: Do NOT auto-select. Always let the user choose.
 
-   **Load current archive inputs once for the selected root before batch validation:**
+   **Load current archive inputs before archive checks:**
 
-   Choose one selected change from this root and run
-   `openspec instructions archive --change "<selected-change>" --json` with the
-   same selected-root flags. This lookup is advisory and optional: it only supplies
-   extra prompt inputs, so it must never block the batch. If it fails or returns
-   invalid JSON — for example on an older CLI that does not support this command
-   yet — continue the batch with no context and no operation guidance. Do not
-   report an error and do not stop.
+   For a single archive, use the selected change. For a batch, choose one selected
+   change from the selected root and perform this lookup once before batch validation:
 
-   A valid response may omit `context` and `operationGuidance`. Treat
-   `context` as a required prompt-level input across the batch: read and consider
-   it, and apply relevant project facts, conventions, and constraints. Treat
-   `operationGuidance` as optional additive advice: read and consider every
-   entry, and follow entries that are applicable and compatible with the built-in
-   batch workflow.
+   ```bash
+   openspec instructions archive --change "<name>" --json
+   ```
 
-   Keep both fields separate from conflict analysis, explicit user choices,
-   resolved paths, CLI checks, and command contracts. If context conflicts with one
-   of those controlling inputs, report the conflict and preserve the controlling
-   value. If guidance is inapplicable or conflicts with a controlling input, do not
-   follow it and explain why. Do not infer skipped prompts, replacement paths, or
-   flags from either field, and do not copy their text verbatim into specs, changes,
-   or summaries. These are prompt-level behavior contracts, not enforceable checks.
+   Keep the same selected-root flags. Classify the observed outcome before any spec
+   write or archive move:
+   - **Success with a valid JSON object:** `context` and `operationGuidance` may
+     both be absent. Optional absence is allowed; continue the normal archive
+     checks under the existing project rules. When present, validate their shape
+     against the CLI contract, read and consider context as a required prompt
+     input, and consider every guidance entry as optional additive advice.
+   - **Specifically identified unsupported archive instructions:** continue only
+     when the diagnostic explicitly identifies `instructions archive` as unsupported
+     (for example, an unknown `archive` artifact with the supported artifact list).
+     Report the command and diagnostic, state that archive instructions are
+     unavailable, and retain project rules and every normal archive check. A
+     nonzero exit alone does not identify this condition.
+   - **Unexpected command failure, malformed JSON, wrong response shape, or
+     unreadable required context:** stop before writing specs or moving changes.
+     Report the failed command/input and its diagnostic so it can be repaired.
+     Never reinterpret failure as absent optional context or suppress the error.
+
+   Keep context and guidance separate from built-in checks, conflict analysis,
+   explicit user choices, resolved paths, and command contracts. Apply relevant
+   project facts and constraints. Report conflicts and preserve controlling inputs.
+   Explain inapplicable or conflicting guidance. Neither field can replace paths,
+   skip prompts, or invent flags. Do not copy either field verbatim into specs,
+   change artifacts or summaries unless separately requested. These are
+   prompt-level behavior contracts, not enforceable checks.
 
 3. **Batch validation - gather status for all selected changes**
 
@@ -339,7 +349,7 @@ No active changes found. Create a new change to get started.
 - Never archive a change while a spec sync is still in flight — run the sync inline and verify main specs at `<planningHome.root>/openspec/specs/<capability-path>/spec.md` before moving `changeRoot`
 - Fetch archive inputs once per selected root before spec inspection or moves
 - Fetch all required specs-rule snapshots before the batch's first main-spec write or move
-- A failed archive-inputs lookup never blocks the batch; it proceeds with no context or guidance
+- Classify archive-input outcomes using step 2 before any spec write or archive move
 - A failed specs instruction lookup stops the whole batch atomically
 - Changes without concrete `artifactPaths.specs.existingOutputPaths` continue without spec sync
 - Apply relevant runtime context across the batch and report conflicts

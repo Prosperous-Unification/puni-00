@@ -1,0 +1,41 @@
+{
+  "name": "tool-workflows",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/tool-workflows/src",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun"],
+  "targets": {
+    "generate": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": { "command": "bun tools/tool-workflows/src/generate.ts --write" }
+    },
+    "check": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": { "command": "bun tools/tool-workflows/src/generate.ts --check" }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": ["check"],
+      "options": { "command": "bunx eslint tools/tool-workflows/src" }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun test tools/tool-workflows/src/workflows.test.ts tools/tool-workflows/src/schema.test.ts"
+      }
+    },
+    "integration": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": { "command": "bun test tools/tool-workflows/src/cli.integration.test.ts" }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx tsc --build --force tools/tool-workflows/tsconfig.json" }
+    }
+  }
+}

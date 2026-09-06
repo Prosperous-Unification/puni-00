@@ -1,6 +1,6 @@
 ---
-name: "source-command-opsx-onboard"
-description: "Guided onboarding - walk through a complete OpenSpec workflow cycle with narration"
+name: 'source-command-opsx-onboard'
+description: 'Guided onboarding - walk through a complete OpenSpec workflow cycle with narration'
 ---
 
 # source-command-opsx-onboard

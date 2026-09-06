@@ -1,0 +1,14 @@
+[
+  {
+    "path": "tools/tool-workflows/src/generate.ts",
+    "exit": 1,
+    "stdout": "\n> nx run tool-workflows:typecheck\n\n> bunx tsc --build --force tools/tool-workflows/tsconfig.json\n\n\n\n\n NX   Running target typecheck for project tool-workflows failed\n\nFailed tasks:\n\n- tool-workflows:typecheck\n\nHint: run the command with --verbose for more details.\n\n",
+    "stderr": "Warning: command \"bunx tsc --build --force tools/tool-workflows/tsconfig.json\" exited with non-zero status code"
+  },
+  {
+    "path": "tools/tool-workflows/src/workflows.test.ts",
+    "exit": 1,
+    "stdout": "\n> nx run tool-workflows:typecheck\n\n> bunx tsc --build --force tools/tool-workflows/tsconfig.json\n\n\n\n\n NX   Running target typecheck for project tool-workflows failed\n\nFailed tasks:\n\n- tool-workflows:typecheck\n\nHint: run the command with --verbose for more details.\n\n",
+    "stderr": "Warning: command \"bunx tsc --build --force tools/tool-workflows/tsconfig.json\" exited with non-zero status code"
+  }
+]

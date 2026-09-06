@@ -1,6 +1,6 @@
 ---
-name: "source-command-opsx-ff"
-description: "Create a change and generate all artifacts needed for implementation in one go"
+name: 'source-command-opsx-ff'
+description: 'Create a change and generate all artifacts needed for implementation in one go'
 ---
 
 # source-command-opsx-ff

@@ -59,7 +59,7 @@ requires revisiting it. It is neither an observed fact nor a person's approval.
 
 **Approval**:
 An authorized person's decision about an identified action and the exact material
-that decision covers.
+that decision covers; it remains bounded by current authority.
 _Avoid_: Verdict, checkbox
 
 **Finding**:
@@ -157,8 +157,8 @@ may tighten but not loosen.
 _Avoid_: Default, baseline
 
 **Decision token**:
-A short-lived, single-use credential issued by the interactive browser flow that
-binds one human decision to one subject and consumer.
+A short-lived credential issued by the interactive browser flow that binds one
+human decision to one subject and consumer and authorizes at most one decision command.
 _Avoid_: Approval token, bearer token
 
 **Discovery envelope**:
@@ -188,13 +188,19 @@ requirements digest that names one accepted plan for one source basis. Its type 
 _Avoid_: Plan id, plan version
 
 **Source candidate**:
-A source commit that pins a plan reference and its generated task export and is
-the subject of verification and approval.
+A source commit that pins the plan references, prior evidence and task exports
+for its changes and is the subject of verification and approval.
 _Avoid_: Branch, build, release
+
+**Input receipt snapshot**:
+The immutable selection of accepted prior completion receipts used to admit and
+verify a source candidate, including the selected integration status.
+_Avoid_: Latest progress, candidate output
 
 **Completion receipt**:
 An attributed record that a planning task was completed on a named source
-candidate, with its tests, verdicts, and integration status.
+candidate, with its tests, verdicts, and integration status; it is an output of
+that candidate's work, available as input to later candidates.
 _Avoid_: Checkbox, done flag
 
 **Candidate**:

@@ -6,8 +6,8 @@ license: MIT
 compatibility: Requires openspec CLI.
 metadata:
   author: openspec
-  version: "1.0"
-  generatedBy: "1.12.0"
+  version: '1.0'
+  generatedBy: '1.12.0'
 ---
 
 Archive a completed change in the experimental workflow.
@@ -32,31 +32,39 @@ Archive a completed change in the experimental workflow.
 
    Always announce: "Using change: <name>" and how to override (e.g., `/openspec-archive-change <other>`).
 
-   **Load current archive inputs before the existing archive checks:**
+   **Load current archive inputs before archive checks:**
 
-   After resolving the selected change and planning root, run:
+   For a single archive, use the selected change. For a batch, choose one selected
+   change from the selected root and perform this lookup once before batch validation:
+
    ```bash
    openspec instructions archive --change "<name>" --json
    ```
-   Keep the same selected-root flags on this command. This lookup is advisory and
-   optional: it only supplies extra prompt inputs, so it must never block archiving.
-   If it exits non-zero or returns invalid JSON — for example on an older CLI that
-   does not support this command yet — continue the archive workflow with no
-   context and no operation guidance. Do not report an error and do not stop.
 
-   A successful response may omit both optional fields. Treat `context` as a
-   required prompt-level input: read and consider it, and apply relevant project
-   facts, conventions, and constraints. Treat `operationGuidance` as optional
-   additive advice: read and consider every entry, and follow entries that are
-   applicable and compatible with the built-in archive workflow.
+   Keep the same selected-root flags. Classify the observed outcome before any spec
+   write or archive move:
+   - **Success with a valid JSON object:** `context` and `operationGuidance` may
+     both be absent. Optional absence is allowed; continue the normal archive
+     checks under the existing project rules. When present, validate their shape
+     against the CLI contract, read and consider context as a required prompt
+     input, and consider every guidance entry as optional additive advice.
+   - **Specifically identified unsupported archive instructions:** continue only
+     when the diagnostic explicitly identifies `instructions archive` as unsupported
+     (for example, an unknown `archive` artifact with the supported artifact list).
+     Report the command and diagnostic, state that archive instructions are
+     unavailable, and retain project rules and every normal archive check. A
+     nonzero exit alone does not identify this condition.
+   - **Unexpected command failure, malformed JSON, wrong response shape, or
+     unreadable required context:** stop before writing specs or moving changes.
+     Report the failed command/input and its diagnostic so it can be repaired.
+     Never reinterpret failure as absent optional context or suppress the error.
 
-   Keep both fields separate from built-in steps, explicit user choices, resolved
-   paths, CLI checks, and command contracts. If context conflicts with one of those
-   controlling inputs, report the conflict and preserve the controlling value. If
-   guidance is inapplicable or conflicts with a controlling input, do not follow it
-   and explain why. Do not infer replacement paths, skipped prompts, or flags from
-   either field, and do not copy their text verbatim into specs, change artifacts,
-   or archive summaries unless the user separately asks for it. These are
+   Keep context and guidance separate from built-in checks, conflict analysis,
+   explicit user choices, resolved paths, and command contracts. Apply relevant
+   project facts and constraints. Report conflicts and preserve controlling inputs.
+   Explain inapplicable or conflicting guidance. Neither field can replace paths,
+   skip prompts, or invent flags. Do not copy either field verbatim into specs,
+   change artifacts or summaries unless separately requested. These are
    prompt-level behavior contracts, not enforceable checks.
 
 2. **Check artifact completion status**
@@ -130,6 +138,7 @@ Archive a completed change in the experimental workflow.
 5. **Perform the archive**
 
    Create an `archive` directory under `planningHome.changesDir` if it doesn't exist:
+
    ```bash
    mkdir -p "<planningHome.changesDir>/archive"
    ```
@@ -167,6 +176,7 @@ Archive a completed change in the experimental workflow.
 ```
 
 **Guardrails**
+
 - Announce the selected change; prompt for selection when it is ambiguous
 - Use artifact graph (openspec status --json) for completion checking
 - Don't block archive on warnings - just inform and confirm

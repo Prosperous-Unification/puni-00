@@ -83,7 +83,9 @@ artifacts:
       contract; never silently maintain competing independently editable plans.
       A focus brief and schedule are projections. Separate required safety
       gates from critic/judge advice. No task is done without evidence.
-    requires: [intent, specs]
+    # Proof: tool-workflows cli.integration.test.ts visited intent/specs/tasks
+    # without this design edge; expected intent/specs/design/tasks, exit 1.
+    requires: [intent, specs, design]
 
   - id: verify
     generates: verify.md

@@ -1,0 +1,9 @@
+bun test v1.4.0 (34cbb9a40)
+
+tools/tool-workflows/src/cli.integration.test.ts:
+(pass) pinned CLI exposes conditional design to fast-forward while apply accepts its recorded omission [593.48ms]
+
+ 1 pass
+ 0 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [665.00ms]

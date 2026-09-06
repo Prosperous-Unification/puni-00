@@ -48,8 +48,9 @@ MUST constrain lower-level overrides.
 #### Scenario: A running workflow is unaffected by a draft edit
 
 - **WHEN** an operator edits and publishes a later profile while an activity is running
-- **THEN** the current run retains its pinned revision unless explicitly migrated,
-  and migration rechecks affected authority and evidence
+- **THEN** the current run retains its pinned execution revision unless explicitly
+  migrated, migration rechecks affected authority and evidence, and current grant
+  revocations or tighter safety floors still constrain admission and dispatch
 
 #### Scenario: Capability cannot be enforced
 
@@ -63,12 +64,45 @@ MUST constrain lower-level overrides.
 - **THEN** it produces the same compiled digest as the service, and a competing
   stale Git publication is refused as a conflict
 
+### Requirement: Executable restore compatibility
+
+A run MUST retain the digests/versions of its executable graph, compiler, runtime
+and dependency closure, hook/adapter implementations, checkpoint serializer/saver
+and application-store schema. Workflow restore MUST own compatibility validation,
+checkpoint loading and revision reconciliation; callers MUST NOT assemble these
+steps independently. Missing, unreadable, corrupt or unsupported required packages
+and formats MUST block resume before worker or effect dispatch. Name-based latest
+implementation substitution MUST NOT occur. M1 MAY refuse incompatible upgrades
+while nonterminal runs exist; supporting every historical graph is not required.
+Successful migration/rollback preservation MUST be proven before a later increment
+declares a particular upgrade path supported.
+
+#### Scenario: A newer controller restores an older run
+
+- **WHEN** a retained run is awaiting approval under an older graph and hook build
+- **THEN** only a proven compatible controller with the pinned executable closure
+  may restore its same subject and transition; an incompatible hook/serializer
+  blocks before any worker launch or effect request
+
+#### Scenario: Upgrade rollback follows accepted work
+
+- **WHEN** a supported upgraded controller accepted a decision and recorded an uncertain
+  effect before rollback is requested
+- **THEN** the protected recovery path works without the upgraded controller,
+  preserves both records across application/checkpoint stores and outbox, and
+  resumes only a tested compatible closure without re-dispatching that effect;
+  an unsupported reverse migration refuses rollback without losing accepted state
+
 ### Requirement: Durable stage and activity lifecycle
 
 Runs MUST distinguish queued, running, awaiting approval, paused, reconciling,
 failed, cancelled, and completed states. Durable ownership and checkpoints MUST
 permit restart without inventing completion or repeating uncertain effects.
-Cancellation MUST drain or terminate workers before releasing their scarce capacity.
+Cancellation MUST fence new work, then drain or terminate workers. Effect execution
+MUST own attempt fencing, intent persistence, dispatch, reconciliation and resource
+release. Callers MUST NOT invoke effect transports or free reservations independently.
+Each reservation MUST require resource-specific terminal evidence before release;
+local process exit alone MUST NOT release a remote session/job or unresolved budget.
 
 #### Scenario: Restart during approval wait
 
@@ -88,6 +122,44 @@ Cancellation MUST drain or terminate workers before releasing their scarce capac
 - **THEN** an authorized recovery operator can submit a revision-checked evidence
   decision or abandon dependent work with outcome still unknown, and ordinary
   resume cannot repeat the effect
+
+#### Scenario: Local exit leaves a remote session running
+
+- **WHEN** a cancelled worker has exited but its browser or provider job is still
+  active or its terminal state cannot be read
+- **THEN** that resource remains reserved and visible as reconciling until its
+  provider-specific terminal evidence is observed; no replacement may consume it
+
+### Requirement: Current authority constrains pinned runs
+
+Authority MUST own the intersection of pinned requested scope, approved scope and
+current actor/membership/repository grants, integration grants, approval validity
+and platform/organization safety floors. Admission and effect execution MUST use
+this same authority boundary. Current tightening MUST constrain existing runs;
+relaxation MUST NOT enlarge an earlier approval. Dispatch admission MUST serialize
+its authority and fence validation with revocation/cancellation changes, including
+for brokered tools and effectful hooks.
+
+#### Scenario: Revocation after approval but before admission
+
+- **WHEN** an actor's repository grant or approval is revoked while approved work
+  is queued, or a new safety floor denies its requested capability
+- **THEN** admission refuses with the current reason and no worker starts, even
+  though the compiled workflow digest still matches the approved one
+
+#### Scenario: Revocation between effect intent and dispatch
+
+- **WHEN** a tool or hook intent is recorded but its authority is revoked before
+  dispatch admission commits
+- **THEN** dispatch is refused and the external receiver observes no request;
+  effects already dispatched remain subject to cancellation/reconciliation
+
+#### Scenario: A floor is relaxed after approval
+
+- **WHEN** current policy permits a broader capability than the run originally
+  requested and its human approved
+- **THEN** that broader action is still refused until a new subject and approval
+  cover it; the existing decision does not expand
 
 ### Requirement: Revision-bound human decisions
 
@@ -127,17 +199,40 @@ are not agent-invokable self-grants.
 - **WHEN** a valid service token or ordinary user-delegated MCP token attempts to mint or exercise a human decision without a decision capability
 - **THEN** the service refuses with 403 and creates no approved decision or admitted activity
 
-#### Scenario: Interactive decision succeeds exactly once
+Single use MUST mean one committed decision command. Token consumption, canonical
+command identity and decision receipt MUST commit atomically. After verifying
+caller identity and access to the stored answer, an exact command retry MUST
+return that receipt without consuming again, checking its now-stale expected
+revision, or admitting additional work. The receipt MUST NOT confer new authority.
 
-- **WHEN** an authorized browser session confirms the current subject through the origin/CSRF-validated flow and its intended consumer spends the issued token
-- **THEN** the exact decision is committed once, and replay, expiry, changed subject or wrong consumer is refused
+#### Scenario: Interactive decision response is lost
+
+- **WHEN** the confirmed decision commits but the response is lost and the same
+  actor/consumer retries the same repository/key/parameters after token expiry
+- **THEN** it receives the original decision receipt with only one decision and
+  admission; later revocation still prevents new effects
+
+#### Scenario: Consumed token is reused for a different command
+
+- **WHEN** a caller uses the consumed token with a different command key, subject
+  or parameters, or with the wrong consumer
+- **THEN** the command is refused and commits no additional decision or admission;
+  changing parameters under the original key is also a conflict
+
+#### Scenario: Expired token has never been consumed
+
+- **WHEN** a caller first attempts a decision after its token expires
+- **THEN** the service refuses without a committed decision
 
 ### Requirement: Capacity and budget admission
 
 Admission MUST atomically reserve every required pool and budget before launching
 an activity. Planned, reserved, and measured consumption MUST remain separate.
 Unknown usage MUST NOT be represented as zero. Expired owners MUST be fenced from
-publishing or freeing another owner's reservation.
+publishing, dispatching new external effects, writing a replacement workspace or
+freeing another owner's reservation. Expiry MUST NOT be treated as terminal evidence.
+Direct worker egress MUST be denied, and writable mounts MUST NOT be reused until
+all old writers have verifiably lost access.
 
 #### Scenario: Concurrent admission with one remaining slot
 
@@ -147,6 +242,20 @@ publishing or freeing another owner's reservation.
 Active multi-coordinator operation is outside this increment. It requires a
 separate storage/lease change with real cross-process admission and fencing proofs;
 multiple trigger producers do not imply multiple admission coordinators.
+
+#### Scenario: Expired worker invents a new effect key
+
+- **WHEN** a still-live expired attempt requests a previously unseen logical effect
+  after a replacement attempt receives a new fence
+- **THEN** the broker refuses before the receiver sees a request, and direct egress
+  is denied; effect deduplication alone cannot satisfy this requirement
+
+#### Scenario: Workspace lease expires while its writer lives
+
+- **WHEN** a replacement requests the expired attempt's workspace while an old
+  process or writable mount can still mutate it
+- **THEN** that workspace remains unavailable until access is verifiably removed;
+  expiry alone cannot make the new attempt its writer
 
 #### Scenario: Telemetry is unavailable under a strict budget
 
