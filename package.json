@@ -46,7 +46,7 @@
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@dagger.io/dagger": "^0.21.8",
+    "@dagger.io/dagger": "^0.21.9",
     "@eslint/js": "^10.0.1",
     "@nx/eslint": "23.2.0",
     "@nx/eslint-plugin": "23.2.0",
