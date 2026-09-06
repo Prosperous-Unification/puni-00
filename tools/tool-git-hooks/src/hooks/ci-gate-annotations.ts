@@ -3,20 +3,24 @@ import { readFile } from 'node:fs/promises';
 const DEFAULT_LIMIT = 20;
 const ERROR_PREFIX = '::error ';
 
-function isLocatedErrorCommand(line: string): boolean {
-  if (!line.startsWith(ERROR_PREFIX)) return false;
+function locatedErrorCommandOf(line: string): string | null {
+  const commandStart = line.indexOf(ERROR_PREFIX);
+  if (commandStart === -1) return null;
 
-  const separator = line.indexOf('::', ERROR_PREFIX.length);
-  if (separator === -1 || separator === line.length - 2) return false;
+  const command = line.slice(commandStart);
+  const separator = command.indexOf('::', ERROR_PREFIX.length);
+  if (separator === -1 || separator === command.length - 2) return null;
 
   const properties = new Map<string, string>();
-  for (const field of line.slice(ERROR_PREFIX.length, separator).split(',')) {
+  for (const field of command.slice(ERROR_PREFIX.length, separator).split(',')) {
     const equals = field.indexOf('=');
-    if (equals <= 0) return false;
+    if (equals <= 0) return null;
     properties.set(field.slice(0, equals).trim(), field.slice(equals + 1).trim());
   }
 
-  return Boolean(properties.get('file')) && /^\d+$/.test(properties.get('line') ?? '');
+  return Boolean(properties.get('file')) && /^[1-9]\d*$/.test(properties.get('line') ?? '')
+    ? command
+    : null;
 }
 
 /** Selects exact GitHub error commands that can restore source annotations. */
@@ -28,13 +32,14 @@ export function selectErrorAnnotations(raw: string, limit = DEFAULT_LIMIT): stri
   const selected: string[] = [];
   const seen = new Set<string>();
   for (const line of raw.split(/\r?\n/)) {
-    // Proof: deleting `seen.has(line)` made the twenty-command test receive
+    const command = locatedErrorCommandOf(line);
+    // Proof: deleting `seen.has(command)` made the twenty-command test receive
     // case-0 twice and drop case-19, failing with one unexpected entry.
-    if (!isLocatedErrorCommand(line) || seen.has(line)) continue;
+    if (!command || seen.has(command)) continue;
     // Proof: stripping `,col=9` here made the exact-command test receive the
     // right file and line but the wrong command, and it failed at its equality.
-    selected.push(line);
-    seen.add(line);
+    selected.push(command);
+    seen.add(command);
     // Proof: deleting this break made the bound test receive case-20 as a
     // twenty-first command (`Expected -0 / Received +1`).
     if (selected.length === limit) break;

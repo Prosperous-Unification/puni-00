@@ -6,8 +6,11 @@ describe('CI gate annotations', () => {
   test('preserves the exact file and line command emitted by the failing assertion', () => {
     const annotation =
       '::error file=libs/domain/src/is-within.test.ts,line=14,col=9::Expected false to be true';
+    const nxPrefix = '\u001b[1m\u001b[34mdomain:\u001b[39m\u001b[22m ';
 
-    expect(selectErrorAnnotations(`noise\n${annotation}\nmore noise`)).toEqual([annotation]);
+    expect(selectErrorAnnotations(`noise\n${nxPrefix}${annotation}\nmore noise`)).toEqual([
+      annotation,
+    ]);
   });
 
   test('keeps the first twenty unique commands in first-seen order', () => {
@@ -29,7 +32,7 @@ describe('CI gate annotations', () => {
           'error: ordinary stderr',
           '::error file=missing-line.test.ts::missing location',
           '::error line=3::missing file',
-          'prefix ::error file=hidden.test.ts,line=4::not a complete command',
+          '::error file=zero-line.test.ts,line=0::invalid location',
           '::error file=empty-message.test.ts,line=5::',
         ].join('\n'),
       ),
