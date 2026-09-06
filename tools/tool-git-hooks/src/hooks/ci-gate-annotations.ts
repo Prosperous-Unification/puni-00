@@ -2,15 +2,26 @@ import { readFile } from 'node:fs/promises';
 
 const DEFAULT_LIMIT = 20;
 const ERROR_PREFIX = '::error ';
-const NX_STREAM_START = '\u001b[1m\u001b[34m';
-const NX_STREAM_END = ':\u001b[39m\u001b[22m ';
+const NX_STREAM_BOLD_START = '\u001b[1m';
+const NX_STREAM_COLOURS = [32, 92, 34, 94, 36, 96, 33, 93, 35, 95].map(
+  (colour) => `\u001b[${String(colour)}m`,
+);
+const NX_STREAM_COLOUR_END = '\u001b[39m';
+const NX_STREAM_BOLD_END = '\u001b[22m';
 
 function nxStreamPrefixLength(line: string): number | null {
-  if (!line.startsWith(NX_STREAM_START)) return null;
-  const projectEnd = line.indexOf(NX_STREAM_END, NX_STREAM_START.length);
+  const isBold = line.startsWith(NX_STREAM_BOLD_START);
+  const colourStart = isBold ? NX_STREAM_BOLD_START.length : 0;
+  const colour = NX_STREAM_COLOURS.find((candidate) => line.startsWith(candidate, colourStart));
+  if (!colour) return null;
+  const projectStart = colourStart + colour.length;
+  const nxStreamEnd = `:${NX_STREAM_COLOUR_END}${isBold ? NX_STREAM_BOLD_END : ''} `;
+  const projectEnd = line.indexOf(nxStreamEnd, projectStart);
   if (projectEnd === -1) return null;
-  const project = line.slice(NX_STREAM_START.length, projectEnd);
-  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(project) ? projectEnd + NX_STREAM_END.length : null;
+  const project = line.slice(projectStart, projectEnd);
+  // Proof: accepting a whitespace-bearing project token promoted the invalid
+  // ANSI-prefix fixture into an annotation even though Nx cannot emit it.
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(project) ? projectEnd + nxStreamEnd.length : null;
 }
 
 function locatedErrorCommandOf(line: string): string | null {
@@ -28,20 +39,16 @@ function locatedErrorCommandOf(line: string): string | null {
   if (separator === -1 || separator === command.length - 2) return null;
 
   const properties = new Map<string, string>();
-  let propertyName: string | null = null;
   for (const field of command.slice(ERROR_PREFIX.length, separator).split(',')) {
     const equals = field.indexOf('=');
-    if (equals <= 0) {
-      if (!propertyName) return null;
-      // Proof: rejecting a comma continuation dropped the exact located command
-      // whose title is `error: bad input, expected number`.
-      const value = properties.get(propertyName);
-      if (value === undefined) return null;
-      properties.set(propertyName, `${value},${field}`);
-      continue;
+    // Proof: rejecting opaque comma continuations dropped the raw-comma case;
+    // allowing later lookalike keys to overwrite the first location dropped
+    // the `x=1, y=2, line=diagnostic text` case.
+    if (equals <= 0) continue;
+    const propertyName = field.slice(0, equals).trim();
+    if (!properties.has(propertyName)) {
+      properties.set(propertyName, field.slice(equals + 1).trim());
     }
-    propertyName = field.slice(0, equals).trim();
-    properties.set(propertyName, field.slice(equals + 1).trim());
   }
 
   return Boolean(properties.get('file')) && /^[1-9]\d*$/.test(properties.get('line') ?? '')
@@ -51,6 +58,8 @@ function locatedErrorCommandOf(line: string): string | null {
 
 /** Selects exact GitHub error commands that can restore source annotations. */
 export function selectErrorAnnotations(raw: string, limit = DEFAULT_LIMIT): string[] {
+  // Proof: passing zero, a fraction, or an unsafe integer reaches this public
+  // call path and the limit-contract test requires each to throw RangeError.
   if (!Number.isSafeInteger(limit) || limit < 1) {
     throw new RangeError(`annotation limit must be a positive safe integer; got ${String(limit)}`);
   }
