@@ -76,6 +76,21 @@ export default [
     rules: {
       ...nxRules,
       '@typescript-eslint/no-floating-promises': 'error',
+      // A binding kept for its name — a helper parameter that documents what
+      // its caller hands over, a rest-destructure's discarded key — is spelled
+      // with a leading underscore or as a rest sibling rather than acknowledged
+      // with `void x;`: typescript-eslint 8.69's `no-meaningless-void-operator`
+      // reads that idiom as the fault it is named for, and its autofix leaves a
+      // bare expression statement behind (21 sites, 2026-09-06).
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
       '@typescript-eslint/consistent-type-imports': [
         'error',
         { fixStyle: 'separate-type-imports' },
@@ -130,7 +145,14 @@ export default [
       ...tanstackRouter.configs['flat/recommended'].rules,
       ...tanstackQuery.configs['flat/recommended'].rules,
     },
-    settings: { react: { version: 'detect' } },
+    // The installed React's version, spelled rather than detected. ESLint 10
+    // removed `context.getFilename`, and eslint-plugin-react 7.37's detection
+    // path still calls it — `TypeError: contextOrFilename.getFilename is not
+    // a function` on every file, which is how the whole lint target died on
+    // the bump. A literal skips that path. `toolchain-pins.test.ts` holds it
+    // equal to `react`'s installed version, so a React bump that forgets this
+    // line fails the test tier rather than linting against the wrong React.
+    settings: { react: { version: '19.2.8' } },
   },
 
   {

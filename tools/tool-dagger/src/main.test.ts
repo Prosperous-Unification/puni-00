@@ -74,7 +74,7 @@ async function captureFailure(work: () => Promise<unknown>): Promise<Error> {
     await work();
   } catch (error: unknown) {
     if (error instanceof Error) return error;
-    throw new Error(`expected Error, received ${String(error)}`);
+    throw new Error(`expected Error, received ${String(error)}`, { cause: error });
   }
   throw new Error('expected work to fail');
 }
