@@ -4,6 +4,8 @@ const DEFAULT_LIMIT = 20;
 const ERROR_PREFIX = '::error ';
 
 function locatedErrorCommandOf(line: string): string | null {
+  // Proof: requiring `startsWith(ERROR_PREFIX)` made the ANSI-prefixed Nx
+  // fixture receive `[]` instead of its exact located command.
   const commandStart = line.indexOf(ERROR_PREFIX);
   if (commandStart === -1) return null;
 
