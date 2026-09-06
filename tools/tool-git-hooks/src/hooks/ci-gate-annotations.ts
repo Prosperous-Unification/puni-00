@@ -2,22 +2,46 @@ import { readFile } from 'node:fs/promises';
 
 const DEFAULT_LIMIT = 20;
 const ERROR_PREFIX = '::error ';
+const NX_STREAM_START = '\u001b[1m\u001b[34m';
+const NX_STREAM_END = ':\u001b[39m\u001b[22m ';
+
+function nxStreamPrefixLength(line: string): number | null {
+  if (!line.startsWith(NX_STREAM_START)) return null;
+  const projectEnd = line.indexOf(NX_STREAM_END, NX_STREAM_START.length);
+  if (projectEnd === -1) return null;
+  const project = line.slice(NX_STREAM_START.length, projectEnd);
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(project) ? projectEnd + NX_STREAM_END.length : null;
+}
 
 function locatedErrorCommandOf(line: string): string | null {
-  // Proof: requiring `startsWith(ERROR_PREFIX)` made the ANSI-prefixed Nx
-  // fixture receive `[]` instead of its exact located command.
-  const commandStart = line.indexOf(ERROR_PREFIX);
-  if (commandStart === -1) return null;
+  const nxPrefixLength = nxStreamPrefixLength(line);
+  // Proof: accepting `indexOf(ERROR_PREFIX)` promoted the prose and plain-prefix
+  // fixtures into annotations for files that did not fail.
+  const command = line.startsWith(ERROR_PREFIX)
+    ? line
+    : nxPrefixLength !== null && line.startsWith(ERROR_PREFIX, nxPrefixLength)
+      ? line.slice(nxPrefixLength)
+      : null;
+  if (!command) return null;
 
-  const command = line.slice(commandStart);
   const separator = command.indexOf('::', ERROR_PREFIX.length);
   if (separator === -1 || separator === command.length - 2) return null;
 
   const properties = new Map<string, string>();
+  let propertyName: string | null = null;
   for (const field of command.slice(ERROR_PREFIX.length, separator).split(',')) {
     const equals = field.indexOf('=');
-    if (equals <= 0) return null;
-    properties.set(field.slice(0, equals).trim(), field.slice(equals + 1).trim());
+    if (equals <= 0) {
+      if (!propertyName) return null;
+      // Proof: rejecting a comma continuation dropped the exact located command
+      // whose title is `error: bad input, expected number`.
+      const value = properties.get(propertyName);
+      if (value === undefined) return null;
+      properties.set(propertyName, `${value},${field}`);
+      continue;
+    }
+    propertyName = field.slice(0, equals).trim();
+    properties.set(propertyName, field.slice(equals + 1).trim());
   }
 
   return Boolean(properties.get('file')) && /^[1-9]\d*$/.test(properties.get('line') ?? '')
@@ -49,6 +73,7 @@ export function selectErrorAnnotations(raw: string, limit = DEFAULT_LIMIT): stri
   return selected;
 }
 
+/** Reads UTF-8 gate output and throws when the required log cannot be read. */
 export async function readErrorAnnotations(path: string): Promise<string[]> {
   return selectErrorAnnotations(await readFile(path, 'utf8'));
 }
