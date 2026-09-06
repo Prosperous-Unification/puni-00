@@ -26,9 +26,7 @@ const blankStrip = (width: number, height: number) => ({
 
 describe('how far a raster channel moved', () => {
   it('measures a tiny anti-alias wobble without calling it opaque ink', () => {
-    expect(
-      greatestChannelDelta(blankStrip(5, 3), painted(5, 3, [2], { value: 249 })),
-    ).toBe(6);
+    expect(greatestChannelDelta(blankStrip(5, 3), painted(5, 3, [2], { value: 249 }))).toBe(6);
   });
 
   it('keeps an opaque auxiliary mark far outside the raster-jitter allowance', () => {
