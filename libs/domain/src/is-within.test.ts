@@ -16,7 +16,7 @@ describe('isWithin', () => {
   it('holds for the root itself', () => {
     // Every caller depends on this: it is how a row is refused a drag into
     // itself and an edge onto itself.
-    expect(isWithin(parentOf, 'frame', 'frame')).toBe(false);
+    expect(isWithin(parentOf, 'frame', 'frame')).toBe(true);
   });
 
   it('holds all the way up a chain, not just one step', () => {
