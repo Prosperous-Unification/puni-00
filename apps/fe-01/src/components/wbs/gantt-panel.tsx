@@ -2102,11 +2102,15 @@ interface StandaloneLegend {
  *
  * **Why grow and not truncate.** The cheaper shape is to cut the name to the
  * room it has, ellipsis included, which is what the live chip does with
- * `maxWidth: dayPx`. `spec.md` forbids it here: "Every marker name SHALL appear
- * as text in the exported markup", explicitly rejecting a tooltip because it is
- * invisible in a printed page or a rasterised copy — and a truncation is that
- * refusal with the characters gone rather than hidden. The download is the
- * artefact with no pointer, so it is the one that has to carry the whole name.
+ * `maxWidth: dayPx`. `spec.md` forbids it here: "Every name the legend names
+ * SHALL appear as text in the exported markup", explicitly rejecting a tooltip
+ * because it is invisible in a printed page or a rasterised copy — and a
+ * truncation is that refusal with the characters gone rather than hidden. The
+ * download is the artefact with no pointer, so it is the one that has to carry
+ * the whole name. The clause reads "the legend names" and not "every marker"
+ * since TASK-287: a row that exists is a row that is drawn whole, which is a
+ * statement about *this* function and says nothing about the membership
+ * question above.
  */
 function layOutMarkerLegend(
   band: readonly { readonly marker: CalendarMarkerView }[],
@@ -2309,7 +2313,46 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
     // the colour the rule is drawn in, and the legend names every share.
     // {@link MARKER_BAND_MAX_PER_CELL} caps the split at 3, and at 1 on the
     // 4px rung where a share would be sub-pixel.
+    //
+    // **The empty day leaves before the arithmetic** (TASK-287 AC #2). Most
+    // days on a chart carry no marker, and `dayPx / 0` is `Infinity` — read by
+    // nothing today, because the loop under it runs zero times, but it was an
+    // `Infinity` computed once per empty day and waiting for the first
+    // refactor that hoists the expression or logs it.
+    if (standing.length === 0) continue;
     const sharePx = dayPx / standing.length;
+    // **One rounded cell, square joins inside it** (TASK-287 AC #3). Each
+    // share used to carry its own `rx="2"`, so where two shares met, the left
+    // one's right corners and the right one's left corners were both rounded
+    // and the page showed through the notch between them. The seam belongs to
+    // the split and to nothing else: the live band never splits a cell — its
+    // chips are absolutely positioned at the same `left: offset * dayPx` under
+    // the same `maxWidth: dayPx` and simply overlap, which the day card is
+    // there to resolve — so there is no screen behaviour to copy here, only an
+    // artefact of the export's own answer to having no day card.
+    // `rx` has no per-corner spelling, so the rounding
+    // moves off the share and onto the cell: the shares are drawn square and
+    // clipped to one rounded rect the width of the whole day. A day with a
+    // single share is unchanged by construction — its share *is* the cell, so
+    // the clip and the rect coincide and the file still carries the live
+    // chip's `rounded-sm`.
+    // `String(...)` and not the bare number, for the same reason the
+    // `data-marker-offset` below spells it out: `restrict-template-expressions`
+    // rejects a number in a template literal under this repo's config.
+    const cellClipId = `gantt-marker-cell-clip-${String(day.offset)}`;
+    const cellClip = document.createElementNS(SVG_NS, 'clipPath');
+    cellClip.setAttribute('id', cellClipId);
+    cellClip.setAttribute('clipPathUnits', 'userSpaceOnUse');
+    const cellShape = svgRect(
+      cellX,
+      ROW_PX - MARKER_CHIP_HEIGHT_PX,
+      dayPx,
+      MARKER_CHIP_HEIGHT_PX,
+      '#000',
+    );
+    cellShape.setAttribute('rx', '2');
+    cellClip.appendChild(cellShape);
+    chipClips.appendChild(cellClip);
     for (const [share, marker] of standing.entries()) {
       const fill = markerFill(marker);
       const chipX = cellX + share * sharePx;
@@ -2322,8 +2365,9 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
       );
       // The live chip's `rounded-sm`, which is 2px: the file is the chart as
       // drawn, and a sharp corner where the screen has a soft one is the same
-      // class of disagreement as a wrong x, only quieter.
-      chip.setAttribute('rx', '2');
+      // class of disagreement as a wrong x, only quieter. It is the cell's
+      // clip that carries it now, for the seam reason above.
+      chip.setAttribute('clip-path', `url(#${cellClipId})`);
       // The live band's own two hooks, on the file's copy of the same chip:
       // "the export matches the screen" is a claim about two documents, and it
       // is only checkable if the same question can be asked of both.
