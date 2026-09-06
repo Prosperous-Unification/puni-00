@@ -161,7 +161,9 @@ describe('a refused SSO sign-in', () => {
     render(<AuthForm onSignedIn={() => undefined} />);
 
     expect(
-      screen.getByText('SSO needs you to choose an account. Try again and pick the one you use here.'),
+      screen.getByText(
+        'SSO needs you to choose an account. Try again and pick the one you use here.',
+      ),
     ).toBeDefined();
   });
 
@@ -191,7 +193,9 @@ describe('a refused SSO sign-in', () => {
     arriveWith('?auth_error=login_required');
     render(<AuthForm onSignedIn={() => undefined} />);
 
-    expect(screen.getByText('SSO needs you to sign in again. Try again to continue.')).toBeDefined();
+    expect(
+      screen.getByText('SSO needs you to sign in again. Try again to continue.'),
+    ).toBeDefined();
   });
 
   itDom('offers the password form while SSO is temporarily unavailable', () => {
