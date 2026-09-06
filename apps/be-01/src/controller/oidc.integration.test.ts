@@ -507,6 +507,145 @@ describe('OIDC browser routes', () => {
     expect(f.calls.exchange).toHaveLength(0);
   });
 
+  /**
+   * TASK-269, the first half. `searchParams.get('state')` answers the **first**
+   * value of a repeated key and `RouteRequest.query` answers the **last**, so
+   * moving this handler onto the framework-free route shape silently changed
+   * which string a duplicated `state` selected — and `consume` deletes the
+   * record before it compares, so the wrong value burned a login that was about
+   * to succeed.
+   *
+   * The decision is to refuse the request rather than to pick a value: no
+   * authorization server sends `state` twice, and `openid-client` refuses a
+   * repeated response parameter a moment later regardless, so first-value would
+   * only move the failure past the point where the transaction is gone.
+   *
+   * The assertion that carries it is the second callback: refusing costs the
+   * caller nothing, and the login they actually started still completes.
+   */
+  it('refuses a callback carrying two states without spending the transaction', async () => {
+    const f = fixture();
+    f.transactions.save({
+      browserBinding: 'binding-1',
+      nonce: 'nonce-1',
+      state: 'state-1',
+      verifier: 'verifier-1',
+    });
+
+    const polluted = await f.app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1&state=other', {
+        headers: { cookie: '__Host-wbs_oidc=binding-1' },
+      }),
+    );
+
+    expect(polluted.status).toBe(400);
+    // Read as text, because the answer this refusal replaces is a *bodiless*
+    // 400 with the binding cookie cleared, and `json()` on that throws a
+    // `SyntaxError` before any assertion can report what actually differed.
+    expect(await polluted.text()).toBe(JSON.stringify({ error: 'duplicate_parameter' }));
+    expect(f.calls.exchange).toHaveLength(0);
+    expect(polluted.headers.get('set-cookie')).toBeNull();
+
+    const honest = await f.app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: { cookie: '__Host-wbs_oidc=binding-1' },
+      }),
+    );
+
+    expect(honest.status).toBe(302);
+    expect(f.calls.exchange).toHaveLength(1);
+  });
+
+  /**
+   * The same refusal one parameter over, and the case that says why the rule is
+   * "any repeated key" rather than "a repeated `state`".
+   *
+   * A doubled `code` passes the state check, so `consume` succeeds and spends
+   * the transaction — and then `authorizationCodeGrant` throws on the duplicate,
+   * which nothing in this handler catches. The caller would get a framework 500
+   * for a login that is now gone. The fixture's `exchange` is a stub and cannot
+   * reproduce that throw, so what is asserted is the refusal that stops it
+   * happening — and, as above, the honest callback that still completes, which
+   * is what says the transaction and the cookie both survived.
+   */
+  it('refuses a callback carrying two codes with the transaction still unspent', async () => {
+    const f = fixture();
+    f.transactions.save({
+      browserBinding: 'binding-1',
+      nonce: 'nonce-1',
+      state: 'state-1',
+      verifier: 'verifier-1',
+    });
+
+    const polluted = await f.app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&code=c2&state=state-1', {
+        headers: { cookie: '__Host-wbs_oidc=binding-1' },
+      }),
+    );
+
+    expect(polluted.status).toBe(400);
+    expect(await polluted.text()).toBe(JSON.stringify({ error: 'duplicate_parameter' }));
+    expect(f.calls.exchange).toHaveLength(0);
+    expect(polluted.headers.get('set-cookie')).toBeNull();
+
+    const honest = await f.app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: { cookie: '__Host-wbs_oidc=binding-1' },
+      }),
+    );
+
+    expect(honest.status).toBe(302);
+    expect(f.calls.exchange).toHaveLength(1);
+  });
+
+  /**
+   * TASK-269, the second half. Elysia answers a HEAD from the path's GET and so
+   * does the second binder, which is right for a route that reads something.
+   * This one consumes a single-use transaction and mints session cookies, so a
+   * HEAD — a link preview, an uptime probe — would spend a whole login on a
+   * request that carries no body back.
+   *
+   * Before the route shape the handler read the raw `request.method` and the
+   * provider saw HEAD; afterwards it read the registered verb and the provider
+   * saw GET. Refusing closes the difference instead of choosing which of the
+   * two the provider should be told.
+   */
+  it('refuses a HEAD callback with 405 and Allow, before consuming or exchanging', async () => {
+    const f = fixture();
+    f.transactions.save({
+      browserBinding: 'binding-1',
+      nonce: 'nonce-1',
+      state: 'state-1',
+      verifier: 'verifier-1',
+    });
+
+    const probed = await f.app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: { cookie: '__Host-wbs_oidc=binding-1' },
+        method: 'HEAD',
+      }),
+    );
+
+    expect(probed.status).toBe(405);
+    expect(probed.headers.get('allow')).toBe('GET');
+    expect(f.calls.exchange).toHaveLength(0);
+    // The cookie has to survive the refusal, not just the record: reading
+    // `f.transactions` by key would still pass if the 405 cleared
+    // `__Host-wbs_oidc`, and a browser with no binding cannot finish the login
+    // the record is still holding. So the carrying assertion is the honest GET
+    // that follows, sending the same cookie the probe was answered with.
+    expect(probed.headers.get('set-cookie')).toBeNull();
+
+    const honest = await f.app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: { cookie: '__Host-wbs_oidc=binding-1' },
+      }),
+    );
+
+    expect(honest.status).toBe(302);
+    expect(f.calls.exchange).toHaveLength(1);
+  });
+
   it('exchanges once and sets hardened access and refresh-correlation cookies', async () => {
     const f = fixture();
     f.transactions.save({
