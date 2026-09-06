@@ -3,9 +3,8 @@
   "compilerOptions": {
     "outDir": "../../dist/out-tsc",
     "types": ["vitest/globals", "@testing-library/jest-dom", "node"],
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
+      "@/*": ["./src/*"],
       "@wbs/domain/workday": ["../../libs/domain/src/workday.ts"],
       "@wbs/domain/assumed-duration": ["../../libs/domain/src/assumed-duration.ts"],
       "@wbs/domain/effective-team": ["../../libs/domain/src/effective-team.ts"],
