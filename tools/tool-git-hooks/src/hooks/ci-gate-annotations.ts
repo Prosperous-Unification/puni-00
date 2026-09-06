@@ -28,9 +28,15 @@ export function selectErrorAnnotations(raw: string, limit = DEFAULT_LIMIT): stri
   const selected: string[] = [];
   const seen = new Set<string>();
   for (const line of raw.split(/\r?\n/)) {
+    // Proof: deleting `seen.has(line)` made the twenty-command test receive
+    // case-0 twice and drop case-19, failing with one unexpected entry.
     if (!isLocatedErrorCommand(line) || seen.has(line)) continue;
+    // Proof: stripping `,col=9` here made the exact-command test receive the
+    // right file and line but the wrong command, and it failed at its equality.
     selected.push(line);
     seen.add(line);
+    // Proof: deleting this break made the bound test receive case-20 as a
+    // twenty-first command (`Expected -0 / Received +1`).
     if (selected.length === limit) break;
   }
   return selected;
