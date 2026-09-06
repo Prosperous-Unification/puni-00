@@ -1,8 +1,8 @@
 # Implementation tasks
 
 <!-- Single authored plan. Link spec/design, dependencies, and scope authorization.
-     Record design applicability explicitly. No separate plan.md.
-     Use one checkbox per deliverable; keep ordinary TDD actions as prose. -->
+     Design applicability is recorded in design.md, not here.
+     What each slice must name: see the tasks artifact instruction. -->
 
 ## Task 1: Independently testable outcome
 

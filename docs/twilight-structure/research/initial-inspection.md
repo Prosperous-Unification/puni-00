@@ -23,12 +23,13 @@ separates thread checkpoints from cross-thread stores; in-memory persistence
 does not survive process restarts.
 [Interrupts](https://docs.langchain.com/oss/javascript/langgraph/interrupts)
 provide a pause/resume primitive for human input.
-**Proposed architecture:** LangGraph owns the delivery workflow while an ACP
-client layer manages coding-agent sessions. Application records link workflow
-state to agent-session state and artifacts. Recovery must reconcile external
-effects before repeating a node that may already have launched work. This is
-a recommendation to evaluate, not an accepted architecture or a tested Bun
-compatibility claim.
+**Proposed architecture:** that split — LangGraph owning the delivery workflow,
+an ACP client layer owning coding-agent sessions, and application records joining
+the two — is specified in
+[the control plane's boundaries](../../../openspec/changes/twilight-control-plane/design.md#boundaries),
+with the reconcile-before-repeat rule in
+[durable execution and effect ownership](../../../openspec/changes/twilight-control-plane/design.md#durable-execution-and-effect-ownership).
+Nothing here is a tested Bun compatibility claim.
 
 ## OpenHands and comparable implementations
 
@@ -83,8 +84,9 @@ Host details, credentials, and raw operational transcripts are not copied here.
 
 Claire's observability design deliberately excludes prompt and tool content
 from exported telemetry. Whether Twilight Structure should retain such content,
-where it lives, and who can inspect it are open decisions. Radical observability
-does not yet specify a content-retention policy.
+where it lives, and who can inspect it were open when this pass ran; A16 and A17
+in [assumptions](../assumptions.md) now answer them provisionally. Radical
+observability does not by itself specify a content-retention policy.
 
 Candidate improvement measurements include review rounds, rework, escaped
 defects, browser acceptance, and cost per accepted outcome. Self-improvement
@@ -100,12 +102,12 @@ decision tickets. These are useful inputs without committing to their exact
 storage or workflow conventions.
 
 [Karpathy's LLM Wiki note](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
-describes preserved source material, an agent-maintained linked Markdown wiki,
-and conventions governing maintenance, with an index and chronological log.
-**Possible application:** accumulated research and lessons link back to sources
-and accepted specifications. A wiki update should not silently redefine an
-accepted contract. This is a candidate interpretation of `llm-wiki`; the exact
-reference intended by Dany remains unconfirmed.
+was read on this pass and described preserved source material, an
+agent-maintained linked Markdown wiki, and conventions governing maintenance,
+with an index and chronological log. The reading the repository settled on, and
+Dahl's fork alongside it, are in
+[the wiki reading this repo adopted](../knowledge.md#the-wiki-reading-this-repo-adopted);
+the exact `llm-wiki` reference intended by Dany was never confirmed.
 
 The exact `betterpowers` project was not identified in the scoped local search
 or web search. Keep the name from the brief and request its reference during

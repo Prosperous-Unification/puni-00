@@ -1,0 +1,96 @@
+Fault A: tools/tool-workflows/src/generate.ts, readFormatOptions hardcodes { singleQuote: true, printWidth: 100 } instead of reading .prettierrc.json. Command: bun test tools/tool-workflows/src/workflows.test.ts -t prettier. Date: 2026-09-06.
+
+bun test v1.4.0 (34cbb9a40)
+
+tools/tool-workflows/src/workflows.test.ts:
+226 |   >;
+227 |   writeFileSync(
+228 |     join(fixture, prettierrc),
+229 |     JSON.stringify({ ...configured, proseWrap: 'always', printWidth: 40 }),
+230 |   );
+231 |   expect(run().exitCode).toBe(1);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:231:26)
+(fail) the repository prettier configuration decides the generated formatting [2202.31ms]
+241 |     }
+242 |     writeFileSync(join(fixture, variant), 'unchanged probe\n');
+243 |     for (const mode of ['--check', '--write']) {
+244 |       const rejected = run(mode);
+245 |       expect(rejected.exitCode).toBe(1);
+246 |       expect(rejected.stderr.toString()).toContain(prettierrc);
+                                               ^
+error: expect(received).toContain(expected)
+
+Expected to contain: ".prettierrc.json"
+Received: "Error: Workflow drift: .claude/commands/opsx/archive.md; run bunx nx run tool-workflows:generate\n    at generateWorkflows (/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts:281:19)\n"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:246:42)
+(fail) a absent .prettierrc.json stops generation [735.02ms]
+241 |     }
+242 |     writeFileSync(join(fixture, variant), 'unchanged probe\n');
+243 |     for (const mode of ['--check', '--write']) {
+244 |       const rejected = run(mode);
+245 |       expect(rejected.exitCode).toBe(1);
+246 |       expect(rejected.stderr.toString()).toContain(prettierrc);
+                                               ^
+error: expect(received).toContain(expected)
+
+Expected to contain: ".prettierrc.json"
+Received: "Error: Workflow drift: .claude/commands/opsx/archive.md; run bunx nx run tool-workflows:generate\n    at generateWorkflows (/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts:281:19)\n"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:246:42)
+(fail) a unreadable .prettierrc.json stops generation [813.43ms]
+241 |     }
+242 |     writeFileSync(join(fixture, variant), 'unchanged probe\n');
+243 |     for (const mode of ['--check', '--write']) {
+244 |       const rejected = run(mode);
+245 |       expect(rejected.exitCode).toBe(1);
+246 |       expect(rejected.stderr.toString()).toContain(prettierrc);
+                                               ^
+error: expect(received).toContain(expected)
+
+Expected to contain: ".prettierrc.json"
+Received: "Error: Workflow drift: .claude/commands/opsx/archive.md; run bunx nx run tool-workflows:generate\n    at generateWorkflows (/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts:281:19)\n"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:246:42)
+(fail) a malformed .prettierrc.json stops generation [743.38ms]
+
+ 0 pass
+ 20 filtered out
+ 4 fail
+ 9 expect() calls
+Ran 4 tests across 1 file. [4.58s]
+exit=1
+
+
+Fault B: the object/array guard in readFormatOptions deleted, so a top-level `[]` spreads away to nothing. Command: bun test tools/tool-workflows/src/workflows.test.ts -t malformed.
+
+bun test v1.4.0 (34cbb9a40)
+
+tools/tool-workflows/src/workflows.test.ts:
+241 |     }
+242 |     writeFileSync(join(fixture, variant), 'unchanged probe\n');
+243 |     for (const mode of ['--check', '--write']) {
+244 |       const rejected = run(mode);
+245 |       expect(rejected.exitCode).toBe(1);
+246 |       expect(rejected.stderr.toString()).toContain(prettierrc);
+                                               ^
+error: expect(received).toContain(expected)
+
+Expected to contain: ".prettierrc.json"
+Received: "Error: Workflow drift: .agents/skills/openspec-apply-change/SKILL.md; run bunx nx run tool-workflows:generate\n    at generateWorkflows (/home/df/wd/puni/puni-00/tools/tool-workflows/src/generate.ts:278:19)\n"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:246:42)
+(fail) a malformed .prettierrc.json stops generation [732.17ms]
+
+ 0 pass
+ 23 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [809.00ms]
+exit=1

@@ -1,7 +1,7 @@
 # Repository wiki
 
 This is navigation over canonical knowledge, using the repository-oriented
-[LLM Wiki conventions](../twilight-structure/research/knowledge-patterns.md).
+[LLM Wiki conventions this repo adopted](../twilight-structure/knowledge.md#the-wiki-reading-this-repo-adopted).
 It does not replace contracts, glossaries, JSDoc, or runbooks.
 
 | Context            | Language                                     | Current knowledge and contracts                                                                                                                                                                               |

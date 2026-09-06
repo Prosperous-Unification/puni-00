@@ -1,0 +1,3 @@
+$ bunx nx format:check --all   (2026-09-06, final state)
+
+exit=0

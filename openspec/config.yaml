@@ -35,6 +35,10 @@ context: |
   raw full Nx gate there. The earlier "there is no CI" line was stale and
   under-scoped every plan that inherited it: it omitted format and build.
 
+# These rules are served with every artifact request regardless of the change's
+# schema (probed on 1.12.0; see the note under `design` below), so each one is
+# stated here exactly once and the schemas' instructions defer to it rather than
+# repeating a number that would then drift.
 rules:
   intent:
     - Max 400 words, excluding the template's HTML comments. Hard cap. If the
@@ -55,8 +59,16 @@ rules:
     - Every requirement needs at least one scenario.
     - Scenarios use exactly four hashtags.
   design:
-    - Only create this when the technical shape is non-trivial. Skipping it is
-      the expected case, not an exception.
+    # These rules are global, not per-schema. Probed on 1.12.0, 2026-09-06: a
+    # change declaring `schema: twilight-v1` in a disposable repository received
+    # this same `rules` array from `instructions design --json` while its
+    # `instruction` and `template` came from twilight-v1. Written schema-neutrally
+    # for that reason; see openspec/changes/twilight-review-hardening/evidence/
+    # config-rules-are-global.txt.
+    - Follow the active schema's own design instruction. Under sdd-lean, create
+      design.md only when the technical shape is non-trivial; skipping it is the
+      expected case. Under twilight-v1, design.md is always present and holds an
+      "## Applicability" section alone when the change is mechanically obvious.
     - Do not restate rationale that already lives in a linked ADR.
   tasks:
     - Coherent TDD slices, not two-minute keystrokes.

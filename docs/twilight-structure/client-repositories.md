@@ -21,20 +21,62 @@ configuration, and upgrade metadata. Client content is never copied from
 Secrets are provisioned separately. Client variation is explicit configuration
 or extension code with tests, not a private fork of the core workflow.
 
-Proposed manifest: `.twilight/repository.yaml` records stable repository ID,
-template version, workflow package version, planning adapter version, context
-roots, gate targets, permitted integration references, and planning ref. It
-contains no credentials. Validate before activation and reject unsupported
-versions. Pin upgrades in a change; show the diff, migrate with fixtures, verify
-locally, canary on `puni-00`, then offer the same version to clients.
+A generated client's Backlog configuration starts from a required baseline, and
+each item is a refusal of an upstream default that the
+[serializer, lock and configuration findings](research/backlog-patterns.md)
+record: the global task ID lock stays **on**, because
+`USE_GLOBAL_TASK_ID_LOCK=false` bypasses the allocation lock that sibling
+worktrees share; remote operations stay **off**, because a fetch during a read
+makes the corpus depend on network state the broker did not accept; and the
+cross-branch board is **read-only**, because a task seen as Done on an unmerged
+branch must not authorize dependent work. A client may not relax these three in
+its own manifest; changing one is a template change with its own tests.
 
-The planning manifest is tagged: initially `kind: openspec` with change/task roots;
-after migration `kind: wbs-backlog` with adapter version, planning ref and extension
-version. A clean M1 client needs no invented Backlog revision. A trusted operator
-bootstrap binds repository ID, verified remote identity, organization owner, policy
-package and integration references to the server. Importing a client-authored
-manifest cannot grant that binding or credentials. Bootstrap precedes any run and
-is separate from per-run plan approval.
+Proposed manifest: `.twilight/repository.yaml`. It contains no credentials.
+Validate before activation and reject unsupported versions. Pin upgrades in a
+change; show the diff, migrate with fixtures, verify locally, canary on
+`puni-00`, then offer the same version to clients. Its fields:
+
+- `repositoryId` — stable identity for this repository; scopes planning
+  identity, retrieval, streams and jobs.
+- `templateVersion`, `workflowPackageVersion`, `planningAdapterVersion` — the
+  starter, workflow package and planning adapter revisions this repo runs.
+- `contextRoots` — directories that own domain knowledge and glossaries.
+- `gateTargets` — the Nx targets that constitute this repo's gate.
+- `integrationReferences` — the integrations this repo is permitted to reach.
+- `planning.kind` — `openspec` before migration, `wbs-backlog` after it.
+- `planning.ref` — the accepted planning ref, such as `refs/heads/twilight-planning`.
+- `planning.backlogDir` — the client's configured Backlog directory. Backlog
+  supports `backlog/`, `.backlog/` or another project-relative path, so every
+  WBS extension path below is written `<planning.backlogDir>/wbs/…` and nothing
+  hardcodes `backlog/`.
+- `planning.remote` — the planning remote's kind and its identity mechanism.
+  A31's self-hosted bare repository with an SSH forced-command gateway is the
+  default, not the only option; another kind must pass the same denial tests
+  before it is selectable here.
+- `planning.exportPath` — the single authority for where the deterministic tasks
+  export is written. The plan lock and CI validate against this field; no other
+  document states that path.
+- `planning.expectedScale` — the client's declared planning scale (plans, active
+  tasks, archived tasks, accepted command/receipt records) that the storage
+  acceptance profile is evaluated at.
+- `profiles.default` — the delivery profile name, defined in
+  `openspec/schemas/twilight-v1/execution.yaml` under `profiles`.
+- `retention` — a reference to an organization retention policy revision, never
+  a copy of its values.
+- `capacity.defaults` — a reference to an organization capacity defaults
+  revision, resolved at admission.
+- `extensionVersion` — the WBS extension format version; required once
+  `planning.kind` is `wbs-backlog`.
+
+An M1 client has no accepted Backlog planning revision, and none is invented for
+it: `planning.kind` stays `openspec` with its change/task roots until the
+migration in [Cutover after the refactors land](#cutover-after-the-refactors-land)
+flips it to `wbs-backlog`. A trusted operator bootstrap binds repository ID,
+verified remote identity, organization owner, policy package and integration
+references to the server. Importing a client-authored manifest cannot grant that
+binding or credentials. Bootstrap precedes any run and is separate from per-run
+plan approval.
 
 Task 8 changes the OpenSpec default to `twilight-v1` in both puni-00 and generated
 clients after pinning each pre-existing change's schema metadata. Template parity
@@ -48,14 +90,14 @@ must operate without the latest factory process being healthy.
 
 ## Storage ownership
 
-| Record                                                                                                                           | Target persistence                                      | Owner                                              |
-| -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------- |
-| Task title/body/status/assignees/labels/dependencies/acceptance                                                                  | Native Backlog task files in client repo                | Planning adapter using pinned Backlog contracts    |
-| WBS hierarchy/order/frozen numbering, per-step triples, measures, calendars, capacity, directory references, saved-plan metadata | Versioned extension files under `backlog/wbs/`          | WBS domain codec with lossless fixtures            |
-| Stable planning identity, command intent and accepted batch revisions                                                            | Git-versioned planning manifest/journal, scoped to repo | Planning broker                                    |
-| Derived schedules/indexes                                                                                                        | Rebuildable cache from a planning revision              | WBS; cache is never authoritative planning storage |
-| Workflow checkpoints, active leases, budgets, event delivery, transient presence                                                 | Durable service store appropriate to deployment         | Twilight coordinator/runtime                       |
-| Credentials and protected raw evidence                                                                                           | Secret/evidence service, client-scoped                  | Integration authority                              |
+| Record                                                                                                                           | Target persistence                                           | Owner                                              |
+| -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------- |
+| Task title/body/status/assignees/labels/dependencies/acceptance                                                                  | Native Backlog task files in client repo                     | Planning adapter using pinned Backlog contracts    |
+| WBS hierarchy/order/frozen numbering, per-step triples, measures, calendars, capacity, directory references, saved-plan metadata | Versioned extension files under `<planning.backlogDir>/wbs/` | WBS domain codec with lossless fixtures            |
+| Stable planning identity, command intent and accepted batch revisions                                                            | Git-versioned planning journal, scoped to repo               | Planning broker                                    |
+| Derived schedules/indexes                                                                                                        | Rebuildable cache from a planning revision                   | WBS; cache is never authoritative planning storage |
+| Workflow checkpoints, active leases, budgets, event delivery, transient presence                                                 | Durable service store appropriate to deployment              | Twilight coordinator/runtime                       |
+| Credentials and protected raw evidence                                                                                           | Secret/evidence service, client-scoped                       | Integration authority                              |
 
 “Backlog instead of SQLite” applies to the authoritative WBS planning model. The
 existing SQLite planning database must not survive as an undisclosed write
@@ -118,14 +160,25 @@ edit → materialize → native read in both directions, including extension fie
 
 ### Storage workload acceptance budget
 
-The Task 9 spike must measure the real broker, remote CAS, native Backlog adapter
-and WBS reads on a pinned fixture: 20 plans, 10,000 active tasks, 10,000 archived
-tasks, 100,000 accepted command/receipt records, and all WBS extension fields. Run
-five writer clients and ten readers for 30 minutes at two offered commands/second;
-90% are single-task edits and 10% are atomic 100-operation batches. Writers cycle
-across disjoint plans and deliberately contend on one plan. Record host/storage,
-network latency, package pins, fixture digest, warm/cold cache conditions, sample
-counts, accepted/conflicted commands and raw latency distributions.
+These figures are a named acceptance profile, **`storage-acceptance/default`**,
+rather than one global constant. A client declares its own size in the repository
+manifest's `planning.expectedScale` — plans, active tasks, archived tasks and
+accepted command/receipt records — and the profile is instantiated at that
+declared scale. The numbers below are the profile's default values and are the
+scale `puni-00` declares for itself. A client declaring a different scale runs
+the same profile against its own fixture size and reports against the same
+budgets. Changing a budget changes the profile, once, rather than adding a
+per-client footnote.
+
+The spike measures the real broker, remote CAS, native Backlog adapter and WBS
+reads on a pinned fixture at the declared scale. At `storage-acceptance/default`
+that scale is 20 plans, 10,000 active tasks, 10,000 archived tasks, 100,000
+accepted command/receipt records, and all WBS extension fields. Run five writer
+clients and ten readers for 30 minutes at two offered commands/second; 90% are
+single-task edits and 10% are atomic 100-operation batches. Writers cycle across
+disjoint plans and deliberately contend on one plan. Record host/storage, network
+latency, package pins, fixture digest, warm/cold cache conditions, sample counts,
+accepted/conflicted commands and raw latency distributions.
 
 Proposed acceptance budgets, **not measurements**: p95 command-to-accepted-ref
 latency ≤ 1 second for single edits and ≤ 3 seconds for batches; p95 complete-plan
@@ -142,52 +195,106 @@ budget fails, Task 9 remains incomplete; measure batching/index improvements wit
 this authority model or explicitly revise the proposed acceptance contract before
 cutover. Never silently reinstate SQLite as plan authority.
 
+The spike is the first slice of Task 9, so it runs after — not before — the
+closure recorded in
+[Cutover after the refactors land](#cutover-after-the-refactors-land). That
+section is the only gate on this work; no other document states a second
+prerequisite for it.
+
 ## Joining planning and source revisions
 
-A `PlanRef` carries repository, plan and change IDs, immutable planning commit,
-source base commit and requirements digest. The planning commit records the source
-basis and requirement/workflow inputs; it does not contain its own commit hash.
-The source candidate contains `.twilight/plan-lock.json` with a versioned
-`changes` map keyed by change ID. Each entry names its `PlanRef`, immutable input
-receipt snapshot revision/digest and deterministic export digest/path
-(`openspec/changes/<change>/tasks.md`). The empty snapshot is explicit and immutable;
-missing or unreadable snapshots are errors, not an empty default. Validate that
-map key, plan change ID, repository and export path agree. Different changes can
-pin different accepted planning commits; they need not track one moving head.
+A `PlanRef` carries repository, plan and change IDs, an immutable planning commit,
+a source base commit and a requirements digest. The planning commit records the
+source basis and the requirement/workflow inputs it was accepted against; it does
+not contain its own commit hash.
+
+The source candidate carries `.twilight/plan-lock.json`, a versioned `changes`
+map keyed by change ID. Each entry names its `PlanRef`, the input receipt
+snapshot's immutable revision and digest, and the deterministic export's digest
+and path. That path comes from the manifest's `planning.exportPath`; the lock
+repeats it so the two can be compared, and no other document states it.
+
+An empty input receipt snapshot is explicit and immutable. A missing or
+unreadable snapshot is an error, never an empty default.
+
+Validate that the map key, the plan's change ID, the repository and the export
+path all agree. Different changes pin different accepted planning commits; they
+do not track one moving head.
+
+### A worked example
+
+`puni-00` has two changes in flight, `alpha` and `beta`. `alpha`'s plan was
+accepted at planning commit `p1`, `beta`'s at `p2`. Those are different commits,
+and neither entry moves when the other's plan changes.
+
+One source candidate, `s1`, is built on source base `b0`. Its plan lock holds two
+entries: `alpha → { PlanRef(p1, b0, …), snapshot r7, export digest d1 }` and
+`beta → { PlanRef(p2, b0, …), snapshot r7, export digest d2 }`. Both exports were
+generated from the accepted plans _before_ `s1` was committed, which is why `s1`
+can pin them.
+
+CI verifies `s1` by resolving exactly those pins — `p1`, `p2`, snapshot `r7`, and
+the two export digests. It never reads the current head of the planning ref,
+because that head may have moved since `s1` was written.
+
+`s1` passes and merges. Only then is a completion receipt accepted: task
+`alpha.3` completed on candidate `s1`, with its tests, verdicts and integration
+status. That receipt is an _output_ of `s1`, so it is absent from `s1`'s own lock
+and cannot be added to it.
+
+A later candidate, `s2`, may pin that receipt as a prior input. Its snapshot `r8`
+contains `alpha.3`'s receipt, and `s2` regenerates its own exports against the
+plans as they stand then.
+
+### Ordering, merging and receipts
 
 Publication order is acyclic: accept planning definitions and prior completion
-receipts → freeze input receipt snapshots → generate the lock/exports → commit the
-source candidate → verify/execute it → accept new completion receipts naming it.
-CI resolves only pinned inputs. The candidate never pins its own output receipt or
-rewrites its own checkbox export after completion. A later source candidate may
+receipts → freeze input receipt snapshots → generate the lock and exports →
+commit the source candidate → verify and execute it → accept new completion
+receipts naming it.
+
+CI resolves only pinned inputs. A candidate never pins its own output receipt and
+never rewrites its own checkbox export after completion. A later candidate may
 pin those outputs as prior inputs and regenerate its export.
 
 Two independent branches add distinct change entries and distinct task exports.
 Merging them preserves the union of entries and verifies every entry against the
 merged source basis; no single-value plan lock is overwritten by the second plan.
-A shared change key with different references/snapshots, incompatible source bases
-or cross-plan dependencies produces an explicit conflict requiring reconciliation,
-a regenerated candidate and affected reapproval. Even disjoint entries need fresh
-verification of the merged candidate: merging does not carry candidate-bound greens
-or approvals to a new commit.
 
-Accepted completion receipts identify task, approved plan commit, source candidate,
-tests/verdicts and integration status. Completion on an unmerged feature branch
-does not satisfy dependent work whose source basis lacks that change. Admission
-requires predecessors be integrated into the selected source basis or explicitly
-composed/tested into the dependent candidate. Rebase or changed requirements
-invalidates affected evidence; task IDs alone cannot carry greens across branches.
+A shared change key with different references or snapshots, incompatible source
+bases, or cross-plan dependencies produces an explicit conflict. It requires
+reconciliation, a regenerated candidate and reapproval of what it affects.
 
-Progress receipts do not mutate the run's approved task definition. Progress-only
-commits retain the approved planning commit reference and are separately versioned;
-the exported checkbox view names the plan and input receipt snapshot revisions.
-Changes in a receipt's integration status are new attributed records, not mutations
-of a pinned snapshot. Current authority can still block dispatch; it never replaces
-the historical inputs CI is verifying. Editing intent,
-estimates, dependencies, ownership or resource policy creates a new plan definition
-and revalidates affected admission/approvals. The broker classifies changes against
-its versioned schema. This avoids invalidating unrelated tasks on each completed
-checkbox while preventing substantive edits masquerading as progress.
+Even disjoint entries need fresh verification of the merged candidate. Merging
+does not carry candidate-bound greens or approvals to a new commit.
+
+Accepted completion receipts identify task, approved plan commit, source
+candidate, tests/verdicts and integration status. Completion on an unmerged
+feature branch does not satisfy dependent work whose source basis lacks that
+change.
+
+Admission therefore requires predecessors to be integrated into the selected
+source basis, or explicitly composed and tested into the dependent candidate. A
+rebase or a changed requirement invalidates the affected evidence; task IDs alone
+cannot carry greens across branches.
+
+Progress receipts do not mutate the run's approved task definition. A
+progress-only commit retains the approved planning commit reference and is
+versioned separately, and the exported checkbox view names the plan and input
+receipt snapshot revisions it was generated from.
+
+A change in a receipt's integration status is a new attributed record, not an
+edit to a pinned snapshot. If authority has since been revoked or the plan
+superseded, the factory can refuse to dispatch further work on that task; that
+refusal decides what happens next and leaves the pinned plan, snapshot and
+exports untouched, because those are the historical inputs CI is verifying the
+candidate against.
+
+Editing intent, estimates, dependencies, ownership or resource policy is not
+progress: it creates a new plan definition and revalidates the affected admission
+and approvals. The broker classifies each change against its versioned schema, so
+a completed checkbox does not invalidate unrelated tasks and a substantive edit
+cannot pass as progress.
 
 ## Cutover after the refactors land
 
@@ -206,10 +313,15 @@ commit/gate evidence rather than treating its historical counts as current:
 
 `apps/be-01/src/repository/` is an existing interface to inspect at that revision,
 not a module whose creation must be awaited. The user requested Backlog planning
-after the refactorings land: Task 9's adapter implementation and Task 10's migration
-start only after this closure is recorded. M1 and OpenSpec-origin automation can
-proceed meanwhile. These entry conditions are future work, not a claim of closure
-or a request for the user to resolve them during this planning trial.
+after the refactorings land, so the whole of Task 9 — its storage spike first,
+then the adapter — and Task 10's migration start only after this closure is
+recorded. M1 and OpenSpec-origin automation proceed meanwhile.
+
+**This checklist is the single gate.** Every other statement of the backlog
+migration prerequisite, here or elsewhere, points at this section rather than
+restating a condition of its own. These entry conditions are future work, not a
+claim of closure or a request for the user to resolve them during this planning
+trial.
 
 Then run the same domain/repository contract suite against SQLite and the new
 adapter. Include nested work items, all reference types, three-point estimates,
@@ -218,8 +330,9 @@ saved plans, history/actor retention, and fresh-clone reads. Compare canonical
 exports, not merely row counts. Native Backlog edits are expected to drop unknown
 frontmatter: the [serializer findings](research/backlog-patterns.md) show it
 writes only the fields it knows. So no WBS-owned value lives in a task file's
-frontmatter; the extension lives in its own files under `backlog/wbs/`, keyed by
-stable task identity, and a native edit must leave that identity intact. The
+frontmatter; the extension lives in its own files under
+`<planning.backlogDir>/wbs/`, keyed by stable task identity, and a native edit
+must leave that identity intact. The
 adapter drives Backlog only through its pinned CLI and MCP surfaces; importing
 its internal Core package is not a verified contract and is not used until proved.
 
@@ -236,3 +349,49 @@ and emits a deterministic task artifact with stable IDs and planning revision.
 Progress writes go to the broker and regenerate that artifact. CI detects edited
 exports; contradictions require import/reconciliation. Specifications still own
 behavior, and task records link their requirements instead of copying them.
+
+## Contract for the M2 storage delta
+
+The M2 OpenSpec delta (Task 9) adopts these requirements. They are not part of
+the M1 delta.
+
+### Requirement: WBS storage replacement has a gated migration contract
+
+The Backlog/WBS adapter MUST be implemented only against an identified landed WBS
+refactor interface. Its migration MUST preserve the complete WBS planning model,
+atomic batches, stable identity, conflict-aware undo, and actor/history semantics
+or explicitly specify any accepted contract change before cutover.
+
+- A multi-file command is interrupted: WHEN the planning writer crashes between
+  preparing files and publishing a revision THEN readers see either the entire
+  prior plan or the entire accepted new plan, with no mixed revision and no
+  duplicate command on recovery.
+- Native Backlog editing changes a display ID: WHEN a task is archived, restored,
+  renumbered or assigned a reused Backlog ID THEN its stable planning identity and
+  historical evidence cannot bind to a different task.
+- Two clones propose edits from one planning revision: WHEN both attempt to
+  publish against the same accepted revision THEN only one publishes and the other
+  receives a conflict requiring explicit reconciliation; local lock success cannot
+  imply global acceptance.
+- Two disjoint plans race on the accepted ref: WHEN separate plans in one
+  repository publish against the same accepted ref THEN one publishes and the
+  other receives 409 even though their files are disjoint; explicit reconciliation
+  and a new command against the current revision can preserve both edits without
+  silently changing the losing command's basis.
+- Cutover comparison loses an estimate: WHEN export/round-trip comparison finds a
+  missing estimate, ordering value, reference, capacity rule, command history, or
+  other required planning field THEN cutover is refused and the current backend
+  remains authoritative.
+
+### Requirement: Planning storage meets a measured workload budget
+
+Before accepting the proposed Git transaction design or switching WBS authority,
+the storage spike MUST execute the acceptance profile above at the client's
+declared scale. Evidence MUST include package/host/fixture identity,
+command/conflict counts and latency distributions. These budgets are proposed
+requirements, not measurements.
+
+- Storage preserves fields but misses its latency budget: WHEN the full workload
+  round-trips losslessly but any specified acceptance budget is exceeded THEN
+  storage acceptance and cutover remain blocked pending measured improvement or an
+  explicitly revised contract, without substituting SQLite planning authority.

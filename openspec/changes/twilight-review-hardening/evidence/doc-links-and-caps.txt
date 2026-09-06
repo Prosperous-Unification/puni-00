@@ -1,0 +1,15 @@
+Scoped relative-link and anchor resolution over the Twilight documents and the three Twilight changes, plus docs/2026-09-06-openspec-upgrade.md and LLM_README.md. Run on the working tree, 2026-09-06. Other agents were editing docs/twilight-structure/* concurrently, so this measures the tree at this instant, not a commit.
+
+$ python3 <scratch script: resolves every non-http markdown link target and, for .md targets, the #anchor against the target's headings>
+files scanned: 38
+relative links and anchors checked: 220
+unresolved: 0
+
+First run of this check found one unresolved link: docs/2026-09-06-openspec-upgrade.md -> twilight-structure/sdd-proposal.md, a file deleted this session (docs/twilight-structure/knowledge.md records it as 'Deleted; it had become a redirect'). Repointed at sdlc-stages.md; the run above is after that fix.
+
+$ Intent word count, openspec/changes/twilight-review-hardening/proposal.md, HTML comments stripped:
+198 words (cap 400)
+
+$ Product deliverables in openspec/changes/twilight-control-plane/tasks.md (must stay unexecuted):
+checkboxes total: 30, checked: 0
+The earlier verify.md said '20 product deliverables'; the file now carries 30, none checked. Task 1 of this change edited that plan, so the count moved with it.

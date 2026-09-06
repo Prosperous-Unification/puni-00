@@ -1,0 +1,229 @@
+# Twilight execution profile, revision 1 (proposed; nothing reads it yet).
+#
+# Compiled together with schema.yaml, the repository manifest and provider
+# capability documents into one workflow revision. See
+# openspec/changes/twilight-control-plane/design.md, "Stages, activities and
+# the execution profile" and "Levers, ledger and outcomes". Terms are defined
+# in docs/twilight-structure/CONTEXT.md.
+#
+# Scope: every value here is repository policy. Platform and organization
+# safety floors are server records that sit above this file and can only
+# tighten it. A run may override `profiles` fields downward with a recorded
+# reason; loosening below `repositoryFloor` is refused at compile time.
+# Unknown keys, missing referenced ids and cycles are compile errors.
+
+version: 1
+
+# Canonical stage ids. schema.yaml artifacts map onto stages here, which is
+# how the compiler derives the stage graph; `release` is a separate human
+# command, never a transition that a completed stage triggers.
+stages:
+  - { id: request, artifact: intent }
+  - { id: discovery, artifact: intent }
+  - { id: specification, artifacts: [specs, design] }
+  - { id: planning, artifact: tasks }
+  - { id: implementation, tracks: tasks.md }
+  - { id: review }
+  - { id: verification, artifact: verify }
+  - { id: acceptance, artifact: verify }
+  - { id: handoff, artifact: verify }
+  - { id: release, command: release }
+
+# Activities are the finer key. `floor: true` marks an activity no profile or
+# run override may skip. Every other activity may be turned off by a profile
+# or skipped per run; each skip is a recorded decision with a reason.
+activities:
+  - { id: discovery.research, stage: discovery, class: research }
+  - { id: discovery.review, stage: discovery, class: review }
+  - { id: specification.critique, stage: specification, class: review }
+  - { id: planning.plan, stage: planning, class: plan }
+  - { id: implementation.implement, stage: implementation, class: implement }
+  - { id: review.critic, stage: review, class: review }
+  - { id: review.judge, stage: review, class: judge }
+  - { id: verification.gate, stage: verification, class: verify, floor: true }
+  - { id: verification.browser, stage: verification, class: verify }
+  - { id: acceptance.cloud-browser, stage: acceptance, class: verify }
+  - { id: handoff.knowledge, stage: handoff, class: knowledge, floor: true }
+
+# Lifecycle points are `<event>.<stage or activity id>`; `*` matches every
+# stage or activity. Events: beforeStage, afterStage, beforeActivity,
+# afterActivity, beforeTool, afterTool, onFinding, onApproval, onRework,
+# onFailure, onCancel, onTrigger, onProfileChange.
+policies:
+  beforeStage.implementation:
+    approval: { required: true, decidedBy: human, subject: plan }
+  beforeActivity.*:
+    admission: { pools: [agent], budgetFrom: profile }
+  beforeActivity.implementation.implement:
+    admission: { pools: [agent, workspace], budgetFrom: profile }
+  beforeTool.*:
+    egress: deny
+    credentials: scoped
+  onFinding.review.critic:
+    blockingSeverities: [critical, high]
+  onRework.*:
+    maxRounds: { from: profile, path: review.rounds }
+    exhausted: pause
+  onFailure.verification.gate:
+    action: pause
+  onCancel.*:
+    drain: settle-then-release
+  onTrigger.schedule:
+    timezone: required
+    overlap: skip
+    missed: skip
+    retries: { max: 2, backoff: PT5M }
+  onProfileChange.*:
+    record: event
+
+# Registered implementations or sandboxed commands only; never code from a
+# browser text field. A mandatory hook denies on timeout, unavailable
+# dependency or malformed decision; an optional hook may report `degraded`.
+hooks:
+  - id: secrets-scan
+    implementation: registered:tool-secrets
+    version: 1
+    at: [afterActivity.implementation.implement, afterActivity.verification.gate]
+    mandatory: true
+    timeoutMs: 60000
+    onTimeout: deny
+    capabilities: [read:workspace]
+    idempotency: pure
+  - id: notify-operator
+    implementation: registered:notifications
+    version: 1
+    at: [onApproval.*, onFailure.*, onCancel.*]
+    mandatory: false
+    timeoutMs: 10000
+    onTimeout: degrade
+    capabilities: [send:notification]
+    idempotency: at-least-once
+
+# Delivery profiles bundle the levers a person tunes: model per activity
+# class, escalation, review depth, verification depth, skipped activities,
+# fan-out, budget and deadline. Values are proposed starting points, not
+# measurements (assumption A45). Model ids are provider identifiers; the
+# rate card below must carry an entry for each before a money budget can be
+# enforced.
+profiles:
+  default: balanced
+  thorough:
+    models:
+      research: { provider: anthropic, model: claude-opus-5 }
+      plan: { provider: anthropic, model: claude-opus-5 }
+      implement: { provider: anthropic, model: claude-opus-5, effort: high }
+      review: { provider: anthropic, model: claude-fable-5-1 }
+      judge: { provider: anthropic, model: claude-fable-5-1 }
+      knowledge: { provider: anthropic, model: claude-sonnet-5 }
+    escalation: []
+    review: { critics: 2, judge: true, rounds: 3 }
+    verification: { tiers: [unit, integration, browser], browserGate: whole }
+    skip: []
+    fanOut: 2
+    budget: { tokens: 3000000, money: { amount: 100, currency: USD }, elapsed: PT12H }
+    deadline: null
+  balanced:
+    models:
+      research: { provider: anthropic, model: claude-sonnet-5 }
+      plan: { provider: anthropic, model: claude-opus-5 }
+      implement: { provider: anthropic, model: claude-sonnet-5, effort: medium }
+      review: { provider: anthropic, model: claude-opus-5 }
+      judge: { provider: anthropic, model: claude-opus-5 }
+      knowledge: { provider: anthropic, model: claude-haiku-4-5-20251001 }
+    escalation:
+      - class: implement
+        to: { provider: anthropic, model: claude-opus-5, effort: high }
+        when: [refusal, gateFailure, blockingFinding]
+        maxSteps: 1
+    review: { critics: 1, judge: true, rounds: 2 }
+    verification: { tiers: [unit, integration], browserGate: affected }
+    skip: []
+    fanOut: 2
+    budget: { tokens: 1500000, money: { amount: 40, currency: USD }, elapsed: PT6H }
+    deadline: null
+  fast:
+    models:
+      research: { provider: anthropic, model: claude-haiku-4-5-20251001 }
+      plan: { provider: anthropic, model: claude-sonnet-5 }
+      implement: { provider: anthropic, model: claude-haiku-4-5-20251001, effort: low }
+      review: { provider: anthropic, model: claude-sonnet-5 }
+      judge: { provider: anthropic, model: claude-sonnet-5 }
+      knowledge: { provider: anthropic, model: claude-haiku-4-5-20251001 }
+    escalation:
+      - class: implement
+        to: { provider: anthropic, model: claude-sonnet-5, effort: medium }
+        when: [refusal, gateFailure]
+        maxSteps: 1
+    review: { critics: 1, judge: false, rounds: 1 }
+    verification: { tiers: [unit], browserGate: off }
+    skip: [discovery.review, specification.critique, review.judge, verification.browser]
+    fanOut: 4
+    budget: { tokens: 500000, money: { amount: 12, currency: USD }, elapsed: PT2H }
+    deadline: PT4H
+
+# What no profile or run override may remove in this repository.
+repositoryFloor:
+  activities: [verification.gate, handoff.knowledge]
+  hooks: [secrets-scan]
+  approvals: [beforeStage.implementation, release]
+  evidence: [served-source-identity, redaction, run-ledger]
+  minimumReviewRounds: 1
+
+# Filled by the operator from the provider's price list at the effective
+# date. Money is tokens times the entry pinned at admission; provider-billed
+# cost, when reported, reconciles against it and never overwrites it. The
+# compiler refuses a money-budgeted profile whose models have no entry.
+rateCard:
+  revision: null
+  currency: USD
+  perMillionTokens: []
+  # - { provider: anthropic, model: claude-sonnet-5, input: 0, output: 0, cacheRead: 0, effectiveFrom: 2026-09-06 }
+
+# Named authority for discovery before a plan exists (assumption A29).
+discoveryEnvelopes:
+  default:
+    writePaths: ['openspec/changes/**', 'docs/**']
+    readOnlyCode: true
+    providers: [anthropic]
+    budget: { tokens: 300000, money: { amount: 10, currency: USD }, elapsed: PT2H }
+    deadline: P2D
+
+# Per-repository capacity defaults; organization pools sit above them.
+capacity:
+  agentSlots: 2
+  workspaceWritersPerLineage: 1
+  reviewerReserve: 1
+  buildSlots: 1
+  browserSlots: 1
+  queue: { priority: deterministic, aging: PT30M, perClientCeiling: 4 }
+
+# Presentation is a per-actor preference; this is the repository default.
+presentation:
+  focusProfile:
+    default: off
+    adaptation: i-have-adhd
+    adaptationInspected: 2026-09-06
+    decisionBatch: 5
+    parkingLot: true
+    resumeCue: true
+  updateCadence: PT5S
+
+# Retention references an organization policy revision; these are the
+# repository defaults until one is published (assumption A17).
+retention:
+  organizationPolicy: null
+  metadata: P90D
+  redactedContent: P14D
+  releaseEvidence: { after: release-lifetime, plus: P90D }
+
+# Knowledge operations profile (docs/twilight-structure/knowledge.md).
+knowledge:
+  retrievalProvider: indexes-and-rg
+  benchmark: { questions: 20, correctness: 0.9, traceability: 1.0, effort: recorded }
+  claimStatuses: [proposed, observed, accepted, stale, superseded]
+
+# Outcome record settings (design.md, "Levers, ledger and outcomes").
+quality:
+  escapedDefectWindow: P30D
+  acceptedOutcome: candidate-accepted-at-handoff
+  estimateCalibration: per-task

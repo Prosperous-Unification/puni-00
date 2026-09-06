@@ -1,0 +1,53 @@
+Fault: tools/tool-workflows/src/generate.ts, the untracked-output scan replaced by `void ownedRoots;`. Command: bun test tools/tool-workflows/src/workflows.test.ts. Date: 2026-09-06.
+
+bun test v1.4.0 (34cbb9a40)
+
+tools/tool-workflows/src/workflows.test.ts:
+176 |   // on `Expected: 1 / Received: 0`; --check only ever compared its own set.
+177 |   test(`an added file under a generated output root is refused: ${stray}`, () => {
+178 |     writeFileSync(join(fixture, stray), 'added by hand\n');
+179 |     for (const mode of ['--check', '--write']) {
+180 |       const rejected = run(mode);
+181 |       expect(rejected.exitCode).toBe(1);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:181:33)
+(fail) an added file under a generated output root is refused: .claude/commands/opsx/stray.md [967.59ms]
+176 |   // on `Expected: 1 / Received: 0`; --check only ever compared its own set.
+177 |   test(`an added file under a generated output root is refused: ${stray}`, () => {
+178 |     writeFileSync(join(fixture, stray), 'added by hand\n');
+179 |     for (const mode of ['--check', '--write']) {
+180 |       const rejected = run(mode);
+181 |       expect(rejected.exitCode).toBe(1);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:181:33)
+(fail) an added file under a generated output root is refused: .claude/skills/openspec-explore/REFERENCE.md [1009.85ms]
+176 |   // on `Expected: 1 / Received: 0`; --check only ever compared its own set.
+177 |   test(`an added file under a generated output root is refused: ${stray}`, () => {
+178 |     writeFileSync(join(fixture, stray), 'added by hand\n');
+179 |     for (const mode of ['--check', '--write']) {
+180 |       const rejected = run(mode);
+181 |       expect(rejected.exitCode).toBe(1);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:181:33)
+(fail) an added file under a generated output root is refused: .agents/skills/source-command-opsx-new/NOTES.md [971.99ms]
+
+ 21 pass
+ 3 fail
+ 86 expect() calls
+Ran 24 tests across 1 file. [20.51s]
+exit=1

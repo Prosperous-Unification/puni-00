@@ -75,54 +75,22 @@ resolve the pinned inputs without consulting a moving planning/receipt head.
 - **THEN** merging refuses automatic acceptance and requires explicit reconciliation,
   regenerated exports and affected verification/approval
 
-### Requirement: WBS storage replacement has a gated migration contract
+### Requirement: Plan resource units are carried without conversion
 
-The Backlog/WBS adapter MUST be implemented only against an identified landed WBS
-refactor interface. Its migration MUST preserve the complete WBS planning model,
-atomic batches, stable identity, conflict-aware undo, and actor/history semantics
-or explicitly specify any accepted contract change before cutover.
+A `WorkPlan` read through the planning port MUST carry each task's resource units
+in the ledger vocabulary (human minutes, agent elapsed time, tokens, money, slots)
+beside WBS workdays, and Twilight MUST reserve and report against those units
+without converting one into another. Measured usage MUST return to the planning
+owner as a progress receipt, never as an edit of the approved task definition.
 
-#### Scenario: A multi-file command is interrupted
+#### Scenario: A plan states workdays only
 
-- **WHEN** the planning writer crashes between preparing files and publishing a revision
-- **THEN** readers see either the entire prior plan or the entire accepted new
-  plan, with no mixed revision and no duplicate command on recovery
+- **WHEN** a task carries a WBS workday estimate and no agent or token estimate
+- **THEN** the port reports those units as absent, admission treats the agent budget
+  as unknown under the profile's budget policy, and no workday is converted into tokens
 
-#### Scenario: Native Backlog editing changes a display ID
+#### Scenario: Measured usage returns to the plan
 
-- **WHEN** a task is archived, restored, renumbered or assigned a reused Backlog ID
-- **THEN** its stable planning identity and historical evidence cannot bind to a different task
-
-#### Scenario: Two clones propose edits from one planning revision
-
-- **WHEN** both attempt to publish against the same accepted revision
-- **THEN** only one publishes and the other receives a conflict requiring explicit
-  reconciliation; local lock success cannot imply global acceptance
-
-#### Scenario: Two disjoint plans race on the accepted ref
-
-- **WHEN** separate plans in one repository publish against the same accepted ref
-- **THEN** one publishes and the other receives 409 even though their files are
-  disjoint; explicit reconciliation and a new command against the current revision
-  can preserve both edits without silently changing the losing command's basis
-
-#### Scenario: Cutover comparison loses an estimate
-
-- **WHEN** export/round-trip comparison finds a missing estimate, ordering value,
-  reference, capacity rule, command history, or other required planning field
-- **THEN** cutover is refused and the current backend remains authoritative
-
-### Requirement: Planning storage meets a measured workload budget
-
-Before accepting the proposed Git transaction design or switching WBS authority,
-Task 9 MUST execute the pinned workload and proposed numerical budgets in
-[client repository storage acceptance](../../../../../../docs/twilight-structure/client-repositories.md#storage-workload-acceptance-budget).
-Evidence MUST include package/host/fixture identity, command/conflict counts and
-latency distributions. These budgets are proposed requirements, not measurements.
-
-#### Scenario: Storage preserves fields but misses its latency budget
-
-- **WHEN** the full workload round-trips losslessly but any specified acceptance
-  budget is exceeded
-- **THEN** storage acceptance and cutover remain blocked pending measured improvement
-  or an explicitly revised contract, without substituting SQLite planning authority
+- **WHEN** an activity attempt settles with measured tokens and elapsed time
+- **THEN** a progress receipt naming the task and attempt is proposed to the planning
+  owner, and the approved task definition's revision is unchanged

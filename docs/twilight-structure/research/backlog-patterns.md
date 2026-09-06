@@ -7,7 +7,8 @@ The user's direction is a requirement: each client gets an Nx monorepo similar
 to `puni-00`, and its software is developed there. WBS supplies the planning UI;
 Backlog.md hosted for that client repository replaces SQLite as its planning
 store. `puni-00` must use the same evolving template and delivery workflow.
-Implementation planning follows the WBS refactorings landing.
+Implementation planning starts after the single gate in
+[Cutover after the refactors land](../client-repositories.md#cutover-after-the-refactors-land).
 
 This rules out a design that leaves the authoritative plan in SQLite and merely
 exports tasks to Backlog.md. The remaining work is to specify a complete file
@@ -83,13 +84,12 @@ defaults enable remote operations and active-branch checking, while automatic
 commits and hook bypass are disabled. Disabling remote operations stops fetches
 but still permits local branch reads. [Configuration](https://raw.githubusercontent.com/MrLesk/Backlog.md/main/ADVANCED-CONFIG.md).
 
-**Identity requirement:** use a repository identity plus durable work-item
-identity in factory evidence, plan history and execution records. Retain Backlog
-ID as a separately mapped address. Define what survives repository rename,
-task rename, subtree move, archive, restore and draft promotion; prevent old
-evidence rebinding to a new task. Specify whether Backlog's `project` names an
-Nx project, a WBS project, or a service; these concepts must not be equated by
-their shared spelling. [Existing WBS terms](../../../CONTEXT.md).
+**Identity requirement:** the repository-scoped identity and the durable UUID map
+that this forces are specified in
+[the client repository model](../client-repositories.md). One question stays
+open here: whether Backlog's `project` names an Nx project, a WBS project, or a
+service. Those concepts must not be equated by their shared spelling.
+[Existing WBS terms](../../../CONTEXT.md).
 
 ## Concurrency and Git semantics
 
@@ -186,43 +186,18 @@ the new store, including unequal step estimates and resource contention.
 
 ## File contract and template direction
 
-These are recommended design constraints inferred from the required substitution;
-they are not a chosen implementation or an approved storage schema.
-
-1. **Native tasks remain authoritative for native task fields.** Establish one
-   mapping between Backlog tasks and WBS work items, including source ownership
-   for description versus implementation plan, acceptance criteria, OpenSpec
-   links and execution notes. WBS edits must be visible to native readers and
-   native edits must be visible in WBS.
-2. **Specify extensions before writing them.** Evaluate versioned companion
-   records in the same client repository for project settings, steps, directory
-   identities, estimates, history and durable ID mappings. An upstream extension
-   or maintained adapter/fork is another option. Choose only after proving every
-   supported native edit preserves those records. Encoding all WBS facts in an
-   opaque description blob would prevent meaningful native task interoperability.
-3. **Keep the storage boundary behind WBS commands.** Reuse the refactored domain
-   calculations and UI through a repository adapter. Define how native writers
-   participate in transaction/revision handling; a gateway lock that native
-   writers ignore is not the write protocol.
-4. **Choose branch authority explicitly.** Define committed plan state, current
-   admitted working state, review branches and agent worktrees. A task seen as
-   Done only on an unmerged branch must not silently authorize dependent work on
-   the authoritative plan. A cross-branch board is a useful inspection view,
-   not an implicit merge policy.
-5. **Separate durable planning from transient runtime state.** Backlog-backed
-   files own the plan. Authentication material, presence and active process
-   state need their own lifetime rules; this research does not select their
-   storage or infer a ban on every database used elsewhere by the factory.
-6. **Make one template prove itself in `puni-00`.** Pin the Backlog version,
-   adapter schema, Nx targets and OpenSpec workflow. Keep generated client setup
-   identifiable by template version, preserve client changes during upgrades,
-   and test the same template upgrade on `puni-00` before declaring it reusable.
-   Backlog task checklists link to OpenSpec contracts rather than independently
-   deciding workflow progression.
+The six constraints this research inferred — native fields stay native, the WBS
+extension is specified before it is written, the storage boundary sits behind WBS
+commands, branch authority is explicit, durable planning is separate from
+transient runtime state, and one template proves itself in `puni-00` first — are
+all specified in [the client repository model](../client-repositories.md), which
+owns the storage ownership table, the template contract and the transaction
+protocol.
 
 ## Migration and failure-proof plan
 
-The following are tests to write and execute after the refactorings land.
+The following are tests to write and execute after the closure in
+[Cutover after the refactors land](../client-repositories.md#cutover-after-the-refactors-land).
 **None has been run.** Record actual failure output in `verify.md`; add adjacent
 `Proof:` comments only after observing each injected fault on its production
 path. A direct parser test alone does not prove CLI, MCP, browser or hosted

@@ -6,15 +6,18 @@ common user-facing authority or durable run identity.
 
 ## What Changes
 
-The first increment provides a configurable FE/BE/MCP loop: submit a request,
-inspect a versioned workflow and plan, approve the exact candidate, execute one
-bounded ACP activity, recover from interruption, and inspect evidence and usage.
-It introduces the versioned client-repository contract used by `puni-00` itself.
+The first increment provides a configurable FE/BE/MCP loop: submit a request under
+a named delivery profile, inspect a versioned workflow and plan, approve the exact
+candidate with its budget, execute one bounded ACP activity, recover from
+interruption, and inspect evidence, the run ledger and the outcome record. It
+introduces the versioned client-repository contract used by `puni-00` itself and
+the execution profile that carries every lever a person tunes.
 
 Later increments add the Backlog.md-backed WBS planning adapter after WBS
 refactors, expanded reviews/hooks, automation, knowledge tools, cloud-browser
 acceptance, and controlled release. Those increments have explicit entry/exit
-criteria in `tasks.md`; they are not silently included in the first release.
+criteria in `tasks.md` and their own deltas; the contracts they will adopt are
+recorded in the design and the client-repository document, not in this delta.
 
 ## Non-Goals
 
@@ -34,12 +37,15 @@ measurements are explicit. Production needs an explicit human command.
 
 ### New Capabilities
 
-- `twilight/control-plane`: Shared configuration, lifecycle, authority and evidence.
-- `twilight/repository-planning`: Client template and versioned planning boundary.
+- `twilight/control-plane`: Shared configuration, lifecycle, authority, levers,
+  ledger and evidence.
+- `twilight/repository-planning`: Client template, versioned planning boundary and
+  resource units.
 
 ### Modified Capabilities
 
-None in this first increment. Future WBS storage migration receives its own delta.
+None in this first increment. The WBS storage migration (M2) and the upgrade
+rollback contract (M4) receive their own deltas.
 
 ## Domain Terms
 
@@ -47,11 +53,13 @@ Use the [Twilight glossary](../../../docs/twilight-structure/CONTEXT.md).
 
 ## Decisions Recorded
 
-[Requirements/wiki authority](../../../docs/adr/0014-openspec-contracts-and-linked-knowledge.md);
-[proposed planning transaction boundary](../../../docs/adr/0015-planning-commits-are-the-transaction-boundary.md).
+The requirements/wiki authority split is recorded in
+[knowledge maintenance](../../../docs/twilight-structure/knowledge.md);
+the [proposed planning transaction boundary](../../../docs/adr/0015-planning-commits-are-the-transaction-boundary.md)
+is an ADR because it is hard to reverse and had real alternatives.
 
 ## Impact
 
 Proposed new Twilight applications/libraries/tooling; shared repo template and
 later WBS adapter. [Assumptions](../../../docs/twilight-structure/assumptions.md)
-and [research](../../../docs/twilight-structure/research.md) explain the plan's bounds.
+and the [Twilight index](../../../docs/twilight-structure/README.md) explain the plan's bounds.

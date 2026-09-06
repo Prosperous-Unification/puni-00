@@ -1,0 +1,19 @@
+Measurement: are the Claude skill and the Claude command two renderings of one document? Date: 2026-09-06, on the regenerated tree.
+
+$ wc -l .claude/skills/openspec-<skill>/SKILL.md .claude/commands/opsx/<command>.md
+$ comm over the two heading sets (grep -o '^#\+ .*' | sort)
+
+command        skill-lines  command-lines  heading-difference
+apply          193          189            (same heading set)
+archive        194          239             command only: ## Archive Complete;## Archive Complete (with warnings) ## Archive Failed
+bulk-archive   365          361            (same heading set)
+continue       124          120            (same heading set)
+explore        349          231            skill only: ## Handling Different Entry Points;## What We Figured Out
+ff             126          122            (same heading set)
+new            88           83             (same heading set)
+onboard        583          579            (same heading set)
+sync           277          273            (same heading set)
+verify         181          177            (same heading set)
+
+The explore skill's '## Handling Different Entry Points' section is 108 lines and has no counterpart in .claude/commands/opsx/explore.md.
+Every pair also differs in body wording; the heading sets above are the coarsest visible difference, not the whole of it.

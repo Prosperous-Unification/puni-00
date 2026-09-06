@@ -46,7 +46,7 @@ Definitions: [Twilight glossary](../../../docs/twilight-structure/CONTEXT.md).
 
 ## Decisions Recorded
 
-See [authority decision](../../../docs/adr/0014-openspec-contracts-and-linked-knowledge.md).
+See [requirements and the wiki](../../../docs/twilight-structure/knowledge.md#requirements-and-the-wiki-the-boundary).
 
 ## Impact
 

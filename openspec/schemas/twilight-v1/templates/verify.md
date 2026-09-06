@@ -21,9 +21,10 @@
 
 <!-- Explicit pass/fail/unrun/inapplicable for all relevant gates; reasons.
      Real browser/deployment evidence only when run on the identified revision.
-     List unfinished tasks and blockers honestly; no guessed Proof comments. -->
+     List unfinished tasks and blockers honestly. What counts as proof: see the
+     verify artifact instruction. -->
 
 ## Knowledge and handoff
 
 <!-- Disposed findings, assumption changes, canonical links, spec sync/archive
-     status, next action. Production requires its own explicit human command. -->
+     status, next action. Release authority: see the verify artifact instruction. -->

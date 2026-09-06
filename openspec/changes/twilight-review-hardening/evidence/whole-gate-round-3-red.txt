@@ -1,0 +1,41 @@
+# Whole-workspace gate, first run, 2026-09-06 (pop-os; raw gate permitted off h2puni)
+## bunx nx format:check --all
+format exit=0
+
+## bunx nx run-many -t test lint typecheck build
+> nx run tool-devsync:test
+
+> bun test
+
+bun test v1.4.0 (34cbb9a40)
+
+src/workspace-targets.test.ts:
+246 |           );
+247 |           if (!covered) undeclared.push(`${config.name ?? dir}:test does not declare ${read}`);
+248 |         }
+249 |       }
+250 |     }
+251 |     expect(undeclared).toBeEmpty();
+                             ^
+error: expect(received).toBeEmpty()
+
+Expected value to be empty
+
+Received: [ "tool-workflows:test does not declare openspec/schemas/twilight-v1", "tool-workflows:test does not declare openspec/schemas/twilight-v1/schema.yaml" ]
+
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-devsync/src/workspace-targets.test.ts:251:24)
+✗ every cached target declares what it reads > names every file a suite reads from outside its own project [14.01ms]
+
+ 35 pass
+...
+ NX   Running targets test, lint, typecheck, build for 23 projects and 1 task they depend on failed
+
+Failed tasks:
+
+- tool-devsync:test
+
+nx exit=1
+
+## bunx @fission-ai/openspec@1.12.0 validate --all --json
+openspec exit=0
+{'items': 40, 'passed': 40, 'failed': 0}

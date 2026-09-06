@@ -1,0 +1,25 @@
+Fault: tools/tool-workflows/src/generate.ts, the `parts.length !== 2` refusal deleted, so split()[1] silently takes the first of two bodies. Command: bun test tools/tool-workflows/src/workflows.test.ts. Date: 2026-09-06.
+
+bun test v1.4.0 (34cbb9a40)
+
+tools/tool-workflows/src/workflows.test.ts:
+146 |   const source = '.agents/skills/source-command-opsx-ff/SKILL.md';
+147 |   const original = readFileSync(join(fixture, source), 'utf8');
+148 |   writeFileSync(join(fixture, source), `${original}\n## Command Template\nA second body.\n`);
+149 |   writeFileSync(join(fixture, variant), 'unchanged probe\n');
+150 |   const rejected = run('--write');
+151 |   expect(rejected.exitCode).toBe(1);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:151:29)
+(fail) a duplicated command template heading stops generation before writes [962.77ms]
+
+ 23 pass
+ 1 fail
+ 93 expect() calls
+Ran 24 tests across 1 file. [18.66s]
+exit=1

@@ -1,0 +1,12 @@
+The three tail checks round 1's verify.md asserted without an artifact. Date: 2026-09-06, final state.
+
+$ bunx @fission-ai/openspec@1.12.0 schema validate twilight-v1
+Note: Schema commands are experimental and may change.
+✓ Schema 'twilight-v1' is valid
+exit=0
+
+$ bun run tools/tool-git-hooks/src/hooks/doc-caps.ts
+exit=0
+
+$ git diff --check
+exit=0

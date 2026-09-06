@@ -1,0 +1,55 @@
+Fault: the condition assertFaultCanBite() exists for, simulated. Command: bun test --preload <file containing 'process.getuid = () => 0;'> tools/tool-workflows/src/workflows.test.ts -t unreadable. Real uid 0 was NOT exercised. Date: 2026-09-06.
+
+bun test v1.4.0 (34cbb9a40)
+
+tools/tool-workflows/src/workflows.test.ts:
+24 | function assertFaultCanBite(): void {
+25 |   const uid = process.getuid?.();
+26 |   if (uid === undefined)
+27 |     throw new Error('No uid on this platform: a chmod-000 fault cannot be proven here');
+28 |   if (uid === 0)
+29 |     throw new Error('Running as root: chmod 000 still reads, so this fault test cannot fail');
+                                                                                                 ^
+error: Running as root: chmod 000 still reads, so this fault test cannot fail
+      at assertFaultCanBite (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:29:93)
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:74:9)
+(fail) unreadable canonical .agents/skills/openspec-archive-change/SKILL.md blocks check and generation [5.14ms]
+24 | function assertFaultCanBite(): void {
+25 |   const uid = process.getuid?.();
+26 |   if (uid === undefined)
+27 |     throw new Error('No uid on this platform: a chmod-000 fault cannot be proven here');
+28 |   if (uid === 0)
+29 |     throw new Error('Running as root: chmod 000 still reads, so this fault test cannot fail');
+                                                                                                 ^
+error: Running as root: chmod 000 still reads, so this fault test cannot fail
+      at assertFaultCanBite (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:29:93)
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:74:9)
+(fail) unreadable canonical .agents/skills/source-command-opsx-ff/SKILL.md blocks check and generation [3.11ms]
+24 | function assertFaultCanBite(): void {
+25 |   const uid = process.getuid?.();
+26 |   if (uid === undefined)
+27 |     throw new Error('No uid on this platform: a chmod-000 fault cannot be proven here');
+28 |   if (uid === 0)
+29 |     throw new Error('Running as root: chmod 000 still reads, so this fault test cannot fail');
+                                                                                                 ^
+error: Running as root: chmod 000 still reads, so this fault test cannot fail
+      at assertFaultCanBite (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:29:93)
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:88:3)
+(fail) an unreadable installed variant fails check [3.03ms]
+24 | function assertFaultCanBite(): void {
+25 |   const uid = process.getuid?.();
+26 |   if (uid === undefined)
+27 |     throw new Error('No uid on this platform: a chmod-000 fault cannot be proven here');
+28 |   if (uid === 0)
+29 |     throw new Error('Running as root: chmod 000 still reads, so this fault test cannot fail');
+                                                                                                 ^
+error: Running as root: chmod 000 still reads, so this fault test cannot fail
+      at assertFaultCanBite (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:29:93)
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/workflows.test.ts:239:7)
+(fail) a unreadable .prettierrc.json stops generation [3.02ms]
+
+ 0 pass
+ 20 filtered out
+ 4 fail
+Ran 4 tests across 1 file. [89.00ms]
+exit=1

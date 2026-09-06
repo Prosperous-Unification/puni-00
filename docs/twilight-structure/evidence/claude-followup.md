@@ -1,3 +1,23 @@
+> **Editorial preface — not part of the reviewer's response.**
+>
+> This receipt describes the repository at commit `1e87500c`, the snapshot the
+> reviewer was given. The response below is preserved verbatim; only this block
+> was added, and the receipt records the hash of the original text.
+>
+> Its `file:line` citations were written against that snapshot and have not
+> tracked later edits. Durable equivalents:
+>
+> | Citation in the response                                                       | Where that content lives now                                                                                                                                                        |
+> | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | `client-repositories.md:154-159`                                               | the entry-condition table in [Cutover after the refactors land](../client-repositories.md#cutover-after-the-refactors-land)                                                         |
+> | `client-repositories.md:151-153,158`                                           | the same section, on updating the handoff from fresh commit and gate evidence rather than its historical counts                                                                     |
+> | `client-repositories.md:164-166`                                               | the same section, on Task 9 and Task 10 starting only after the closure is recorded                                                                                                 |
+> | `client-repositories.md:97-113`                                                | [Proposed transaction protocol](../client-repositories.md#proposed-transaction-protocol), the self-hosted-remote and materialized-candidate-view paragraphs                         |
+> | `client-repositories.md:39-41`                                                 | [Template contract](../client-repositories.md#template-contract), "Task 8 changes the OpenSpec default to `twilight-v1`"                                                            |
+> | `tasks.md:402-405`, `tasks.md:154-155`, every other `tasks.md:NNN`             | [the delivery plan](../../../openspec/changes/twilight-control-plane/tasks.md), under the numbered task each citation discusses; its line numbers have since moved                  |
+> | `design.md:NNN`, `spec.md:NNN`, `verify.md:NNN`                                | the corresponding section of [the control-plane design](../../../openspec/changes/twilight-control-plane/design.md), [the requirement catalog](../spec.md) or the named `verify.md` |
+> | source-file citations (`libs/auth/...`, `apps/be-01/...`, `doc-caps.ts:41-42`) | the named symbol in that file, not the line number                                                                                                                                  |
+
 ## Twilight Structure — correction follow-up review
 
 Reviewer: `claude-fable-5-1`, via the Claude CLI's local Read/Glob/Grep tools; inference ran on Anthropic's service as the user authorized. No commands, edits, or credential reads. Recorded CLI outputs below are attributed evidence from the repository's receipts, not my execution.

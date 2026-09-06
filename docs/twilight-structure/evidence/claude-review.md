@@ -1,3 +1,21 @@
+> **Editor's corrections — not part of the reviewer's response.**
+>
+> This receipt describes the repository at commit `1e87500c`, the snapshot the
+> reviewer was given. The response below is preserved verbatim; only this block
+> was added, and the receipt records the hash of the original text. Its
+> `file:line` citations refer to that snapshot; the resolution table in
+> [the follow-up review](claude-followup.md) applies here too, and the citations
+> to `client-repositories.md:126`, `:82-91` and `:64-91` are now
+> [Cutover after the refactors land](../client-repositories.md#cutover-after-the-refactors-land)
+> and [Proposed transaction protocol](../client-repositories.md#proposed-transaction-protocol).
+>
+> Two statements in the response are **retracted**:
+>
+> | Retracted statement                                           | Correction                                                                                                                                                                                                                  |
+> | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | P3-1: "twilight-mcp is Streamable HTTP while mcp-01 is stdio" | False. `apps/mcp-01` serves Streamable HTTP and has no stdio transport. Retracted by the reviewer itself in [the follow-up](claude-followup.md), item 3, and dispositioned in [the plan review](plan-review.md) under P3-1. |
+> | Opening sentence: "no export, no network"                     | Not an accurate privacy claim. The file tools were local and read-only, but inference ran on Anthropic's service as the user authorized. Corrected in [the plan review](plan-review.md), "Attribution correction".          |
+
 # Twilight Structure — review
 
 Reviewer identity for A28: this session runs as `claude-fable-5-1`. The review was performed locally on the working tree (base `1e87500c` plus uncommitted/untracked files); no export, no network, no commands, no edits.

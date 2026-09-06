@@ -5,6 +5,14 @@
 runtime, deployment or release. Sections after this header are the chronological
 record and say "uncommitted" or "then requested" about the state at that time.
 
+**Revised, 2026-09-06 (later):** the corpus was reviewed again (three audit sweeps
+over tasks, schema/tooling and the docs) and the user added TS-27 (cost, model,
+review-depth and parallelism levers with quality tracking). Every finding was
+implemented on the same branch; the addendum at the end records what changed and
+the fresh evidence. The Claude Fable 5.1 receipts and `content-manifest.json`
+describe the earlier snapshot and are superseded for identification by
+[post-review-checks.json](../../../docs/twilight-structure/evidence/post-review-checks.json).
+
 Scope: documentation, workflow configuration, research and product planning on
 2026-09-06. The scoped documentation/schema work and local review are complete;
 Claude Fable 5.1 reviewed the repository and corrections, finding the plan actionable
@@ -196,7 +204,7 @@ validation of the nested capabilities. Trial commands explicitly pinned 1.12.0.
 
 Bun dependencies were installed for commit preparation. The two review Markdown
 renderings were formatted with the actual repository Prettier configuration;
-verbatim text is preserved as reviewText with SHA-256 in their JSON receipts.
+verbatim reviewer text lives in the two Markdown files, whose bodies are byte-for-byte the reviewer output apart from a prepended editorial block; each JSON receipt records that original text's SHA-256 as reviewTextSha256 rather than duplicating it.
 Earlier receipts describe the full reviewed working tree, including local inputs;
 the final content manifest now lists only this documentation commit artifacts.
 The application/full Nx gate was not run for this documentation-only commit.
@@ -214,3 +222,49 @@ pre-existing archive INFO findings; twilight-v1 schema validation passed.
 Commit hooks run the staged format, secrets and applicable lint/doc-cap checks.
 Application tests/typecheck/build and deployment were not run for this branch
 publication; no main merge or runtime delivery is claimed.
+
+## Post-review revision
+
+After the closure above, the branch was reviewed for configurability, clarity,
+brevity and internal consistency, and the user directed that money and time cost,
+model choice, skipped review or QA steps and parallelism be tunable levers with
+quality tracked against them (TS-27). What changed, all on this branch and none
+of it a runtime claim:
+
+- **Levers model.** `openspec/schemas/twilight-v1/execution.yaml` now exists and
+  carries the canonical stage ids, activities with floor marks, lifecycle-point
+  policies, hook registrations, three delivery profiles, the repository floor, an
+  empty operator-filled rate card, discovery envelopes, capacity, presentation,
+  retention and knowledge defaults. The control-plane design gained "Stages,
+  activities and the execution profile" and "Levers, ledger and outcomes"; the
+  spec gained "Lifecycle points are the one key space" and "Levers are
+  configurable and their effects are measured", an enumerated M1 control set,
+  budget and profile in the approval subject, and operations for floors,
+  capacity, rate card, ledger and outcomes. Assumptions A45–A48 and glossary terms
+  for the four objects were added.
+- **Consistency.** M2 and M4 obligations left the M1 delta (to
+  `client-repositories.md` and the design); `Task 9 MUST` and `M1 MAY` left the
+  specs; the design edge is honest (design always present, applicability-only
+  when trivial) and its test now asks the CLI; state, profile and focus terms are
+  unified; the boundary diagram matches the effect model; every operation and
+  assumption has an owner; ADR 0014 was removed and 0015 reshaped; stale line
+  citations, `A1`/`A2`, the rejected flat-spec recommendation and the
+  cross-client query sentence were fixed.
+- **Brevity.** Rules stated in four or five places now have one owner (spec for
+  MUSTs, design for mechanism, tasks for tests); research files link to the
+  design instead of restating it; `sdd-proposal.md` and `research.md` were folded
+  into the README; duplicated review text was replaced by hashes.
+- **Tooling.** `tool-workflows` reads the repository Prettier config, refuses
+  untracked outputs, marks generated copies with their source, fails on a
+  duplicated command-template heading, and its chmod fault tests refuse to run
+  as root; the pinned-CLI graph test joins CI. Details, probes and observed
+  failures are in the [hardening record](../twilight-review-hardening/verify.md).
+
+Fresh checks at this revision, on pop-os where the raw gate is permitted:
+`bunx nx format:check --all` exit 0; `bunx nx run-many -t test lint typecheck
+build` passed all 23 projects after one genuine failure was fixed (an undeclared
+test input, recorded in the hardening record); `bunx @fission-ai/openspec@1.12.0
+validate --all --json` passed 40 of 40 changes; a link check over 42 touched
+Markdown files found 260 links and no broken target or anchor. Not run: the
+h2puni locked gate, the browser gate, deployment. Product code is still not
+implemented; every failure experiment in the delivery plan remains planned.

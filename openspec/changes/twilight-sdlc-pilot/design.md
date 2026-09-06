@@ -18,7 +18,7 @@ The [stage guide](../../../docs/twilight-structure/sdlc-stages.md) owns the stag
 mapping. Its lifecycle policy is descriptive in this pilot. OpenSpec owns its
 artifact graph; a future `tool-twilight` compiler and BE transition operation will
 enforce content, approvals, budgets, and evidence. No prose file is an authority
-boundary. [The ADR](../../../docs/adr/0014-openspec-contracts-and-linked-knowledge.md)
+boundary. [Requirements and the wiki](../../../docs/twilight-structure/knowledge.md#requirements-and-the-wiki-the-boundary)
 records the settled split between contracts and knowledge.
 
 ## Tests and the counterexamples they need

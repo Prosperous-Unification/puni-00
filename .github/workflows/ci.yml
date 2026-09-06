@@ -162,6 +162,32 @@ jobs:
       - name: OpenSpec
         run: bunx @fission-ai/openspec@1.12.0 validate --all --json
 
+      # `tool-workflows:integration` is the only check that runs the real CLI
+      # against the twilight-v1 schema graph, and it refuses to start without
+      # OPENSPEC_CLI naming an installed 1.12.0 `bin/openspec.js`. That kept it
+      # out of `run-many`, so the edge it proves — planning stays blocked until
+      # design.md exists — was outside the merge gate while its Proof comment sat
+      # in schema.yaml. The package is installed into a scratch directory rather
+      # than resolved out of bunx's cache, so the path is a fact of this step
+      # rather than a guess about Bun's internals; the test then asserts
+      # `--version` is 1.12.0 before probing anything.
+      #
+      # Proof: with `design` removed from twilight-v1's `tasks.requires`, this
+      # target failed on `Expected: "blocked" / Received: "ready"`, observed
+      # locally on 2026-09-06
+      # (openspec/changes/twilight-review-hardening/evidence/design-traversal-red.txt).
+      # This step has never been observed running on a runner; see that change's
+      # verify.md, "Not verified".
+      - name: OpenSpec schema graph (pinned CLI)
+        run: |
+          set -euo pipefail
+          pin="$(mktemp -d)"
+          echo '{"name":"openspec-pin","private":true}' > "$pin/package.json"
+          (cd "$pin" && bun add @fission-ai/openspec@1.12.0)
+          cli="$pin/node_modules/@fission-ai/openspec/bin/openspec.js"
+          test -f "$cli" || { echo "pinned CLI not installed at $cli"; exit 1; }
+          OPENSPEC_CLI="$cli" bunx nx run tool-workflows:integration
+
   # The eyes. Everything the `gate` job runs sees this table through jsdom,
   # which lays nothing out: the overlap that prompted this job passed 450 unit
   # tests while a pinned Name painted over "Depends on" on screen. One chromium,

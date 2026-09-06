@@ -17,5 +17,7 @@
   SDLC, knowledge conventions, and planning contract apply to the factory's own
   development and client projects. Client content and authority remain isolated.
 - Planning includes agent and human resources. WBS planning capacity and Twilight
-  runtime admission are distinct; their units and reconciliation need an explicit
-  contract. See [repository planning](docs/twilight-structure/client-repositories.md).
+  runtime admission are distinct quantities; a plan carries both without
+  conversion and measured usage returns as a progress receipt. The contract is in
+  the [control-plane design](openspec/changes/twilight-control-plane/design.md#planning-knowledge-and-client-portability)
+  and proven by Tasks 2 and 9 of its plan.

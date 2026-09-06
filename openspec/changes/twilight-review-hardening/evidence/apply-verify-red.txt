@@ -1,0 +1,44 @@
+Fault: openspec/schemas/twilight-v1/schema.yaml, apply.requires gains verify. Command: OPENSPEC_CLI=<installed pinned 1.12.0 bin/openspec.js> bun test tools/tool-workflows/src/cli.integration.test.ts. Date: 2026-09-06.
+
+bun test v1.4.0 (34cbb9a40)
+
+tools/tool-workflows/src/cli.integration.test.ts:
+91 |     if (visited.includes(id)) return;
+92 |     artifact(status, id).requires.forEach(visit);
+93 |     visited.push(id);
+94 |   }
+95 |   status.applyRequires.forEach(visit);
+96 |   expect(visited).toEqual(['intent', 'specs', 'design', 'tasks']);
+                       ^
+error: expect(received).toEqual(expected)
+
+@@ -5,2 +5,3 @@
+    "tasks",
++   "verify",
+  ]
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/cli.integration.test.ts:96:19)
+(fail) the pinned CLI blocks planning while design.md is absent [140.84ms]
+122 |   // verify.md is deliberately absent: it is a handoff/archive obligation, not an
+123 |   // apply prerequisite. Assert the CLI's answer before the graph that produced it.
+124 |   const apply = run('instructions', 'apply', '--change', 'architecture', '--json') as {
+125 |     state: string;
+126 |   };
+127 |   expect(apply.state).toBe('ready');
+                            ^
+error: expect(received).toBe(expected)
+
+Expected: "ready"
+Received: "blocked"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/cli.integration.test.ts:127:23)
+(fail) an applicability-only design.md unblocks planning, and apply needs no verify.md [284.84ms]
+
+ 1 pass
+ 2 fail
+ 12 expect() calls
+Ran 3 tests across 1 file. [602.00ms]
+exit=1

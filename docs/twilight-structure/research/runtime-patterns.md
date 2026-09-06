@@ -2,7 +2,7 @@
 
 Research date: 2026-09-06. Scope: primary-source comparison of LangGraph/
 LangChain, OpenHands, OpenClaw, MCP, and selected Temporal practices. Read with
-the [requirements](../spec.md) and [earlier research](../research.md).
+the [requirements](../spec.md) and the [research index](../README.md#research-notes).
 
 **Recommendation:** use LangGraph for the configurable delivery graph; make
 Twilight Structure own durable work admission, authority, external-operation
@@ -60,28 +60,19 @@ service. Completed Activities are reused during ordinary Workflow replay;
 this differs from LangGraph's deliberate time-travel re-execution.
 [Activity definition](https://docs.temporal.io/activity-definition)
 
-**Proposed:** persist a workflow-definition revision, thread ID, work ID,
-attempt ID, workspace identity, and external-operation ID. An operation ID
-identifies one intended effect across transport retries; an attempt ID does
-not become a new effect merely because the connection was lost. Record intent
-before dispatch and reconcile the receipt before retrying. Use an idempotent
-sink where available. If an agent launch, merge, or deploy cannot be identified
-after an ambiguous response, record `outcome_unknown` and stop dependent work
-until reconciliation resolves it. A local deduplication table alone cannot
-guarantee one external effect across that crash window.
+**Proposed:** the durable identity, intent-before-dispatch, reconciliation and
+run-pinning rules these findings imply are specified in
+[durable execution and effect ownership](../../../openspec/changes/twilight-control-plane/design.md#durable-execution-and-effect-ownership).
 
-Use synchronous checkpointing initially, subject to the chosen driver's crash
-tests. Keep policy decisions and dispatch receipts in durable application
-records even when the graph also refers to them. Decide which fact each store
-owns; do not maintain two independently writable stage-status fields.
-Separate read-only historical inspection from effectful replay in the UI.
-Replay creates a new, linked execution with current authorization and explicit
-resource reservations. It must never silently repeat a production operation.
+**Proposed, and not yet owned by that design:** use synchronous checkpointing
+initially, subject to the chosen driver's crash tests. The design pins a
+restart-tested durable checkpointer and forbids the in-memory saver, but does not
+choose between the `sync`, `async` and `exit` persistence modes above; that
+choice belongs with the version floor in Task 1's package pin.
 
-Persist the effective configuration revision for a run. Changing a workflow,
-hook, tool schema, credential scope, or approval policy must not silently change
-an in-flight run. Continue on its pinned definition or perform a recorded
-migration with renewed decisions where required.
+Separate read-only historical inspection from effectful replay in the UI. Replay
+creates a new, linked execution with current authorization and explicit resource
+reservations. It must never silently repeat a production operation.
 
 ## Hooks, approval, and agent judgments
 
@@ -105,29 +96,14 @@ neither cited primitive defines Twilight's actor permissions, artifact freshness
 or production-release authority. [Middleware](https://docs.langchain.com/oss/javascript/langchain/middleware/built-in),
 [Interrupts](https://docs.langchain.com/oss/javascript/langgraph/interrupts)
 
-**Proposed:** define a finite hook contract for each step: before admission,
-after artifact production, before completion, on failure, and on cancellation.
-Each configured hook records its implementation revision, required inputs,
-execution identity, allowed tools, timeout, retry policy, budget, and whether it
-is mandatory or advisory. Results distinguish `passed`, `findings`, `failed`,
-`cancelled`, and `unavailable`. Only a valid mandatory pass admits progression;
-malformed output, unavailable tools, and evaluator failure cannot become a pass.
-Advisory failure remains visible and does not manufacture evidence.
-
-Hook code and approval policy are executable authority. Agents may propose
-changes to them but cannot edit the active policy protecting their own run.
-Apply the same admission checks to FE commands, API calls, factory MCP tools,
-cron triggers, and internal retries. Post-execution observers cannot authorize
-an effect retroactively. A LangChain hook also cannot intercept an ACP agent's
-internal tool calls unless that adapter exposes the relevant boundary.
-
-An approval binds the authenticated actor, exact pending decision, artifact
-revision, intended effect, target environment, and policy revision. Recheck
-these at dispatch; changed artifacts, revoked authority, cancellation, and
-expired decisions invalidate approval. Retry delivery of the same decision
-idempotently. An edited tool request goes through validation and policy again.
-The production step always requires the explicit human command in TS-12;
-an agent judge cannot satisfy it.
+**Proposed:** the hook contract these defaults argue for — the lifecycle point
+vocabulary, the registration fields, mandatory-versus-advisory outcomes, and the
+rule that a policy is authority an agent's own run cannot edit — is specified in
+[stages, activities and the execution profile](../../../openspec/changes/twilight-control-plane/design.md#stages-activities-and-the-execution-profile)
+and [policy, hooks, review and capacity](../../../openspec/changes/twilight-control-plane/design.md#policy-hooks-review-and-capacity),
+along with what an approval binds and when it is rechecked. One limit belongs to
+this note rather than to that design: a LangChain hook cannot intercept an ACP
+agent's internal tool calls unless that adapter exposes the relevant boundary.
 
 **Upstream:** OpenHands' security API separates risk analysis from confirmation
 policy and supports combining analyzers. Its CLI critic is explicitly
@@ -137,15 +113,11 @@ patterns, not evidence of universal code correctness or safety.
 [Security](https://docs.openhands.dev/sdk/guides/security),
 [Experimental critic](https://docs.openhands.dev/openhands/usage/cli/critic)
 
-**Proposed:** distinguish reviewer, judge, and policy enforcer. A reviewer
-reports findings against an immutable artifact; a judge decides disposition
-under a versioned rubric; deterministic policy decides whether an operation is
-allowed. Give reviewers read-only access to the candidate and separate output
-storage. Record role, model, prompt/rubric revision, evidence, confidence where
-meaningful, and findings disposition. Different session IDs alone do not prove
-independence. Cap review rounds and total reviewer cost; unresolved disagreement
-ends in a visible decision request. Judges supplement executable tests and
-human acceptance rather than redefining their outcomes.
+**Proposed:** the reviewer / judge / policy-enforcer separation, read-only
+candidate access, bounded rounds and preserved dissent are specified in
+[policy, hooks, review and capacity](../../../openspec/changes/twilight-control-plane/design.md#policy-hooks-review-and-capacity).
+This note's own caution stands beside it: different session IDs alone do not
+prove independence.
 
 ## MCP, credentials, and workspace boundaries
 
@@ -180,7 +152,8 @@ changed script operands, but that file binding is explicitly best-effort.
 [OpenClaw security](https://docs.openclaw.ai/gateway/security),
 [Exec approvals](https://docs.openclaw.ai/tools/exec-approvals)
 
-**Proposed:** maintain MCP registrations with transport, version/capabilities,
+**Proposed, and not yet owned by the control-plane design:** maintain MCP
+registrations with transport, version/capabilities,
 health, owner, tool-schema revision, allowlist, and credential references.
 Onboard OAuth interactively before unattended use; expired or revoked access
 becomes `reauthentication_required`. Do not launch an unpinned executable
@@ -189,21 +162,21 @@ and name, validate requests/results at the boundary, and distinguish transport
 failure from a modeled tool refusal. Stateful integrations need explicit
 session affinity and reconnect tests.
 
-Keep the factory's inbound MCP API separate from outbound MCP connections.
-Inbound calls use the same domain commands and authority as the FE/API; a
-general “resume workflow” tool must not confer approval authority on an agent.
-Resolve scoped credentials at the authorized integration boundary, not into
-graph state or reusable prompts. Check checkpoint backups and third-party
-agent persistence too, because redacting displayed logs does not redact storage.
+Keep the factory's inbound MCP API separate from outbound MCP connections. The
+inbound half is settled — the MCP facade serves the same authorized operations as
+the FE, per
+[commands and shared contracts](../../../openspec/changes/twilight-control-plane/design.md#commands-and-shared-contracts).
+For the outbound half, resolve scoped credentials at the authorized integration
+boundary, not into graph state or reusable prompts. Check checkpoint backups and
+third-party agent persistence too, because redacting displayed logs does not
+redact storage.
 
-Allocate a separate worktree and execution identity to each writer, plus
-isolated home/config/token caches and process/network permissions appropriate
-to the job. A worktree isolates Git edits, not filesystem or credential access.
-Review artifacts by commit/digest in a separate reviewer workspace. Prove that
-agents cannot read a sibling's canary credential, reach a protected deployment
-endpoint, or edit their own mandatory hook. If an ACP provider cannot expose
-internal tool authorization, enforce its outer container/network/credential
-boundary and report the remaining visibility limit.
+Workspace and credential isolation for each writer is specified in
+[planning, knowledge and client portability](../../../openspec/changes/twilight-control-plane/design.md#planning-knowledge-and-client-portability),
+including that a Git worktree alone is not isolation. The limit this note adds:
+if an ACP provider cannot expose internal tool authorization, enforce its outer
+container/network/credential boundary and report the remaining visibility gap
+rather than describing the boundary as complete.
 
 ## Cron, budgets, and capacity
 
@@ -224,7 +197,8 @@ in-process and is not automatically replayed after restart.
 and pause-on-failure. Its options show why a cron expression alone is not a
 complete schedule contract. [Schedules](https://docs.temporal.io/schedule)
 
-**Proposed:** persist each schedule revision and due occurrence separately
+**Proposed, and not yet owned by the control-plane design:** persist each
+schedule revision and due occurrence separately
 from each admitted run. Give occurrences a stable deduplication key, declared
 timezone, overlap policy, maximum lateness, and bounded catch-up/backfill.
 Initially use explicit `skip` or one buffered occurrence for recurring
@@ -242,35 +216,25 @@ budget. [Call limits](https://docs.langchain.com/oss/javascript/langchain/middle
 [OpenHands metrics](https://docs.openhands.dev/sdk/guides/metrics),
 [OpenClaw sub-agents](https://docs.openclaw.ai/tools/subagents)
 
-**Proposed:** admit work against all relevant capacities: agent slots, provider
-request/token quotas, writer workspace ownership, build slots, cloud-browser
-slots, and environment deployment locks. Record the limiting resource in the
-queue UI. Use transactional claims, expiring leases, and fencing so an old
-worker cannot commit after takeover. A heartbeat alone does not establish that
-its external process has stopped.
-
-Reserve budget before dispatch and reconcile measured use afterwards, with a
-declared allowance for in-flight spend. Charge authors, reviewers, judges,
-retries, context compaction, browser/build compute, and integration calls to
-the same work request. Preserve missing usage as unknown, not zero. If a
-provider supplies neither bounded admission nor timely usage, label its budget
-enforcement approximate and require a bounded alternative to promise a hard
-cap. Separate predicted usage, reserved capacity, measured tokens, estimated
-cost, and invoiced cost. Human waiting time is not agent execution time.
-
-Paused workflows release agent slots; retain only explicitly required storage
-or session resources and make their cost visible. Orchestrators awaiting
-children must not hold every slot their children need. Reviewer capacity must
-remain available when writers occupy the worker pool. Compare serial and
-parallel executions on accepted outcomes, elapsed time, total cost, and
-integration/review rework before increasing concurrency defaults.
+**Proposed:** the reservation vector, leases and fencing, reserved reviewer
+capacity, and the rule that unknown usage stays unknown rather than zero are
+specified in
+[policy, hooks, review and capacity](../../../openspec/changes/twilight-control-plane/design.md#policy-hooks-review-and-capacity),
+with the money and outcome side in
+[levers, ledger and outcomes](../../../openspec/changes/twilight-control-plane/design.md#levers-ledger-and-outcomes).
+Two cautions belong here: a heartbeat alone does not establish that an external
+process has stopped, and serial and parallel executions must be compared on
+accepted outcomes, elapsed time, total cost and review rework before any
+concurrency default is raised.
 
 **Upstream:** LangGraph's documented drain is cooperative between supersteps,
 not cancellation of in-flight work. Node timeouts and retries concern graph
-attempts. **Proposed:** give ACP/process supervisors separate cancellation,
-graceful shutdown, forced termination, and orphan-reconciliation procedures.
-Do not free a writer lease or redeploy its workspace merely because a graph
-attempt timed out. [Fault tolerance](https://docs.langchain.com/oss/javascript/langgraph/fault-tolerance)
+attempts. **Proposed:** the controlled cancellation sequence this implies — fence,
+stop and drain, collect terminal evidence per resource, then release — is
+specified in
+[durable execution and effect ownership](../../../openspec/changes/twilight-control-plane/design.md#durable-execution-and-effect-ownership),
+including that a graph attempt timing out does not free a writer lease.
+[Fault tolerance](https://docs.langchain.com/oss/javascript/langgraph/fault-tolerance)
 
 ## Observability and configuration
 
@@ -282,7 +246,8 @@ changes do not backfill existing trace costs. [OpenHands tracing](https://docs.o
 [OpenClaw telemetry](https://docs.openclaw.ai/gateway/opentelemetry),
 [LangSmith costs](https://docs.langchain.com/langsmith/cost-tracking)
 
-**Proposed:** the factory's durable event history is the authority for state,
+**Proposed, and not yet owned by the control-plane design:** the factory's
+durable event history is the authority for state,
 decisions, evidence, and usage settlement. Streams and OTLP are projections.
 Correlate request, workflow revision, step, attempt, session, external operation,
 artifact, approval, review, test, and deployment IDs. Store causation and parent
@@ -290,23 +255,16 @@ IDs so a critic's cost and an integration retry remain attributable. Reconnect
 the FE by event cursor with deduplication; streaming disconnect is not agent
 cancellation. Report missing adapter spans as unsupported coverage.
 
-Expose effective configuration and its origin: workflow definition, step
-override, agent profile, runtime capability, policy, and resource quota.
-Validate configuration before activation, show its diff, pin each run, and
-emit a configuration-change event. Begin with typed forms and versioned
-configuration artifacts; defer an arbitrary graph/code editor. Configurability
-does not make mandatory authorization, schema validation, or evidence integrity
-optional. A required unavailable integration blocks activation or the affected
-step with a visible reason.
-
-Keep operational events, retained artifact content, and exported telemetry
-under separate capture/retention/access policies. Record redaction and omitted
-content so absent payloads are explainable. Dashboard measures should include
-queue and approval wait, active execution, stalled/orphaned work, review rounds,
-rework, tests against artifact revision, dev acceptance, production-command
-identity, and cost per accepted result. A self-improvement proposal is a new
-versioned change evaluated against a held-out set and the existing gates; an
-agent's favorable score cannot silently promote its own policy changes.
+Exposing effective configuration with its origin, validating before activation
+and pinning it per run is specified in
+[single workflow source](../../../openspec/changes/twilight-control-plane/design.md#single-workflow-source)
+and reachable through `get_effective_policy`; the dashboard measures and the
+self-improvement rule are in
+[levers, ledger and outcomes](../../../openspec/changes/twilight-control-plane/design.md#levers-ledger-and-outcomes).
+What this note adds is the boundary between them: keep operational events,
+retained artifact content, and exported telemetry under separate capture,
+retention and access policies, and record redaction and omitted content so an
+absent payload is explainable rather than merely missing.
 
 ## Finite borrow/build/defer inventory
 

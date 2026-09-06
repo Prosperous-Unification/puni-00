@@ -1,3 +1,6 @@
+> Note: the review receipts this record cites describe the repository at the
+> commit each one names, not the current tree.
+
 # Plan review record
 
 Scope: proposed architecture and delivery plan, 2026-09-06. A design review is an

@@ -18,7 +18,8 @@ Authority and budget: the user authorized this planning/review request. This
 does not approve future implementation spend or release. Product admission needs
 an explicit scope/budget; production always needs a candidate-bound human command.
 
-Parked: Backlog implementation/cutover awaits the concrete refactor closure;
+Parked: Backlog implementation and cutover await the closure recorded in
+[Cutover after the refactors land](../client-repositories.md#cutover-after-the-refactors-land);
 cloud-browser/release work remains in its scheduled increment. See the complete
 [delivery plan](../../../openspec/changes/twilight-control-plane/tasks.md),
 [assumptions](../assumptions.md) and [full product controls](../product-experience.md).

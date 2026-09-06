@@ -24,7 +24,10 @@ required approval.
 FE and MCP MUST invoke the same BE operations, with organization/repository/actor
 authorization at the boundary. A tool caller MUST NOT supply a trusted actor or
 gain a service account's broader authority. Unsupported controls MUST be refused
-with typed errors. Malformed requests MUST produce typed 4xx responses.
+with typed errors. Malformed requests MUST produce typed 4xx responses. Bootstrap
+and interactive decision-token issuance establish authority and are the only
+operations without an agent-callable MCP form; their resulting bindings MUST be
+readable through the effective-policy operation.
 
 #### Scenario: Same request through two clients
 
@@ -39,11 +42,16 @@ with typed errors. Malformed requests MUST produce typed 4xx responses.
 
 ### Requirement: Versioned inspectable workflow configuration
 
-The service MUST validate and publish immutable workflow revisions derived from
-the OpenSpec artifact contract and compatible execution profile. Every supported
-control MUST be configurable and inspectable through FE, BE and MCP, including
-effective value, source and restrictions. Mandatory organizational safety floors
-MUST constrain lower-level overrides.
+The service MUST validate and publish immutable workflow revisions compiled from
+the OpenSpec artifact contract, the execution profile, the repository manifest and
+provider capability documents. The first increment's control set is: stage and
+activity enablement and floor marks, lifecycle-point policies, hook registrations,
+the delivery profiles with their model, escalation, review, verification, skip,
+fan-out, budget and deadline fields, discovery envelopes, capacity defaults,
+presentation defaults and retention defaults. Every control in that set MUST be
+configurable and inspectable through FE, BE and MCP with its effective value,
+origin scope and restriction. Platform and organization floors MUST constrain
+lower scopes, and a profile or run override below a floor MUST be refused.
 
 #### Scenario: A running workflow is unaffected by a draft edit
 
@@ -54,8 +62,9 @@ MUST constrain lower-level overrides.
 
 #### Scenario: Capability cannot be enforced
 
-- **WHEN** the chosen ACP adapter cannot expose a required before-tool control
-- **THEN** configuration validation refuses that combination and identifies the capability gap
+- **WHEN** the chosen ACP adapter's capability document lacks a `beforeTool`
+  control that a policy in the profile requires
+- **THEN** configuration validation refuses that combination and names the capability gap
 
 #### Scenario: Published configuration is reproduced from Git
 
@@ -63,6 +72,34 @@ MUST constrain lower-level overrides.
   compiles the resulting repository revision
 - **THEN** it produces the same compiled digest as the service, and a competing
   stale Git publication is refused as a conflict
+
+#### Scenario: An override reaches below a floor
+
+- **WHEN** a request selects a profile override that removes an activity, hook,
+  approval or evidence item the repository or organization floor lists
+- **THEN** submission is refused with the floor's origin, and no run is created
+
+### Requirement: Lifecycle points are the one key space
+
+Policies and hooks MUST be keyed by lifecycle points of the form
+`<event>.<stage or activity id>` over the compiled stage graph, with `beforeStage`,
+`afterStage`, `beforeActivity`, `afterActivity`, `beforeTool`, `afterTool`,
+`onFinding`, `onApproval`, `onRework`, `onFailure`, `onCancel`, `onTrigger` and
+`onProfileChange` as events. Artifact ids MUST NOT be policy or hook keys. A point
+naming an unknown stage or activity MUST be a compile error.
+
+#### Scenario: A hook names an activity the profile does not declare
+
+- **WHEN** a hook registration attaches to `afterActivity.review.smoke` and no such
+  activity exists
+- **THEN** compilation fails naming the point, and no workflow revision is published
+
+#### Scenario: A rework policy fires on the round it is about
+
+- **WHEN** a critic finding sends an implementation back for the profile's last
+  permitted round
+- **THEN** the `onRework` policy for that activity is evaluated with the round
+  number, and the next unresolved blocking finding pauses the run
 
 ### Requirement: Executable restore compatibility
 
@@ -72,37 +109,38 @@ and application-store schema. Workflow restore MUST own compatibility validation
 checkpoint loading and revision reconciliation; callers MUST NOT assemble these
 steps independently. Missing, unreadable, corrupt or unsupported required packages
 and formats MUST block resume before worker or effect dispatch. Name-based latest
-implementation substitution MUST NOT occur. M1 MAY refuse incompatible upgrades
-while nonterminal runs exist; supporting every historical graph is not required.
-Successful migration/rollback preservation MUST be proven before a later increment
-declares a particular upgrade path supported.
+implementation substitution MUST NOT occur. The service MAY refuse incompatible
+upgrades while nonterminal runs exist; supporting every historical graph is not
+required. Successful migration/rollback preservation MUST be proven before a later
+increment declares a particular upgrade path supported.
 
 #### Scenario: A newer controller restores an older run
 
-- **WHEN** a retained run is awaiting approval under an older graph and hook build
+- **WHEN** a retained run is `awaiting_approval` under an older graph and hook build
 - **THEN** only a proven compatible controller with the pinned executable closure
   may restore its same subject and transition; an incompatible hook/serializer
   blocks before any worker launch or effect request
 
-#### Scenario: Upgrade rollback follows accepted work
+#### Scenario: An incompatible upgrade is refused
 
-- **WHEN** a supported upgraded controller accepted a decision and recorded an uncertain
-  effect before rollback is requested
-- **THEN** the protected recovery path works without the upgraded controller,
-  preserves both records across application/checkpoint stores and outbox, and
-  resumes only a tested compatible closure without re-dispatching that effect;
-  an unsupported reverse migration refuses rollback without losing accepted state
+- **WHEN** an upgrade is attempted while a nonterminal run's closure is not in the
+  tested compatibility matrix
+- **THEN** the upgrade is refused with the run and the missing compatibility named,
+  and the run's pending decision and effects are unchanged
 
 ### Requirement: Durable stage and activity lifecycle
 
-Runs MUST distinguish queued, running, awaiting approval, paused, reconciling,
-failed, cancelled, and completed states. Durable ownership and checkpoints MUST
-permit restart without inventing completion or repeating uncertain effects.
-Cancellation MUST fence new work, then drain or terminate workers. Effect execution
-MUST own attempt fencing, intent persistence, dispatch, reconciliation and resource
-release. Callers MUST NOT invoke effect transports or free reservations independently.
-Each reservation MUST require resource-specific terminal evidence before release;
-local process exit alone MUST NOT release a remote session/job or unresolved budget.
+Runs MUST distinguish `queued`, `running`, `awaiting_approval`, `paused`,
+`reconciling`, `failed`, `cancelled` and `completed`. Durable ownership and
+checkpoints MUST permit restart without inventing completion or repeating uncertain
+effects. Cancellation MUST fence new work, then drain or terminate workers. Effect
+execution MUST own attempt fencing, intent persistence, dispatch, reconciliation
+and resource release. Callers MUST NOT invoke effect transports or free
+reservations independently. Each reservation MUST require resource-specific
+terminal evidence before release; local process exit alone MUST NOT release a
+remote session/job or unresolved budget. A retried activity MUST be a new attempt
+under the same activity, and a skipped activity MUST record the decision that
+skipped it.
 
 #### Scenario: Restart during approval wait
 
@@ -114,7 +152,7 @@ local process exit alone MUST NOT release a remote session/job or unresolved bud
 
 - **WHEN** a worker's external effect succeeds but its acknowledgment is lost
 - **THEN** recovery reconciles the durable effect identity before retrying and
-  an unknown outcome is visible as reconciling instead of repeating the effect
+  an unknown outcome is visible as `reconciling` instead of repeating the effect
 
 #### Scenario: An uncertain effect cannot be queried
 
@@ -127,7 +165,7 @@ local process exit alone MUST NOT release a remote session/job or unresolved bud
 
 - **WHEN** a cancelled worker has exited but its browser or provider job is still
   active or its terminal state cannot be read
-- **THEN** that resource remains reserved and visible as reconciling until its
+- **THEN** that resource remains `held` and the run visible as `reconciling` until
   provider-specific terminal evidence is observed; no replacement may consume it
 
 ### Requirement: Current authority constrains pinned runs
@@ -164,15 +202,23 @@ for brokered tools and effectful hooks.
 ### Requirement: Revision-bound human decisions
 
 Approvals MUST be attributable to authorized human decisions and bound to the
-action, candidate digest, target environment, policy revision and expiry. A
-changed subject MUST invalidate the decision. Production MUST require an explicit
-human command even if all earlier stages complete automatically.
+action, candidate digest, delivery profile revision including run overrides,
+budget, target environment, policy revision and expiry. A changed subject MUST
+invalidate the decision. Production MUST require an explicit human command even
+if all earlier stages complete automatically.
 
 #### Scenario: Stale plan approval
 
 - **WHEN** a user approves an older plan revision after a new revision is published
 - **THEN** the service refuses the decision as stale, records the attempted decision,
   and starts no dependent activity
+
+#### Scenario: A budget change after approval
+
+- **WHEN** the run's profile budget or model assignment is changed after the plan
+  was approved
+- **THEN** the approval is stale, the change is recorded as an `onProfileChange`
+  event, and implementation admission waits for a decision on the new subject
 
 #### Scenario: Model-written approval claim
 
@@ -187,23 +233,21 @@ session authority from agent/service bearer authority. Human-decision tokens MUS
 be issued only by the authenticated interactive browser flow with origin/CSRF
 validation and subject confirmation. Tokens MUST be short-lived, single-use and
 bound to actor, action, repository, subject/revision and intended consumer.
-
-FE and MCP MUST expose the same workflow operations and effective permissions.
 Approval, effect resolution and release operations MUST require the same human
-decision capability on either surface. An ordinary MCP token MUST NOT mint it.
-Interactive token issuance and trusted bootstrap establish that authority; they
-are not agent-invokable self-grants.
-
-#### Scenario: Service or delegated user token attempts approval
-
-- **WHEN** a valid service token or ordinary user-delegated MCP token attempts to mint or exercise a human decision without a decision capability
-- **THEN** the service refuses with 403 and creates no approved decision or admitted activity
+decision capability on either surface, and an ordinary MCP or service token MUST
+NOT mint it.
 
 Single use MUST mean one committed decision command. Token consumption, canonical
 command identity and decision receipt MUST commit atomically. After verifying
 caller identity and access to the stored answer, an exact command retry MUST
 return that receipt without consuming again, checking its now-stale expected
 revision, or admitting additional work. The receipt MUST NOT confer new authority.
+
+#### Scenario: Service or delegated user token attempts approval
+
+- **WHEN** a valid service token or ordinary user-delegated MCP token attempts to
+  mint or exercise a human decision without a decision capability
+- **THEN** the service refuses with 403 and creates no approved decision or admitted activity
 
 #### Scenario: Interactive decision response is lost
 
@@ -226,22 +270,21 @@ revision, or admitting additional work. The receipt MUST NOT confer new authorit
 
 ### Requirement: Capacity and budget admission
 
-Admission MUST atomically reserve every required pool and budget before launching
-an activity. Planned, reserved, and measured consumption MUST remain separate.
-Unknown usage MUST NOT be represented as zero. Expired owners MUST be fenced from
-publishing, dispatching new external effects, writing a replacement workspace or
-freeing another owner's reservation. Expiry MUST NOT be treated as terminal evidence.
-Direct worker egress MUST be denied, and writable mounts MUST NOT be reused until
-all old writers have verifiably lost access.
+Admission MUST atomically reserve every required pool and the profile's budget
+before launching an activity. Planned, reserved and measured consumption MUST
+remain separate. Unknown usage MUST NOT be represented as zero. Expired owners
+MUST be fenced from publishing, dispatching new external effects, writing a
+replacement workspace or freeing another owner's reservation. Expiry MUST NOT be
+treated as terminal evidence. Direct worker egress MUST be denied, and writable
+mounts MUST NOT be reused until all old writers have verifiably lost access.
+Active multi-coordinator operation is outside this increment; multiple trigger
+producers MUST submit to the single admission authority.
 
 #### Scenario: Concurrent admission with one remaining slot
 
-- **WHEN** two concurrent admission requests within the single active coordinator request the same final provider/workspace slot
+- **WHEN** two concurrent admission requests within the single active coordinator
+  request the same final provider/workspace slot
 - **THEN** at most one worker starts and the other run shows the constrained pool
-
-Active multi-coordinator operation is outside this increment. It requires a
-separate storage/lease change with real cross-process admission and fencing proofs;
-multiple trigger producers do not imply multiple admission coordinators.
 
 #### Scenario: Expired worker invents a new effect key
 
@@ -262,35 +305,85 @@ multiple trigger producers do not imply multiple admission coordinators.
 - **WHEN** the provider cannot support a defensible consumption reservation or stop limit
 - **THEN** a strictly budgeted activity is refused rather than admitted at zero estimated cost
 
+#### Scenario: A money budget without a rate
+
+- **WHEN** a profile carries a money budget and the rate card has no entry for one
+  of its models
+- **THEN** compilation of that profile fails naming the model, and a run cannot
+  select it
+
+### Requirement: Levers are configurable and their effects are measured
+
+Model and effort per activity class, escalation, review depth, verification
+depth, skipped activities, fan-out, budget and deadline MUST be settable in a
+named delivery profile, overridable downward per request with a reason, and
+changeable mid-run through the run command. Every activity attempt MUST write a
+run ledger entry with planned, reserved and measured tokens, estimated and billed
+money, agent elapsed time, queue wait, human wait, the serving model and the
+profile revision. Every run MUST produce an outcome record naming its profile
+revision, rework rounds, findings by severity, gate failures, skipped activities
+with their deciders, and estimate versus actual per task. Outcomes MUST be
+comparable across profiles through all clients. A quality figure MUST NOT change
+by weakening its rubric or removing an observation.
+
+#### Scenario: A review is skipped to save time
+
+- **WHEN** a request overrides the `balanced` profile to skip `review.judge`
+- **THEN** the run records the skip as a decision with actor and reason, the
+  outcome record lists it, and a defect reported inside the escaped-defect window
+  is attributed to that run and profile revision
+
+#### Scenario: A cheaper model is escalated
+
+- **WHEN** an `implement` attempt on the profile's first model ends in a gate failure
+  and the escalation ladder permits one step
+- **THEN** the retry is a new attempt on the escalated model, both attempts appear in
+  the ledger with their own measured usage, and no third step is taken
+
+#### Scenario: Two runs are compared by profile
+
+- **WHEN** one request ran under `fast` and another under `thorough` in the same
+  repository
+- **THEN** `read_outcomes` returns both with money, elapsed, rework rounds and
+  escaped defects side by side, each figure marked measured or unavailable
+
+#### Scenario: Fan-out beyond the profile
+
+- **WHEN** a plan proposes four parallel implementation activities under a profile
+  whose fan-out is two
+- **THEN** admission holds the third and fourth as `queued` with the profile named,
+  and the ledger records their queue wait separately from agent time
+
 ### Requirement: Hooks, critics and judges preserve authority
 
 Mandatory hooks MUST fail closed on timeout, unavailable dependency or malformed
 decision. Optional hook degradation MUST be typed and visible. Critic findings,
-judge verdicts and human approvals MUST be distinct records; review limits MUST
-stop unresolved work rather than turn it into a pass.
+judge verdicts and human approvals MUST be distinct records; the profile's review
+limits MUST stop unresolved work rather than turn it into a pass.
 
 #### Scenario: Required safety hook times out
 
-- **WHEN** the required pre-activity hook exceeds its deadline
+- **WHEN** the required `beforeActivity` hook exceeds its deadline
 - **THEN** the worker has not started, the failure is recorded, and no model verdict
   overrides the denied admission
 
 #### Scenario: Review rounds are exhausted
 
-- **WHEN** two configured revision rounds leave a blocking finding unresolved
+- **WHEN** the profile's configured revision rounds leave a blocking finding unresolved
 - **THEN** the run pauses with the finding, consumed budget and next authorized action visible
 
 ### Requirement: Observable evidence with focus access
 
 The service MUST expose attributable events, effective policy, artifact revisions,
-review dispositions and evidence through all clients. Focus view MUST retain
-blocking information and access to full detail. It MUST identify gaps in provider
-telemetry and redact secrets before storage and export.
+review dispositions, ledger entries and evidence through all clients. The focus
+brief MUST retain blocking information and access to full detail, and the focus
+profile MUST be a per-actor preference that changes presentation only. The service
+MUST identify gaps in provider telemetry and redact secrets before storage and export.
 
-#### Scenario: Focus view during a failed gate
+#### Scenario: Focus brief during a failed gate
 
-- **WHEN** verification fails while the focus profile is active
-- **THEN** the view shows the failure, current stage, next diagnostic action and
+- **WHEN** verification fails while the actor's focus profile is on
+- **THEN** the brief shows the failure, current stage, next diagnostic action and
   link to full evidence, without marking the stage complete
 
 #### Scenario: A secret appears in hook output

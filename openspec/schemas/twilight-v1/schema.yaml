@@ -1,9 +1,9 @@
 name: twilight-v1
 version: 1
 description: >
-  Opt-in Twilight SDLC trial: intent, behavioral specs, one work plan, and
-  post-work evidence; technical design when non-trivial. Stage methods and
-  focus presentation share these artifacts. File progress is not authorization.
+  Opt-in Twilight SDLC trial: intent, behavioral specs, a design that is always
+  present, one work plan, and post-work evidence. Stage methods and focus
+  presentation share these artifacts. File progress is not authorization.
 
 artifacts:
   - id: intent
@@ -12,24 +12,28 @@ artifacts:
     template: proposal.md
     instruction: |
       Read LLM_README.md, AGENTS.md, then CONTEXT-MAP.md when present and the
-      owning context's glossary. Repository-specific context rules referring
-      to root CONTEXT.md mean the owning glossary in a multi-context repo.
+      owning context's glossary. Where a repository rule says CONTEXT.md, read
+      the glossary of the context that owns this change; in a multi-context
+      repository that is not the file at the repository root.
       Run one combined discovery using brainstorming, grilling, and
       domain-modeling; use Wayfinder only when a decision map adds value.
       When the user authorizes assumptions, answer questions yourself, record
       their rationale/owner/reopen condition, and continue authorized work.
       Never turn an assumption into a human approval. Otherwise ask the
       smallest useful decision, without asking again for existing authority.
-      Use i-have-adhd as an optional interaction profile across every stage:
-      next action, state, bounded decision batch, parking lot, resume cue.
+      Apply the focus profile selected in the execution profile
+      (openspec/schemas/twilight-v1/execution.yaml, section `presentation`); the
+      default adaptation is documented in docs/twilight-structure/product-experience.md.
       It changes presentation, never authority, required detail, or checks.
-      The external skill is explicit-invocation; do not claim it was installed
-      or invoke a disabled router. Link the inspected source/adaptation.
+      A profile carried by an external skill is explicit-invocation; do not claim
+      it was installed or invoke a disabled router. Link the inspected
+      source/adaptation.
       Record resolved terms immediately in the owning CONTEXT.md, terms only,
       using .agents/skills/domain-modeling/CONTEXT-FORMAT.md. Qualifying ADRs
       use its ADR-FORMAT.md. Sources belong beside the relevant knowledge.
-      Write the intent here, at most 400 words. Put supporting assumptions in
-      a linked canonical record; do not create brainstorm.md or plan.md.
+      Write the intent here, within the word cap the intent rules state. Put
+      supporting assumptions in a linked canonical record; do not create
+      brainstorm.md or plan.md.
     requires: []
 
   - id: specs
@@ -51,15 +55,18 @@ artifacts:
 
   - id: design
     generates: design.md
-    description: Technical shape and applicability for non-trivial changes
+    description: Technical shape, or the recorded reason this change needs none
     template: design.md
     instruction: |
-      OPTIONAL only for mechanically obvious changes. For architecture,
-      contracts, external effects, security, migrations or workflow behavior,
-      create this artifact and review it before planning. For an omitted design
-      record why it is unnecessary in tasks.md; do not create an empty file.
-      Read intent/specs, inspect affected callers/tests, and describe boundaries,
+      REQUIRED for every twilight-v1 change; tasks stay blocked until it exists.
+      Open it with an "## Applicability" section stating whether a technical
+      design is needed and why. Architecture, contracts, external effects,
+      security, migrations and workflow behavior always need one: read
+      intent/specs, inspect affected callers/tests, and describe boundaries,
       identities, state transitions, errors, recovery, and compatibility.
+      For a mechanically obvious change the Applicability section is the whole
+      artifact; that is a short design, never an empty or absent file, and the
+      reason belongs here rather than in tasks.md.
       ADR alternatives stay in the linked ADR. Do not duplicate tasks here.
     requires: [intent, specs]
 
@@ -79,12 +86,18 @@ artifacts:
       Per-client Nx repos use the same workflow. The accepted target planning
       backend is per-repo Backlog.md behind WBS, after its refactorings land.
       Until the versioned bridge exists, this is the sole authored plan. Later
-      WBS/Backlog edits and this artifact must use one revision-checked round-trip
-      contract; never silently maintain competing independently editable plans.
+      WBS/Backlog edits and this artifact must round-trip through one record whose
+      revision is checked on every write, so a write from a stale revision is
+      refused; never silently maintain competing independently editable plans.
       A focus brief and schedule are projections. Separate required safety
       gates from critic/judge advice. No task is done without evidence.
-    # Proof: tool-workflows cli.integration.test.ts visited intent/specs/tasks
-    # without this design edge; expected intent/specs/design/tasks, exit 1.
+    # Proof: with `design` removed from this list, cli.integration.test.ts's
+    # 'the pinned CLI blocks planning while design.md is absent' failed on
+    # `expect(received).toBe(expected) / Expected: "blocked" / Received: "ready"`
+    # — the pinned 1.12.0 CLI reported tasks ready with no design.md. The test
+    # runs under `nx run tool-workflows:integration` with OPENSPEC_CLI set, which
+    # CI now runs as its own step. Output:
+    # openspec/changes/twilight-review-hardening/evidence/design-traversal-red.txt
     requires: [intent, specs, design]
 
   - id: verify
@@ -92,12 +105,16 @@ artifacts:
     description: Observed checks, review dispositions, applicability and handoff
     template: verify.md
     instruction: |
-      Produce after the scoped work, never from a prospective plan. Use
-      verification-before-completion and openspec-verify-change. Record scope,
-      exact source/artifact identity, commands, stdout/stderr or durable links,
-      exits, timestamps, reviewer identity/findings/dispositions and limits.
-      Include the R5 failure-proof table; write Proof comments only from actual
-      failed output. Empty files/checked tasks/CLI all_done are not runtime proof.
+      Produce after the scoped work, never from a prospective plan. This file is
+      required for handoff and archive, not for apply readiness: apply requires
+      intent, specs and tasks, so until tool-twilight enforces handoff this
+      instruction is the only place the obligation is stated.
+      Use verification-before-completion and openspec-verify-change. Record
+      scope, exact source/artifact identity, commands, stdout/stderr or durable
+      links, exits, timestamps, reviewer identity/findings/dispositions, limits.
+      Include the failure-proof table the verify rules require, and write its
+      Proof comments only from output you watched. Empty files, checked tasks and
+      a CLI all_done are file progress, never runtime proof.
       For docs-only work record build/browser/deploy checks as unrun/inapplicable
       with reason; for application work run the actual gate and real browser
       checks on the identified checkout/environment. On h2puni use its locked
@@ -111,6 +128,10 @@ apply:
   # Proof: docs/twilight-structure/evidence/cli-probes.json, negative-absent-intent
   # and negative-absent-specs each exited 1: "Expected absent ... to block apply;
   # received ready" when that prerequisite was removed; restored checks passed.
+  # verify is deliberately absent from this list. Proof: adding it made
+  # cli.integration.test.ts's 'an applicability-only design.md unblocks planning,
+  # and apply needs no verify.md' fail on `Expected: "ready" / Received:
+  # "blocked"`. Output: evidence/apply-verify-red.txt in twilight-review-hardening.
   requires: [intent, specs, tasks]
   tracks: tasks.md
   instruction: |

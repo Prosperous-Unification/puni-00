@@ -1,0 +1,42 @@
+$ bunx nx run-many -t test lint typecheck --projects=tool-workflows --skip-nx-cache   (2026-09-06, final state; --skip-nx-cache so no target is answered from the cache)
+
+
+ NX   Running targets test, lint, typecheck for project tool-workflows and 1 task it depends on:
+
+- tool-workflows
+
+
+
+> nx run tool-workflows:typecheck
+
+> bunx tsc --build --force tools/tool-workflows/tsconfig.json
+
+
+> nx run tool-workflows:check
+
+> bun tools/tool-workflows/src/generate.ts --check
+
+Checked 40 workflow variants
+
+> nx run tool-workflows:lint
+
+> bunx eslint tools/tool-workflows/src
+
+
+> nx run tool-workflows:test
+
+> bun test tools/tool-workflows/src/workflows.test.ts tools/tool-workflows/src/schema.test.ts
+
+[0m[1mbun test [0m[2mv1.4.0 (34cbb9a40)[0m
+
+[0m[32m 25 pass[0m
+[0m[2m 0 fail[0m
+ 97 expect() calls
+Ran 25 tests across 2 files. [0m[2m[[1m18.61s[0m[2m][0m
+
+
+
+ NX   Successfully ran targets test, lint, typecheck for project tool-workflows and 1 task it depends on
+
+
+exit=0

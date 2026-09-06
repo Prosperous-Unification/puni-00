@@ -31,11 +31,12 @@ default, and this planning run has explicit autonomous authority.
 Question: at which boundaries must the factory stop for approval before it
 continues?
 
-**Recommended answer / proposed assumption A1:** require approval after
-discovery, after specifications, and after a work plan with its token/time
-budget. Then perform implementation, cross-review, tests, and development
-deployment within the approved scope. Production deployment always requires
-an explicit human command, as already required in the brief.
+**Recommendation made at the time:** require approval after discovery, after
+specifications, and after a work plan with its token/time budget. Then perform
+implementation, cross-review, tests, and development deployment within the
+approved scope. Production deployment always requires an explicit human command,
+as already required in the brief. This recommendation was later narrowed and
+recorded as [A03](assumptions.md).
 
 Rationale: a mistaken scope or plan can otherwise spend substantial resources
 before there is a useful result to inspect. This policy permits execution to
@@ -57,16 +58,15 @@ Dany requested a documentation and development workflow combining OpenSpec,
 Superpowers, grill-me/Wayfinder, and a DDD-oriented LLM Wiki. This repository
 will pilot it before the factory reuses it for other repositories.
 
-**Accepted answer A2:** OpenSpec owns the testable
-behavioral requirements; a DDD-oriented wiki owns domain explanations and links
-to the contracts. Discovery records, accepted decisions, execution plans, and
-verification evidence each retain an explicit canonical home.
-
-The alternative is to make wiki pages canonical specifications and adapt
-OpenSpec to track and apply changes to them. The
-[workflow proposal](sdd-proposal.md) compares the approaches and records local
-compatibility findings. [Source findings](sdd-sources.md) distinguish upstream
-capabilities from our proposed integration.
+**Accepted answer:** OpenSpec owns the testable behavioral requirements; a
+DDD-oriented wiki owns domain explanations and links to the contracts. Discovery
+records, accepted decisions, execution plans, and verification evidence each
+retain an explicit canonical home. That split and its rejected alternative — making
+wiki pages canonical specifications and adapting OpenSpec to track changes to
+them — are stated once, in
+[requirements and the wiki](knowledge.md#requirements-and-the-wiki-the-boundary).
+[Source findings](sdd-sources.md) distinguish upstream capabilities from our
+proposed integration.
 
 Answer: Dany accepted the proposed division after the concrete spec/wiki/plan
 example, then requested clear SDLC steps and enforcement through OpenSpec CLI

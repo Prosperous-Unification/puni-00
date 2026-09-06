@@ -1,0 +1,33 @@
+The body of CI's new 'OpenSpec schema graph (pinned CLI)' step, run verbatim by hand on this workstation (pop-os, not a GitHub runner). The step itself has never executed on a runner. The integration target sets "cache": false, so no flag is needed to keep Nx from answering from the cache. Date: 2026-09-06.
+
+$ pin="$(mktemp -d)"
+$ echo {"name":"openspec-pin","private":true} > "$pin/package.json"
+$ (cd "$pin" && bun add @fission-ai/openspec@1.12.0)
+$ cli="$pin/node_modules/@fission-ai/openspec/bin/openspec.js"; test -f "$cli"
+$ OPENSPEC_CLI="$cli" bunx nx run tool-workflows:integration
+
+bun add v1.4.0 (34cbb9a40)
+Saved lockfile
+
+installed @fission-ai/openspec@1.12.0 with binaries:
+ - openspec
+
+71 packages installed [23.00ms]
+
+> nx run tool-workflows:integration
+
+> bun test tools/tool-workflows/src/cli.integration.test.ts
+
+[0m[1mbun test [0m[2mv1.4.0 (34cbb9a40)[0m
+
+[0m[32m 3 pass[0m
+[0m[2m 0 fail[0m
+ 20 expect() calls
+Ran 3 tests across 1 file. [0m[2m[[1m1022.00ms[0m[2m][0m
+
+
+
+ NX   Successfully ran target integration for project tool-workflows
+
+
+exit=0

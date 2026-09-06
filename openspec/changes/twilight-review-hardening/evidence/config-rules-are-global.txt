@@ -1,0 +1,28 @@
+Probe: are openspec/config.yaml's `rules` schema-scoped? Disposable repository carrying this repository's schemas and config.yaml (which selects sdd-lean), plus one change declaring `schema: twilight-v1`. Pinned CLI 1.12.0. Date: 2026-09-06.
+
+$ node <pinned openspec.js> instructions design --change rules-probe --json | jq '{schemaName, description, rules}'
+{
+  "schemaName": "twilight-v1",
+  "description": "Technical shape, or the recorded reason this change needs none",
+  "instruction": "REQUIRED for every twilight-v1 change; tasks stay blocked until it exists.",
+  "rules": [
+    "Follow the active schema's own design instruction. Under sdd-lean, create design.md only when the technical shape is non-trivial; skipping it is the expected case. Under twilight-v1, design.md is always present and holds an \"## Applicability\" section alone when the change is mechanically obvious.",
+    "Do not restate rationale that already lives in a linked ADR."
+  ]
+}
+
+Result: schemaName is twilight-v1 and the instruction/template come from twilight-v1, but `rules` is whatever openspec/config.yaml holds. Config rules are GLOBAL, not per-schema, so a rule written for one schema is served to every schema.
+
+Same probe with the pre-change rule text restored in the disposable copy, which is what the finding is about:
+
+$ node <pinned openspec.js> instructions design --change rules-probe --json | jq '{schemaName, instruction: .instruction[0:74], rules}'
+{
+  "schemaName": "twilight-v1",
+  "instruction": "REQUIRED for every twilight-v1 change; tasks stay blocked until it exists.",
+  "rules": [
+    "Only create this when the technical shape is non-trivial. Skipping it is the expected case, not an exception.",
+    "Do not restate rationale that already lives in a linked ADR."
+  ]
+}
+
+The twilight-v1 instruction says design.md is REQUIRED for every change while the global rule served alongside it says skipping design.md is the expected case. Two contradictory sentences in one JSON response.

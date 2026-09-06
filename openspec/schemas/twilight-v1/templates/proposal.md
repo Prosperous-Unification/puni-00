@@ -1,6 +1,6 @@
 ## Why
 
-<!-- Problem and desired outcome; 50-1000 characters. Entire intent <=400 words. -->
+<!-- Problem and desired outcome. Length limits: see the intent artifact instruction. -->
 
 ## What Changes
 

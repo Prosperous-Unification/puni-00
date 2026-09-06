@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — twenty-one times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — twenty-two times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -457,6 +457,22 @@ the fault lives only in the second after a write. It was found by taking a scree
 it. And the first theory for it — a scroll from the settling table — was **wrong**: the document's
 own event log had no scroll in it at all. Instrument before you believe a mechanism, and look at the
 thing you built.
+
+Two more on 2026-09-06 in `twilight-review-hardening` and the Twilight plan review, and
+**neither shipped**. Marking each generated workflow copy with the source a human should edit
+meant inserting a line under the frontmatter, and the first cut re-parsed the frontmatter at
+insertion time and threw `Missing frontmatter for marker` when it did not match. That branch
+is unreachable: `readSource` has already refused a source without frontmatter, and the command
+files' headers are built by the generator itself. The `Proof:` comment beside it said as much in
+prose, which is a comment admitting the check cannot fail. Restructured so the caller passes the
+header length it already has, and the guard is deleted. **A guard whose comment has to explain
+why it can never fire is the finding, not the mitigation.** And the twilight-v1 schema's own
+proof was the other one: `tasks.requires` gained `design` with a `Proof:` citing a test that
+wrote `tasks.md` by hand and asserted apply was `ready`, so it never asked the CLI the question
+the edge is about. Asked properly, `status --json` with `design.md` absent reports
+`tasks: blocked, missingDeps: ["design"]`, and the same test watched `Expected: "blocked" /
+Received: "ready"` with the edge removed. The schema said design was OPTIONAL in the sentence
+above the edge that made it mandatory; it is always present now, applicability-only when trivial.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.

@@ -91,7 +91,20 @@ _Avoid_: Requirement, instruction
 **Focus brief**:
 A compact view of the current outcome, next action, decisions, and stopping point
 that helps someone start or resume work.
-_Avoid_: Work plan, reduced workflow
+_Avoid_: Work plan, reduced workflow, focus view
+
+**Focus profile**:
+A person's preference to be shown focus briefs; it changes presentation only.
+_Avoid_: Diagnosis, mode, stage
+
+**Rubric**:
+The versioned criteria a judge applies to findings.
+_Avoid_: Checklist, policy
+
+**Judge**:
+A reviewer role that issues verdicts against a rubric and holds no decision
+authority.
+_Avoid_: Approver, gate
 
 ### Execution
 
@@ -111,14 +124,30 @@ execution profile, and repository manifest for a run.
 _Avoid_: Config snapshot, graph
 
 **Execution profile**:
-The versioned policy file beside the schema that assigns policies to lifecycle
-points.
+The versioned file beside the schema that maps artifacts to stages, declares
+activities, assigns policies to lifecycle points, registers hooks and defines
+delivery profiles.
 _Avoid_: Settings, stage list
 
+**Activity class**:
+The kind of work an activity performs: research, plan, implement, review, judge,
+verify or knowledge; the unit a delivery profile assigns a model to.
+_Avoid_: Role, agent type
+
 **Lifecycle point**:
-A named stage, activity, tool, or decision event of a compiled workflow, the one
-key space for policies and hooks.
-_Avoid_: Step, phase, trigger
+A named stage, activity, tool, decision, rework, trigger or profile-change event
+of a compiled workflow, the one key space for policies and hooks.
+_Avoid_: Step, phase
+
+**Trigger**:
+An external cause of admission: a person's request, a schedule occurrence or a
+verified webhook; it never proves that work started.
+_Avoid_: Cron job, event
+
+**Rework**:
+Returning a deliverable to its owning activity because of a finding, counted in
+rounds against the delivery profile's limit.
+_Avoid_: Retry, fix
 
 **Hook**:
 A registered, versioned extension invoked at a lifecycle point with declared
@@ -144,6 +173,50 @@ An externally visible action a worker requests, recorded with a stable identity
 before dispatch so its outcome can be reconciled.
 _Avoid_: Side effect, call, tool use
 
+**Workspace lineage**:
+The sequence of attempts that write to one repository checkout; one writer holds
+it at a time.
+_Avoid_: Branch, repository lineage
+
+### Levers
+
+**Delivery profile**:
+A named, versioned bundle of the levers a person tunes: model per activity class,
+escalation ladder, review depth, verification depth, skipped activities, fan-out,
+budget and deadline.
+_Avoid_: Starting profile, mode, preset
+
+**Escalation ladder**:
+The bounded sequence of models an activity class moves through when an attempt
+ends in refusal, gate failure or a blocking finding.
+_Avoid_: Fallback, retry policy
+
+**Rate card**:
+The organization's versioned price per token for each provider and model revision,
+with an effective date.
+_Avoid_: Pricing, vendor list
+
+**Run ledger**:
+The per-attempt record of planned, reserved and measured tokens, money, agent
+elapsed time, queue wait, human wait and human minutes, with the serving model and
+profile revision.
+_Avoid_: Usage, bill
+
+**Outcome record**:
+The per-run record of acceptance, rework rounds, findings, gate failures, skipped
+activities, escaped defects and estimate versus actual, attributed to a profile
+revision.
+_Avoid_: Score, report
+
+**Accepted outcome**:
+A candidate accepted at handoff with every floor activity passed.
+_Avoid_: Done, merged
+
+**Escaped defect**:
+A defect reported against an accepted outcome within the configured window after
+acceptance.
+_Avoid_: Bug, regression
+
 ### Authority
 
 **Organization**:
@@ -167,15 +240,27 @@ plan exists: write paths, limits, deadline, and read-only code access.
 _Avoid_: Budget, pre-approval
 
 **Critic**:
-A reviewer with read scope that produces findings and holds no decision authority.
+A reviewer with read scope that produces findings and holds no decision authority;
+a safety critic is a critic with a safety rubric.
 _Avoid_: Judge, safety agent, approver
 
 ### Planning and delivery
 
 **Repository manifest**:
 The versioned file that identifies a client repository, its template and adapter
-versions, context roots, and planning ref.
-_Avoid_: Config, settings file
+versions, context roots, planning settings, default delivery profile and policy
+references.
+_Avoid_: Config, settings file, planning manifest
+
+**Plan lock**:
+The file in a source candidate that pins its change-keyed plan references, export
+digests and input receipt snapshot.
+_Avoid_: Lockfile, manifest
+
+**Progress receipt**:
+A revision of a task's measured usage or checkbox state, distinct from the
+approved task definition.
+_Avoid_: Completion receipt, status
 
 **Planning broker**:
 The one principal per repository that validates and publishes accepted planning
@@ -202,6 +287,17 @@ An attributed record that a planning task was completed on a named source
 candidate, with its tests, verdicts, and integration status; it is an output of
 that candidate's work, available as input to later candidates.
 _Avoid_: Checkbox, done flag
+
+**Candidate revision**:
+The accepted planning revision a command was validated against and expects to be
+current when the broker advances the accepted ref.
+_Avoid_: Head, latest plan, base
+
+**Materialized candidate view**:
+The working checkout that native Backlog tools read and write; its edits are
+proposals that must be imported through the broker to become accepted planning
+state.
+_Avoid_: Working copy, the plan, checkout
 
 **Candidate**:
 The exact revision or artifact an approval, verification, or release names.

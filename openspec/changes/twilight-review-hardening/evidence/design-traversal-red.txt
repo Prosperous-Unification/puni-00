@@ -1,29 +1,25 @@
+Fault: openspec/schemas/twilight-v1/schema.yaml, the tasks artifact's requires goes from [intent, specs, design] to [intent, specs]. Command: OPENSPEC_CLI=<installed pinned 1.12.0 bin/openspec.js> bun test tools/tool-workflows/src/cli.integration.test.ts. Date: 2026-09-06.
+
 bun test v1.4.0 (34cbb9a40)
 
 tools/tool-workflows/src/cli.integration.test.ts:
-33 |     if (!artifact) throw new Error(`Missing CLI artifact ${id}`);
-34 |     artifact.requires.forEach(visit);
-35 |     visited.push(id);
-36 |   }
-37 |   status['applyRequires'].forEach(visit);
-38 |   expect(visited).toEqual(['intent', 'specs', 'design', 'tasks']);
-                       ^
-error: expect(received).toEqual(expected)
+80 | test('the pinned CLI blocks planning while design.md is absent', () => {
+81 |   const { run } = newFixture();
+82 |   const status = run('status', '--change', 'architecture', '--json') as Status;
+83 |   // The reported state first: the traversal below only echoes the schema, and a
+84 |   // graph assertion cannot see the CLI answering "ready" to a caller.
+85 |   expect(artifact(status, 'tasks').status).toBe('blocked');
+                                                ^
+error: expect(received).toBe(expected)
 
-  [
-    "intent",
-    "specs",
--   "design",
-    "tasks",
-  ]
+Expected: "blocked"
+Received: "ready"
 
-- Expected  - 1
-+ Received  + 0
+      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/cli.integration.test.ts:85:44)
+(fail) the pinned CLI blocks planning while design.md is absent [144.09ms]
 
-      at <anonymous> (/home/df/wd/puni/puni-00/tools/tool-workflows/src/cli.integration.test.ts:38:19)
-(fail) pinned CLI exposes conditional design to fast-forward while apply accepts its recorded omission [302.18ms]
-
- 0 pass
+ 2 pass
  1 fail
- 3 expect() calls
-Ran 1 test across 1 file. [381.00ms]
+ 11 expect() calls
+Ran 3 tests across 1 file. [782.00ms]
+exit=1

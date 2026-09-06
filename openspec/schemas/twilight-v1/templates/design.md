@@ -1,5 +1,11 @@
 # Technical design
 
+## Applicability
+
+<!-- Whether this change needs a technical design, and why. For a mechanically
+     obvious change this section is the whole artifact; see the design artifact
+     instruction for what makes a change non-trivial. -->
+
 ## Context and assumptions
 
 <!-- Link canonical discovery/assumption records and affected callers/tests. -->

@@ -2,10 +2,14 @@
 
 ### Requirement: Opt-in artifact workflow
 
-The Twilight pilot SHALL use a named schema selected per change. It MUST retain
-`proposal.md`, `specs/**/*.md`, `tasks.md`, and post-work `verify.md` as its four
-required artifact classes. Technical design MUST be recorded when non-trivial.
-The repository's default schema MUST remain unchanged by opting into the pilot.
+The Twilight pilot SHALL use a named schema selected per change. Its artifact
+classes MUST be `proposal.md`, `specs/**/*.md`, `design.md`, `tasks.md` and
+post-work `verify.md`. `design.md` MUST exist before planning starts; for a
+mechanically obvious change it MUST carry an applicability statement recording why
+no technical design is needed, and nothing else. `verify.md` MUST be an obligation
+of handoff and archive rather than of apply readiness, which requires intent,
+specifications and tasks only. The repository's default schema MUST remain
+unchanged by opting into the pilot.
 
 #### Scenario: Existing work retains its workflow
 
@@ -17,6 +21,19 @@ The repository's default schema MUST remain unchanged by opting into the pilot.
 
 - **WHEN** only `tasks.md` exists for a `twilight-v1` change
 - **THEN** apply instructions report blocked and identify absent intent/specs
+
+#### Scenario: Planning waits for the design decision
+
+- **WHEN** a `twilight-v1` change has intent and specifications but no `design.md`
+- **THEN** status reports the tasks artifact blocked and names design as its
+  missing input, and an applicability-only `design.md` unblocks it
+
+#### Scenario: Apply readiness does not wait for verification
+
+- **WHEN** intent, specifications, design and tasks exist and `verify.md` does not
+- **THEN** apply reports ready, while the handoff and archive obligation for
+  `verify.md` stays stated in the verify artifact instruction until the future
+  `tool-twilight` verifier enforces it
 
 ### Requirement: Assumption-based discovery
 
@@ -32,14 +49,15 @@ an owner, its rationale, and a condition that reopens dependent work.
 
 ### Requirement: Inspectable stages with one plan
 
-The workflow MUST map request, discovery, specification, planning, implementation,
-review, verification, development acceptance, knowledge handoff, and release onto
-the canonical artifacts and attributable evidence. `tasks.md` MUST be the only
-hand-maintained implementation plan. A focus brief MUST be a view of that work.
+The workflow MUST map the canonical stages `request`, `discovery`, `specification`,
+`planning`, `implementation`, `review`, `verification`, `acceptance`, `handoff` and
+`release` onto the canonical artifacts and attributable evidence, using those stage
+ids. `tasks.md` MUST be the only hand-maintained implementation plan. A focus brief
+MUST be a view of that work.
 
-#### Scenario: Focus view keeps obligations
+#### Scenario: Focus brief keeps obligations
 
-- **WHEN** a person uses the optional focus profile
+- **WHEN** a person uses the focus profile selected in the execution profile
 - **THEN** one next action and a resume cue are shown with access to the same
   requirements, decisions, evidence, and completion conditions as the full view
 

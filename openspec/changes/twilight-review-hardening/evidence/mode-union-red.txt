@@ -1,0 +1,4 @@
+Fault: tools/tool-workflows/src/generate.ts, a literal '--bogus' passed straight to generateWorkflows. Command: bunx tsc --build --force tools/tool-workflows/tsconfig.json. Before this change generateWorkflows took `mode: string` and this compiled. Date: 2026-09-06.
+
+tools/tool-workflows/src/generate.ts(310,27): error TS2345: Argument of type '"--bogus"' is not assignable to parameter of type 'Mode'.
+exit=1
