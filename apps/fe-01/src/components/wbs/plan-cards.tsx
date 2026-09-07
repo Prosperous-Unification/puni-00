@@ -13,6 +13,7 @@ import type { Days, PriorityBandView, StepView } from '@/lib/wbs-api';
 import { ActionsMenu, type MenuAction } from './actions-menu';
 import { CellInput } from './cell-input';
 import type { CellRef } from './cell-navigation';
+import { DEADLINE_EFFECT_HINT } from './column-hints';
 import {
   type PickableEntry,
   PickerList,
@@ -1260,7 +1261,7 @@ function CardDeadlineField({
   const title = hasCalendar
     ? [
         day === null ? null : `${day}.`,
-        'The last day this work item may finish on. It does not move the plan; a plan that misses it says so.',
+        DEADLINE_EFFECT_HINT,
         impossible ? DEADLINE_BEFORE_START : null,
       ]
         .filter((part) => part !== null)
@@ -1338,10 +1339,7 @@ function CardDeadlineField({
       <ModalContent side="bottom">
         <ModalHeader>
           <ModalTitle>Work item deadline for {rowWords(row.number, row.name)}</ModalTitle>
-          <ModalDescription>
-            The last day this work item may finish on. It does not move the plan; a plan that misses
-            it says so.
-          </ModalDescription>
+          <ModalDescription>{DEADLINE_EFFECT_HINT}</ModalDescription>
         </ModalHeader>
         {/*
           `key` on the fields and not on the sheet, `CardNotBeforeField`'s
