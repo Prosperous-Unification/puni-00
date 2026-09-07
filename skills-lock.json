@@ -28,6 +28,12 @@
       "source": "mattpocock/skills",
       "sourceType": "github",
       "computedHash": "b627d5ecf36847d678b470aa87f46da602ee1013af8c97cd26ad4d005e59662d"
+    },
+    "wayfinder": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/wayfinder/SKILL.md",
+      "computedHash": "fa790eb4255b13d24d7e33ff4891ccd3d621558cc0ab87ae226777538ea16a8f"
     }
   }
 }
