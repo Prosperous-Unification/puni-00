@@ -8,7 +8,7 @@ Type: grilling
 
 Mode: HITL
 
-Status: claimed
+Status: resolved
 
 Assignee: Dany
 
@@ -48,12 +48,11 @@ These are confirmed obligations. Existing model, review, concurrency and budget
 controls remain specified; this answer does not remove them. Test reports retain
 the existing scenario/source/environment attribution and missing-evidence rules.
 
-One gate decision remains pending: allow each checked increment onto main/dev
+At this point the gate decision was pending: allow each checked increment onto main/dev
 after automated tests, then require manual acceptance before production; or
 require manual acceptance before every merge as well. The agent recommends the
-former to support frequent shared-dev updates. The question has been put to
-Dany; the recommendation is not yet an accepted policy. Sweep cadence is also
-unspecified, with no invented schedule.
+former to support frequent shared-dev updates. Dany subsequently accepted it;
+the resolution is recorded below. No sweep interval was selected.
 
 The existing [publication contract](../../../openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md#requirement-integration-is-an-independently-scalable-execution-service)
 waits for candidate acceptance, including applicable cloud checks, before shared
@@ -61,3 +60,26 @@ source publication. If manual sweeps follow main/dev publication, the design mus
 distinguish the automated merge gate from manual acceptance of the deployed
 candidate. Reconcile that ordering in the owning design, delta spec and execution
 profile rather than leaving contradictory instructions for an implementer.
+
+## Answer
+
+2026-09-08 — Dany accepted the recommended gate placement.
+
+The required personal delivery practices are exhaustive OpenSpec Given/When/Then
+scenarios; layered automated coverage led by stateless unit tests, followed by
+API tests against a real database and Playwright; and manual cloud-browser tests
+with scheduled sweeps of shared dev. Reports link the tested scenarios, source
+revision and environment, with missing or failing evidence visible.
+
+Commit frequently. Passing automated checks authorize merging checked increments
+to main and deploying them to shared dev within existing authority. Manual
+browser sweeps run against dev after publication and do not hold each main/dev
+increment. Production requires passing automated and manual acceptance evidence
+for the release candidate, followed by the existing explicit human release
+command. Passing a sweep on an older revision does not accept a newer candidate.
+
+Earlier model, review, concurrency and budget controls remain in scope within
+these obligations. This decision selects the quality requirements and their
+gate placement; it does not select a sweep interval or authorize a deployment.
+The [phase allocation work](05-product-phase-boundaries.md) must carry this order
+into the implementation plan and reconcile the older publication contract.

@@ -71,8 +71,9 @@ in the first release or that any integration has already been implemented.
 The personal and customer phases are product audience boundaries, distinct from
 the existing M0–M4 implementation milestones. The
 [personal delivery boundary](../../.scratch/twilight-structure/issues/01-personal-delivery-acceptance.md)
-is resolved through production, under TS-12's explicit human command. Detailed
-controls, quality evidence and the placement of existing work are being resolved through the
+is resolved through production, under TS-12's explicit human command. The testing
+obligations and gate placement below are agreed. Interaction design and the
+placement of existing work are being resolved through the
 [decision map](../../.scratch/twilight-structure/map.md). TS-31 does not itself
 move tasks between milestones or retire earlier technology choices.
 
@@ -83,9 +84,14 @@ outcomes comparable without letting a profile weaken its own measure.
 
 TS-32–35 establish the personal phase's required testing and delivery practices.
 They retain the earlier configurable delivery controls within applicable quality
-obligations. The placement of manual acceptance relative to each merge, dev
-deployment and production release is being clarified in
+obligations. Dany accepted the gate placement in
 [delivery controls and quality evidence](../../.scratch/twilight-structure/issues/04-personal-delivery-controls.md).
+Passing automated checks gate merging checked increments to main and deploying
+them to shared dev. Scheduled manual cloud-browser sweeps run on dev after
+publication. Production requires passing automated and manual acceptance reports
+for the identified release candidate, followed by TS-12's explicit human command.
+Each main/dev increment can proceed without waiting for another manual sweep;
+an older revision's passing report does not accept a newer production candidate.
 No sweep interval or elapsed-time target has been selected yet.
 
 ## User-level delivery sequence

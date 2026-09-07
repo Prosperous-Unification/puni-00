@@ -38,6 +38,16 @@ The [required testing and delivery practices](04-personal-delivery-controls.md)
 also require scenario coverage, layered tests, frequent main/dev publication,
 scheduled cloud-browser sweeps and linked reports in the personal phase.
 
+The accepted gate order is automated checks → main merge and shared-dev
+deployment → manual cloud-browser acceptance → explicit production command.
+Carry that order into the control-plane design, delta specification, execution
+profile and ordered implementation slices together. In particular, replace the
+earlier contract that waited for all cloud acceptance before shared source
+publication. Keep the exact candidate's automated evidence mandatory before
+publication and its manual evidence mandatory before production. Include
+scheduled sweeps, scenario-to-report coverage, served-revision verification and
+visible failure/staleness in the resulting acceptance scenarios.
+
 Sources: [delivery plan](../../../openspec/changes/twilight-control-plane/tasks.md),
 [installation operating model](../../../docs/twilight-structure/discovery.md#installation-operating-model),
 [client repository contract](../../../docs/twilight-structure/client-repositories.md).

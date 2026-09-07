@@ -14,8 +14,8 @@ serve Dany first and potential customers second made explicit.
 
 - User direction: [product audience and priorities](../../docs/twilight-structure/spec.md).
   The personal phase prioritizes delivery configurability and quality. The
-  customer phase follows it. The complete delivery boundary is resolved below;
-  detailed controls, quality evidence and task placement remain open.
+  customer phase follows it. The complete delivery boundary and required quality
+  practices are resolved below; interaction design and task placement remain open.
 - Work through this map with Wayfinder, grilling, domain-modeling and
   brainstorming. Use research or prototype for the matching ticket type.
 - [Tracker operations](tracker.md) define claims, dependencies and frontier
@@ -38,6 +38,7 @@ serve Dany first and potential customers second made explicit.
 - [Define the personal phase's complete delivery loop](issues/01-personal-delivery-acceptance.md): Phase 1 covers request → dev → prod; completeness is required even while the loop continues to improve.
 - [Establish OpenClaw's usable assistant and factory integration boundaries](issues/02-openclaw-integration-evidence.md): delegation exists; complete evidence search, work events and the delivery boundary still need integration contracts and proofs.
 - [Trace the existing plans and Claire lessons to the two product audiences](issues/03-existing-plan-and-claire-evidence.md): personal delivery crosses current milestone labels; clean-client proofs are shared foundations, and assistant coverage is additional work.
+- [Select the personal phase's delivery controls and quality evidence](issues/04-personal-delivery-controls.md): exhaustive scenarios and layered tests are required; automated checks gate main/dev publication, and manual cloud-browser acceptance gates production.
 
 ## Not yet specified
 
