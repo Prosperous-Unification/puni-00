@@ -7,10 +7,11 @@ Runtime enforcement is planned in the [control-plane tasks](../../openspec/chang
 The personal-phase [testing and delivery requirements](spec.md) now also require
 exhaustive Given/When/Then scenarios, layered automated tests, frequent commits
 and main/dev publication, and scheduled manual cloud-browser sweeps with reports.
-The [accepted delivery decision](../../.scratch/twilight-structure/issues/04-personal-delivery-controls.md)
-puts automated checks before main/dev publication and manual cloud-browser
-acceptance before production. This supersedes the earlier ordering that put all
-applicable cloud checks before shared source publication. The
+The later [environment requirement](../../.scratch/twilight-structure/issues/07-staging-and-branch-devs.md)
+adds concurrent branch devs, dev-main tracking main, and final production-like
+staging acceptance before merge. It supersedes the intermediate automated-only
+main-merge gate; frequent branch-dev updates and scheduled dev sweeps remain.
+The exact staging candidate and artifact-promotion flow are still being clarified. The
 [phase allocation work](../../.scratch/twilight-structure/issues/05-product-phase-boundaries.md)
 must reconcile the workflow schema and runtime plan before implementation uses
 that ordering; those artifacts do not yet enforce this decision.

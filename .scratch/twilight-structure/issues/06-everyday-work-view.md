@@ -23,7 +23,9 @@ Prototype against the [complete request-to-production loop](01-personal-delivery
 and observed OpenClaw capabilities. Include the development-acceptance evidence,
 production decision and release outcome in the work view.
 Show the last committed, merged and actually deployed revisions separately,
-with links to shared dev and the latest automated and manual test reports.
+with links to the appropriate branch dev, dev-main, staging and production,
+and the latest automated and manual test reports. Make environment/branch
+assignment and the candidate awaiting staging acceptance visible.
 Dany's requirement for observable progress includes running software on shared
 dev; an activity timeline alone does not establish that publication happened.
 Preserve the agreed secretary/direct-worker relationship and freely renameable

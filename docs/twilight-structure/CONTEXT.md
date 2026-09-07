@@ -18,6 +18,20 @@ _Avoid_: M1, delivery stage
 The subsequent product phase, intended for potential customers of the system.
 _Avoid_: M2, delivery stage
 
+**Branch dev**:
+A development environment assigned to a feature branch, available alongside devs
+for other branches, including long-running branches.
+_Avoid_: Staging, worker workspace
+
+**Dev-main**:
+The development environment that continuously tracks main.
+_Avoid_: Staging, production
+
+**Staging**:
+The environment kept as close to production as practical for final testing
+before a change merges to main.
+_Avoid_: Dev-main, branch dev
+
 **Work request**:
 A requested software outcome that enters the factory's discovery process.
 It precedes the specifications and work plan needed to deliver that outcome.
@@ -100,7 +114,7 @@ claim it supports and the circumstances in which it was observed.
 _Avoid_: Assertion, progress
 
 **Browser sweep**:
-A scheduled pass through manual test scenarios on the shared development
+A scheduled pass through manual test scenarios on an identified development
 environment using a cloud browser, with a report of the deployment observed.
 _Avoid_: Playwright run, heartbeat
 

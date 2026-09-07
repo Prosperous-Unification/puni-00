@@ -12,7 +12,7 @@ Status: open
 
 Assignee: unassigned
 
-Blocked by: 01, 03, 04, 06
+Blocked by: 01, 03, 04, 06, 07
 
 ## Question
 
@@ -38,15 +38,20 @@ The [required testing and delivery practices](04-personal-delivery-controls.md)
 also require scenario coverage, layered tests, frequent main/dev publication,
 scheduled cloud-browser sweeps and linked reports in the personal phase.
 
-The accepted gate order is automated checks → main merge and shared-dev
-deployment → manual cloud-browser acceptance → explicit production command.
-Carry that order into the control-plane design, delta specification, execution
-profile and ordered implementation slices together. In particular, replace the
-earlier contract that waited for all cloud acceptance before shared source
-publication. Keep the exact candidate's automated evidence mandatory before
-publication and its manual evidence mandatory before production. Include
-scheduled sweeps, scenario-to-report coverage, served-revision verification and
-visible failure/staleness in the resulting acceptance scenarios.
+The later [environment requirement](07-staging-and-branch-devs.md) adds concurrent
+branch devs, dev-main tracking main, and staging for final testing before merge.
+Carry its resulting gate order into the control-plane design, delta specification,
+execution profile and ordered implementation slices together. Frequent commits
+and branch-dev deployments make work observable before it qualifies for main;
+main follows staging acceptance. Retain candidate-bound automated/manual evidence
+and the explicit production command. Include scheduled dev sweeps,
+scenario-to-report coverage, served-revision verification and visible
+failure/staleness in the resulting acceptance scenarios.
+
+Account for environment-to-branch assignment, concurrent long-running branches,
+independent environment lifecycle and state, desired versus deployed revisions,
+staging/prod parity, and resource admission. Detailed topology, staging
+concurrency and promotion identity depend on the environment decision.
 
 Sources: [delivery plan](../../../openspec/changes/twilight-control-plane/tasks.md),
 [installation operating model](../../../docs/twilight-structure/discovery.md#installation-operating-model),

@@ -63,6 +63,11 @@ profile rather than leaving contradictory instructions for an implementer.
 
 ## Answer
 
+**Gate placement superseded by the later staging requirement:**
+[Define branch dev environments and staging before merge](07-staging-and-branch-devs.md).
+The scenario, layered-test, reporting and scheduled-sweep requirements below
+remain in force; automated checks alone no longer suffice for merging to main.
+
 2026-09-08 — Dany accepted the recommended gate placement.
 
 The required personal delivery practices are exhaustive OpenSpec Given/When/Then

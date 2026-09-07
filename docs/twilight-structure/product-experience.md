@@ -34,6 +34,25 @@ produces and shows every change's plan reference. Concurrent planning edits show
 authorized disjoint reconciliation or a real conflict needs a new decision. The
 accepted receipt names both the requested basis and the committed revision.
 
+## Environments
+
+The personal-phase [environment requirements](spec.md) distinguish these views:
+
+| Environment | Source and purpose                                                                                                                                                                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Branch dev  | One of several concurrently available dev environments assigned to feature branches, including long-running branches. Frequent updates make unfinished work inspectable; development servers and dynamic or short-lived environments are allowed. |
+| Dev-main    | The development environment that continuously tracks main. Show the desired and actually deployed revisions so deployment lag is visible.                                                                                                         |
+| Staging     | Final testing before merge in an environment kept as close to production as practical. Show the candidate, test reports and differences from production; the exact promotion flow is still being clarified.                                       |
+| Production  | The released candidate, its accepted evidence and the explicit human release command, with observed deployment health and recovery.                                                                                                               |
+
+The environment view links each running deployment to its URL, branch or candidate,
+source revision and automated/manual reports. Scheduled cloud-browser sweeps
+remain visible against the particular dev they tested. Staging parity needs a
+concrete contract covering build/deployment paths, service and runtime versions,
+database and migrations, routing/authentication, configuration, resources and
+operating procedures. Detailed topology, environment lifetimes and staging
+concurrency belong to the [environment decision](../../.scratch/twilight-structure/issues/07-staging-and-branch-devs.md).
+
 ## All supported settings are visible, scoped and versioned
 
 Every setting shows its effective value, the scope it came from (platform floor,
