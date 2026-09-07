@@ -14,11 +14,13 @@ import { contractVersionOf, SCHEDULER_CONTRACT_VERSION } from './contract-versio
  */
 describe('the composite the wire carries and the cache key stores', () => {
   it('joins both halves with the single plus the wire schema allows', () => {
-    expect(contractVersionOf('0.1.0')).toBe(`${String(SCHEDULER_CONTRACT_VERSION)}+0.1.0`);
+    expect(contractVersionOf('0.1.1')).toBe(`${String(SCHEDULER_CONTRACT_VERSION)}+0.1.1`);
     // Both golden requests are checked in carrying this prefix, and
     // `wire-contract-version.test.ts` pins the constant to it from the other
     // side — so the literal here is a second net rather than a duplicate.
-    expect(contractVersionOf('0.1.0').startsWith('8+')).toBe(true);
+    // Proof: restoring `SCHEDULER_CONTRACT_VERSION = 7` failed here with
+    // `Expected: true / Received: false`; watched 2026-09-07.
+    expect(contractVersionOf('0.1.1').startsWith('8+')).toBe(true);
   });
 
   it('never invents a solver version, however empty the one it is handed', () => {

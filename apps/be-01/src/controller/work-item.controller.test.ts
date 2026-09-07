@@ -26,6 +26,7 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
   const plan = inMemoryServices();
   const { projects: projectStore, directory: directoryStore, measures: measureStore } = plan.stores;
   const app = buildApp({
+    appOrigin: 'http://localhost',
     // **One** directory, shared with the work item service below. Two would
     // both look healthy while a person created through a `createPerson`
     // command was invisible to the assignment that names them — which is
@@ -59,7 +60,7 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
     const res = await app.handle(
       new Request('http://localhost/api/auth/register', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { origin: 'http://localhost', 'content-type': 'application/json' },
         body: JSON.stringify({ username, password: 'correct-horse' }),
       }),
     );
@@ -1807,17 +1808,14 @@ describe('dependency commands', () => {
   });
 
   it('answers 400 when no predecessor is named', async () => {
-    // Elysia strips unknown properties before the handler, so a typo'd field
-    // name arrives as an absent one. The command is parsed by hand for that
-    // reason, and a step naming neither `predecessorId` nor `predecessorRef`
-    // is the runner's `missing_id`; this is the test that keeps it so.
+    // Missing targets reach runner semantics; misspelled fields are now a
+    // structural invalid_body refusal at the shared request boundary.
     const { token, send, projectId } = await setup();
     const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
 
     const res = await command(send, token, projectId, {
       kind: 'addDependency',
       workItemId: strip,
-      predecesorId: strip,
     });
 
     expect(res.status).toBe(400);

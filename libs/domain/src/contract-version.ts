@@ -16,14 +16,15 @@
  * schedules, because a stale row is not a row in an old shape — it is an answer
  * to a question nobody asked any more.
  *
- * **`8` because the drift window moved, and here the bump is the *only* thing
- * that evicts.** `7` was the deadline slice, where the seventh canonical
- * scheduling argument, the `deadlineUnits` wire field and the materialiser all
- * changed together. `8` is a far narrower change and is for that reason more
- * dangerous to skip: `quantise` now snaps the `DRIFT` window in workday space
- * **before** multiplying by {@link SOLVER_QUANTUM} rather than only after.
- * That is the `snapWorkdays` and {@link SOLVER_QUANTUM} entries of the list
- * above and needs no new rule.
+ * **`8` because two independently developed fixes land together over version
+ * `7`.** The deadline publication guard now includes deadlines in its Fast
+ * baseline; the old guard could store a differently ordered baseline with
+ * missing lateness under the same input hash the corrected guard reads. The
+ * drift window also moved, and the bump is the only thing that evicts for that
+ * change: `quantise` now snaps the `DRIFT` window in workday space **before**
+ * multiplying by {@link SOLVER_QUANTUM} rather than only after. These are the
+ * deadline, `snapWorkdays` and {@link SOLVER_QUANTUM} entries of the list above
+ * and need no new rule or second version step while they first ship together.
  *
  * **The class that actually moves is narrower than `DRIFT` and saying otherwise
  * overstates it.** The old post-multiplication snap already cleaned a unit-space
@@ -54,7 +55,7 @@
  * gave `durationUnits` `49` before this change and `48` after.
  *
  * The number is also not free at this point: both request fixtures in the
- * golden corpus are checked in carrying `"8+0.1.0"`, and
+ * golden corpus are checked in carrying `"8+0.1.1"`, and
  * `wire-contract-version.test.ts` in `libs/contracts` pins the constant to that
  * prefix — so a change here without a change there is a red test rather than a
  * cache that quietly keeps its old rows.

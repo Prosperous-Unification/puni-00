@@ -59,7 +59,8 @@ case "$solver_image" in
     ;;
 esac
 
-bun "$script_dir/solver-supervisor-image-host.ts" "$solver_image" "$socket_path" "$caller_name" &
+bun "$repo_root/tools/tool-remote-scripts/src/fixtures/solver-supervisor-image-host.ts" \
+  "$solver_image" "$socket_path" "$caller_name" &
 supervisor_pid=$!
 for _attempt in 1 2 3 4 5 6 7 8 9 10; do
   [ -S "$socket_path" ] && break

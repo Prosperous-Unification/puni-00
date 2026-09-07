@@ -6,10 +6,12 @@ function recordOf(value: unknown): Readonly<Record<string, unknown>> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('solver supervisor image smoke: request fixture is not an object');
   }
-  return value as Readonly<Record<string, unknown>>;
+  return { ...value };
 }
 
-const [unix, requestPath, attemptToken] = process.argv.slice(2);
+const unix = process.argv.at(2);
+const requestPath = process.argv.at(3);
+const attemptToken = process.argv.at(4);
 if (unix === undefined || requestPath === undefined || attemptToken === undefined) {
   throw new Error('solver supervisor image smoke: expected socket, request, and attempt token');
 }

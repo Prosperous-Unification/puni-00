@@ -1,20 +1,24 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { ALL_RESOURCES, resourcesFor } from '@/lib/plan-refresh';
 import type { ProjectStreamDeps, SocketHandlers } from '@/lib/project-stream';
 import type { PlanOptimizationView } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi } from '@/testing/fake-project-api';
 
 import { ProjectPage } from './project-page';
 import type { SavedPlansPanelDeps } from './saved-plans-panel';
-import { readScopeFor, type SubscriptionHandlers, WbsTable } from './wbs-table';
+import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
 
 afterEach(cleanup);
 
-const READY: PlanOptimizationView = {
+// A non-comparison wire payload, rather than READY plus `comparison: undefined`:
+// JSON has no undefined member, and spreading READY without the override keeps
+// its old comparison on pending and infeasible fixtures.
+const OPTIMIZATION_BASE: Omit<PlanOptimizationView, 'comparison'> = {
   enabled: true,
   engine: 'optimized',
   objective: 'pri',
@@ -24,6 +28,10 @@ const READY: PlanOptimizationView = {
   budgetMs: 60_000,
   displayed: 'pri',
   variants: { pri: { state: 'ready' }, time: { state: 'idle' } },
+};
+
+const READY: PlanOptimizationView = {
+  ...OPTIMIZATION_BASE,
   comparison: { deltaDays: -2, sameOrder: true },
 };
 
@@ -152,9 +160,8 @@ describe('project optimization in the plan', () => {
       api.tree = async (projectId) => ({
         ...(await readTree(projectId)),
         optimization: {
-          ...READY,
+          ...OPTIMIZATION_BASE,
           displayed: 'fast',
-          comparison: undefined,
           variants: {
             ...READY.variants,
             pri: {
@@ -241,7 +248,7 @@ describe('project optimization in the plan', () => {
    *
    * **What this case cannot say, so that nobody reads it as saying it** (Sol
    * peer review, 2026-09-07): it would pass for any event string, because
-   * `readScopeFor` sends every unrecognised one down the same full read. It is
+   * `resourcesFor` sends every unrecognised one down the same full read. It is
    * not a check on the *name* — that is `be-01`'s
    * `optimization-events.db.test.ts:280`, which asserts the literal
    * `schedule_optimization_infeasible` on the pushed event. What this case is,
@@ -261,9 +268,8 @@ describe('project optimization in the plan', () => {
     api.tree = async (projectId) => ({
       ...(await readTree(projectId)),
       optimization: {
-        ...READY,
+        ...OPTIMIZATION_BASE,
         displayed: 'fast',
-        comparison: undefined,
         variants: {
           ...READY.variants,
           pri: infeasible
@@ -343,7 +349,7 @@ describe('project optimization in the plan', () => {
   }
 
   /**
-   * Every read `refresh('all')` issues, plus the marker read the same scope
+   * Every read a full-resource invalidation issues, plus the marker read the same scope
    * starts — as an exact multiset, so a duplicated vocabulary or marker read is
    * red too and not only an unknown name.
    *
@@ -414,9 +420,8 @@ describe('project optimization in the plan', () => {
       return {
         ...(await readTree(projectId)),
         optimization: {
-          ...READY,
+          ...OPTIMIZATION_BASE,
           displayed: 'fast',
-          comparison: undefined,
           variants: {
             ...READY.variants,
             pri: failed ? { state: 'failed', reason: 'timeout' } : { state: 'pending' },
@@ -456,11 +461,11 @@ describe('project optimization in the plan', () => {
    *    that rendered it from the wire, which is why the deferral is the case
    *    and not a detail of it.
    * 2. **`tree` is called exactly once, with exactly one argument.** Not "one
-   *    request": one `refresh('all')` is nine of them.
+   *    request": one invalidation of `ALL_RESOURCES` is nine of them.
    * 3. **Nothing else.** The recorded calls are exactly the full-scope reads as
    *    a multiset, by name and arity. Add `api.optimizationVariant(…)` beside
    *    the plan read, or overload the existing read as
-   *    `tree(projectId, objective)`, and this is red — a `readScopeFor`
+   *    `tree(projectId, objective)`, and this is red — a `resourcesFor`
    *    assertion or a bare `tree` count would stay green for both.
    *
    * **What this case cannot say** (Sol review, 2026-09-07). It calls `onChange`
@@ -522,7 +527,7 @@ describe('project optimization in the plan', () => {
   /** The shelf, off: this case selects a project, and the panel that mounts with it is not the subject. */
   const SHELF_OFF: SavedPlansPanelDeps = {
     available: () => Promise.resolve(false),
-    list: () => Promise.resolve([]),
+    list: () => Promise.reject(new Error('the shelf is off in this case')),
     subscribe: () => ({ unsubscribe: () => undefined }),
     save: () => Promise.reject(new Error('the shelf is off in this case')),
     compare: () => Promise.reject(new Error('the shelf is off in this case')),
@@ -602,8 +607,8 @@ describe('project optimization in the plan', () => {
    *
    * So this case owns the joint and only the joint. It hands the page a socket
    * instead of a `subscribe`, which leaves every line between the frame and the
-   * screen — `receive`, `changedFactOf`, the factory, `readScopeFor`,
-   * `refreshOrMarkStale` — production code. A whole frame goes in one end,
+   * screen — `receive`, `changedFactOf`, the factory, `resourcesFor`, and
+   * `PlanRefresh.invalidate` — production code. A whole frame goes in one end,
    * carrying the `failureReason` that would answer the question if anything were
    * allowed to read it, and the plan read is held open. While it is held the
    * indicator must still say `Optimizing…`: the second delivery path is red
@@ -679,7 +684,7 @@ describe('project optimization in the plan', () => {
   /**
    * The three optimizer events named on this side, and what each of them reads.
    *
-   * `readScopeFor` answers `'all'` for anything it does not recognise, so all
+   * `resourcesFor` answers every resource for anything it does not recognise, so all
    * three already pass through the default and none of them is exercising a
    * branch. **They are not a check on the name, and the first draft's comment
    * claiming they were is the thing Sol's review corrected** — a be-01 rename
@@ -701,21 +706,21 @@ describe('project optimization in the plan', () => {
       'schedule_optimization_infeasible',
     ]) {
       it(`reads everything for ${event}`, () => {
-        expect(readScopeFor(event)).toBe('all');
+        expect(resourcesFor(event)).toEqual(ALL_RESOURCES);
       });
     }
 
     it('keeps the narrow scopes the tree and step events earned', () => {
-      expect(readScopeFor('tree_replaced')).toBe('tree');
-      expect(readScopeFor('step_added')).toBe('tree-and-steps');
-      expect(readScopeFor('step_renamed')).toBe('tree-and-steps');
-      expect(readScopeFor('step_removed')).toBe('tree-and-steps');
+      expect(resourcesFor('tree_replaced')).toEqual(['tree']);
+      expect(resourcesFor('step_added')).toEqual(['tree', 'steps']);
+      expect(resourcesFor('step_renamed')).toEqual(['tree', 'steps']);
+      expect(resourcesFor('step_removed')).toEqual(['tree', 'steps']);
     });
 
     it('reads everything for a frame that said nothing and for an event this build has never heard of', () => {
-      expect(readScopeFor(null)).toBe('all');
-      expect(readScopeFor(undefined)).toBe('all');
-      expect(readScopeFor('schedule_optimization_invented_next_year')).toBe('all');
+      expect(resourcesFor(null)).toEqual(ALL_RESOURCES);
+      expect(resourcesFor(undefined)).toEqual(ALL_RESOURCES);
+      expect(resourcesFor('schedule_optimization_invented_next_year')).toEqual(ALL_RESOURCES);
     });
   });
 });

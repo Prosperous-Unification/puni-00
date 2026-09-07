@@ -6,6 +6,7 @@ import {
   OidcCallbackRefused,
 } from '@wbs/auth';
 import { describe, expect, it } from 'bun:test';
+import { errors } from 'jose';
 
 import { buildApp } from '../app';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
@@ -20,7 +21,7 @@ import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWorkItemService } from '../testing/work-item-fixture';
 import { testWrites } from '../testing/writes-fixture';
-import * as authModule from './auth.routes';
+import * as oidcOptionsModule from './oidc-options';
 
 const now = Date.UTC(2026, 7, 23);
 
@@ -142,7 +143,7 @@ function fixture(
     verifier: {
       verify: (token: string) =>
         token.includes('.')
-          ? Promise.reject(new Error('HS256 is not an upstream OIDC token'))
+          ? Promise.reject(new errors.JOSEAlgNotAllowed('HS256 is not an upstream OIDC token'))
           : Promise.resolve(exchangeClaims ?? claims),
     },
     tokens,
@@ -151,6 +152,7 @@ function fixture(
   };
   const users = inMemoryUsers();
   const app = buildApp({
+    appOrigin: oidc.appOrigin,
     auth: testAuthService(users, oidc),
     capacity: testCapacityService(),
     directory: testDirectoryService(),
@@ -168,7 +170,7 @@ function fixture(
     workItems: testWorkItemService(),
     savedPlans: testSavedPlanService(),
   });
-  return { app, calls, logs, tokens, transactions, users };
+  return { app, calls, logs, tokens, transactions, users, oidc };
 }
 
 /**
@@ -229,7 +231,7 @@ describe('OIDC browser routes', () => {
     const register = await f.app.handle(
       new Request('https://dev.wbs.test/api/auth/register', {
         body: JSON.stringify({ username: 'bypass', password: 'bypass-password' }),
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', origin: 'https://dev.wbs.test' },
         method: 'POST',
       }),
     );
@@ -468,7 +470,7 @@ describe('OIDC browser routes', () => {
     const login = await f.app.handle(
       new Request('https://dev.wbs.test/api/auth/login', {
         body: JSON.stringify({ username: 'claire-qa', password: 'correct-horse-2026' }),
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', origin: 'https://dev.wbs.test' },
         method: 'POST',
       }),
     );
@@ -549,6 +551,7 @@ describe('OIDC browser routes', () => {
         path: route.path,
         status: 403,
       });
+      expect(await res.json()).toEqual({ error: 'insufficient_scope' });
     }
   });
 
@@ -718,6 +721,9 @@ describe('OIDC browser routes', () => {
     );
 
     expect(dropped.status).toBe(400);
+    // Proof: restoring the JSON invalid-callback envelope produced
+    // `Received: {"error":"invalid_oidc_callback"}` instead of this empty body.
+    expect(await dropped.text()).toBe('');
     expect(f.calls.exchange).toHaveLength(0);
     // …and it costs the three surviving logins nothing: state-1 matched none of
     // them, so the answer names no cookie at all.
@@ -759,6 +765,7 @@ describe('OIDC browser routes', () => {
     );
 
     expect(stateless.status).toBe(400);
+    expect(await stateless.text()).toBe('');
     expect(stateless.headers.get('set-cookie')).toBeNull();
     expect(f.calls.exchange).toHaveLength(0);
 
@@ -783,6 +790,7 @@ describe('OIDC browser routes', () => {
     );
 
     expect(res.status).toBe(400);
+    expect(await res.text()).toBe('');
     expect(f.calls.exchange).toHaveLength(0);
   });
 
@@ -795,7 +803,8 @@ describe('OIDC browser routes', () => {
    * state, so that navigation destroyed a transaction that was about to
    * succeed — no state guess required, because any string reached the delete.
    *
-   * The refusal itself does not move: 400, no body, exchange untouched. The two
+   * The refusal keeps its public error and now carries the shared Refusal
+   * envelope: 400 invalid_oidc_callback, exchange untouched. The two
    * assertions that carry the fix are the **absent `Set-Cookie`** — clearing the
    * binding would lose the login from the other end, the honest callback
    * arriving to find no cookie — and the honest callback that still completes.
@@ -847,7 +856,7 @@ describe('OIDC browser routes', () => {
 
   /**
    * TASK-269, the first half. `searchParams.get('state')` answers the **first**
-   * value of a repeated key and `RouteRequest.query` answers the **last**, so
+   * value of a repeated key and the former collapsed query answered the **last**, so
    * moving this handler onto the framework-free route shape silently changed
    * which string a duplicated `state` selected — and `consume` deleted the
    * record before it compared, so the wrong value burned a login that was about
@@ -1133,6 +1142,7 @@ describe('OIDC browser routes', () => {
     );
 
     expect(blank.status).toBe(400);
+    expect(await blank.text()).toBe('');
     expect(blank.headers.get('location')).toBeNull();
     expect(retires(blank, 'binding-1')).toBe(true);
     expect(f.calls.exchange).toHaveLength(0);
@@ -1255,6 +1265,9 @@ describe('OIDC browser routes', () => {
     );
 
     expect(failed.status).toBe(401);
+    // Proof: returning invalid_oidc_session here made this assertion receive its
+    // JSON envelope instead of the empty TASK-277 refusal.
+    expect(await failed.text()).toBe('');
     expect(attempts).toHaveLength(1);
     expect(retires(failed, 'binding-1')).toBe(true);
     // A failed exchange mints nothing: the two session cookies never appear.
@@ -1627,7 +1640,29 @@ describe('OIDC browser routes', () => {
     );
 
     expect(res.status).toBe(401);
+    expect(await res.text()).toBe('');
     expect(res.headers.get('set-cookie')).not.toContain('__Host-wbs_access=');
+  });
+
+  it('refuses an OIDC identity conflict without a response body', async () => {
+    const f = fixture();
+    f.users.resolveOidcIdentity = () => Promise.resolve(null);
+    f.transactions.save({
+      browserBinding: 'binding-1',
+      nonce: 'nonce-1',
+      state: 'state-1',
+      verifier: 'verifier-1',
+    });
+
+    const res = await f.app.handle(
+      new Request('https://dev.wbs.test/api/auth/okta/callback?code=c&state=state-1', {
+        headers: cookieHeader(jarOf('binding-1')),
+      }),
+    );
+
+    expect(res.status).toBe(409);
+    // Proof: restoring oidc_identity_conflict made this receive its JSON envelope.
+    expect(await res.text()).toBe('');
   });
 
   it('exchanges with the configured HTTPS callback behind an HTTP reverse proxy', async () => {
@@ -1713,7 +1748,9 @@ describe('OIDC browser routes', () => {
 describe('OIDC startup configuration', () => {
   it('refuses misspelled password security flags instead of choosing a mode', () => {
     const factory = (
-      authModule as unknown as { oidcRouteOptionsFromEnv: (env: Record<string, string>) => unknown }
+      oidcOptionsModule as unknown as {
+        oidcRouteOptionsFromEnv: (env: Record<string, string>) => unknown;
+      }
     ).oidcRouteOptionsFromEnv;
     const base = {
       AUTH_CLIENT_ID: 'client',
@@ -1733,7 +1770,9 @@ describe('OIDC startup configuration', () => {
 
   it('refuses registration when password sessions are disabled', () => {
     const factory = (
-      authModule as unknown as { oidcRouteOptionsFromEnv: (env: Record<string, string>) => unknown }
+      oidcOptionsModule as unknown as {
+        oidcRouteOptionsFromEnv: (env: Record<string, string>) => unknown;
+      }
     ).oidcRouteOptionsFromEnv;
 
     expect(() =>
@@ -1751,7 +1790,9 @@ describe('OIDC startup configuration', () => {
 
   it('refuses a redirect URI whose callback path is not mounted', () => {
     const factory = (
-      authModule as unknown as { oidcRouteOptionsFromEnv: (env: Record<string, string>) => unknown }
+      oidcOptionsModule as unknown as {
+        oidcRouteOptionsFromEnv: (env: Record<string, string>) => unknown;
+      }
     ).oidcRouteOptionsFromEnv;
     expect(() =>
       factory({
@@ -1766,7 +1807,7 @@ describe('OIDC startup configuration', () => {
 
   it('builds a lazy provider client for the fixed callback route', () => {
     const factory = (
-      authModule as unknown as {
+      oidcOptionsModule as unknown as {
         oidcRouteOptionsFromEnv: (env: Record<string, string>) => {
           appOrigin: string;
           groupPrefix: string;
@@ -1792,4 +1833,48 @@ describe('OIDC startup configuration', () => {
       mode: 'oidc',
     });
   });
+});
+
+describe('OIDC authentication failure boundaries', () => {
+  const request = () =>
+    new Request('https://dev.wbs.test/api/auth/me', {
+      headers: { authorization: 'Bearer access-1' },
+    });
+
+  it('keeps OIDC account resolution faults as server failures', async () => {
+    const f = fixture();
+    expect((await f.app.handle(request())).status).toBe(200);
+    f.users.resolveOidcIdentity = () => Promise.reject(new Error('identity store unavailable'));
+    expect((await f.app.handle(request())).status).toBe(500);
+  });
+
+  it('keeps unexpected verifier failures as server failures', async () => {
+    const f = fixture();
+    expect((await f.app.handle(request())).status).toBe(200);
+    f.oidc.verifier.verify = () => Promise.reject(new Error('discovery unavailable'));
+    expect((await f.app.handle(request())).status).toBe(500);
+  });
+
+  it('refuses malformed identity claims as credentials', async () => {
+    const f = fixture({ sub: 'subject-1' });
+    expect((await f.app.handle(request())).status).toBe(401);
+  });
+});
+
+it('checks password-route origin before reporting a disabled route', async () => {
+  const f = fixture(undefined, { passwordLoginEnabled: false });
+  for (const action of ['login', 'register']) {
+    const origins: Record<string, string>[] = [{}, { origin: 'https://foreign.example' }];
+    for (const headers of origins) {
+      const response = await f.app.handle(
+        new Request(`https://dev.wbs.test/api/auth/${action}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...headers },
+          body: JSON.stringify({ username: 'disabled', password: 'valid-password-123' }),
+        }),
+      );
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ error: 'invalid_origin' });
+    }
+  }
 });

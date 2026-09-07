@@ -26,6 +26,7 @@ const TEST_SECRET = 'x'.repeat(32);
 describe('GET /health', () => {
   it('returns 200 with status:"ok" when ready', async () => {
     const app = buildApp({
+      appOrigin: 'http://localhost',
       directory: testDirectoryService(),
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
@@ -50,6 +51,7 @@ describe('GET /health', () => {
 
   it('returns 503 while migrations still running', async () => {
     const app = buildApp({
+      appOrigin: 'http://localhost',
       directory: testDirectoryService(),
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
@@ -68,6 +70,11 @@ describe('GET /health', () => {
     });
     const res = await app.handle(new Request('http://localhost/health'));
     expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({
+      error: 'dependency_unavailable',
+      status: 'migrating',
+      commit: null,
+    });
   });
 });
 
@@ -80,6 +87,7 @@ describe('/health tells the truth about the database', () => {
     try {
       const { db, close } = openConnection(join(dir, 'empty.db'));
       const app = buildApp({
+        appOrigin: 'http://localhost',
         directory: testDirectoryService(),
         capacity: testCapacityService(),
         priorityBands: testPriorityBandService(),
@@ -100,7 +108,11 @@ describe('/health tells the truth about the database', () => {
       const res = await app.handle(new Request('http://localhost/health'));
 
       expect(res.status).toBe(503);
-      expect((await res.json()) as { status: string }).toMatchObject({ status: 'schema_missing' });
+      expect(await res.json()).toEqual({
+        error: 'dependency_unavailable',
+        status: 'schema_missing',
+        commit: null,
+      });
       close();
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -114,6 +126,7 @@ describe('/health tells the truth about the database', () => {
       runMigrations(path, new URL('../drizzle', import.meta.url).pathname);
       const { db, close } = openConnection(path);
       const app = buildApp({
+        appOrigin: 'http://localhost',
         directory: testDirectoryService(),
         capacity: testCapacityService(),
         priorityBands: testPriorityBandService(),
@@ -142,6 +155,7 @@ describe('/health tells the truth about the database', () => {
 
   it('is unhealthy when the probe itself throws', async () => {
     const app = buildApp({
+      appOrigin: 'http://localhost',
       directory: testDirectoryService(),
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
@@ -164,8 +178,10 @@ describe('/health tells the truth about the database', () => {
     const res = await app.handle(new Request('http://localhost/health'));
 
     expect(res.status).toBe(503);
-    expect((await res.json()) as { status: string }).toMatchObject({
+    expect(await res.json()).toEqual({
+      error: 'dependency_unavailable',
       status: 'database_unreachable',
+      commit: null,
     });
   });
 });

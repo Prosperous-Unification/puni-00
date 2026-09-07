@@ -3706,7 +3706,7 @@ than assuming the `beforeEach` project is undated. The day a seeded start date
 appears, a case that only assumed it would silently stop testing what it names.
 
 **The second case is the whole point of the pair.** A marker's date is absolute
-(ADR 0014), so it is storable on a project with no start date — it simply has
+(ADR 0017), so it is storable on a project with no start date — it simply has
 no axis to draw on until one exists, the same "stored, not drawn" rule the
 out-of-horizon case gets. Without that case this slice reads as "an undated
 project accepts no markers", which is the contradiction the earlier wording

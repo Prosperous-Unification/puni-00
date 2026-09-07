@@ -26,13 +26,6 @@ apps/be-01/drizzle/**/snapshot.json
 # it, which fails `nx format:check`. AGENTS.md itself is still formatted.
 /CLAUDE.md
 /GEMINI.md
-# Emitted by `bun apps/be-01/src/openapi/emit-openapi-cli.ts` and compared byte-for-byte
-# against the running app by `openapi-document.test.ts`. Prettier collapses a
-# short array onto one line and `JSON.stringify(…, null, 2)` does not, so
-# formatting it here would redden the freshness check on a file nobody edited —
-# the same fight as the drizzle snapshots above.
-apps/be-01/openapi.json
-
 # Prettier 3.9.6 never settles on these four: a hard-wrapped **bold** paragraph
 # inside a checklist item is indented one level deeper on every pass, without
 # limit (measured 2026-09-06: twelve passes, still moving; the fourth joined

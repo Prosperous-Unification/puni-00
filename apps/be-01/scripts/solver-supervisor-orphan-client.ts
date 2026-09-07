@@ -4,10 +4,15 @@ function recordOf(value: unknown): Readonly<Record<string, unknown>> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error('solver orphan client: request fixture is not an object');
   }
-  return value as Readonly<Record<string, unknown>>;
+  return { ...value };
 }
 
-const [unix, requestPath, attemptToken, deadlineText, marker, decision] = process.argv.slice(2);
+const unix = process.argv.at(2);
+const requestPath = process.argv.at(3);
+const attemptToken = process.argv.at(4);
+const deadlineText = process.argv.at(5);
+const marker = process.argv.at(6);
+const decision = process.argv.at(7);
 if (
   unix === undefined ||
   requestPath === undefined ||

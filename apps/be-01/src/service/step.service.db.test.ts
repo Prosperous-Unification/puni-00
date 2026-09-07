@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { systemTimers } from '@wbs/runtime-portable';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
@@ -602,7 +603,16 @@ describe('step events', () => {
         lock: new WriteLock(),
         // Nowhere to push, deliberately: the replay must come from what was
         // recorded, not from a delivery that happened to succeed.
-        push: new PushClient({ gwUrl: 'http://gw.invalid', secret: 's'.repeat(32) }),
+        push: new PushClient({
+          ...{
+            timers: systemTimers,
+            fetchImpl: globalThis.fetch,
+            attemptMs: 5000,
+            overallMs: 15000,
+          },
+          gwUrl: 'http://gw.invalid',
+          secret: 's'.repeat(32),
+        }),
         onPushFailed: () => undefined,
       }),
     });

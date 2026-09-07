@@ -96,10 +96,10 @@ export class GatewayBroadcaster implements Broadcaster {
    * **Under** the lock, because the log shares its connection with a batch's
    * outer transaction and a record made inside one is a savepoint the batch's
    * rollback takes with it. **Outside** it, because a push is a network call
-   * that `PushClient` retries six times over a 500ms→30s backoff — about a
-   * minute in the worst case — and a lock held across that stalls every write in
+   * that PushClient bounds with attempt and overall deadlines. A lock held
+   * across even that bounded delivery stalls every write in
    * the process. `PlanCommandRunner` states the second half of that rule for
-   * itself and `plan-commands.test.ts` › `lets go of the write lock before the
+   * itself and `plan-commands.db.test.ts` › `lets go of the write lock before the
    * broadcast leaves` holds it; this method is where the first half lives.
    *
    * It cannot deadlock, and that is checked rather than assumed: no publisher
@@ -115,6 +115,8 @@ export class GatewayBroadcaster implements Broadcaster {
       const recorded = await this.opts.eventLog.recordEvent(subscription, event, this.clock.now());
       return recorded;
     });
+    // Proof: moving push into the lock made the real-client durability case
+    // observe entered=false for its second writer while transport was pending.
     await this.pushRecorded(subscription, recorded, event);
   }
 
@@ -133,6 +135,8 @@ export class GatewayBroadcaster implements Broadcaster {
     try {
       await this.opts.push.push({ subscription, seq: recorded.seq, message: event });
     } catch (err) {
+      // Proof: rethrowing here made the same deadline durability test observe
+      // settled=false instead of successful publication after the event committed.
       this.opts.onPushFailed?.(err, subscription);
     }
   }

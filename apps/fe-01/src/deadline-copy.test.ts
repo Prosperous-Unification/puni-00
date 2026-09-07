@@ -298,11 +298,11 @@ describe('shipped deadline copy', () => {
   it('still reaches the copy it is about — the scan is not vacuous', () => {
     // Without this, deleting `runsIn`'s JSX and template arms would leave the
     // assertion above green and empty. These are the two components that carry
-    // the copy: the indicator's project-comparison strings, and the table's
-    // work-item cell.
+    // the copy: the indicator's project-comparison strings, and the extracted
+    // work-item deadline column.
     const files = new Set(deadlineCopy().map((run) => run.file));
     expect(files.has('src/components/wbs/optimization-indicator.tsx')).toBe(true);
-    expect(files.has('src/components/wbs/wbs-table.tsx')).toBe(true);
+    expect(files.has('src/components/wbs/plan-columns/deadline.tsx')).toBe(true);
   });
 
   it('reaches every occurrence this item qualified, by their text', () => {

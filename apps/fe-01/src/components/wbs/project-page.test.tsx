@@ -1,8 +1,14 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SavedPlanListEntryView } from '@/lib/saved-plan-api';
+import type {
+  SavedPlanCompareReply,
+  SavedPlanListEntryView,
+  SavedPlanListReply,
+  SavedPlanRenameReply,
+  SavedPlanSaveReply,
+} from '@/lib/saved-plan-api';
 import type { CreatedProject, ProjectApi, ProjectListEntry } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
 import { recordCalls } from '@/testing/record-calls';
@@ -30,11 +36,11 @@ function fakeProjects(
   return Object.assign(
     refusingApi({
       listProjects: () => Promise.resolve([...projects]),
-      openProject(id) {
+      openProject(id: string) {
         opened.push(id);
         return Promise.resolve();
       },
-      createProject(name) {
+      createProject(name: string) {
         const id = `p${String(projects.length + 1)}`;
         // Two shapes, as be-01 has them. The list gains a whole entry; the
         // response carries the project that was written and **no**
@@ -56,7 +62,7 @@ function fakeProjects(
         const created: CreatedProject = { id, name, restricted: false };
         return Promise.resolve(created);
       },
-      renameProject(id, name) {
+      renameProject(id: string, name: string) {
         renamed.push([id, name]);
         projects = projects.map((p) => (p.id === id ? { ...p, name } : p));
         return Promise.resolve();
@@ -196,6 +202,35 @@ const CHECKPOINT: SavedPlanListEntryView = {
   scheduleAbsentReason: null,
 };
 
+const savedPlanListReply = (rows: readonly SavedPlanListEntryView[]): SavedPlanListReply => ({
+  kind: 'success',
+  representation: 'json',
+  status: 200,
+  headers: new Headers(),
+  body: { savedPlans: [...rows] },
+});
+const savedPlanSaveReply = (): SavedPlanSaveReply => ({
+  kind: 'success',
+  representation: 'json',
+  status: 201,
+  headers: new Headers(),
+  body: { savedPlan: CHECKPOINT },
+});
+const savedPlanCompareReply = (): SavedPlanCompareReply => ({
+  kind: 'success',
+  representation: 'json',
+  status: 200,
+  headers: new Headers(),
+  body: { diff: { input: [], schedule: [] } },
+});
+const savedPlanRenameReply = (): SavedPlanRenameReply => ({
+  kind: 'success',
+  representation: 'json',
+  status: 200,
+  headers: new Headers(),
+  body: { savedPlanId: CHECKPOINT.id, name: CHECKPOINT.name },
+});
+
 /**
  * The shelf's wiring, faked — handed to **every** render in this file.
  *
@@ -210,11 +245,11 @@ const fakeSavedPlansDeps = (
   rows: readonly SavedPlanListEntryView[] = [CHECKPOINT],
 ): SavedPlansPanelDeps => ({
   available: () => Promise.resolve(true),
-  list: () => Promise.resolve([...rows]),
+  list: () => Promise.resolve(savedPlanListReply(rows)),
   subscribe: () => ({ unsubscribe: () => undefined }),
-  save: () => Promise.resolve({ outcome: 'saved', savedPlan: CHECKPOINT }),
-  compare: () => Promise.resolve({ outcome: 'compared', diff: { input: [], schedule: [] } }),
-  rename: () => Promise.resolve({ outcome: 'touched' }),
+  save: () => Promise.resolve(savedPlanSaveReply()),
+  compare: () => Promise.resolve(savedPlanCompareReply()),
+  rename: () => Promise.resolve(savedPlanRenameReply()),
 });
 
 const pageWith = (api: ProjectApi, savedPlansDeps: SavedPlansPanelDeps = fakeSavedPlansDeps()) =>
@@ -530,10 +565,11 @@ describe('the saved-plan shelf is on the project page', () => {
     const compared: [string, unknown][] = [];
     const deps: SavedPlansPanelDeps = {
       ...fakeSavedPlansDeps(),
-      list: (projectId: string) => Promise.resolve([projectId === 'p2' ? CHECKPOINT : OTHER]),
+      list: (projectId: string) =>
+        Promise.resolve(savedPlanListReply([projectId === 'p2' ? CHECKPOINT : OTHER])),
       compare: (projectId, left) => {
         compared.push([projectId, left]);
-        return Promise.resolve({ outcome: 'compared', diff: { input: [], schedule: [] } });
+        return Promise.resolve(savedPlanCompareReply());
       },
     };
     pageWith(fakeProjects(TWO), deps);
@@ -1584,3 +1620,124 @@ describe('a new project opens with its name ready to be typed', () => {
     });
   });
 });
+
+itDom('resumes the table subscription from its covered positive anchor', async () => {
+  const sent: string[] = [];
+  class Socket extends EventTarget {
+    constructor() {
+      super();
+      queueMicrotask(() => {
+        this.dispatchEvent(new Event('open'));
+      });
+    }
+    send(frame: string) {
+      sent.push(frame);
+    }
+    close() {
+      /* The page's cleanup has already stopped its stream. */
+    }
+  }
+  vi.stubGlobal('WebSocket', Socket);
+  try {
+    const api = fakeProjects(TWO);
+    api.tree = () => Promise.resolve(planRead({ seq: 7 }));
+    pageWith(api);
+    await selectProject('p2');
+    await waitFor(() => {
+      expect(sent.some((frame) => (JSON.parse(frame) as { type: string }).type === 'resume')).toBe(
+        true,
+      );
+    });
+    const frames = sent.map(
+      (frame) => JSON.parse(frame) as { type: string; resume_points?: Record<string, number> },
+    );
+    expect(frames.find((frame) => frame.type === 'resume')?.resume_points).toEqual({
+      'project:p2': 7,
+    });
+  } finally {
+    cleanup();
+    vi.unstubAllGlobals();
+  }
+});
+
+it.each(['resume_denied', 'resume_ack'] as const)(
+  'recovers a persistent %s without replacing the registered socket',
+  async (refusal) => {
+    const sockets: Socket[] = [];
+    class Socket extends EventTarget {
+      sent: string[] = [];
+      constructor() {
+        super();
+        sockets.push(this);
+        queueMicrotask(() => {
+          this.dispatchEvent(new Event('open'));
+        });
+      }
+      send(frame: string) {
+        this.sent.push(frame);
+      }
+      close() {
+        /* Tests deliver close explicitly to model delayed browser callbacks. */
+      }
+      refuse() {
+        this.dispatchEvent(
+          new MessageEvent('message', {
+            data: JSON.stringify(
+              refusal === 'resume_denied'
+                ? { type: refusal, subscription: 'project:p2', reason: 'unavailable' }
+                : { type: refusal, replayed: {} },
+            ),
+          }),
+        );
+      }
+    }
+    vi.stubGlobal('WebSocket', Socket);
+    try {
+      let reads = 0;
+      const api = fakeProjects(TWO);
+      api.tree = () => {
+        reads += 1;
+        return Promise.resolve(planRead({ seq: reads === 1 ? 0 : 7 }));
+      };
+      pageWith(api);
+      await selectProject('p2');
+      await waitFor(() => {
+        expect(sockets).toHaveLength(1);
+      });
+      await act(async () => {
+        sockets[0].refuse();
+        await Promise.resolve();
+      });
+      expect(reads).toBe(2);
+      expect(sockets).toHaveLength(1);
+      expect(
+        sockets[0].sent.filter(
+          (frame) => (JSON.parse(frame) as { type: string }).type === 'resume',
+        ),
+      ).toHaveLength(1);
+
+      // A real departure may recover again, using the completed anchored read.
+      act(() => {
+        sockets[0].dispatchEvent(new Event('close'));
+      });
+      await waitFor(() => {
+        expect(sockets).toHaveLength(2);
+      });
+      const resumes = sockets[1].sent.map(
+        (frame) => JSON.parse(frame) as { type: string; resume_points?: Record<string, number> },
+      );
+      expect(resumes.find((frame) => frame.type === 'resume')?.resume_points).toEqual({
+        'project:p2': 7,
+      });
+      await act(async () => {
+        sockets[1].refuse();
+        await Promise.resolve();
+      });
+      expect(reads).toBe(3);
+      expect(sockets).toHaveLength(2);
+    } finally {
+      cleanup();
+      vi.unstubAllGlobals();
+    }
+  },
+);

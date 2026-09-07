@@ -24,6 +24,7 @@
     "heavy-lock:test": "bash bin/heavy-lock.test.sh"
   },
   "dependencies": {
+    "@ark/schema": "0.56.0",
     "@elysiajs/openapi": "^1.4.16",
     "@elysiajs/opentelemetry": "^1.4.11",
     "@modelcontextprotocol/sdk": "1.30.0",
@@ -33,6 +34,7 @@
     "@opentelemetry/sdk-node": "^0.222.0",
     "@sinclair/typebox": "^0.34.52",
     "@tanstack/react-router": "^1.170.24",
+    "ajv": "8.20.0",
     "arktype": "^2.2.3",
     "drizzle-orm": "1.0.0-rc.4",
     "elysia": "^1.4.30",
