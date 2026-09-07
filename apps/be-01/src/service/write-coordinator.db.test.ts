@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { ActualRepository } from '../repository/actual';
+import { CalendarMarkerRepository } from '../repository/calendar-marker';
 import { CapacityRepository } from '../repository/capacity';
 import { CommandJournalRepository } from '../repository/command-journal';
 import type { Drizzle } from '../repository/db';
@@ -25,7 +26,7 @@ import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { buildStores } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { DeferringBroadcaster } from './broadcast';
+import { CalendarMarkerService } from './calendar-marker.service';
 import { CapacityService } from './capacity.service';
 import { DirectoryService } from './directory.service';
 import type { PlanCommand } from './plan-command';
@@ -127,7 +128,7 @@ beforeEach(async () => {
     },
   }) as WorkItemRepository;
 
-  const workItems = new WorkItemService({
+  const serviceOptions = {
     workItems: suspendingWorkItems,
     projects: projectStore,
     estimates: new EstimateRepository(db, OPEN),
@@ -141,26 +142,34 @@ beforeEach(async () => {
     subtrees: new SubtreeRepository(db, OPEN),
     journal: new CommandJournalRepository(db, OPEN),
     broadcast,
-  });
+  };
   // The batch's own stores, over an open gate: `sqliteUnitOfWork` holds the
   // turn for them. The suspending work-item store above is one of these.
   const admitted = { ...buildStores(db, OPEN), workItems: suspendingWorkItems };
-  const announcements = new DeferringBroadcaster(broadcast);
   runner = new PlanCommandRunner({
-    workItems,
-    directory: new DirectoryService({ directory: directoryStore, broadcast: announcements }),
-    capacity: new CapacityService({
-      projects: projectStore,
-      capacity: capacityStore,
-      broadcast: announcements,
-    }),
-    priorityBands: new PriorityBandService({
-      projects: projectStore,
-      bands: bandStore,
-      broadcast: announcements,
+    batchServices: (collector) => ({
+      workItems: new WorkItemService({ ...serviceOptions, broadcast: collector }),
+      directory: new DirectoryService({ directory: directoryStore, broadcast: collector }),
+      capacity: new CapacityService({
+        projects: projectStore,
+        capacity: capacityStore,
+        broadcast: collector,
+      }),
+      priorityBands: new PriorityBandService({
+        projects: projectStore,
+        bands: bandStore,
+        broadcast: collector,
+      }),
+      projects: new ProjectService({ projects: projectStore, broadcast: collector }),
+      steps: new StepService({ projects: projectStore, steps: stepStore, broadcast: collector }),
+      calendarMarkers: new CalendarMarkerService({
+        projects: projectStore,
+        markers: new CalendarMarkerRepository(db, OPEN),
+        broadcast: collector,
+      }),
     }),
     uow: sqliteUnitOfWork(db, coordinator, admitted),
-    announcements,
+    announcements: broadcast,
   });
   // The route's own service, built exactly as `buildServices` builds it: the
   // step store on the process connection, and no knowledge of the batch at all.

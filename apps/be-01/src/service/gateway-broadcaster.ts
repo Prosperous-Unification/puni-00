@@ -68,7 +68,8 @@ export class GatewayBroadcaster implements Broadcaster {
    * exclusion said twice — and, once every store takes its own turn, a caller
    * holding a turn while its callee waits for one, which is a deadlock rather
    * than a slow write. A batch's own announcements never reach here while it is
-   * open: they are queued by `DeferringBroadcaster` and drained by `send` after
+   * open: they are collected by that batch's `AnnouncementCollector` and
+   * drained by its `send` after
    * `execute` has let go.
    */
   async publish(projectId: string, event: ProjectEvent): Promise<void> {

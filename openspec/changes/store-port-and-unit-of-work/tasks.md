@@ -80,17 +80,24 @@ does not wait for the turn its batch holds`: a `run` whose act writes through
       is at the call site, and it becomes `servicesOver(scope.stores, …)` in slice 3.
 - [x] 2.7 The full be-01 suite, both tiers.
 
-## 3. Announcements, the event log, and the history that is not in the batch
+## 3. Announcements — who owns an event (D24)
 
-- [ ] 3.1 **Case (l) first, watched red on `main`'s shape.** An ordinary route write commits, a
+- [x] 3.1 **Case (l) first, watched red on `main`'s shape.** An ordinary route write commits, a
       following batch takes the turn before that route publishes, the batch is refused — the
       route's event must still leave, exactly once. Inject the shared ambient slot
       (`DeferringBroadcaster`'s `AsyncLocalStorage` hold) and watch it drop.
-- [ ] 3.2 A per-batch `AnnouncementCollector`; the batch graph is built with
-      `broadcast: collector`, ordinary services keep the direct broadcaster.
-      `DeferringBroadcaster`'s `AsyncLocalStorage` is deleted. Case (f) — a publish from inside
-      a suspended batch is held and leaves after commit — and case (g) — a write started from
-      outside publishes after the batch's release, never inside it.
+- [x] 3.2 A per-batch `AnnouncementCollector`; the batch graph is built **per batch** over the
+      collector the runner hands in (`batchServices` is a factory), ordinary services keep the
+      direct broadcaster. `DeferringBroadcaster` is deleted whole — `hold`, `send`, the nested
+      hold guard and the `AsyncLocalStorage` with them. Cases (f) and (g).
+      Two things the change had to answer that the plan did not name: the post-commit
+      `announceTreeNow` runs **after** the collector has been drained, so it publishes through a
+      graph over the direct broadcaster (collected, the event would never leave); and two tests
+      pinned a service **identity** through `spyOn`, which a per-batch graph breaks, so the
+      work-item service there is built once and relays to whichever collector is in hand.
+
+## 3b. The event log and the history that is not in the batch
+
 - [ ] 3.3 `EventLogStore` replaces `EventLogRepo`, and `recordEventIn(tx)` loses its drizzle
       transaction parameter: the batch records through `scope.stores.eventLog`, replay and
       retention read and prune through the public gated store. The `EventLogTransaction` type
