@@ -1,0 +1,58 @@
+# Structure Twilight for personal use and future customers
+
+Labels: wayfinder:map
+
+Status: open
+
+## Destination
+
+A coherent product and delivery structure for the whole Twilight system,
+including the OpenClaw assistant, with the decisions and dependencies needed to
+serve Dany first and potential customers second made explicit.
+
+## Notes
+
+- User direction: [product audience and priorities](../../docs/twilight-structure/spec.md).
+  The personal phase prioritizes delivery configurability and quality. The
+  customer phase follows it. The complete delivery boundary is resolved below;
+  detailed controls, quality evidence and task placement remain open.
+- Work through this map with Wayfinder, grilling, domain-modeling and
+  brainstorming. Use research or prototype for the matching ticket type.
+- [Tracker operations](tracker.md) define claims, dependencies and frontier
+  queries. This is a decision map; the existing
+  [OpenSpec delivery plan](../../openspec/changes/twilight-control-plane/tasks.md)
+  remains the implementation source until a resolved decision amends it.
+- Orient through the [Twilight index](../../docs/twilight-structure/README.md),
+  [assumptions](../../docs/twilight-structure/assumptions.md),
+  [context map](../../CONTEXT-MAP.md) and
+  [assistant vocabulary](../../docs/assistant/CONTEXT.md).
+  Accepted choices, provisional assumptions and historical review receipts are
+  distinct. Do not reopen a settled choice without an identified conflict or its
+  recorded reopen condition.
+- Charting defines questions and launches research; it does not resolve human
+  decisions. Implementation, deployment and customer commitments are outside
+  this effort. Existing M0–M4 milestones are not the two product phases.
+
+## Decisions so far
+
+- [Define the personal phase's complete delivery loop](issues/01-personal-delivery-acceptance.md): Phase 1 covers request → dev → prod; completeness is required even while the loop continues to improve.
+- [Establish OpenClaw's usable assistant and factory integration boundaries](issues/02-openclaw-integration-evidence.md): delegation exists; complete evidence search, work events and the delivery boundary still need integration contracts and proofs.
+- [Trace the existing plans and Claire lessons to the two product audiences](issues/03-existing-plan-and-claire-evidence.md): personal delivery crosses current milestone labels; clean-client proofs are shared foundations, and assistant coverage is additional work.
+
+## Not yet specified
+
+- Which potential customer and concrete customer problem should shape the second
+  phase, and which onboarding, packaging and maintenance questions that reveals.
+- How the complete request-to-production loop changes the detailed OpenSpec deltas,
+  integration contracts and the order of implementation slices.
+- Which richer agent visual treatments prove useful once a basic work view is
+  tested, and how much presentation belongs in the personal phase.
+
+## Out of scope
+
+- [Individual worker memory across assignments](../../docs/assistant/ideas.md)
+  is parked as a possible user-experience or retention improvement, not planned
+  implementation.
+- Building or deploying the product during this mapping effort.
+- Replacing the existing OpenSpec plan with an independently maintained task
+  backlog. Customer readiness will be planned, not claimed or sold by this map.

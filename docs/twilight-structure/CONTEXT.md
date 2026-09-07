@@ -9,6 +9,15 @@ of creating and delivering software through the factory.
 The software factory service that helps build the other software in this monorepo.
 Its repository name is `twilight-structure`.
 
+**Personal phase**:
+The first product phase, intended for Dany's own use of the assistant and
+software factory.
+_Avoid_: M1, delivery stage
+
+**Customer phase**:
+The subsequent product phase, intended for potential customers of the system.
+_Avoid_: M2, delivery stage
+
 **Work request**:
 A requested software outcome that enters the factory's discovery process.
 It precedes the specifications and work plan needed to deliver that outcome.
@@ -89,6 +98,11 @@ _Avoid_: Approval
 An attributable observation about identified work, sufficient to inspect the
 claim it supports and the circumstances in which it was observed.
 _Avoid_: Assertion, progress
+
+**Browser sweep**:
+A scheduled pass through manual test scenarios on the shared development
+environment using a cloud browser, with a report of the deployment observed.
+_Avoid_: Playwright run, heartbeat
 
 **Capacity pool**:
 A bounded supply of an execution resource shared by competing activities.

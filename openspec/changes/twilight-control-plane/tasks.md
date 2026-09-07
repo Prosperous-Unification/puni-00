@@ -1031,8 +1031,9 @@ Add specialist critics (including safety critics), judges with rubric/version/
 dissent, scoped hook registrations, provider rate pools and fair queues, multi-step
 escalation ladders and per-activity model routing, and `onTrigger` automation:
 cron/webhook occurrence IDs, timezone/DST policy, overlap and missed-run behavior,
-with retries bounded by `onTrigger.schedule.retries` and recursion bounded by a
-profile `maxRecursion` field. Cron invokes the same admission path as manual work.
+with retries bounded by the `retries` policy at `onTrigger.*`, selecting the
+applicable `triggerKinds`, and recursion bounded by a profile `maxRecursion` field.
+Cron invokes the same admission path as manual work.
 A required unavailable channel is a failed operation, not a successful notification.
 
 M1 retains one active coordinator. Multiple trigger/scheduler producers submit to

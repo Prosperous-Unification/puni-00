@@ -182,5 +182,8 @@ cohort instead of rewriting earlier scores.
 The shared configuration editor publishes the `quality` definition with an
 evaluation-publisher capability and human decision. Each request pins its hashes
 and task fixture. The independent task-acceptance observer consumes visible tool
-resources and budget; disabling it leaves a missing observation and excludes that
-outcome from comparisons requiring it, without adding a mandatory QA step.
+resources and budget. It is required at candidate acceptance: disabling it is
+refused, and missing task assertions produce an unavailable observation and block
+acceptance. Optional reviews remain configurable within the repository floor;
+skipping one does not count as a passed observation. See the
+[independent evaluation requirement](../../openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md#requirement-outcomes-use-an-independent-evaluation-definition).

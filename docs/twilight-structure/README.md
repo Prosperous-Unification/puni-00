@@ -1,5 +1,8 @@
 # Twilight Structure
 
+Current product-structure decisions live in the
+[Wayfinder map](../../.scratch/twilight-structure/map.md).
+
 Start with the [delivery plan](../../openspec/changes/twilight-control-plane/tasks.md).
 It builds the smallest usable FE/BE/MCP loop, then adds the client-repo planning
 backend and full factory capabilities in dependency order.
@@ -34,21 +37,23 @@ repeated per document.
 
 ## Research notes
 
-Inspected 2026-09-06. These notes distinguish upstream contracts, local
+Each note records its inspection date. These notes distinguish upstream contracts, local
 observations and Twilight proposals. An inspected API is not a tested
 integration. Where a note's proposal has since become a specified contract, the
 note links to it rather than restating it.
 
-| Question                                                       | Source findings                                                                                                                 |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| OpenHands, OpenClaw, LangGraph/LangChain and durable workflows | [Runtime patterns](research/runtime-patterns.md)                                                                                |
-| Expandable execution pools and agent sandboxes                 | [Worker-pool candidates](research/worker-pools.md)                                                                              |
-| i-have-adhd, Dahl's Wiki fork, Karpathy and Claw Patrol        | [Knowledge patterns](research/knowledge-patterns.md)                                                                            |
-| Backlog.md and WBS storage requirements                        | [Backlog patterns](research/backlog-patterns.md)                                                                                |
-| Claire and the first source inspection                         | [Initial inspection](research/initial-inspection.md), retained as dated evidence                                                |
-| OpenSpec version and schema behavior                           | [SDD source findings](sdd-sources.md)                                                                                           |
-| Earlier local helper observations                              | [Compatibility findings](research/local-workflow-observations.md) preserved from the compacted, previously uncommitted proposal |
-| What happened in the trial                                     | [Pilot verification](../../openspec/changes/twilight-sdlc-pilot/verify.md)                                                      |
+| Question                                                            | Source findings                                                                                                                 |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| What OpenClaw supplies for the assistant and what needs integration | [Assistant runtime boundaries](research/assistant-runtime-boundary.md)                                                          |
+| How the current plan serves personal use and future customers       | [Phase dependency findings](research/phase-dependencies.md)                                                                     |
+| OpenHands, OpenClaw, LangGraph/LangChain and durable workflows      | [Runtime patterns](research/runtime-patterns.md)                                                                                |
+| Expandable execution pools and agent sandboxes                      | [Worker-pool candidates](research/worker-pools.md)                                                                              |
+| i-have-adhd, Dahl's Wiki fork, Karpathy and Claw Patrol             | [Knowledge patterns](research/knowledge-patterns.md)                                                                            |
+| Backlog.md and WBS storage requirements                             | [Backlog patterns](research/backlog-patterns.md)                                                                                |
+| Claire and the first source inspection                              | [Initial inspection](research/initial-inspection.md), retained as dated evidence                                                |
+| OpenSpec version and schema behavior                                | [SDD source findings](sdd-sources.md)                                                                                           |
+| Earlier local helper observations                                   | [Compatibility findings](research/local-workflow-observations.md) preserved from the compacted, previously uncommitted proposal |
+| What happened in the trial                                          | [Pilot verification](../../openspec/changes/twilight-sdlc-pilot/verify.md)                                                      |
 
 Design implications belong to the
 [control-plane design](../../openspec/changes/twilight-control-plane/design.md)
@@ -65,5 +70,6 @@ No migration is performed by this trial.
 ADR 0014 no longer exists. The OpenSpec/wiki authority boundary it recorded is an
 already-accepted direction rather than a surprising decision, and it now lives in
 [requirements and the wiki](knowledge.md#requirements-and-the-wiki-the-boundary).
-[ADR 0015](../adr/0015-planning-commits-are-the-transaction-boundary.md) is
-Twilight's one ADR, and it is proposed rather than accepted.
+[ADR 0015](../adr/0015-planning-commits-are-the-transaction-boundary.md) proposes
+the planning transaction boundary. [ADR 0016](../adr/0016-k3s-schedules-the-expandable-worker-pool.md)
+records the accepted K3s worker-pool decision.

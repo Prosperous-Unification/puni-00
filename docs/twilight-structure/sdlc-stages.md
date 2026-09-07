@@ -3,6 +3,14 @@
 Status: opt-in repository workflow, exercised by the
 [documentation trial](../../openspec/changes/twilight-sdlc-pilot/verify.md).
 Runtime enforcement is planned in the [control-plane tasks](../../openspec/changes/twilight-control-plane/tasks.md).
+
+The personal-phase [testing and delivery requirements](spec.md) now also require
+exhaustive Given/When/Then scenarios, layered automated tests, frequent commits
+and main/dev publication, and scheduled manual cloud-browser sweeps with reports.
+Their gate placement is being resolved in the
+[delivery decision](../../.scratch/twilight-structure/issues/04-personal-delivery-controls.md);
+the workflow schema and runtime plan have not yet been amended to enforce them.
+
 Default WBS changes still use `sdd-lean`. Select the workflow per change:
 
 ```sh
