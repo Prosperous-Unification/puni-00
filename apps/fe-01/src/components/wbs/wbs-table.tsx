@@ -63,7 +63,12 @@ import { ActionsMenu, MenuControl } from './actions-menu';
 import { CellInput } from './cell-input';
 import { type Caret, type CellRef, commandMove, type Direction, nextCell } from './cell-navigation';
 import { useClosedByPointerOutside } from './close-on-outside-pointer';
-import { type ColumnHintState, hintFor, STEP_FINAL_HINT } from './column-hints';
+import {
+  type ColumnHintState,
+  DEADLINE_EFFECT_HINT,
+  hintFor,
+  STEP_FINAL_HINT,
+} from './column-hints';
 import {
   CreatablePicker,
   pickableLabel,
@@ -6693,6 +6698,13 @@ export function WbsTable({
    * this client holds no project start to compare against on this path, and a
    * client-side rule the server also keeps is how the two come to disagree —
    * the doctrine {@link setPriority} writes down.
+   *
+   * Proof that the single field is the check and not a coincidence: the pair
+   * added here — `{ deadline: day, startNoEarlierThanReason: null }`, which is
+   * what copying `setNotBefore`'s null arm across produces — and
+   * `plan-cells.test.tsx` failed 2 of 99, `clears with the single field, never
+   * the floor cell pair` printing `+ "startNoEarlierThanReason": null` beside
+   * the patch it expected. Watched on h2puni 2026-09-07, TASK-309.
    */
   const setDeadline = useCallback(
     (id: string, day: string | null) => {
@@ -10238,7 +10250,7 @@ export function WbsTable({
                 aria-label={`Work item deadline for ${row.original.number}`}
                 data-deadline={row.original.id}
                 data-cell={cellKey(row.original.id, 'deadline')}
-                data-hint="The last day this work item may finish on. It does not move the plan; a plan that misses it says so."
+                data-hint={DEADLINE_EFFECT_HINT}
                 onKeyDown={(e) => {
                   // Enter closes the editor, after `DateField`'s own handler has
                   // already sent the day — its handler is first, deliberately,
@@ -10309,9 +10321,7 @@ export function WbsTable({
                       ? 'Set the project start date first — without one there are no dates to hold a work item deadline against.'
                       : [
                           day === null ? null : `${day}.`,
-                          impossible
-                            ? DEADLINE_BEFORE_START
-                            : 'The last day this work item may finish on. It does not move the plan; a plan that misses it says so.',
+                          impossible ? DEADLINE_BEFORE_START : DEADLINE_EFFECT_HINT,
                         ]
                           .filter((part) => part !== null)
                           .join(' ')
