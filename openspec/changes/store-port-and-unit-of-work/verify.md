@@ -34,8 +34,24 @@ Re-run 2026-09-08 against `main` @ `d2e14214`, over the file set the change decl
 | A stub with no allowlist line                                  | a stubbed memory method left off the allowlist                                    |                       |          |
 | A runtime port with no adapter                                 | a service constructed without its port                                            | `tsc`                 |          |
 
-## Gate
+## Slice 1 — the gate and the two graphs
 
-| Command | When | Result |
-| ------- | ---- | ------ |
-|         |      |        |
+| Command                                                                               | When       | Result                                                                                                                                                    |
+| ------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx tsc --build --force apps/be-01/tsconfig.json` (source, spec and tools projects) | 2026-09-08 | clean                                                                                                                                                     |
+| `bun test` in `apps/be-01`                                                            | 2026-09-08 | **1996 pass, 1 skip, 0 fail**, 19,985 assertions, 114s                                                                                                    |
+| the same on the parent commit, for the baseline                                       | 2026-09-08 | 1994 pass, 1 skip, **1 fail** (this change's own negative, written first) — the **2 errors** the run reports are pre-existing and identical on both sides |
+| `bunx nx run be-01:lint --skip-nx-cache`                                              | 2026-09-08 | clean, 24.7s                                                                                                                                              |
+
+The whole-workspace gate is slice 6's, on a frozen tree. Nothing outside `apps/be-01`
+changed in this slice.
+
+### One check that could not fail, deleted before it shipped
+
+Case (i)'s first form asserted that no store had **written yet** two microtask turns into the
+hold. Injected — one store built over `OPEN` — it stayed **green**: an ungated write is a few
+microtasks late rather than synchronous, so the sample was taken before the fault could show
+and the check was a statement about scheduling, not about admission. It is a survival
+assertion now: the writes are started during the hold and read back after the batch has been
+**refused**, so a store that took no turn wrote inside the rolled-back transaction and is
+gone. That form failed on the injected fault at the line it names.

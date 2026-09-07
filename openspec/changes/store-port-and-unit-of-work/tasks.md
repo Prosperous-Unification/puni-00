@@ -6,9 +6,14 @@ Six slices, each its own PR against `main`. The order is the plan's (§4, Wave 2
 dependency order, not a preference: nothing can hold a turn until the gate exists, and nothing
 can hand out an admitted scope until something holds a turn.
 
+**Slice 1 carries the two service graphs, which the plan put in slice 2.** It has to: the
+moment a store takes a turn, a batch built over the same stores waits for the turn it is
+itself holding. So `servicesOver` and the admitted graph land with the gate, and slice 2 is
+`UnitOfWork.run` over them rather than the split as well.
+
 ## 1. The gate, and the turn every write has to take
 
-- [ ] 1.1 **The suspension negative first, watched red.** `apps/be-01/src/service/write-coordinator.db.test.ts`
+- [x] 1.1 **The suspension negative first, watched red.** `apps/be-01/src/service/write-coordinator.db.test.ts`
       › `a route write started while a batch is suspended is not rolled back with it`: open a
       real batch through `PlanCommandRunner` against a migrated database, suspend it after its
       first write (a command whose service awaits a deferred the test resolves), call
@@ -16,24 +21,30 @@ can hand out an admitted scope until something holds a turn.
       and its event consistent. On `main` this fails — the step's insert lands inside the
       batch's `BEGIN IMMEDIATE` and the refusal takes it. Record the observed failure text in
       `verify.md` before writing a line of the fix.
-- [ ] 1.2 `Gate` and `OPEN` in `apps/be-01/src/repository/gate.ts`: `enter<T>(work: () => Promise<T>): Promise<T>`,
+- [x] 1.2 `Gate` and `OPEN` in `apps/be-01/src/repository/gate.ts` — `WriteLock` moved there
+      whole as `WriteCoordinator`, `run` renamed `enter`, and `GatewayBroadcaster` stopped
+      taking a turn of its own (the event log now takes it, and a caller holding a turn while
+      its callee asks for one is a deadlock): `enter<T>(work: () => Promise<T>): Promise<T>`,
       and `OPEN` whose `enter` runs the work at once because its caller already holds a turn.
       `WriteLock` (`service/write-lock.ts`) becomes the SQLite source's coordinator and
       implements `Gate`; its `run` is renamed `enter` with every call site moved in the same
       commit. JSDoc on `Gate` says what a turn is and who may skip one; JSDoc on `OPEN` says it
       is a claim by its constructor, not a lock that is always free.
-- [ ] 1.3 Every **transactional** repository constructor takes its gate — the seventeen classes
-      of `repository/` plus the six function-style optimizer modules — and every **mutating**
-      method runs its body inside `this.gate.enter`. Reads take nothing and the diff must show
+- [x] 1.3 Every **transactional** repository constructor takes its gate — sixteen classes, 53
+      mutating methods — and every one of them runs its body inside `this.gate.enter`. The
+      six function-style optimizer modules take `db` per call rather than holding one and are
+      **not** gated here; they are named in slice 3 with the drain seams that are still
+      `dual-optimized-scheduler`'s. `UserRepository.ensureLocalIdentity` stays ungated and
+      says why: it runs at boot before the server listens, so there is no batch to land in. Reads take nothing and the diff must show
       that: a `select` inside an `enter` is a stalled read behind an unrelated write.
       `SavedPlanRepository` and `SavedPlanCaptureRepository` take **no** gate (they own their
       connection; slice 3 states that as a contract).
-- [ ] 1.4 1.1 goes green. The negative that keeps it honest is the fault it was written for:
+- [x] 1.4 1.1 goes green. The negative that keeps it honest is the fault it was written for:
       take the gate back out of `StepRepository.add` and watch 1.1 fail again; record the
       output. Then case (i) — `every public transactional write waits` — walks the store list
       and calls one mutating method of each while a batch is suspended, asserting none has
       written; injected fault is `OPEN` in place of the coordinator for one store, watched.
-- [ ] 1.5 `bun run test:unit`, `nx run be-01:test`, `nx run be-01:typecheck`, `nx run be-01:lint`.
+- [x] 1.5 `bun run test:unit`, `nx run be-01:test`, `nx run be-01:typecheck`, `nx run be-01:lint`.
 
 ## 2. The unit of work
 
@@ -51,7 +62,7 @@ does not wait for the turn its batch holds`: a `run` whose act writes through
       stages a clone and swaps it on commit. They live in
       `apps/be-01/src/testing/kits/unit-of-work-conformance.ts` from the start, so slice 5 moves
       a file rather than rewriting the cases.
-- [ ] 2.4 `servicesOver(stores, shared)` factored out of `buildServices`, so a batch's graph can
+- [x] 2.4 `servicesOver(stores, shared)` factored out of `buildServices`, so a batch's graph can
       be built over `scope.stores`. `buildServices` keeps building the shared half once — clock,
       throttle, replay buffer, optimizer wiring — and `services.db.test.ts` grows the assertion
       that two batches see **one** buffer and **two** collectors.
