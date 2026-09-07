@@ -11,7 +11,9 @@ The later [environment requirement](../../.scratch/twilight-structure/issues/07-
 adds concurrent branch devs, dev-main tracking main, and final production-like
 staging acceptance before merge. It supersedes the intermediate automated-only
 main-merge gate; frequent branch-dev updates and scheduled dev sweeps remain.
-The exact staging candidate and artifact-promotion flow are still being clarified. The
+Staging tests the feature branch composed with current main; the exact tested
+candidate is merged and the same built artifact is promoted to production on an
+explicit human command. A moved main requires recomposition and fresh testing. The
 [phase allocation work](../../.scratch/twilight-structure/issues/05-product-phase-boundaries.md)
 must reconcile the workflow schema and runtime plan before implementation uses
 that ordering; those artifacts do not yet enforce this decision.

@@ -95,8 +95,12 @@ Production requires passing automated and manual acceptance reports for the
 identified release candidate, followed by TS-12's explicit human command.
 An older revision's passing report does not accept a newer candidate.
 
-The exact staging candidate and artifact-promotion flow are being clarified in
+The exact staging candidate and artifact-promotion flow are agreed in
 [branch devs and staging](../../.scratch/twilight-structure/issues/07-staging-and-branch-devs.md).
+Compose the feature branch with current main, build and test that candidate in
+staging, merge the exact tested candidate and promote the same built artifact
+to production on the explicit human command. If main changes before the merge,
+recompose, rebuild and retest. Evidence remains bound to the candidate it tested.
 No staging concurrency, sweep interval or environment-lifetime default has been
 selected. Devs may use development servers and be dynamic or short-lived while
 supporting branches that themselves remain active for a long time.
@@ -113,9 +117,10 @@ supporting branches that themselves remain active for a long time.
 5. **Implementation and verification:** implement, cross-review, test and
    document, committing and updating the relevant branch dev frequently.
 6. **Staging acceptance:** perform final testing in a production-like environment
-   before merging to main, including manual scenarios through a real cloud browser.
-7. **Main publication:** merge accepted work; dev-main continuously tracks main.
-8. **Production deployment:** execute on an explicit human command, with
+   on the feature branch composed with current main, including manual scenarios
+   through a real cloud browser.
+7. **Main publication:** merge the exact tested candidate; dev-main continuously tracks main.
+8. **Production deployment:** promote the staging-tested artifact on an explicit human command, with
    reliable deployment management.
 
 Observability spans the entire sequence. This list describes the requested

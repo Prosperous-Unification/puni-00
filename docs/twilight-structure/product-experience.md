@@ -38,12 +38,12 @@ accepted receipt names both the requested basis and the committed revision.
 
 The personal-phase [environment requirements](spec.md) distinguish these views:
 
-| Environment | Source and purpose                                                                                                                                                                                                                                |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Branch dev  | One of several concurrently available dev environments assigned to feature branches, including long-running branches. Frequent updates make unfinished work inspectable; development servers and dynamic or short-lived environments are allowed. |
-| Dev-main    | The development environment that continuously tracks main. Show the desired and actually deployed revisions so deployment lag is visible.                                                                                                         |
-| Staging     | Final testing before merge in an environment kept as close to production as practical. Show the candidate, test reports and differences from production; the exact promotion flow is still being clarified.                                       |
-| Production  | The released candidate, its accepted evidence and the explicit human release command, with observed deployment health and recovery.                                                                                                               |
+| Environment | Source and purpose                                                                                                                                                                                                                                                                            |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Branch dev  | One of several concurrently available dev environments assigned to feature branches, including long-running branches. Frequent updates make unfinished work inspectable; development servers and dynamic or short-lived environments are allowed.                                             |
+| Dev-main    | The development environment that continuously tracks main. Show the desired and actually deployed revisions so deployment lag is visible.                                                                                                                                                     |
+| Staging     | Final testing before merge in an environment kept as close to production as practical. Show the candidate, test reports and differences from production; staging tests the feature branch composed with current main, then the tested candidate is merged and its built artifact is promoted. |
+| Production  | The released candidate, its accepted evidence and the explicit human release command, with observed deployment health and recovery.                                                                                                                                                           |
 
 The environment view links each running deployment to its URL, branch or candidate,
 source revision and automated/manual reports. Scheduled cloud-browser sweeps

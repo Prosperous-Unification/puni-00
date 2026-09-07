@@ -50,8 +50,10 @@ failure/staleness in the resulting acceptance scenarios.
 
 Account for environment-to-branch assignment, concurrent long-running branches,
 independent environment lifecycle and state, desired versus deployed revisions,
-staging/prod parity, and resource admission. Detailed topology, staging
-concurrency and promotion identity depend on the environment decision.
+staging/prod parity, and resource admission. Staging tests the feature branch
+composed with current main; merge that tested candidate and promote its built
+artifact. A moved main requires recomposition, rebuilding and fresh testing.
+Detailed topology, staging concurrency and lifecycle defaults remain to specify.
 
 Sources: [delivery plan](../../../openspec/changes/twilight-control-plane/tasks.md),
 [installation operating model](../../../docs/twilight-structure/discovery.md#installation-operating-model),

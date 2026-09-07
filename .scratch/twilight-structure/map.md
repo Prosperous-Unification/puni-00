@@ -17,7 +17,8 @@ serve Dany first and potential customers second made explicit.
   customer phase follows it. The complete delivery boundary and required quality
   practices are resolved below; interaction design and task placement remain open.
   Later requirements add concurrent branch devs, dev-main and production-like
-  staging for final testing before merge. The exact promotion flow is being clarified.
+  staging for final testing before merge. The candidate and artifact-promotion
+  boundary is resolved below.
 - Work through this map with Wayfinder, grilling, domain-modeling and
   brainstorming. Use research or prototype for the matching ticket type.
 - [Tracker operations](tracker.md) define claims, dependencies and frontier
@@ -41,6 +42,7 @@ serve Dany first and potential customers second made explicit.
 - [Establish OpenClaw's usable assistant and factory integration boundaries](issues/02-openclaw-integration-evidence.md): delegation exists; complete evidence search, work events and the delivery boundary still need integration contracts and proofs.
 - [Trace the existing plans and Claire lessons to the two product audiences](issues/03-existing-plan-and-claire-evidence.md): personal delivery crosses current milestone labels; clean-client proofs are shared foundations, and assistant coverage is additional work.
 - [Select the personal phase's delivery controls and quality evidence](issues/04-personal-delivery-controls.md): exhaustive scenarios, layered tests and reports are required; its initial merge-gate placement is superseded by the later staging requirement.
+- [Define branch dev environments and staging before merge](issues/07-staging-and-branch-devs.md): stage the feature branch composed with current main, merge the tested candidate and promote the same artifact; dev-main tracks main alongside branch devs.
 
 ## Not yet specified
 

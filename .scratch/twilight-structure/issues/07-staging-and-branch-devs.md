@@ -8,7 +8,7 @@ Type: grilling
 
 Mode: HITL
 
-Status: claimed
+Status: resolved
 
 Assignee: Dany
 
@@ -33,13 +33,32 @@ main merge. Frequent commits and branch-dev updates keep ongoing work observable
 while staging supplies the final pre-merge gate. Automated and manual test
 reports, scheduled dev sweeps and the explicit production command remain required.
 
-Pending confirmation: test the feature branch composed with current main, merge
+The recommendation put to Dany was to test the feature branch composed with current main, merge
 the exact tested candidate, and promote the same built artifact toward production.
-This is the recommended flow; the alternative put to Dany was testing the feature
-branch alone before merging. Staging concurrency, environment lifetime defaults,
+He accepted it; the resolution follows. Staging concurrency, environment lifetime defaults,
 sweep cadence and the detailed parity contract have not been selected.
 
 Sources: [requirements](../../../docs/twilight-structure/spec.md),
 [previous quality decision](04-personal-delivery-controls.md),
 [integration contract](../../../openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md#requirement-integration-is-an-independently-scalable-execution-service),
 [release design](../../../openspec/changes/twilight-control-plane/design.md#release-and-operational-limits).
+
+## Answer
+
+2026-09-08 — Dany accepted testing the feature branch composed with current main,
+merging that exact tested candidate, and promoting the same built artifact toward
+production.
+
+Branch devs expose frequent updates independently, including on long-running
+branches. Staging runs the composed candidate through automated and manual
+cloud-browser acceptance in a production-like environment. Passing evidence binds
+that candidate and artifact. If main advances before publication, recompose,
+rebuild and retest before merging; an earlier candidate's pass is not transferable.
+Dev-main tracks the accepted main revision. Production uses the staging-tested
+artifact after the existing explicit human command, with environment-specific
+configuration and observed health/recovery recorded separately.
+
+Staging parity, environment ownership and lifetime, concurrency and sweep cadence
+still need concrete settings and implementation contracts. The
+[phase allocation work](05-product-phase-boundaries.md) carries those obligations
+into the single implementation plan; this resolution claims no deployed system.
