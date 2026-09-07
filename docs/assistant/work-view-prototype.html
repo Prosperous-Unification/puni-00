@@ -1,0 +1,1346 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Twilight work view · prototype</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #26303b;
+        --muted: #78828b;
+        --line: #e1e5e4;
+        --purple: #6554bb;
+        font:
+          14px/1.5 system-ui,
+          sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #f5f6f4;
+        color: var(--ink);
+      }
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+        color: inherit;
+        border: 1px solid var(--line);
+        background: white;
+        border-radius: 8px;
+        padding: 8px 12px;
+      }
+      button:hover {
+        background: #f4f1ff;
+        border-color: #bcb3dc;
+      }
+      button:focus-visible,
+      input:focus-visible,
+      textarea:focus-visible {
+        outline: 3px solid #bbaaf4;
+        outline-offset: 2px;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font-size: 27px;
+        letter-spacing: -0.8px;
+        font-weight: 650;
+      }
+      h2 {
+        font-size: 17px;
+      }
+      h3 {
+        font-size: 14px;
+      }
+      small,
+      .muted {
+        color: var(--muted);
+      }
+      small {
+        font-size: 11px;
+      }
+      .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 1.4px;
+        font-size: 10px;
+        color: var(--muted);
+        font-weight: 650;
+      }
+      .top {
+        height: 70px;
+        padding: 0 30px;
+        display: flex;
+        gap: 24px;
+        align-items: center;
+        background: white;
+        border-bottom: 1px solid var(--line);
+      }
+      .brand {
+        font-size: 21px;
+        font-weight: 700;
+        letter-spacing: -0.7px;
+      }
+      .brand span {
+        color: var(--purple);
+        font-size: 28px;
+        margin-right: 8px;
+        vertical-align: middle;
+      }
+      .top nav {
+        display: flex;
+        gap: 7px;
+        margin-right: auto;
+      }
+      .top nav button {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+      }
+      .top nav .active {
+        background: #eeebf8;
+        color: var(--purple);
+      }
+      #search {
+        width: 235px;
+        background: #f7f8f6;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px 10px;
+      }
+      .demo {
+        font-size: 10px;
+        background: #eee9df;
+        color: #75664a;
+        padding: 5px 9px;
+        border-radius: 20px;
+        white-space: nowrap;
+      }
+      main {
+        padding: 27px 30px 95px;
+        max-width: 1650px;
+        margin: auto;
+      }
+      .intro {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+      .intro p {
+        color: var(--muted);
+        margin-top: 5px;
+      }
+      .counts {
+        display: flex;
+        gap: 25px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .counts strong {
+        display: block;
+        color: var(--ink);
+        font-size: 23px;
+      }
+      .panel {
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 13px;
+        padding: 20px;
+      }
+      .section {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 13px;
+      }
+      .split {
+        display: grid;
+        grid-template-columns: 315px minmax(0, 1fr);
+        gap: 24px;
+        align-items: start;
+      }
+      .person {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .face {
+        width: 40px;
+        height: 40px;
+        display: inline-grid;
+        place-items: center;
+        flex-shrink: 0;
+        background: #e8e1f8;
+        border-radius: 15px;
+        color: #69579f;
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .face.green {
+        background: #dcecdc;
+        color: #477354;
+        border-radius: 50% 50% 30% 50%;
+      }
+      .face.orange {
+        background: #f8e2cc;
+        color: #9f6b3c;
+        border-radius: 50% 35% 40% 35%;
+      }
+      .rename {
+        border: 0;
+        color: #9b99a5;
+        background: transparent;
+        padding: 2px 5px;
+        font-size: 12px;
+      }
+      .person small {
+        display: block;
+      }
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: #edf5ee;
+        color: #377b57;
+        padding: 4px 8px;
+        border-radius: 20px;
+        font-size: 10px;
+        white-space: nowrap;
+      }
+      .status:before {
+        content: '';
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .status.wait {
+        background: #fbf0d8;
+        color: #8a641e;
+      }
+      .status.neutral {
+        background: #edf0f5;
+        color: #657187;
+      }
+      .secretary {
+        position: sticky;
+        top: 20px;
+      }
+      .secretary .headline {
+        font-size: 21px;
+        line-height: 1.4;
+        font-weight: 550;
+        letter-spacing: -0.3px;
+        margin: 16px 0;
+      }
+      .message {
+        padding: 13px;
+        border-radius: 10px;
+        background: #f3f1f8;
+        margin: 13px 0;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .message.you {
+        margin-left: 25px;
+        background: #eaf0f2;
+      }
+      .composer {
+        display: flex;
+        gap: 7px;
+        align-items: end;
+        padding: 9px;
+        border: 1px solid #d9d3e7;
+        border-radius: 10px;
+        margin-top: 18px;
+        background: white;
+      }
+      .composer textarea {
+        border: 0;
+        resize: vertical;
+        min-height: 58px;
+        flex: 1;
+        width: 100%;
+        font-size: 12px;
+        outline: none;
+        background: transparent;
+      }
+      .send {
+        background: var(--purple);
+        color: white;
+        border: 0;
+      }
+      .send:hover {
+        color: var(--purple);
+      }
+      .chips {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .chips button {
+        font-size: 11px;
+        padding: 6px 9px;
+      }
+      .tiny {
+        font-size: 10px;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      .attention {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        border: 1px solid #ead9b7;
+        background: #fffbf0;
+        border-radius: 12px;
+        padding: 16px 18px;
+        margin-bottom: 23px;
+      }
+      .attention .copy {
+        flex: 1;
+      }
+      .attention p {
+        font-size: 12px;
+        color: #897348;
+        margin-top: 4px;
+      }
+      .attention button {
+        border-color: #ddcba6;
+        background: #fff9e9;
+      }
+      .workers {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 25px;
+      }
+      .worker {
+        padding: 16px;
+        min-width: 0;
+      }
+      .worker .status {
+        margin-top: 17px;
+      }
+      .worker h3 {
+        margin-top: 11px;
+      }
+      .worker p {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 8px 0 16px;
+        min-height: 38px;
+      }
+      .worker .event {
+        border-top: 1px solid var(--line);
+        padding: 11px 0;
+        font-size: 10px;
+        color: var(--muted);
+        min-height: 55px;
+      }
+      .worker .chat {
+        width: 100%;
+        font-size: 11px;
+      }
+      .environments {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .environment {
+        display: block;
+        text-align: left;
+        min-width: 0;
+        width: 100%;
+        padding: 13px;
+        border-radius: 10px;
+        background: white;
+      }
+      .environment h3 {
+        font-size: 12px;
+      }
+      .environment .branch {
+        font:
+          10px ui-monospace,
+          monospace;
+        display: block;
+        margin: 9px 0;
+        color: var(--muted);
+        overflow-wrap: anywhere;
+      }
+      .environment.staging {
+        border-color: #decb93;
+        background: #fffdf7;
+      }
+      .reports {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 21px;
+      }
+      .reports button {
+        font-size: 11px;
+      }
+      .pass {
+        color: #397f57;
+      }
+      .fail {
+        color: #a15c40;
+      }
+      .state {
+        margin-top: 25px;
+        color: #8c939a;
+        font:
+          10px ui-monospace,
+          monospace;
+      }
+      .conversation {
+        display: grid;
+        grid-template-columns: 190px minmax(0, 1fr) 290px;
+        gap: 22px;
+      }
+      .roster {
+        padding-top: 10px;
+      }
+      .roster button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-align: left;
+        width: 100%;
+        background: transparent;
+        border: 0;
+        margin-bottom: 10px;
+        padding: 12px;
+      }
+      .roster .selected {
+        background: #eae6f6;
+      }
+      .roster .face {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+      }
+      .thread {
+        padding: 25px 28px;
+      }
+      .thread .message {
+        font-size: 14px;
+        padding: 17px;
+      }
+      .thread .message.you {
+        margin: 24px 0 24px 50px;
+      }
+      .thread .composer textarea {
+        min-height: 82px;
+      }
+      .question {
+        border-left: 3px solid #c8aa62;
+        padding-left: 16px;
+        margin: 25px 0;
+        font-size: 12px;
+      }
+      .question p {
+        margin: 8px 0;
+      }
+      .rail .environment {
+        margin-bottom: 10px;
+      }
+      .rail .event {
+        font-size: 12px;
+        padding: 14px 0;
+        border-bottom: 1px solid var(--line);
+        margin-bottom: 10px;
+      }
+      .rail .event small {
+        display: block;
+        margin-top: 5px;
+      }
+      .board-layout {
+        display: grid;
+        grid-template-columns: 185px minmax(0, 1fr);
+        gap: 24px;
+      }
+      .board-summary .person {
+        margin: 17px 0;
+      }
+      .board-summary button {
+        border: 0;
+        background: transparent;
+        padding: 0;
+        text-align: left;
+      }
+      .board {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 13px;
+      }
+      .lane {
+        background: #eaeeea;
+        border-radius: 12px;
+        padding: 12px;
+        min-height: 405px;
+      }
+      .lane-title {
+        font-size: 12px;
+        font-weight: 650;
+        margin-bottom: 18px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .lane .panel {
+        padding: 15px;
+        border: 0;
+        margin-bottom: 13px;
+      }
+      .lane h3 {
+        margin: 8px 0;
+      }
+      .lane .person {
+        margin-top: 15px;
+      }
+      .lane .face {
+        width: 28px;
+        height: 28px;
+        font-size: 12px;
+        border-radius: 10px;
+      }
+      .lane button {
+        width: 100%;
+        font-size: 11px;
+        margin-top: 13px;
+      }
+      .lane .message {
+        padding: 9px;
+        font-size: 11px;
+      }
+      .dock {
+        display: grid;
+        grid-template-columns: 170px 1fr 1fr;
+        align-items: center;
+        gap: 15px;
+        margin: 25px 0 0 209px;
+        padding: 16px;
+        background: white;
+        border: 1px solid #d9d3e7;
+        border-radius: 13px;
+      }
+      .dock p {
+        font-size: 12px;
+      }
+      .dock .composer {
+        margin: 0;
+      }
+      .dock textarea {
+        min-height: 30px;
+      }
+      .switcher {
+        position: fixed;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-radius: 30px;
+        background: #29323d;
+        color: white;
+        padding: 8px 12px;
+        box-shadow: 0 5px 25px #26303b33;
+        z-index: 5;
+      }
+      .switcher button {
+        background: #ffffff18;
+        color: white;
+        border: 0;
+        border-radius: 50%;
+        font-size: 19px;
+        padding: 2px 10px;
+      }
+      #variant-label {
+        font-size: 12px;
+        min-width: 165px;
+        text-align: center;
+      }
+      .switcher small {
+        color: #bcc0c7;
+        font-size: 10px;
+        border-left: 1px solid #ffffff33;
+        padding-left: 12px;
+      }
+      dialog {
+        max-width: 650px;
+        width: calc(100% - 40px);
+        padding: 26px;
+        border: 1px solid var(--line);
+        border-radius: 15px;
+        box-shadow: 0 20px 70px #26303b44;
+      }
+      dialog::backdrop {
+        background: #26303b5c;
+      }
+      dialog .close {
+        float: right;
+      }
+      dialog h2 {
+        margin-bottom: 16px;
+      }
+      dialog input {
+        width: 100%;
+        padding: 10px;
+        margin: 12px 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+      .report-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        border-bottom: 1px solid var(--line);
+        padding: 14px 0;
+        font-size: 12px;
+      }
+      .search-hit {
+        border-bottom: 1px solid var(--line);
+        padding: 14px 0;
+      }
+      .search-hit p {
+        font-size: 12px;
+        margin-top: 6px;
+      }
+      #notice {
+        position: fixed;
+        right: 22px;
+        bottom: 85px;
+        background: #29323d;
+        color: white;
+        border-radius: 10px;
+        padding: 12px 17px;
+        font-size: 12px;
+        max-width: 340px;
+        z-index: 10;
+      }
+      #notice:empty {
+        display: none;
+      }
+      @media (max-width: 1100px) {
+        .split {
+          grid-template-columns: 270px minmax(0, 1fr);
+          gap: 15px;
+        }
+        .workers {
+          grid-template-columns: 1fr;
+        }
+        .worker p,
+        .worker .event {
+          min-height: 0;
+        }
+        .environments {
+          grid-template-columns: 1fr 1fr;
+        }
+        .conversation {
+          grid-template-columns: 155px minmax(0, 1fr);
+        }
+        .rail {
+          grid-column: 1/-1;
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
+        }
+        .board-layout {
+          display: block;
+        }
+        .board-summary {
+          display: none;
+        }
+        .dock {
+          margin-left: 0;
+        }
+      }
+      @media (max-width: 700px) {
+        .top {
+          height: auto;
+          padding: 15px;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+        .top nav {
+          order: 3;
+        }
+        #search {
+          width: 175px;
+        }
+        .demo {
+          margin-left: auto;
+        }
+        main {
+          padding: 22px 15px 100px;
+        }
+        .counts {
+          display: none;
+        }
+        .split,
+        .conversation {
+          display: block;
+        }
+        .secretary {
+          position: static;
+          margin-bottom: 22px;
+        }
+        .roster {
+          display: flex;
+          overflow: auto;
+        }
+        .roster button {
+          width: auto;
+          flex-shrink: 0;
+        }
+        .rail {
+          display: block;
+          margin-top: 20px;
+        }
+        .board {
+          grid-template-columns: 1fr 1fr;
+        }
+        .dock {
+          grid-template-columns: 1fr;
+        }
+        .attention {
+          flex-wrap: wrap;
+        }
+        .thread {
+          padding: 18px;
+        }
+        .switcher small {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand"><span>◒</span>twilight</div>
+      <nav aria-label="Workspace">
+        <button class="active" data-action="home">Today</button
+        ><button data-action="history">Sessions</button
+        ><button data-action="report">Evidence</button>
+      </nav>
+      <input
+        id="search"
+        type="search"
+        aria-label="Search sample sessions"
+        placeholder="Search sessions, work, tool output…"
+      /><span class="demo">PROTOTYPE · SIMULATED WORK</span>
+    </header>
+    <main id="app"></main>
+    <div class="switcher" aria-label="Prototype variants">
+      <button data-action="previous" aria-label="Previous variant">‹</button
+      ><span id="variant-label"></span
+      ><button data-action="next" aria-label="Next variant">›</button
+      ><small>← → compare layouts</small>
+    </div>
+    <dialog id="detail">
+      <button class="close" data-action="close" aria-label="Close detail">×</button>
+      <div id="detail-body"></div>
+    </dialog>
+    <div id="notice" role="status"></div>
+    <script>
+      const workers = [
+        {
+          id: 'w1',
+          name: 'Nori',
+          tone: '',
+          work: 'Sharing links that expire',
+          status: 'Working',
+          event: 'Expiry controls are on dev-links.',
+          note: 'Testing link permissions next.',
+        },
+        {
+          id: 'w2',
+          name: 'Ivo',
+          tone: 'green',
+          work: 'Keyboard access',
+          status: 'Needs you',
+          event: 'Found a conflict with an existing shortcut.',
+          note: 'Keep the current shortcut or introduce a new one?',
+        },
+        {
+          id: 'w3',
+          name: 'Mika',
+          tone: 'orange',
+          work: 'Comparing two documents',
+          status: 'Reading',
+          event: 'Found three differences worth checking.',
+          note: 'Putting together a short comparison.',
+        },
+      ];
+      const environments = [
+        {
+          name: 'dev-links',
+          branch: 'feature/share-links',
+          revision: 'eb37b1',
+          status: 'Updated 3m ago',
+          tone: '',
+          description:
+            'A branch dev follows committed share-link updates using a development server.',
+        },
+        {
+          name: 'dev-keyboard',
+          branch: 'feature/keyboard',
+          revision: '4ac112',
+          status: 'Branch active 9 days',
+          tone: 'neutral',
+          description:
+            'A second branch dev for a long-running feature branch, independent of dev-links and dev-main.',
+        },
+        {
+          name: 'dev-main',
+          branch: 'main',
+          revision: 'a18ee0',
+          status: 'Tracks main',
+          tone: '',
+          description: 'Desired a18ee0 · serving a18ee0. Dev-main is up to date.',
+        },
+        {
+          name: 'staging',
+          branch: 'share-links + main',
+          revision: 'c42aa2',
+          status: 'Manual test needs work',
+          tone: 'wait',
+          description:
+            'The composed merge candidate has one failing manual scenario. It is not ready to merge.',
+        },
+        {
+          name: 'production',
+          branch: 'accepted release',
+          revision: '91cd42',
+          status: 'Healthy',
+          tone: 'neutral',
+          description:
+            'The previous accepted release. Promotion uses the staging-tested artifact and an explicit human command.',
+        },
+      ];
+      const corpus = [
+        {
+          worker: 'w1',
+          kind: 'Assistant',
+          text: 'Expiry controls are on dev-links. I am checking who can open an expired link.',
+          time: '09:42',
+        },
+        {
+          worker: 'w1',
+          kind: 'Tool output',
+          text: 'API test expired-link-returns-410 passed against an isolated real database.',
+          time: '09:41',
+        },
+        {
+          worker: 'w2',
+          kind: 'Assistant',
+          text: 'The proposed shortcut conflicts with an existing keyboard action. I need a preference.',
+          time: '09:39',
+        },
+        {
+          worker: 'w3',
+          kind: 'Assistant',
+          text: 'I found three differences between the two documents and am checking their sources.',
+          time: '09:38',
+        },
+        {
+          worker: 'w1',
+          kind: 'Manual test',
+          text: 'Keyboard focus is hidden after the share dialog closes. Staging scenario GWT-06 failed.',
+          time: '09:36',
+        },
+      ];
+      const messages = [],
+        variants = ['A', 'B', 'C'],
+        titles = { A: 'Work overview', B: 'Conversation first', C: 'Delivery board' };
+      const secretary = { id: 'secretary', name: 'Secretary', tone: '' };
+      let variant = new URL(location.href).searchParams.get('variant') || 'A',
+        recipient = 'secretary',
+        noticeTimer;
+      if (!variants.includes(variant)) variant = 'A';
+      const esc = (value) =>
+        String(value).replace(
+          /[&<>"']/g,
+          (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+        );
+      const workerById = (identity) => workers.find((worker) => worker.id === identity);
+      function avatar(worker) {
+        return '<span class="face ' + worker.tone + '">' + esc(worker.name.slice(0, 1)) + '</span>';
+      }
+      function person(worker, rename = true) {
+        return (
+          '<div class="person">' +
+          avatar(worker) +
+          '<div><strong>' +
+          esc(worker.name) +
+          '</strong>' +
+          (rename
+            ? '<button class="rename" data-action="rename" data-worker="' +
+              worker.id +
+              '" aria-label="Rename ' +
+              esc(worker.name) +
+              '">✎</button>'
+            : '') +
+          '<small>' +
+          (worker.id === 'secretary' ? 'Here when you need me' : 'Recurring worker') +
+          '</small></div></div>'
+        );
+      }
+      function composer(identity) {
+        return (
+          '<form class="composer" data-recipient="' +
+          identity +
+          '"><textarea aria-label="Message ' +
+          esc(identity === 'secretary' ? 'Secretary' : workerById(identity).name) +
+          '" placeholder="Ask something, change direction…"></textarea><button class="send" aria-label="Send demo message">↑</button></form>'
+        );
+      }
+      function messageList(identity) {
+        return messages
+          .filter((message) => message.recipient === identity)
+          .map(
+            (message) =>
+              '<div class="message you"><small>You · demo</small><p>' +
+              esc(message.text) +
+              '</p></div>',
+          )
+          .join('');
+      }
+      function secretaryPanel() {
+        return (
+          '<aside class="panel secretary">' +
+          person(secretary, false) +
+          '<div class="status" style="margin-top:22px">Available</div><p class="headline">Work is moving.<br>I’m here for what’s next.</p><div class="message"><strong>' +
+          esc(workers[0].name) +
+          '</strong> has new work on dev-links. <strong>' +
+          esc(workers[1].name) +
+          '</strong> ' +
+          (workers[1].status === 'Needs you'
+            ? 'needs your shortcut preference.'
+            : 'is working from your preference.') +
+          '</div><p class="muted" style="font-size:12px">Start another request while they continue.</p><div class="chips" style="margin-top:17px"><button data-action="question">Open the question</button><button data-action="report">What failed?</button></div>' +
+          messageList('secretary') +
+          composer('secretary') +
+          '<p class="tiny">Worker conversations stay linked here.</p></aside>'
+        );
+      }
+      function workerCard(worker) {
+        return (
+          '<article class="panel worker">' +
+          person(worker) +
+          '<div class="status ' +
+          (worker.status === 'Needs you' ? 'wait' : '') +
+          '">' +
+          esc(worker.status) +
+          '</div><h3>' +
+          worker.work +
+          '</h3><p>' +
+          worker.event +
+          '</p><div class="event">' +
+          worker.note +
+          '</div><button class="chat" data-action="chat" data-worker="' +
+          worker.id +
+          '">Talk to ' +
+          esc(worker.name) +
+          ' ↗</button></article>'
+        );
+      }
+      function environmentCard(environment) {
+        return (
+          '<button class="environment ' +
+          (environment.name === 'staging' ? 'staging' : '') +
+          '" data-action="environment" data-environment="' +
+          environment.name +
+          '"><h3>' +
+          environment.name +
+          '</h3><span class="branch">' +
+          environment.branch +
+          ' · ' +
+          environment.revision +
+          '</span><span class="status ' +
+          environment.tone +
+          '">' +
+          environment.status +
+          '</span></button>'
+        );
+      }
+      function reports() {
+        return '<div class="reports"><button data-action="report"><span class="pass">✓</span> Unit 48/48</button><button data-action="report"><span class="pass">✓</span> API · real DB 12/12</button><button data-action="report"><span class="pass">✓</span> Playwright 8/8</button><button data-action="report"><span class="fail">!</span> Manual browser 5/6</button></div>';
+      }
+      function attention() {
+        return workers[1].status === 'Needs you'
+          ? '<div class="attention"><span style="font-size:24px;color:#a37c2a">◌</span><div class="copy"><strong>' +
+              esc(workers[1].name) +
+              ' needs a preference</strong><p>Keep the existing shortcut, or introduce a new one?</p></div><button data-action="question">Open question →</button></div>'
+          : '<div class="attention"><div class="copy"><strong>Your preference is with ' +
+              esc(workers[1].name) +
+              '.</strong><p>The secretary has the update too. Other work continues.</p></div></div>';
+      }
+      function overview() {
+        return (
+          '<div class="split">' +
+          secretaryPanel() +
+          '<section>' +
+          attention() +
+          '<div class="section"><h2>Working with you</h2><small>3 workers · names are yours to change</small></div><div class="workers">' +
+          workers.map(workerCard).join('') +
+          '</div><div class="section"><h2>Where the work is running</h2><small>Serving revisions stay visible</small></div><div class="environments">' +
+          environments.map(environmentCard).join('') +
+          '</div>' +
+          reports() +
+          '</section></div>'
+        );
+      }
+      function conversation() {
+        const selected = recipient === 'secretary' ? secretary : workerById(recipient);
+        return (
+          '<div class="conversation"><aside class="roster"><div class="eyebrow" style="padding:12px">Conversations</div>' +
+          [secretary, ...workers]
+            .map(
+              (worker) =>
+                '<button data-action="recipient" data-worker="' +
+                worker.id +
+                '" class="' +
+                (recipient === worker.id ? 'selected' : '') +
+                '">' +
+                avatar(worker) +
+                '<span>' +
+                esc(worker.name) +
+                '<small style="display:block">' +
+                (worker.id === 'secretary' ? 'Default contact' : worker.status) +
+                '</small></span></button>',
+            )
+            .join('') +
+          '</aside><section class="panel thread">' +
+          person(selected, recipient !== 'secretary') +
+          '<div class="message you">What is happening with the sharing changes?</div><div class="message">' +
+          (recipient === 'secretary'
+            ? 'The new controls are on <strong>dev-links</strong>. ' +
+              esc(workers[0].name) +
+              ' is checking permissions.<br><br>The composed candidate is on staging. Automated checks pass, but one manual keyboard scenario failed. It will stay out of main until that is fixed.'
+            : esc(selected.event) + ' ' + esc(selected.note)) +
+          '</div><div class="question"><small>Meanwhile · ' +
+          esc(workers[1].name) +
+          '</small><p>' +
+          esc(workers[1].note) +
+          '</p><button data-action="question">Open the keyboard question</button></div><div class="chips"><button data-action="environment" data-environment="dev-links">Inspect dev-links</button><button data-action="report">Inspect reports</button><button data-action="history">Search conversations</button></div>' +
+          messageList(recipient) +
+          composer(recipient) +
+          '<p class="tiny">' +
+          (recipient === 'secretary'
+            ? 'Available for new requests while work continues.'
+            : 'Direct conversation · relevant changes also appear for the secretary.') +
+          '</p></section><aside class="rail"><h2>Alongside this conversation</h2><div class="event"><strong>' +
+          esc(workers[0].name) +
+          '</strong> published a branch update<small>3m ago · dev-links · eb37b1</small></div><div class="event"><strong>' +
+          esc(workers[2].name) +
+          '</strong> found three differences<small>5m ago · personal request</small></div>' +
+          environments.map(environmentCard).join('') +
+          '</aside></div>'
+        );
+      }
+      function boardCard(title, body, worker, action = 'report') {
+        return (
+          '<article class="panel"><span class="eyebrow">Delivery work</span><h3>' +
+          title +
+          '</h3><p class="muted" style="font-size:12px">' +
+          body +
+          '</p>' +
+          (worker
+            ? '<div class="person">' +
+              avatar(worker) +
+              '<small>' +
+              esc(worker.name) +
+              '</small></div>'
+            : '') +
+          '<button data-action="' +
+          action +
+          '">' +
+          (action === 'report' ? 'Inspect evidence' : 'Open question') +
+          ' ↗</button></article>'
+        );
+      }
+      function board() {
+        return (
+          '<div class="board-layout"><aside class="board-summary"><h2>Today’s work</h2><p class="muted" style="font-size:12px;margin-top:12px">Two software changes and a personal request.</p>' +
+          workers
+            .map(
+              (worker) =>
+                '<button data-action="chat" data-worker="' +
+                worker.id +
+                '">' +
+                person(worker, false) +
+                '</button>',
+            )
+            .join('') +
+          '<div class="message">' +
+          esc(workers[2].name) +
+          ' is comparing documents outside the delivery loop.</div></aside><section><div class="board"><div class="lane"><div class="lane-title">Branch devs <span>2</span></div>' +
+          boardCard('Expiry controls', 'dev-links · eb37b1<br>Updated 3 minutes ago', workers[0]) +
+          boardCard(
+            'Keyboard access',
+            'dev-keyboard · 4ac112<br>' + esc(workers[1].status),
+            workers[1],
+            'question',
+          ) +
+          '</div><div class="lane"><div class="lane-title">Staging <span>1</span></div>' +
+          boardCard('Combined candidate', 'share-links + main · c42aa2', workers[0]) +
+          '<div class="message"><span class="fail">Manual browser: 5/6</span><br>Focus disappears after closing the dialog.<br><br>Merge waits for acceptance.</div></div><div class="lane"><div class="lane-title">Main / dev-main <span>1</span></div>' +
+          boardCard('Accepted change', 'main · a18ee0<br>Dev-main is up to date', null) +
+          '<small>Only the staging-tested candidate moves here.</small></div><div class="lane"><div class="lane-title">Production <span>1</span></div>' +
+          boardCard('Current release', 'artifact · 91cd42<br>Healthy · released yesterday', null) +
+          '<small>Promote the tested artifact after an explicit release decision.</small></div></div>' +
+          reports() +
+          '</section></div><div class="dock">' +
+          person(secretary, false) +
+          '<p>I’m here. Start another request or change something already in progress.</p>' +
+          composer('secretary') +
+          '</div>'
+        );
+      }
+      function render() {
+        const waiting = workers.filter((worker) => worker.status === 'Needs you').length;
+        document.querySelector('#app').innerHTML =
+          '<div class="intro"><div><div class="eyebrow">Your workspace</div><h1>' +
+          {
+            A: 'A little work, already in motion.',
+            B: 'One place to keep the conversation.',
+            C: 'Follow the work all the way through.',
+          }[variant] +
+          '</h1><p>' +
+          {
+            A: 'See who is doing what, and what actually reached an environment.',
+            B: 'Talk to the secretary or join a worker. Keep the surrounding work in view.',
+            C: 'Branches stay visible while staging protects what reaches main.',
+          }[variant] +
+          '</p></div><div class="counts"><span><strong>' +
+          (3 - waiting) +
+          '</strong>working</span><span><strong>' +
+          waiting +
+          '</strong>needs you</span><span><strong>' +
+          environments.length +
+          '</strong>environments shown</span></div></div>' +
+          { A: overview, B: conversation, C: board }[variant]() +
+          '<div class="state">SIMULATED STATE · layout ' +
+          variant +
+          ' · recipient ' +
+          esc(recipient) +
+          ' · ' +
+          workers.map((worker) => worker.id + '=' + esc(worker.name)).join(' / ') +
+          ' · ' +
+          messages.length +
+          ' demo messages · nothing persisted</div>';
+        document.querySelector('#variant-label').textContent = variant + ' · ' + titles[variant];
+      }
+      function notify(text) {
+        document.querySelector('#notice').textContent = text;
+        clearTimeout(noticeTimer);
+        noticeTimer = setTimeout(() => (document.querySelector('#notice').textContent = ''), 4200);
+      }
+      function showDetail(markup) {
+        document.querySelector('#detail-body').innerHTML = markup;
+        if (!document.querySelector('#detail').open) document.querySelector('#detail').showModal();
+      }
+      function showReport() {
+        showDetail(
+          '<div class="eyebrow">Sample evidence · staging c42aa2</div><h2>The candidate is not ready to merge.</h2><p class="muted">All figures and evidence in this prototype are fictional.</p>' +
+            [
+              ['Stateless unit tests', '48 / 48 passed', 'pass'],
+              ['API tests · isolated real database', '12 / 12 passed', 'pass'],
+              ['Playwright browser suite', '8 / 8 passed', 'pass'],
+              ['Manual cloud-browser scenarios', '5 / 6 passed', 'fail'],
+            ]
+              .map(
+                (report) =>
+                  '<div class="report-row"><strong>' +
+                  report[0] +
+                  '</strong><span class="' +
+                  report[2] +
+                  '">' +
+                  report[1] +
+                  '</span></div>',
+              )
+              .join('') +
+            '<div class="message"><strong>GWT-06 · Restore keyboard focus</strong><br>Given a share dialog opened from the link button,<br>when it is closed,<br>then focus returns to that button.<br><br><span class="fail">Observed: focus moved to the page body.</span></div><small>Source c42aa2 · staging · cloud browser sample-06 · expected and observed outcomes are both recorded.</small>',
+        );
+      }
+      function showHistory(query = '') {
+        const hits = corpus.filter((entry) =>
+          (entry.text + ' ' + entry.kind + ' ' + workerById(entry.worker).name)
+            .toLowerCase()
+            .includes(query.toLowerCase()),
+        );
+        showDetail(
+          '<div class="eyebrow">Sample corpus · includes tool text</div><h2>Session history</h2><p class="muted">' +
+            hits.length +
+            ' matches' +
+            (query ? ' for “' + esc(query) + '”' : '') +
+            '</p>' +
+            hits
+              .map(
+                (entry) =>
+                  '<article class="search-hit"><small>' +
+                  esc(workerById(entry.worker).name) +
+                  ' · ' +
+                  entry.kind +
+                  ' · ' +
+                  entry.time +
+                  '</small><p>' +
+                  esc(entry.text) +
+                  '</p></article>',
+              )
+              .join(''),
+        );
+      }
+      function switchVariant(offset) {
+        variant =
+          variants[(variants.indexOf(variant) + offset + variants.length) % variants.length];
+        const url = new URL(location.href);
+        url.searchParams.set('variant', variant);
+        window.history.replaceState({}, '', url);
+        render();
+      }
+      document.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-action]');
+        if (!button) return;
+        const action = button.dataset.action,
+          identity = button.dataset.worker;
+        if (action === 'next') switchVariant(1);
+        if (action === 'previous') switchVariant(-1);
+        if (action === 'close') document.querySelector('#detail').close();
+        if (action === 'report') showReport();
+        if (action === 'history') showHistory();
+        if (action === 'home') {
+          recipient = 'secretary';
+          render();
+        }
+        if (action === 'recipient') {
+          recipient = identity;
+          render();
+        }
+        if (action === 'chat') {
+          const worker = workerById(identity);
+          showDetail(
+            person(worker) +
+              '<h2 style="margin-top:20px">' +
+              worker.work +
+              '</h2><div class="message">' +
+              worker.event +
+              ' ' +
+              worker.note +
+              '</div>' +
+              messageList(identity) +
+              composer(identity) +
+              '<p class="tiny">Simulated messages. Relevant changes are mirrored to the secretary.</p>',
+          );
+        }
+        if (action === 'rename') {
+          const worker = workerById(identity);
+          showDetail(
+            '<h2>Rename ' +
+              esc(worker.name) +
+              '</h2><p class="muted">The worker keeps its identity, assignments and history.</p><form id="rename-form" data-worker="' +
+              identity +
+              '"><label for="worker-name">Display name</label><input id="worker-name" name="name" value="' +
+              esc(worker.name) +
+              '" required maxlength="28"><button class="send">Save name</button></form>',
+          );
+        }
+        if (action === 'environment') {
+          const environment = environments.find(
+            (entry) => entry.name === button.dataset.environment,
+          );
+          showDetail(
+            '<div class="eyebrow">Simulated environment</div><h2>' +
+              environment.name +
+              '</h2><div class="status ' +
+              environment.tone +
+              '">' +
+              environment.status +
+              '</div><p style="margin:20px 0">' +
+              environment.description +
+              '</p><div class="message">Source: ' +
+              environment.branch +
+              '<br>Serving revision: ' +
+              environment.revision +
+              '</div><button data-action="report">Inspect sample reports</button>',
+          );
+        }
+        if (action === 'question')
+          showDetail(
+            '<div class="eyebrow">' +
+              esc(workers[1].name) +
+              ' · keyboard work</div><h2>Keep the current shortcut?</h2><p>The proposed shortcut conflicts with an existing action. I recommend keeping the current shortcut and choosing another for this feature.</p><div class="chips" style="margin-top:22px"><button data-action="answer">Keep the current shortcut</button><button data-action="chat" data-worker="w2">Discuss with ' +
+              esc(workers[1].name) +
+              '</button></div>',
+          );
+        if (action === 'answer') {
+          workers[1].status = 'Working';
+          workers[1].event = 'Your preference is recorded; trying another shortcut.';
+          workers[1].note = 'The secretary has the same update.';
+          document.querySelector('#detail').close();
+          render();
+          notify('Demo choice shared with ' + workers[1].name + ' and the secretary.');
+        }
+      });
+      document.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const form = event.target;
+        if (form.id === 'rename-form') {
+          const name = form.elements.name.value.trim();
+          if (!name) return;
+          workerById(form.dataset.worker).name = name;
+          document.querySelector('#detail').close();
+          render();
+          notify('Name changed. Identity and history retained in this demo.');
+          return;
+        }
+        if (form.matches('.composer')) {
+          const text = form.querySelector('textarea').value.trim();
+          if (!text) return;
+          const identity = form.dataset.recipient;
+          messages.push({ recipient: identity, text });
+          if (identity !== 'secretary')
+            messages.push({
+              recipient: 'secretary',
+              text: 'Sent to ' + workerById(identity).name + ': ' + text,
+            });
+          if (document.querySelector('#detail').open) document.querySelector('#detail').close();
+          render();
+          notify('Demo message recorded. No agent or external service was contacted.');
+        }
+      });
+      document.querySelector('#search').addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          showHistory(event.target.value);
+        }
+      });
+      document.addEventListener('keydown', (event) => {
+        if (
+          event.target.closest('input,textarea,[contenteditable]') ||
+          document.querySelector('#detail').open
+        )
+          return;
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          event.preventDefault();
+          switchVariant(event.key === 'ArrowRight' ? 1 : -1);
+        }
+      });
+      render();
+    </script>
+  </body>
+</html>
