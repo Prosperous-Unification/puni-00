@@ -13,7 +13,7 @@ import { effectiveTagsOf } from '@wbs/domain/effective-tag';
 import { effectiveTeamsOf } from '@wbs/domain/effective-team';
 import { assignedOutsideTeam, builtByNonOwner } from '@wbs/domain/label-mismatch';
 import { priorityBandOf } from '@wbs/domain/priority-band';
-import { deadlineOffsetOf, isIsoDate, workdaysBetween } from '@wbs/domain/workday';
+import { workdaysBetween } from '@wbs/domain/workday';
 import {
   type ComponentProps,
   type CSSProperties,
@@ -73,6 +73,7 @@ import {
   pickerOptionId,
 } from './creatable-picker';
 import { DateField } from './date-field';
+import { DEADLINE_BEFORE_START, deadlineBeforeProjectStart } from './deadline-impossible';
 import { createDepLights, type DepLights } from './dep-light-store';
 import { pickerEntries, REFUSAL_SUFFIX } from './dep-picker';
 import { DependsCard, dependsLine, entersThroughDependsCard } from './depends-card';
@@ -1999,62 +2000,16 @@ const showDay = (days: number): string => String(Math.round(days * 10) / 10);
 const notBeforeOffsetOf = (startDate: string | null, notBefore: string | null): number | null =>
   startDate === null || notBefore === null ? null : workdaysBetween(startDate, notBefore);
 
-/**
- * What the Work item deadline cell says about a date the project has moved past.
- *
- * **"Before the project's first working day", not "before the project starts".**
- * The two differ, and the difference is visible on screen: a project starting
- * Saturday 2026-08-08 with a deadline of that same Saturday is impossible —
- * day zero rolls forward to Monday the 10th and the deadline rolls back to
- * Friday the 7th — while the two dates the reader can see are *equal*. A
- * project starting Saturday the 8th with a deadline of Sunday the 9th is
- * impossible with the start *earlier* than the deadline. Either sentence about
- * raw calendar order would be a cell contradicting itself. Round 1's OpenAI
- * seat, Important 1.
- *
- * The wording is exactly true whenever the predicate fires: the first working
- * day is a workday at or after the project start, and if the deadline were on
- * or after it then the last workday on-or-before the deadline would be too, so
- * the predicate would not have fired.
- */
-const DEADLINE_BEFORE_START =
-  "This work item deadline falls before the project's first working day, so nothing can finish by it. The date is kept; move the work item deadline or the project start.";
-
-/**
- * Whether a stored deadline resolves before the project's day zero — the
- * `work-item-deadline` §2.3 case where somebody moved the project start past a
- * date that was legal when it was typed.
- *
- * **Not a second opinion about lateness.** `Late by N workdays` is be-01's
- * number and slice 9.2's doctrine is that the view never recomputes it. This is
- * a different predicate — *whether* a date falls before day zero, not *how far*
- * a plan misses it — and it is answered by calling the one function be-01's own
- * write boundary calls (`work-item.service.ts`'s `deadline_before_project_start`
- * refusal), so the two sides share an implementation rather than holding two
- * opinions.
- *
- * Three modelled absences, all false and none of them a warning:
- *
- * - **No deadline.** Nothing to be impossible.
- * - **No project start date.** With no day zero there is nothing for a date to
- *   fall before, which is the reasoning be-01 applies to the same state; the
- *   cell is already rendered disabled there and a disabled cell wearing a
- *   warning would be claiming to know something it cannot.
- * - **Either value is not a calendar date.** {@link deadlineOffsetOf} throws on
- *   one, and a render is not the moment to take the table down over a byte the
- *   server sent.
- */
+// The predicate and the sentence this cell reads §2.3 with now live in
+// `deadline-impossible.ts`, because the plan export and the mobile card ask the
+// same question (TASK-291) and a copy per face is a chance to answer it
+// differently. The docstrings moved with them rather than being left here as a
+// second account.
 /**
  * The width the impossible mark is given inside the deadline cell, and the
  * padding the date reserves for it. One number so the two cannot drift.
  */
 const DEADLINE_MARK_PX = 10;
-
-const deadlineBeforeProjectStart = (startDate: string | null, deadline: string | null): boolean => {
-  if (startDate === null || deadline === null) return false;
-  if (!isIsoDate(startDate) || !isIsoDate(deadline)) return false;
-  return deadlineOffsetOf(startDate, deadline).kind === 'before-project-start';
-};
 
 /**
  * What a control that is unavailable **because a save is in flight** looks
@@ -12165,12 +12120,13 @@ export function WbsTable({
           createTeam={(row, name, currentTeamIds) => {
             return createTeamFor(row.id, name, currentTeamIds);
           }}
-          // The `not-before` cell's own question and its own writer, handed to
-          // the face that had neither. `hasCalendar` is the cell's `noCalendar`
-          // read the positive way round: without a project start date be-01
-          // ignores the constraint, so both faces refuse rather than taking a
-          // date that would do nothing.
-          hasCalendar={startDate !== null}
+          // The `not-before` and `deadline` cells' own question, handed to the
+          // face that had neither. The **date** and not the boolean it used to
+          // be (TASK-291): the cards' `noCalendar` refusal only needs to know
+          // whether there is one, but `deadlineBeforeProjectStart` needs the day
+          // itself, and a boolean beside the value it came from is two facts
+          // about one thing that can disagree.
+          projectStart={startDate}
           // Both boxes in one call, which is what the third argument is for —
           // `setNotBefore` is the table's own writer widened, not a card-shaped
           // copy, so a date set on a phone reaches be-01 by the path a date set
@@ -12178,6 +12134,13 @@ export function WbsTable({
           // transaction is answered by one request.
           setNotBefore={(row, day, reason) => {
             setNotBefore(row.id, day, reason);
+          }}
+          // The Due cell's own writer, handed to the face that had none, and
+          // one field wide: `setDeadline` names `deadline` alone because slice
+          // 1.1 gave the deadline no reason column, and the pair above is the
+          // shape it must not be copied into.
+          setDeadline={(row, day) => {
+            setDeadline(row.id, day);
           }}
           // The Prio cell's own writer, handed to the face that had none — and
           // the string, not a parsed number, because `setPriority` is where
