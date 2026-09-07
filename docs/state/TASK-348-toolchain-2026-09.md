@@ -46,11 +46,11 @@ Vite 8.3 beta, Prettier 4 alpha.
 
 Read from the runs rather than the PR body's prose:
 
-| Run | Head | Result |
-|---|---|---|
-| [34139811510](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/34139811510) | `34d54c81` (current) | **in_progress** at the time of this dump |
-| 34134942049 | `683d9f37` | **failure** — `gate`, at the *Solver image smoke* step |
-| 34124024468 | `88d4eaff` | success |
+| Run                                                                                           | Head                 | Result                                                 |
+| --------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------ |
+| [34139811510](https://github.com/Prosperous-Unification/wbs-tool-v1/actions/runs/34139811510) | `34d54c81` (current) | **in_progress** at the time of this dump               |
+| 34134942049                                                                                   | `683d9f37`           | **failure** — `gate`, at the _Solver image smoke_ step |
+| 34124024468                                                                                   | `88d4eaff`           | success                                                |
 
 The failure at `683d9f37` is `NX Running target solver-image-smoke for project
 be-01 failed`. The run at the current head was started by the `origin/main`
