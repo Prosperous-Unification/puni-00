@@ -8,9 +8,9 @@ Type: prototype
 
 Mode: HITL
 
-Status: open
+Status: claimed
 
-Assignee: unassigned
+Assignee: Dany
 
 Blocked by: 01, 02
 
@@ -36,3 +36,33 @@ prototype answers an interaction question; it is not the production interface.
 Sources: [assistant vocabulary](../../../docs/assistant/CONTEXT.md),
 [parked memory idea](../../../docs/assistant/ideas.md),
 [existing product surfaces](../../../docs/twilight-structure/product-experience.md#surfaces).
+
+## Comments
+
+2026-09-08 — Three interactive, simulated layouts are ready for Dany's review:
+
+- A: work overview, with a persistent secretary panel beside workers,
+  environments and evidence. Recommended starting layout.
+- B: conversation first, with a worker roster and contextual work/environment rail.
+- C: delivery board, with work placed across branch dev, staging, main and
+  production, plus an available secretary composer.
+
+Open the [local preview](http://127.0.0.1:4387/prototype/work-view?variant=A).
+The bottom switcher or left/right arrows selects a variant. The preview permits
+renaming, direct demo messages, a secretary copy, sample session/tool-text search,
+test reports and a sample intervention. All content is fictional and in memory.
+
+Primary source: branch `prototype/twilight-work-view`, commit `abb0cfd9`, in
+`/tmp/puni-twilight-work-view`. The
+[prototype guide](/tmp/puni-twilight-work-view/docs/assistant/work-view-prototype.md)
+links screenshots and records verification. To restart the loopback preview:
+
+    bun /tmp/puni-twilight-work-view/docs/assistant/work-view-prototype.mjs
+
+Local Chromium checks passed for all layouts at desktop and mobile widths, plus
+rename, direct message/secretary copy, tool-text search, report and navigation
+interactions. Server lint, formatting and pre-commit checks passed. No live agent,
+cloud-browser acceptance, application build or deployment was exercised.
+
+Dany has been asked which layout should be the default. This ticket remains
+claimed pending that feedback; no UI choice or production implementation is implied.
