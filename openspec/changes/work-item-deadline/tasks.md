@@ -591,11 +591,15 @@ contractVersion, inputHash)`. That draft had quoted the requirement's
       an `ok` row that is deliberately not a schedule is indistinguishable from
       a decoder fault at the one point they must be told apart. Test both
       resolutions side by side.
-- [ ] 8.7d Retry refuses it. The endpoint accepts `failed` or `corrupt` and
+- [x] 8.7d Retry refuses it. The endpoint accepts `failed` or `corrupt` and
       returns `409 not-retryable` naming the state for everything else;
       `plan-infeasible` takes that path. The UI hiding the affordance is not
       sufficient — the route is reachable without the UI, which is exactly the
       hole the `corrupt`-promised-a-Retry Critical named.
+      **Closed across the two seams it actually has** — see
+      "## 8.7d and 9.3, closed" below. The refusal itself shipped with 8.7; what
+      was owed was the proof that it survives the wire, and that lives at the
+      route, not in the coordinator.
 - [x] 8.8 Revalidator clause `lastWorkdayOf(start, finish) <=
 effectiveDeadlineOffset`, evaluated on the materialised schedule in the
       **real fractional domain**, not in quantised units. A violation is
@@ -628,9 +632,15 @@ order`, with their tests. A repository assertion that no unqualified
       and date-only, using the existing date-cell affordances.
 - [x] 9.2 The `Late by N workdays` label per missed slice, reading the number
       computed in 5.2 rather than recomputing it in the view.
-- [ ] 9.3 `Plan infeasible · N work item deadlines` with the offending items
+- [x] 9.3 `Plan infeasible · N work item deadlines` with the offending items
       listed on demand, Fast still on screen and usable, **no toast and no
       modal**, and **no Retry affordance**.
+      **The banner and the disclosure shipped with 8.7b; the two clauses about
+      what is _absent_ did not**, and they are the ones this item is for — see
+      "## 8.7d and 9.3, closed" below. The rendered string is
+      `Work item deadline`, singular-aware, not the item's lower-case
+      shorthand: 8.9's scan requires the qualifier and
+      `optimization-indicator.test.tsx` pins the exact sentence.
 - [x] 9.4 A work item whose deadline resolves `before-project-start` at read time
       shows its Work item deadline with the existing "impossible" affordance and
       is not silently dropped.
@@ -1112,3 +1122,101 @@ plugin** and reports clean, while `bunx nx format:check --all` in CI has the
 plugin and fails. It also reordered `select-none` in four `className` strings
 this change never touched. Symlink `node_modules` into the worktree before
 formatting; that also brings `lefthook` back onto `PATH`.
+
+## 8.7d and 9.3, closed
+
+Both items describe things that must **not** happen — a Retry that is refused,
+an affordance that is absent — and both had shipped the behaviour already. What
+was missing in each case was the assertion, and in each case it was missing at
+a different layer than the one the behaviour lives in. That is the whole
+content of this pair.
+
+**8.7d had a coordinator proof and no route proof.**
+`optimization-coordinator.db.test.ts`'s `names an unlaunchable $state variant
+not-retryable` already drives a real `plan-infeasible` row through
+`coordinator.retry` and asserts the first half of the scenario's THEN: the
+decision is `{ kind: 'not-retryable', state: 'plan-infeasible' }`.
+
+**Its second half was not sound and is fixed here (Sol r7 Critical 1).** That
+case asserted an empty `solver_slot` table and the closure draft read that as
+"no process starts" — but `spawn` runs **before** `bindSolverSlot`, so a
+regression that starts a child and then fails to bind leaves the table empty
+and the process real. The case now passes the spawn recorder it was
+discarding with `coordinator(db, [])` and asserts `calls` is empty as well.
+Two assertions because there are two facts: the recorder is about the process,
+the table is about the reservation. But the scenario says
+`POST /api/projects/:projectId/optimization/retry` **is called for it
+directly**, and the route is where a state name can be lost: `project.routes.ts`
+maps `not-retryable` to `409 { code, state: outcome.state }`, and until now the
+only `not-retryable` case in `project.controller.test.ts` was `ready`. A route
+that collapsed every refusal onto one state, or onto `idle`'s hardcoded
+no-optimizer answer directly above it, passed that suite. It now carries the
+`plan-infeasible` case, and `asks` is 5 rather than 4 — the route still asks
+the coordinator for this state rather than short-circuiting it.
+
+The two halves join at the type, not at a shared fixture: the stub's decision
+is an `OptimizationRetryResult`, whose `not-retryable` member types `state` as
+`OptimizationVariantState['state']`, so the case compiles only while
+`plan-infeasible` is a member of the union 8.7b enumerates in five places. A
+sixth site would not silently drop out of the route.
+
+**9.3's absences were asserted by a string, which is not the same thing.**
+The plan-infeasible case already asserted
+`queryByText(/Optimization unavailable/)` is null — but that string is the
+_entire_ failed banner, so a Retry offered under any other wording (a bare
+button, a link, a second sentence) passed it. The negative is now on the
+affordance: `queryByText(/retry/i)` and
+`queryByRole('button', { name: /retry/i })`, both after the `<details>` is
+opened, because a closed disclosure hides its subtree from the accessibility
+tree and would have made a Retry inside it invisible to both queries. This is
+the UI mirror of 8.7d: re-solving an unchanged input returns the same proof, so
+a control here would promise a recovery the route answers `409` to.
+
+**"Fast still on screen and usable" cannot be proved where the banner is
+tested.** `optimization-indicator.test.tsx` renders the indicator alone; there
+is nothing else on screen to lose, so the clause is vacuously true there. It is
+asserted instead in `optimization-integration.test.tsx`, which renders the
+whole `WbsTable` over `fakeProjectApi` with a seeded row, a project start date
+and an infeasible `pri` variant.
+
+**Both of that case's halves were first written too weak, and it took two Sol
+rounds to get each one honest.** _On screen_ was the row list, which an
+infeasible plan would keep even if Fast vanished. The first fix — the
+`Gantt chart` region — was no better and r7b said so: that `aria-label` sits on
+the section **unconditionally**, and the "nothing can be drawn" branch carries
+it too, so finding the region proves a shell. The assertion is a drawn
+**`[data-gantt-bar]`**, which is a Fast placement. It needs both a project
+start date and a cost on the row: no day zero is no coordinate system, and the
+chart filters every unestimated slice out at rest, so either omission would
+have put the clause back against an empty chart. Opening the chart through its
+own control is kept, so an affordance that stopped working fails here too.
+
+_Usable_ read the name input's own value back after a `change` — but
+`CellInput` is uncontrolled through `defaultValue`, so that asserts jsdom and
+not the table; the write starts on **blur** and lands in `api.patchWorkItem`.
+The case blurs and waits for `patchWorkItem(row.id, { name: 'Launch v2' })`.
+**It does not assert a reread, and the first draft's claim that it did was
+wrong** (r7b): the spy records the call as `run` enters `await action()`, while
+the refresh happens after, so a `waitFor` on the spy can pass before any reread
+lands — and the cell would read `Launch v2` either way, because
+`fireEvent.change` put it there. What is asserted instead is the fake's own
+row: the model behind the API says the write landed.
+
+`dialog`, `alert` and any Retry button are absent from the **document** rather
+than from one component's markup. The no-toast negative is
+`[data-toast]`, **not** `queryByRole('alert')` (Sol r7 Critical 3):
+`ToastStack` gives the alert role to error toasts only, deliberately, so an
+info toast is a toast an alert query cannot see and 9.3's clause is absolute.
+The alert query stays anyway, doing separate double duty — it is also the
+stale-tree banner, so its absence says the rows on screen are the current ones
+and not a copy the reader was warned about.
+
+**Neither ran on h2puni.** The host is still at 100% inodes (`df -i /`:
+`9849520 / 9849520`, `IFree 0`), so CI is the gate, with
+`prettier --check`, `eslint` and `tsc --noEmit` run from inside the worktree —
+`node_modules` symlinked first, per the formatter trap recorded above — as the
+pre-push check. The pre-existing `tsc -p apps/be-01/tsconfig.spec.json`
+failures in `saved-plan-integrity.test.ts`, `solver-launcher-process.ts` and
+`solver-supervisor-client.ts` are a local `@types/node`/`bun-types`
+`ArrayBufferLike` mismatch in this checkout, are untouched by this change, and
+are not reproduced by CI's own typecheck target.
