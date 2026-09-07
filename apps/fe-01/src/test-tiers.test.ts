@@ -144,3 +144,21 @@ describe('fe-01’s test tiers', () => {
     }
   });
 });
+
+/** The lint inputs are explicit paths, so each new root source needs an entry. */
+describe('fe-01 lint inputs', () => {
+  it.each(['lint', 'lint:fast'])('includes every root TypeScript source in %s', (target) => {
+    // Proof: leaving vitest.zoned.config.ts out of both production commands
+    // failed these cases on expected ['apps/fe-01/vitest.zoned.config.ts']
+    // to deeply equal [], before either input list was repaired.
+    const project = JSON.parse(readFileSync(join(APP, 'project.json'), 'utf8')) as {
+      targets: Record<string, { options: { command: string } }>;
+    };
+    const inputs = new Set(project.targets[target].options.command.split(/\s+/));
+    const missing = readdirSync(APP, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && /\.tsx?$/.test(entry.name))
+      .map((entry) => `apps/fe-01/${entry.name}`)
+      .filter((path) => !inputs.has(path));
+    expect(missing).toEqual([]);
+  });
+});

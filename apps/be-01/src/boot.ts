@@ -1,7 +1,7 @@
 import type { Logger } from '@wbs/observability';
 
 import { buildApp } from './app';
-import type { OidcRouteOptions } from './controller/auth.routes';
+import type { OidcRouteOptions } from './controller/oidc-options';
 import { readDeployedCommit } from './deployed-commit';
 import { drizzleOuterTransaction, openConnection } from './repository/db';
 import { probeSchema } from './repository/health-probe';
@@ -15,6 +15,7 @@ import { WriteLock } from './service/write-lock';
 import { type BeServices, buildServices, type OptimizerRuntime } from './services';
 
 export interface BootOptions {
+  appOrigin: string;
   dbPath: string;
   port: number;
   logger: Logger;
@@ -79,6 +80,7 @@ export function bootBe01(opts: BootOptions): RunningBe {
     jwtKey: opts.jwtKey,
     gwUrl: opts.gwUrl,
     internalAuthSecret: opts.internalAuthSecret,
+    pushFetch: globalThis.fetch,
     oidc:
       opts.oidc === undefined
         ? undefined
@@ -94,6 +96,7 @@ export function bootBe01(opts: BootOptions): RunningBe {
 
   const state = { migrationsApplied: false };
   const app = buildApp({
+    appOrigin: opts.appOrigin,
     get migrationsApplied() {
       return state.migrationsApplied;
     },

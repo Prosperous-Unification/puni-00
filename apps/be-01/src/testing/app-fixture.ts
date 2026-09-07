@@ -16,12 +16,8 @@ import { testWrites } from './writes-fixture';
  * An app on the thirteen test doubles, for the callers that want the routes
  * and none of the behaviour behind them.
  *
- * This exists because two of those callers must agree **exactly**:
- * `emit-openapi-cli.ts` writes the committed OpenAPI document and
- * `openapi-document.test.ts` compares the routes against it, so a double
- * passed to one and not the other is a document that fails its own freshness
- * check for a reason neither file states. They held byte-identical
- * thirteen-line literals until 2026-09-02.
+ * Shared fixture for route composition and generated-document publication tests.
+ * The document CLI consumes shared descriptors directly and needs no app fixture.
  *
  * Route registration touches no service, which is what makes the doubles
  * honest here rather than a shortcut: a real service would mean a database
@@ -33,6 +29,7 @@ import { testWrites } from './writes-fixture';
  */
 export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof buildApp> {
   return buildApp({
+    appOrigin: 'http://localhost',
     auth: testAuthService(),
     projects: testProjectService(),
     workItems: testWorkItemService(),

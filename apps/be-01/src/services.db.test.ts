@@ -2,15 +2,19 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { scheduleInputHash } from '@wbs/domain/canonical-schedule-input';
 import { createLogger } from '@wbs/observability';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { openDrizzle } from './repository/db';
 import { DrizzleEventLogRepo } from './repository/event-log';
 import { runMigrations } from './repository/migrate';
+import { allocateGeneration } from './repository/optimization-generation';
 import { ProjectRepository } from './repository/project';
+import { optimizedScheduleCache } from './repository/schema';
 import { UserRepository } from './repository/user';
 import type { ReservedSpawner, ReservedSpawnRequest } from './service/optimization-coordinator';
+import { readRuntimeSolverVersion } from './service/solver-launcher-process';
 import { WriteLock } from './service/write-lock';
 import { buildServices } from './services';
 import { projectRow } from './testing/project-fixture';
@@ -28,6 +32,7 @@ function bootstrap(optimizer?: {
   budgetMs: number;
   spawn: ReservedSpawner;
 }) {
+  const pushUrls: string[] = [];
   const dir = mkdtempSync(join(tmpdir(), 'wbs-services-'));
   dirs.push(dir);
   const path = join(dir, 'test.db');
@@ -40,9 +45,16 @@ function bootstrap(optimizer?: {
     jwtKey: 'k'.repeat(32),
     gwUrl: 'http://gw.invalid',
     internalAuthSecret: 's'.repeat(32),
+    // Proof: replacing this stub with `globalThis.fetch` made the two wiring
+    // cases below time out after 5000ms in the parallel workspace gate while
+    // `PushClient` retried the deliberately unreachable gateway.
+    pushFetch: (url) => {
+      pushUrls.push(url);
+      return Promise.resolve(Response.json({ delivered_to_sockets: 0 }));
+    },
     optimizer,
   });
-  return { db, services };
+  return { db, services, pushUrls };
 }
 
 async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
@@ -80,16 +92,17 @@ describe('buildServices', () => {
     //
     // Proof: `buffer: replayBuffer` in `services.ts` replaced with a freshly
     // constructed `new ReplayBuffer(...)` and only this test failed.
-    const { db, services } = bootstrap();
+    const { db, services, pushUrls } = bootstrap();
     const { projectId, ownerId } = await seedProject(db);
 
-    // The push has nowhere to go — `gw.invalid` — which is deliberate: the
-    // buffer must be filled by the recording, not by a successful delivery.
+    // Delivery is accepted by the injected transport; the assertion below
+    // proves recording fills the shared buffer independently of gateway I/O.
     await services.workItems.create(projectId, ownerId, {
       parentId: null,
       afterId: null,
       name: 'Strip',
     });
+    expect(pushUrls).toEqual(['http://gw.invalid/internal/push']);
 
     const subscription = `project:${projectId}`;
     const fromBuffer = await services.replay.replay({ [subscription]: -1 });
@@ -312,7 +325,7 @@ describe('buildServices', () => {
     // launch arrives here.
     const spawned: ReservedSpawnRequest[] = [];
     const { db, services } = bootstrap({
-      solverVersion: '0.1.0',
+      solverVersion: '0.1.1',
       budgetMs: 60_000,
       spawn: (request) => {
         spawned.push(request);
@@ -356,13 +369,85 @@ describe('buildServices', () => {
         request.request.budgetMs,
       ]),
     ).toEqual([
-      // Not an opaque cache key like the `CONTRACT` constants elsewhere in this
-      // app's tests: this is the value the real composition emits through
-      // `contractVersionOf` in `services.ts`, so it moves with
-      // `SCHEDULER_CONTRACT_VERSION` and is spelled out rather than imported to
-      // keep the assertion independent of the constant it is checking.
-      ['0.1.0', '8+0.1.0', 60_000],
-      ['0.1.0', '8+0.1.0', 60_000],
+      // The current solver release composes with the current scheduler contract.
+      ['0.1.1', '8+0.1.1', 60_000],
+      ['0.1.1', '8+0.1.1', 60_000],
     ]);
+  });
+
+  it('starts current solves instead of reading a pre-fix failed pair', async () => {
+    const legacyContract = '7+0.1.0';
+    const currentSolver = readRuntimeSolverVersion('development');
+    const spawned: ReservedSpawnRequest[] = [];
+    const { db, services } = bootstrap({
+      solverVersion: currentSolver,
+      budgetMs: 60_000,
+      spawn: (request) => {
+        spawned.push(request);
+        const empty = () =>
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.close();
+            },
+          });
+        return Promise.resolve({
+          pid: 20_000 + spawned.length,
+          stdout: empty(),
+          stderr: empty(),
+          exited: Promise.resolve(1),
+          verdict: () => undefined,
+          kill: () => undefined,
+        });
+      },
+    });
+    const { projectId, ownerId } = await seedProject(db);
+    await services.workItems.create(projectId, ownerId, {
+      parentId: null,
+      afterId: null,
+      name: 'Rewire',
+    });
+    const input = await services.workItems.scheduleInput(projectId);
+    if (input === null) throw new Error('seeded project has no schedule input');
+    const inputHash = scheduleInputHash(input);
+    const generation = allocateGeneration(db, projectId, legacyContract, inputHash, 1);
+    db.insert(optimizedScheduleCache)
+      .values(
+        (['pri', 'time'] as const).map((objective) => ({
+          projectId,
+          inputHash,
+          objective,
+          contractVersion: legacyContract,
+          budgetMs: 60_000,
+          generation,
+          status: 'failed' as const,
+          resultJson: null,
+          failureReason: 'internal-error' as const,
+          createdAt: 1,
+        })),
+      )
+      .run();
+
+    expect(
+      await services.projects.update(projectId, ownerId, {
+        optimizationEnabled: true,
+        scheduleEngine: 'fast',
+      }),
+    ).toHaveProperty('ok', true);
+    await services.workItems.tree(projectId);
+    await services.optimizer?.drain();
+
+    expect(currentSolver).toBe('0.1.1');
+    // Proof: hard-coding `services.ts`'s coordinator key to `7+0.1.0` read the
+    // seeded failed pair and failed here with `Expected ["pri", "time"] /
+    // Received []`; watched 2026-09-07.
+    expect(spawned.map(({ objective }) => objective)).toEqual(['pri', 'time']);
+    expect(spawned.map(({ key }) => key.contractVersion)).toEqual(['8+0.1.1', '8+0.1.1']);
+    expect(
+      db
+        .select({ contractVersion: optimizedScheduleCache.contractVersion })
+        .from(optimizedScheduleCache)
+        .all()
+        .filter(({ contractVersion }) => contractVersion === legacyContract),
+    ).toHaveLength(2);
   });
 });

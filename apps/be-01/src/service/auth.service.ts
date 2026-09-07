@@ -5,7 +5,7 @@ import {
   type TokenVerifier,
   type WbsScope,
 } from '@wbs/auth';
-import { jwtVerify, SignJWT } from 'jose';
+import { errors, type JWTPayload, jwtVerify, SignJWT } from 'jose';
 
 import type { OidcIdentityStore, User, UserStore } from '../repository';
 import { type Clock, clockOf } from './clock';
@@ -93,53 +93,64 @@ export class AuthService {
     return { ok: true, value: await this.issue(created) };
   }
 
+  /** Invalid credentials return a refusal; unexpected store/verifier failures propagate. */
   async login(username: string, password: string): Promise<LoginOutcome> {
     const user = await this.opts.users.findByUsername(username);
     const passwordHash = user?.passwordHash ?? null;
     const hasUsableCredential = passwordHash !== null && password.length <= MAX_PASSWORD;
     const hash = hasUsableCredential ? passwordHash : DUMMY_HASH;
-    const matches = await this.verifyPassword(password.slice(0, MAX_PASSWORD), hash).catch(
-      () => false,
-    );
+    // Proof: restoring catch(() => false) makes "releases capacity after error" answer 401, not 500.
+    const matches = await this.verifyPassword(password.slice(0, MAX_PASSWORD), hash);
     if (!matches || user === null || passwordHash === null || password.length > MAX_PASSWORD) {
       return { ok: false, reason: 'invalid' };
     }
     return { ok: true, value: await this.issue(user) };
   }
 
-  /** Verifies a bearer token and resolves the user it names. */
+  /**
+   * Verifies credentials, then resolves their account outside the credential catch.
+   * Unexpected verifier and account-store failures propagate to the server boundary.
+   *
+   * Proof: restoring the broad catches makes the mounted password lookup and OIDC
+   * resolution failure tests receive 401 instead of the expected 500 (R3).
+   */
   async authenticate(token: string | null): Promise<AuthenticatedUser | null> {
     if (this.opts.localIdentity !== undefined) return this.opts.localIdentity;
     if (token === null) return null;
     if (this.opts.oidc !== undefined) {
+      let identity: OidcIdentity | undefined;
       try {
-        const identity = oidcIdentityFromClaims(
+        identity = oidcIdentityFromClaims(
           await this.opts.oidc.verifier.verify(token),
           this.opts.oidc,
         );
+      } catch (cause) {
+        // Proof: removing this rethrow makes the mounted unexpected-verifier
+        // regression receive 401 rather than 500. The real boot outage cases also
+        // receive 401 (password login off) and 200 (on), rather than 500.
+        if (!isInvalidCredential(cause)) throw cause;
+        if (this.opts.passwordSessions !== true) return null;
+      }
+      if (identity !== undefined) {
         const user = await this.resolveOidcIdentity(identity);
         if (user === null) return null;
         return { id: user.id, username: user.username, scopes: identity.scopes };
-      } catch {
-        if (this.opts.passwordSessions !== true) return null;
       }
     }
 
+    let payload: JWTPayload;
     try {
-      const { payload } = await jwtVerify(token, this.key);
-      const sub = payload.sub;
-      if (typeof sub !== 'string') return null;
-      const user = await this.opts.users.findById(sub);
-      // A token whose subject has been deleted must not authenticate: the
-      // signature is still valid, so only the lookup can reject it.
-      if (user === null) return null;
-      return { id: user.id, username: user.username, scopes: ['read', 'write', 'editor'] };
-    } catch {
-      // A browser OIDC access token is RS256 and intentionally cannot pass the
-      // legacy HS256 verifier. Fall through only when OIDC is configured.
+      ({ payload } = await jwtVerify(token, this.key));
+    } catch (cause) {
+      if (!isInvalidCredential(cause)) throw cause;
+      return null;
     }
-
-    return null;
+    const sub = payload.sub;
+    if (typeof sub !== 'string') return null;
+    const user = await this.opts.users.findById(sub);
+    // A valid signature cannot keep a deleted account authenticated.
+    if (user === null) return null;
+    return { id: user.id, username: user.username, scopes: ['read', 'write', 'editor'] };
   }
 
   /**
@@ -180,3 +191,16 @@ export class AuthService {
  */
 const DUMMY_HASH =
   '$argon2id$v=19$m=65536,t=2,p=1$YWJjZGVmZ2hpamtsbW5vcA$0RTS8ZC+9Bfl7Bx4rvGIYYqEs0mfOB5+3H4mPa0BvXk';
+
+/** Credential failures only; malformed JWKS, discovery and network faults propagate. */
+function isInvalidCredential(cause: unknown): boolean {
+  return (
+    cause instanceof errors.JWTClaimValidationFailed ||
+    cause instanceof errors.JWTExpired ||
+    cause instanceof errors.JWTInvalid ||
+    cause instanceof errors.JWSInvalid ||
+    cause instanceof errors.JWSSignatureVerificationFailed ||
+    cause instanceof errors.JOSEAlgNotAllowed ||
+    cause instanceof errors.JWKSNoMatchingKey
+  );
+}

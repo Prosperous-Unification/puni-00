@@ -2,7 +2,7 @@ import { createLogger } from '@wbs/observability';
 
 import { bootBe01 } from './boot';
 import { loadConfig } from './config';
-import { oidcRouteOptionsFromEnv } from './controller/auth.routes';
+import { oidcRouteOptionsFromEnv } from './controller/oidc-options';
 import { readRuntimeSolverVersion } from './service/solver-launcher-process';
 import { solverSupervisorSpawner } from './service/solver-supervisor-spawner';
 
@@ -25,6 +25,7 @@ try {
     throw new Error('HOSTNAME is required for solver supervisor authentication');
   }
   running = bootBe01({
+    appOrigin: cfg.appOrigin,
     dbPath: cfg.DB_PATH,
     port: cfg.PORT,
     logger,

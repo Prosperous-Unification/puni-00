@@ -5,9 +5,10 @@ import { join } from 'node:path';
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import { createLogger } from '@wbs/observability';
 import { afterEach, describe, expect, it } from 'bun:test';
+import { errors } from 'jose';
 
 import { bootBe01, type RunningBe } from './boot';
-import type { OidcRouteOptions } from './controller/auth.routes';
+import type { OidcRouteOptions } from './controller/oidc-options';
 import { openDatabase, openDrizzle } from './repository/db';
 import { runMigrations } from './repository/migrate';
 import { allocateGeneration, readGeneration } from './repository/optimization-generation';
@@ -61,6 +62,7 @@ function boot(
   const dbPath = join(dir, 'test.db');
   runMigrations(dbPath, FOLDER);
   running = bootBe01({
+    appOrigin: oidc?.appOrigin ?? 'http://localhost',
     dbPath,
     port: 0,
     logger: createLogger({ service: 'be-01' }),
@@ -86,7 +88,7 @@ function oidcOptions(passwordLoginEnabled: boolean): OidcRouteOptions {
     tokens: new InMemoryTokenStore(),
     groupPrefix: 'dev',
     groupsClaim: 'wbs_groups',
-    verifier: { verify: () => Promise.reject(new Error('not an OIDC token')) },
+    verifier: { verify: () => Promise.reject(new errors.JOSEAlgNotAllowed('not an OIDC token')) },
     client: {
       authorizationUrl: () => Promise.resolve(new URL('https://idp.test/authorize')),
       exchange: () => Promise.resolve({ accessToken: 'a', expiresIn: 60 }),
@@ -129,6 +131,7 @@ describe('bootBe01', () => {
     }
 
     running = bootBe01({
+      appOrigin: 'http://localhost',
       dbPath,
       port: 0,
       logger: createLogger({ service: 'be-01' }),
@@ -163,6 +166,7 @@ describe('bootBe01', () => {
     // though this boot was given a runnable optimizer.
     const dir = tempDir('wbs-optimizer-boot-');
     running = bootBe01({
+      appOrigin: 'http://localhost',
       dbPath: join(dir, 'test.db'),
       port: 0,
       logger: createLogger({ service: 'be-01' }),
@@ -199,6 +203,7 @@ describe('bootBe01', () => {
   it('persists the fixed local identity after migrating an empty development database', async () => {
     const dir = tempDir('wbs-local-boot-');
     running = bootBe01({
+      appOrigin: 'http://localhost',
       dbPath: join(dir, 'test.db'),
       port: 0,
       logger: createLogger({ service: 'be-01' }),
@@ -422,3 +427,17 @@ describe('OIDC boot wiring', () => {
     expect(me.status).toBe(200);
   });
 });
+
+for (const passwordLoginEnabled of [false, true]) {
+  it(`keeps boot verifier outages as 500 with password login ${String(passwordLoginEnabled)}`, async () => {
+    const oidc = oidcOptions(passwordLoginEnabled);
+    oidc.verifier = { verify: () => Promise.reject(new Error('discovery unavailable')) };
+    const be = boot(undefined, oidc);
+    const registered = await be.services.auth.register('password-user', 'correct-horse-2026');
+    if (!registered.ok) throw new Error('password fixture was not registered');
+    const me = await fetch(`http://localhost:${String(be.port)}/api/auth/me`, {
+      headers: { cookie: `__Host-wbs_access=${registered.value.token}` },
+    });
+    expect(me.status).toBe(500);
+  });
+}

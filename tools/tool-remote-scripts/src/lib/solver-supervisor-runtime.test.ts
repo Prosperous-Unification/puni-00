@@ -157,7 +157,8 @@ describe('the solver supervisor runtime composition', () => {
     );
 
     expect(result).toBe(listener as Awaited<ReturnType<SupervisorListen>>);
-    // Proof: opening the socket before the awaited sweep moves listen ahead of remove.
+    // Proof: opening the socket before the awaited sweep moves listen ahead of
+    // the kill/wait/inspect/remove containment sequence.
     expect(driver.events).toEqual(['list:1', 'kill', 'wait', 'inspect:1', 'remove', 'listen']);
     if (dependencies === undefined) throw new Error('listener dependencies were not composed');
     expect(dependencies.credentials({ fd: 17 }).pid).toBe(4242);

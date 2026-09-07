@@ -133,6 +133,50 @@ class FakeDriver implements ManagedContainerDriver {
   }
 }
 
+class ConcurrentAdmissionDriver extends FakeDriver {
+  override managed: string[] = [];
+  createCount = 0;
+  private listCount = 0;
+  private observeSecondList: (() => void) | undefined;
+  private readonly secondListObserved = new Promise<void>((resolve) => {
+    this.observeSecondList = resolve;
+  });
+  private observeSecondCreate: (() => void) | undefined;
+  private readonly secondCreateObserved = new Promise<void>((resolve) => {
+    this.observeSecondCreate = resolve;
+  });
+
+  override list(argv: readonly string[]): Promise<readonly string[]> {
+    this.listCount += 1;
+    if (this.listCount === 2) this.observeSecondList?.();
+    return super.list(argv).then(() => [...this.managed]);
+  }
+
+  override async create(argv: readonly string[]): Promise<string> {
+    this.createCount += 1;
+    const containerId = (this.createCount === 1 ? 'b' : 'd').repeat(64);
+    this.events.push(`create:${argv.slice(0, 2).join(' ')}`);
+    if (this.createCount === 1) {
+      await Promise.race([this.secondCreateObserved, Bun.sleep(20)]);
+    } else {
+      this.observeSecondCreate?.();
+    }
+    this.managed.push(containerId);
+    return containerId;
+  }
+
+  override async attach(argv: readonly string[]): Promise<ManagedContainerAttachment> {
+    if (argv.includes(CONTAINER_ID)) await this.secondListObserved;
+    return await super.attach(argv);
+  }
+
+  override remove(argv: readonly string[]): Promise<void> {
+    const containerId = argv.at(-1);
+    this.managed = this.managed.filter((candidate) => candidate !== containerId);
+    return super.remove(argv);
+  }
+}
+
 function channel(
   controls: readonly SupervisorControl[],
   events: string[],
@@ -266,7 +310,7 @@ describe('the managed solver lifecycle', () => {
     ]);
   });
 
-  it('cancels, stops, waits, and removes when post-start attach fails', async () => {
+  it('contains and inspects the started container before cancelling its timer when attach fails', async () => {
     const driver = new FakeDriver();
     driver.attachFailure = new Error('container stopped before attach');
 
@@ -278,13 +322,16 @@ describe('the managed solver lifecycle', () => {
     }
 
     expect(rejection).toEqual(new Error('container stopped before attach'));
-    // Proof: leaving the post-create body outside the cleanup boundary omits
-    // this entire suffix and strands the labelled container at the host cap.
-    expect(driver.events.map((event) => event.split(':')[0]).slice(-5)).toEqual([
+    // Proof: keying cleanup on whether the started reply was attempted produced
+    // `inspect1, attach, timer-cancel, kill, wait, rm` here, cancelling the
+    // backstop before containment and omitting the post-stop inspection;
+    // watched 2026-09-07.
+    expect(driver.events.map((event) => event.split(':')[0]).slice(-6)).toEqual([
       'attach',
-      'timer-cancel',
       'kill',
       'wait',
+      'inspect2',
+      'timer-cancel',
       'rm',
     ]);
   });
@@ -411,5 +458,55 @@ describe('the managed solver lifecycle', () => {
     expect((rejection as Error).message).toMatch(/managed container cap/);
     // Proof: deleting the cap check admits a create event here.
     expect(driver.events.map((event) => event.split(':')[0])).toEqual(['list']);
+  });
+
+  it('admits concurrent attempts atomically under the host cap', async () => {
+    const driver = new ConcurrentAdmissionDriver();
+    const settled = await Promise.allSettled([
+      runManagedSolverAttempt(
+        START,
+        { ...OPTIONS, maxManagedContainers: 1 },
+        driver,
+        channel(['abort'], driver.events),
+      ),
+      runManagedSolverAttempt(
+        START,
+        { ...OPTIONS, maxManagedContainers: 1 },
+        driver,
+        channel(['abort'], driver.events),
+      ),
+    ]);
+
+    // Proof: removing admission serialization failed with Expected: 1, Received: 2.
+    expect(settled.map(({ status }) => status).sort()).toEqual(['fulfilled', 'rejected']);
+    expect(driver.createCount).toBe(1);
+  });
+
+  it('contains and removes a started container when the started reply fails', async () => {
+    const driver = new FakeDriver();
+    const failingChannel = channel(['bound'], driver.events);
+    failingChannel.send = (frame: SupervisorReplyFrame): Promise<void> => {
+      driver.events.push(`send:${frame.type}`);
+      return frame.type === 'started'
+        ? Promise.reject(new Error('started reply socket closed'))
+        : Promise.resolve();
+    };
+
+    let rejection: unknown;
+    try {
+      await runManagedSolverAttempt(START, OPTIONS, driver, failingChannel);
+    } catch (error) {
+      rejection = error;
+    }
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).message).toBe('started reply socket closed');
+    // Proof: removing failure cleanup ended at send instead of this containment sequence.
+    expect(driver.events.map((event) => event.split(':')[0]).slice(-5)).toEqual([
+      'kill',
+      'wait',
+      'inspect2',
+      'timer-cancel',
+      'rm',
+    ]);
   });
 });

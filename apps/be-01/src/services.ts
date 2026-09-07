@@ -1,5 +1,6 @@
 import { contractVersionOf } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
+import { systemTimers } from '@wbs/runtime-portable';
 
 import { PLAN_EVENT_RETENTION_DAYS } from './repository';
 import { ActualRepository } from './repository/actual';
@@ -32,7 +33,7 @@ import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadca
 import { optimizerWiring } from './service/optimizer-wiring';
 import { PriorityBandService } from './service/priority-band.service';
 import { ProjectService } from './service/project.service';
-import { PushClient } from './service/push-client';
+import { type FetchLike, PushClient } from './service/push-client';
 import { ReplayBuffer } from './service/replay-buffer';
 import { ReplayOrchestrator } from './service/replay-orchestrator';
 import { RetentionTimer } from './service/retention-timer';
@@ -77,6 +78,8 @@ export interface ServicesOptions {
   jwtKey: string;
   gwUrl: string;
   internalAuthSecret: string;
+  /** The transport used for the gateway push boundary. */
+  pushFetch: FetchLike;
   oidc?: AuthServiceOptions['oidc'];
   passwordSessions?: boolean;
   localIdentity?: AuthServiceOptions['localIdentity'];
@@ -165,7 +168,15 @@ export function buildServices(opts: ServicesOptions): BeServices {
     // outer transaction open on, so the durable record has to wait for that
     // transaction to close. See `GatewayBroadcasterOptions.lock`.
     lock: opts.lock,
-    push: new PushClient({ gwUrl: opts.gwUrl, secret: opts.internalAuthSecret }),
+    push: new PushClient({
+      gwUrl: opts.gwUrl,
+      secret: opts.internalAuthSecret,
+      fetchImpl: opts.pushFetch,
+      timers: systemTimers,
+      attemptMs: 5_000,
+      overallMs: 15_000,
+      maxRetries: 5,
+    }),
     // The event is already in the durable log and the mutation already
     // committed, so a client that reconnects still gets it on replay.
     // Failing the request here would tell the caller their edit did not

@@ -1,25 +1,23 @@
-import { createLogger } from '@wbs/observability';
-import { observabilityPlugin } from '@wbs/observability/server';
+import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
 
-import {
-  authRoutes,
-  hasInvalidCookieOrigin,
-  type OidcRouteOptions,
-} from './controller/auth.routes';
+import { authOidcEndpoints } from './controller/auth-oidc-endpoints';
+import { authPasswordEndpoints } from './controller/auth-password-endpoints';
 import { calendarMarkerRoutes } from './controller/calendar-marker.routes';
 import { directoryRoutes } from './controller/directory.routes';
 import { historyRoutes } from './controller/history.routes';
+import { infrastructureEndpoints } from './controller/infrastructure-endpoints';
 import { internalRoutes } from './controller/internal.routes';
+import type { OidcRouteOptions } from './controller/oidc-options';
 import { projectRoutes } from './controller/project.routes';
 import { savedPlanRoutes } from './controller/saved-plan.routes';
 import { smokeRoutes } from './controller/smoke.routes';
 import { solutionRoutes } from './controller/solution.routes';
 import { stepRoutes } from './controller/step.routes';
 import { workItemRoutes } from './controller/work-item.routes';
-import { bindElysia } from './http/elysia/bind';
-import type { Route } from './http/route';
-import { userFromHeaders } from './middleware/authenticated';
+import { mountEndpoints } from './http/elysia/mount';
+import type { BoundEndpoint } from './http/endpoint';
+import { identityResolver } from './http/identity';
 import { openApiPlugin } from './openapi/openapi-plugin';
 import type { DatabaseHealth } from './repository/health-probe';
 import type { AuthService } from './service/auth.service';
@@ -28,6 +26,7 @@ import type { CalendarMarkerService } from './service/calendar-marker.service';
 import type { CapacityService } from './service/capacity.service';
 import type { DirectoryService } from './service/directory.service';
 import type { HistoryService } from './service/history.service';
+import { LoginThrottle } from './service/login-throttle';
 import type { OptimizationCoordinator } from './service/optimization-coordinator';
 import type { OuterTransaction } from './service/outer-transaction';
 import { PlanCommandRunner } from './service/plan-commands';
@@ -40,6 +39,8 @@ import type { WorkItemService } from './service/work-item.service';
 import type { WriteLock } from './service/write-lock';
 
 export interface AppOptions {
+  /** Trusted browser origin, resolved from operator configuration before boot. */
+  appOrigin: string;
   migrationsApplied: boolean;
   /**
    * Required rather than optional. An optional auth service would let a
@@ -47,6 +48,8 @@ export interface AppOptions {
    * absent, answering 404 — indistinguishable from a routing fault at the edge.
    */
   auth: AuthService;
+  /** Per-process active password logins; defaults to eight and must be a positive integer. */
+  maxConcurrentLogins?: number;
   oidc?: OidcRouteOptions;
   /**
    * Required for the same reason as `auth`: an absent project service would
@@ -155,93 +158,28 @@ export interface AppOptions {
    * for as long as the process happened to live.
    */
   deployedCommit?: () => string | null;
+  /** Overrides the process collector in tests while retaining the real shape boundary. */
+  metricsScrape?: () => Promise<MetricsScrape>;
   version?: string;
 }
 
-/**
- * Every route list this app mounts, in mount order — the one place they are
- * assembled.
- *
- * Exported so a test can read the same lists the app runs rather than rebuilding
- * the wiring beside it. That distinction is the whole value: a check that
- * assembles its own lists proves a property of the check's list, and the routes
- * it forgot to include are exactly the ones it cannot speak for. `app.routes.test.ts`
- * still asserts these cover every path Elysia ended up with, which catches the
- * paths mounted outside this array — `/health`, `/metrics`,
- * `/api/openapi.json`. It cannot catch a factory dropped from the array itself:
- * `buildApp` reads this same function, so the route would leave both sides of
- * that equality together. Each controller's own route tests are what would go
- * red.
- *
- * **Order is behaviour, not style.** Elysia matches in registration order, and
- * two *relative* orders below are load-bearing rather than tidy — relative, not
- * adjacent, which an earlier version of this note got wrong: `historyRoutes` is
- * separated from `projectRoutes` by the saved-plan, step, work-item and
- * directory lists and is still correct, because nothing between them declares a
- * path that could shadow `/:id/history`. What must not move is the order itself.
- */
-export function mountedRouteLists(
-  opts: AppOptions,
-  commands: PlanCommandRunner,
-): readonly (readonly Route[])[] {
-  return [
-    smokeRoutes(),
-    authRoutes(opts.auth, opts.oidc),
-    solutionRoutes(opts.auth, opts.projects),
-    projectRoutes(opts.auth, opts.projects, opts.workItems, opts.optimizer),
-    savedPlanRoutes(
-      opts.auth,
-      opts.savedPlans,
-      opts.projects,
-      // The shared wrapper, like every other publisher. TASK-255 handed
-      // this route the inner broadcaster instead, because a save
-      // committing while an unrelated batch held was queued into that
-      // batch and dropped when it refused; the hold was instance state on
-      // the one shared wrapper, so "no batch is open" was being read as
-      // "this route is not part of a batch". A hold is per-caller now
-      // (TASK-256) and those are the same question again, so the special
-      // case is gone rather than merely redundant — see
-      // `DeferringBroadcaster`.
-      opts.writes.announcements,
-    ),
-    stepRoutes(opts.auth, opts.steps),
-    workItemRoutes(opts.auth, opts.workItems, commands),
-    directoryRoutes(opts.auth, opts.directory),
-    // After `projectRoutes`, whose prefix it shares: Elysia matches in
-    // registration order and `/:id/history` cannot be shadowed by anything that
-    // route declares. Four lists intervene and that is fine — what is
-    // load-bearing is the relative order, not adjacency, as the note on
-    // `mountedRouteLists` says.
-    historyRoutes(opts.auth, opts.history),
-    // `savedPlanRoutes`'s reason, without its adjacency: every marker path is
-    // one segment longer than anything `projectRoutes` declares and carries a
-    // literal `calendar-markers` segment, so neither can shadow the other
-    // wherever it sits. Several lists intervene and that is fine — the
-    // separation here is structural, not positional, which is the difference
-    // from the two comments above (Sol's Minor, run 38).
-    calendarMarkerRoutes(opts.auth, opts.calendarMarkers),
-    internalRoutes({
-      secret: opts.internalAuthSecret,
-      // A deliberate pure ack, not a stub. Every mutation in this product is
-      // an HTTP call to be-01; a client message arriving over the socket is
-      // acknowledged and carried no further, because there is no message the
-      // socket is the authority for. The test asserting a forward records no
-      // event and pushes nothing is what keeps this honest.
-      onForward: () => Promise.resolve({ push_responses: [] }),
-      onResume: (points) => opts.replay.replay(points),
-    }),
-  ];
+interface InfrastructureRuntime {
+  logger: Logger;
+  scrapeMetrics: () => Promise<MetricsScrape>;
 }
 
-export function buildApp(opts: AppOptions) {
-  const logger = createLogger({ service: 'be-01', version: opts.version });
-  // The OIDC callback is the one route list that reports anything, and it names
-  // no framework, so it cannot reach the decorated `logger` above and is handed
-  // it here instead of at every call site that builds `OidcRouteOptions`
-  // (TASK-273). A caller that supplied its own wins — that is how a test
-  // asserts on what a refused login writes down without a pino destination.
-  const routedOptions: AppOptions =
-    opts.oidc === undefined ? opts : { ...opts, oidc: { logger, ...opts.oidc } };
+/** Typed bindings mounted by the production app. */
+export function mountedEndpoints(
+  opts: AppOptions,
+  runtime: InfrastructureRuntime = {
+    logger: createLogger({ service: 'be-01', version: opts.version }),
+    scrapeMetrics: opts.metricsScrape ?? (() => scrapeMetrics('be-01')),
+  },
+) {
+  const passwordThrottle = new LoginThrottle({
+    now: opts.oidc?.now,
+    maxConcurrent: opts.maxConcurrentLogins ?? 8,
+  });
   const commands = new PlanCommandRunner({
     workItems: opts.workItems,
     directory: opts.directory,
@@ -251,84 +189,72 @@ export function buildApp(opts: AppOptions) {
     lock: opts.writes.lock,
     announcements: opts.writes.announcements,
   });
+  return [
+    // Proof: omitting health and metrics separately made app.routes.test.ts
+    // expect 40 local bindings and receive 39 for each injected fault.
+    ...infrastructureEndpoints({
+      // Readiness changes after the endpoint table is built. Capturing this
+      // boolean here left production `/health` at 503 after boot had completed;
+      // boot.db.test.ts observed `Expected: 200, Received: 503` on five paths.
+      get migrationsApplied() {
+        return opts.migrationsApplied;
+      },
+      probeDatabase: opts.probeDatabase,
+      deployedCommit: opts.deployedCommit,
+      logger: runtime.logger,
+      scrapeMetrics: runtime.scrapeMetrics,
+    }),
+    ...authPasswordEndpoints(opts.auth, opts.oidc, passwordThrottle),
+    // Proof: removing this spread made app.routes.test.ts receive 40 bindings
+    // instead of the 44 required by the OIDC composition.
+    ...(opts.oidc === undefined ? [] : authOidcEndpoints(opts.auth, opts.oidc)),
+    // Proof: omitting this binding made “binds each shared HTTP shape once”
+    // receive39 instead of40 in app.routes.test.ts.
+    ...smokeRoutes(),
+    ...stepRoutes(opts.steps),
+    ...directoryRoutes(opts.directory),
+    ...historyRoutes(opts.history),
+    ...solutionRoutes(opts.projects),
+    ...projectRoutes(opts.projects, opts.workItems, opts.optimizer),
+    ...workItemRoutes(opts.workItems, commands),
+    ...calendarMarkerRoutes(opts.calendarMarkers),
+    ...savedPlanRoutes(opts.savedPlans, opts.projects, opts.writes.announcements),
+    ...internalRoutes({
+      // A deliberate pure ack: every mutation is an HTTP call to be-01, so a
+      // client socket message has no write authority.
+      onForward: () => Promise.resolve({ push_responses: [] }),
+      onResume: (points) => opts.replay.replay(points),
+    }),
+  ] as const;
+}
+
+export function buildApp(opts: AppOptions) {
+  const logger = createLogger({ service: 'be-01', version: opts.version });
+  // The OIDC callback binding reports provider refusals, and it names no
+  // framework, so it cannot reach the decorated `logger` above and is handed
+  // it here instead of at every call site that builds `OidcRouteOptions`
+  // (TASK-273). A caller that supplied its own wins — that is how a test
+  // asserts on what a refused login writes down without a pino destination.
+  const routedOptions: AppOptions =
+    opts.oidc === undefined ? opts : { ...opts, oidc: { logger, ...opts.oidc } };
+  const endpoints: readonly BoundEndpoint[] = mountedEndpoints(routedOptions, {
+    logger,
+    scrapeMetrics: opts.metricsScrape ?? (() => scrapeMetrics('be-01')),
+  });
 
   return (
     new Elysia()
-      .use(observabilityPlugin({ service: 'be-01' }))
       .decorate('logger', logger)
-      // Before every controller, and that is the order the plugin needs: it
-      // answers from the route table of the instance it is mounted on, so a
-      // route registered after it is seen and a route registered on an instance
-      // it never joined is not. The document is committed and diffed against
-      // this app by `openapi-document.test.ts`, so a route that goes missing
-      // here is a red rather than a silent omission.
-      .use(openApiPlugin())
-      .onRequest(async ({ request, set }) => {
-        if (opts.oidc !== undefined && hasInvalidCookieOrigin(request, opts.oidc.appOrigin)) {
-          set.status = 403;
-          return { error: 'invalid_origin' };
-        }
-        if (requiresWriteScope(request)) {
-          // `onRequest` deliberately runs before Elysia parses and validates a
-          // body. A reader gets the authorization answer without letting an
-          // invalid body route around the write-scope boundary as a 422.
-          const requestIdentity = await userFromHeaders(
-            opts.auth,
-            Object.fromEntries(request.headers.entries()),
-          );
-          if (requestIdentity === null) {
-            set.status = 401;
-            return { error: 'unauthenticated' };
-          }
-          if (!requestIdentity.scopes.includes('write')) {
-            set.status = 403;
-            return { error: 'insufficient_scope' };
-          }
-        }
-        return undefined;
-      })
+      // The document comes from this configuration's mounted endpoint table, so
+      // local auth does not advertise the four conditional OIDC operations.
+      .use(openApiPlugin(endpoints.map(({ shape }) => shape)))
       .use(
-        mountedRouteLists(routedOptions, commands).reduce(
-          (app, list) => app.use(bindElysia(list)),
-          new Elysia(),
-        ),
+        // Proof: mounting an empty table made “reaches every local path and method”
+        // report postApiAuthRegister equal to the 404/NOT_FOUND router miss.
+        mountEndpoints(endpoints, {
+          appOrigin: opts.appOrigin,
+          resolveIdentity: identityResolver(opts.auth, opts.internalAuthSecret),
+        }),
       )
-      .get('/health', ({ set }) => {
-        // On every answer, including the unhealthy ones. "Which commit is this
-        // wedged process at" is the first question a failed deploy raises, and
-        // an endpoint that only names the commit when all is well cannot answer
-        // it — the deploy poller reads this precisely when it does not yet know
-        // whether the reset it just made has taken effect.
-        const commit = opts.deployedCommit?.() ?? null;
-        if (!opts.migrationsApplied) {
-          set.status = 503;
-          return { status: 'migrating' as const, commit };
-        }
-        let schema: DatabaseHealth;
-        try {
-          schema = opts.probeDatabase();
-        } catch (err) {
-          // Caught and reported, not rethrown: a 500 from a health endpoint is
-          // indistinguishable at the gate from the process being wedged, and the
-          // operator reading the log needs to know which.
-          logger.error({ err }, 'health probe could not reach the database');
-          set.status = 503;
-          return { status: 'database_unreachable' as const, commit };
-        }
-        if (schema !== 'ok') {
-          set.status = 503;
-          return { status: schema, commit };
-        }
-        return { status: 'ok' as const, commit };
-      })
   );
-}
-
-const WRITE_METHODS = new Set(['DELETE', 'PATCH', 'POST', 'PUT']);
-
-/** User-facing domain writes; auth handshakes, internal RPC, and pure echo are not domain writes. */
-export function requiresWriteScope(request: Request): boolean {
-  if (!WRITE_METHODS.has(request.method)) return false;
-  const path = new URL(request.url).pathname;
-  return path.startsWith('/api/') && !path.startsWith('/api/auth/') && path !== '/api/smoke/echo';
 }

@@ -74,6 +74,27 @@ function requireHostCap(maximum: number): void {
   }
 }
 
+let hostAdmissionTail: Promise<void> = Promise.resolve();
+
+async function createWithinHostCap(
+  frame: SupervisorStartFrame,
+  options: SupervisorLifecycleOptions,
+  driver: ManagedContainerDriver,
+): Promise<string> {
+  const admission = hostAdmissionTail.then(async () => {
+    const managed = await driver.list(listManagedContainersArgs());
+    if (managed.length >= options.maxManagedContainers) {
+      throw new Error('managed solver lifecycle: host managed container cap reached');
+    }
+    return await driver.create(buildManagedContainerArgs(frame, options));
+  });
+  hostAdmissionTail = admission.then(
+    () => undefined,
+    () => undefined,
+  );
+  return await admission;
+}
+
 function terminalFrame(evidence: ManagedContainerEvidence): SupervisorReplyFrame {
   if (!Number.isSafeInteger(evidence.exitCode) || evidence.exitCode < 0) {
     throw new Error('managed solver lifecycle: Docker returned an invalid exit code');
@@ -98,20 +119,17 @@ export async function runManagedSolverAttempt(
   channel: SupervisorAttemptChannel,
 ): Promise<SupervisorReplyFrame> {
   requireHostCap(options.maxManagedContainers);
-  const managed = await driver.list(listManagedContainersArgs());
-  if (managed.length >= options.maxManagedContainers) {
-    throw new Error('managed solver lifecycle: host managed container cap reached');
-  }
-
-  const containerId = await driver.create(buildManagedContainerArgs(frame, options));
+  const containerId = await createWithinHostCap(frame, options, driver);
   let deadlineTimer: ManagedDeadlineTimer | undefined;
   let containerWaited = false;
   let containerRemoved = false;
+  let containerStarted = false;
   try {
     deadlineTimer = await driver.armDeadline(
       buildPersistentDeadlineTimerCommands(frame, containerId),
     );
     await driver.start(exactManagedContainerArgs('start', containerId));
+    containerStarted = true;
 
     const started = await driver.inspect(exactManagedContainerArgs('inspect', containerId), false);
     if (!Number.isSafeInteger(started.pid) || started.pid < 1) {
@@ -191,7 +209,7 @@ export async function runManagedSolverAttempt(
     if (containerRemoved) throw attemptFailure;
 
     let timerFailure: unknown;
-    if (deadlineTimer !== undefined) {
+    if (!containerStarted && deadlineTimer !== undefined) {
       try {
         await deadlineTimer.cancel();
       } catch (error) {
@@ -212,6 +230,21 @@ export async function runManagedSolverAttempt(
         waitFailure = error;
       }
     }
+    let inspectFailure: unknown;
+    if (containerStarted && !containerWaited) {
+      try {
+        await driver.inspect(exactManagedContainerArgs('inspect', containerId), false);
+      } catch (error) {
+        inspectFailure = error;
+      }
+    }
+    if (containerStarted && deadlineTimer !== undefined) {
+      try {
+        await deadlineTimer.cancel();
+      } catch (error) {
+        timerFailure = error;
+      }
+    }
     let removeFailure: unknown;
     try {
       await driver.remove(exactManagedContainerArgs('rm', containerId));
@@ -220,8 +253,8 @@ export async function runManagedSolverAttempt(
     }
 
     // A retained container consumes the hard cap; prefer that diagnostic when
-    // the less consequential timer cancellation also failed.
-    const cleanupFailure = removeFailure ?? timerFailure;
+    // the timer cancellation or evidence capture also failed.
+    const cleanupFailure = removeFailure ?? timerFailure ?? inspectFailure;
     if (cleanupFailure !== undefined) {
       const detail = cleanupFailure instanceof Error ? cleanupFailure.message : 'unknown failure';
       throw new Error(`managed solver lifecycle: attempt and cleanup failed: ${detail}`, {
