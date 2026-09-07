@@ -2021,7 +2021,7 @@ const notBeforeOffsetOf = (startDate: string | null, notBefore: string | null): 
  * the predicate would not have fired.
  */
 const DEADLINE_BEFORE_START =
-  "This deadline falls before the project's first working day, so nothing can finish by it. The date is kept; move the deadline or the project start.";
+  "This work item deadline falls before the project's first working day, so nothing can finish by it. The date is kept; move the work item deadline or the project start.";
 
 /**
  * Whether a stored deadline resolves before the project's day zero — the
@@ -10290,7 +10290,7 @@ export function WbsTable({
             };
             return editing ? (
               <DateField
-                aria-label={`Deadline for ${row.original.number}`}
+                aria-label={`Work item deadline for ${row.original.number}`}
                 data-deadline={row.original.id}
                 data-cell={cellKey(row.original.id, 'deadline')}
                 data-hint="The last day this work item may finish on. It does not move the plan; a plan that misses it says so."
@@ -10349,13 +10349,13 @@ export function WbsTable({
                 style={{ position: 'relative', display: 'block' }}
               >
                 <input
-                  aria-label={`Deadline for ${row.original.number}`}
+                  aria-label={`Work item deadline for ${row.original.number}`}
                   disabled={noCalendar}
                   data-deadline={row.original.id}
                   data-cell={cellKey(row.original.id, 'deadline')}
                   data-fact={
                     noCalendar
-                      ? 'Set the project start date first — without one there are no dates to hold a deadline against.'
+                      ? 'Set the project start date first — without one there are no dates to hold a work item deadline against.'
                       : [
                           day === null ? null : `${day}.`,
                           impossible
@@ -10434,7 +10434,7 @@ export function WbsTable({
                     // does, for the reason recorded there: raw calendar order
                     // is not what the predicate tests, and a mark claiming it
                     // contradicts the two equal dates beside it.
-                    aria-label={`Deadline for ${row.original.number} falls before the project's first working day`}
+                    aria-label={`Work item deadline for ${row.original.number} falls before the project's first working day`}
                     role="img"
                     data-deadline-impossible={row.original.id}
                     // Out of flow, so a marked row and an unmarked one lay out
