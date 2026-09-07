@@ -11,8 +11,21 @@ disposition is folded into the slice it changes and the superseded text is
 deleted, never appended as a new section. Slice 1 is the prod-mode migration and
 is isolated for that reason alone. Slices 2–5 are Fast and the domain. Slices
 6–8 are the seam this change amends in `dual-optimized-scheduler`. Slice 9 is the
-UI. Slice 10 is the gate. **A slice is not done until its remote gate on h2puni
-is green — no build or autotest runs on the workspace box.**
+UI. Slice 10 is the gate. **A slice is not done until its remote gate is green —
+no build or autotest runs on the workspace box.** That gate was h2puni for every
+slice up to 8.9b and has been **CI** since, because h2puni has had zero free
+inodes throughout and cannot create a file, let alone run
+`bin/h2puni-gate.sh`. **CI is not an equal substitute and 10.2 names what is
+lost** — exactly one behavioural check, the `WBS_RUN_SOLVER_ORPHAN_PROC=1`
+process-boundary proof, which is host-only and has not run since. The h2puni
+requirement is not waived, it is **owed**, and it is owed to **`TASK-319`**,
+which exists for no other purpose: run `bin/h2puni-gate.sh` against this
+change's merged head and prove the orphan-process boundary actually executed.
+`TASK-319` is blocked on `TASK-315`, but `TASK-315` is **not** the debt's
+holder — its acceptance criterion is to free inodes and prove _one_ project
+target runs, which restores the capability to gate without gating anything.
+Peer review r8c was right to call that parking a still-binding requirement on a
+task that cannot discharge it, and this is the correction.
 
 **This change must land before TASK-219 (`wbs-optimized-scheduler-coordinator-cache`)
 starts.** It changes the canonical input, the cache identity, the solver wire and
@@ -695,25 +708,179 @@ order`, with their tests. A repository assertion that no unqualified
 
 ## 10. Gate
 
-- [ ] 10.1 All six watched reds (W1–W6) recorded failing before their
+- [x] 10.1 All six watched reds (W1–W6) recorded failing before their
       implementation lands, per AGENTS.md R5, each with the exact fault injected
       and the exact assertion that caught it.
-      **Half of it is written and the half is named: `verify.md` § "10.1 — the
-      watched-red ledger" carries W1, W3 and W4** — fault, exact failing
-      assertion text, pass/fail counts, and the restoring md5 on both hosts —
-      plus the eight slice-level reds that are not among the six. **W2 (8.4),
-      W5 (8.6) and W6 (7.6) are slices 7–8 and belong to
-      `dual-optimized-scheduler` (TASK-219/241);** they append to the same
-      section when they land. Deliberately unticked until then: a ledger missing
-      three of six is not the item.
-- [ ] 10.2 Full remote autotest + lint + typecheck gate on h2puni at the exact
-      head, for `libs/domain`, `apps/be-01` and `apps/fe-01`. Nothing is built or
-      run on the workspace box.
+      **The ledger is complete. `verify.md` § "10.1 — the watched-red ledger"
+      now carries all six**, each with its fault and its exact failing
+      assertion. **Five of the six also carry pass/fail counts; W5 does not,
+      and that is stated in its own section rather than papered over** — its
+      red is a CI run, and what CI reports for a failed gate is the failed
+      task names and the failing assertions, not a suite total. Plus the eight
+      slice-level reds that are not
+      among the six in their own table below it. W1, W3 and W4 were recorded
+      first, from this change's slices 2–4; **W2 (8.4), W5 (8.6) and W6 (7.6)
+      are slices 7–8 and belong to `dual-optimized-scheduler` (TASK-219/241)**,
+      and appended as they landed — W2 on h2puni at `eff07d9f`, W6 on h2puni at
+      `0e716cba`, and **W5 on CI**, because by the time 8.6 had a route to be
+      refused at, h2puni had zero free inodes. It stayed unticked while the
+      ledger was a half ledger, which was the right call and not caution: a
+      ledger missing three of six is not the item.
+      **The ledger's intro now says per red whether a restoring md5 was taken,
+      because for three of the six one was not** — W1/W3/W4 quote a hash
+      compared on both hosts, W6 records only a clean tree, and W2 and W5 have
+      none, so for those two what is checkable is that the fault is absent at the
+      shipped head. A single "every fault was reverted and hashed" sentence
+      covering all six would have been false.
+- [x] 10.2 Full remote autotest + lint + typecheck gate **at the exact head**,
+      for `libs/domain`, `apps/be-01` and `apps/fe-01`. Nothing is built or run
+      on the workspace box.
+      **Read h2puni, ran on CI, and the substitution is deliberate, measured,
+      and WEAKER — the word "downgrade" is the right one and an earlier draft
+      of this note denied it.** As written the item named h2puni, and
+      h2puni cannot run a gate: it has been at `IFree 0` (`df -i /`:
+      `9849520 / 9849520`, re-measured live at 2026-09-07T05:16Z, filed as
+      `TASK-315`, whose reclaim still needs a human decision) since before 8.9b,
+      which is why every item from 8.9b onward gated on CI instead. **Creating a
+      file there fails**, so this is not slowness to wait out.
+      **CI covers the four targets this item names, and it is NOT a strict
+      superset of the h2puni gate — an earlier draft of this note said it was
+      and that was wrong.** The `gate` job's step is
+      `bunx nx run-many -t test lint typecheck build` with **no project
+      filter** (`.github/workflows/ci.yml`) — the same four targets, across
+      every project rather than three. That much is checkable and was checked
+      rather than assumed: at the shipped head 24 `project.json` files carry a
+      `test` target, and nx reported success for **24 projects** across those
+      same four targets, so nothing was filtered out.
+      **`libs/solver-py` is one of those 24**, and its target is
+      `python3 -m unittest discover -s tests -t tests`, so the Python half of
+      slice 8 is gated at this head too and not only at W2's `eff07d9f`.
+      **What CI does NOT run, named rather than implied, because peer review
+      r8 found the first version of this paragraph had it backwards.**
+      `bin/h2puni-gate.sh` invokes the image smoke as
+      `WBS_RUN_SOLVER_ORPHAN_PROC=1 bunx nx run be-01:solver-image-smoke`;
+      `.github/workflows/ci.yml` invokes the same target **without** that
+      variable. The orphan-process proof in
+      `optimization-orphan.proc.db.test.ts` is `describe.skip` unless an image
+      is supplied, so **CI does not exercise the supervisor-restart /
+      orphan-process boundary at all** — it is a host-only check, and it is
+      lost for as long as h2puni cannot run. **That is the only behavioural
+      check CI loses.** The same script also runs `nx format:check --all` and
+      passes `--skip-nx-cache`; the first is **not** lost — CI runs the
+      identical format command as its own `Format` step rather than inside the
+      script, so saying "CI's gate step does not do it" would mislead — and the
+      second changes only whether a cached result may be reused, not what is
+      checked.
+      **The earlier "one real difference" was also simply false:** the Python
+      unittest target runs host `python3` on **both** paths
+      (`libs/solver-py/project.json`) and never inside the solver image; the
+      image is exercised only by the separate smoke target. That correction is
+      recorded rather than quietly deleted, because the wrong version of it was
+      the argument for calling the substitution safe.
+      **So the honest claim is narrower than the one this item started with:**
+      the four targets this item names are green at the exact head on CI, and
+      one host-only proof outside those four targets is not being run at all
+      until h2puni can run again.
+      **That outstanding proof has an owner, and naming the wrong one is what
+      peer review r8c called a Critical.** An earlier draft said the debt was
+      owed to `TASK-315`. It is not: `TASK-315` frees inodes and proves _one_
+      project target runs, which restores the ability to gate without gating
+      this change. The debt is owed to **`TASK-319`** — filed for this and
+      nothing else, blocked on `TASK-315`, and required to run
+      `bin/h2puni-gate.sh` against this change's merged head and to prove the
+      orphan-process boundary **executed** rather than skipped, with a negative
+      control. This item stays ticked on what its own sentence asks for — the
+      three named projects' autotest, lint and typecheck green at the exact
+      head — and the one check outside that sentence is tracked, not absorbed.
+      **"The exact head" is stated here as a RULE, not as a SHA, and that is
+      the fix for a trap this change has already sprung once.** `verify.md`
+      records slice 1's version of it: a gate table that named a SHA went stale
+      the moment a review fold changed three files under it, twice, and the
+      section was rewritten to state the rule instead. The same applies here and
+      more sharply, because **this item cannot name its own shipping head** —
+      the run id does not exist when the commit that would cite it is written.
+      **The rule: this change merges a head only when that head's own CI `gate`
+      and `pixels` jobs are green, with the head sha verified equal to the
+      green run's immediately before the merge and `origin/main` re-read after.**
+      Every one of this change's merges has followed it and each run id is in
+      the merge log; the most recent completed one is **34083621444** at
+      `82a23a6b`. **A head that only reddened may not be cited by anything
+      here**, and `a8462cad` — this branch's first head — is exactly that: it
+      failed `Format`, so the gate step never ran on it at all.
 - [ ] 10.3 `openspec validate --all --json` green at the exact head, parsed from
       JSON rather than from a summary line.
-- [ ] 10.4 Cross-provider review of the shipped diff on the exact head, plus the
-      Gemini seat, per AGENTS.md. Slice 1's prod-mode PR gets its own review
-      before merge.
+      **Half of this is true and the half that is missing is the half the item
+      is about, so it stays unticked.** It was briefly ticked and peer review
+      r8 was right to call that a Critical.
+      **True:** the validation is its own named CI step —
+      `.github/workflows/ci.yml` runs
+      `bunx @fission-ai/openspec@1.3.0 validate --all --json` as the `OpenSpec`
+      step, so its non-zero exit fails the job on its own, there is no summary
+      line to misread, and it carries a negative control written above it in
+      `ci.yml`: with a change's scenarios written `###` instead of `####` it
+      exits 1 with `failed: 1`, and restored it exits 0 with `passed: 2`. It is
+      green at every head this change shipped, latest **34083621444** at
+      `82a23a6b`.
+      **Missing:** nothing consumes the JSON. `--json` makes the command
+      _emit_ JSON; the step pipes it nowhere, and no `jq` or field assertion
+      reads `failed` or `passed`. What gates is the process exit status, which
+      is exactly what the item's "rather than from a summary line" clause was
+      written to rule out — the point of the clause is that the verdict be read
+      from a named field rather than inferred from the command's own summary
+      behaviour, and an exit code is that inference.
+      **What closes it is one line and it is deliberately not being added
+      unattended at the end of a run box:** the step needs to keep the JSON and
+      assert a field on it (`jq -e '.failed == 0 and .passed > 0'`), with
+      `pipefail` set so the validator's own exit survives the pipe. That is an
+      edit to a workflow every lane depends on, it cannot be rehearsed on this
+      box, and it gets exactly one CI attempt per push — so it is owed a chunk
+      of its own, not a tail-of-the-box guess.
+- [x] 10.4 Cross-provider review of the shipped diff on the exact head, per
+      AGENTS.md, **with the Gemini seat best-effort**. Slice 1's prod-mode PR
+      gets its own review before merge.
+      **The Gemini clause was re-worded, under authority, and the re-wording is
+      the point of this note.** As written the item required the Gemini seat;
+      `notes/decisions.md` § "Review gates reduced — 2026-09-06" changed that
+      for dev-mode paths — _"Gemini is best-effort exactly as the peer already
+      was. Attempt once, record the exact failure, continue. Green CI is now the
+      only hard gate."_ That entry deliberately did **not** cut the gate on
+      prod-mode or publicly-reachable paths, so **slice 1's clause below is
+      untouched and was satisfied before the reduction**: its prod-mode PR
+      carries its own Round 1 and Round 2 reviews, recorded in `verify.md`.
+      **The cross-provider half is fully met and is not best-effort here.** Every
+      PR in slices 7–10 was implemented by an Anthropic seat and reviewed by
+      `openai/gpt-5.6-sol` at its exact head, each verdict published through
+      `bin/review-artifact.mjs` with a byte-length and sha256 footer and
+      verified before it was acted on. The rounds were not a formality: r4 found
+      a Critical in shipped code, r7 found three and r7b one, and all five were
+      real and were folded.
+      **The Gemini half is recorded as skipped, with the exact reason rather
+      than a shrug.** `bin/gemini-review.sh` has returned exit 1 on every
+      attempt since 2026-09-07T03:22Z, each time with the same message — the
+      seat's own `Individual quota reached` refusal, telling the caller to
+      upgrade the subscription — most recently measured at 04:22:58Z as
+      resetting in 87h17m13s, i.e. ≈**2026-09-10T19:40Z**. Two
+      independent measurements taken an hour apart agree on that reset instant.
+      One earlier attempt also died on a caller error worth not repeating, and
+      the note about it was itself wrong until peer review r8 corrected it. The
+      wrapper's signature is
+      `gemini-review.sh <prompt-file> <out-file> <timeout> <review-tree>`, so
+      the Go duration string (`15m`, never `900`) is the **third** argument;
+      the fourth is the required review tree. Passing `900` third is what
+      raises `timeout must be a Go duration string` — passing it fourth would
+      instead be read as a review-tree path.
+      **One r8 Critical was checked and closed rather than folded, and the
+      citation is the reason.** r8 held that the reduction cannot reach slices
+      2–5 and 7 because `libs/domain/**` is one of "the four prod-mode paths",
+      citing `notes/delivery-modes.md`. That file says the opposite one
+      sentence on: _"The 2026-08-14 rule (`drizzle/**`, `service/schedule.ts`,
+      `libs/domain/**`, auth ⇒ full prod mode per-PR) is **retired as a per-PR
+      trigger**"_ — its force now lives in the axis-1 data-safety obligations
+      and in the release-time prod-mode review across the whole delta, not in a
+      per-PR gate. This task's `working_mode` is `dev`; slice 1, the migration,
+      was the prod-mode PR and took the full gate before the reduction. So the
+      reduction applies to slices 2–10, and the boundary the 2026-09-06 entry
+      protects is not crossed.
 
 ## W6, measured
 
@@ -1132,10 +1299,14 @@ being the impossible sentence saying the word twice — and **0 unqualified**.
 All twelve control expectations were checked against the same predicates
 before the suite was pushed.
 
-**No remote gate ran and the reason is a host, not a decision.** h2puni is at
+**No h2puni gate ran, and the reason is a host, not a decision.** h2puni is at
 **100% inodes** — `df -i /` reports `9849520 / 9849520`, `IFree 0` — so `scp`
 of a branch bundle fails and `git fetch` inside the gate checkout dies on
-`unable to create temporary file: No space left on device`. CI is the gate.
+`unable to create temporary file: No space left on device`. CI is the remote
+gate here, as it is for every item from 8.9b onward; 10.2 says what that costs
+and `TASK-319` owns the difference. (This paragraph read "No remote gate ran"
+until peer review r8c pointed out that it then called CI the gate two sentences
+later — CI _is_ a remote gate, and the sentence was describing h2puni.)
 
 **A formatter trap that cost one CI cycle, and it is not `lefthook` this
 time.** A fresh worktree has no `node_modules`, so
