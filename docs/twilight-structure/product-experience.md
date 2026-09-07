@@ -45,13 +45,16 @@ The personal-phase [environment requirements](spec.md) distinguish these views:
 | Staging     | Final testing before merge in an environment kept as close to production as practical. Show the candidate, test reports and differences from production; staging tests the feature branch composed with current main, then the tested candidate is merged and its built artifact is promoted. |
 | Production  | The released candidate, its accepted evidence and the explicit human release command, with observed deployment health and recovery.                                                                                                                                                           |
 
-The environment view links each running deployment to its URL, branch or candidate,
-source revision and automated/manual reports. Scheduled cloud-browser sweeps
-remain visible against the particular dev they tested. Staging parity needs a
-concrete contract covering build/deployment paths, service and runtime versions,
-database and migrations, routing/authentication, configuration, resources and
-operating procedures. Detailed topology, environment lifetimes and staging
-concurrency belong to the [environment decision](../../.scratch/twilight-structure/issues/07-staging-and-branch-devs.md).
+The environment view links each running deployment to its stable identity, URL,
+owner, lifecycle, branch or candidate, desired and observed source/artifact,
+health, freshness, capacity reason and automated/manual reports. Scheduled
+cloud-browser sweeps remain visible against the particular dev they tested. The
+personal default is one serialized staging environment and one branch dev per
+active branch within admitted capacity; branch devs sleep and resume explicitly.
+Staging shares production's immutable image, deployment/migration/recovery path,
+runtime and topology class, routing/auth shape and health checks. Its endpoint,
+credentials, admitted scale and isolated data differ visibly; further differences
+need an accepted risk and compensating production check.
 
 ## All supported settings are visible, scoped and versioned
 

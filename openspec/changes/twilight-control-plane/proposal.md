@@ -8,19 +8,18 @@ time to accepted, integrated outcomes within authorized spending and fixed quali
 
 ## What Changes
 
-The first increment provides a configurable FE/BE/MCP loop: submit a request under
-a named delivery profile, inspect a versioned workflow and plan, approve the specified plan and execution envelope, pipeline isolated deliverables,
-automatically compose and verify integration candidates, recover from interruption,
-and inspect evidence, the run ledger and scaling measurements. K3s places M1
-activity attempts across a real, manually expandable multi-host worker pool. It
-introduces the versioned client-repository contract used by `puni-00` itself and
-the execution profile that carries every lever a person tunes.
+The personal phase provides a configurable FE/BE/MCP loop behind an always-available
+OpenClaw secretary: submit a request, inspect and approve its plan and execution
+envelope, delegate isolated work, compose the result with current main, and inspect
+searchable sessions, evidence, cost and scaling measurements. K3s places activity
+attempts across a manually expandable multi-host worker pool.
 
-Later increments add the Backlog.md-backed WBS planning adapter after WBS
-refactors, expanded reviews/hooks, automation, knowledge tools, cloud-browser
-acceptance, and controlled release. Those increments have explicit entry/exit
-criteria in `tasks.md` and their own deltas; the contracts they will adopt are
-recorded in the design and the client-repository document, not in this delta.
+Frequent commits reach branch devs. Final automated and manual cloud-browser tests
+run on an immutable artifact in production-like staging before the exact candidate
+merges. Dev-main follows main; a separate human command promotes the same artifact
+to production. Later personal increments move planning to Backlog-backed WBS,
+mature knowledge/automation, and prove clean installation and upgrades. Customer
+work waits for a named design partner and problem.
 
 ## Non-Goals
 
@@ -44,6 +43,10 @@ measurements are explicit. Production needs an explicit human command.
   ledger and evidence.
 - `twilight/repository-planning`: Client template, versioned planning boundary and
   resource units.
+- `twilight/assistant-interaction`: Secretary delegation, worker/session identity,
+  searchable history and the work projection.
+- `twilight/delivery-environments`: Branch dev, dev-main, staging acceptance,
+  main publication and production promotion.
 
 ### Modified Capabilities
 

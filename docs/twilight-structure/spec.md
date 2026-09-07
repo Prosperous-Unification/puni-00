@@ -101,8 +101,10 @@ Compose the feature branch with current main, build and test that candidate in
 staging, merge the exact tested candidate and promote the same built artifact
 to production on the explicit human command. If main changes before the merge,
 recompose, rebuild and retest. Evidence remains bound to the candidate it tested.
-No staging concurrency, sweep interval or environment-lifetime default has been
-selected. Devs may use development servers and be dynamic or short-lived while
+The personal default is one serialized staging environment, nightly sweeps of
+dev-main and active branch devs, and explicit branch-dev sleep/resume without
+automatic deletion. These are provisional settings A57–A59, not fixed product
+limits. Devs may use development servers and be dynamic or short-lived while
 supporting branches that themselves remain active for a long time.
 
 ## User-level delivery sequence

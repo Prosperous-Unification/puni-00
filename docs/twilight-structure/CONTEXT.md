@@ -32,6 +32,21 @@ The environment kept as close to production as practical for final testing
 before a change merges to main.
 _Avoid_: Dev-main, branch dev
 
+**Environment**:
+A stable, addressable deployment target with an owner, lifecycle and separately
+recorded desired and observed source or artifact.
+_Avoid_: Workspace, branch, URL
+
+**Environment observation**:
+An adapter's attributed reading of the source or artifact actually served, health
+and time, distinct from the desired deployment and a successful command exit.
+_Avoid_: Deployment request, agent report
+
+**Staging candidate**:
+An integration candidate composed with current accepted main and bound to the
+immutable artifact, staging deployment and automated/manual reports that accept it.
+_Avoid_: Feature branch, latest build
+
 **Work request**:
 A requested software outcome that enters the factory's discovery process.
 It precedes the specifications and work plan needed to deliver that outcome.

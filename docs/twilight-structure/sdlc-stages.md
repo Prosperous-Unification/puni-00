@@ -14,9 +14,8 @@ main-merge gate; frequent branch-dev updates and scheduled dev sweeps remain.
 Staging tests the feature branch composed with current main; the exact tested
 candidate is merged and the same built artifact is promoted to production on an
 explicit human command. A moved main requires recomposition and fresh testing. The
-[phase allocation work](../../.scratch/twilight-structure/issues/05-product-phase-boundaries.md)
-must reconcile the workflow schema and runtime plan before implementation uses
-that ordering; those artifacts do not yet enforce this decision.
+[resolved phase allocation](../../.scratch/twilight-structure/issues/05-product-phase-boundaries.md)
+is now encoded by the workflow profile and runtime plan.
 
 Default WBS changes still use `sdd-lean`. Select the workflow per change:
 
@@ -42,22 +41,24 @@ activities without acquiring another Markdown file.
 Stage ids and prerequisites are the ones `execution.yaml` declares; this table is
 their explanatory projection, not a second dependency source.
 
-| Stage id         | Work / contributors                                                                          | Canonical output and completion                                                               | Return path                                       |
-| ---------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `request`        | Capture outcome, scope, non-goals, constraints and delivery profile                          | `proposal.md`, at most 400 words; owner and permitted autonomy explicit                       | Reframe when the outcome changes                  |
-| `discovery`      | Brainstorming + grilling + domain-modeling; research; Wayfinder when decisions span sessions | Same intent plus linked assumption/decision record; terms enter owning glossary immediately   | Reopen affected assumptions on contrary evidence  |
-| `specification`  | OpenSpec requirements/scenarios and technical design; independent critique                   | `specs/<context>/<capability>/spec.md`, `design.md`; coverage and examples reviewed           | Revise discovery/contract for unresolved findings |
-| `planning`       | Writing-plans redirected to one `tasks.md`; dependency/resource planning                     | Ordered testable slices, interfaces, proof oracles, estimates in ledger units and stop limits | Replan on changed dependencies or budgets         |
-| `implementation` | Isolated execution, TDD and bounded fixes                                                    | Actual changes with attributed evidence; checkboxes reference them                            | Fix the owning slice or its contract              |
-| `review`         | Critics, judge and rework rounds from the delivery profile                                   | Findings, verdicts and dispositions                                                           | Rework to the owning activity within the limit    |
-| `verification`   | Relevant full gates and observed fault injections                                            | `verify.md` identifies exact content/environment and output                                   | Return to the artifact causing failure            |
-| `integration`    | Compose authorized deliverables and verify the combined candidate                            | Exact composed source and full gate evidence                                                  | Recompose changed base or repair failed members   |
-| `acceptance`     | Deploy candidate and test with real cloud browser when applicable                            | Evidence linked from `verify.md`; served revision checked first                               | Recover deployment or reopen implementation       |
-| `handoff`        | Reconcile glossary/wiki/ADRs/contracts and source provenance; write the outcome record       | `verify.md` links knowledge, sync/archive status, candidate and outcome                       | Reopen stale claims; retain disagreements         |
-| `release`        | Separate explicit human command for candidate/environment                                    | Attributed release record plus observed health/recovery                                       | Controlled recovery; no false success             |
+| Stage id         | Work / contributors                                                                          | Canonical output and completion                                                                | Return path                                       |
+| ---------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `request`        | Capture outcome, scope, non-goals, constraints and delivery profile                          | `proposal.md`, at most 400 words; owner and permitted autonomy explicit                        | Reframe when the outcome changes                  |
+| `discovery`      | Brainstorming + grilling + domain-modeling; research; Wayfinder when decisions span sessions | Same intent plus linked assumption/decision record; terms enter owning glossary immediately    | Reopen affected assumptions on contrary evidence  |
+| `specification`  | OpenSpec requirements/scenarios and technical design; independent critique                   | `specs/<context>/<capability>/spec.md`, `design.md`; coverage and examples reviewed            | Revise discovery/contract for unresolved findings |
+| `planning`       | Writing-plans redirected to one `tasks.md`; dependency/resource planning                     | Ordered testable slices, interfaces, proof oracles, estimates in ledger units and stop limits  | Replan on changed dependencies or budgets         |
+| `implementation` | Isolated execution, TDD, bounded fixes and frequent runnable branch-dev publication          | Actual changes with attributed evidence; desired/observed dev state; checkboxes reference them | Fix the owning slice or its contract              |
+| `review`         | Critics, judge and rework rounds from the delivery profile                                   | Findings, verdicts and dispositions                                                            | Rework to the owning activity within the limit    |
+| `verification`   | Relevant full gates and observed fault injections                                            | `verify.md` identifies exact content/environment and output                                    | Return to the artifact causing failure            |
+| `integration`    | Compose authorized deliverables and verify the combined candidate                            | Exact composed source and full gate evidence                                                   | Recompose changed base or repair failed members   |
+| `staging`        | Deploy the immutable composed artifact through the production-like path                      | Observed staging artifact, health, parity differences and recovery state                       | Recover deployment or recompose the candidate     |
+| `acceptance`     | Run automated oracles and manual scenarios through a real cloud browser                      | Scenario-bound reports in `verify.md`; served artifact checked first                           | Recover staging or reopen affected work           |
+| `publication`    | Compare-and-swap the exact accepted candidate into main                                      | Publication receipt naming accepted source and unchanged base                                  | Recompose, rebuild and retest a moved base        |
+| `handoff`        | Converge dev-main; reconcile glossary/wiki/contracts and source provenance; record outcome   | Observed dev-main state; `verify.md` links knowledge, candidate and outcome                    | Reopen stale claims; retain disagreements         |
+| `release`        | Separate explicit human command for candidate/environment                                    | Attributed release record plus observed health/recovery                                        | Controlled recovery; no false success             |
 
 Stage scope controls each ordering boundary: implementation, review and verification
-advance per deliverable; integration and acceptance join candidate members; handoff
+advance per deliverable; integration through publication join candidate members; handoff
 joins required accepted outcomes. Independent deliverables pipeline across stages.
 Disabled activities preserve their scoped dispositions without inventing evidence.
 Per-task tests do not replace the floor's integrated gate. Knowledge updates as it

@@ -760,11 +760,12 @@ review is ready; borrowing MUST be bounded by the configured fairness window.
 The integration queue MUST compose authorized deliverables on a recorded base,
 preserve plan-lock entries, and run full integrated verification against the exact
 composed candidate. Candidate preparation and verification MAY overlap in isolated
-workspaces. Integration preparation MUST NOT publish shared source. The acceptance
-completion path MUST invoke publication only after its independent oracle and all
-required candidate checks pass; handoff MUST require the publication receipt.
-Publication MUST compare-and-swap the accepted source ref. A moved base
-MUST trigger recomposition and fresh candidate verification. Semantic conflicts MUST
+workspaces. Integration preparation MUST NOT publish shared source. Staging MUST
+deploy the composed artifact before acceptance. The publication stage MUST invoke
+publication only after the independent oracle and all required candidate checks
+pass; handoff MUST require the publication receipt. Publication MUST
+compare-and-swap the accepted source ref. A moved base MUST trigger recomposition,
+a new artifact, staging deployment and fresh candidate verification. Semantic conflicts MUST
 return to bounded repair; failed members MUST NOT prevent independent candidates
 from progressing. Cross-deliverable contract changes MUST invalidate dependent
 candidates and evidence. Queue age, accepted throughput, repair cost and superseded
@@ -784,6 +785,11 @@ a prior candidate's success MUST NOT be accepted solely because its branch was g
   candidate is being prepared
 - **THEN** affected work is recomposed or repaired, the independent candidate can
   progress, and no stale verification is published as current
+
+#### Scenario: Publication waits for staging acceptance
+
+- **WHEN** integrated verification passes but staging deployment, the independent oracle or required manual cloud-browser evidence is incomplete
+- **THEN** shared source remains unchanged and no publication receipt exists
 
 ### Requirement: Speculation spends only bounded authorized capacity
 

@@ -1,9 +1,10 @@
 # Twilight delivery plan
 
-Start with **Task 1: prove the compiler and durable-runtime boundary**. This is
+Start with **Task 1.0: make the inherited scenarios explicitly exhaustive**, then
+prove the compiler and durable-runtime boundary. This is
 the single authored product plan. Every checkbox is intentionally unchecked:
 the current request delivered planning and a repository workflow trial, not the
-factory implementation. Execute against the [design](design.md) and both
+factory implementation. Execute against the [design](design.md) and the
 [capability specs](specs/twilight/). Design is required for this architecture.
 Each task names the spec requirements it proves; the
 [traceability table](#requirement-coverage) at the end is derived from those lines.
@@ -16,18 +17,33 @@ their distinct quantities. No automatic spending when budget authority is missin
 The repository gate (`bunx nx format:check --all`, `bunx nx run-many -t test lint typecheck build`,
 `openspec validate --all`; `bin/h2puni-gate.sh` on h2puni) and R5 failure proofs apply.
 
-## Milestones and ordering
+## Product phases
 
-| Milestone                            | Tasks                                          | Observable exit                                                                                                                                                                                                                                                              | Dependency                              |
-| ------------------------------------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| M0 — repository SDLC trial           | [Pilot tasks](../twilight-sdlc-pilot/tasks.md) | Canonical docs, real CLI counterexamples and attributed plan review; delivered by this request                                                                                                                                                                               | None                                    |
-| M1 — usable factory core             | 1–8                                            | Operator starts in FE or MCP under a delivery profile, approves a revision with its budget, executes through a real multi-host K3s worker pool, restarts the service, pipelines deliverables through integration, proves fixed-quality scaling, inspects evidence and ledger | M0; tasks below specify internal edges  |
-| M2 — client planning backend         | 9–10                                           | WBS reads/writes complete plans through per-repo Backlog.md with atomic batches, undo and lossless migration                                                                                                                                                                 | WBS refactor closure + M1 planning port |
-| M3 — full workflow operations        | 11–12                                          | Multiple agent roles, hooks, capacity, schedules, escalation ladders and wiki operations are configurable and inspectable through all clients                                                                                                                                | M1; M2 for accepting WBS-origin plans   |
-| M4 — client delivery and self-growth | 13–14                                          | Real cloud-browser acceptance, controlled release, tested client template upgrades, and factory self-change use the same workflow                                                                                                                                            | M1–M3 and deployment/recovery proofs    |
+The audience phases own the useful delivery boundary. The numbered milestones
+below remain technical dependency landmarks and do not define a releasable product.
+
+| Phase             | Required route                                                                                  | Exit                                                                                                                                                                                                                                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Personal loop     | Tasks 1–8 → 11.1 → 13, with Task 15 after Tasks 5–7 and Task 16 joining Tasks 13 and 15         | Dany asks the secretary for a change, follows delegated work and searchable evidence, observes frequent branch-dev updates, accepts the current-main composition in production-like staging, publishes that exact candidate, observes dev-main, and explicitly promotes the same artifact to healthy production. |
+| Personal maturity | Tasks 9–10 and 12; Task 11.2 after Task 10; Task 14 after the complete operational dependencies | Backlog-backed WBS becomes the planning authority, knowledge operations mature, and a clean/self-growing client fixture proves portability before customer onboarding.                                                                                                                                           |
+| Customer phase    | A new OpenSpec change after the A63 discovery gate                                              | A named design partner and concrete problem determine tenancy, packaging, support, recovery and service commitments. This plan does not invent them.                                                                                                                                                             |
+
+Tasks on separate dependency paths may overlap. Phase 1 is incomplete until every
+personal-loop exit is observed in production, even if personal-maturity work has
+already started.
+
+## Technical milestones and ordering
+
+| Milestone                               | Tasks                                          | Observable exit                                                                                                                                                                                                                                                              | Dependency                              |
+| --------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| M0 — repository SDLC trial              | [Pilot tasks](../twilight-sdlc-pilot/tasks.md) | Canonical docs, real CLI counterexamples and attributed plan review; delivered by this request                                                                                                                                                                               | None                                    |
+| M1 — usable factory core                | 1–8                                            | Operator starts in FE or MCP under a delivery profile, approves a revision with its budget, executes through a real multi-host K3s worker pool, restarts the service, pipelines deliverables through integration, proves fixed-quality scaling, inspects evidence and ledger | M0; tasks below specify internal edges  |
+| M2 — client planning backend            | 9–10                                           | WBS reads/writes complete plans through per-repo Backlog.md with atomic batches, undo and lossless migration                                                                                                                                                                 | WBS refactor closure + M1 planning port |
+| M3 — full workflow operations           | 11–12                                          | Multiple agent roles, hooks, capacity, schedules, escalation ladders and wiki operations are configurable and inspectable through all clients                                                                                                                                | M1; M2 for accepting WBS-origin plans   |
+| M4 — personal operation and portability | 13–16                                          | Assistant entry, visible/searchable work, branch-dev and staging acceptance, controlled release, tested client upgrades, and factory self-change use the same workflow                                                                                                       | Per-task edges below                    |
 
 M1 and the WBS refactor can proceed independently. M2 must not alter WBS storage
-before its entry criteria hold. Tasks 9–14 are bounded follow-on increments: create
+before its entry criteria hold. Tasks 9–16 are bounded follow-on increments: create
 their own OpenSpec deltas from the contracts recorded in the design and the
 [client repository document](../../../docs/twilight-structure/client-repositories.md)
 when their dependencies land, so post-refactor file paths and provider facts are
@@ -56,6 +72,7 @@ pure predicates do not replace request, restart, race or browser tests below.
 Proves: Versioned inspectable workflow configuration; Lifecycle points are the
 one key space; Executable restore compatibility (A39, A47).
 
+- [ ] 1.0 Convert inherited delta scenarios to explicit non-vacuous Given/When/Then and establish the coverage ledger/validator.
 - [ ] 1.1 Prove the pinned Bun/LangGraph/checkpointer interrupt/restart contract and record a go/no-go decision.
 - [ ] 1.2 After 1.1 passes, deliver the compiler, contracts and non-vacuous Nx targets.
 
@@ -106,15 +123,24 @@ compiler error to name that point. Remove one `after` edge and separately derive
 stage order from artifact requirements: the compiled edge-set or
 cycle/missing-order assertion must fail.
 Delete an activity entry,
-enable cloud acceptance without its agent-class model, attach a model to the fixed
+remove cloud acceptance's agent-class model, attach a model to the fixed
 tool gate, and disable a floor activity; each must fail the profile-completeness
 oracle. Pin the built-in matrix: thorough browser scope is whole, balanced is
 affected, economy browser/judge/discovery review/specification critique are disabled,
-the critic remains enabled, cloud acceptance is disabled until M4, and every profile
-runs the fixed integrated gate with no depth control. Delete the required input/make
+the critic remains enabled, mandatory staging/manual acceptance and publication
+remain enabled in every profile, and every profile runs the fixed integrated gate
+with no depth control. Delete the required input/make
 it unreadable in separate probes; replace the durable saver with memory and observe
 the restart test fail; bypass the floor/rate checks separately and observe their
 negatives fail. This does not yet prove external-effect deduplication.
+
+Before 1.1, 1.0 inventories every current requirement's normal, failure, boundary
+and recovery cases, adding explicit inapplicable dispositions where needed. The
+validator rejects a missing Given/When/Then and a clause that merely repeats the
+scenario heading. Inject each structural fault and watch the actual specification
+gate fail. An independent specification review owns semantic exhaustiveness: remove
+a required failure/recovery row from its coverage ledger and observe planning
+approval remain blocked. OpenSpec CLI parse success alone cannot satisfy 1.0.
 
 Resolve `quality` through the same workflow publication: hash its definition,
 rubric and observation set, require evaluation-publisher capability plus a human
@@ -765,11 +791,12 @@ slot reserved alongside the implementation slot.
 `integration.test.ts`, `apps/twilight-be/src/candidates.ts` and
 `apps/twilight-fe/e2e/integration.spec.ts`. Consume WorkPlan contracts, envelope,
 source/plan locks, evidence and gate adapters; produce immutable candidate records
-through `composeCandidate` and `publishCandidate`. Expose queue/member/base/check/
+through `composeCandidate`; the publication stage owns `publishCandidate`. Expose queue/member/base/check/
 repair state through run events and FE/MCP run views. Preparation and verification
 use separate workspace/build/browser reservations. Integration prepares only;
-acceptance completion publishes through effect execution after the candidate oracle
-and all required checks. Handoff consumes the publication receipt. Hold the oracle
+staging deploys before acceptance, and the publication stage publishes through
+effect execution after the candidate oracle and all required checks. Handoff
+consumes the publication receipt. Hold the oracle
 at a barrier and assert the shared source ref stays unchanged; inject early
 publication and watch that assertion fail. Publication uses source-ref CAS.
 
@@ -1075,30 +1102,56 @@ on that backend. Retrieval quality requires judgment, not a parser-only green.
 
 **Estimate:** 16–32 human hours; 0.25M–0.65M tokens plus measured indexing cost if chosen.
 
-## Task 13: Deliver through real development acceptance and controlled release
+## Task 13: Operate branch dev, staging, dev-main and production
 
-- [ ] 13.1 Join artifact-identified dev deployment, cloud-browser evidence, production command and recovery.
+- [ ] 13.1 Persist the environment identity, assignment, lifecycle and desired/observed state model.
+- [ ] 13.2 Publish committed runnable increments to branch dev and continuously converge dev-main on accepted main.
+- [ ] 13.3 Compose with current main, build once, deploy production-like staging, accept, publish and promote that artifact.
+- [ ] 13.4 Run source-bound scheduled dev sweeps and candidate-bound staging scenarios with inspectable reports.
 
-**Depends on:** Task 8 and Task 11.1 (release health notifications ride the same
-hook and trigger machinery). **Owns next increment:** deployment adapter,
-cloud-browser integration, release command UI/MCP authority and runbooks. Use
-existing deploy planners/locks through supported interfaces, not copied shell
-scripts. Re-check current runbooks and the inspected code before choosing reuse.
-Start with the Browserbase cloud-session integration selected in A32. Pin the
-provider/connector and prove the Nx-invoked runner against a real remote session
-before acceptance; its docs' Bun/Playwright warning is a compatibility gate, not a
-reason to silently run local Chrome instead. Record session ID, served source
-identity, bounded credentials, recording/export retention and observed teardown.
+**Depends on:** Task 8 and Task 11.1 (release health notifications and scheduled
+sweeps ride the same hook and trigger machinery). **Owns next increment:**
+environment and deployment adapters, cloud-browser integration, report/coverage
+records, release command UI/MCP authority and runbooks. Use existing deploy
+planners/locks through supported interfaces, not copied shell scripts. Re-check
+current runbooks and inspected code before choosing reuse.
 
-**Exit tests:** served revision mismatch blocks browser acceptance; cloud browser
-cannot silently reuse another checkout; mandatory browser unavailable blocks the
-stage; wrong/stale candidate or environment approval refused; no human decision
-means no production effect; health failure triggers observed recovery; unknown
-remote state throws; migration rollback failure remains visible with recovery
-instructions. Task 8's whole-browser-gate rule applies.
+Start with one serialized staging environment, one dev-main and one branch dev per
+active branch subject to capacity (A57). Branch devs may source-run; explicit sleep
+and resume preserve identity (A58). Staging uses the same immutable image,
+deployment/migration/recovery path, runtime/topology class, routing/auth shape and
+health checks as production, with every endpoint, credential, scale and isolated
+data difference visible (A60). Start the browser adapter with the Browserbase
+cloud-session integration selected in A32. Pin the provider/connector and prove the
+Nx-invoked runner against a real remote session before acceptance; its docs' Bun/
+Playwright warning is a compatibility gate, not a reason to silently run local
+Chrome instead. Record session ID, served source identity, bounded credentials,
+recording/export retention and observed teardown.
 
-**Estimate:** 24–48 human hours plus external environment availability. One host-wide
-release/build lease; production activity only on an explicit candidate-bound command.
+The acceptance path is `integration composition → staging deployment → automated
+and manual acceptance → compare-and-swap main publication → dev-main convergence →
+explicit production promotion`. Main movement restarts composition, build, staging
+and evidence. Production consumes the staging-tested artifact; rebuilding is a new
+candidate. Nightly sweeps cover dev-main and every active branch dev, coalescing
+only identical source/configuration/scenario revisions (A59).
+
+**Exit tests:** two long-running branches receive isolated devs; exhausted capacity
+queues a third without reassignment; sleep/resume preserves identity; commit and
+desired-deploy identity never masquerade as observed served identity; served
+revision mismatch blocks browser acceptance; cloud browser cannot silently reuse
+another checkout; mandatory browser unavailable blocks the stage; missing scenario
+coverage or a failed/skipped/unavailable report blocks; staging parity differences
+are visible and unaccepted differences block; a moved main or wrong artifact forces
+complete fresh acceptance; wrong/stale candidate or environment approval is
+refused; no human decision means no production effect; health failure triggers
+observed recovery; unknown remote state throws; migration rollback failure remains
+visible with recovery instructions; a scheduled sweep binds the observed dev
+revision and cannot turn an unchanged coalesced disposition into a new pass. Task
+8's whole-browser-gate rule applies.
+
+**Estimate:** 48–96 human hours plus external environment availability. One
+host-wide release/build lease; production activity only on an explicit
+candidate-bound command.
 
 ## Task 14: Prove the self-growing repo and client upgrade cycle
 
@@ -1136,6 +1189,59 @@ or rollback is promised for unsupported old/new combinations.
 **Estimate:** 16–32 human hours plus a complete canary cycle; use measured M1–M3
 ledgers for agent budgets instead of extrapolating today's untested estimates.
 
+## Task 15: Connect the always-available secretary to Twilight
+
+- [ ] 15.1 Prove the pinned OpenClaw adapter and independently admitted secretary/worker capacity.
+- [ ] 15.2 Submit software-delivery requests through Twilight and return durable references without widening authority.
+
+**Depends on:** Tasks 5–7. **Owns next increment:** assistant-runtime adapter,
+secretary delegation, worker/assignment/session bindings and the authorized request
+bridge. OpenClaw owns conversation execution; Twilight owns delivery authority and
+durable work state (A52). A recurring worker is a stable presentation identity, not
+an OpenClaw configured agent, and renaming changes no history or permission (A55).
+
+Pin the inspected OpenClaw version and prove session creation, child delegation,
+event observation, cancellation and transcript retrieval through a narrow port.
+Reserve interactive secretary capacity separately from worker capacity. Measure
+busy, saturated and cold-start behavior before setting a response SLO (A53).
+General requests stay in OpenClaw. Software requests call Task 5's authenticated
+operation, receive request/run/assignment references and use Tasks 3–4 authority;
+chat text cannot mint a decision, budget or effect (A62).
+
+**Exit tests:** a five-minute worker fixture leaves the secretary accepting new
+turns; saturated workers queue with the limiting pool; unavailable secretary
+capacity is reported rather than answered; a general request creates no Twilight
+run; a software request returns correlated durable references; adversarial chat
+cannot expand an envelope or release; rename during work preserves stable identity,
+history and grants; replacing an OpenClaw session/model remains the same worker.
+
+**Estimate:** 24–48 human hours plus authenticated OpenClaw/provider availability;
+0.4M–1.0M tokens, recalibrated from Tasks 5–8 ledgers.
+
+## Task 16: Make work, sessions and environments explorable
+
+- [ ] 16.1 Persist sourced high-level work events and the access-controlled searchable session corpus.
+- [ ] 16.2 Deliver the secretary-led overview with worker, assignment, environment, evidence and intervention routes.
+
+**Depends on:** Tasks 13 and 15. **Owns next increment:** session capture/index,
+work projection, personal home and conversation/delivery secondary views. Retain
+redacted personal session content without an age default; warn and offer export at
+an explicit storage ceiling before deletion (A54). Distinguish runtime observation,
+agent report and accepted outcome (A56). Start from prototype A as a reversible
+presentation default (A51), showing the environment fields in A64.
+
+**Exit tests:** full-text search finds authorized message and tool-output text at
+the exact session position, including an inactive branch; protected and unavailable
+content is labeled without indexing its value; ceiling pressure never silently
+deletes history; an agent completion claim cannot look accepted; observed deployed
+identity outranks a conflicting progress claim while both remain visible; the home
+keeps the secretary composer available while opening every worker/assignment
+history, evidence report, environment and required intervention; empty state
+fabricates no active worker. Repeat the prototype's desktop/mobile interaction set
+against live APIs and run the whole browser gate.
+
+**Estimate:** 32–64 human hours plus corpus/storage measurement; 0.5M–1.2M tokens.
+
 ## Requirement coverage
 
 Spec requirement to task:
@@ -1163,6 +1269,11 @@ Spec requirement to task:
 | Integration is an independently scalable execution service     | 7.3, 8.4      |
 | Speculation spends only bounded authorized capacity            | 3, 7.4        |
 | Scaling is proved at fixed quality before M1 acceptance        | 4.5, 8.4      |
+| Assistant: secretary availability and authority boundary       | 15            |
+| Assistant: worker identity, session search and work projection | 15–16         |
+| Delivery environments: lifecycle and development publication   | 13.1–13.2     |
+| Delivery environments: staging, publication and promotion      | 13.3          |
+| Delivery environments: layered reports and scheduled sweeps    | 13.4          |
 
 User requirement to delivery location:
 
@@ -1180,6 +1291,9 @@ User requirement to delivery location:
 | TS-27: cost, model, review-depth and parallelism levers with quality tracking | Execution profile; Tasks 4, 6–8, 11                                   |
 | TS-28: money buys shorter accepted delivery at fixed quality                  | Tasks 1–8; Task 9 for planning contention                             |
 | TS-29–30: operated client installations and expandable K3s worker pool        | Discovery/ADR 0016; Tasks 4, 6, 8                                     |
+| TS-31: personal assistant-to-production loop, then customer discovery         | Personal phase route; Tasks 13, 15–16                                 |
+| TS-32–35: exhaustive scenarios, layered tests, publication and reports        | Every implementation slice; Tasks 13.2–13.4                           |
+| TS-36–37: branch devs, dev-main and production-like staging                   | Task 13                                                               |
 
 All future failure experiments above are planned tests. None is an observed R5
 proof until implementation runs the test with its fault and records actual output.

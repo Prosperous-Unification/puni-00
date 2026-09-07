@@ -58,7 +58,8 @@ Dev-main tracks the accepted main revision. Production uses the staging-tested
 artifact after the existing explicit human command, with environment-specific
 configuration and observed health/recovery recorded separately.
 
-Staging parity, environment ownership and lifetime, concurrency and sweep cadence
-still need concrete settings and implementation contracts. The
-[phase allocation work](05-product-phase-boundaries.md) carries those obligations
-into the single implementation plan; this resolution claims no deployed system.
+The implementation plan now carries provisional defaults from A57–A60: one
+serialized staging environment, one branch dev per active branch within capacity,
+explicit branch-dev sleep/resume, nightly dev sweeps, and an explicit staging
+parity contract. The defaults can change at their recorded revisit conditions;
+this resolution claims no deployed system.

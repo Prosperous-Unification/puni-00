@@ -16,6 +16,8 @@ authority, concurrent planning, integration and scaling contracts across service
 
 ```mermaid
 flowchart TD
+  Person[Dany] --> OpenClaw[OpenClaw secretary and worker sessions]
+  OpenClaw -- authorized software request --> API
   FE[Twilight FE] --> API[Twilight BE: authorized operations]
   MCP[Twilight MCP] --> API
   API --> Compiler[Workflow compiler]
@@ -30,6 +32,7 @@ flowchart TD
   K3s -- observed node, Pod and Job state --> Provisioning
   Worker -- brokered tool request --> Effects
   Effects --> External[Models, MCP servers, build and browser tools]
+  Effects --> Environments[Branch dev, dev-main, staging and production adapters]
   API --> Knowledge[Repo-scoped wiki and source operations]
   API --> Planning[Planning port]
   Planning --> WBS[WBS service and UI]
@@ -40,7 +43,9 @@ flowchart TD
   Events --> MCP
 ```
 
-Twilight owns workflow execution and authority. WBS owns its planning semantics.
+OpenClaw owns general conversation and session execution behind an adapter. Twilight
+owns software-delivery workflow execution, authority, durable work projection,
+environment state and evidence. WBS owns its planning semantics.
 Backlog.md and its versioned extension own planning persistence after the migration.
 OpenSpec owns requirements and artifact contracts. The wiki owns sourced explanations.
 These are logical boundaries; the first service does not need a process per box.
@@ -54,6 +59,7 @@ Proposed Nx units, created with the behaviour that first needs them:
 | `libs/twilight-contracts` | Validated commands, errors, events, configuration and adapter capability documents        |
 | `libs/twilight-domain`    | Pure transitions, authority predicates, finding dispositions, resource accounting         |
 | `libs/twilight-runtime`   | LangGraph/checkpointer, durable store, ACP and evidence adapters behind precise ports     |
+| `libs/twilight-assistant` | OpenClaw adapter, worker/assignment/session bindings, redacted searchable session corpus  |
 | `apps/twilight-be`        | Elysia authenticated operations, repository access, streams and orchestration composition |
 | `apps/twilight-fe`        | React/Vite run/configuration/decision views, focus brief, WBS integration                 |
 | `apps/twilight-mcp`       | Streamable HTTP MCP facade over the same BE operations and caller authority               |
@@ -673,6 +679,39 @@ The server validates repository/candidate lineage and records the report once;
 linking it to an outcome asserts no causal blame for a particular model. Estimates
 remain alongside actuals; profile-default changes are ordinary evaluated work requests.
 
+## Assistant and work projection
+
+The assistant boundary is a port over pinned OpenClaw capabilities, not a second
+delivery coordinator. It creates and observes conversations, delegates to child
+sessions, retrieves permitted transcripts and requests cancellation. General work
+can end there. Software work crosses one authenticated Twilight operation and
+receives durable request, run, assignment and session references; every later
+decision and effect uses Twilight authority. OpenClaw text and hook callbacks are
+untrusted observations and cannot widen an envelope.
+
+`Worker` is a stable Twilight presentation record. `Assignment` binds a piece of
+work to that worker and one or more runtime sessions. A rename changes the worker's
+display revision only. Model, OpenClaw configured agent and session replacement are
+binding events, so history and permissions do not follow a mutable name.
+
+The secretary has a separately admitted interactive capacity class. Delegating a
+substantial request commits the assignment reference and ends the secretary turn;
+worker execution continues independently. Queue saturation is a visible assignment
+state. Phase 1 measures warm, saturated and cold-start response before publishing a
+numerical availability target.
+
+The session corpus stores redacted authorized message/tool content, structured
+assignment links and branch position. An adapter omission becomes an explicit gap.
+There is no personal-phase age deletion default: a configured storage ceiling warns
+and offers export before an explicit retention action. Search results resolve to a
+session position and the same access check used by direct inspection.
+
+High-level events form a durable projection over runtime observations, agent
+reports, accepted evidence and environment observations. These source classes stay
+distinct. The initial home follows the overview prototype: secretary composer,
+workers and assignments, environment identities and evidence together; conversation
+and delivery-board routes read the same projection rather than inventing state.
+
 ## Scheduling, integration and scaling
 
 The optimization objective is accepted elapsed time at fixed quality. Delivery
@@ -703,11 +742,12 @@ identity, verification receipts and publication state. `composeCandidate` merges
 compatible outputs and plan locks in an isolated workspace; full Nx and applicable
 browser gates run on that exact composition through the gate adapters. The queue
 can prepare and verify several prospective candidates concurrently. Integration
-prepares candidates without publishing source. Acceptance runs its independent
-oracle and applicable cloud checks; only then does its durable completion path
-invoke `publishCandidate` through effect execution. Handoff requires the accepted
-publication receipt. Publication compares the accepted source ref; a moved base
-regenerates the candidate and its evidence, including candidate acceptance checks. Failed or conflicting members enter bounded owner repair while independent
+prepares candidates without publishing source and builds their immutable artifacts.
+Staging deploys that artifact before acceptance runs its independent oracle and
+applicable cloud checks. Handoff then invokes `publishCandidate` through effect
+execution and converges dev-main. Publication compares the accepted source ref; a
+moved base regenerates the candidate, artifact, staging deployment and evidence,
+including candidate acceptance checks. Failed or conflicting members enter bounded owner repair while independent
 candidates continue. Dependent work can use an explicitly composed, tested basis;
 it cannot treat a branch label as an integrated predecessor. Production promotion
 remains the separate human command.
@@ -781,18 +821,48 @@ requirement, decision or evidence they rest on and do not replace it. Compaction
 preserves lineage and incoming links and is evaluated with the same question set
 before and after, at the targets in the profile's `knowledge` section.
 
-## Release and operational limits
+## Environments, publication and release
 
-Development acceptance checks deployed artifact and commit identity before a real
-cloud-browser scenario runs. The repository's Playwright server-reuse landmine
-applies: own ports and databases, verify the served build identity, run the whole
-browser gate when shared UI or CSS changes. A screenshot alone is insufficient.
+An `Environment` record owns stable identity, kind, repository/branch assignment,
+lifecycle, URL, desired source or artifact, independently observed source or
+artifact, health, freshness, capacity reason and evidence links. Phase 1 starts
+with one dev-main, one production environment, one serialized staging environment
+and one branch dev per active branch within capacity. Branch dev explicitly sleeps
+and resumes without losing its identity; automatic deletion waits for measured use.
 
-The release command binds a verified candidate, environment, migration plan,
-health checks and recovery procedure. Credentials stay outside worker control. The
-factory's own upgrades preserve a recovery route runnable without the new factory.
-Rollout and recovery are observed against actual admin and runtime state, not exit
-codes.
+Runnable checkpoint commits are offered to their branch dev after required
+pre-deploy checks. Source-run branch devs are allowed, but a commit or successful
+deploy command does not prove what is served. The adapter observes identity and
+health. Dev-main continuously converges on accepted main through the same explicit
+desired/observed model. Nightly cloud-browser sweeps cover dev-main and active
+branch devs. An unchanged source, configuration and scenario revision may reuse an
+earlier report only through a recorded coalesced disposition; it is not a new pass.
+
+Integration composes feature source with current main and builds one immutable
+artifact. Staging deploys it through the same deployment, migration, recovery,
+runtime/topology class, routing/auth shape and health checks as production.
+Endpoints, credentials, admitted scale and isolated data differ and remain visible;
+any further difference blocks until its risk and compensating production check are
+accepted. Automated reports and a manually executed real cloud-browser report bind
+the candidate, artifact, observed staging environment and scenario revision.
+
+Only after staging acceptance does handoff compare-and-swap the exact source
+candidate into main and converge dev-main. A moved main restarts composition,
+building, staging and acceptance. The release command then binds that candidate,
+the staging-tested artifact, production environment, migration plan, health checks
+and recovery procedure. It cannot rebuild. Credentials stay outside worker control.
+The factory's own upgrades preserve a recovery route runnable without the new
+factory. Rollout and recovery are observed against actual admin and runtime state,
+not exit codes.
+
+Every specified behavior is planned from exhaustive Given/When/Then scenarios.
+Stateless unit tests carry most decision coverage; API tests use a real isolated
+database; Playwright owns browser behavior; manual cloud-browser scenarios finish
+staging acceptance. Reports name scenario, source/artifact, environment and tool,
+and retain failed, skipped, unavailable and stale results. The repository's
+Playwright server-reuse landmine applies: own ports and databases, verify the served
+build identity, and run the whole browser gate when shared UI or CSS changes. A
+screenshot alone is insufficient.
 
 Contract for the M4 delta, not part of M1: after a supported upgraded controller
 has accepted a decision and recorded an uncertain effect, the protected recovery

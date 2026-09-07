@@ -1,11 +1,39 @@
 # Twilight control-plane verification
 
 Scope: current proposed requirements, design, execution profile and delivery plan,
-2026-09-06. This is a planning revision, not a factory implementation. Canonical
+through 2026-09-08. This is a planning revision, not a factory implementation. Canonical
 files describe the current contract; historical review receipts are not instructions.
 Product tasks remain unchecked. Specifications are not synchronized or archived.
 
-## Observed checks
+## Wayfinding reconciliation checks (2026-09-08)
+
+The personal/customer phase reconciliation added assistant interaction and delivery
+environment specs, made staging and publication separate ordered stages, expanded
+Tasks 13, 15 and 16, and resolved the Wayfinder map through documented assumptions.
+
+| Command / inspection                                                                                                             | Observed result                                                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx format:check --all`                                                                                                     | Passed with no formatting differences.                                                                                                                                                              |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                         | All 40 changes valid; existing informational archive notices remained non-failing.                                                                                                                  |
+| `bunx @fission-ai/openspec@1.12.0 schema validate twilight-v1 --json`                                                            | Experimental command reported the artifact schema valid with no issues.                                                                                                                             |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test check --projects=tool-workflows --parallel=2 --skip-nx-cache` | 25 tests passed; 40 generated workflow variants checked. The first invocation without the documented in-process settings failed while Nx plugin workers initialized and established no test result. |
+| Temporary Bun structural inspection of `execution.yaml`                                                                          | Revision 4: 13 unique acyclic stages, 16 unique activities, complete maps for all three profiles, all eight activity floors enabled, and every quality observer declared.                           |
+| Temporary changed-document inspection                                                                                            | 145 local links resolved; all 44 task IDs were unique and unchecked; proposal 398 words; `LLM_README.md` 150 lines.                                                                                 |
+
+The new assistant and environment files contain explicit Given, When and Then in
+every new scenario. The 80 inherited control-plane/repository-planning scenarios
+predate TS-32 and currently use When/Then form. Task 1.0 is therefore the first
+implementation prerequisite: it must add non-vacuous Given context and complete the
+normal/failure/boundary/recovery coverage ledger. Current OpenSpec CLI validation
+does not establish that semantic exhaustiveness.
+
+An exact Claude Fable 5.1 review of the current diff was attempted with read-only
+tools. The sandboxed call ended with `ENOTFOUND`; escalation was automatically
+rejected because it would send uncommitted internal planning documents to Anthropic
+without explicit approval for that payload. No current external-review verdict is
+claimed. The 2026-09-06 review below applies only to its named earlier revision.
+
+## Earlier observed checks (2026-09-06)
 
 Environment: `pop-os`, Bun 1.4.0, OpenSpec 1.12.0. Nx commands use
 `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`: isolated plugin startup failed before

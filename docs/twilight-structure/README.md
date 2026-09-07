@@ -1,16 +1,20 @@
 # Twilight Structure
 
-Current product-structure decisions live in the
-[Wayfinder map](../../.scratch/twilight-structure/map.md).
+The resolved product route lives in the
+[Wayfinder map](../../.scratch/twilight-structure/map.md). The
+[question register](assumptions.md#wayfinding-question-register) scores every
+provisional choice and identifies the one mandatory Phase 2 discovery question.
 
 Start with the [delivery plan](../../openspec/changes/twilight-control-plane/tasks.md).
-It builds the smallest usable FE/BE/MCP loop, then adds the client-repo planning
-backend and full factory capabilities in dependency order.
+It builds the factory core, connects the always-available secretary, completes
+branch-dev → staging → main/dev-main → production, and joins those records into
+the searchable work view. Backlog-backed WBS, knowledge maturity and clean-client
+portability follow before customer onboarding.
 
-Current objective: minimize elapsed time to accepted, integrated outcomes within
-approved spending and fixed quality. M1 includes pipelined deliverables, execution
-envelopes, automated integration, a real multi-host K3s worker pool and a measured
-scaling gate. Product code is not implemented. The
+Current objective: give Dany the complete assistant-to-production loop while
+minimizing elapsed time to accepted outcomes within approved spending and fixed
+quality. M1 remains the technical factory-core landmark; it is not the personal
+phase exit. Product code is not implemented. The
 [current verification record](../../openspec/changes/twilight-control-plane/verify.md)
 separates document checks from future runtime proofs.
 

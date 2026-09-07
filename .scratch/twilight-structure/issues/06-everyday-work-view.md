@@ -8,7 +8,7 @@ Type: prototype
 
 Mode: HITL
 
-Status: claimed
+Status: resolved
 
 Assignee: Dany
 
@@ -64,5 +64,20 @@ rename, direct message/secretary copy, tool-text search, report and navigation
 interactions. Server lint, formatting and pre-commit checks passed. No live agent,
 cloud-browser acceptance, application build or deployment was exercised.
 
-Dany has been asked which layout should be the default. This ticket remains
-claimed pending that feedback; no UI choice or production implementation is implied.
+Dany later authorized the agent to keep moving through documented assumptions and
+to surface only the highest-importance questions. Assumption A51 therefore selects
+layout A provisionally; no production implementation is implied.
+
+## Answer
+
+2026-09-08 — Use the overview as the personal-phase home: the secretary remains
+available beside recurring, renameable workers, current assignments, environment
+state and evidence. Conversation-first and delivery-board presentations remain
+secondary routes into the same records. Every worker and assignment opens its
+searchable session history; environment cards distinguish desired, committed,
+composed, merged and deployed identities rather than reducing progress to prose.
+
+This is a provisional product default under A51, not a user-approved visual design.
+It can change without reopening the delivery architecture. The prototype proves
+navigation and legibility only; live OpenClaw sessions, durable events, environment
+adapters and evidence search remain implementation work.

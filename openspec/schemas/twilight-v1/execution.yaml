@@ -1,4 +1,4 @@
-# Twilight execution profile, revision 3 (proposed; no runtime reads it yet).
+# Twilight execution profile, revision 4 (proposed; no runtime reads it yet).
 #
 # Compiled with schema.yaml, the repository manifest, provider capabilities
 # and an explicit immutable organization snapshot into one workflow revision. See
@@ -13,7 +13,7 @@
 # it is a required compiler input, never an implicit server lookup or fallback.
 # Unknown keys, missing referenced ids and cycles in either DAG are errors.
 
-version: 3
+version: 4
 
 # `after` is the single stage DAG. Artifact mappings describe required inputs
 # or evidence; schema.yaml's separate artifact DAG only decides file readiness.
@@ -31,8 +31,10 @@ stages:
   - { id: review, after: [implementation], scope: deliverable }
   - { id: verification, after: [review], scope: deliverable, artifact: verify }
   - { id: integration, after: [verification], scope: candidate }
-  - { id: acceptance, after: [integration], scope: candidate, artifact: verify }
-  - { id: handoff, after: [acceptance], artifact: verify }
+  - { id: staging, after: [integration], scope: candidate, artifact: verify }
+  - { id: acceptance, after: [staging], scope: candidate, artifact: verify }
+  - { id: publication, after: [acceptance], scope: candidate, artifact: verify }
+  - { id: handoff, after: [publication], artifact: verify }
   - { id: release, after: [handoff], command: release }
 
 # The catalog declares execution kind; repositoryFloor alone declares mandatory
@@ -97,6 +99,14 @@ activities:
       resources: { build: 1, workspace: 1 },
     }
   - {
+      id: staging.deploy,
+      stage: staging,
+      class: verify,
+      executor: tool,
+      implementation: registered:staging-deploy,
+      resources: { build: 1 },
+    }
+  - {
       id: acceptance.cloud-browser,
       stage: acceptance,
       class: verify,
@@ -109,6 +119,22 @@ activities:
       class: knowledge,
       executor: agent,
       resources: { agent: 1, workspace: 1 },
+    }
+  - {
+      id: publication.main,
+      stage: publication,
+      class: integrate,
+      executor: tool,
+      implementation: registered:publish-candidate,
+      resources: { workspace: 1 },
+    }
+  - {
+      id: handoff.dev-main,
+      stage: handoff,
+      class: verify,
+      executor: tool,
+      implementation: registered:dev-main-converge,
+      resources: {},
     }
   - {
       id: acceptance.evaluate,
@@ -181,7 +207,8 @@ hooks:
 # hard money caps. Disabled activities are validated again before enabling.
 # activities is the only enablement/depth source; there are no parallel skip,
 # judge or browserGate switches. verification.gate always runs the full repo
-# gate. Cloud acceptance is disabled until its M4 adapter is proven.
+# gate. Cloud acceptance is a repository floor; it remains unavailable, rather
+# than skipped, until Task 13 proves its adapter.
 # Overrides merge maps by key, replace scalars/arrays, and require a reason;
 # per-activity models replace class defaults. Unknown or conflicting fields fail.
 # rework.maxRounds counts consumed rounds across profile epochs, including zero.
@@ -214,8 +241,11 @@ profiles:
       verification.gate: { enabled: true }
       verification.browser: { enabled: true, scope: whole }
       integration.compose: { enabled: true }
-      acceptance.cloud-browser: { enabled: false }
+      staging.deploy: { enabled: true }
+      acceptance.cloud-browser: { enabled: true }
       handoff.knowledge: { enabled: true }
+      publication.main: { enabled: true }
+      handoff.dev-main: { enabled: true }
       acceptance.evaluate: { enabled: true }
     rework: { maxRounds: 3 }
     fanOut: 2
@@ -250,8 +280,11 @@ profiles:
       verification.gate: { enabled: true }
       verification.browser: { enabled: true, scope: affected }
       integration.compose: { enabled: true }
-      acceptance.cloud-browser: { enabled: false }
+      staging.deploy: { enabled: true }
+      acceptance.cloud-browser: { enabled: true }
       handoff.knowledge: { enabled: true }
+      publication.main: { enabled: true }
+      handoff.dev-main: { enabled: true }
       acceptance.evaluate: { enabled: true }
     rework: { maxRounds: 2 }
     fanOut: 2
@@ -286,8 +319,11 @@ profiles:
       verification.gate: { enabled: true }
       verification.browser: { enabled: false, scope: affected }
       integration.compose: { enabled: true }
-      acceptance.cloud-browser: { enabled: false }
+      staging.deploy: { enabled: true }
+      acceptance.cloud-browser: { enabled: true }
       handoff.knowledge: { enabled: true }
+      publication.main: { enabled: true }
+      handoff.dev-main: { enabled: true }
       acceptance.evaluate: { enabled: true }
     rework: { maxRounds: 1 }
     fanOut: 4
@@ -300,10 +336,18 @@ profiles:
 
 # What no profile or run override may remove in this repository.
 repositoryFloor:
-  activities: [verification.gate, integration.compose, acceptance.evaluate, handoff.knowledge]
+  activities:
+    - verification.gate
+    - integration.compose
+    - staging.deploy
+    - acceptance.cloud-browser
+    - acceptance.evaluate
+    - publication.main
+    - handoff.dev-main
+    - handoff.knowledge
   hooks: [secrets-scan]
   approvals: [beforeStage.implementation, release]
-  evidence: [served-source-identity, redaction, run-ledger]
+  evidence: [served-source-identity, branch-dev-observation, redaction, run-ledger]
 
 # Named authority for discovery before a plan exists (assumption A29).
 discoveryEnvelopes:
@@ -359,8 +403,17 @@ presentation:
 retention:
   organizationPolicy: null
   metadata: P90D
-  redactedContent: P14D
+  redactedContent: explicit-storage-ceiling
   releaseEvidence: { after: release-lifetime, plus: P90D }
+
+# Scheduled runs use the same admission/evidence path. Coalescing requires exact
+# source, configuration and scenario identity and records a disposition, not a pass.
+scheduledSweeps:
+  cadence: P1D
+  targets: [dev-main, active-branch-devs]
+  executor: acceptance.cloud-browser
+  unchanged: coalesce-with-linked-report
+  staging: immediate-never-coalesce
 
 # Knowledge operations profile (docs/twilight-structure/knowledge.md).
 knowledge:

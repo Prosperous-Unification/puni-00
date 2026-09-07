@@ -2,7 +2,7 @@
 
 Labels: wayfinder:map
 
-Status: open
+Status: resolved
 
 ## Destination
 
@@ -43,15 +43,18 @@ serve Dany first and potential customers second made explicit.
 - [Trace the existing plans and Claire lessons to the two product audiences](issues/03-existing-plan-and-claire-evidence.md): personal delivery crosses current milestone labels; clean-client proofs are shared foundations, and assistant coverage is additional work.
 - [Select the personal phase's delivery controls and quality evidence](issues/04-personal-delivery-controls.md): exhaustive scenarios, layered tests and reports are required; its initial merge-gate placement is superseded by the later staging requirement.
 - [Define branch dev environments and staging before merge](issues/07-staging-and-branch-devs.md): stage the feature branch composed with current main, merge the tested candidate and promote the same artifact; dev-main tracks main alongside branch devs.
+- [Make ongoing work and intervention understandable at a glance](issues/06-everyday-work-view.md): provisionally use the secretary-led overview, with conversation and delivery-board views over the same durable records.
+- [Assign existing product work to the personal and customer phases](issues/05-product-phase-boundaries.md): complete the assistant-to-production personal loop first, mature planning and portability next, and require named customer discovery before Phase 2 commitments.
 
-## Not yet specified
+## Deferred decisions
 
 - Which potential customer and concrete customer problem should shape the second
   phase, and which onboarding, packaging and maintenance questions that reveals.
-- How the complete request-to-production loop changes the detailed OpenSpec deltas,
-  integration contracts and the order of implementation slices.
 - Which richer agent visual treatments prove useful once a basic work view is
   tested, and how much presentation belongs in the personal phase.
+
+The customer and visual questions do not block the personal route. Their scored
+revisit points live in assumptions A51 and A63.
 
 ## Out of scope
 
