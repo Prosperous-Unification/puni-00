@@ -9,19 +9,23 @@ must not import from the older live tree.
 The preparation identity is the target tree identity of
 `SOLVER_COMPATIBILITY_PATHS`, not merely the target commit. Durable host state
 records that identity, the full source SHA used in the installed binding, and
-the registry-returned digest. A matching complete record may be reused. Missing,
-malformed, partial, or mismatched state fails closed.
+the registry-returned digest. A matching identity may reuse its image across an
+unrelated successor commit by durably rebinding the full source SHA before host
+mutation. Missing, malformed, partial, or identity-mismatched state fails closed.
 
 For a new identity the trigger publishes only the be solver image, records the
 registry-returned immutable digest, renders the complete supervisor config with
 the current prod colour identities and target source SHA, and invokes the
 existing installer. The installer remains the only writer of service/config
 state. Only after its preflight proves the exact digest and target compatibility
-does the live checkout reset.
+does the live checkout reset. Config publication, supervisor restart, readiness,
+and mapping checks share the production deploy lock with every production swap.
 
 An interruption before a digest is recorded repeats or discovers the immutable
 publish. An interruption after publish but before install reuses the digest. An
 interruption during install relies on the installer's atomic, verified contract
 and retries it. No state is marked complete until the post-install preflight
-succeeds. The existing ten-failure alarm owns notification; preparation does
-not invent a second owner channel.
+succeeds. A completed record still rechecks service, socket, config, and mapping;
+a failed recheck reinstalls once under the production lock. The existing
+ten-failure alarm owns notification; preparation does not invent a second owner
+channel.

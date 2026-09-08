@@ -47,4 +47,4 @@ Solver compatibility binding.
 
 ## Decisions Recorded
 
-- [ADR 0017](../../../docs/adr/0017-the-dev-deploy-trigger-owns-solver-compatibility-preparation.md)
+- [ADR 0018](../../../docs/adr/0018-the-dev-deploy-trigger-owns-solver-compatibility-preparation.md)

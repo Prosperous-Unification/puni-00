@@ -34,7 +34,12 @@ image-selection authority.
 The first deploy for a new compatibility identity is slower and can fail during
 build, publish, or installation. Such a failure remains before reset, is safe to
 retry from its durable identity, and is still surfaced by the existing
-ten-tick deploy-health alarm. Implementation must begin with an OpenSpec change,
-keep preparation and reset under one exclusion boundary, prove interrupted
-retries do not publish or install a mismatched binding, and exercise a real
-solver-path change on h2puni before TASK-326 closes.
+ten-tick deploy-health alarm. A successful install atomically replaces the
+host-wide supervisor config and restarts the supervisor used by both dev and
+production callers. That brief prod solver interruption is accepted, but the
+config move, restart, readiness proof, and mapping proof run under the canonical
+production deploy lock, so they cannot interleave with a production swap.
+Implementation must begin with an OpenSpec change, keep preparation and reset
+under one dev exclusion boundary, prove interrupted retries do not publish or
+install a mismatched binding, and exercise a real solver-path change on h2puni
+before TASK-326 closes.

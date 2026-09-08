@@ -74,11 +74,19 @@ replacement config that preserves both production mappings,
 builds and executes the checked-in supervisor installer, and runs the installed bundle's dev
 preflight. The live checkout reset is last.
 
+Installing the host-wide config restarts `wbs-solver-supervisor.service`, which serves both dev
+and production callers and therefore causes a brief production solver interruption. The config
+move, service restart, readiness check, and mapping preflight are held under the canonical
+`/home/puni1/wbs/state/deploy.lock`; if a production swap holds it, this poll refuses before host
+mutation and the normal deploy-health alarm owns escalation.
+
 Publication is checkpointed at
 `/home/puni1/wbs-dev/state/solver-preparation.<compatibility-identity>.json`. A retry after an
-interrupted install reuses that exact immutable digest instead of publishing again; a completed
-retry still rechecks the current host before reset. State for another source or compatibility
-identity, a tag-only image, divergent production mappings, malformed host files, or a failed
+interrupted install reuses that exact immutable digest instead of publishing again. An unrelated
+successor commit with the same compatibility identity rebinds that digest to its new source SHA.
+A completed retry rechecks the service, socket, config, and mapping before reset; if shared config
+was replaced by another identity, it reinstalls once under the production lock. State for another
+compatibility identity, a tag-only image, divergent production mappings, malformed host files, or a failed
 publish/install/preflight all refuse before reset. The registry credential is read only when a
 publish is required and is passed only in the publisher child's environment; neither the config
 nor durable state contains it.

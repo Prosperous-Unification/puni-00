@@ -5,7 +5,7 @@
       source change must not.
 - [x] 2. Add a target-pinned preparation runner and durable state decoder;
       watched reds: old-live-tree imports, missing state, partial state, and a
-      digest/source mismatch all refuse before host mutation.
+      digest/compatibility-identity mismatch all refuse before host mutation.
 - [x] 3. Compose publish, materialization, installer, and post-install preflight
       behind injected boundaries; watched reds remove each phase and prove no
       reset can occur.

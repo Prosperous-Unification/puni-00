@@ -527,7 +527,9 @@ describe('solver binding retries', () => {
         preflight: () => {
           checks += 1;
           events.push(`preflight:${String(checks)}`);
-          return checks === 1 ? Promise.reject(new Error('mapping overwritten')) : Promise.resolve();
+          return checks === 1
+            ? Promise.reject(new Error('mapping overwritten'))
+            : Promise.resolve();
         },
         reset: () => {
           events.push('reset');

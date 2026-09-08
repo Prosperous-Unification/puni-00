@@ -46,7 +46,7 @@ with the full commit SHA: the unrelated-source case failed at `toBe` while the
 other seven cases stayed green. Restoring the production source returned 8/8.
 The state and runner cases separately require the host command ledger to stay
 empty for old-live-tree code, absent or partial state, a non-digest image, a
-different source SHA, and a different compatibility identity.
+a malformed source SHA, and a different compatibility identity.
 
 ## Pre-reset preparation ordering
 
@@ -90,9 +90,10 @@ install, and preflight succeed.
 
 A control wrote `complete` before the interrupted install. The retry case
 failed on the unexpected complete checkpoint while the other 13 focused cases
-stayed green. Restoring the exact source returned 14/14. A mismatched source
-checkpoint separately reaches none of publish, checkpoint, materialize,
-install, preflight, or reset.
+stayed green. Restoring the exact source returned 14/14. That original
+same-identity/different-commit refusal was later superseded by the terminal
+review repair below: compatibility identity owns image reuse, while the new
+full source SHA is durably rebound before host mutation.
 
 ## Complete target build tree
 
