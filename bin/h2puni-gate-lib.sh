@@ -59,6 +59,22 @@ gate_with_pinned_head() {
   # a lint failure in a file that sha does not contain. That verdict is worse
   # than a red one, because it is attributed to a commit.
   #
+  # The refusal truncates its listing WITHOUT a pipe. `printf … | head -10` reads
+  # naturally and is wrong here: `head` exits on the eleventh line, the builtin
+  # `printf` takes SIGPIPE on a listing large enough to fill the pipe, and `set
+  # -euo pipefail` then reports 141 where automation was promised 65 — the
+  # refusal replaced by a signal, on exactly the dirtiest trees. The round-3 peer
+  # reproduced that at a 4,000,151-byte listing (pipeline statuses `141,0`); an
+  # 88 KB one did not, because the pipe on this host takes up to 1 MiB — so a
+  # `|| true` beside the pipe would have been certified by a regression case that
+  # never reaches its own failure. A `while read` over a here-doc rather than
+  # `mapfile`, because macOS ships bash 3.2 as /bin/bash and has no `mapfile`.
+  #
+  # Nothing inside the payload may contain an apostrophe: it is a single-quoted
+  # `bash -c` string, and one in a comment there was watched ending the quote and
+  # breaking the file with `syntax error near unexpected token fi`. That is why
+  # this note lives out here.
+  #
   # Refused rather than cleaned: `git clean -fd` in a tree several lanes share
   # deletes work nobody asked us to delete, and this runs unattended. The gate
   # gates a COMMIT; anything else in the tree is a caller error with a name
@@ -72,16 +88,22 @@ gate_with_pinned_head() {
     dirty=$(git -C "$repo" status --porcelain --untracked-files=normal)
     if [[ -n $dirty ]]; then
       printf "h2puni gate: %s is dirty after checking out %s; refusing to report a verdict about bytes that commit does not contain:\n" "$repo" "$pinned" >&2
-      # `|| true` is a belt whose failure mode has NOT been observed, and that is
-      # said here rather than left to be assumed. The theory is sound — `head -10`
-      # exits on the eleventh line, `printf` can take SIGPIPE, and `set -euo
-      # pipefail` would report 141 where automation was promised 65 — but two
-      # attempts to watch it failed: with this `|| true` removed, both a
-      # twelve-name listing and an ~84 KB one (400 x ~210-byte names, against a
-      # 64 KB pipe buffer) still exited 65. It stays because the listing is
-      # unbounded in production and a refusal that reports a signal instead is
-      # unreadable. It is not counted as a proved guard.
-      printf "%s\n" "$dirty" | head -10 >&2 || true
+      # No pipe here, and no apostrophes either: see the two notes above this
+      # call, both of which are load-bearing and both of which were watched.
+      shown=0
+      while IFS= read -r line; do
+        printf "  %s\n" "$line" >&2
+        shown=$((shown + 1))
+        if [[ $shown -ge 10 ]]; then
+          break
+        fi
+      done <<EOF
+$dirty
+EOF
+      total=$(printf "%s\n" "$dirty" | wc -l)
+      if [[ $total -gt $shown ]]; then
+        printf "  … and %s more\n" "$((total - shown))" >&2
+      fi
       exit 65
     fi
     printf "h2puni gate: running on %s\n" "$(git -C "$repo" rev-parse HEAD)" >&2
