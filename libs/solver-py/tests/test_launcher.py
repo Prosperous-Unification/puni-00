@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import pathlib
 import stat
 import subprocess
 import sys
@@ -125,6 +126,34 @@ class LauncherProcess(unittest.TestCase):
             launcher.resource.RLIMIT_AS,
             (512 * 4 * 1024 * 1024, 512 * 4 * 1024 * 1024),
         )
+
+    @unittest.skipUnless(sys.platform == "linux", "RLIMIT_AS is only settable on Linux")
+    def test_the_limit_is_really_applied_by_the_kernel(self) -> None:
+        """The real call, against the real kernel. Mirrors test_cli's prctl case.
+
+        This is the non-vacuous half of the two mocked cases around it: both
+        would pass against an `_apply_address_space_limit` that computed the
+        right number and never reached the kernel with it, which is exactly what
+        the Darwin branch above now does deliberately.
+
+        In a subprocess because a limit applied to the test runner would follow
+        it into every case after this one.
+        """
+        probe = (
+            "import resource, sys;"
+            "sys.path.insert(0, 'src');"
+            "from wbs_solver import launcher;"
+            "launcher._apply_address_space_limit(512);"
+            "print(resource.getrlimit(resource.RLIMIT_AS)[0])"
+        )
+        done = subprocess.run(
+            [sys.executable, "-c", probe],
+            capture_output=True,
+            cwd=str(pathlib.Path(__file__).resolve().parent.parent),
+            check=False,
+        )
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(int(done.stdout.strip()), 512 * 4 * 1024 * 1024)
 
     def test_a_linux_setrlimit_failure_is_not_swallowed(self) -> None:
         """The platform branch must not become a general exception guard.
