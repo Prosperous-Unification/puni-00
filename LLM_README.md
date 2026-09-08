@@ -1,6 +1,6 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-326 is on `change/task-326-dev-solver-binding`: preparation through reset now shares one exclusion lease; next prove immutable retry behavior after publish and interrupted install.
+TASK-326 is on `change/task-326-dev-solver-binding`: immutable retry state is green after publish and interrupted install; next wire preparation into the target-candidate deploy path and runbook.
 
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),

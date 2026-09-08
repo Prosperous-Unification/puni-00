@@ -11,7 +11,7 @@
       reset can occur.
 - [x] 4. Put preparation through reset under one exclusion boundary; prove two
       overlapping triggers cannot publish/install different target bindings.
-- [ ] 5. Prove retries after publish and interrupted install reuse only the
+- [x] 5. Prove retries after publish and interrupted install reuse only the
       matching immutable digest and never mark incomplete state complete.
 - [ ] 6. Update the dev deploy runbook and target-candidate installation path.
 - [ ] 7. Run focused and full gates on h2puni, then exercise a real

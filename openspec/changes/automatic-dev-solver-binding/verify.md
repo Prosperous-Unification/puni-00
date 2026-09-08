@@ -25,7 +25,7 @@ The terminal proof must include:
 | target-pinned runner   | import available only in old live checkout    | `99810aa`: 8/8 focused cases green                     |
 | pre-reset ordering     | omit each prepare/verify phase                | `d9eeb611`: 75/75; preflight omission failed 2 cases   |
 | exclusion              | two different targets overlap                 | `cc6c050d`: overlap refused before second publish      |
-| interrupted retry      | stop after publish and during install         | pending                                                |
+| interrupted retry      | stop after publish and during install         | `3017d066`: digest reused; premature completion red    |
 | live solver change     | poll target differs under `libs/solver-py`    | pending                                                |
 | alarm backstop         | ten consecutive injected preparation failures | pending                                                |
 
@@ -76,3 +76,19 @@ A control replaced the nonblocking acquisition with an unconditional lease.
 The overlap case failed because the different target completed instead of
 being refused; the other 11 focused cases stayed green. Restoring the exact
 source returned 12/12.
+
+## Interrupted binding retry
+
+At `3017d06600b64700982c51c3fa92ed022cfebf74`, the exact-head h2puni
+`tool-devsync` gate passed 78/78 cases (226 assertions), ESLint, TypeScript,
+and Prettier. The focused preparation suite passed 14/14 cases (45
+assertions). It records `published` immediately after the immutable digest is
+known, retries an interrupted install from that target-matching checkpoint
+without publishing again, and records `complete` only after materialization,
+install, and preflight succeed.
+
+A control wrote `complete` before the interrupted install. The retry case
+failed on the unexpected complete checkpoint while the other 13 focused cases
+stayed green. Restoring the exact source returned 14/14. A mismatched source
+checkpoint separately reaches none of publish, checkpoint, materialize,
+install, preflight, or reset.
