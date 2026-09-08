@@ -52,7 +52,7 @@ note links to it rather than restating it.
 | How the current plan serves personal use and future customers       | [Phase dependency findings](research/phase-dependencies.md)                                                                     |
 | OpenHands, OpenClaw, LangGraph/LangChain and durable workflows      | [Runtime patterns](research/runtime-patterns.md)                                                                                |
 | Expandable execution pools and agent sandboxes                      | [Worker-pool candidates](research/worker-pools.md)                                                                              |
-| How Uber's factory-efficiency methods pressure-test this plan       | [120-question efficiency grill](evidence/uber-efficiency-grill.md)                                                              |
+| How the 160-question grill constrains the plan                      | [Decision tree](evidence/grilling-decision-tree.md), [answered efficiency corpus](evidence/uber-efficiency-grill.md)            |
 | i-have-adhd, Dahl's Wiki fork, Karpathy and Claw Patrol             | [Knowledge patterns](research/knowledge-patterns.md)                                                                            |
 | Backlog.md and WBS storage requirements                             | [Backlog patterns](research/backlog-patterns.md)                                                                                |
 | Claire and the first source inspection                              | [Initial inspection](research/initial-inspection.md), retained as dated evidence                                                |
