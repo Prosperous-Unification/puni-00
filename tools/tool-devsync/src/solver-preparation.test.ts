@@ -4,6 +4,7 @@ import {
   decodeSolverPreparationState,
   prepareSolverBindingBeforeReset,
   prepareSolverBindingUnderExclusion,
+  resumeSolverBindingBeforeReset,
   runTargetPinnedSolverPreparation,
   SOLVER_COMPATIBILITY_PATHS,
   solverCompatibilityIdentityAt,
@@ -377,6 +378,88 @@ describe('solver binding exclusion', () => {
       'reset:first',
     ]);
     expect(held).toBe(false);
+  });
+});
+
+describe('solver binding retries', () => {
+  it('reuses one published digest after an interrupted install', async () => {
+    const checkpoints: SolverPreparationState[] = [];
+    const events: string[] = [];
+    let publishes = 0;
+    let interruptInstall = true;
+    const dependencies = {
+      publish: () => {
+        publishes += 1;
+        return Promise.resolve(IMAGE);
+      },
+      checkpoint: (state: SolverPreparationState) => {
+        checkpoints.push(state);
+        return Promise.resolve();
+      },
+      materialize: (binding: { image: string }) => {
+        events.push(`materialize:${binding.image}`);
+        return Promise.resolve();
+      },
+      install: (binding: { image: string }) => {
+        events.push(`install:${binding.image}`);
+        return interruptInstall
+          ? Promise.reject(new Error('install interrupted'))
+          : Promise.resolve();
+      },
+      preflight: (binding: { image: string }) => {
+        events.push(`preflight:${binding.image}`);
+        return Promise.resolve();
+      },
+      reset: () => {
+        events.push('reset');
+        return Promise.resolve();
+      },
+    };
+    const target = { sourceSha: SOURCE_SHA, compatibilityIdentity: IDENTITY };
+
+    expect(await rejection(resumeSolverBindingBeforeReset(target, undefined, dependencies))).toContain(
+      'install interrupted',
+    );
+    expect(checkpoints).toEqual([{ ...STATE, phase: 'published' }]);
+    expect(events).not.toContain('reset');
+
+    interruptInstall = false;
+    await resumeSolverBindingBeforeReset(target, stateBytes(checkpoints[0]), dependencies);
+    expect(publishes).toBe(1);
+    expect(checkpoints).toEqual([
+      { ...STATE, phase: 'published' },
+      { ...STATE, phase: 'complete' },
+    ]);
+    expect(events.at(-1)).toBe('reset');
+    expect(events.filter((event) => event.includes(IMAGE))).toHaveLength(5);
+  });
+
+  it('refuses a mismatched published checkpoint before any phase runs', async () => {
+    let mutations = 0;
+    const mutation = () => {
+      mutations += 1;
+      return Promise.resolve();
+    };
+    expect(
+      await rejection(
+        resumeSolverBindingBeforeReset(
+          { sourceSha: SOURCE_SHA, compatibilityIdentity: IDENTITY },
+          stateBytes({ ...STATE, sourceSha: OTHER_SOURCE_SHA }),
+          {
+            publish: async () => {
+              await mutation();
+              return IMAGE;
+            },
+            checkpoint: mutation,
+            materialize: mutation,
+            install: mutation,
+            preflight: mutation,
+            reset: mutation,
+          },
+        ),
+      ),
+    ).toContain('source SHA does not match target');
+    expect(mutations).toBe(0);
   });
 });
 
