@@ -88,8 +88,15 @@ rm -f -- "$CANDIDATE_NEXT/.tree.tar"
 # orders of magnitude longer. What it buys: the day someone adds a real
 # dependency to this graph, the tick refuses here by name instead of deploying
 # against a stale install.
+#
+# `--reject-unresolved` is load-bearing, not belt-and-braces. Bun's default is
+# `--allow-unresolved='*'`: a static bare import fails the build, but an opaque
+# `await import(name)` or `require(name)` is allowed straight through. Without
+# the flag a deployer could pass this guard and still carry a runtime
+# third-party dependency — resolved, if at all, against whatever the host
+# happens to have — which is the exact silence the borrowed symlink had.
 RESOLVE_OUT="$CANDIDATE_NEXT/.resolve"
-if ! "$BUN" build --target=bun --outdir="$RESOLVE_OUT" \
+if ! "$BUN" build --target=bun --reject-unresolved --outdir="$RESOLVE_OUT" \
   "$CANDIDATE_NEXT/tools/tool-devsync/src/sync.ts" > "$CANDIDATE_NEXT/.resolve.log" 2>&1; then
   echo "refusing target $SHA: the deployer's import graph does not resolve inside the extracted candidate." >&2
   echo "The dev deployer may import only relative files, @wbs/* aliases and Bun/Node builtins; it runs before any install for this commit exists. See docs/runbook-dev-deploy.md." >&2

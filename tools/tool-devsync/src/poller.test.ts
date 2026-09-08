@@ -413,6 +413,56 @@ echo deployed >> ${ran}
     expect(await readdir(installed)).toEqual([]);
   });
 
+  it('refuses a target whose deployer hides its dependency behind an opaque dynamic import', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-opaque-'));
+    const source = join(root, 'source');
+    const installed = join(root, 'bin');
+    const ran = join(root, 'ran');
+    await initFixtureRepository(source);
+    // Bun's default is `--allow-unresolved='*'`, so a specifier the bundler
+    // cannot see through is waved past unless the guard rejects it. This is
+    // the same defect as the static case wearing a disguise: a deployer that
+    // reaches for a package no install under the candidate can supply.
+    await seedDeployerTree(
+      source,
+      'export const PROBE = 1;\n',
+      `import { PROBE } from '@wbs/probe-contract';\n` +
+        `const name = ['fixture-only', 'dependency'].join('-');\n` +
+        `console.log(PROBE, await import(name));\n`,
+    );
+    const head = await commitAll(source, 'deployer hiding a dependency behind a dynamic import');
+    await mkdir(join(source, 'node_modules'), { recursive: true });
+
+    const recordingBun = join(root, 'bun');
+    await writeFile(
+      recordingBun,
+      `#!/usr/bin/env bash
+set -eu
+if [ "$1" = --version ]; then echo ${Bun.version}; exit 0; fi
+if [ "$1" = build ]; then exec ${process.execPath} "$@"; fi
+echo deployed >> ${ran}
+`,
+    );
+    await chmod(recordingBun, 0o755);
+
+    const attempt = await command([
+      'bash',
+      HELPER,
+      source,
+      installed,
+      recordingBun,
+      head,
+      Bun.version,
+    ]);
+
+    // Without `--reject-unresolved` on the guard build this passes the guard
+    // and the deployer runs, so this file exists.
+    expect(await command(['test', '-e', ran])).toMatchObject({ code: 1 });
+    expect(attempt.code).not.toBe(0);
+    expect(attempt.stderr).toContain('@wbs/* aliases and Bun/Node builtins');
+    expect(await readdir(installed)).toEqual([]);
+  });
+
   it('keeps concurrent target candidates isolated by commit', async () => {
     const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-race-'));
     const source = join(root, 'src');
