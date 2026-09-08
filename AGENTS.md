@@ -465,9 +465,21 @@ failure mode has never been observed is a claim, not a gate.
 
 ## Gate
 
-- Before claiming done on h2puni, run `bin/h2puni-gate.sh`. It acquires the
-  canonical host-wide heavy-work lock before running CI's format, test, lint,
-  typecheck, and build commands. Do not run the raw full Nx gate on h2puni.
+- Before claiming done on h2puni, run `bin/h2puni-gate.sh <sha>`. It acquires the
+  canonical host-wide heavy-work lock, checks `<sha>` out under that lock, and
+  only then runs CI's format, test, lint, typecheck, and build commands. Do not
+  run the raw full Nx gate on h2puni.
+- **Pass the sha; do not check it out yourself first.** Lanes share one gate
+  checkout, so a `git checkout` of your own before the call happens outside the
+  mutex and another lane can move the head between it and the steps — that is
+  how one lane's gate came to report about another lane's head, silently, on
+  2026-09-07. The argument exists to close that window. Without it the gate
+  pins the head it finds at invocation, which is safe only if nothing else is
+  gating. The gate prints `h2puni gate: running on <sha>`; that line, not your
+  intention, is what the verdict is about.
+- A gate that finds the lock held **queues** (30 minutes by default) rather than
+  refusing with exit 75, because a refused gate costs a worker its whole
+  75-minute run box. `HEAVY_LOCK_WAIT_SECONDS=0` restores refuse-now.
   `--all` is not decoration: without it the scope is `git diff main HEAD`, which is
   EMPTY on main — a format check that checks nothing and passes.
 - OpenSpec changes also run `openspec validate --all --json`.
