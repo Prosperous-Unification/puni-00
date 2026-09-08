@@ -6,8 +6,8 @@ the single authored product plan. Every checkbox is intentionally unchecked:
 the current request delivered planning and a repository workflow trial, not the
 factory implementation. Execute against the [design](design.md) and the
 [capability specs](specs/twilight/). Design is required for this architecture.
-Each task names the spec requirements it proves; the
-[traceability table](#requirement-coverage) at the end is derived from those lines.
+Each task's `Proves` line is a short orientation summary. The
+[traceability table](#requirement-coverage) at the end is the complete requirement mapping.
 
 All numerical effort/capacity values below are **planning estimates**, not measured
 performance or spending authority. The actor executing an increment receives an
@@ -77,6 +77,12 @@ one key space; Executable restore compatibility (A39, A47).
 - [ ] 1.2 After 1.1 passes, deliver the compiler, contracts and non-vacuous Nx targets.
 
 **Owns:** new `tools/tool-twilight/project.json`, `tools/tool-twilight/src/compile.ts`,
+`tools/tool-twilight/src/validate-scenarios.ts`,
+`tools/tool-twilight/src/validate-scenarios.test.ts`, the
+`tool-twilight:scenario-check` Nx target, its required CI invocation,
+`registered:repository-gate`, `registered:browser-gate` and
+`registered:scenario-coverage`,
+`tools/tool-twilight/src/testing/fixture-registry.ts`,
 `libs/twilight-contracts/src/workflow.ts`, `libs/twilight-contracts/src/profile.ts`,
 `libs/twilight-runtime/src/workflow/compile.ts`,
 `libs/twilight-runtime/src/workflow/compile.test.ts`,
@@ -93,6 +99,14 @@ record, and `WorkflowRestore.restoreRun(runId)` as the only checkpoint-loading
 entry, owning executable resolution, compatibility and revision reconciliation.
 The runtime-validated input schema is canonical.
 
+Task 1 also supplies a test-only complete implementation registry whose fakes have
+independent call counters and cannot be loaded by a production bootstrap. Tasks
+3–6 inject it when exercising run persistence, admission and live low-risk worker
+fixtures before Task 7 registers the production factory-core implementations.
+Production run creation continues to refuse the incomplete registry. Deleting the
+test-only bootstrap guard and loading a fake in production must fail its boundary
+test; no pre-Task-7 test may claim an end-to-end factory run.
+
 **Acceptance:** the same Git inputs and organization snapshot yield the same digest,
 forms, resolved activity plan and effective policies with origin scope; changing
 either changes the digest. The compiled stage DAG follows `stages[].after`, retains
@@ -101,7 +115,9 @@ expand implementation/review/verification per deliverable, join only declared
 candidate members at integration, and join required outcomes at handoff;
 artifact readiness edges never become stage edges. Profiles resolve a total activity
 map: agent activities have an allowed class/per-activity model, tool activities have
-a registered implementation and no model, and floors remain enabled. Unknown fields,
+a registered implementation and no model. Every run pins an immutable floor
+revision; inherited floor obligations resolve enabled, while unavailable required
+implementations refuse selection. Unknown fields,
 cycles, incomplete maps and inconsistent activity settings are errors. Package
 selection uses current primary release/API docs, respects the LangGraph JS floor
 that node timeouts and cooperative drain require (research recorded `>= 1.4.0`;
@@ -122,25 +138,31 @@ fallback. Replace `onTrigger.*` with undeclared `onTrigger.schedule` and require
 compiler error to name that point. Remove one `after` edge and separately derive
 stage order from artifact requirements: the compiled edge-set or
 cycle/missing-order assertion must fail.
-Delete an activity entry,
-remove cloud acceptance's agent-class model, attach a model to the fixed
-tool gate, and disable a floor activity; each must fail the profile-completeness
+Delete an activity entry, attach a model to a fixed tool gate, and disable an
+activity required by the selected floor; each must fail the profile-completeness
 oracle. Pin the built-in matrix: thorough browser scope is whole, balanced is
-affected, economy browser/judge/discovery review/specification critique are disabled,
-the critic remains enabled, mandatory staging/manual acceptance and publication
-remain enabled in every profile, and every profile runs the fixed integrated gate
-with no depth control. Delete the required input/make
+affected, economy browser/judge/discovery review are disabled, the critic and
+specification critique remain enabled, and every profile runs the fixed integrated
+gate with no depth control. Assert that economy's raw browser default is false and
+its factory-core resolved browser activity is enabled with floor origin; an explicit
+disable override must fail. M1 selects `factory-core`, under which branch dev,
+the `dev-sweep` trigger workflow, staging, cloud acceptance, publication and
+dev-main are disabled. Selecting
+`personal-delivery` before every Task 13 adapter is registered must fail; after Task
+13 publishes it, its inherited obligations resolve enabled. Delete the required input/make
 it unreadable in separate probes; replace the durable saver with memory and observe
 the restart test fail; bypass the floor/rate checks separately and observe their
 negatives fail. This does not yet prove external-effect deduplication.
 
 Before 1.1, 1.0 inventories every current requirement's normal, failure, boundary
-and recovery cases, adding explicit inapplicable dispositions where needed. The
+and recovery cases in a machine-readable `Coverage:` block within that requirement,
+adding an explicit inapplicable reason for each category that does not apply. The
 validator rejects a missing Given/When/Then and a clause that merely repeats the
-scenario heading. Inject each structural fault and watch the actual specification
-gate fail. An independent specification review owns semantic exhaustiveness: remove
-a required failure/recovery row from its coverage ledger and observe planning
-approval remain blocked. OpenSpec CLI parse success alone cannot satisfy 1.0.
+scenario heading. `specification.scenarios` runs the validator in every profile;
+CI runs the same Nx target. Inject each structural/coverage fault and watch that
+target and `adopt_plan` fail. The floor's independent specification critique reviews
+semantic exhaustiveness; unresolved findings also block `adopt_plan`. OpenSpec CLI
+parse success alone cannot satisfy 1.0.
 
 Resolve `quality` through the same workflow publication: hash its definition,
 rubric and observation set, require evaluation-publisher capability plus a human
@@ -160,7 +182,9 @@ can fail. Task 8 adds the uncertain-effect upgrade/rollback fixture once Task 4 
 **Commands established by this task:**
 `bunx nx run tool-twilight:compile -- --repository <fixture>
 --organization-snapshot <snapshot> --json` and
-`bunx nx test twilight-runtime`. Add lint and source/spec typechecks that compile
+`bunx nx run tool-twilight:scenario-check -- --change <name>` and
+`bunx nx test twilight-runtime`. CI invokes `tool-twilight:scenario-check` for all
+active changes. Add lint and source/spec typechecks that compile
 actual files; inject a deliberate type error to prove those targets see them.
 
 Record separate evidence for each checkbox: 1.1 uses a minimal graph independent
@@ -236,7 +260,8 @@ Can overlap Task 3 after shared Task 1 contracts are frozen.
 
 Proves: Bounded request-to-plan authoring; One authorized command surface;
 Revision-bound human decisions; Caller identity and human-decision provenance;
-Current authority constrains pinned runs (A30, A36, A38, A40, A42).
+Current authority constrains pinned runs; Profile overrides and epochs are explicit
+(A30, A36, A38, A40, A42).
 
 - [ ] 3.1 Extract be-01's migration runner into a shared library and write the first Twilight migration through it.
 - [ ] 3.2 Implement and verify OIDC caller identity and interactive decision-token issuance.
@@ -362,7 +387,9 @@ outbox reconciliation preserves one transition.
 
 Proves: Capacity and budget admission; Durable stage and activity lifecycle;
 K3s provides an expandable worker substrate (port half); Levers are configurable
-and their effects are measured (ledger and rate card halves) (A41, A46, A49–A50).
+and their effects are measured (ledger and rate card halves); Run clocks preserve
+distinct time quantities; Model pricing is revision-bound and category-complete
+(A41, A46, A49–A50).
 
 - [ ] 4.1 Reserve resource vectors before launch and fence owners.
 - [ ] 4.2 Persist effect intent, dispatch through the fence, reconcile and settle.
@@ -390,6 +417,10 @@ and their effects are measured (ledger and rate card halves) (A41, A46, A49–A5
 transport, fence/authority validation and resource release are private to effect
 execution. Admission outcomes are `queued`, `admitted`, `denied`; effect outcomes
 `succeeded`, `failed`, `unknown`; every reason is visible.
+
+The M1 organization-snapshot schema includes `agent`, `secretary`, `workspace`,
+`reviewer`, `build`, `browser` and `branchDevEnvironment` pools even when a selected
+floor does not yet request the later pools. Unknown pool kinds still fail.
 
 **Tests (4.1):** barrier-synchronized concurrent requests for one remaining slot;
 two pools with one unavailable (no partial reservation); expired owner tries to
@@ -719,7 +750,8 @@ and two isolated worker nodes. Infrastructure spending needs an explicit allowan
 
 Proves: Hooks, critics and judges preserve authority; Observable evidence with
 focus access; Lifecycle points are the one key space (`onRework`); Levers are
-configurable and their effects are measured (outcome half) (A48).
+configurable and their effects are measured (outcome half); Outcomes use an
+independent evaluation definition (A48).
 
 - [ ] 7.1 Run mandatory pre/post hooks and profile-selected critics/judge with source-bound evidence and bounded rework.
 - [ ] 7.2 Persist redacted evidence, durable event cursors, terminal outcomes and defect reports; expose their shared operations.
@@ -733,6 +765,12 @@ configurable and their effects are measured (outcome half) (A48).
 `apps/twilight-fe/src/routes/evidence.tsx`, `apps/twilight-mcp/src/server.ts`,
 `apps/twilight-be/src/review-flow.db.test.ts`,
 `apps/twilight-fe/e2e/evidence.spec.ts`.
+
+This task registers `registered:integration-queue`,
+`registered:task-acceptance`, `registered:scenario-test-coverage`, `registered:tool-secrets`,
+`registered:evidence-redaction` and `registered:run-ledger`. Their unavailable and
+malformed paths are floor failures, and each production caller receives a negative
+proof.
 
 **Depends on:** Tasks 5–6. **Produces:** attributed finding/verdict records, durable
 scoped event cursors, evidence manifests, hook outcomes and outcome records shared
@@ -752,8 +790,19 @@ Remove task assertions: candidate acceptance blocks as unavailable. Inject a
 synthetic pass and observe the candidate-acceptance assertion fail; moving the
 observer back to handoff must fail the acceptance-stage execution-order assertion.
 
+Implement `registered:scenario-test-coverage` for `acceptance.coverage`. It reads
+the specification coverage ledger and candidate reports, requiring each applicable
+scenario to name its stateless/API/Playwright/manual layer or an explicit
+inapplicable disposition. Remove one report mapping and watch candidate acceptance
+block at this observer.
+
+Task 7.2 makes the coordinator own the handoff transition and terminal outcome
+write. Under factory-core it records the core accepted outcome even though the
+inactive `handoff.dev-main` tool has only a disposition; under personal-delivery
+handoff records progress into `awaiting_release`, not a terminal outcome.
+
 **Tests (7.1):** required hook timeout/malformed output keeps the independent
-worker launch counter at zero; optional notification fails visibly as degraded;
+worker launch counter at zero; a fixture-registered optional hook fails visibly as degraded;
 post-hook failure after an effect does not replay the effect; author cannot act as
 independent reviewer; disabled judge means no judge dispatch while an enabled critic
 still records findings. Rework counts already-consumed rounds across profile epochs;
@@ -788,17 +837,18 @@ assertion fail. No private model reasoning is part of the contract.
 slot reserved alongside the implementation slot.
 
 7.3 owns `libs/twilight-runtime/src/integration/queue.ts`, `compose.ts`,
-`integration.test.ts`, `apps/twilight-be/src/candidates.ts` and
+`integration.test.ts`, the candidate preparation portion of
+`apps/twilight-be/src/candidates.ts` and
 `apps/twilight-fe/e2e/integration.spec.ts`. Consume WorkPlan contracts, envelope,
 source/plan locks, evidence and gate adapters; produce immutable candidate records
-through `composeCandidate`; the publication stage owns `publishCandidate`. Expose queue/member/base/check/
+through `composeCandidate`. Task 7 MUST NOT implement or invoke `publishCandidate`.
+Expose queue/member/base/check/
 repair state through run events and FE/MCP run views. Preparation and verification
-use separate workspace/build/browser reservations. Integration prepares only;
-staging deploys before acceptance, and the publication stage publishes through
-effect execution after the candidate oracle and all required checks. Handoff
-consumes the publication receipt. Hold the oracle
-at a barrier and assert the shared source ref stays unchanged; inject early
-publication and watch that assertion fail. Publication uses source-ref CAS.
+use separate workspace/build/browser reservations. Integration prepares only.
+Attempt to call the absent publication operation through Task 7's integration
+boundary and require the type/operation boundary to refuse it. Deliberately expose
+that operation and watch the boundary test fail. Task 13.3 later introduces
+publication after staging acceptance.
 
 Start with an implementation barrier: an independent deliverable must finish review
 and verification before release of that barrier. Inject a run-wide stage join and
@@ -808,9 +858,11 @@ make the candidate-refusal assertion fail. Move the base during verification: no
 publication until recomposition and a fresh gate. Introduce one failing member and
 observe an independent candidate continue. Restore all-or-nothing run blocking to
 prove that observation. Verify source/plan-lock union and reject changed dependency
-contracts. A knowledge edit after candidate checks must trigger new verification;
-reusing the earlier receipt must fail at candidate acceptance. Exercise crash after
-source publication before receipt recording: reconcile once, never republish.
+contracts. A knowledge edit produced after implementation must be included in the
+ordinary review and later verification inputs; inject the former review-before-
+knowledge order and watch the reviewed-source identity assertion fail. Knowledge
+reconciliation itself does not consume a rework round; a later review finding uses
+the normal bounded rework path back through implementation and knowledge.
 Run runtime Nx tests plus the FE browser suite on its owned stack. Full composed
 verification remains mandatory; all named Proof comments wait for actual failures.
 
@@ -847,15 +899,19 @@ and the change's eventual `verify.md`/runbook updates.
 **Depends on:** Tasks 1–7. Complete 8.1, 8.3 and 8.4 before 8.2 promotes the
 workflow default; a scaling failure cannot be bypassed by the UI journey.
 
-8.1: test a real harmless source change through request, assumption,
-specification, plan approval, ACP execution, profile-selected review, the fixed
-integrated gate and knowledge reconciliation, once under `balanced` and once under
-`economy`. Balanced runs one critic and judge with affected browser verification; economy
-runs its critic with no judge or browser verification. Cloud acceptance is disabled
-for both until Task 13 enables and proves it. Assert activity dispositions and
-independent dispatch/session counters; enable economy's judge or either profile's cloud
-acceptance as injected faults and observe those counters increment or the unavailable provider
-block M1. Interrupt
+8.1: pin `factory-core` and test a real harmless source change through request, assumption,
+specification, plan approval, ACP execution, knowledge reconciliation,
+profile-selected review and the fixed integrated gate, once under `balanced` and once under
+`economy`. Balanced runs one critic and judge with affected browser verification;
+economy runs its critic with no judge and with floor-required affected browser
+verification. Specification
+critique and scenario validation remain floor activities. Branch dev, staging,
+cloud acceptance, publication and dev-main are disabled until Task 13 registers
+their implementations and publishes `personal-delivery`. Assert activity and floor
+dispositions and independent dispatch/session counters; enable economy's judge as
+an injected fault and observe its counter increment. Select `personal-delivery` and
+require its unavailable adapters to block workflow publication without blocking the
+factory-core run. Interrupt
 once during approval and once after a controlled effect. `read_outcomes` must show
 both runs with money, agent time, run elapsed, rework rounds and activity
 dispositions side by side, each figure measured or unavailable. Pin the same basic
@@ -901,12 +957,18 @@ Benchmark spend requires a separate explicit allowance within the authorized
 account before launch. Re-estimate M1 after Tasks 1–4 expose measured runtime and
 provisioning costs; no aggregate completion date is asserted from unmeasured slices.
 
-8.4 owns `tools/tool-twilight/src/scaling.ts`, `scaling.test.ts` and versioned
+8.4 runs under `factory-core`; its accepted outcome ends at core handoff and
+excludes Task 13's serialized staging and interactive-browser path. It owns
+`tools/tool-twilight/src/scaling.ts`, `scaling.test.ts` and versioned
 `fixtures/scaling/` with independently authored outcome assertions. Run through an
 Nx `tool-twilight:scaling` target created with this behavior, consuming the real
 scheduler, ACP workers, integration queue and gate adapters. The canonical capacities,
 repetitions and speedup/coordinator budgets are `execution.yaml.scalingAcceptance`;
 do not copy constants into fixtures or derive test advances from the challenged value.
+
+The `dev-sweep` trigger workflow is unavailable under `factory-core`. Task 13 may
+publish it only with `personal-delivery`, its per-occurrence execution envelope and
+budget-account contract, and all registered environment/browser adapters present.
 
 Use fixed workloads: eight independent small changes; one feature with a stable
 shared interface, four parallel components and a final integration assertion; and
@@ -1049,7 +1111,10 @@ window whose duration is measured in rehearsal, not chosen in advance.
 
 **Depends on:** 11.1 depends only on M1; 11.2 alone depends on Task 10 and 11.1.
 **Owns next increment:** role registry, second ACP adapter, policy editor
-expansion, automation admission and queue views. Use the
+expansion, automation admission and queue views, including
+`registered:notifications` and the human-only `publish_trigger_envelope` operation.
+Task 11 supplies the generic versioned trigger-envelope record, decision binding,
+allowance-to-occurrence-account copy and declared-profile resolution. Use the
 [product matrix](../../../docs/twilight-structure/product-experience.md) as the
 coverage ledger: each control needs schema/form/API/MCP/runtime/test entries and,
 where it is a lever, ledger and outcome fields.
@@ -1112,7 +1177,21 @@ on that backend. Retrieval quality requires judgment, not a parser-only green.
 **Depends on:** Task 8 and Task 11.1 (release health notifications and scheduled
 sweeps ride the same hook and trigger machinery). **Owns next increment:**
 environment and deployment adapters, cloud-browser integration, report/coverage
-records, release command UI/MCP authority and runbooks. Use existing deploy
+records, the `personal-delivery` floor publication, release command UI/MCP authority and runbooks.
+Own `libs/twilight-runtime/src/environments/{environment,branch-dev,staging,dev-main}.ts`,
+`libs/twilight-runtime/src/environments/*.test.ts`,
+`libs/twilight-runtime/src/browser/report.ts`,
+`apps/twilight-be/src/{environments,candidates,release}.ts`, the matching FE/MCP
+operations, `implementation.branch-dev`, `triggerWorkflows.dev-sweep`,
+`staging.deploy`, `acceptance.cloud-browser`, `acceptance.browser-report`,
+`publication.main`, `handoff.dev-main` and `release.production`
+registrations/settings in `execution.yaml`, including
+`registered:environment-observe`, `registered:branch-dev-observer`,
+`registered:staging-deploy`, `registered:cloud-browser-report`,
+`registered:dev-sweep-report`,
+`registered:publish-candidate`, `registered:dev-main-converge` and
+`registered:production-deploy`. Task 13 publishes the bounded `dev-sweep` envelope
+through Task 11's human operation before enabling its schedule. Use existing deploy
 planners/locks through supported interfaces, not copied shell scripts. Re-check
 current runbooks and inspected code before choosing reuse.
 
@@ -1129,11 +1208,17 @@ Chrome instead. Record session ID, served source identity, bounded credentials,
 recording/export retention and observed teardown.
 
 The acceptance path is `integration composition → staging deployment → automated
-and manual acceptance → compare-and-swap main publication → dev-main convergence →
+and interactively driven, tool-verified acceptance → compare-and-swap main publication → dev-main convergence →
 explicit production promotion`. Main movement restarts composition, build, staging
 and evidence. Production consumes the staging-tested artifact; rebuilding is a new
 candidate. Nightly sweeps cover dev-main and every active branch dev, coalescing
 only identical source/configuration/scenario revisions (A59).
+
+13.3 introduces `publishCandidate` and its source-ref CAS after the staging and
+acceptance receipts exist. Hold the report verifier at a barrier and prove main
+does not move; inject the former Task 7 early-publication path and watch that
+assertion fail. Crash after source publication but before receipt recording,
+reconcile the same effect exactly once, and never republish.
 
 **Exit tests:** two long-running branches receive isolated devs; exhausted capacity
 queues a third without reassignment; sleep/resume preserves identity; commit and
@@ -1142,8 +1227,15 @@ revision mismatch blocks browser acceptance; cloud browser cannot silently reuse
 another checkout; mandatory browser unavailable blocks the stage; missing scenario
 coverage or a failed/skipped/unavailable report blocks; staging parity differences
 are visible and unaccepted differences block; a moved main or wrong artifact forces
-complete fresh acceptance; wrong/stale candidate or environment approval is
-refused; no human decision means no production effect; health failure triggers
+complete fresh acceptance; a driver's prose without captured assertions cannot
+produce a passing browser report; invoking the report verifier before the exact
+browser receipt completes is refused; wrong/stale candidate or environment approval is
+refused; handoff without a release command records `awaiting_release` with no
+`terminalAt`; expiry of the 30-day decision window records the non-accepted terminal
+disposition with no production effect; exhaust the ordinary run cap and separately
+expire the delivery deadline before issuing a valid release command, then prove its
+same-account release-only suballocation still admits `release.production` without
+spending the exhausted cap or resetting the clock; no human decision means no production effect; health failure triggers
 observed recovery; unknown remote state throws; migration rollback failure remains
 visible with recovery instructions; a scheduled sweep binds the observed dev
 revision and cannot turn an unchanged coalesced disposition into a new pass. Task
@@ -1151,12 +1243,13 @@ revision and cannot turn an unchanged coalesced disposition into a new pass. Tas
 
 **Estimate:** 48–96 human hours plus external environment availability. One
 host-wide release/build lease; production activity only on an explicit
-candidate-bound command.
+candidate-bound command whose separate release envelope bounds spend and expires
+without resetting the delivery run clock.
 
 ## Task 14: Prove the self-growing repo and client upgrade cycle
 
 Adopts the M4 delta's upgrade rollback contract from the
-[design](design.md#release-and-operational-limits) (A39).
+[design](design.md#environments-publication-and-release) (A39).
 
 - [ ] 14.1 Use Twilight to improve its own template and roll the same verified version into a second client fixture.
 
@@ -1194,9 +1287,11 @@ ledgers for agent budgets instead of extrapolating today's untested estimates.
 - [ ] 15.1 Prove the pinned OpenClaw adapter and independently admitted secretary/worker capacity.
 - [ ] 15.2 Submit software-delivery requests through Twilight and return durable references without widening authority.
 
-**Depends on:** Tasks 5–7. **Owns next increment:** assistant-runtime adapter,
-secretary delegation, worker/assignment/session bindings and the authorized request
-bridge. OpenClaw owns conversation execution; Twilight owns delivery authority and
+**Depends on:** Tasks 5–7. **Owns next increment:**
+`libs/twilight-assistant/src/{openclaw,workers,assignments,sessions}.ts`, their unit
+and adapter tests, `apps/twilight-be/src/assistant.ts`, corresponding FE/MCP
+operations, `submitAssistantRequest`, `renameWorker`, `bindWorkerSession` and the
+secretary/provider reserve admission contract. OpenClaw owns conversation execution; Twilight owns delivery authority and
 durable work state (A52). A recurring worker is a stable presentation identity, not
 an OpenClaw configured agent, and renaming changes no history or permission (A55).
 
@@ -1209,7 +1304,10 @@ operation, receive request/run/assignment references and use Tasks 3–4 authori
 chat text cannot mint a decision, budget or effect (A62).
 
 **Exit tests:** a five-minute worker fixture leaves the secretary accepting new
-turns; saturated workers queue with the limiting pool; unavailable secretary
+turns; drive worker usage to total provider capacity minus the configured
+interactive reserve, observe another worker queue, and admit a secretary turn;
+removing the reserve must make that assertion fail. Saturated workers queue with
+the limiting pool; unavailable secretary
 capacity is reported rather than answered; a general request creates no Twilight
 run; a software request returns correlated durable references; adversarial chat
 cannot expand an envelope or release; rename during work preserves stable identity,
@@ -1223,10 +1321,13 @@ history and grants; replacing an OpenClaw session/model remains the same worker.
 - [ ] 16.1 Persist sourced high-level work events and the access-controlled searchable session corpus.
 - [ ] 16.2 Deliver the secretary-led overview with worker, assignment, environment, evidence and intervention routes.
 
-**Depends on:** Tasks 13 and 15. **Owns next increment:** session capture/index,
-work projection, personal home and conversation/delivery secondary views. Retain
+**Depends on:** Tasks 13 and 15. **Owns next increment:**
+`libs/twilight-assistant/src/{corpus,search,work-events,projection}.ts`, their tests,
+`apps/twilight-be/src/{session-search,work-view}.ts`,
+`apps/twilight-fe/src/work-view/`, its whole-browser suite, and
+`searchSessions`, `readSession`, `readWorkView`. Retain
 redacted personal session content without an age default; warn and offer export at
-an explicit storage ceiling before deletion (A54). Distinguish runtime observation,
+the provisional 10 GiB storage ceiling before deletion (A54, A66). Distinguish runtime observation,
 agent report and accepted outcome (A56). Start from prototype A as a reversible
 presentation default (A51), showing the environment fields in A64.
 
@@ -1246,34 +1347,39 @@ against live APIs and run the whole browser gate.
 
 Spec requirement to task:
 
-| Requirement (control-plane unless noted)                       | Tasks         |
-| -------------------------------------------------------------- | ------------- |
-| Bounded request-to-plan authoring                              | 3, 5          |
-| One authorized command surface                                 | 3, 5          |
-| Versioned inspectable workflow configuration                   | 1, 5, 8       |
-| Lifecycle points are the one key space                         | 1, 7          |
-| Executable restore compatibility                               | 1, 8, 14      |
-| Durable stage and activity lifecycle                           | 3, 4          |
-| Current authority constrains pinned runs                       | 3, 4          |
-| Revision-bound human decisions                                 | 3, 5          |
-| Caller identity and human-decision provenance                  | 3, 5          |
-| Capacity and budget admission                                  | 4, 6          |
-| K3s provides an expandable worker substrate                    | 4, 6, 8       |
-| Levers are configurable and their effects are measured         | 4, 6, 7, 8    |
-| Hooks, critics and judges preserve authority                   | 7             |
-| Observable evidence with focus access                          | 5, 7          |
-| Repository planning: client repository contract                | 2, 8, 14      |
-| Repository planning: a planning revision has one owner         | 2, 9, 10      |
-| Repository planning: resource units carried without conversion | 2, 9          |
-| Scheduling minimizes accepted delivery elapsed time            | 1–2, 4.4, 7.3 |
-| Integration is an independently scalable execution service     | 7.3, 8.4      |
-| Speculation spends only bounded authorized capacity            | 3, 7.4        |
-| Scaling is proved at fixed quality before M1 acceptance        | 4.5, 8.4      |
-| Assistant: secretary availability and authority boundary       | 15            |
-| Assistant: worker identity, session search and work projection | 15–16         |
-| Delivery environments: lifecycle and development publication   | 13.1–13.2     |
-| Delivery environments: staging, publication and promotion      | 13.3          |
-| Delivery environments: layered reports and scheduled sweeps    | 13.4          |
+| Requirement (control-plane unless noted)                       | Tasks           |
+| -------------------------------------------------------------- | --------------- |
+| Bounded request-to-plan authoring                              | 3, 5            |
+| One authorized command surface                                 | 3, 5, 11        |
+| Versioned inspectable workflow configuration                   | 1, 5, 8, 11, 13 |
+| Profile overrides and epochs are explicit                      | 3, 5            |
+| Lifecycle points are the one key space                         | 1, 7            |
+| Executable restore compatibility                               | 1, 8, 14        |
+| Durable stage and activity lifecycle                           | 3, 4, 7, 13     |
+| Current authority constrains pinned runs                       | 3, 4            |
+| Revision-bound human decisions                                 | 3, 5, 13        |
+| Caller identity and human-decision provenance                  | 3, 5            |
+| Capacity and budget admission                                  | 4, 6, 13        |
+| Run clocks preserve distinct time quantities                   | 4, 13           |
+| Model pricing is revision-bound and category-complete          | 4               |
+| K3s provides an expandable worker substrate                    | 4, 6, 8         |
+| Levers are configurable and their effects are measured         | 4, 6, 7, 8      |
+| Outcomes use an independent evaluation definition              | 7, 8            |
+| Hooks, critics and judges preserve authority                   | 7               |
+| Observable evidence with focus access                          | 5, 7            |
+| Repository planning: client repository contract                | 2, 8, 14        |
+| Repository planning: a planning revision has one owner         | 2, 9, 10        |
+| Repository planning: resource units carried without conversion | 2, 9            |
+| Scheduling minimizes accepted delivery elapsed time            | 1–2, 4.4, 7.3   |
+| Integration is an independently scalable execution service     | 7.3, 8.4, 13.3  |
+| Speculation spends only bounded authorized capacity            | 3, 7.4          |
+| Scaling is proved at fixed quality before M1 acceptance        | 4.5, 8.4        |
+| Assistant: secretary availability and authority boundary       | 15              |
+| Assistant: worker identity, session search and work projection | 15–16           |
+| Delivery environments: lifecycle and development publication   | 13.1–13.2       |
+| Delivery environments: staging, publication and promotion      | 13.3            |
+| Assistant: personal home keeps work actionable                 | 16              |
+| Delivery environments: layered reports and scheduled sweeps    | 1.0, 7, 13.4    |
 
 User requirement to delivery location:
 

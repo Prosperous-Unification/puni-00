@@ -17,8 +17,8 @@ Tasks 13, 15 and 16, and resolved the Wayfinder map through documented assumptio
 | `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                         | All 40 changes valid; existing informational archive notices remained non-failing.                                                                                                                  |
 | `bunx @fission-ai/openspec@1.12.0 schema validate twilight-v1 --json`                                                            | Experimental command reported the artifact schema valid with no issues.                                                                                                                             |
 | `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test check --projects=tool-workflows --parallel=2 --skip-nx-cache` | 25 tests passed; 40 generated workflow variants checked. The first invocation without the documented in-process settings failed while Nx plugin workers initialized and established no test result. |
-| Temporary Bun structural inspection of `execution.yaml`                                                                          | Revision 4: 13 unique acyclic stages, 16 unique activities, complete maps for all three profiles, all eight activity floors enabled, and every quality observer declared.                           |
-| Temporary changed-document inspection                                                                                            | 145 local links resolved; all 44 task IDs were unique and unchecked; proposal 398 words; `LLM_README.md` 150 lines.                                                                                 |
+| Temporary Bun structural inspection of `execution.yaml`                                                                          | Revision 9: 16 ordered delivery stages, 21 unique activities, complete maps for all three profiles, two floor revisions, and one trigger workflow with its declared envelope.                       |
+| Temporary changed-document inspection                                                                                            | 64 local path links in the review correction resolved; all 44 task IDs were unique and unchecked; proposal 398 words; `LLM_README.md` remained at 150 lines.                                        |
 
 The new assistant and environment files contain explicit Given, When and Then in
 every new scenario. The 80 inherited control-plane/repository-planning scenarios
@@ -27,11 +27,16 @@ implementation prerequisite: it must add non-vacuous Given context and complete 
 normal/failure/boundary/recovery coverage ledger. Current OpenSpec CLI validation
 does not establish that semantic exhaustiveness.
 
-An exact Claude Fable 5.1 review of the current diff was attempted with read-only
-tools. The sandboxed call ended with `ENOTFOUND`; escalation was automatically
-rejected because it would send uncommitted internal planning documents to Anthropic
-without explicit approval for that payload. No current external-review verdict is
-claimed. The 2026-09-06 review below applies only to its named earlier revision.
+Dany explicitly approved an exact Claude Fable 5.1 review of commit `a6a1753d` and
+its correction passes. The read-only reviews returned actionable findings and
+**not PASS**. The
+[review receipt and dispositions](../../../docs/twilight-structure/evidence/claude-wayfinder-review.md)
+record the floor-versioning, publication ownership, browser-report, knowledge-stage,
+GWT enforcement, dev-sweep, secretary-capacity, terminal-outcome, coverage and
+retention corrections now in the working tree. The fresh local checks above cover
+revision 9. After iterative correction and re-review, Claude returned **PASS** on
+the final release-account and traceability confirmation; the receipt preserves the
+earlier findings and their dispositions.
 
 ## Earlier observed checks (2026-09-06)
 
@@ -87,21 +92,21 @@ No runtime safety check was implemented in this revision, and no new runtime
 `Proof:` claim was written. The production-path negatives belong to these slices;
 all remain **unrun**, including their positive controls and injected faults.
 
-| Contract                         | Planned fault and observation                                                                                | Owner         |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------- |
-| Execution envelope               | Unconditional reapproval prevents an authorized launch; removed range guard permits an unauthorized launch   | Task 3        |
-| Feasible scheduling and fairness | Head-only selection blocks backend work behind a browser; chain-first ordering starves an aged task          | Task 4.4      |
-| Coordinator capacity             | Await remote response inside serialized dispatch; unrelated dispatch misses its budget                       | Task 4.5      |
-| Deliverable pipeline             | Restore run-wide stage join; finished sibling cannot complete review while another is held                   | Task 7.3      |
-| Integration acceptance           | Publish before held oracle completes or reuse branch greens; source ref/combined assertion exposes the error | Task 7.3      |
-| Speculation                      | Select first failing answer or let a losing worker publish; wrong candidate/forbidden effect is observed     | Task 7.4      |
-| Fixed-quality scaling            | Advertise eight workers but execute one; speedup budget fails without changing task denominator or quality   | Task 8.4      |
-| Planning concurrency             | Remove broker-derived cross-plan predicate; a forbidden reconciled command is accepted                       | Task 9        |
-| K3s duplicate start              | Start two programs for one attempt; independent effect receiver and workspace counters observe duplication   | Tasks 6, 8    |
-| K3s worker loss and drain        | Drain or abruptly lose an agent; capacity and scheduling observations retain holds and stop new placement    | Tasks 5, 6, 8 |
-| Worker privilege boundary        | Request cluster, host, engine and deployment authority; live canaries and host inspection observe denial     | Task 6        |
-| K3s observation loss             | Stop API or telemetry access; FE, MCP and `h3mon` show unknown/unavailable rather than empty or zero         | Tasks 5, 6    |
-| K3s server reconstruction        | Rebuild from pinned inputs; recorded attempts reconcile before any replacement and durable records remain    | Tasks 6, 8    |
+| Contract                         | Planned fault and observation                                                                                                   | Owner         |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| Execution envelope               | Unconditional reapproval prevents an authorized launch; removed range guard permits an unauthorized launch                      | Task 3        |
+| Feasible scheduling and fairness | Head-only selection blocks backend work behind a browser; chain-first ordering starves an aged task                             | Task 4.4      |
+| Coordinator capacity             | Await remote response inside serialized dispatch; unrelated dispatch misses its budget                                          | Task 4.5      |
+| Deliverable pipeline             | Restore run-wide stage join; finished sibling cannot complete review while another is held                                      | Task 7.3      |
+| Integration acceptance           | Publish before the candidate's staging report completes or reuse branch greens; source ref/combined assertion exposes the error | Task 13.3     |
+| Speculation                      | Select first failing answer or let a losing worker publish; wrong candidate/forbidden effect is observed                        | Task 7.4      |
+| Fixed-quality scaling            | Advertise eight workers but execute one; speedup budget fails without changing task denominator or quality                      | Task 8.4      |
+| Planning concurrency             | Remove broker-derived cross-plan predicate; a forbidden reconciled command is accepted                                          | Task 9        |
+| K3s duplicate start              | Start two programs for one attempt; independent effect receiver and workspace counters observe duplication                      | Tasks 6, 8    |
+| K3s worker loss and drain        | Drain or abruptly lose an agent; capacity and scheduling observations retain holds and stop new placement                       | Tasks 5, 6, 8 |
+| Worker privilege boundary        | Request cluster, host, engine and deployment authority; live canaries and host inspection observe denial                        | Task 6        |
+| K3s observation loss             | Stop API or telemetry access; FE, MCP and `h3mon` show unknown/unavailable rather than empty or zero                            | Tasks 5, 6    |
+| K3s server reconstruction        | Rebuild from pinned inputs; recorded attempts reconcile before any replacement and durable records remain                       | Tasks 6, 8    |
 
 Browser/deployment checks, live ACP calls, coordinator load, scaling benchmarks and
 all runtime fault injections, including K3s installation and multi-host execution,

@@ -122,8 +122,10 @@ inputs/evidence, never stage edges. It expands deliverable-scoped stages per sta
 deliverable ID. Their edges wait only for that deliverable; integration candidates
 join explicit member sets, while handoff joins all required accepted outcomes.
 Stage state and hooks carry scope identity, so a slow sibling does not block a
-finished deliverable's review or tests. Thus specs and design may share a stage without
-a self-cycle, and verification, acceptance and handoff may share `verify.md` without
+finished deliverable's review or tests. Knowledge reconciliation occurs after
+implementation and before review, so any source edit is reviewed normally and is
+part of the candidate later verified without creating a rework loop. Thus specs and
+design may share a stage without a self-cycle, and verification, acceptance and handoff may share `verify.md` without
 losing their order. A stage with only skipped/inapplicable activities retains its
 boundary and dispositions, not fabricated pass evidence. `release` additionally
 requires its human command; readiness alone cannot trigger it.
@@ -139,7 +141,24 @@ requirements and resolved provider/model rate limits. The compiler emits this
 complete vector; admission does not infer that every tool consumes agent slots.
 The repository gate reserves build/workspace capacity, browser verification reserves
 browser/workspace capacity, and a cloud-browser agent additionally reserves an
-agent slot. Unknown resource kinds or unsatisfied executor requirements fail.
+agent slot. The organization snapshot declares the `agent`, `secretary`,
+`workspace`, `reviewer`, `build`, `browser` and `branchDevEnvironment` pools; the
+repository may request bounded values for them but cannot create capacity authority.
+Unknown resource kinds or unsatisfied executor requirements fail.
+
+Scheduled environment sweeps are not candidate stages. `triggerWorkflows` declares
+their own acyclic activity DAGs; each activity still names an agent class or
+registered tool and a resource vector. The selected profile resolves agent models,
+and `requiredByFloor` makes the whole trigger workflow mandatory only for runs and
+repositories using that floor. The compiler validates these activities separately
+from the delivery catalog so a dev sweep cannot acquire a fictitious candidate or
+cross staging/publication boundaries. Each occurrence pins the enabled floor and
+trigger-workflow revision, obtains its published execution envelope, and charges
+one fresh per-occurrence budget account. Missing authority, budget or a registered
+adapter blocks that occurrence with an explicit disposition.
+Its `dev-sweep-report` verifier binds observed environment, source, configuration
+and scenario identities without inventing candidate/artifact identities. The
+separate staging `cloud-browser-report` verifier remains candidate-bound.
 
 Lifecycle points are the one key space for policies and hooks. A point is
 `<event>.<stage or activity id>`, with `*` matching all. Events: `beforeStage`,
@@ -154,12 +173,18 @@ A hook registration names an implementation and version, the points it attaches
 to, whether it is mandatory, its timeout and timeout behaviour, its declared
 capabilities and its idempotency class. Registered implementations and sandboxed
 commands are the only kinds in the first release.
+The compiler resolves hooks through the selected floor. A declared hook outside
+that floor may name a later unavailable registration, but selecting a floor that
+requires it fails until the implementation is registered and compatible.
 
 Policy scope, most general first: platform floor, organization floor, repository,
 workflow revision, activity, run. Defaults are distinct from authority: a lower
 scope may choose higher or lower resource/review settings within current grants,
-capabilities, approved hard caps and floors. `repositoryFloor` is the sole local
-floor declaration; activity flags do not duplicate it. Override rules are described
+capabilities, approved hard caps and floors. `repositoryFloor.revisions` is the sole
+local floor declaration. M1 pins `factory-core`; Task 13 can publish and select
+`personal-delivery` only after every additional adapter is registered. Floor
+resolution forces required activities enabled, while the raw profile flags keep
+later activities unavailable during M1. Override rules are described
 under [Profile resolution](#profile-resolution). Per-tool policy uses
 `beforeTool.<activity>`. Presentation stays outside the authority chain.
 
@@ -252,28 +277,29 @@ normalizes disjoint charge categories before pricing; it cannot count them twice
 Invalid trusted persisted records throw; modeled request, permission and conflict
 failures return typed responses.
 
-| BE operation                                    | MCP operation          | FE entry                             | Owner  |
-| ----------------------------------------------- | ---------------------- | ------------------------------------ | ------ |
-| `POST /api/repositories/:id/requests`           | `submit_request`       | Repository → New request             | Task 3 |
-| `PUT /api/runs/:id/artifacts/:kind`             | `revise_artifact`      | Workbench editor                     | Task 3 |
-| `POST /api/runs/:id/plans`                      | `adopt_plan`           | Validate and select a complete plan  | Task 3 |
-| `GET /api/runs/:id`                             | `get_run`              | Run detail                           | Task 3 |
-| `GET /api/runs/:id/events?after=cursor`         | `list_run_events`      | Timeline / reconnect                 | Task 7 |
-| `POST /api/runs/:id/commands`                   | `command_run`          | Pause, resume, cancel, retry, skip   | Task 3 |
-| `POST /api/approvals/:id/decisions`             | `decide_approval`      | Approval diff                        | Task 3 |
-| `POST /api/decision-tokens`                     | none (browser only)    | Approval confirmation                | Task 3 |
-| `POST /api/repositories/:id/workflows/validate` | `validate_workflow`    | Draft preview                        | Task 5 |
-| `POST /api/repositories/:id/workflows`          | `publish_workflow`     | Publish configuration                | Task 5 |
-| `GET /api/repositories/:id/policy?scope=`       | `get_effective_policy` | Effective value, origin, restriction | Task 5 |
-| `PUT /api/organizations/:id/floors`             | `publish_floor`        | Organization floors (privileged)     | Task 5 |
-| `GET /api/repositories/:id/capacity`            | `get_capacity`         | Queue and pool view                  | Task 4 |
-| `PUT /api/organizations/:id/capacity`           | `set_capacity`         | Pool sizing (privileged)             | Task 4 |
-| `PUT /api/organizations/:id/rate-card`          | `publish_rate_card`    | Rate card (privileged)               | Task 4 |
-| `GET /api/runs/:id/ledger`                      | `read_ledger`          | Run cost and time                    | Task 4 |
-| `GET /api/repositories/:id/outcomes`            | `read_outcomes`        | Profile comparison                   | Task 7 |
-| `POST /api/repositories/:id/defects`            | `report_defect`        | Report defect against a candidate    | Task 7 |
-| `GET /api/evidence/:id`                         | `read_evidence`        | Evidence detail                      | Task 7 |
-| `POST /api/effects/:id/resolutions`             | `resolve_effect`       | Recovery inbox                       | Task 4 |
+| BE operation                                        | MCP operation          | FE entry                             | Owner   |
+| --------------------------------------------------- | ---------------------- | ------------------------------------ | ------- |
+| `POST /api/repositories/:id/requests`               | `submit_request`       | Repository → New request             | Task 3  |
+| `PUT /api/runs/:id/artifacts/:kind`                 | `revise_artifact`      | Workbench editor                     | Task 3  |
+| `POST /api/runs/:id/plans`                          | `adopt_plan`           | Validate and select a complete plan  | Task 3  |
+| `GET /api/runs/:id`                                 | `get_run`              | Run detail                           | Task 3  |
+| `GET /api/runs/:id/events?after=cursor`             | `list_run_events`      | Timeline / reconnect                 | Task 7  |
+| `POST /api/runs/:id/commands`                       | `command_run`          | Pause, resume, cancel, retry, skip   | Task 3  |
+| `POST /api/approvals/:id/decisions`                 | `decide_approval`      | Approval diff                        | Task 3  |
+| `POST /api/decision-tokens`                         | none (browser only)    | Approval confirmation                | Task 3  |
+| `POST /api/repositories/:id/workflows/validate`     | `validate_workflow`    | Draft preview                        | Task 5  |
+| `POST /api/repositories/:id/workflows`              | `publish_workflow`     | Publish configuration                | Task 5  |
+| `GET /api/repositories/:id/policy?scope=`           | `get_effective_policy` | Effective value, origin, restriction | Task 5  |
+| `PUT /api/organizations/:id/floors`                 | `publish_floor`        | Organization floors (privileged)     | Task 5  |
+| `GET /api/repositories/:id/capacity`                | `get_capacity`         | Queue and pool view                  | Task 4  |
+| `PUT /api/organizations/:id/capacity`               | `set_capacity`         | Pool sizing (privileged)             | Task 4  |
+| `PUT /api/organizations/:id/rate-card`              | `publish_rate_card`    | Rate card (privileged)               | Task 4  |
+| `PUT /api/repositories/:id/trigger-envelopes/:name` | none (human only)      | Recurring authority decision         | Task 11 |
+| `GET /api/runs/:id/ledger`                          | `read_ledger`          | Run cost and time                    | Task 4  |
+| `GET /api/repositories/:id/outcomes`                | `read_outcomes`        | Profile comparison                   | Task 7  |
+| `POST /api/repositories/:id/defects`                | `report_defect`        | Report defect against a candidate    | Task 7  |
+| `GET /api/evidence/:id`                             | `read_evidence`        | Evidence detail                      | Task 7  |
+| `POST /api/effects/:id/resolutions`                 | `resolve_effect`       | Recovery inbox                       | Task 4  |
 
 Privileged operations need the organization administrator capability and are
 themselves revisioned and evented. Bootstrap (organization id, issuer, member and
@@ -419,12 +445,15 @@ Successful migration and rollback proofs per supported path are Task 14's contra
 
 ### States, attempts and leases
 
-Run state is a tagged union: `queued`, `running`, `awaiting_approval`, `paused`,
-`reconciling`, `failed`, `cancelled`, `completed`. A run is `reconciling` while any
+Run state is a tagged union: `queued`, `running`, `awaiting_approval`,
+`awaiting_release`, `paused`, `reconciling`, `failed`, `cancelled`, `completed`.
+A run is `reconciling` while any
 of its effects has outcome `unknown`. This is an aggregate status: unknown effects,
 failed gates and exhausted deliverable rework block only their dependency closure.
-Independent authorized work may continue. Explicit run pause/cancel, exhausted
-run budget or run-wide authority revocation blocks all new dispatch. Admission outcomes are `queued`, `admitted`,
+Independent authorized work may continue. Explicit run pause/cancel or run-wide
+authority revocation blocks all new dispatch. Exhausted ordinary run caps block
+ordinary dispatch; the separately authorized same-account `release.production`
+suballocation is the sole exception and cannot spend those caps. Admission outcomes are `queued`, `admitted`,
 `denied`; effect outcomes are `succeeded`, `failed`, `unknown`; a reservation is
 `held`, `draining` or `released`. Stage conclusions carry `current`, `stale` or
 `inapplicable` with a policy reason, and a skipped activity records the decision
@@ -501,9 +530,10 @@ interception, MCP transport support, usage signals and tool-event coverage.
 A required control the adapter lacks is enforced outside it or makes the
 workflow inadmissible, and compile-time validation names the gap.
 
-Admission reserves a vector atomically before launch: agent slots, provider and
-model rate and token limits, workspace writer ownership, build and browser slots,
-and an attempt allowance from the run budget account. Starting counts as occupied.
+Admission reserves a vector atomically before launch: agent and secretary slots,
+provider and model rate and token limits, workspace writer ownership, reviewer,
+build, browser and branch-dev-environment slots, and an attempt allowance from the
+run budget account. Starting counts as occupied.
 The scheduler selects feasible ready tasks subject to client ceilings. Tasks that
 reach the aging window outrank unaged work, oldest first. Among unaged tasks it
 orders estimated remaining dependency-chain duration, declared priority and stable
@@ -534,13 +564,19 @@ ladder, never an implicit provider fallback. Profiles can increase or decrease
 model capability, critic count, optional verification and fan-out within the same
 authority boundary; a profile's defaults do not become limits.
 
-The total `activities` map alone controls enablement and depth. `review.critic.count`
+The total raw `activities` map controls profile defaults and depth before floors.
+The compiler then overlays the selected floor by enabling its required activities;
+this is an explicit origin in the resolved map, not normalization of a forbidden
+override. A request or epoch override that tries to disable a selected-floor
+activity is rejected. `review.critic.count`
 is positive when enabled and zero when disabled; tool activities cannot carry model
 settings. `verification.gate` invokes the repository's full integrated gate;
-optional browser work uses `verification.browser.scope`. Cloud acceptance is
-explicitly disabled in M1 and enabled only when Task 13 proves its adapter. There
+the browser work required by factory-core uses configurable
+`verification.browser.scope`. Cloud acceptance is
+disabled under M1's `factory-core` floor and forced on only after Task 13 publishes
+the compatible `personal-delivery` floor. There
 is no second top-level `skip`, `review` or `browserGate` setting to reconcile.
-Invalid combinations and disabling a floor activity are rejected, not normalized.
+Invalid raw combinations and resolved floor violations are rejected.
 
 Each accepted profile change creates a profile epoch containing the resolved
 settings, digest and effective transition. It affects only work not yet admitted,
@@ -575,7 +611,20 @@ Unknown consumption retains its hold. A cap change from $12 to $40 with $10 sett
 and $1 held leaves $29 available; setting a cap below $11 is refused. No rate, model
 or profile change clears the account. Holds include bounded cancellation/drain
 costs; without a defensible reservation and stopping mechanism, hard-budget
-admission fails. Reaching a hard cap stops new dispatch and pauses unresolved work.
+admission fails. Reaching an ordinary hard cap stops ordinary dispatch and pauses
+unresolved work; only the separately authorized same-account `release.production`
+suballocation remains admissible and cannot spend that exhausted cap.
+
+At personal-delivery handoff, the run may wait beyond its delivery deadline without
+admitting ordinary work. The explicit production command creates a candidate-bound
+release-only suballocation on the same run budget account with its own allowance and
+two-hour expiry; only `release.production` may use it. It pays only new release
+delivery charges and does not refill, reclassify or recheck earlier model-scoped
+caps and charges. This does not reset run wall elapsed, prior budget consumption or
+evidence. An expired release envelope requires another human command.
+If no command arrives within 30 days of handoff, the coordinator records a terminal
+`release-window-expired` non-accepted outcome and no production effect. A later
+release request starts a new candidate-bound run rather than reviving that authority.
 
 `budget.scope` is `run`. Under `enforcement: strict`, `limits` are hard caps. Under
 `advisory`, they are warning targets and an explicit same-unit `hardLimits` vector
@@ -590,13 +639,13 @@ inside a $12 hard cap warns after $8 and stops new spend at $12.
 bounds for all of them. Changing the scope changes the approval subject and
 rechecks all prior charges and holds in the new scope; missing history refuses it.
 
-| Quantity                  | Clock and aggregation                                                                                                                                                                                         |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `budget.limits.agentTime` | Add occupied agent-session intervals across attempts, including provider/tool wait while occupied; exclude pre-launch queues and human-only pauses without a worker. Tool-only activity duration is separate. |
-| Run wall elapsed          | Original `createdAt` to terminal time or the query's `asOf`; includes queueing, approval waits, pauses, drain and recovery.                                                                                   |
-| `deadline`                | Duration from original `createdAt`; changing it never resets the start. Expiry pauses new dispatch and drains existing work within its holds. A duration already elapsed is refused on profile change.        |
-| Queue wait / human wait   | Per-attempt intervals; run totals union intervals within each kind. They can overlap execution or each other and are never summed into wall elapsed.                                                          |
-| Human minutes             | Explicit measured effort, never inferred from approval waiting.                                                                                                                                               |
+| Quantity                  | Clock and aggregation                                                                                                                                                                                                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `budget.limits.agentTime` | Add occupied agent-session intervals across attempts, including provider/tool wait while occupied; exclude pre-launch queues and human-only pauses without a worker. Tool-only activity duration is separate.                                                                                                            |
+| Run wall elapsed          | Original `createdAt` to terminal time or the query's `asOf`; includes queueing, approval waits, pauses, drain and recovery.                                                                                                                                                                                              |
+| `deadline`                | Duration from original `createdAt`; changing it never resets the start. Expiry pauses ordinary dispatch and drains existing work within its holds. Only separately authorized `release.production` may use its same-account release suballocation after expiry. A duration already elapsed is refused on profile change. |
+| Queue wait / human wait   | Per-attempt intervals; run totals union intervals within each kind. They can overlap execution or each other and are never summed into wall elapsed.                                                                                                                                                                     |
+| Human minutes             | Explicit measured effort, never inferred from approval waiting.                                                                                                                                                                                                                                                          |
 
 Four concurrent 30-minute agent sessions consume 120 agent-minutes and about 30
 wall-minutes. Each quantity carries timestamps, units and unavailable reasons;
@@ -635,6 +684,11 @@ before reapproval; unsupported services or missing history refuse the change.
 ### Comparable outcomes
 
 Every terminal run gets an outcome record; later defect reports append revisions.
+The selected floor defines its terminal stage and accepted outcome. Factory-core
+terminates at handoff after the coordinator records its core outcome; personal-delivery
+enters `awaiting_release` after handoff and terminates only when the explicit command
+and production adapter establish observed production success or a modeled terminal
+failure. The outcome lifetime begins at that floor-specific terminal transition.
 The record retains all ordered profile epochs and identifies single-profile or
 mixed-profile work. Attempt cost follows its epoch; a economy implementation recovered
 under thorough is a mixed outcome, not a win or loss attributed wholly to either.
@@ -642,8 +696,10 @@ Request cost includes unsuccessful runs. Cost per accepted outcome includes thei
 cost in the numerator; no accepted outcome gives an unavailable ratio, not zero.
 
 `execution.yaml.quality` is the canonical authored evaluation definition. Its initial
-`delivery-baseline` binds the independent `acceptance.evaluate` task-acceptance tool
-and the integrated gate. Task 8 supplies two clean instances of one versioned task
+`delivery-baseline` binds the independent `acceptance.evaluate` task-acceptance tool,
+the integrated gate and `acceptance.coverage`, which joins every applicable GWT
+scenario to its required layered reports or explicit disposition. Task 8 supplies
+two clean instances of one versioned task
 fixture and its independently authored assertions; an unavailable task oracle is
 recorded as unavailable. The evaluator's tool activity consumes its catalog resources
 and charges the same budget account. It is a candidate acceptance floor; an absent
@@ -694,17 +750,23 @@ work to that worker and one or more runtime sessions. A rename changes the worke
 display revision only. Model, OpenClaw configured agent and session replacement are
 binding events, so history and permissions do not follow a mutable name.
 
-The secretary has a separately admitted interactive capacity class. Delegating a
+The OpenClaw adapter admits the secretary through a dedicated `secretary` pool and
+a provider-specific interactive reserve supplied by the organization
+snapshot. Worker admission can consume only provider capacity above that reserve;
+a missing or zero reserve makes the availability claim unavailable. Delegating a
 substantial request commits the assignment reference and ends the secretary turn;
 worker execution continues independently. Queue saturation is a visible assignment
 state. Phase 1 measures warm, saturated and cold-start response before publishing a
 numerical availability target.
 
-The session corpus stores redacted authorized message/tool content, structured
-assignment links and branch position. An adapter omission becomes an explicit gap.
-There is no personal-phase age deletion default: a configured storage ceiling warns
-and offers export before an explicit retention action. Search results resolve to a
-session position and the same access check used by direct inspection.
+The session corpus stores redacted authorized message/tool content, including
+delivery-run prompts and tool traces, plus structured assignment links, metadata
+and branch position. An adapter omission becomes an explicit gap. There is no
+personal-phase age deletion default: all of that searchable corpus shares one
+configured storage ceiling that warns and offers export before an explicit retention
+action. Search results resolve to a session position and the same access check used
+by direct inspection. Operational evidence remains for 365 days after the selected
+floor's terminal transition.
 
 High-level events form a durable projection over runtime observations, agent
 reports, accepted evidence and environment observations. These source classes stay
@@ -738,14 +800,18 @@ Tool waits release only resources proven
 free; no optimization weakens fencing or terminal-evidence accounting.
 
 The integration queue owns immutable member sets, base commit, composed source
-identity, verification receipts and publication state. `composeCandidate` merges
+identity and verification receipts. `composeCandidate` merges
 compatible outputs and plan locks in an isolated workspace; full Nx and applicable
 browser gates run on that exact composition through the gate adapters. The queue
 can prepare and verify several prospective candidates concurrently. Integration
 prepares candidates without publishing source and builds their immutable artifacts.
 Staging deploys that artifact before acceptance runs its independent oracle and
-applicable cloud checks. Handoff then invokes `publishCandidate` through effect
-execution and converges dev-main. Publication compares the accepted source ref; a
+applicable cloud checks. The following `acceptance-report` stage runs a registered
+verifier that derives interactive-browser
+outcomes from the served identity, captured steps and observed assertions; an agent
+or operator may drive the procedure, but its prose cannot establish a pass. The
+publication stage then invokes `publishCandidate` through effect execution, and
+handoff converges dev-main. Publication compares the accepted source ref; a
 moved base regenerates the candidate, artifact, staging deployment and evidence,
 including candidate acceptance checks. Failed or conflicting members enter bounded owner repair while independent
 candidates continue. Dependent work can use an explicitly composed, tested basis;
@@ -753,9 +819,10 @@ it cannot treat a branch label as an integrated predecessor. Production promotio
 remains the separate human command.
 
 Candidate acceptance joins every required member's reviews, full composed gate,
-applicable browser evidence and independently pinned task oracle. Knowledge handoff
-joins all requested outcomes. Any knowledge/source edit creates a new candidate
-requiring affected and integrated verification before handoff; generated evidence
+applicable browser evidence and independently pinned task oracle. Knowledge
+reconciliation happens per deliverable before verification; any edit it makes is
+therefore composed and tested with that deliverable. Handoff records the outcome
+and reconciles references without a source-writing activity. Generated evidence
 is stored outside candidate source so observing completion creates no hash cycle.
 Evidence reuse requires matching declared source inputs, toolchain, environment,
 policy and oracle identity; shared CSS still receives the whole browser gate.
@@ -832,10 +899,14 @@ and resumes without losing its identity; automatic deletion waits for measured u
 
 Runnable checkpoint commits are offered to their branch dev after required
 pre-deploy checks. Source-run branch devs are allowed, but a commit or successful
-deploy command does not prove what is served. The adapter observes identity and
-health. Dev-main continuously converges on accepted main through the same explicit
-desired/observed model. Nightly cloud-browser sweeps cover dev-main and active
-branch devs. An unchanged source, configuration and scenario revision may reuse an
+deploy command does not prove what is served. The long-lived
+`implementation.branch-dev` activity subscribes to committed runnable checkpoints,
+deploys each admitted update and records observed identity/health until the
+implementation stage ends. Dev-main continuously converges on accepted main through
+the same desired/observed model. Nightly cloud-browser sweeps cover dev-main and
+active branch devs through a separately compiled `dev-sweep` trigger workflow; it
+observes an environment, drives interactive scenarios and verifies the captured
+report without entering the candidate stage DAG. An unchanged source, configuration and scenario revision may reuse an
 earlier report only through a recorded coalesced disposition; it is not a new pass.
 
 Integration composes feature source with current main and builds one immutable
@@ -843,11 +914,12 @@ artifact. Staging deploys it through the same deployment, migration, recovery,
 runtime/topology class, routing/auth shape and health checks as production.
 Endpoints, credentials, admitted scale and isolated data differ and remain visible;
 any further difference blocks until its risk and compensating production check are
-accepted. Automated reports and a manually executed real cloud-browser report bind
-the candidate, artifact, observed staging environment and scenario revision.
+accepted. Automated reports and a verifier-issued report from an interactively
+driven real cloud browser bind the candidate, artifact, observed staging environment
+and scenario revision.
 
-Only after staging acceptance does handoff compare-and-swap the exact source
-candidate into main and converge dev-main. A moved main restarts composition,
+Only after staging acceptance does publication compare-and-swap the exact source
+candidate into main; handoff then converges dev-main. A moved main restarts composition,
 building, staging and acceptance. The release command then binds that candidate,
 the staging-tested artifact, production environment, migration plan, health checks
 and recovery procedure. It cannot rebuild. Credentials stay outside worker control.
@@ -857,8 +929,8 @@ not exit codes.
 
 Every specified behavior is planned from exhaustive Given/When/Then scenarios.
 Stateless unit tests carry most decision coverage; API tests use a real isolated
-database; Playwright owns browser behavior; manual cloud-browser scenarios finish
-staging acceptance. Reports name scenario, source/artifact, environment and tool,
+database; Playwright owns browser behavior; interactively driven, tool-verified
+cloud-browser scenarios finish staging acceptance. Reports name scenario, source/artifact, environment and tool,
 and retain failed, skipped, unavailable and stale results. The repository's
 Playwright server-reuse landmine applies: own ports and databases, verify the served
 build identity, and run the whole browser gate when shared UI or CSS changes. A

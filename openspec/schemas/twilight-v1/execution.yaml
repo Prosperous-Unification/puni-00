@@ -1,4 +1,4 @@
-# Twilight execution profile, revision 4 (proposed; no runtime reads it yet).
+# Twilight execution profile, revision 9 (proposed; no runtime reads it yet).
 #
 # Compiled with schema.yaml, the repository manifest, provider capabilities
 # and an explicit immutable organization snapshot into one workflow revision. See
@@ -13,7 +13,7 @@
 # it is a required compiler input, never an implicit server lookup or fallback.
 # Unknown keys, missing referenced ids and cycles in either DAG are errors.
 
-version: 4
+version: 9
 
 # `after` is the single stage DAG. Artifact mappings describe required inputs
 # or evidence; schema.yaml's separate artifact DAG only decides file readiness.
@@ -28,17 +28,20 @@ stages:
   - { id: specification, after: [discovery], artifacts: [specs, design] }
   - { id: planning, after: [specification], artifact: tasks }
   - { id: implementation, after: [planning], scope: deliverable, tracks: tasks.md }
-  - { id: review, after: [implementation], scope: deliverable }
+  - { id: knowledge, after: [implementation], scope: deliverable }
+  - { id: review, after: [knowledge], scope: deliverable }
   - { id: verification, after: [review], scope: deliverable, artifact: verify }
   - { id: integration, after: [verification], scope: candidate }
   - { id: staging, after: [integration], scope: candidate, artifact: verify }
   - { id: acceptance, after: [staging], scope: candidate, artifact: verify }
-  - { id: publication, after: [acceptance], scope: candidate, artifact: verify }
+  - { id: acceptance-report, after: [acceptance], scope: candidate, artifact: verify }
+  - { id: coverage, after: [acceptance-report], scope: candidate, artifact: verify }
+  - { id: publication, after: [coverage], scope: candidate, artifact: verify }
   - { id: handoff, after: [publication], artifact: verify }
   - { id: release, after: [handoff], command: release }
 
-# The catalog declares execution kind; repositoryFloor alone declares mandatory
-# activities. Every profile supplies a total activities map. Tools use registered
+# The catalog declares execution kind; the selected repositoryFloor revision alone
+# declares mandatory activities. Every profile supplies a total activities map. Tools use registered
 # implementations, agents resolve a class model or explicit activity model.
 # resources is a minimum per-attempt vector, augmented by registered executor
 # requirements and resolved provider/model rate limits, never replaced by them.
@@ -55,14 +58,22 @@ activities:
       stage: discovery,
       class: review,
       executor: agent,
-      resources: { agent: 1 },
+      resources: { agent: 1, reviewer: 1 },
     }
   - {
       id: specification.critique,
       stage: specification,
       class: review,
       executor: agent,
-      resources: { agent: 1 },
+      resources: { agent: 1, reviewer: 1 },
+    }
+  - {
+      id: specification.scenarios,
+      stage: specification,
+      class: verify,
+      executor: tool,
+      implementation: registered:scenario-coverage,
+      resources: { workspace: 1 },
     }
   - { id: planning.plan, stage: planning, class: plan, executor: agent, resources: { agent: 1 } }
   - {
@@ -72,8 +83,28 @@ activities:
       executor: agent,
       resources: { agent: 1, workspace: 1 },
     }
-  - { id: review.critic, stage: review, class: review, executor: agent, resources: { agent: 1 } }
-  - { id: review.judge, stage: review, class: judge, executor: agent, resources: { agent: 1 } }
+  - {
+      id: implementation.branch-dev,
+      stage: implementation,
+      class: verify,
+      executor: tool,
+      implementation: registered:branch-dev-observer,
+      resources: { branchDevEnvironment: 1 },
+    }
+  - {
+      id: review.critic,
+      stage: review,
+      class: review,
+      executor: agent,
+      resources: { agent: 1, reviewer: 1 },
+    }
+  - {
+      id: review.judge,
+      stage: review,
+      class: judge,
+      executor: agent,
+      resources: { agent: 1, reviewer: 1 },
+    }
   - {
       id: verification.gate,
       stage: verification,
@@ -114,8 +145,24 @@ activities:
       resources: { agent: 1, browser: 1 },
     }
   - {
-      id: handoff.knowledge,
-      stage: handoff,
+      id: acceptance.browser-report,
+      stage: acceptance-report,
+      class: verify,
+      executor: tool,
+      implementation: registered:cloud-browser-report,
+      resources: {},
+    }
+  - {
+      id: acceptance.coverage,
+      stage: coverage,
+      class: verify,
+      executor: tool,
+      implementation: registered:scenario-test-coverage,
+      resources: { workspace: 1 },
+    }
+  - {
+      id: knowledge.reconcile,
+      stage: knowledge,
       class: knowledge,
       executor: agent,
       resources: { agent: 1, workspace: 1 },
@@ -143,6 +190,14 @@ activities:
       executor: tool,
       implementation: registered:task-acceptance,
       resources: { build: 1, workspace: 1 },
+    }
+  - {
+      id: release.production,
+      stage: release,
+      class: integrate,
+      executor: tool,
+      implementation: registered:production-deploy,
+      resources: { build: 1 },
     }
 
 # Lifecycle points are `<event>.<stage or activity id>`; `*` matches every
@@ -207,8 +262,8 @@ hooks:
 # hard money caps. Disabled activities are validated again before enabling.
 # activities is the only enablement/depth source; there are no parallel skip,
 # judge or browserGate switches. verification.gate always runs the full repo
-# gate. Cloud acceptance is a repository floor; it remains unavailable, rather
-# than skipped, until Task 13 proves its adapter.
+# gate. Cloud acceptance is disabled under factory-core; Task 13 must prove every
+# adapter before personal-delivery can force its additional activities enabled.
 # Overrides merge maps by key, replace scalars/arrays, and require a reason;
 # per-activity models replace class defaults. Unknown or conflicting fields fail.
 # rework.maxRounds counts consumed rounds across profile epochs, including zero.
@@ -234,19 +289,24 @@ profiles:
       discovery.research: { enabled: true }
       discovery.review: { enabled: true }
       specification.critique: { enabled: true }
+      specification.scenarios: { enabled: true }
       planning.plan: { enabled: true }
       implementation.implement: { enabled: true }
+      implementation.branch-dev: { enabled: false }
       review.critic: { enabled: true, count: 2 }
       review.judge: { enabled: true }
       verification.gate: { enabled: true }
       verification.browser: { enabled: true, scope: whole }
       integration.compose: { enabled: true }
-      staging.deploy: { enabled: true }
-      acceptance.cloud-browser: { enabled: true }
-      handoff.knowledge: { enabled: true }
-      publication.main: { enabled: true }
-      handoff.dev-main: { enabled: true }
+      staging.deploy: { enabled: false }
+      acceptance.cloud-browser: { enabled: false }
+      acceptance.browser-report: { enabled: false }
+      acceptance.coverage: { enabled: true }
+      knowledge.reconcile: { enabled: true }
+      publication.main: { enabled: false }
+      handoff.dev-main: { enabled: false }
       acceptance.evaluate: { enabled: true }
+      release.production: { enabled: false }
     rework: { maxRounds: 3 }
     fanOut: 2
     budget:
@@ -273,19 +333,24 @@ profiles:
       discovery.research: { enabled: true }
       discovery.review: { enabled: true }
       specification.critique: { enabled: true }
+      specification.scenarios: { enabled: true }
       planning.plan: { enabled: true }
       implementation.implement: { enabled: true }
+      implementation.branch-dev: { enabled: false }
       review.critic: { enabled: true, count: 1 }
       review.judge: { enabled: true }
       verification.gate: { enabled: true }
       verification.browser: { enabled: true, scope: affected }
       integration.compose: { enabled: true }
-      staging.deploy: { enabled: true }
-      acceptance.cloud-browser: { enabled: true }
-      handoff.knowledge: { enabled: true }
-      publication.main: { enabled: true }
-      handoff.dev-main: { enabled: true }
+      staging.deploy: { enabled: false }
+      acceptance.cloud-browser: { enabled: false }
+      acceptance.browser-report: { enabled: false }
+      acceptance.coverage: { enabled: true }
+      knowledge.reconcile: { enabled: true }
+      publication.main: { enabled: false }
+      handoff.dev-main: { enabled: false }
       acceptance.evaluate: { enabled: true }
+      release.production: { enabled: false }
     rework: { maxRounds: 2 }
     fanOut: 2
     budget:
@@ -311,20 +376,25 @@ profiles:
     activities:
       discovery.research: { enabled: true }
       discovery.review: { enabled: false }
-      specification.critique: { enabled: false }
+      specification.critique: { enabled: true }
+      specification.scenarios: { enabled: true }
       planning.plan: { enabled: true }
       implementation.implement: { enabled: true }
+      implementation.branch-dev: { enabled: false }
       review.critic: { enabled: true, count: 1 }
       review.judge: { enabled: false }
       verification.gate: { enabled: true }
       verification.browser: { enabled: false, scope: affected }
       integration.compose: { enabled: true }
-      staging.deploy: { enabled: true }
-      acceptance.cloud-browser: { enabled: true }
-      handoff.knowledge: { enabled: true }
-      publication.main: { enabled: true }
-      handoff.dev-main: { enabled: true }
+      staging.deploy: { enabled: false }
+      acceptance.cloud-browser: { enabled: false }
+      acceptance.browser-report: { enabled: false }
+      acceptance.coverage: { enabled: true }
+      knowledge.reconcile: { enabled: true }
+      publication.main: { enabled: false }
+      handoff.dev-main: { enabled: false }
       acceptance.evaluate: { enabled: true }
+      release.production: { enabled: false }
     rework: { maxRounds: 1 }
     fanOut: 4
     budget:
@@ -334,20 +404,54 @@ profiles:
       limits: { tokens: 500000, money: { amount: 12, currency: USD }, agentTime: PT2H }
     deadline: PT4H
 
-# What no profile or run override may remove in this repository.
+# Every referenced evidence id is declared once here. Registered producers and
+# access/redaction rules are compiled with the selected floor.
+evidenceCatalog:
+  - { id: redaction, producer: registered:evidence-redaction }
+  - { id: run-ledger, producer: registered:run-ledger }
+  - { id: served-source-identity, producer: registered:environment-observe }
+  - { id: branch-dev-observation, producer: registered:branch-dev-observer }
+
+# Floor revisions let the factory core prove itself before deployment adapters
+# exist. Selecting a floor forces its activities enabled after profile resolution.
+# Task 13 publishes personal-delivery through the same authorized workflow change
+# as any later floor revision; it cannot be selected while an implementation is
+# unavailable. What no profile/run override may remove is revision-specific.
 repositoryFloor:
-  activities:
-    - verification.gate
-    - integration.compose
-    - staging.deploy
-    - acceptance.cloud-browser
-    - acceptance.evaluate
-    - publication.main
-    - handoff.dev-main
-    - handoff.knowledge
-  hooks: [secrets-scan]
-  approvals: [beforeStage.implementation, release]
-  evidence: [served-source-identity, branch-dev-observation, redaction, run-ledger]
+  defaultRevision: factory-core
+  revisions:
+    factory-core:
+      terminalStage: handoff
+      acceptedOutcome: candidate-accepted-at-handoff
+      activities:
+        - specification.critique
+        - specification.scenarios
+        - knowledge.reconcile
+        - verification.gate
+        - verification.browser
+        - integration.compose
+        - acceptance.evaluate
+        - acceptance.coverage
+      hooks: [secrets-scan]
+      approvals: [beforeStage.implementation]
+      commands: []
+      evidence: [redaction, run-ledger]
+    personal-delivery:
+      extends: factory-core
+      terminalStage: release
+      acceptedOutcome: release-observed-in-production
+      activities:
+        - implementation.branch-dev
+        - staging.deploy
+        - acceptance.cloud-browser
+        - acceptance.browser-report
+        - publication.main
+        - handoff.dev-main
+        - release.production
+      hooks: [notify-operator]
+      approvals: []
+      commands: [release]
+      evidence: [served-source-identity, branch-dev-observation]
 
 # Named authority for discovery before a plan exists (assumption A29).
 discoveryEnvelopes:
@@ -362,6 +466,12 @@ discoveryEnvelopes:
 # Per-repository capacity defaults; organization pools sit above them.
 capacity:
   agentSlots: 2
+  secretarySlots: 1
+  # Provisional repository request under A67; the organization pool may bind lower.
+  branchDevEnvironmentSlots: 2
+  # The organization snapshot must supply a non-zero provider-specific reserve;
+  # worker admission receives only the capacity left above it.
+  secretaryProviderReserve: required
   workspaceWritersPerLineage: 1
   reviewerReserve: 1
   buildSlots: 1
@@ -378,6 +488,8 @@ execution:
   speculation: { defaultEnabled: false, maxAttemptsPerDeliverable: 2 }
 
 scalingAcceptance:
+  floorRevision: factory-core
+  acceptedOutcome: candidate-accepted-at-handoff
   workers: [1, 2, 4, 8]
   repetitions: 5
   workloads: [independent, decomposable, contended-recovery]
@@ -402,18 +514,70 @@ presentation:
 # repository defaults until one is published (assumption A17).
 retention:
   organizationPolicy: null
-  metadata: P90D
-  redactedContent: explicit-storage-ceiling
-  releaseEvidence: { after: release-lifetime, plus: P90D }
+  metadata: no-age-expiry
+  redactedContent: no-age-expiry
+  searchableCorpusBytes: 10737418240
+  operationalEvidenceAfterTerminal: P365D
 
 # Scheduled runs use the same admission/evidence path. Coalescing requires exact
 # source, configuration and scenario identity and records a disposition, not a pass.
 scheduledSweeps:
+  enabledByFloor: personal-delivery
   cadence: P1D
   targets: [dev-main, active-branch-devs]
-  executor: acceptance.cloud-browser
+  workflow: dev-sweep
   unchanged: coalesce-with-linked-report
   staging: immediate-never-coalesce
+
+# A human publishes this bounded recurring authority separately from a delivery
+# run. Every occurrence copies the allowance into a new budget account.
+triggerEnvelopes:
+  dev-sweep:
+    decidedBy: human
+    profile: balanced
+    moneyScope: model
+    allowance: { tokens: 200000, money: { amount: 8, currency: USD }, agentTime: PT1H }
+    deadline: PT2H
+
+# The explicit release command creates this candidate-bound allowance. It can
+# admit only release.production and does not reset the delivery run clock.
+releaseEnvelope:
+  decidedBy: human
+  activity: release.production
+  account: same-run
+  chargeScope: release-delivery-only
+  limits: { money: { amount: 20, currency: USD } }
+  deadline: PT2H
+  decisionDeadlineAfterHandoff: P30D
+
+triggerWorkflows:
+  dev-sweep:
+    enabledByFloor: personal-delivery
+    admission:
+      envelope: dev-sweep
+      budgetAccount: per-occurrence
+    activities:
+      - {
+          id: observe,
+          executor: tool,
+          implementation: registered:environment-observe,
+          resources: {},
+        }
+      - {
+          id: exercise,
+          after: [observe],
+          executor: agent,
+          class: verify,
+          resources: { agent: 1, browser: 1 },
+        }
+      - {
+          id: report,
+          after: [exercise],
+          executor: tool,
+          implementation: registered:dev-sweep-report,
+          resources: {},
+        }
+    requiredByFloor: personal-delivery
 
 # Knowledge operations profile (docs/twilight-structure/knowledge.md).
 knowledge:
@@ -425,18 +589,20 @@ knowledge:
 # evaluation-publisher capability plus a human decision when this subtree changes.
 # Compiler hashes quality, rubric and observationSet independently; submit_request
 # pins those revisions from its compiled workflow. No delivery-profile override.
-# acceptance.evaluate uses the task fixture's independently authored assertions; absent
-# assertions block candidate acceptance as unavailable, never a pass. This floor
-# activity runs before candidate acceptance completes and charges the run account.
+# acceptance.evaluate uses the task fixture's independently authored assertions;
+# acceptance.coverage joins specified scenarios to layered reports/dispositions.
+# Missing assertions or mappings block acceptance as unavailable, never a pass.
+# Both floor activities charge the run account before candidate acceptance completes.
 quality:
   id: delivery-baseline
   rubric:
     id: contract-and-regression
-    criteria: [task-acceptance, repository-gate]
+    criteria: [task-acceptance, repository-gate, scenario-test-coverage]
   observationSet:
     - { id: task-acceptance, activity: acceptance.evaluate }
     - { id: repository-gate, activity: verification.gate }
+    - { id: scenario-test-coverage, activity: acceptance.coverage }
   cohortFields: [repositoryId, taskFixtureDigest, evaluationRevision]
   escapedDefectWindow: P30D
-  acceptedOutcome: candidate-accepted-at-handoff
+  acceptedOutcomeFrom: selected-floor
   estimateCalibration: per-task

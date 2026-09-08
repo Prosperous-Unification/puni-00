@@ -24,10 +24,10 @@ required approval.
 FE and MCP MUST invoke the same BE operations, with organization/repository/actor
 authorization at the boundary. A tool caller MUST NOT supply a trusted actor or
 gain a service account's broader authority. Unsupported controls MUST be refused
-with typed errors. Malformed requests MUST produce typed 4xx responses. Bootstrap
-and interactive decision-token issuance establish authority and are the only
-operations without an agent-callable MCP form; their resulting bindings MUST be
-readable through the effective-policy operation.
+with typed errors. Malformed requests MUST produce typed 4xx responses. Bootstrap,
+interactive decision-token issuance and recurring trigger-envelope publication
+establish authority and MUST have no agent-callable MCP form; their resulting
+bindings MUST be readable through the effective-policy operation.
 
 #### Scenario: Same request through two clients
 
@@ -55,16 +55,31 @@ prerequisites MUST come only from stage `after` edges; artifact mappings and the
 artifact-readiness graph MUST NOT imply stage edges. Each activity MUST resolve to
 exactly one catalog entry with an `agent` or `tool` executor. A tool entry MUST name
 a registered implementation and MUST NOT receive a model. Every delivery profile
-MUST contain a total activity map keyed by that catalog, and the repository floor
-MUST be the sole catalog-independent list of activities that cannot be disabled.
+MUST contain a total activity map keyed by that catalog. The execution profile MUST
+declare immutable repository-floor revisions and one default revision. A run MUST
+pin one compatible floor revision, whose inherited activities, hooks, approvals,
+commands and evidence cannot be disabled. Raw profile defaults MAY leave activities
+for another floor disabled; the compiler MUST overlay the selected floor with a
+visible floor origin before completeness validation. An override that disables a
+selected-floor activity MUST be refused. Selecting a floor with an unavailable
+implementation MUST fail before run creation. Publishing a later floor MUST NOT
+change an existing run.
+A declared activity or hook outside the selected floor MAY name a later unavailable
+registered implementation; it MUST remain inactive. Selecting a floor that requires
+it MUST fail until that implementation is registered and compatible.
 Stage scope MUST be explicit or default to run. The shipped graph MUST order
 request, discovery, specification and planning at run scope, then implementation,
-review and verification per deliverable. Integration and acceptance MUST join the
-members of an integration candidate; handoff MUST join all required accepted
+knowledge reconciliation, review and verification per deliverable. Integration,
+staging, acceptance, acceptance-report, coverage and publication MUST join the members of an integration
+candidate; handoff MUST join all required accepted
 outcomes. An independent deliverable MUST NOT wait for another's implementation
 to enter review or verification. Published custom graphs MUST preserve required
 artifact and authority obligations. Release MUST depend
 on handoff and remain a separate human command that stage completion never starts.
+Each floor MUST declare its terminal stage and accepted outcome. Factory-core MUST
+terminate at handoff after the coordinator records its core outcome. Personal-delivery
+MUST enter `awaiting_release` at handoff and terminate only after its explicit
+release command and production adapter establish an observed outcome.
 The first increment's controls MUST be configurable and inspectable through FE,
 BE and MCP with their effective value, origin scope and restriction. Platform and
 organization floors MUST constrain lower scopes.
@@ -73,6 +88,14 @@ Each activity MUST declare a minimum resource vector. Compilation MUST combine i
 with registered executor requirements and resolved provider/model limits; admission
 MUST reserve the complete vector. Tool-only gates MUST NOT require agent slots by
 default, and build/browser activities MUST reserve their corresponding scarce pools.
+Scheduled trigger workflows MUST declare and validate their own acyclic activity
+DAG, registered tools, agent classes and resource vectors. They MUST NOT enter the
+candidate stage DAG or invent a candidate merely to observe a development environment.
+A trigger workflow MUST declare the floor revision that enables it. Each occurrence
+MUST pin that floor, its declared profile and trigger-workflow revision, obtain its
+separately human-published execution envelope and charge one per-occurrence budget
+account from that envelope's allowance; unavailable authority,
+budget or implementations MUST block the occurrence explicitly.
 
 #### Scenario: A running workflow is unaffected by a draft edit
 
@@ -100,6 +123,12 @@ default, and build/browser activities MUST reserve their corresponding scarce po
   approval or evidence item the repository or organization floor lists
 - **THEN** submission is refused with the floor's origin, and no run is created
 
+#### Scenario: A later floor names an unavailable adapter
+
+- **GIVEN** factory-core is the default floor and personal-delivery names later adapters
+- **WHEN** a workflow selects the personal-delivery floor before its staging, browser-report, publication, environment or production-deploy adapter is registered and compatible
+- **THEN** workflow publication is refused; factory-core runs retain their pinned floor and can still complete without those activities
+
 #### Scenario: Artifact mappings disagree with stage order
 
 - **WHEN** artifact readiness would permit planning but the explicit stage graph
@@ -112,6 +141,18 @@ default, and build/browser activities MUST reserve their corresponding scarce po
 - **WHEN** every activity in an intermediate stage is disabled without violating a floor
 - **THEN** the stage records its activities as inapplicable and its successors wait
   for that disposition; the service does not invent pass evidence
+
+#### Scenario: A dev sweep is scheduled without a candidate
+
+- **GIVEN** dev-main or an active branch dev is due for its nightly sweep
+- **WHEN** the scheduler starts the `dev-sweep` trigger workflow
+- **THEN** it observes, exercises and verifies that environment without entering staging, publication or release
+
+#### Scenario: A dev sweep lacks its occurrence budget
+
+- **GIVEN** `personal-delivery` enables the scheduled `dev-sweep` workflow
+- **WHEN** an occurrence cannot acquire its published envelope or per-occurrence budget account
+- **THEN** that occurrence is blocked with the missing authority named and no browser activity starts
 
 ### Requirement: Profile overrides and epochs are explicit
 
@@ -224,7 +265,7 @@ increment declares a particular upgrade path supported.
 
 ### Requirement: Durable stage and activity lifecycle
 
-Runs MUST distinguish `queued`, `running`, `awaiting_approval`, `paused`,
+Runs MUST distinguish `queued`, `running`, `awaiting_approval`, `awaiting_release`, `paused`,
 `reconciling`, `failed`, `cancelled` and `completed`. Durable ownership and
 checkpoints MUST permit restart without inventing completion or repeating uncertain
 effects. Cancellation MUST fence new work, then drain or terminate workers. Effect
@@ -236,13 +277,27 @@ remote session/job or unresolved budget. A retried activity MUST be a new attemp
 under the same activity, and a skipped activity MUST record the decision that
 skipped it. Aggregate reconciling/failed-stage status MUST block only affected
 dependency closures; independent authorized work MAY continue. Explicit run-wide
-pause/cancel, exhausted run budget and revoked run authority MUST stop all new work.
+pause/cancel and revoked run authority MUST stop all new work. Exhausting ordinary
+run caps MUST stop ordinary work but MUST NOT consume or block the separately
+authorized same-account `release.production` suballocation.
 
 #### Scenario: Restart during approval wait
 
 - **WHEN** the coordinator restarts while a plan decision is pending
 - **THEN** the same decision and subject revision are shown and no activity starts
   before the required decision is received
+
+#### Scenario: Personal delivery reaches handoff before its release command
+
+- **GIVEN** a personal-delivery candidate is published and handoff has completed
+- **WHEN** no production release command has been issued
+- **THEN** the run is `awaiting_release`, has no terminal accepted outcome or `terminalAt`, and remains bound to the exact candidate and artifact
+
+#### Scenario: The release decision window expires
+
+- **GIVEN** a personal-delivery run has waited 30 days at handoff without a release command
+- **WHEN** the coordinator evaluates its release decision deadline
+- **THEN** it records a terminal `release-window-expired` non-accepted outcome, performs no production effect, and requires a new candidate-bound run for any later release
 
 #### Scenario: Crash after an external effect
 
@@ -309,6 +364,13 @@ a new decision; usage and holds MUST survive it. Evidence MUST still bind exact
 candidate content: authority to compose a candidate never transfers its greens.
 Production MUST require a separate explicit human command bound to the exact
 verified candidate and environment even if earlier stages complete automatically.
+That command MUST supply a bounded release envelope for `release.production` with
+its own expiry. The envelope MUST be an additive, release-only suballocation on the
+same run budget account: it can pay only new release delivery charges, cannot change
+or refill earlier caps, and does not reclassify or recheck prior model-scoped charges.
+An exhausted earlier cap MUST NOT spend this suballocation or prevent its separately
+authorized release activity. It MUST NOT reset the original run clock; an expired
+delivery deadline MUST NOT prevent this recovery/promotion activity.
 
 #### Scenario: Stale plan approval
 
@@ -394,8 +456,10 @@ conservative per-attempt allowance against every required pool and hard cap, rat
 than reserve the whole run cap. For every dimension, settled consumption plus all
 outstanding holds MUST NOT exceed the hard cap. Unknown spend MUST retain its hold;
 work without a defensible bound and stop mechanism MUST be refused under a hard
-cap. Reaching an advisory target MUST emit a visible warning. Reaching a hard cap
-MUST prevent new dispatch and pause unresolved work rather than mark it successful;
+cap. Reaching an advisory target MUST emit a visible warning. Reaching an ordinary
+hard cap MUST prevent ordinary dispatch and pause unresolved work rather than mark
+it successful; the separately authorized same-account `release.production`
+suballocation is the sole exception and cannot spend that exhausted cap;
 draining in-flight work MUST remain covered by its reservation.
 
 The money scope MUST explicitly select model spend or all delivery charges.
@@ -528,7 +592,9 @@ MUST remain separate. Run wall elapsed MUST be measured from the original
 `createdAt` to `terminalAt`, or to an explicit `asOf` for a nonterminal run, and
 MUST include queueing, approval, pause and recovery. A duration deadline MUST use
 that original `createdAt`; a profile change MUST NOT reset it. Once the deadline
-passes, no new work may start and admitted work MUST drain within existing holds.
+passes, no new ordinary delivery work may start and admitted work MUST drain within
+existing holds. The separately human-authorized `release.production` suballocation
+is the sole exception and retains its own expiry without resetting this clock.
 
 Queue and human-wait totals MUST be interval unions for their respective kinds, may
 overlap execution or each other, and MUST NOT be summed to derive wall elapsed.
@@ -597,7 +663,10 @@ and per-activity model assignments, escalation ladders, rework maximum, fan-out,
 budget and deadline through all clients. Activity settings MUST be the only source
 for critic count, judge enablement, browser scope and other optional enablement;
 disabled critics with a positive count, model assignments on tool activities and
-disabled floor activities MUST be rejected. Rework rounds MUST count consumed
+an override that disables a selected-floor activity MUST be rejected. Raw profile
+defaults MAY disable activities required only by another floor: floor resolution
+MUST enable them with the floor as their visible origin before completeness checks.
+Rework rounds MUST count consumed
 rework across profile epochs; zero permits no rework, and exhausting the maximum
 with a blocking finding MUST pause the run.
 
@@ -662,8 +731,9 @@ evaluation-publisher capability and a subject-bound human decision for its chang
 Compilation MUST derive immutable evaluation/rubric/observation-set revisions from
 their contents; request submission MUST pin them from its compiled workflow along
 with the independently authored task-fixture digest used for cohort matching. The
-initial `delivery-baseline` MUST resolve the integrated gate and `acceptance.evaluate`
-task-acceptance observer. Missing task assertions MUST produce an unavailable
+initial `delivery-baseline` MUST resolve the integrated gate,
+`acceptance.evaluate` task-acceptance observer and `acceptance.coverage`
+scenario/report observer. Missing task assertions MUST produce an unavailable
 observation. Running the observer MUST reserve its declared tool resources and
 charge the run account. It MUST be a floor activity at candidate acceptance;
 missing assertions MUST block acceptance, and disabling it MUST be refused.
@@ -671,7 +741,7 @@ missing assertions MUST block acceptance, and disabling it MUST be refused.
 Escaped-defect reports MUST be revisioned outcome updates submitted through one
 shared FE/BE/MCP operation with caller scope, idempotency key, expected revisions,
 source evidence, `reportedAt` and accepted candidate lineage. The defect window MUST
-open at `acceptedAt`; outcomes MUST expose `observedThrough`, exposure duration,
+open at `acceptedAt`, the selected floor's accepted terminal transition; outcomes MUST expose `observedThrough`, exposure duration,
 window maturity and source coverage. A report MUST attach to the named candidate and
 MUST NOT infer that a model or profile caused the defect.
 
@@ -760,10 +830,14 @@ review is ready; borrowing MUST be bounded by the configured fairness window.
 The integration queue MUST compose authorized deliverables on a recorded base,
 preserve plan-lock entries, and run full integrated verification against the exact
 composed candidate. Candidate preparation and verification MAY overlap in isolated
-workspaces. Integration preparation MUST NOT publish shared source. Staging MUST
-deploy the composed artifact before acceptance. The publication stage MUST invoke
-publication only after the independent oracle and all required candidate checks
-pass; handoff MUST require the publication receipt. Publication MUST
+workspaces. Integration preparation MUST NOT publish shared source. When the pinned
+floor requires staging and publication, staging MUST deploy the composed artifact
+before acceptance; the ordered browser-report verifier MUST complete after the
+interactive driver; publication MUST follow every required candidate check; and
+handoff MUST require the publication receipt. Under `factory-core`, staging,
+interactive acceptance, its report, publication and dev-main MUST record explicit
+inapplicable dispositions; those dispositions satisfy their stage joins without a
+publication receipt and MUST NOT claim deployment or publication. Publication MUST
 compare-and-swap the accepted source ref. A moved base MUST trigger recomposition,
 a new artifact, staging deployment and fresh candidate verification. Semantic conflicts MUST
 return to bounded repair; failed members MUST NOT prevent independent candidates
@@ -788,8 +862,15 @@ a prior candidate's success MUST NOT be accepted solely because its branch was g
 
 #### Scenario: Publication waits for staging acceptance
 
-- **WHEN** integrated verification passes but staging deployment, the independent oracle or required manual cloud-browser evidence is incomplete
+- **GIVEN** the candidate pins the personal-delivery floor
+- **WHEN** integrated verification passes but staging deployment, the independent oracle or required tool-verified interactive cloud-browser evidence is incomplete
 - **THEN** shared source remains unchanged and no publication receipt exists
+
+#### Scenario: Factory-core reaches handoff without publication
+
+- **GIVEN** a run pins factory-core and its integration candidate passes the core oracle
+- **WHEN** staging through publication are reached
+- **THEN** those later-floor activities record inapplicable dispositions, handoff records the core accepted outcome without a publication receipt, and no source or environment changes
 
 ### Requirement: Speculation spends only bounded authorized capacity
 

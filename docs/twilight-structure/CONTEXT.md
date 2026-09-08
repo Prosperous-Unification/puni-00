@@ -79,6 +79,11 @@ The versioned description of how a work request proceeds through stages and
 which obligations govern that work.
 _Avoid_: Prompt chain, work plan
 
+**Repository floor revision**:
+An immutable named set of delivery activities, hooks, approvals, commands and
+evidence that a workflow run pins and no lower scope can remove.
+_Avoid_: Delivery profile, current policy
+
 **Workflow run**:
 One attempt to carry a work request through a particular workflow definition.
 _Avoid_: Session, project
@@ -132,6 +137,12 @@ _Avoid_: Assertion, progress
 A scheduled pass through manual test scenarios on an identified development
 environment using a cloud browser, with a report of the deployment observed.
 _Avoid_: Playwright run, heartbeat
+
+**Interactive browser report**:
+A registered verifier's result derived from captured browser steps and assertions
+while an agent or operator drives a manual procedure; the driver's prose is not a
+passing result.
+_Avoid_: Agent claim, Playwright report
 
 **Capacity pool**:
 A bounded supply of an execution resource shared by competing activities.
@@ -309,7 +320,9 @@ under which outcome records can be compared.
 _Avoid_: Delivery profile, score formula
 
 **Accepted outcome**:
-A candidate accepted at handoff with every floor activity passed.
+A run accepted at the terminal stage declared by its floor, with every required
+activity passed or carrying its modeled inapplicable disposition. Factory-core
+accepts at handoff; personal-delivery accepts only after observed production release.
 _Avoid_: Done, merged
 
 **Escaped defect**:

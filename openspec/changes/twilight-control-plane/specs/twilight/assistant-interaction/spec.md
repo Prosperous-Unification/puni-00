@@ -8,6 +8,8 @@ assignment for a worker session, return its reference, and finish the delegating
 turn without waiting for that work to finish. Interactive secretary capacity MUST
 be admitted independently from worker capacity. Saturation, startup and provider
 limits MUST be visible and MUST NOT be represented as availability.
+The organization snapshot MUST supply a non-zero provider reserve for
+the secretary; worker admission MUST treat that reserve as unavailable to workers.
 
 #### Scenario: A long request is delegated
 
@@ -20,6 +22,12 @@ limits MUST be visible and MUST NOT be represented as availability.
 - **GIVEN** every permitted worker slot is occupied
 - **WHEN** the secretary accepts another delegable request
 - **THEN** it records the assignment as queued with the limiting pool, remains conversationally available, and does not claim that work has started
+
+#### Scenario: Workers request the provider's reserved capacity
+
+- **GIVEN** admitted worker usage has reached total provider capacity minus the secretary reserve
+- **WHEN** another worker requests provider capacity
+- **THEN** the worker queues while the secretary can still admit a turn through the reserved capacity
 
 #### Scenario: Interactive capacity is unavailable
 
@@ -84,7 +92,8 @@ Twilight MUST retain a redacted, access-controlled session corpus for the person
 phase without default age-based deletion. It MUST index user and assistant text,
 permitted tool inputs and outputs, assignment links and required inactive branches.
 It MUST label omitted or unavailable content. A storage ceiling MUST warn and offer
-export before deletion; deletion requires an explicit retention action. Search
+export before deletion; the personal default is 10 GiB under A66, and deletion
+requires an explicit retention action. Search
 results MUST link to the matching session position and structured work context.
 
 #### Scenario: Search finds conversation and tool evidence

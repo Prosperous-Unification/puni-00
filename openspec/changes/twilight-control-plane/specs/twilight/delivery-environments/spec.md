@@ -65,14 +65,19 @@ produce an immutable artifact and record both identities. Staging MUST deploy th
 artifact through the production deployment, migration, recovery, routing,
 authentication and health-check shape before main publication. Staging MUST use
 isolated credentials and data; differences in endpoint and admitted scale MUST be
-listed with their risk. Final acceptance MUST bind automated and manual
+listed with their risk. Final acceptance MUST bind automated and interactive
 cloud-browser reports to the exact candidate, artifact, environment and scenario
-revision.
+revision. An agent or operator MAY drive the manual procedure, but a registered
+report verifier MUST derive its outcome from captured browser/tool observations;
+the driver's prose MUST NOT establish a pass. The verifier MUST consume the exact
+completed `acceptance.cloud-browser` receipt, including its browser-session,
+candidate, artifact, served-environment and scenario-revision identities, before
+it can issue `acceptance.browser-report`.
 
 #### Scenario: The composed candidate passes staging
 
 - **GIVEN** a feature source is composed with current main and its immutable artifact is deployed to healthy staging
-- **WHEN** every required automated check and manual cloud-browser scenario passes against the observed artifact
+- **WHEN** every required automated check and interactively driven cloud-browser scenario has a verifier-issued passing report against the observed artifact
 - **THEN** acceptance records candidate-bound reports and authorizes publication of only that composition
 
 #### Scenario: Main moves before publication
@@ -87,11 +92,23 @@ revision.
 - **WHEN** the candidate requests staging acceptance
 - **THEN** acceptance blocks until the difference, risk and compensating production check are explicitly accepted under policy
 
-#### Scenario: Manual cloud-browser testing is unavailable
+#### Scenario: Interactive cloud-browser testing is unavailable
 
-- **GIVEN** automated checks pass but the required cloud browser or human execution is unavailable
+- **GIVEN** automated checks pass but the required cloud browser, interactive driver or report verifier is unavailable
 - **WHEN** staging acceptance is evaluated
-- **THEN** the candidate remains unaccepted with an unavailable manual-test report and cannot publish to main
+- **THEN** the candidate remains unaccepted with an unavailable interactive-test report and cannot publish to main
+
+#### Scenario: A driver claims success without observed assertions
+
+- **GIVEN** an agent or operator reports that a manual scenario passed but the browser recording lacks the required observed assertions
+- **WHEN** the registered report verifier evaluates the session
+- **THEN** it refuses a passing report and publication remains blocked
+
+#### Scenario: The report verifier runs before its browser receipt
+
+- **GIVEN** the interactive browser assignment has started but has no completed receipt
+- **WHEN** the report verifier is asked to issue the candidate's browser report
+- **THEN** it refuses the report as not ready and publication remains blocked
 
 #### Scenario: A staging report names another artifact
 
@@ -137,9 +154,12 @@ health and served artifact identity.
 Every observable behavior MUST have exhaustive Given/When/Then scenarios before
 implementation. Test planning MUST place most coverage in stateless unit tests,
 then API tests against a real database, then Playwright browser tests, with manual
-scenarios executed through the real cloud browser last. Each report MUST identify
+procedures executed interactively through the real cloud browser last. Each report MUST identify
 the scenarios, source, artifact where applicable, environment, tool and outcome.
 Failed, skipped, unavailable and stale results MUST remain explicit.
+The registered `acceptance.coverage` verifier MUST join the specification coverage
+ledger to the candidate's actual reports and block acceptance for every missing
+applicable layer or disposition.
 
 Scenario validation MUST require an explicit, non-vacuous Given, When and Then in
 every scenario. Each requirement MUST record applicable normal, failure, boundary
@@ -185,10 +205,13 @@ coverage judgment and its unresolved findings block planning approval.
 
 ### Requirement: Scheduled development sweeps are source-bound observations
 
-Twilight MUST schedule a nightly manual cloud-browser sweep for dev-main and every
+Twilight MUST schedule a nightly interactive cloud-browser sweep for dev-main and every
 active branch dev in the personal phase. It MAY coalesce an unchanged environment
 instead of rerunning, but MUST record that disposition against the earlier matching
-report. A staging candidate MUST always receive its own immediate full manual pass.
+report. A staging candidate MUST always receive its own immediate full interactive pass.
+Scheduled sweeps MUST use an environment-bound report verifier distinct from the
+candidate-bound staging report verifier; they MUST NOT fabricate a candidate or
+artifact identity.
 
 #### Scenario: Nightly sweep finds active development environments
 

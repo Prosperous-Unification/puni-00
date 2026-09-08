@@ -61,24 +61,26 @@ need an accepted risk and compensating production check.
 Every setting shows its effective value, the scope it came from (platform floor,
 organization floor, repository, workflow, activity, run) and the floor that bounds
 it. The [execution profile](../../openspec/schemas/twilight-v1/execution.yaml) is
-the repository-level source, including its floor and capacity requests. The
+the repository-level source, including immutable floor revisions and capacity
+requests. M1 pins `factory-core`; the complete personal loop pins
+`personal-delivery` only after Task 13 publishes compatible adapters. The
 immutable organization snapshot supplies higher floors, capacity pools and the
 rate card through privileged operations.
 
-| Dimension      | Settings and observable consequences                                                                                                                                                                                                                      |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stage/activity | Ordered stage prerequisites; activity catalog with class, agent/tool executor and implementation; complete per-profile activity settings; effective floor membership                                                                                      |
-| Delivery lever | Resolved profile epochs, activity choices, model routing, escalation and rework, fan-out, budget account and deadline, with each field's origin and constraint                                                                                            |
-| Agent role     | Provider/model revision, ACP adapter/capabilities, instructions and skills, tool permissions, workspace/egress profile                                                                                                                                    |
-| Review         | Critic enablement/count and specialism, judge enablement, author/reviewer separation, rubric revision, findings disposition and rework limit                                                                                                              |
-| Approvals      | Which actor/group, action class, candidate/policy/profile/budget digests, expiry, quorum if required, timeout behavior, revocation; separate production command                                                                                           |
-| Hooks          | Registered implementation and version, lifecycle points, mandatory flag, timeout and timeout behavior, capability set, idempotency class                                                                                                                  |
-| Capacity       | Pools by organization/client/repo/provider/model/resource; registered provisioner; K3s readiness, drain, capability labels and Job resource bounds; request/token limits, reservations, queue priority and aging, per-client ceilings, cancellation drain |
-| Money          | Organization rate-card revision and charge categories; strict caps or advisory targets with explicit hard caps; estimated, billed and non-model costs                                                                                                     |
-| Integrations   | ACP/MCP server identity and allowed tools, credential reference, schedule timezone and DST policy, webhook verification, event delivery                                                                                                                   |
-| Knowledge      | Context/source scope, ingestion/review policy, provenance requirements, stale criteria, retrieval provider, benchmark targets                                                                                                                             |
-| Retention      | Metadata, redacted content and release-evidence durations; organization policy revision that overrides them                                                                                                                                               |
-| Presentation   | Focus profile on/off per actor, decision batch size, parking lot, resume cue, update cadence, notification delivery, accessibility preferences                                                                                                            |
+| Dimension      | Settings and observable consequences                                                                                                                                                                                                                                                           |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stage/activity | Ordered stage prerequisites; activity catalog with class, agent/tool executor and implementation; complete per-profile activity settings; effective floor membership                                                                                                                           |
+| Delivery lever | Resolved profile epochs, activity choices, model routing, escalation and rework, fan-out, budget account and deadline, with each field's origin and constraint                                                                                                                                 |
+| Agent role     | Provider/model revision, ACP adapter/capabilities, instructions and skills, tool permissions, workspace/egress profile                                                                                                                                                                         |
+| Review         | Critic enablement/count and specialism, judge enablement, author/reviewer separation, rubric revision, findings disposition and rework limit                                                                                                                                                   |
+| Approvals      | Which actor/group, action class, candidate/policy/profile/budget digests, expiry, quorum if required, timeout behavior, revocation; separate production command                                                                                                                                |
+| Hooks          | Registered implementation and version, lifecycle points, mandatory flag, timeout and timeout behavior, capability set, idempotency class                                                                                                                                                       |
+| Capacity       | Pools by organization/client/repo/provider/model/resource; secretary slot and provider reserve; registered provisioner; K3s readiness, drain, capability labels and Job resource bounds; request/token limits, reservations, queue priority and aging, per-client ceilings, cancellation drain |
+| Money          | Organization rate-card revision and charge categories; strict caps or advisory targets with explicit hard caps; estimated, billed and non-model costs                                                                                                                                          |
+| Integrations   | ACP/MCP server identity and allowed tools, credential reference, schedule timezone and DST policy, webhook verification, event delivery                                                                                                                                                        |
+| Knowledge      | Context/source scope, ingestion/review policy, provenance requirements, stale criteria, retrieval provider, benchmark targets                                                                                                                                                                  |
+| Retention      | No-age searchable session corpus and metadata under one storage ceiling; operational evidence for 365 days after the floor-specific terminal transition; overriding organization policy revision                                                                                               |
+| Presentation   | Focus profile on/off per actor, decision batch size, parking lot, resume cue, update cadence, notification delivery, accessibility preferences                                                                                                                                                 |
 
 Configuration is draft → validated preview → published revision. Starting a run
 pins its compiled definition, organization snapshot, provider capabilities,
@@ -206,6 +208,7 @@ evaluation-publisher capability and human decision. Each request pins its hashes
 and task fixture. The independent task-acceptance observer consumes visible tool
 resources and budget. It is required at candidate acceptance: disabling it is
 refused, and missing task assertions produce an unavailable observation and block
-acceptance. Optional reviews remain configurable within the repository floor;
-skipping one does not count as a passed observation. See the
+acceptance. Specification coverage critique is part of both repository-floor
+revisions; other reviews remain configurable. Skipping an optional review does not
+count as a passed observation. See the
 [independent evaluation requirement](../../openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md#requirement-outcomes-use-an-independent-evaluation-definition).

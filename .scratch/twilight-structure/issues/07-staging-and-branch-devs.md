@@ -41,7 +41,7 @@ sweep cadence and the detailed parity contract have not been selected.
 Sources: [requirements](../../../docs/twilight-structure/spec.md),
 [previous quality decision](04-personal-delivery-controls.md),
 [integration contract](../../../openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md#requirement-integration-is-an-independently-scalable-execution-service),
-[release design](../../../openspec/changes/twilight-control-plane/design.md#release-and-operational-limits).
+[release design](../../../openspec/changes/twilight-control-plane/design.md#environments-publication-and-release).
 
 ## Answer
 

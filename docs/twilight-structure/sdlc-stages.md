@@ -41,28 +41,31 @@ activities without acquiring another Markdown file.
 Stage ids and prerequisites are the ones `execution.yaml` declares; this table is
 their explanatory projection, not a second dependency source.
 
-| Stage id         | Work / contributors                                                                          | Canonical output and completion                                                                | Return path                                       |
-| ---------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `request`        | Capture outcome, scope, non-goals, constraints and delivery profile                          | `proposal.md`, at most 400 words; owner and permitted autonomy explicit                        | Reframe when the outcome changes                  |
-| `discovery`      | Brainstorming + grilling + domain-modeling; research; Wayfinder when decisions span sessions | Same intent plus linked assumption/decision record; terms enter owning glossary immediately    | Reopen affected assumptions on contrary evidence  |
-| `specification`  | OpenSpec requirements/scenarios and technical design; independent critique                   | `specs/<context>/<capability>/spec.md`, `design.md`; coverage and examples reviewed            | Revise discovery/contract for unresolved findings |
-| `planning`       | Writing-plans redirected to one `tasks.md`; dependency/resource planning                     | Ordered testable slices, interfaces, proof oracles, estimates in ledger units and stop limits  | Replan on changed dependencies or budgets         |
-| `implementation` | Isolated execution, TDD, bounded fixes and frequent runnable branch-dev publication          | Actual changes with attributed evidence; desired/observed dev state; checkboxes reference them | Fix the owning slice or its contract              |
-| `review`         | Critics, judge and rework rounds from the delivery profile                                   | Findings, verdicts and dispositions                                                            | Rework to the owning activity within the limit    |
-| `verification`   | Relevant full gates and observed fault injections                                            | `verify.md` identifies exact content/environment and output                                    | Return to the artifact causing failure            |
-| `integration`    | Compose authorized deliverables and verify the combined candidate                            | Exact composed source and full gate evidence                                                   | Recompose changed base or repair failed members   |
-| `staging`        | Deploy the immutable composed artifact through the production-like path                      | Observed staging artifact, health, parity differences and recovery state                       | Recover deployment or recompose the candidate     |
-| `acceptance`     | Run automated oracles and manual scenarios through a real cloud browser                      | Scenario-bound reports in `verify.md`; served artifact checked first                           | Recover staging or reopen affected work           |
-| `publication`    | Compare-and-swap the exact accepted candidate into main                                      | Publication receipt naming accepted source and unchanged base                                  | Recompose, rebuild and retest a moved base        |
-| `handoff`        | Converge dev-main; reconcile glossary/wiki/contracts and source provenance; record outcome   | Observed dev-main state; `verify.md` links knowledge, candidate and outcome                    | Reopen stale claims; retain disagreements         |
-| `release`        | Separate explicit human command for candidate/environment                                    | Attributed release record plus observed health/recovery                                        | Controlled recovery; no false success             |
+| Stage id            | Work / contributors                                                                          | Canonical output and completion                                                                | Return path                                        |
+| ------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `request`           | Capture outcome, scope, non-goals, constraints and delivery profile                          | `proposal.md`, at most 400 words; owner and permitted autonomy explicit                        | Reframe when the outcome changes                   |
+| `discovery`         | Brainstorming + grilling + domain-modeling; research; Wayfinder when decisions span sessions | Same intent plus linked assumption/decision record; terms enter owning glossary immediately    | Reopen affected assumptions on contrary evidence   |
+| `specification`     | OpenSpec requirements/scenarios and technical design; independent critique                   | `specs/<context>/<capability>/spec.md`, `design.md`; coverage and examples reviewed            | Revise discovery/contract for unresolved findings  |
+| `planning`          | Writing-plans redirected to one `tasks.md`; dependency/resource planning                     | Ordered testable slices, interfaces, proof oracles, estimates in ledger units and stop limits  | Replan on changed dependencies or budgets          |
+| `implementation`    | Isolated execution, TDD, bounded fixes and frequent runnable branch-dev publication          | Actual changes with attributed evidence; desired/observed dev state; checkboxes reference them | Fix the owning slice or its contract               |
+| `knowledge`         | Reconcile glossary/wiki/contracts into the deliverable                                       | Source edits and provenance become ordinary review inputs                                      | Return changed behavior to implementation          |
+| `review`            | Critics, judge and rework rounds from the delivery profile                                   | Findings, verdicts and dispositions over code and knowledge edits                              | Rework to the owning activity within the limit     |
+| `verification`      | Relevant full gates and observed fault injections                                            | `verify.md` identifies exact content/environment and output                                    | Return to the artifact causing failure             |
+| `integration`       | Compose authorized deliverables and verify the combined candidate                            | Exact composed source and full gate evidence                                                   | Recompose changed base or repair failed members    |
+| `staging`           | Deploy the immutable composed artifact through the production-like path                      | Observed staging artifact, health, parity differences and recovery state                       | Recover deployment or recompose the candidate      |
+| `acceptance`        | Run automated oracles and interactively drive manual procedures through a real cloud browser | Tool-verified scenario reports in `verify.md`; served artifact checked first                   | Recover staging or reopen affected work            |
+| `acceptance-report` | Verify captured browser steps/assertions after the interactive driver completes              | Candidate-bound report that cannot be supplied by driver prose                                 | Repeat the procedure or recover staging            |
+| `coverage`          | Join every applicable GWT scenario to its layered reports or explicit disposition            | Candidate-bound coverage verdict after all acceptance reports exist                            | Supply the missing layer or revise its disposition |
+| `publication`       | Compare-and-swap the exact accepted candidate into main                                      | Publication receipt naming accepted source and unchanged base                                  | Recompose, rebuild and retest a moved base         |
+| `handoff`           | Converge dev-main when required and let the coordinator record the floor outcome             | Factory-core terminates here; personal-delivery enters `awaiting_release`                      | Reopen stale claims; retain disagreements          |
+| `release`           | Separate explicit human command and registered production adapter                            | Personal-delivery terminates with attributed production health/recovery evidence               | Controlled recovery; no false success              |
 
-Stage scope controls each ordering boundary: implementation, review and verification
-advance per deliverable; integration through publication join candidate members; handoff
+Stage scope controls each ordering boundary: implementation, knowledge, review and
+verification advance per deliverable; integration through publication join candidate members; handoff
 joins required accepted outcomes. Independent deliverables pipeline across stages.
 Disabled activities preserve their scoped dispositions without inventing evidence.
-Per-task tests do not replace the floor's integrated gate. Knowledge updates as it
-resolves and is reconciled at handoff. Development completion is distinct from
+Per-task tests do not replace the selected floor's integrated gate. Knowledge
+updates as they resolve and are reconciled before verification. Development completion is distinct from
 production delivery, and `release` never starts from stage completion. Which
 activities a run performs is the delivery profile's choice within the repository
 and organization floors; changing enablement is one audited activity override.
