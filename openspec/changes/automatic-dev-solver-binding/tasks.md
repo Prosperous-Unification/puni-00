@@ -6,7 +6,7 @@
 - [x] 2. Add a target-pinned preparation runner and durable state decoder;
       watched reds: old-live-tree imports, missing state, partial state, and a
       digest/source mismatch all refuse before host mutation.
-- [ ] 3. Compose publish, materialization, installer, and post-install preflight
+- [x] 3. Compose publish, materialization, installer, and post-install preflight
       behind injected boundaries; watched reds remove each phase and prove no
       reset can occur.
 - [ ] 4. Put preparation through reset under one exclusion boundary; prove two

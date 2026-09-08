@@ -21,9 +21,9 @@ The terminal proof must include:
 
 | proof                  | required failure control                      | evidence |
 | ---------------------- | --------------------------------------------- | -------- |
-| compatibility identity | solver byte changed / unrelated byte changed  | pending  |
-| target-pinned runner   | import available only in old live checkout    | pending  |
-| pre-reset ordering     | omit each prepare/verify phase                | pending  |
+| compatibility identity | solver byte changed / unrelated byte changed  | `99810aa`: mutant failed only unrelated-source control |
+| target-pinned runner   | import available only in old live checkout    | `99810aa`: 8/8 focused cases green |
+| pre-reset ordering     | omit each prepare/verify phase                | `d9eeb611`: 75/75; preflight omission failed 2 cases |
 | exclusion              | two different targets overlap                 | pending  |
 | interrupted retry      | stop after publish and during install         | pending  |
 | live solver change     | poll target differs under `libs/solver-py`    | pending  |
@@ -46,3 +46,18 @@ other seven cases stayed green. Restoring the production source returned 8/8.
 The state and runner cases separately require the host command ledger to stay
 empty for old-live-tree code, absent or partial state, a non-digest image, a
 different source SHA, and a different compatibility identity.
+
+## Pre-reset preparation ordering
+
+At `d9eeb611f8d291a99a8ed34b1de1ae457cbb6248`, the same clean detached h2puni
+worktree passed all 75 `tool-devsync` cases (213 assertions), TypeScript,
+ESLint, and Prettier, with all 78 declared dependencies still valid. The
+focused preparation suite passed 11/11 cases (32 assertions).
+
+The test-only tree initially failed because
+`prepareSolverBindingBeforeReset` was not exported. After implementation, a
+control removed the awaited preflight call: the happy-path phase-order case
+and the injected preflight-failure case both failed, while the other nine
+cases stayed green. Restoring the exact source returned 11/11. The same table
+test injects failures at publish, materialize, install, and preflight and
+requires the reset ledger to remain empty for every phase.

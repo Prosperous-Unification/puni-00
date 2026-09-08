@@ -1,6 +1,6 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-326 is on `change/task-326-dev-solver-binding`: target-tree identity and fail-closed durable state are green; next compose publish, install, and preflight before reset.
+TASK-326 is on `change/task-326-dev-solver-binding`: preparation ordering is green through preflight-before-reset; next put the complete target binding under one exclusion boundary.
 
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),
