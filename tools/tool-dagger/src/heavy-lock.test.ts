@@ -47,7 +47,9 @@ function readIfPresent(path: string): string {
 // holds nothing throws ENOENT on `sh` before the check can report which of the
 // six is missing — the raw errno this function exists to replace.
 function assertResolvable(pathValue: string, executables: string[]): void {
-  const missing = executables.filter((executable) => Bun.which(executable, { PATH: pathValue }) === null);
+  const missing = executables.filter(
+    (executable) => Bun.which(executable, { PATH: pathValue }) === null,
+  );
   if (missing.length > 0) {
     throw new Error(
       `PATH pinned to ${pathValue} does not resolve ${missing.join(', ')} on this image; ` +
