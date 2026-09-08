@@ -461,6 +461,29 @@ describe('solver binding retries', () => {
     ).toContain('source SHA does not match target');
     expect(mutations).toBe(0);
   });
+
+  it('rechecks a completed binding before reset', async () => {
+    const events: string[] = [];
+    await resumeSolverBindingBeforeReset(
+      { sourceSha: SOURCE_SHA, compatibilityIdentity: IDENTITY },
+      stateBytes({ ...STATE, phase: 'complete' }),
+      {
+        publish: () => Promise.reject(new Error('completed binding must not publish')),
+        checkpoint: () => Promise.reject(new Error('completed binding must not checkpoint')),
+        materialize: () => Promise.reject(new Error('completed binding must not materialize')),
+        install: () => Promise.reject(new Error('completed binding must not install')),
+        preflight: () => {
+          events.push('preflight');
+          return Promise.resolve();
+        },
+        reset: () => {
+          events.push('reset');
+          return Promise.resolve();
+        },
+      },
+    );
+    expect(events).toEqual(['preflight', 'reset']);
+  });
 });
 
 async function rejection(promise: Promise<unknown>): Promise<string> {

@@ -139,3 +139,19 @@ Prettier initially reported both new files and passed after formatting on
 h2puni; the worker-host formatter could not load the repository's Tailwind
 plugin, so no local formatting result is claimed. The post-gate dependency
 check remained 78 declared, 0 bad.
+
+## Host transition composition
+
+At 2026-09-08T03:07:12Z, the host-transition tests first failed in two
+independent ways: the composition export was absent, and a completed durable
+checkpoint skipped current host preflight before reset. The implementation
+validates installed prod mappings before publish, reads the protected registry
+credential only if publish is actually needed, checkpoints the immutable
+digest before materialization, then installs, preflights, checkpoints complete,
+and resets. A completed retry now rechecks host readiness without republishing.
+
+The focused pair passed 19/19 cases (59 assertions). The full h2puni
+`tool-devsync` suite passed 84/84 cases (242 assertions); Nx lint and TypeScript
+and changed-file Prettier passed after replacing four unbound method references
+with explicit forwarding closures. No production host mutation ran in this
+slice.

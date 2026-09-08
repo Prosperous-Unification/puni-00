@@ -204,6 +204,10 @@ export async function resumeSolverBindingBeforeReset(
     // Proof: solver-preparation.test.ts interrupts install, observes only the
     // published checkpoint, then retries without another publish.
     await dependencies.checkpoint({ schemaVersion: 1, ...binding, phase: 'complete' });
+  } else {
+    // A durable checkpoint proves the prior transition, not current host
+    // readiness. A service or socket can disappear between poll ticks.
+    await dependencies.preflight(binding);
   }
   await dependencies.reset(target.sourceSha);
 }

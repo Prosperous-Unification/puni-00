@@ -1,5 +1,12 @@
 import { decodeSolverSupervisorConfig } from '@wbs/deploy-contract';
 
+import {
+  resumeSolverBindingBeforeReset,
+  type SolverBinding,
+  type SolverBindingTarget,
+  type SolverPreparationState,
+} from './solver-preparation';
+
 const HOST_INPUT_MAX_BYTES = 256 * 1024;
 const COMMIT_SHA = /^[0-9a-f]{40}$/;
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
@@ -83,6 +90,22 @@ export interface InstalledProdImages {
   greenImage: string;
 }
 
+export interface TargetSolverBindingConfig extends InstalledProdImages {
+  devSolverImage: string;
+  devSourceSha: string;
+}
+
+export interface TargetSolverBindingDependencies {
+  readRegistryEnv(): Promise<Uint8Array>;
+  readInstalledConfig(): Promise<Uint8Array>;
+  publish(sourceSha: string, registryPassword: string): Promise<Uint8Array>;
+  materialize(config: TargetSolverBindingConfig): Promise<void>;
+  install(binding: SolverBinding): Promise<void>;
+  preflight(binding: SolverBinding): Promise<void>;
+  checkpoint(state: SolverPreparationState): Promise<void>;
+  reset(sourceSha: string): Promise<void>;
+}
+
 /** Preserves both production image rules while the automatic path replaces dev. */
 export function decodeInstalledProdImages(bytes: Uint8Array): InstalledProdImages {
   const value = jsonOf(bytes, 'installed solver supervisor config');
@@ -108,4 +131,29 @@ export function decodeInstalledProdImages(bytes: Uint8Array): InstalledProdImage
   };
 
   return { blueImage: prodImage('be-01-blue'), greenImage: prodImage('be-01-green') };
+}
+
+/** Runs the target binding transition after validating preserved host authority. */
+export async function prepareTargetSolverBinding(
+  target: SolverBindingTarget,
+  stateBytes: Uint8Array | undefined,
+  dependencies: TargetSolverBindingDependencies,
+): Promise<void> {
+  const prod = decodeInstalledProdImages(await dependencies.readInstalledConfig());
+  await resumeSolverBindingBeforeReset(target, stateBytes, {
+    publish: async ({ sourceSha }) => {
+      const password = registryPasswordFromEnv(await dependencies.readRegistryEnv());
+      return decodePublishedSolverImage(await dependencies.publish(sourceSha, password), sourceSha);
+    },
+    checkpoint: (state) => dependencies.checkpoint(state),
+    materialize: (binding) =>
+      dependencies.materialize({
+        ...prod,
+        devSolverImage: binding.image,
+        devSourceSha: binding.sourceSha,
+      }),
+    install: (binding) => dependencies.install(binding),
+    preflight: (binding) => dependencies.preflight(binding),
+    reset: (sourceSha) => dependencies.reset(sourceSha),
+  });
 }
