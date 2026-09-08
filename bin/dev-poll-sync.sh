@@ -89,21 +89,59 @@ rm -f -- "$CANDIDATE_NEXT/.tree.tar"
 # dependency to this graph, the tick refuses here by name instead of deploying
 # against a stale install.
 #
-# `--reject-unresolved` is load-bearing, not belt-and-braces. Bun's default is
-# `--allow-unresolved='*'`: a static bare import fails the build, but an opaque
-# `await import(name)` or `require(name)` is allowed straight through. Without
-# the flag a deployer could pass this guard and still carry a runtime
-# third-party dependency — resolved, if at all, against whatever the host
-# happens to have — which is the exact silence the borrowed symlink had.
+# The guard is two questions, because "it resolved" is not the property that
+# matters — "it resolved to a file the archive carries" is.
+#
+# 1. `--reject-unresolved`. Bun's default is `--allow-unresolved='*'`: a static
+#    bare import fails the build, but an opaque `await import(name)` or
+#    `require(name)` is waved straight through. Without the flag a deployer
+#    passes this guard and still carries a runtime third-party dependency,
+#    which is the exact silence the borrowed symlink had. The cost is that
+#    every specifier must be statically analysable, including a computed
+#    `node:fs` — a real restriction on the deployer, taken deliberately,
+#    because an opaque specifier is precisely what cannot be checked here.
+# 2. The resolved input set must live inside the candidate. Resolving is not
+#    the same as staying home: `/home/puni1/wbs-dev/src/node_modules/x`, or
+#    enough `../`, resolves perfectly well against the pinned checkout this
+#    task exists to stop borrowing from. So the build is run from inside the
+#    candidate and its metafile inputs are audited; anything absolute or above
+#    the candidate refuses the tick.
+#
+# What neither question covers, stated rather than implied: code assembled at
+# run time by `eval` or `new Function` is invisible to any build-time graph.
+# The contract is a contract, and this is the enforcement it admits of.
+#
+# The cost is one extra Bun invocation per tick, ahead of a deploy that takes
+# orders of magnitude longer — and `dev-poll.sh` exits before this loader
+# entirely on a no-change tick, so it is only paid when a target is pending.
 RESOLVE_OUT="$CANDIDATE_NEXT/.resolve"
-if ! "$BUN" build --target=bun --reject-unresolved --outdir="$RESOLVE_OUT" \
-  "$CANDIDATE_NEXT/tools/tool-devsync/src/sync.ts" > "$CANDIDATE_NEXT/.resolve.log" 2>&1; then
+RESOLVE_META="$CANDIDATE_NEXT/.resolve.json"
+if ! (cd "$CANDIDATE_NEXT" && "$BUN" build --target=bun --reject-unresolved \
+  --outdir="$RESOLVE_OUT" --metafile="$RESOLVE_META" \
+  ./tools/tool-devsync/src/sync.ts) > "$CANDIDATE_NEXT/.resolve.log" 2>&1; then
   echo "refusing target $SHA: the deployer's import graph does not resolve inside the extracted candidate." >&2
-  echo "The dev deployer may import only relative files, @wbs/* aliases and Bun/Node builtins; it runs before any install for this commit exists. See docs/runbook-dev-deploy.md." >&2
+  echo "The dev deployer may import only relative files, @wbs/* aliases and Bun/Node builtins, with statically analysable specifiers; it runs before any install for this commit exists. See docs/runbook-dev-deploy.md." >&2
   cat "$CANDIDATE_NEXT/.resolve.log" >&2
   exit 1
 fi
-rm -rf -- "$RESOLVE_OUT" "$CANDIDATE_NEXT/.resolve.log"
+# The build ran with the candidate as its working directory, so an input that
+# escaped it is exactly one that is absolute or starts with `../`.
+if ! WBS_RESOLVE_META="$RESOLVE_META" "$BUN" -e '
+const meta = JSON.parse(require("fs").readFileSync(process.env.WBS_RESOLVE_META, "utf8"));
+const outside = Object.keys(meta.inputs ?? {}).filter(
+  (p) => p.startsWith("/") || p === ".." || p.startsWith("../"),
+);
+if (outside.length) {
+  console.error(outside.join("\n"));
+  process.exit(1);
+}
+' > "$CANDIDATE_NEXT/.resolve.log" 2>&1; then
+  echo "refusing target $SHA: the deployer resolves files outside the extracted candidate." >&2
+  echo "Every file the dev deployer imports must be one the candidate archive carries; a path into the pinned checkout is the stale install this guard exists to refuse. See docs/runbook-dev-deploy.md." >&2
+  cat "$CANDIDATE_NEXT/.resolve.log" >&2
+  exit 1
+fi
+rm -rf -- "$RESOLVE_OUT" "$RESOLVE_META" "$CANDIDATE_NEXT/.resolve.log"
 # Two ticks on one target race to the same name. The loser discards its own
 # tree and runs the winner's, which the commit hash makes byte-identical; a
 # tree only ever appears under the final name complete, by rename.

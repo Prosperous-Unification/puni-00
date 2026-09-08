@@ -241,7 +241,7 @@ describe('durable dev poller', () => {
       '#!/usr/bin/env bash\nset -eu\nif [ "$1" = --version ]; then echo 1.3.14; exit 0; fi\n' +
         // A fake Bun's `build` is a fake resolution guard that succeeds; this
         // case is about recovery, not about the candidate's import graph.
-        'if [ "$1" = build ]; then exit 0; fi\n' +
+        'if [ "$1" = build ] || [ "$1" = -e ]; then exit 0; fi\n' +
         'if grep -qx BROKEN "$1"; then exit 23; fi\ngit -C "$POLL_TEST_SRC" reset --hard --quiet "$2"\n',
     );
     await chmod(fakeBun, 0o755);
@@ -320,7 +320,7 @@ describe('durable dev poller', () => {
       `#!/usr/bin/env bash
 set -eu
 if [ "$1" = --version ]; then echo ${Bun.version}; exit 0; fi
-if [ "$1" = build ]; then exec ${process.execPath} "$@"; fi
+if [ "$1" = build ] || [ "$1" = -e ]; then exec ${process.execPath} "$@"; fi
 exec ${process.execPath} build --target=bun --outdir=${out} "$1"
 `,
     );
@@ -386,7 +386,7 @@ exec ${process.execPath} build --target=bun --outdir=${out} "$1"
       `#!/usr/bin/env bash
 set -eu
 if [ "$1" = --version ]; then echo ${Bun.version}; exit 0; fi
-if [ "$1" = build ]; then exec ${process.execPath} "$@"; fi
+if [ "$1" = build ] || [ "$1" = -e ]; then exec ${process.execPath} "$@"; fi
 echo deployed >> ${ran}
 `,
     );
@@ -439,7 +439,7 @@ echo deployed >> ${ran}
       `#!/usr/bin/env bash
 set -eu
 if [ "$1" = --version ]; then echo ${Bun.version}; exit 0; fi
-if [ "$1" = build ]; then exec ${process.execPath} "$@"; fi
+if [ "$1" = build ] || [ "$1" = -e ]; then exec ${process.execPath} "$@"; fi
 echo deployed >> ${ran}
 `,
     );
@@ -460,6 +460,61 @@ echo deployed >> ${ran}
     expect(await command(['test', '-e', ran])).toMatchObject({ code: 1 });
     expect(attempt.code).not.toBe(0);
     expect(attempt.stderr).toContain('@wbs/* aliases and Bun/Node builtins');
+    expect(await readdir(installed)).toEqual([]);
+  });
+
+  it('refuses a target whose deployer reaches out of the candidate into the pinned install', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-escape-'));
+    const source = join(root, 'source');
+    const installed = join(root, 'bin');
+    const ran = join(root, 'ran');
+    await initFixtureRepository(source);
+    // Resolving is not the same as staying home. This import resolves
+    // perfectly — straight into the pinned checkout's install, which is the
+    // borrowed stale dependency the whole task is about, arriving by absolute
+    // path instead of by symlink.
+    const borrowed = join(source, 'node_modules/borrowed/index.js');
+    await seedDeployerTree(
+      source,
+      'export const PROBE = 1;\n',
+      `import { PROBE } from '@wbs/probe-contract';\n` +
+        `import { borrowed } from '${borrowed}';\n` +
+        `console.log(PROBE, borrowed);\n`,
+    );
+    const head = await commitAll(source, 'deployer reaching into the pinned install');
+    // Written after the commit: the install is never part of the archive, which
+    // is exactly why the candidate cannot legitimately reach it.
+    await mkdir(join(source, 'node_modules/borrowed'), { recursive: true });
+    await writeFile(borrowed, 'export const borrowed = "stale";\n');
+
+    const recordingBun = join(root, 'bun');
+    await writeFile(
+      recordingBun,
+      `#!/usr/bin/env bash
+set -eu
+if [ "$1" = --version ]; then echo ${Bun.version}; exit 0; fi
+if [ "$1" = build ] || [ "$1" = -e ]; then exec ${process.execPath} "$@"; fi
+echo deployed >> ${ran}
+`,
+    );
+    await chmod(recordingBun, 0o755);
+
+    const attempt = await command([
+      'bash',
+      HELPER,
+      source,
+      installed,
+      recordingBun,
+      head,
+      Bun.version,
+    ]);
+
+    // The build itself succeeds here — that is the point. Only the audit of
+    // the resolved input set catches it.
+    expect(await command(['test', '-e', ran])).toMatchObject({ code: 1 });
+    expect(attempt.code).not.toBe(0);
+    expect(attempt.stderr).toContain('resolves files outside the extracted candidate');
+    expect(attempt.stderr).toContain(borrowed);
     expect(await readdir(installed)).toEqual([]);
   });
 
@@ -504,7 +559,7 @@ esac`),
       '#!/usr/bin/env bash\nset -eu\nif [ "$1" = --version ]; then echo 1.3.14; exit 0; fi\n' +
         // The loader's resolution guard runs through this same fake Bun; only
         // the deployer invocation is an observation.
-        'if [ "$1" = build ]; then exit 0; fi\n' +
+        'if [ "$1" = build ] || [ "$1" = -e ]; then exit 0; fi\n' +
         'printf "%s:%s\\n" "$2" "$(cat "$1")" >> "$POLL_OBSERVATIONS"\n',
     );
     await chmod(fakeGit, 0o755);
@@ -554,7 +609,7 @@ CONTENT=SAME`),
       '#!/usr/bin/env bash\nset -eu\nif [ "$1" = --version ]; then echo 1.3.14; exit 0; fi\n' +
         // The loader's resolution guard runs through this same fake Bun; only
         // the deployer invocation is an observation.
-        'if [ "$1" = build ]; then exit 0; fi\n' +
+        'if [ "$1" = build ] || [ "$1" = -e ]; then exit 0; fi\n' +
         'printf "%s:%s\\n" "$2" "$(cat "$1")" >> "$POLL_OBSERVATIONS"\n',
     );
     await chmod(fakeGit, 0o755);
