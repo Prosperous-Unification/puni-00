@@ -64,10 +64,39 @@ CANDIDATE_NEXT=$(mktemp -d "$BIN/sync.${SHA}.XXXXXXXX")
 git -C "$SRC" archive "$SHA" -- tools libs tsconfig.base.json package.json > "$CANDIDATE_NEXT/.tree.tar"
 tar -xf "$CANDIDATE_NEXT/.tree.tar" -C "$CANDIDATE_NEXT"
 rm -f -- "$CANDIDATE_NEXT/.tree.tar"
-# Packages resolve up the tree from the importing file, as the aliases do.
-# The pre-reset checkout's install is the only one on the host, and it is what
-# the deployer ran against before candidates existed.
-ln -s "$SRC/node_modules" "$CANDIDATE_NEXT/node_modules"
+# NO INSTALL IS LINKED IN, AND THAT IS THE CONTRACT (TASK-376).
+#
+# Until 2026-09-08 this linked `$SRC/node_modules` into the candidate. The
+# checkout's install is pinned to whatever commit the checkout last reset to,
+# which is by definition not the target being deployed. So the borrowed link
+# had two failure modes and no success mode worth keeping: a package the
+# target added is missing, or — worse, because it is silent — a package the
+# target bumped resolves to the pre-reset version. Either way the new deployer
+# needs an install that can only arrive through the new deployer, which is the
+# bootstrap deadlock the candidate tree exists to break.
+#
+# The answer is that the deployer's import graph is out of bounds for
+# third-party packages: relative imports, the `@wbs/*` aliases the archive
+# above carries, and Bun/Node builtins only. That is what `sync.ts` already is
+# (`@wbs/deploy-contract` plus `bun`), and it is now enforced rather than
+# assumed. Bun's own resolver is the enforcement: bundling the candidate's
+# deployer resolves the whole transitive graph without running it, and with no
+# `node_modules` in or above the candidate, any bare specifier that is not a
+# builtin cannot resolve.
+#
+# The cost is one extra Bun invocation per tick, ahead of a deploy that takes
+# orders of magnitude longer. What it buys: the day someone adds a real
+# dependency to this graph, the tick refuses here by name instead of deploying
+# against a stale install.
+RESOLVE_OUT="$CANDIDATE_NEXT/.resolve"
+if ! "$BUN" build --target=bun --outdir="$RESOLVE_OUT" \
+  "$CANDIDATE_NEXT/tools/tool-devsync/src/sync.ts" > "$CANDIDATE_NEXT/.resolve.log" 2>&1; then
+  echo "refusing target $SHA: the deployer's import graph does not resolve inside the extracted candidate." >&2
+  echo "The dev deployer may import only relative files, @wbs/* aliases and Bun/Node builtins; it runs before any install for this commit exists. See docs/runbook-dev-deploy.md." >&2
+  cat "$CANDIDATE_NEXT/.resolve.log" >&2
+  exit 1
+fi
+rm -rf -- "$RESOLVE_OUT" "$CANDIDATE_NEXT/.resolve.log"
 # Two ticks on one target race to the same name. The loser discards its own
 # tree and runs the winner's, which the commit hash makes byte-identical; a
 # tree only ever appears under the final name complete, by rename.

@@ -308,12 +308,15 @@ describe('durable dev poller', () => {
     const head = await requireCommand(['git', '-C', repository, 'rev-parse', 'HEAD']);
     // Resolves the whole import graph of the candidate's deployer without
     // running it: an alias outside the archived pathspecs fails the build.
+    // `build` is forwarded verbatim because the loader now runs its own
+    // resolution guard through this same Bun before it runs the deployer.
     const bundlingBun = join(root, 'bun');
     await writeFile(
       bundlingBun,
       `#!/usr/bin/env bash
 set -eu
 if [ "$1" = --version ]; then echo ${Bun.version}; exit 0; fi
+if [ "$1" = build ]; then exec ${process.execPath} "$@"; fi
 exec ${process.execPath} build --target=bun --outdir=${out} "$1"
 `,
     );
@@ -336,9 +339,74 @@ exec ${process.execPath} build --target=bun --outdir=${out} "$1"
     // `libs` dropped stays green today because the deployer imports only from
     // `tools/`; the day it imports `@wbs/contracts`, this is the case that says
     // the archive no longer covers it.
+    //
+    // Since TASK-376 this is also the negative control for the removed
+    // `node_modules` symlink: the candidate has no install in or above it, so
+    // green here is the statement that the real deployer's whole graph
+    // resolves from the archive alone.
     expect(built.stderr).not.toContain('Could not resolve');
     expect(built.code).toBe(0);
     expect(await readdir(out)).toEqual(['sync.js']);
+  });
+
+  it('refuses a target whose deployer needs a package the source install does not have', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-thirdparty-'));
+    const source = join(root, 'source');
+    const installed = join(root, 'bin');
+    const ran = join(root, 'ran');
+    await initFixtureRepository(source);
+    // The target adds a real npm dependency to the deployer's graph. Nothing
+    // about that is unreasonable; it is the case the loader has to survive.
+    await seedDeployerTree(
+      source,
+      'export const PROBE = 1;\n',
+      `import { PROBE } from '@wbs/probe-contract';\n` +
+        `import { fixtureOnly } from 'fixture-only-dependency';\n` +
+        `console.log(PROBE, fixtureOnly);\n`,
+    );
+    const head = await commitAll(source, 'deployer that needs a third-party package');
+    // The source checkout's install is the one it had BEFORE that commit: the
+    // pinned install can never contain a package the target just added. This
+    // is the stale-install fixture the pre-TASK-376 symlink borrowed from.
+    await mkdir(join(source, 'node_modules/already-installed'), { recursive: true });
+    await writeFile(
+      join(source, 'node_modules/already-installed/package.json'),
+      '{ "name": "already-installed", "version": "1.0.0", "main": "index.js" }\n',
+    );
+
+    // Forwards the loader's resolution guard to the real bundler, and records
+    // it if the deployer is ever reached. Reaching it is the defect.
+    const recordingBun = join(root, 'bun');
+    await writeFile(
+      recordingBun,
+      `#!/usr/bin/env bash
+set -eu
+if [ "$1" = --version ]; then echo ${Bun.version}; exit 0; fi
+if [ "$1" = build ]; then exec ${process.execPath} "$@"; fi
+echo deployed >> ${ran}
+`,
+    );
+    await chmod(recordingBun, 0o755);
+
+    const attempt = await command([
+      'bash',
+      HELPER,
+      source,
+      installed,
+      recordingBun,
+      head,
+      Bun.version,
+    ]);
+
+    // Before TASK-376 the candidate linked `$SRC/node_modules`, the bare
+    // specifier resolved against the pinned install or not at all, and the
+    // loader ran the deployer regardless — so this file existed.
+    expect(await command(['test', '-e', ran])).toMatchObject({ code: 1 });
+    expect(attempt.code).not.toBe(0);
+    expect(attempt.stderr).toContain('fixture-only-dependency');
+    expect(attempt.stderr).toContain('@wbs/* aliases and Bun/Node builtins');
+    // And it leaves nothing installed under the target's name to be re-run.
+    expect(await readdir(installed)).toEqual([]);
   });
 
   it('keeps concurrent target candidates isolated by commit', async () => {

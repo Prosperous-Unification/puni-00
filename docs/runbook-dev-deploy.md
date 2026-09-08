@@ -143,6 +143,17 @@ than the checkout's. The extracted tool still performs every solver, restart, re
 HEAD check, while the outer poll lock and `/health` commit proof remain intact. Do not recover with a
 raw `git reset`; that bypasses the checks whose refusal is the reason the checkout did not move.
 
+**The candidate has no `node_modules`, and a tick that refuses with `the deployer's import graph does
+not resolve inside the extracted candidate` means someone gave `sync.ts` a third-party import.**
+Until 2026-09-08 the loader linked the pinned checkout's install into the candidate; that install
+belongs to whatever commit the checkout last reset to, so it can never hold a package the target just
+added, and it silently holds the pre-reset version of one the target just bumped. The loader now
+bundles the extracted deployer through the managed Bun with no install in scope, before running it,
+and refuses on any unresolvable specifier. Fix the target commit — `sync.ts`'s graph may use relative
+imports, `@wbs/*` aliases and Bun/Node builtins only — or vendor the code into `tools/` or `libs/` so
+the archive carries it. Do not restore the symlink: the deployer runs *before* any install for its
+own commit can exist, which is the bootstrap deadlock TASK-354 fixed.
+
 Dev has **no edge password**. It was removed 2026-08-06: it was a second login on top of the
 app's own, and a browser that had cached a wrong credential for the realm could not be talked
 out of it — which cost a real debugging session. The gated config is backed up beside
