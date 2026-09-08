@@ -209,9 +209,10 @@ changed scope and tighter floors MUST constrain every epoch at dispatch.
 Policies and hooks MUST be keyed by lifecycle points of the form
 `<event>.<stage or activity id>` over the compiled stage graph, with `beforeStage`,
 `afterStage`, `beforeActivity`, `afterActivity`, `beforeTool`, `afterTool`,
-`onFinding`, `onApproval`, `onRework`, `onFailure`, `onCancel`, `onTrigger` and
-`onProfileChange` as events. `*` MUST select all valid subjects of the event's
-kind. `onTrigger` and `onProfileChange` MUST use `*` only; trigger policies MUST
+`onFinding`, `onApproval`, `onRework`, `onFailure`, `onCancel`, `onTrigger`,
+`onProfileChange`, `onBudgetThreshold` and `onReconciling` as events. `*` MUST
+select all valid subjects of the event's kind. `onTrigger`, `onProfileChange`,
+`onBudgetThreshold` and `onReconciling` MUST use `*` only; trigger policies MUST
 select `triggerKinds` from `manual`, `schedule` and `webhook`. Artifact ids MUST NOT
 be policy or hook keys. A point naming an unknown or wrong-kind stage/activity
 MUST be a compile error.
@@ -240,7 +241,8 @@ MUST be a compile error.
 
 A run MUST retain the digests/versions of its executable graph, compiler, runtime
 and dependency closure, hook/adapter implementations, checkpoint serializer/saver
-and application-store schema. Workflow restore MUST own compatibility validation,
+and application-store schema, plus the worker-image digest for every capability
+pool it may restore. Workflow restore MUST own compatibility validation,
 checkpoint loading and revision reconciliation; callers MUST NOT assemble these
 steps independently. Missing, unreadable, corrupt or unsupported required packages
 and formats MUST block resume before worker or effect dispatch. Name-based latest
@@ -263,6 +265,22 @@ increment declares a particular upgrade path supported.
 - **THEN** the upgrade is refused with the run and the missing compatibility named,
   and the run's pending decision and effects are unchanged
 
+#### Scenario: Production registration requires a restore rehearsal
+
+- **WHEN** the production-deploy implementation is ready but the application store,
+  checkpoint store, outbox and evidence have not been backed up at one named
+  transition and restored on a fresh host
+- **THEN** registration is refused; a passing rehearsal preserves pending decisions
+  and unknown effects and records its observed restore time without promising an RTO
+
+#### Scenario: Production registration requires a fresh-host restore
+
+- **WHEN** the production-deploy implementation is proposed for registration
+- **THEN** registration remains refused until a backup taken at a named transition
+  restores the application store, checkpoint store, outbox and evidence on a fresh
+  host with pending decisions and unknown effects intact and observed restore time
+  recorded
+
 ### Requirement: Durable stage and activity lifecycle
 
 Runs MUST distinguish `queued`, `running`, `awaiting_approval`, `awaiting_release`, `paused`,
@@ -280,6 +298,12 @@ dependency closures; independent authorized work MAY continue. Explicit run-wide
 pause/cancel and revoked run authority MUST stop all new work. Exhausting ordinary
 run caps MUST stop ordinary work but MUST NOT consume or block the separately
 authorized same-account `release.production` suballocation.
+An authorized recovery-operator disposition MAY release one named reservation
+using an out-of-band evidence reference while its effect remains `unknown`; the
+disposition MUST be revision-checked and audited and MUST NOT release another
+resource or turn the run into `completed`. Evidence-store or telemetry-sink
+unavailability MUST NOT prevent cancellation, fencing, draining or that disposition
+from committing, and the run MUST remain `reconciling`.
 
 #### Scenario: Restart during approval wait
 
@@ -401,12 +425,17 @@ delivery deadline MUST NOT prevent this recovery/promotion activity.
 The service MUST verify its configured OIDC issuer/audience, derive actor and
 organization/repository membership from trusted bindings, and distinguish browser
 session authority from agent/service bearer authority. Human-decision tokens MUST
-be issued only by the authenticated interactive browser flow with origin/CSRF
-validation and subject confirmation. Tokens MUST be short-lived, single-use and
+be issued only by an authenticated interactive human flow: the browser path with
+origin/CSRF validation, or a protected local installation-operator command. Both
+MUST require subject confirmation. Tokens MUST be short-lived, single-use and
 bound to actor, action, repository, subject/revision and intended consumer.
 Approval, effect resolution and release operations MUST require the same human
 decision capability on either surface, and an ordinary MCP or service token MUST
 NOT mint it.
+
+The protected local flow MUST bind and audit the installation operator, subject,
+revision, action and intended consumer with the same single-use semantics. It MUST
+NOT be invokable by an agent or ordinary remote bearer token.
 
 Single use MUST mean one committed decision command. Token consumption, canonical
 command identity and decision receipt MUST commit atomically. After verifying
@@ -714,6 +743,14 @@ one pinned conversion revision or remain unavailable.
   and the escalation ladder permits one step
 - **THEN** the retry is a new attempt on the escalated model, both attempts appear in
   the ledger with their own measured usage, and no third step is taken
+
+#### Scenario: The selected provider is temporarily unavailable
+
+- **WHEN** an attempt ends with `providerUnavailable` and the declared same-model
+  retry bound has not been exhausted
+- **THEN** it retries the same model under the unchanged envelope without consuming
+  a rework round or escalation step; exhaustion pauses with the provider constraint
+  visible and does not silently select another model
 
 #### Scenario: Two runs are compared by profile
 

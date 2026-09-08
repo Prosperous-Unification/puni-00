@@ -1,4 +1,4 @@
-# Twilight execution profile, revision 9 (proposed; no runtime reads it yet).
+# Twilight execution profile, revision 10 (proposed; no runtime reads it yet).
 #
 # Compiled with schema.yaml, the repository manifest, provider capabilities
 # and an explicit immutable organization snapshot into one workflow revision. See
@@ -13,7 +13,7 @@
 # it is a required compiler input, never an implicit server lookup or fallback.
 # Unknown keys, missing referenced ids and cycles in either DAG are errors.
 
-version: 9
+version: 10
 
 # `after` is the single stage DAG. Artifact mappings describe required inputs
 # or evidence; schema.yaml's separate artifact DAG only decides file readiness.
@@ -201,11 +201,12 @@ activities:
     }
 
 # Lifecycle points are `<event>.<stage or activity id>`; `*` matches every
-# valid subject. onTrigger/onProfileChange use `*` only; triggerKinds selects
+# valid subject. Wildcard-only events use `*`; triggerKinds selects
 # declared trigger kinds (manual, schedule, webhook), never a fictitious stage.
 # Events: beforeStage, afterStage, beforeActivity,
 # afterActivity, beforeTool, afterTool, onFinding, onApproval, onRework,
-# onFailure, onCancel, onTrigger, onProfileChange.
+# onFailure, onCancel, onTrigger, onProfileChange, onBudgetThreshold,
+# onReconciling.
 policies:
   beforeStage.implementation:
     approval: { required: true, decidedBy: human, subject: execution-envelope }
@@ -233,6 +234,10 @@ policies:
     retries: { max: 2, backoff: PT5M }
   onProfileChange.*:
     record: event
+  onBudgetThreshold.*:
+    record: event
+  onReconciling.*:
+    record: event
 
 # Registered implementations or sandboxed commands only; never code from a
 # browser text field. A mandatory hook denies on timeout, unavailable
@@ -250,7 +255,15 @@ hooks:
   - id: notify-operator
     implementation: registered:notifications
     version: 1
-    at: [onApproval.*, onFailure.*, onCancel.*]
+    at:
+      [
+        onApproval.*,
+        onFailure.*,
+        onCancel.*,
+        onBudgetThreshold.*,
+        onReconciling.*,
+        afterStage.handoff,
+      ]
     mandatory: false
     timeoutMs: 10000
     onTimeout: degrade
@@ -275,6 +288,13 @@ hooks:
 # defensible bounds for every charge category. Both scopes expose cost coverage.
 # agentTime adds occupied agent-session time across attempts. deadline is a
 # duration from the ORIGINAL run creation, including all waiting and pauses.
+attemptOutcomes:
+  providerUnavailable:
+    escalationTrigger: false
+    reworkRound: false
+    sameModelRetries: 2
+    exhausted: pause
+
 profiles:
   default: balanced
   thorough:

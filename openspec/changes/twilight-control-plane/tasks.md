@@ -22,11 +22,11 @@ The repository gate (`bunx nx format:check --all`, `bunx nx run-many -t test lin
 The audience phases own the useful delivery boundary. The numbered milestones
 below remain technical dependency landmarks and do not define a releasable product.
 
-| Phase             | Required route                                                                                  | Exit                                                                                                                                                                                                                                                                                                             |
-| ----------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Personal loop     | Tasks 1–8 → 11.1 → 13, with Task 15 after Tasks 5–7 and Task 16 joining Tasks 13 and 15         | Dany asks the secretary for a change, follows delegated work and searchable evidence, observes frequent branch-dev updates, accepts the current-main composition in production-like staging, publishes that exact candidate, observes dev-main, and explicitly promotes the same artifact to healthy production. |
-| Personal maturity | Tasks 9–10 and 12; Task 11.2 after Task 10; Task 14 after the complete operational dependencies | Backlog-backed WBS becomes the planning authority, knowledge operations mature, and a clean/self-growing client fixture proves portability before customer onboarding.                                                                                                                                           |
-| Customer phase    | A new OpenSpec change after the A63 discovery gate                                              | A named design partner and concrete problem determine tenancy, packaging, support, recovery and service commitments. This plan does not invent them.                                                                                                                                                             |
+| Phase             | Required route                                                                                                                                                                                                                                                                           | Exit                                                                                                                                                                                                                                                                                                             |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Personal loop     | Tasks 1–8 → 11.1 → 13, with Task 15 after Tasks 5–7 and Task 16 joining Tasks 13 and 15. Planning range: about 280–560 human hours and 3.5–9.2M tokens, excluding benchmark, infrastructure and provider spend; re-estimate after Tasks 1–4. This estimate grants no spending authority. | Dany asks the secretary for a change, follows delegated work and searchable evidence, observes frequent branch-dev updates, accepts the current-main composition in production-like staging, publishes that exact candidate, observes dev-main, and explicitly promotes the same artifact to healthy production. |
+| Personal maturity | Tasks 9–10 and 12; Task 11.2 after Task 10; Task 14 after the complete operational dependencies                                                                                                                                                                                          | Backlog-backed WBS becomes the planning authority, knowledge operations mature, and a clean/self-growing client fixture proves portability before customer onboarding.                                                                                                                                           |
+| Customer phase    | A new OpenSpec change after the A63 discovery gate                                                                                                                                                                                                                                       | A named design partner and concrete problem determine tenancy, packaging, support, recovery and service commitments. This plan does not invent them.                                                                                                                                                             |
 
 Tasks on separate dependency paths may overlap. Phase 1 is incomplete until every
 personal-loop exit is observed in production, even if personal-maturity work has
@@ -60,6 +60,10 @@ when increasing fan-out. One writer owns each workspace lineage. Exhausted rewor
 pauses affected unresolved work with evidence; verdicts never average into a pass.
 Use deliverable contracts to overlap independent work and feed the integration queue.
 No implementation slice starts merely because this proposed plan names a budget.
+Tasks 1–8 execute through the M0 repository workflow, with the selected profile,
+envelope and budget recorded manually in the ledger-shaped acceptance receipt.
+After M1 acceptance a later slice may use the factory; Task 14's canary is the
+first slice required to do so.
 
 For each behavior: write the production-path negative, observe failure, implement
 the minimal contract, observe the positive, inject the named realistic fault and
@@ -75,6 +79,7 @@ one key space; Executable restore compatibility (A39, A47).
 - [ ] 1.0 Convert inherited delta scenarios to explicit non-vacuous Given/When/Then and establish the coverage ledger/validator.
 - [ ] 1.1 Prove the pinned Bun/LangGraph/checkpointer interrupt/restart contract and record a go/no-go decision.
 - [ ] 1.2 After 1.1 passes, deliver the compiler, contracts and non-vacuous Nx targets.
+- [ ] 1.3 Before Task 2, record go/no-go evidence from a bounded authenticated ACP capability/usage probe and one manual gVisor runtime-class smoke on an identified candidate host.
 
 **Owns:** new `tools/tool-twilight/project.json`, `tools/tool-twilight/src/compile.ts`,
 `tools/tool-twilight/src/validate-scenarios.ts`,
@@ -95,7 +100,8 @@ proposed document into a validated input. Fold Nx/tsconfig setup into this task.
 `compileWorkflow(inputs: WorkflowInputs): CompiledWorkflow`, whose inputs include an
 explicit immutable organization snapshot, `CheckpointPort` with
 persisted run/thread/revision identity, selected package pins and a compatibility
-record, and `WorkflowRestore.restoreRun(runId)` as the only checkpoint-loading
+record including each capability pool's worker-image digest, and
+`WorkflowRestore.restoreRun(runId)` as the only checkpoint-loading
 entry, owning executable resolution, compatibility and revision reconciliation.
 The runtime-validated input schema is canonical.
 
@@ -106,6 +112,12 @@ fixtures before Task 7 registers the production factory-core implementations.
 Production run creation continues to refuse the incomplete registry. Deleting the
 test-only bootstrap guard and loading a fake in production must fail its boundary
 test; no pre-Task-7 test may claim an end-to-end factory run.
+
+1.3 probes the first provider's session load/resume, cancellation, permission
+interception and usage reporting without building the adapter, and proves that
+the live ACP/Bun/Git/filesystem fixture can start inside gVisor on one candidate
+host. Failure stops before Task 2. Task 6 still owns `k3s-preflight`, the three-node
+cluster and the complete containment suite.
 
 **Acceptance:** the same Git inputs and organization snapshot yield the same digest,
 forms, resolved activity plan and effective policies with origin scope; changing
@@ -283,9 +295,11 @@ client uses, `submitRequest`, `reviseArtifact`, `adoptPlan`, `commandRun`,
 `decideApproval`, `mintDecisionToken`, and event/outbox interfaces used by worker
 and clients.
 
-3.1: extract `apps/be-01/src/repository/migrate.ts` and `migrate-down.ts` into the
-shared library that both apps call, keeping the `down.sql` rule and the migration
-lint; its existing `.db.test.ts` cases run unchanged against the extracted module.
+3.1: extract `apps/be-01/src/repository/migrate.ts`, `migrate-down.ts` and the
+connection-opening pragma assertions into the shared library that both apps and
+the checkpointer call, keeping the `down.sql` rule, migration lint and the
+`bun:sqlite` import lint; its existing `.db.test.ts` cases run unchanged against
+the extracted module.
 If extraction would change be-01 behavior, stop and record an ADR before any
 Twilight migration is written.
 
@@ -298,6 +312,11 @@ callback replay, missing CSRF/origin binding, revocation, single-use expiry and
 wrong intended consumer; a real local OIDC/JWKS test issuer plus the browser flow
 supplies the positive control. Prove that a Twilight-MCP-audience token is refused
 by BE directly and that the service credential cannot act without a verified actor.
+Extend the protected local-operator command class with an interactive decision path
+for `resolve_effect` and `release`: it requires local installation-operator
+authentication, explicit subject confirmation, single use and the same audit and
+revision binding as the browser flow. Agents and ordinary service/MCP tokens cannot
+invoke it.
 
 3.3: `authorizeAction` intersects pinned requested/approved scope with current
 grants, floors, approval validity and integration grants. BE routes and Task 4's
@@ -459,6 +478,13 @@ effect outcome does not release a still-active remote reservation. Add
 evidence references and the three dispositions; exercise acknowledgment loss with
 a provider lacking a receipt query, refuse a second resolution as stale, and prove
 confirming non-application grants no new dispatch.
+An `abandon_unknown` resolution may separately name a held resource and an
+out-of-band recovery reference, such as a provider console or invoice, to release
+only that reservation. The recovery-operator disposition is audited and
+revision-checked and does not change the effect's `unknown` outcome. With the
+evidence store or telemetry sink unavailable, cancel, fence, drain and
+`abandon_unknown` must still commit the unavailable reference and keep the run
+`reconciling`; inject each unavailable sink on the production path.
 
 **Tests (4.3):** exercise the run-account, hard/advisory limit, pricing and clock
 rules in the [capacity/budget requirement](specs/twilight/control-plane/spec.md#requirement-capacity-and-budget-admission).
@@ -539,6 +565,10 @@ Check unknown-estimate fallback and
 bounded reviewer-reserve borrowing. Raise fan-out with an unchanged pool and assert
 the limiting pool is shown; grant supporting capacity and observe additional starts.
 Deny the provisioner and assert refusal remains visible without invented capacity.
+Record current repository-gate and browser-gate durations on `h2puni` as the
+initial estimate provenance for `requestCapacity`. Build and browser capacity used
+by the unconstrained scaling control comes from separately labeled K3s nodes with
+their own locks and independent launch counters, not from the agent-pool count.
 
 **4.4–4.5 planning allowance:** 16–32 human engineering hours, 4–8 agent hours,
 200k–500k tokens, plus separately authorized load-test service charges. These
@@ -547,6 +577,7 @@ unmeasured values supplement admission/accounting work and grant no spending.
 4.5 uses `libs/twilight-runtime/src/execution/dispatch-load.test.ts` and a controlled
 external receiver. Run `scalingAcceptance.coordinator` through `dispatchEffect`,
 record host/fixture identities, offered/completed rate, queueing and latency samples.
+Record the host storage and fsync characteristics beside those samples.
 Hold one remote response while unrelated effects dispatch. Inject a remote await
 inside the serialized boundary and watch unrelated dispatch exceed its budget;
 separately repeat revocation/fence faults under load. Missing or failed samples
@@ -659,7 +690,10 @@ configurable and their effects are measured (serving model and escalation); K3s
 provides an expandable worker substrate (runtime half) (A34, A41, A49–A50).
 
 - [ ] 6.1 Deliver the ACP adapter contract, capability document and deterministic protocol tests.
-- [ ] 6.2 Deliver the restricted K3s Job provisioner and real three-node acceptance cluster.
+- [ ] 6.2a Prove host, allowance, registry, identity, provider and observer readiness and provision the real three-node acceptance cluster.
+- [ ] 6.2b Deliver the provisioner and immutable Job specification with privilege canaries.
+- [ ] 6.2c Prove runtime-class isolation and workspace persistence/reclamation.
+- [ ] 6.2d Reconcile duplicate start, scheduling, eviction, drain, node loss, API loss and rebootstrap.
 - [ ] 6.3 Run one live activity inside the effect boundary with scoped credentials, cancellation and escalation.
 
 **Owns:** `apps/twilight-worker/src/main.ts`,
@@ -697,7 +731,7 @@ document reports (spec scenario "Capability cannot be enforced"). Record each
 optional telemetry gap in the ledger as unavailable with its reason, and assert the
 client shows it.
 
-6.2: pin the K3s release and artifact digest after reading its current compatibility
+6.2a: pin the K3s release and artifact digest after reading its current compatibility
 and security documentation. Provision one dedicated server with attempt scheduling
 disabled and two agent nodes on identified hosts. Do not install on `h3mon` or
 `h4claw`: `h3mon` remains the external observer, while `h4claw` runs OpenClaw,
@@ -705,12 +739,17 @@ Twilight's control services and application deployment. `k3s-preflight` validate
 unique node identity, supported architecture/kernel/cgroups/container runtime,
 CPU/memory/disk, clock, required ports, private reachability, conflicting CNI or
 firewall state, and the absence of a worker label on the server. Missing or
-unreadable evidence refuses installation; the runbook records the exact reversible
+unreadable evidence refuses installation. The M1 readiness receipt also names the
+hosts and spending allowance, proves registry reachability and pull credentials
+from each agent node, records provider accounts and quota for Task 8.4, binds the
+operator OIDC issuer and proves the `h3mon` export sink. Tasks 8.1 and 8.4 cannot
+start without it. The runbook records the exact reversible
 bootstrap, join, drain, upgrade, pinned-manifest reapply and rebootstrap commands.
 
-Implement the four `WorkerProvisionerPort` operations through a namespace-scoped
-Kubernetes identity. Generate one immutable Job spec per attempt with digest-pinned
-image, attempt/fence labels, capability/node constraints, resource requests and
+6.2b: implement the four `WorkerProvisionerPort` operations through a namespace-scoped
+Kubernetes identity. Generate one immutable Job spec per attempt with the capability
+pool's image digest from the run compatibility manifest, attempt/fence labels,
+capability/node constraints, resource requests and
 limits, active deadline, cleanup TTL, restricted security context, tested runtime
 class, network profile, ephemeral workspace and opaque credential-mount reference.
 The Pod automounts no service-account token and receives no raw credential, host
@@ -727,13 +766,19 @@ must observe denial. Remove each effective production-path control separately an
 watch its named assertion fail. A manifest-only assertion cannot prove kernel,
 runtime or network enforcement. Stop if no supported runtime class contains the
 live ACP, Bun, Git and filesystem fixture; default `runc` alone does not satisfy the
-hostile-code claim. Probe gVisor for the coding pool first and Kata second; record
+hostile-code claim. 6.2c probes gVisor for the coding pool first and Kata second; record
 the pinned runtime and failure evidence, and stop the hostile-code claim if neither
 passes. Build and browser activity classes use separately labeled
 nodes/adapters when their runtime requirements differ; agent Pods never gain a
 build-engine socket.
+Name how a workspace lineage persists between Jobs without a host path. Reclamation
+waits for recorded log and workspace evidence, or an explicit unavailable marker;
+an unknown attempt's workspace is reclaimed only by an audited operator action.
+The image build target records source commit and lock digest as image annotations,
+and the registry retains every digest referenced by a nonterminal or
+evidence-retained run. Provenance attestation remains customer-phase work.
 
-Exercise duplicate Job program start, scheduler retry, unschedulable resources,
+6.2d exercises duplicate Job program start, scheduler retry, unschedulable resources,
 Pod eviction, node drain, abrupt agent-node loss, K3s API loss and server
 rebootstrap. The independent worker/effect/workspace oracles must show one current
 writer and no duplicate external effect. API or node loss retains reservations and
@@ -756,6 +801,9 @@ credential lifecycle: repository/provider-scoped secret references resolved by t
 trusted launcher into an isolated ephemeral mount; never an operator's home. Test
 wrong-client secret lookup, expired/revoked credentials, and removal after observed
 worker exit; synthetic credential canaries must not reach traces or Git.
+Rotate a repository/provider secret while an attempt is live. The next brokered
+dispatch revalidates the integration grant, the run view identifies the stale
+mount, and the old value never reaches a new attempt.
 
 The real ACP path uses the effect boundary from Task 4. For M1, all externally
 visible effects use brokered tools; unmediated shell tools are limited to isolated
@@ -774,6 +822,10 @@ attempt and prove only the not-yet-admitted retry sees the new epoch after requi
 reapproval. Remove the `maxSteps` check, reset spend on retry, and silently downgrade
 the model separately; watch the no-third-step, account-total and serving-model
 assertions fail. No real client secrets in this fixture.
+Treat `providerUnavailable` as an attempt outcome, not an escalation trigger: retry
+the same model within the unchanged envelope under the declared bound without
+consuming a rework round or ladder step, then pause with the provider constraint
+visible. Exercise both retry and exhaustion here.
 
 **Estimate:** 24–48 human hours; 6–14 agent hours; 320k–900k tokens plus separately
 admitted live-provider and VPS spend; one provider slot, one dedicated K3s server
@@ -833,6 +885,9 @@ Task 7.2 makes the coordinator own the handoff transition and terminal outcome
 write. Under factory-core it records the core accepted outcome even though the
 inactive `handoff.dev-main` tool has only a disposition; under personal-delivery
 handoff records progress into `awaiting_release`, not a terminal outcome.
+Every evidence and trace record carries its retention class and terminal timestamp;
+`read_evidence` and the capacity view expose measured bytes per class. Task 16 owns
+the A17 expiry job and can enforce retention without re-ingesting the corpus.
 
 It also exposes each outcome's reconciled efficiency breakdown from Task 4's
 ledger. Driver counts remain diagnostic observations rather than outcome
@@ -925,7 +980,7 @@ the forbidden effect at the receiver. Exceed the attempt count/budget and assert
 extra launch. Drive the opt-in control through shared FE/BE/MCP configuration;
 disabled speculation starts one attempt. Run via runtime/worker Nx test targets.
 
-## Task 8: Accept the first useful factory run
+## Task 8: Accept the first factory-core run
 
 Proves: every M1 requirement end to end; Executable restore compatibility (refusal
 and retained-version recovery) (A39, A45).
@@ -964,7 +1019,9 @@ unknown, and these two runs prove instrumentation without authorizing automatic
 profile recalibration. Inject a per-profile observation set and watch comparison
 eligibility fail. Repeat against a generated repo with a different
 repository ID and prove it has no puni-specific content, personal paths or shared
-credentials. Pin forbidden content canaries: `/home/df/`, `/Users/danylofedorov`,
+credentials. Its `gateTargets` and `contextRoots` differ from puni-00's; organization
+and issuer variation remains behind A63's customer discovery gate. Pin forbidden
+content canaries: `/home/df/`, `/Users/danylofedorov`,
 `/root/`, `h2puni`, `h1claw` and the legacy `wbs-tool-v1` identity. Each occurs in
 this repository's own docs, receipts or archived changes, which is what makes the
 injection meaningful. A clean fixture passes; inject each into a copied template
@@ -984,7 +1041,8 @@ served build identity, and run the whole browser gate when shared UI or CSS
 changes. Run the repository-wide gate on the correct host/lock before integration.
 M1 acceptance is a working local/development control plane with the real K3s worker
 topology; cloud-browser deployment and production application machinery are Task
-13's.
+13's. Its accepted candidate is unpublished; before Task 13 the operator may carry
+it to main only through the repository's existing manual review and merge path.
 
 8.2: at M1 acceptance, set `schema: twilight-v1` in puni-00 and the generated
 client template. Before switching, pin every existing change's current schema in
@@ -1016,6 +1074,12 @@ Nx `tool-twilight:scaling` target created with this behavior, consuming the real
 scheduler, ACP workers, integration queue and gate adapters. The canonical capacities,
 repetitions and speedup/coordinator budgets are `execution.yaml.scalingAcceptance`;
 do not copy constants into fixtures or derive test advances from the challenged value.
+The matrix owns a separately approved budget account naming run count, spend ceiling
+and elapsed ceiling. Record whether approval covers one plan's fixed deliverables or
+uses an explicit per-request decision procedure, then report decision count,
+operator minutes and human-wait share. For later regression, run one repetition at
+one and four workers on the independent workload. Record evidence, trace and corpus
+bytes per retention class per run and confirm or revise A66 before Task 13.
 
 The `dev-sweep` trigger workflow is unavailable under `factory-core`. Task 13 may
 publish it only with `personal-delivery`, its per-occurrence execution envelope and
@@ -1044,7 +1108,9 @@ and authorization controls on the real runtime. Record actual failures in verify
 a synthetic scheduler test or two-profile comparison cannot substitute for this
 acceptance. Five samples establish the proposed milestone budget, not mature defect
 rates or a universal scaling law. Re-estimate the remaining tasks from measured M1
-costs and elapsed times. M1 duration remains unmeasured until those ledgers exist.
+costs and elapsed times. Compare measured cost and elapsed per accepted fixture
+outcome with a manual baseline and the remaining Tasks 11.1, 13, 15 and 16 estimate;
+record the A69 go/no-go. M1 duration remains unmeasured until those ledgers exist.
 
 Run the matrix on Task 6's identified one-server/two-agent-node cluster. Before
 timing, prove both agent nodes execute a labeled fixture and the server executes
@@ -1182,6 +1248,8 @@ with retries bounded by the `retries` policy at `onTrigger.*`, selecting the
 applicable `triggerKinds`, and recursion bounded by a profile `maxRecursion` field.
 Cron invokes the same admission path as manual work.
 A required unavailable channel is a failed operation, not a successful notification.
+Operator notifications at `onBudgetThreshold.*`, `onReconciling.*` and
+`afterStage.handoff` deduplicate per subject and carry one actionable link.
 
 Before changing an activity-class or per-activity model, effort, tool-exposure or
 execution default, run its versioned activity benchmark. Pin authored adversarial
@@ -1278,7 +1346,10 @@ on that backend. Retrieval quality requires judgment, not a parser-only green.
 
 - [ ] 13.1 Persist the environment identity, assignment, lifecycle and desired/observed state model.
 - [ ] 13.2 Publish committed runnable increments to branch dev and continuously converge dev-main on accepted main.
-- [ ] 13.3 Compose with current main, build once, deploy production-like staging, accept, publish and promote that artifact.
+- [ ] 13.3a Compose with current main, build once, deploy production-like staging and prove parity.
+- [ ] 13.3b Run cloud acceptance and the report verifier against that exact candidate.
+- [ ] 13.3c Publish by source-ref CAS and converge dev-main.
+- [ ] 13.3d Promote the same artifact with recovery, restore and accessibility receipts.
 - [ ] 13.4 Run source-bound scheduled dev sweeps and candidate-bound staging scenarios with inspectable reports.
 
 **Depends on:** Task 8 and Task 11.1 (release health notifications and scheduled
@@ -1313,6 +1384,8 @@ Nx-invoked runner against a real remote session before acceptance; its docs' Bun
 Playwright warning is a compatibility gate, not a reason to silently run local
 Chrome instead. Record session ID, served source identity, bounded credentials,
 recording/export retention and observed teardown.
+The branch-dev adapter owns its checkout; it never serves from the operator's
+bind-mounted development checkout.
 
 The acceptance path is `integration composition → staging deployment → automated
 and interactively driven, tool-verified acceptance → compare-and-swap main publication → dev-main convergence →
@@ -1346,7 +1419,14 @@ spending the exhausted cap or resetting the clock; no human decision means no pr
 observed recovery; unknown remote state throws; migration rollback failure remains
 visible with recovery instructions; a scheduled sweep binds the observed dev
 revision and cannot turn an unchanged coalesced disposition into a new pass. Task
-8's whole-browser-gate rule applies.
+8's whole-browser-gate rule applies. Drive the 30-day decision and two-hour release
+expiry cases through injected `asOf`, never wall-clock waiting. Before registering
+`registered:production-deploy`, back up the application store, checkpoint store,
+outbox and evidence at a named transition; restore them on a fresh host and prove
+pending decisions and unknown effects survive. Record observed restore time and the
+procedure in the Task 13 runbook. Repeat Task 5.4's Chromium keyboard/accessibility
+checks against the release command UI. Task 13 acceptance also reports decision
+count, operator minutes and human-wait share.
 
 **Estimate:** 48–96 human hours plus external environment availability. One
 host-wide release/build lease; production activity only on an explicit
@@ -1383,7 +1463,10 @@ that controller unavailable. Assert the decision, application/checkpoint/outbox
 transition and unknown effect survive and the external receiver count stays one.
 Inject backup-only rollback and observe lost accepted records; inject an unsupported
 reverse migration and require refusal before state is changed. Pin the tested
-compatibility matrix and retained executable/hook closure. No successful migration
+compatibility matrix across control-plane build, compiler/schema and
+execution-profile versions, template/workflow/planning-adapter/extension versions
+and worker-image digests per pool. `readRepository` and `restoreRun` check that
+same record and retained executable/hook closure. No successful migration
 or rollback is promised for unsupported old/new combinations.
 
 **Estimate:** 16–32 human hours plus a complete canary cycle; use measured M1–M3
@@ -1446,7 +1529,9 @@ identity outranks a conflicting progress claim while both remain visible; the ho
 keeps the secretary composer available while opening every worker/assignment
 history, evidence report, environment and required intervention; empty state
 fabricates no active worker. Repeat the prototype's desktop/mobile interaction set
-against live APIs and run the whole browser gate.
+against live APIs, including Task 5.4's keyboard/accessibility cases for every
+intervention route, and run the whole browser gate. Own and name the process that
+expires A17's 365-day operational evidence.
 
 **Estimate:** 32–64 human hours plus corpus/storage measurement; 0.5M–1.2M tokens.
 

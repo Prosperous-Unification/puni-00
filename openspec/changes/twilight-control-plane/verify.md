@@ -22,6 +22,35 @@ implementation.
 | `git diff --check`                                                                                                               | Passed with no whitespace errors.                                                                                                                                                                                                                                          |
 | Requested read-only `claude-fable-5-1` review                                                                                    | Ran at `xhigh`: 120 schema-valid rankings (2 rank 1, 10 rank 2, 73 rank 3, 29 rank 4, 6 rank 5); all 11 manifest hashes matched locally, and only the 12 rank-1/rank-2 answers were refined. See `docs/twilight-structure/evidence/claude-efficiency-question-ranking.md`. |
 
+## Feasibility-grill reconciliation checks (2026-09-08)
+
+Dany authorized sending the hash-pinned Twilight planning packet to Anthropic.
+A fresh Claude Fable 5.1 session at `xhigh` answered questions 121–160; a separate
+fresh Fable session at `xhigh` ranked every pair and corrected seven overreaches.
+All forty accepted answers have an explicit change, preserve, defer or no-change
+effect in `evidence/claude-feasibility-plan-impact.md`. The review is design
+evidence, not runtime proof or human approval.
+
+| Command / inspection                                                                     | Observed result                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Answer-session manifest SHA-256 check before transfer                                    | All 17 listed files matched; answer session `690a778f-a2ab-40de-98b8-6a4454a30df5` returned exactly Q121–Q160 once each.                                                                                                                                                                                                                                 |
+| Ranking-session manifest SHA-256 check before transfer                                   | All 19 listed files matched; independent session `8b2bd435-22e2-4a96-929d-2c14fd5c8e1c` returned exactly Q121–Q160 once each.                                                                                                                                                                                                                            |
+| Receipt `jq` range/uniqueness and non-null impact assertions                             | Passed: 40 answers, 40 rankings and 40 accepted plan impacts. Distribution: one rank 1, four rank 2, nineteen rank 3, twelve rank 4 and four rank 5.                                                                                                                                                                                                     |
+| Impact-ledger row-count assertion                                                        | Passed: exactly 40 rows, Q121 through Q160.                                                                                                                                                                                                                                                                                                              |
+| `bunx nx format:check --all`                                                             | Passed with no formatting differences after applying the ranked plan corrections.                                                                                                                                                                                                                                                                        |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                 | All 40 changes valid; existing informational archive notices remained non-failing.                                                                                                                                                                                                                                                                       |
+| `NX_ISOLATE_PLUGINS=false NX_DAEMON=false bunx nx run-many -t test lint typecheck build` | All 81 targets passed for 23 projects and one dependency; 77 were read from Nx cache. Nx reported five previously known flaky suites. Two default-isolation attempts had failed before project tasks because three Nx plugin workers exited before connecting; verbose evidence showed `/tmp/plugin*.sock`, and in-process `nx show projects` succeeded. |
+| `git diff --check`                                                                       | Passed with no whitespace errors.                                                                                                                                                                                                                                                                                                                        |
+
+The applied corrections add an early ACP/runtime go/no-go, a summed personal-loop
+estimate and program stop decision, single-receipt K3s/release slices, a readiness
+gate, fresh-host restore rehearsal, local interactive recovery decisions,
+per-resource recovery dispositions, worker-image compatibility, bounded
+provider-unavailable retry, retention accounting, actionable notifications and a
+budgeted scaling regression subset. Execution-profile revision 10 carries the new
+lifecycle events and attempt outcome. No runtime acceptance named by those tasks
+was executed here.
+
 ## Wayfinding reconciliation checks (2026-09-08)
 
 The personal/customer phase reconciliation added assistant interaction and delivery

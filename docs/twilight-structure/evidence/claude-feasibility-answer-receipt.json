@@ -1,0 +1,350 @@
+{
+  "type": "recovered_structured_output",
+  "session_id": "690a778f-a2ab-40de-98b8-6a4454a30df5",
+  "model": "claude-fable-5-1",
+  "effort": "xhigh",
+  "source": "Claude CLI session transcript",
+  "structured_output": {
+    "answers": [
+      {
+        "question": 121,
+        "answer": "No hard cycle on paper. Task 1.0's scenario validator precedes the compiler; Task 1.1 proves the checkpointer on a minimal graph independent of the compiler before 1.2 builds the compiler; Tasks 3–6 run against Task 1's test-only implementation registry until Task 7 registers the production factory-core implementations; Task 8 depends on Tasks 1–7; Task 13 depends on 8 and 11.1; Task 16 joins 13 and 15. The one soft circularity is the Common execution contract, which says each implementation slice receives an explicit delivery profile, run budget account and approved execution envelope, objects that exist only after Tasks 3–4. Read literally, the factory executes its own bootstrap.",
+        "resolution": "Strengthen",
+        "planImpact": "In tasks.md Common execution contract, state that Tasks 1–8 execute under the M0 repository workflow with a manually recorded ledger (profile, envelope and budget as documentary records) and that the first factory-executed slice is Task 14's canary.",
+        "evidence": "tasks.md Task 1 (1.0–1.2, test-only implementation registry), Task 7 registrations, Task 8 Depends on, Common execution contract, Task 14; verify.md Wayfinding reconciliation checks (Task 1.0 first prerequisite).",
+        "novelty": "Questions 1–120 examined efficiency mechanisms; question 5 noted time-to-first-feedback but never tested prerequisite ordering."
+      },
+      {
+        "question": 122,
+        "answer": "Yes. Task 1.1 proves the pinned Bun/LangGraph/checkpointer interrupt/restart contract on a minimal graph with the SIGKILL resume test, forbids an in-memory saver in acceptance, and records go/no-go before 1.2. Its compatibility-refusal tests count against Task 1's own fixture worker/effect counters, and the task defers external-effect deduplication to Task 4 and the uncertain-effect upgrade fixture to Task 8. No K3s, ACP or BE is required. One ordering note: the application-store migration runner is extracted in Task 3.1, so Task 1's store-schema digest checks must use the checkpointer's own storage or a fixture store.",
+        "resolution": "Keep",
+        "planImpact": "Preserve Task 1.1's independence from the compiler and from Tasks 3–6 and Task 1's restriction to the test-only registry; no reorder.",
+        "evidence": "tasks.md Task 1 (1.1 minimal graph independent of the compiler; Tests; This does not yet prove external-effect deduplication; Task 8 adds the uncertain-effect fixture), Task 3.1; design.md Durable execution and effect ownership; A38, A39.",
+        "novelty": "Sharpens question 5 into whether the first slice is self-contained."
+      },
+      {
+        "question": 123,
+        "answer": "Only two of five. LangGraph persistence is a Task 1.1 go/no-go and OIDC is proven in Task 3.2 before Task 5 uses it. Live ACP capability (permission interception, resume, usage signals), K3s runtime-class isolation (gVisor/Kata probe, host preflight) and real provider usage reporting are first observed in Task 6, after Tasks 1–5 (about 70–145 estimated human hours). A09 already says to run authenticated adapter probes in the first execution slice, which the task order does not honor. The exposure is concrete: all three shipped profiles are enforcement strict with money caps, and the spec refuses strict admission without a defensible reservation and stop mechanism, so an adapter without usable usage and stop signals leaves every profile inadmissible. Task 6's stop rule exists but fires late.",
+        "resolution": "Strengthen",
+        "planImpact": "Add Task 1 checkbox 1.3 beside 1.1: an authenticated, bounded ACP capability and usage-signal probe for the first provider, plus k3s-preflight and the runtime-class probe on the identified hosts, each recorded as go/no-go before Task 2; Task 6 keeps the full proofs.",
+        "evidence": "tasks.md Task 1.1, Task 3.2, Task 6 (6.1–6.3; Probe Claude first, then Codex; Probe gVisor first and Kata second); A09 revisit; A49 revisit; spec Capacity and budget admission scenario Telemetry is unavailable under a strict budget; execution.yaml profiles enforcement strict.",
+        "novelty": "Questions 1–120 assumed the integrations exist; none asked when their first evidence arrives."
+      },
+      {
+        "question": 124,
+        "answer": "Viable as a first store, with the gate already named. The design pins one active coordinator, a separate SQLite store and a restart-tested checkpointer with synchronous checkpointing; the serialized dispatch boundary ends at transport handoff so held remote responses cannot block it; Task 4.5 must measure scalingAcceptance.coordinator (64 sessions, 100 effects per second, p95 dispatch 100 ms) on an identified host; A08 names the reopen. Eight matrix workers sit well inside that budget. What the Twilight store does not inherit is the repository's recorded bun:sqlite landmine: WAL, busy_timeout and foreign_keys are asserted at open only in be-01 and the ESLint guard covers only apps/be-01/src, so a new app with two SQLite files plus an outbox is exposed to that fault again.",
+        "resolution": "Strengthen",
+        "planImpact": "Task 3.1's extraction carries openConnection's pragma assertions and the bun:sqlite import lint into the shared library so apps/twilight-be and the checkpointer use them; Task 4.5's evidence records the host's storage and fsync characteristics.",
+        "evidence": "design.md Durable execution and effect ownership, States, attempts and leases (serialized boundary); execution.yaml scalingAcceptance.coordinator; tasks.md Task 3.1, Task 4.5; A08; LLM_README.md Landmines (bun:sqlite).",
+        "novelty": "Questions 31–36 treated durability as given; store viability was not asked."
+      },
+      {
+        "question": 125,
+        "answer": "Yes, several are not gated. M1 requires one dedicated K3s server and two agent nodes on hosts other than h3mon and h4claw, none identified; Task 6 says infrastructure spending needs an explicit allowance but names no readiness gate for acquiring them. Worker images are digest-pinned, but the build and publish path (Dagger on h2puni to the self-hosted registry) and the agent nodes' pull credentials and reachability are preconditions nowhere. Provider accounts and quota for eight concurrent sessions in 8.4 are reported as constraints, not gated. The M1 FE journey needs an operator OIDC issuer binding (A30: absent config refuses startup) beyond Task 3.2's local test issuer, and the h3mon export sink is assumed. k3s-preflight covers host compatibility only.",
+        "resolution": "Strengthen",
+        "planImpact": "Extend Task 6.2's k3s-preflight and runbook into the M1 readiness gate: identified hosts with allowance, registry reachability and pull credentials from agent nodes, provider accounts and quota for 8.4's concurrency, the operator OIDC issuer binding and the h3mon sink; Task 8.1 and 8.4 cite it as an entry condition.",
+        "evidence": "tasks.md Task 6.2 (k3s-preflight; Infrastructure spending needs an explicit allowance), Task 8.4 (provider quota); A30, A49; design.md K3s worker topology; LLM_README.md Deploy (build box, registry).",
+        "novelty": "Question 76 treated quota as a benchmark confound; hardware, DNS and issuer readiness were never asked."
+      },
+      {
+        "question": 126,
+        "answer": "Partly. Human wait is its own interval kind, human minutes are explicit, paused decisions hold no worker, one decision approves plan plus envelope, and the focus profile batches decisions; 8.4 reports human and queue wait in its percentiles. What is unmeasured is the operator's decision load on the acceptance proofs themselves: beforeStage.implementation requires a human decision per run, decision tokens are browser-only, and 8.4 runs three workloads at four capacities for five repetitions, so the operator may have to mint on the order of sixty to a few hundred approvals by hand. The plan neither says how those approvals are supplied nor reports decision count and wait share.",
+        "resolution": "Strengthen",
+        "planImpact": "Task 8.4 states the approval mechanism for the matrix (one human-approved envelope covering the fixed requests per capacity point, as A03 permits) and reports decision count, operator minutes and human-wait share of elapsed; Task 13's acceptance reports the same.",
+        "evidence": "design.md Budget accounts and clocks (Human minutes), Human decisions; execution.yaml policies.beforeStage.implementation, scalingAcceptance; tasks.md Task 8.4; A03; product-experience.md Focus profile.",
+        "novelty": "Question 104 asked whether optimizations shift cost to humans; this asks whether the operator is the unmeasured critical path of acceptance itself."
+      },
+      {
+        "question": 127,
+        "answer": "No. The personal-loop route is Tasks 1–8 to 11.1 to 13, with Task 15 placed after Tasks 5–7 and allowed to overlap Tasks 6–8 and 13; Task 16 joins 13 and 15. The critical path to the first production delivery is Task 13, not Task 15, and Task 5's FE/MCP surface already lets the operator or any MCP client submit requests before the OpenClaw port exists. Task 15's exit is part of the personal-loop exit, but it is not what delays production.",
+        "resolution": "Keep",
+        "planImpact": "Preserve the Product phases Personal loop route and Task 15's Depends on Tasks 5–7 overlap edge; no reorder.",
+        "evidence": "tasks.md Product phases (Personal loop), Task 15 Depends on, Task 16 Depends on, Task 5.1; A52, A62.",
+        "novelty": "Question 37 covered secretary capacity, not its position on the critical path."
+      },
+      {
+        "question": 128,
+        "answer": "Only with a qualifier the heading lacks. Under factory-core the accepted outcome is candidate-accepted-at-handoff; staging, cloud acceptance, publication and dev-main record inapplicable dispositions and the spec says no source or environment changes. Task 8.1 states this plainly and README says M1 is not the personal-phase exit. So the run yields a verified but unpublished candidate that reaches main only by the operator's manual merge until Task 13. The heading Accept the first useful factory run invites the broader reading the text forbids.",
+        "resolution": "Strengthen",
+        "planImpact": "Reword the Task 8 heading to Accept the first factory-core run and add one sentence to 8.1 stating the accepted candidate is unpublished and how the operator carries it to main before Task 13.",
+        "evidence": "tasks.md Task 8 heading and 8.1; spec Integration is an independently scalable execution service scenario Factory-core reaches handoff without publication; execution.yaml repositoryFloor.revisions.factory-core.acceptedOutcome; README.md; CONTEXT.md Accepted outcome.",
+        "novelty": "Question 4 confirmed the personal-phase exit; this sharpens it to whether M1's label overclaims."
+      },
+      {
+        "question": 129,
+        "answer": "Several checkboxes conceal multi-week batches. 6.2 alone covers K3s pinning, three-host provisioning, the preflight tool, four provisioner operations, the Job spec, namespace/quota/RBAC/network policy, six privilege canaries, gVisor and Kata probes and eight failure-mode reconciliations (duplicate start, retry, unschedulable, eviction, drain, node loss, API loss, rebootstrap). 13.3 covers composition, build, staging deploy and parity, Browserbase acceptance, the report verifier, publication CAS, dev-main convergence and production promotion with recovery. 7.3 and 16.2 are similar. Task 5 already states the right rule (one acceptance receipt per deliverable) and AGENTS.md defines tasks.md as ordered TDD slices.",
+        "resolution": "Strengthen",
+        "planImpact": "Split 6.2 into preflight/provisioning, provisioner and Job spec with privilege canaries, runtime-class isolation, and failure-mode reconciliation; split 13.3 into staging deploy and parity, cloud acceptance and report verifier, publication CAS and dev-main, and production release with recovery; one acceptance receipt each.",
+        "evidence": "tasks.md Task 6.2, Task 7.3, Task 13.3, Task 16.2, Task 5 (Keep one acceptance receipt per deliverable); AGENTS.md Change workflow (R4).",
+        "novelty": "Questions 1–120 reviewed contracts, not slice granularity."
+      },
+      {
+        "question": 130,
+        "answer": "Not on the plan's own terms. Every task carries human-hour, agent-hour and token ranges, but the plan withholds the sum (no aggregate completion date is asserted; M1 duration remains unmeasured). Adding the personal-loop ranges for Tasks 1–8, 11, 13, 15 and 16 gives roughly 280–560 human hours and 3–9 million tokens before benchmark, infrastructure and provider spend, which is the figure the operator needs to judge viability and which nothing in the manifest states. A re-estimate checkpoint after Tasks 1–4 already exists.",
+        "resolution": "Strengthen",
+        "planImpact": "Add the summed personal-loop planning range and the re-estimate-after-Tasks-1–4 checkpoint to the Personal loop row of tasks.md Product phases, labeled a planning estimate and not spending authority.",
+        "evidence": "tasks.md per-task Estimate lines, Task 8 (Re-estimate M1 after Tasks 1–4), 8.4 (M1 duration remains unmeasured), Product phases.",
+        "novelty": "Question 5 accepted breadth if measurements are published; this asks whether an unsummed plan can be judged viable at all."
+      },
+      {
+        "question": 131,
+        "answer": "No. Stop rules exist inside tasks (Task 1 on checkpoint durability, Task 6 on failed adapters or runtime classes, Task 9 on a failed storage budget, ADR 0015's spike), and optimization proposals must state payback and a stop condition, but that shape applies only to changes inside the factory, never to the factory program itself. Nothing compares M1's measured cost per accepted outcome against the operator's manual delivery of the same fixture, and nothing says when to pause Tasks 11–16.",
+        "resolution": "Strengthen",
+        "planImpact": "Make Task 8.4's re-estimate a recorded go/no-go: compare M1's measured cost and elapsed per accepted fixture outcome against a manual baseline and the re-estimated Tasks 11.1, 13, 15 and 16, with the threshold recorded as a new assumptions.md entry with owner and reopen condition.",
+        "evidence": "tasks.md Task 1 (Stop on), Task 6 (stop with both reports), Task 8.4 (Re-estimate the remaining tasks); design.md Comparable outcomes (optimization proposal); ADR 0015 The spike that can overturn it; uber-efficiency-grill.md questions 10 and 111.",
+        "novelty": "Questions 10 and 111 defined stopping rules for optimizations; this applies the same rule to the factory investment."
+      },
+      {
+        "question": 132,
+        "answer": "No. Durable workflow, authority, ledger, evidence and source live outside K3s; cluster reconstruction, upgrade refusal (8.3) and upgrade rollback (Task 14) are proven; Task 10 backs up the planning database for cutover. No task requires a routine, consistent backup and restore of the Twilight application store, checkpoint store, outbox and evidence store to a named transition, nor a restore rehearsal on a fresh host, before Task 13 registers release.production. CONTEXT already names the installation operator as responsible for restoring.",
+        "resolution": "Strengthen",
+        "planImpact": "Add to Task 13's exit tests, before registered:production-deploy is registered: back up both stores, outbox and evidence at a named transition, restore on a fresh host, prove pending decisions and unknown effects survive, and record the procedure in the Task 13 runbook.",
+        "evidence": "design.md Executable compatibility and upgrades, K3s worker topology (cluster state is replaceable); tasks.md Task 8.3, Task 10, Task 13 exit tests, Task 14; CONTEXT.md Installation operator.",
+        "novelty": "Question 36 concerned telemetry loss, not data loss."
+      },
+      {
+        "question": 133,
+        "answer": "Recovery point is implied but unstated: synchronous checkpointing plus the outbox make it the last committed transition. Recovery time is stated nowhere for Twilight's own store; only planning storage has a restart reconciliation budget, and A68's release window is unrelated. For one operator a numeric RTO promise would be premature (the A53 pattern), but the expectation should be explicit and measured rather than absent.",
+        "resolution": "Strengthen",
+        "planImpact": "Record a working answer in assumptions.md: recovery point is the last committed transition/outbox record; recovery time is operator-driven and measured, not promised; Task 13's restore rehearsal records observed restore time.",
+        "evidence": "design.md Durable execution and effect ownership (synchronous checkpointing, outbox reconciliation); client-repositories.md Storage workload acceptance budget (restart reconciliation); A53; A68.",
+        "novelty": "Not covered by questions 1–120."
+      },
+      {
+        "question": 134,
+        "answer": "Largely yes for grants, partly for raw secrets. Authority intersects current grants, revocation and floors at admission and again at dispatch; Task 3.3 revokes membership, repository, approval and integration grants while work is queued; Task 4.2 revokes between intent and dispatch; A34 destroys the credential mount after observed exit and revokes short-lived grants where supported. Decision tokens are server-side records, so no signing key exists to rotate. The uncovered case is a provider secret rotated in the secret store while an attempt still holds the old value in its mount: tests cover expired and revoked credentials, not rotation mid-attempt, and the direct provider call is not brokered.",
+        "resolution": "Strengthen",
+        "planImpact": "Add to Task 6.3's credential lifecycle tests: rotate the repository/provider secret while an attempt is live, assert the next brokered dispatch revalidates the integration grant, the run view shows the stale mount, and the old value never reaches a new attempt.",
+        "evidence": "A34, A40; tasks.md Task 3.3, Task 4.2 fault table (Check authority only at admission), Task 6.3 (expired/revoked credentials); spec Current authority constrains pinned runs; design.md Human decisions.",
+        "novelty": "Questions 31–33 covered bypass and self-approval, not rotation of live credentials."
+      },
+      {
+        "question": 135,
+        "answer": "Yes, and its loss is modeled. A49 and ADR 0016 fix one dedicated server that schedules no attempt Pods; the design says losing it pauses new launch and stop commands visibly and reconciles recorded attempts after declarative rebootstrap; the spec scenario The K3s server is lost and reconstructed and Tasks 6.2 and 8.4 exercise API loss, node loss and rebootstrap. No HA claim exists to disguise. The coordinator on h4claw is likewise a single failure domain by design.",
+        "resolution": "Keep",
+        "planImpact": "Preserve A49's topology, the server-loss scenario and Task 6.2's rebootstrap proof; add no HA claim.",
+        "evidence": "A49; ADR 0016 Consequences; design.md K3s worker topology; spec K3s provides an expandable worker substrate scenario The K3s server is lost and reconstructed; tasks.md Task 6.2, Task 8.4.",
+        "novelty": "Not covered by questions 1–120."
+      },
+      {
+        "question": 136,
+        "answer": "Yes. FE and MCP call the same BE operations; OpenClaw enters through one authenticated Twilight operation and is not a second delivery coordinator; Task 5 delivers run view, pause/resume/cancel/retry/skip and the recovery inbox before Task 15 exists; Task 15's exit requires unavailable secretary capacity to be reported rather than answered and a general request to create no run. The residual shared fate is that h4claw hosts both OpenClaw and Twilight's control services, a host failure domain (question 135), not an assistant dependency.",
+        "resolution": "Keep",
+        "planImpact": "Preserve A52's boundary and Task 5's FE/MCP controls independent of Task 15.",
+        "evidence": "design.md Boundaries, Assistant and work projection; spec One authorized command surface; tasks.md Task 5.2, Task 15 exit tests; A49, A52.",
+        "novelty": "Question 110 asked for secretary MCP parity; this asks the inverse, whether Twilight survives without the secretary."
+      },
+      {
+        "question": 137,
+        "answer": "Mostly. Each run retains a compatibility manifest (controller/graph, compiler, Bun/lock digest, serializer/saver, store schema, hook and adapter digests); restoreRun refuses incompatible closures; migrations are additive with down.sql; a later workflow or floor publication never changes an existing run; Task 8.3 rehearses refusal and Task 14 proves migration and rollback per supported path. The gap is the worker image: Jobs carry a digest, but it is not in the run's manifest or profile epoch, so a retry after an image upgrade could run on a different image without a recorded compatibility change.",
+        "resolution": "Strengthen",
+        "planImpact": "Add the worker image digest per capability pool to the run's compatibility manifest (design Executable compatibility and upgrades; Task 1's retained digests) and require Task 6.2's Job spec to take the digest from that manifest.",
+        "evidence": "design.md Executable compatibility and upgrades, K3s worker topology (launch request image digest); spec Executable restore compatibility; tasks.md Task 1, Task 8.3, Task 14; A38, A39; AGENTS.md Migrations.",
+        "novelty": "Question 17 covered pinning for comparisons; this is about resumability across upgrades."
+      },
+      {
+        "question": 138,
+        "answer": "Not before Task 16. Defaults are explicit (no-age-expiry corpus under a 10 GiB ceiling; operational evidence 365 days after the terminal transition), but Task 7.2 persists evidence and traces without recording retention class or measuring bytes, the ceiling and export path are Task 16 work, no task owns the 365-day expiry job, and durable records (events, outbox, ledger) have no bound at all. Between Task 7 and Task 16 the scaling matrix alone generates sixty runs of traces on hosts with unstated disk.",
+        "resolution": "Strengthen",
+        "planImpact": "Task 7.2 stamps every evidence and trace record with retention class and terminal timestamp and exposes measured bytes per class through read_evidence and the capacity view, so Task 16 can enforce A66 and A17 without re-ingestion; Task 16 names the owner of the A17 expiry job.",
+        "evidence": "execution.yaml retention; A17, A54, A66; tasks.md Task 7.2, Task 16.1; design.md Assistant and work projection.",
+        "novelty": "Question 54 deferred trace analysis; retention bounding was never asked."
+      },
+      {
+        "question": 139,
+        "answer": "Partly. Telemetry loss is modeled as unavailable, never zero capacity or a healthy worker (Tasks 5.3, 6.2); the efficiency breakdown does not reserve, authorize or reprice; evidence producers are floor failures when unavailable, which correctly blocks acceptance. But resolve_effect requires evidence references, so an evidence-store outage while an effect is unknown could block the only recovery path, and the grill's question 36 recommendation to protect cancellation and reconciliation from optional consumers has no named test in Task 4.",
+        "resolution": "Strengthen",
+        "planImpact": "Add to Task 4.2: with the evidence store or telemetry sink unavailable and an effect unknown, cancel, fence, drain and resolve_effect abandon_unknown still commit with the evidence reference recorded as unavailable, and the run stays reconciling, never completed.",
+        "evidence": "tasks.md Task 4.2, Task 5.3, Task 6.2 (telemetry gap), Task 7 (unavailable and malformed paths are floor failures); design.md States, attempts and leases (resolve_effect), Pricing and the ledger; uber-efficiency-grill.md question 36.",
+        "novelty": "Sharpens question 36 from cost telemetry to evidence and recovery paths."
+      },
+      {
+        "question": 140,
+        "answer": "Not fully. Fallback is bounded to the declared ladder, quota and provisioning failures are visible constraints, unknown spend retains its hold, and a provider outside the envelope needs a new decision. But the escalation vocabulary is refusal, gateFailure and blockingFinding; a provider outage or timeout is none of these, so an attempt failing for that reason has no defined disposition: it could consume a rework round or ladder step, or fail the activity with no operator action named.",
+        "resolution": "Strengthen",
+        "planImpact": "Add a providerUnavailable attempt outcome to execution.yaml's escalation when vocabulary and the spec's Levers ladder rule: it consumes no rework round or ladder step, pauses the activity, and offers retry-same-model under the unchanged envelope; Task 6.3's escalation tests cover it.",
+        "evidence": "execution.yaml profiles escalation when; spec Profile overrides and epochs are explicit (fallback only via ladder), Scheduling minimizes accepted delivery elapsed time (quota visible); design.md Profile resolution; tasks.md Task 6.3 escalation tests; A13.",
+        "novelty": "Question 93 covered a tool disappearing; a model-provider outage was not asked."
+      },
+      {
+        "question": 141,
+        "answer": "Yes, because authority is not clock-derived. Leases carry a fencing token; the coordinator's serialized dispatch boundary decides staleness by fence and current authority; expiry withdraws authority and proves nothing about the process; approval, decision-token and deadline expiry are evaluated on the coordinator's clock from persisted createdAt. Worker and provider clocks affect only observations (K3s active deadline, cleanup TTL, provider timestamps recorded as-of). k3s-preflight checks clock at install.",
+        "resolution": "Keep",
+        "planImpact": "Preserve fence-based authority in dispatchEffect and Task 4.2's fence faults; no clock-synchronization requirement is needed for authority.",
+        "evidence": "design.md States, attempts and leases (lease, fence, serialized boundary), Budget accounts and clocks; spec Capacity and budget admission (expired owners fenced); tasks.md Task 4.2 fault table, Task 6.2 (k3s-preflight clock).",
+        "novelty": "Not covered by questions 1–120."
+      },
+      {
+        "question": 142,
+        "answer": "Yes, forever, and nobody can release it. Each reservation needs resource-specific terminal evidence; missing or unreadable remote state retains the hold; resolve_effect's three dispositions settle the effect outcome only, and Task 4.2 says abandon_unknown does not release a still-active remote reservation. With buildSlots 1 and browserSlots 1, one provider job whose terminal state can never be read blocks every later build or browser activity, and cancelling the run releases only proven-free reservations.",
+        "resolution": "Strengthen",
+        "planImpact": "Extend resolve_effect (design States, attempts and leases; Task 4.2) with a per-resource recovery-operator disposition that releases a named reservation on an out-of-band evidence reference (provider console, invoice) without changing the effect outcome, audited and revision-checked.",
+        "evidence": "design.md States, attempts and leases (resolve_effect, cancellation), Durable execution and effect ownership; spec Durable stage and activity lifecycle scenario Local exit leaves a remote session running; tasks.md Task 4.2; execution.yaml capacity.",
+        "novelty": "Questions 34 and 98 guarded against inferred success; this asks about the opposite failure, permanent holds."
+      },
+      {
+        "question": 143,
+        "answer": "Not specified enough. Jobs get a cleanup TTL and an ephemeral workspace, mounts are destroyed after observed exit, branch devs are never auto-deleted (A58), and logs stream to Twilight and h3mon. But the design also defines a workspace lineage that persists across attempts with one writer, Pods may use no host path, and where a lineage's workspace lives between attempts is unstated; nothing orders Job/Pod TTL cleanup after Twilight has captured logs and workspace state for an attempt whose outcome is unknown, which is exactly when Task 6.2 also tests telemetry export being down.",
+        "resolution": "Strengthen",
+        "planImpact": "Task 6.2's Job spec names the workspace persistence mechanism for a lineage (volume or push/pull) given no host path; reclamation waits for recorded log and workspace evidence or an explicit unavailable marker; a workspace with an unknown attempt is reclaimed only by an audited operator action.",
+        "evidence": "design.md K3s worker topology (Job spec, no host path), States, attempts and leases (workspace reuse); CONTEXT.md Workspace lineage; tasks.md Task 6.2 (cleanup TTL, ephemeral workspace, telemetry gap test); A58.",
+        "novelty": "Not covered by questions 1–120."
+      },
+      {
+        "question": 144,
+        "answer": "Pinned yes; provenance-checked and rebuildable no. Images are digest-pinned, the run manifest keeps the Bun/lock digest, Task 14 requires pins and migrations reproducible from a clean clone, and the publish path pins linux/amd64 through Dagger. No task records the image's build inputs (source commit, Dockerfile, lock) as annotations, none retains registry images for the life of runs and evidence that reference them, and no signature or attestation is checked. For one operator attestation is later; retention of referenced digests is needed by question 137's restore.",
+        "resolution": "Strengthen",
+        "planImpact": "Task 6.2's image build target records source commit and lock digest as image annotations and the registry retains every digest referenced by a nonterminal or evidence-retained run; provenance attestation is deferred to the customer phase.",
+        "evidence": "design.md K3s worker topology, Executable compatibility and upgrades; tasks.md Task 6.2 (digest-pinned image), Task 14 exit tests; LLM_README.md Deploy, Landmines (platform pin).",
+        "novelty": "Question 17 pinned model revisions; image provenance was not asked."
+      },
+      {
+        "question": 145,
+        "answer": "Not early enough, and the source of extra slots is unstated. Repository defaults are buildSlots 1 and browserSlots 1; verification.gate, integration.compose and acceptance.evaluate each reserve a build slot; h2puni is the single build box with a host-wide lock, and the design says provisioning never bypasses that lock. 8.4's unconstrained control assumes supporting pools scale with workers, but nothing says where a second build or browser slot comes from, and the first measured gate durations arrive only at Task 8 although today's gate and browser-gate durations are observable in CI now.",
+        "resolution": "Strengthen",
+        "planImpact": "Task 4.4 records current measured repository-gate and browser-gate durations on h2puni as initial estimate provenance for requestCapacity; Task 8.4 states that unconstrained-control build and browser slots come from labeled K3s build nodes with their own locks, each counted by an independent launch counter.",
+        "evidence": "execution.yaml capacity, activities resources, scalingAcceptance; design.md Scheduling, integration and scaling (h2puni lock), Stages, activities and the execution profile (build reserves); tasks.md Task 4.1, Task 4.4, Task 8.4 (hold integration/build capacity); LLM_README.md Gate, Deploy.",
+        "novelty": "Question 42 accepted that the matrix reports bottlenecks; this asks whether the ceiling is known before the matrix."
+      },
+      {
+        "question": 146,
+        "answer": "Yes on paper. Source writes occur only in an attempt's isolated workspace; discovery artifacts live in a draft workspace and content-addressed storage until published; composition happens in an isolated workspace; publication is a compare-and-swap on the accepted ref and a moved base triggers recomposition. The operator's own checkout is never a Twilight write target; outside planning edits are imported as proposals and quarantined if divergent; dirty work requires a content manifest.",
+        "resolution": "Keep",
+        "planImpact": "Preserve the isolated-workspace and CAS-publication contracts; Task 13.2's branch-dev adapter owns its checkout rather than the operator's bind-mounted dev checkout, as its served-identity check already implies.",
+        "evidence": "design.md States, attempts and leases (source writes), Artifacts and configuration publication, Scheduling, integration and scaling (composeCandidate, publishCandidate); client-repositories.md Proposed transaction protocol step 5; sdlc-stages.md Applicability and completion; LLM_README.md dev source-run.",
+        "novelty": "Not covered by questions 1–120."
+      },
+      {
+        "question": 147,
+        "answer": "Sufficient for the stated design, because it never asks the three stores to commit together. Twilight stores immutable PlanRefs, not plans; progress and completion receipts are broker commands with stable idempotency keys; the broker publishes events only after acceptance, a repeated command returns its prior answer, and on crash it rereads the accepted ref and journal. That is the same outbox-and-idempotency pattern the coordinator uses between its own store and checkpointer, and Task 9's exit tests include restart-before-acknowledgement replay.",
+        "resolution": "Keep",
+        "planImpact": "Preserve ADR 0015 and protocol step 4; each broker command from Twilight is an effect with recorded intent under dispatchEffect, which the effect contract already requires for brokered writes.",
+        "evidence": "ADR 0015; client-repositories.md Proposed transaction protocol (steps 3–4), Joining planning and source revisions; design.md Planning, knowledge and client portability, Durable execution and effect ownership; tasks.md Task 9 exit tests; A43, A44.",
+        "novelty": "Not covered by questions 1–120."
+      },
+      {
+        "question": 148,
+        "answer": "Observable and, for one operator, enforceable. The prerequisite is a single checklist requiring a recorded closure revision, dispositions of W4-3, W4-4 and W2-1, injected-type-error proof of typecheck coverage and a full WBS gate; Task 9's entry says it cannot start until the WBS owner records it, Task 10 depends on Task 9, and every other document points at that section. Enforcement is documentary, which suffices while the operator is the only writer; the Task 9 OpenSpec delta will cite the closure revision.",
+        "resolution": "Keep",
+        "planImpact": "Preserve Cutover after the refactors land as the single gate and Task 9's entry condition; no mechanical enforcement in the personal phase.",
+        "evidence": "client-repositories.md Cutover after the refactors land; tasks.md Task 9 Entry, Task 10 Depends on; README.md; A33.",
+        "novelty": "Not covered by questions 1–120."
+      },
+      {
+        "question": 149,
+        "answer": "Yes. Cutover is shadow-read, verified backup, short write freeze, canonical comparison, backend switch, with no dual-write period; rollback after new Git writes replays them into the old backend during a freeze. Native Backlog tools edit materialized candidate views that must import through the broker, so they are proposal inputs, not a second authority, and the generated tasks.md is drift-checked in CI. Before cutover Twilight reads OpenSpec plans only (A61), so authorities never overlap.",
+        "resolution": "Keep",
+        "planImpact": "Preserve No dual writers in Task 10 and the materialized-view import rule; A27's authority switch stays one explicit event.",
+        "evidence": "client-repositories.md Cutover after the refactors land, Proposed transaction protocol; tasks.md Task 10; A20, A27, A61; CONTEXT.md Materialized candidate view.",
+        "novelty": "Not covered by questions 1–120."
+      },
+      {
+        "question": 150,
+        "answer": "Not yet. client-minimal runs in a disposable container with empty home, 8.1 proves no puni-specific content with forbidden canaries, Task 14 upgrades an older fixture with client configuration intact, and storage scale is declared via planning.expectedScale. But every fixture shares the operator's organization snapshot and Task 3.2's single local issuer, so the claim never exercises a different issuer or audience, different floors or rate card, or a client whose gate differs from puni-00's; size representativeness rests on puni-00 itself.",
+        "resolution": "Strengthen",
+        "planImpact": "Task 8.1's generated-repo run binds a distinct organization snapshot (own floors and rate card) and a distinct OIDC client/audience configuration so portability covers authority and policy differences; Task 14 keeps configuration-preserving upgrades.",
+        "evidence": "tasks.md Task 2.1 (disposable container), Task 8.1 (forbidden content canaries), Task 14; client-repositories.md Template contract, planning.expectedScale; A24, A30, A35.",
+        "novelty": "Question 16 concerned benchmark fixtures; this concerns the portability fixture."
+      },
+      {
+        "question": 151,
+        "answer": "The premise conflicts with accepted direction. A24 records the user's instruction that every client gets one versioned Nx repository template and workflow contract with puni-00 as first consumer; the template contract supplies Nx/Bun targets and gateTargets are Nx targets. A non-Nx or non-Bun client is outside the personal phase by design and belongs after the A63 design-partner gate.",
+        "resolution": "Reject",
+        "planImpact": "Preserve A24's accepted template direction and the A63 customer-phase boundary; no template generalization is added.",
+        "evidence": "A24 (direction is accepted), A63; client-repositories.md Template contract; tasks.md Product phases (Customer phase).",
+        "novelty": "Not covered by questions 1–120."
+      },
+      {
+        "question": 152,
+        "answer": "Not one matrix. Compatibility is split across the repository manifest versions (templateVersion, workflowPackageVersion, planningAdapterVersion, extensionVersion), the per-run compatibility manifest (controller/graph, compiler, lock, serializer, store schema, hook and adapter digests), the compiled digest that implicitly pins execution.yaml version, and Task 14's tested compatibility matrix whose dimensions are not enumerated; worker image digests appear in none of them.",
+        "resolution": "Strengthen",
+        "planImpact": "Task 14 enumerates the matrix dimensions (control-plane build, compiler/schema, execution-profile version, template/workflow/planning-adapter/extension versions, worker image digests per pool) and requires readRepository and restoreRun to check against that same record; Task 1 adds the image dimension (question 137).",
+        "evidence": "client-repositories.md manifest fields; design.md Executable compatibility and upgrades; tasks.md Task 2, Task 14 (Pin the tested compatibility matrix); spec Executable restore compatibility.",
+        "novelty": "Question 17 pinned revisions for comparison validity; this asks for one operational matrix."
+      },
+      {
+        "question": 153,
+        "answer": "Yes, in two steps. After M1 the operator starts requests in FE or MCP, approves a plan and budget, watches ACP execution on K3s and receives an accepted, verified candidate to merge by hand; after Task 13 the same surfaces deliver to production without Task 15. Task 5.1's MCP submit_request lets an existing assistant session submit work before the OpenClaw port exists. Task 15 adds availability guarantees and durable assignment references, not the first value.",
+        "resolution": "Keep",
+        "planImpact": "Preserve the Personal loop route with Task 15 off the critical path and Task 5.1's agent-callable submit_request.",
+        "evidence": "tasks.md Technical milestones (M1 exit), Task 5.1, Task 13, Task 15; product-experience.md The first useful experience; design.md operation table (submit_request).",
+        "novelty": "Sharpens questions 5 and 127 to the value delivered before the secretary."
+      },
+      {
+        "question": 154,
+        "answer": "Stop, pause and inspect yes; recover no. command_run (pause, resume, cancel, retry, skip), get_run, list_run_events and get_capacity are MCP operations, so any authenticated MCP client works when the FE is broken. But approval, resolve_effect and release require the same human decision capability, decision tokens are minted only by the browser flow (POST /api/decision-tokens is browser only), and the only browser-free trusted path is the protected recovery command for upgrade rollback. A broken FE therefore blocks resolving an unknown effect or releasing.",
+        "resolution": "Strengthen",
+        "planImpact": "Extend the existing trusted operator command class (bootstrap, protected recovery command) with an audited local-operator decision path for resolve_effect and release, amending the spec's Caller identity and human-decision provenance from only the browser flow to any interactive human flow the operator authenticates locally or in the browser, keeping agents excluded; Task 3.2 owns it.",
+        "evidence": "design.md operation table, Human decisions, Executable compatibility and upgrades (protected recovery command); spec Caller identity and human-decision provenance, One authorized command surface; tasks.md Task 3.2, Task 5.2.",
+        "novelty": "Question 110 asked for MCP parity of reading; this asks about recovery when the decision surface is down."
+      },
+      {
+        "question": 155,
+        "answer": "Not yet. The only notification path is the optional notify-operator hook at onApproval, onFailure and onCancel, present only in the personal-delivery floor and implemented in Task 11.1, so M1 has no notifications. The lifecycle-point vocabulary has no event for a budget-threshold crossing, an effect entering unknown (run reconciling) or a run entering awaiting_release, so cap pressure, stuck recovery and production readiness cannot be hooked at all; the grill's deduplicated threshold events exist as ledger events without a delivery path.",
+        "resolution": "Strengthen",
+        "planImpact": "Add onBudgetThreshold, onReconciling and onAwaitingRelease (wildcard-only, like onProfileChange) to the spec's Lifecycle points event list and execution.yaml, attach notify-operator to them, and require Task 11.1's notifications to deduplicate per subject and carry one actionable link.",
+        "evidence": "execution.yaml hooks notify-operator, repositoryFloor.revisions.personal-delivery.hooks; spec Lifecycle points are the one key space; design.md Stages, activities and the execution profile (events), Budget accounts and clocks (threshold events); tasks.md Task 11.1; uber-efficiency-grill.md questions 52 and 101.",
+        "novelty": "Question 101 bounded alert noise; this asks whether the necessary alerts can be delivered at all."
+      },
+      {
+        "question": 156,
+        "answer": "Partly. Task 5.4 tests keyboard, accessibility and browser default actions in Chromium for the M1 routes including approval and recovery, and must not change what 5.2 and 5.3 display; accessibility preferences is a presentation setting. Task 13's release command UI and Task 16.2's overview carry no accessibility obligation, and the repository's own history shows keyboard faults appear only in a real browser.",
+        "resolution": "Strengthen",
+        "planImpact": "Add Task 5.4's Chromium keyboard/accessibility check to Task 13's release command UI and Task 16.2's intervention routes as exit tests.",
+        "evidence": "tasks.md Task 5.4, Task 13 (release command UI/MCP authority), Task 16.2; product-experience.md Presentation row; AGENTS.md Checks that cannot fail (fourteenth and fifteenth entries).",
+        "novelty": "Not covered by questions 1–120."
+      },
+      {
+        "question": 157,
+        "answer": "The layering exists structurally. A04 requires every dimension visible with origin and floor, but the run-start path is pick a delivery profile, profiles are the defaults bundle, floors bound them, overrides need a reason, and unimplemented controls are shown unavailable rather than as inert switches; the focus brief keeps detail one interaction away. That distinguishes safe defaults from advanced controls without a separate simple-mode setting.",
+        "resolution": "Keep",
+        "planImpact": "Preserve A04 and the profile-as-default mechanism; no new simplified configuration surface.",
+        "evidence": "A04, A45; product-experience.md The first useful experience, All supported settings are visible, scoped and versioned; design.md Profile resolution; tasks.md Task 5 (Unimplemented expansion controls are explicitly unavailable).",
+        "novelty": "Question 108 concerned the focus brief's metrics; this concerns configuration surface overload."
+      },
+      {
+        "question": 158,
+        "answer": "Reviewable yes, affordable unknown. Retention appears in the configuration editor with origin and the defaults are explicit (10 GiB corpus ceiling, 365-day evidence). But A66 defers measurement of growth and search performance to Task 16, after Task 13's first production outcome, and no earlier task measures bytes per retention class on hosts whose disk is unstated. Task 8's two-profile runs and scaling matrix are the first real volumes and are not asked to measure storage.",
+        "resolution": "Strengthen",
+        "planImpact": "Task 8.1 and 8.4 record measured evidence, trace and corpus bytes per retention class per run, and A66's ceiling is confirmed or revised from that measurement before Task 13's production release rather than at Task 16.",
+        "evidence": "execution.yaml retention; A17, A54, A66 (Task 16 measures growth); tasks.md Task 8.1, Task 8.4, Task 16.1; product-experience.md Retention row.",
+        "novelty": "Question 54 deferred trace analysis; retention cost was not asked."
+      },
+      {
+        "question": 159,
+        "answer": "Deferred, and each retained abstraction carries a personal-phase invariant. Customer tenancy, packaging, support and recovery wait for A63's named partner. Organization and actor ownership from the first write (A02, A35) are what make the reproducible compile digest and immutable floors work for M1's factory-core; client isolation is exercised from Task 2 onward because puni-00 and the clean fixture are two repositories; the organization snapshot supplies the rate card that strict money caps need. The added personal cost is three privileged operations and one bootstrap command.",
+        "resolution": "Keep",
+        "planImpact": "Preserve A02, A35 and the A63 gate; no customer-phase change enters the plan.",
+        "evidence": "A02, A35, A63; tasks.md Product phases (Customer phase), Task 2, Task 3 (client-B isolation), Task 8.1; design.md Single workflow source (organization snapshot), operation table (privileged operations); uber-efficiency-grill.md question 9.",
+        "novelty": "Sharpens question 9 by checking each retained abstraction for an immediate invariant."
+      },
+      {
+        "question": 160,
+        "answer": "Not bounded. 8.4 is four capacities times five repetitions times three workloads, sixty runs each under a sufficient strict cap plus human approvals, with no total elapsed, spend ceiling or regression subset; benchmark spend needs a separate explicit allowance of unstated size. Task 13's exit tests require real staging deployments and Browserbase sessions, and the 30-day release-window and 2-hour release-envelope expiries are listed as tests without saying they run on an injected asOf rather than wall-clock waiting.",
+        "resolution": "Strengthen",
+        "planImpact": "Task 8.4 declares its own budget account (run count, spend ceiling, elapsed) and a regression subset (one repetition at one and four workers on the independent workload) for post-change reruns; Task 13 states that expiry tests drive the coordinator's deadline evaluation with an injected asOf.",
+        "evidence": "execution.yaml scalingAcceptance, releaseEnvelope.decisionDeadlineAfterHandoff; tasks.md Task 8 (Benchmark spend requires a separate explicit allowance), Task 8.4, Task 13 exit tests; spec Run clocks preserve distinct time quantities (asOf).",
+        "novelty": "Question 40 bounded optimization analysis; this bounds the acceptance proofs themselves."
+      }
+    ],
+    "verdict": "Feasible as a document-backed contract, not yet viable to execute as written. On paper the plan has no prerequisite cycle, proves durable restart first, models its single failure domains, preserves workspace and publication isolation, keeps planning authority atomic, and genuinely defers customer scope. Four things keep it short of viable: the highest-risk external evidence (live ACP capability, provider usage signals, K3s runtime isolation, host and credential readiness) arrives only at Task 6; the personal-loop cost is unsummed and has no program-level stop rule; several checkboxes hide multi-week batches; and four operational gaps have no owner (routine backup and restore, recovery when evidence storage is down, permanently held reservations, and a browser-only decision path). Nothing in the manifest is runtime evidence, and no answer here is a human approval.",
+    "recommendedPlanCorrections": [
+      "Task 1: add checkbox 1.3 with an authenticated ACP capability and usage-signal probe plus k3s-preflight and runtime-class probe as go/no-go before Task 2 (Q123).",
+      "tasks.md Common execution contract: state that Tasks 1–8 execute under the M0 workflow with a manually recorded ledger; the first factory-executed slice is Task 14 (Q121).",
+      "tasks.md Product phases: publish the summed personal-loop planning range with the re-estimate checkpoint, and make Task 8.4's re-estimate a recorded go/no-go with a threshold entry in assumptions.md (Q130, Q131).",
+      "Split Task 6.2 and Task 13.3 into single-receipt checkboxes (Q129).",
+      "Task 6.2: add the M1 readiness gate (hosts and allowance, registry pull path, provider quota, operator OIDC issuer, h3mon sink); specify workspace persistence and reclamation ordering; annotate images with build inputs and retain referenced digests (Q125, Q143, Q144).",
+      "Task 3.1: carry openConnection pragma assertions and the bun:sqlite import lint into the shared library; Task 4.5 records host fsync characteristics (Q124).",
+      "Task 4.2: add a per-resource operator release disposition to resolve_effect, and prove cancel/fence/abandon still commit with the evidence store unavailable (Q142, Q139).",
+      "Task 3.2 and spec Caller identity: add an audited local-operator decision path for resolve_effect and release alongside the browser flow, agents still excluded (Q154).",
+      "Task 13 exit tests: backup and restore rehearsal of both stores, outbox and evidence before production-deploy registration, with an RPO/RTO working answer in assumptions.md; expiry tests on injected asOf; Chromium accessibility on the release UI (Q132, Q133, Q160, Q156).",
+      "Task 8.4: state the approval mechanism and report operator decision count and wait share; declare the matrix's own budget account and a regression subset; record storage bytes per retention class; name where unconstrained build/browser slots come from, with Task 4.4 recording today's gate durations (Q126, Q160, Q158, Q145).",
+      "Task 7.2: stamp evidence and traces with retention class and terminal timestamp and expose measured bytes; Task 16 names the A17 expiry owner (Q138).",
+      "Compatibility manifest: add worker image digest per pool; Task 14 enumerates the single compatibility matrix's dimensions (Q137, Q152).",
+      "execution.yaml and spec: add a providerUnavailable attempt outcome to the escalation vocabulary; add onBudgetThreshold, onReconciling and onAwaitingRelease lifecycle events and attach notify-operator (Q140, Q155).",
+      "Task 6.3: add a mid-attempt credential rotation test (Q134).",
+      "Task 8.1: bind a distinct organization snapshot and OIDC client to the generated client fixture (Q150).",
+      "Task 8: reword the heading to Accept the first factory-core run and state that the accepted candidate is unpublished until Task 13 (Q128)."
+    ]
+  }
+}

@@ -198,6 +198,12 @@ The immutable, digest-identified result of compiling a workflow definition,
 execution profile, repository manifest, and organization snapshot for a run.
 _Avoid_: Config snapshot, graph
 
+**Compatibility manifest**:
+The retained record that binds a run to its controller, compiler/schema,
+execution-profile and adapter versions and each capability pool's worker-image
+digest for restore and upgrade checks.
+_Avoid_: Lockfile, latest versions, image tag
+
 **Execution profile**:
 The versioned repository file that defines stage prerequisites, artifact mappings,
 the activity catalog, lifecycle policy, hooks, and delivery profiles.
@@ -252,6 +258,11 @@ An externally visible action a worker requests, recorded with a stable identity
 before dispatch so its outcome can be reconciled.
 _Avoid_: Side effect, call, tool use
 
+**Recovery disposition**:
+An audited, revision-checked operator decision that may release one named resource
+from out-of-band evidence while leaving its uncertain effect outcome unchanged.
+_Avoid_: Effect resolution, force release, completion
+
 **Workspace lineage**:
 The sequence of attempts that write to one repository checkout; one writer holds
 it at a time.
@@ -273,6 +284,12 @@ _Avoid_: Current profile, profile change
 The bounded sequence of models an activity class moves through when an attempt
 ends in refusal, gate failure or a blocking finding.
 _Avoid_: Fallback, retry policy
+
+**Provider-unavailable outcome**:
+An attempt outcome stating that its selected provider could not serve it; it may
+trigger only bounded same-model retry and consumes no rework round or escalation
+step.
+_Avoid_: Failure, refusal, fallback
 
 **Rate card**:
 The organization's versioned prices for measured provider usage, with effective
@@ -364,8 +381,9 @@ settings may not loosen.
 _Avoid_: Default, baseline
 
 **Decision token**:
-A short-lived credential issued by the interactive browser flow that binds one
-human decision to one subject and consumer and authorizes at most one decision command.
+A short-lived credential issued by an authenticated interactive human flow that
+binds one human decision to one subject and consumer and authorizes at most one
+decision command.
 _Avoid_: Approval token, bearer token
 
 **Discovery envelope**:

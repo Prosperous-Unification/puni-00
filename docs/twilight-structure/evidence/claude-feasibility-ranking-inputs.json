@@ -1,0 +1,82 @@
+{
+  "baseCommit": "fe4ce9a106d783587451c847eb77009f534ee753",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "412dcfa22531beeffe4f9b35fb5c5531cf0fabfd40dc8b7b28c48723ef6b0314"
+    },
+    {
+      "path": "LLM_README.md",
+      "sha256": "4e23704d54af597022b4881358fb9545fa41033db14c073b4ed33c70bda2bfea"
+    },
+    {
+      "path": "docs/twilight-structure/README.md",
+      "sha256": "c5ccf4e1c09e6843bc8a7c0831a5a6fa000ebcbb8646bef8253c79ac4ce34695"
+    },
+    {
+      "path": "docs/twilight-structure/CONTEXT.md",
+      "sha256": "c86b4bfdbcb3c4d61d1f409853389e4fb394aaac77375131c0f5fd48759ddd17"
+    },
+    {
+      "path": "docs/twilight-structure/assumptions.md",
+      "sha256": "03bae585edb54b5017d51c19da0a99de5f3e63ddb84ee29006ba37064b335d6b"
+    },
+    {
+      "path": "docs/twilight-structure/sdlc-stages.md",
+      "sha256": "1bfd6740d4de284025a03458bacfd0d54590ad4c5eedc22caa29655266fdd13f"
+    },
+    {
+      "path": "docs/twilight-structure/product-experience.md",
+      "sha256": "e018162bdaa36943e574db54db3d982d62a5a7b93596c2b192dcffffb74821e3"
+    },
+    {
+      "path": "docs/twilight-structure/client-repositories.md",
+      "sha256": "6fc48e0373ffbce8b5c1146adb4bf8712c509b5197d6692ce9e4229e13f6a774"
+    },
+    {
+      "path": "docs/twilight-structure/evidence/uber-efficiency-grill.md",
+      "sha256": "58407271071ecc5ef43a6ea0e10444593b43997697ddf0d74f95a2fb22644733"
+    },
+    {
+      "path": "docs/twilight-structure/evidence/claude-feasibility-questions.md",
+      "sha256": "37c536597fecbe9a735a56796d78b9b7cc25cc25f79a0a26a8bf4bc99d024d66"
+    },
+    {
+      "path": "openspec/changes/twilight-control-plane/design.md",
+      "sha256": "fac2cb7c71427ddb9e6c08bafae58fc4d0cc6b0800b56399b21f2f3f62ca1370"
+    },
+    {
+      "path": "openspec/changes/twilight-control-plane/tasks.md",
+      "sha256": "8cd48d9fc1c689e11a83b550a35f334276b5ea7f5e8e7ec7515a1a13ccf61d21"
+    },
+    {
+      "path": "openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md",
+      "sha256": "83567944843e76d9f3712f988ef0bd53ce230e3aa7e15a6d66683aaf22cb74d4"
+    },
+    {
+      "path": "openspec/changes/twilight-control-plane/verify.md",
+      "sha256": "abade697b4507d2ab00c08afeab0af0cd12c2ac19f603d2b2746b72456177632"
+    },
+    {
+      "path": "openspec/schemas/twilight-v1/execution.yaml",
+      "sha256": "c289c112f93262b778c09fc659f864f2fb42bcc8ec34e7f7cf27503f6e8a1814"
+    },
+    {
+      "path": "docs/adr/0015-planning-commits-are-the-transaction-boundary.md",
+      "sha256": "bcbd4f273a9adc50b23c4b53ea21db91da1768a334bf16ca78b81541adb1386b"
+    },
+    {
+      "path": "docs/adr/0016-k3s-schedules-the-expandable-worker-pool.md",
+      "sha256": "65c6d8f99cf368296c86d0e0567c6bd67ec3a0ad3cbf55f3dcfdbc8cd4de1e5e"
+    },
+    {
+      "path": "docs/twilight-structure/evidence/claude-feasibility-answer-receipt.json",
+      "sha256": "747738f28b5dfea8492dc2944ed8bf4b0e3f5edf7e665d88e6707c7a183c425d"
+    },
+    {
+      "path": "docs/twilight-structure/evidence/claude-feasibility-ranking-prompt.md",
+      "sha256": "352ae124917b2cba8165a1481851aa778648c5a5d0b01fa4ac960cad2109b716"
+    }
+  ],
+  "purpose": "Independent Fable ranking of feasibility answers 121–160"
+}

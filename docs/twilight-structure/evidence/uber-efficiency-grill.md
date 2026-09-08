@@ -7,8 +7,11 @@ in Uber Engineering's 2026-08-28 article,
 where they fit a personal-first factory. Uber's reported fleet measurements are
 context, not performance claims for Twilight.
 
-The review has two bounded passes. The first stopped after questions 1–60; after a
-request for 60 more, the second stops after questions 61–120. Each answer
+The review has three bounded passes. The first stopped after questions 1–60; after a
+request for 60 more, the second stopped after questions 61–120. A feasibility pass
+then asked questions 121–160. Claude Fable 5.1 answered them from a hash-pinned
+packet and a separate fresh Fable session ranked every pair. The full third-pass
+questions, receipts and per-answer plan effects live beside this file. Each answer
 distinguishes what the current plan already proves on paper from what it still
 needs to measure in implementation. `Keep` means no plan change is recommended,
 `Strengthen` means the current contract needs a sharper acceptance obligation,
@@ -376,8 +379,8 @@ turns, token categories, tool context, failed lookups, polling, and rates.
 
 **Answer:** Eventually, within the existing access and retention boundaries. For
 one operator, on-demand analysis is sufficient until trace volume makes periodic
-analysis cheaper. **Resolution: Add on-demand first; schedule only after measured
-need.**
+analysis cheaper. **Resolution: Add later.** Start on demand; schedule only after
+measured need.
 
 ### 55. Which anti-patterns deserve first-class detection first?
 
@@ -418,7 +421,8 @@ fleet dashboard to M1. Add breakable observations for the cost/request/turn/toke
 tree and tool/context overhead to the existing ledger; show live cap headroom;
 then make Task 11 own per-activity real-work benchmarks, Pareto recommendations,
 lazy authorized tool loading, bounded compound effects, and skill-papercut
-proposals. **Resolution: Recommended plan correction.**
+proposals. **Resolution: Strengthen.** Apply this smallest coherent plan
+correction.
 
 ## Attribution and measurement validity
 
@@ -788,8 +792,8 @@ needed here.
 ### 118. When should dynamic routing be reconsidered?
 
 **Answer:** After the benchmark contract has mature cohorts, effect-safe canary
-and rollback thresholds, and complete diagnostic coverage. **Resolution: Add
-later, in its own change.** Design and Task 11 already place periodic
+and rollback thresholds, and complete diagnostic coverage. **Resolution: Add later.**
+Reconsider it in its own change. Design and Task 11 already place periodic
 recommendation generation and dynamic routing outside M1.
 
 ### 119. What Uber idea remains deliberately out of scope after 120 questions?
@@ -805,7 +809,8 @@ lazy tool loading, a universal CLI projection, or automatic prompt tuning; Task
 typed attribution/allocation coverage, instrumentation-overhead classification,
 benchmark strata and uncertainty, cache/catalog security digests, canary/rollback
 for defaults, and an optimization proposal with payback and stop conditions.
-**Resolution: Recommended plan correction; stop the grill here.**
+**Resolution: Strengthen.** Apply this second-pass plan correction and stop the
+grill here.
 
 ## Consolidated findings
 
@@ -833,9 +838,27 @@ for defaults, and an optimization proposal with payback and stop conditions.
 | Defer    | Fixed cache TTLs, automatic compaction, scheduled trace analysis and dynamic routing still lack local evidence.                                                       | Later changes     |
 | Reject   | Driver counts, retrieval volume, Pareto membership or benchmark pass status must not become an opaque composite score or autonomous publication authority.            | None              |
 
+### Feasibility-pass findings
+
+The independent ranker accepted all forty answers: four ranked 5, twelve ranked 4,
+nineteen ranked 3, four ranked 2 and one ranked 1. Seven overreaches were corrected
+before plan application. The decisive questions were Q123, Q132, Q142 and Q160:
+move live provider/runtime evidence before Task 2; rehearse fresh-host restore
+before production registration; let an audited operator release one permanently
+held resource without falsifying an unknown effect; and bound the scaling matrix's
+approval, spend, elapsed time and regression subset.
+
+The [plan-impact ledger](claude-feasibility-plan-impact.md) records an explicit
+change, preservation, deferral or no-change result for every answer. The raw
+[answer receipt](claude-feasibility-answer-receipt.json) and independent
+[ranking receipt](claude-feasibility-ranking-receipt.json) retain the full
+reasoning and corrected accepted text. These are design evidence, not runtime
+proof or approval.
+
 ## Plan disposition
 
-The six P1/P2 findings were accepted into the canonical plan after the grill:
+The P1/P2 findings and the ranked feasibility corrections were accepted into the
+canonical plan after the grill:
 
 - the glossary and control-plane design distinguish an efficiency breakdown from
   an activity benchmark;

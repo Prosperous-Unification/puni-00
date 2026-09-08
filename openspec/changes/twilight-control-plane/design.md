@@ -316,7 +316,9 @@ be bound to and how single use behaves. The mechanism:
   client and audience. The browser login is authorization code with PKCE, state and
   nonce validation and a durable server-side session on a hardened cookie (A30).
 - `POST /api/decision-tokens` requires that session, same-origin/CSRF checks and
-  confirmation of the displayed action and subject digest. It records a short-lived,
+  confirmation of the displayed action and subject digest. The protected local
+  operator command offers the same interactive confirmation for `resolve_effect`
+  and release when the browser is unavailable. Both record a short-lived,
   single-use token bound to actor, organization, repository, action, subject,
   expected revision, expiry and intended consumer.
 - Consuming the token and committing the decision is one transaction, and the token
@@ -324,7 +326,8 @@ be bound to and how single use behaves. The mechanism:
   idempotency key, canonical parameter digest). An exact retry returns the stored
   receipt; a different command or different parameters is refused (A42).
 - The token may be handed to the authorized MCP client for that exact action.
-  Agents never receive the browser cookie or the mint capability. Twilight MCP
+  Agents never receive the browser cookie, local operator capability or the mint
+  capability. Twilight MCP
   verifies its own audience and never forwards that token to BE; it uses issuer
   token exchange or a service credential carrying the verified actor (A36).
 
@@ -427,7 +430,8 @@ reconciliation, not a transaction pretending to span two databases.
 Each run retains a compatibility manifest beside its compiled digest: controller
 and graph build, compiler version, Bun and dependency lock digest, checkpoint
 serializer and saver versions, store schema, and each hook and adapter
-implementation digest with its protocol. Configuration pins alone are not enough;
+implementation digest with its protocol, plus the worker-image digest for each
+capability pool. Configuration pins alone are not enough;
 the executable package closure is retained for every resumable run.
 
 `restoreRun` verifies availability, readability, integrity and supported
@@ -494,6 +498,11 @@ revisions, evidence references, and one of `confirm_succeeded`,
 `confirm_not_applied` needs evidence that the effect did not occur and a new
 admission. `abandon_unknown` ends dependent automatic work and keeps the outcome
 unknown. Conflicting resolutions return 409; ordinary resume cannot bypass this.
+A separate per-resource recovery disposition may release one named hold from an
+out-of-band provider-console or invoice reference without changing that outcome.
+It is audited, revision-checked and cannot release another resource. Evidence or
+telemetry unavailability is itself recorded and cannot block cancel, fence, drain
+or this disposition from committing; the aggregate remains `reconciling`.
 
 ## Policy, hooks, review and capacity
 
