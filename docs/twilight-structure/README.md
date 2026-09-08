@@ -46,19 +46,20 @@ observations and Twilight proposals. An inspected API is not a tested
 integration. Where a note's proposal has since become a specified contract, the
 note links to it rather than restating it.
 
-| Question                                                            | Source findings                                                                                                                 |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| What OpenClaw supplies for the assistant and what needs integration | [Assistant runtime boundaries](research/assistant-runtime-boundary.md)                                                          |
-| How the current plan serves personal use and future customers       | [Phase dependency findings](research/phase-dependencies.md)                                                                     |
-| OpenHands, OpenClaw, LangGraph/LangChain and durable workflows      | [Runtime patterns](research/runtime-patterns.md)                                                                                |
-| Expandable execution pools and agent sandboxes                      | [Worker-pool candidates](research/worker-pools.md)                                                                              |
-| How the 160-question grill constrains the plan                      | [Decision tree](evidence/grilling-decision-tree.md), [answered efficiency corpus](evidence/uber-efficiency-grill.md)            |
-| i-have-adhd, Dahl's Wiki fork, Karpathy and Claw Patrol             | [Knowledge patterns](research/knowledge-patterns.md)                                                                            |
-| Backlog.md and WBS storage requirements                             | [Backlog patterns](research/backlog-patterns.md)                                                                                |
-| Claire and the first source inspection                              | [Initial inspection](research/initial-inspection.md), retained as dated evidence                                                |
-| OpenSpec version and schema behavior                                | [SDD source findings](sdd-sources.md)                                                                                           |
-| Earlier local helper observations                                   | [Compatibility findings](research/local-workflow-observations.md) preserved from the compacted, previously uncommitted proposal |
-| What happened in the trial                                          | [Pilot verification](../../openspec/changes/twilight-sdlc-pilot/verify.md)                                                      |
+| Question                                                                                  | Source findings                                                                                                                 |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| What OpenClaw supplies for the assistant and what needs integration                       | [Assistant runtime boundaries](research/assistant-runtime-boundary.md)                                                          |
+| How the current plan serves personal use and future customers                             | [Phase dependency findings](research/phase-dependencies.md)                                                                     |
+| OpenHands, OpenClaw, LangGraph/LangChain and durable workflows                            | [Runtime patterns](research/runtime-patterns.md)                                                                                |
+| Expandable execution pools and agent sandboxes                                            | [Worker-pool candidates](research/worker-pools.md)                                                                              |
+| How the 160-question grill constrains the plan                                            | [Decision tree](evidence/grilling-decision-tree.md), [answered efficiency corpus](evidence/uber-efficiency-grill.md)            |
+| i-have-adhd, Dahl's Wiki fork, Karpathy and Claw Patrol                                   | [Knowledge patterns](research/knowledge-patterns.md)                                                                            |
+| Backlog.md and WBS storage requirements                                                   | [Backlog patterns](research/backlog-patterns.md)                                                                                |
+| Claire and the first source inspection                                                    | [Initial inspection](research/initial-inspection.md), retained as dated evidence                                                |
+| OpenSpec version and schema behavior                                                      | [SDD source findings](sdd-sources.md)                                                                                           |
+| Earlier local helper observations                                                         | [Compatibility findings](research/local-workflow-observations.md) preserved from the compacted, previously uncommitted proposal |
+| What happened in the trial                                                                | [Pilot verification](../../openspec/changes/twilight-sdlc-pilot/verify.md)                                                      |
+| What one accepted outcome costs for a client, and whether the three pricing premises hold | [Unit economics](research/unit-economics/README.md)                                                                             |
 
 Design implications belong to the
 [control-plane design](../../openspec/changes/twilight-control-plane/design.md)
