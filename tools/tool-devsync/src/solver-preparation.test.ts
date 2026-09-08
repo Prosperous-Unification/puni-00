@@ -254,9 +254,10 @@ describe('solver binding preparation order', () => {
   it('never resets when any required preparation phase fails', async () => {
     for (const failing of ['publish', 'materialize', 'install', 'preflight'] as const) {
       const events: string[] = [];
-      const phase = async (name: typeof failing): Promise<void> => {
+      const phase = (name: typeof failing): Promise<void> => {
         events.push(name);
-        if (name === failing) throw new Error(`${name} refused`);
+        if (name === failing) return Promise.reject(new Error(`${name} refused`));
+        return Promise.resolve();
       };
 
       expect(

@@ -116,6 +116,45 @@ export interface SolverPreparationRunnerDependencies {
   command(invocation: SolverPreparationInvocation): Promise<{ exitCode: number; stderr: string }>;
 }
 
+export interface SolverBindingTarget {
+  sourceSha: string;
+  compatibilityIdentity: string;
+}
+
+export interface SolverBinding extends SolverBindingTarget {
+  image: string;
+}
+
+export interface SolverBindingPipelineDependencies {
+  publish(target: SolverBindingTarget): Promise<string>;
+  materialize(binding: SolverBinding): Promise<void>;
+  install(binding: SolverBinding): Promise<void>;
+  preflight(binding: SolverBinding): Promise<void>;
+  reset(sourceSha: string): Promise<void>;
+}
+
+/** Completes every host-owned binding phase before the live checkout can move. */
+export async function prepareSolverBindingBeforeReset(
+  target: SolverBindingTarget,
+  dependencies: SolverBindingPipelineDependencies,
+): Promise<void> {
+  if (!COMMIT_SHA.test(target.sourceSha)) throw new Error('solver binding target SHA is invalid');
+  if (!COMPATIBILITY_IDENTITY.test(target.compatibilityIdentity)) {
+    throw new Error('solver binding target compatibility identity is invalid');
+  }
+  const image = await dependencies.publish(target);
+  if (!DIGEST_PINNED_IMAGE.test(image)) {
+    throw new Error('solver binding publish result must be digest-pinned');
+  }
+  const binding: SolverBinding = { ...target, image };
+  await dependencies.materialize(binding);
+  await dependencies.install(binding);
+  await dependencies.preflight(binding);
+  // Proof: solver-preparation.test.ts makes each preceding phase throw and
+  // observes that the injected reset ledger remains empty in every case.
+  await dependencies.reset(target.sourceSha);
+}
+
 function assertTargetPath(target: SolverPreparationTarget): void {
   if (!isAbsolute(target.root) || resolve(target.root) !== target.root) {
     throw new Error('solver preparation target root must be an absolute normalized path');
