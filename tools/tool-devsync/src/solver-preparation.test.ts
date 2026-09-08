@@ -396,7 +396,7 @@ describe('solver binding retries', () => {
         checkpoints.push(state);
         return Promise.resolve();
       },
-      withHostMutationLock: (action) => action(),
+      withHostMutationLock: (action: () => Promise<void>) => action(),
       materialize: (binding: { image: string }) => {
         events.push(`materialize:${binding.image}`);
         return Promise.resolve();

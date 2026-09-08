@@ -135,7 +135,7 @@ export interface SolverBindingPipelineDependencies {
 
 export interface SolverBindingResumeDependencies extends SolverBindingPipelineDependencies {
   checkpoint(state: SolverPreparationState): Promise<void>;
-  withHostMutationLock<T>(action: () => Promise<T>): Promise<T>;
+  withHostMutationLock(action: () => Promise<void>): Promise<void>;
 }
 
 export interface SolverBindingExclusionLease {

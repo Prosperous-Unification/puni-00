@@ -104,7 +104,7 @@ export interface TargetSolverBindingDependencies {
   install(binding: SolverBinding): Promise<void>;
   preflight(binding: SolverBinding): Promise<void>;
   checkpoint(state: SolverPreparationState): Promise<void>;
-  withHostMutationLock<T>(action: () => Promise<T>): Promise<T>;
+  withHostMutationLock(action: () => Promise<void>): Promise<void>;
   reset(sourceSha: string): Promise<void>;
 }
 
