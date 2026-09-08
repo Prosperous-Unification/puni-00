@@ -136,10 +136,28 @@ describe('with-heavy-lock', () => {
     expect(run.exitCode).toBe(0);
   });
 
-  // Budget stated, not defaulted (TASK-415). Measured 2016ms on h2puni at
-  // load 7-9, a 2.5x margin on the 5000ms default -- and
-  // TASK-288 timed out on exactly this case; dfe395fd fixed inheritance, not the margin.
-  // The rule is 5x the measured floor, rounded up to the next second.
+  // The refusal must be immediate, and the case name is not what says so
+  // (TASK-423). The runner timeout below bounds the whole case, which is
+  // dominated by the holder's fixed two-second lifetime; a refusal that took
+  // nine seconds would still fit inside it. `IMMEDIATE_REFUSAL_BUDGET_MS`
+  // bounds the refusal alone, so "immediately" is checked rather than asserted
+  // by wording.
+  //
+  // Observed on h2puni at head 653ecbdd, five consecutive runs under the heavy
+  // lock: 11.9, 15.6, 16.2, 17.7, 26.3ms. 500ms is ~19x that observed ceiling
+  // — deliberately loose, because the number this must separate from is not
+  // the next millisecond but the ~2000ms a refusal that waited for the lock
+  // would cost, which is 4x the other side of this bound.
+  const IMMEDIATE_REFUSAL_BUDGET_MS = 500;
+
+  // Case budget stated, not defaulted (TASK-415). Two observations, not a
+  // floor: 2016ms on h2puni at load 7-9, and 2020ms in the sweep recorded in
+  // notes/t415-per-case-duration-sweep.txt. Both give a ~2.5x margin on the
+  // 5000ms default, and 5x either, rounded up to the next second, is 11000ms.
+  // TASK-288 timed out on exactly this case; dfe395fd fixed inheritance, not
+  // the margin. Re-derive with notes/t415-sweep.sh rather than trusting either
+  // number -- two passes over the same tree disagree by whatever the host was
+  // doing at the time.
   it('refuses immediately with exit 75 while another heavy operation owns the lock', async () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-heavy-lock-'));
     roots.push(root);
@@ -165,13 +183,22 @@ describe('with-heavy-lock', () => {
     // `'0'` is the library's own default and is passed anyway: the point of this
     // case is the no-wait branch, so it says so rather than letting the ambient
     // environment decide which branch runs.
+    const startedAt = Bun.nanoseconds();
     const refused = runWithTestLock(lock, '0');
+    const refusalMs = (Bun.nanoseconds() - startedAt) / 1e6;
     holder.kill();
     await holder.exited;
 
     // Proof: this reaches the production wrapper and distinguishes contention
     // from command failure by its dedicated conflict exit code.
     expect(refused.exitCode).toBe(75);
+    // Proof: put a `sleep 0.9` in front of the `return 75` in
+    // `bin/heavy-lock-lib.sh` and this is the only assertion in the two suites
+    // that goes red (measured 922ms). The exit code stays 75 and the case's own
+    // duration stays ~2018ms, unchanged, which is the whole point: the runner
+    // timeout above cannot see a delayed refusal, because it is not what
+    // dominates the case.
+    expect(refusalMs).toBeLessThan(IMMEDIATE_REFUSAL_BUDGET_MS);
   }, 11000);
 
   it('queues for the wait budget instead of refusing, and takes the lock when the holder releases it', async () => {
