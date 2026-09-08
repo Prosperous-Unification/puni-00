@@ -25,7 +25,7 @@ FIXTURES = PACKAGE_ROOT.parents[1] / "libs" / "contracts" / "solver" / "fixtures
 sys.path.insert(0, str(SRC))
 
 from wbs_solver import __version__, cli  # noqa: E402
-from wbs_solver.solve import SolveFailed  # noqa: E402
+from wbs_solver.solve import ModelInvalid, SolveFailed  # noqa: E402
 
 
 def run_cli(stdin: bytes, args: list[str] | None = None) -> subprocess.CompletedProcess[bytes]:
@@ -178,6 +178,32 @@ class AnsweredRequests(unittest.TestCase):
         self.assertEqual(sorted(response["offsets"].values()), [0, 10, 20])
         self.assertEqual(response["wireVersion"], 1)
 
+    def test_search_workers_are_process_metadata_and_reach_the_solver_config(self) -> None:
+        request = (FIXTURES / "valid-quantised-baseline.json").read_bytes()
+        out, err = io.StringIO(), io.StringIO()
+        seen: list[tuple[int, int | None]] = []
+
+        def answer(parsed: object, config: object) -> dict[str, object]:
+            seen.append((config.num_search_workers, config.child_deadline_epoch_ms))
+            return {"wireVersion": 1, "status": "infeasible"}
+
+        with (
+            mock.patch.object(cli, "read_request", return_value=request),
+            mock.patch.object(cli, "solve_request", side_effect=answer),
+            contextlib.redirect_stdout(out),
+            contextlib.redirect_stderr(err),
+        ):
+            code = cli.main(
+                ["--search-workers", "3", "--child-deadline-epoch-ms", "12345"]
+            )
+        self.assertEqual(code, cli.EXIT_OK)
+        self.assertEqual(seen, [(3, 12345)])
+
+    def test_non_positive_search_worker_count_is_refused_before_reading(self) -> None:
+        with mock.patch.object(cli, "read_request") as read:
+            self.assertEqual(cli.main(["--search-workers", "0"]), cli.EXIT_BAD_REQUEST)
+        read.assert_not_called()
+
     def test_an_infeasible_plan_is_a_response_and_not_a_failure(self) -> None:
         """`valid-two-slices.json` is schema-valid with a width-5 slice on a
         capacity-2 pool. Stage 1 INFEASIBLE is a typed outcome the wire carries,
@@ -221,6 +247,34 @@ class UnencodableOutcomes(unittest.TestCase):
         self.assertEqual(code, cli.EXIT_INTERNAL)
         self.assertEqual(out.getvalue(), "")
         self.assertIn("stage 2 is infeasible", err.getvalue())
+
+    def test_a_refused_model_exits_71_and_not_70(self) -> None:
+        """TASK-310, and the pair above is half of the same control.
+
+        `ModelInvalid` is a `SolveFailed`, so an entrypoint that caught the base
+        class first would return `70` here and the coordinator would record
+        `invalid-output` for a fault on this side of the seam. Asserting `71`
+        alone would pass under a handler that returned `71` for BOTH, so the
+        two cases are only a control together: this one is `71`, the one above
+        is `70`, and stdout stays empty on both.
+        """
+        request = (FIXTURES / "valid-quantised-baseline.json").read_bytes()
+        out, err = io.StringIO(), io.StringIO()
+        with (
+            mock.patch.object(cli, "read_request", return_value=request),
+            mock.patch.object(
+                cli,
+                "solve_request",
+                side_effect=ModelInvalid("stage 1 (MAKESPAN) returned MODEL_INVALID"),
+            ),
+            contextlib.redirect_stdout(out),
+            contextlib.redirect_stderr(err),
+        ):
+            code = cli.main([])
+        self.assertEqual(code, cli.EXIT_MODEL_INVALID)
+        self.assertNotEqual(cli.EXIT_MODEL_INVALID, cli.EXIT_INTERNAL)
+        self.assertEqual(out.getvalue(), "")
+        self.assertIn("MODEL_INVALID", err.getvalue())
 
     def test_the_same_seam_answers_normally_when_the_solve_succeeds(self) -> None:
         """The slack half: the patched harness is not what empties stdout."""

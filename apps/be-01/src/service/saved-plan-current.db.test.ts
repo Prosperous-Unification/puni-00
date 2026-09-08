@@ -16,6 +16,7 @@ import type { Connection } from '../repository/db';
 import { openConnection } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
+import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
@@ -25,6 +26,7 @@ import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { savedPlan } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
+import { nodeDigest } from '../runtime/bun-runtime';
 import { projectRow } from '../testing/project-fixture';
 import { SavedPlanService } from './saved-plan.service';
 import { schedulePlanInput } from './saved-plan-schedule';
@@ -82,6 +84,7 @@ describe('projecting the live plan as a comparison side', () => {
     serviceId: null,
     maxParallel: 1,
     startNoEarlierThanReason: null,
+    deadline: null,
     revision: 0,
   });
 
@@ -92,11 +95,11 @@ describe('projecting the live plan as a comparison side', () => {
     runMigrations(path, FOLDER);
     const seed = openConnection(path);
     const db = seed.db;
-    await new UserRepository(db).create(
+    await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db).create(
+    await new ProjectRepository(db, OPEN).create(
       projectRow({
         id: 'p1',
         name: 'Rewire the shed',
@@ -107,11 +110,11 @@ describe('projecting the live plan as a comparison side', () => {
       [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10 }],
       wrote,
     );
-    const directory = new DirectoryRepository(db);
+    const directory = new DirectoryRepository(db, OPEN);
     await directory.addTeam({ id: 't-platform', name: 'Platform' }, wrote);
     await directory.addPerson({ id: 'pp-ada', name: 'Ada' }, ['t-platform'], wrote);
-    await new CapacityRepository(db).set('p1', 't-platform', 4, wrote);
-    const items = new WorkItemRepository(db);
+    await new CapacityRepository(db, OPEN).set('p1', 't-platform', 4, wrote);
+    const items = new WorkItemRepository(db, OPEN);
     await items.insert(item('wi-1', 10), [], wrote);
     await items.insert(item('wi-2', 20), [], wrote);
     seed.close();
@@ -136,6 +139,7 @@ describe('projecting the live plan as a comparison side', () => {
     schedule: (reads: PlanInputReads) => Schedule = schedulePlanInput,
   ): SavedPlanService =>
     new SavedPlanService({
+      digest: nodeDigest,
       capture: new SavedPlanCaptureRepository({ openConnection: counting }),
       plans: new SavedPlanRepository({ openConnection: () => openConnection(path) }),
       newId: () => id,
@@ -227,7 +231,7 @@ describe('projecting the live plan as a comparison side', () => {
    */
   it('maps a dependency cycle to infeasible and still carries the input', async () => {
     const conn = openConnection(path);
-    const deps = new DependencyRepository(conn.db);
+    const deps = new DependencyRepository(conn.db, OPEN);
     await deps.add(
       { id: 'dep-1', projectId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
       wrote,
@@ -257,7 +261,7 @@ describe('projecting the live plan as a comparison side', () => {
     const before = await service().projectCurrentPlan('p1');
 
     const conn = openConnection(path);
-    await new WorkItemRepository(conn.db).insert(item('wi-3', 30), [], wrote);
+    await new WorkItemRepository(conn.db, OPEN).insert(item('wi-3', 30), [], wrote);
     conn.close();
 
     const after = await service('sp-2').projectCurrentPlan('p1');

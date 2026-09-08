@@ -7,14 +7,17 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
 import { openDrizzle } from '../repository/db';
+import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { PriorityBandRepository } from '../repository/priority-band';
 import { ProjectRepository } from '../repository/project';
 import { UserRepository } from '../repository/user';
+import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { AuthService } from '../service/auth.service';
 import { PriorityBandService } from '../service/priority-band.service';
 import { ProjectService } from '../service/project.service';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
+import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
@@ -86,24 +89,33 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
     const db = openDrizzle(path);
-    const projectStore = new ProjectRepository(db);
-    bands = new PriorityBandRepository(db);
+    const projectStore = new ProjectRepository(db, OPEN);
+    bands = new PriorityBandRepository(db, OPEN);
     broadcast = recordingBroadcaster();
-    const auth = new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY });
-    app = buildApp({
-      auth,
+    const auth = new AuthService({
+      users: new UserRepository(db, OPEN),
+      tokens: joseTokenCodec(TEST_JWT_KEY),
+      passwords: bunPasswordHasher,
+    });
+    const writing = {
       projects: new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() }),
       directory: testDirectoryService(),
       capacity: testCapacityService(),
       priorityBands: new PriorityBandService({ projects: projectStore, bands, broadcast }),
-      history: testHistoryService(projectStore),
+      calendarMarkers: testCalendarMarkerService(),
       steps: testStepService(),
       workItems: testWorkItemService(),
+    };
+    app = buildApp({
+      ...writing,
+      appOrigin: 'http://localhost',
+      auth,
+      history: testHistoryService(projectStore),
       savedPlans: testSavedPlanService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
-      writes: testWrites(),
+      writes: testWrites(undefined, writing),
       migrationsApplied: true,
     });
 
@@ -142,7 +154,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
     const response = await app.handle(
       new Request('http://localhost/api/auth/register', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { origin: 'http://localhost', 'content-type': 'application/json' },
         body: JSON.stringify({ username, password: 'correct-horse' }),
       }),
     );

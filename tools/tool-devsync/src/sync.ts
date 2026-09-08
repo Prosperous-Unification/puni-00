@@ -13,11 +13,157 @@
  *
  * Run via: `bun tools/tool-devsync/src/sync.ts <sha>`.
  */
+import {
+  SOLVER_SUPERVISOR_BUN,
+  SOLVER_SUPERVISOR_BUNDLE,
+  SOLVER_SUPERVISOR_CONFIG,
+  SOLVER_SUPERVISOR_SERVICE,
+  SOLVER_SUPERVISOR_SOCKET,
+} from '@wbs/deploy-contract';
 import { $ } from 'bun';
 
 const SRC = '/home/puni1/wbs-dev/src';
 const CONTAINER = 'wbs-dev-src';
 const LOCK = '/home/puni1/wbs-dev/state/devsync.lock';
+const CONFIG_MAX_BYTES = 256 * 1024;
+export const LOCK_BUSY_EXIT_CODE = 75;
+export const SOLVER_COMPATIBILITY_PATHS = ['libs/solver-py', 'apps/be-01/Dockerfile'] as const;
+
+export interface DevSolverMapping {
+  sourceSha: string;
+  image: string;
+}
+
+/** Reads only the independent compatibility identity; the supervisor decodes the whole file. */
+export function devSolverMappingOf(text: string): DevSolverMapping {
+  const value = JSON.parse(text) as unknown;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('solver supervisor config root is not an object');
+  }
+  const config = value as Record<string, unknown>;
+  const sourceSha = config['devSourceSha'];
+  if (typeof sourceSha !== 'string' || !/^[0-9a-f]{40}$/.test(sourceSha)) {
+    throw new Error('solver supervisor config has no valid devSourceSha');
+  }
+  const images = config['images'];
+  if (!Array.isArray(images)) throw new Error('solver supervisor config images is not an array');
+  const devRules = images.filter(
+    (rule) =>
+      typeof rule === 'object' &&
+      rule !== null &&
+      !Array.isArray(rule) &&
+      (rule as Record<string, unknown>)['callerName'] === 'wbs-dev-src',
+  );
+  if (devRules.length !== 1) throw new Error('solver supervisor config needs one dev image rule');
+  const image = (devRules[0] as Record<string, unknown>)['solverImage'];
+  if (typeof image !== 'string' || !/^[^\s@]+@sha256:[0-9a-f]{64}$/.test(image)) {
+    throw new Error('solver supervisor config dev image is not digest-pinned');
+  }
+  return { sourceSha, image };
+}
+
+export function assertDevSolverSourceCompatible(changedPaths: readonly string[]): void {
+  if (changedPaths.length === 0) return;
+  throw new Error(
+    `dev solver mapping is stale for ${changedPaths.join(', ')}; publish the backend image and materialize a new supervisor config before deploying`,
+  );
+}
+
+export interface SolverPreflightDependencies {
+  currentSha(): Promise<string>;
+  changedPaths(from: string, to: string): Promise<readonly string[]>;
+  readConfig(): Promise<Uint8Array | undefined>;
+  requireHost(image: string): Promise<void>;
+}
+
+async function changedSolverPaths(from: string, to: string): Promise<readonly string[]> {
+  return (
+    await $`git -C ${SRC} diff --name-only ${from} ${to} -- ${SOLVER_COMPATIBILITY_PATHS}`.text()
+  )
+    .split('\n')
+    .filter((path) => path !== '');
+}
+
+const SOLVER_PREFLIGHT_DEPENDENCIES: SolverPreflightDependencies = {
+  currentSha: async () => (await $`git -C ${SRC} rev-parse HEAD`.text()).trim(),
+  changedPaths: changedSolverPaths,
+  readConfig: async () => {
+    const file = Bun.file(SOLVER_SUPERVISOR_CONFIG);
+    if (!(await file.exists())) return undefined;
+    return new Uint8Array(await file.slice(0, CONFIG_MAX_BYTES + 1).arrayBuffer());
+  },
+  requireHost: async (image) => {
+    await $`systemctl --user is-active --quiet ${SOLVER_SUPERVISOR_SERVICE}`;
+    await $`test -S ${SOLVER_SUPERVISOR_SOCKET}`;
+    await $`${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --preflight=dev --config=${SOLVER_SUPERVISOR_CONFIG} --solver-image=${image}`;
+  },
+};
+
+/** Solver host state is a deploy prerequisite only when its compatibility inputs move. */
+export async function preflightSolver(
+  sha: string,
+  dependencies: SolverPreflightDependencies = SOLVER_PREFLIGHT_DEPENDENCIES,
+): Promise<void> {
+  const deployedSha = await dependencies.currentSha();
+  const targetChanges = await dependencies.changedPaths(deployedSha, sha);
+  const bytes = await dependencies.readConfig();
+  if (bytes === undefined) {
+    if (targetChanges.length === 0) return;
+    throw new Error(
+      `solver compatibility inputs changed (${targetChanges.join(', ')}), but ${SOLVER_SUPERVISOR_CONFIG} is missing; run materialize-solver-supervisor-config and install-solver-supervisor before deploying`,
+    );
+  }
+  if (bytes.byteLength === 0 || bytes.byteLength > CONFIG_MAX_BYTES) {
+    throw new Error(
+      `solver supervisor config must contain 1 through ${String(CONFIG_MAX_BYTES)} bytes`,
+    );
+  }
+  const mapping = devSolverMappingOf(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  const changed = await dependencies.changedPaths(mapping.sourceSha, sha);
+  assertDevSolverSourceCompatible(changed);
+  // Proof: sync.test.ts stages a future mapping before an unrelated target and
+  // observes refusal before its injected host preflight can run.
+  if (targetChanges.length === 0) return;
+  await dependencies.requireHost(mapping.image);
+}
+
+export function devSyncFailureMessage(exitCode: number): string {
+  return exitCode === LOCK_BUSY_EXIT_CODE
+    ? '[dev-sync] skipped: another deploy holds the lock'
+    : `[dev-sync] failed (exit ${String(exitCode)}); see the error above`;
+}
+
+export interface DevSyncLockOptions {
+  bunPath?: string;
+  flockPath?: string;
+  lockPath?: string;
+  scriptPath?: string;
+}
+
+/** Runs the production child invocation under the deploy lock. */
+export async function runDevSyncLock(
+  sha: string,
+  options: DevSyncLockOptions = {},
+): Promise<number> {
+  // `process.execPath`, never a bare `bun`. The child is the process that
+  // resets, installs, restarts and runs the solver preflight -- the parent
+  // only waits on it -- so the child is the run whose interpreter matters.
+  // `bin/dev-poll-sync.sh` refuses to start this tool unless the managed
+  // interpreter matches `.bun-version`, and a default of `'bun'` handed that
+  // decision back to PATH one process later. Measured on h2puni 2026-09-07:
+  // the poller's own binary was 1.4.2, `.bun-version` and CI pin 1.3.14, and
+  // every logged deploy footer said `Bun v1.2.20` -- the root-owned
+  // /usr/local/bin/bun the child resolved to.
+  const bunPath = options.bunPath ?? process.execPath;
+  const flockPath = options.flockPath ?? 'flock';
+  const lockPath = options.lockPath ?? LOCK;
+  const scriptPath = options.scriptPath ?? import.meta.path;
+  // Proof: removing `-E 75` failed the production-invocation test's exact argv
+  // assertion: Expected began "-E", "75"; Received began "-n", devsync.lock.
+  const run =
+    await $`${flockPath} -E ${LOCK_BUSY_EXIT_CODE} -n ${lockPath} ${bunPath} ${scriptPath} --locked ${sha}`.nothrow();
+  return run.exitCode;
+}
 
 /**
  * Paths whose change a running dev environment cannot pick up by itself.
@@ -63,24 +209,14 @@ export const RESTART_PATHS: readonly string[] = [
   'libs/auth/project.json',
   'libs/config/project.json',
   'libs/contracts/project.json',
+  'libs/core/project.json',
   'libs/domain/project.json',
   'libs/observability/project.json',
   'libs/realtime/project.json',
+  // Proof: removing this entry failed `names every library project.json that exists on disk`
+  // on `Expected to contain: "libs/runtime-portable/project.json"`.
+  'libs/runtime-portable/project.json',
   'libs/validation/project.json',
-  // `libs/solver-py` is a Python package and carries no `project.json` at all.
-  // The entry is here anyway because `sync.test.ts` derives the expected path
-  // from the DIRECTORY name rather than from the file existing — its title says
-  // "every library project.json that exists on disk" and its body never checks
-  // existence, and solver-py is the first library to expose that gap. Listing
-  // an absent path is inert: `hashPath` swallows the miss and returns the same
-  // value before and after, so it can never trigger a restart, and the entry
-  // starts working by itself if the library ever gains one.
-  //
-  // It is NOT the right entry for this library's real restart hazard. A change
-  // to `requirements.lock` or `pyproject.toml` cannot be picked up by a Bun
-  // watcher either, and that belongs here — but only once slice 6's launcher
-  // makes the dev environment run the solver at all. Until then there is no
-  // process to restart. TASK-220.
   'libs/solver-py/project.json',
 ];
 
@@ -148,6 +284,7 @@ export async function sync(sha: string, options: { mcpEnvPath?: string } = {}): 
   const containerBefore = await fingerprint(RECREATE_PATHS);
 
   await $`git -C ${SRC} fetch --quiet origin`;
+  await preflightSolver(sha);
   await $`git -C ${SRC} reset --hard --quiet ${sha}`;
 
   // The reset is only believed once HEAD says so. `git reset` on a SHA the
@@ -201,13 +338,12 @@ if (import.meta.main) {
     // Two overlapping runs can interleave their fetch, reset, install and
     // restart, leaving dev on one SHA with another SHA's dependencies. flock
     // makes the whole sequence exclusive; -n fails fast rather than queueing a
-    // deploy whose operator has stopped watching.
-    const run = await $`flock -n ${LOCK} bun ${import.meta.path} --locked ${sha}`.nothrow();
-    if (run.exitCode !== 0) {
-      console.error(
-        `[dev-sync] failed (exit ${String(run.exitCode)}) -- another deploy may hold the lock`,
-      );
+    // deploy whose operator has stopped watching. The dedicated conflict exit
+    // keeps a child failure from being mislabeled as lock contention.
+    const exitCode = await runDevSyncLock(sha);
+    if (exitCode !== 0) {
+      console.error(devSyncFailureMessage(exitCode));
     }
-    process.exit(run.exitCode);
+    process.exit(exitCode);
   }
 }

@@ -3,15 +3,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { eq } from 'drizzle-orm';
 
 import { personAdded } from '../testing/directory-fixture';
 import { projectRow } from '../testing/project-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
-import { openDrizzle } from './db';
+import { type Drizzle, openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
+import { OPEN } from './gate';
 import type { Project, Step, WorkItem, WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
+import { workItem } from './schema';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
 
@@ -20,6 +23,7 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 let dir: string;
 let ownerId: string;
 let repo: DirectoryRepository;
+let db: Drizzle;
 let workItems: WorkItemRepository;
 let projectId: string;
 let stepId: string;
@@ -37,12 +41,12 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-directory-'));
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
-  const db = openDrizzle(path);
-  repo = new DirectoryRepository(db);
-  workItems = new WorkItemRepository(db);
+  db = openDrizzle(path);
+  repo = new DirectoryRepository(db, OPEN);
+  workItems = new WorkItemRepository(db, OPEN);
 
   ownerId = crypto.randomUUID();
-  await new UserRepository(db).create(
+  await new UserRepository(db, OPEN).create(
     { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
     wrote(),
   );
@@ -57,7 +61,7 @@ beforeEach(async () => {
     { id: stepId, projectId, name: 'Dev', position: 10 },
     { id: otherStepId, projectId, name: 'QA', position: 20 },
   ];
-  await new ProjectRepository(db).create(project, steps, wrote());
+  await new ProjectRepository(db, OPEN).create(project, steps, wrote());
   itemId = crypto.randomUUID();
   const item: WorkItem = workItemRow({
     id: itemId,
@@ -275,4 +279,47 @@ describe('DirectoryRepository', () => {
     });
     expect((await workItems.findById(itemId))?.serviceTeamId).toBeNull();
   });
+});
+
+describe('team removal revision consistency', () => {
+  for (const removedId of ['aaa', 'zzz']) {
+    it(`stamps each affected row once when removing team ${removedId}`, async () => {
+      await repo.addTeam({ id: 'aaa', name: 'First' }, wrote());
+      await repo.addTeam({ id: 'zzz', name: 'Second' }, wrote());
+      await workItems.patch(itemId, { teamIds: ['aaa', 'zzz'] }, wrote());
+      const untouchedId = 'untouched';
+      await workItems.insert(workItemRow({ id: untouchedId, projectId }), [], wrote());
+      const before = db.select().from(workItem).where(eq(workItem.id, itemId)).get();
+      if (before === undefined) throw new Error('fixture row missing');
+      expect(before.serviceTeamId).toBe('aaa');
+      const removalStamp = { at: 42, by: ownerId };
+
+      expect(await repo.removeTeam(removedId, false, removalStamp)).toMatchObject({
+        ok: false,
+        reason: 'in_use',
+      });
+      expect(db.select().from(workItem).where(eq(workItem.id, itemId)).get()).toEqual(before);
+      expect(await repo.removeTeam(removedId, true, removalStamp)).toMatchObject({ ok: true });
+
+      const after = db.select().from(workItem).where(eq(workItem.id, itemId)).get();
+      expect(after).toMatchObject({
+        revision: before.revision + 1,
+        updatedAt: 42,
+        createdBy: ownerId,
+        serviceTeamId: removedId === 'aaa' ? null : 'aaa',
+      });
+      const labelled = (await workItems.listByProject(projectId)).find((row) => row.id === itemId);
+      expect(labelled?.teamIds).toEqual([removedId === 'aaa' ? 'zzz' : 'aaa']);
+      expect(db.select().from(workItem).where(eq(workItem.id, untouchedId)).get()).toMatchObject({
+        revision: 0,
+        updatedAt: 1,
+        createdBy: ownerId,
+      });
+      expect(await repo.removeTeam(removedId, true, { at: 99, by: ownerId })).toEqual({
+        ok: false,
+        reason: 'not_found',
+      });
+      expect(db.select().from(workItem).where(eq(workItem.id, itemId)).get()).toEqual(after);
+    });
+  }
 });

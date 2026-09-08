@@ -9,8 +9,10 @@ The API, and the only thing that writes the database. Elysia + Drizzle +
   mutating method takes a `WriteStamp` (ADR 0012).
 - **`service/`** — the rules. `work-item.service.ts` is the big one;
   `plan-commands.ts` applies a batch as one transaction and one undo.
-- **`controller/`** — Elysia routes. They resolve nothing themselves: the caller
-  comes from `middleware/caller.ts`'s macro and arrives non-null.
+- **`controller/`** — framework-free endpoint bindings against shared shapes.
+  Each handler receives typed input and identity; `http/elysia/mount.ts` owns
+  framework parsing, policy order and reply rendering. `app.routes.test.ts`
+  proves every shape is bound once and reaches the production app.
 - **`services.ts`** — the composition. One broadcaster, one clock, one write
   lock, built once and shared, because "there is exactly one of these in the
   process" is a claim about this file rather than about the classes.

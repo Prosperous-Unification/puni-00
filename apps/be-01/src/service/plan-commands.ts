@@ -1,11 +1,24 @@
-import type { DeferringBroadcaster, HeldAnnouncement } from './broadcast';
-import type { CapacityService } from './capacity.service';
-import type { DirectoryService } from './directory.service';
-import type { OuterTransaction } from './outer-transaction';
+import type {
+  Person,
+  PersonWithTeams,
+  Service,
+  ServiceTeam,
+  Tag,
+  TeamWithServices,
+  WorkItemType,
+} from '../repository';
+import type { WritingServices } from '../services';
+import { AnnouncementCollector, type Broadcaster } from './broadcast';
+import type {
+  DirectoryOutcome,
+  DirectoryRefusal,
+  RemoveDirectoryOutcome,
+} from './directory.service';
+import type { DirectoryUsage } from './directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand, type PlanCommandKind } from './plan-command';
-import type { PriorityBandService } from './priority-band.service';
-import type { Collected, UndoOutcome, WorkItemService } from './work-item.service';
-import type { WriteLock } from './write-lock';
+import type { Decision, UnitOfWork } from './unit-of-work';
+import type { WorkItemRefusal } from './work-item.service';
+import type { Collected, UndoOutcome } from './work-item.service';
 
 /**
  * What one step of an applied batch produced: the id of anything it created,
@@ -13,43 +26,99 @@ import type { WriteLock } from './write-lock';
  * the browser's `addTeam`/`renameTag` answer with the row, and a second read
  * for what the batch just wrote would be the round trip this route removes.
  */
-export interface AppliedCommand {
+interface AppliedBase {
   index: number;
   ref?: string;
   id?: string;
-  entity?: unknown;
 }
+interface CommandEntities {
+  createTeam: ServiceTeam;
+  // Proof: widening to ServiceTeam made the actual producer type fixture report TS2578.
+  patchTeam: TeamWithServices;
+  // Proof: widening to ServiceTeam made the missing-person-kind type fixture report TS2578.
+  createPerson: Person;
+  patchPerson: PersonWithTeams;
+  createTag: Tag;
+  patchTag: Tag;
+  createService: Service;
+  patchService: Service;
+  createWorkItemType: WorkItemType;
+  patchWorkItemType: WorkItemType;
+}
+type EntityKind = keyof CommandEntities;
+type PlainKind = Exclude<PlanCommandKind, EntityKind>;
+type MintedKind = 'createWorkItem' | 'duplicateWorkItem' | Extract<EntityKind, `create${string}`>;
+// Proof: making minted id optional produced two TS2578 diagnostics in the created-result fixtures.
+type MintedBase = AppliedBase & { id: string };
+/** Internal kind identifies the producer's exact entity contract; controllers erase it from the unchanged wire. */
+export type AppliedCommand =
+  | (AppliedBase & { kind: Exclude<PlainKind, MintedKind>; entity?: never })
+  | (MintedBase & { kind: Extract<PlainKind, MintedKind>; entity?: never })
+  | {
+      [K in EntityKind]: (K extends MintedKind ? MintedBase : AppliedBase) & {
+        kind: K;
+        entity: CommandEntities[K];
+      };
+    }[EntityKind];
 
-/**
- * Why a batch was refused, and at which step. `detail` carries what the
- * refusing route carried beside its code — `taken` names the surviving entry,
- * `in_use` the usage — so a client models the refusal as it always did.
- */
-export interface BatchRefusal {
-  ok: false;
-  at: number;
-  kind: PlanCommandKind;
-  reason: string;
-  detail?: Record<string, unknown>;
-}
+type PlainReason =
+  | Exclude<WorkItemRefusal, 'deadline_before_project_start'>
+  | DirectoryRefusal
+  | 'too_many_commands'
+  | 'project_required'
+  | 'unknown_ref'
+  | 'missing_id'
+  | 'duplicate_ref';
+type Refusal =
+  | { reason: PlainReason; detail?: never }
+  | {
+      reason: 'deadline_before_project_start';
+      detail: { workItemId: string; projectDayZero: string };
+    }
+  | { reason: 'taken'; detail: { name: string } }
+  | { reason: 'in_use'; detail: { usage: DirectoryUsage } };
+/** A runtime refusal always carries its command index and recognized kind. */
+export type BatchRefusal = { ok: false; at: number; kind: PlanCommandKind } & Refusal;
+type ServiceRefusal =
+  | { ok: false; reason: PlainReason }
+  | {
+      ok: false;
+      reason: 'deadline_before_project_start';
+      workItemId?: string;
+      projectDayZero?: string;
+    }
+  | Extract<DirectoryOutcome<never> | RemoveDirectoryOutcome, { ok: false }>;
 
 export type BatchOutcome =
-  | { ok: true; results: AppliedCommand[]; undoable: boolean; redoable: boolean }
-  | BatchRefusal;
+  { ok: true; results: AppliedCommand[]; undoable: boolean; redoable: boolean } | BatchRefusal;
 
 export interface PlanCommandRunnerOptions {
-  workItems: WorkItemService;
-  directory: DirectoryService;
-  capacity: CapacityService;
-  priorityBands: PriorityBandService;
-  transactions: OuterTransaction;
-  lock: WriteLock;
   /**
-   * The broadcaster the directory, capacity and priority-band services publish
-   * through, so this runner can hold their announcements until the batch has
-   * committed and let go of the lock. See {@link DeferringBroadcaster}.
+   * The batch's own service graph, built **per batch** over the broadcaster
+   * this runner hands it (D24).
+   *
+   * A factory rather than the services themselves, and that is the whole of who
+   * owns an announcement: every batch gets its own {@link AnnouncementCollector},
+   * and the graph built over it publishes into that batch and nowhere else. A
+   * route's graph is built over the direct broadcaster and is never this one, so
+   * a committed route event cannot be dropped by somebody else's refusal.
+   *
+   * The stores underneath are the same objects every time, over an already-open
+   * gate because this runner holds the turn for them (D20). What is rebuilt per
+   * batch is the thin service layer, which holds no state but its collector.
    */
-  announcements: DeferringBroadcaster;
+  batchServices: (broadcast: Broadcaster) => WritingServices;
+  /**
+   * What the batch is one of. It takes the source's one turn for the whole act
+   * and settles every write together (ADR 0015).
+   */
+  uow: UnitOfWork;
+  /**
+   * Where a batch's collected announcements go once it has committed and let go
+   * of its turn. The **direct** broadcaster: nothing between the runner and the
+   * gateway holds anything back.
+   */
+  announcements: Broadcaster;
 }
 
 /** The kinds that need no project: the directory's. */
@@ -76,16 +145,16 @@ class Refused extends Error {
   constructor(
     readonly at: number,
     readonly kind: PlanCommandKind,
-    readonly reason: string,
-    readonly detail?: Record<string, unknown>,
+    readonly refusal: Refusal,
   ) {
-    super(`${kind} at ${String(at)}: ${reason}`);
+    super(`${kind} at ${String(at)}: ${refusal.reason}`);
   }
 }
 
 /**
  * Applies a {@link Command batch}: every step through the service it belongs
- * to, inside one {@link OuterTransaction}, behind the {@link Write lock}, then
+ * to, as one {@link Unit of work} — one {@link Turn} at the source's write
+ * coordinator, and every write settled together — then
  * one journal entry and one broadcast — `plan-commands` D2–D4 and ADR 0007.
  *
  * Refs are the runner's: a create's id is remembered under its `ref`, and any
@@ -105,8 +174,8 @@ export class PlanCommandRunner {
 
   /**
    * A batch with no project: directory commands only, for the directory page
-   * and for a model editing the directory on its own. Same lock, same outer
-   * transaction, and nothing is journalled — the directory has no undo. A plan
+   * and for a model editing the directory on its own. Same turn, same unit of
+   * work, and nothing is journalled — the directory has no undo. A plan
    * command in it has no project to land in and refuses the batch as
    * `project_required` at its index.
    */
@@ -115,8 +184,8 @@ export class PlanCommandRunner {
   }
 
   /**
-   * The lock covers the transaction and nothing after it: the broadcast is a
-   * push to gw-01 over the network, and a lock held across it would let one
+   * The turn covers the unit of work and nothing after it: the broadcast is a
+   * push to gw-01 over the network, and a turn held across it would let one
    * slow gateway stall every write in the process. Proof:
    * `plan-commands.test.ts` › lets go of the write lock before the broadcast
    * leaves — with the announce inside `lock.run` the second batch waited on a
@@ -124,8 +193,9 @@ export class PlanCommandRunner {
    *
    * That rule used to be this method's alone, and three services it calls broke
    * it by publishing from inside `applyAll`. They publish through
-   * {@link DeferringBroadcaster} now, held for the length of the transaction and
-   * drained here — so the rule is one mechanism rather than four conventions.
+   * this batch's own {@link AnnouncementCollector} now, held for the length of
+   * the unit of work and drained here — so the rule is one mechanism rather
+   * than four conventions.
    *
    * **The hold sits inside `lock.run`, not around it**, and that is not a
    * detail: `execute` runs concurrently for every queued batch and only the lock
@@ -137,120 +207,138 @@ export class PlanCommandRunner {
    * watched 2026-09-02. That *symptom* is gone since TASK-256 made the queue
    * per-caller — two concurrent holds now each get their own — but the ordering
    * is unchanged and for a second reason the symptom never named: the hold has
-   * to open after `transactions.begin()` and close before the commit, so what it
-   * collects is exactly the writes the transaction is deciding on.
+   * to open inside the unit of work's act and close before its decision, so
+   * what it collects is exactly the writes that decision is about.
    */
   private async execute(
     projectId: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
   ): Promise<BatchOutcome> {
-    const { announcements } = this.opts;
-    const done = await this.opts.lock.run(
-      async (): Promise<{
-        applied: BatchOutcome | Collected<AppliedCommand[]>;
-        pending: HeldAnnouncement[];
-      }> => {
-        const over = commands.at(MOST_COMMANDS_IN_A_BATCH);
-        if (over !== undefined) {
-          return {
-            applied: {
-              ok: false,
-              at: MOST_COMMANDS_IN_A_BATCH,
-              kind: over.kind,
-              reason: 'too_many_commands',
-            },
-            pending: [],
-          };
-        }
-        const { workItems, transactions } = this.opts;
-        transactions.begin();
-        const held = await announcements.hold(
-          async (): Promise<BatchOutcome | Collected<AppliedCommand[]>> => {
-            try {
-              const collected = await workItems.collect(() =>
-                this.applyAll(projectId, actorId, commands),
-              );
-              if (projectId !== null) {
-                await workItems.recordCollected(projectId, actorId, collected.recordings);
-              }
-              return collected;
-            } catch (cause) {
-              transactions.rollback();
-              if (cause instanceof Refused) {
-                return {
-                  ok: false,
-                  at: cause.at,
-                  kind: cause.kind,
-                  reason: cause.reason,
-                  ...(cause.detail === undefined ? {} : { detail: cause.detail }),
-                };
-              }
-              throw cause;
-            }
+    // This batch's own collector and its own graph over it. Two batches never
+    // share either, and no route's graph is built over this one.
+    const collector = new AnnouncementCollector(this.opts.announcements);
+    const graph = this.opts.batchServices(collector);
+    type Applied = BatchOutcome | Collected<AppliedCommand[]>;
+    const done = await this.opts.uow.run<Applied>(async (): Promise<Decision<Applied>> => {
+      // Proof: admitting one extra command returned404 instead of400 in the mounted cap-order case.
+      const over = commands.at(MOST_COMMANDS_IN_A_BATCH);
+      if (over !== undefined) {
+        return {
+          // Nothing was written, so there is nothing to undo — but the unit of
+          // work opened for this act all the same, and `commit: false` is how
+          // it is told to close without keeping anything. The transaction is
+          // the unit of work's to open and to close; this method no longer
+          // decides *when*, only *whether*.
+          commit: false,
+          value: {
+            ok: false,
+            at: MOST_COMMANDS_IN_A_BATCH,
+            kind: over.kind,
+            reason: 'too_many_commands',
           },
+        };
+      }
+      let applied: Applied;
+      try {
+        const collected = await graph.workItems.collect(() =>
+          this.applyAll(graph, projectId, actorId, commands),
         );
-        // A refusal already rolled the transaction back, so whatever it queued
-        // describes writes that are not there. Dropped rather than sent.
-        if ('ok' in held.result) return { applied: held.result, pending: [] };
-        transactions.commit();
-        return { applied: held.result, pending: held.pending };
-      },
-    );
-    const { applied, pending } = done;
-    if ('ok' in applied) return applied;
-    // Out of the lock and after the commit, which is what the whole hold is for.
-    await announcements.send(pending);
-    const { workItems } = this.opts;
+        if (projectId !== null) {
+          await graph.workItems.recordCollected(projectId, actorId, collected.recordings);
+        }
+        applied = collected;
+      } catch (cause) {
+        if (cause instanceof Refused) {
+          applied = { ok: false, at: cause.at, kind: cause.kind, ...cause.refusal };
+        } else throw cause;
+      }
+      // A refusal rolls the unit of work back, so whatever this batch collected
+      // describes writes that will not be there. Dropped rather than sent —
+      // which is one `if`, because the collector is this batch's alone.
+      return 'ok' in applied ? { commit: false, value: applied } : { commit: true, value: applied };
+    });
+    if ('ok' in done) return done;
+    // After the commit and after the turn is let go, which is what the whole
+    // collector is for.
+    await collector.send();
     if (projectId === null)
-      return { ok: true, results: applied.result, undoable: false, redoable: false };
-    if (applied.dirty) await workItems.announceTreeNow(projectId);
-    const state = await workItems.undoState(projectId, actorId);
-    return { ok: true, results: applied.result, ...state };
+      return { ok: true, results: done.result, undoable: false, redoable: false };
+    // Through a graph over the **direct** broadcaster, because this runs after
+    // the collector has been drained: a tree announcement made through the
+    // batch's own collector would be collected by an object nothing will drain
+    // again, and the event would never leave. It is the same reason it happens
+    // out here at all — the push is a network call and the turn is long gone.
+    const afterCommit = this.opts.batchServices(this.opts.announcements);
+    if (done.dirty) await afterCommit.workItems.announceTreeNow(projectId);
+    const state = await afterCommit.workItems.undoState(projectId, actorId);
+    return { ok: true, results: done.result, ...state };
   }
 
   undo(projectId: string, actorId: string): Promise<UndoOutcome> {
-    return this.walk(projectId, () => this.opts.workItems.undo(projectId, actorId));
+    return this.walk(projectId, (graph) => graph.workItems.undo(projectId, actorId));
   }
 
   redo(projectId: string, actorId: string): Promise<UndoOutcome> {
-    return this.walk(projectId, () => this.opts.workItems.redo(projectId, actorId));
+    return this.walk(projectId, (graph) => graph.workItems.redo(projectId, actorId));
   }
 
   /**
-   * One undo or redo inside the outer transaction. A refusal rolls everything
-   * back — a batch inverse that failed at step three has taken steps one and
-   * two back too — and then discards the stale entry again, outside the
-   * transaction, because the service's own discard went with the rollback.
+   * One undo or redo as its own unit of work. A refusal rolls everything back —
+   * a batch inverse that failed at step three has taken steps one and two back
+   * too — and then discards the stale entry again through `afterRollback`,
+   * because the service's own discard went with the rollback.
    */
-  private async walk(projectId: string, step: () => Promise<UndoOutcome>): Promise<UndoOutcome> {
-    const { transactions, workItems } = this.opts;
+  private async walk(
+    projectId: string,
+    step: (graph: WritingServices) => Promise<UndoOutcome>,
+  ): Promise<UndoOutcome> {
+    const collector = new AnnouncementCollector(this.opts.announcements);
+    const graph = this.opts.batchServices(collector);
+    const { workItems } = graph;
     // The step's own broadcast is collected rather than sent, for the reason
-    // `execute` gives: the push happens after the lock is let go.
-    const walked = await this.opts.lock.run(async () => {
-      transactions.begin();
-      let collected: Collected<UndoOutcome>;
-      try {
-        collected = await workItems.collect(step);
-      } catch (cause) {
-        transactions.rollback();
-        throw cause;
-      }
-      if (collected.result.ok) {
-        transactions.commit();
-        return collected;
-      }
-      transactions.rollback();
-      if (collected.result.entryId !== undefined) {
-        await workItems.discardEntry(collected.result.entryId);
-      }
-      return { ...collected, dirty: false };
-    });
-    if (walked.dirty) await workItems.announceTreeNow(projectId);
+    // `execute` gives: the push happens after the turn is let go.
+    const walked = await this.opts.uow.run<Collected<UndoOutcome>>(
+      async (): Promise<Decision<Collected<UndoOutcome>>> => {
+        const collected = await workItems.collect(() => step(graph));
+        if (collected.result.ok) return { commit: true, value: collected };
+        const entryId = collected.result.entryId;
+        return {
+          commit: false,
+          value: { ...collected, dirty: false },
+          // The discard the refusal owes, in the one window it can be made: the
+          // service's own went back with the rollback, and a discard issued
+          // after `run` returns would be a second batch queueing behind this
+          // one (D28).
+          //
+          // Through `workItems` rather than through the scope it is handed, and
+          // the two are the same objects: this runner's services are the batch
+          // graph, built over the **admitted** stores the unit of work hands
+          // out. What the public journal would do instead is ask the
+          // coordinator for the turn this `run` is still holding, which is a
+          // deadlock — the kit's (k) watches that through `scope.stores`. When
+          // the batch's graph is built per scope with its own collector (D24),
+          // this becomes `servicesOver(scope.stores, …).workItems`.
+          afterRollback:
+            entryId === undefined
+              ? undefined
+              : async () => {
+                  await workItems.discardEntry(entryId);
+                },
+        };
+      },
+    );
+    await collector.send();
+    // The direct broadcaster, for `execute`'s reason: the collector has been
+    // drained and will not be again.
+    if (walked.dirty) {
+      await this.opts.batchServices(this.opts.announcements).workItems.announceTreeNow(projectId);
+    }
     return walked.result;
   }
 
   private async applyAll(
+    graph: WritingServices,
     scope: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
@@ -261,67 +349,71 @@ export class PlanCommandRunner {
       // A plan command in a batch with no project has nowhere to land.
       const projectId: string = (() => {
         if (scope !== null || DIRECTORY_KINDS.has(command.kind)) return scope ?? '';
-        throw new Refused(index, command.kind, 'project_required');
+        throw new Refused(index, command.kind, { reason: 'project_required' });
       })();
       // Typed on the binding, not inferred from the arrow: TypeScript narrows
       // after a call only when the callee's `never` is declared on the name.
-      const refuse: (reason: string, detail?: Record<string, unknown>) => never = (
-        reason,
-        detail,
-      ) => {
-        throw new Refused(index, command.kind, reason, detail);
+      const refuse: (refusal: Refusal) => never = (refusal) => {
+        throw new Refused(index, command.kind, refusal);
       };
       const id = (given: string | null | undefined, ref: string | undefined): string | null => {
         if (ref !== undefined) {
           const minted = refs.get(ref);
-          if (minted === undefined) refuse('unknown_ref');
+          if (minted === undefined) refuse({ reason: 'unknown_ref' });
           return minted;
         }
         return given ?? null;
       };
       const required = (given: string | undefined, ref: string | undefined): string => {
         const found = id(given, ref);
-        if (found === null) refuse('missing_id');
+        if (found === null) refuse({ reason: 'missing_id' });
         return found;
       };
       const ids = (given: readonly string[] | undefined, named: readonly string[] | undefined) => [
         ...(given ?? []),
         ...(named ?? []).map((ref) => required(undefined, ref)),
       ];
-      const mint = (ref: string | undefined, created: string): AppliedCommand => {
+      const mint = (ref: string | undefined, created: string): MintedBase => {
         if (ref !== undefined) {
-          if (refs.has(ref)) refuse('duplicate_ref');
+          if (refs.has(ref)) refuse({ reason: 'duplicate_ref' });
           refs.set(ref, created);
         }
         return { index, ref, id: created };
       };
-      const plain = (): AppliedCommand => ({ index });
-      const { workItems, directory, capacity, priorityBands } = this.opts;
-      // A refusal's own fields ride along: `{ ok: false, reason: 'taken', name }`
-      // becomes `detail: { name }`, `in_use`'s `usage` the same way.
-      const detailOf = (outcome: {
-        ok: false;
-        reason: string;
-      }): Record<string, unknown> | undefined => {
-        const rest: Record<string, unknown> = { ...outcome };
-        delete rest['ok'];
-        delete rest['reason'];
-        return Object.keys(rest).length === 0 ? undefined : rest;
+      const plain = (): AppliedBase => ({ index });
+      const { workItems, directory, capacity, priorityBands } = graph;
+      const refuseOutcome = (outcome: ServiceRefusal): never => {
+        if (outcome.reason === 'taken')
+          return refuse({ reason: 'taken', detail: { name: outcome.name } });
+        if (outcome.reason === 'in_use')
+          return refuse({ reason: 'in_use', detail: { usage: outcome.usage } });
+        if (outcome.reason === 'deadline_before_project_start') {
+          // Proof: deleting this guard threw Malformed deadline refusal resolved in the runner negative.
+          if (typeof outcome.workItemId !== 'string' || typeof outcome.projectDayZero !== 'string')
+            throw new Error('Deadline refusal requires work item and project day zero');
+          return refuse({
+            reason: outcome.reason,
+            detail: { workItemId: outcome.workItemId, projectDayZero: outcome.projectDayZero },
+          });
+        }
+        return refuse({ reason: outcome.reason });
       };
-      const reasonOf = <T>(outcome: { ok: true; value: T } | { ok: false; reason: string }): T =>
-        outcome.ok ? outcome.value : refuse(outcome.reason, detailOf(outcome));
-      const done = (outcome: { ok: true } | { ok: false; reason: string }): AppliedCommand => {
-        if (!outcome.ok) refuse(outcome.reason, detailOf(outcome));
-        return plain();
+      const reasonOf = <T>(outcome: { ok: true; value: T } | ServiceRefusal): T =>
+        outcome.ok ? outcome.value : refuseOutcome(outcome);
+      const done = <K extends PlainKind>(kind: K, outcome: { ok: true } | ServiceRefusal) => {
+        if (!outcome.ok) refuseOutcome(outcome);
+        return { index, kind };
       };
-      const entity = (result: AppliedCommand, value: unknown): AppliedCommand => ({
-        ...result,
-        entity: value,
-      });
+      const entity = <K extends EntityKind, B extends AppliedBase>(
+        kind: K,
+        applied: B,
+        value: CommandEntities[K],
+      ) => ({ ...applied, kind, entity: value });
 
       switch (command.kind) {
         case 'createWorkItem': {
-          if (command.ref !== undefined && refs.has(command.ref)) refuse('duplicate_ref');
+          if (command.ref !== undefined && refs.has(command.ref))
+            refuse({ reason: 'duplicate_ref' });
           const created = reasonOf(
             await workItems.create(projectId, actorId, {
               parentId: id(command.parentId, command.parentRef),
@@ -335,7 +427,7 @@ export class PlanCommandRunner {
               ...(command.priority === undefined ? {} : { priority: command.priority }),
             }),
           );
-          results.push(mint(command.ref, created.id));
+          results.push({ ...mint(command.ref, created.id), kind: command.kind });
           break;
         }
         case 'patchWorkItem': {
@@ -356,7 +448,7 @@ export class PlanCommandRunner {
               resolved,
             ),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         }
         case 'moveWorkItem':
@@ -366,14 +458,15 @@ export class PlanCommandRunner {
               afterId: id(command.afterId, command.afterRef),
             }),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'duplicateWorkItem': {
-          if (command.ref !== undefined && refs.has(command.ref)) refuse('duplicate_ref');
+          if (command.ref !== undefined && refs.has(command.ref))
+            refuse({ reason: 'duplicate_ref' });
           const copy = reasonOf(
             await workItems.duplicate(required(command.workItemId, command.workItemRef), actorId),
           );
-          results.push(mint(command.ref, copy.id));
+          results.push({ ...mint(command.ref, copy.id), kind: command.kind });
           break;
         }
         case 'deleteWorkItem':
@@ -384,7 +477,7 @@ export class PlanCommandRunner {
               command.strategy ?? null,
             ),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'setEstimate':
           reasonOf(
@@ -395,7 +488,7 @@ export class PlanCommandRunner {
               command.days,
             ),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'clearEstimate':
           reasonOf(
@@ -405,7 +498,7 @@ export class PlanCommandRunner {
               command.stepId,
             ),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'setActual':
           reasonOf(
@@ -416,7 +509,7 @@ export class PlanCommandRunner {
               command.days,
             ),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'clearActual':
           reasonOf(
@@ -426,7 +519,7 @@ export class PlanCommandRunner {
               command.stepId,
             ),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'setProgress':
           reasonOf(
@@ -437,7 +530,7 @@ export class PlanCommandRunner {
               command.state,
             ),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'clearProgress':
           reasonOf(
@@ -447,7 +540,7 @@ export class PlanCommandRunner {
               command.stepId,
             ),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'setMeasure':
           reasonOf(
@@ -459,7 +552,7 @@ export class PlanCommandRunner {
               command.value,
             ),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'clearMeasure':
           reasonOf(
@@ -470,7 +563,7 @@ export class PlanCommandRunner {
               command.metric,
             ),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'setAssignee':
           reasonOf(
@@ -481,7 +574,7 @@ export class PlanCommandRunner {
               id(command.personId, command.personRef),
             ),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'addDependency':
           reasonOf(
@@ -491,7 +584,7 @@ export class PlanCommandRunner {
               required(command.predecessorId, command.predecessorRef),
             ),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'removeDependency':
           reasonOf(
@@ -501,21 +594,21 @@ export class PlanCommandRunner {
               required(command.predecessorId, command.predecessorRef),
             ),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'freezeProject':
           reasonOf(await workItems.freeze(projectId, actorId));
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'unfreezeProject':
           reasonOf(await workItems.unfreezeProject(projectId, actorId));
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'unfreezeWorkItem':
           reasonOf(
             await workItems.unfreeze(required(command.workItemId, command.workItemRef), actorId),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'setCapacity':
           reasonOf(
@@ -526,22 +619,24 @@ export class PlanCommandRunner {
               command.size,
             ),
           );
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'setPriorityBands':
           reasonOf(await priorityBands.set(projectId, actorId, command.bands));
-          results.push(plain());
+          results.push({ ...plain(), kind: command.kind });
           break;
         case 'createTeam': {
-          if (command.ref !== undefined && refs.has(command.ref)) refuse('duplicate_ref');
+          if (command.ref !== undefined && refs.has(command.ref))
+            refuse({ reason: 'duplicate_ref' });
           const team = await directory.addTeam(actorId, command.name);
-          if (team === null) refuse('name_required');
-          results.push(entity(mint(command.ref, team.id), team));
+          if (team === null) refuse({ reason: 'name_required' });
+          results.push(entity(command.kind, mint(command.ref, team.id), team));
           break;
         }
         case 'patchTeam':
           results.push(
             entity(
+              command.kind,
               plain(),
               reasonOf(
                 await directory.patchTeam(
@@ -556,6 +651,7 @@ export class PlanCommandRunner {
         case 'deleteTeam':
           results.push(
             done(
+              command.kind,
               await directory.removeTeam(
                 required(command.teamId, command.teamRef),
                 actorId,
@@ -565,7 +661,8 @@ export class PlanCommandRunner {
           );
           break;
         case 'createPerson': {
-          if (command.ref !== undefined && refs.has(command.ref)) refuse('duplicate_ref');
+          if (command.ref !== undefined && refs.has(command.ref))
+            refuse({ reason: 'duplicate_ref' });
           const person = reasonOf(
             await directory.addPerson(
               actorId,
@@ -573,12 +670,13 @@ export class PlanCommandRunner {
               ids(command.teamIds, command.teamRefs),
             ),
           );
-          results.push(entity(mint(command.ref, person.id), person));
+          results.push(entity(command.kind, mint(command.ref, person.id), person));
           break;
         }
         case 'patchPerson':
           results.push(
             entity(
+              command.kind,
               plain(),
               reasonOf(
                 await directory.patchPerson(
@@ -593,6 +691,7 @@ export class PlanCommandRunner {
         case 'deletePerson':
           results.push(
             done(
+              command.kind,
               await directory.removePerson(
                 required(command.personId, command.personRef),
                 actorId,
@@ -602,15 +701,17 @@ export class PlanCommandRunner {
           );
           break;
         case 'createTag': {
-          if (command.ref !== undefined && refs.has(command.ref)) refuse('duplicate_ref');
+          if (command.ref !== undefined && refs.has(command.ref))
+            refuse({ reason: 'duplicate_ref' });
           const tag = await directory.addTag(actorId, command.name);
-          if (tag === null) refuse('name_required');
-          results.push(entity(mint(command.ref, tag.id), tag));
+          if (tag === null) refuse({ reason: 'name_required' });
+          results.push(entity(command.kind, mint(command.ref, tag.id), tag));
           break;
         }
         case 'patchTag':
           results.push(
             entity(
+              command.kind,
               plain(),
               reasonOf(
                 await directory.renameTag(
@@ -625,6 +726,7 @@ export class PlanCommandRunner {
         case 'deleteTag':
           results.push(
             done(
+              command.kind,
               await directory.removeTag(
                 required(command.tagId, command.tagRef),
                 actorId,
@@ -637,15 +739,17 @@ export class PlanCommandRunner {
         // `createWorkItemType` refusing a duplicate ref before it writes, so a
         // batch naming one ref twice cannot mint two rows under one name.
         case 'createWorkItemType': {
-          if (command.ref !== undefined && refs.has(command.ref)) refuse('duplicate_ref');
+          if (command.ref !== undefined && refs.has(command.ref))
+            refuse({ reason: 'duplicate_ref' });
           const workItemType = await directory.addWorkItemType(actorId, command.name);
-          if (workItemType === null) refuse('name_required');
-          results.push(entity(mint(command.ref, workItemType.id), workItemType));
+          if (workItemType === null) refuse({ reason: 'name_required' });
+          results.push(entity(command.kind, mint(command.ref, workItemType.id), workItemType));
           break;
         }
         case 'patchWorkItemType':
           results.push(
             entity(
+              command.kind,
               plain(),
               reasonOf(
                 await directory.renameWorkItemType(
@@ -660,6 +764,7 @@ export class PlanCommandRunner {
         case 'deleteWorkItemType':
           results.push(
             done(
+              command.kind,
               await directory.removeWorkItemType(
                 required(command.typeId, command.typeRef),
                 actorId,
@@ -669,15 +774,17 @@ export class PlanCommandRunner {
           );
           break;
         case 'createService': {
-          if (command.ref !== undefined && refs.has(command.ref)) refuse('duplicate_ref');
+          if (command.ref !== undefined && refs.has(command.ref))
+            refuse({ reason: 'duplicate_ref' });
           const service = await directory.addService(actorId, command.name);
-          if (service === null) refuse('name_required');
-          results.push(entity(mint(command.ref, service.id), service));
+          if (service === null) refuse({ reason: 'name_required' });
+          results.push(entity(command.kind, mint(command.ref, service.id), service));
           break;
         }
         case 'patchService':
           results.push(
             entity(
+              command.kind,
               plain(),
               reasonOf(
                 await directory.renameService(
@@ -692,6 +799,7 @@ export class PlanCommandRunner {
         case 'deleteService':
           results.push(
             done(
+              command.kind,
               await directory.removeService(
                 required(command.serviceId, command.serviceRef),
                 actorId,

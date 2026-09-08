@@ -186,14 +186,34 @@ describe('two releases against one file', () => {
 });
 
 describe('one allocation', () => {
+  it('reuses the current generation when the input hash is unchanged', () => {
+    const otherCoordinator = openDrizzle(path);
+    expect(allocateGeneration(db, 'p-1', BLUE, 'h1', 10)).toBe(1);
+    seedCache(BLUE, 1, 'h1');
+    seedQueue(BLUE, 1);
+
+    expect(allocateGeneration(otherCoordinator, 'p-1', BLUE, 'h1', 11)).toBe(1);
+    expect(cacheRows()).toEqual([`${BLUE}/1/h1`]);
+    expect(queueRows()).toEqual([`${BLUE}/1`]);
+
+    // Proof: unconditionally incrementing the row returns 2 and evicts both
+    // current-key artifacts on every restart read.
+  });
+
   it('evicts only the generations below the one it just allocated', () => {
     allocateGeneration(db, 'p-1', BLUE, 'h1', 10);
     seedCache(BLUE, 1, 'h1');
     allocateGeneration(db, 'p-1', BLUE, 'h2', 11);
+
+    // 6.9c-b: the successful generation CAS authorizes this eviction. There
+    // is no child or attempt token on this cold-start allocation path.
+    expect(readGeneration(db, 'p-1', BLUE)).toMatchObject({ generation: 2, inputHash: 'h2' });
     seedCache(BLUE, 2, 'h2');
 
     // The row this allocation's own solve will write carries generation 2 and
     // must survive; a delete written as "not the current one" would race it.
+    // Watched red: suppress eviction as if a token were required and the seed
+    // above fails on the old generation's token-free primary-key occupant.
     expect(cacheRows()).toEqual([`${BLUE}/2/h2`]);
   });
 
@@ -205,8 +225,11 @@ describe('one allocation', () => {
 
     // Freeing the count before the children are proved dead is what let six
     // real children run while SQLite counted two. The owner releases its own
-    // slot; an allocation never does.
+    // slot; an allocation never does, but it does ask that old owner to stop.
     expect(slotRows()).toEqual([`${BLUE}/1`]);
+    expect(db.select({ at: solverSlot.cancelRequestedAt }).from(solverSlot).all()).toEqual([
+      { at: 11 },
+    ]);
   });
 
   it('does not reopen a draining generation or move the cancel epoch', () => {

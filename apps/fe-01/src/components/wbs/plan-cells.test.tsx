@@ -645,7 +645,7 @@ describe('the priority cell', () => {
     // Proof: the `color: paint?.ink` line deleted from `PriorityCell`, and this
     // failed on `expected '' not to be ''` — a Critical row and a Lowest row
     // drawn in one ink. Watched 2026-08-14.
-    const api = await twoRows();
+    await twoRows();
     typeIntoPriority('010', '5');
     await waitFor(() => {
       expect(priorityCell('010').value).toBe('5');
@@ -654,7 +654,6 @@ describe('the priority cell', () => {
     await waitFor(() => {
       expect(priorityCell('020').value).toBe('90');
     });
-    void api;
 
     const critical = priorityCell('010').style.color;
     const lowest = priorityCell('020').style.color;
@@ -1259,6 +1258,404 @@ describe('the earliest-start cell', () => {
     expect(screen.getByLabelText<HTMLInputElement>('Earliest start for 010').value).toBe(
       '2026-08-17',
     );
+  });
+});
+
+describe('the work item deadline cell', () => {
+  /**
+   * One root row on a dated plan with every column shown.
+   *
+   * `showEveryColumn` because the deadline column is in
+   * `INITIAL_HIDDEN_COLUMNS` — it costs 84px the folded budget at 1280 does not
+   * have, so a reader turns it on in `Columns`. These tests are about the cell,
+   * not about the default column set; `table-frame.test.ts` owns that.
+   */
+  async function datedPlanWithDeadlineColumn() {
+    showEveryColumn();
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    typeIntoDate('Project start date', '2026-08-06');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Work item deadline for 010').disabled).toBe(
+        false,
+      );
+    });
+    return api;
+  }
+
+  /**
+   * The accessible name of the impossible-deadline mark on row 010 — named once
+   * so a reworded affordance cannot leave a stale string asserting nothing.
+   */
+  const IMPOSSIBLE_MARK = "Work item deadline for 010 falls before the project's first working day";
+
+  /** Opens one row's deadline editor the way a reader does — Enter on the cell. */
+  const openDeadline = (number: string): HTMLInputElement => {
+    fireEvent.keyDown(screen.getByLabelText<HTMLInputElement>(`Work item deadline for ${number}`), {
+      key: 'Enter',
+    });
+    return screen.getByLabelText<HTMLInputElement>(`Work item deadline for ${number}`);
+  };
+
+  itDom('is the short date as text at rest, and an em-dash where nobody has said', async () => {
+    const api = await datedPlanWithDeadlineColumn();
+
+    expect(screen.getByLabelText<HTMLInputElement>('Work item deadline for 010').value).toBe('—');
+
+    const row = api.rows.at(0);
+    if (row === undefined) throw new Error('the plan has no row');
+    row.deadline = '2026-09-30';
+    click('Add work item');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Work item deadline for 010').value).toBe(
+        '30 Sep',
+      );
+    });
+    // The whole day is a hover away, the same bargain Not before, Start and End
+    // make in 84px and 52px.
+    expect(
+      screen.getByLabelText('Work item deadline for 010').getAttribute('data-fact') ?? '',
+    ).toContain('2026-09-30');
+  });
+
+  itDom('sends the day as the one field, with no reason beside it', async () => {
+    // **The pair rule is not carried across.** The floor one column over sends
+    // `startNoEarlierThan` and `startNoEarlierThanReason` together because
+    // be-01 refuses a reason with no date; a deadline has no reason column
+    // (`work-item-deadline` 1.1), so a request naming one here would be a key
+    // about a different constraint — and the `refuseDerivedFields` /
+    // `parsePatch` pair on be-01 answers an unknown-shaped patch, not a helpful
+    // one. Asserted as the whole patch and not with `toMatchObject`, which is
+    // what makes it a negative control.
+    const api = await datedPlanWithDeadlineColumn();
+    const patched = recordCalls(api, 'patchWorkItem', (_id, patch) => patch);
+
+    const editor = openDeadline('010');
+    fireEvent.change(editor, { target: { value: '2026-09-30' } });
+    fireEvent.blur(editor);
+
+    await waitFor(() => {
+      expect(patched).toEqual([{ deadline: '2026-09-30' }]);
+    });
+  });
+
+  itDom('clears with the single field, never the floor cell pair', async () => {
+    // Proof this matters: `setNotBefore`'s null arm sends two fields, and a
+    // deadline cell copied from it verbatim would send
+    // `startNoEarlierThanReason: null` here — quietly taking the words off the
+    // row's not-before every time somebody cleared its deadline.
+    //
+    // Proof, as R5 asks and not only as a reason: that exact fault injected
+    // into `use-plan-fields.ts`'s `setDeadline` — `{ deadline: day }` changed to
+    // `{ deadline: day, startNoEarlierThanReason: null }` — and this case
+    // failed, 2 of 99, with the diff naming the extra key verbatim: expected
+    // `[{ "deadline": null }]`, received the same object plus
+    // `+ "startNoEarlierThanReason": null`. Watched again after the writer
+    // moved into `use-plan-fields.ts`, 1 failed of 1 filtered case, 2026-09-07.
+    // `toEqual` on the whole patch is the assertion and `toMatchObject` would
+    // not have been: the extra key is exactly what a subset match would have
+    // let through.
+    const api = await datedPlanWithDeadlineColumn();
+    const row = api.rows.at(0);
+    if (row === undefined) throw new Error('the plan has no row');
+    row.deadline = '2026-09-30';
+    row.startNoEarlierThan = '2026-08-10';
+    row.startNoEarlierThanReason = 'the parts arrive then';
+    click('Add work item');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Work item deadline for 010').value).toBe(
+        '30 Sep',
+      );
+    });
+    const patched = recordCalls(api, 'patchWorkItem', (_id, patch) => patch);
+
+    const editor = openDeadline('010');
+    // A date input reports '' when it is cleared, which is "no deadline".
+    fireEvent.change(editor, { target: { value: '' } });
+    fireEvent.blur(editor);
+
+    await waitFor(() => {
+      expect(patched).toEqual([{ deadline: null }]);
+    });
+    expect(row.startNoEarlierThanReason).toBe('the parts arrive then');
+  });
+
+  itDom('says so when the project start has moved past a stored deadline', async () => {
+    // `work-item-deadline` §2.3: a project whose start date is edited past a
+    // stored deadline is **not** retro-rejected — the date the reader typed
+    // stays, and be-01 keeps reporting the row late by the whole span. What was
+    // missing is that the cell they typed it into said nothing: 9.2's
+    // `Late by N workdays` is on the bar and answers "how late", while the
+    // question here is "why is this date impossible", and the answer — the
+    // project now starts after it — is only visible on the cell.
+    //
+    // The predicate is `deadlineOffsetOf`, the same function be-01's write
+    // boundary calls. That is the opposite of 9.2's guarded mistake: `lateBy`
+    // is *how late* and stays be-01's alone, while *whether a stored date falls
+    // before day zero* is a different question with one shared implementation.
+    const api = await datedPlanWithDeadlineColumn();
+    const row = api.rows.at(0);
+    if (row === undefined) throw new Error('the plan has no row');
+    row.deadline = '2026-08-10';
+    click('Add work item');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Work item deadline for 010').value).toBe(
+        '10 Aug',
+      );
+    });
+    // The negative control, and the half that makes the assertion below mean
+    // something: a deadline at or after day zero is an ordinary date and the
+    // cell marks nothing.
+    expect(screen.queryByLabelText(IMPOSSIBLE_MARK)).toBeNull();
+
+    typeIntoDate('Project start date', '2026-09-01');
+
+    await screen.findByLabelText(IMPOSSIBLE_MARK);
+    // Not silently dropped: the stored date is still the cell's reading, which
+    // is what stops the affordance from being mistaken for a cleared field.
+    expect(screen.getByLabelText<HTMLInputElement>('Work item deadline for 010').value).toBe(
+      '10 Aug',
+    );
+    expect(
+      screen.getByLabelText('Work item deadline for 010').getAttribute('data-fact') ?? '',
+    ).toContain("falls before the project's first working day");
+  });
+
+  itDom('says the true thing when the two dates a reader can see are equal', async () => {
+    // **The trap this case exists for**, found by round 1's OpenAI seat: the
+    // predicate is about workdays, not about raw calendar order, and the two
+    // part company exactly here. A project starting Saturday 2026-08-08 with a
+    // deadline of that same Saturday is impossible — day zero rolls forward to
+    // Monday the 10th, the deadline rolls back to Friday the 7th — while the
+    // dates on screen are the *same day*. Any wording about "before the project
+    // starts" would be a cell contradicting what it is showing, so the sentence
+    // and the mark both name the project's **first working day** instead.
+    const api = await datedPlanWithDeadlineColumn();
+    const row = api.rows.at(0);
+    if (row === undefined) throw new Error('the plan has no row');
+    row.deadline = '2026-08-08';
+    click('Add work item');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Work item deadline for 010').value).toBe(
+        '8 Aug',
+      );
+    });
+
+    typeIntoDate('Project start date', '2026-08-08');
+
+    await screen.findByLabelText(IMPOSSIBLE_MARK);
+    // Both dates read 8 Aug, and nothing the cell says claims otherwise.
+    const fact =
+      screen.getByLabelText('Work item deadline for 010').getAttribute('data-fact') ?? '';
+    expect(fact).toContain("falls before the project's first working day");
+    expect(fact).not.toContain('before the project starts');
+  });
+
+  /**
+   * Puts row 010's deadline at 2026-08-10 and then moves the project start past
+   * it, which is the one state the three cases below are about. Returns the
+   * grid cell — the `<input>` carrying `data-cell`, the thing keyboard focus
+   * actually lands on — rather than the mark beside it.
+   */
+  async function impossibleDeadlineCell(): Promise<HTMLInputElement> {
+    const api = await datedPlanWithDeadlineColumn();
+    const row = api.rows.at(0);
+    if (row === undefined) throw new Error('the plan has no row');
+    row.deadline = '2026-08-10';
+    click('Add work item');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Work item deadline for 010').value).toBe(
+        '10 Aug',
+      );
+    });
+    typeIntoDate('Project start date', '2026-09-01');
+    await screen.findByLabelText(IMPOSSIBLE_MARK);
+    return screen.getByLabelText<HTMLInputElement>('Work item deadline for 010');
+  }
+
+  itDom('describes the focused cell with the mark beside it, not only the row', async () => {
+    // **The defect this case exists for**, from TASK-296's review of the
+    // shipped diff: the mark is a *sibling* of the cell. Reading the row in
+    // browse mode announces it, but the accessible name and description of the
+    // cell keyboard focus lands on are computed from that cell alone — so a
+    // reader tabbing the editable grid heard `Work item deadline for 010` and
+    // the date, and nothing at all about the date being unmeetable. The
+    // relationship has to be stated; being adjacent in the DOM is not one.
+    const cell = await impossibleDeadlineCell();
+
+    const describedBy = cell.getAttribute('aria-describedby');
+    if (describedBy === null) throw new Error('the impossible cell describes itself with nothing');
+    // Resolved, not merely present: an `aria-describedby` naming an id that is
+    // not in the document is announced as nothing, which is the bug wearing an
+    // attribute. `toBe` against the node, so a second element that happened to
+    // carry the same words could not satisfy this.
+    expect(document.getElementById(describedBy)).toBe(screen.getByLabelText(IMPOSSIBLE_MARK));
+    // And the description that id resolves to is the sentence, not the glyph:
+    // the mark's own text is `!`, so its accessible name is what carries the
+    // meaning and `aria-describedby` is computed from the same name.
+    expect(screen.getByLabelText(IMPOSSIBLE_MARK).getAttribute('aria-label')).toBe(IMPOSSIBLE_MARK);
+    expect(cell.getAttribute('aria-invalid')).toBe('true');
+  });
+
+  itDom('leaves the mark out of the keyboard grid while it describes the cell', async () => {
+    // The other half of the fix, and the reason it is asserted rather than
+    // assumed: `editableGrid` collects `[data-cell]` descendants, so the
+    // cheapest way to relate the mark to the cell — making the mark a cell —
+    // would put a stop between Due and Start that a reader cannot type into.
+    // `aria-describedby` relates them with no new stop, and this case fails if
+    // anyone later reaches for the cheap version.
+    await impossibleDeadlineCell();
+    const mark = screen.getByLabelText(IMPOSSIBLE_MARK);
+
+    expect(mark.hasAttribute('data-cell')).toBe(false);
+    expect(mark.hasAttribute('tabindex')).toBe(false);
+    // Out of flow and not a target: the click that opens the editor belongs to
+    // the input underneath it.
+    expect(mark.style.pointerEvents).toBe('none');
+    // Still readable — an `aria-hidden` mark would satisfy every line above and
+    // describe nothing, which is the failure mode this line closes.
+    expect(mark.hasAttribute('aria-hidden')).toBe(false);
+  });
+
+  itDom('leaves an ordinary and an empty deadline cell with no invalid state', async () => {
+    // The negative control for both attributes. A cell that always said
+    // `aria-invalid` would pass the first case above and be a lie on every
+    // other row, and a dangling `aria-describedby` is worse than none.
+    const api = await datedPlanWithDeadlineColumn();
+
+    const empty = screen.getByLabelText<HTMLInputElement>('Work item deadline for 010');
+    expect(empty.value).toBe('—');
+    expect(empty.hasAttribute('aria-invalid')).toBe(false);
+    expect(empty.hasAttribute('aria-describedby')).toBe(false);
+
+    const row = api.rows.at(0);
+    if (row === undefined) throw new Error('the plan has no row');
+    row.deadline = '2026-09-30';
+    click('Add work item');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Work item deadline for 010').value).toBe(
+        '30 Sep',
+      );
+    });
+
+    const dated = screen.getByLabelText('Work item deadline for 010');
+    expect(dated.hasAttribute('aria-invalid')).toBe(false);
+    expect(dated.hasAttribute('aria-describedby')).toBe(false);
+    expect(screen.queryByLabelText(IMPOSSIBLE_MARK)).toBeNull();
+  });
+
+  itDom('still describes the cell once it is opened to be fixed', async () => {
+    // **The defect this case exists for**, from the peer review TASK-308
+    // shipped without: the three cases above assert against the input *at
+    // rest*, and none of them opens the editor. The editor is a different
+    // element — `DateField` replaces the at-rest input — and it carried
+    // neither attribute, while the mark itself lived inside the non-editing
+    // branch and so was not rendered at all. So the invalid state and its
+    // reason both disappeared at exactly the moment the reader had opened the
+    // cell in order to act on them.
+    //
+    // The mobile card had already answered this on its own face:
+    // `plan-cards.tsx` puts the sentence inside the open sheet because
+    // "`aria-describedby` on the trigger is announced on the way in rather
+    // than while the date box has focus". Same requirement, different
+    // mechanism — the table's editor replaces the cell in place, so what it
+    // needs is for the description to survive the swap.
+    await impossibleDeadlineCell();
+
+    const editor = openDeadline('010');
+    // The editor and not the at-rest input, asserted rather than assumed:
+    // `DateField` is the only one of the two that is `type="date"`, so this
+    // line is what stops the whole case from passing against the element the
+    // three above already cover.
+    expect(editor.type).toBe('date');
+
+    const describedBy = editor.getAttribute('aria-describedby');
+    if (describedBy === null) throw new Error('the open editor describes itself with nothing');
+    // Resolved to the node, not merely present — the same bar the at-rest case
+    // holds, and the one that matters most here: the mark used to be inside
+    // the branch this editor replaced, so an `aria-describedby` copied onto
+    // the editor without moving the mark would dangle and be announced as
+    // nothing.
+    expect(document.getElementById(describedBy)).toBe(screen.getByLabelText(IMPOSSIBLE_MARK));
+    // And it resolves to the *reason*, not to a bare invalid state: the
+    // description a reader hears is the mark's accessible name, which is the
+    // whole sentence about the project's first working day.
+    expect(document.getElementById(describedBy)?.getAttribute('aria-label')).toBe(IMPOSSIBLE_MARK);
+    expect(editor.getAttribute('aria-invalid')).toBe('true');
+  });
+
+  itDom('opens an ordinary and an empty deadline cell with no invalid state', async () => {
+    // The negative control for the case above, and it is a different one from
+    // the at-rest negative control: hoisting the mark out of the ternary makes
+    // it easy to render the attributes unconditionally on the editor, which
+    // would pass every line of that case and be a lie on every other row. This
+    // is what keeps the fix a *state* rather than a constant.
+    const api = await datedPlanWithDeadlineColumn();
+
+    const empty = openDeadline('010');
+    expect(empty.type).toBe('date');
+    expect(empty.hasAttribute('aria-invalid')).toBe(false);
+    expect(empty.hasAttribute('aria-describedby')).toBe(false);
+    fireEvent.keyDown(empty, { key: 'Escape' });
+
+    const row = api.rows.at(0);
+    if (row === undefined) throw new Error('the plan has no row');
+    row.deadline = '2026-09-30';
+    click('Add work item');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Work item deadline for 010').value).toBe(
+        '30 Sep',
+      );
+    });
+
+    const dated = openDeadline('010');
+    expect(dated.type).toBe('date');
+    expect(dated.hasAttribute('aria-invalid')).toBe(false);
+    expect(dated.hasAttribute('aria-describedby')).toBe(false);
+    expect(screen.queryByLabelText(IMPOSSIBLE_MARK)).toBeNull();
+  });
+
+  itDom('marks nothing on a project with no start date', async () => {
+    // With no day zero there is nothing for a date to fall before — the same
+    // reasoning be-01's service applies, and the reason the disabled cell below
+    // is the whole of this state rather than a disabled cell wearing a warning.
+    showEveryColumn();
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    const row = api.rows.at(0);
+    if (row === undefined) throw new Error('the plan has no row');
+    row.deadline = '2026-08-10';
+    click('Add work item');
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Work item deadline for 010').disabled).toBe(
+        true,
+      );
+    });
+
+    expect(screen.queryByLabelText(IMPOSSIBLE_MARK)).toBeNull();
+  });
+
+  itDom('will not open on a project with no start date', async () => {
+    // No day zero to resolve a deadline against, so be-01 applies none of them —
+    // the same state the floor renders disabled rather than opening an editor
+    // onto nothing.
+    showEveryColumn();
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    click('Add work item');
+    await screen.findByLabelText('Name of 010');
+    const patched = recordCalls(api, 'patchWorkItem', (_id, patch) => patch);
+
+    const cell = screen.getByLabelText<HTMLInputElement>('Work item deadline for 010');
+    expect(cell.disabled).toBe(true);
+    fireEvent.keyDown(cell, { key: 'Enter' });
+
+    expect(document.querySelectorAll('input[type="date"][data-cell]')).toHaveLength(0);
+    expect(patched).toEqual([]);
   });
 });
 
@@ -2506,7 +2903,9 @@ describe('the links column', () => {
     // "same fill" fault has to stop at.
     expect(confluence.style.background).toBe('transparent');
     expect(jira.style.background).toBe('oklch(0.55 0.19 255)');
-    expect(jira.style.borderStyle).toBe('');
+    // `'none'` is what jsdom 30 reads back for `border: 'none'`; jsdom 24 read
+    // it as `''`. Either way the filled mark carries no stroke.
+    expect(jira.style.borderStyle).toBe('none');
     // One hue, stated as an assertion rather than as a comment: if these ever
     // stop being the same colour the fill distinction is no longer the thing
     // being relied on and this test is about something else.

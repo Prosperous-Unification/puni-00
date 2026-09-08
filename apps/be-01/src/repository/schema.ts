@@ -412,6 +412,73 @@ export const workItem = sqliteTable(
      */
     startNoEarlierThanReason: text('start_no_earlier_than_reason'),
     /**
+     * A calendar day this work item is owed by, or null.
+     *
+     * The mirror of {@link workItem.startNoEarlierThan} and deliberately shaped
+     * like it: a nullable date-only `TEXT`, no default, and **no reason column
+     * beside it**. The floor's `start_no_earlier_than_reason` gets no
+     * counterpart here; adding one speculatively would be a second thing to
+     * keep true about a date nobody has asked to explain.
+     *
+     * **It is not a floor pointing the other way.** A floor moves work later
+     * and always wins the placement; a deadline moves work **nowhere**. It
+     * orders the queue — minimum slack, then earliest date, in front of
+     * priority — and where the plan cannot meet it the plan is reported *late*
+     * rather than rewritten. A leaf whose floor stands after its deadline still
+     * starts at its floor. The two folds differ for the same reason: an
+     * ancestor's floor takes the **latest** of the tree, an ancestor's deadline
+     * the **earliest**, because a constraint that binds tightens as it inherits.
+     *
+     * **Null is a real state**: the absence of a deadline, not a date that
+     * happens to be far away. Every existing row reads null after the
+     * migration — measured against a copy of dev's live database in
+     * `openspec/changes/work-item-deadline/verify.md`, not assumed.
+     *
+     * **This column reaches the schedule as of slice 3.4/4.2.**
+     * `WORK_ITEM_COLUMNS` names it, so every row selected carries it and the
+     * patch `SET` writes it (slice 6); the plan read resolves each stored date
+     * against the project's start with `deadlineOffsetsOf` and hands the
+     * offsets to `schedule()` as its seventh argument. So the ordering and the
+     * fold described above are behaviour at this head rather than intent.
+     *
+     * **The lateness is a number, not yet a label.** What ships at this head is
+     * a nullable `lateBy` per slice on the plan payload; the
+     * `Late by N workdays` sentence a reader sees is slice 9.2 and nothing in
+     * `apps/fe-01` consumes the number yet. Said plainly because the paragraph
+     * this replaced blurred the two, and the same blur is the third of three
+     * review Criticals this task has taken, all of them sentences.
+     *
+     * This paragraph has moved three times and each move deleted the sentence
+     * it replaced rather than appending to it: it first said the scheduler had
+     * no `deadlines` argument at all, true of the release that added the column
+     * and false once slices 2–5 landed the seventh argument; it then said
+     * nothing read or wrote the column, true until slice 6 made it writable;
+     * it then said the read still passed a `NO_DEADLINES` placeholder, true
+     * until this slice. `fast-golden-corpus.test.ts` still proves an empty map
+     * schedules identically, which is what makes a plan with no deadline on it
+     * unchanged by all four.
+     *
+     * **Below the floor's reason rather than beside the floor**, deliberately:
+     * `startNoEarlierThanReason` says its words are about "this column and the
+     * one above it", and a deadline slipped between the two would make that
+     * sentence point here. The floor and its reason stay adjacent; a column's
+     * position in this object is not its position in the table anyway, since
+     * `ALTER TABLE ADD COLUMN` appends.
+     *
+     * **Stored as authored, and no later edit rewrites it.** The writes exist
+     * as of slice 6 and this is the rule they keep. A project start moved past
+     * a stored deadline resolves `before-project-start` at **read** time and
+     * the row is reported late by the whole span; the value is left alone and
+     * the request that moved the project is not rejected. Implemented as of
+     * 3.4/4.2 and proved by `deadline-plan-read.test.ts`, which moves a
+     * project's start under a stored date and asserts both halves. It is
+     * written down here,
+     * on the column, because rewriting the value would delete what somebody
+     * typed on an unrelated edit, and the place that argument has to survive
+     * is the definition of the thing being rewritten.
+     */
+    deadline: text('deadline'),
+    /**
      * How important this work is, or null for "nobody has said" — an integer of
      * 1 or more, smaller being more important.
      *
@@ -559,7 +626,19 @@ export const workItem = sqliteTable(
     revision: integer('revision').notNull().default(0),
     ...auditColumns(),
   },
-  (t) => [index('work_item_siblings').on(t.projectId, t.parentId, t.position)],
+  (t) => [
+    index('work_item_siblings').on(t.projectId, t.parentId, t.position),
+    /**
+     * Serves an `ORDER BY`, not a `WHERE` — the only index here that does.
+     *
+     * `listByProject` filters on `project_id` and orders by `id`, and its order
+     * is a stated contract (see that method's JSDoc and ADR 0016). Without this,
+     * SQLite resolves the filter and then sorts every row of the project in a
+     * temp B-tree; with it, the filter and the order are one index read, because
+     * `id` is the second column of the same key the `WHERE` opens.
+     */
+    index('work_item_project_id_id').on(t.projectId, t.id),
+  ],
 );
 
 export type WorkItemRow = typeof workItem.$inferSelect;
@@ -2319,3 +2398,66 @@ export const savedPlanBody = sqliteTable(
 );
 
 export type SavedPlanBodyRow = typeof savedPlanBody.$inferSelect;
+
+/**
+ * A named annotation on an absolute calendar date, scoped to one project.
+ *
+ * **Not work, and not visible to the scheduler.** The alternative today is a
+ * zero-duration work item, which enters the dependency graph, the critical
+ * path, capacity and all three of Fast, PRI and Time — the reader gets a mark
+ * on the chart and the schedule gets a lie. Nothing under
+ * `libs/domain/src/schedule.ts` reads this table, and slice 5 of
+ * `openspec/changes/gantt-calendar-markers/tasks.md` is the structural proof
+ * rather than the promise.
+ *
+ * **`project_id` cascades**, for {@link savedPlan}'s stated reason: blue and
+ * green share one SQLite file through a swap, and the outgoing release's plain
+ * `DELETE FROM project` must not be blocked by a reference it cannot see. A
+ * missing cascade here is a 500 for the length of the swap, not untidiness.
+ *
+ * **The `(project_id, date)` index is deliberately not unique.** More than one
+ * marker on a day is a real plan — a demo and a deadline can land together —
+ * and design.md §5 makes the stacked-chip render carry that case. Uniqueness is
+ * the one property of this table nothing else in the change can observe, which
+ * is why `calendar-marker.db.test.ts` asserts a second same-date insert
+ * directly: a round-trip test passes with the uniqueness in place.
+ *
+ * **`color` is nullable and null means _automatic_**, derived from the id by
+ * `automaticColor` rather than materialised at insert. Materialising would
+ * freeze today's palette into storage: a palette change would then have to
+ * migrate rows, and a marker whose colour was never chosen would be
+ * indistinguishable from one that was. The nullability stops at the repository
+ * — every route resolves `row.color ?? automaticColor(row.id)` on the way out,
+ * so no client has to know the palette.
+ *
+ * `date` is `text` holding an `IsoDate` with no time component, matching how the
+ * rest of the schema stores one, and is indexed with `project_id` because "this
+ * project's markers, by date" is the only read.
+ */
+export const calendarMarker = sqliteTable(
+  'calendar_marker',
+  {
+    /**
+     * A v4 UUID **supplied by the composer**, not by the server — design.md
+     * §6.1. The colour is derived from the id, so the id has to exist before
+     * the composer can show which colour it is about to save.
+     */
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    /** An `IsoDate`, stored as the exact text given. No time component, ever. */
+    date: text('date').notNull(),
+    name: text('name').notNull(),
+    /** `NULL` means automatic — see the type doc. */
+    color: text('color'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    // The only read: one project's markers, by date. Not unique — see the type
+    // doc for why a second marker on one date is a supported plan.
+    index('calendar_marker_project_date').on(t.projectId, t.date),
+  ],
+);
+
+export type CalendarMarkerRow = typeof calendarMarker.$inferSelect;

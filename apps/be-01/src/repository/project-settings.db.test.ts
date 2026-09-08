@@ -11,7 +11,20 @@ import { rollbackTo } from './migrate-down';
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 /** The migration under test: slice 3b.1's three project settings columns. */
+const CALENDAR_MARKER = '20260905090000_add_calendar_marker';
 const PROJECT_SETTINGS = '20260904140000_add_project_settings';
+/**
+ * Newer than the settings columns, so a rollback aimed at the optimizer
+ * tables reverses it first — this file names it only to say so.
+ */
+const READ_ORDER_INDEX = '20260906003000_add_work_item_read_order_index';
+/**
+ * The newest: `work_item.deadline`, the nullable date-only column slice 1 adds.
+ * Additive forward and `DROP COLUMN` on the way back, so it heads every
+ * descending reversal list here and tails every ascending one, exactly as
+ * {@link READ_ORDER_INDEX} did while it was newest.
+ */
+const WORK_ITEM_DEADLINE = '20260906090000_add_work_item_deadline';
 
 /** The one below it, which is where every rollback here stops. */
 const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
@@ -139,7 +152,12 @@ describe('the project settings migration', () => {
       // and nothing else, which is the claim `PRAGMA`-plus-`toContain` alone
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
-      expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([PROJECT_SETTINGS]);
+      expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
+        PROJECT_SETTINGS,
+      ]);
       expect(projectColumns(db.path)).toEqual(
         migrated.filter((name) => !ADDED_COLUMNS.includes(name as never)),
       );
@@ -169,7 +187,12 @@ describe('the project settings migration', () => {
     const db = tempDb();
     try {
       runMigrations(db.path, FOLDER);
-      expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([PROJECT_SETTINGS]);
+      expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
+        PROJECT_SETTINGS,
+      ]);
 
       seedProject(db.path, 'p-unmigrated');
       runMigrations(db.path, FOLDER);
@@ -242,7 +265,12 @@ describe('the project settings migration', () => {
       seedProject(db.path, 'p-1');
       const migratedDdl = projectDdl(db.path);
 
-      expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([PROJECT_SETTINGS]);
+      expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
+        PROJECT_SETTINGS,
+      ]);
 
       const rolledBack = projectColumns(db.path);
       for (const column of ADDED_COLUMNS) expect(rolledBack).not.toContain(column);

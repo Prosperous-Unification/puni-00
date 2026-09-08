@@ -11,6 +11,7 @@ import { ActualRepository } from './actual';
 import { openDatabase, openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
+import { OPEN } from './gate';
 import type { Project, Step, WorkItem, WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
@@ -86,17 +87,17 @@ beforeEach(async () => {
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   const db = openDrizzle(path);
-  steps = new StepRepository(db);
-  projects = new ProjectRepository(db);
-  estimates = new EstimateRepository(db);
-  actuals = new ActualRepository(db);
-  progress = new StepProgressRepository(db);
-  measures = new StepMeasureRepository(db);
-  directory = new DirectoryRepository(db);
-  workItems = new WorkItemRepository(db);
+  steps = new StepRepository(db, OPEN);
+  projects = new ProjectRepository(db, OPEN);
+  estimates = new EstimateRepository(db, OPEN);
+  actuals = new ActualRepository(db, OPEN);
+  progress = new StepProgressRepository(db, OPEN);
+  measures = new StepMeasureRepository(db, OPEN);
+  directory = new DirectoryRepository(db, OPEN);
+  workItems = new WorkItemRepository(db, OPEN);
 
   ownerId = crypto.randomUUID();
-  await new UserRepository(db).create(
+  await new UserRepository(db, OPEN).create(
     { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
     wrote(),
   );
@@ -157,10 +158,9 @@ describe('the names the schema uses', () => {
     try {
       const objectsNamed = (type: string, name: string): number =>
         sqlite
-          .query<
-            { n: number },
-            [string, string]
-          >('SELECT count(*) AS n FROM sqlite_master WHERE type = ? AND name = ?')
+          .query<{ n: number }, [string, string]>(
+            'SELECT count(*) AS n FROM sqlite_master WHERE type = ? AND name = ?',
+          )
           .get(type, name)?.n ?? 0;
 
       for (const table of ['step', 'step_progress', 'step_measure'])
@@ -184,10 +184,9 @@ describe('the names the schema uses', () => {
       // rather than a list, because a name nobody thought to name is exactly
       // the one a rename forgets.
       const named = sqlite
-        .query<
-          { type: string; name: string },
-          []
-        >("SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'")
+        .query<{ type: string; name: string }, []>(
+          "SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'",
+        )
         .all();
       expect(named.filter((each) => /role/i.test(each.name))).toEqual([]);
       const roleColumns = named

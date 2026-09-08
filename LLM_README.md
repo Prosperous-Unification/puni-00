@@ -1,6 +1,6 @@
-# LLM_README
+# LLM_README — read this, then only the doc your task needs
 
-Agent orientation. Read this, then only the one doc your task needs.
+TASK-364 restored the archived multi-team-engine record in PR #313; its reconciled history and h2puni red/green evidence are in `openspec/changes/archive/2026-09-08-multi-team-engine/verify.md`.
 
 **puni-00** — company monorepo ([wiki](docs/wiki/README.md)). [Twilight Structure](docs/twilight-structure/README.md): SDLC pilot and delivery plan.
 WBS: `be-01` (Elysia+Drizzle+bun:sqlite, :3100), `gw-01` (WS, :3200),
@@ -72,7 +72,7 @@ used to run on dev before prod; they no longer do. Run a prod dry-run before any
 
 ### prod — image-based, blue/green
 
-**h2puni can build and publish** since 2026-08-05: pinned `dagger` v0.21.8, a build checkout at
+**h2puni can build and publish** since 2026-08-05: pinned `dagger` v0.21.9, a build checkout at
 `/home/puni1/wbs-build` (**not** dev's), and the `h2puni` alias resolving to itself. Proven:
 images published, dry run planned the swap. Runbook has the why.
 
@@ -132,19 +132,19 @@ any first message _containing_ `"pong"`; drain reads a malformed metrics body as
 
 ## More
 
-| Doc                                                                 | When                                                                                              |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `docs/superpowers/{plans,specs}/2026-08-02-compose-blue-green-*.md` | before touching deploy, and why the pipeline is shaped this way                                   |
-| `docs/runbook-dev-deploy.md`                                        | deploying dev; what a deploy cannot carry                                                         |
-| `docs/runbook-prod-deploy.md`                                       | deploying prod; commands and their refusals                                                       |
-| `docs/runbook-dagger-engine-registry-dns.md`                        | engine can't resolve `registry`                                                                   |
-| `docs/local-dev.md`                                                 | running locally                                                                                   |
-| `docs/capacity.md`                                                  | why a plan's dates moved; where a team's number is typed                                          |
-| `apps/be-01/openapi.json`                                           | the API's own document — `bun apps/be-01/src/openapi/emit-openapi-cli.ts` rewrites it             |
-| `apps/mcp-01/README.md`                                             | the MCP server: the tools derived from that document, two of them the batch writes                |
-| `HUMAN_README.md`                                                   | operating prod; triage runbook; openclaw path                                                     |
-| `docs/2026-08-30-agent-loop-audit.md`                               | **before gating while other agents are live** — worktree ownership, lock lanes, five false greens |
-| `docs/2026-09-02-refactoring-plan.md`                               | before any refactor — five waves, file-by-file ledgers, which `typecheck` targets compile nothing |
+| Doc                                                                                                                                                         | When                                                                                                                                                                                                                                                   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `docs/superpowers/{plans,specs}/2026-08-02-compose-blue-green-*.md`                                                                                         | before touching deploy, and why the pipeline is shaped this way                                                                                                                                                                                        |
+| `docs/runbook-dev-deploy.md`                                                                                                                                | deploying dev; what a deploy cannot carry                                                                                                                                                                                                              |
+| `docs/runbook-prod-deploy.md`                                                                                                                               | deploying prod; commands and their refusals                                                                                                                                                                                                            |
+| `openspec/changes/dual-optimized-scheduler/supervisor-amendment.md`                                                                                         | before changing solver host authority, installer, image mapping, or runtime-directory mount                                                                                                                                                            |
+| `docs/runbook-dagger-engine-registry-dns.md`                                                                                                                | engine can't resolve `registry`                                                                                                                                                                                                                        |
+| `docs/local-dev.md`                                                                                                                                         | running locally                                                                                                                                                                                                                                        |
+| `docs/capacity.md`                                                                                                                                          | why a plan's dates moved; where a team's number is typed                                                                                                                                                                                               |
+| `libs/contracts/src/http/document-from-shapes.ts`                                                                                                           | generated OpenAPI from shared shapes — `bun apps/be-01/src/openapi/emit-openapi-cli.ts [output.json]`                                                                                                                                                  |
+| `apps/mcp-01/README.md`                                                                                                                                     | the MCP server: the tools derived from that document, two of them the batch writes                                                                                                                                                                     |
+| `HUMAN_README.md`                                                                                                                                           | operating prod; triage runbook; openclaw path                                                                                                                                                                                                          |
+| `docs/2026-08-30-agent-loop-audit.md`                                                                                                                       | **before gating while other agents are live** — worktree ownership, lock lanes, five false greens                                                                                                                                                      |
+| `docs/2026-09-02-refactoring-plan.md`, `docs/2026-09-05-ports-and-adapters-plan.md`, [Radical Modularity](docs/plans/2026-09-08-agent-scalable-llm-wiki.md) | before refactoring or designing model-scale work: five waves, the ports split (ADR 0014–0015), then adjustable boundaries, the LLM wiki and measurement. Refactoring `-history.md` is not normative. **Status and queue: `docs/refactoring/tasks.md`** |
 
-Conventions: pure planners + thin IO shell; `strictTypeChecked`; comments say **why** and state what
-was/wasn't verified; never print a secret value. Explicit return types are house style, **not** lint-enforced.
+Conventions: pure planners + thin IO shell; strict types; comments say **why** and what was verified; never print secrets.

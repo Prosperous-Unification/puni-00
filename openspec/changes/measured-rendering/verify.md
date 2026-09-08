@@ -1,0 +1,262 @@
+## Status
+
+R10 starts from integrated35576d79 in isolated .worktrees/refactoring-r10 / refactor/measured-rendering. Approved refactoring plan§67R10 is authority. Five baseline configurations are measured below; optimization and budgets remain pending.
+
+Locked Bun install passed after sandbox temp/cache permission escalation (102packages,1.95s). Browser skill was read and runtime initialized; `agent.browsers.get("iab")` reported unavailable and documented discovery returned an empty list. Interactive in-app browser is unavailable. Parent confirmed canonical Playwright Chromium is appropriate for repeatable measurements. Measurement ports5500/5600/6600 are assigned to this worker, subject to actual listener verification. Parent must grant a quiet heavy-check window before timed runs.
+
+## Commands and measurements
+
+`bun run dev:setup` passed, using repository example configuration. No private environment was copied. FE root typecheck passed after correcting dataset index access; fixture ESLint passed after correcting numeric template interpolation and unknown JSON boundary typing. The later eight-step geometry addition still needs types/lint.
+
+Canonical smoke: `bin/with-heavy-lock.sh -- env CI=1 E2E_PORT_SHIFT=2400 R10_BASELINE=1 R10_BASELINE_SMOKE=1 bunx playwright test --config apps/fe-01/playwright.config.ts apps/fe-01/e2e/rendering-baseline.spec.ts --grep '100 rows / 2 steps / sparse'`. Initial run failed on the fixture's accessible-name locator: `Name of 010` matched the hundred-row number0100, receiving Row0009 instead of Row0000. Readiness now uses the exact seeded row identity. Repeated smoke passed:1test8.5s, stack-inclusive20.0s. No measurements from the failed smoke are accepted.
+
+Full matrix command omitted the smoke option and grep, attempting3cold contexts+7warm reloads per configuration. Parent held all other heavy checks. Application source remained35576d79. Five cases passed in11.0minutes;500/2/dense was deliberately interrupted after2.1minutes to release the shared measurement window, process exit130. It is unmeasured, not a passed case. Six later configurations did not run. Listener verification found no remaining listeners on5500/5600/6600 after shutdown.
+
+Raw completed observations are retained under [evidence/baseline](evidence/baseline). Environment: Chromium151.0.7922.34, Darwin25.5.0 arm64, Apple M1 Pro,1400×900, UTC/en-US, no throttling, warm Vite/backend with fresh browser contexts. Paint times are double-rAF opportunities; latency samples use readiness/long-task observers but no precise-coverage profiling. Coverage counts come from a separate instrumented pass.
+
+| Configuration | Completed samples | Mounted cells, folded | Mounted cells, unfolded | Test duration |
+| ------------- | ----------------- | --------------------- | ----------------------- | ------------- |
+| 100/2/sparse  | 3cold+7warm       | 1500                  | n/a                     | 26.1s         |
+| 100/2/dense   | 3cold+7warm       | 1500                  | n/a                     | 31.3s         |
+| 100/8/sparse  | 3cold+7warm       | 2100                  | 5300                    | 48.3s         |
+| 100/8/dense   | 3cold+7warm       | 2100                  | 5300                    | 52.0s         |
+| 500/2/sparse  | 3cold+7warm       | 7500                  | n/a                     | 6.2m          |
+
+The500-row case records warm ready-paint opportunities15.8–18.5seconds and broad Find2.78–3.56seconds. This development-build evidence justifies addressing scaling; it is not a production-build performance claim. Initial remaining matrix cases will use1cold+1warm to keep measurement windows bounded. No percentile or robust variance claims will be made from those limited samples. Budgets await the complete configuration matrix and first-slice review.
+
+## Failure proof table
+
+### Split-phase correctness execution
+
+The first runtime attempt failed before tests: Playwright refused trace inside a describe group because it changes worker fixtures. The option now lives at file scope. The subsequent100/2/sparse run passed all three phases in17.6s: latency5.8s, coverage4.3s, Gantt3.2s. Parent checks could run concurrently; all emitted evidence is explicitly measurementUse=correctness-only and is not an accepted timing baseline.
+
+Independent reads of the three JSON files confirmed complete status, exact stage lists (cold-context/warm-reload; precise-coverage; gantt-open), source35576d79 and the same exact fixture SHA256. They are preserved under evidence/correctness-phases. These files survive later Playwright test-results replacement. The previously observed omitted-flush and suppressed-write faults establish that the checkpoint writer can fail; this run establishes all three measurement phase callers actually persist their observations.
+
+Next quiet-window proposal: latency /100rows /2steps /sparse only,3cold+7warm, first R10_BASELINE_TRACE=1 then0, R10_MEASUREMENT_USE=trace-characterization. Allow at most60seconds wall-clock per leg,120seconds total, including fresh stack startup/shutdown. Estimated20–40seconds per leg from the original repeated100-row case; this remains an estimate. Preserve each completed JSON before launching the next leg, require matching fixture hash/source, and keep source frozen between legs. An incomplete leg remains incomplete and cannot support an A/B conclusion. No such characterization has run yet.
+
+### Interrupted 1000-row attempt and measurement protocol revision
+
+The single1000/2/sparse case ran in a confirmed quiet window starting2026-09-06 13:52:26UTC. Backend setup verified in13.496s. It was deliberately interrupted before the six-minute wall deadline: exit130,1interrupted,5.7minutes test duration. By13:58:25UTC all reserved listeners were absent and the window was released. No measurements.json completed; this configuration remains unmeasured. Trace inspection located the interrupted stage: clearing selective Find before the separate coverage pass, after both timing sample operations had reached their final read. No trace-recovered timing values are accepted.
+
+Canonical trace=retain-on-failure records during measurements; this attempt's browser trace was35,171,132bytes. Earlier timings are therefore traced development observations, not directly comparable with future trace-disabled samples. Their structural mounted counts remain direct DOM observations. The overhead itself is unmeasured. All earlier raw files lack an exact fixture hash and retain legacy status; do not infer that hash from the revised fixture.
+
+The fixture now declares separate latency/coverage/Gantt cases for every configuration, defaults measurement tracing off, and enables it explicitly through R10_BASELINE_TRACE=1 for A/B characterization. Every checkpoint includes source HEAD, git status, SHA256 over the exact measurement files, phase, trace mode, environment and last completed stage. Each sample is flushed before later work; overall status remains running until the complete phase finishes. Partial files cannot claim a completed phase or configuration. Normal browser gates skip these36 exploratory cases; fixture correctness cases run normally.
+
+Checkpoint tests first failed collection on the absent implementation, then passed2/2 in5.0s. Omitting the sample flush failed on expected cold-context/received setup. Suppressing the initial filesystem write error failed because the promise resolved instead of rejecting ENOENT. Both faults were restored before Proof comments were retained; restored2/2 passed3.1s. Scoped ESLint passed after import sorting and replacing empty fixture patterns. FE root typecheck passed for the phase split and evidence helper. Split phase browser execution and traced/trace-disabled A/B characterization remain pending; no revised latency measurements have been accepted.
+
+Correctness runs used the canonical heavy lock, CI=1, E2E_PORT_SHIFT=2400 and `apps/fe-01/e2e/rendering-fixture.spec.ts`. Initial3/3 passed7.1s. All three guards were removed together:3/3 failed, exit1. The identity fault initially also intercepted later malformed estimate commands, producing an incidental route assertion; interception was narrowed to createWorkItem batches and this guard was removed alone for a clean repeated proof. Restored3/3 passed6.9s, exit0. Proof comments were written from the observed output. No performance samples were accepted during these runs; parent checks were active.
+
+| Guard                     | Injected fault                                                               | Observed failure                                                                                                                                          |
+| ------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HTTP setup refusal        | Remove response.ok rejection                                                 | `rendering setup reports an actual backend refusal`: promise resolved to actual API `{error:"not_found",at:0,kind:"createWorkItem"}` instead of rejecting |
+| Batch row identity        | Remove index/ref/id guard; actual successful create response has IDs removed | `rendering setup refuses a successful batch without its row identity`: expected missing row identity0, received downstream real setEstimate400 missing_id |
+| Nonzero measurement frame | Remove positive area guard; actual frame display:none                        | `rendering measurement refuses a frame with no layout area`: promise resolved with width0/height0 instead of rejecting                                    |
+
+Scoped ESLint of all three rendering fixture/spec files passed. `bunx tsc --build --force apps/fe-01/tsconfig.json` passed, including the latest geometry and fixture regression changes. An earlier attempt named a nonexistent tsconfig.root.json and exited TS5058; it compiled nothing and is not accepted type evidence. Correctness logs: `/private/tmp/r10-fixture-green.log`, `/private/tmp/r10-fixture-fault.log`, `/private/tmp/r10-fixture-identity-fault.log`, `/private/tmp/r10-fixture-restored.log`. Logs are local execution evidence, not portable artifacts; the observed failure table above is retained in the change.
+
+## PR preservation check — 2026-09-07
+
+The measurement plan, harness and evidence were moved without production changes onto
+`change/measured-rendering-plan`, then rebased onto `origin/main` at `f5c919d2`. Fresh checks
+under the repository-pinned Bun1.4.2 passed: `fe-01:typecheck`; `fe-01:lint`;
+`tool-git-hooks:lint`; repository `format:check --all`; strict validation of this OpenSpec
+change; and the five rendering evidence/fixture browser cases in11.9seconds.
+
+The first two browser launches were refused before test collection because the execution
+sandbox denied loopback binds while Bun reported `EADDRINUSE`. A minimal Bun server and
+`curl`/`nc` reproduced that boundary. The identical locked command passed with local-network
+permission; neither refused launch is test evidence.
+
+The first install after the toolchain merge used the host's stale Bun1.3.14 and omitted
+ESLint's nested Ajv6, so lint stopped before reading a source file. Bun1.4.2 reinstalled the
+same lockfile with that dependency present. The first Playwright1.63 run then passed the two
+non-browser cases and refused the other three before their bodies because Chromium revision
+1243 was absent. Installing that revision made the unchanged five-case command pass; the
+failed launch is dependency setup evidence, not a test failure.
+
+## Skipped / pending
+
+Seven matrix configurations, optimization, structural/latency gates, full workspace/Chromium gates and independent review remain pending. The original12 experiments are now36 separate opt-in phase cases that intentionally skip in normal browser gates; future acceptance tests must run normally. In-app browser inspection unavailable as recorded above.
+
+## 2.1 — the row and cell dependency inventory and its regressions, 2026-09-08
+
+Read at `4179515d`. The inventory is
+[`row-dependency-inventory.md`](row-dependency-inventory.md): all **87** `PlanLiveValues`
+fields, the seven kinds of dependency, which cell reads each one, whether it is per-row or
+table-wide, and whether its identity is stable. Counted rather than claimed:
+`awk '/^export interface PlanLiveValues/,/^}/' plan-live.ts | grep -cE '^  [a-zA-Z]+[?]?:'` → 87.
+
+Two findings the inventory records and this slice does **not** act on, because it makes no
+production change:
+
+- **Five fields no cell reads** — `projectId`, `showSchedule`, `waitsFor`, `setExternalRefsOf`
+  and `armedDelete`. Verified with `grep -rn "current\.<field>" plan-columns/ plan-cell-props.ts`,
+  which returns 0 lines for each. Three have a non-cell reader (the row shell, the refs modal,
+  the cards), one is internal to `spanOf`, and `projectId` has no reader at all. Task 2.2 owns
+  the removals, each with its own compiler proof.
+- **The Start sentence and the Depends list are read twice per render on two independent
+  paths** — the `<td>` props builder outside the column registry (`plan-cell-props.ts:82,105,117`
+  and `:217`) and the cell body (`depends.tsx:30`, `start.tsx:19`). Explicit render inputs have
+  to feed both.
+
+The regressions are `apps/fe-01/src/components/wbs/plan-row-dependencies.test.tsx`: four cases,
+each landing a **peer's** write through the subscription while this reader's Name editor on
+another row is open, focused and half-typed. The peer's value is asserted first and the untouched
+editor second — the other order is satisfied by the render before the answer arrives.
+`TZ=UTC bunx vitest run src/components/wbs/plan-row-dependencies.test.tsx`: **4 passed**, 8.4s.
+`bunx eslint` on the file and `bunx tsc --build --force apps/fe-01/tsconfig.json`: both clean.
+
+### Failure proof table
+
+The injected fault is the shape a missed row dependency has: `useTable`'s `data` handed a copy
+reused for as long as the row **count** holds, so the two-row setup still works and only the
+peer's edit is lost. The first form of it — the rows pinned from the first render — was watched
+**passing nothing**: it pinned the _empty_ tree, so the setup never found `Name of 010` and all
+four cases failed at the locator instead of at their assertion. A fault that takes the surface out
+of the test's reach is not evidence about the assertion, so it was replaced.
+
+| Case                                       | Injected fault                        | Observed failure                                               |
+| ------------------------------------------ | ------------------------------------- | -------------------------------------------------------------- |
+| a committed name reaches the peer's row    | rows reused while the row count holds | `expected '' to be 'Renamed by a peer'`                        |
+| a committed day, on both of its read paths | the same                              | `expected '—' to be '9 Sep'`                                   |
+| a committed estimate reaches the figure    | the same                              | `expected '' to be '2/3/10'`                                   |
+| a directory entry a peer created           | the same                              | `Unable to find role="button" and name "Remove Platform team"` |
+| a directory entry a peer created           | `teams` pinned to the first render    | the same failure — the cell reads both, and both are covered   |
+
+All faults were restored (`git diff` on `wbs-table.tsx` empty) and the four cases re-run green.
+
+## 2.2, first part — the contract loses what nobody reads, 2026-09-08
+
+Task 2.2 stays **open**: stable cell component identities and explicit per-row render inputs are
+not here. What is here is the two things 2.1's inventory found, so that the explicit inputs are
+written against a contract that says only what a cell actually reads.
+
+**Six fields left `PlanLiveValues`** — `projectId`, `showSchedule`, `waitsFor`,
+`setExternalRefsOf`, `armedDelete` and `startFloor`. The first five were read by no cell
+(`grep -rn "current\.<field>" plan-columns/ plan-cell-props.ts` → 0 lines each); three keep a
+non-cell reader as a local (the row shell, the refs modal, the cards), one was internal to
+`spanOf`, and `projectId` had no reader at all. `startFloor` had exactly one cell-side reader,
+`readStartSentence`, and loses it below. **87 fields → 82.** The contract is compiler-enforced,
+so a missed reader is a type error rather than a runtime `undefined`; `bunx tsc --build --force
+apps/fe-01/tsconfig.json` is clean and `nx run fe-01:test` is green over the whole table.
+
+**The Start sentence is worked out once per row per render.** Three readers asked for it — the
+`<td>`'s props (`startCellProps`), the `cursor: help` decided beside them, and the Start cell —
+and each call allocated a `Date` inside `spanOf` and walked the floor map. `readStartSentence` is
+a pure function of `(row, spanOf, startFloor)` now, `WbsTable` holds a per-render `Map` in front
+of it, and both the `<td>` builder and the cell read the one answer through
+`live.current.startSentence`.
+
+### Failure proof table
+
+| Check                                                                 | Injected fault                                   | Observed failure     |
+| --------------------------------------------------------------------- | ------------------------------------------------ | -------------------- |
+| `works the Start sentence out once per row, however many readers ask` | `saidByRow`'s lookup bypassed in `wbs-table.tsx` | `expected 9 to be 3` |
+
+The count is a **rate**, not a pin: the case reads the rows and columns off the DOM, divides the
+`flexibleCellStyle` calls by `(rows + 1) × columns` to learn how many renders the gesture actually
+cost, and asserts one sentence per row per render. A pinned number would have to be re-guessed
+every time a column is added, and would pass for the wrong reason the first time one was.
+
+## 2.2, second part — the two scans of the whole plan that ran per cell, 2026-09-08
+
+Still not 2.2 itself. Two of the per-row readings the inventory listed as "no per-row cache"
+were worse than that: each was a scan of **every row on the plan**, run once per cell.
+
+- `dependenciesOf(ids)` did `flat.find` per dependency id, and every Depends on cell calls it
+  once per render. Rows × dependencies × rows per render — eight million comparisons to draw one
+  column on a thousand-row plan whose rows wait for eight others.
+- `anyAssigneeOn(stepId)` did `flat.some(...)`, and every **folded step cell** calls it. Rows ×
+  steps × rows per render, to decide whether the column reserves an assignee slot.
+
+Both are one pass per tree read now, through `plan-indexes.ts`: `indexRowsById(flat)` and
+`assignedSteps(flat)`, each behind a `useMemo` on `flat`. They live in a module of their own
+rather than in the hooks that use them, and that is load-bearing for the check below —
+`vi.mock` replaces a module's exports for its **importers**, so a pure function called from
+inside the file that declares it cannot be counted. The first form of this check mocked
+`./use-plan-dependencies` and `./use-reference-sets`, and the counter never moved.
+
+`assignedSteps` returns `{ everyStep, named }` rather than a bare set, because `doesEveryStep`
+staffs a step **no row lists by id** — a set of named steps alone would answer `false` for it.
+
+### Failure proof table
+
+| Check                                                               | Injected fault                                                       | Observed failure      |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------- |
+| `rebuilds no index over the plan for a gesture that changes no row` | `indexRowsById`'s `useMemo` dropped, rebuilt inside `dependenciesOf` | `expected 1 to be +0` |
+| the same case                                                       | `assignedSteps`' `useMemo` dropped, rebuilt inside `anyAssigneeOn`   | `expected 8 to be +0` |
+
+Two things the case had to be given before either fault could reach it, and both were watched
+failing at the **wired-check** rather than at the assertion first:
+
+- The plan needs a **dependency**. With none, `dependenciesOf` maps over an empty list and the
+  faulted rebuild inside it is never reached, so `toBe(0)` was true for the wrong reason. The
+  fixture adds one through `api.addDependency`; setting `row.dependsOn` on the view does not
+  work, because the fake derives that field from its own edge list.
+- The Depends on column has to be **on screen**; it is not in the default set.
+
+Each case asserts the counter moved during setup before asserting it is still zero after the
+gesture. Without that, a mock that never ran satisfies the assertion.
+
+## 2.2, third part — the directory lookups behind the two markers, 2026-09-08
+
+`indexById(items)` joins `plan-indexes.ts`, and the three lookups `useReferenceSets` already
+built by hand use it. `usePlanAssignments` — a separate hook with its own arguments — gains its
+own three, and the two markers stop scanning a directory per row: `nonOwnerNoteOf` did
+`services.find` per unowned service, `assigneeOn` did `people.find` per call (once per step per
+row), and `teamNamesOn`, which both of them call, did `teams.find` per team on the row.
+
+### Failure proof table
+
+| Injected fault                           | Observed failure      |
+| ---------------------------------------- | --------------------- |
+| `teamsById` rebuilt inside `teamNamesOn` | `expected 2 to be +0` |
+
+**Two forms of that fault were watched passing first, and both are the same mistake: injecting
+where the code does not go.** The first put `indexById(teams)` inside `teamNamesOn`'s `.map`
+callback — a plan whose rows carry no team maps over an empty list, so the rebuild was never
+reached. The second moved it out of the map but left the fixture with nobody assigned, and
+`teamNamesOn` is only ever called from inside the two markers, both of which return before it on
+a plan nobody is named on. The fixture now assigns a person through `api.addPerson` and
+`api.assignPerson`, and the fault is hoisted above the map.
+
+### Still open in 2.2
+
+`spanOf(row)` is called three times per row per render — the Start cell, the Finish cell, and
+once inside the Start sentence — and allocates a `Date` and two `printedDay` calls each time. It
+is not memoised here: the per-render `Map` that would do it has to live where `spanOf` is built,
+and the counting seam for its negative does not exist yet. Named so the next slice does not have
+to find it again. The three `effective*LabelOf` readings are called once per row and allocate two
+arrays each; that is a per-row cost 2.2's explicit render inputs are meant to own, not another
+memo.
+
+## 2.2, fourth part — one row, one span, 2026-09-08
+
+The last of the repeated per-row readings named in the inventory. `spanOf(row)` was worked out
+three times per row per render — the Start cell, the Finish cell and the Start sentence — and
+each call allocated a `Date` and two `printedDay`s.
+
+`spanOfRow(row, showSchedule)` is a pure function in `plan-span.ts` now, `usePlanSchedule`'s
+`spanOf` calls it, and `WbsTable` holds the same kind of per-render `Map` in front of it that the
+sentence already had. The chart keeps the **unmemoised** `spanOf`: it lays out in a `useMemo` of
+its own and may render on a commit this map was not rebuilt for. One side effect is a small
+consistency gain — `today` is now one moment per row per render rather than one per reader.
+
+The module is not decoration. `spanOfRow` first lived beside `usePlanSchedule` in
+`plan-chart-input.ts`, and the check was watched failing on `expected +0 to be 3`: `vi.mock`
+replaces a module's exports for its **importers**, so the hook's call to a function declared in
+its own file was invisible. That is the third time this session; it is now a rule for this
+change — **a pure function that has to be counted lives in a module of its own.**
+
+### Failure proof table
+
+| Check                                                                 | Injected fault                | Observed failure     |
+| --------------------------------------------------------------------- | ----------------------------- | -------------------- |
+| `works the Start sentence out once per row, however many readers ask` | `spanByRow`'s lookup bypassed | `expected 9 to be 3` |
+
+### What 2.2 still owes
+
+Its headline, and only its headline: explicit per-row render inputs and stable cell component
+identities. Every repeated reading the inventory named is now one per row per render or one per
+tree read; what is left is the contract change itself, which is where the `columns`-memo landmine
+and the `live` ref actually get replaced.

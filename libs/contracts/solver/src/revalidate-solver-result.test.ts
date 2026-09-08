@@ -117,6 +117,48 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
     const unfunded = request({ pools: {} });
     rejects(revalidateSolverResult(unfunded, feasible({ a: 0, b: 0 })), 'malformed-request');
   });
+
+  /**
+   * TASK-329 AC #1. The rule TASK-303 wrote is now stated here, above the
+   * non-feasible early return, so it reaches the paths that carry no schedule.
+   * `infeasible` is the case the review filed: CP-SAT is right that a
+   * zero-duration slice due at unit 1 and floored at unit 1 has no solution,
+   * and answering it at all is what turns a meaningless request into a stored
+   * `plan-infeasible` certificate. `unknown` is here for the same reason with
+   * a different disposition downstream.
+   */
+  it('a deadlineUnits that is not a multiple of the quantum, on EVERY response status', () => {
+    const malformed = request({
+      slices: [slice({ key: 'a', durationUnits: 0, notBeforeUnits: 1, deadlineUnits: 1 })],
+      baselineOffsets: { a: 0 },
+      fastHint: { a: 0 },
+    });
+    for (const status of ['infeasible', 'unknown'] as const) {
+      rejects(revalidateSolverResult(malformed, { wireVersion: 1, status }), 'malformed-request');
+    }
+    rejects(revalidateSolverResult(malformed, feasible({ a: 1 })), 'malformed-request');
+  });
+
+  /**
+   * The nearest legal neighbours, because a check that refuses the violation
+   * and its neighbour alike has not been aimed. `0` is TASK-267's unmeetable
+   * sentinel and is a multiple; `null` is no deadline at all. Both still pass
+   * on a non-publishing response, which is what proves the new call did not
+   * turn the early return into a refusal of everything.
+   */
+  it('and accepts the multiples beside it on a non-publishing response', () => {
+    for (const deadlineUnits of [null, 0, 48, 96]) {
+      const legal = request({
+        slices: [slice({ key: 'a', durationUnits: 0, deadlineUnits })],
+        baselineOffsets: { a: 0 },
+        fastHint: { a: 0 },
+      });
+      expect(revalidateSolverResult(legal, { wireVersion: 1, status: 'infeasible' })).toEqual({
+        ok: true,
+        published: false,
+      });
+    }
+  });
 });
 
 describe('revalidateSolverResult checks the offset map', () => {
@@ -378,6 +420,86 @@ describe('revalidateOptimizedDeadlines', () => {
       revalidateOptimizedDeadlines(
         request({ slices: [slice({ key: 'a', deadlineUnits: 48 })] }),
         placedOf({ a: [0, 1] }),
+      ),
+    ).toEqual({ ok: true, published: true });
+  });
+
+  /**
+   * The pair that proves this side and the CP-SAT side now read one predicate.
+   * A zero-duration milestone is the only input on which
+   * `end <= deadlineUnits` and `start + max(duration, 1) <= deadlineUnits`
+   * differ, and `libs/solver-py/tests/test_model.py`'s W2 pair fixes the same
+   * two placements in units: unit 48 refused, unit 47 admitted. Day 1 and day
+   * 47/48 are those two placements in the fractional domain this side works in.
+   *
+   * Before `tasks.md` 8.3 the model admitted the first of them while this
+   * refused it, so a deterministic `plan-infeasible` arrived at the coordinator
+   * as `invalid-output`. If either half of this pair ever disagrees with its
+   * Python twin, that confusion is back.
+   */
+  it('refuses a zero-duration milestone standing on the exclusive boundary', () => {
+    const found = revalidateOptimizedDeadlines(
+      request({ slices: [slice({ key: 'a', durationUnits: 0, deadlineUnits: 48 })] }),
+      placedOf({ a: [1, 1] }),
+    );
+    expect(found.ok).toBe(false);
+    if (found.ok) throw new Error('unreachable');
+    expect(found.failure).toBe('deadline-violated');
+    expect(found.detail).toContain('day 1');
+  });
+
+  /**
+   * TASK-303, and the Sol seat's own input verbatim: quantum 48, duration 0,
+   * `deadlineUnits` 49, start unit 48.
+   *
+   * **The disagreement this closes is between two halves that are each right.**
+   * The CP-SAT model accepts the placement — `48 + max(0, 1) = 49 <= 49` —
+   * while this side derives a due day of `49 / 48 - 1 = 1/48`, a *fractional*
+   * day {@link isOnTime} was never written to take, and refuses a feasible plan
+   * as `deadline-violated`. That is the same feasible/`invalid-output` mismatch
+   * 8.3 closed at the zero-duration boundary, surviving one level up through a
+   * field nothing validated: the wire schema accepts every non-negative safe
+   * integer, and a cross-field `multipleOf` against the request's own `quantum`
+   * is not expressible in JSON Schema, so this is the contract boundary.
+   *
+   * `malformed-request` and not `deadline-violated` is the whole point. The
+   * input is not a plan that misses a deadline; it is a request that does not
+   * mean anything, and the two answers send a reader to different files.
+   */
+  it('refuses a deadline that is not a whole number of workdays', () => {
+    const found = revalidateOptimizedDeadlines(
+      request({ slices: [slice({ key: 'a', durationUnits: 0, deadlineUnits: 49 })] }),
+      placedOf({ a: [1, 1] }),
+    );
+    expect(found.ok).toBe(false);
+    if (found.ok) throw new Error('unreachable');
+    expect(found.failure).toBe('malformed-request');
+    expect(found.detail).toContain('49');
+  });
+
+  /**
+   * The neighbour that keeps the new refusal from swallowing a real state.
+   * `deadlineUnits: 0` is TASK-267's `UNMEETABLE_DEADLINE_OFFSET = -1` mapped
+   * through `deadlineUnitsOf`, and `0 % 48 === 0`, so it stays a well-formed
+   * request whose due day is `-1` — every non-negative placement misses it.
+   * Refusing it as malformed would turn a deadline the user cannot meet into an
+   * engine failure, which is the confusion `plan-infeasible` exists to prevent.
+   */
+  it('keeps an unmeetable zero deadline well-formed and simply missed', () => {
+    const found = revalidateOptimizedDeadlines(
+      request({ slices: [slice({ key: 'a', durationUnits: 0, deadlineUnits: 0 })] }),
+      placedOf({ a: [0, 0] }),
+    );
+    expect(found.ok).toBe(false);
+    if (found.ok) throw new Error('unreachable');
+    expect(found.failure).toBe('deadline-violated');
+  });
+
+  it('accepts the same milestone one unit inside its due day', () => {
+    expect(
+      revalidateOptimizedDeadlines(
+        request({ slices: [slice({ key: 'a', durationUnits: 0, deadlineUnits: 48 })] }),
+        placedOf({ a: [47 / 48, 47 / 48] }),
       ),
     ).toEqual({ ok: true, published: true });
   });

@@ -39,6 +39,7 @@ export function workItemView(overrides: Partial<WorkItemView> = {}): WorkItemVie
     dates: null,
     startNoEarlierThan: null,
     startNoEarlierThanReason: null,
+    deadline: null,
     priority: null,
     maxParallel: 1,
     teamIds: [],
@@ -80,6 +81,7 @@ export function sliceView(overrides: Partial<SliceView> = {}): SliceView {
     width: 1,
     effort: 0,
     capacityPredecessorIds: [],
+    lateBy: null,
     ...overrides,
   };
 }

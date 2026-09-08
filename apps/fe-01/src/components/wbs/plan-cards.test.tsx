@@ -251,6 +251,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
                 width: 1,
                 effort: 0,
                 capacityPredecessorIds: [],
+                lateBy: null,
               }),
             ),
             // The same two lists `steps` and `listPeople` answer with, on the read
@@ -279,6 +280,11 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       listExternalSystems: () => Promise.resolve([]),
       listServices: () => Promise.resolve(services.map((service) => ({ ...service }))),
       listPeople: () => Promise.resolve(people.map((person) => ({ ...person }))),
+      // The table reads the calendar markers on mount, alongside the plan, so a
+      // double that stands in for a project has to answer it: unstated, this api
+      // refuses on purpose and the refusal arrives as a toast over every case in
+      // this file. Empty is what these projects have.
+      listCalendarMarkers: () => Promise.resolve([]),
       createWorkItem: (_projectId: string, input: { parentId: string | null; name?: string }) => {
         next += 1;
         const id = `w${String(next)}`;
@@ -302,6 +308,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
           dates: options.dated === true ? { ...DATED_PLAN } : null,
           startNoEarlierThan: null,
           startNoEarlierThanReason: null,
+          deadline: null,
           serviceTeamId: null,
           teamIds: [],
           assignees: {},
@@ -330,6 +337,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
           serviceIds?: string[];
           startNoEarlierThan?: string | null;
           startNoEarlierThanReason?: string | null;
+          deadline?: string | null;
           priority?: number | null;
         },
       ) => {
@@ -365,6 +373,21 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
           }
           row.startNoEarlierThanReason = patch.startNoEarlierThanReason;
         }
+        // The deadline, stored — absent until TASK-291 and therefore silently
+        // dropped, which let a card look as though it had written a date the
+        // fake never kept. One field and no pair rule beside it: slice 1.1 gave
+        // the deadline no reason column.
+        //
+        // **What this deliberately does not model, stated rather than implied:**
+        // be-01 refuses a date before the project's first working day with
+        // `deadline_before_project_start`, and that refusal is not kept here.
+        // The card sends the date unguarded on purpose (`setDeadline`'s own
+        // docstring: a client-side rule the server also keeps is how the two
+        // come to disagree), and a refusal no case in this file exercises would
+        // be unproven fixture behaviour standing in for a server's. The §2.3
+        // state the cards *do* read is a stored date the project has since moved
+        // past, which is arranged on the row rather than written through here.
+        if (patch.deadline !== undefined) row.deadline = patch.deadline;
         // Moved on the row and not only recorded, because half of what the
         // priority sheet's cases assert is what the *chip* says afterwards — a
         // fake that took the patch and left the row alone would let a write that
@@ -408,7 +431,7 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       addTeam: (name: string) => {
         const existing = teams.find((team) => team.name.toLowerCase() === name.toLowerCase());
         if (existing !== undefined) return Promise.resolve({ ...existing });
-        const team = { id: `team-${name.toLowerCase()}`, name };
+        const team = { id: `team-${name.toLowerCase()}`, name, serviceIds: [] };
         teams.push(team);
         return Promise.resolve({ ...team });
       },
@@ -467,10 +490,8 @@ function fakeApi(options: { refusePatch?: boolean; dated?: boolean } = {}): Proj
       clearEstimate: (id: string, stepId: string) => {
         const row = rows.find((each) => each.id === id);
         if (row === undefined) return Promise.reject(new Error('not_found'));
-        const { [stepId]: goneDays, ...keptDays } = row.estimates;
-        const { [stepId]: goneFinal, ...keptFinal } = row.finalDays;
-        void goneDays;
-        void goneFinal;
+        const { [stepId]: _goneDays, ...keptDays } = row.estimates;
+        const { [stepId]: _goneFinal, ...keptFinal } = row.finalDays;
         row.estimates = keptDays;
         row.finalDays = keptFinal;
         row.finalTotal = Object.values(keptFinal).reduce((total, each) => total + each, 0);
@@ -1520,7 +1541,7 @@ describe('what a card says about capacity', () => {
 
   itDom('names the team a row carries', async () => {
     await aPlan((rows, teams) => {
-      teams.push({ id: 't1', name: 'Billing' });
+      teams.push({ id: 't1', name: 'Billing', serviceIds: [] });
       rows[0].serviceTeamId = 't1';
       rows[0].teamIds = ['t1'];
     });
@@ -1539,7 +1560,7 @@ describe('what a card says about capacity', () => {
     // `expected undefined to be '↳ Billing'`: the inheriting card drew no team
     // line at all. Watched 2026-08-13.
     await aPlan((rows, teams) => {
-      teams.push({ id: 't1', name: 'Billing' });
+      teams.push({ id: 't1', name: 'Billing', serviceIds: [] });
       const [parent, child] = rows;
       parent.serviceTeamId = 't1';
       parent.teamIds = ['t1'];
@@ -1659,7 +1680,7 @@ describe('what a card says about capacity', () => {
     // stayed green through exactly that move, which is why all three
     // dimensions are stated here. Watched 2026-08-21.
     await aPlan((rows, teams, api) => {
-      teams.push({ id: 't1', name: 'Billing' });
+      teams.push({ id: 't1', name: 'Billing', serviceIds: [] });
       api.services.push({ id: 's1', name: 'Payments' });
       api.tags.push({ id: 'g1', name: 'regulatory' });
       rows[0].serviceTeamId = 't1';
@@ -2348,6 +2369,7 @@ function aTreeRow(overrides: Partial<TreeRow> = {}): TreeRow {
       dates: null,
       startNoEarlierThan: null,
       startNoEarlierThanReason: null,
+      deadline: null,
       priority: null,
       maxParallel: 1,
       teamIds: [],
@@ -2435,8 +2457,9 @@ function renderCards(
       // came from a plan, so none of them has a project start date behind it.
       // The date field draws its refusal and opens onto nothing, which is
       // exactly what these row-actions tests want it doing.
-      hasCalendar={false}
+      projectStart={null}
       setNotBefore={() => undefined}
+      setDeadline={() => undefined}
       setPriority={() => Promise.resolve('landed')}
       // Three props this stub predates, stubbed for the reason the teams and
       // dates above are: a suite that leaves a required prop out typechecks
@@ -2672,7 +2695,7 @@ describe('a filter on a phone', () => {
     const api = fakeApi();
     const { id } = await api.createWorkItem('p1', { parentId: null, name: 'Strip the hull' });
     await api.createWorkItem('p1', { parentId: null, name: 'Paint' });
-    api.teams.push({ id: 't1', name: 'Billing' });
+    api.teams.push({ id: 't1', name: 'Billing', serviceIds: [] });
     // By the id `create` answered with rather than by position: a fake whose
     // first row is not the row this labels is a fixture quietly filtering on
     // something else, and the label is the whole of what these two tests ask.
@@ -2763,7 +2786,7 @@ describe('setting a card’s team', () => {
     // Proof: watched RED on h2puni at test-only 197da4f — the sheet opened but
     // `Add a team to 010` was absent; 100/103 passed.
     const api = await aPhonePlan((_rows, teams) => {
-      teams.push({ id: 't1', name: 'Billing' });
+      teams.push({ id: 't1', name: 'Billing', serviceIds: [] });
     });
 
     fireEvent.click(teamFields()[0]);
@@ -2775,7 +2798,10 @@ describe('setting a card’s team', () => {
 
   itDom('opens the shared phone sheet with every selected team removable', async () => {
     await aPhonePlan((rows, teams) => {
-      teams.push({ id: 't1', name: 'Billing' }, { id: 't2', name: 'Platform' });
+      teams.push(
+        { id: 't1', name: 'Billing', serviceIds: [] },
+        { id: 't2', name: 'Platform', serviceIds: [] },
+      );
       rows[0].serviceTeamId = 't1';
       rows[0].teamIds = ['t1', 't2'];
     });
@@ -2790,7 +2816,7 @@ describe('setting a card’s team', () => {
   itDom('keeps the shared sheet and typed team open when the write is refused', async () => {
     await aPhonePlan(
       (_rows, teams) => {
-        teams.push({ id: 't1', name: 'Billing' });
+        teams.push({ id: 't1', name: 'Billing', serviceIds: [] });
       },
       1,
       { refusePatch: true },
@@ -2813,7 +2839,7 @@ describe('setting a card’s team', () => {
   itDom('blocks a pending team double tap and closes after it lands', async () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null });
-    api.teams.push({ id: 't1', name: 'Billing' });
+    api.teams.push({ id: 't1', name: 'Billing', serviceIds: [] });
     let patchCalls = 0;
     let land: (() => void) | undefined;
     api.patchWorkItem = async () => {
@@ -2853,7 +2879,10 @@ describe('setting a card’s team', () => {
       // `CreatablePicker` — which is the argument for not drawing a phone-shaped
       // list of its own, stated as a test rather than in a comment.
       const api = await aPhonePlan((_rows, teams) => {
-        teams.push({ id: 't1', name: 'claire qa billing' }, { id: 't2', name: 'QA' });
+        teams.push(
+          { id: 't1', name: 'claire qa billing', serviceIds: [] },
+          { id: 't2', name: 'QA', serviceIds: [] },
+        );
       });
 
       fireEvent.click(teamFields()[0]);
@@ -2907,7 +2936,10 @@ describe('setting a card’s team', () => {
     // `getByRole('button', { name: 'Clear Service or team for 020' })` after
     // focusing the combobox. Watched in jsdom, 2026-08-23.
     const api = await aPhonePlan((rows, teams) => {
-      teams.push({ id: 't-parent', name: 'Billing' }, { id: 't-child', name: 'Platform' });
+      teams.push(
+        { id: 't-parent', name: 'Billing', serviceIds: [] },
+        { id: 't-child', name: 'Platform', serviceIds: [] },
+      );
       const [parent, child] = rows;
       parent.serviceTeamId = 't-parent';
       parent.teamIds = ['t-parent'];
@@ -3172,6 +3204,155 @@ describe('setting a card’s earliest start', () => {
         selector: 'input[type=date]',
       }).value,
     ).toBe(DATED_PLAN.startsOn);
+  });
+});
+
+/**
+ * TASK-291's mobile half. The table has had a `Due` cell since
+ * `work-item-deadline` 9.1 and nothing in `plan-cards.tsx` read `deadline` at
+ * all — `grep -c deadline` returned 0 on `main` at `c1d9a40d` — so below the
+ * table's breakpoint the date a plan is *judged against* was unreadable and
+ * uneditable, while the floor one column over was on the card.
+ *
+ * The cases mirror `setting a card's earliest start` deliberately, because the
+ * done-criterion is "matching what the table cell already does for the same
+ * field" and a second shape would be a second contract.
+ */
+describe('setting a card’s work item deadline', () => {
+  /** The same dated phone plan the floor's cases use, with a deadline to arrange. */
+  async function aDatedPhonePlan(
+    arrange: (rows: WorkItemView[]) => void = () => {
+      // On a calendar, owing nothing by any particular day.
+    },
+  ): Promise<ReturnType<typeof fakeApi>> {
+    const api = fakeApi({ dated: true });
+    await api.createWorkItem('p1', { parentId: null });
+    arrange(api.rows);
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    return api;
+  }
+
+  /** The control, drawn on every card with or without a date — the floor's rule. */
+  const deadlineFields = (): HTMLElement[] => [
+    ...document.querySelectorAll<HTMLElement>('[data-card-deadline-field]'),
+  ];
+  /** The claim, which is a different thing from the control around it. */
+  const dueOnCard = (): HTMLElement | null => document.querySelector('[data-card-deadline]');
+
+  const openTheDeadlineSheet = async (): Promise<HTMLElement> => {
+    fireEvent.click(deadlineFields()[0]);
+    return screen.findByRole('dialog', { name: /^Work item deadline for 010 - / });
+  };
+
+  itDom('opens a sheet over the same cell the table’s Due box edits', async () => {
+    // One cell on two faces and not two boxes over one field, which is the
+    // floor's opening contract word for word: `cellKey` produces
+    // `rowId::deadline` for the table's own editor, and a card that invented
+    // its own id would be a second cell nothing else can find.
+    const api = await aDatedPhonePlan();
+
+    await openTheDeadlineSheet();
+
+    const box = screen.getByLabelText('Work item deadline for 010', {
+      selector: 'input[type=date]',
+    });
+    expect(box.getAttribute('data-cell')).toBe(`${api.rows[0]?.id ?? ''}::deadline`);
+  });
+
+  itDom('sends the day through the table’s own writer, and one field only', async () => {
+    // `setDeadline`'s single field, and the mistake its docstring exists to
+    // stop: the floor beside it clears in *two* fields because be-01 refuses a
+    // reason with no date to be about, and a card that copied that pair across
+    // would send a key about a different constraint. `{ deadline }` alone.
+    const api = await aDatedPhonePlan();
+    const before = api.patched.length;
+    await openTheDeadlineSheet();
+
+    fireEvent.change(
+      screen.getByLabelText('Work item deadline for 010', { selector: 'input[type=date]' }),
+      { target: { value: DATED_PLAN.endsOn } },
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(api.patched.slice(before)).toEqual([
+        { id: api.rows[0]?.id, deadline: DATED_PLAN.endsOn },
+      ]);
+    });
+    // And the card says so, which is the half a patch alone does not prove.
+    await waitFor(() => {
+      expect(dueOnCard()?.textContent).toBe(`due ${shortIsoDate(DATED_PLAN.endsOn, new Date())}`);
+    });
+  });
+
+  itDom('clears the day, because a finger cannot empty a native date box', async () => {
+    // The floor's own reason for a separate control: Chrome draws a clear
+    // affordance on a desktop date field and none a thumb can find, and "no
+    // work item deadline" is a state a planner has to be able to get back to.
+    const api = await aDatedPhonePlan((rows) => {
+      rows[0].deadline = DATED_PLAN.endsOn;
+    });
+    const before = api.patched.length;
+    await openTheDeadlineSheet();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+
+    await waitFor(() => {
+      expect(api.patched.slice(before)).toEqual([{ id: api.rows[0]?.id, deadline: null }]);
+    });
+  });
+
+  itDom('says a work item deadline the project has moved past cannot be met', async () => {
+    // TASK-291 AC #3 on the card, the read-time `before-project-start` case:
+    // the plan starts on the 1st of June and the row owes its work by the 29th
+    // of May. **The date is printed unchanged** — §2.3's "not silently
+    // dropped" — and the mark beside it is what stops the card from showing an
+    // impossible date with no sign that it is one.
+    //
+    // `role="img"` with a sentence for a name and not a bare glyph, the
+    // table's own mark: `!` is announced as punctuation or as nothing, and the
+    // whole point of the mark is that it can be read.
+    const impossible = `${String(new Date().getFullYear())}-05-29`;
+    await aDatedPhonePlan((rows) => {
+      rows[0].deadline = impossible;
+    });
+
+    expect(dueOnCard()?.textContent).toBe(`due ${shortIsoDate(impossible, new Date())}`);
+    expect(
+      screen.getByRole('img', {
+        name: "Work item deadline for 010 falls before the project's first working day",
+      }),
+    ).not.toBeNull();
+  });
+
+  itDom('marks nothing on a work item deadline the plan can still meet', async () => {
+    // The negative control for the case above, and the one that makes the mark
+    // a reading rather than a decoration drawn beside every date: same fixture,
+    // same field, a date after the project start.
+    await aDatedPhonePlan((rows) => {
+      rows[0].deadline = DATED_PLAN.endsOn;
+    });
+
+    expect(dueOnCard()?.textContent).toBe(`due ${shortIsoDate(DATED_PLAN.endsOn, new Date())}`);
+    expect(document.querySelector('[data-card-deadline-impossible]')).toBeNull();
+  });
+
+  itDom('refuses to open on a plan with no start date, exactly as the floor does', async () => {
+    // The third modelled absence, and be-01's own reasoning: with no day zero
+    // there is nothing to resolve a deadline against, so a control that took a
+    // date and did nothing with it is worse than one that will not open. The
+    // table's cell renders disabled there for the same reason.
+    const api = fakeApi({ dated: false });
+    await api.createWorkItem('p1', { parentId: null });
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+
+    const field = deadlineFields()[0];
+    expect(field).not.toBeUndefined();
+    expect((field as HTMLButtonElement).disabled).toBe(true);
   });
 });
 

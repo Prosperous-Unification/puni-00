@@ -1,8 +1,10 @@
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
+import { automaticColor } from '@wbs/domain/marker-color';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 
 import type {
   AssumedAssigneeFlipView,
+  CalendarMarkerView,
   Days,
   EstimateMethod,
   ProjectApi,
@@ -11,6 +13,8 @@ import type {
   WorkItemView,
 } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
+
+import { refusingApi } from './refusing-api';
 
 /**
  * The plan fixtures every fe-01 suite drives the table through.
@@ -45,6 +49,14 @@ export const QA: StepView = { id: 'step-qa', name: 'QA' };
  */
 export function fakeProjectApi(): ProjectApi & {
   rows: WorkItemView[];
+  /**
+   * The markers this fake is holding right now, readable by the test.
+   *
+   * Exposed the way {@link rows} is, and for the slice that needs it: 7.2
+   * asserts an undated plan's axis cell wrote **nothing**, and "nothing" is
+   * only observable against a list a create would have grown.
+   */
+  markers: CalendarMarkerView[];
   stack: { undoable: boolean; redoable: boolean };
   stackCalls: ('undo' | 'redo')[];
   answerStackWith: (answer: UndoResult) => void;
@@ -74,7 +86,16 @@ export function fakeProjectApi(): ProjectApi & {
    * editor.
    */
   linkTo: (workItemId: string, refs: readonly { systemId: string; url: string }[]) => void;
+  /**
+   * Every Retry the screen asked for, in order.
+   *
+   * Recorded rather than answered, because the 202 is not what moves a screen:
+   * the plan read is, and a test that asserted on the return value would pass
+   * on a button that never re-read.
+   */
+  retries: readonly { objective: 'pri' | 'time'; inputHash: string }[];
 } {
+  const retries: { objective: 'pri' | 'time'; inputHash: string }[] = [];
   const rows: WorkItemView[] = [];
   const edges: { predecessorId: string; successorId: string }[] = [];
   let next = 0;
@@ -82,6 +103,33 @@ export function fakeProjectApi(): ProjectApi & {
   let estimateMethod: EstimateMethod = 'pert';
   let depReach: DependencyReach = 'whole-item';
   let startDate: string | null = null;
+  let optimizationEnabled = false;
+  let scheduleEngine: 'fast' | 'optimized' = 'fast';
+  let scheduleObjective: 'pri' | 'time' = 'pri';
+  /**
+   * The project's calendar markers, in creation order — which is the order
+   * `listCalendarMarkers` answers in.
+   *
+   * A **store** and not a call log, and the difference is what two slices rest
+   * on: 7.2 asserts an undated plan's cell wrote nothing, and 6.3 reads the
+   * rename and recolour back off what the fake now holds. A spy that recorded
+   * arguments and kept nothing would let a composer writing to the wrong marker
+   * pass both.
+   *
+   * **Every marker in here carries a resolved `color`**, the invariant
+   * `fake-project-api.test.ts` names and holds: this store is the *answer* side
+   * of the API, and be-01's answer side has no `null` in it.
+   */
+  const markers: CalendarMarkerView[] = [];
+  /** Minted here when the caller names none, as be-01 mints one. */
+  let nextMarkerId = 0;
+  const markerAt = (markerId: string): CalendarMarkerView => {
+    const found = markers.find((marker) => marker.id === markerId);
+    // The refusal be-01 answers, so a write aimed at an id nothing holds fails
+    // here rather than being silently absorbed.
+    if (found === undefined) throw new Error('not_found');
+    return found;
+  };
   /**
    * `serviceIds` present and empty on every team, never absent — be-01 sends
    * the ownership map whole ({@link TeamView.serviceIds}) and a fake that left
@@ -252,8 +300,9 @@ export function fakeProjectApi(): ProjectApi & {
     for (const row of rows) row.rolledUp = rows.some((r) => r.parentId === row.id);
   }
 
-  return {
+  return refusingApi({
     rows,
+    markers,
     stack,
     stackCalls,
     /** What the next undo or redo answers, for the refusals be-01 models. */
@@ -279,6 +328,7 @@ export function fakeProjectApi(): ProjectApi & {
       // read carries a fresh sequence and the table does not discard it.
       renumber();
     },
+    retries,
     linkTo(workItemId: string, refs: readonly { systemId: string; url: string }[]) {
       const row = rows.find((r) => r.id === workItemId);
       if (row === undefined) throw new Error(`no work item ${workItemId}`);
@@ -329,12 +379,23 @@ export function fakeProjectApi(): ProjectApi & {
     createProject: (name: string) => Promise.resolve({ id: 'p1', name, restricted: false }),
     openProject: () => Promise.resolve(),
     renameProject: () => Promise.resolve(),
-    tree: () =>
+    tree: (projectId) => {
       // The sequence advances with every mutation, the way be-01's does, so a
       // test that asserts what the stream was told is asserting something real.
-      Promise.resolve({
+      const plan = {
         workItems: rows.map((r) => ({
           ...r,
+          projectId,
+          position: rows.indexOf(r),
+          serviceId: null,
+          tagIds: [...(r.tagIds ?? [])],
+          serviceIds: [...(r.serviceIds ?? [])],
+          typeIds: [...(r.typeIds ?? [])],
+          externalRefs: (r.externalRefs ?? []).map((ref) => ({ ...ref })),
+          actuals: {},
+          progress: {},
+          state: 'not_started' as const,
+          measures: {},
           dependsOn: edges.filter((e) => e.successorId === r.id).map((e) => e.predecessorId),
           schedule: scheduleOf(r),
           // A parent carries the sum of its descendants' trios, per step and
@@ -366,6 +427,8 @@ export function fakeProjectApi(): ProjectApi & {
         })),
         seq,
         scheduleError: null,
+        waitingForPerson: 0,
+        waitingForCapacity: 0,
         // One per leaf and step, as be-01 places them: a parent has no work of
         // its own and gets none. The ids are this fake's, and opaque — the
         // table looks them up and never takes them apart.
@@ -396,11 +459,12 @@ export function fakeProjectApi(): ProjectApi & {
             width: 1,
             effort: scheduleOf(r).duration,
             capacityPredecessorIds: [],
+            lateBy: null,
           })),
         // On the read that carried the slices, as be-01 sends them: the chart
         // reads its steps and its names from here and not from the separate
         // `steps`/`listPeople` calls the pickers make.
-        steps: stepList.map((step) => ({ ...step })),
+        steps: stepList.map((step, position) => ({ ...step, projectId, position })),
         assignedPeople: people.map(({ id, name }) => ({ id, name })),
         // Present and empty, never absent: be-01 always sends it, so a fake that
         // left it out would let `teamsOnThePlan` be handed `undefined` here and
@@ -424,7 +488,23 @@ export function fakeProjectApi(): ProjectApi & {
         projectRevision: 0,
         undoable: stack.undoable,
         redoable: stack.redoable,
-      }),
+        optimization: {
+          enabled: optimizationEnabled,
+          engine: scheduleEngine,
+          objective: scheduleObjective,
+          inputHash: `fake-input-${String(seq)}`,
+          generation: rows.length === 0 ? null : 1,
+          contractVersion: '1.5+fake',
+          budgetMs: 60_000,
+          displayed: 'fast' as const,
+          variants: {
+            pri: { state: 'idle' as const },
+            time: { state: 'idle' as const },
+          },
+        },
+      };
+      return Promise.resolve(plan);
+    },
     setDepReach(_projectId, reach) {
       depReach = reach;
       renumber();
@@ -432,6 +512,21 @@ export function fakeProjectApi(): ProjectApi & {
     },
     setEstimateMethod(_projectId, method) {
       estimateMethod = method;
+      renumber();
+      return Promise.resolve();
+    },
+    // Records the ask and re-reads, which is what the real one causes: the
+    // page's authority for a variant's state is the plan read, never the 202.
+    retryOptimization(_projectId, objective, inputHash) {
+      retries.push({ objective, inputHash });
+      return Promise.resolve();
+    },
+    setOptimizationSettings(_projectId, patch) {
+      if (patch.optimizationEnabled !== undefined) {
+        optimizationEnabled = patch.optimizationEnabled;
+      }
+      if (patch.scheduleEngine !== undefined) scheduleEngine = patch.scheduleEngine;
+      if (patch.scheduleObjective !== undefined) scheduleObjective = patch.scheduleObjective;
       renumber();
       return Promise.resolve();
     },
@@ -527,6 +622,46 @@ export function fakeProjectApi(): ProjectApi & {
       renumber();
       return Promise.resolve();
     },
+    listCalendarMarkers: () => Promise.resolve(markers.map((marker) => ({ ...marker }))),
+    createCalendarMarker(_projectId, marker) {
+      const id = marker.markerId ?? `marker-${String(nextMarkerId++)}`;
+      const stored: CalendarMarkerView = {
+        id,
+        date: marker.date,
+        name: marker.name,
+        // Absent and `null` are one request — *automatic* — and the answer to
+        // both is the resolved colour, because that is what
+        // `calendar-marker.routes.ts` sends back from `answered()`. Answering
+        // `null` here would be a double laxer than the API it stands in for:
+        // it would hand the chart a wire shape be-01 cannot produce, and let a
+        // client-side fallback pass a test that production has no fallback to
+        // survive (task 284).
+        color: marker.color ?? automaticColor(id),
+      };
+      markers.push(stored);
+      // No `renumber()`: a marker moves nothing in the plan, which is task 4's
+      // axis-1 obligation. Recomputing here would hide a marker write that had
+      // quietly become a schedule input.
+      return Promise.resolve({ ...stored });
+    },
+    renameCalendarMarker(_projectId, markerId, name) {
+      const marker = markerAt(markerId);
+      marker.name = name;
+      return Promise.resolve({ ...marker });
+    },
+    recolorCalendarMarker(_projectId, markerId, color) {
+      const marker = markerAt(markerId);
+      // `null` is the reader handing the marker back to automatic, and the
+      // route answers that with the resolved colour rather than the `null` it
+      // stored — so the fake resolves here too, at the one edge where the
+      // request shape and the answer shape differ.
+      marker.color = color ?? automaticColor(markerId);
+      return Promise.resolve({ ...marker });
+    },
+    deleteCalendarMarker(_projectId, markerId) {
+      markers.splice(markers.indexOf(markerAt(markerId)), 1);
+      return Promise.resolve();
+    },
     steps: () => Promise.resolve(stepList.map((step) => ({ ...step }))),
     addStep(_projectId, name) {
       const clean = name.trim();
@@ -563,7 +698,14 @@ export function fakeProjectApi(): ProjectApi & {
         return Promise.resolve({
           ok: false as const,
           reason: 'in_use' as const,
-          inUse: { estimates, assignments: holders.length, assumedAssignees: flipsFor(stepId) },
+          inUse: {
+            estimates,
+            actuals: 0,
+            progress: 0,
+            measures: 0,
+            assignments: holders.length,
+            assumedAssignees: flipsFor(stepId),
+          },
         });
       }
       for (const row of rows) {
@@ -606,6 +748,10 @@ export function fakeProjectApi(): ProjectApi & {
         maxParallel: 1,
         startNoEarlierThan: null,
         startNoEarlierThanReason: null,
+        // No deadline on a row nobody has given one, and no reason field beside
+        // it — the deadline column has none, which is why the table's clear is
+        // one field where the floor's is a pair.
+        deadline: null,
         // A duplicate `teamIds` sat here until 2026-08-18, and a duplicate
         // `startNoEarlierThanReason` until 2026-09-02 — both harmless, and both
         // only possible because nothing typechecked this file. Moving it here,
@@ -791,5 +937,5 @@ export function fakeProjectApi(): ProjectApi & {
       renumber();
       return Promise.resolve(stackAnswer);
     },
-  };
+  });
 }

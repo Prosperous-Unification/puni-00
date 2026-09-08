@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { rowsChanged } from './changes';
+import type { Gate } from './gate';
 
 export interface RecordedEvent {
   subscription: string;
@@ -10,7 +11,36 @@ export interface RecordedEvent {
   createdAt: number;
 }
 
-export interface EventLogRepo {
+/**
+ * Drizzle's transaction handle, in a port's signature — which is the one thing
+ * left in this file that is not source-agnostic.
+ *
+ * It survives {@link EventLogStore.recordEventIn} because the optimizer's
+ * `storeOptimizedOutcomeAndRecord` writes a solver result and its durable
+ * replay record as one act on its **own** transaction, and moving that onto the
+ * unit of work is `dual-optimized-scheduler`'s slice rather than this one's
+ * (Wave 0 gate, 2026-09-08). Every other caller records through
+ * {@link EventLogStore.recordEvent}, which takes its own turn; a batch records
+ * through the copy on its scope, which is admitted.
+ */
+export type EventLogTransaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
+
+/**
+ * The durable record of what has been announced on a subscription — a store
+ * port of the source like the rest, and a **transactional** one (ADR 0015).
+ *
+ * On `Scope` it is the batch's own: the events a batch records live or die with
+ * its writes, which is what makes a replaying client and a live one see the
+ * same history. Replay and retention read and prune through the public, gated
+ * copy.
+ */
+export interface EventLogStore {
+  recordEventIn(
+    tx: EventLogTransaction,
+    subscription: string,
+    message: unknown,
+    createdAt: number,
+  ): RecordedEvent;
   recordEvent(subscription: string, message: unknown, createdAt: number): Promise<RecordedEvent>;
   rangeSince(subscription: string, sinceSeq: number): Promise<RecordedEvent[]>;
   oldestSeq(subscription: string): Promise<number | null>;
@@ -27,30 +57,48 @@ export interface EventLogRepo {
   pruneBeyond(maxPerSubscription: number): Promise<number>;
 }
 
-export class DrizzleEventLogRepo implements EventLogRepo {
-  constructor(private readonly db: SQLiteBunDatabase) {}
+export class DrizzleEventLogStore implements EventLogStore {
+  constructor(
+    private readonly db: SQLiteBunDatabase,
+    private readonly gate: Gate,
+  ) {}
 
-  recordEvent(subscription: string, message: unknown, createdAt: number): Promise<RecordedEvent> {
+  recordEventIn(
+    tx: EventLogTransaction,
+    subscription: string,
+    message: unknown,
+    createdAt: number,
+  ): RecordedEvent {
     const payload = JSON.stringify(message);
-    const result = this.db.transaction((tx) => {
-      tx.run(sql`
+    tx.run(sql`
         INSERT INTO event_sequencer (subscription, next_seq) VALUES (${subscription}, 0)
         ON CONFLICT(subscription) DO NOTHING
       `);
-      const rows = tx.all<{ next_seq: number }>(
-        sql`UPDATE event_sequencer
+    const rows = tx.all<{ next_seq: number }>(
+      sql`UPDATE event_sequencer
             SET next_seq = next_seq + 1
             WHERE subscription = ${subscription}
             RETURNING next_seq - 1 AS next_seq`,
-      );
-      const seq = rows[0]?.next_seq ?? 0;
-      tx.run(sql`
+    );
+    const row = rows.at(0);
+    if (row === undefined) throw new Error(`event sequencer did not return ${subscription}`);
+    tx.run(sql`
         INSERT INTO event_log (subscription, seq, message, created_at)
-        VALUES (${subscription}, ${seq}, ${payload}, ${createdAt})
+        VALUES (${subscription}, ${row.next_seq}, ${payload}, ${createdAt})
       `);
-      return { subscription, seq, message, createdAt };
-    });
-    return Promise.resolve(result);
+    return { subscription, seq: row.next_seq, message, createdAt };
+  }
+
+  async recordEvent(
+    subscription: string,
+    message: unknown,
+    createdAt: number,
+  ): Promise<RecordedEvent> {
+    return await this.gate.enter(() =>
+      Promise.resolve(
+        this.db.transaction((tx) => this.recordEventIn(tx, subscription, message, createdAt)),
+      ),
+    );
   }
 
   async rangeSince(subscription: string, sinceSeq: number): Promise<RecordedEvent[]> {
@@ -92,14 +140,15 @@ export class DrizzleEventLogRepo implements EventLogRepo {
   }
 
   async pruneBeyond(maxPerSubscription: number): Promise<number> {
-    await Promise.resolve();
-    // One transaction over the delete and its count, for the reason
-    // `PlanEventRepository.pruneOlderThan` states: `changes()` answers about
-    // the last statement **this connection** ran, and the retention sweep does
-    // not hold the write lock.
-    return this.db.transaction((tx) => {
-      tx.run(
-        sql`DELETE FROM event_log
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      // One transaction over the delete and its count, for the reason
+      // `PlanEventRepository.pruneOlderThan` states: `changes()` answers about
+      // the last statement **this connection** ran; the sweep's turn at the
+      // coordinator keeps a batch's statements out of that count.
+      return this.db.transaction((tx) => {
+        tx.run(
+          sql`DELETE FROM event_log
           WHERE id IN (
             SELECT id FROM (
               SELECT id, ROW_NUMBER() OVER (PARTITION BY subscription ORDER BY seq DESC) AS rn
@@ -107,12 +156,13 @@ export class DrizzleEventLogRepo implements EventLogRepo {
             )
             WHERE rn > ${maxPerSubscription}
           )`,
-      );
-      // The count is what the retention sweep reports, so no row back throws
-      // rather than reading as zero: `?? 0` stood here until 2026-09-02, which
-      // is a default for an unknown in the one place a caller acts on the
-      // number. See {@link rowsChanged}.
-      return rowsChanged(tx, 'pruning event_log');
+        );
+        // The count is what the retention sweep reports, so no row back throws
+        // rather than reading as zero: `?? 0` stood here until 2026-09-02, which
+        // is a default for an unknown in the one place a caller acts on the
+        // number. See {@link rowsChanged}.
+        return rowsChanged(tx, 'pruning event_log');
+      });
     });
   }
 }

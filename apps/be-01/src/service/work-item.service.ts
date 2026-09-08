@@ -1,5 +1,8 @@
+import { type Clock, clockOf } from '@wbs/core';
 import {
   addWorkdays,
+  deadlineOffsetOf,
+  deadlineOffsetsOf,
   type DependencyReach,
   deriveNumbers,
   effectiveTeamsOf,
@@ -11,6 +14,7 @@ import {
   type IsoDate,
   isWithin,
   lastWorkdayOf,
+  nextWorkday,
   NOT_STARTED,
   ORDINARY_BAND_RANK,
   parentIndexOf,
@@ -36,6 +40,7 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type {
   ActualStore,
+  Assignment,
   CapacityStore,
   CommandJournalStore,
   DependencyStore,
@@ -52,6 +57,7 @@ import type {
   Step,
   StepProgressStore,
   StoredActual,
+  StoredDependency,
   StoredEstimate,
   StoredMeasure,
   StoredProgress,
@@ -63,11 +69,9 @@ import type {
   WorkItemStore,
   WriteStamp,
 } from '../repository';
-import { isForeignKeyViolation } from '../repository/constraint';
 import { MEASURE_METRICS } from '../repository/schema';
 import { assumedAssignee } from './assumed-assignee';
 import type { Broadcaster } from './broadcast';
-import { type Clock, clockOf } from './clock';
 import {
   type CompensatingCommand,
   quoteName,
@@ -79,7 +83,11 @@ import {
   touchedBy,
 } from './compensating';
 import { canDepend } from './dependency';
-import type { OptimizedScheduleReader } from './optimized-schedule-reader';
+import type {
+  OptimizationVariantState,
+  OptimizedScheduleRead,
+  OptimizedScheduleReader,
+} from './optimized-schedule-reader';
 import { canEdit } from './project.service';
 import {
   type Days,
@@ -101,19 +109,24 @@ import {
  * them is a plan.
  */
 /**
- * The deadlines the plan read has to offer the hash, which is none of them.
+ * The deadlines a project **off the calendar** offers, which is none of them.
  *
- * `ScheduleInput` declares the member because 1.1 hashes it and the wire
- * carries it; the `deadline` column, `deadlineOffsetOf` and the effective fold
- * that would populate it are **TASK-241's**, not this task's (tasks.md, the
- * boundary at the top). An empty map is the true value here rather than a
- * placeholder: a plan with no deadlines stated hashes the same on both sides of
- * that task, so a row written today is still readable after it lands.
+ * No longer the placeholder it was: the plan read now resolves the stored
+ * `deadline` column against `project.startDate` and hands the offsets to
+ * `schedule()`. This constant is what is left of that state — the one branch
+ * where there is still nothing to say, because a project with no start date has
+ * no day zero to count workdays from. It is the same rule the floors beside it
+ * take and the same one 6.1's write path takes when it asks such a project
+ * nothing about a deadline it is being handed.
+ *
+ * An empty map is the true value there rather than a stand-in: a plan whose
+ * dates cannot be resolved states no deadline to the hash, so it keys the same
+ * as a plan that has none, and both read the same cached row.
  *
  * Frozen into a module constant rather than built per read so the empty case
  * cannot be handed a map somebody later writes into.
  */
-const NO_DEADLINES: ReadonlyMap<string, number> = new Map<string, number>();
+export const NO_DEADLINES: ReadonlyMap<string, number> = new Map<string, number>();
 
 const UNSCHEDULED: Scheduled = {
   duration: 0,
@@ -345,6 +358,87 @@ export function slicesOf(
     }
   }
   return slices;
+}
+
+interface CanonicalScheduleParts {
+  readonly input: ScheduleInput;
+  readonly hasChildren: ReadonlySet<string>;
+  readonly assigneesOf: ReadonlyMap<string, Record<string, string>>;
+  readonly rule: EstimateRule;
+}
+
+/**
+ * Assemble the one canonical solver/Fast input from repository readings.
+ *
+ * Both the interactive tree read and the restart queue pump call this seam.
+ * Keeping the slicing, assignments, calendar offsets, capacity and reach here
+ * prevents a restarted solve from rebuilding a different hash than the plan
+ * read that enqueued it.
+ */
+function canonicalScheduleParts(
+  project: Project,
+  rows: readonly LabelledWorkItem[],
+  estimates: readonly StoredEstimate[],
+  edges: readonly StoredDependency[],
+  assignments: readonly Assignment[],
+  steps: readonly Step[],
+  poolSizes: ReadonlyMap<string, number>,
+): CanonicalScheduleParts {
+  const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
+  const assigneesOf = new Map<string, Record<string, string>>();
+  for (const assignment of assignments) {
+    assigneesOf.set(assignment.workItemId, {
+      ...(assigneesOf.get(assignment.workItemId) ?? {}),
+      [assignment.stepId]: assignment.personId,
+    });
+  }
+  const rule: EstimateRule = {
+    method: project.estimateMethod,
+    pertWeights: project.pertWeights,
+    rounding: project.estimateRounding,
+  };
+  const slices = slicesOf(
+    rows,
+    estimates,
+    hasChildren,
+    steps.map((step) => step.id),
+    rule,
+    assigneesOf,
+    effectiveTeamsOf(rows),
+    poolSizes,
+  );
+  const notBefore = new Map<string, number>();
+  if (project.startDate !== null) {
+    for (const row of rows) {
+      if (row.startNoEarlierThan === null) continue;
+      notBefore.set(row.id, workdaysBetween(project.startDate, row.startNoEarlierThan));
+    }
+  }
+  const deadlines =
+    project.startDate === null
+      ? NO_DEADLINES
+      : deadlineOffsetsOf(
+          project.startDate,
+          new Map(
+            rows
+              .filter((row): row is typeof row & { deadline: IsoDate } => row.deadline !== null)
+              .map((row) => [row.id, row.deadline]),
+          ),
+        );
+  return {
+    input: {
+      rows,
+      edges,
+      slices,
+      notBefore,
+      poolSizes,
+      reach: project.depReach,
+      deadlines,
+    },
+    hasChildren,
+    assigneesOf,
+    rule,
+  };
 }
 
 /**
@@ -685,9 +779,46 @@ export type WorkItemRefusal =
    * sentence, and a write that silently deletes them is the worse of the two
    * answers.
    */
-  | 'not_before_reason_needs_a_date';
+  | 'not_before_reason_needs_a_date'
+  /**
+   * A deadline that falls before the project's day zero, so no placement of
+   * the work could ever meet it.
+   *
+   * **The only deadline-specific refusal** (`work-item-deadline` 6.1). The shape
+   * of the value is the controller's — a non-`IsoDate` is a malformed payload —
+   * and everything else about a deadline is legal here, including one in the
+   * past relative to today and one earlier than an ancestor's.
+   *
+   * It refuses the **write** and nothing else. A project start later moved past
+   * a deadline already stored does not become this: that is resolved at read
+   * time and reported as late by the whole span, and the request that moved the
+   * project is not rejected. See the column's JSDoc in `schema.ts`, which is
+   * where that asymmetry is argued.
+   */
+  | 'deadline_before_project_start';
 
-export type WorkItemOutcome<T> = { ok: true; value: T } | { ok: false; reason: WorkItemRefusal };
+export type WorkItemOutcome<T> =
+  | { ok: true; value: T }
+  | {
+      ok: false;
+      reason: WorkItemRefusal;
+      /**
+       * Which row was refused, on `deadline_before_project_start` alone.
+       *
+       * Optional rather than a fourth arm of the union so that every existing
+       * `{ ok: false, reason }` still assigns, and read by the batch runner's
+       * `detailOf`, which spreads whatever a refusal carries beside its code
+       * into the answer's `detail` — the same road `taken`'s `name` travels.
+       */
+      workItemId?: string;
+      /**
+       * The project's **day zero** — the first workday on or after its start
+       * date, which is what `deadlineOffsetOf` compares against — so the client
+       * can say what the earliest legal deadline is rather than only that this
+       * one was wrong.
+       */
+      projectDayZero?: IsoDate;
+    };
 
 /**
  * Whether this release keeps figures in the unit a caller named.
@@ -939,6 +1070,12 @@ function fieldsOf(patch: WorkItemPatch): (keyof WorkItemPatch)[] {
   // screen and the press is refused. The parallelism line's own red, one field
   // over. Watched 2026-08-18.
   if (patch.startNoEarlierThanReason !== undefined) named.push('startNoEarlierThanReason');
+  // Proof: this line deleted, so a patch naming only the deadline journals
+  // nothing, and `puts a cleared deadline back` failed at its `expectDone` on
+  // `refused: stale_undo`: the undo reached past the unjournalled write to an
+  // entry that write had already made stale. The reason line's own red, one
+  // column over.
+  if (patch.deadline !== undefined) named.push('deadline');
   // Proof: this line and the matching one in {@link revertTo} each deleted in
   // turn, and both `puts a replaced priority back, and leaves a priority a rename
   // did not name` and `takes a first priority away again, rather than leaving a
@@ -1016,6 +1153,14 @@ function revertTo(before: LabelledWorkItem, patch: WorkItemPatch): WorkItemPatch
   if (patch.startNoEarlierThanReason !== undefined) {
     out.startNoEarlierThanReason = before.startNoEarlierThanReason;
   }
+  // No pair to reconstruct — the deadline has no reason column beside it — so
+  // this is the scalar rule the priority below it keeps: name the field the
+  // forward named, restore the value it had, and leave every other field alone.
+  // `before.deadline` is whichever of the two the row actually held, so the
+  // inverse of a set is the prior date or `null` and the inverse of a clear is
+  // the date. **Redo does not come through here at all** — it replays the
+  // journalled `forward` patch — which is why 6.3's case presses both.
+  if (patch.deadline !== undefined) out.deadline = before.deadline;
   if (patch.priority !== undefined) out.priority = before.priority;
   if (patch.serviceTeamId !== undefined) out.serviceTeamId = before.serviceTeamId;
   if (patch.teamIds !== undefined) out.teamIds = before.teamIds;
@@ -1146,6 +1291,50 @@ export interface Collected<T> {
   dirty: boolean;
 }
 
+export interface PlanOptimization {
+  readonly enabled: boolean;
+  readonly engine: Project['scheduleEngine'];
+  readonly objective: Project['scheduleObjective'];
+  readonly inputHash: string;
+  readonly generation: number | null;
+  readonly contractVersion: string;
+  readonly budgetMs: number;
+  readonly displayed: 'fast' | Project['scheduleObjective'];
+  readonly variants: Readonly<Record<Project['scheduleObjective'], OptimizationVariantState>>;
+  readonly comparison?: { readonly deltaDays: number; readonly sameOrder: boolean };
+}
+
+function scheduleFinish(schedule: Schedule): number {
+  return Math.max(
+    0,
+    ...[...schedule.workItems.values()].map(({ earliestFinish }) => earliestFinish),
+  );
+}
+
+function schedulesHaveSameOrder(left: Schedule, right: Schedule): boolean {
+  const shared = [...left.slices.keys()].filter((key) => right.slices.has(key)).sort();
+  for (let first = 0; first < shared.length; first += 1) {
+    for (let second = first + 1; second < shared.length; second += 1) {
+      const firstKey = shared[first];
+      const secondKey = shared[second];
+      const leftFirst = left.slices.get(firstKey)?.earliestStart;
+      const leftSecond = left.slices.get(secondKey)?.earliestStart;
+      const rightFirst = right.slices.get(firstKey)?.earliestStart;
+      const rightSecond = right.slices.get(secondKey)?.earliestStart;
+      if (
+        leftFirst === undefined ||
+        leftSecond === undefined ||
+        rightFirst === undefined ||
+        rightSecond === undefined
+      ) {
+        throw new Error('shared schedule slice vanished during comparison');
+      }
+      if (Math.sign(leftFirst - leftSecond) !== Math.sign(rightFirst - rightSecond)) return false;
+    }
+  }
+  return true;
+}
+
 interface BatchCollector {
   recordings: CollectedRecording[];
   dirty: boolean;
@@ -1197,12 +1386,29 @@ export class WorkItemService {
    * key built from anything else would name a different plan than the one about
    * to be scheduled, which is the ABA the `inputHash` exists to fence.
    */
-  private publishedOptimized(project: Project, input: ScheduleInput): Schedule | null {
+  private readOptimization(project: Project, input: ScheduleInput): OptimizedScheduleRead | null {
     const read = this.opts.optimized;
     if (read === undefined) return null;
-    if (!project.optimizationEnabled) return null;
-    if (project.scheduleEngine !== 'optimized') return null;
-    return read({ projectId: project.id, objective: project.scheduleObjective, input });
+    return read({
+      projectId: project.id,
+      objective: project.scheduleObjective,
+      input,
+      enabled: project.optimizationEnabled,
+    });
+  }
+
+  /** Rebuild the canonical input a durable solver queue entry names. */
+  async scheduleInput(projectId: string): Promise<ScheduleInput | null> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return null;
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const estimates = await this.opts.estimates.listByProject(projectId);
+    const edges = await this.opts.dependencies.listByProject(projectId);
+    const assignments = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
+    const steps = await this.opts.projects.stepsOf(projectId);
+    const poolSizes = await this.opts.capacity.slotsFor(projectId);
+    return canonicalScheduleParts(project, rows, estimates, edges, assignments, steps, poolSizes)
+      .input;
   }
 
   /**
@@ -1282,10 +1488,8 @@ export class WorkItemService {
      * the slices in this very payload. `/api/people` answers a different question — who
      * could be assigned — and is still what the pickers read.
      *
-     * Read after {@link DirectoryStore.assignmentsOf} on purpose. People are
-     * only ever added, so a person created between the two reads is one this
-     * list has and no assignment names; the other order would hand out an
-     * assignment to somebody unnamed.
+     * Read together with assignments through {@link DirectoryStore.assignmentsInProject},
+     * so the names and assignments share one project-scoped database statement.
      *
      * Typed as the two columns it is, not as a `Person`. The builder has always
      * mapped to `{ id, name }` — "the names, not the whole directory" above is
@@ -1360,6 +1564,8 @@ export class WorkItemService {
      * below it, each of which carries its own.
      */
     projectRevision: number;
+    /** Present when this process has the optimizer runtime wired. */
+    optimization?: PlanOptimization;
   } | null> {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return null;
@@ -1381,35 +1587,13 @@ export class WorkItemService {
     // {@link MeasureStore}.
     const measured = await this.opts.measures.listByProject(projectId);
     const edges = await this.opts.dependencies.listByProject(projectId);
-    const assigned = await this.opts.directory.assignmentsOf(rows.map((row) => row.id));
-    // The names for the ids just read, on this read rather than on a client's
-    // separate one. Filtered to who is actually on this plan: the directory is
-    // global and a chart has no use for people no slice names.
-    const assignedIds = new Set(assigned.map((each) => each.personId));
-    const assignedPeople = (await this.opts.directory.listPeople())
-      .filter((each) => assignedIds.has(each.id))
-      .map(({ id, name }) => ({ id, name }));
-    const assigneesOf = new Map<string, Record<string, string>>();
-    for (const each of assigned) {
-      assigneesOf.set(each.workItemId, {
-        ...(assigneesOf.get(each.workItemId) ?? {}),
-        [each.stepId]: each.personId,
-      });
-    }
+    // Proof: restoring listPeople() followed by the assigned-id filter made
+    // `materializes only assigned project rows and names during a tiny tree read`
+    // fail on 41 materialized people, expected at most 1, with the same payload.
+    const { assignments: assigned, people: assignedPeople } =
+      await this.opts.directory.assignmentsInProject(projectId);
     const numbers = deriveNumbers(rows);
     const totals = rollUp(rows, stored);
-    // The project's whole estimate arithmetic, assembled once and handed to
-    // everything that needs a number of days: the slices the schedule runs and
-    // the figures the table prints. Two assemblies would be two arithmetics.
-    const rule: EstimateRule = {
-      method: project.estimateMethod,
-      pertWeights: project.pertWeights,
-      rounding: project.estimateRounding,
-    };
-    // What each row is **charged**, per step: a leaf's own estimate rounded, a
-    // parent's the sum of its descendants' rounded figures. Not `totals` put
-    // through the method — see `rollUpFinals`.
-    const charged = rollUpFinals(rows, stored, rule);
     const recordedTotals = rollUpActuals(rows, recorded);
     // Three folds over a tree already in memory, one per metric, because adding
     // a token to an hour is the thing `rollUpMeasures` exists to make
@@ -1419,7 +1603,6 @@ export class WorkItemService {
     const measuredTotals = new Map(
       MEASURE_METRICS.map((metric) => [metric, rollUpMeasures(rows, measured, metric)] as const),
     );
-    const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
     // Which steps have work on each leaf: the ones with an estimate, the ones
     // with a recorded day, and the ones somebody has already spoken about.
     //
@@ -1462,32 +1645,21 @@ export class WorkItemService {
     // nothing — not `slicesOf`, not `schedule` — and that is the change's whole
     // claim about itself: `git diff` on this file shows one read and one field.
     const priorityBands = await this.opts.priorityBands.listFor(projectId);
-    // One reading of the label, shared with the table, the cards, the Gantt and
-    // the export — a leaf's own team set, or the nearest ancestor's. No write
-    // ever copies a set down; see {@link effectiveTeamsOf}.
-    const teamOf = effectiveTeamsOf(rows);
-    const slices = slicesOf(
+    const canonical = canonicalScheduleParts(
+      project,
       rows,
       stored,
-      hasChildren,
-      steps.map((each) => each.id),
-      rule,
-      assigneesOf,
-      teamOf,
+      edges,
+      assigned,
+      steps,
       slotsOf,
     );
-    // A manual date becomes an offset before the pass, and offsets become dates
-    // after it: the schedule itself never sees a calendar, so weekends are
-    // counted in exactly one place. Without a project start date there is
-    // nothing to count from, so the constraints are simply not applied — a
-    // plan off the calendar is the state it has always been in.
-    const notBefore = new Map<string, number>();
-    if (project.startDate !== null) {
-      for (const row of rows) {
-        if (row.startNoEarlierThan === null) continue;
-        notBefore.set(row.id, workdaysBetween(project.startDate, row.startNoEarlierThan));
-      }
-    }
+    const { assigneesOf, hasChildren, rule } = canonical;
+    const { slices, notBefore, deadlines } = canonical.input;
+    // What each row is **charged**, per step: a leaf's own estimate rounded, a
+    // parent's the sum of its descendants' rounded figures. Not `totals` put
+    // through the method — see `rollUpFinals`.
+    const charged = rollUpFinals(rows, stored, rule);
     // tasks.md 4.11's seam, and the reason `readOptimizedPair` finally has a
     // production caller. Asked **before** the `try` on purpose: everything the
     // cache models — a miss, a `failed` row, a superseded generation, a
@@ -1499,15 +1671,8 @@ export class WorkItemService {
     // through `schedule()` itself, which throws on a cycle before anything is
     // stored, so a plan that would raise `ScheduleCycleError` here has no row
     // to serve. The cycle banner is not lost by taking this branch.
-    const optimized = this.publishedOptimized(project, {
-      rows,
-      edges,
-      slices,
-      notBefore,
-      poolSizes: slotsOf,
-      reach: project.depReach,
-      deadlines: NO_DEADLINES,
-    });
+    const optimizationRead = this.readOptimization(project, canonical.input);
+    let optimization: PlanOptimization | undefined;
     let timing = new Map<string, Scheduled>();
     let scheduleError: ScheduleError = null;
     /**
@@ -1544,8 +1709,42 @@ export class WorkItemService {
       // memoised on the first plan read — the read hoisted out of the run — and
       // `each project is scheduled by its own reach` failed on `Expected: 5 /
       // Received: 3` for the second project's successor; watched 2026-08-29.
-      const planned =
-        optimized ?? schedule(rows, edges, slices, notBefore, slotsOf, project.depReach);
+      const fast = schedule(rows, edges, slices, notBefore, slotsOf, project.depReach, deadlines);
+      let optimized: Schedule | null = null;
+      if (
+        optimizationRead !== null &&
+        project.optimizationEnabled &&
+        project.scheduleEngine === 'optimized' &&
+        optimizationRead.variants[project.scheduleObjective].state === 'ready'
+      ) {
+        if (optimizationRead.selectedSchedule === null) {
+          throw new Error('optimized plan reader reported ready without a schedule');
+        }
+        optimized = optimizationRead.selectedSchedule;
+      }
+      const planned = optimized ?? fast;
+      if (optimizationRead !== null) {
+        const displayed = optimized === null ? 'fast' : project.scheduleObjective;
+        optimization = {
+          enabled: project.optimizationEnabled,
+          engine: project.scheduleEngine,
+          objective: project.scheduleObjective,
+          inputHash: optimizationRead.inputHash,
+          generation: optimizationRead.generation,
+          contractVersion: optimizationRead.contractVersion,
+          budgetMs: optimizationRead.budgetMs,
+          displayed,
+          variants: optimizationRead.variants,
+          ...(optimized === null
+            ? {}
+            : {
+                comparison: {
+                  deltaDays: scheduleFinish(optimized) - scheduleFinish(fast),
+                  sameOrder: schedulesHaveSameOrder(fast, optimized),
+                },
+              }),
+        };
+      }
       timing = planned.workItems;
       waitingForPerson = planned.waitingForPerson;
       waitingForCapacity = planned.waitingForCapacity;
@@ -1677,6 +1876,7 @@ export class WorkItemService {
       depReach: project.depReach,
       startDate: project.startDate,
       projectRevision: project.revision,
+      ...(optimization === undefined ? {} : { optimization }),
     };
   }
 
@@ -1720,6 +1920,12 @@ export class WorkItemService {
       startNoEarlierThan: null,
       // No floor, so no words about one — the only pair a new row can be in.
       startNoEarlierThanReason: null,
+      // No ceiling either. A new row states nothing about when it must finish,
+      // and inheriting the parent's deadline would be the stored-versus-effective
+      // bug the service comment below names: the fold over the ancestors is what
+      // makes a parent's deadline bind its children, and it reads the stored
+      // nulls to do it.
+      deadline: null,
       priority,
       serviceTeamId: null,
       // Unlabelled, in the third dimension as in the other two: a new row states
@@ -1891,6 +2097,39 @@ export class WorkItemService {
     if (patch.maxParallel !== undefined && context.value.rows.some((row) => row.parentId === id)) {
       return { ok: false, reason: 'has_children' };
     }
+    // The one deadline-specific refusal, and it is here rather than at the
+    // controller for the reason the not-before pair is decided in the store:
+    // this is the first layer that has the **project** as well as the payload,
+    // and day zero is the project's. `null` clears the deadline and is asked
+    // nothing — there is no date to be before anything.
+    //
+    // `deadlineOffsetOf` is the same function the fold and Fast read, so the
+    // boundary a write is refused at is by construction the boundary a plan
+    // would have placed it against. Duplicating the comparison here with a
+    // plain `<` is what would let the two drift.
+    //
+    // Proof: this refusal deleted, and `refuses a deadline before the project's
+    // first working day, naming the row and day zero` fails on `Expected: 422,
+    // Received: 200` — the
+    // row takes a date that no placement of the work can meet and every later
+    // read of the project reports it late by a span nobody asked for.
+    //
+    // A project with no start date is asked nothing, for the reason the plan
+    // read gives one screen down about the not-before floors: there is nothing
+    // to count from, so there is no day zero for a date to fall before. A plan
+    // off the calendar takes any deadline and applies none of them.
+    const projectStart = context.value.project.startDate;
+    if (projectStart !== null && patch.deadline !== undefined && patch.deadline !== null) {
+      const offset = deadlineOffsetOf(projectStart, patch.deadline);
+      if (offset.kind === 'before-project-start') {
+        return {
+          ok: false,
+          reason: 'deadline_before_project_start',
+          workItemId: id,
+          projectDayZero: nextWorkday(projectStart),
+        };
+      }
+    }
     const stamp = this.clock.stampFor(actorId);
     const written = await this.opts.workItems.patch(id, patch, stamp);
     if (!written.ok) return { ok: false, reason: written.reason };
@@ -1939,13 +2178,10 @@ export class WorkItemService {
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const before =
-      (await this.opts.directory.assignmentsOf([id])).find((each) => each.stepId === stepId)
+      (await this.opts.directory.assignmentsFor(id)).find((each) => each.stepId === stepId)
         ?.personId ?? null;
     const stamp = this.clock.stampFor(actorId);
-    const assigned = await this.writeNamingStep(workItem.projectId, stepId, () =>
-      this.opts.directory.assign(id, stepId, personId, stamp),
-    );
-    if (assigned === null) return { ok: false, reason: 'unknown_step' };
+    const assigned = await this.opts.directory.assign(id, stepId, personId, stamp);
     if (!assigned.ok) return { ok: false, reason: assigned.reason };
     await this.announceTree(workItem.projectId);
     await this.record(
@@ -2453,7 +2689,7 @@ export class WorkItemService {
       }));
     const cut = allEdges.filter((edge) => edge.predecessorId === id || edge.successorId === id);
     // Read before the delete: the assignment rows cascade with the work item.
-    const deletedAssignments = await this.opts.directory.assignmentsOf([id]);
+    const deletedAssignments = await this.opts.directory.assignmentsFor(id);
     // The same reason as the cascade branch above: an edge to a row that is
     // going has nothing to point at, and the foreign keys say so. Only this row
     // leaves here — its children are promoted, and their edges stay valid.
@@ -2639,10 +2875,8 @@ export class WorkItemService {
       return { ok: false, reason: 'unknown_step' };
     const before = await this.storedTrio(workItem.projectId, id, stepId);
     const stamp = this.clock.stampFor(actorId);
-    const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
-      this.opts.estimates.set({ workItemId: id, stepId, ...days }, stamp),
-    );
-    if (written === null) return { ok: false, reason: 'unknown_step' };
+    const written = await this.opts.estimates.set({ workItemId: id, stepId, ...days }, stamp);
+    if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
     await this.announceTree(workItem.projectId);
     await this.record(
       workItem.projectId,
@@ -2747,13 +2981,14 @@ export class WorkItemService {
       return { ok: false, reason: 'unknown_step' };
     const before = await this.storedActual(workItem.projectId, id, stepId);
     const stamp = this.clock.stampFor(actorId);
-    const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
-      // `recordedAt` off the act's own stamp: the day this was recorded and the
-      // day the row was written are the same day, and reading the clock twice
-      // would let them differ.
-      this.opts.actuals.set({ workItemId: id, stepId, days, recordedAt: stamp.at }, stamp),
+    // `recordedAt` off the act's own stamp: the day this was recorded and the
+    // day the row was written are the same day, and reading the clock twice
+    // would let them differ.
+    const written = await this.opts.actuals.set(
+      { workItemId: id, stepId, days, recordedAt: stamp.at },
+      stamp,
     );
-    if (written === null) return { ok: false, reason: 'unknown_step' };
+    if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
     await this.announceTree(workItem.projectId);
     await this.record(
       workItem.projectId,
@@ -2860,14 +3095,12 @@ export class WorkItemService {
       return { ok: false, reason: 'unknown_step' };
     const before = await this.storedMeasure(workItem.projectId, id, stepId, metric);
     const stamp = this.clock.stampFor(actorId);
-    const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
-      // `recordedAt` off the act's own stamp — {@link setActual}'s reading.
-      this.opts.measures.set(
-        { workItemId: id, stepId, metric, value, recordedAt: stamp.at },
-        stamp,
-      ),
+    // `recordedAt` off the act's own stamp — {@link setActual}'s reading.
+    const written = await this.opts.measures.set(
+      { workItemId: id, stepId, metric, value, recordedAt: stamp.at },
+      stamp,
     );
-    if (written === null) return { ok: false, reason: 'unknown_step' };
+    if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
     await this.announceTree(workItem.projectId);
     await this.record(
       workItem.projectId,
@@ -2978,12 +3211,13 @@ export class WorkItemService {
       return { ok: false, reason: 'unknown_step' };
     const before = await this.storedProgress(workItem.projectId, id, stepId);
     const stamp = this.clock.stampFor(actorId);
-    const written = await this.writeNamingStep(workItem.projectId, stepId, () =>
-      // `statedAt` off the act's own stamp — {@link setActual}'s reading of
-      // `recordedAt`, in this method's tense.
-      this.opts.progress.set({ workItemId: id, stepId, state, statedAt: stamp.at }, stamp),
+    // `statedAt` off the act's own stamp — {@link setActual}'s reading of
+    // `recordedAt`, in this method's tense.
+    const written = await this.opts.progress.set(
+      { workItemId: id, stepId, state, statedAt: stamp.at },
+      stamp,
     );
-    if (written === null) return { ok: false, reason: 'unknown_step' };
+    if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
     await this.announceTree(workItem.projectId);
     await this.record(
       workItem.projectId,
@@ -3387,17 +3621,15 @@ export class WorkItemService {
         if (!(await this.holdsStep(projectId, command.stepId))) {
           return { ok: false, detail: 'that step is no longer in this project.' };
         }
-        const restored = await this.writeNamingStep(projectId, command.stepId, () =>
-          this.opts.estimates.set(
-            {
-              workItemId: command.workItemId,
-              stepId: command.stepId,
-              ...command.days,
-            },
-            stamp,
-          ),
+        const restored = await this.opts.estimates.set(
+          {
+            workItemId: command.workItemId,
+            stepId: command.stepId,
+            ...command.days,
+          },
+          stamp,
         );
-        if (restored === null)
+        if (restored === 'unknown_step')
           return { ok: false, detail: 'that step is no longer in this project.' };
         return { ok: true, detail: null };
       }
@@ -3415,23 +3647,21 @@ export class WorkItemService {
         if (!(await this.holdsStep(projectId, command.stepId))) {
           return { ok: false, detail: 'that step is no longer in this project.' };
         }
-        const restored = await this.writeNamingStep(projectId, command.stepId, () =>
-          this.opts.actuals.set(
-            {
-              workItemId: command.workItemId,
-              stepId: command.stepId,
-              days: command.days,
-              // Now, not the instant the row carried. An undo is somebody
-              // recording the number again, and this column says when it was
-              // recorded — see the `set_actual` command in `compensating.ts`.
-              // "Now" is the undo's own stamp, so the row's recorded day and its
-              // audit columns cannot disagree.
-              recordedAt: stamp.at,
-            },
-            stamp,
-          ),
+        const restored = await this.opts.actuals.set(
+          {
+            workItemId: command.workItemId,
+            stepId: command.stepId,
+            days: command.days,
+            // Now, not the instant the row carried. An undo is somebody
+            // recording the number again, and this column says when it was
+            // recorded — see the `set_actual` command in `compensating.ts`.
+            // "Now" is the undo's own stamp, so the row's recorded day and its
+            // audit columns cannot disagree.
+            recordedAt: stamp.at,
+          },
+          stamp,
         );
-        if (restored === null)
+        if (restored === 'unknown_step')
           return { ok: false, detail: 'that step is no longer in this project.' };
         return { ok: true, detail: null };
       }
@@ -3449,21 +3679,19 @@ export class WorkItemService {
         if (!(await this.holdsStep(projectId, command.stepId))) {
           return { ok: false, detail: 'that step is no longer in this project.' };
         }
-        const restored = await this.writeNamingStep(projectId, command.stepId, () =>
-          this.opts.measures.set(
-            {
-              workItemId: command.workItemId,
-              stepId: command.stepId,
-              metric: command.metric,
-              value: command.value,
-              // Now, not the instant the row carried — `set_actual`'s reading of
-              // `recordedAt`, and the same one `compensating.ts` states.
-              recordedAt: stamp.at,
-            },
-            stamp,
-          ),
+        const restored = await this.opts.measures.set(
+          {
+            workItemId: command.workItemId,
+            stepId: command.stepId,
+            metric: command.metric,
+            value: command.value,
+            // Now, not the instant the row carried — `set_actual`'s reading of
+            // `recordedAt`, and the same one `compensating.ts` states.
+            recordedAt: stamp.at,
+          },
+          stamp,
         );
-        if (restored === null)
+        if (restored === 'unknown_step')
           return { ok: false, detail: 'that step is no longer in this project.' };
         return { ok: true, detail: null };
       }
@@ -3481,21 +3709,19 @@ export class WorkItemService {
         if (!(await this.holdsStep(projectId, command.stepId))) {
           return { ok: false, detail: 'that step is no longer in this project.' };
         }
-        const restored = await this.writeNamingStep(projectId, command.stepId, () =>
-          this.opts.progress.set(
-            {
-              workItemId: command.workItemId,
-              stepId: command.stepId,
-              state: command.state,
-              // Now, not the instant the row carried. An undo is somebody saying
-              // it again, and this column says when it was said — the same
-              // reading `set_actual` takes of `recordedAt`.
-              statedAt: stamp.at,
-            },
-            stamp,
-          ),
+        const restored = await this.opts.progress.set(
+          {
+            workItemId: command.workItemId,
+            stepId: command.stepId,
+            state: command.state,
+            // Now, not the instant the row carried. An undo is somebody saying
+            // it again, and this column says when it was said — the same
+            // reading `set_actual` takes of `recordedAt`.
+            statedAt: stamp.at,
+          },
+          stamp,
         );
-        if (restored === null)
+        if (restored === 'unknown_step')
           return { ok: false, detail: 'that step is no longer in this project.' };
         return { ok: true, detail: null };
       }
@@ -3507,10 +3733,13 @@ export class WorkItemService {
           return { ok: false, detail: 'that step is no longer in this project.' };
         }
         {
-          const reassigned = await this.writeNamingStep(projectId, command.stepId, () =>
-            this.opts.directory.assign(command.workItemId, command.stepId, command.personId, stamp),
+          const reassigned = await this.opts.directory.assign(
+            command.workItemId,
+            command.stepId,
+            command.personId,
+            stamp,
           );
-          if (reassigned === null) {
+          if (!reassigned.ok && reassigned.reason === 'unknown_step') {
             return { ok: false, detail: 'that step is no longer in this project.' };
           }
           // The person was removed after the command ran. Undo never
@@ -3907,43 +4136,6 @@ export class WorkItemService {
         createdAt: stamp.at,
       },
     );
-  }
-
-  /**
-   * Runs a write that names a step, answering `null` when the step went between
-   * the check above it and the statement itself, and otherwise whatever the
-   * write answered.
-   *
-   * {@link WorkItemService.holdsStep} narrows the window and does not close it:
-   * a removal can commit between that read and this write, and `estimate` and
-   * `assignment` both reference `step.id` by foreign key. Left alone that is a
-   * 500 for a caller whose only fault is being a moment out of date, which R5
-   * calls a modeled condition wearing an invariant's clothes.
-   *
-   * The translation is deliberately narrow. SQLite's message names no column,
-   * so the step is re-read before the refusal is believed: a foreign key that
-   * failed over a work item or a person that has gone is still unknown, and
-   * still thrown.
-   *
-   * Proof: with the `catch` removed, `refuses the estimate rather than
-   * answering with the foreign key` and `refuses the assignee the same way`
-   * both fail with `SQLiteError: FOREIGN KEY constraint failed`; with the
-   * `holdsStep` re-read dropped, `still throws a foreign key that is not about
-   * the step` fails, an absent person reported as an absent step. Watched
-   * 2026-08-09.
-   */
-  private async writeNamingStep<T>(
-    projectId: string,
-    stepId: string,
-    write: () => Promise<T>,
-  ): Promise<T | null> {
-    try {
-      return await write();
-    } catch (err) {
-      if (!isForeignKeyViolation(err)) throw err;
-      if (await this.holdsStep(projectId, stepId)) throw err;
-      return null;
-    }
   }
 
   /**

@@ -1,6 +1,6 @@
 import {
-  type FormEvent,
   type ReactNode,
+  type SubmitEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -26,7 +26,6 @@ import {
   type DirectoryEffect,
   type DirectoryRefusal,
   directoryRefusalSentence,
-  directoryRefusedWith,
   type DirectoryRemoval,
   type DirectoryUsage,
   type DirectoryWrite,
@@ -39,6 +38,8 @@ import {
   type TeamView,
   type WorkItemTypeView,
 } from '@/lib/wbs-api';
+
+import { failureText } from '../wbs/plan-refusal';
 
 export interface DirectoryPageProps {
   token: string;
@@ -277,7 +278,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
   }, [directory]);
 
   const reportFailedRead = useCallback((thrown: unknown) => {
-    setProblem(directoryRefusedWith(thrown));
+    setProblem({ reason: 'refused', code: failureText(thrown, 'request_failed') });
   }, []);
 
   // Arrival.
@@ -346,7 +347,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
       try {
         await change();
       } catch (thrown: unknown) {
-        setProblem(directoryRefusedWith(thrown));
+        setProblem({ reason: 'refused', code: failureText(thrown, 'request_failed') });
       }
       try {
         await read();
@@ -533,7 +534,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
     );
   }
 
-  function submitNewPerson(event: FormEvent): void {
+  function submitNewPerson(event: SubmitEvent<HTMLFormElement>): void {
     event.preventDefault();
     const clean = newPerson.trim();
     if (clean === '') {
@@ -546,7 +547,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
     });
   }
 
-  function submitNewTeam(event: FormEvent): void {
+  function submitNewTeam(event: SubmitEvent<HTMLFormElement>): void {
     event.preventDefault();
     const clean = newTeam.trim();
     if (clean === '') {
@@ -568,7 +569,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    * exists, and this page is where a reader can see the whole vocabulary and
    * rename the mistake.
    */
-  function submitNewTag(event: FormEvent): void {
+  function submitNewTag(event: SubmitEvent<HTMLFormElement>): void {
     event.preventDefault();
     const clean = newTag.trim();
     if (clean === '') {
@@ -593,7 +594,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    * seeing the whole list at once and renaming a typo, which is the half of the
    * tag argument that does apply.
    */
-  function submitNewWorkItemType(event: FormEvent): void {
+  function submitNewWorkItemType(event: SubmitEvent<HTMLFormElement>): void {
     event.preventDefault();
     const clean = newWorkItemType.trim();
     if (clean === '') {
@@ -614,7 +615,7 @@ export function DirectoryPage({ token, api: apiOverride, nav, account }: Directo
    * task 7.1's non-goal): this page is where a reader sees the whole vocabulary
    * at once and can rename `Payements` rather than living beside it.
    */
-  function submitNewService(event: FormEvent): void {
+  function submitNewService(event: SubmitEvent<HTMLFormElement>): void {
     event.preventDefault();
     const clean = newService.trim();
     if (clean === '') {

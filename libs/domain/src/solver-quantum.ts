@@ -48,10 +48,24 @@ export const SOLVER_QUANTUM = 48;
  * The window is {@link snapWorkdays}' own, which is the point: the drift here is
  * the same accumulated-division drift that function exists for, so borrowing it
  * keeps one 1e-9 window in the domain instead of two that agree until one is
- * edited. It is applied to units rather than to workdays, and deliberately
- * after the multiplication rather than before: `durationOf`'s result is a
- * genuine fraction that must not be snapped (0.2 is not drift), and only the
- * product is supposed to be an integer.
+ * edited.
+ *
+ * **It is applied TWICE, in two different spaces, and this paragraph said the
+ * opposite until 2026-09-07.** Before PR 281 it ran only after the
+ * multiplication, and this text defended that as deliberate — but the same 1e-9
+ * constant is a window `SOLVER_QUANTUM` times narrower once its argument is
+ * units, so a duration `lastWorkdayOf` reads as a whole day could fail to snap
+ * here and cost an extra unit. PR 281 (`c1d9a40d`, TASK-302) added the snap in
+ * WORKDAY space before the multiplication; the one after it stays, because a
+ * duration nowhere near a whole day can still land off a whole unit for a width
+ * that does not divide 48. What has not changed is why `durationOf`'s result is
+ * not rounded generally: 0.2 is a genuine fraction, not drift, and the inner
+ * snap only ever moves a value already within 1e-9 of a whole workday.
+ *
+ * A doc that still described the old arrangement would invite a maintainer to
+ * restore the defect while believing they were following policy — found by peer
+ * review on TASK-323, Important 3. `solver-quantum-golden-corpus.ts` is the
+ * guard that makes removing either snap a red.
  *
  * Never rounds a real duration down, so {@link SOLVER_QUANTUM}'s feasibility
  * argument holds for every slice.
@@ -64,9 +78,12 @@ export function durationUnits(slice: Slice): number {
  * Whether {@link durationUnits} had to round this slice up — the per-slice
  * rounding the request records.
  *
- * It exists so the request builder can report the rounding without recomputing
- * it. The alternative is for the builder to multiply and compare against its own
- * drift window, which is this file's arithmetic written a second time in another
+ * No production consumer reads it today. Its readers are the golden corpus,
+ * `solver-quantum.test.ts`, and an export-surface assertion in
+ * `solver-seams.test.ts`. The export is shaped this way so that if a request
+ * builder ever needs to report the rounding without recomputing it, the
+ * alternative for it would be to multiply and compare against its own drift
+ * window, which would be this file's arithmetic written a second time in another
  * package, and the second copy would be the one that disagrees after an edit.
  */
 export function durationRoundedUp(slice: Slice): boolean {
@@ -90,7 +107,21 @@ export function durationRoundedUp(slice: Slice): boolean {
  * choice for the same input: this is malformed input, not a missing default.
  */
 function quantise(slice: Slice): { units: number; rounded: boolean } {
-  const exact = snapWorkdays(durationOf(slice) * SOLVER_QUANTUM);
+  // The drift window is a WORKDAY-space window, so it is applied in workday
+  // space **before** the multiplication as well as after it. Snapping only
+  // after is what TASK-302 was: `snapWorkdays` cleans to within `DRIFT` of a
+  // whole *argument*, so once the argument is units the same constant is a
+  // window `SOLVER_QUANTUM` times narrower in the duration it is really about.
+  // A duration that `lastWorkdayOf` — which snaps in workday space — reads as
+  // a whole day could therefore fail to snap here, `ceil` to one unit more,
+  // and make the model report `plan-infeasible` for a plan the real-domain
+  // predicate reports on time.
+  //
+  // The second snap stays, because it answers a different question: a duration
+  // nowhere near a whole workday can still land a bit off a whole unit
+  // (`days / width` for a width that does not divide 48), and that step onto
+  // the integer axis is the one `workday.ts` lists this site for.
+  const exact = snapWorkdays(snapWorkdays(durationOf(slice)) * SOLVER_QUANTUM);
   if (!Number.isFinite(exact) || exact < 0) {
     throw new Error(
       `slice ${slice.workItemId} has no finite duration in solver units: width ${String(slice.width)}, days ${String(slice.days)}`,

@@ -645,3 +645,45 @@ describe('readMcpExposure', () => {
     expect(threw).toBe(true);
   });
 });
+
+it('startGreen admits merged backend config and writes the supervisor directory mount before Docker', async () => {
+  const written = new Map<string, string>();
+  let started = false;
+  await startGreen(
+    'be',
+    'green',
+    'registry.infra.bulletpoints.club/wbs-be-01@sha256:' + 'a'.repeat(64),
+    '/fixture/be.phase',
+    {
+      oidcEnvPath: null,
+      readText: (path) =>
+        Promise.resolve(
+          path.endsWith('/be-01.env')
+            ? 'PORT=3100\nLOG_LEVEL=error\nGW_URL=http://gw\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nAPP_ORIGIN=https://operator.example\nSOLVER_BUDGET_MS=120000\nSOLVER_SEARCH_WORKERS=2\nSOLVER_MEMORY_LIMIT_MB=512\n'
+            : 'INTERNAL_AUTH_SECRET=s\nJWT_SIGNING_KEY_CURRENT=k\n',
+        ),
+      writePhaseFile: () => Promise.resolve(),
+      writeAtomicFile: (path, content) => {
+        written.set(path, content);
+        return Promise.resolve();
+      },
+      runDocker: () => {
+        const compose = [...written.values()].find((content) => content.startsWith('services:'));
+        if (compose === undefined) throw new Error('Docker called before Compose write');
+        const parsed = Bun.YAML.parse(compose) as {
+          services: Record<
+            string,
+            { environment: Record<string, string>; volumes?: readonly string[] }
+          >;
+        };
+        const service = Object.values(parsed.services)[0];
+        expect(service.environment['APP_ORIGIN']).toBe('https://wbs.bulletpoints.club');
+        expect(service.volumes?.[1]).toBe('/run/user/1000/wbs-solver:/run/wbs-solver:ro');
+        expect(service.volumes?.some((volume) => volume.includes('supervisor.sock'))).toBe(false);
+        started = true;
+        return Promise.resolve('');
+      },
+    },
+  );
+  expect(started).toBe(true);
+});

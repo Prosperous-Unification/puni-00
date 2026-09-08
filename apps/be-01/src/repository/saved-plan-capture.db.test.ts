@@ -2,15 +2,21 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { canonicalisePlanInput, serialiseCanonicalPlanInput } from '@wbs/domain';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { eq, sql } from 'drizzle-orm';
 
+import { nodeDigest } from '../runtime/bun-runtime';
+import { planInputRowsOf } from '../service/saved-plan-input';
+import { bodySha256 } from '../service/saved-plan-integrity';
 import { projectRow } from '../testing/project-fixture';
+import { CalendarMarkerRepository } from './calendar-marker';
 import { CapacityRepository } from './capacity';
 import type { Connection, Drizzle } from './db';
 import { openConnection, openDatabase } from './db';
 import { DirectoryRepository } from './directory';
+import { OPEN } from './gate';
 import type { WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
@@ -129,11 +135,11 @@ describe('capturing a project’s plan input', () => {
     sqlite = openDatabase(path);
     const seed = openConnection(path);
     const db = seed.db;
-    await new UserRepository(db).create(
+    await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db).create(
+    await new ProjectRepository(db, OPEN).create(
       // `name` and `estimateMethod` are generation markers for the torn-read
       // cases below: `before`/`pert` is the seeded state, and the one edit
       // committed mid-capture moves both.
@@ -141,7 +147,7 @@ describe('capturing a project’s plan input', () => {
       [{ id: 'st-1', projectId: 'p1', name: 'before', position: 10 }],
       wrote,
     );
-    const directory = new DirectoryRepository(db);
+    const directory = new DirectoryRepository(db, OPEN);
     // The first hole: a team the capacity map names and no junction row does.
     await directory.addTeam({ id: 't-platform', name: 'Platform' }, wrote);
     // The second: a person on a team and on no work item.
@@ -149,8 +155,8 @@ describe('capturing a project’s plan input', () => {
     await directory.addTag({ id: 'tag-1', name: 'urgent' }, wrote);
     await directory.addService({ id: 'svc-1', name: 'Wiring' }, wrote);
     await directory.addWorkItemType({ id: 'wit-1', name: 'Task' }, wrote);
-    await new CapacityRepository(db).set('p1', 't-platform', 4, wrote);
-    const items = new WorkItemRepository(db);
+    await new CapacityRepository(db, OPEN).set('p1', 't-platform', 4, wrote);
+    const items = new WorkItemRepository(db, OPEN);
     await items.insert(
       {
         id: 'wi-1',
@@ -166,6 +172,7 @@ describe('capturing a project’s plan input', () => {
         serviceId: null,
         maxParallel: 1,
         startNoEarlierThanReason: null,
+        deadline: null,
         revision: 0,
       },
       [],
@@ -201,6 +208,63 @@ describe('capturing a project’s plan input', () => {
       seen.close();
     }
   };
+
+  /**
+   * **A calendar marker changes no saved plan's `input_sha256`** — task 5.2.
+   *
+   * The hash is reproduced through the product's own pipeline rather than
+   * re-implemented: `planInputRowsOf` → `canonicalisePlanInput` →
+   * `serialiseCanonicalPlanInput` → `bodySha256`, which is exactly the
+   * composition `SavedPlanService.save` writes `input_sha256` from
+   * (`saved-plan.service.ts:667-668`). Hashing my own rendering of
+   * `PlanInputReads` would be asserting my own serializer.
+   *
+   * **This assertion passes on `main` today, and the task says so.**
+   * `readPlanInput` reads a fixed set of tables and `calendar_marker` is not
+   * among them, so equality holds before a line of this feature is written.
+   * That is what makes the watched negative the whole content of the slice —
+   * without it this is 5.1's own trap committed one slice later.
+   *
+   * Proof, watched 2026-09-05: with a `calendar_marker` read added inside
+   * `readPlanInput()` and its rows returned on the `PlanInputReads` that
+   * `planInputRowsOf` folds into the body, the two hashes differ and this case
+   * is the only one in the file that goes red. Removed after.
+   */
+  it('leaves the plan input hash byte-identical when markers are added', async () => {
+    const hashNow = async (): Promise<string> => {
+      const reads = await capture().readPlanInput('p1');
+      expect(reads).not.toBeNull();
+      return await bodySha256(
+        nodeDigest,
+        serialiseCanonicalPlanInput(canonicalisePlanInput(planInputRowsOf(reads!))),
+      );
+    };
+
+    const before = await hashNow();
+
+    // Written on the same connection the seed used, not through the capture's
+    // — the claim is about a database that has markers in it, whoever put them
+    // there.
+    const writing = openConnection(path);
+    const markers = new CalendarMarkerRepository(writing.db, OPEN);
+    for (const [index, date] of ['2026-08-18', '2026-08-20', '2026-08-25'].entries()) {
+      const written = await markers.create({
+        id: `cm-${String(index)}`,
+        projectId: 'p1',
+        date,
+        name: `Marker ${String(index)}`,
+        color: null,
+        createdAt: 1,
+      });
+      expect(written.ok).toBe(true);
+    }
+    // The rows really are there, so "the hash did not move" is a claim about a
+    // project with markers rather than about a failed write.
+    expect(await new CalendarMarkerRepository(writing.db, OPEN).listFor('p1')).toHaveLength(3);
+    writing.close();
+
+    expect(await hashNow()).toBe(before);
+  });
 
   it('reads everything inside one deferred transaction and closes its connection', async () => {
     // Proof, watched 2026-09-03: with `tx.begin()` moved after the first read —

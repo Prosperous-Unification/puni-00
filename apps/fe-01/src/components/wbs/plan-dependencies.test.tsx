@@ -1306,6 +1306,11 @@ describe('dependencies in the table — cross-review findings', () => {
       listExternalSystems: () => Promise.resolve([]),
       addTeam: () => Promise.reject(new Error('not_in_these_tests')),
       listPeople: () => Promise.resolve([]),
+      // The table reads the calendar markers on mount, alongside the plan, so a
+      // double that stands in for a project has to answer it: unstated, this api
+      // refuses on purpose and the refusal arrives as a toast over every case in
+      // this file. Empty is what these projects have.
+      listCalendarMarkers: () => Promise.resolve([]),
       addPerson: () => Promise.reject(new Error('not_in_these_tests')),
       assignPerson: () => Promise.resolve(),
       renameProject: () => Promise.resolve(),
@@ -1343,6 +1348,7 @@ describe('dependencies in the table — cross-review findings', () => {
                       width: 1,
                       effort: 7,
                       capacityPredecessorIds: [],
+                      lateBy: null,
                       ...schedule,
                     }),
                   ],
@@ -1922,7 +1928,23 @@ describe('hovering a dependency lights the rows it names', () => {
 
     const columnCount = document.querySelectorAll('thead th').length;
     const before = cellStyleCalls.count;
-    fireEvent.mouseEnter(screen.getByLabelText('Stop 030 waiting for 010'));
+    // The pointer's real path — out of the cell's hover target, onto the pill
+    // — rather than `fireEvent.mouseEnter(pill)`. RTL's `mouseEnter` is a
+    // `mouseover` with no `relatedTarget`, which React reads as "entered from
+    // outside the window" and answers by synthesising an enter on **every**
+    // ancestor down to the pill: the cell's and the row's enter handlers run
+    // again. React 18 charged that chain nothing; React 19 charges it one
+    // render of `WbsTable` — 4 rows of cells for a light that moved on one —
+    // with no state of the table's changing (measured 2026-09-06 with a
+    // render counter on the table and a wrapped `useState`: 1 table render, 76
+    // cell styles, no setter that moved). A pointer already in the cell never
+    // takes that path, so it is not the cost this test is about; the real path
+    // costs zero table renders under both. Re-proved on this path: a table
+    // `setHoveredCell` toggle added to the pill's enter failed it on `expected
+    // 4 to be less than or equal to 2`.
+    fireEvent.mouseOut(hoverTargetOf('030'), {
+      relatedTarget: screen.getByLabelText('Stop 030 waiting for 010'),
+    });
     // The light really moved, or the count below is about nothing.
     expect(litNumbers()).toEqual(['010']);
 

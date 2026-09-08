@@ -5,10 +5,11 @@ import {
   type TokenVerifier,
   type WbsScope,
 } from '@wbs/auth';
-import { jwtVerify, SignJWT } from 'jose';
+import type { PasswordHasher, TokenCodec } from '@wbs/core';
+import { type Clock, clockOf } from '@wbs/core';
+import { errors } from 'jose';
 
 import type { OidcIdentityStore, User, UserStore } from '../repository';
-import { type Clock, clockOf } from './clock';
 
 export const TOKEN_TTL_SECONDS = 12 * 60 * 60;
 
@@ -18,8 +19,7 @@ export interface SignedIn {
 }
 
 export type RegisterOutcome =
-  | { ok: true; value: SignedIn }
-  | { ok: false; reason: 'taken' | 'invalid' };
+  { ok: true; value: SignedIn } | { ok: false; reason: 'taken' | 'invalid' };
 
 export type LoginOutcome = { ok: true; value: SignedIn } | { ok: false; reason: 'invalid' };
 
@@ -32,15 +32,31 @@ export interface AuthServiceOptions {
   /** Fixed cookie-free identity used only by explicit non-production local mode. */
   localIdentity?: AuthenticatedUser;
   /**
-   * The same string gw-01 loads as JWT_SIGNING_KEY_CURRENT. Both sides encode
-   * it with TextEncoder, so a token signed here verifies there; if the two
-   * values diverge the failure is a 401 on the WebSocket only, which reads as
-   * a gateway bug rather than a configuration mismatch.
+   * How this deployment signs and reads its own session tokens.
+   *
+   * **Required, with no default.** The key gw-01 loads as
+   * `JWT_SIGNING_KEY_CURRENT` is the same string this codec is built over, so a
+   * token signed here verifies there; if the two diverge the failure is a 401
+   * on the WebSocket only, which reads as a gateway bug rather than a
+   * configuration mismatch. `boot.ts` builds it — see {@link joseTokenCodec}.
    */
-  jwtKey: string;
+  tokens: TokenCodec;
+  /**
+   * How a password becomes a stored credential, and how one is checked.
+   *
+   * **Required, with no default.** `Bun.password` was reached for here until
+   * this port existed, which made argon2id a fact about the service rather than
+   * about the process it happens to run in — and the one thing a second runtime
+   * would have had to notice and could not have been told about.
+   *
+   * Proof the requirement is a real one: made optional (`passwords?:`),
+   * `nx run be-01:typecheck` failed on `Object is possibly 'undefined'` at both
+   * call sites — the hash in `register` and the verify in `login` — rather than
+   * silently reaching for a global. Watched 2026-09-08.
+   */
+  passwords: PasswordHasher;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock?: Clock;
-  verifyPassword?: (password: string, hash: string) => Promise<boolean>;
 }
 
 export interface AuthenticatedUser {
@@ -65,15 +81,10 @@ const MAX_PASSWORD = 200;
  * handed an actor by its controller.
  */
 export class AuthService {
-  private readonly key: Uint8Array;
   private readonly clock: Clock;
-  private readonly verifyPassword: (password: string, hash: string) => Promise<boolean>;
 
   constructor(private readonly opts: AuthServiceOptions) {
-    this.key = new TextEncoder().encode(opts.jwtKey);
     this.clock = opts.clock ?? clockOf();
-    this.verifyPassword =
-      opts.verifyPassword ?? ((password, hash) => Bun.password.verify(password, hash));
   }
 
   async register(username: string, password: string): Promise<RegisterOutcome> {
@@ -81,7 +92,7 @@ export class AuthService {
       return { ok: false, reason: 'invalid' };
     }
     if (password.length > MAX_PASSWORD) return { ok: false, reason: 'invalid' };
-    const passwordHash = await Bun.password.hash(password);
+    const passwordHash = await this.opts.passwords.hash(password);
     // The act begins here, after every refusal and after the hash: argon2id
     // takes long enough that a stamp taken before it would date the row from
     // when the request arrived rather than from when the row was made.
@@ -93,53 +104,57 @@ export class AuthService {
     return { ok: true, value: await this.issue(created) };
   }
 
+  /** Invalid credentials return a refusal; unexpected store/verifier failures propagate. */
   async login(username: string, password: string): Promise<LoginOutcome> {
     const user = await this.opts.users.findByUsername(username);
     const passwordHash = user?.passwordHash ?? null;
     const hasUsableCredential = passwordHash !== null && password.length <= MAX_PASSWORD;
     const hash = hasUsableCredential ? passwordHash : DUMMY_HASH;
-    const matches = await this.verifyPassword(password.slice(0, MAX_PASSWORD), hash).catch(
-      () => false,
-    );
+    // Proof: restoring catch(() => false) makes "releases capacity after error" answer 401, not 500.
+    const matches = await this.opts.passwords.verify(password.slice(0, MAX_PASSWORD), hash);
     if (!matches || user === null || passwordHash === null || password.length > MAX_PASSWORD) {
       return { ok: false, reason: 'invalid' };
     }
     return { ok: true, value: await this.issue(user) };
   }
 
-  /** Verifies a bearer token and resolves the user it names. */
+  /**
+   * Verifies credentials, then resolves their account outside the credential catch.
+   * Unexpected verifier and account-store failures propagate to the server boundary.
+   *
+   * Proof: restoring the broad catches makes the mounted password lookup and OIDC
+   * resolution failure tests receive 401 instead of the expected 500 (R3).
+   */
   async authenticate(token: string | null): Promise<AuthenticatedUser | null> {
     if (this.opts.localIdentity !== undefined) return this.opts.localIdentity;
     if (token === null) return null;
     if (this.opts.oidc !== undefined) {
+      let identity: OidcIdentity | undefined;
       try {
-        const identity = oidcIdentityFromClaims(
+        identity = oidcIdentityFromClaims(
           await this.opts.oidc.verifier.verify(token),
           this.opts.oidc,
         );
+      } catch (cause) {
+        // Proof: removing this rethrow makes the mounted unexpected-verifier
+        // regression receive 401 rather than 500. The real boot outage cases also
+        // receive 401 (password login off) and 200 (on), rather than 500.
+        if (!isInvalidCredential(cause)) throw cause;
+        if (this.opts.passwordSessions !== true) return null;
+      }
+      if (identity !== undefined) {
         const user = await this.resolveOidcIdentity(identity);
         if (user === null) return null;
         return { id: user.id, username: user.username, scopes: identity.scopes };
-      } catch {
-        if (this.opts.passwordSessions !== true) return null;
       }
     }
 
-    try {
-      const { payload } = await jwtVerify(token, this.key);
-      const sub = payload.sub;
-      if (typeof sub !== 'string') return null;
-      const user = await this.opts.users.findById(sub);
-      // A token whose subject has been deleted must not authenticate: the
-      // signature is still valid, so only the lookup can reject it.
-      if (user === null) return null;
-      return { id: user.id, username: user.username, scopes: ['read', 'write', 'editor'] };
-    } catch {
-      // A browser OIDC access token is RS256 and intentionally cannot pass the
-      // legacy HS256 verifier. Fall through only when OIDC is configured.
-    }
-
-    return null;
+    const claims = await this.opts.tokens.verify(token);
+    if (claims === null) return null;
+    const user = await this.opts.users.findById(claims.subject);
+    // A valid signature cannot keep a deleted account authenticated.
+    if (user === null) return null;
+    return { id: user.id, username: user.username, scopes: ['read', 'write', 'editor'] };
   }
 
   /**
@@ -163,13 +178,10 @@ export class AuthService {
   }
 
   private async issue(user: User): Promise<SignedIn> {
-    const issuedAt = Math.floor(this.clock.now() / 1000);
-    const token = await new SignJWT({ username: user.username })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setSubject(user.id)
-      .setIssuedAt(issuedAt)
-      .setExpirationTime(issuedAt + TOKEN_TTL_SECONDS)
-      .sign(this.key);
+    const token = await this.opts.tokens.sign(
+      { subject: user.id, username: user.username },
+      TOKEN_TTL_SECONDS,
+    );
     return { token, user: { id: user.id, username: user.username } };
   }
 }
@@ -180,3 +192,16 @@ export class AuthService {
  */
 const DUMMY_HASH =
   '$argon2id$v=19$m=65536,t=2,p=1$YWJjZGVmZ2hpamtsbW5vcA$0RTS8ZC+9Bfl7Bx4rvGIYYqEs0mfOB5+3H4mPa0BvXk';
+
+/** Credential failures only; malformed JWKS, discovery and network faults propagate. */
+function isInvalidCredential(cause: unknown): boolean {
+  return (
+    cause instanceof errors.JWTClaimValidationFailed ||
+    cause instanceof errors.JWTExpired ||
+    cause instanceof errors.JWTInvalid ||
+    cause instanceof errors.JWSInvalid ||
+    cause instanceof errors.JWSSignatureVerificationFailed ||
+    cause instanceof errors.JOSEAlgNotAllowed ||
+    cause instanceof errors.JWKSNoMatchingKey
+  );
+}

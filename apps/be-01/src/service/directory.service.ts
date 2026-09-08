@@ -1,3 +1,5 @@
+import { type Clock, clockOf } from '@wbs/core';
+
 import type {
   DirectoryRemoved,
   DirectoryStore,
@@ -23,7 +25,6 @@ import type {
 import { PERSON_KINDS } from '../repository/schema';
 import type { Broadcaster } from './broadcast';
 import { cleanName } from './clean-name';
-import { type Clock, clockOf } from './clock';
 import {
   type DirectoryUsage,
   directoryUsageOfPerson,
@@ -716,10 +717,9 @@ export class DirectoryService {
    * one push per project in sequence, each retried for about a minute by
    * `PushClient` before it gives up.
    *
-   * The broadcaster injected here is a {@link DeferringBroadcaster}, and the
-   * runner holds it for the length of the transaction: these publishes now queue
-   * and leave after the commit *and* after the lock, or are dropped with the
-   * rollback. Nothing about this method changed — what changed is what it
+   * Inside a batch the broadcaster injected here is that batch's
+   * {@link AnnouncementCollector}: these publishes are collected and leave
+   * after the commit *and* after the turn, or are dropped with the rollback. Nothing about this method changed — what changed is what it
    * publishes into.
    *
    * Proof: with either publish moved ahead of its write, `records the event

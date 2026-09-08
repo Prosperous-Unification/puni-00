@@ -3,9 +3,14 @@ import {
   encodeOptimizedResult,
   type OptimizedResult,
 } from '@wbs/contracts/solver/optimized-result';
+import {
+  decodePlanInfeasible,
+  encodePlanInfeasible,
+  type PlanInfeasibleResult,
+} from '@wbs/contracts/solver/plan-infeasible';
 import { type Schedule } from '@wbs/domain';
 import { type ScheduleInput, scheduleInputHash } from '@wbs/domain/canonical-schedule-input';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, gt } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { readGeneration } from './optimization-generation';
@@ -16,11 +21,14 @@ import {
   SOLVER_OBJECTIVES,
   type SolverFailureReason,
   type SolverObjectiveName,
+  solverQueue,
   solverSlot,
 } from './schema';
 
 /** The handle a caller's own transaction hands to the helpers below. */
-type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
+export type OptimizedOutcomeTransaction = Parameters<
+  Parameters<SQLiteBunDatabase['transaction']>[0]
+>[0];
 
 /**
  * A database handle or an open transaction on one.
@@ -31,7 +39,7 @@ type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0
  * the insert never sees, which is the entire failure the predicates exist to
  * prevent.
  */
-type Reader = SQLiteBunDatabase | Transaction;
+type Reader = SQLiteBunDatabase | OptimizedOutcomeTransaction;
 
 /**
  * Tasks.md 4.1, both halves: the stored outcome of both objectives for one full
@@ -82,7 +90,7 @@ export type CachedOutcome =
     }
   | {
       readonly kind: 'plan-infeasible';
-      readonly certificate: Record<string, unknown>;
+      readonly certificate: PlanInfeasibleResult;
       readonly generation: number;
       readonly createdAt: number;
     }
@@ -95,6 +103,92 @@ export type CachedOutcome =
 
 /** Both objectives' outcomes for one key, which is what a plan read asks for. */
 export type OptimizedPair = Readonly<Record<SolverObjectiveName, CachedOutcome>>;
+
+/**
+ * Whether this exact generation/objective/key still owns a slot or FIFO entry.
+ *
+ * **A seat past its `admittedDeadlineAt` is nobody's, and this is where that
+ * stopped being true.** Admission has always honoured the deadline —
+ * `reserveSolverSlotIn` reclaims expired seats before it counts either ceiling —
+ * but this predicate asked only whether a row EXISTS. The two disagreeing is a
+ * closed loop, not a cosmetic gap:
+ *
+ * 1. a spawn failure stores `failed` and deliberately KEEPS the seat, because
+ *    without terminal evidence a process may still be running;
+ * 2. an expired seat read as live turns that stored `failed` into `retrying`
+ *    ({@link optimizationVariantState}), which the UI renders as `Optimizing…`;
+ * 3. the only thing that deletes an expired seat is admission, and admission
+ *    runs only for a `miss` — a stored `failed` is terminal;
+ * 4. the one designed escape, an explicit Retry, refuses with `already-running`
+ *    because it asks this same predicate first.
+ *
+ * So the state that frees the project was reachable only through the state it
+ * was masking. Observed on 2026-09-08 as a plan stuck on `Optimizing…` for
+ * hours with `status=failed` sitting in the cache, and freed only incidentally
+ * when an unrelated project's admission ran the global sweep.
+ *
+ * `now` is the caller's already-captured instant rather than a clock read here:
+ * `readPlan` and `retry` each take one, and a predicate that read its own would
+ * let a retry's admission decision and its liveness decision straddle a
+ * millisecond.
+ *
+ * **Strictly greater, matching reclaim's `deadline <= now` exactly**, so the
+ * reader and the reclaimer agree on the same instant rather than on two
+ * adjacent ones. The supervisor arms its external kill at the *child* deadline,
+ * `SLOT_RECLAIM_MARGIN_MS` earlier, so this opens no window in which a live
+ * child reads dead.
+ *
+ * The FIFO half below is deliberately NOT deadline-gated: a queue row is
+ * unstarted work with no admitted process lifetime, `solver_queue` carries
+ * `enqueued_at` and no deadline, and inventing a staleness horizon would be new
+ * policy rather than agreement with existing policy.
+ *
+ * Proof: deleting this condition failed
+ * `optimization-coordinator.db.test.ts`'s `frees a variant whose retained seat
+ * expired, for both the read and Retry` on `Expected: "failed" · Received:
+ * "retrying"`; widening it to `gte` failed the same assertion, pinning the
+ * boundary to reclaim's own instant.
+ */
+export function optimizedVariantIsLive(
+  db: Reader,
+  key: OptimizedCacheKey,
+  generation: number,
+  objective: SolverObjectiveName,
+  now: number,
+): boolean {
+  const identity = [
+    eq(solverSlot.projectId, key.projectId),
+    eq(solverSlot.contractVersion, key.contractVersion),
+    eq(solverSlot.generation, generation),
+    eq(solverSlot.objective, objective),
+    eq(solverSlot.budgetMs, key.budgetMs),
+    gt(solverSlot.admittedDeadlineAt, now),
+  ] as const;
+  if (
+    db
+      .select({ projectId: solverSlot.projectId })
+      .from(solverSlot)
+      .where(and(...identity))
+      .get()
+  ) {
+    return true;
+  }
+  return (
+    db
+      .select({ projectId: solverQueue.projectId })
+      .from(solverQueue)
+      .where(
+        and(
+          eq(solverQueue.projectId, key.projectId),
+          eq(solverQueue.contractVersion, key.contractVersion),
+          eq(solverQueue.generation, generation),
+          eq(solverQueue.objective, objective),
+          eq(solverQueue.budgetMs, key.budgetMs),
+        ),
+      )
+      .get() !== undefined
+  );
+}
 
 /** No row at all, and the value every objective starts at. */
 const MISS: CachedOutcome = { kind: 'miss' };
@@ -138,19 +232,17 @@ function parsePayload(
 /**
  * One row's payload, dispatched on the row's own `status`.
  *
- * **`plan-infeasible` is decoded only as far as its envelope, and that is a
- * stated hole rather than an oversight.** Assumption A1 (schema.ts) says the
- * row holds a versioned `PlanInfeasibleResult` discriminated by `status`, and
- * that a payload which fails to decode reads as `corrupt` on exactly the rule
- * an `ok` row obeys. The certificate type itself belongs to the failure path
- * (slice 7) and does not exist yet, so what is enforced here is the half A1
- * fixes and this layer can honestly check: valid JSON carrying a numeric
- * `dtoVersion`, which is the read fence both existing codecs already use.
- * The certificate's *contents* are unvalidated until that codec lands.
- * **What would falsify the split:** a `plan-infeasible` payload whose offending
- * item list is malformed reads `plan-infeasible` today and must read `corrupt`
- * once `decodePlanInfeasible` exists — so the case below asserts the envelope
- * rule only, and tightening it is a change to this function, not to its caller.
+ * **`plan-infeasible` is now decoded whole**, and the envelope-only read it
+ * replaced was a stated hole rather than an oversight. Assumption A1
+ * (schema.ts) says the row holds a versioned `PlanInfeasibleResult`
+ * discriminated by `status`, and that a payload which fails to decode reads as
+ * `corrupt` on exactly the rule an `ok` row obeys. Until the certificate's own
+ * codec landed this layer could honestly check only the half A1 fixes — valid
+ * JSON carrying a numeric `dtoVersion`, the read fence both other codecs use —
+ * and the predicted falsification was written down: a payload whose offending
+ * item list is malformed read `plan-infeasible` then and must read `corrupt`
+ * once `decodePlanInfeasible` existed. It does, this call is it, and the
+ * tightening was a change to this function and to no caller.
  */
 function decodePayload(
   status: 'ok' | 'plan-infeasible',
@@ -169,23 +261,16 @@ function decodePayload(
     }
   }
 
-  const value = parsed.value;
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return corrupt(
-      new Error('stored certificate: payload is not an object'),
+  try {
+    return {
+      kind: 'plan-infeasible',
+      certificate: decodePlanInfeasible(parsed.value),
       generation,
       createdAt,
-    );
+    };
+  } catch (error) {
+    return corrupt(error, generation, createdAt);
   }
-  const certificate = value as Record<string, unknown>;
-  if (typeof certificate['dtoVersion'] !== 'number') {
-    return corrupt(
-      new Error('stored certificate: dtoVersion is missing or not a number'),
-      generation,
-      createdAt,
-    );
-  }
-  return { kind: 'plan-infeasible', certificate, generation, createdAt };
 }
 
 /**
@@ -357,22 +442,22 @@ export function readOptimizedPairAndSpawn(
 /**
  * Which objectives an **explicit Retry** asks a solver for (tasks.md 4.4).
  *
- * Everything that is not `ok`, which is the mirror of
- * {@link objectivesToAutoSpawn} spawning on `miss` alone. `ok` is the only
- * state with an answer to serve, so it is the only one a Retry has no reason to
- * touch; `failed`, `corrupt` and `plan-infeasible` are all states a person
- * looking at "Optimization unavailable · Retry" is asking about, and a Retry
- * that refused one of them would be a button that does nothing on the row the
- * user is looking at. `plan-infeasible` will very likely answer the same way
- * again — that is the user's minute to spend, not this layer's to refuse.
+ * Only `failed` and `corrupt`, matching 7.11's explicit recovery contract.
+ * `miss` is admitted by the cold read, `ok` already has an answer, and
+ * `plan-infeasible` is a deterministic certificate that a same-input solve
+ * cannot change. Keeping those three out also prevents this lower-level seam
+ * from bypassing the route's `not-retryable` decision.
  */
 export function objectivesToRetry(pair: OptimizedPair): readonly SolverObjectiveName[] {
-  return SOLVER_OBJECTIVES.filter((objective) => pair[objective].kind !== 'ok');
+  return SOLVER_OBJECTIVES.filter((objective) => {
+    const kind = pair[objective].kind;
+    return kind === 'failed' || kind === 'corrupt';
+  });
 }
 
 /**
- * The Retry arm of the same seam: read the pair, then ask for everything that
- * has no answer.
+ * The Retry arm of the same seam: read the pair, then ask only for recoverable
+ * terminal outcomes.
  *
  * **A separate entry point rather than a flag on the one above**, so that "an
  * automatic read can never spawn on a `failed` row" is a property of which
@@ -411,6 +496,27 @@ export interface SlotClaim {
   readonly attemptToken: string;
 }
 
+/** The exact seat this writer still owns, or null after reclamation/replacement. */
+function heldSolverSlot(db: Reader, claim: SlotClaim): { readonly startedAt: number } | null {
+  const stored = db
+    .select()
+    .from(solverSlot)
+    .where(
+      and(
+        eq(solverSlot.projectId, claim.projectId),
+        eq(solverSlot.contractVersion, claim.contractVersion),
+        eq(solverSlot.generation, claim.generation),
+        eq(solverSlot.objective, claim.objective),
+        eq(solverSlot.budgetMs, claim.budgetMs),
+      ),
+    )
+    .get();
+  if (stored === undefined) return null;
+
+  const row = toSolverSlotRow(stored);
+  return row.ownerId === claim.ownerId && row.attemptToken === claim.attemptToken ? row : null;
+}
+
 /**
  * Whether the writer still holds the slot it is about to commit against
  * (tasks.md 4.1's first condition).
@@ -440,23 +546,7 @@ export interface SlotClaim {
  * {@link storeOptimizedOutcome}.
  */
 export function writerStillHolds(db: Reader, claim: SlotClaim): boolean {
-  const stored = db
-    .select()
-    .from(solverSlot)
-    .where(
-      and(
-        eq(solverSlot.projectId, claim.projectId),
-        eq(solverSlot.contractVersion, claim.contractVersion),
-        eq(solverSlot.generation, claim.generation),
-        eq(solverSlot.objective, claim.objective),
-        eq(solverSlot.budgetMs, claim.budgetMs),
-      ),
-    )
-    .get();
-  if (stored === undefined) return false;
-
-  const row = toSolverSlotRow(stored);
-  return row.ownerId === claim.ownerId && row.attemptToken === claim.attemptToken;
+  return heldSolverSlot(db, claim) !== null;
 }
 
 /**
@@ -562,7 +652,8 @@ export function optimizationStillEnabled(db: Reader, projectId: string): boolean
  */
 export type OutcomeToStore =
   | { readonly kind: 'ok'; readonly result: OptimizedResult }
-  | { readonly kind: 'failed'; readonly reason: SolverFailureReason };
+  | { readonly kind: 'failed'; readonly reason: SolverFailureReason }
+  | { readonly kind: 'plan-infeasible'; readonly certificate: PlanInfeasibleResult };
 
 /**
  * One finished attempt's commit, carrying every fact the four predicates and
@@ -601,15 +692,18 @@ export type OutcomeWriteResult = 'stored' | 'superseded' | 'already-recorded';
  * The write half of tasks.md 4.1: a conditional insert of one attempt's
  * outcome, guarded by all four conditions inside one transaction.
  *
- * **Not an upsert, and that is the whole design.** A superseded run must not be
- * able to store, evict, overwrite an `ok` with a `failed`, or emit a second
- * outcome record for one key. `onConflictDoNothing` is what makes the last of
- * those true: the primary key is
+ * **Not a blind upsert, and that is the whole design.** A superseded run must
+ * not be able to store, evict, overwrite an `ok` with a `failed`, or emit a
+ * second outcome record for one key. The primary key is
  * `(projectId, inputHash, objective, contractVersion, budgetMs)` and does
  * **not** include `generation`, so two generations of the same key collide by
- * construction. The legitimate replacement path is not an overwrite either —
- * `allocateGeneration` deletes that contract version's older-generation cache
- * rows in its own transaction, so a newer generation finds the key empty.
+ * construction. An ordinary result remains insert-only. The one conditional
+ * update is an explicit Retry: a `failed`/`corrupt` row older than the attempt's
+ * own slot may be replaced, and stamping the replacement at or after that slot
+ * makes a second commit from the same attempt ineligible. A Retry therefore
+ * preserves the diagnostic marker while it runs and overwrites it exactly once.
+ * `allocateGeneration` still deletes older-generation rows in its own
+ * transaction, so a genuinely newer input finds the key empty.
  *
  * **All four predicates are re-read inside the transaction, not passed in.**
  * The caller read them minutes ago when it was admitted; what matters is
@@ -630,54 +724,102 @@ export type OutcomeWriteResult = 'stored' | 'superseded' | 'already-recorded';
  * rows *other than this one* survive a commit, it is separately numbered, and
  * folding it in would make this function's contract two claims instead of one.
  */
+export function storeOptimizedOutcomeIn(
+  tx: OptimizedOutcomeTransaction,
+  write: OutcomeWrite,
+): OutcomeWriteResult {
+  const { claim, outcome } = write;
+  const held = heldSolverSlot(tx, claim);
+  if (held === null) return 'superseded';
+  if (
+    !admissionStillCurrent(tx, {
+      projectId: claim.projectId,
+      contractVersion: claim.contractVersion,
+      generation: claim.generation,
+      admittedCancelEpoch: write.admittedCancelEpoch,
+    })
+  ) {
+    return 'superseded';
+  }
+  if (!optimizationStillEnabled(tx, claim.projectId)) return 'superseded';
+  if (write.now < held.startedAt) {
+    throw new Error('outcome timestamp predates the solver slot that produced it');
+  }
+
+  const storedOutcome = {
+    generation: claim.generation,
+    status: outcome.kind,
+    resultJson:
+      outcome.kind === 'ok'
+        ? JSON.stringify(encodeOptimizedResult(outcome.result))
+        : outcome.kind === 'plan-infeasible'
+          ? JSON.stringify(encodePlanInfeasible(outcome.certificate))
+          : null,
+    failureReason: outcome.kind === 'failed' ? outcome.reason : null,
+    createdAt: write.now,
+  } as const;
+  let written = tx
+    .insert(optimizedScheduleCache)
+    .values({
+      projectId: claim.projectId,
+      inputHash: write.inputHash,
+      objective: claim.objective,
+      contractVersion: claim.contractVersion,
+      budgetMs: claim.budgetMs,
+      ...storedOutcome,
+    })
+    .onConflictDoNothing()
+    .returning({ objective: optimizedScheduleCache.objective })
+    .all();
+
+  if (written.length === 0) {
+    const key = {
+      projectId: claim.projectId,
+      inputHash: write.inputHash,
+      contractVersion: claim.contractVersion,
+      budgetMs: claim.budgetMs,
+    };
+    const previous = readOptimizedPair(tx, key)[claim.objective];
+    if (
+      (previous.kind !== 'failed' && previous.kind !== 'corrupt') ||
+      previous.createdAt >= held.startedAt
+    ) {
+      return 'already-recorded';
+    }
+    written = tx
+      .update(optimizedScheduleCache)
+      .set(storedOutcome)
+      .where(
+        and(
+          eq(optimizedScheduleCache.projectId, claim.projectId),
+          eq(optimizedScheduleCache.inputHash, write.inputHash),
+          eq(optimizedScheduleCache.objective, claim.objective),
+          eq(optimizedScheduleCache.contractVersion, claim.contractVersion),
+          eq(optimizedScheduleCache.budgetMs, claim.budgetMs),
+          eq(optimizedScheduleCache.generation, previous.generation),
+          eq(optimizedScheduleCache.createdAt, previous.createdAt),
+        ),
+      )
+      .returning({ objective: optimizedScheduleCache.objective })
+      .all();
+    if (written.length === 0) return 'already-recorded';
+  }
+
+  enforceLiveBudgetBound(tx, {
+    projectId: claim.projectId,
+    objective: claim.objective,
+    contractVersion: claim.contractVersion,
+    inputHash: write.inputHash,
+  });
+  return 'stored';
+}
+
+/** Compatibility wrapper for callers that own no wider transaction. */
 export function storeOptimizedOutcome(
   db: SQLiteBunDatabase,
   write: OutcomeWrite,
 ): OutcomeWriteResult {
-  const { claim, outcome } = write;
-  return db.transaction((tx) => {
-    if (!writerStillHolds(tx, claim)) return 'superseded';
-    if (
-      !admissionStillCurrent(tx, {
-        projectId: claim.projectId,
-        contractVersion: claim.contractVersion,
-        generation: claim.generation,
-        admittedCancelEpoch: write.admittedCancelEpoch,
-      })
-    ) {
-      return 'superseded';
-    }
-    if (!optimizationStillEnabled(tx, claim.projectId)) return 'superseded';
-
-    const inserted = tx
-      .insert(optimizedScheduleCache)
-      .values({
-        projectId: claim.projectId,
-        inputHash: write.inputHash,
-        objective: claim.objective,
-        contractVersion: claim.contractVersion,
-        budgetMs: claim.budgetMs,
-        generation: claim.generation,
-        status: outcome.kind,
-        resultJson:
-          outcome.kind === 'ok' ? JSON.stringify(encodeOptimizedResult(outcome.result)) : null,
-        failureReason: outcome.kind === 'failed' ? outcome.reason : null,
-        createdAt: write.now,
-      })
-      .onConflictDoNothing()
-      .returning({ objective: optimizedScheduleCache.objective })
-      .all();
-
-    if (inserted.length !== 1) return 'already-recorded';
-
-    enforceLiveBudgetBound(tx, {
-      projectId: claim.projectId,
-      objective: claim.objective,
-      contractVersion: claim.contractVersion,
-      inputHash: write.inputHash,
-    });
-    return 'stored';
-  });
+  return db.transaction((tx) => storeOptimizedOutcomeIn(tx, write));
 }
 
 /**
@@ -725,7 +867,7 @@ interface LiveBudgetKey {
  * Called only after an insert that actually landed. On the
  * `already-recorded` path nothing was added, so nothing can have gone over.
  */
-function enforceLiveBudgetBound(tx: Transaction, key: LiveBudgetKey): void {
+function enforceLiveBudgetBound(tx: OptimizedOutcomeTransaction, key: LiveBudgetKey): void {
   const live = tx
     .select({ budgetMs: optimizedScheduleCache.budgetMs })
     .from(optimizedScheduleCache)

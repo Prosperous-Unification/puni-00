@@ -1,20 +1,23 @@
 import type { Logger } from '@wbs/observability';
 
 import { buildApp } from './app';
-import type { OidcRouteOptions } from './controller/auth.controller';
+import type { OidcRouteOptions } from './controller/oidc-options';
 import { readDeployedCommit } from './deployed-commit';
-import { drizzleOuterTransaction, openConnection } from './repository/db';
+import { openConnection } from './repository/db';
+import { OPEN } from './repository/gate';
+import { WriteCoordinator } from './repository/gate';
 import { probeSchema } from './repository/health-probe';
 import { runMigrations } from './repository/migrate';
 import { SavedPlanRepository } from './repository/saved-plan';
 import { SavedPlanCaptureRepository } from './repository/saved-plan-capture';
 import { UserRepository } from './repository/user';
+import { nodeDigest } from './runtime/bun-runtime';
 import type { AuthenticatedUser } from './service/auth.service';
 import { SavedPlanService } from './service/saved-plan.service';
-import { WriteLock } from './service/write-lock';
-import { type BeServices, buildServices } from './services';
+import { type BeServices, buildServices, type OptimizerRuntime } from './services';
 
 export interface BootOptions {
+  appOrigin: string;
   dbPath: string;
   port: number;
   logger: Logger;
@@ -45,6 +48,8 @@ export interface BootOptions {
    * sets it.
    */
   commitDir?: string;
+  /** The installed solver process boundary, absent only in tests that do not exercise it. */
+  optimizer?: OptimizerRuntime;
 }
 
 export interface RunningBe {
@@ -66,17 +71,18 @@ export function bootBe01(opts: BootOptions): RunningBe {
   // per-connection pragmas (WAL, busy_timeout) are set and asserted.
   const connection = openConnection(opts.dbPath);
   const db = connection.db;
-  // One lock for the process, created before the services because the
-  // broadcaster records under it: `buildApp` gets this same object as
-  // `writes.lock` below, and a second one would exclude nothing.
-  const writeLock = new WriteLock();
+  // One coordinator for the process, created before the services because every
+  // store takes its turn at it: `buildApp` gets this same object as
+  // `writes.gate` below, and a second one would exclude nothing.
+  const writeCoordinator = new WriteCoordinator();
   const services = buildServices({
     db,
-    lock: writeLock,
+    gate: writeCoordinator,
     logger: opts.logger,
     jwtKey: opts.jwtKey,
     gwUrl: opts.gwUrl,
     internalAuthSecret: opts.internalAuthSecret,
+    pushFetch: globalThis.fetch,
     oidc:
       opts.oidc === undefined
         ? undefined
@@ -87,10 +93,12 @@ export function bootBe01(opts: BootOptions): RunningBe {
           },
     passwordSessions: opts.oidc !== undefined && opts.oidc.passwordLoginEnabled !== false,
     localIdentity: opts.localIdentity,
+    optimizer: opts.optimizer,
   });
 
   const state = { migrationsApplied: false };
   const app = buildApp({
+    appOrigin: opts.appOrigin,
     get migrationsApplied() {
       return state.migrationsApplied;
     },
@@ -98,7 +106,9 @@ export function bootBe01(opts: BootOptions): RunningBe {
     oidc: opts.oidc,
     projects: services.projects,
     steps: services.steps,
+    calendarMarkers: services.calendarMarkers,
     workItems: services.workItems,
+    optimizer: services.optimizer,
     // Built here rather than in `buildServices`, and the reason is structural
     // rather than tidiness: that factory is defined over the one shared
     // `Drizzle` handle, and both saved-plan repositories are defined by opening
@@ -106,6 +116,7 @@ export function bootBe01(opts: BootOptions): RunningBe {
     // live one, and the rename and the delete refuse to wait for the write
     // lock. A path is what they take, and `boot.ts` is where the path is.
     savedPlans: new SavedPlanService({
+      digest: nodeDigest,
       capture: new SavedPlanCaptureRepository({
         openConnection: () => openConnection(opts.dbPath),
       }),
@@ -122,8 +133,11 @@ export function bootBe01(opts: BootOptions): RunningBe {
     replay: services.replay,
     probeDatabase: () => probeSchema(db),
     writes: {
-      transactions: drizzleOuterTransaction(db),
-      lock: writeLock,
+      uow: services.uow,
+      // The batch's own services, over stores that hold no turn: the runner
+      // takes the process's one turn for the whole batch, and a store of its
+      // own that asked for another would wait for the batch itself.
+      batch: services.batch,
       announcements: services.announcements,
     },
     // Read per call, not captured here: dev's deploy is a `git reset` under
@@ -155,7 +169,9 @@ export function bootBe01(opts: BootOptions): RunningBe {
       // answers 503 `migrating` until the line below, and both things that send
       // the first request wait for a 200 first. Playwright's `webServer` does,
       // and so does the deploy poller before it routes traffic to green.
-      new UserRepository(db).ensureLocalIdentity(opts.localIdentity, {
+      // `OPEN`: boot runs before the server listens, so there is no batch for
+      // this write to land inside and no turn to wait for.
+      new UserRepository(db, OPEN).ensureLocalIdentity(opts.localIdentity, {
         at: Date.now(),
         by: opts.localIdentity.id,
       });
@@ -169,12 +185,14 @@ export function bootBe01(opts: BootOptions): RunningBe {
         'be-01 listening (schema managed by the deploy pipeline)',
       );
       ensureLocalIdentity();
+      services.optimizer?.start();
       state.migrationsApplied = true;
       return;
     }
     opts.logger.info({ port: opts.port }, 'be-01 listening (migrating)');
     runMigrations(opts.dbPath, opts.migrationsFolder ?? './drizzle');
     ensureLocalIdentity();
+    services.optimizer?.start();
     state.migrationsApplied = true;
     opts.logger.info('migrations applied');
   });
@@ -185,6 +203,7 @@ export function bootBe01(opts: BootOptions): RunningBe {
     /** Stops accepting, waits for a retention sweep in flight, then closes the file. */
     stop: async () => {
       await app.stop();
+      await services.optimizer?.stop();
       await services.retention.stop();
       connection.close();
     },

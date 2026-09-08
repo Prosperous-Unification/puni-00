@@ -1,3 +1,4 @@
+import type { WriteStamp } from '@wbs/core';
 import type {
   DependencyReach,
   EstimateMethod,
@@ -8,6 +9,8 @@ import type {
   StepState,
 } from '@wbs/domain';
 
+import type { EventLogStore } from './event-log';
+import type { SavedPlanCaptureStore, SavedPlanStore } from './saved-plan-ports';
 import type { MeasureMetric, PersonKind, ScheduleEngine, SolverObjectiveName } from './schema';
 
 /**
@@ -21,35 +24,6 @@ import type { MeasureMetric, PersonKind, ScheduleEngine, SolverObjectiveName } f
  * interface.
  */
 export type { MeasureMetric, PersonKind, ScheduleEngine, SolverObjectiveName } from './schema';
-
-/**
- * Who is acting, and when — carried into every write that stores a record.
- *
- * **One object rather than two parameters** because it is one fact: an act has
- * an actor and an instant, and a method that took them separately could be
- * handed one without the other. It is built **once per act** in the service
- * layer, which is the only layer holding both — `actorId` arrives from the
- * controller, `at` from the service's injected `now()` — and every row that act
- * writes carries the same one, so two tables touched by one act can never
- * disagree about when it happened. `WorkItemService.record` already kept that
- * discipline by hand for the journal and the plan event ("two `now()` calls
- * would let one act carry two timestamps"); this makes it the type system's.
- *
- * The repository layer deliberately has **no clock of its own**. Every instant
- * it stores arrived here, which is what lets a test drive time without a fake
- * database, and what stops one act from being dated twice.
- *
- * ADR 0012 records why this is an argument and not ambient per-request context:
- * an argument is found by the compiler at every call site, and `nx typecheck`
- * runs `tsc --build --force`, so a caller that has not been given one fails the
- * gate rather than throwing in production. It does **not** prove the columns are
- * filled — that is `auditOnCreate` / `auditOnUpdate` and `audit.test.ts`, which
- * reads this folder's source and fails naming any write that calls neither.
- */
-export interface WriteStamp {
-  readonly at: number;
-  readonly by: string;
-}
 
 export interface User {
   id: string;
@@ -390,6 +364,15 @@ export interface WorkItem {
    */
   startNoEarlierThanReason: string | null;
   /**
+   * The last day this work may finish on, or null where nobody has said.
+   *
+   * The mirror of {@link WorkItem.startNoEarlierThan} at the other end: a
+   * date-only ceiling, never a pin and never a promise the scheduler keeps —
+   * Fast orders by it and reports `Late by N workdays` when it cannot be met.
+   * **No reason column beside it**, unlike the floor; `tasks.md` 1.1 says why.
+   */
+  deadline: IsoDate | null;
+  /**
    * How important this work is — an integer of 1 or more, smaller being more
    * important — or null for "nobody has said".
    *
@@ -651,6 +634,19 @@ export interface WorkItemPatch {
    */
   startNoEarlierThanReason?: string | null;
   /**
+   * The last day this work may finish on, or `null` to take the deadline off.
+   *
+   * **No pair rule and no second field**: the floor above has a reason column to
+   * stay consistent with and this has nothing, so this store takes any
+   * `IsoDate` or `null` and refuses neither. Two layers above it do. The
+   * **controller** refuses a value that is not an `IsoDate`, through the same
+   * malformed-payload path the floor uses — a 400, like every other malformed
+   * field. The **service** refuses a date before the project's day zero, which
+   * is where that check has to live because it is the first layer holding the
+   * project as well as the payload; that one is a 422.
+   */
+  deadline?: IsoDate | null;
+  /**
    * An integer of 1 or more, or `null` to leave this work with no priority.
    *
    * Validated at the controller, which is the only place a value that is not a
@@ -831,7 +827,8 @@ export type WorkItemPatched =
  * person removed in the gap makes the insert answer a raw constraint failure —
  * a 500 for a request whose only fault is being out of date.
  */
-export type AssignmentWritten = { ok: true } | { ok: false; reason: 'unknown_person' };
+export type AssignmentWritten =
+  { ok: true } | { ok: false; reason: 'unknown_person' | 'unknown_step' };
 
 /** A position write the caller has already worked out, applied with whatever prompted it. */
 export interface Repositioned {
@@ -899,10 +896,28 @@ export interface StoredEstimate {
   pessimistic: number;
 }
 
+/**
+ * What a write that names a step answers when the step is not there.
+ *
+ * The **store**'s answer rather than a driver error for the service to
+ * classify (D6, `docs/2026-09-05-ports-and-adapters-plan.md` §3.2). SQLite says
+ * `FOREIGN KEY constraint failed` and names no column, so only the store — the
+ * one thing that knows which references it just wrote — can say which of them
+ * was the missing one. A service that read the driver's message would be
+ * reading SQLite's, and a second source would have to produce that message to
+ * be understood.
+ *
+ * `unknown_step` and nothing else: a foreign key that failed over a work item
+ * or a person that has gone is still an unknown, and is still thrown. A step
+ * removed while a client had it on screen is an ordinary race a caller can act
+ * on; the others are invariants nothing should be able to break.
+ */
+export type StepWriteOutcome = 'written' | 'unknown_step';
+
 export interface EstimateStore {
   listByProject(projectId: string): Promise<StoredEstimate[]>;
   /** Writes one work item's estimate for one step, replacing any earlier one. */
-  set(estimate: StoredEstimate, stamp: WriteStamp): Promise<void>;
+  set(estimate: StoredEstimate, stamp: WriteStamp): Promise<StepWriteOutcome>;
   /**
    * Takes away one work item's estimate for one step, leaving every other
    * step on that work item and that step on every other work item alone.
@@ -958,7 +973,7 @@ export interface ActualStore {
   /** Every actual in the project, in step order within each work item. */
   listByProject(projectId: string): Promise<StoredActual[]>;
   /** Writes one work item's actual for one step, replacing any earlier one. */
-  set(actual: StoredActual, stamp: WriteStamp): Promise<void>;
+  set(actual: StoredActual, stamp: WriteStamp): Promise<StepWriteOutcome>;
   /**
    * Takes away one work item's actual for one step, leaving every other step on
    * that work item and that step on every other work item alone.
@@ -1017,7 +1032,7 @@ export interface StepProgressStore {
   /** Every stated step on every work item in the project, in step order within each. */
   listByProject(projectId: string): Promise<StoredProgress[]>;
   /** States one work item's step, replacing whatever it said before. */
-  set(progress: StoredProgress, stamp: WriteStamp): Promise<void>;
+  set(progress: StoredProgress, stamp: WriteStamp): Promise<StepWriteOutcome>;
   /**
    * Takes the statement back, leaving every other step on that work item and
    * that step on every other work item alone.
@@ -1091,7 +1106,7 @@ export interface MeasureStore {
    * Writes one work item's figure in one metric for one step, replacing any
    * earlier one in that metric and leaving the pair's other metrics alone.
    */
-  set(measure: StoredMeasure, stamp: WriteStamp): Promise<void>;
+  set(measure: StoredMeasure, stamp: WriteStamp): Promise<StepWriteOutcome>;
   /**
    * Takes away one work item's figure in one metric for one step, leaving every
    * other metric on that pair, every other step on that work item and that step
@@ -1460,6 +1475,89 @@ export interface CapacityStore {
 }
 
 /**
+ * One dated, named overlay on a project's Gantt axis.
+ *
+ * **Not a work item and not an SVG marker**, which is the confusion the ADR
+ * (`docs/adr/0017-refuse-a-calendar-marker-on-an-undated-plan.md`) exists to
+ * refuse: it holds an absolute project date, it schedules nothing, and no
+ * scheduler input reads it.
+ *
+ * `color` is `null` for **automatic**, meaning `automaticColor(id)` decides the
+ * fill at read time and the row stores no opinion. A stored default would be a
+ * second spelling of the same state and would freeze the palette at the instant
+ * the marker was made, so a later palette change would leave old markers behind.
+ */
+export interface CalendarMarker {
+  /** A v4 UUID the composer issues, not the server — design.md §6.1. */
+  id: string;
+  projectId: string;
+  /** An `IsoDate`. No instant, ever — see {@link CalendarMarkerStore.create}. */
+  date: IsoDate;
+  name: string;
+  /** `null` means automatic. */
+  color: string | null;
+  createdAt: number;
+}
+
+/**
+ * What a marker write decided.
+ *
+ * `not_found` covers **both** "no such project" and "no such marker of this
+ * project", and the merge is the spec's: a marker of another project answers
+ * `not_found` rather than `forbidden`, because the caller may not learn it
+ * exists (spec.md, the refusal table).
+ *
+ * `taken` is a create against an id that is already stored. Separate from
+ * `not_found` because it is the one refusal whose row is left **untouched and
+ * still readable** — the caller retries with a new id rather than concluding
+ * anything is missing.
+ */
+export type CalendarMarkerWritten =
+  { ok: true; marker: CalendarMarker } | { ok: false; reason: 'not_found' | 'taken' };
+
+/**
+ * A project's calendar markers.
+ *
+ * A store of its own for {@link PriorityBandStore}'s reason: this is a
+ * project's own list, gated by the project's write permission, and it bumps no
+ * work-item revision because it changes no work item.
+ *
+ * **Nothing in here validates a marker.** The shape rules — `IsoDate`, UUID v4,
+ * hex triple, `MARKER_NAME_MAX`, the 3:1 contrast bar — are the controller's,
+ * and a second copy in the store would be a rule free to disagree with the one
+ * a client is answered against. `PriorityBandRepository.replace` states the
+ * same rule for `priorityLadderProblem`.
+ */
+export interface CalendarMarkerStore {
+  /**
+   * This project's markers, totally ordered by `(date, createdAt, id)`.
+   *
+   * The third key is not decoration: `(date, createdAt)` ties for two markers
+   * created inside the same millisecond, and a tie leaves the order free to
+   * change between two reads of unchanged data (spec.md).
+   */
+  listFor(projectId: string): Promise<CalendarMarker[]>;
+  /**
+   * Stores one marker, or refuses.
+   *
+   * The `id` and the `createdAt` both arrive from the caller — the id because
+   * the composer needs it before it can preview the colour, the instant because
+   * the repository layer has no clock of its own ({@link WriteStamp}).
+   *
+   * `date` is stored as **the exact text given**. No `Date` is constructed
+   * anywhere on the way in, because constructing one is the only way a clicked
+   * day can turn into its UTC neighbour.
+   */
+  create(marker: CalendarMarker): Promise<CalendarMarkerWritten>;
+  /** Renames one marker of this project, leaving its date and colour alone. */
+  rename(projectId: string, id: string, name: string): Promise<CalendarMarkerWritten>;
+  /** Sets one marker's fill, or clears it back to automatic on `null`. */
+  recolor(projectId: string, id: string, color: string | null): Promise<CalendarMarkerWritten>;
+  /** Removes one marker of this project. */
+  remove(projectId: string, id: string): Promise<CalendarMarkerWritten>;
+}
+
+/**
  * What a ladder write decided. `not_found` is a project nothing holds, read
  * inside the write's own transaction rather than in front of it — the
  * {@link CapacityStore.set} rule, and for its reason: the read is the decision.
@@ -1673,6 +1771,14 @@ export interface DirectoryStore {
    * update to a row that stays does.
    */
   removeTeam(teamId: string, cascade: boolean, stamp: WriteStamp): Promise<DirectoryRemoved>;
+  /** Assignments and their current person names, read together within one project. */
+  assignmentsInProject(projectId: string): Promise<{
+    assignments: Assignment[];
+    people: { id: string; name: string }[];
+  }>;
+  /** Assignments on one work item, bounded by its indexed key. */
+  assignmentsFor(workItemId: string): Promise<Assignment[]>;
+  /** Subset consumer compatibility; each distinct work item uses its indexed key. */
   assignmentsOf(workItemIds: readonly string[]): Promise<Assignment[]>;
   /**
    * Sets, replaces or (with `null`) removes one work item's assignee for one
@@ -2061,3 +2167,78 @@ export interface ProjectStore {
   update(id: string, patch: ProjectPatch, stamp: WriteStamp): Promise<Project | null>;
   stepsOf(projectId: string): Promise<Step[]>;
 }
+
+/**
+ * Every store a {@link Command batch} may write through, as one composition.
+ *
+ * A composition rather than one interface (D22, `docs/2026-09-05-ports-and-adapters-plan.md`
+ * §3.2): a source implements the ports it has, and the type of what it composes
+ * says which services can then be built over it. This is the **transactional**
+ * half — what `UnitOfWork.run` hands its act on a {@link Scope}, and what a
+ * source's write coordinator orders.
+ *
+ * The saved-plan ports are deliberately absent. They open their own connection,
+ * take no turn, and survive a batch's outcome either way (D27), so a command
+ * that could reach one through its scope would be able to enlist a save in a
+ * transaction that has nothing to do with it.
+ */
+export interface TransactionalStores {
+  projects: ProjectStore;
+  users: UserStore & OidcIdentityStore;
+  directory: DirectoryStore;
+  capacity: CapacityStore;
+  priorityBands: PriorityBandStore;
+  calendarMarkers: CalendarMarkerStore;
+  eventLog: EventLogStore;
+  planEvents: PlanEventStore;
+  steps: StepStore;
+  workItems: WorkItemStore;
+  estimates: EstimateStore;
+  actuals: ActualStore;
+  measures: MeasureStore;
+  progress: StepProgressStore;
+  dependencies: DependencyStore;
+  subtrees: SubtreeStore;
+  journal: CommandJournalStore;
+}
+
+/**
+ * The stores a source offers that are **not** part of any batch (D27).
+ *
+ * Saved plans are the whole of it today. They open their own connection per
+ * call, check their quota inside their own write, take **no turn** at the write
+ * coordinator, and survive a batch's outcome either way — a save that succeeded
+ * while a batch was open is still there whether that batch committed or rolled
+ * back. That is a property of the feature rather than an accident of the
+ * wiring: a plan is immutable once written, so there is nothing for a rollback
+ * to be consistent with.
+ *
+ * Separate from {@link TransactionalStores} rather than a section of it,
+ * because the type is what stops a command enlisting one: `Scope` carries the
+ * transactional composition alone, so `scope.stores.savedPlans` does not
+ * compile.
+ */
+export interface HistoryStores {
+  savedPlans: SavedPlanStore;
+  savedPlanCapture: SavedPlanCaptureStore;
+}
+
+/**
+ * Everything a source offers, as one composition (D22).
+ *
+ * A composition rather than one interface: a source implements the ports it
+ * has, and the type of what it composes says which services can then be built
+ * over it. A browser source with no accounts is certified for what it has and
+ * is not asked about the rest.
+ */
+export type Stores = TransactionalStores & HistoryStores;
+
+/**
+ * The audit stamp, from the ring it belongs to.
+ *
+ * Re-exported rather than moved-and-forgotten: ninety files in this app import
+ * it from this module and the direction is right either way — this is the
+ * adapter, `@wbs/core` is the application ring, and naming its application's
+ * types is what an adapter does.
+ */
+export type { WriteStamp };

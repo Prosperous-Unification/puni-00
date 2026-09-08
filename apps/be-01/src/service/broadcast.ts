@@ -1,6 +1,5 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
-
 import type { ScheduleEngine, SolverObjectiveName, Step } from '../repository';
+import type { SolverFailureReason } from '../repository/schema';
 import type { NumberedWorkItem } from './work-item.service';
 
 /**
@@ -95,8 +94,8 @@ export type ProjectEvent =
    * of state. All three are sent whatever moved, because a reader holding one
    * changed field and two stale ones cannot tell which it has.
    *
-   * `schedule_optimized` is **not** this event and is deliberately not declared
-   * here: it stays reserved for a stored solver *result* arriving, which is a
+   * `schedule_optimized` is **not** this event: it is reserved for a stored
+   * solver *result* arriving, which is a
    * different fact with a different payload and a different trigger. Emitting
    * a settings change as a result would tell a client a schedule had been
    * recomputed when nothing had run.
@@ -106,6 +105,40 @@ export type ProjectEvent =
       optimizationEnabled: boolean;
       scheduleEngine: ScheduleEngine;
       scheduleObjective: SolverObjectiveName;
+    }
+  | {
+      type: 'schedule_optimized';
+      projectId: string;
+      generation: number;
+      inputHash: string;
+      objective: SolverObjectiveName;
+      contractVersion: string;
+      budgetMs: number;
+    }
+  | {
+      type: 'schedule_optimization_failed';
+      projectId: string;
+      generation: number;
+      inputHash: string;
+      objective: SolverObjectiveName;
+      contractVersion: string;
+      budgetMs: number;
+      failureReason: SolverFailureReason;
+    }
+  /**
+   * A deterministic certificate has become the terminal answer for one exact
+   * optimizer variant. The certificate stays in the keyed cache DTO; this
+   * announcement carries the full release identity so every collaborator can
+   * re-read that variant instead of remaining `pending` until another edit.
+   */
+  | {
+      type: 'schedule_optimization_infeasible';
+      projectId: string;
+      generation: number;
+      inputHash: string;
+      objective: SolverObjectiveName;
+      contractVersion: string;
+      budgetMs: number;
     }
   /**
    * This project's list of saved plans has changed — one saved, renamed or
@@ -135,7 +168,24 @@ export type ProjectEvent =
    * could only be reached by the reader's *own* save, because nothing a
    * collaborator did ever arrived.
    */
-  | { type: 'saved_plans_changed' };
+  | { type: 'saved_plans_changed' }
+  /**
+   * A project's calendar markers changed — one was added, renamed, recoloured
+   * or deleted.
+   *
+   * Its own type rather than `tree_replaced` or `directory_changed`, and the
+   * distinction is the same load-bearing one `saved_plans_changed` draws: **no
+   * work item moved and no date changed.** A marker is an annotation on the
+   * axis, so a reader that folded this into a tree change would re-fetch and
+   * re-render a plan byte-identical to the one on screen every time any
+   * collaborator dropped a marker on a day.
+   *
+   * Content-free, for `directory_changed`'s reason: a client reads a project's
+   * markers as one list, so the only useful thing to say is "read again".
+   * Carrying the row would additionally announce it to every reader of the
+   * project — including one the list route would have answered differently.
+   */
+  | { type: 'calendar_markers_changed' };
 
 /**
  * The subscription name carrying a project's edits.
@@ -168,131 +218,63 @@ export interface HeldAnnouncement {
 }
 
 /**
- * A {@link Broadcaster} that can hold a batch's announcements back.
+ * One batch's announcements, held until it has committed and let go of its turn.
  *
- * `PlanCommandRunner` states the rule its own broadcast follows: the lock covers
- * the transaction and nothing after it, because a push to gw-01 is a network
- * call and a lock held across it lets one slow gateway stall every write in the
- * process. `PushClient` retries six times with a 500ms→30s backoff, so the worst
- * case is about a minute **per push**.
+ * **Per batch and handed over explicitly** (D24). What stood here before was a
+ * wrapper with an `AsyncLocalStorage` queue: a publish joined the batch whose
+ * async context it was made in. That is a correct answer to "whose event is
+ * this" and an ambient one, and it needs a runtime that has `AsyncLocalStorage`
+ * — which a browser does not. The batch's services are built over this object
+ * instead, so the question is answered by the graph a caller was given rather
+ * than by where its call stack came from, and the same code runs either side.
  *
- * Three services broke that rule by publishing from inside `applyAll`:
- * `CapacityService.set`, `PriorityBandService.set` and
- * `DirectoryService.announce`, the last of them once per touched project, in
- * sequence. A tag rename across forty projects made forty event-log inserts and
- * forty gateway pushes with the process-wide write lock held.
+ * The rule this exists for is `PlanCommandRunner`'s: the turn covers the unit of
+ * work and nothing after it, because a push to gw-01 is a network call and a
+ * turn held across it lets one slow gateway stall every write in the process.
+ * Three services broke that rule by publishing from inside `applyAll`, and
+ * under ADR 0007 those event-log inserts were savepoints inside the batch's
+ * transaction: a command refused at step nine rolled back the recorded events
+ * for pushes that had already left.
  *
- * It was also unsound, not merely slow. Under ADR 0007 the batch runs in one
- * outer transaction, so those event-log inserts were savepoints inside it: a
- * command refused at step nine rolled back the recorded events for pushes that
- * had already left the process. `directory.service.ts`'s own doc argued the
- * opposite — "`recordEvent` opens a transaction of its own, so it cannot be
- * nested inside the write's" — which is true of a single directory route and
- * false of every directory command in a batch.
- *
- * So a held batch keeps its announcements until the runner has committed *and*
- * released the lock, and drops them entirely when it rolls back. Held events are
- * deduplicated when they carry nothing but a `type`, which is what makes forty
- * `directory_changed` for one rename into one per project.
- *
- * **A hold belongs to its caller, not to this object** (TASK-256). The queue
- * lives in an {@link AsyncLocalStorage}, so a publish is captured when it is
- * made *inside* the hold's own async context and not merely while the hold is
- * open. `held` used to be instance state and `services.ts` builds exactly one
- * instance, so during any open hold *every* publish through this object joined
- * that batch's queue — including one from an HTTP route that had committed its
- * own transaction and had nothing to do with the batch. A refused batch drops
- * its queue (`plan-commands.ts` answers a refusal with `pending: []`) and that
- * route's event went with it: the write happened and nobody was told. It
- * shipped that way for saved plans (TASK-255) and for all three `step_*` events
- * (TASK-256), and both were found by review rather than by a test.
- *
- * The context test is the right one because it asks the question the drop is
- * about. An incoming HTTP request is rooted in its own async context and never
- * inside `PlanCommandRunner`'s `hold` callback, so it reads no store and
- * publishes straight through; a command inside the batch reads the batch's
- * store and is queued, which is what the hold is for. That fixes every present
- * and future non-batch publisher at once rather than one wiring at a time —
- * including `WorkItemService.announceTreeNow` and {@link send} themselves,
- * which run after `hold` has returned and could be captured by a *following*
- * batch under instance state.
- *
- * Deferring by *caller* rather than by *clock* is also why the wiring in
- * `services.ts` no longer decides anything. Every publisher may hold the
- * wrapper; a publisher that is never part of a batch is simply never captured.
+ * Held events are deduplicated when they carry nothing but a `type`, which is
+ * what makes forty `directory_changed` for one tag rename into one per project.
  */
-export class DeferringBroadcaster implements Broadcaster {
-  private readonly scope = new AsyncLocalStorage<HeldAnnouncement[]>();
+export class AnnouncementCollector implements Broadcaster {
+  private readonly held: HeldAnnouncement[] = [];
 
   constructor(private readonly inner: Broadcaster) {}
 
-  /**
-   * Run `step` with every announcement *it* makes held, and hand back what it
-   * queued.
-   *
-   * The caller decides whether they leave: {@link send} them after a commit,
-   * drop them after a rollback.
-   *
-   * Two concurrent batches are no longer an error, and could not be expressed
-   * before: each gets its own queue, because each runs in its own async
-   * context. `PlanCommandRunner` serialises them behind the write lock anyway,
-   * so this is a property rather than a feature.
-   *
-   * @throws when a hold is already open **in this context**. A nested hold
-   * would shadow its parent's store, so the parent would commit having been
-   * told nothing about the writes the child announced.
-   */
-  async hold<T>(step: () => Promise<T>): Promise<{ result: T; pending: HeldAnnouncement[] }> {
-    // Proof: deleting these two lines makes `broadcast.test.ts`'s
-    // `DeferringBroadcaster refuses a nested hold` fail on
-    // `expect(nested).toBeInstanceOf(Error)` — the inner hold succeeds and
-    // returns, shadowing the outer store. Watched 2026-09-04, 6 pass / 1 fail.
-    // The check needed its own test once TASK-256 changed what it inspects:
-    // reading instance state it caught two *concurrent* batches, which is the
-    // failure `plan-commands.ts` names, and per-caller queues retired that
-    // symptom entirely.
-    if (this.scope.getStore() !== undefined)
-      throw new Error('a batch is already holding announcements');
-    const held: HeldAnnouncement[] = [];
-    // `run` unwinds the store itself, on the throw path too — which is why
-    // there is no `finally` here and why an exception cannot leak a queue.
-    return this.scope.run(held, async () => ({ result: await step(), pending: held }));
-  }
-
-  /**
-   * Publish what a hold queued, in the order it was queued.
-   *
-   * Straight to {@link inner} and never back through {@link publish}: this runs
-   * after its own hold has returned, so a following batch that happened to be
-   * open would otherwise capture the previous batch's committed events under
-   * the old instance-state rule. It cannot now — this call is rooted in the
-   * first request's context — and going to `inner` says so at the call site
-   * rather than relying on that.
-   */
-  async send(pending: readonly HeldAnnouncement[]): Promise<void> {
-    for (const each of pending) await this.inner.publish(each.projectId, each.event);
-  }
-
-  async publish(projectId: string, event: ProjectEvent): Promise<void> {
-    const held = this.scope.getStore();
-    if (held === undefined) {
-      await this.inner.publish(projectId, event);
-      return;
-    }
+  publish(projectId: string, event: ProjectEvent): Promise<void> {
     // Only an event that carries nothing but its type can be deduplicated: two
     // `directory_changed` for one project say the same thing, and two
     // `step_renamed` do not.
     const saysOnlyItsType = Object.keys(event).length === 1;
     if (
       saysOnlyItsType &&
-      held.some((each) => each.projectId === projectId && each.event.type === event.type)
+      this.held.some((each) => each.projectId === projectId && each.event.type === event.type)
     ) {
-      return;
+      return Promise.resolve();
     }
-    held.push({ projectId, event });
+    this.held.push({ projectId, event });
+    return Promise.resolve();
   }
 
   latestSeq(projectId: string): Promise<number> {
     return this.inner.latestSeq(projectId);
+  }
+
+  /** What this batch has announced so far, in the order it announced it. */
+  get pending(): readonly HeldAnnouncement[] {
+    return this.held;
+  }
+
+  /**
+   * Publishes what the batch collected, in order.
+   *
+   * Called after the commit and after the turn is released — never inside
+   * `UnitOfWork.run`, which is the half of the rule this class exists for.
+   */
+  async send(): Promise<void> {
+    for (const each of this.held) await this.inner.publish(each.projectId, each.event);
   }
 }

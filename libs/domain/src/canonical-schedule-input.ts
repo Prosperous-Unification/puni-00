@@ -51,12 +51,16 @@ import { groupSlicesByLeaf } from './slice-groups';
  * hash that means two things, so the caller states the empty map rather than
  * omitting it.
  *
- * `deadlines` is the **seventh** argument, and `schedule()` does not take it
- * yet. TASK-219 owns the plumbing and TASK-241 owns the field and its source
- * (`tasks.md` §1, "whose seventh argument this is"), so today every caller
- * passes an empty map and the entry canonicalizes to `[]`. That empty state is
- * the *proved* state rather than a placeholder: 1.6's no-op proof requires the
- * seventh argument to leave every golden corpus case byte-identical.
+ * `deadlines` is the **seventh** argument, and since TASK-267's `tasks.md` 4.1
+ * `schedule()` takes it there — this interface and that signature are now the
+ * same tuple, which is the point of the interface. TASK-219 owned the plumbing
+ * and TASK-267 owns the field and its source (`tasks.md` §1, "whose seventh
+ * argument this is"), so until the column lands every caller still passes an
+ * empty map and the entry canonicalizes to `[]`. That empty state is proved
+ * rather than assumed: 1.6's and 4.3's no-op proof requires the seventh
+ * argument to leave every golden corpus case byte-identical, and
+ * `fast-golden-corpus.test.ts` now runs that comparison on the real argument
+ * rather than on the one that happened to occupy the slot.
  */
 export interface ScheduleInput {
   readonly rows: readonly PlannedRow[];
@@ -108,10 +112,15 @@ const sortedPairs = <V>(map: ReadonlyMap<string, V>): [string, V][] =>
  * canonical form is deliberately *not* fully sorted, and the asymmetry is
  * load-bearing in both directions. Within a group the order IS the step
  * precedence the engine runs — `slicesOf` chains them — so sorting it would
- * make two different schedules hash the same. Across groups it is whatever SQL
- * returned, because `WorkItemRepo.listByProject` selects with no `ORDER BY`, so
- * hashing the global order made one unchanged project hash two ways between
- * reads and between blue and green.
+ * make two different schedules hash the same. Across groups the incoming order
+ * is not read at all, and that independence is the point rather than an
+ * accident of the caller: hashing the global order made one unchanged project
+ * hash two ways between reads and between blue and green.
+ *
+ * `WorkItemRepo.listByProject` does now guarantee ascending `work_item.id`
+ * (TASK-260, ADR 0016) — but do not rewrite this grouping to lean on that. The
+ * repository's order is a contract about *what the scheduler is handed*, and
+ * this key stays independent of it so that the two can never disagree.
  *
  * `poolIds` is a **set**, sorted: a slice labelled `['a','b']` and one labelled
  * `['b','a']` wait for the same two pools, and `jointWindowFor` reads them as a
@@ -160,6 +169,13 @@ const sortedPairs = <V>(map: ReadonlyMap<string, V>): [string, V][] =>
  * | `poolSizes` | 22 / 2 | the pool grew to two slots |
  * | `reach` | 22 / 2 | depReach flipped to anchor-slice |
  * | `deadlines` | 22 / 2 | a deadline the engine cannot yet read (TASK-241) |
+ *
+ * That last case has since been renamed `a deadline the engine now reads` and
+ * moved into `movesAPlacement` (TASK-241 slice 7.1): TASK-267 gave `schedule()`
+ * the seventh parameter and two readers for it, and the test helper that had
+ * been dropping it now passes it. The counts above are the measurement taken at
+ * `05b78008` and are left as measured; the row is the case that caught the
+ * removal, under the name it carried then.
  *
  * The five two-fail rows are the field's own case plus `puts every one of the
  * seven arguments in the string, maps included`, the structural guard catching

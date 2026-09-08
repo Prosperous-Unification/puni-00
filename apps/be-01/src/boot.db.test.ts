@@ -5,13 +5,15 @@ import { join } from 'node:path';
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import { createLogger } from '@wbs/observability';
 import { afterEach, describe, expect, it } from 'bun:test';
+import { errors } from 'jose';
 
 import { bootBe01, type RunningBe } from './boot';
-import type { OidcRouteOptions } from './controller/auth.controller';
+import type { OidcRouteOptions } from './controller/oidc-options';
+import { openDatabase, openDrizzle } from './repository/db';
+import type { WriteCoordinator } from './repository/gate';
 import { runMigrations } from './repository/migrate';
+import { allocateGeneration, readGeneration } from './repository/optimization-generation';
 import type { AuthenticatedUser } from './service/auth.service';
-import type { GatewayBroadcaster } from './service/gateway-broadcaster';
-import type { WriteLock } from './service/write-lock';
 
 /**
  * What `/health` answers, as this suite reads it.
@@ -59,6 +61,7 @@ function boot(
   const dbPath = join(dir, 'test.db');
   runMigrations(dbPath, FOLDER);
   running = bootBe01({
+    appOrigin: oidc?.appOrigin ?? 'http://localhost',
     dbPath,
     port: 0,
     logger: createLogger({ service: 'be-01' }),
@@ -84,7 +87,7 @@ function oidcOptions(passwordLoginEnabled: boolean): OidcRouteOptions {
     tokens: new InMemoryTokenStore(),
     groupPrefix: 'dev',
     groupsClaim: 'wbs_groups',
-    verifier: { verify: () => Promise.reject(new Error('not an OIDC token')) },
+    verifier: { verify: () => Promise.reject(new errors.JOSEAlgNotAllowed('not an OIDC token')) },
     client: {
       authorizationUrl: () => Promise.resolve(new URL('https://idp.test/authorize')),
       exchange: () => Promise.resolve({ accessToken: 'a', expiresIn: 60 }),
@@ -95,9 +98,111 @@ function oidcOptions(passwordLoginEnabled: boolean): OidcRouteOptions {
 }
 
 describe('bootBe01', () => {
+  it('reconciles an abandoned optimizer drain before reporting healthy', async () => {
+    const dir = tempDir('wbs-optimizer-reconcile-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const raw = openDatabase(dbPath);
+    try {
+      raw.run(
+        `INSERT INTO users (id, username, password_hash, created_at)
+         VALUES ('u-1', 'owner', 'hash', 1)`,
+      );
+      raw.run(
+        `INSERT INTO project (id, name, owner_id, restricted, revision, created_at,
+                              optimization_enabled, schedule_engine, schedule_objective)
+         VALUES ('p-1', 'Plan', 'u-1', 0, 0, 1, 1, 'optimized', 'pri')`,
+      );
+    } finally {
+      raw.close();
+    }
+    const observer = openDrizzle(dbPath);
+    const contractVersion = '7+0.1.0';
+    allocateGeneration(observer, 'p-1', contractVersion, 'abandoned', 1);
+    const state = openDatabase(dbPath);
+    try {
+      state.run(
+        `UPDATE optimization_generation SET admission_state = 'draining'
+         WHERE project_id = 'p-1' AND contract_version = '${contractVersion}'`,
+      );
+    } finally {
+      state.close();
+    }
+
+    running = bootBe01({
+      appOrigin: 'http://localhost',
+      dbPath,
+      port: 0,
+      logger: createLogger({ service: 'be-01' }),
+      jwtKey: 'k'.repeat(32),
+      gwUrl: 'http://gw.invalid',
+      internalAuthSecret: 's'.repeat(32),
+      optimizer: {
+        solverVersion: '0.1.0',
+        budgetMs: 60_000,
+        spawn: () => {
+          throw new Error('startup reconciliation must not spawn');
+        },
+      },
+    });
+    let health: Response | undefined;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      health = await fetch(`http://localhost:${String(running.port)}/health`);
+      if (health.status === 200) break;
+      await Bun.sleep(10);
+    }
+
+    expect(health?.status).toBe(200);
+    expect(readGeneration(observer, 'p-1', contractVersion)).toBeNull();
+
+    // Proof: remove `services.optimizer.start()` from boot and the abandoned
+    // draining generation remains after health says this process is serving.
+  });
+
+  it('hands the installed optimizer runtime into the serving process graph', async () => {
+    // This is the boundary main.ts calls. Proof: omit the `optimizer` forwarding
+    // from bootBe01 to buildServices and the settings write is refused even
+    // though this boot was given a runnable optimizer.
+    const dir = tempDir('wbs-optimizer-boot-');
+    running = bootBe01({
+      appOrigin: 'http://localhost',
+      dbPath: join(dir, 'test.db'),
+      port: 0,
+      logger: createLogger({ service: 'be-01' }),
+      jwtKey: 'k'.repeat(32),
+      gwUrl: 'http://gw.invalid',
+      internalAuthSecret: 's'.repeat(32),
+      localIdentity: { id: 'local-dev', username: 'local-dev', scopes: ['read', 'write'] },
+      migrateOnStartup: true,
+      migrationsFolder: FOLDER,
+      optimizer: {
+        solverVersion: '0.1.0',
+        budgetMs: 60_000,
+        spawn: () => {
+          throw new Error('the settings write must not spawn');
+        },
+      },
+    });
+    let health: Response | undefined;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      health = await fetch(`http://localhost:${String(running.port)}/health`);
+      if (health.status === 200) break;
+      await Bun.sleep(10);
+    }
+    expect(health?.status).toBe(200);
+    const created = await running.services.projects.create('Optimizer', 'local-dev');
+
+    expect(
+      await running.services.projects.update(created.project.id, 'local-dev', {
+        optimizationEnabled: true,
+      }),
+    ).toHaveProperty('ok', true);
+  });
+
   it('persists the fixed local identity after migrating an empty development database', async () => {
     const dir = tempDir('wbs-local-boot-');
     running = bootBe01({
+      appOrigin: 'http://localhost',
       dbPath: join(dir, 'test.db'),
       port: 0,
       logger: createLogger({ service: 'be-01' }),
@@ -171,25 +276,25 @@ describe('bootBe01', () => {
     expect((await second.json()) as HealthAnswer).toEqual({ status: 'ok', commit: moved });
   });
 
-  it('holds a command batch out while the broadcaster lock is taken', async () => {
-    // The one-lock wiring, observed rather than restated. `boot.ts` creates one
-    // `WriteLock` and passes it to `buildServices` (the broadcaster records
-    // under it) and to `buildApp` (`PlanCommandRunner` opens its outer
-    // transaction under it). That those are the SAME object is the whole
-    // durability guarantee — a second lock excludes nothing, and the batch's
-    // rollback goes back to erasing a durable event the push has already left
-    // with. Every existing test builds its own pair, so all of them stay green
-    // through a split; Sol's Important on PR 204.
+  it('holds a command batch out while the write coordinator is taken', async () => {
+    // The one-coordinator wiring, observed rather than restated. `boot.ts`
+    // creates one `WriteCoordinator` and passes it to `buildServices` (every
+    // store takes its turn at it) and to `buildApp` (`PlanCommandRunner` takes
+    // one turn for the whole batch). That those are the SAME object is the
+    // whole durability guarantee — a second one excludes nothing, and the
+    // batch's rollback goes back to erasing a durable event the push has
+    // already left with. Every existing test builds its own pair, so all of
+    // them stay green through a split; Sol's Important on PR 204.
     //
-    // Proof it is not a restatement: `boot.ts` line 75 mutated to
-    // `lock: new WriteLock()` with line 126 left alone, which is a healthy pair
-    // of locks and the exact split this guards. The race below then resolves the
-    // wrong way round.
+    // Proof it is not a restatement: `boot.ts`'s `gate: writeCoordinator`
+    // mutated to `gate: new WriteCoordinator()` with `writes.gate` left alone,
+    // which is a healthy pair of coordinators and the exact split this guards.
+    // The race below then resolves the wrong way round.
     //
-    // Read off the real objects at both ends: the lock comes from the
-    // broadcaster `buildServices` constructed, and the waiting is done by the
-    // runner `buildApp` constructed, reached over its own HTTP route. Nothing
-    // here rebuilds the wiring it is checking.
+    // Read off the real objects at both ends: the coordinator comes from the
+    // graph `buildServices` constructed, and the waiting is done by the runner
+    // `buildApp` constructed, reached over its own HTTP route. Nothing here
+    // rebuilds the wiring it is checking.
     //
     // **It is an ordering race and not an elapsed-time sample, and the
     // difference is the whole test.** A fixed sleep followed by "has it answered
@@ -207,16 +312,18 @@ describe('bootBe01', () => {
       username: 'local-dev',
       scopes: ['read', 'write'],
     });
-    // The `GatewayBroadcaster` `announcements` was built around — the object
-    // that records under the lock, which is the end of the wiring this reads.
-    const broadcaster: GatewayBroadcaster = be.services.gatewayBroadcaster;
+    // The process's one write coordinator, read off the built graph — the end
+    // of the wiring this case is about. Every store `buildServices` builds
+    // takes its turn at this object, and the runner takes one turn for a whole
+    // batch, so a turn held here is exactly "a batch cannot start".
+    const coordinator = be.services.gate;
 
     let release!: () => void;
     let announceTaken!: () => void;
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
-    // `WriteLock.run` schedules its callback on a microtask rather than running
+    // `WriteCoordinator.run` schedules its callback on a microtask rather than running
     // it inline, so a caller that has merely called `run` holds nothing yet.
     // Awaiting this is what puts the batch behind the turn instead of beside it
     // — the same trap that made this change's first durability regression
@@ -224,8 +331,8 @@ describe('bootBe01', () => {
     const taken = new Promise<void>((resolve) => {
       announceTaken = resolve;
     });
-    const lock = broadcaster.lock;
-    const turn = lock.run(async () => {
+    const lock = coordinator;
+    const turn = lock.enter(async () => {
       announceTaken();
       await held;
     });
@@ -238,9 +345,9 @@ describe('bootBe01', () => {
     const reached = new Promise<void>((resolve) => {
       announceReached = resolve;
     });
-    const seam = lock as { run?: WriteLock['run'] };
-    const real = lock.run.bind(lock);
-    seam.run = <T>(work: () => Promise<T>): Promise<T> => {
+    const seam = lock as { enter?: WriteCoordinator['enter'] };
+    const real = lock.enter.bind(lock);
+    seam.enter = <T>(work: () => Promise<T>): Promise<T> => {
       announceReached();
       return real(work);
     };
@@ -259,7 +366,7 @@ describe('bootBe01', () => {
         batch.then(() => 'the batch answered first' as const),
       ]);
     } finally {
-      delete seam.run;
+      delete seam.enter;
       release();
     }
 
@@ -321,3 +428,17 @@ describe('OIDC boot wiring', () => {
     expect(me.status).toBe(200);
   });
 });
+
+for (const passwordLoginEnabled of [false, true]) {
+  it(`keeps boot verifier outages as 500 with password login ${String(passwordLoginEnabled)}`, async () => {
+    const oidc = oidcOptions(passwordLoginEnabled);
+    oidc.verifier = { verify: () => Promise.reject(new Error('discovery unavailable')) };
+    const be = boot(undefined, oidc);
+    const registered = await be.services.auth.register('password-user', 'correct-horse-2026');
+    if (!registered.ok) throw new Error('password fixture was not registered');
+    const me = await fetch(`http://localhost:${String(be.port)}/api/auth/me`, {
+      headers: { cookie: `__Host-wbs_access=${registered.value.token}` },
+    });
+    expect(me.status).toBe(500);
+  });
+}

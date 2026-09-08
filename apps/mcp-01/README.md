@@ -1,7 +1,7 @@
 # mcp-01
 
 Streamable HTTP MCP server over be-01. Tools are derived from
-`apps/be-01/openapi.json`; auth, internal, and operational routes are excluded.
+the shared HTTP descriptors in `@wbs/contracts`; auth, internal, and operational routes are excluded.
 Every tool call forwards the caller's Bearer token to be-01, so the same
 issuer, identity, scope, journal, and owner rules govern MCP and browser calls.
 
@@ -12,11 +12,16 @@ an ordered list of typed commands (create, patch, move, estimate, dependency,
 capacity, directory entries…) applied all or none, recorded as **one undo**, and
 answering the id each `ref` became. A later command names what an earlier one
 created by its ref. The directory has no project, so its edits alone have
-`postApiDirectoryCommands`. 28 tools in all: the reads, the two batches,
-undo, redo, the project and step routes, the export, and the six saved-plan
+`postApiDirectoryCommands`. 33 tools in all: the reads, the two batches,
+undo, redo, the project and step routes, the export, the six saved-plan
 routes — the five that create, list, read, rename and delete a snapshot, plus
 `getApiProjectsByIdSaved-plansCompare`, which answers what changed between two
-of them. One call drafts a plan:
+of them — and the four calendar-marker routes that list, add, edit and delete a
+dated annotation on a project's axis. The marker writes are not batched with the
+rest: a marker is not a plan edit, so no `commands` command creates one. One call
+also retries a failed or corrupt optimized variant; Retry is a project lifecycle
+action with no plan-command equivalent. One call
+drafts a plan:
 
 ```json
 {
@@ -91,5 +96,5 @@ AUTH_AUDIENCE=api://wbs AUTH_CLIENT_ID=wbs AUTH_CLIENT_SECRET=… \
 bun apps/mcp-01/src/main.ts
 ```
 
-The build target copies `apps/be-01/openapi.json` beside the bundle. The server
-refuses to boot if neither the source document nor that bundle copy exists.
+The build bundles the shared HTTP descriptors; no separate OpenAPI file is needed. The server
+refuses to boot when the generated document cannot produce an unambiguous tool table.

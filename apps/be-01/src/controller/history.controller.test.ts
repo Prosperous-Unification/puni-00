@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 import { buildApp } from '../app';
 import type { PlanEvent, Project, ProjectStore } from '../repository';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
+import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryPlanEvents, testHistoryService } from '../testing/history-fixture';
@@ -44,6 +45,8 @@ describe('one plan’s history, over HTTP', () => {
   let projects: ProjectStore;
   let token: string;
 
+  let events: ReturnType<typeof inMemoryPlanEvents>;
+
   beforeEach(async () => {
     const users = inMemoryUsers();
     const auth = testAuthService(users);
@@ -53,13 +56,14 @@ describe('one plan’s history, over HTTP', () => {
       ownerId: 'owner',
     });
     await projects.create(project, [], { at: 1, by: project.ownerId });
-    const events = inMemoryPlanEvents([
+    events = inMemoryPlanEvents([
       event('set', { createdAt: 1_000 }),
       event('cleared', { kind: 'clear_estimate', createdAt: 2_000 }),
       event('renamed', { kind: 'patch', workItemId: 'w2', stepId: null, createdAt: 3_000 }),
       event('frozen', { kind: 'freeze', workItemId: null, stepId: null, createdAt: 4_000 }),
     ]);
     app = buildApp({
+      appOrigin: 'http://localhost',
       auth,
       projects: testProjectService(projects),
       steps: testStepService(),
@@ -69,6 +73,7 @@ describe('one plan’s history, over HTTP', () => {
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
       history: testHistoryService(projects, events),
+      calendarMarkers: testCalendarMarkerService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
       internalAuthSecret: 'x'.repeat(32),
@@ -81,7 +86,7 @@ describe('one plan’s history, over HTTP', () => {
     const registered = await app.handle(
       new Request('http://localhost/api/auth/register', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { origin: 'http://localhost', 'content-type': 'application/json' },
         body: JSON.stringify({ username: 'owner', password: 'correct-horse' }),
       }),
     );
@@ -94,8 +99,27 @@ describe('one plan’s history, over HTTP', () => {
         headers: withToken === '' ? {} : { authorization: `Bearer ${withToken}` },
       }),
     );
-    return { status: response.status, body: (await response.json()) as { events?: PlanEvent[] } };
+    return {
+      status: response.status,
+      body: (await response.json()) as { events?: PlanEvent[]; error?: string },
+    };
   }
+
+  it('refuses undeclared query fields instead of silently ignoring them', async () => {
+    const response = await get('?extra=ignored');
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: 'invalid_query' });
+  });
+
+  it('keeps historical command JSON opaque while validating the surrounding event', async () => {
+    events.held.push(event('legacy', { before: { retiredCommand: 'v0' }, after: null }));
+    const response = await get('');
+    expect(response.status).toBe(200);
+    expect(response.body.events?.find((entry) => entry.id === 'legacy')).toMatchObject({
+      before: { retiredCommand: 'v0' },
+      after: null,
+    });
+  });
 
   it('answers the whole history, newest first', async () => {
     const { status, body } = await get('');

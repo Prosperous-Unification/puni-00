@@ -3,9 +3,11 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { rowsChanged } from './changes';
-import type { ActualStore, StoredActual, WriteStamp } from './index';
+import type { Gate } from './gate';
+import type { ActualStore, StepWriteOutcome, StoredActual, WriteStamp } from './index';
 import { bumpWorkItems } from './revision';
 import { actual, step, workItem } from './schema';
+import { writingStep } from './step-reference';
 
 /**
  * An actual is a **satellite** of the work item it is for, exactly as an
@@ -20,7 +22,10 @@ import { actual, step, workItem } from './schema';
  * estimates follow a subtree and actuals quietly do not.
  */
 export class ActualRepository implements ActualStore {
-  constructor(private readonly db: SQLiteBunDatabase) {}
+  constructor(
+    private readonly db: SQLiteBunDatabase,
+    private readonly gate: Gate,
+  ) {}
 
   /**
    * Every actual in the project, **in step order** within each work item.
@@ -69,31 +74,37 @@ export class ActualRepository implements ActualStore {
    * from the row being overwritten: the column says when this number was typed,
    * and a corrected figure was typed today.
    */
-  async set(toSet: StoredActual, stamp: WriteStamp): Promise<void> {
-    await Promise.resolve();
-    this.db.transaction((tx) => {
-      tx.insert(actual)
-        .values({ ...toSet, ...auditOnCreate(stamp) })
-        .onConflictDoUpdate({
-          target: [actual.workItemId, actual.stepId],
-          set: { days: toSet.days, recordedAt: toSet.recordedAt, ...auditOnUpdate(stamp) },
-        })
-        .run();
-      bumpWorkItems(tx, [toSet.workItemId], stamp);
+  async set(toSet: StoredActual, stamp: WriteStamp): Promise<StepWriteOutcome> {
+    return await writingStep(this.db, toSet.stepId, async () => {
+      await this.gate.enter(async () => {
+        await Promise.resolve();
+        this.db.transaction((tx) => {
+          tx.insert(actual)
+            .values({ ...toSet, ...auditOnCreate(stamp) })
+            .onConflictDoUpdate({
+              target: [actual.workItemId, actual.stepId],
+              set: { days: toSet.days, recordedAt: toSet.recordedAt, ...auditOnUpdate(stamp) },
+            })
+            .run();
+          bumpWorkItems(tx, [toSet.workItemId], stamp);
+        });
+      });
     });
   }
 
   async remove(workItemId: string, stepId: string, stamp: WriteStamp): Promise<void> {
-    // Both halves of the key, not the step alone: the composite primary key is
-    // (work item, step), and narrowing to one of them would clear that step
-    // across the whole database. `actual.test.ts` keeps a survivor for each half
-    // so that mistake cannot pass — the same guard `estimate.test.ts` keeps.
-    await Promise.resolve();
-    this.db.transaction((tx) => {
-      tx.delete(actual)
-        .where(and(eq(actual.workItemId, workItemId), eq(actual.stepId, stepId)))
-        .run();
-      bumpWorkItems(tx, [workItemId], stamp);
+    await this.gate.enter(async () => {
+      // Both halves of the key, not the step alone: the composite primary key is
+      // (work item, step), and narrowing to one of them would clear that step
+      // across the whole database. `actual.test.ts` keeps a survivor for each half
+      // so that mistake cannot pass — the same guard `estimate.test.ts` keeps.
+      await Promise.resolve();
+      this.db.transaction((tx) => {
+        tx.delete(actual)
+          .where(and(eq(actual.workItemId, workItemId), eq(actual.stepId, stepId)))
+          .run();
+        bumpWorkItems(tx, [workItemId], stamp);
+      });
     });
   }
 
@@ -120,14 +131,16 @@ export class ActualRepository implements ActualStore {
    * watched 2026-08-17.
    */
   async moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void> {
-    await Promise.resolve();
-    this.db.transaction((tx) => {
-      tx.update(actual)
-        .set({ workItemId: toWorkItemId, ...auditOnUpdate(stamp) })
-        .where(eq(actual.workItemId, fromWorkItemId))
-        .run();
-      if (rowsChanged(tx, 'moving actuals') === 0) return;
-      bumpWorkItems(tx, [fromWorkItemId, toWorkItemId], stamp);
+    await this.gate.enter(async () => {
+      await Promise.resolve();
+      this.db.transaction((tx) => {
+        tx.update(actual)
+          .set({ workItemId: toWorkItemId, ...auditOnUpdate(stamp) })
+          .where(eq(actual.workItemId, fromWorkItemId))
+          .run();
+        if (rowsChanged(tx, 'moving actuals') === 0) return;
+        bumpWorkItems(tx, [fromWorkItemId, toWorkItemId], stamp);
+      });
     });
   }
 }

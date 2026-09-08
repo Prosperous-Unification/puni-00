@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
 import type { Step, WorkItem, WriteStamp } from '../repository';
@@ -12,6 +12,7 @@ import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
+import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { StepRepository } from '../repository/step';
@@ -19,13 +20,16 @@ import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { AuthService } from '../service/auth.service';
+import { AnnouncementCollector } from '../service/broadcast';
 import { DirectoryService } from '../service/directory.service';
 import { ProjectService } from '../service/project.service';
 import { StepService } from '../service/step.service';
 import { WorkItemService } from '../service/work-item.service';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
+import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
@@ -47,6 +51,7 @@ const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
 let dir: string;
 let app: ReturnType<typeof buildApp>;
+let auth: AuthService;
 let stepStore: StepRepository;
 let estimates: EstimateRepository;
 let actuals: ActualRepository;
@@ -57,13 +62,13 @@ let workItems: WorkItemRepository;
 let projects: ProjectRepository;
 let seededBy: string;
 /**
- * The one broadcaster in the process, and the wrapper over it, held apart so a
- * test can open a batch's hold on the same object the routes publish through.
+ * The one broadcaster in the process, held so a test can read what actually
+ * left it while a batch was open.
  *
- * `services.ts` gives `StepService` `announcements` — the shared
- * {@link DeferringBroadcaster} — so a fixture that hands it a private recorder
- * is not wiring this app builds, and cannot see a batch capture a step event.
- * That divergence is exactly what hid TASK-256.
+ * `services.ts` gives `StepService` the process's own broadcaster, so a fixture
+ * that hands it a private recorder is not the wiring this app builds and cannot
+ * see a batch capture a step event. That divergence is exactly what hid
+ * TASK-256.
  */
 let writes: ReturnType<typeof testWrites>;
 let broadcast: RecordingBroadcaster;
@@ -86,40 +91,46 @@ beforeEach(async () => {
   runMigrations(path, FOLDER);
   const db = openDrizzle(path);
 
-  projects = new ProjectRepository(db);
-  stepStore = new StepRepository(db);
-  estimates = new EstimateRepository(db);
-  actuals = new ActualRepository(db);
-  measures = new StepMeasureRepository(db);
-  progressStore = new StepProgressRepository(db);
-  directory = new DirectoryRepository(db);
-  workItems = new WorkItemRepository(db);
+  projects = new ProjectRepository(db, OPEN);
+  stepStore = new StepRepository(db, OPEN);
+  estimates = new EstimateRepository(db, OPEN);
+  actuals = new ActualRepository(db, OPEN);
+  measures = new StepMeasureRepository(db, OPEN);
+  progressStore = new StepProgressRepository(db, OPEN);
+  directory = new DirectoryRepository(db, OPEN);
+  workItems = new WorkItemRepository(db, OPEN);
 
   seededBy = crypto.randomUUID();
-  await new UserRepository(db).create(
+  await new UserRepository(db, OPEN).create(
     { id: seededBy, username: 'the-fixture', passwordHash: 'x', createdAt: 1 },
     { at: 1, by: seededBy },
   );
 
   broadcast = recordingBroadcaster();
-  writes = testWrites(broadcast);
+  const announcements = broadcast;
 
-  app = buildApp({
-    savedPlans: testSavedPlanService(),
+  auth = new AuthService({
+    users: new UserRepository(db, OPEN),
+    tokens: joseTokenCodec(TEST_JWT_KEY),
+    passwords: bunPasswordHasher,
+  });
+  // One graph for the routes and the batch alike — these stores hold no turn,
+  // so there is nothing for a second graph to keep apart, and a batch given its
+  // own would write into stores nothing here reads.
+  const writing = {
     directory: new DirectoryService({ directory, broadcast: recordingBroadcaster() }),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
-    history: testHistoryService(),
-    auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
+    calendarMarkers: testCalendarMarkerService(),
     // The shared wrapper here too, from Gemini's Minor on PR 203: this line
     // handed `ProjectService` a PRIVATE recorder, so anything it announced
     // landed in a log nothing reads. Harmless while no step route mutates
     // project settings — and exactly the shape in which a future assertion
     // reads an empty log and passes. See {@link writes}.
-    projects: new ProjectService({ projects, broadcast: writes.announcements }),
+    projects: new ProjectService({ projects, broadcast: announcements }),
     // The shared wrapper, as `services.ts` wires `StepService` — not a private
     // recorder. See {@link writes}.
-    steps: new StepService({ projects, steps: stepStore, broadcast: writes.announcements }),
+    steps: new StepService({ projects, steps: stepStore, broadcast: announcements }),
     workItems: new WorkItemService({
       workItems,
       projects,
@@ -127,14 +138,22 @@ beforeEach(async () => {
       actuals,
       measures,
       progress: progressStore,
-      dependencies: new DependencyRepository(db),
+      dependencies: new DependencyRepository(db, OPEN),
       directory,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),
-      subtrees: new SubtreeRepository(db),
-      journal: new CommandJournalRepository(db),
+      subtrees: new SubtreeRepository(db, OPEN),
+      journal: new CommandJournalRepository(db, OPEN),
       broadcast: recordingBroadcaster(),
     }),
+  };
+  writes = testWrites(broadcast, writing);
+  app = buildApp({
+    appOrigin: 'http://localhost',
+    savedPlans: testSavedPlanService(),
+    history: testHistoryService(),
+    auth,
+    ...writing,
     replay: testReplay().replay,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
@@ -151,7 +170,7 @@ async function register(username: string): Promise<string> {
   const res = await app.handle(
     new Request('http://localhost/api/auth/register', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { origin: 'http://localhost', 'content-type': 'application/json' },
       body: JSON.stringify({ username, password: 'correct-horse' }),
     }),
   );
@@ -247,7 +266,7 @@ describe('the steps routes are the only spelling', () => {
       for and a second spelling of one resource on the wire.
 
       Proof: `.post('/:id/roles', …)` left mounted beside `/:id/steps` in
-      `step.controller.ts`, forwarding to the same handler. This failed on
+      `step.routes.ts`, forwarding to the same handler. This failed on
       `expect(received).toBe(expected) … Expected: 404  Received: 200`, and the
       other two verbs stayed green — which is the point of asserting all three.
       Watched 2026-08-29.
@@ -275,15 +294,18 @@ describe('the steps routes are the only spelling', () => {
 });
 
 /**
- * TASK-256, the same class TASK-255 closed for saved plans, on the one service
- * that is still wired to the wrapper.
+ * TASK-256, the same class TASK-255 closed for saved plans, and what D24
+ * replaced the mechanism with.
  *
- * `DeferringBroadcaster.held` is **instance** state and `services.ts` builds
+ * `DeferringBroadcaster.held` was **instance** state and `services.ts` built
  * exactly one instance, so during any open hold *every* publish through that
- * object joins the batch's queue — including one from an HTTP route that has
- * already committed and is not part of the batch. A refused batch drops its
- * queue (`plan-commands.ts` answers a refusal with `pending: []`), and the
- * route's event goes with it. The write happened; nobody was told.
+ * object joined the batch's queue — including one from an HTTP route that had
+ * already committed and was not part of the batch. A refused batch drops what
+ * it collected, and the route's event went with it: the write happened; nobody
+ * was told. TASK-256 made the queue per-caller with `AsyncLocalStorage`, which
+ * answered "whose event is this" correctly and ambiently; the collector answers
+ * it by which graph published, which is the same answer in a runtime that has
+ * no `AsyncLocalStorage` at all.
  *
  * Steps are the worst case rather than another instance of it: `readScopeFor`
  * maps `step_added` / `step_renamed` / `step_removed` to `tree-and-steps`, so
@@ -293,50 +315,33 @@ describe('the steps routes are the only spelling', () => {
  * reachable only through this controller — it is never *inside* a batch, and
  * being captured by one is always wrong.
  *
- * The hold here stands in for that unrelated batch: opened on the same shared
- * broadcaster `buildApp` was given, and its queue then discarded rather than
- * sent — the refusal path exactly.
+ * Two assertions, failing for different reasons. The collector's `pending`
+ * empty says the event never entered a batch's collection, which is what makes
+ * it survivable; the recorder says it actually went out while that batch was
+ * open. An implementation that collected the event and sent it later passes the
+ * second and fails the first — and still loses the event on a refusal.
  *
- * **The route runs BESIDE the hold and not inside it, and that distinction is
- * the test.** The obvious shape calls the route from within the `hold` callback,
- * and under instance state it was indistinguishable from a concurrent request —
- * which is why it read as a fine model of the defect. It is not one. A batch's
- * hold is per-caller (TASK-256), so a call made inside the callback *is* part of
- * the batch by the only definition there is, and asserting it escapes would
- * assert the opposite of the contract. Held open on a gate promise with the
- * request driven from the test's own root context, this is two genuinely
- * concurrent async contexts, which is what production has: an incoming HTTP
- * request is never rooted inside `PlanCommandRunner`'s callback.
- *
- * Two assertions, failing for different reasons. `pending` empty says the event
- * never entered the batch's queue, which is what makes it survivable; the
- * recorder says it actually went out while the hold was still open. An
- * implementation that queued the event and sent it later passes the second and
- * fails the first — and still loses the event on the refusal this is named for.
+ * The window a route's *own* publish can be caught in — after its write, before
+ * it publishes, with a batch open — is `announcement-ownership.db.test.ts`'s
+ * (l), on real services.
  */
 describe('a step mutation is not captured by an unrelated batch', () => {
-  it('delivers an add made while an unrelated batch holds, and that batch then refuses', async () => {
+  it('delivers an add made while an unrelated batch is collecting', async () => {
     const token = await register('owner');
     const project = await newProject(token);
     broadcast.published.length = 0;
 
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    // Not awaited yet: the batch sits on the gate with its hold open, which is
-    // the state an unrelated request arrives in.
-    const batch = writes.announcements.hold(() => gate);
+    // A batch's collector, open beside the route. What used to be an ambient
+    // hold is an object the batch's own services were built over, so an
+    // unrelated route cannot publish into it however its call stack is rooted.
+    const batchCollector = new AnnouncementCollector(broadcast);
 
     const res = await addStep(project.id, token, 'Design');
     expect(res.status).toBe(200);
     const step = ((await res.json()) as { step: Step }).step;
 
-    release();
-    const { pending } = await batch;
-
-    // The refusal: the batch's own announcements are dropped, never sent.
-    expect(pending).toEqual([]);
+    // The refusal: the batch's own announcements would be dropped, never sent.
+    expect(batchCollector.pending).toEqual([]);
     // `toEqual` on the whole array, not a `.some(...)` search: the step the
     // event carries and the project it was announced on are both part of the
     // claim, and an event announced on the wrong project would pass a count.
@@ -378,6 +383,26 @@ describe('POST /api/projects/:id/steps', () => {
     expect((await addStep(project.id, token, '   ')).status).toBe(422);
     expect((await addStep(crypto.randomUUID(), token, 'Design')).status).toBe(404);
     expect((await addStep(project.id, 'not-a-token', 'Design')).status).toBe(401);
+  });
+
+  /**
+   * The case Elysia's `t.Object({ name: t.String() })` used to answer and
+   * nothing asserted.
+   *
+   * When the route moved onto the framework-free shape the check moved into the
+   * handler, and inverting it — accepting a non-string by coercing it — left
+   * this whole file green. A refusal the framework performs is a refusal that
+   * disappears with the framework, so it is stated here, once, for both writes.
+   */
+  it('answers 422 for a body whose name is not a string, and for no body at all', async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+    const post = (body: string) =>
+      send(`/api/projects/${project.id}/steps`, token, { method: 'POST', body });
+
+    expect((await post(JSON.stringify({ name: 42 }))).status).toBe(422);
+    expect((await post(JSON.stringify({}))).status).toBe(422);
+    expect((await post(JSON.stringify([]))).status).toBe(422);
   });
 
   it('answers 403 on a restricted project the caller does not own', async () => {
@@ -640,4 +665,219 @@ describe('DELETE /api/projects/:id/steps/:stepId', () => {
     expect(res.status).toBe(409);
     expect(await stepStore.findById(project.qaId)).not.toBeNull();
   });
+});
+
+it('refuses undeclared name-body fields and query keys before changing steps', async () => {
+  const token = await register('owner');
+  const project = await newProject(token);
+  const before = await stepStore.listByProject(project.id);
+  for (const [method, path] of [
+    ['POST', `/api/projects/${project.id}/steps`],
+    ['PATCH', `/api/projects/${project.id}/steps/${project.qaId}`],
+  ]) {
+    const extraBody = await send(path, token, {
+      method,
+      body: JSON.stringify({ name: 'Changed', unexpected: { nested: true } }),
+    });
+    expect(extraBody.status).toBe(422);
+    expect(await extraBody.json()).toEqual({ error: 'invalid_body' });
+    expect(await stepStore.listByProject(project.id)).toEqual(before);
+    const extraQuery = await send(`${path}?unexpected=true`, token, {
+      method,
+      body: JSON.stringify({ name: 'Changed' }),
+    });
+    expect(extraQuery.status).toBe(400);
+    expect(await extraQuery.json()).toEqual({ error: 'invalid_query' });
+    expect(await stepStore.listByProject(project.id)).toEqual(before);
+  }
+});
+
+it('refuses unknown cascade query keys and undeclared DELETE bodies without deleting usage', async () => {
+  const token = await register('owner');
+  const project = await newProject(token);
+  await workItems.insert(
+    workItemRow({ projectId: project.id, id: 'strict-delete', position: 10 }),
+    [],
+    wrote(),
+  );
+  await estimates.set({ workItemId: 'strict-delete', stepId: project.qaId, ...DAYS }, wrote());
+  const path = `/api/projects/${project.id}/steps/${project.qaId}?cascade=true`;
+  for (const [url, body, error] of [
+    [`${path}&unexpected=true`, undefined, 'invalid_query'],
+    [path, '{}', 'invalid_body'],
+    [path, '{', 'invalid_body'],
+  ] as const) {
+    const refused = await send(url, token, { method: 'DELETE', body });
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toEqual({ error });
+    expect(await stepStore.findById(project.qaId)).not.toBeNull();
+    expect(await estimates.listByProject(project.id)).toHaveLength(1);
+  }
+});
+
+it('uses the last repeated cascade value so a final false never confirms deletion', async () => {
+  const token = await register('owner');
+  const project = await newProject(token);
+  await workItems.insert(
+    workItemRow({ projectId: project.id, id: 'duplicate-cascade', position: 10 }),
+    [],
+    wrote(),
+  );
+  await estimates.set({ workItemId: 'duplicate-cascade', stepId: project.qaId, ...DAYS }, wrote());
+  const path = `/api/projects/${project.id}/steps/${project.qaId}`;
+  const refused = await send(`${path}?cascade=true&cascade=false`, token, { method: 'DELETE' });
+  expect(refused.status).toBe(409);
+  expect(await stepStore.findById(project.qaId)).not.toBeNull();
+  expect(await estimates.listByProject(project.id)).toHaveLength(1);
+  const confirmed = await send(`${path}?cascade=false&cascade=true`, token, { method: 'DELETE' });
+  expect(confirmed.status).toBe(204);
+  expect(await confirmed.text()).toBe('');
+  expect(await stepStore.findById(project.qaId)).toBeNull();
+  expect(await estimates.listByProject(project.id)).toEqual([]);
+});
+
+it('keeps name shape refusals distinct from blank names and malformed JSON on both writes', async () => {
+  const token = await register('owner');
+  const project = await newProject(token);
+  const before = await stepStore.listByProject(project.id);
+  for (const [method, path] of [
+    ['POST', `/api/projects/${project.id}/steps`],
+    ['PATCH', `/api/projects/${project.id}/steps/${project.qaId}`],
+  ]) {
+    for (const [body, status, error] of [
+      [undefined, 422, 'invalid_body'],
+      ['[]', 422, 'invalid_body'],
+      ['{"name":42}', 422, 'invalid_body'],
+      ['{"name":"   "}', 422, 'name_required'],
+      ['{', 400, 'invalid_json'],
+    ] as const) {
+      const refused = await send(path, token, { method, body });
+      expect(refused.status).toBe(status);
+      expect(await refused.json()).toEqual({ error });
+      expect(await stepStore.listByProject(project.id)).toEqual(before);
+    }
+  }
+});
+
+it('runs step origin and write-scope policies before parsing, authenticating admitted writes once', async () => {
+  const token = await register('owner');
+  const project = await newProject(token);
+  const path = `http://localhost/api/projects/${project.id}/steps`;
+  const authenticate = spyOn(auth, 'authenticate');
+  try {
+    const wrongOrigin = await app.handle(
+      new Request(path, {
+        method: 'POST',
+        headers: {
+          cookie: `__Host-wbs_access=${token}`,
+          origin: 'https://other.example',
+          'content-type': 'application/json',
+        },
+        body: '{',
+      }),
+    );
+    expect(wrongOrigin.status).toBe(403);
+    expect(await wrongOrigin.json()).toEqual({ error: 'invalid_origin' });
+    expect(authenticate).toHaveBeenCalledTimes(0);
+    const written = await send(`/api/projects/${project.id}/steps`, token, {
+      method: 'POST',
+      body: '{"name":"Once"}',
+    });
+    expect(written.status).toBe(200);
+    expect(authenticate).toHaveBeenCalledTimes(1);
+  } finally {
+    authenticate.mockRestore();
+  }
+  const actualAuthenticate = auth.authenticate.bind(auth);
+  const readScope = spyOn(auth, 'authenticate').mockImplementation(async (credential) => {
+    const account = await actualAuthenticate(credential);
+    return account === null ? null : { ...account, scopes: ['read'] };
+  });
+  try {
+    const refused = await send(`/api/projects/${project.id}/steps`, token, {
+      method: 'POST',
+      body: '{',
+    });
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({ error: 'insufficient_scope' });
+    expect(readScope).toHaveBeenCalledTimes(1);
+    expect((await stepStore.listByProject(project.id)).map((step) => step.name)).toEqual([
+      'Dev',
+      'QA',
+      'Once',
+    ]);
+  } finally {
+    readScope.mockRestore();
+  }
+});
+
+it('preserves URL-encoded and multipart name writes on both step endpoints', async () => {
+  const token = await register('owner');
+  const project = await newProject(token);
+  for (const method of ['POST', 'PATCH']) {
+    for (const media of ['urlencoded', 'multipart']) {
+      const path = `/api/projects/${project.id}/steps${method === 'PATCH' ? `/${project.qaId}` : ''}`;
+      const name = `${method} ${media}`;
+      const body = media === 'urlencoded' ? new URLSearchParams() : new FormData();
+      body.append('name', `  ${name}  `);
+      const reply = await app.handle(
+        new Request(`http://localhost${path}`, {
+          method,
+          headers: { authorization: `Bearer ${token}` },
+          body,
+        }),
+      );
+      expect(reply.status).toBe(200);
+      const answered = (await reply.json()) as { step: Step };
+      expect(answered.step.name).toBe(name);
+      expect(await stepStore.findById(answered.step.id)).toEqual(answered.step);
+    }
+  }
+});
+
+it('refuses repeated form names and strict extra form fields without changing steps', async () => {
+  const token = await register('owner');
+  const project = await newProject(token);
+  const before = await stepStore.listByProject(project.id);
+  for (const method of ['POST', 'PATCH']) {
+    for (const media of ['urlencoded', 'multipart']) {
+      for (const extra of ['name', 'unexpected']) {
+        const path = `/api/projects/${project.id}/steps${method === 'PATCH' ? `/${project.qaId}` : ''}`;
+        const body = media === 'urlencoded' ? new URLSearchParams() : new FormData();
+        body.append('name', 'First');
+        body.append(extra, 'Second');
+        const reply = await app.handle(
+          new Request(`http://localhost${path}`, {
+            method,
+            headers: { authorization: `Bearer ${token}` },
+            body,
+          }),
+        );
+        expect(reply.status).toBe(422);
+        expect(await reply.json()).toEqual({ error: 'invalid_body' });
+        expect(await stepStore.listByProject(project.id)).toEqual(before);
+      }
+    }
+  }
+});
+
+it('refuses a multipart file as a step name without changing steps', async () => {
+  const token = await register('owner');
+  const project = await newProject(token);
+  const before = await stepStore.listByProject(project.id);
+  for (const method of ['POST', 'PATCH']) {
+    const path = `/api/projects/${project.id}/steps${method === 'PATCH' ? `/${project.qaId}` : ''}`;
+    const body = new FormData();
+    body.append('name', new File(['Not a name field'], 'name.txt'));
+    const reply = await app.handle(
+      new Request(`http://localhost${path}`, {
+        method,
+        headers: { authorization: `Bearer ${token}` },
+        body,
+      }),
+    );
+    expect(reply.status).toBe(422);
+    expect(await reply.json()).toEqual({ error: 'invalid_body' });
+    expect(await stepStore.listByProject(project.id)).toEqual(before);
+  }
 });

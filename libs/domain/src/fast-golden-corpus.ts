@@ -1,5 +1,6 @@
 /**
- * Fast's golden corpus: fixed plans, and their schedules kept as **bytes**.
+ * Fast's golden corpus: fixed plans, and their schedules kept as **stored
+ * values** — serialized to a fixture, compared parsed.
  *
  * This is task 1.6(a), and it exists because the thing that phrase used to
  * point at could not do the job. `schedule-identity.test.ts` is a
@@ -16,12 +17,29 @@
  * A corpus that can hold the cache key honest needs stored output. So the
  * schedules below are serialized to `../fixtures/fast-golden-corpus.json`, that
  * file carries the contract version it was produced under, and
- * `fast-golden-corpus.test.ts` refuses a mismatch either way: bytes that moved
+ * `fast-golden-corpus.test.ts` refuses a mismatch either way: values that moved
  * without a version bump, or a version bump whose bytes were not regenerated.
+ * Both of those compare one tree against itself, and this file's writer emits
+ * the current constant beside the current cases — so a semantic change followed
+ * by a deliberate regeneration is green in the suite. CI's `Corpus version
+ * lint` step is the two-commit half: it reads the fixture at the change's base
+ * revision and at its head and refuses `cases` that moved while
+ * `SCHEDULER_CONTRACT_VERSION` did not increase
+ * (`tools/tool-git-hooks/src/hooks/corpus-version-lint.ts`, TASK-338).
  *
  * The inputs are hand-written here rather than generated. A generator would put
  * a third copy of the engine's input rules in the repo, and a corpus whose
  * inputs are computed can drift from the plans it claims to describe.
+ *
+ * **That choice fixes this file's reach, so state it here rather than leaving a
+ * reader to infer it.** These are eight named plans, and the guard covers them
+ * **as `schedule()` renders them** — nothing wider. A semantic change is
+ * visible only if it moves one of these eight schedules, and a bump-list
+ * constant that lives off `schedule()`'s call graph is not visible at all:
+ * `schedule.ts` does not import `solver-quantum`, so `SOLVER_QUANTUM` cannot be
+ * observed from any case below, however its durations are chosen. See the
+ * boundary paragraph in `fast-golden-corpus.test.ts` for the measurement (PR
+ * 281) and for where that particular guard belongs instead.
  */
 
 import { SCHEDULER_CONTRACT_VERSION } from './contract-version';
@@ -214,6 +232,13 @@ export const computeFastGoldenCorpus = (): {
 } => {
   const cases: Record<string, unknown> = {};
   for (const each of FAST_GOLDEN_CASES) {
+    // TASK-280's audit: the seventh argument is omitted here **and that is the
+    // correct value**, unlike the publication guard's omission this task fixed.
+    // A `FastGoldenCase` has no deadline field, so there is no deadline to pass
+    // — and the corpus is the fixture 1.6 and 4.3's no-op proof compares
+    // against, which requires every case to come out byte-identical whether the
+    // argument is supplied empty or left to its default. Adding `new Map()` here
+    // would change nothing and would read as if a source had been consulted.
     cases[each.name] = serializeSchedule(
       schedule(
         each.rows,

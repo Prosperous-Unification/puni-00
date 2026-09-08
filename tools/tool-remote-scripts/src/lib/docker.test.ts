@@ -1,3 +1,4 @@
+import { renderTemplate, tierComposeTmpl } from '@wbs/tool-compose';
 import { describe, expect, it } from 'bun:test';
 
 import {
@@ -19,6 +20,8 @@ import {
   revokeAliasCommands,
   ROOT,
   SHARED_ENV_PATH,
+  SOLVER_SUPERVISOR_CONTAINER_DIRECTORY,
+  SOLVER_SUPERVISOR_HOST_DIRECTORY,
   tierComposeContext,
   tierComposeFile,
   tierEnvFiles,
@@ -111,7 +114,7 @@ describe('envLayout', () => {
   });
 
   it('refuses an unknown environment by name, not by falling back to prod', () => {
-    let layout: unknown = null;
+    let layout: unknown;
     try {
       layout = envLayout('staging');
     } catch {
@@ -246,7 +249,7 @@ describe('tierComposeContext', () => {
     expect(ctx['VOLUMES']).toBe('');
   });
 
-  it('gives be-01 its app-config file, its own secrets file, and the data volume', () => {
+  it('gives be-01 its app-config, secrets, data, and directory-only supervisor mount', () => {
     const ctx = tierComposeContext(
       'be',
       'blue',
@@ -255,7 +258,12 @@ describe('tierComposeContext', () => {
     expect(ctx['ENV_FILES']).toBe(
       `    env_file:\n      - ${ROOT}/be-01.env\n      - ${ROOT}/be-01.secrets.env\n`,
     );
-    expect(ctx['VOLUMES']).toBe(`    volumes:\n      - ${ROOT}/data:/data\n`);
+    expect(ctx['VOLUMES']).toBe(
+      `    volumes:\n` +
+        `      - ${ROOT}/data:/data\n` +
+        `      - ${SOLVER_SUPERVISOR_HOST_DIRECTORY}:${SOLVER_SUPERVISOR_CONTAINER_DIRECTORY}:ro\n`,
+    );
+    expect(ctx['VOLUMES']).not.toContain('supervisor.sock');
   });
 });
 
@@ -399,7 +407,7 @@ describe('assertTierEnvAllowed', () => {
     expect(() => {
       assertTierEnvAllowed(
         'be',
-        'PORT=3100\nLOG_LEVEL=info\nGW_URL=x\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\n',
+        'PORT=3100\nLOG_LEVEL=info\nGW_URL=x\nDB_PATH=/data/wbs.db\nAUTH_MODE=oidc\nSOLVER_BUDGET_MS=120000\nSOLVER_SEARCH_WORKERS=2\nSOLVER_MEMORY_LIMIT_MB=512\n',
       );
     }).not.toThrow();
   });
@@ -612,4 +620,120 @@ describe('migration rollback commands', () => {
   it('refuses an empty baseline instead of rolling back an unknown amount', () => {
     expect(() => migrateDownCommand('be-01-green', '')).toThrow(/needs a baseline/);
   });
+});
+
+describe('backend browser origin carrier', () => {
+  it('allows APP_ORIGIN only in backend app config', () => {
+    expect(() => {
+      assertTierEnvAllowed('be', 'APP_ORIGIN=https://wbs.bulletpoints.club\n');
+    }).not.toThrow();
+    expect(() => {
+      assertTierEnvAllowed('gw', 'APP_ORIGIN=https://wbs.bulletpoints.club\n');
+    }).toThrow('APP_ORIGIN');
+    expect(() => {
+      assertTierEnvAllowed('fe', 'APP_ORIGIN=https://wbs.bulletpoints.club\n');
+    }).toThrow('APP_ORIGIN');
+    expect(() => {
+      assertOidcEnvAllowed('APP_ORIGIN=https://wbs.bulletpoints.club\n');
+    }).toThrow('APP_ORIGIN');
+    expect(deriveTierSecrets('be', 'APP_ORIGIN=https://wbs.bulletpoints.club\n')).not.toContain(
+      'APP_ORIGIN',
+    );
+  });
+
+  it('refuses layout addresses that cannot denote one trusted HTTP origin', () => {
+    for (const siteAddress of [
+      'https://user:pass@example.test',
+      'https://example.test/path',
+      'https://example.test?q=x',
+      'https://example.test#x',
+      'ftp://example.test',
+      'two hosts.test',
+      'https://exam\nple.test',
+      'https://*.example.test',
+      '',
+    ]) {
+      expect(() =>
+        tierComposeContext('be', 'green', `registry.test/wbs-be-01@${DIGEST}`, {
+          ...envLayout('dev'),
+          siteAddress,
+        }),
+      ).toThrow('siteAddress');
+    }
+  });
+});
+
+for (const [environment, expected] of [
+  ['prod', 'https://wbs.bulletpoints.club'],
+  ['dev', 'https://dev.wbs.bulletpoints.club'],
+] as const) {
+  it(`renders the trusted ${environment} browser origin into backend Compose only`, () => {
+    for (const tier of ['be', 'gw', 'fe'] as const) {
+      const context = tierComposeContext(
+        tier,
+        'green',
+        `registry.test/wbs-${tier}-01@${DIGEST}`,
+        envLayout(environment),
+      );
+      const rendered = renderTemplate(tierComposeTmpl, context);
+      const compose = Bun.YAML.parse(rendered) as {
+        services: Record<string, { environment?: Record<string, string> }>;
+      };
+      const service = Object.values(compose.services)[0];
+      expect(service.environment?.['APP_ORIGIN']).toBe(tier === 'be' ? expected : undefined);
+    }
+  });
+}
+
+it('boots local backend configuration from the rendered environment and keeps OIDC callback origin authoritative', () => {
+  const context = tierComposeContext(
+    'be',
+    'green',
+    `registry.test/wbs-be-01@${DIGEST}`,
+    envLayout('dev'),
+  );
+  const compose = Bun.YAML.parse(renderTemplate(tierComposeTmpl, context)) as {
+    services: Record<string, { environment?: Record<string, string> }>;
+  };
+  const service = Object.values(compose.services)[0];
+  const script = `
+    import { loadConfig } from './apps/be-01/src/config.ts';
+    const config = loadConfig(JSON.parse(process.env['ORIGIN_CONFIG']));
+    console.log(config.appOrigin);
+  `;
+  for (const mode of ['local', 'oidc']) {
+    const config = {
+      PORT: '3100',
+      LOG_LEVEL: 'error',
+      GW_URL: 'http://gw',
+      DB_PATH: '/data/wbs.db',
+      INTERNAL_AUTH_SECRET: 's'.repeat(32),
+      JWT_SIGNING_KEY_CURRENT: 'k'.repeat(32),
+      AUTH_MODE: mode,
+      NODE_ENV: 'development',
+      ...service.environment,
+      AUTH_REDIRECT_URI: 'https://oidc.example.test/api/auth/okta/callback',
+    };
+    const probe = Bun.spawnSync([process.execPath, '--no-env-file', '--eval', script], {
+      cwd: new URL('../../../../', import.meta.url).pathname,
+      env: { ORIGIN_CONFIG: JSON.stringify(config) },
+    });
+    expect(probe.exitCode).toBe(0);
+    expect(new TextDecoder().decode(probe.stdout).trim()).toBe(
+      mode === 'local' ? 'https://dev.wbs.bulletpoints.club' : 'https://oidc.example.test',
+    );
+  }
+});
+
+it('retains an explicitly configured HTTP scheme and port for a local Caddy address', () => {
+  const context = tierComposeContext('be', 'green', `registry.test/wbs-be-01@${DIGEST}`, {
+    ...envLayout('dev'),
+    siteAddress: 'http://localhost:8080',
+  });
+  const compose = Bun.YAML.parse(renderTemplate(tierComposeTmpl, context)) as {
+    services: Record<string, { environment: Record<string, string> }>;
+  };
+  expect(Object.values(compose.services)[0].environment['APP_ORIGIN']).toBe(
+    'http://localhost:8080',
+  );
 });

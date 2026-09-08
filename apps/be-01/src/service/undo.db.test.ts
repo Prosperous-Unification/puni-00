@@ -11,6 +11,7 @@ import { openDatabase, openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
+import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { PlanEventRepository } from '../repository/plan-event';
 import { ProjectRepository } from '../repository/project';
@@ -84,17 +85,17 @@ beforeEach(async () => {
   runMigrations(path, FOLDER);
   const db = openDrizzle(path);
 
-  const projectStore = new ProjectRepository(db);
-  workItemStore = new WorkItemRepository(db);
-  estimateStore = new EstimateRepository(db);
-  actualStore = new ActualRepository(db);
-  measureStore = new StepMeasureRepository(db);
-  progressStore = new StepProgressRepository(db);
-  dependencyStore = new DependencyRepository(db);
-  directoryStore = new DirectoryRepository(db);
-  journalStore = new CommandJournalRepository(db);
+  const projectStore = new ProjectRepository(db, OPEN);
+  workItemStore = new WorkItemRepository(db, OPEN);
+  estimateStore = new EstimateRepository(db, OPEN);
+  actualStore = new ActualRepository(db, OPEN);
+  measureStore = new StepMeasureRepository(db, OPEN);
+  progressStore = new StepProgressRepository(db, OPEN);
+  dependencyStore = new DependencyRepository(db, OPEN);
+  directoryStore = new DirectoryRepository(db, OPEN);
+  journalStore = new CommandJournalRepository(db, OPEN);
 
-  const users = new UserRepository(db);
+  const users = new UserRepository(db, OPEN);
   ownerId = crypto.randomUUID();
   await users.create(
     { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
@@ -120,7 +121,7 @@ beforeEach(async () => {
     capacity: inMemoryCapacity(),
     priorityBands: inMemoryPriorityBands(),
     dependencies: dependencyStore,
-    subtrees: new SubtreeRepository(db),
+    subtrees: new SubtreeRepository(db, OPEN),
     journal: journalStore,
     broadcast: recordingBroadcaster(),
   });
@@ -601,6 +602,63 @@ describe('undoing each kind of change', () => {
     expect(expectDone(await undone())).toBe('delete “Strip”');
     expect(await teamIdsOf(strip)).toEqual(stripTeams);
     expect(await teamIdsOf(sockets)).toEqual(socketTeams);
+  });
+
+  it('restores the deadline of a deleted work item, against the real cascade', async () => {
+    // `tasks.md` 1.3's obligation on whichever slice first makes the column
+    // writable, and it is here rather than in the in-memory suite for the
+    // actuals' reason: the row is genuinely gone after the delete, so the date
+    // can only come back from the journal, and the journal only carries it if
+    // `WORK_ITEM_COLUMNS` names `deadline` — `remove` journals whole rows off
+    // that projection. A case written against the fixture store passes with
+    // the column missing from the list, because its rows survive the deletion
+    // in an array.
+    //
+    // Proof: `deadline` removed from `WORK_ITEM_COLUMNS`, and this fails on
+    // `Expected: "2026-03-31" / Received: null` — a branch that comes back from
+    // an undo having quietly lost a date somebody typed, which no face shows as
+    // a loss because the row itself is back.
+    const strip = await root('Strip');
+    const sockets = await child(strip, 'Sockets');
+    expect((await workItems.patch(sockets, ownerId, { deadline: '2026-03-31' })).ok).toBe(true);
+
+    expect((await workItems.remove(strip, ownerId, 'cascade')).ok).toBe(true);
+    expect(await rows()).toEqual([]);
+
+    expect(expectDone(await undone())).toBe('delete “Strip”');
+
+    const back = await rows();
+    expect(back.find((row) => row.id === sockets)?.deadline).toBe('2026-03-31');
+    // And the sibling that never had one still has none: a restore that filled
+    // the column from a default would pass the assertion above and fail here.
+    expect(back.find((row) => row.id === strip)?.deadline).toBeNull();
+  });
+
+  it('puts a cleared deadline back, and takes a first one away again', async () => {
+    // 6.3's whole claim in one case: no new undo verb and no new event type —
+    // a deadline rides the ordinary field-edit path, so the inverse of a clear
+    // is the date and the inverse of a set is `null`. Both directions, because
+    // a `revertTo` written with `??` rather than an `undefined` check restores
+    // the first and silently drops the second.
+    const strip = await root('Strip');
+    expect((await workItems.patch(strip, ownerId, { deadline: '2026-03-31' })).ok).toBe(true);
+    expect((await workItems.patch(strip, ownerId, { deadline: null })).ok).toBe(true);
+
+    expect(expectDone(await undone())).toBe('edit “Strip”');
+    expect((await rows()).at(0)?.deadline).toBe('2026-03-31');
+
+    expect(expectDone(await undone())).toBe('edit “Strip”');
+    expect((await rows()).at(0)?.deadline).toBeNull();
+
+    // And forward again, which is the half `revertTo` is **not** on: redo
+    // replays the journalled `forward` patch and never reads `before`. Both
+    // directions, because 6.3 names both — redo of a set restores the date,
+    // redo of the clear restores `null`.
+    expect(expectDone(await workItems.redo(projectId, ownerId))).toBe('edit “Strip”');
+    expect((await rows()).at(0)?.deadline).toBe('2026-03-31');
+
+    expect(expectDone(await workItems.redo(projectId, ownerId))).toBe('edit “Strip”');
+    expect((await rows()).at(0)?.deadline).toBeNull();
   });
 
   it('restores a legacy singleton delete journal that has no teamIds', async () => {
@@ -1388,7 +1446,7 @@ async function person(name: string): Promise<string> {
 
 describe('what an undo leaves in the plan’s history', () => {
   /** The project's history, read straight out of the table the route reads. */
-  const history = () => new PlanEventRepository(openDrizzle(path)).listFor(projectId, {});
+  const history = () => new PlanEventRepository(openDrizzle(path), OPEN).listFor(projectId, {});
 
   it('records the command, and records nothing at all for undoing it', async () => {
     // The one thing a reader of the history will be surprised by, asserted rather
@@ -1920,5 +1978,21 @@ describe('a tag decides no date, asserted rather than claimed', () => {
       })),
     );
     expect(after?.slices).toEqual(before?.slices ?? []);
+  });
+});
+
+describe('secondary team removal invalidates undo', () => {
+  it('refuses a rename undo after removal of a secondary team', async () => {
+    const strip = await root('Strip');
+    await directoryStore.addTeam({ id: 'aaa', name: 'First' }, wrote());
+    await directoryStore.addTeam({ id: 'zzz', name: 'Second' }, wrote());
+    await workItems.patch(strip, ownerId, { teamIds: ['aaa', 'zzz'] });
+    await workItems.patch(strip, ownerId, { name: 'Renamed' });
+    expect((await found(strip))?.serviceTeamId).toBe('aaa');
+    expect(await directoryStore.removeTeam('zzz', true, wrote())).toMatchObject({ ok: true });
+
+    expectStale(await undone());
+    expect((await found(strip))?.name).toBe('Renamed');
+    expect(await teamIdsOf(strip)).toEqual(['aaa']);
   });
 });

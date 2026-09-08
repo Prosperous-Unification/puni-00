@@ -7,6 +7,7 @@ import { drizzleReadTransaction } from './db';
 import { DependencyRepository } from './dependency';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
+import { OPEN } from './gate';
 import type {
   Assignment,
   ExternalSystem,
@@ -26,6 +27,7 @@ import type {
 } from './index';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
+import type { SavedPlanCaptureStore } from './saved-plan-ports';
 import { StepMeasureRepository } from './step-measure';
 import { StepProgressRepository } from './step-progress';
 import { WorkItemRepository } from './work-item';
@@ -92,28 +94,24 @@ export interface SavedPlanCaptureOptions {
  * - `capacity.slotsFor` is keyed by team id, so a team with stated capacity and
  *   no junction row is named by the capacity map and by nothing else. The
  *   unfiltered {@link DirectoryRepository.listTeams} is what captures its name.
- * - The projection narrows people to *assigned* ids
- *   (`work-item.service.ts:1309-1311`). A `person_team` row for an unassigned
- *   person therefore names someone the projection captures nowhere. The read
- *   here is the same `listPeople()` call, used **unfiltered**.
+ * - The live tree reads assigned names through
+ *   {@link DirectoryRepository.assignmentsInProject}. A `person_team` row for
+ *   an unassigned person therefore names someone the live projection does not
+ *   include. Capture separately calls {@link DirectoryRepository.listPeople}
+ *   to retain every person and membership in its independent history.
  *
  * ## The seventeen reads
  *
- * Twelve are the projection's own (`work-item.service.ts:1285-1312` and
- * `:1364-1385`, minus `broadcast.latestSeq`, which is a refresh cursor and is
- * not plan input). Five more are capture-only: `listTags`, `listWorkItemTypes`
- * and `listExternalSystems` for the three registries, plus `listTeams` and
- * `listServices` for the rows the junctions and the capacity map name.
+ * Eleven calls are shared with the live projection, excluding
+ * `broadcast.latestSeq`, which is a refresh cursor rather than plan input.
+ * The project-scoped assignment call includes assigned names in its answer.
+ * Six calls are capture-only: `listPeople`, `listTeams`, `listServices`,
+ * `listTags`, `listWorkItemTypes` and `listExternalSystems`. They retain the
+ * complete directory that memberships, junctions and capacity rows name.
  *
- * **Seventeen distinct calls, not the nineteen tasks.md first stated.** That
- * count added a six-call capture-only half to twelve projection reads, but
- * `listPeople()` is in both halves — it is one call the projection already
- * makes and the capture reuses unfiltered — and 12 + 6 was itself 18. Counted
- * off the call sites here: twelve plus five.
- *
- * No new SQL, either: all seventeen are store methods that already existed. The
- * work this class does is not *what* it reads, it is *when* — all of it inside
- * one transaction, on a connection of its own.
+ * All seventeen reads run inside one transaction, on a connection of this
+ * class's own. Project-scoped assignment reads do not narrow the separate
+ * directory capture.
  *
  * ## Why a revision counter cannot substitute for any of this
  *
@@ -148,7 +146,7 @@ export interface SavedPlanCaptureOptions {
  * revokes it while the writing request is told it succeeded. design.md, "The
  * topology found", records what changed.
  */
-export class SavedPlanCaptureRepository {
+export class SavedPlanCaptureRepository implements SavedPlanCaptureStore {
   constructor(private readonly opts: SavedPlanCaptureOptions) {}
 
   /**
@@ -163,8 +161,8 @@ export class SavedPlanCaptureRepository {
     const connection = this.opts.openConnection();
     try {
       const db = connection.db;
-      const projects = new ProjectRepository(db);
-      const directory = new DirectoryRepository(db);
+      const projects = new ProjectRepository(db, OPEN);
+      const directory = new DirectoryRepository(db, OPEN);
       const tx = drizzleReadTransaction(db);
       tx.begin();
       try {
@@ -176,18 +174,18 @@ export class SavedPlanCaptureRepository {
           tx.commit();
           return null;
         }
-        const workItems = await new WorkItemRepository(db).listByProject(projectId);
-        const estimates = await new EstimateRepository(db).listByProject(projectId);
-        const actuals = await new ActualRepository(db).listByProject(projectId);
-        const progress = await new StepProgressRepository(db).listByProject(projectId);
-        const measures = await new StepMeasureRepository(db).listByProject(projectId);
-        const dependencies = await new DependencyRepository(db).listByProject(projectId);
-        const assignments = await directory.assignmentsOf(workItems.map((row) => row.id));
+        const workItems = await new WorkItemRepository(db, OPEN).listByProject(projectId);
+        const estimates = await new EstimateRepository(db, OPEN).listByProject(projectId);
+        const actuals = await new ActualRepository(db, OPEN).listByProject(projectId);
+        const progress = await new StepProgressRepository(db, OPEN).listByProject(projectId);
+        const measures = await new StepMeasureRepository(db, OPEN).listByProject(projectId);
+        const dependencies = await new DependencyRepository(db, OPEN).listByProject(projectId);
+        const { assignments } = await directory.assignmentsInProject(projectId);
         const steps = await projects.stepsOf(projectId);
-        const capacity = await new CapacityRepository(db).slotsFor(projectId);
-        const priorityBands = await new PriorityBandRepository(db).listFor(projectId);
-        // The capture-only half. `listPeople` is the projection's own call used
-        // unfiltered; the four below it the projection never makes.
+        const capacity = await new CapacityRepository(db, OPEN).slotsFor(projectId);
+        const priorityBands = await new PriorityBandRepository(db, OPEN).listFor(projectId);
+        // Capture the directory whole for independent saved-plan history;
+        // the live tree's assigned-name projection cannot replace these reads.
         const people = await directory.listPeople();
         const teams = await directory.listTeams();
         const services = await directory.listServices();

@@ -83,4 +83,78 @@ describe('the hints say what changing the column does to the plan', () => {
   it('says the earliest start is a floor rather than the day it happens', () => {
     expect(hintFor('not-before', ON_CALENDAR)).toContain('never earlier');
   });
+
+  /**
+   * The one hint that said a column does nothing while the scheduler was
+   * already reading it. `schedule.ts`'s Fast comparator asks `slack` — the
+   * deadline minus the deadline-free placement — and then `deadline` itself,
+   * ahead of `priority`, so a deadline reorders who gets a person first; and
+   * `libs/solver-py/src/wbs_solver/model.py` turns the same date into
+   * `start + max(duration, 1) <= deadline`, a CP-SAT constraint an optimized
+   * plan is refused for breaking. Both are shipped: the optimizer's three
+   * choices are the radios in `optimization-settings.tsx`, and the date reaches
+   * the solver through `buildSolverSlices`' `deadlineUnits`.
+   *
+   * Asserted as a **pair** — the ordering effect and the hard-constraint
+   * effect — because a hint that names only Fast's would be as wrong for a
+   * project on PRI as the old sentence was for every project.
+   */
+  it('says a deadline moves the plan, both ways the two shipped engines move it', () => {
+    const hint = hintFor('deadline', ON_CALENDAR);
+    expect(hint).toContain('goes first');
+    expect(hint).toContain('optimized plan');
+    expect(hint).toContain('reported late');
+  });
+
+  /**
+   * Sol's Important 1 on the TASK-309 review, as its own case
+   * (`queue/reviews/t309-r1-sol.md`, 2026-09-07): the first rewrite said the
+   * closest to missing is *"scheduled first"* full stop, and `goesFirst` orders
+   * only slices **already** in the ready set — it "decides an order, never a
+   * date", so an item waiting on a dependency is not taken first however close
+   * to missing it is.
+   *
+   * Pinned separately from the case above rather than folded into it, because
+   * the two fail for different reasons: that one catches a sentence that stops
+   * naming Fast's effect at all, this one catches a sentence that names it
+   * without the contention it holds under and so over-promises. The first draft
+   * of this hint passed that case and would have failed this one.
+   *
+   * **"Contention" is standing in for the shorter word for a span a claim is
+   * true inside, and the substitution is deliberate.** That shorter word is
+   * also a DOM global, and `src/test-tiers.test.ts`'s `DOM_EVIDENCE` is
+   * deliberately generous enough to read it in prose — so writing it here,
+   * anywhere in this file, is evidence this DOM-free suite needs a browser
+   * while `vitest.node-suites.ts` still lists it in the fast tier. Watched, not
+   * reasoned: CI `34102164647` at `9235c40d` failed `expected 23, received 24`
+   * with this file as the extra, and `expected 96 to be 95` on the partition,
+   * on a draft whose only DOM word was that one, twice, in a comment and a
+   * case name. The synonym is the cheaper half of the trade.
+   *
+   * **The whole qualifier is pinned, not the word `competes`, and that is Sol's
+   * Important 2 on `9c08d94e`** (`queue/reviews/t309-r2-sol.md`). Pinning one
+   * word made this case pass any sentence containing it — including the draft
+   * saying *"competes for one person"*, which Important 1 of the same review
+   * rejected for naming only one of the two resources `placeSlices` reserves.
+   * A case that blesses the defect the review beside it filed is worse than no
+   * case: it reads as coverage. The literal below fails an unqualified
+   * ordering promise **and** a person-only one, which is the pair this exists
+   * for.
+   */
+  it('does not promise a deadline is taken first outside the contention it holds under', () => {
+    expect(hintFor('deadline', ON_CALENDAR)).toContain('competes for the same person or team slot');
+  });
+
+  /**
+   * The negative control for the case above, and the defect verbatim: the
+   * shipped sentence read *"It constrains nothing on its own — the plan is
+   * built the same way"*, and the emphasised half was false in both engines on
+   * the day it was written. Kept as its own case so a rewrite that reintroduces
+   * the claim fails on a line that quotes it rather than on a missing phrase.
+   */
+  it('never tells a reader the plan is built the same way with a deadline on it', () => {
+    const hint = hintFor('deadline', ON_CALENDAR);
+    expect(hint).not.toContain('constrains nothing');
+    expect(hint).not.toContain('built the same way');
+  });
 });

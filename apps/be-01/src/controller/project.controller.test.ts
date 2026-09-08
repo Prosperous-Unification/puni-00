@@ -1,17 +1,23 @@
-import { describe, expect, it } from 'bun:test';
+import { clockOf } from '@wbs/core';
+import { describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
+import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { AuthService } from '../service/auth.service';
-import { clockOf } from '../service/clock';
+import type {
+  OptimizationCoordinator,
+  OptimizationRetryResult,
+} from '../service/optimization-coordinator';
 import { ProjectService } from '../service/project.service';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
-import { inMemoryProjects } from '../testing/project-fixture';
+import { inMemoryProjects, projectRow } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { testStepService } from '../testing/step-fixture';
@@ -24,7 +30,13 @@ function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>)
   return inMemoryServices({ projects: projectStore }).service;
 }
 
-function buildHarness(options: { writeOnly?: boolean; optimizerAvailable?: boolean } = {}) {
+function buildHarness(
+  options: {
+    writeOnly?: boolean;
+    optimizerAvailable?: boolean;
+    retry?: OptimizationCoordinator['retry'];
+  } = {},
+) {
   // One user store behind both: the list resolves each project's owner name
   // through it, exactly as the query joins `users`. Two stores would leave
   // every registered account unknown to the listing and throw on the first
@@ -34,7 +46,8 @@ function buildHarness(options: { writeOnly?: boolean; optimizerAvailable?: boole
     ? new AuthService({
         users,
         identities: users,
-        jwtKey: TEST_JWT_KEY,
+        tokens: joseTokenCodec(TEST_JWT_KEY),
+        passwords: bunPasswordHasher,
         localIdentity: { id: 'write-only', username: 'write-only', scopes: ['write'] },
       })
     : testAuthService(users);
@@ -63,28 +76,37 @@ function buildHarness(options: { writeOnly?: boolean; optimizerAvailable?: boole
       },
     }),
   });
-  const app = buildApp({
+  const workItems = buildWorkItemService(projectStore);
+  // The routes' graph and the batch's are one here: these services hold no
+  // turn, and a batch given its own would write where nothing reads.
+  const writing = {
     directory: testDirectoryService(),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
+    calendarMarkers: testCalendarMarkerService(),
+    projects,
+    workItems,
+    steps: testStepService(projectStore),
+  };
+  const app = buildApp({
+    appOrigin: 'http://localhost',
     history: testHistoryService(),
     auth,
-    projects,
-    workItems: buildWorkItemService(projectStore),
+    ...writing,
     savedPlans: testSavedPlanService(),
-    steps: testStepService(projectStore),
     replay: testReplay().replay,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
-    writes: testWrites(),
+    writes: testWrites(undefined, writing),
     migrationsApplied: true,
+    ...(options.retry === undefined ? {} : { optimizer: { retry: options.retry } }),
   });
 
   async function register(username: string): Promise<string> {
     const res = await app.handle(
       new Request('http://localhost/api/auth/register', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { origin: 'http://localhost', 'content-type': 'application/json' },
         body: JSON.stringify({ username, password: 'correct-horse' }),
       }),
     );
@@ -105,7 +127,7 @@ function buildHarness(options: { writeOnly?: boolean; optimizerAvailable?: boole
     );
   }
 
-  return { app, register, send, broadcast };
+  return { app, register, send, broadcast, projectStore, projects, workItems, auth };
 }
 
 const created = (name: string) => ({ method: 'POST', body: JSON.stringify({ name }) });
@@ -504,6 +526,34 @@ describe('projects', () => {
     });
   });
 
+  /**
+   * The same array hole as `saved-plan.controller.db.test.ts` asserts, on the
+   * second site that regressed. A PATCH is the quieter of the two: every field
+   * reads as absent, so the route answered **200 and an empty patch** where
+   * `t.Object(...)` answered 422 — a caller sending a malformed body was told
+   * its edit succeeded.
+   *
+   * The create route is asserted beside it because it shares the predicate and
+   * answered 422 only by accident: `name` is required, so an array missed it.
+   * That is luck, not a rule, and a rule is what the assertion is for.
+   */
+  it('refuses a JSON array body on both project writes', async () => {
+    const { register, send } = buildHarness();
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Arrayed'));
+    const { project } = (await create.json()) as { project: { id: string } };
+
+    for (const body of ['[]', '[{"name":"from an array"}]']) {
+      expect(
+        (await send(`/api/projects/${project.id}`, token, { method: 'PATCH', body })).status,
+      ).toBe(422);
+      expect((await send('/api/projects', token, { method: 'POST', body })).status).toBe(422);
+    }
+
+    const read = await send(`/api/projects/${project.id}`, token);
+    expect(((await read.json()) as { project: { name: string } }).project.name).toBe('Arrayed');
+  });
+
   it('answers a create with the project it wrote and its starting steps', async () => {
     const { register, send } = buildHarness();
     const token = await register('owner');
@@ -884,4 +934,535 @@ describe('projects', () => {
     const body = (await after.json()) as { project: { optimizationEnabled: boolean } };
     expect(body.project.optimizationEnabled).toBe(false);
   });
+
+  it('maps every Retry decision after rebuilding the current canonical input', async () => {
+    let outcome: OptimizationRetryResult = {
+      kind: 'stale-input-hash',
+      currentInputHash: 'current-hash',
+    };
+    const asks: Parameters<OptimizationCoordinator['retry']>[0][] = [];
+    const { register, send } = buildHarness({
+      retry: (ask) => {
+        asks.push(ask);
+        return outcome;
+      },
+    });
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Retryable'));
+    const { project } = (await create.json()) as { project: { id: string } };
+    const path = `/api/projects/${project.id}/optimization/retry`;
+
+    const invalid = await send(path, token, {
+      method: 'POST',
+      body: JSON.stringify({ objective: 'quickest', inputHash: 'held-hash' }),
+    });
+    expect(invalid.status).toBe(422);
+    expect(asks).toEqual([]);
+
+    const cases: readonly {
+      decision: OptimizationRetryResult;
+      status: number;
+      body: object;
+    }[] = [
+      {
+        decision: { kind: 'stale-input-hash', currentInputHash: 'current-hash' },
+        status: 409,
+        body: { code: 'stale-input-hash', currentInputHash: 'current-hash' },
+      },
+      {
+        decision: { kind: 'not-retryable', state: 'ready' },
+        status: 409,
+        body: { code: 'not-retryable', state: 'ready' },
+      },
+      {
+        // 8.7d. The refusal is the route's, not the UI's: hiding the Retry
+        // control leaves this path reachable by anyone who posts to it, which
+        // is the hole the `corrupt`-promised-a-Retry Critical named. The
+        // coordinator half — a real `plan-infeasible` row deciding
+        // `not-retryable` and reserving no solver slot — is
+        // `optimization-coordinator.db.test.ts`'s "names an unlaunchable
+        // $state variant not-retryable"; this is the half that proves the
+        // state name survives the wire instead of being collapsed onto
+        // `failed`'s code or `idle`'s name.
+        decision: { kind: 'not-retryable', state: 'plan-infeasible' },
+        status: 409,
+        body: { code: 'not-retryable', state: 'plan-infeasible' },
+      },
+      {
+        decision: { kind: 'already-running' },
+        status: 409,
+        body: { code: 'already-running' },
+      },
+      {
+        decision: {
+          kind: 'accepted',
+          state: 'retrying',
+          generation: 7,
+          inputHash: 'held-hash',
+        },
+        status: 202,
+        body: { state: 'retrying', generation: 7, inputHash: 'held-hash' },
+      },
+    ];
+    for (const testCase of cases) {
+      outcome = testCase.decision;
+      const response = await send(path, token, {
+        method: 'POST',
+        body: JSON.stringify({ objective: 'pri', inputHash: 'held-hash', ignored: 'future-field' }),
+      });
+      // Proof: rejecting the established ignored field made the first case receive
+      // 422 instead of 409 and left the coordinator untouched.
+      expect(response.status).toBe(testCase.status);
+      expect(await response.json()).toEqual(testCase.body);
+    }
+    expect(asks).toHaveLength(5);
+    expect(asks[0]).toMatchObject({
+      projectId: project.id,
+      objective: 'pri',
+      inputHash: 'held-hash',
+      input: { reach: 'whole-item' },
+    });
+    expect(asks[0]).not.toHaveProperty('ignored');
+  });
+
+  it('reports an idle Retry when this deployment has no coordinator', async () => {
+    const { register, send } = buildHarness();
+    const token = await register('owner');
+    const create = await send('/api/projects', token, created('Optimizer absent'));
+    const { project } = (await create.json()) as { project: { id: string } };
+
+    const response = await send(`/api/projects/${project.id}/optimization/retry`, token, {
+      method: 'POST',
+      body: JSON.stringify({ objective: 'pri', inputHash: 'held-hash' }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ code: 'not-retryable', state: 'idle' });
+  });
+
+  it('puts Retry under the settings PATCH project-write authorization', async () => {
+    const asks: unknown[] = [];
+    const { register, send } = buildHarness({
+      retry: (ask) => {
+        asks.push(ask);
+        return { kind: 'already-running' };
+      },
+    });
+    const owner = await register('owner');
+    const reader = await register('reader');
+    const create = await send('/api/projects', owner, created('Restricted Retry'));
+    const { project } = (await create.json()) as { project: { id: string } };
+    await send(`/api/projects/${project.id}`, owner, {
+      method: 'PATCH',
+      body: JSON.stringify({ restricted: true }),
+    });
+
+    const response = await send(`/api/projects/${project.id}/optimization/retry`, reader, {
+      method: 'POST',
+      body: JSON.stringify({ objective: 'time', inputHash: 'held-hash' }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: 'forbidden' });
+    expect(asks).toEqual([]);
+  });
 });
+
+it('refuses undeclared solution query before looking up a slug', async () => {
+  const { register, send, projectStore } = buildHarness();
+  const token = await register('owner');
+  const lookup = spyOn(projectStore, 'findBySolutionSlug');
+  try {
+    const response = await send('/plans/by-solution/missing?extra=1', token);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'invalid_query' });
+    expect(lookup).not.toHaveBeenCalled();
+  } finally {
+    lookup.mockRestore();
+  }
+});
+
+it('validates solution project settings and retains additive response fields', async () => {
+  const { register, send, projectStore } = buildHarness();
+  const token = await register('owner');
+  const lookup = spyOn(projectStore, 'findBySolutionSlug');
+  try {
+    const incomplete: Record<string, unknown> = { ...projectRow() };
+    delete incomplete['depReach'];
+    lookup.mockResolvedValueOnce(incomplete as never);
+    expect((await send('/plans/by-solution/damaged', token)).status).toBe(500);
+    const enriched = { ...projectRow(), updatedAt: 9, createdBy: 'owner' };
+    lookup.mockResolvedValueOnce(enriched);
+    const response = await send('/plans/by-solution/enriched', token);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ project: enriched, steps: [] });
+    lookup.mockRejectedValueOnce(new Error('solution store unavailable'));
+    expect((await send('/plans/by-solution/unavailable', token)).status).toBe(500);
+  } finally {
+    lookup.mockRestore();
+  }
+});
+
+it('rejects undeclared project creation fields before creating a project', async () => {
+  const h = buildHarness();
+  const token = await h.register('owner');
+  const create = spyOn(h.projects, 'create');
+  try {
+    const response = await h.send('/api/projects', token, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Project', extra: true }),
+    });
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: 'invalid_body' });
+    expect(create).not.toHaveBeenCalled();
+  } finally {
+    create.mockRestore();
+  }
+});
+
+it('rejects undeclared project patches at every nested boundary before calling the service', async () => {
+  const h = buildHarness();
+  const token = await h.register('owner');
+  const made = await h.send('/api/projects', token, created('Project'));
+  const { project } = (await made.json()) as { project: { id: string } };
+  const update = spyOn(h.projects, 'update');
+  try {
+    for (const body of [
+      { extra: true },
+      { name: 'Changed', extra: true },
+      { pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1, extra: 2 } },
+      { solutionRef: { slug: 'solution', url: 'not-a-url', extra: true } },
+    ]) {
+      const response = await h.send(`/api/projects/${project.id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      });
+      expect(response.status).toBe(422);
+      expect(await response.json()).toEqual({ error: 'invalid_body' });
+    }
+    expect(update).not.toHaveBeenCalled();
+  } finally {
+    update.mockRestore();
+  }
+});
+
+it('keeps opened write scope and write origin before malformed input', async () => {
+  const h = buildHarness();
+  const identity = spyOn(h.auth, 'authenticate').mockResolvedValue({
+    id: 'reader',
+    username: 'reader',
+    scopes: ['read'],
+  });
+  const opened = spyOn(h.projects, 'open');
+  try {
+    const denied = await h.send('/api/projects/p/opened', 'reader', { method: 'POST' });
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toEqual({ error: 'insufficient_scope' });
+    for (const [path, method] of [
+      ['/api/projects', 'POST'],
+      ['/api/projects/p', 'PATCH'],
+    ] as const) {
+      const scoped = await h.send(path, 'reader', { method, body: '{' });
+      expect(scoped.status).toBe(403);
+      expect(await scoped.json()).toEqual({ error: 'insufficient_scope' });
+      const origin = await h.app.handle(
+        new Request(`http://localhost${path}`, {
+          method,
+          headers: {
+            cookie: '__Host-wbs_session=x',
+            origin: 'https://foreign.example',
+            'content-type': 'application/json',
+          },
+          body: '{',
+        }),
+      );
+      expect(origin.status).toBe(403);
+      expect(await origin.json()).toEqual({ error: 'invalid_origin' });
+    }
+    expect(opened).not.toHaveBeenCalled();
+  } finally {
+    identity.mockRestore();
+    opened.mockRestore();
+  }
+});
+
+it('refuses structural settings before the service but preserves its semantic refusal codes', async () => {
+  const h = buildHarness();
+  const token = await h.register('owner');
+  const response = await h.send('/api/projects', token, created(''));
+  expect(response.status).toBe(200);
+  const { project } = (await response.json()) as { project: { id: string; name: string } };
+  expect(project.name).toBe('');
+  const update = spyOn(h.projects, 'update');
+  try {
+    for (const body of [
+      '{"pertWeights":{"optimistic":1e999,"realistic":4,"pessimistic":1}}',
+      '{"pertWeights":{"optimistic":-1,"realistic":4,"pessimistic":1}}',
+      '{"startDate":"notaday"}',
+      '{"scheduleEngine":"future"}',
+      '{"scheduleObjective":"future"}',
+    ]) {
+      const refused = await h.send(`/api/projects/${project.id}`, token, { method: 'PATCH', body });
+      expect(refused.status).toBe(422);
+      expect(await refused.json()).toEqual({ error: 'invalid_body' });
+    }
+    expect(update).not.toHaveBeenCalled();
+    for (const [body, error] of [
+      [{ startDate: '2026-02-31' }, 'bad_start_date'],
+      [{ pertWeights: { optimistic: 0, realistic: 0, pessimistic: 0 } }, 'bad_pert_weights'],
+    ] as const) {
+      const refused = await h.send(`/api/projects/${project.id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      });
+      expect(refused.status).toBe(422);
+      expect(await refused.json()).toEqual({ error });
+    }
+    expect(update).toHaveBeenCalledTimes(2);
+    const unchanged = await h.send(`/api/projects/${project.id}`, token, {
+      method: 'PATCH',
+      body: '{}',
+    });
+    expect(unchanged.status).toBe(200);
+  } finally {
+    update.mockRestore();
+  }
+});
+
+it('distinguishes absent project bodies from empty form patches without coercing form booleans', async () => {
+  const h = buildHarness();
+  const token = await h.register('owner');
+  const made = await h.send('/api/projects', token, created('Project'));
+  const { project } = (await made.json()) as { project: { id: string } };
+  const request = (method: string, path: string, body: BodyInit | undefined, media?: string) =>
+    h.app.handle(
+      new Request(`http://localhost${path}`, {
+        method,
+        headers: {
+          authorization: `Bearer ${token}`,
+          ...(media === undefined ? {} : { 'content-type': media }),
+        },
+        ...(body === undefined ? {} : { body }),
+      }),
+    );
+  for (const [path, method] of [
+    ['/api/projects', 'POST'],
+    [`/api/projects/${project.id}`, 'PATCH'],
+  ] as const) {
+    expect((await request(method, path, undefined, 'application/json')).status).toBe(422);
+    expect((await request(method, path, '', 'application/json')).status).toBe(400);
+    expect((await request(method, path, '{"name":"New"}', 'text/plain')).status).toBe(422);
+    expect(
+      (await request(method, path, undefined, 'application/x-www-form-urlencoded')).status,
+    ).toBe(422);
+    expect((await request(method, path, 'name=', 'application/x-www-form-urlencoded')).status).toBe(
+      200,
+    );
+  }
+  expect(
+    (await request('PATCH', `/api/projects/${project.id}`, '', 'application/x-www-form-urlencoded'))
+      .status,
+  ).toBe(200);
+  expect(
+    (await request('POST', '/api/projects', '', 'application/x-www-form-urlencoded')).status,
+  ).toBe(422);
+  const form = new FormData();
+  form.set('name', 'Multipart');
+  expect((await request('PATCH', `/api/projects/${project.id}`, form)).status).toBe(200);
+  expect(
+    (
+      await request(
+        'PATCH',
+        `/api/projects/${project.id}`,
+        'restricted=true',
+        'application/x-www-form-urlencoded',
+      )
+    ).status,
+  ).toBe(422);
+});
+
+it('refuses binary patch bytes instead of treating them as an empty settings patch', async () => {
+  const h = buildHarness();
+  const token = await h.register('owner');
+  const made = await h.send('/api/projects', token, created('Project'));
+  const { project } = (await made.json()) as { project: { id: string } };
+  const update = spyOn(h.projects, 'update');
+  try {
+    const response = await h.app.handle(
+      new Request(`http://localhost/api/projects/${project.id}`, {
+        method: 'PATCH',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'content-type': 'application/octet-stream; charset=binary',
+        },
+        body: 'binary bytes',
+      }),
+    );
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: 'invalid_body' });
+    expect(update).not.toHaveBeenCalled();
+  } finally {
+    update.mockRestore();
+  }
+});
+
+it('keeps export format precedence, duplicate last values and tree disappearance', async () => {
+  const h = buildHarness();
+  const token = await h.register('owner');
+  const made = await h.send('/api/projects', token, created('Export'));
+  const { project } = (await made.json()) as { project: { id: string } };
+  const read = spyOn(h.projects, 'read');
+  const tree = spyOn(h.workItems, 'tree');
+  try {
+    for (const query of ['', '?format=', '?format=bad&extra=1']) {
+      const response = await h.send(`/api/projects/${project.id}/export${query}`, token);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: 'unsupported_format' });
+    }
+    const extra = await h.send(`/api/projects/${project.id}/export?format=json&extra=1`, token);
+    expect(extra.status).toBe(400);
+    expect(await extra.json()).toEqual({ error: 'invalid_query' });
+    expect(read).not.toHaveBeenCalled();
+    expect(tree).not.toHaveBeenCalled();
+    const markdown = await h.send(
+      `/api/projects/${project.id}/export?format=json&format=markdown`,
+      token,
+    );
+    expect(markdown.status).toBe(200);
+    expect(markdown.headers.get('content-type')).toBe('text/markdown; charset=utf-8');
+    expect((await markdown.text()).startsWith('# Export\n')).toBe(true);
+    tree.mockResolvedValueOnce(null);
+    const gone = await h.send(`/api/projects/${project.id}/export?format=json`, token);
+    expect(gone.status).toBe(404);
+    expect(await gone.json()).toEqual({ error: 'not_found' });
+  } finally {
+    read.mockRestore();
+    tree.mockRestore();
+  }
+});
+
+for (const [media, body, name, patch] of [
+  [
+    'application/json-patch+json',
+    '{"name":"Structured JSON"}',
+    'Structured JSON',
+    '{"name":"Structured JSON patched"}',
+  ],
+  ['application/xml', 'name=XML+form', 'XML form', 'name=XML+form+patched'],
+] as const)
+  it(`preserves ${media} on migrated project writes`, async () => {
+    const h = buildHarness();
+    const token = await h.register('owner');
+    const response = await h.app.handle(
+      new Request('http://localhost/api/projects', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': media },
+        body,
+      }),
+    );
+    expect(response.status).toBe(200);
+    const created = (await response.json()) as { project: { id: string; name: string } };
+    expect(created.project.name).toBe(name);
+    const renamed = await h.app.handle(
+      new Request(`http://localhost/api/projects/${created.project.id}`, {
+        method: 'PATCH',
+        headers: { authorization: `Bearer ${token}`, 'content-type': media },
+        body: patch,
+      }),
+    );
+    expect(renamed.status).toBe(200);
+    expect(((await renamed.json()) as { project: { name: string } }).project.name).toBe(
+      `${name} patched`,
+    );
+  });
+
+it('validates list owner metadata while retaining additive project response fields', async () => {
+  const h = buildHarness();
+  const token = await h.register('owner');
+  await h.send('/api/projects', token, created('Project'));
+  const user = await h.auth.authenticate(token);
+  if (user === null) throw new Error('fixture identity missing');
+  const rows = await h.projects.list(user.id);
+  const list = spyOn(h.projects, 'list');
+  try {
+    for (const field of ['ownerName', 'lastOpenedAt'] as const) {
+      const damaged = structuredClone(rows);
+      const row = damaged.at(0);
+      if (row === undefined) throw new Error('fixture project missing');
+      Reflect.deleteProperty(row, field);
+      list.mockResolvedValueOnce(damaged);
+      expect((await h.send('/api/projects', token)).status).toBe(500);
+    }
+    const enriched = rows.map((row) => ({ ...row, audit: { future: 'kept' } }));
+    list.mockResolvedValueOnce(enriched);
+    const response = await h.send('/api/projects', token);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ projects: enriched });
+  } finally {
+    list.mockRestore();
+  }
+});
+
+it('exports complete deadline tree fields without undo flags and rejects malformed core fields', async () => {
+  const h = buildHarness();
+  const token = await h.register('owner');
+  const made = await h.send('/api/projects', token, created('Project'));
+  const { project } = (await made.json()) as { project: { id: string } };
+  const command = await h.send(`/api/projects/${project.id}/commands`, token, {
+    method: 'POST',
+    body: JSON.stringify({ commands: [{ kind: 'createWorkItem', name: 'Scheduled row' }] }),
+  });
+  expect(command.status).toBe(200);
+  const core = await h.workItems.tree(project.id);
+  if (core === null) throw new Error('fixture tree missing');
+  expect(core.workItems.length).toBeGreaterThan(0);
+  expect(core.slices.length).toBeGreaterThan(0);
+  const response = await h.send(`/api/projects/${project.id}/export?format=json`, token);
+  expect(response.status).toBe(200);
+  const exported = (await response.json()) as Record<string, unknown>;
+  expect(exported).not.toHaveProperty('undoable');
+  expect(exported).not.toHaveProperty('redoable');
+  expect(exported).toMatchObject(core);
+  const tree = spyOn(h.workItems, 'tree');
+  try {
+    const missingDeadline = structuredClone(core);
+    const row = missingDeadline.workItems.at(0);
+    if (row === undefined) throw new Error('fixture row missing');
+    Reflect.deleteProperty(row, 'deadline');
+    tree.mockResolvedValueOnce(missingDeadline);
+    expect((await h.send(`/api/projects/${project.id}/export?format=json`, token)).status).toBe(
+      500,
+    );
+    const missingLateness = structuredClone(core);
+    const slice = missingLateness.slices.at(0);
+    if (slice === undefined) throw new Error('fixture slice missing');
+    Reflect.deleteProperty(slice, 'lateBy');
+    tree.mockResolvedValueOnce(missingLateness);
+    expect((await h.send(`/api/projects/${project.id}/export?format=json`, token)).status).toBe(
+      500,
+    );
+  } finally {
+    tree.mockRestore();
+  }
+});
+
+for (const media of ['application/merge-patch+json', 'application/not-json', 'APPLICATION/JSON'])
+  it(`refuses ${media} before project creation`, async () => {
+    const h = buildHarness();
+    const token = await h.register('owner');
+    const create = spyOn(h.projects, 'create');
+    try {
+      const response = await h.app.handle(
+        new Request('http://localhost/api/projects', {
+          method: 'POST',
+          headers: { authorization: `Bearer ${token}`, 'content-type': media },
+          body: '{"name":"Must not create"}',
+        }),
+      );
+      expect(response.status).toBe(422);
+      expect(await response.json()).toEqual({ error: 'invalid_body' });
+      expect(create).not.toHaveBeenCalled();
+    } finally {
+      create.mockRestore();
+    }
+  });

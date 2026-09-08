@@ -8,6 +8,7 @@ import { projectRow } from '../testing/project-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
 import { openDrizzle } from './db';
 import { EstimateRepository } from './estimate';
+import { OPEN } from './gate';
 import type { Project, Step, WorkItem, WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
@@ -32,6 +33,9 @@ let sandId: string;
  */
 const wrote = (): WriteStamp => ({ at: 1, by: ownerId });
 
+/** A plausible trio; the figures are not the subject of the reference cases. */
+const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 };
+
 const insertItem = async (
   workItems: WorkItemRepository,
   id: string,
@@ -52,11 +56,11 @@ beforeEach(async () => {
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   const db = openDrizzle(path);
-  repo = new EstimateRepository(db);
-  const workItems = new WorkItemRepository(db);
+  repo = new EstimateRepository(db, OPEN);
+  const workItems = new WorkItemRepository(db, OPEN);
 
   ownerId = crypto.randomUUID();
-  await new UserRepository(db).create(
+  await new UserRepository(db, OPEN).create(
     { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
     wrote(),
   );
@@ -74,7 +78,7 @@ beforeEach(async () => {
     { id: devId, projectId, name: 'Dev', position: 10 },
     { id: qaId, projectId, name: 'QA', position: 20 },
   ];
-  await new ProjectRepository(db).create(project, steps, wrote());
+  await new ProjectRepository(db, OPEN).create(project, steps, wrote());
 
   stripId = crypto.randomUUID();
   sandId = crypto.randomUUID();
@@ -218,7 +222,7 @@ describe('EstimateRepository', () => {
     // · Received length: 2`; and with the project's own `where` written as
     // `inArray(workItem.projectId, [projectId])` — one statement, an `IN` list
     // of one — on `Expected to not contain: "in ("`. Observed 2026-09-02.
-    const workItems = new WorkItemRepository(openDrizzle(join(dir, 'test.db')));
+    const workItems = new WorkItemRepository(openDrizzle(join(dir, 'test.db')), OPEN);
     for (let made = 0; made < 20; made += 1) {
       const id = `row-${String(made)}`;
       await insertItem(workItems, id, 100 + made, `Row ${String(made)}`);
@@ -234,6 +238,7 @@ describe('EstimateRepository', () => {
           statements.push(query);
         },
       }),
+      OPEN,
     );
 
     const held = await counted.listByProject(projectId);
@@ -243,5 +248,36 @@ describe('EstimateRepository', () => {
     expect(held).toHaveLength(20);
     expect(statements).toHaveLength(1);
     expect(statements[0]).not.toContain('in (');
+  });
+});
+
+/**
+ * D6: a reference-specific outcome, said by the method it happened in.
+ *
+ * SQLite answers `FOREIGN KEY constraint failed` and names no column, so a
+ * caller cannot tell a step that has gone from a work item that has. The store
+ * can: it re-reads the step it just named, and only when that row is missing is
+ * the refusal the step's. Anything else is an invariant nothing should have
+ * been able to break, and is thrown.
+ */
+describe('what a broken reference means', () => {
+  it('answers unknown_step for a step that has gone, and throws for anything else', async () => {
+    // The step is gone, the work item is there: the modeled outcome.
+    expect(await repo.set({ workItemId: stripId, stepId: 'no-such-step', ...DAYS }, wrote())).toBe(
+      'unknown_step',
+    );
+
+    // The work item is gone, the step is there: an unknown, and thrown.
+    // Proof: the step re-read in `writingStep` bypassed (`rows.length > 0 &&
+    // false`), so every foreign key reads as the step's — this case failed on
+    // `Expected promise that rejects · Received promise that resolved` — an
+    // absent **work item** reported to the caller as an absent step, and
+    // nothing thrown at all. Watched 2026-09-08. The message asserted on is
+    // drizzle's wrapper rather than SQLite's own `FOREIGN KEY constraint
+    // failed`, which it carries as the cause; what the case is about is that
+    // this reaches the caller as a fault rather than as a refusal.
+    const orphaned = repo.set({ workItemId: 'no-such-work-item', stepId: devId, ...DAYS }, wrote());
+    expect(orphaned).rejects.toThrow(/insert into "estimate"/);
+    await orphaned.catch(() => undefined);
   });
 });

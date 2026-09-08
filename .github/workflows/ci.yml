@@ -9,7 +9,20 @@
 #                  would flag it, which is itself the proof.)
 #   migration-lint Proof: `migration-lint.ts` on a file containing
 #                  `DROP TABLE users;` exits 1 with "destructive statement".
-# Both were run against the real scripts before this file was committed. See
+#   corpus-version- Proof, against real git history from `0adaf700` on h2puni,
+#   lint           2026-09-07: with `libs/domain/fixtures/solver-quantum-golden-
+#                  corpus.json` regenerated and the constant left at 8
+#                  (`6e86c115`) it exits 1 naming the fixture and "8 to 8"; with
+#                  the constant then moved to 9 (`8d5068c6`) it exits 0; moved to
+#                  7 instead (`ae13f70f`) it exits 1 naming the decrease; with
+#                  only a comment added to `contract-version.ts` beside the moved
+#                  fixture (`566bd302`) it exits 1, so a prose edit is not a
+#                  bump; on `0adaf700^..0adaf700`, which touches neither, it
+#                  exits 0; and on an all-zero base it exits 1 rather than
+#                  skipping. The remaining control — a genuine semantic change
+#                  regenerated and watched red INSIDE a CI run rather than
+#                  through the script — is TASK-338 AC #2 and is still owed.
+# All three were run against the real scripts before this file was committed. See
 # AGENTS.md, "Non-vacuous checks".
 #
 # Deliberately run-many, not affected: at ~10k LOC the whole suite is cheap, and
@@ -23,11 +36,170 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Subscribed BEFORE a merge queue exists, on purpose. Measured 2026-09-08:
+  # `GET /repos/…/rulesets` is `[]` and `GET /branches/main/protection` is 404,
+  # so no queue can form here today and this trigger fires never. That is the
+  # point — a merge queue is enabled in the settings UI in one click, and an
+  # unsubscribed workflow is not "skipped" in the queue's checks, it is simply
+  # absent, so the day someone turns it on is the day this gate silently stops
+  # covering the merges that matter most. The `merge_group` arm of
+  # `Corpus version lint` and the `concurrency` exemption below land with this
+  # line and are not separable from it: the step's `*)` arm exits 1 on an event
+  # it has no boundary rule for, so subscribing alone would make every queue
+  # entry red. (TASK-351 I2.)
+  #
+  # `types` is named rather than left to default, on GitHub's own advice for
+  # this event: `checks_requested` is the only activity type Actions supports
+  # today, the default is "all of them", and the webhook payload already
+  # documents a second one (`destroyed`). Naming the one we mean is what stops a
+  # future activity type from silently starting gate runs nobody asked for.
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
+    # `Corpus version lint` compares two commits, and a manual run has neither a
+    # push boundary nor a `base_ref`. Rather than let it guess one — every guess
+    # is either a false red or a silent skip — the boundary is an input, and the
+    # step fails closed when it is empty.
+    inputs:
+      base_ref:
+        description: 'Revision to compare golden corpora against (branch, tag or SHA)'
+        required: false
+        default: 'origin/main'
 
+# Cancel superseded runs on branches, never on `main`. A push to a PR branch
+# makes the run before it irrelevant, so cancelling is free. A push to `main` is
+# a *different commit* whose verdict nobody else will ever produce, and
+# cancelling it loses that verdict silently: the run shows `cancelled`, no job
+# reports a failure, and a red commit reads as unproven rather than broken.
+#
+# Measured 2026-09-07 over the last 195 completed runs: 90 were `cancelled`,
+# 46% of them, burning 647 minutes for no verdict. TASK-329 lost a real
+# solver-py red to exactly this — its own log says "BOTH CANCELLED CI RUNS HID
+# A REAL RED" — and TASK-360 then found `main` red at 7a026bee for a lint rule
+# whose introducing merge had had its run cancelled by the next merge.
+#
+# The cost of this change is CI minutes on `main` when merges land close
+# together, which is the cheaper side of the trade by a wide margin.
+#
+# A merge-queue run is exempt for the SAME reason `main` is, and the predicate
+# had to be widened rather than left alone: a `merge_group` event's ref is
+# `refs/heads/gh-readonly-queue/main/pr-<n>-<sha>`, which is `!= 'refs/heads/main'`,
+# so the old expression answered `true` for it. Stated at the strength it is
+# actually known: the group key is `github.ref` and a queue entry's ref is
+# unique to it, so no collision is *measured* today — this closes a latent
+# hazard, not an observed loss. It is worth one expression anyway, because a
+# queue verdict is the least reproducible kind there is. The branch behind a
+# cancelled PR run is still there to push to again; the ref behind a cancelled
+# queue run is deleted when the entry leaves the queue, and the commit it was
+# proving is by then either merged or dropped.
+#
+# `cancel-in-progress: false` is necessary and NOT sufficient — the other half
+# of the same loss, measured on `main` on 2026-09-08. That key governs the
+# RUNNING member of a group. GitHub keeps at most one PENDING member beside it,
+# and a third entrant evicts the pending one; `cancel-in-progress` has no say in
+# that. Five consecutive pushes to `main` between 01:09Z and 01:37Z left
+# f64ceea4, 564af749, be5eedc5 and 6ddba437 all `cancelled` with ZERO jobs
+# dispatched while 5bb095a5 held the group — four of five commits with no
+# verdict, reading as unproven rather than broken, which is the exact outcome
+# the paragraph above exists to prevent. 564af749 is the merge of TASK-351, the
+# change that widened the predicate below, so the fix lost its own verdict to
+# the door it had not closed.
+#
+# The 46% above is two different faults, and the split — called unmeasured when
+# this was filed — is clean and time-separated. Over the 195 `ci` runs from
+# 2026-09-07T06:27Z to 2026-09-08T01:48Z, 71 were cancelled: 52 on
+# `pull_request` (the intended supersession), 3 on `workflow_dispatch`, and 16
+# on pushes to `main`. Of those 16, split at `d2e14214` — the commit above that
+# exempted `main`, merged 2026-09-07T22:06Z:
+#   BEFORE  31 main pushes, 11 cancelled, ALL 11 with jobs dispatched
+#           — cancelled mid-flight, which is exactly what that commit fixed
+#   AFTER   14 main pushes,  5 cancelled, ALL 5 with ZERO jobs dispatched
+#           — every one of them a queue eviction, this bug and nothing else
+# So the `main` cancellation rate barely moved, 35% to 36%; what changed was the
+# door. The exemption did the thing it claimed and the loss continued at the
+# same rate through the gap beside it, which is why this is a second fix and not
+# a revision of the first.
+#
+# So `main` is keyed PER COMMIT: a group of one has nothing to evict and nothing
+# to be evicted by. Proved rather than assumed, on 2026-09-08 at 01:44Z, on two
+# throwaway branches taking three pushes each about two seconds apart against a
+# 120s job — same base commit, same job, same `cancel-in-progress: false`, the
+# group key the only difference between the two tables:
+#
+#   CONTROL, `group: t386-${{ github.ref }}` — the shape this file shipped
+#     34177651957  6a7d163e  success    1 job
+#     34177653881  9203ca2d  CANCELLED  0 jobs   <- the middle verdict, lost
+#     34177655790  f17d7b9f  success    1 job
+#   FIXED, `group: t386-${{ github.ref }}-${{ github.sha }}`
+#     34177653252  f43d2ea3  success    1 job
+#     34177654756  63f01d8a  success    1 job
+#     34177656561  492f8635  success    1 job
+#
+# The control is the falsification the remedy had to beat, and it fails in the
+# reported-as-healthy way: `9203ca2d` never dispatched a job, so no step is red
+# and only the run's own `cancelled` says anything happened at all.
+#
+# `pull_request` keeps the ref-only group: superseding a branch run really is
+# free, because the branch is still there to push again. `merge_group` keeps it
+# too and needs nothing added — a queue entry's ref is unique to that entry, so
+# the ref-only key is already per-commit there.
+#
+# The cost, stated at the same strength as the trade above and stated exactly:
+# the old key never ran two `main` runs at once — it ran ONE and held ONE
+# pending behind it, and only the running member consumed a runner. The change
+# is from one executing `main` run to several. At this repo's merge rate that is
+# a few concurrent 20-minute runs, and when the account's concurrency limit is
+# reached GitHub QUEUES the surplus instead of cancelling it — that verdict is
+# delayed, never lost, which is the whole point.
+#
+# The `github.run_id` half is TASK-395, and it is what makes the key per-RUN
+# rather than per-COMMIT. TASK-386 stopped at the sha, and one commit is entered
+# by more than one run: `GITHUB_SHA` for `workflow_dispatch` is the tip of the
+# selected ref, so a manual dispatch on `main` at commit S joined
+# `ci-refs/heads/main-S` with S's push run and with any re-run of it, and a
+# force-push back to S collided the same way. Those runs are not
+# interchangeable — a dispatch supplies its own `base_ref` while the push run
+# compares `github.event.before`, so `Corpus version lint` checks a different
+# boundary in each and the evicted member is a verdict nothing else produces.
+# They are separated, not deduplicated, for exactly that reason.
+#
+# run_id is ADDED to the sha rather than replacing it. Keying on run_id alone
+# behaves identically while everything works, but fails far worse: if run_id
+# ever renders empty at the workflow level, that key collapses every `main` run
+# into the one shared group and silently reopens TASK-386, whereas this one
+# degrades no further than TASK-386's own per-commit key. The sha also keeps the
+# group readable in the Actions UI.
+#
+# That run_id does render — non-empty and distinct per run — in the
+# WORKFLOW-level `concurrency:` context is measured, not assumed, because an
+# echo inside a job would only prove the job context. One commit
+# (`f925a3f6`) pushed to `probe/t395-a|b|c` at 2026-09-08T02:54:49Z ran, under
+# this key, as three OVERLAPPING runs that all reached a verdict: 34181692131,
+# 34181693807 and 34181694261, executing 02:54:52–02:56:35, 02:54:53–02:56:36
+# and 02:54:54–02:56:37, all `success`. The same three pushes under TASK-386's
+# sha-only key shared one group: 34181692093 `success`, 34181693813 `cancelled`
+# with zero jobs — the evicted middle entrant — and 34181694263 held until
+# 34181692093 finished at 02:56:34Z and only then succeeding, at 02:58:20Z. The
+# control's third member is the point: it was serialised, not lost, so the
+# candidate's three overlapping verdicts cannot be explained by dispatch
+# entrants simply never queueing against each other.
+# TASK-386 peer review I1, `queue/reviews/t386-r1-sol.txt`, openai/gpt-5.6-sol.
+#
+# Overlapping runs are safe here for a reason that was checked rather than
+# assumed: this workflow has no deploy job. `gate` and `pixels_shard` read the
+# tree and validate — `docker compose config -q` parses the deploy files, it
+# does not apply them — so two `main` runs share nothing but the actions cache,
+# where a concurrent write is a "cache already exists" warning and not a
+# corruption. If a job that mutates anything outside its own runner is ever
+# added to this file, that job needs its own serialising `concurrency:` block
+# and this paragraph stops being true.
+#
+# `cancel-in-progress` is deliberately left exactly as TASK-351 wrote it: for
+# `main` it is now redundant, and that redundancy is the backstop if this key
+# ever regresses.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref }}${{ github.ref == 'refs/heads/main' && format('-{0}-{1}', github.sha, github.run_id) || '' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.event_name != 'merge_group' }}
 
 permissions:
   contents: read
@@ -48,10 +220,17 @@ jobs:
       # race inside bun's own output write, so the runtime version is part of
       # what this gate is testing. On `latest` a bun release can change the
       # verdict with no commit to attribute it to, and the next person debugging
-      # a red main has no version to bisect against. Bump deliberately.
+      # a red main has no version to bisect against. The pin is `.bun-version`,
+      # the same file the Dockerfiles are held to by `toolchain-pins.test.ts`.
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: .bun-version
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14.4'
+          cache: pip
+          cache-dependency-path: libs/solver-py/requirements.lock
 
       # `nx run-many -t build` shellchecks the deploy scripts and is no longer
       # allowed to skip itself when shellcheck is absent. ubuntu-latest ships
@@ -62,6 +241,9 @@ jobs:
 
       - name: Install
         run: bun install --frozen-lockfile
+
+      - name: Install solver dependencies
+        run: python3 -m pip install --require-hashes -r libs/solver-py/requirements.lock
 
       # --all, not the default base..HEAD comparison. Without it the scope is
       # whatever `git diff main HEAD` returns, which is EMPTY on a push to main
@@ -95,8 +277,52 @@ jobs:
       # The same reasoning rules out a retry: it would have become the gate
       # people re-run until it is green, a check that cannot fail wearing a
       # different hat.
+      #
+      # The runner's step log also cut this command off at ~760 KB, before
+      # either the failing case or Nx's final summary. Redirecting to the file
+      # keeps the complete output outside that capped path; stream mode only
+      # makes child output reach the retained file incrementally, so a timeout
+      # does not discard everything still held by Nx's aggregate renderer. The
+      # bounded tail is only a convenience; the uploaded file below is the
+      # diagnostic record. The annotation pass restores only exact, located
+      # error commands and cannot replace the gate's original exit status. A
+      # helper fault after a green Nx run intentionally makes the gate red.
+      # Proof: CI 34029234602 at bca2e32d changed `isWithin`'s named root-self
+      # assertion to a real failure. The gate failed, the upload still passed,
+      # and its 1,094,648-byte artifact names the case and `domain:test`.
+      # Green control CI 34028724397 carries the four-target Nx summary.
+      # TASK-283 controls: CI 34033230484 failed before Nx and skipped both Nx
+      # and upload; CI 34033278085 failed Nx while upload retained distinct
+      # nx-gate-log-1/-2 artifacts across attempts; CI 34034640885 restored the
+      # exact source annotation from the parser-fixed artifact.
+      # TASK-289 control: CI 34056520601 completed the unchanged Nx command for
+      # all 24 projects, then an unexpected helper argument made this gate red;
+      # the always-run nx-gate-log-1 upload still passed.
       - name: Gate — test, lint, typecheck, build
-        run: bunx nx run-many -t test lint typecheck build --parallel=2
+        id: nx_gate
+        run: |
+          set +e
+          bunx nx run-many -t test lint typecheck build --parallel=2 --output-style=stream \
+            > nx-gate.log 2>&1
+          gate_status=$?
+          tail -n 200 nx-gate.log
+          annotation_status=0
+          bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log || annotation_status=$?
+          if [ "$gate_status" -ne 0 ]; then
+            exit "$gate_status"
+          fi
+          exit "$annotation_status"
+
+      - name: Upload gate log
+        if: ${{ always() && steps.nx_gate.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nx-gate-log-${{ github.run_attempt }}
+          path: nx-gate.log
+          if-no-files-found: error
+
+      - name: Solver image smoke
+        run: bunx nx run be-01:solver-image-smoke
 
       # The host-wide heavy-work mutex, which is the only thing keeping two
       # heavy runs off one machine. It went unexercised until 2026-08-30, when
@@ -151,16 +377,72 @@ jobs:
           # shellcheck disable=SC2086
           bun run tools/tool-git-hooks/src/hooks/migration-lint.ts $files
 
+      # The two golden corpora each assert that the fixture's `contractVersion`
+      # equals the tree's constant and that the fixture's cases equal the tree's
+      # computation. Both are assertions about ONE tree, and each writer emits
+      # the current constant beside the current cases — so a semantic change
+      # with the constant left where it is, followed by the documented writer,
+      # regenerates the fixture and both assertions still pass. This step is the
+      # two-commit half those tests cannot be. See the header of
+      # `corpus-version-lint.ts` for why it is a script here rather than a case
+      # in the suite.
+      #
+      # The event-specific boundary is selected by the executable below. Pull
+      # requests and merge groups use their immutable payload SHA; a missing or
+      # unreadable trusted SHA is a refusal, never a mutable-ref fallback. Push
+      # and manual-dispatch boundaries retain their distinct contracts. The
+      # selector's tests drive its production entry through real Git histories,
+      # while `corpus-lint-workflow.test.ts` holds the selector's supported
+      # events to this workflow's subscriptions.
+      - name: Corpus version lint
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          DISPATCH_BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          set -euo pipefail
+          base="$(bun run tools/tool-git-hooks/src/hooks/corpus-version-base.ts)"
+          bun run tools/tool-git-hooks/src/hooks/corpus-version-lint.ts "$base" HEAD
+
       # The scope and version are both explicit on purpose. `bunx openspec`
       # resolves an unrelated package on npm that has no bin, so the step died
       # with "could not determine executable" rather than validating anything;
       # it only worked locally because volta has the real CLI on PATH. Pinning
       # the version stops a CLI release from changing what this gate means.
       #
-      # Proof: on 1.12.0, a disposable nested capability's `### Scenario`
-      # exits 1 with failed: 1; restored to `####`, it exits 0 with passed: 1.
+      # `--json` used to only *emit* JSON. Nothing read it, so what actually
+      # gated was the process exit status — an inference from the command's own
+      # behaviour, which is the one thing a "parsed from JSON" gate exists to
+      # rule out. The verdict now comes from a named field.
+      #
+      # `passed > 0` is not decoration. `failed == 0` alone is also true of a
+      # run that validated nothing, which is what an empty checkout or an
+      # `--all` that stopped matching looks like from here.
+      #
+      # `pipefail` is load-bearing, not boilerplate: without it a validator that
+      # crashes after writing a well-formed green JSON goes green, because `tee`
+      # succeeds and `jq` reads the good bytes.
+      #
+      # Proof of the validator half: with a change's scenarios written `###`
+      # instead of `####`, it exits 1 with failed: 1. Restored, it exits 0 with
+      # passed: 2.
+      # Proof of the assertion half, against the real JSON this step emitted on
+      # CI 34083621444 (`summary.totals` = items 39 / passed 39 / failed 0):
+      # unmodified it exits 0; with `failed` forced to 1 it exits 1; with
+      # `passed` forced to 0 it exits 1; with the validator stubbed to exit 1
+      # the step reds through the pipe, and with `pipefail` removed that same
+      # case goes green. The field path is `.summary.totals.*` and not a
+      # top-level `.failed`/`.passed` — the latter is `null` on the real
+      # document and would make the assertion fail on a green run.
       - name: OpenSpec
-        run: bunx @fission-ai/openspec@1.12.0 validate --all --json
+        run: |
+          set -euo pipefail
+          bunx @fission-ai/openspec@1.12.0 validate --all --json \
+            | tee "$RUNNER_TEMP/openspec-validate.json"
+          jq -e '.summary.totals.failed == 0 and .summary.totals.passed > 0' \
+            "$RUNNER_TEMP/openspec-validate.json" > /dev/null
 
       # `tool-workflows:integration` is the only check that runs the real CLI
       # against the twilight-v1 schema graph, and it refuses to start without
@@ -203,8 +485,40 @@ jobs:
   # `openspec/changes/table-geometry-and-tab-order/verify.md` has the run
   # output, including the two faults that turned out NOT to break the test they
   # were predicted to.
-  pixels:
+  pixels_shard:
+    name: pixels shard ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
+    # FOUR shards since 2026-09-08, because two were measured badly unbalanced.
+    # Playwright shards by file, not by duration, so the split is only as even
+    # as the files happen to be. Over the last 8 runs, per job:
+    #
+    #   gate               13.1m
+    #   pixels shard 1/2   21.4m   <- the critical path
+    #   pixels shard 2/2    7.1m   <- idle for fourteen minutes of it
+    #
+    # The `pixels` aggregate waits for the slowest shard, so the run cost the
+    # 21.4m and shard 2 contributed nothing for most of it. Doubling the shard
+    # count does not make the suite cheaper — it makes the imbalance finer
+    # grained, so the worst shard falls toward the mean and `gate` becomes the
+    # critical path instead. Expected effect is roughly 21.4m to ~14m per run.
+    #
+    # Queue wait was checked before assuming runners were free: measured 0.0m
+    # across all 24 real jobs in that sample, so the shards start immediately
+    # and adding two more does not queue behind the first two. (The `pixels`
+    # aggregate shows a 19-25m "wait" in the same data; that is `needs:`
+    # fan-in, not a runner shortage, and misreading it would have sent this
+    # after a capacity problem that does not exist.)
+    #
+    # This is the answer the note below already called for — "when this is hit
+    # again the answer is sharding or a bigger runner, which is a call about CI
+    # budget" — taken under the standing instruction to optimize for elapsed
+    # development time rather than machine resource.
+    #
+    # Two shards since 2026-09-07, when one worker reached this 25-minute cap
+    # with 248 of 296 cases green and nothing red. The whole suite was 16.2m on
+    # the Mac immediately before the push, so another timeout increase would
+    # keep one slow runner on the critical path rather than add capacity.
+    #
     # 25, and it was 15 until 2026-08-31, when this job **cancelled a gate that
     # had 13 of its 264 cases left**: the suite started at 11:55:41 and the cap
     # cut it at 12:10:14 with 251 green and nothing red. The same afternoon it
@@ -226,16 +540,24 @@ jobs:
     # `retries` in `playwright.config.ts` stays 0 and is not the way out of
     # this: a check people re-run until it is green is a check that cannot
     # fail.
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both entries and the stable aggregate below are read from this
+        # production workflow by pixels-workflow.test.ts.
+        # Proof: deleting shard 2 failed that test with expected [1, 2], got
+        # [1], before the workflow was restored.
+        shard: [1, 2, 3, 4]
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
-      # The same pin as `gate` above, copied rather than floated, for the same
+      # The same pin as `gate` above, read from the same file, for the same
       # reason: bun is part of what is being tested here — it runs be-01 and
       # gw-01 — and `latest` changes the verdict with no commit to blame.
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.14
+          bun-version-file: .bun-version
 
       - name: Install
         run: bun install --frozen-lockfile
@@ -252,14 +574,28 @@ jobs:
       # first test. `bun run e2e` seeds the three `.env` files first — a fresh
       # checkout has none, and every app refuses to boot without one.
       - name: Layout gate
-        run: bun run e2e
+        run: bun run e2e -- --shard=${{ matrix.shard }}/4
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: wbs-table-screenshot
+          name: wbs-table-screenshot-${{ matrix.shard }}-${{ github.run_attempt }}
           # Successful runs keep the deliberate geometry screenshot and HTML
           # report; failed runs additionally keep Playwright's retained trace.
           path: |
             apps/fe-01/test-results/
             apps/fe-01/playwright-report/
+
+  # Branch protection asks for one stable `pixels` check. The matrix above has
+  # changing display names, so this job reduces its aggregate result without
+  # hiding a failed or cancelled shard.
+  # Proof: changing `needs` to `gate` made pixels-workflow.test.ts fail with
+  # expected "pixels_shard", received "gate".
+  pixels:
+    if: ${{ always() }}
+    needs: pixels_shard
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Require every browser shard
+        run: test "${{ needs.pixels_shard.result }}" = success

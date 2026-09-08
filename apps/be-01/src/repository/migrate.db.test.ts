@@ -217,6 +217,15 @@ const SAVED_PLAN = '20260903190000_add_saved_plan';
  * below and tails the ascending folder order.
  */
 const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
+/**
+ * `calendar_marker`, one table and one index added whole. It sits directly
+ * under {@link READ_ORDER_INDEX} in every descending reversal list below, and
+ * it takes nothing with it — its only reference is to `project`, and it
+ * cascades. Its own forward, cascade and rollback cases live in
+ * `calendar-marker-migration.db.test.ts`; this file only fixes its place in the
+ * order.
+ */
+const CALENDAR_MARKER = '20260905090000_add_calendar_marker';
 
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 
@@ -236,6 +245,21 @@ const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
  * reverses.
  */
 const PROJECT_SETTINGS = '20260904140000_add_project_settings';
+/**
+ * The newest: the `(project_id, id)` index that serves
+ * `listByProject`'s stated `ORDER BY` (ADR 0016). Additive and
+ * index-only, so it heads every descending reversal list here and tails
+ * every ascending one, exactly as {@link PROJECT_SETTINGS} did while it
+ * was newest.
+ */
+const READ_ORDER_INDEX = '20260906003000_add_work_item_read_order_index';
+/**
+ * The newest: `work_item.deadline`, the nullable date-only column slice 1 adds.
+ * Additive forward and `DROP COLUMN` on the way back, so it heads every
+ * descending reversal list here and tails every ascending one, exactly as
+ * {@link READ_ORDER_INDEX} did while it was newest.
+ */
+const WORK_ITEM_DEADLINE = '20260906090000_add_work_item_deadline';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 // `step` since 20260831120000_rename_role_to_step. Every raw statement in this
@@ -340,6 +364,9 @@ describe('the WBS domain migration', () => {
       // ahead of the column it was seeded from, which is the only order in
       // which its foreign keys still have something to point at.
       expect(reversed).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -437,10 +464,9 @@ describe('the step position migration', () => {
       const after = openDatabase(db.path);
       try {
         const rows = after
-          .query<
-            { id: string; position: number },
-            []
-          >('SELECT id, position FROM step ORDER BY position')
+          .query<{ id: string; position: number }, []>(
+            'SELECT id, position FROM step ORDER BY position',
+          )
           .all();
         expect(rows.map((row) => row.id)).toEqual(['r1', 'r2']);
         expect(rows[0]?.position).toBeLessThan(rows[1]?.position ?? 0);
@@ -674,6 +700,9 @@ describe('the capacity migrations', () => {
       const reversed = rollbackTo(db.path, FOLDER, PRIORITY);
 
       expect(reversed).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -790,10 +819,9 @@ describe('the per-project capacity migration', () => {
     const after = openDatabase(dbPath);
     try {
       return after
-        .query<
-          { project_id: string; service_team_id: string; size: number },
-          []
-        >('SELECT project_id, service_team_id, size FROM project_team_capacity ORDER BY project_id, service_team_id')
+        .query<{ project_id: string; service_team_id: string; size: number }, []>(
+          'SELECT project_id, service_team_id, size FROM project_team_capacity ORDER BY project_id, service_team_id',
+        )
         .all();
     } finally {
       after.close();
@@ -870,10 +898,9 @@ describe('the per-project capacity migration', () => {
       const after = openDatabase(db.path);
       try {
         const kept = after
-          .query<
-            { id: string; size: number | null },
-            []
-          >('SELECT id, size FROM service_team ORDER BY id')
+          .query<{ id: string; size: number | null }, []>(
+            'SELECT id, size FROM service_team ORDER BY id',
+          )
           .all();
         expect(kept).toEqual([
           { id: 't-backend', size: 1 },
@@ -1013,10 +1040,9 @@ describe('the work item team migration', () => {
     const after = openDatabase(dbPath);
     try {
       return after
-        .query<
-          { work_item_id: string; team_id: string },
-          []
-        >('SELECT work_item_id, team_id FROM work_item_team ORDER BY work_item_id, team_id')
+        .query<{ work_item_id: string; team_id: string }, []>(
+          'SELECT work_item_id, team_id FROM work_item_team ORDER BY work_item_id, team_id',
+        )
         .all();
     } finally {
       after.close();
@@ -1060,18 +1086,16 @@ describe('the work item team migration', () => {
       try {
         expect(
           after
-            .query<
-              { project_id: string; service_team_id: string; size: number },
-              []
-            >('SELECT project_id, service_team_id, size FROM project_team_capacity ORDER BY service_team_id')
+            .query<{ project_id: string; service_team_id: string; size: number }, []>(
+              'SELECT project_id, service_team_id, size FROM project_team_capacity ORDER BY service_team_id',
+            )
             .all(),
         ).toEqual([{ project_id: 'p1', service_team_id: 't-backend', size: 2 }]);
         expect(
           after
-            .query<
-              { person_id: string; service_team_id: string },
-              []
-            >('SELECT person_id, service_team_id FROM person_team')
+            .query<{ person_id: string; service_team_id: string }, []>(
+              'SELECT person_id, service_team_id FROM person_team',
+            )
             .all(),
         ).toEqual([{ person_id: 'per1', service_team_id: 't-backend' }]);
       } finally {
@@ -1150,6 +1174,9 @@ describe('the work item team migration', () => {
       // migration's business, and named rather than filtered out so the list stays
       // the literal answer `rollbackTo` gave.
       expect(reversed).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -1180,10 +1207,9 @@ describe('the work item team migration', () => {
       try {
         expect(
           after
-            .query<
-              { id: string; service_team_id: string | null },
-              []
-            >('SELECT id, service_team_id FROM work_item ORDER BY id')
+            .query<{ id: string; service_team_id: string | null }, []>(
+              'SELECT id, service_team_id FROM work_item ORDER BY id',
+            )
             .all(),
         ).toEqual([
           { id: 'w1', service_team_id: 't-backend' },
@@ -1323,10 +1349,9 @@ describe('the priority band migration', () => {
         // vacuous version of this test.
         expect(
           sqlite
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM project_priority_band WHERE project_id = 'seeded'")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM project_priority_band WHERE project_id = 'seeded'",
+            )
             .get()?.n,
         ).toBe(5);
 
@@ -1340,10 +1365,9 @@ describe('the priority band migration', () => {
         // is the state the read's default arm answers for.
         expect(
           sqlite
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM project_priority_band WHERE project_id = 'fresh'")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM project_priority_band WHERE project_id = 'fresh'",
+            )
             .get()?.n,
         ).toBe(0);
 
@@ -1391,6 +1415,9 @@ describe('the priority band migration', () => {
       // filtered, so the list is the literal answer `rollbackTo` gave and not a
       // subset somebody chose.
       expect(rollbackTo(db.path, FOLDER, PER_PROJECT_CAPACITY)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -1421,20 +1448,18 @@ describe('the priority band migration', () => {
       try {
         expect(
           after
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='project_priority_band'")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='project_priority_band'",
+            )
             .get()?.n,
         ).toBe(0);
         // The priority is untouched, which is the whole of what a plan loses:
         // its numbers stay and their names go.
         expect(
           after
-            .query<
-              { priority: number | null },
-              []
-            >("SELECT priority FROM work_item WHERE id = 'w1'")
+            .query<{ priority: number | null }, []>(
+              "SELECT priority FROM work_item WHERE id = 'w1'",
+            )
             .get()?.priority,
         ).toBe(25);
       } finally {
@@ -1596,10 +1621,9 @@ describe('the plan event migration', () => {
         // version of this test — and was, once.
         expect(
           sqlite
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM plan_event WHERE user_id = 'stranger'")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM plan_event WHERE user_id = 'stranger'",
+            )
             .get()?.n,
         ).toBe(1);
 
@@ -1607,10 +1631,9 @@ describe('the plan event migration', () => {
 
         expect(
           sqlite
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM plan_event WHERE user_id = 'stranger'")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM plan_event WHERE user_id = 'stranger'",
+            )
             .get()?.n,
         ).toBe(0);
         // And the owner's own event is untouched: one account leaving does not
@@ -1650,10 +1673,9 @@ describe('the plan event migration', () => {
         sqlite.run("DELETE FROM work_item WHERE id = 'w1'");
 
         const row = sqlite
-          .query<
-            { work_item_id: string | null; label: string },
-            []
-          >("SELECT work_item_id, label FROM plan_event WHERE id = 'e1'")
+          .query<{ work_item_id: string | null; label: string }, []>(
+            "SELECT work_item_id, label FROM plan_event WHERE id = 'e1'",
+          )
           .get();
         expect(row?.work_item_id).toBe('w1');
         // And the sentence still reads, which is why the label is stored rather
@@ -1686,6 +1708,9 @@ describe('the plan event migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, PRIORITY_BANDS)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -1714,30 +1739,27 @@ describe('the plan event migration', () => {
       try {
         expect(
           after
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='plan_event'")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='plan_event'",
+            )
             .get()?.n,
         ).toBe(0);
         // The two indexes go with it rather than being left behind pointing at a
         // table that is gone.
         expect(
           after
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name LIKE 'plan_event%'")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name LIKE 'plan_event%'",
+            )
             .get()?.n,
         ).toBe(0);
         // Untouched: the work item, and the undo entry for the very command whose
         // history row has just gone. Nobody loses a key press to this rollback.
         expect(
           after
-            .query<
-              { priority: number | null },
-              []
-            >("SELECT priority FROM work_item WHERE id = 'w1'")
+            .query<{ priority: number | null }, []>(
+              "SELECT priority FROM work_item WHERE id = 'w1'",
+            )
             .get()?.priority,
         ).toBe(25);
         expect(
@@ -1917,6 +1939,9 @@ describe('the actual migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, PLAN_EVENT)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -1944,38 +1969,34 @@ describe('the actual migration', () => {
       try {
         expect(
           after
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='actual'")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='actual'",
+            )
             .get()?.n,
         ).toBe(0);
         // The index goes with it rather than being left behind pointing at a
         // table that is gone.
         expect(
           after
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name LIKE 'actual%'")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name LIKE 'actual%'",
+            )
             .get()?.n,
         ).toBe(0);
         // Untouched: the estimate, the work item and its priority. A plan that
         // loses its actuals still holds every figure it is committed against.
         expect(
           after
-            .query<
-              { realistic: number },
-              []
-            >("SELECT realistic FROM estimate WHERE work_item_id = 'w1' AND role_id = 'r1'")
+            .query<{ realistic: number }, []>(
+              "SELECT realistic FROM estimate WHERE work_item_id = 'w1' AND role_id = 'r1'",
+            )
             .get()?.realistic,
         ).toBe(2);
         expect(
           after
-            .query<
-              { priority: number | null },
-              []
-            >("SELECT priority FROM work_item WHERE id = 'w1'")
+            .query<{ priority: number | null }, []>(
+              "SELECT priority FROM work_item WHERE id = 'w1'",
+            )
             .get()?.priority,
         ).toBe(25);
       } finally {
@@ -2193,6 +2214,9 @@ describe('the step progress migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, ACTUAL)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -2219,37 +2243,33 @@ describe('the step progress migration', () => {
       try {
         expect(
           after
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='role_progress'")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='role_progress'",
+            )
             .get()?.n,
         ).toBe(0);
         // The index goes with it rather than being left behind pointing at a
         // table that is gone.
         expect(
           after
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name LIKE 'role_progress%'")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name LIKE 'role_progress%'",
+            )
             .get()?.n,
         ).toBe(0);
         // Untouched: the recorded day, the estimate and the work item.
         expect(
           after
-            .query<
-              { days: number },
-              []
-            >("SELECT days FROM actual WHERE work_item_id = 'w1' AND role_id = 'r1'")
+            .query<{ days: number }, []>(
+              "SELECT days FROM actual WHERE work_item_id = 'w1' AND role_id = 'r1'",
+            )
             .get()?.days,
         ).toBe(8);
         expect(
           after
-            .query<
-              { realistic: number },
-              []
-            >("SELECT realistic FROM estimate WHERE work_item_id = 'w1' AND role_id = 'r1'")
+            .query<{ realistic: number }, []>(
+              "SELECT realistic FROM estimate WHERE work_item_id = 'w1' AND role_id = 'r1'",
+            )
             .get()?.realistic,
         ).toBe(2);
       } finally {
@@ -2294,10 +2314,9 @@ describe('the not-before reason migration', () => {
         );
 
         const written = sqlite
-          .query<
-            { start_no_earlier_than_reason: string | null },
-            []
-          >("SELECT start_no_earlier_than_reason FROM work_item WHERE id = 'w1'")
+          .query<{ start_no_earlier_than_reason: string | null }, []>(
+            "SELECT start_no_earlier_than_reason FROM work_item WHERE id = 'w1'",
+          )
           .get();
         expect(written?.start_no_earlier_than_reason).toBeNull();
       } finally {
@@ -2357,7 +2376,10 @@ describe('the not-before reason migration', () => {
           .query<
             { start_no_earlier_than: string | null; start_no_earlier_than_reason: string | null },
             []
-          >('SELECT start_no_earlier_than, start_no_earlier_than_reason FROM work_item' + " WHERE id = 'w1'")
+          >(
+            'SELECT start_no_earlier_than, start_no_earlier_than_reason FROM work_item' +
+              " WHERE id = 'w1'",
+          )
           .get();
         expect(row?.start_no_earlier_than).toBeNull();
         // The words survive blue's write, orphaned and invisible, which is the
@@ -2451,6 +2473,9 @@ describe('the not-before reason migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_PROGRESS)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -2476,19 +2501,17 @@ describe('the not-before reason migration', () => {
       try {
         expect(
           after
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM pragma_table_info('work_item') WHERE name = 'start_no_earlier_than_reason'")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM pragma_table_info('work_item') WHERE name = 'start_no_earlier_than_reason'",
+            )
             .get()?.n,
         ).toBe(0);
         // The date the words were about, still holding the row back.
         expect(
           after
-            .query<
-              { start_no_earlier_than: string | null },
-              []
-            >("SELECT start_no_earlier_than FROM work_item WHERE id = 'w1'")
+            .query<{ start_no_earlier_than: string | null }, []>(
+              "SELECT start_no_earlier_than FROM work_item WHERE id = 'w1'",
+            )
             .get()?.start_no_earlier_than,
         ).toBe('2026-09-12');
       } finally {
@@ -2700,6 +2723,9 @@ describe('the tag migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, NOT_BEFORE_REASON)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -2727,10 +2753,9 @@ describe('the tag migration', () => {
         // at something that is gone.
         expect(
           after
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND (name LIKE 'tag%' OR name LIKE 'work_item_tag%')")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND (name LIKE 'tag%' OR name LIKE 'work_item_tag%')",
+            )
             .get()?.n,
         ).toBe(0);
         // Untouched, and this is the whole claim of the down script: a plan that
@@ -2798,10 +2823,9 @@ describe('the service migration', () => {
     try {
       return (
         sqlite
-          .query<
-            { service_id: string | null },
-            [string]
-          >('SELECT service_id FROM work_item WHERE id = ?')
+          .query<{ service_id: string | null }, [string]>(
+            'SELECT service_id FROM work_item WHERE id = ?',
+          )
           .get(itemId)?.service_id ?? null
       );
     } finally {
@@ -3019,10 +3043,9 @@ describe('the service migration', () => {
         ).toBe(0);
         expect(
           after
-            .query<
-              { n: number },
-              []
-            >('SELECT COUNT(*) AS n FROM work_item WHERE service_id IS NOT NULL')
+            .query<{ n: number }, []>(
+              'SELECT COUNT(*) AS n FROM work_item WHERE service_id IS NOT NULL',
+            )
             .get()?.n,
         ).toBe(0);
       } finally {
@@ -3055,6 +3078,9 @@ describe('the service migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, TAG)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -3088,10 +3114,9 @@ describe('the service migration', () => {
         // at something that is gone.
         expect(
           after
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND (name = 'service_name' OR name = 'team_service_by_service')")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND (name = 'service_name' OR name = 'team_service_by_service')",
+            )
             .get()?.n,
         ).toBe(0);
         // Untouched, and this is the whole claim of the down script: a plan that
@@ -3200,6 +3225,9 @@ describe('the work-item-service migration', () => {
   function atTheColumnOnly(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, SERVICE)).toEqual([
+      WORK_ITEM_DEADLINE,
+      READ_ORDER_INDEX,
+      CALENDAR_MARKER,
       PROJECT_SETTINGS,
       OPTIMIZER_TABLES,
       CREATED_BY_ID,
@@ -3273,10 +3301,9 @@ describe('the work-item-service migration', () => {
         sqlite.run("UPDATE work_item SET service_id = 's2' WHERE id = 'w2'");
         expect(
           sqlite
-            .query<
-              { service_id: string | null },
-              []
-            >("SELECT service_id FROM work_item WHERE id = 'w2'")
+            .query<{ service_id: string | null }, []>(
+              "SELECT service_id FROM work_item WHERE id = 'w2'",
+            )
             .get()?.service_id,
         ).toBe('s2');
       } finally {
@@ -3356,6 +3383,9 @@ describe('the work-item-service migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, SERVICE)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -3381,10 +3411,9 @@ describe('the work-item-service migration', () => {
         // pointing at something that is gone.
         expect(
           after
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name = 'work_item_service_by_service'")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name = 'work_item_service_by_service'",
+            )
             .get()?.n,
         ).toBe(0);
         // The narrowing, stated as an assertion rather than as a warning in the
@@ -3392,10 +3421,9 @@ describe('the work-item-service migration', () => {
         // survive anywhere.
         expect(
           after
-            .query<
-              { service_id: string | null },
-              []
-            >("SELECT service_id FROM work_item WHERE id = 'w1'")
+            .query<{ service_id: string | null }, []>(
+              "SELECT service_id FROM work_item WHERE id = 'w1'",
+            )
             .get()?.service_id,
         ).toBe('s1');
         expect(
@@ -3646,6 +3674,9 @@ describe('the step measure migration', () => {
       seeded(db.path);
 
       expect(rollbackTo(db.path, FOLDER, WORK_ITEM_SERVICE)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -3667,20 +3698,18 @@ describe('the step measure migration', () => {
       try {
         expect(
           after
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='role_measure'")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='role_measure'",
+            )
             .get()?.n,
         ).toBe(0);
         // The index goes with it rather than being left behind pointing at a
         // table that is gone.
         expect(
           after
-            .query<
-              { n: number },
-              []
-            >("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name LIKE 'role_measure%'")
+            .query<{ n: number }, []>(
+              "SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name LIKE 'role_measure%'",
+            )
             .get()?.n,
         ).toBe(0);
         // Untouched: the estimate, the recorded days, and the work item. A plan
@@ -3688,26 +3717,23 @@ describe('the step measure migration', () => {
         // committed against and every day anybody typed.
         expect(
           after
-            .query<
-              { realistic: number },
-              []
-            >("SELECT realistic FROM estimate WHERE work_item_id = 'w1' AND role_id = 'r1'")
+            .query<{ realistic: number }, []>(
+              "SELECT realistic FROM estimate WHERE work_item_id = 'w1' AND role_id = 'r1'",
+            )
             .get()?.realistic,
         ).toBe(2);
         expect(
           after
-            .query<
-              { days: number },
-              []
-            >("SELECT days FROM actual WHERE work_item_id = 'w1' AND role_id = 'r1'")
+            .query<{ days: number }, []>(
+              "SELECT days FROM actual WHERE work_item_id = 'w1' AND role_id = 'r1'",
+            )
             .get()?.days,
         ).toBe(8);
         expect(
           after
-            .query<
-              { priority: number | null },
-              []
-            >("SELECT priority FROM work_item WHERE id = 'w1'")
+            .query<{ priority: number | null }, []>(
+              "SELECT priority FROM work_item WHERE id = 'w1'",
+            )
             .get()?.priority,
         ).toBe(25);
       } finally {
@@ -3738,6 +3764,9 @@ describe('the person kind migration', () => {
   function beforeTheColumn(dbPath: string): void {
     runMigrations(dbPath, FOLDER);
     expect(rollbackTo(dbPath, FOLDER, STEP_MEASURE)).toEqual([
+      WORK_ITEM_DEADLINE,
+      READ_ORDER_INDEX,
+      CALENDAR_MARKER,
       PROJECT_SETTINGS,
       OPTIMIZER_TABLES,
       CREATED_BY_ID,
@@ -3965,6 +3994,9 @@ describe('the person kind migration', () => {
       }
 
       expect(rollbackTo(db.path, FOLDER, STEP_MEASURE)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -3998,10 +4030,9 @@ describe('the person kind migration', () => {
         // the index is the one that looks green here and is not.
         expect(
           after
-            .query<
-              { name: string },
-              []
-            >("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'person_name'")
+            .query<{ name: string }, []>(
+              "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'person_name'",
+            )
             .all(),
         ).toEqual([{ name: 'person_name' }]);
       } finally {
@@ -4057,10 +4088,9 @@ describe('the role -> step rename', () => {
 
         const createOf = (table: string): string =>
           sqlite
-            .query<
-              { sql: string },
-              [string, string]
-            >('SELECT sql FROM sqlite_master WHERE type = ? AND name = ?')
+            .query<{ sql: string }, [string, string]>(
+              'SELECT sql FROM sqlite_master WHERE type = ? AND name = ?',
+            )
             .get('table', table)?.sql ?? '';
         for (const table of ['estimate', 'actual', 'assignment', 'step_progress', 'step_measure']) {
           expect(createOf(table)).toContain('REFERENCES "step"');

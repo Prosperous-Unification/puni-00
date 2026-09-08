@@ -1,10 +1,16 @@
-import { builtByNonOwner } from '@wbs/domain';
+import { builtByNonOwner, type Schedule, schedule } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
+import type {
+  OptimizationVariantState,
+  OptimizedScheduleReader,
+} from '../service/optimized-schedule-reader';
 import { ProjectService } from '../service/project.service';
+import { WorkItemService } from '../service/work-item.service';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
@@ -15,24 +21,52 @@ import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
-function buildHarness() {
-  const writes = testWrites();
+function buildHarness(optimized?: OptimizedScheduleReader) {
   const plan = inMemoryServices();
   const { projects: projectStore, directory: directoryStore, measures: measureStore } = plan.stores;
+  const directory = testDirectoryService(directoryStore);
+  const capacity = testCapacityService();
+  const priorityBands = testPriorityBandService();
+  const projects = new ProjectService({
+    projects: projectStore,
+    broadcast: recordingBroadcaster(),
+    ...(optimized === undefined ? {} : { optimizerAvailable: () => true }),
+  });
+  const steps = testStepService(projectStore);
+  const calendarMarkers = testCalendarMarkerService();
+  const workItems =
+    optimized === undefined
+      ? plan.service
+      : new WorkItemService({ ...plan.stores, broadcast: plan.broadcast, optimized });
+  // The batch writes through the **same** services the routes do: on the
+  // in-memory fixtures there is one set of stores and no turn to hold, so the
+  // two graphs the composition root keeps apart are one object here. Given a
+  // second set, a `createWorkItem` command would land in stores nothing reads.
+  const writes = testWrites(undefined, {
+    workItems,
+    directory,
+    capacity,
+    priorityBands,
+    projects,
+    steps,
+    calendarMarkers,
+  });
   const app = buildApp({
+    appOrigin: 'http://localhost',
     // **One** directory, shared with the work item service below. Two would
     // both look healthy while a person created through a `createPerson`
     // command was invisible to the assignment that names them — which is
     // exactly what this harness did until the write began reading the person
     // it writes.
-    directory: testDirectoryService(directoryStore),
-    capacity: testCapacityService(),
-    priorityBands: testPriorityBandService(),
+    directory,
+    capacity,
+    priorityBands,
     history: testHistoryService(),
+    calendarMarkers,
     auth: testAuthService(inMemoryUsers()),
-    projects: new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() }),
-    steps: testStepService(projectStore),
-    workItems: plan.service,
+    projects,
+    steps,
+    workItems,
     savedPlans: testSavedPlanService(),
     replay: testReplay().replay,
     probeDatabase: () => 'ok',
@@ -45,7 +79,7 @@ function buildHarness() {
     const res = await app.handle(
       new Request('http://localhost/api/auth/register', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { origin: 'http://localhost', 'content-type': 'application/json' },
         body: JSON.stringify({ username, password: 'correct-horse' }),
       }),
     );
@@ -80,8 +114,8 @@ type Send = (
   init?: { method?: string; body?: string },
 ) => Promise<Response>;
 
-async function setup() {
-  const { register, send, measures, writes } = buildHarness();
+async function setup(optimized?: OptimizedScheduleReader) {
+  const { register, send, measures, writes } = buildHarness(optimized);
   const token = await register('owner');
   const created = await send('/api/projects', token, {
     method: 'POST',
@@ -184,6 +218,149 @@ async function firstRow(
 }
 
 describe('work item routes', () => {
+  it('serializes every optimizer variant state and keeps empty plans idle', async () => {
+    type Variants = Readonly<Record<'pri' | 'time', OptimizationVariantState>>;
+    let variants: Variants = { pri: { state: 'pending' }, time: { state: 'pending' } };
+    let serve = false;
+    const optimized: OptimizedScheduleReader = (ask) => {
+      const empty = ask.input.slices.length === 0;
+      const fast = schedule(
+        ask.input.rows,
+        ask.input.edges,
+        ask.input.slices,
+        ask.input.notBefore,
+        ask.input.poolSizes,
+        ask.input.reach,
+      );
+      let selectedSchedule: Schedule | null = null;
+      if (serve && !empty) {
+        const slices = new Map(fast.slices);
+        const workItems = new Map(fast.workItems);
+        let index = 0;
+        for (const [key, placed] of slices) {
+          const start = 2 + index / 4;
+          const width = placed.earliestFinish - placed.earliestStart;
+          slices.set(key, {
+            ...placed,
+            earliestStart: start,
+            earliestFinish: start + width,
+            latestStart: start,
+            latestFinish: start + width,
+            boundBy: 'optimizer',
+          });
+          const item = workItems.get(placed.workItemId);
+          if (item !== undefined) {
+            workItems.set(placed.workItemId, {
+              ...item,
+              earliestStart: start,
+              earliestFinish: start + width,
+              latestStart: start,
+              latestFinish: start + width,
+            });
+          }
+          index += 1;
+        }
+        selectedSchedule = { ...fast, slices, workItems };
+      }
+      return {
+        inputHash: 'controller-input-hash',
+        generation: empty ? null : 7,
+        contractVersion: '7+controller',
+        budgetMs: 60_000,
+        variants: empty ? { pri: { state: 'idle' }, time: { state: 'idle' } } : variants,
+        selectedSchedule,
+      };
+    };
+    const { token, send, projectId } = await setup(optimized);
+
+    const empty = await send(`/api/projects/${projectId}/work-items`, token);
+    expect((await empty.json()) as unknown).toMatchObject({
+      workItems: [],
+      slices: [],
+      optimization: {
+        inputHash: 'controller-input-hash',
+        generation: null,
+        displayed: 'fast',
+        variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
+      },
+    });
+
+    const transient = await addWorkItem(send, token, projectId, {
+      parentId: null,
+      name: 'Transient',
+    });
+    await command(send, token, projectId, {
+      kind: 'deleteWorkItem',
+      workItemId: transient,
+    });
+    const emptyAgain = await send(`/api/projects/${projectId}/work-items`, token);
+    expect((await emptyAgain.json()) as unknown).toMatchObject({
+      workItems: [],
+      slices: [],
+      optimization: {
+        generation: null,
+        displayed: 'fast',
+        variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
+      },
+    });
+
+    const first = await addWorkItem(send, token, projectId, { parentId: null, name: 'First' });
+    await addWorkItem(send, token, projectId, { parentId: null, name: 'Second' });
+    const enabled = await send(`/api/projects/${projectId}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ optimizationEnabled: true, scheduleEngine: 'optimized' }),
+    });
+    expect(enabled.status).toBe(200);
+
+    const terminalItems = [
+      { ownerWorkItemId: 'parent', boundWorkItemId: first, effectiveDeadlineOffset: 11 },
+    ];
+    const states: Variants[] = [
+      { pri: { state: 'pending' }, time: { state: 'pending' } }, // cold admission
+      { pri: { state: 'pending' }, time: { state: 'pending' } }, // durable queue
+      { pri: { state: 'retrying' }, time: { state: 'idle' } },
+      { pri: { state: 'failed', reason: 'timeout' }, time: { state: 'idle' } },
+      { pri: { state: 'corrupt', message: 'bad dto' }, time: { state: 'idle' } },
+      {
+        pri: { state: 'plan-infeasible', items: terminalItems },
+        time: { state: 'idle' },
+      },
+    ];
+    for (const state of states) {
+      variants = state;
+      serve = false;
+      const response = await send(`/api/projects/${projectId}/work-items`, token);
+      const body = (await response.json()) as {
+        optimization: { displayed: string; variants: Variants; comparison?: unknown };
+      };
+      expect(body.optimization.displayed).toBe('fast');
+      expect(body.optimization.variants).toEqual(state);
+      expect(body.optimization).not.toHaveProperty('comparison');
+    }
+
+    for (const state of [
+      { pri: { state: 'ready' }, time: { state: 'failed', reason: 'timeout' } },
+      { pri: { state: 'ready' }, time: { state: 'ready' } },
+    ] satisfies Variants[]) {
+      variants = state;
+      serve = true;
+      const response = await send(`/api/projects/${projectId}/work-items`, token);
+      const body = (await response.json()) as {
+        optimization: {
+          displayed: string;
+          variants: Variants;
+          comparison?: { deltaDays: number; sameOrder: boolean };
+        };
+        slices: { boundBy: string }[];
+      };
+      expect(body.optimization.displayed).toBe('pri');
+      expect(body.optimization.variants).toEqual(state);
+      expect(typeof body.optimization.comparison?.deltaDays).toBe('number');
+      expect(body.optimization.comparison?.sameOrder).toBe(false);
+      expect(body.slices.every(({ boundBy }) => boundBy === 'optimizer')).toBe(true);
+    }
+  });
+
   it('answers 400 for a ref nobody minted, and 404 for a row that is not there', async () => {
     // The one exception in `statusForRefusal`'s `unknown_*` family, and until
     // 2026-09-02 nothing asserted it: `unknown_ref` is a mistake **inside the
@@ -339,11 +516,11 @@ describe('work item routes', () => {
     });
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'unknown_step', at: 1, kind: 'setEstimate' });
-    // The stores here are the in-memory fixtures, which no transaction can
-    // roll back; what this layer can prove is that the route opened one and
-    // rolled it back. That the rollback takes the create with it is
-    // `plan-commands.test.ts`'s, on real SQLite.
-    expect(writes.transactions.calls).toEqual(['begin', 'rollback']);
+    // The stores here are the in-memory fixtures, which no rollback can undo;
+    // what this layer can prove is that the route opened one unit of work and
+    // refused it. That the rollback takes the create with it is
+    // `plan-commands.test.ts`'s and the kit's, on real SQLite.
+    expect(writes.uow.calls).toEqual(['begin', 'rollback']);
   });
 
   it('applies a directory batch at its own route, no project in the path', async () => {
@@ -608,6 +785,178 @@ describe('work item routes', () => {
     expect(await firstRow(send, token, projectId)).toMatchObject({
       startNoEarlierThan: '2026-09-12',
       startNoEarlierThanReason: 'waiting on client sign-off',
+    });
+  });
+
+  it("refuses a deadline before the project's first working day, naming the row and day zero", async () => {
+    // 6.1's only deadline-specific rejection, through the route, because the
+    // status is half the answer: **422 and not 400**, over the batch route's own
+    // 400 default. The body parses, the row exists and the date is a real
+    // `IsoDate` — what is wrong is the value against this project, and a 400
+    // would send a client back to check its syntax.
+    //
+    // Day zero is the **first workday on or after** the project start, not the
+    // start itself: 2026-03-01 is a Sunday, so a deadline on the Friday before
+    // is refused against 2026-03-02.
+    const { token, send, projectId } = await setup();
+    const started = await send(`/api/projects/${projectId}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({ startDate: '2026-03-01' }),
+    });
+    expect(started.status).toBe(200);
+    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+
+    const early = await command(send, token, projectId, {
+      kind: 'patchWorkItem',
+      workItemId: id,
+      patch: { deadline: '2026-02-27' },
+    });
+
+    expect(early.status).toBe(422);
+    expect(await early.json()).toEqual({
+      error: 'deadline_before_project_start',
+      workItemId: id,
+      projectDayZero: '2026-03-02',
+      at: 0,
+      kind: 'patchWorkItem',
+    });
+    expect(await firstRow(send, token, projectId)).toMatchObject({ deadline: null });
+
+    // And day zero itself is taken, so the refusal is a boundary rather than a
+    // ban: a check written with `<=` would refuse this too.
+    const onDayZero = await command(send, token, projectId, {
+      kind: 'patchWorkItem',
+      workItemId: id,
+      patch: { deadline: '2026-03-02' },
+    });
+
+    expect(onDayZero.status).toBe(200);
+    expect(await firstRow(send, token, projectId)).toMatchObject({ deadline: '2026-03-02' });
+
+    // **The date that separates the real rule from the one fe-01's JSDoc used to
+    // describe, and the reason it is here rather than in a case of its own:**
+    // neither assertion above can fail under the wrong rule. 2026-02-27 is
+    // earlier than the stored start date, so "before the project's start"
+    // refuses it too; 2026-03-02 is later, so that reading accepts it too. The
+    // whole case was green under a sentence that named the *stored start date*
+    // as the boundary.
+    //
+    // The project's own start date is the one day the two readings answer
+    // differently. 2026-03-01 is not *earlier than* 2026-03-01, so the stored
+    // start reading accepts it — while `previousWorkday('2026-03-01')` is Friday
+    // 2026-02-27, before day zero Monday 2026-03-02, so the server refuses it.
+    // Both ends roll, which is what `deadlineOffsetOf` says and what
+    // `projectDayZero` puts on the wire.
+    const onProjectStart = await command(send, token, projectId, {
+      kind: 'patchWorkItem',
+      workItemId: id,
+      patch: { deadline: '2026-03-01' },
+    });
+
+    expect(onProjectStart.status).toBe(422);
+    expect(await onProjectStart.json()).toEqual({
+      error: 'deadline_before_project_start',
+      workItemId: id,
+      projectDayZero: '2026-03-02',
+      at: 0,
+      kind: 'patchWorkItem',
+    });
+    // The refusal left the day zero deadline set two assertions ago alone: a
+    // refused write changes nothing, which is the other half of "the value is
+    // wrong for this project" and not merely a status code.
+    expect(await firstRow(send, token, projectId)).toMatchObject({ deadline: '2026-03-02' });
+  });
+
+  it('refuses a deadline that is not a date, the way every other malformed field is refused', async () => {
+    // 6.1's other half, and the one the plan text got wrong: a non-`IsoDate`
+    // goes through the **existing** malformed-payload path, and that path
+    // answers **400**, not 422 — `asOptionalDate` throws `BadRequest` and the
+    // batch route's own default is 400. Asserted rather than assumed, because
+    // "the existing path" is the requirement and its status is whatever the
+    // existing path already says. See `tasks.md` 6.1, corrected against this.
+    const { token, send, projectId } = await setup();
+    const id = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
+
+    const malformed = await command(send, token, projectId, {
+      kind: 'patchWorkItem',
+      workItemId: id,
+      patch: { deadline: 'the end of March' },
+    });
+
+    expect(malformed.status).toBe(400);
+    expect(await malformed.json()).toEqual({
+      error: 'deadline_must_be_a_date',
+      at: 0,
+      kind: 'patchWorkItem',
+    });
+    expect(await firstRow(send, token, projectId)).toMatchObject({ deadline: null });
+  });
+
+  it('lets a caller who may edit a work item set its deadline, and nobody else', async () => {
+    // 6.2: the authority is the existing work-item write authority and no new
+    // one is introduced. Both directions in one case, because only the pair
+    // proves it — the owner's 200 alone would pass against a route that checked
+    // nothing at all.
+    const { register, send } = buildHarness();
+    const owner = await register('owner');
+    const stranger = await register('stranger');
+    const created = await send('/api/projects', owner, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Restricted' }),
+    });
+    const { project } = (await created.json()) as { project: { id: string } };
+    const id = await addWorkItem(send, owner, project.id, { parentId: null, name: 'Strip' });
+    await send(`/api/projects/${project.id}`, owner, {
+      method: 'PATCH',
+      body: JSON.stringify({ restricted: true }),
+    });
+
+    const mine = await command(send, owner, project.id, {
+      kind: 'patchWorkItem',
+      workItemId: id,
+      patch: { deadline: '2026-03-31' },
+    });
+    expect(mine.status).toBe(200);
+
+    // The same request from an account the project is restricted against, which
+    // is the `forbidden` every other work-item write already answers. A deadline
+    // reaching the column here would be a new authority nobody granted.
+    const theirs = await command(send, stranger, project.id, {
+      kind: 'patchWorkItem',
+      workItemId: id,
+      patch: { deadline: '2026-04-30' },
+    });
+    expect(theirs.status).toBe(403);
+    expect(await theirs.json()).toEqual({
+      error: 'forbidden',
+      at: 0,
+      kind: 'patchWorkItem',
+    });
+    expect(await firstRow(send, owner, project.id)).toMatchObject({ deadline: '2026-03-31' });
+
+    // The half that bites, and the one an owner-only gate would fail: on an
+    // **unrestricted** project the existing authorization lets any signed-in
+    // account edit a work item, so it must let that account set a deadline. The
+    // 403 above alone would pass under a new owner-only rule; this will not.
+    const open = await send('/api/projects', owner, {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Open' }),
+    });
+    const { project: openProject } = (await open.json()) as { project: { id: string } };
+    const openId = await addWorkItem(send, owner, openProject.id, {
+      parentId: null,
+      name: 'Strip',
+    });
+
+    const byStranger = await command(send, stranger, openProject.id, {
+      kind: 'patchWorkItem',
+      workItemId: openId,
+      patch: { deadline: '2026-04-30' },
+    });
+
+    expect(byStranger.status).toBe(200);
+    expect(await firstRow(send, stranger, openProject.id)).toMatchObject({
+      deadline: '2026-04-30',
     });
   });
 
@@ -1478,17 +1827,14 @@ describe('dependency commands', () => {
   });
 
   it('answers 400 when no predecessor is named', async () => {
-    // Elysia strips unknown properties before the handler, so a typo'd field
-    // name arrives as an absent one. The command is parsed by hand for that
-    // reason, and a step naming neither `predecessorId` nor `predecessorRef`
-    // is the runner's `missing_id`; this is the test that keeps it so.
+    // Missing targets reach runner semantics; misspelled fields are now a
+    // structural invalid_body refusal at the shared request boundary.
     const { token, send, projectId } = await setup();
     const strip = await addWorkItem(send, token, projectId, { parentId: null, name: 'Strip' });
 
     const res = await command(send, token, projectId, {
       kind: 'addDependency',
       workItemId: strip,
-      predecesorId: strip,
     });
 
     expect(res.status).toBe(400);
@@ -2058,5 +2404,93 @@ describe('saying where a step’s work has got to', () => {
 
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'not_found', at: 0, kind: 'clearProgress' });
+  });
+});
+
+/**
+ * What a JSON **array** body reaches on this route module, measured rather than
+ * argued.
+ *
+ * `asRecord` is spelled `typeof body !== 'object' || body === null`, and
+ * `typeof [] === 'object'`, so it admits an array where the `t.Object(...)`
+ * schema it replaced refused one. That exact spelling is what let a JSON `[]`
+ * write a saved plan earlier on this branch, and the terminal Gemini review
+ * flagged this copy of it as a **possible live hole** rather than a comment.
+ * The peer review read the same code and concluded no write path is unlocked.
+ *
+ * Two reviews disagreeing about whether a hole exists is what a test is for.
+ * These are the four ways an array can reach `asRecord` from the wire — the
+ * whole body of each batch route, a command entry inside a batch, and a
+ * command's nested `patch` — and every one of them is refused. `undo` and
+ * `redo` read no body at all.
+ *
+ * The third case was **red** when it was written — 200, not 400 — so `asRecord`
+ * now uses `isFieldBag`, the predicate the rest of this branch already uses.
+ * These assert a refusal rather than the code that produces it, so a later
+ * narrowing keeps them green; a future field that reads `raw[...]` without a
+ * required check is what puts the third one back in the red.
+ */
+describe('a JSON array body on the work-item routes', () => {
+  it('is refused as the whole batch, at both command routes', async () => {
+    const { token, send, projectId } = await setup();
+
+    const plan = await send(`/api/projects/${projectId}/commands`, token, {
+      method: 'POST',
+      body: JSON.stringify([]),
+    });
+    const directory = await send('/api/directory/commands', token, {
+      method: 'POST',
+      body: JSON.stringify([]),
+    });
+
+    // 400 and `expected_object`, not `commands_must_be_a_list`: `asRecord`
+    // refuses the array itself, one check earlier than the missing `commands`.
+    // The body matters — a status-only assertion here would pass against the
+    // route answering its framework's 400 instead.
+    expect(plan.status).toBe(400);
+    expect(await plan.json()).toEqual({ error: 'expected_object' });
+    expect(directory.status).toBe(400);
+    expect(await directory.json()).toEqual({ error: 'expected_object' });
+  });
+
+  it('is refused as one command inside a batch', async () => {
+    const { token, send, projectId } = await setup();
+
+    const res = await send(`/api/projects/${projectId}/commands`, token, {
+      method: 'POST',
+      body: JSON.stringify({ commands: [[]] }),
+    });
+
+    // `at` names which command, which is the whole reason a batch refusal
+    // carries it: an array entry has no `kind`, so it is refused before any
+    // write is attempted.
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ at: 0 });
+  });
+
+  it('is refused as a command’s nested patch, before any write is attempted', async () => {
+    const { token, send, projectId } = await setup();
+    const created = await command(send, token, projectId, {
+      kind: 'createWorkItem',
+      name: 'Array patch probe',
+    });
+    const workItemId = await mintedId(created);
+
+    const res = await send(`/api/projects/${projectId}/commands`, token, {
+      method: 'POST',
+      body: JSON.stringify({ commands: [{ kind: 'patchWorkItem', workItemId, patch: [] }] }),
+    });
+
+    // **This is the case that measured the hole.** Before `asRecord` was
+    // narrowed it answered **200**: every field read `undefined` off `[]`,
+    // `present()` dropped all of them, and an empty patch reached the service
+    // as a no-op write and was journalled. Both terminal reviews saw this code
+    // and disagreed about it; the run that turned the disagreement into a
+    // request got 200 back.
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: 'expected_object', at: 0 });
+    // Nothing was written, structurally rather than by a second read: the
+    // route is `commands.run(id, user, parseBatch(body))`, so a refusal
+    // `parseBatch` throws happens before the service is called at all.
   });
 });

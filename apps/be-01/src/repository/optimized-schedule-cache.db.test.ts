@@ -21,6 +21,8 @@ import { describe, expect, it } from 'bun:test';
 import { openDatabase, openDrizzle } from './db';
 import { runMigrations } from './migrate';
 import { readMigrationFolders, rollbackTo } from './migrate-down';
+import { allocateGeneration } from './optimization-generation';
+import { storeOptimizedOutcome } from './optimized-schedule-cache';
 import { toOptimizedScheduleCacheRow } from './optimizer-rows';
 import { optimizedScheduleCache } from './schema';
 
@@ -35,7 +37,23 @@ const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
  * below stay about *this* migration's position rather than about whichever
  * folder happens to be last.
  */
+const CALENDAR_MARKER = '20260905090000_add_calendar_marker';
 const PROJECT_SETTINGS = '20260904140000_add_project_settings';
+/**
+ * The newest: the `(project_id, id)` index that serves
+ * `listByProject`'s stated `ORDER BY` (ADR 0016). Additive and
+ * index-only, so it heads every descending reversal list here and tails
+ * every ascending one, exactly as {@link PROJECT_SETTINGS} did while it
+ * was newest.
+ */
+const READ_ORDER_INDEX = '20260906003000_add_work_item_read_order_index';
+/**
+ * The newest: `work_item.deadline`, the nullable date-only column slice 1 adds.
+ * Additive forward and `DROP COLUMN` on the way back, so it heads every
+ * descending reversal list here and tails every ascending one, exactly as
+ * {@link READ_ORDER_INDEX} did while it was newest.
+ */
+const WORK_ITEM_DEADLINE = '20260906090000_add_work_item_deadline';
 
 /** The one below it, which is where every rollback here stops. */
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
@@ -71,7 +89,10 @@ const ADDED_TABLES = [
  * BEFORE the target — these did not — so they are subtracted by name here
  * rather than by widening the predicate until it passes.
  */
-const ALSO_ROLLED_BACK = ['saved_plan', 'saved_plan_body'] as const;
+// Every table a rollback to LOOKUP_INDEXES takes that this migration did not
+// add: the two the saved-plan migrations above the target add, and
+// `calendar_marker`, which landed above all of them on 2026-09-05.
+const ALSO_ROLLED_BACK = ['saved_plan', 'saved_plan_body', 'calendar_marker'] as const;
 
 const ADDED_INDEX = 'solver_queue_dequeue_order';
 const ADDED_PROJECT_COLUMN = 'optimization_delete_pending_at';
@@ -150,6 +171,32 @@ function seedProject(path: string, id: string): void {
   }
 }
 
+/**
+ * The seat a writer must hold, plus the project switch, per contract version.
+ *
+ * `storeOptimizedOutcome` re-reads all four of its fences inside the write
+ * transaction, and `optimization_enabled` defaults to `false`, so a fixture
+ * that skipped this would get `superseded` back and prove nothing about
+ * retention.
+ */
+function reserveSlot(path: string, contractVersion: string, budgetMs: number): void {
+  const db = openDatabase(path);
+  try {
+    db.run(
+      `INSERT INTO solver_slot
+         (project_id, contract_version, generation, objective, budget_ms,
+          owner_id, attempt_token, lifecycle, pid, started_at, heartbeat_at,
+          cancel_requested_at, admitted_deadline_at)
+       VALUES ('p-1', '${contractVersion}', 1, 'pri', ${String(budgetMs)},
+               'coordinator-a', 'tok-${contractVersion}-${String(budgetMs)}', 'running',
+               4242, 1, 1, NULL, 99)`,
+    );
+    db.run(`UPDATE project SET optimization_enabled = 1 WHERE id = 'p-1'`);
+  } finally {
+    db.close();
+  }
+}
+
 function cacheRow(status: string, resultJson: string, failureReason: string): string {
   return `INSERT INTO optimized_schedule_cache
     (project_id, input_hash, objective, contract_version, budget_ms,
@@ -183,8 +230,14 @@ describe('the optimizer migration', () => {
   it('is applied immediately before the project-settings migration', () => {
     const names = readMigrationFolders(FOLDER).map((folder) => folder.name);
 
-    expect(names.at(-1)).toBe(PROJECT_SETTINGS);
-    expect(names.at(-2)).toBe(OPTIMIZER_TABLES);
+    // The adjacency itself, not `at(-1)`/`at(-2)`. Those were true while
+    // project-settings was the newest folder, and they made every later
+    // migration a failure of this file — which is not what it is about.
+    // Two folders have landed above it since: `calendar_marker` on 2026-09-05
+    // and the read-order index on 2026-09-06.
+    const settings = names.indexOf(PROJECT_SETTINGS);
+    expect(settings).toBeGreaterThan(0);
+    expect(names[settings - 1]).toBe(OPTIMIZER_TABLES);
   });
 
   it('is idempotent on an already-migrated file', () => {
@@ -218,6 +271,9 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -230,8 +286,8 @@ describe('the optimizer migration', () => {
       expect(projectColumns(db.path)).not.toContain(ADDED_PROJECT_COLUMN);
 
       // Everything else is untouched: the rollback took exactly the four tables
-      // this migration adds, plus the two the saved-plan migrations above the
-      // target add, and nothing that was there before any of them.
+      // this migration adds, plus the three the migrations above the target
+      // add, and nothing that was there before any of them.
       expect(rolledBack).toEqual(
         migrated.filter(
           (name) =>
@@ -647,6 +703,160 @@ describe('a plan through the column it is stored in', () => {
         .query(`SELECT length(result_json) AS n FROM optimized_schedule_cache`)
         .get() as { n: number } | null;
       expect(row?.n).toBe(whole.length - 20);
+    } finally {
+      db.cleanup();
+    }
+  });
+});
+
+/**
+ * `work-item-deadline` tasks.md 7.4 and 7.5, the cache half of the deadline
+ * change — and both are claims that something did **not** move.
+ *
+ * A deadline is a plan fact. It reaches this table only through `input_hash`,
+ * which the canonical input already carries it into as its seventh entry
+ * (`canonical-schedule-input.ts`, slice 7.1). Nothing about it is a deployment
+ * fact, so nothing about it belongs in the key beside `contract_version` and
+ * `budget_ms`. Adding it would key every project's cache on a column the plan
+ * read cannot supply.
+ */
+describe('what the deadline change must not do to the cache key', () => {
+  const BLUE = '7+1.0.0';
+  const GREEN = '8+1.0.0';
+
+  /** The key SQLite actually enforces, in its declared order. */
+  function primaryKeyColumns(path: string, table: string): string[] {
+    const db = openDatabase(path);
+    try {
+      return (db.query(`PRAGMA table_info(${table})`).all() as { name: string; pk: number }[])
+        .filter((column) => column.pk > 0)
+        .sort((left, right) => left.pk - right.pk)
+        .map((column) => column.name);
+    } finally {
+      db.close();
+    }
+  }
+
+  /**
+   * 7.4. Read off the migrated file rather than off `schema.ts`, because the
+   * drizzle table and the shipped DDL are two artifacts and the one that keys
+   * a running deployment is this one.
+   */
+  it('leaves the key columns exactly as they were, deadline included in none of them', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+
+      expect(primaryKeyColumns(db.path, 'optimized_schedule_cache')).toEqual([
+        'project_id',
+        'input_hash',
+        'objective',
+        'contract_version',
+        'budget_ms',
+      ]);
+
+      // NOT load-bearing, and saying so is the point: the equality above is
+      // exact, so it reds on a sixth column first and this line cannot fail on
+      // its own. It is a grep target — the string a later reader adding
+      // `deadline` to the key will land on — and it survives only because
+      // naming the negative is cheaper than the review that rediscovers why the
+      // key stops where it does.
+      expect(primaryKeyColumns(db.path, 'optimized_schedule_cache')).not.toContain('deadline');
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  /**
+   * 7.5, a **regression** test and deliberately not a new rule.
+   *
+   * The retention requirement already reads "for that contract version" and
+   * `enforceLiveBudgetBound` already scopes its `DELETE` to one
+   * `(projectId, objective, contractVersion, inputHash)`. What this pins is
+   * that a store on **either** side of a blue/green swap leaves the other
+   * side's rows standing — the symmetric claim
+   * `optimization-generation.db.test.ts` does not make, since its two-release
+   * cases drive `allocateGeneration` from one side only and assert the mover's
+   * own rows are gone.
+   *
+   * Both sides store under the same `input_hash`, which is the case that can
+   * actually go wrong: an unscoped bound would count the two versions' rows as
+   * one budget set and evict across the seam.
+   *
+   * **Four rows, and each of the two scopings needs its own of them.**
+   * `MAX_LIVE_BUDGETS` is 2, so a two-row fixture is under the bound and no
+   * `DELETE` runs at all — the scoping could be removed outright and a two-row
+   * assertion would stay green.
+   *
+   * Three rows catch an unscoped **count**: green stores first, so under a
+   * count that sees all three green's is the oldest and the surplus the last
+   * store evicts. They do **not** catch an unscoped **delete**, and the peer
+   * seat's Important at chunk 2 is why the fourth is here: with the count still
+   * scoped, blue and green each hold at most two rows, `live.slice(2)` never
+   * iterates, and the delete predicate is never reached to be wrong. Blue's
+   * third budget makes blue itself go over — the count then yields
+   * `BLUE/60000` as surplus, and a delete that has dropped `contractVersion`
+   * matches green's identically-budgeted row on the way past.
+   *
+   * Measured rather than argued, both arms separately, in the same file:
+   * dropping `contractVersion` from the count alone, from the delete alone, and
+   * from both, each reds this case and nothing else.
+   */
+  it('keeps both contract versions’ rows through a store on each side', () => {
+    const db = tempDb();
+    try {
+      runMigrations(db.path, FOLDER);
+      seedProject(db.path, 'p-1');
+      const handle = openDrizzle(db.path);
+
+      for (const contractVersion of [BLUE, GREEN]) {
+        expect(allocateGeneration(handle, 'p-1', contractVersion, 'h1', 1)).toBe(1);
+        reserveSlot(db.path, contractVersion, 60000);
+      }
+      // Blue's second live budget, the one a swap has in flight beside the
+      // first, and then a third that puts blue itself over the bound. Each
+      // needs its own seat, because the slot is keyed by budget too.
+      reserveSlot(db.path, BLUE, 120000);
+      reserveSlot(db.path, BLUE, 180000);
+
+      const store = (contractVersion: string, budgetMs: number, now: number): unknown =>
+        storeOptimizedOutcome(handle, {
+          claim: {
+            projectId: 'p-1',
+            contractVersion,
+            generation: 1,
+            objective: 'pri',
+            budgetMs,
+            ownerId: 'coordinator-a',
+            attemptToken: `tok-${contractVersion}-${String(budgetMs)}`,
+          },
+          inputHash: 'h1',
+          admittedCancelEpoch: 0,
+          outcome: { kind: 'failed', reason: 'timeout' },
+          now,
+        });
+
+      const live = (): string[] =>
+        handle
+          .select()
+          .from(optimizedScheduleCache)
+          .all()
+          .map((row) => `${row.contractVersion}/${String(row.budgetMs)}`)
+          .sort();
+
+      expect(store(GREEN, 60000, 1_700)).toBe('stored');
+      expect(store(BLUE, 60000, 1_800)).toBe('stored');
+      expect(store(BLUE, 120000, 1_900)).toBe('stored');
+
+      // Three rows: nobody is over their own bound yet, so nothing has been
+      // counted as surplus and green is standing on the count's scoping alone.
+      expect(live()).toEqual([`${BLUE}/120000`, `${BLUE}/60000`, `${GREEN}/60000`]);
+
+      expect(store(BLUE, 180000, 2_000)).toBe('stored');
+
+      // Blue is now over and gives up its own oldest budget. Green's row has
+      // the same `budget_ms` as the one that went, and it stays.
+      expect(live()).toEqual([`${BLUE}/120000`, `${BLUE}/180000`, `${GREEN}/60000`]);
     } finally {
       db.cleanup();
     }

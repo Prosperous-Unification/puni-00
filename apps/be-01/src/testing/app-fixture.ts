@@ -1,5 +1,6 @@
 import { type AppOptions, buildApp } from '../app';
 import { testAuthService } from './auth-fixture';
+import { testCalendarMarkerService } from './calendar-marker-fixture';
 import { testCapacityService } from './capacity-fixture';
 import { testDirectoryService } from './directory-fixture';
 import { testHistoryService } from './history-fixture';
@@ -15,12 +16,8 @@ import { testWrites } from './writes-fixture';
  * An app on the thirteen test doubles, for the callers that want the routes
  * and none of the behaviour behind them.
  *
- * This exists because two of those callers must agree **exactly**:
- * `emit-openapi-cli.ts` writes the committed OpenAPI document and
- * `openapi-document.test.ts` compares the routes against it, so a double
- * passed to one and not the other is a document that fails its own freshness
- * check for a reason neither file states. They held byte-identical
- * thirteen-line literals until 2026-09-02.
+ * Shared fixture for route composition and generated-document publication tests.
+ * The document CLI consumes shared descriptors directly and needs no app fixture.
  *
  * Route registration touches no service, which is what makes the doubles
  * honest here rather than a shortcut: a real service would mean a database
@@ -31,20 +28,40 @@ import { testWrites } from './writes-fixture';
  * inherits the rest.
  */
 export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof buildApp> {
+  const workItems = testWorkItemService();
+  const directory = testDirectoryService();
+  const capacity = testCapacityService();
+  const priorityBands = testPriorityBandService();
+  const projects = testProjectService();
+  const steps = testStepService();
+  const calendarMarkers = testCalendarMarkerService();
   return buildApp({
+    appOrigin: 'http://localhost',
     auth: testAuthService(),
-    projects: testProjectService(),
-    workItems: testWorkItemService(),
+    projects,
+    workItems,
     savedPlans: testSavedPlanService(),
-    steps: testStepService(),
-    directory: testDirectoryService(),
-    capacity: testCapacityService(),
-    priorityBands: testPriorityBandService(),
+    steps,
+    directory,
+    capacity,
+    priorityBands,
     history: testHistoryService(),
+    calendarMarkers,
     replay: testReplay().replay,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
-    writes: testWrites(),
+    // The same doubles the routes were given: on the fixtures there is one set
+    // of stores and no turn to hold, so the batch's graph and the routes' are
+    // the same objects. See {@link testWrites}.
+    writes: testWrites(undefined, {
+      workItems,
+      directory,
+      capacity,
+      priorityBands,
+      projects,
+      steps,
+      calendarMarkers,
+    }),
     migrationsApplied: true,
     ...overrides,
   });

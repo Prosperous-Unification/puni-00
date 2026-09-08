@@ -1,0 +1,512 @@
+import {
+  SUPERVISOR_PROTOCOL_VERSION,
+  type SupervisorReplyFrame,
+  type SupervisorStartFrame,
+} from '@wbs/contracts/solver/supervisor-protocol';
+import { describe, expect, it } from 'bun:test';
+
+import {
+  type ManagedContainerAttachment,
+  type ManagedContainerDriver,
+  type ManagedContainerEvidence,
+  type ManagedDeadlineTimer,
+  runManagedSolverAttempt,
+  type SupervisorAttemptChannel,
+  type SupervisorControl,
+  sweepManagedSolverOrphans,
+} from './solver-supervisor-lifecycle';
+const CALLER_ID = 'a'.repeat(64);
+const CONTAINER_ID = 'b'.repeat(64);
+const IMAGE = `registry.example/wbs-be-01@sha256:${'c'.repeat(64)}`;
+const OPTIONS = {
+  image: IMAGE,
+  pidsLimit: 128,
+  maxManagedContainers: 16,
+  outputLimits: { maxPayloadBytes: 3, maxStdoutBytes: 10, maxStderrBytes: 10 },
+};
+const START: SupervisorStartFrame = {
+  type: 'start',
+  protocolVersion: SUPERVISOR_PROTOCOL_VERSION,
+  callerId: CALLER_ID,
+  projectId: '018f3f08-2ef7-7d1c-b645-14f877575d65',
+  objective: 'pri',
+  attemptToken: '018f3f08-2ef7-7d1c-b645-14f877575d66',
+  childDeadlineAt: 20_000,
+  searchWorkers: 2,
+  memoryLimitMb: 512,
+  request: { wireVersion: 1, objective: 'pri', steps: [] },
+};
+
+async function* output(...values: string[]): AsyncGenerator<Uint8Array> {
+  await Promise.resolve();
+  for (const value of values) yield new TextEncoder().encode(value);
+}
+
+class FakeDriver implements ManagedContainerDriver {
+  readonly events: string[] = [];
+  readonly writes: string[] = [];
+  managed = [CONTAINER_ID];
+  inspectCount = 0;
+  firstInspectPid = 4242;
+  attachFailure: Error | undefined;
+  deadlineCancelFailure: Error | undefined;
+  killFailure: Error | undefined;
+  inspectFailure: Error | undefined;
+  removeFailure: Error | undefined;
+  naturalExit = true;
+  stdout = output();
+  stderr = output();
+
+  list(argv: readonly string[]): Promise<readonly string[]> {
+    this.events.push(`list:${argv.join(' ')}`);
+    return Promise.resolve(this.managed);
+  }
+
+  create(argv: readonly string[]): Promise<string> {
+    this.events.push(`create:${argv.slice(0, 2).join(' ')}`);
+    return Promise.resolve(CONTAINER_ID);
+  }
+
+  attach(argv: readonly string[]): Promise<ManagedContainerAttachment> {
+    this.events.push(`attach:${argv.slice(1).join(' ')}`);
+    if (this.attachFailure !== undefined) return Promise.reject(this.attachFailure);
+    return Promise.resolve({
+      closed: this.naturalExit ? Promise.resolve() : new Promise<void>(() => undefined),
+      stdout: this.stdout,
+      stderr: this.stderr,
+      write: (text): Promise<void> => {
+        this.writes.push(text);
+        this.events.push(`write:${text.trim()}`);
+        return Promise.resolve();
+      },
+      closeInput: (): Promise<void> => {
+        this.events.push('input-close');
+        return Promise.resolve();
+      },
+    });
+  }
+
+  armDeadline(commands: { readonly arm: readonly string[] }): Promise<ManagedDeadlineTimer> {
+    this.events.push(`timer:${commands.arm[0] ?? ''}`);
+    return Promise.resolve({
+      hasFired: (): Promise<boolean> => Promise.resolve(false),
+      cancel: (): Promise<void> => {
+        this.events.push('timer-cancel');
+        if (this.deadlineCancelFailure !== undefined)
+          return Promise.reject(this.deadlineCancelFailure);
+        return Promise.resolve();
+      },
+    });
+  }
+
+  start(argv: readonly string[]): Promise<void> {
+    this.events.push(`start:${argv.slice(1).join(' ')}`);
+    return Promise.resolve();
+  }
+
+  wait(argv: readonly string[]): Promise<void> {
+    this.events.push(`wait:${argv.slice(1).join(' ')}`);
+    return Promise.resolve();
+  }
+
+  kill(argv: readonly string[]): Promise<void> {
+    this.events.push(`kill:${argv.slice(1).join(' ')}`);
+    if (this.killFailure !== undefined) return Promise.reject(this.killFailure);
+    return Promise.resolve();
+  }
+
+  inspect(argv: readonly string[], deadlineKilled: boolean): Promise<ManagedContainerEvidence> {
+    this.inspectCount += 1;
+    this.events.push(`inspect${String(this.inspectCount)}:${argv.slice(1).join(' ')}`);
+    if (this.inspectFailure !== undefined) return Promise.reject(this.inspectFailure);
+    return Promise.resolve(
+      this.inspectCount === 1
+        ? { pid: this.firstInspectPid, exitCode: 0, oomKilled: false, deadlineKilled }
+        : { pid: 0, exitCode: 137, oomKilled: true, deadlineKilled },
+    );
+  }
+
+  remove(argv: readonly string[]): Promise<void> {
+    this.events.push(`rm:${argv.slice(1).join(' ')}`);
+    if (this.removeFailure !== undefined) return Promise.reject(this.removeFailure);
+    return Promise.resolve();
+  }
+}
+
+class ConcurrentAdmissionDriver extends FakeDriver {
+  override managed: string[] = [];
+  createCount = 0;
+  private listCount = 0;
+  private observeSecondList: (() => void) | undefined;
+  private readonly secondListObserved = new Promise<void>((resolve) => {
+    this.observeSecondList = resolve;
+  });
+  private observeSecondCreate: (() => void) | undefined;
+  private readonly secondCreateObserved = new Promise<void>((resolve) => {
+    this.observeSecondCreate = resolve;
+  });
+
+  override list(argv: readonly string[]): Promise<readonly string[]> {
+    this.listCount += 1;
+    if (this.listCount === 2) this.observeSecondList?.();
+    return super.list(argv).then(() => [...this.managed]);
+  }
+
+  override async create(argv: readonly string[]): Promise<string> {
+    this.createCount += 1;
+    const containerId = (this.createCount === 1 ? 'b' : 'd').repeat(64);
+    this.events.push(`create:${argv.slice(0, 2).join(' ')}`);
+    if (this.createCount === 1) {
+      await Promise.race([this.secondCreateObserved, Bun.sleep(20)]);
+    } else {
+      this.observeSecondCreate?.();
+    }
+    this.managed.push(containerId);
+    return containerId;
+  }
+
+  override async attach(argv: readonly string[]): Promise<ManagedContainerAttachment> {
+    if (argv.includes(CONTAINER_ID)) await this.secondListObserved;
+    return await super.attach(argv);
+  }
+
+  override remove(argv: readonly string[]): Promise<void> {
+    const containerId = argv.at(-1);
+    this.managed = this.managed.filter((candidate) => candidate !== containerId);
+    return super.remove(argv);
+  }
+}
+
+function channel(
+  controls: readonly SupervisorControl[],
+  events: string[],
+): SupervisorAttemptChannel {
+  let index = 0;
+  return {
+    nextControl: (): Promise<SupervisorControl> => {
+      const control = controls.at(index);
+      index += 1;
+      return control === undefined
+        ? new Promise<SupervisorControl>(() => undefined)
+        : Promise.resolve(control);
+    },
+    send: (frame: SupervisorReplyFrame): Promise<void> => {
+      events.push(`send:${frame.type}`);
+      return Promise.resolve();
+    },
+  };
+}
+
+describe('the managed solver lifecycle', () => {
+  it('arms the persistent timer before start and sends work only after bound', async () => {
+    const driver = new FakeDriver();
+    const terminal = await runManagedSolverAttempt(
+      START,
+      OPTIONS,
+      driver,
+      channel(['bound'], driver.events),
+    );
+
+    expect(terminal).toEqual({
+      type: 'terminal',
+      exitCode: 137,
+      deadlineKilled: false,
+      oomKilled: true,
+    });
+    expect(driver.writes).toEqual(['bound\n', `${JSON.stringify(START.request)}\n`]);
+    // Proof: moving armDeadline after start makes this literal order fail.
+    expect(driver.events.map((event) => event.split(':')[0])).toEqual([
+      'list',
+      'create',
+      'timer',
+      'start',
+      'inspect1',
+      'attach',
+      'send',
+      'write',
+      'write',
+      'input-close',
+      'wait',
+      'inspect2',
+      'send',
+      'timer-cancel',
+      'rm',
+    ]);
+  });
+
+  it('sends started before consuming immediately available child output', async () => {
+    const driver = new FakeDriver();
+    driver.stdout = output('x');
+
+    await runManagedSolverAttempt(START, OPTIONS, driver, channel(['bound'], driver.events));
+
+    expect(driver.events.filter((event) => event.startsWith('send:'))).toEqual([
+      'send:started',
+      'send:stdout',
+      'send:terminal',
+    ]);
+  });
+
+  for (const control of ['abort', 'eof', 'kill', 'timeout'] as const) {
+    it(`${control} kills, waits, captures evidence, reports, then removes`, async () => {
+      const driver = new FakeDriver();
+      await runManagedSolverAttempt(START, OPTIONS, driver, channel([control], driver.events));
+
+      expect(driver.writes).toEqual([]);
+      // Proof: removing kill or moving removal before inspect changes this suffix.
+      expect(driver.events.map((event) => event.split(':')[0]).slice(-6)).toEqual([
+        'kill',
+        'wait',
+        'inspect2',
+        'send',
+        'timer-cancel',
+        'rm',
+      ]);
+    });
+  }
+
+  it('kills on post-bind socket EOF before waiting or removing', async () => {
+    const driver = new FakeDriver();
+    driver.naturalExit = false;
+    await runManagedSolverAttempt(START, OPTIONS, driver, channel(['bound', 'eof'], driver.events));
+
+    expect(driver.writes).toHaveLength(2);
+    // Proof: dropping the post-bind control race leaves no kill before wait.
+    expect(driver.events.map((event) => event.split(':')[0]).slice(-6)).toEqual([
+      'kill',
+      'wait',
+      'inspect2',
+      'send',
+      'timer-cancel',
+      'rm',
+    ]);
+  });
+
+  it('still cancels the timer and removes after terminal delivery loses the socket', async () => {
+    const driver = new FakeDriver();
+    const sent: SupervisorReplyFrame[] = [];
+    let rejection: unknown;
+    try {
+      await runManagedSolverAttempt(START, OPTIONS, driver, {
+        nextControl: () => Promise.resolve('eof'),
+        send: (frame) => {
+          sent.push(frame);
+          return frame.type === 'terminal'
+            ? Promise.reject(new Error('coordinator socket closed'))
+            : Promise.resolve();
+        },
+      });
+    } catch (error) {
+      rejection = error;
+    }
+
+    expect(rejection).toEqual(new Error('coordinator socket closed'));
+    expect(sent.map((frame) => frame.type)).toEqual(['started', 'terminal']);
+    // Proof: awaiting the failed terminal send before cleanup omits both of
+    // these events and strands the exact container after coordinator death.
+    expect(driver.events.map((event) => event.split(':')[0]).slice(-2)).toEqual([
+      'timer-cancel',
+      'rm',
+    ]);
+  });
+
+  it('contains and inspects the started container before cancelling its timer when attach fails', async () => {
+    const driver = new FakeDriver();
+    driver.attachFailure = new Error('container stopped before attach');
+
+    let rejection: unknown;
+    try {
+      await runManagedSolverAttempt(START, OPTIONS, driver, channel([], driver.events));
+    } catch (error) {
+      rejection = error;
+    }
+
+    expect(rejection).toEqual(new Error('container stopped before attach'));
+    // Proof: keying cleanup on whether the started reply was attempted produced
+    // `inspect1, attach, timer-cancel, kill, wait, rm` here, cancelling the
+    // backstop before containment and omitting the post-stop inspection;
+    // watched 2026-09-07.
+    expect(driver.events.map((event) => event.split(':')[0]).slice(-6)).toEqual([
+      'attach',
+      'kill',
+      'wait',
+      'inspect2',
+      'timer-cancel',
+      'rm',
+    ]);
+  });
+
+  it('reports a removal failure ahead of a simultaneous timer cleanup failure', async () => {
+    const driver = new FakeDriver();
+    driver.attachFailure = new Error('container stopped before attach');
+    driver.deadlineCancelFailure = new Error('timer cancel refused');
+    driver.removeFailure = new Error('container remove refused');
+
+    let rejection: unknown;
+    try {
+      await runManagedSolverAttempt(START, OPTIONS, driver, channel([], driver.events));
+    } catch (error) {
+      rejection = error;
+    }
+
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).message).toContain('container remove refused');
+    expect((rejection as Error).cause).toBe(driver.attachFailure);
+  });
+
+  it('kills and reports only after an output overflow is contained', async () => {
+    const driver = new FakeDriver();
+    driver.naturalExit = false;
+    driver.stdout = output('eleven bytes');
+    let rejection: unknown;
+    try {
+      await runManagedSolverAttempt(START, OPTIONS, driver, channel(['bound'], driver.events));
+    } catch (error) {
+      rejection = error;
+    }
+
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).message).toMatch(/output limit/);
+    // Proof: dropping the relay-failure race leaves the child live and reaches wait first.
+    expect(driver.events.map((event) => event.split(':')[0]).slice(-6)).toEqual([
+      'kill',
+      'wait',
+      'inspect2',
+      'send',
+      'timer-cancel',
+      'rm',
+    ]);
+  });
+
+  it('sweeps every labelled orphan before returning', async () => {
+    const driver = new FakeDriver();
+    driver.managed = [CONTAINER_ID, 'd'.repeat(64)];
+    await sweepManagedSolverOrphans(driver);
+    // Proof: removing the per-id wait/inspect sequence leaves a distinct missing event.
+    expect(driver.events.map((event) => event.split(':')[0])).toEqual([
+      'list',
+      'kill',
+      'wait',
+      'inspect1',
+      'rm',
+      'kill',
+      'wait',
+      'inspect2',
+      'rm',
+    ]);
+  });
+
+  it('inspects and removes a timer-stopped orphan before startup continues', async () => {
+    const driver = new FakeDriver();
+    driver.killFailure = new Error('container is not running');
+    driver.firstInspectPid = 0;
+    await sweepManagedSolverOrphans(driver);
+
+    expect(driver.events.map((event) => event.split(':')[0])).toEqual([
+      'list',
+      'kill',
+      'inspect1',
+      'wait',
+      'rm',
+    ]);
+    // Proof: treating every docker-kill nonzero as fatal prevents the
+    // restart-always supervisor from reaching listen after its timer fires.
+  });
+
+  it('does not hide a failed kill while the orphan still has a live PID', async () => {
+    const driver = new FakeDriver();
+    driver.killFailure = new Error('daemon refused kill');
+    let rejection: unknown;
+    try {
+      await sweepManagedSolverOrphans(driver);
+    } catch (error) {
+      rejection = error;
+    }
+    expect(rejection).toEqual(new Error('daemon refused kill'));
+    expect(driver.events.map((event) => event.split(':')[0])).toEqual(['list', 'kill', 'inspect1']);
+  });
+
+  it('does not hide a failed kill when the diagnostic inspect also fails', async () => {
+    const driver = new FakeDriver();
+    driver.killFailure = new Error('daemon refused kill');
+    driver.inspectFailure = new Error('daemon refused inspect');
+    let rejection: unknown;
+    try {
+      await sweepManagedSolverOrphans(driver);
+    } catch (error) {
+      rejection = error;
+    }
+    // Proof: without preserving the kill failure, this is the daemon-refused-inspect error.
+    expect(rejection).toBe(driver.killFailure);
+    expect(driver.events.map((event) => event.split(':')[0])).toEqual(['list', 'kill', 'inspect1']);
+  });
+
+  it('refuses the host cap before creating another container', async () => {
+    const driver = new FakeDriver();
+    let rejection: unknown;
+    try {
+      await runManagedSolverAttempt(
+        START,
+        { ...OPTIONS, maxManagedContainers: 1 },
+        driver,
+        channel(['bound'], driver.events),
+      );
+    } catch (error) {
+      rejection = error;
+    }
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).message).toMatch(/managed container cap/);
+    // Proof: deleting the cap check admits a create event here.
+    expect(driver.events.map((event) => event.split(':')[0])).toEqual(['list']);
+  });
+
+  it('admits concurrent attempts atomically under the host cap', async () => {
+    const driver = new ConcurrentAdmissionDriver();
+    const settled = await Promise.allSettled([
+      runManagedSolverAttempt(
+        START,
+        { ...OPTIONS, maxManagedContainers: 1 },
+        driver,
+        channel(['abort'], driver.events),
+      ),
+      runManagedSolverAttempt(
+        START,
+        { ...OPTIONS, maxManagedContainers: 1 },
+        driver,
+        channel(['abort'], driver.events),
+      ),
+    ]);
+
+    // Proof: removing admission serialization failed with Expected: 1, Received: 2.
+    expect(settled.map(({ status }) => status).sort()).toEqual(['fulfilled', 'rejected']);
+    expect(driver.createCount).toBe(1);
+  });
+
+  it('contains and removes a started container when the started reply fails', async () => {
+    const driver = new FakeDriver();
+    const failingChannel = channel(['bound'], driver.events);
+    failingChannel.send = (frame: SupervisorReplyFrame): Promise<void> => {
+      driver.events.push(`send:${frame.type}`);
+      return frame.type === 'started'
+        ? Promise.reject(new Error('started reply socket closed'))
+        : Promise.resolve();
+    };
+
+    let rejection: unknown;
+    try {
+      await runManagedSolverAttempt(START, OPTIONS, driver, failingChannel);
+    } catch (error) {
+      rejection = error;
+    }
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).message).toBe('started reply socket closed');
+    // Proof: removing failure cleanup ended at send instead of this containment sequence.
+    expect(driver.events.map((event) => event.split(':')[0]).slice(-5)).toEqual([
+      'kill',
+      'wait',
+      'inspect2',
+      'timer-cancel',
+      'rm',
+    ]);
+  });
+});

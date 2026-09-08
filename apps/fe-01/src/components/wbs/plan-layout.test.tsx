@@ -13,7 +13,8 @@ import {
   frameLayout,
   type FrameLayoutState,
 } from './table-frame';
-import { type SubscriptionHandlers, WbsTable, widthFromDrag } from './wbs-table';
+import { widthFromDrag } from './use-plan-layout';
+import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 /** The two elements a table cell can be, since a wrapping cell is a textarea. */
 const isCell = (node: unknown): node is HTMLInputElement | HTMLTextAreaElement =>
@@ -169,7 +170,10 @@ async function threeRoots() {
   for (const projectId of ['p1', 'p2']) {
     const key = `wbs.hiddenColumns.${projectId}`;
     if (localStorage.getItem(key) === null) {
-      localStorage.setItem(key, JSON.stringify(['team', 'service', 'type']));
+      // `deadline` with them since `work-item-deadline` 9.1: it ships hidden
+      // for the same reason `type` does, and a baseline that showed it would
+      // put 84px into every width figure below.
+      localStorage.setItem(key, JSON.stringify(['team', 'service', 'type', 'deadline']));
     }
   }
 
@@ -1049,25 +1053,35 @@ describe('the widths this browser has dragged', () => {
     expect(laidOut()['number']).toBe('600px');
   });
 
-  itDom('drops storage that is not a set of column widths, key and all', async () => {
-    // localStorage is user-editable, so what comes back is a claim. A table
-    // that cannot be opened until somebody clears storage by hand is a worse
-    // answer than a table at its defaults, which is the posture the remembered
-    // expansion beside it takes.
-    // Proof: the `isWidthOverrides` guard deleted, this failed on `TypeError:
-    // Cannot convert undefined or null to object`, thrown out of the render
-    // that mounts the table — the text that is not JSON reaching
-    // `Object.entries` as `undefined`. Watched, 2026-08-09.
-    for (const junk of ['not json at all', '[93, 240]', '{"number":"wide"}', '"a string"']) {
-      cleanup();
-      localStorage.clear();
+  // localStorage is user-editable, so what comes back is a claim. A table
+  // that cannot be opened until somebody clears storage by hand is a worse
+  // answer than a table at its defaults, which is the posture the remembered
+  // expansion beside it takes.
+  // Proof: the `isWidthOverrides` guard deleted, all four go red, and they go
+  // red differently — which is the point of one case per value. Watched
+  // 2026-08-09 as one looping case, which only ever reached the first value,
+  // and re-watched per case 2026-09-08 after the split:
+  //   not json at all    TypeError: Cannot convert undefined or null to object
+  //                      out of the render that mounts the table, the stored
+  //                      text reaching `Object.entries` as `undefined`
+  //   [93, 240]          expected '[93, 240]' to be null
+  //   {"number":"wide"}  expected '' to be '105px'
+  //   "a string"         expected '"a string"' to be null
+  // One case per junk value rather than one case looping over four: four mounts
+  // under vitest's single 5000ms default made this the first case in the suite
+  // to tip on a loaded runner — measured at 2137ms against a 1224ms
+  // next-slowest sibling — and a red named the case, never which junk value
+  // produced it (TASK-405).
+  itDom.each(['not json at all', '[93, 240]', '{"number":"wide"}', '"a string"'])(
+    'drops storage that is not a set of column widths, key and all: %s',
+    async (junk) => {
       storedWidths(junk);
       await threeRoots();
 
       expect(laidOut()['number']).toBe('105px');
       expect(stored()).toBe(null);
-    }
-  });
+    },
+  );
 
   itDom(
     'drops an entry naming a column nothing can size, and keeps the one beside it',
@@ -1818,7 +1832,7 @@ describe('the columns a reader has hidden', () => {
     const panel = openColumns();
     fireEvent.click(within(panel).getByLabelText('Priority'));
     expect(localStorage.getItem(RESET_MARKER)).toBeNull();
-    expect(stored()).toBe(JSON.stringify(['team', 'service', 'type', 'priority']));
+    expect(stored()).toBe(JSON.stringify(['team', 'service', 'type', 'deadline', 'priority']));
   });
 
   itDom('keeps a hidden column hidden across a reload', async () => {
@@ -1937,6 +1951,11 @@ describe('the columns a reader has hidden', () => {
       { label: 'QA', checked: true },
       { label: 'Days', checked: true },
       { label: 'Not before', checked: true },
+      // Unticked for the reason Types is: `work-item-deadline` 9.1 put
+      // `deadline` in `INITIAL_HIDDEN_COLUMNS` so the folded table at 1280
+      // stays the width it was, and the whole words are here because this
+      // control has the room the 84px `Due` heading does not.
+      { label: 'Work item deadline', checked: false },
       { label: 'Start', checked: true },
       { label: 'End', checked: true },
       { label: 'Slack', checked: true },
@@ -1951,11 +1970,13 @@ describe('the columns a reader has hidden', () => {
       fireEvent.click(within(panel).getByLabelText('Depends on'));
       expect(headerIds()).not.toContain('depends');
       expect(screen.queryByLabelText('Add a dependency to 010')).toBeNull();
-      expect(stored()).toBe(JSON.stringify(['refs', 'team', 'service', 'type', 'depends']));
+      expect(stored()).toBe(
+        JSON.stringify(['refs', 'team', 'service', 'type', 'deadline', 'depends']),
+      );
 
       fireEvent.click(within(panel).getByLabelText('Depends on'));
       expect(headerIds()).toContain('depends');
-      expect(stored()).toBe(JSON.stringify(['refs', 'team', 'service', 'type']));
+      expect(stored()).toBe(JSON.stringify(['refs', 'team', 'service', 'type', 'deadline']));
       // Proof: `rememberHiddenColumns` left out of the toggle, this failed on
       // `expected null to be '["team","service","depends"]'`. Watched, 2026-08-28.
     },
@@ -1969,7 +1990,7 @@ describe('the columns a reader has hidden', () => {
     expect(screen.getByLabelText('Service or team for 010')).toBeDefined();
     fireEvent.click(within(panel).getByLabelText('QA'));
     expect(headerIds().filter((id) => id.startsWith('step-qa-'))).toEqual([]);
-    expect(stored()).toBe(JSON.stringify(['refs', 'service', 'type', 'step-qa']));
+    expect(stored()).toBe(JSON.stringify(['refs', 'service', 'type', 'deadline', 'step-qa']));
   });
 
   itDom('is forgotten by a layout reset, which is offered while a column is hidden', async () => {

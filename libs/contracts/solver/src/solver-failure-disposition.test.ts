@@ -5,9 +5,11 @@ import { describe, expect, it } from 'bun:test';
 import { SOLVER_PARSE_FAILURES } from './parse-solver-response';
 import { SOLVER_REVALIDATION_FAILURES } from './revalidate-solver-result';
 import {
+  dispositionOfExitCode,
   dispositionOfParseFailure,
   dispositionOfPreflightFailure,
   dispositionOfRevalidationFailure,
+  SOLVER_EXIT_CODES,
   SOLVER_FAILURE_DISPOSITIONS,
   SOLVER_FAILURE_REASONS,
 } from './solver-failure-disposition';
@@ -94,6 +96,81 @@ describe('re-validation is invalid-output except on our own side of the seam', (
       (failure) => dispositionOfRevalidationFailure(failure) !== 'invalid-output',
     );
     expect(ours).toEqual(['malformed-request']);
+  });
+});
+
+/**
+ * The exit-code seam, and the one row it exists for: `INFEASIBLE, k > 1`.
+ *
+ * The wire reserves `infeasible` for a proof about the submitted constraint
+ * system, so a later stage that reports it holds a counterexample to its own
+ * earlier answer and must not encode it. spec.md's staged-lexicographic
+ * requirement therefore sends that run out through a non-zero exit with an
+ * empty stdout and says the coordinator "SHALL record that run as
+ * `invalid-output`" — a sentence with no implementation at all while every
+ * non-zero exit collapsed onto `internal-error`.
+ *
+ * The two codes are asserted apart on purpose. If `64` and `70` shared a
+ * disposition there would be nothing to get wrong and no reason for this seam
+ * to exist; they differ because one is the solver failing to answer and the
+ * other is our own builder handing it a request it could not read.
+ */
+describe('a solver that ran and answered nothing is invalid-output', () => {
+  it('records the later-stage INFEASIBLE exit as invalid-output', () => {
+    expect(dispositionOfExitCode(SOLVER_EXIT_CODES.solveFailed)).toBe('invalid-output');
+  });
+
+  it('keeps a refused request on our own side of the seam', () => {
+    expect(dispositionOfExitCode(SOLVER_EXIT_CODES.modelInvalid)).toBe('internal-error');
+    expect(dispositionOfExitCode(SOLVER_EXIT_CODES.badRequest)).toBe('internal-error');
+  });
+
+  /**
+   * TASK-310's whole content, as one assertion about two numbers.
+   *
+   * `dispositionOfExitCode` already answered `internal-error` for `71` before
+   * the entrypoint ever emitted it — every unlisted code defaults there — so a
+   * case asserting `71` alone would have been green against the old tree and
+   * proves nothing. What changed is that `70` STOPPED covering a refused model,
+   * and the only place that is observable from Bun is that the two codes now
+   * exist apart and disagree. The half of the control that can actually fail
+   * lives in `test_cli.py`, which is where the exit code is chosen.
+   */
+  it('splits a refused model away from a later-stage INFEASIBLE', () => {
+    expect(SOLVER_EXIT_CODES.modelInvalid).not.toBe(SOLVER_EXIT_CODES.solveFailed);
+    expect(dispositionOfExitCode(SOLVER_EXIT_CODES.modelInvalid)).not.toBe(
+      dispositionOfExitCode(SOLVER_EXIT_CODES.solveFailed),
+    );
+  });
+
+  it('treats a death that reached neither exit as internal-error', () => {
+    for (const code of [1, 2, 137, 139]) {
+      expect(dispositionOfExitCode(code), String(code)).toBe('internal-error');
+    }
+  });
+
+  it('refuses exit 0, which wrote a response and is not a failure at all', () => {
+    expect(() => dispositionOfExitCode(SOLVER_EXIT_CODES.ok)).toThrow(/wrote a response/);
+  });
+
+  it('reads its codes from the entrypoint that emits them', () => {
+    const cli = readFileSync(
+      new URL('../../../../libs/solver-py/src/wbs_solver/cli.py', import.meta.url),
+      'utf8',
+    );
+    const codeOf = (name: string): number => {
+      const match = new RegExp(`^${name} = (\\d+)$`, 'm').exec(cli);
+      if (!match) throw new Error(`cli.py no longer defines ${name}`);
+      return Number(match[1]);
+    };
+    // Parsed value first: `SOLVER_EXIT_CODES` is `as const`, so each member is
+    // a literal type and `toBe` would narrow the expectation to that literal
+    // and reject a plain `number` — the constant would be checking the file
+    // against itself, backwards.
+    expect(codeOf('EXIT_OK')).toBe(SOLVER_EXIT_CODES.ok);
+    expect(codeOf('EXIT_BAD_REQUEST')).toBe(SOLVER_EXIT_CODES.badRequest);
+    expect(codeOf('EXIT_INTERNAL')).toBe(SOLVER_EXIT_CODES.solveFailed);
+    expect(codeOf('EXIT_MODEL_INVALID')).toBe(SOLVER_EXIT_CODES.modelInvalid);
   });
 });
 

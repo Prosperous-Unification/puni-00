@@ -2,16 +2,18 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { systemTimers } from '@wbs/runtime-portable';
+import { DeadlineClock } from '@wbs/runtime-portable/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { drizzleOuterTransaction, openDrizzle } from '../repository/db';
-import { DrizzleEventLogRepo } from '../repository/event-log';
+import { DrizzleEventLogStore } from '../repository/event-log';
+import { WriteCoordinator } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { subscriptionFor } from './broadcast';
 import { GatewayBroadcaster } from './gateway-broadcaster';
-import type { PushClient } from './push-client';
+import { PushClient } from './push-client';
 import { ReplayBuffer } from './replay-buffer';
-import { WriteLock } from './write-lock';
 
 const FOLDER = join(import.meta.dir, '..', '..', 'drizzle');
 
@@ -51,13 +53,16 @@ describe('the durable record of a project event', () => {
 
   function bootstrap(): {
     broadcaster: GatewayBroadcaster;
-    eventLog: DrizzleEventLogRepo;
-    lock: WriteLock;
+    eventLog: DrizzleEventLogStore;
+    lock: WriteCoordinator;
     buffer: ReplayBuffer;
   } {
-    const eventLog = new DrizzleEventLogRepo(db);
     const buffer = new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000 });
-    const lock = new WriteLock();
+    const lock = new WriteCoordinator();
+    // Over the coordinator, which is where the durable record's turn is taken
+    // now: the broadcaster used to wrap this call in `lock.run` itself, and the
+    // store taking its own turn is the same exclusion said once.
+    const eventLog = new DrizzleEventLogStore(db, lock);
     return {
       eventLog,
       lock,
@@ -65,7 +70,6 @@ describe('the durable record of a project event', () => {
       broadcaster: new GatewayBroadcaster({
         eventLog,
         buffer,
-        lock,
         // A push that answers immediately, so what these two cases measure is
         // what survived in the log and never a delivery that timed out. The
         // real `PushClient` against an unroutable host would sit in its
@@ -86,7 +90,7 @@ describe('the durable record of a project event', () => {
    * same barrier.
    */
   function openBatch(
-    lock: WriteLock,
+    lock: WriteCoordinator,
     outcome: 'commits' | 'refuses',
   ): { done: Promise<void>; open: Promise<void>; settle: () => void } {
     let letGo!: () => void;
@@ -94,17 +98,17 @@ describe('the durable record of a project event', () => {
     const held = new Promise<void>((resolve) => {
       letGo = resolve;
     });
-    // `WriteLock.run` schedules its callback on a microtask rather than running
-    // it inline, so a caller that merely called `run` has not opened anything
+    // `WriteCoordinator.enter` schedules its callback on a microtask rather than running
+    // it inline, so a caller that merely called `enter` has not opened anything
     // yet. Awaiting this is what puts the publish inside the window instead of
     // in front of it — without it the mutation below stays green, because
-    // `DrizzleEventLogRepo.recordEvent` runs its statement synchronously and
+    // `DrizzleEventLogStore.recordEvent` runs its statement synchronously and
     // wins the race.
     const open = new Promise<void>((resolve) => {
       announceOpen = resolve;
     });
     const transactions = drizzleOuterTransaction(db);
-    const done = lock.run(async () => {
+    const done = lock.enter(async () => {
       transactions.begin();
       announceOpen();
       await held;
@@ -173,22 +177,22 @@ describe('the durable record of a project event', () => {
     const inFlight = new Promise<void>((resolve) => {
       deliver = resolve;
     });
-    const eventLog = new DrizzleEventLogRepo(db);
-    const lock = new WriteLock();
+    const lock = new WriteCoordinator();
+    const eventLog = new DrizzleEventLogStore(db, lock);
     const broadcaster = new GatewayBroadcaster({
       eventLog,
       buffer: new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000 }),
-      lock,
       push: {
         push: () => inFlight.then(() => ({ delivered: 1 })),
       } as unknown as PushClient,
     });
 
     const published = broadcaster.publish('p-3', { type: 'saved_plans_changed' });
-    // A later holder starts while that push is still open. If the lock covered
-    // it this would deadlock and the test would time out rather than fail.
+    // A later holder starts while that push is still open. If the turn covered
+    // the delivery this would deadlock and the test would time out rather than
+    // fail.
     let ran = false;
-    await lock.run(() => {
+    await lock.enter(() => {
       ran = true;
       return Promise.resolve();
     });
@@ -199,5 +203,69 @@ describe('the durable record of a project event', () => {
 
     deliver();
     await published;
+  });
+  it('retains a durable edit and releases the lock when real push expires', async () => {
+    const timers = new DeadlineClock();
+    const lock = new WriteCoordinator();
+    const eventLog = new DrizzleEventLogStore(db, lock);
+    const buffer = new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60000 });
+    const failures: unknown[] = [];
+    let aborted = false;
+    const push = new PushClient({
+      ...{ timers: systemTimers, fetchImpl: globalThis.fetch, attemptMs: 5000, overallMs: 15000 },
+      gwUrl: 'http://gw',
+      secret: 's',
+      timers,
+      attemptMs: 1000,
+      overallMs: 250,
+      maxRetries: 0,
+      fetchImpl: (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () => {
+              aborted = true;
+              reject(new Error('transport aborted'));
+            },
+            { once: true },
+          );
+        }),
+    });
+    const broadcaster = new GatewayBroadcaster({
+      eventLog,
+      buffer,
+      push,
+      onPushFailed: (error) => {
+        failures.push(error);
+      },
+    });
+    let settled = false;
+    const published = broadcaster
+      .publish('deadline-project', { type: 'saved_plans_changed' })
+      .then(() => {
+        settled = true;
+      });
+    await timers.flush();
+    let entered = false;
+    const second = lock.enter(() => {
+      entered = true;
+      return Promise.resolve();
+    });
+    await timers.flush();
+    expect(entered).toBe(true);
+    expect(settled).toBe(false);
+    expect(await eventLog.latestSeq(subscriptionFor('deadline-project'))).toBe(0);
+    await timers.advance(250);
+    expect(aborted).toBe(true);
+    expect(settled).toBe(true);
+    await published;
+    await second;
+    expect(failures).toHaveLength(1);
+    expect(
+      (await eventLog.rangeSince(subscriptionFor('deadline-project'), -1)).map(
+        (event) => event.message,
+      ),
+    ).toEqual([{ type: 'saved_plans_changed' }]);
+    expect(buffer.since(subscriptionFor('deadline-project'), -1)).toHaveLength(1);
   });
 });

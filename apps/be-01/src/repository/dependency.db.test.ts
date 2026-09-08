@@ -6,9 +6,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { projectRow } from '../testing/project-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
+import { messagesOf } from './constraint';
 import type { Drizzle } from './db';
 import { openDrizzle } from './db';
 import { DependencyRepository } from './dependency';
+import { OPEN } from './gate';
 import type { WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
@@ -37,16 +39,16 @@ beforeEach(async () => {
   dbPath = join(dir, 'test.db');
   runMigrations(dbPath, FOLDER);
   db = openDrizzle(dbPath);
-  repo = new DependencyRepository(db);
-  workItems = new WorkItemRepository(db);
+  repo = new DependencyRepository(db, OPEN);
+  workItems = new WorkItemRepository(db, OPEN);
 
   ownerId = crypto.randomUUID();
-  await new UserRepository(db).create(
+  await new UserRepository(db, OPEN).create(
     { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
     wrote(),
   );
   projectId = crypto.randomUUID();
-  await new ProjectRepository(db).create(
+  await new ProjectRepository(db, OPEN).create(
     projectRow({
       id: projectId,
       ownerId,
@@ -190,6 +192,7 @@ describe('DependencyRepository', () => {
           statements.push(query);
         },
       }),
+      OPEN,
     );
 
     await counted.removeAllFor([a, b], wrote());
@@ -223,7 +226,15 @@ describe('DependencyRepository', () => {
     // declared — `db.ts` asserts the pragma, and this is what that buys.
     const a = await addWorkItem('Strip');
 
-    expect(repo.add(edge(a, crypto.randomUUID()), wrote())).rejects.toThrow(/FOREIGN KEY/i);
+    // Read down the `cause` chain: drizzle 1.0.0-rc.4 wraps SQLite's refusal
+    // in a `DrizzleQueryError` whose own message names the statement, not the
+    // constraint — a `rejects.toThrow(/FOREIGN KEY/)` on the outer error was
+    // watched failing on `Received message: "Failed query: insert into
+    // \"dependency\" …"` (2026-09-06).
+    const refusal = await repo
+      .add(edge(a, crypto.randomUUID()), wrote())
+      .catch((err: unknown) => err);
+    expect(messagesOf(refusal).join('\n')).toMatch(/FOREIGN KEY/i);
   });
 });
 
@@ -239,7 +250,7 @@ describe('a work item deleted by a release that knows nothing about edges', () =
     await repo.add(edge(a, b), wrote());
 
     // Exactly what the old release runs: no edge cleanup first.
-    await new WorkItemRepository(db).remove([a], [], wrote());
+    await new WorkItemRepository(db, OPEN).remove([a], [], wrote());
 
     expect(await repo.listByProject(projectId)).toEqual([]);
   });

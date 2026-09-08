@@ -1,4 +1,4 @@
-import type { EventLogRepo, RecordedEvent } from '../repository/event-log';
+import type { EventLogStore, RecordedEvent } from '../repository/event-log';
 import { ReplayBuffer } from '../service/replay-buffer';
 import { ReplayOrchestrator } from '../service/replay-orchestrator';
 
@@ -9,19 +9,26 @@ import { ReplayOrchestrator } from '../service/replay-orchestrator';
  * stored rows, because that is what the real one does — `pruneBeyond` must not
  * move the stream backwards, and a length-based sequence would.
  */
-export function inMemoryEventLog(): EventLogRepo & {
+export function inMemoryEventLog(): EventLogStore & {
   record(subscription: string, message: unknown): Promise<RecordedEvent>;
 } {
   const rows = new Map<string, RecordedEvent[]>();
   const nextSeq = new Map<string, number>();
 
-  const repo: EventLogRepo = {
+  const record = (subscription: string, message: unknown, createdAt: number): RecordedEvent => {
+    const seq = nextSeq.get(subscription) ?? 0;
+    nextSeq.set(subscription, seq + 1);
+    const event = { subscription, seq, message, createdAt };
+    rows.set(subscription, [...(rows.get(subscription) ?? []), event]);
+    return event;
+  };
+
+  const repo: EventLogStore = {
+    recordEventIn(_tx, subscription, message, createdAt) {
+      return record(subscription, message, createdAt);
+    },
     recordEvent(subscription, message, createdAt) {
-      const seq = nextSeq.get(subscription) ?? 0;
-      nextSeq.set(subscription, seq + 1);
-      const event = { subscription, seq, message, createdAt };
-      rows.set(subscription, [...(rows.get(subscription) ?? []), event]);
-      return Promise.resolve(event);
+      return Promise.resolve(record(subscription, message, createdAt));
     },
     rangeSince(subscription, sinceSeq) {
       return Promise.resolve((rows.get(subscription) ?? []).filter((e) => e.seq > sinceSeq));
@@ -47,7 +54,7 @@ export function inMemoryEventLog(): EventLogRepo & {
 
   return {
     ...repo,
-    record: (subscription, message) => repo.recordEvent(subscription, message, 1_000),
+    record: (subscription, message) => Promise.resolve(record(subscription, message, 1_000)),
   };
 }
 

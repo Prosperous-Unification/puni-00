@@ -1,10 +1,34 @@
-import { mkdtemp } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'bun:test';
 
-import { assertMcpEnv, needsRestart, RECREATE_PATHS, RESTART_PATHS, sync } from './sync';
+import {
+  assertDevSolverSourceCompatible,
+  assertMcpEnv,
+  devSolverMappingOf,
+  devSyncFailureMessage,
+  LOCK_BUSY_EXIT_CODE,
+  needsRestart,
+  preflightSolver,
+  RECREATE_PATHS,
+  RESTART_PATHS,
+  runDevSyncLock,
+  SOLVER_COMPATIBILITY_PATHS,
+  sync,
+} from './sync';
+
+const DEV_IMAGE = `registry.example/wbs-be@sha256:${'a'.repeat(64)}`;
+
+function solverConfigBytes(sourceSha: string): Uint8Array {
+  return new TextEncoder().encode(
+    JSON.stringify({
+      devSourceSha: sourceSha,
+      images: [{ callerName: 'wbs-dev-src', solverImage: DEV_IMAGE }],
+    }),
+  );
+}
 
 describe('needsRestart', () => {
   it('does not restart when nothing in the manifest changed', () => {
@@ -96,15 +120,261 @@ describe('RESTART_PATHS coverage', () => {
 });
 
 describe('dev supervisor', () => {
-  // The root `dev` script feeds `nx run-many -t serve --projects=...`. A tier
-  // left out of that list has no watcher and no supervisor, so it never
+  // The dev stack's project list feeds `nx run-many -t <target> --projects=...`.
+  // A tier left out of that list has no watcher and no supervisor, so it never
   // starts. mcp-01 must run beside be-01, gw-01 and fe-01.
-  it('names mcp-01 in the root serve target', async () => {
+  //
+  // **The list moved out of `package.json` and into `bin/dev.sh`**, which is
+  // where both dev modes now build their nx arguments — the root scripts are
+  // `bin/dev.sh` and `bin/dev.sh --local-solver`, and neither carries a project
+  // name of its own. Reading `package.json` for this fact would now pass on a
+  // `dev` script that names nothing at all, which is the fault this test exists
+  // to catch wearing the new arrangement's clothes.
+  //
+  // Proof: dropping mcp-01 from `bin/dev.sh`'s `--projects=` list failed this
+  // case on `- "mcp-01", · Expected - 1 · Received + 0`. Pointing the read back
+  // at `package.json`'s `dev` script instead passes with that same tier gone,
+  // because the script no longer names any project.
+  it('names every tier in the dev stack, for both dev modes', async () => {
     const { readFile } = await import('node:fs/promises');
+    const script = await readFile(new URL('../../../bin/dev.sh', import.meta.url), 'utf8');
+    const projects = /--projects=([A-Za-z0-9,-]+)/.exec(script)?.[1];
+    expect(projects).toBeDefined();
+    // One list serves both `serve` and `serve-local-solver`, so a tier missing
+    // here is missing from both modes at once.
+    expect(projects?.split(',').sort()).toEqual(['be-01', 'fe-01', 'gw-01', 'mcp-01']);
+
     const pkg = JSON.parse(
       await readFile(new URL('../../../package.json', import.meta.url), 'utf8'),
     ) as { scripts: Record<string, string> };
-    expect(pkg.scripts['dev']).toContain('mcp-01');
+    expect(pkg.scripts['dev']).toBe('bin/dev.sh');
+    expect(pkg.scripts['dev:local-solver']).toBe('bin/dev.sh --local-solver');
+  });
+
+  it('binds the dev mapping to the solver sources and package image', () => {
+    expect(SOLVER_COMPATIBILITY_PATHS).toEqual(['libs/solver-py', 'apps/be-01/Dockerfile']);
+    expect(
+      devSolverMappingOf(
+        JSON.stringify({
+          devSourceSha: 'b'.repeat(40),
+          images: [{ callerName: 'wbs-dev-src', solverImage: DEV_IMAGE }],
+        }),
+      ),
+    ).toEqual({ sourceSha: 'b'.repeat(40), image: DEV_IMAGE });
+    expect(() => {
+      assertDevSolverSourceCompatible([]);
+    }).not.toThrow();
+    expect(() => {
+      assertDevSolverSourceCompatible(['libs/solver-py/src/wbs_solver/solve.py']);
+    }).toThrow(/mapping is stale.*publish the backend image/);
+  });
+
+  it('runs the solver preflight after fetch and before reset can deploy source', async () => {
+    const source = await readFile(new URL('./sync.ts', import.meta.url), 'utf8');
+    const fetchAt = source.indexOf('git -C ${SRC} fetch --quiet origin');
+    const preflightAt = source.indexOf('await preflightSolver(sha);');
+    const resetAt = source.indexOf('git -C ${SRC} reset --hard --quiet ${sha}');
+
+    expect(fetchAt).toBeGreaterThan(-1);
+    expect(preflightAt).toBeGreaterThan(fetchAt);
+    expect(resetAt).toBeGreaterThan(preflightAt);
+  });
+
+  it('does not require supervisor host state for source-unrelated deploys', async () => {
+    const deployedSha = 'b'.repeat(40);
+    const targetSha = 'c'.repeat(40);
+    let configReads = 0;
+    let hostChecks = 0;
+
+    await preflightSolver(targetSha, {
+      currentSha: () => Promise.resolve(deployedSha),
+      changedPaths: (from, to) => {
+        expect(from).toBe(deployedSha);
+        expect(to).toBe(targetSha);
+        return Promise.resolve([]);
+      },
+      readConfig: () => {
+        configReads += 1;
+        return Promise.resolve(undefined);
+      },
+      requireHost: () => {
+        hostChecks += 1;
+        return Promise.resolve();
+      },
+    });
+
+    expect(configReads).toBe(1);
+    expect(hostChecks).toBe(0);
+  });
+
+  it('names the materialize and install remedy when changed solver sources have no config', async () => {
+    let configReads = 0;
+
+    expect(
+      await rejection(
+        preflightSolver('c'.repeat(40), {
+          currentSha: () => Promise.resolve('b'.repeat(40)),
+          changedPaths: () => Promise.resolve(['libs/solver-py/src/wbs_solver/solve.py']),
+          readConfig: () => {
+            configReads += 1;
+            return Promise.resolve(undefined);
+          },
+          requireHost: () => Promise.reject(new Error('host check must follow config validation')),
+        }),
+      ),
+    ).toContain(
+      'materialize-solver-supervisor-config and install-solver-supervisor before deploying',
+    );
+    expect(configReads).toBe(1);
+  });
+
+  it('refuses an unrelated deploy while a future solver mapping is staged', async () => {
+    const deployedSha = 'b'.repeat(40);
+    const targetSha = 'c'.repeat(40);
+    const futureMappingSha = 'd'.repeat(40);
+    let changedPathReads = 0;
+    let hostChecks = 0;
+
+    expect(
+      await rejection(
+        preflightSolver(targetSha, {
+          currentSha: () => Promise.resolve(deployedSha),
+          changedPaths: (from, to) => {
+            changedPathReads += 1;
+            expect(to).toBe(targetSha);
+            expect(from).toBe(changedPathReads === 1 ? deployedSha : futureMappingSha);
+            return Promise.resolve(
+              changedPathReads === 1 ? [] : ['libs/solver-py/src/wbs_solver/solve.py'],
+            );
+          },
+          readConfig: () => Promise.resolve(solverConfigBytes(futureMappingSha)),
+          requireHost: () => {
+            hostChecks += 1;
+            return Promise.resolve();
+          },
+        }),
+      ),
+    ).toContain('dev solver mapping is stale');
+    expect(changedPathReads).toBe(2);
+    expect(hostChecks).toBe(0);
+  });
+
+  it('refuses a stale solver mapping before the host preflight', async () => {
+    const deployedSha = 'b'.repeat(40);
+    const targetSha = 'c'.repeat(40);
+    const mappingSha = 'd'.repeat(40);
+    let changedPathReads = 0;
+    let hostChecks = 0;
+
+    expect(
+      await rejection(
+        preflightSolver(targetSha, {
+          currentSha: () => Promise.resolve(deployedSha),
+          changedPaths: (from, to) => {
+            changedPathReads += 1;
+            expect(to).toBe(targetSha);
+            expect(from).toBe(changedPathReads === 1 ? deployedSha : mappingSha);
+            return Promise.resolve(['libs/solver-py/src/wbs_solver/solve.py']);
+          },
+          readConfig: () => Promise.resolve(solverConfigBytes(mappingSha)),
+          requireHost: () => {
+            hostChecks += 1;
+            return Promise.resolve();
+          },
+        }),
+      ),
+    ).toContain('dev solver mapping is stale');
+    expect(changedPathReads).toBe(2);
+    expect(hostChecks).toBe(0);
+  });
+
+  it('runs the host preflight with the mapped image when solver sources are compatible', async () => {
+    const deployedSha = 'b'.repeat(40);
+    const targetSha = 'c'.repeat(40);
+    const mappingSha = 'd'.repeat(40);
+    let changedPathReads = 0;
+    let hostImage: string | undefined;
+
+    await preflightSolver(targetSha, {
+      currentSha: () => Promise.resolve(deployedSha),
+      changedPaths: () => {
+        changedPathReads += 1;
+        return Promise.resolve(changedPathReads === 1 ? ['apps/be-01/Dockerfile'] : []);
+      },
+      readConfig: () => Promise.resolve(solverConfigBytes(mappingSha)),
+      requireHost: (image) => {
+        hostImage = image;
+        return Promise.resolve();
+      },
+    });
+
+    expect(changedPathReads).toBe(2);
+    expect(hostImage).toBe(DEV_IMAGE);
+  });
+});
+
+describe('dev-sync lock diagnostics', () => {
+  it('passes the dedicated contention exit code to the production flock invocation', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'wbs-devsync-flock-'));
+    const argumentsPath = join(directory, 'arguments');
+    const flockPath = join(directory, 'flock');
+    const lockPath = join(directory, 'devsync.lock');
+    const scriptPath = join(directory, 'sync.ts');
+    await writeFile(flockPath, `#!/bin/sh\nprintf '%s\\n' "$@" > '${argumentsPath}'\n`);
+    await chmod(flockPath, 0o755);
+
+    expect(
+      await runDevSyncLock('target-sha', {
+        bunPath: 'test-bun',
+        flockPath,
+        lockPath,
+        scriptPath,
+      }),
+    ).toBe(0);
+    expect((await readFile(argumentsPath, 'utf8')).trim().split('\n')).toEqual([
+      '-E',
+      '75',
+      '-n',
+      lockPath,
+      'test-bun',
+      scriptPath,
+      '--locked',
+      'target-sha',
+    ]);
+  });
+
+  // The locked child performs every mutating step -- reset, install, restart
+  // and the solver preflight -- so it, not the short-lived parent, is the run
+  // whose interpreter matters. A default of `'bun'` let PATH decide: on h2puni
+  // the poller launched the deploy with its own pinned binary while the child
+  // fell through to a root-owned /usr/local/bin/bun 1.2.20, matching neither
+  // that binary nor the 1.3.14 that .bun-version and CI pin. dev-poll-sync.sh
+  // refuses to exec a mismatched interpreter, and this default is where that
+  // guarantee was being discarded one process later.
+  //
+  // Asserted through the recorded argv rather than the source text, because
+  // the shape this file used to grep for no longer exists.
+  it('defaults the locked child to this process interpreter, never PATH', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'wbs-devsync-interpreter-'));
+    const argumentsPath = join(directory, 'arguments');
+    const flockPath = join(directory, 'flock');
+    const lockPath = join(directory, 'devsync.lock');
+    const scriptPath = join(directory, 'sync.ts');
+    await writeFile(flockPath, `#!/bin/sh\nprintf '%s\\n' "$@" > '${argumentsPath}'\n`);
+    await chmod(flockPath, 0o755);
+
+    expect(await runDevSyncLock('target-sha', { flockPath, lockPath, scriptPath })).toBe(0);
+
+    const argv = (await readFile(argumentsPath, 'utf8')).trim().split('\n');
+    expect(argv[4]).toBe(process.execPath);
+    expect(argv[4]).not.toBe('bun');
+  });
+
+  it('identifies only flock lock contention as a held deploy lock', () => {
+    expect(devSyncFailureMessage(LOCK_BUSY_EXIT_CODE)).toBe(
+      '[dev-sync] skipped: another deploy holds the lock',
+    );
+    expect(devSyncFailureMessage(1)).toBe('[dev-sync] failed (exit 1); see the error above');
   });
 });
 
@@ -116,6 +386,17 @@ describe('RECREATE_PATHS', () => {
     for (const p of RECREATE_PATHS) {
       expect(RESTART_PATHS).not.toContain(p);
     }
+  });
+
+  it('mounts the supervisor runtime directory, never its replaceable socket inode', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const compose = await readFile(
+      new URL('../../../deploy/dev-src/compose.yml', import.meta.url),
+      'utf8',
+    );
+
+    expect(compose).toContain('- /run/user/1000/wbs-solver:/run/wbs-solver:ro');
+    expect(compose).not.toMatch(/^\s*- .*supervisor\.sock:/m);
   });
 });
 

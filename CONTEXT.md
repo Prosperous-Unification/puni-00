@@ -472,6 +472,11 @@ by exactly the weekend between two workdays, which is what puts a gap between wo
 ended on the Friday and work that begins on the Monday.
 _Avoid_: converter, mapping, projection
 
+**Calendar marker**:
+A named annotation on an absolute calendar date, scoped to one project. Not a work item
+and not visible to the scheduler.
+_Avoid_: milestone, date tag, annotation
+
 **Workday axis**:
 The Gantt panel's horizontal scale on a plan with **no** start date: one unit per workday,
 printing the offset itself. Weekends are not on it — there is no calendar to have one on
@@ -905,10 +910,10 @@ which id each ref became.
 _Avoid_: temp id, client id, placeholder, alias
 
 **Write lock**:
-The one-at-a-time rule every be-01 write waits behind while a command batch is open, because
-the server has one database connection and a batch holds a transaction on it across awaits.
-Reads never wait.
-_Avoid_: mutex, semaphore, queue, serialization
+SQLite's own, taken by `BEGIN IMMEDIATE` on the file. What be-01's writes wait behind is the
+**Write coordinator** in the Architecture section below, and the two are different objects:
+one excludes other processes, the other orders this one's own writers.
+_Avoid_: using this name for the coordinator
 
 **Restricted project**:
 A project only its owner may edit. Every authenticated account may still read it; an
@@ -955,6 +960,129 @@ A row written before the audit columns existed, whose `created_by` is null. Not 
 with a missing value to be filled in later — its author is unknowable rather than
 unknown, which is why nothing substitutes for it.
 _Avoid_: orphan row, legacy row, anonymous row
+
+### Architecture
+
+**Radical Modularity**:
+The approach to scaling model-assisted work by making responsibility boundaries
+explicit and their granularity adjustable, with quality, time and cost measured.
+_Avoid_: LLM wiki (for the whole approach), agent-scalable wiki (for the whole approach)
+
+**Granularity policy**:
+One identified arrangement of the knowledge, review, ownership, task and integration
+boundaries used for model-assisted work. Different policies can organize the same work.
+_Avoid_: module size, file size, agent size
+
+**Benchmark outcome**:
+One predefined piece of work with fixed acceptance criteria, counted once when
+accepted regardless of how many model assignments contribute to it.
+_Avoid_: task slice, commit count, review count
+
+**Review attestation**:
+A recorded, scoped judgment about repository content and relationships, carrying
+the evidence and limits of the review that produced it.
+_Avoid_: certificate of correctness, proof of completeness
+
+**Port**:
+An interface core owns and an adapter satisfies: every store, the unit of work, the gate, the
+clock, the broadcaster, the identity resolver, and every runtime concern — password hashing,
+token signing, digest, timers, push transport, scheduler. Named for what the
+caller wants, never for what implements it. ADR 0014.
+_Avoid_: abstraction, contract (for this), interface (alone)
+
+**Ring**:
+A dependency direction across Nx projects, stated as a tag and enforced by the module-boundary
+rule: domain (vocabulary, contracts, validation, the logger type), application (core, the
+conformance kits), adapter (sources, runtime adapters, auth, realtime, the solver, observability,
+config, every app and every tool). Every project has exactly one. A project depends only on its
+own ring or inward; its test files are outside the rule. Not a folder: a layer is a folder
+inside one project.
+_Avoid_: layer (for this), tier (that is a deployable process), level
+
+**Adapter**:
+A concrete thing that satisfies a port: a drizzle repository, an in-memory store, the Elysia
+mount, the browser digest. `Repository` is the SQLite adapter's suffix and means nothing
+outside that source.
+_Avoid_: implementation (when the seam is the topic), driver, provider
+
+**Source**:
+A set of store adapters (the event log included), a write coordinator and a unit of work,
+opened, health-checked and closed together: SQLite and in-memory are the two. A source may
+offer a subset of the store ports and is certified for the ones it offers by the conformance
+kits, and not otherwise.
+_Avoid_: backend, database, persistence layer, data layer
+
+**Write coordinator**:
+The source's queue of turns: every transactional writer asks for one through its gate, and
+a unit of work holds one through its batch and any repair; independent saved-plan operations
+are outside this queue.
+Keyed as the source needs — the process for one-connection SQLite, the project for a Postgres
+advisory lock. Nothing that holds a turn ever asks for another.
+_Avoid_: write lock (as the port's name), mutex, semaphore, re-entrant lock
+
+**Gate**:
+What a store adapter asks for a turn through. Either the source's write coordinator, or the
+open gate, which grants at once because the caller already holds an admitted turn. A store
+does not know which it has.
+_Avoid_: lock handle, guard, admission
+
+**Scope**:
+The transactional stores a caller may use during one admitted turn, belonging either to a
+batch or to its post-rollback repair. Independent saved-plan operations are outside that
+scope; a repair belongs to the surviving state, not the refused batch. ADR 0015.
+_Avoid_: transaction context, batch context, ambient stores
+
+**Unit of work**:
+The port that makes a batch's writes observable together or leaves none of them after it
+settles; an explicitly declared post-rollback repair is a separate surviving act. It promises
+terminal atomicity, not isolation from concurrent readers. ADR 0015.
+_Avoid_: outer transaction (as the port's name), transaction handle, session
+
+**Endpoint shape**:
+One HTTP route's contract — method, path, operation id, request policies, request and response
+validators, matching document schemas, and modeled refusal statuses — with no handler. A client,
+an OpenAPI document and an MCP tool share this contract.
+_Avoid_: route (for this), spec, contract (alone)
+
+**Endpoint**:
+An endpoint shape bound to one pure handler that returns an `HttpReply`, which an adapter
+mounts on a framework. The handler never sees the framework. Every shape has exactly one
+endpoint.
+_Avoid_: controller, route handler, resolver
+
+**Refusal**:
+An endpoint's modeled rejection, carrying a code and its detail, including validation,
+throttling and temporary unavailability; redirects and unexpected failures are not refusals.
+`engine_unavailable` means the project's chosen schedule engine has no adapter here and
+nothing schedules in its place.
+_Avoid_: error response, problem, fault (for this)
+
+**Request policy**:
+A rule the adapter applies to a request before its body is parsed and before the handler
+runs: an origin policy, or an identity policy naming `signed-in`, `read-scope`,
+`write-scope` or `internal`. Stated per endpoint; a handler never checks identity or origin
+itself.
+_Avoid_: guard, caller requirement, middleware (for this), auth level
+
+**Conformance kit**:
+A test suite exported as a function of a factory, one per port, so a source or an adapter is
+held to a port's contract by one file that calls it; a source's certificate is the composition
+of the kits for the ports it offers, and it names every case skipped because the source stubs
+that method. Every case in a kit was watched failing against an
+implementation that lacks the behaviour it names.
+_Avoid_: contract tests (alone), shared tests, test harness
+
+**Product**:
+One application family in this repository — WBS is the first — named by a top-level directory,
+a project-name prefix and a `product:` tag that keeps one product's code out of another's.
+Tools belong to no product.
+_Avoid_: app (that is one deployable), workspace, scope (that is an Nx tag axis already in use)
+
+**Composition root**:
+The one place ports are bound to adapters and services are built, in core, called by be-01
+over the SQLite source and by tests over the in-memory one. The batch runner calls its
+services half again over a scope.
+_Avoid_: DI container, wiring file, bootstrap (for this)
 
 ### Deployment
 
@@ -1035,6 +1163,11 @@ delayed because its assignee or team was busy keeps that explanation instead —
 could run. It is the only floor that names a choice rather than a constraint, and like
 `projectStart` it carries no capacity predecessors and no binding team.
 _Avoid_: idle, slack, deliberate delay
+
+**Local solver**:
+The WBS solver run as a child process of be-01 on a development machine, with reduced
+resource and lifetime guarantees. A development-only alternative to the solver supervisor.
+_Avoid_: direct solver, direct optimizer, unsupervised solver, embedded solver
 
 **Solver quantum**:
 `SOLVER_QUANTUM = 48`, the number of integer solver units in one workday. It exists because

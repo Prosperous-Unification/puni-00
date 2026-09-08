@@ -1,8 +1,8 @@
+import { type Clock, clockOf } from '@wbs/core';
 import type { PriorityBand } from '@wbs/domain';
 
 import type { PriorityBandStore, ProjectStore } from '../repository';
 import type { Broadcaster } from './broadcast';
-import { type Clock, clockOf } from './clock';
 import { canEdit } from './project.service';
 
 export interface PriorityBandServiceOptions {
@@ -17,8 +17,7 @@ export interface PriorityBandServiceOptions {
 export type PriorityBandRefusal = 'not_found' | 'forbidden';
 
 export type PriorityBandOutcome =
-  | { ok: true; value: PriorityBand[] }
-  | { ok: false; reason: PriorityBandRefusal };
+  { ok: true; value: PriorityBand[] } | { ok: false; reason: PriorityBandRefusal };
 
 /**
  * What one project calls its priority numbers.

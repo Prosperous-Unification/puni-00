@@ -1,13 +1,12 @@
+import { clockOf } from '@wbs/core';
 import { describe, expect, it } from 'bun:test';
 
 import { inMemoryEventLog } from '../testing/replay-fixture';
-import type { ProjectEvent } from './broadcast';
-import { clockOf } from './clock';
+import { type ProjectEvent, subscriptionFor } from './broadcast';
 import { GatewayBroadcaster } from './gateway-broadcaster';
 import { type PushClient, PushFailed } from './push-client';
 import { ReplayBuffer } from './replay-buffer';
 import { ReplayOrchestrator } from './replay-orchestrator';
-import { WriteLock } from './write-lock';
 
 const EVENT: ProjectEvent = { type: 'tree_replaced', workItems: [] };
 
@@ -33,7 +32,6 @@ function bootstrap(mode: 'accepts' | 'refuses' = 'accepts') {
     eventLog: log,
     clock: clockOf({ now: () => 1_000 }),
     buffer,
-    lock: new WriteLock(),
     push: client,
     onPushFailed: (_err, subscription) => failures.push(subscription),
   });
@@ -48,6 +46,18 @@ describe('GatewayBroadcaster', () => {
 
     expect(await log.latestSeq('project:p-1')).toBe(0);
     expect(pushed).toEqual([{ subscription: 'project:p-1', seq: 0 }]);
+  });
+
+  it('pushes an already-recorded event without recording it a second time', async () => {
+    const { broadcaster, log, buffer, pushed } = bootstrap();
+    const subscription = subscriptionFor('p-1');
+    const recorded = await log.recordEvent(subscription, EVENT, 1_000);
+
+    await broadcaster.pushRecorded(subscription, recorded, EVENT);
+
+    expect(await log.latestSeq(subscription)).toBe(0);
+    expect(buffer.oldestSeq(subscription)).toBe(0);
+    expect(pushed).toEqual([{ subscription, seq: 0 }]);
   });
 
   it('keeps the event when the gateway refuses it', async () => {

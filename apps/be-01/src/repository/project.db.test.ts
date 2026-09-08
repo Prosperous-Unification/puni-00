@@ -5,12 +5,15 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { projectRow } from '../testing/project-fixture';
+import { messagesOf } from './constraint';
 import { openDatabase, openDrizzle } from './db';
+import { OPEN } from './gate';
 import type { NewProject, Project, Step, WriteStamp } from './index';
 import { STEP_POSITION_STEP } from './index';
 import { runMigrations } from './migrate';
 import { rollbackTo } from './migrate-down';
 import { ProjectRepository } from './project';
+import { optimizationGeneration, solverQueue, solverSlot } from './schema';
 import { UserRepository } from './user';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -31,9 +34,9 @@ beforeEach(async () => {
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   const db = openDrizzle(path);
-  repo = new ProjectRepository(db);
+  repo = new ProjectRepository(db, OPEN);
   ownerId = crypto.randomUUID();
-  await new UserRepository(db).create(
+  await new UserRepository(db, OPEN).create(
     { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
     wrote(),
   );
@@ -81,7 +84,10 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
     await promise;
     return '(resolved without throwing)';
   } catch (err) {
-    return String(err);
+    // The whole `cause` chain, because drizzle 1.0.0-rc.4 wraps SQLite's
+    // refusal in a `DrizzleQueryError` whose own message names the statement
+    // and not the constraint; see `messagesOf`.
+    return messagesOf(err).join('\n') || String(err);
   }
 }
 
@@ -106,6 +112,9 @@ describe('ProjectRepository', () => {
     await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
+      '20260906090000_add_work_item_deadline',
+      '20260906003000_add_work_item_read_order_index',
+      '20260905090000_add_calendar_marker',
       '20260904140000_add_project_settings',
       '20260904100000_add_optimizer_tables',
       '20260904020000_add_saved_plan_created_by_id',
@@ -221,7 +230,7 @@ describe('ProjectRepository', () => {
 
   it('gives another account its own order', async () => {
     const other = crypto.randomUUID();
-    await new UserRepository(openDrizzle(join(dir, 'test.db'))).create(
+    await new UserRepository(openDrizzle(join(dir, 'test.db')), OPEN).create(
       { id: other, username: 'other', passwordHash: 'x', createdAt: 1 },
       { at: 1, by: other },
     );
@@ -241,7 +250,7 @@ describe('ProjectRepository', () => {
     // pass with one account in the database and be wrong for every list that
     // holds somebody else's project — which is the whole reason for the field.
     const strip = crypto.randomUUID();
-    await new UserRepository(openDrizzle(join(dir, 'test.db'))).create(
+    await new UserRepository(openDrizzle(join(dir, 'test.db')), OPEN).create(
       { id: strip, username: 'strip', passwordHash: 'x', createdAt: 1 },
       { at: 1, by: strip },
     );
@@ -444,6 +453,7 @@ describe('ProjectRepository', () => {
           statements.push(query);
         },
       }),
+      OPEN,
     );
 
     const listed = await counted.listFor(ownerId);
@@ -603,6 +613,110 @@ describe('what a project read publishes', () => {
     // like any other, and a reader holding revision 1 must not be able to
     // overwrite it blind.
     expect(settled?.revision).toBe(made.revision + 3);
+  });
+
+  it('turns optimization off as an idempotent project-scoped cancellation', async () => {
+    const made = await repo.create(
+      {
+        ...project('Rewire', 10),
+        optimizationEnabled: true,
+        scheduleEngine: 'optimized',
+      },
+      [],
+      wrote(),
+    );
+    const bystander = await repo.create(
+      {
+        ...project('Roof', 11),
+        optimizationEnabled: true,
+        scheduleEngine: 'optimized',
+      },
+      [],
+      wrote(),
+    );
+    const db = openDrizzle(join(dir, 'test.db'));
+    for (const [projectId, contractVersion, cancelEpoch] of [
+      [made.id, '7+1.0.0', 2],
+      [made.id, '8+1.0.0', 4],
+      [bystander.id, '7+1.0.0', 6],
+    ] as const) {
+      db.insert(optimizationGeneration)
+        .values({
+          projectId,
+          contractVersion,
+          generation: 1,
+          inputHash: 'hash',
+          cancelEpoch,
+          admissionState: 'open',
+          updatedAt: 1,
+        })
+        .run();
+      db.insert(solverQueue)
+        .values({
+          projectId,
+          contractVersion,
+          objective: 'pri',
+          budgetMs: 60_000,
+          generation: 1,
+          admittedCancelEpoch: cancelEpoch,
+          enqueuedAt: 1,
+        })
+        .run();
+      db.insert(solverSlot)
+        .values({
+          projectId,
+          contractVersion,
+          generation: 1,
+          objective: 'time',
+          budgetMs: 60_000,
+          ownerId: 'blue',
+          attemptToken: `${projectId}-${contractVersion}`,
+          lifecycle: 'running',
+          pid: 42,
+          startedAt: 1,
+          heartbeatAt: 1,
+          cancelRequestedAt: null,
+          admittedDeadlineAt: 80_000,
+        })
+        .run();
+    }
+
+    await repo.update(made.id, { optimizationEnabled: false }, { at: 50, by: ownerId });
+    await repo.update(made.id, { optimizationEnabled: false }, { at: 60, by: ownerId });
+
+    const generations = db.select().from(optimizationGeneration).all();
+    expect(
+      new Set(
+        generations.map(
+          (row) =>
+            `${row.projectId}/${row.contractVersion}/${String(row.cancelEpoch)}/${String(row.updatedAt)}`,
+        ),
+      ),
+    ).toEqual(
+      new Set([
+        `${made.id}/7+1.0.0/3/50`,
+        `${made.id}/8+1.0.0/5/50`,
+        `${bystander.id}/7+1.0.0/6/1`,
+      ]),
+    );
+    const slots = db.select().from(solverSlot).all();
+    expect(slots.filter((row) => row.projectId === made.id)).toHaveLength(2);
+    expect(
+      slots.filter((row) => row.projectId === made.id).every((row) => row.cancelRequestedAt === 50),
+    ).toBe(true);
+    expect(slots.find((row) => row.projectId === bystander.id)?.cancelRequestedAt).toBeNull();
+    expect(
+      db
+        .select()
+        .from(solverQueue)
+        .all()
+        .map((row) => row.projectId),
+    ).toEqual([bystander.id]);
+    expect(await repo.findById(made.id)).toMatchObject({ optimizationEnabled: false });
+
+    // 6.9c-c: the ON→OFF edge's epoch increment authorizes cleanup; no child
+    // token is involved. Without that cleanup, the first generation tuple
+    // stays at 2/1, both owned slots stay null, and both queue rows survive.
   });
 
   /**

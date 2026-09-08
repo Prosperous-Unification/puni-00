@@ -129,6 +129,7 @@ async function leaf(
       priority,
       startNoEarlierThan: null,
       startNoEarlierThanReason: null,
+      deadline: null,
       serviceTeamId,
       serviceId: null,
       maxParallel: 1,
@@ -196,7 +197,14 @@ async function askedInput(): Promise<ScheduleInput> {
     ...serviceOptions,
     optimized: (ask) => {
       asks.push(ask);
-      return null;
+      return {
+        inputHash: 'probe-input-hash',
+        generation: null,
+        contractVersion: '7+test',
+        budgetMs: 60_000,
+        variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
+        selectedSchedule: null,
+      };
     },
   });
   await probe.tree(projectId);
@@ -247,7 +255,17 @@ async function servedBy(moved: Readonly<Record<string, number>>) {
       ...moved,
     },
   );
-  const service = new WorkItemService({ ...serviceOptions, optimized: () => materialised });
+  const service = new WorkItemService({
+    ...serviceOptions,
+    optimized: () => ({
+      inputHash: 'served-input-hash',
+      generation: 1,
+      contractVersion: '7+test',
+      budgetMs: 60_000,
+      variants: { pri: { state: 'ready' }, time: { state: 'ready' } },
+      selectedSchedule: materialised,
+    }),
+  });
   const tree = await service.tree(projectId);
   if (tree === null) throw new Error('project vanished');
   return tree;

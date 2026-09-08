@@ -2,14 +2,17 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { effectiveTeamsOf, type Schedule, schedule } from '@wbs/domain';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { slicesOf } from '../service/work-item.service';
 import { personAdded } from '../testing/directory-fixture';
 import { projectRow } from '../testing/project-fixture';
 import { openDatabase, openDrizzle } from './db';
 import { DependencyRepository } from './dependency';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
+import { OPEN } from './gate';
 import type { SubtreeCopy, WorkItem, WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
@@ -44,21 +47,21 @@ beforeEach(async () => {
   dbPath = join(dir, 'test.db');
   runMigrations(dbPath, FOLDER);
   const db = openDrizzle(dbPath);
-  repo = new WorkItemRepository(db);
-  subtrees = new SubtreeRepository(db);
-  estimates = new EstimateRepository(db);
-  measures = new StepMeasureRepository(db);
-  dependencies = new DependencyRepository(db);
-  directory = new DirectoryRepository(db);
+  repo = new WorkItemRepository(db, OPEN);
+  subtrees = new SubtreeRepository(db, OPEN);
+  estimates = new EstimateRepository(db, OPEN);
+  measures = new StepMeasureRepository(db, OPEN);
+  dependencies = new DependencyRepository(db, OPEN);
+  directory = new DirectoryRepository(db, OPEN);
 
   ownerId = crypto.randomUUID();
-  await new UserRepository(db).create(
+  await new UserRepository(db, OPEN).create(
     { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
     wrote(),
   );
   projectId = crypto.randomUUID();
   stepId = crypto.randomUUID();
-  await new ProjectRepository(db).create(
+  await new ProjectRepository(db, OPEN).create(
     projectRow({
       id: projectId,
       ownerId,
@@ -87,6 +90,7 @@ function row(parentId: string | null, position: number, name: string): WorkItem 
     priority: null,
     startNoEarlierThan: null,
     startNoEarlierThanReason: null,
+    deadline: null,
     serviceTeamId: null,
     serviceId: null,
     maxParallel: 1,
@@ -113,10 +117,9 @@ function joinedTeams(): { workItemId: string; teamId: string }[] {
   const db = openDatabase(dbPath);
   try {
     return db
-      .query<
-        { workItemId: string; teamId: string },
-        []
-      >('SELECT work_item_id AS workItemId, team_id AS teamId FROM work_item_team ORDER BY work_item_id, team_id')
+      .query<{ workItemId: string; teamId: string }, []>(
+        'SELECT work_item_id AS workItemId, team_id AS teamId FROM work_item_team ORDER BY work_item_id, team_id',
+      )
       .all();
   } finally {
     db.close();
@@ -134,6 +137,25 @@ function joinTeam(workItemId: string, teamId: string): void {
   } finally {
     db.close();
   }
+}
+
+/**
+ * One work item's placed span, read off a schedule.
+ *
+ * `earliestStart`/`earliestFinish` rather than the latest pair: the assertion is
+ * about where the plan **puts** the item, and the late pair is the float
+ * calculation's other end, which moves for reasons that have nothing to do with
+ * the read order under test.
+ *
+ * Throws on a missing row rather than answering `undefined` (R5). Every work
+ * item the schedule was handed is in `workItems`, so an absent id is this
+ * file's own fixture bug, and a nullish span would surface it as an
+ * unintelligible `toEqual` diff several lines later.
+ */
+function spanOf(planned: Schedule, workItemId: string): { start: number; finish: number } {
+  const placed = planned.workItems.get(workItemId);
+  if (placed === undefined) throw new Error(`no scheduled span for work item ${workItemId}`);
+  return { start: placed.earliestStart, finish: placed.earliestFinish };
 }
 
 /**
@@ -367,6 +389,49 @@ describe('the team set beside the column', () => {
     const read = await repo.listByProject(projectId);
     expect(read.at(0)?.startNoEarlierThan).toBe('2026-09-12');
     expect(read.at(0)?.startNoEarlierThanReason).toBe('waiting on client sign-off');
+  });
+
+  it('writes a deadline and reads it back, and clears it with a null', async () => {
+    // The whole of the column's store-level contract, and deliberately shorter
+    // than the floor's above it: there is no reason beside a deadline, so there
+    // is no pair to be in and no refusal to meet here. A date goes in, comes
+    // back off the read projection, and `null` takes it off again.
+    //
+    // Both faces are asserted — `patch`'s own `returning()` and a later
+    // `listByProject` — because they are two different **reads**, not two
+    // different column lists: both project `WORK_ITEM_COLUMNS`, which is why
+    // adding the column there made both true at once, and the second assertion
+    // is what says the value was stored rather than only echoed back off the
+    // statement that wrote it.
+    const strip = row(null, 10, 'Strip');
+    await repo.insert(strip, [], wrote());
+
+    const written = await repo.patch(strip.id, { deadline: '2026-03-31' }, wrote());
+
+    expect(written.ok).toBe(true);
+    expect(written.ok ? written.workItem.deadline : null).toBe('2026-03-31');
+    expect((await repo.listByProject(projectId)).at(0)?.deadline).toBe('2026-03-31');
+
+    const cleared = await repo.patch(strip.id, { deadline: null }, wrote());
+
+    expect(cleared.ok).toBe(true);
+    expect(cleared.ok ? cleared.workItem.deadline : 'unset').toBeNull();
+    expect((await repo.listByProject(projectId)).at(0)?.deadline).toBeNull();
+  });
+
+  it('leaves a deadline alone when the patch does not name it', async () => {
+    // The other half of "a patch names what it names": an edit to a different
+    // column must not read as a deadline nobody typed, and must not clear one
+    // somebody did. This is the case that fails if `deadline` is ever merged
+    // with `??` rather than an `undefined` check.
+    const strip = row(null, 10, 'Strip');
+    await repo.insert(strip, [], wrote());
+    await repo.patch(strip.id, { deadline: '2026-03-31' }, wrote());
+
+    const renamed = await repo.patch(strip.id, { name: 'Strip the walls' }, wrote());
+
+    expect(renamed.ok ? renamed.workItem.deadline : null).toBe('2026-03-31');
+    expect((await repo.listByProject(projectId)).at(0)?.deadline).toBe('2026-03-31');
   });
 
   it('refuses a reason with no date to be about', async () => {
@@ -888,6 +953,7 @@ describe('deleting a subtree', () => {
           statements.push(query);
         },
       }),
+      OPEN,
     );
 
     // Ancestors first, exactly as `subtreeOf` hands them over — the order the
@@ -923,6 +989,7 @@ describe('freezing every number', () => {
           statements.push(query);
         },
       }),
+      OPEN,
     );
 
     await counted.setFrozenNumbers(
@@ -939,5 +1006,216 @@ describe('freezing every number', () => {
     // and each row must get **its own** number rather than all of them one.
     const frozen = await repo.listByProject(projectId);
     expect(frozen.map((each) => each.frozenNumber).sort()).toEqual(['10', '20', '30']);
+  });
+});
+
+describe('the order the work-item select answers in', () => {
+  /**
+   * Task 1.7 of `dual-optimized-scheduler`. The select had no `ORDER BY`, so the
+   * row order was whatever SQLite chose to return — in practice the insert
+   * order, which is not a fact about the plan.
+   *
+   * This array is not merely displayed. `slicesOf` walks it in order and emits
+   * the `slices` argument in that order, and the intra-item step order is real
+   * precedence, so two reads of an unchanged project could hand Fast two
+   * different argument tuples. That is a scheduling defect before it is a cache
+   * one.
+   *
+   * The ids are written rather than generated because the whole assertion is
+   * about their order: with `crypto.randomUUID` the insert order agrees with id
+   * order often enough that the watched red would be a coin toss. Written in
+   * the opposite order to their ids for the same reason.
+   */
+  it('answers in work_item.id order, whatever order the rows were written in', async () => {
+    const later = {
+      ...row(null, 10, 'Written first'),
+      id: 'ffffffff-0000-4000-8000-000000000001',
+    };
+    const earlier = {
+      ...row(null, 20, 'Written second'),
+      id: '00000000-0000-4000-8000-000000000002',
+    };
+    await repo.insert(later, [], wrote());
+    await repo.insert(earlier, [], wrote());
+
+    const first = await repo.listByProject(projectId);
+    const second = await repo.listByProject(projectId);
+
+    expect(first.map((each) => each.id)).toEqual([earlier.id, later.id]);
+    expect(second.map((each) => each.id)).toEqual(first.map((each) => each.id));
+  });
+
+  /**
+   * Task 1.8, and it asserts the **raw argument tuple** rather than its hash.
+   * The earlier plan compared two `scheduleInputHash` values across a reversed
+   * driver; 1.1(c) groups slices by work item and sorts rows by id, and the spec
+   * separately *requires* the hash to be equal when only the underlying row
+   * order differs — so that assertion could never fail, which is the
+   * check-that-cannot-fail R5 names.
+   *
+   * What Fast actually receives is this: `listByProject` → `slicesOf` → the
+   * `rows` and `slices` arguments. `slicesOf` walks the rows in order, so the
+   * slice order is the row order, and the intra-item order is real step
+   * precedence. Both arrays are asserted here in `work_item.id` order, and both
+   * go red when the `ORDER BY` is removed.
+   *
+   * No estimate is written, deliberately: `slicesOf` emits one slice per leaf
+   * per project step whether or not anybody has estimated it, so an estimate
+   * would be a second moving part in an assertion about order.
+   */
+  it('hands Fast rows and slices in id order, not in the order they were written', async () => {
+    const later = { ...row(null, 10, 'Written first'), id: 'ffffffff-0000-4000-8000-000000000003' };
+    const earlier = {
+      ...row(null, 20, 'Written second'),
+      id: '00000000-0000-4000-8000-000000000004',
+    };
+    await repo.insert(later, [], wrote());
+    await repo.insert(earlier, [], wrote());
+    const project = projectRow({ id: projectId, ownerId });
+
+    const rows = await repo.listByProject(projectId);
+    const slices = slicesOf(
+      rows,
+      await estimates.listByProject(projectId),
+      new Set(rows.map((each) => each.parentId).filter((id): id is string => id !== null)),
+      [stepId],
+      {
+        method: project.estimateMethod,
+        pertWeights: project.pertWeights,
+        rounding: project.estimateRounding,
+      },
+      new Map(),
+      effectiveTeamsOf(rows),
+      new Map(),
+    );
+
+    expect(rows.map((each) => each.id)).toEqual([earlier.id, later.id]);
+    expect(slices.map((each) => each.workItemId)).toEqual([earlier.id, later.id]);
+  });
+
+  /**
+   * Task 1.8's second assertion: Fast's **own output** for this read, not only
+   * the tuple that reaches it. The tuple assertion above proves the arrays
+   * arrive in one order; this proves that order is a scheduling fact, so an
+   * unordered select is a plan that schedules two ways rather than a tidiness
+   * complaint.
+   *
+   * **The two siblings share a position, and that is the whole fixture.**
+   * `deriveNumbers` sorts each sibling group by `position` and `Array#sort` is
+   * stable, so tied positions leave the labels decided by the array order — and
+   * the number is the third of `goesFirst`'s four tie-breaks
+   * (`schedule.ts:2283`). Measured at `705f1bc5`, two unestimated leaves on a
+   * one-slot pool: id order gives `00000000…` `010` and `ffffffff…` `020`, so
+   * `00000000…` takes the slot at 0 → 2 and `ffffffff…` waits at 2 → 4; the
+   * insert order gives `ffffffff…` `010` and the two placements exchange.
+   * With the positions **distinct** — which is what the two tests above use —
+   * the labels come off `position` alone and both orders produce a
+   * byte-identical schedule, which is precisely why a Fast assertion could not
+   * be added to them and this fixture exists.
+   *
+   * A tied sibling position is a legal database state and a reachable one:
+   * `work_item_siblings` (`schema.ts:475`) is a plain index, and `placeAfter`
+   * appends at `last + POSITION_STEP` with no re-read under a lock
+   * (`place-sibling.ts:53`), so two appends that read the same group both
+   * compute the same number.
+   *
+   * The pool is what turns the order into dates. Two leaves with no edge and no
+   * queue both start at day 0 whatever order they arrive in; one slot is what
+   * makes one of them wait, and the tie-break is what decides which.
+   *
+   * Proof: with the `ORDER BY` deleted from 1.7's production path, this
+   * assertion fails with the two spans exchanged, alongside 1.7's and 1.8's.
+   */
+  it('schedules the same project two ways when the rows arrive in two orders', async () => {
+    const shared = await team('Platform');
+    const tied = 10;
+    const later = {
+      ...row(null, tied, 'Written first'),
+      id: 'ffffffff-0000-4000-8000-000000000005',
+    };
+    const earlier = {
+      ...row(null, tied, 'Written second'),
+      id: '00000000-0000-4000-8000-000000000006',
+    };
+    await repo.insert(later, [], wrote());
+    await repo.insert(earlier, [], wrote());
+    joinTeam(later.id, shared);
+    joinTeam(earlier.id, shared);
+    const project = projectRow({ id: projectId, ownerId });
+    /** One slot, which is what makes the two leaves queue rather than run together. */
+    const slotsOf = new Map([[shared, 1]]);
+
+    const rows = await repo.listByProject(projectId);
+    const slices = slicesOf(
+      rows,
+      await estimates.listByProject(projectId),
+      new Set(rows.map((each) => each.parentId).filter((id): id is string => id !== null)),
+      [stepId],
+      {
+        method: project.estimateMethod,
+        pertWeights: project.pertWeights,
+        rounding: project.estimateRounding,
+      },
+      new Map(),
+      effectiveTeamsOf(rows),
+      slotsOf,
+    );
+    const planned = schedule(rows, [], slices, new Map(), slotsOf, project.depReach);
+
+    expect(planned.waitingForCapacity).toBe(1);
+    expect(spanOf(planned, earlier.id)).toEqual({ start: 0, finish: 2 });
+    expect(spanOf(planned, later.id)).toEqual({ start: 2, finish: 4 });
+  });
+
+  /**
+   * The three cases above watch the *returned* order, and that is no longer
+   * enough to hold the contract down at the final schema. `beforeEach` builds
+   * each database through the whole migration set, which now includes
+   * `work_item_project_id_id` on `(project_id, id)` — so with the `ORDER BY`
+   * deleted SQLite may satisfy `where project_id = ?` by walking that very
+   * index and hand back ascending id order anyway. Those assertions would pass
+   * over a query that promises nothing, and a later planner or statistics
+   * change picking `work_item_siblings` instead would restore the
+   * nondeterministic schedule with no test going red.
+   *
+   * That is exactly the gap in `verify.md` §1: the 31/3 negative was watched at
+   * `84716c40`, *before* §2 added the index, so it does not cover the schema
+   * this ships.
+   *
+   * The contract is a property of the statement, so this reads the statement.
+   * `logQuery` is drizzle's own hook and is already how this file proves round
+   * trips (`deletes a whole subtree in one statement`). Quotes and case are
+   * flattened first because the rendering is drizzle's to change and the
+   * contract is not.
+   *
+   * Peer review finding, TASK-260 round 1, Important (openai/gpt-5.6-sol):
+   * `queue/reviews/t260-r1-sol.txt`.
+   */
+  it('asks for the order in the statement rather than inheriting it from an index', async () => {
+    const statements: string[] = [];
+    const logged = new WorkItemRepository(
+      openDrizzle(dbPath, {
+        logQuery(query) {
+          statements.push(query);
+        },
+      }),
+      OPEN,
+    );
+
+    await logged.listByProject(projectId);
+
+    // The work-item select itself. The two membership reads beside it also name
+    // `work_item`, but they reach it through a join and order by their own
+    // column, so neither of them is the statement under test.
+    const select = statements.find(
+      (query) => query.includes('from "work_item"') && !query.includes('join'),
+    );
+    expect(select).toBeDefined();
+
+    const flattened = (select ?? '').replaceAll('"', '').replace(/\s+/g, ' ').toLowerCase();
+    expect(flattened).toContain('order by work_item.id');
+    // Ascending, and stated as such: descending is a different tie-break and
+    // would answer the two reads consistently while contradicting ADR 0016.
+    expect(flattened).not.toContain('order by work_item.id desc');
   });
 });

@@ -28,6 +28,15 @@ export const ROOT = CURRENT_ENV.root;
 
 export const BE_ALIAS = 'be-01.internal';
 
+/**
+ * The supervisor owns this host runtime directory. Backend containers receive
+ * a read-only bind of the directory, never the socket inode itself: systemd
+ * may atomically replace `supervisor.sock` when the service restarts, and a
+ * file bind would pin the stale inode inside an otherwise healthy backend.
+ */
+export const SOLVER_SUPERVISOR_HOST_DIRECTORY = '/run/user/1000/wbs-solver';
+export const SOLVER_SUPERVISOR_CONTAINER_DIRECTORY = '/run/wbs-solver';
+
 const DIGEST_RE = /^sha256:[0-9a-f]{64}$/;
 
 export function isDigest(v: string): boolean {
@@ -209,7 +218,22 @@ export function tierEnvFiles(tier: Tier, layout: EnvLayout = CURRENT_ENV): strin
  * this check existed).
  */
 const APP_ENV_ALLOWED_KEYS: Record<Tier, readonly string[]> = {
-  be: ['PORT', 'LOG_LEVEL', 'GW_URL', 'DB_PATH', 'AUTH_MODE'],
+  // Proof: removing APP_ORIGIN made startGreen admits in swap.test.ts throw
+  // outside-tier-allowlist before writing Compose or invoking Docker.
+  be: [
+    'PORT',
+    'LOG_LEVEL',
+    'GW_URL',
+    'DB_PATH',
+    'AUTH_MODE',
+    'APP_ORIGIN',
+    // Proof: deleting these three entries made the production startGreen test
+    // fail before Docker: outside the allowlist were SOLVER_BUDGET_MS,
+    // SOLVER_SEARCH_WORKERS, SOLVER_MEMORY_LIMIT_MB; 0 passed, 1 failed.
+    'SOLVER_BUDGET_MS',
+    'SOLVER_SEARCH_WORKERS',
+    'SOLVER_MEMORY_LIMIT_MB',
+  ],
   gw: ['PORT', 'LOG_LEVEL', 'BE_URL', 'AUTH_MODE'],
   fe: [],
 };
@@ -277,12 +301,49 @@ function envFilesBlock(tier: Tier, layout: EnvLayout = CURRENT_ENV): string {
   return `    env_file:\n${lines.join('\n')}\n`;
 }
 
-/** Only be-01 (`apps/be-01/src/repository/db.ts`) opens a SQLite file off `/data` — see `tierComposeContext`'s doc comment. */
-const DATA_VOLUME_TIERS: ReadonlySet<Tier> = new Set<Tier>(['be']);
-
 function volumesBlock(tier: Tier, layout: EnvLayout = CURRENT_ENV): string {
-  if (!DATA_VOLUME_TIERS.has(tier)) return '';
-  return `    volumes:\n      - ${layout.root}/data:/data\n`;
+  if (tier !== 'be') return '';
+  return (
+    `    volumes:\n` +
+    `      - ${layout.root}/data:/data\n` +
+    // Proof: deleting only this mount made the production startGreen test fail
+    // at swap.test.ts:681: expected the directory mount, received undefined;
+    // 0 passed, 1 failed.
+    `      - ${SOLVER_SUPERVISOR_HOST_DIRECTORY}:${SOLVER_SUPERVISOR_CONTAINER_DIRECTORY}:ro\n`
+  );
+}
+
+/**
+ * The public Caddy address as one browser origin. Bare hosts use Caddy's
+ * automatic HTTPS; an explicit HTTP/HTTPS scheme is retained. This is trusted
+ * deployment configuration, never an arriving request's Host or Origin.
+ * @throws if siteAddress includes credentials, whitespace, a path, query, fragment,
+ * or a non-HTTP scheme, since none denotes the one allowed browser origin.
+ */
+function browserOrigin(siteAddress: string): string {
+  // Proof: deleting whitespace refusal let a newline-bearing address render
+  // instead of throwing in docker.test.ts (URL would normalize it away).
+  if (/\s/.test(siteAddress)) throw new Error('siteAddress must name one HTTP origin');
+  let origin: URL;
+  try {
+    origin = new URL(siteAddress.includes('://') ? siteAddress : `https://${siteAddress}`);
+  } catch (cause) {
+    throw new Error('siteAddress must name one HTTP origin', { cause });
+  }
+  // Proof: deleting this origin check rendered a credential-bearing layout
+  // instead of throwing in docker.test.ts.
+  if (
+    (origin.protocol !== 'https:' && origin.protocol !== 'http:') ||
+    origin.username !== '' ||
+    origin.password !== '' ||
+    origin.pathname !== '/' ||
+    origin.search !== '' ||
+    origin.hash !== '' ||
+    origin.hostname.includes('*')
+  ) {
+    throw new Error('siteAddress must name one HTTP origin');
+  }
+  return origin.origin;
 }
 
 /**
@@ -318,6 +379,12 @@ export function tierComposeContext(
     NETWORK: layout.network,
     IMAGE: assertDigestPinnedRef(image, tier),
     ENV_FILES: envFilesBlock(tier, layout),
+    // Proof: omitting the template carrier made the rendered-environment backend
+    // startup probe exit1 instead of0 (docker.test.ts).
+    ENVIRONMENT:
+      tier === 'be'
+        ? `    environment:\n      APP_ORIGIN: ${JSON.stringify(browserOrigin(layout.siteAddress))}\n`
+        : '',
     VOLUMES: volumesBlock(tier, layout),
   };
 }

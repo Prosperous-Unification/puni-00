@@ -8,41 +8,49 @@ import {
   type PriorityBand,
   priorityBandRankOf,
 } from '@wbs/domain';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, spyOn } from 'bun:test';
 
 import type { Step } from '../repository';
 import { ActualRepository } from '../repository/actual';
+import { CalendarMarkerRepository } from '../repository/calendar-marker';
 import { CapacityRepository } from '../repository/capacity';
 import { CommandJournalRepository } from '../repository/command-journal';
 import type { Drizzle } from '../repository/db';
-import { drizzleOuterTransaction, openDrizzle } from '../repository/db';
+import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
+import { OPEN, WriteCoordinator } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { PlanEventRepository } from '../repository/plan-event';
 import { PriorityBandRepository } from '../repository/priority-band';
 import { ProjectRepository } from '../repository/project';
 import { person, personTeam, service, serviceTeam, tag, workItemType } from '../repository/schema';
+import { sqliteUnitOfWork } from '../repository/sqlite-unit-of-work';
+import { StepRepository } from '../repository/step';
 import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository } from '../repository/work-item';
 import { WorkItemRepository } from '../repository/work-item';
+import { buildStores } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { type Broadcaster, DeferringBroadcaster } from './broadcast';
+import type { Broadcaster } from './broadcast';
+import { CalendarMarkerService } from './calendar-marker.service';
 import { CapacityService } from './capacity.service';
 import { DirectoryService } from './directory.service';
 import type { PlanCommand } from './plan-command';
 import {
+  type AppliedCommand,
   type BatchOutcome,
+  type BatchRefusal,
   PlanCommandRunner,
   type PlanCommandRunnerOptions,
 } from './plan-commands';
 import { PriorityBandService } from './priority-band.service';
 import { ProjectService } from './project.service';
+import { StepService } from './step.service';
 import { WorkItemService, type WorkItemServiceOptions } from './work-item.service';
-import { WriteLock } from './write-lock';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 
@@ -60,6 +68,13 @@ let dependencyStore: DependencyRepository;
 let directoryStore: DirectoryRepository;
 let journalStore: CommandJournalRepository;
 let planEvents: PlanEventRepository;
+let bandStore: PriorityBandRepository;
+/** Where the pinned `workItems` service's announcements go for the batch in hand. */
+let batchBroadcast: Broadcaster;
+const relayTo = (collector: Broadcaster): WorkItemService => {
+  batchBroadcast = collector;
+  return workItems;
+};
 let projectId: string;
 let ownerId: string;
 let steps: Step[];
@@ -76,21 +91,21 @@ beforeEach(async () => {
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   db = openDrizzle(path);
-  projectStore = new ProjectRepository(db);
-  workItemStore = new WorkItemRepository(db);
-  estimateStore = new EstimateRepository(db);
-  dependencyStore = new DependencyRepository(db);
-  directoryStore = new DirectoryRepository(db);
-  journalStore = new CommandJournalRepository(db);
-  planEvents = new PlanEventRepository(db);
-  const capacityStore = new CapacityRepository(db);
-  const bandStore = new PriorityBandRepository(db);
+  projectStore = new ProjectRepository(db, OPEN);
+  workItemStore = new WorkItemRepository(db, OPEN);
+  estimateStore = new EstimateRepository(db, OPEN);
+  dependencyStore = new DependencyRepository(db, OPEN);
+  directoryStore = new DirectoryRepository(db, OPEN);
+  journalStore = new CommandJournalRepository(db, OPEN);
+  planEvents = new PlanEventRepository(db, OPEN);
+  const capacityStore = new CapacityRepository(db, OPEN);
+  bandStore = new PriorityBandRepository(db, OPEN);
   const broadcast = recordingBroadcaster();
 
   ownerId = crypto.randomUUID();
   // The account stamps itself, which is what a signup does — and `created_by`
   // references `users(id)`, so nothing else could satisfy it for the first row.
-  await new UserRepository(db).create(
+  await new UserRepository(db, OPEN).create(
     {
       id: ownerId,
       username: 'owner',
@@ -104,39 +119,62 @@ beforeEach(async () => {
     workItems: workItemStore,
     projects: projectStore,
     estimates: estimateStore,
-    actuals: new ActualRepository(db),
-    measures: new StepMeasureRepository(db),
-    progress: new StepProgressRepository(db),
+    actuals: new ActualRepository(db, OPEN),
+    measures: new StepMeasureRepository(db, OPEN),
+    progress: new StepProgressRepository(db, OPEN),
     directory: directoryStore,
     capacity: capacityStore,
     priorityBands: bandStore,
     dependencies: dependencyStore,
-    subtrees: new SubtreeRepository(db),
+    subtrees: new SubtreeRepository(db, OPEN),
     journal: journalStore,
     broadcast,
   };
-  workItems = new WorkItemService(serviceOptions);
-  // The wrapper the composition root builds, and the same object the three
-  // services below publish through: a batch holds their announcements until it
-  // has committed and let go of the lock, and a second wrapper would hold
-  // nothing while they published straight past it.
-  const announcements = new DeferringBroadcaster(broadcast);
+  // One work-item service for the whole file, so a `spyOn` in a case still
+  // reaches the object the runner uses. Its announcements are relayed to
+  // whichever collector the runner hands in, which is what the per-batch graph
+  // does for real; only the *identity* is pinned here, and pinning it is what
+  // makes a spy possible at all.
+  workItems = new WorkItemService({
+    ...serviceOptions,
+    broadcast: {
+      publish: (id, event) => batchBroadcast.publish(id, event),
+      latestSeq: (id) => batchBroadcast.latestSeq(id),
+    },
+  });
+  batchBroadcast = broadcast;
   runnerOptions = {
-    workItems,
-    directory: new DirectoryService({ directory: directoryStore, broadcast: announcements }),
-    capacity: new CapacityService({
-      projects: projectStore,
-      capacity: capacityStore,
-      broadcast: announcements,
+    // The batch's graph, built over whichever collector the runner hands in —
+    // which is what makes these services' announcements the batch's own.
+    batchServices: (collector) => ({
+      workItems: relayTo(collector),
+      directory: new DirectoryService({ directory: directoryStore, broadcast: collector }),
+      capacity: new CapacityService({
+        projects: projectStore,
+        capacity: capacityStore,
+        broadcast: collector,
+      }),
+      priorityBands: new PriorityBandService({
+        projects: projectStore,
+        bands: bandStore,
+        broadcast: collector,
+      }),
+      projects: new ProjectService({ projects: projectStore, broadcast: collector }),
+      steps: new StepService({
+        projects: projectStore,
+        steps: new StepRepository(db, OPEN),
+        broadcast: collector,
+      }),
+      calendarMarkers: new CalendarMarkerService({
+        projects: projectStore,
+        markers: new CalendarMarkerRepository(db, OPEN),
+        broadcast: collector,
+      }),
     }),
-    priorityBands: new PriorityBandService({
-      projects: projectStore,
-      bands: bandStore,
-      broadcast: announcements,
-    }),
-    transactions: drizzleOuterTransaction(db),
-    lock: new WriteLock(),
-    announcements,
+    // The real unit of work over this file's own connection: every case here
+    // is about what a batch leaves behind, which is the transaction's answer.
+    uow: sqliteUnitOfWork(db, new WriteCoordinator(), buildStores(db, OPEN)),
+    announcements: broadcast,
   };
   runner = new PlanCommandRunner(runnerOptions);
   const created = await new ProjectService({
@@ -456,8 +494,15 @@ describe('a command batch', () => {
       publish: () => held,
       latestSeq: () => Promise.resolve(0),
     };
-    const slowItems = new WorkItemService({ ...serviceOptions, broadcast: slow });
-    const slowRunner = new PlanCommandRunner({ ...runnerOptions, workItems: slowItems });
+    // The slow publisher replaces the batch graph's work-item service, so the
+    // held batch is the one driven through `slowRunner` by construction.
+    const slowRunner = new PlanCommandRunner({
+      ...runnerOptions,
+      batchServices: (collector) => ({
+        ...runnerOptions.batchServices(collector),
+        workItems: new WorkItemService({ ...serviceOptions, broadcast: slow }),
+      }),
+    });
     const fastRunner = new PlanCommandRunner(runnerOptions);
 
     const batchA = { state: 'pending' as 'pending' | 'applied' };
@@ -491,9 +536,9 @@ describe('a command batch', () => {
     // above gives: the runner that publishes slowly is the one driven here.
     //
     // Proof: with `DirectoryService`'s `broadcast` given the raw broadcaster
-    // instead of the shared `DeferringBroadcaster` — the shape this shipped in —
+    // instead of the batch's own collector — the shape this shipped in —
     // watched failing on `this test timed out after 5000ms`, batch B never
-    // reaching the lock (2026-09-02).
+    // reaching the lock (2026-09-02, and again on the collector 2026-09-08).
     let releaseTag: () => void = () => undefined;
     const held = new Promise<void>((resume) => {
       releaseTag = resume;
@@ -502,14 +547,11 @@ describe('a command batch', () => {
       publish: () => held,
       latestSeq: () => Promise.resolve(0),
     };
-    const slowAnnouncements = new DeferringBroadcaster(slowPushes);
     const tagRunner = new PlanCommandRunner({
       ...runnerOptions,
-      directory: new DirectoryService({
-        directory: directoryStore,
-        broadcast: slowAnnouncements,
-      }),
-      announcements: slowAnnouncements,
+      // The batch's own graph over its collector, as always; what is slow is
+      // where the collector drains **to**, which is after the turn is let go.
+      announcements: slowPushes,
     });
 
     // The tag has to be **on** something for its rename to touch a project:
@@ -622,9 +664,7 @@ describe('the priority a create writes', () => {
     // And 50 is the *third rung* of this project's ladder rather than a number
     // that happens to be 50: the rank is the contract, the figure is what this
     // ladder cuts it at.
-    expect(priorityBandRankOf(await runnerOptions.priorityBands.listFor(projectId), 50)).toBe(
-      ORDINARY_BAND_RANK,
-    );
+    expect(priorityBandRankOf(await bandStore.listFor(projectId), 50)).toBe(ORDINARY_BAND_RANK);
   });
 
   it('a re-cut ladder moves the default', async () => {
@@ -682,3 +722,85 @@ describe('the priority a create writes', () => {
     expect(await priorityOf(plain.get('w'))).toBe(50);
   });
 });
+
+it('retains producer kinds and create-versus-patch entity requirements internally', async () => {
+  const outcome = await runner.runDirectory(ownerId, [
+    { kind: 'createTeam', ref: 'team', name: 'Build' },
+    { kind: 'patchTeam', teamRef: 'team', patch: { name: 'Ship' } },
+    { kind: 'createPerson', ref: 'person', name: 'Ada' },
+    { kind: 'patchPerson', personRef: 'person', patch: { teamIds: [] } },
+  ]);
+  if (!outcome.ok) throw new Error(outcome.reason);
+  expect(outcome.results.map((entry) => entry.kind)).toEqual([
+    'createTeam',
+    'patchTeam',
+    'createPerson',
+    'patchPerson',
+  ]);
+  expect(outcome.results[1]?.entity).toHaveProperty('serviceIds', []);
+  expect(outcome.results[2]?.entity).toHaveProperty('kind', 'person');
+  expect(outcome.results[3]?.entity).toHaveProperty('teamIds', []);
+});
+
+it('throws on malformed trusted deadline detail before creating a modeled batch refusal', async () => {
+  const patch = spyOn(workItems, 'patch');
+  try {
+    for (const missing of [
+      { ok: false, reason: 'deadline_before_project_start', workItemId: 'w' },
+      { ok: false, reason: 'deadline_before_project_start', projectDayZero: '2026-09-07' },
+    ]) {
+      patch.mockResolvedValueOnce(missing as never);
+      await runner
+        .run(projectId, ownerId, [{ kind: 'patchWorkItem', workItemId: 'w', patch: {} }])
+        .then(
+          () => {
+            throw new Error('Malformed deadline refusal resolved');
+          },
+          (cause: unknown) => {
+            expect(cause).toEqual(
+              new Error('Deadline refusal requires work item and project day zero'),
+            );
+          },
+        );
+    }
+  } finally {
+    patch.mockRestore();
+  }
+});
+
+export function appliedProducerTypes() {
+  const missingMintedId = { index: 0, kind: 'createWorkItem' as const };
+  const missingDirectoryId = {
+    index: 0,
+    kind: 'createTeam' as const,
+    entity: { id: 't', name: 'Team' },
+  };
+  const missingServices = {
+    index: 0,
+    kind: 'patchTeam' as const,
+    entity: { id: 't', name: 'Team' },
+  };
+  const missingPersonKind = {
+    index: 0,
+    kind: 'createPerson' as const,
+    id: 'p',
+    entity: { id: 'p', name: 'Person' },
+  };
+  const missingDayZero = {
+    ok: false as const,
+    reason: 'deadline_before_project_start' as const,
+    at: 0,
+    kind: 'patchWorkItem' as const,
+    detail: { workItemId: 'w' },
+  };
+  // @ts-expect-error Every created result preserves its minted top-level id.
+  expectTypeOf<AppliedCommand>(missingMintedId);
+  // @ts-expect-error A directory entity id cannot replace the minted top-level id.
+  expectTypeOf<AppliedCommand>(missingDirectoryId);
+  // @ts-expect-error Patch teams require their membership field.
+  expectTypeOf<AppliedCommand>(missingServices);
+  // @ts-expect-error Create-person output carries its known person kind.
+  expectTypeOf<AppliedCommand>(missingPersonKind);
+  // @ts-expect-error Deadline output requires both correlated detail fields.
+  expectTypeOf<BatchRefusal>(missingDayZero);
+}

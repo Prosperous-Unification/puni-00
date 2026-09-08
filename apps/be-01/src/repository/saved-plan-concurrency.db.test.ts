@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { projectRow } from '../testing/project-fixture';
 import type { Connection } from './db';
 import { openConnection } from './db';
+import { OPEN } from './gate';
 import type { WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
@@ -56,11 +57,11 @@ describe('a save that meets a held write lock is refused, not queued behind it',
     path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
     const seed = openConnection(path);
-    await new UserRepository(seed.db).create(
+    await new UserRepository(seed.db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(seed.db).create(
+    await new ProjectRepository(seed.db, OPEN).create(
       projectRow({ id: 'p1', name: 'Rewire the shed', ownerId: 'owner' }),
       [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10 }],
       wrote,
@@ -140,6 +141,12 @@ describe('a save that meets a held write lock is refused, not queued behind it',
     expect(await headerIds()).toEqual(['sp-other']);
   });
 
+  // Case budget stated, not defaulted (TASK-415). Two observations, not a
+  // floor: 1647ms on h2puni at load 7-9, and 1658ms in the sweep recorded in
+  // notes/t415-per-case-duration-sweep.txt. Both give a 3.0x margin on the
+  // 5000ms default, and 5x either, rounded up to the next second, is 9000ms. A
+  // real second process must commit before this one is allowed to proceed.
+  // Re-derive with notes/t415-sweep.sh rather than trusting either number.
   it('writes normally once the other process has committed, on a fresh attempt', async () => {
     const { finished } = await otherProcessHoldsTheLock('sp-other');
     expect(await finished).toBe(0);
@@ -151,5 +158,5 @@ describe('a save that meets a held write lock is refused, not queued behind it',
       outcome: 'written',
     });
     expect(await headerIds()).toEqual(['sp-mine', 'sp-other']);
-  });
+  }, 9000);
 });

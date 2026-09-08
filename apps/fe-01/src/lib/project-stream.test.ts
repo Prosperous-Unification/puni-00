@@ -113,6 +113,58 @@ describe('subscribeToProject', () => {
     expect(changes).toBe(1);
   });
 
+  it('hands an optimizer outcome on as type and sequence, dropping the failure reason', () => {
+    /*
+      TASK-324 AC #2, the half the table's own case cannot reach.
+
+      `optimization-integration.test.tsx` calls `onChange('schedule_optimization_failed')`
+      directly, so it starts *after* this boundary and can only prove that the
+      table needs the plan read. It cannot prove what a client is not given
+      (Sol review, 2026-09-07). The spec's rule — an outcome event is an
+      invalidation signal and the variant's new state comes from the ordinary
+      plan read, never from a field of the frame — is enforced here, in the one
+      place a whole frame exists.
+
+      `schedule_optimization_failed` is the event that makes this worth a case
+      rather than a repeat of the one below: unlike its two siblings, its
+      payload really does carry the answer. `failureReason` beside the identity
+      is, for the named objective, exactly the `{ state: 'failed', reason }` the
+      indicator would need. Delete the `type`-only projection in
+      `changedFactOf` and a caller could render `Optimization unavailable ·
+      Retry` off the wire without reading anything — the reading TASK-324
+      refused. The assertion is therefore on the *whole* argument list, not on
+      the type within it. The sequence is envelope metadata used to acknowledge
+      the read it starts; a third argument carrying the payload would be a
+      second state-delivery path, and that is precisely what the spec forbids.
+    */
+    const h = harness();
+    const delivered: unknown[][] = [];
+    subscribeToProject(
+      { projectId: PROJECT, sinceSeq: -1, onChange: (...args) => delivered.push(args) },
+      h.deps,
+    );
+    h.latest().handlers.onOpen();
+
+    h.latest().handlers.onMessage(
+      JSON.stringify({
+        subscription: SUBSCRIPTION,
+        seq: 31,
+        message: {
+          type: 'schedule_optimization_failed',
+          projectId: PROJECT,
+          generation: 4,
+          inputHash: 'same-input',
+          objective: 'pri',
+          contractVersion: '1.5+test',
+          budgetMs: 60_000,
+          failureReason: 'timeout',
+        },
+      }),
+    );
+
+    expect(delivered).toEqual([['schedule_optimization_failed', 31]]);
+  });
+
   it('carries a collaborator’s saved-plan mutation through as its own changed fact', () => {
     /*
       TASK-255, AC #2 and #4. `saved_plans_changed` is an event type this file
@@ -665,4 +717,116 @@ describe('subscribeToProject — the roster', () => {
       { type: 'who' },
     ]);
   });
+});
+
+describe('covered empty-history baselines', () => {
+  it('replays from -1 when the caller explicitly covered the empty baseline', () => {
+    const h = harness();
+    subscribeToProject(
+      { projectId: PROJECT, sinceSeq: -1, hasBaseline: true, onChange: ignore },
+      h.deps,
+    );
+    h.latest().handlers.onOpen();
+    expect(h.frames(h.latest())).toEqual([
+      { type: 'subscribe', subscription: SUBSCRIPTION },
+      { type: 'resume', resume_points: { [SUBSCRIPTION]: -1 } },
+    ]);
+  });
+
+  it('passes the event sequence to the refresh owner without acknowledging it', () => {
+    const h = harness();
+    const changed: unknown[] = [];
+    subscribeToProject(
+      { projectId: PROJECT, sinceSeq: 7, onChange: (kind, seq) => changed.push([kind, seq]) },
+      h.deps,
+    );
+    h.latest().handlers.onOpen();
+    h.latest().handlers.onMessage(
+      JSON.stringify({
+        subscription: SUBSCRIPTION,
+        seq: 8,
+        message: { type: 'calendar_markers_changed' },
+      }),
+    );
+    expect(changed).toEqual([['calendar_markers_changed', 8]]);
+    h.latest().handlers.onClose();
+    h.runNextTimer();
+    h.latest().handlers.onOpen();
+    expect(h.frames(h.latest()).at(-1)).toEqual({
+      type: 'resume',
+      resume_points: { [SUBSCRIPTION]: 7 },
+    });
+  });
+});
+
+it.each(['close', 'open', 'resume', 'presence'] as const)(
+  'ignores stale %s from the physical socket replaced by a reconnect',
+  (callback) => {
+    const h = harness();
+    const connections: boolean[] = [];
+    let changed = 0;
+    let presence = 0;
+    subscribeToProject(
+      {
+        projectId: PROJECT,
+        sinceSeq: 7,
+        onChange: () => {
+          changed += 1;
+        },
+        onConnectionChange: (connected) => {
+          connections.push(connected);
+        },
+        onPresence: () => {
+          presence += 1;
+        },
+      },
+      h.deps,
+    );
+    const previous = h.latest();
+    previous.handlers.onOpen();
+    previous.handlers.onClose();
+    h.runNextTimer();
+    const current = h.latest();
+    current.handlers.onOpen();
+    current.handlers.onMessage(
+      JSON.stringify({ type: 'resume_ack', replayed: { [SUBSCRIPTION]: 0 } }),
+    );
+    const frames = current.sent.length;
+    if (callback === 'close') previous.handlers.onClose();
+    if (callback === 'open') previous.handlers.onOpen();
+    if (callback === 'resume')
+      previous.handlers.onMessage(
+        JSON.stringify({ type: 'resume_denied', subscription: SUBSCRIPTION }),
+      );
+    if (callback === 'presence')
+      previous.handlers.onMessage(JSON.stringify({ type: 'presence', users: ['Old'] }));
+    expect(connections.at(-1)).toBe(true);
+    expect(h.scheduled).toHaveLength(0);
+    expect(current.sent).toHaveLength(frames);
+    expect(changed).toBe(0);
+    expect(presence).toBe(0);
+  },
+);
+
+it('does not report connected when its recovery callback unsubscribes', () => {
+  const h = harness();
+  const connections: boolean[] = [];
+  const stream = subscribeToProject(
+    {
+      projectId: PROJECT,
+      sinceSeq: 7,
+      onChange: () => {
+        stream.unsubscribe();
+      },
+      onConnectionChange: (connected) => {
+        connections.push(connected);
+      },
+    },
+    h.deps,
+  );
+  h.latest().handlers.onOpen();
+  h.latest().handlers.onMessage(
+    JSON.stringify({ type: 'resume_denied', subscription: SUBSCRIPTION }),
+  );
+  expect(connections).toEqual([]);
 });

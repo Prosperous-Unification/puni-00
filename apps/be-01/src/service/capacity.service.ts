@@ -1,6 +1,7 @@
+import { type Clock, clockOf } from '@wbs/core';
+
 import type { CapacityStore, ProjectStore, TeamCapacity } from '../repository';
 import type { Broadcaster } from './broadcast';
-import { type Clock, clockOf } from './clock';
 import { canEdit } from './project.service';
 
 export interface CapacityServiceOptions {
@@ -15,8 +16,7 @@ export interface CapacityServiceOptions {
 export type CapacityRefusal = 'not_found' | 'forbidden';
 
 export type CapacityOutcome =
-  | { ok: true; value: TeamCapacity[] }
-  | { ok: false; reason: CapacityRefusal };
+  { ok: true; value: TeamCapacity[] } | { ok: false; reason: CapacityRefusal };
 
 /**
  * How many of each team a project may have at work at once.

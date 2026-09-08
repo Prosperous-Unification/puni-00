@@ -2,9 +2,14 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, ProjectStore } from '../repository';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
+import {
+  inMemoryCalendarMarkers,
+  testCalendarMarkerService,
+} from '../testing/calendar-marker-fixture';
 import { inMemoryServices } from '../testing/harness';
-import { projectRow } from '../testing/project-fixture';
-import { DeferringBroadcaster, type ProjectEvent } from './broadcast';
+import { inMemoryProjects, projectRow } from '../testing/project-fixture';
+import { AnnouncementCollector, type ProjectEvent } from './broadcast';
+import type { CalendarMarkerService } from './calendar-marker.service';
 import type { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
@@ -129,42 +134,169 @@ describe('what a project subscriber receives', () => {
 });
 
 /**
- * The nested-hold guard, which R5 requires a negative test for because
- * TASK-256 changed what it inspects.
+ * What the nested-hold guard was for, and what replaced it.
  *
- * It used to read instance state, so it caught two *concurrent* batches and
- * that is the failure it was written for — `plan-commands.ts`'s `Proof:`
- * comment names one, watched 2026-09-02. Making the queue per-caller retired
- * that symptom: concurrent batches now get a store each and never meet here.
- * What is left is the case the guard is actually still needed for, and it is a
- * different one — a hold opened *inside* another hold's own context, which
- * `AsyncLocalStorage` would answer by shadowing the parent's store. The parent
- * would then commit having been told nothing about what the child announced,
- * which is the same silent drop this whole task is about, one level in.
+ * The guard lived on `DeferringBroadcaster`, whose queue was an
+ * `AsyncLocalStorage` store: a hold opened inside another hold's own context
+ * shadowed its parent's, so the parent committed having been told nothing about
+ * what the child announced. There is no such window now — a collector is an
+ * object a graph was built over, and two batches are two objects — so the guard
+ * is gone with the class rather than left standing over a case that cannot
+ * happen.
  *
- * So the guard's reachable path narrowed and its test had to follow. Without
- * one, deleting the two lines leaves the suite green.
+ * What is left to hold is what the collector actually promises: nothing leaves
+ * until it is drained, the dedupe rule for content-free events, and the order.
  */
-describe('DeferringBroadcaster refuses a nested hold', () => {
-  it('throws rather than shadowing the outer hold, and the outer queue survives', async () => {
+describe('a batch collects its own announcements', () => {
+  it('sends nothing until it is drained, then everything in order', async () => {
     const inner = recordingBroadcaster();
-    const broadcaster = new DeferringBroadcaster(inner);
+    const collector = new AnnouncementCollector(inner);
 
-    let nested: unknown;
-    const { pending } = await broadcaster.hold(async () => {
-      await broadcaster.publish('p-1', { type: 'directory_changed' });
-      nested = await broadcaster
-        .hold(() => Promise.resolve(undefined))
-        .then(() => undefined)
-        .catch((error: unknown) => error);
+    await collector.publish('p-1', { type: 'directory_changed' });
+    await collector.publish('p-2', { type: 'saved_plans_changed' });
+    // Proof: `publish` made to call `this.inner.publish` directly — the shape a
+    // batch had before anything held its events — leaves this assertion reading
+    // `expected [ Array(2) ] to equal []`, and the two events are gone from the
+    // process before the transaction they describe has committed.
+    expect(inner.published).toEqual([]);
+
+    await collector.send();
+    expect(inner.published).toEqual([
+      { projectId: 'p-1', event: { type: 'directory_changed' } },
+      { projectId: 'p-2', event: { type: 'saved_plans_changed' } },
+    ]);
+  });
+
+  it('keeps one content-free event per project, and every event that carries something', async () => {
+    const inner = recordingBroadcaster();
+    const collector = new AnnouncementCollector(inner);
+
+    await collector.publish('p-1', { type: 'directory_changed' });
+    await collector.publish('p-1', { type: 'directory_changed' });
+    await collector.publish('p-2', { type: 'directory_changed' });
+    await collector.publish('p-1', { type: 'step_removed', stepId: 'a' });
+    await collector.publish('p-1', { type: 'step_removed', stepId: 'b' });
+    await collector.send();
+
+    // A tag rename across forty projects is forty `directory_changed` and one
+    // per project is all any of them says; two `step_removed` are two facts.
+    expect(inner.published).toEqual([
+      { projectId: 'p-1', event: { type: 'directory_changed' } },
+      { projectId: 'p-2', event: { type: 'directory_changed' } },
+      { projectId: 'p-1', event: { type: 'step_removed', stepId: 'a' } },
+      { projectId: 'p-1', event: { type: 'step_removed', stepId: 'b' } },
+    ]);
+  });
+});
+
+/**
+ * Slice 9.1. A marker is the one project-scoped object a collaborator can add
+ * that moves no work item, so nothing this project already announces covers it:
+ * `tree_replaced` is wrong (no row changed) and `directory_changed` is wrong
+ * (the vocabulary is untouched). Without its own event the second client's axis
+ * stays as it was until something unrelated forces a re-read.
+ *
+ * Content-free, for `saved_plans_changed`'s reason: a client reads a project's
+ * markers as one list, so the only useful thing to say is "read again", and
+ * carrying the row would announce a marker to every reader of the project
+ * before the list route has decided what that reader may see.
+ *
+ * **Watched negative:** with the `await this.announce(projectId)` line deleted
+ * from `CalendarMarkerService.remove` and nothing else changed, exactly the two
+ * cases that reach a delete fail — `deleting one` on its single event and
+ * `all four` on its fourth — while the refusal case stays green. Watched that
+ * way on h2puni, 2026-09-06. The delete is called out on its own because it is
+ * the write a client cannot recover from by re-reading something else: there is
+ * nothing left on the axis to notice is missing.
+ */
+describe('a calendar marker write announces itself', () => {
+  const ACTOR = 'owner-account';
+  let markerProjects: ReturnType<typeof inMemoryProjects>;
+  let recorder: RecordingBroadcaster;
+  let markerService: CalendarMarkerService;
+  let markerProjectId: string;
+
+  beforeEach(async () => {
+    markerProjects = inMemoryProjects();
+    recorder = recordingBroadcaster();
+    markerService = testCalendarMarkerService(
+      markerProjects,
+      inMemoryCalendarMarkers(),
+      undefined,
+      recorder,
+    );
+    const project = projectRow({ id: crypto.randomUUID(), ownerId: ACTOR });
+    await markerProjects.create(project, [], { at: 1, by: ACTOR });
+    markerProjectId = project.id;
+  });
+
+  /** The one event, so every case below states the whole payload it expects. */
+  const CHANGED: ProjectEvent = { type: 'calendar_markers_changed' };
+
+  async function makeMarker(): Promise<string> {
+    const created = await markerService.create(markerProjectId, ACTOR, {
+      date: '2026-08-24',
+      name: 'Client demo',
+    });
+    if (!created.ok) throw new Error(`create failed: ${created.reason}`);
+    return created.value.id;
+  }
+
+  it('announces one content-free event per write, on all four', async () => {
+    const id = await makeMarker();
+    await markerService.rename(markerProjectId, id, ACTOR, 'Client demo, moved');
+    await markerService.recolor(markerProjectId, id, ACTOR, '#3b82f6');
+    await markerService.remove(markerProjectId, id, ACTOR);
+
+    // Four writes, four announcements, in write order and each carrying
+    // nothing: `toEqual` on the whole list is what makes "content-free" an
+    // assertion rather than a claim about a field nobody reads.
+    expect(recorder.published).toEqual([
+      { projectId: markerProjectId, event: CHANGED },
+      { projectId: markerProjectId, event: CHANGED },
+      { projectId: markerProjectId, event: CHANGED },
+      { projectId: markerProjectId, event: CHANGED },
+    ]);
+  });
+
+  it('announces deleting one, which is the write a re-read cannot recover', async () => {
+    const id = await makeMarker();
+    recorder.published.length = 0;
+
+    await markerService.remove(markerProjectId, id, ACTOR);
+
+    expect(recorder.published).toEqual([{ projectId: markerProjectId, event: CHANGED }]);
+  });
+
+  it('announces nothing for a write it refused', async () => {
+    // Both refusals the gate can give, because an event on either would tell
+    // every reader of a project to go and read a list that did not change, on
+    // nothing but somebody else's rejected attempt.
+    //
+    // `not-the-owner` needs a **restricted** project to be refused: `canEdit`
+    // is `!restricted || ownerId === actorId`, so a stranger writing to an
+    // ordinary project is allowed here and is not the negative this case wants.
+    const restricted = projectRow({
+      id: crypto.randomUUID(),
+      ownerId: ACTOR,
+      restricted: true,
+    });
+    await markerProjects.create(restricted, [], { at: 1, by: ACTOR });
+
+    const absent = await markerService.create('no-such-project', ACTOR, {
+      date: '2026-08-24',
+      name: 'Client demo',
+    });
+    const stranger = await markerService.create(restricted.id, 'not-the-owner', {
+      date: '2026-08-24',
+      name: 'Client demo',
     });
 
-    expect(nested).toBeInstanceOf(Error);
-    expect((nested as Error).message).toBe('a batch is already holding announcements');
-    // The outer batch still owns everything it queued: a shadowing store would
-    // have handed it an empty one and sent nothing.
-    expect(pending).toEqual([{ projectId: 'p-1', event: { type: 'directory_changed' } }]);
-    // And nothing escaped to the inner broadcaster while the hold was open.
-    expect(inner.published).toEqual([]);
+    // `about: 'project'` on both: the project is the thing that was missing
+    // or closed, and neither refusal is about the marker the body described
+    // (TASK-279 AC #7).
+    expect(absent).toEqual({ ok: false, reason: 'not_found', about: 'project' });
+    expect(stranger).toEqual({ ok: false, reason: 'forbidden', about: 'project' });
+    expect(recorder.published).toEqual([]);
   });
 });

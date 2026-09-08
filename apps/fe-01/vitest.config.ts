@@ -1,8 +1,8 @@
 import { resolve } from 'node:path';
 
 import react from '@vitejs/plugin-react';
-import type { UserConfig } from 'vitest/config';
-import { defineConfig } from 'vitest/config';
+import type { ViteUserConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 export default defineConfig({
   // `vitest` bundles its **own** copy of vite (`vitest/node_modules/vite`), so
@@ -11,14 +11,15 @@ export default defineConfig({
   // is where they part. The cast names that boundary and nothing else: the
   // value is one React plugin either way, and `vite.config.ts` beside this file
   // needs no cast because it imports `defineConfig` from `vite` itself.
-  plugins: [react()] as UserConfig['plugins'],
-  // The same seven the app is built with. `@wbs/domain/workday`,
+  plugins: [react()] as ViteUserConfig['plugins'],
+  // The same domain leaf imports the app is built with. `@wbs/domain/workday`,
+  // `@wbs/domain/deadline-offsets`,
   // `@wbs/domain/assumed-duration`, `@wbs/domain/effective-team`,
   // `@wbs/domain/effective-tag`, `@wbs/domain/effective-service`,
   // `@wbs/domain/label-mismatch` and
   // `@wbs/domain/priority-band` are the pure modules and *not* the lib's index
-  // barrel, which re-exports arktype-touching validators this bundle excludes —
-  // see `vite.config.ts`.
+  // barrel. Shared HTTP contract validation has its own explicit aliases below;
+  // these domain imports remain limited to their pure modules.
   //
   // Every one of them has to be listed in **both** configs, and the day one is
   // not the suite fails to collect rather than failing an assertion: adding
@@ -41,6 +42,10 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, 'src'),
       '@wbs/domain/workday': resolve(__dirname, '../../libs/domain/src/workday.ts'),
+      '@wbs/domain/deadline-offsets': resolve(
+        __dirname,
+        '../../libs/domain/src/deadline-offsets.ts',
+      ),
       '@wbs/domain/assumed-duration': resolve(
         __dirname,
         '../../libs/domain/src/assumed-duration.ts',
@@ -52,8 +57,13 @@ export default defineConfig({
         '../../libs/domain/src/effective-service.ts',
       ),
       '@wbs/domain/label-mismatch': resolve(__dirname, '../../libs/domain/src/label-mismatch.ts'),
+      '@wbs/domain/marker-color': resolve(__dirname, '../../libs/domain/src/marker-color.ts'),
       '@wbs/domain/is-within': resolve(__dirname, '../../libs/domain/src/is-within.ts'),
       '@wbs/contracts/ws-frames': resolve(__dirname, '../../libs/contracts/src/ws-frames.ts'),
+      // Proof: removing either shared alias from both configs failed its explicit
+      // required-alias assertion in vite-config.test.ts, despite map parity.
+      '@wbs/contracts': resolve(__dirname, '../../libs/contracts/src/index.ts'),
+      '@wbs/validation': resolve(__dirname, '../../libs/validation/src/index.ts'),
       '@wbs/domain/priority-band': resolve(__dirname, '../../libs/domain/src/priority-band.ts'),
       // And a fourth: `dependency-reach.ts` is a two-member enum and its
       // guard, and the rule it holds — how far into a predecessor a
@@ -110,5 +120,13 @@ export default defineConfig({
     // in `**/{…,vite,vitest,…}.config.*`, which swallows that name whatever the
     // include says.
     include: ['src/**/*.{test,spec}.{ts,tsx}', '*.{test,spec}.{ts,tsx}'],
+    // `*.zoned.test.*` belongs to `vitest.zoned.config.ts`, which the `test`
+    // target runs a second time under a different `TZ`. It is excluded here
+    // rather than named out of `include` because the two configs have to
+    // disagree about exactly one thing, and a reader looking for what this run
+    // does not collect should find it beside what it does. The defaults are
+    // spread back in: dropping them would re-collect `node_modules` and, per
+    // the note on `include` above, `vite-config.test.ts`'s neighbours.
+    exclude: [...configDefaults.exclude, 'src/**/*.zoned.test.{ts,tsx}'],
   },
 });

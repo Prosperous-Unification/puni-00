@@ -8,6 +8,7 @@ import { CapacityRepository } from '../repository/capacity';
 import type { Connection } from '../repository/db';
 import { openConnection } from '../repository/db';
 import { DirectoryRepository } from '../repository/directory';
+import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
@@ -16,6 +17,7 @@ import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { savedPlan, savedPlanBody } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
+import { nodeDigest } from '../runtime/bun-runtime';
 import { projectRow } from '../testing/project-fixture';
 import { SavedPlanService } from './saved-plan.service';
 import type { SavedPlanQuota } from './saved-plan-quota';
@@ -52,6 +54,7 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
     serviceId: null,
     maxParallel: 1,
     startNoEarlierThanReason: null,
+    deadline: null,
     revision: 0,
   });
 
@@ -61,11 +64,11 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
     runMigrations(path, FOLDER);
     const seed = openConnection(path);
     const db = seed.db;
-    await new UserRepository(db).create(
+    await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db).create(
+    await new ProjectRepository(db, OPEN).create(
       projectRow({
         id: 'p1',
         name: 'Rewire the shed',
@@ -76,11 +79,11 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
       [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10 }],
       wrote,
     );
-    const directory = new DirectoryRepository(db);
+    const directory = new DirectoryRepository(db, OPEN);
     await directory.addTeam({ id: 't-platform', name: 'Platform' }, wrote);
     await directory.addPerson({ id: 'pp-ada', name: 'Ada' }, ['t-platform'], wrote);
-    await new CapacityRepository(db).set('p1', 't-platform', 4, wrote);
-    const items = new WorkItemRepository(db);
+    await new CapacityRepository(db, OPEN).set('p1', 't-platform', 4, wrote);
+    const items = new WorkItemRepository(db, OPEN);
     await items.insert(item('wi-1', 10), [], wrote);
     await items.insert(item('wi-2', 20), [], wrote);
     seed.close();
@@ -105,6 +108,7 @@ describe('SavedPlanService.save refuses each limit before writing anything', () 
     issued += 1;
     const n = issued;
     return new SavedPlanService({
+      digest: nodeDigest,
       capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),
       plans: new SavedPlanRepository({ openConnection: () => openConnection(path) }),
       newId: () => 'sp-' + String(n),

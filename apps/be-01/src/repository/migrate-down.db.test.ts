@@ -221,6 +221,14 @@ const SAVED_PLAN = '20260903190000_add_saved_plan';
  * below and tails the ascending folder order.
  */
 const CREATED_BY_ID = '20260904020000_add_saved_plan_created_by_id';
+/**
+ * `calendar_marker`, one table and one index added whole. It sits directly
+ * under {@link READ_ORDER_INDEX} in every descending reversal list below, and
+ * directly before it in the ascending folder order. Its own rollback and
+ * cascade cases live in `calendar-marker-migration.db.test.ts`; this file only
+ * fixes its place in the order.
+ */
+const CALENDAR_MARKER = '20260905090000_add_calendar_marker';
 
 const LOOKUP_INDEXES = '20260902120000_add_lookup_indexes';
 
@@ -240,6 +248,21 @@ const OPTIMIZER_TABLES = '20260904100000_add_optimizer_tables';
  * reverses.
  */
 const PROJECT_SETTINGS = '20260904140000_add_project_settings';
+/**
+ * The newest: the `(project_id, id)` index that serves
+ * `listByProject`'s stated `ORDER BY` (ADR 0016). Additive and
+ * index-only, so it heads every descending reversal list here and tails
+ * every ascending one, exactly as {@link PROJECT_SETTINGS} did while it
+ * was newest.
+ */
+const READ_ORDER_INDEX = '20260906003000_add_work_item_read_order_index';
+/**
+ * The newest: `work_item.deadline`, the nullable date-only column slice 1 adds.
+ * Additive forward and `DROP COLUMN` on the way back, so it heads every
+ * descending reversal list here and tails every ascending one, exactly as
+ * {@link READ_ORDER_INDEX} did while it was newest.
+ */
+const WORK_ITEM_DEADLINE = '20260906090000_add_work_item_deadline';
 const AUDIT_COLUMNS = '20260901120000_add_audit_columns';
 
 function tempDb(): { path: string; cleanup: () => void } {
@@ -513,6 +536,9 @@ describe('readMigrationFolders', () => {
       CREATED_BY_ID,
       OPTIMIZER_TABLES,
       PROJECT_SETTINGS,
+      CALENDAR_MARKER,
+      READ_ORDER_INDEX,
+      WORK_ITEM_DEADLINE,
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -625,11 +651,17 @@ describe('rollbackTo, against a real database', () => {
         CREATED_BY_ID,
         OPTIMIZER_TABLES,
         PROJECT_SETTINGS,
+        CALENDAR_MARKER,
+        READ_ORDER_INDEX,
+        WORK_ITEM_DEADLINE,
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -730,6 +762,9 @@ describe('rollbackTo, against a real database', () => {
         CREATED_BY_ID,
         OPTIMIZER_TABLES,
         PROJECT_SETTINGS,
+        CALENDAR_MARKER,
+        READ_ORDER_INDEX,
+        WORK_ITEM_DEADLINE,
       ]);
     } finally {
       db.cleanup();
@@ -800,6 +835,9 @@ describe('rollbackTo, against a real database', () => {
       const reversed = rollbackTo(db.path, FOLDER, ROLLBACK_ALL);
 
       expect(reversed).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -884,6 +922,9 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,
@@ -953,6 +994,9 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        WORK_ITEM_DEADLINE,
+        READ_ORDER_INDEX,
+        CALENDAR_MARKER,
         PROJECT_SETTINGS,
         OPTIMIZER_TABLES,
         CREATED_BY_ID,

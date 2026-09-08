@@ -9,6 +9,7 @@ import type { Project, Step, StoredDependency, WorkItem, WriteStamp } from '../r
 import { STEP_POSITION_STEP } from '../repository';
 import { CapacityRepository } from '../repository/capacity';
 import { openDatabase, openDrizzle } from '../repository/db';
+import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { rollbackTo } from '../repository/migrate-down';
 import { inMemoryActuals } from '../testing/actual-fixture';
@@ -255,7 +256,7 @@ describe('every plan schedules identically across the migration', () => {
       );
       /** The label in force on a row: its own, else the nearest ancestor's. */
       const effectiveTeamOf = (rowId: string): string | null => {
-        for (let at: string | null | undefined = rowId; at !== null && at !== undefined; ) {
+        for (let at: string | null | undefined = rowId; at !== null && at !== undefined;) {
           const own = ownTeam.get(at);
           if (own !== undefined && own !== null) return own;
           at = parentOf.get(at);
@@ -286,7 +287,17 @@ describe('every plan schedules identically across the migration', () => {
         // `capacityTeamId` is lifted off every slice for `teamIds`' reason and
         // asserted on its own here: the oracle predates the field, and a
         // payload that gained one is not a payload that moved a date.
-        slices: tree.slices.map(({ capacityTeamId, ...slice }) => {
+        // `lateBy` comes off beside it, by `work-item-deadline` 5.2 and for the
+        // same reason, asserted null rather than dropped: no plan in this
+        // corpus carries a deadline, so a slice reporting itself late would be
+        // the engine inventing a date. The column exists as of `b2bb095c`, is
+        // readable and writable as of slice 6, and the plan read resolves it
+        // into `schedule()`'s seventh argument as of 3.4/4.2 — so the reason the
+        // null holds is now the **corpus** alone: not one of the sixteen
+        // replayed plans states a deadline, and a row with none is absent from
+        // the map. See `priority-band-identity.db.test.ts`, which asserts the
+        // same null for the same reason.
+        slices: tree.slices.map(({ capacityTeamId, lateBy, ...slice }) => {
           if (slice.boundBy === 'capacity') {
             const owed = effectiveTeamOf(slice.workItemId);
             expect(owed).not.toBeNull();
@@ -295,6 +306,7 @@ describe('every plan schedules identically across the migration', () => {
           } else {
             expect(capacityTeamId).toBeNull();
           }
+          expect(lateBy).toBeNull();
           return slice;
         }),
         workItems: tree.workItems.map(
@@ -310,6 +322,7 @@ describe('every plan schedules identically across the migration', () => {
             state,
             serviceId,
             startNoEarlierThanReason,
+            deadline,
             ...row
           }) => {
             // The arity claim, and the only place it is made: the set the join
@@ -404,6 +417,13 @@ describe('every plan schedules identically across the migration', () => {
             // bare lift would hide a read path that invented either.
             expect(serviceId).toBeNull();
             expect(startNoEarlierThanReason).toBeNull();
+            // The third of the same kind, and the newest: `work-item-deadline`
+            // slice 6 made `work_item.deadline` readable, so every row now
+            // carries a key the pinned document predates. `null` on all sixteen
+            // replayed plans is the claim — no row in this corpus has a deadline
+            // and none was invented by the read path that widened to carry one —
+            // and a bare lift would hide a projection that defaulted the column.
+            expect(deadline).toBeNull();
             return row;
           },
         ),
@@ -521,7 +541,7 @@ describe('every plan schedules identically across the migration', () => {
 
     runMigrations(path, FOLDER);
 
-    const store = new CapacityRepository(openDrizzle(path));
+    const store = new CapacityRepository(openDrizzle(path), OPEN);
     const seeded = new Map<string, Map<string, number>>();
     for (const plan of oracle.plans)
       seeded.set(plan.projectId, await store.slotsFor(plan.projectId));
@@ -534,7 +554,9 @@ describe('every plan schedules identically across the migration', () => {
     seeded: ReadonlyMap<string, ReadonlyMap<string, number>>,
   ): Promise<NonNullable<Awaited<ReturnType<WorkItemService['tree']>>>> {
     const projects = inMemoryProjects();
-    const directory = inMemoryDirectory();
+    const directory = inMemoryDirectory((projectId): Promise<readonly { id: string }[]> =>
+      workItems.listByProject(projectId),
+    );
     const workItems = inMemoryWorkItems(directory);
     const estimates = inMemoryEstimates(workItems);
     const actuals = inMemoryActuals(workItems);

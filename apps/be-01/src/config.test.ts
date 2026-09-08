@@ -10,9 +10,36 @@ const VALID = {
   DB_PATH: '/srv/wbs/data/wbs.db',
   JWT_SIGNING_KEY_CURRENT: 'b'.repeat(32),
   AUTH_MODE: 'local',
+  APP_ORIGIN: 'http://localhost:4200',
 };
 
 describe('BeConfig', () => {
+  it('defaults the one solver budget to sixty seconds and accepts an explicit millisecond override', () => {
+    // Proof: remove the default and the first read is undefined; ignore the
+    // environment key and the second stays 60000. Both would key cache rows and
+    // child deadlines differently from the operator's configured release.
+    expect(loadConfig(VALID).SOLVER_BUDGET_MS).toBe(60_000);
+    expect(loadConfig({ ...VALID, SOLVER_BUDGET_MS: '120000' }).SOLVER_BUDGET_MS).toBe(120_000);
+  });
+
+  it('defaults production solves to two search workers and accepts a positive override', () => {
+    expect(loadConfig(VALID).SOLVER_SEARCH_WORKERS).toBe(2);
+    expect(loadConfig({ ...VALID, SOLVER_SEARCH_WORKERS: '3' }).SOLVER_SEARCH_WORKERS).toBe(3);
+    expect(() => loadConfig({ ...VALID, SOLVER_SEARCH_WORKERS: '0' })).toThrow(
+      'SOLVER_SEARCH_WORKERS must be greater than zero',
+    );
+  });
+
+  it('defaults each solver child to 512 MB and rejects an unbounded value', () => {
+    expect(loadConfig(VALID).SOLVER_MEMORY_LIMIT_MB).toBe(512);
+    expect(loadConfig({ ...VALID, SOLVER_MEMORY_LIMIT_MB: '768' }).SOLVER_MEMORY_LIMIT_MB).toBe(
+      768,
+    );
+    expect(() => loadConfig({ ...VALID, SOLVER_MEMORY_LIMIT_MB: '0' })).toThrow(
+      'SOLVER_MEMORY_LIMIT_MB must be greater than zero',
+    );
+  });
+
   it('accepts a complete environment', () => {
     const parsed = BeConfig(VALID);
     expect(parsed).toMatchObject({ PORT: 3100, DB_PATH: '/srv/wbs/data/wbs.db' });
@@ -40,5 +67,51 @@ describe('BeConfig', () => {
     expect(() => loadConfig({ ...VALID, NODE_ENV: 'production' })).toThrow(
       /AUTH_MODE=local.*production/,
     );
+  });
+});
+
+describe('trusted browser origin at startup', () => {
+  it('requires a local-mode origin independent of request-like environment values', () => {
+    const withoutAppOrigin = Object.fromEntries(
+      Object.entries(VALID).filter(([key]) => key !== 'APP_ORIGIN'),
+    );
+    expect(() =>
+      loadConfig({ ...withoutAppOrigin, HOST: 'app.example', ORIGIN: 'https://app.example' }),
+    ).toThrow('APP_ORIGIN is required');
+  });
+  for (const origin of [
+    '',
+    'null',
+    'app.example',
+    'file:///',
+    'file:///app',
+    'https://user:password@app.example',
+    'https://app.example/path',
+    'https://app.example/?query=1',
+    'https://app.example/#fragment',
+  ]) {
+    it(`refuses an invalid configured origin ${origin}`, () => {
+      expect(() => loadConfig({ ...VALID, APP_ORIGIN: origin })).toThrow('APP_ORIGIN');
+    });
+  }
+  it('canonicalizes an explicitly configured HTTP origin', () => {
+    expect(loadConfig({ ...VALID, APP_ORIGIN: 'http://LOCALHOST:4200/' }).appOrigin).toBe(
+      'http://localhost:4200',
+    );
+  });
+  it('uses the configured OIDC callback origin without requiring a local setting', () => {
+    expect(
+      loadConfig({
+        ...VALID,
+        AUTH_MODE: 'oidc',
+        AUTH_REDIRECT_URI: 'https://app.example/api/auth/okta/callback',
+      }).appOrigin,
+    ).toBe('https://app.example');
+  });
+  it('refuses a missing or wrong OIDC callback location', () => {
+    expect(() => loadConfig({ ...VALID, AUTH_MODE: 'oidc' })).toThrow('AUTH_REDIRECT_URI');
+    expect(() =>
+      loadConfig({ ...VALID, AUTH_MODE: 'oidc', AUTH_REDIRECT_URI: 'https://app.example/other' }),
+    ).toThrow('AUTH_REDIRECT_URI');
   });
 });

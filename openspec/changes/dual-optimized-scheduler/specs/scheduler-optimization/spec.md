@@ -34,7 +34,7 @@ Validated solver results SHALL be stored in a durable SQLite cache keyed by `(pr
 
 ### Requirement: schedule_optimized broadcasts only newly stored results
 
-The coordinator SHALL emit one `schedule_optimized` event when a newly validated result is stored, carrying the full cache-key identity `(projectId, generation, inputHash, objective, contractVersion, budgetMs)`. A cache hit SHALL NOT emit the event. The guarantee SHALL be one durable `event_log` record per newly stored outcome plus one best-effort post-commit push, stated identically here and in every other normative location; the system SHALL NOT claim delivery over a live socket, because `event_log` is a replay buffer rather than a dispatched-and-acknowledged outbox.
+The coordinator SHALL emit one `schedule_optimized` event when a newly validated result is stored, carrying the full cache-key identity `(projectId, generation, inputHash, objective, contractVersion, budgetMs)`. A client displaying that variant reads it under **What an outcome event promises a client** below, the same as its two siblings. A cache hit SHALL NOT emit the event. The guarantee SHALL be one durable `event_log` record per newly stored outcome plus one best-effort post-commit push, stated identically here and in every other normative location; the system SHALL NOT claim delivery over a live socket, because `event_log` is a replay buffer rather than a dispatched-and-acknowledged outbox.
 
 #### Scenario: a newly stored result broadcasts once
 
@@ -50,13 +50,13 @@ The coordinator SHALL emit one `schedule_optimized` event when a newly validated
 
 ### Requirement: The comparison indicator names the change against Fast
 
-The compact indicator SHALL compare the selected optimized variant with the Fast schedule for the same exact input and SHALL report one of: Earlier by N days, Later by N days, Same deadline + reordered, or Same deadline + same order.
+The compact indicator SHALL compare the selected optimized variant with the Fast schedule for the same exact input and SHALL report one of: Earlier project deadline by N days, Later project deadline by N days, Same project deadline + reordered, or Same project deadline + same order. Every one of the four SHALL name the deadline it means, because the schedule's project finish date and `work_item.deadline` are both live and an unqualified "deadline" cannot say which it is (`work-item-deadline` 8.9/8.9b).
 
 #### Scenario: the selected variant finishes earlier
 
 - **GIVEN** an optimized variant that finishes earlier than Fast for the same input
 - **WHEN** that variant is displayed
-- **THEN** the indicator reads "Earlier by N days" with the exact day count
+- **THEN** the indicator reads "Earlier project deadline by N days" with the exact day count
 
 ### Requirement: Failure keeps Fast usable and requires manual retry
 
@@ -134,23 +134,23 @@ The solver budget SHALL be one configuration value `solverBudgetMs` defaulting t
 
 ### Requirement: Each solver child is bounded in CPU and memory, not only in count
 
-The process ceilings SHALL NOT be presented as the CPU or memory bound. Every production solve SHALL be configured with an explicit `num_search_workers` taken from `solverSearchWorkers` (default 2), so the fleet-wide worst case is a stated CP-SAT search-worker count (`32` at the full 16) rather than one search worker per core per child or an exact total process-thread count; the pinned determinism configuration SHALL keep `num_search_workers = 1`. Every child SHALL run under an explicit per-child memory limit taken from `solverMemoryLimitMb` (default 512 MB), enforced outside the solve because CP-SAT exposes no dependable in-process ceiling: the deployment SHALL apply a per-child cgroup or systemd scope limit, and the coordinator SHALL classify a memory-limit crossing as `oom` only after reading the scope's `memory.events` `oom`/`oom_kill` evidence (or the equivalent systemd kill result); the child wrapper SHALL still apply the portable `RLIMIT_AS` before exec as a best-effort backstop only, because it limits address space rather than RSS and CP-SAT allocates in native C++, where an overrun can abort without a catchable Python `MemoryError`. A native CP-SAT abort with no OOM evidence SHALL be reported `internal-error` and SHALL NOT be reported `oom`; the `oom` reason SHALL be produced by the memory-limit evidence and by no other path. Crossing a limit SHALL be survived by the coordinator, which SHALL release the slot and store the `failed` marker. The worst-case fleet CPU and memory implied by the global ceiling and these two values SHALL be recorded as a deployment obligation.
+The process ceilings SHALL NOT be presented as the CPU or memory bound. Every production solve SHALL request `num_search_workers` from `solverSearchWorkers` (default 2), while pinned determinism keeps 1. The host supervisor SHALL refuse more than 2 workers, 512 MiB, 128 PIDs per child, or 16 live managed containers globally before Docker create; deployment may lower but a caller cannot raise those caps. Docker SHALL apply the accepted memory limit and equal memory-swap to the one disposable solver container. `RLIMIT_AS` SHALL remain a loose address-space backstop only. The supervisor SHALL classify `oom` only from Docker's recorded `OOMKilled=true`; its deadline-timer kill SHALL be `timeout`; the entrypoint's own exit `70` — a later-stage `INFEASIBLE`, which is the one outcome that has no encoding on the wire — SHALL be `invalid-output`; its exit `71` — CP-SAT refusing the model, or answering a status the stage matrix has no row for — SHALL be `internal-error`, because that is this package disagreeing with its own solver rather than a solver answer; another native non-zero exit SHALL be `internal-error`. The coordinator SHALL survive every case, retain its slot until termination is proved, then store the typed failure and release. The fleet obligation is 32 CP-SAT search workers and about 8 GiB solver RSS at the full 16.
 
 #### Scenario: a child that crosses its memory limit is recorded as oom
 
 - **GIVEN** a solve configured with `solverMemoryLimitMb` and a fixture that forces native CP-SAT allocation past the limit
-- **WHEN** the child is killed by the cgroup/systemd scope limit and its `memory.events` `oom` counter records the kill, and separately when the wrapper directly catches a memory exception with classifiable evidence
-- **THEN** the coordinator survives, the slot is released, a `failed` marker with `failureReason: 'oom'` is stored for each case the evidence supports, a native CP-SAT abort with no OOM evidence is stored as `internal-error` and never as `oom`, and the effective `num_search_workers` read from a real spawned production solve equals `solverSearchWorkers`
+- **WHEN** Docker kills the managed container and records `OOMKilled=true`
+- **THEN** the coordinator survives, the slot is released only after the terminal evidence, a `failed` marker with `failureReason: 'oom'` is stored, a native abort without that evidence is `internal-error`, and the real solve uses `solverSearchWorkers`
 
 ### Requirement: A coordinator restart resumes nothing and publishes nothing stale
 
-On startup the coordinator SHALL resume no in-flight child and SHALL rebuild no **in-memory** queue. It SHALL NOT discard the durable `solver_queue` merely because of the restart (Sol r10 Important 7): a current entry remains eligible and is discarded only by the ordinary dequeue predicates — generation no longer current, `admissionState != 'open'`, `cancelEpoch != admittedCancelEpoch`, toggle OFF, or non-null `optimizationDeletePendingAt`. A variant absent at the current full key SHALL be re-admitted within the same generation only after any orphan slot for that key has been released or passed its stored `admittedDeadlineAt`. A process that dies mid-solve SHALL leave no outcome row. Orphaned children SHALL NOT be identified by stored PID: The **launcher wrapper** installs `PR_SET_PDEATHSIG` — surviving the `exec`, so it still binds `wbs-solver` on the same pid — re-checks its parent id, and arms the **given absolute** `childDeadlineAt = startedAt + budgetMs + 5000` in-process and through the scope's external kill, never a deadline derived from its own start (Fable r14 Minor 4: this sentence still carried the pre-launcher, self-derived model that Sol r12 Critical 2 rejected, and a top-down reader met it 110 lines before the correction); the later stored `admittedDeadlineAt` includes `SLOT_RECLAIM_MARGIN_MS` and is the only reclamation instant. No missed heartbeat alone reclaims a row; `heartbeatAt` is for cancellation observation and diagnostics only. Each backend release SHALL run in its own container or cgroup.
+On startup the coordinator SHALL resume no in-flight child and SHALL rebuild no **in-memory** queue. It SHALL NOT discard the durable `solver_queue` merely because of the restart: ordinary generation, admission-state, cancel-epoch, toggle, and deletion predicates remain authoritative. A variant absent at the current key SHALL be re-admitted within the same generation only after any orphan slot is released or passes `admittedDeadlineAt`. Coordinator disconnect SHALL make the host supervisor kill that exact managed container. Supervisor restart SHALL NOT unarm the per-attempt systemd deadline timer, and its restart-always pre-listen sweep SHALL kill, wait, inspect, and remove managed orphans. EOF without a terminal frame SHALL keep the slot counted until the child deadline plus reclaim margin. No missed heartbeat alone reclaims a row.
 
 #### Scenario: a mid-solve restart leaves no partial result
 
 - **GIVEN** a solve in flight
 - **WHEN** the coordinator process is killed and restarted
-- **THEN** no cache row exists for that run, the solver child has terminated itself via its own hard deadline, and its slot stays counted until `now > admittedDeadlineAt`
+- **THEN** no cache row exists for that run, the supervisor or persistent deadline timer terminates the managed container, and its slot stays counted until termination is proved or `now > admittedDeadlineAt`
 
 ### Requirement: The toggle, Engine and Objective are persisted project settings
 
@@ -264,23 +264,23 @@ Every spawn SHALL carry `(generation, cancelEpoch, attemptToken)`. That four-par
 
 ### Requirement: Resource ceilings are enforced across processes
 
-The per-project ceiling of 4 and the global ceiling of 16 SHALL be enforced by a SQLite admission transaction over a `solver_slot` table, not by coordinator memory, so that co-existing backend releases share one budget; the count SHALL include every unreleased row, including rows already asked to cancel, so a terminating child is never uncounted. Allocating a new generation SHALL NOT delete slot rows. Admission SHALL reject a generation unless its durable `admissionState` is `open` and SHALL reject any project carrying `optimizationDeletePendingAt`; the dequeue transaction SHALL apply the same two predicates. Admission SHALL mint an unforgeable 128-bit `attemptToken`, and heartbeat, release, the outcome write and the event write SHALL each carry it so a superseded owner's statement matches zero rows. Admission SHALL insert the row in `lifecycle = 'starting'` with a NULL `pid`, and a `starting` row SHALL count towards both ceilings exactly as a `running` row does, because the reservation — not the process — is what the ceiling bounds. After reserving, the coordinator SHALL spawn a **lifecycle launcher**, not `wbs-solver` itself, passing the absolute deadline and the token as process arguments. The coordinator SHALL bind by compare-and-swap, setting `pid` (the launcher's) and `lifecycle = 'running'` only while its own `attemptToken` still holds a `starting` row; a bind matching zero rows SHALL abort and terminate the launcher. Only after a successful bind SHALL the launcher `exec` `wbs-solver` in place, so the process named `wbs-solver` cannot exist before its row is `running`; on an abort verdict, a closed channel, a `BIND_TIMEOUT_MS` expiry, or a `bound` verdict arriving when `now >= childDeadlineAt` the launcher SHALL exit **without `exec`ing**, so no `wbs-solver` process ever comes into existence and a coordinator paused past the reclaim margin between admission and spawn can never run a second solver process against one reclaimed slot. The absolute `childDeadlineAt` and the `attemptToken` SHALL be passed to the child as process arguments. The child SHALL arm that given absolute `childDeadlineAt = startedAt + budgetMs + 5000` rather than deriving one from its own start; SQLite observers SHALL NOT use that instant to reclaim. That deadline SHALL be enforced by two mechanisms, and the process ceiling SHALL rest on the external one: the wrapper SHALL configure CP-SAT's `max_time_in_seconds` from `childDeadlineAt` so a progressing solve returns a publishable partial, and the per-child cgroup or systemd scope SHALL carry an equivalent `RuntimeMaxSec` that terminates the child at `childDeadlineAt` whether or not it acts. An in-process alarm SHALL NOT be the sole enforcement, because the solver ships as a Python package whose signal handler runs only when the interpreter regains the GIL while `Solve()` is a single native call — the same constraint that puts the memory bound outside the solve. A child surviving past `admittedDeadlineAt` SHALL be treated as a ceiling violation, since its slot is reclaimed and its capacity re-admitted at that instant. The admitting coordinator SHALL instead stamp `admittedDeadlineAt = childDeadlineAt + SLOT_RECLAIM_MARGIN_MS` into the row, and reclamation SHALL be `now > admittedDeadlineAt` using that stored value. The 15-second separation gives the child time to exit before SQLite frees capacity and prevents an observer configured at a smaller budget from reclaiming a larger-budget child inside its own deadline. The slot key SHALL be `(projectId, contractVersion, generation, objective, budgetMs)`. Waiting entries SHALL be ordered by `enqueuedAt`, then `projectId`, then `contractVersion`, then `objective`, then `budgetMs`, at most one per `(projectId, contractVersion, objective, budgetMs)`. Each `solver_queue` row SHALL persist, in a column named `admittedCancelEpoch`, the project's `cancelEpoch` as read at the instant the entry was enqueued, because a dequeue re-check has nothing to compare against otherwise. An entry SHALL be discarded at dequeue without launching when its `generation` is no longer current, its generation's `admissionState` is not `open`, `cancelEpoch != admittedCancelEpoch`, the project's toggle is no longer ON, or `optimizationDeletePendingAt` is non-null.
+The per-project ceiling of 4 and global ceiling of 16 SHALL be enforced by the SQLite `solver_slot` admission transaction across backend releases. Every unreleased `starting` or `running` row counts, including cancellation overlap; allocation SHALL NOT delete slots. Admission/dequeue SHALL retain the existing generation, open-state, cancel-epoch, toggle, and deletion fences. Admission mints the attempt token carried by bind, heartbeat, release, outcome, and event writes. After reserving `starting`, the coordinator opens one authenticated host-supervisor connection. The supervisor SHALL derive caller identity with `SO_PEERCRED`, select the host-owned digest mapping, enforce its resource and global caps, and create/attach/start one hardened managed container. Its returned init PID is bound by the existing token CAS; only then may `bound` plus the request reach `wbs-solver-launcher`. Abort, timeout, protocol error, disconnect, or cancellation SHALL kill that exact container and preserve Docker terminal evidence before removal. A transient systemd timer SHALL kill it at `childDeadlineAt`; SQLite alone reclaims after the later `admittedDeadlineAt`. At every sample live managed containers SHALL be no greater than all unreleased slot rows, while solve-start state SHALL be no greater than `running` rows. Queue identity/order and dequeue predicates remain unchanged.
 
 #### Scenario: a coordinator paused between admission and spawn cannot double the ceiling
 
 - **GIVEN** two coordinators against one database, and an owner paused after its slot is inserted `starting` and before its launcher receives the bind verdict, while time advances past the row's stored `admittedDeadlineAt`
 - **WHEN** the second coordinator reclaims that expired row and admits a replacement whose launcher binds and `exec`s `wbs-solver`
-- **THEN** the delayed owner's bind matches zero rows, its launcher exits without `exec`ing so no `wbs-solver` process is created, the sampled OS count of live `wbs-solver` processes never exceeds the `running` row count, and neither ceiling of 4 per project or 16 globally is exceeded at any sample
+- **THEN** the delayed bind matches zero, its managed container terminates without a solve, live managed containers never exceed all unreleased rows, solve-start state never exceeds `running` rows, and neither 4 nor 16 is exceeded
 
 #### Scenario: a bind into an already-spent budget does not start a solve
 
 - **GIVEN** an owner paused between the `starting` insert and the spawn for longer than `budgetMs + 5000` but less than `admittedDeadlineAt`, against a row no sweep has reclaimed
 - **WHEN** its bind CAS succeeds — token intact, `lifecycle` still `starting` — and the launcher reads a `bound` verdict with `now >= childDeadlineAt`
-- **THEN** the launcher exits without `exec`ing rather than arming a non-positive `max_time_in_seconds` or `RuntimeMaxSec`, no `wbs-solver` process is created, and the slot is released rather than held for a solve whose budget is already spent
+- **THEN** the supervisor rejects or aborts before solve start rather than arming a non-positive interval, and the slot is released after container termination is proved
 
 #### Scenario: a verdict that never arrives releases the launcher
 
-- **GIVEN** a launcher spawned with its argv and blocked for a bind verdict, and a coordinator that neither binds nor aborts — wedged, not dead, so `PR_SET_PDEATHSIG` does not fire
+- **GIVEN** a launcher container blocked for a bind verdict and a coordinator that keeps the connection open without sending one
 - **WHEN** `BIND_TIMEOUT_MS = 5000` elapses with stdin still open and no verdict written
 - **THEN** the launcher exits without `exec`ing, no `wbs-solver` process is ever created for that token, and the `starting` row is left to ordinary `admittedDeadlineAt` reclaim rather than to a live process holding it
 
@@ -293,8 +293,8 @@ The per-project ceiling of 4 and the global ceiling of 16 SHALL be enforced by a
 #### Scenario: rapid generations never exceed the process ceilings
 
 - **GIVEN** a project edited repeatedly so several generations overlap while their children terminate
-- **WHEN** the observed operating-system process count is sampled throughout
-- **THEN** it never exceeds 4 for that project or 16 globally, because superseded slot rows stay counted until their owners release them
+- **WHEN** managed containers and slot rows are sampled throughout
+- **THEN** containers never exceed all unreleased rows, at most 4 for that project or 16 globally, because superseded rows stay counted until termination
 
 #### Scenario: two coordinators share one global budget
 
@@ -310,7 +310,7 @@ The per-project ceiling of 4 and the global ceiling of 16 SHALL be enforced by a
 
 #### Scenario: slot capacity is released only after the child deadline margin
 
-- **GIVEN** a child armed at `childDeadlineAt` both in-process (CP-SAT `max_time_in_seconds`) and externally (the per-child scope's `RuntimeMaxSec`), whose slot stores the later `admittedDeadlineAt`
+- **GIVEN** a child armed at `childDeadlineAt` both in CP-SAT and by the supervisor's persistent systemd kill timer, whose slot stores later `admittedDeadlineAt`
 - **WHEN** a sweep at `admittedDeadlineAt` releases that slot and admits a replacement, including the case of a solve that ignores its in-process limit inside a native CP-SAT call
 - **THEN** the original operating-system process is already gone because the external kill landed at `childDeadlineAt`, arming the child at `admittedDeadlineAt` instead would fail the process-count ceiling proof, and arming it only in-process would fail it too
 
@@ -323,6 +323,12 @@ The cache row and a durable `event_log` record SHALL be written in one SQLite tr
 - **GIVEN** a validated solver result
 - **WHEN** the process dies after the cache write but before the transaction commits
 - **THEN** no cache row and no event record exist, and the next read starts a fresh solve
+
+#### Scenario: a crash between an infeasible certificate and its event leaves neither
+
+- **GIVEN** a first-stage `INFEASIBLE` whose `plan-infeasible` certificate has been written and whose event write then throws
+- **WHEN** the outcome transaction unwinds
+- **THEN** neither the cache row nor the `event_log` record exists, because "newly stored outcome" is every stored outcome and not only the `ok` one — a certificate that outlived its own announcement would be a terminal, never-auto-respawned row that no live client is ever told about
 
 ### Requirement: The solver is a versioned package behind one entrypoint
 
@@ -481,17 +487,41 @@ Project deletion and contract retirement SHALL use the named `beginOptimizationD
 
 ### Requirement: A failed variant reaches a client already on screen
 
-A newly written failure marker SHALL emit a `schedule_optimization_failed` project event in the same transaction that writes the row, carrying `(projectId, generation, inputHash, objective, contractVersion, budgetMs, failureReason)` and no schedule. A client displaying that variant SHALL move to the `Optimization unavailable · Retry` indicator on receiving it, without a manual refresh and without refetching the variant. A cache hit SHALL still emit nothing.
+A newly written failure marker SHALL emit a `schedule_optimization_failed` project event in the same transaction that writes the row, carrying `(projectId, generation, inputHash, objective, contractVersion, budgetMs, failureReason)` and no schedule. A client displaying that variant SHALL move to the `Optimization unavailable · Retry` indicator on receiving it, on the event alone and with no manual refresh and no poll, under **What an outcome event promises a client** below. A cache hit SHALL still emit nothing.
 
 #### Scenario: both variants fail and Retry still appears
 
 - **GIVEN** a client viewing Engine Optimized while both PRI and Time solves are in flight
 - **WHEN** both fail and no other event occurs
-- **THEN** the client shows `Optimization unavailable · Retry` for the selected variant without any refresh or poll
+- **THEN** the client shows `Optimization unavailable · Retry` for the selected variant on the event alone, with no manual refresh and no poll
+
+### Requirement: An infeasible variant reaches a client already on screen
+
+A newly written `plan-infeasible` row SHALL emit a `schedule_optimization_infeasible` project event in the same transaction that writes the row, carrying `(projectId, generation, inputHash, objective, contractVersion, budgetMs)` and neither a schedule nor a `failureReason`. A client displaying that variant SHALL move to the `Plan infeasible · N work item deadlines` indicator on receiving it, without a manual refresh. A cache hit SHALL still emit nothing.
+
+**It SHALL be a third event type and SHALL NOT be a widening of either existing one**, because both widenings are lossy in the same direction. `schedule_optimization_failed` carries a `failureReason` drawn from a closed enum with no member for a deterministic certificate, and a receiver that reads the variant as failed offers the `Retry` this state must never offer — the one affordance the whole `plan-infeasible` state exists to withhold. `schedule_optimized` promises a schedule that a certificate does not have. Widening either makes one event name two facts that no field in the payload distinguishes, so every receiver would have to re-derive which one it holds; a third type puts that distinction in the one field every receiver already switches on.
+
+**What this event SHALL NOT be read as promising:** that the client learns the certificate from the wire. The certificate stays in the keyed cache DTO, so this event carries the shared identity and nothing else — as `schedule_optimized` does, and as `schedule_optimization_failed` does apart from its `failureReason` — and all three are read under the one contract below, **What an outcome event promises a client**, which binds the receiver rather than the wire. `budgetMs` is in the identity for the same reason it is in theirs.
+
+#### Scenario: both variants come back infeasible and neither client stays Optimizing…
+
+- **GIVEN** a client viewing Engine Optimized while both the PRI and Time solves are in flight
+- **WHEN** both first-stage solves return `INFEASIBLE` and no other event occurs
+- **THEN** each stored certificate emits exactly one `schedule_optimization_infeasible`, and the client shows `Plan infeasible · N work item deadlines` for the selected variant on the event alone, with no manual refresh and no poll
+
+#### Scenario: an infeasible certificate is not announced as a failure
+
+- **GIVEN** a stored `plan-infeasible` row and its committed record
+- **WHEN** that record is replayed from `event_log`
+- **THEN** its type is `schedule_optimization_infeasible` and it carries no `failureReason`, so no receiver can render it as `Optimization unavailable · Retry`
 
 ### Requirement: Result events name every cache-key dimension
 
-Both `schedule_optimized` and `schedule_optimization_failed` SHALL carry `budgetMs` in their identity, so a receiver can tell which cached row an event names. The system SHALL guarantee one durable `event_log` record per newly stored outcome plus one best-effort post-commit push, and SHALL NOT claim delivery over a live socket. The record SHALL be written inside the same transaction as its cache row through a transaction-taking repository call, and pushed afterwards without being recorded twice.
+`schedule_optimized`, `schedule_optimization_failed` and `schedule_optimization_infeasible` SHALL each carry `budgetMs` in their identity, so a receiver can tell which cached row an event names. The system SHALL guarantee one durable `event_log` record per newly stored outcome plus one best-effort post-commit push, and SHALL NOT claim delivery over a live socket. The record SHALL be written inside the same transaction as its cache row through a transaction-taking repository call, and pushed afterwards without being recorded twice.
+
+**What an outcome event promises a client.** This is the one place the receiver's half of all four outcome requirements is stated; the three event-specific requirements point here rather than restating it, and this one hosts it. An outcome event is an **invalidation signal**, and this is a rule about the receiver rather than about the wire. A client displaying the named variant SHALL move to that variant's indicator on the event alone — no manual refresh, no poll, no user action, no timer — and SHALL take the variant's new state from **the ordinary plan read that the event starts**, never from a field of the frame. The system SHALL NOT offer a variant-scoped read for this purpose: the announcement's job is to say which cached row is worth re-reading, and there is exactly one read that does it.
+
+**It has to be a rule about the receiver, because the wire is not identity-only** (Sol review, TASK-324, 2026-09-07). `schedule_optimization_failed` carries `failureReason` beside the identity, and for the named objective `type` plus `failureReason` is exactly the FE's `{ state: 'failed', reason }` — so a client _could_ render the first `Retry` straight from the frame and reconcile on a later read. That third reading is coherent, and refusing it is a **choice** rather than something the older "without refetching the variant" wording deduced. It is refused because it makes the frame a second source for a fact the keyed cache DTO already owns, and it can only ever apply to one of the three siblings: the infeasible event carries no `failureReason` and the success event carries no schedule, so both must re-read whatever the failure event does. One rule for all three is worth more than a special case for one. The FE enforces it at the seam rather than at each screen — the stream layer reads one field of every frame and discards the rest — so an implementation adopting the third reading has to add a second delivery path, which this requirement forbids in as many words.
 
 #### Scenario: raising the budget notifies a client holding the old result
 

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { projectRow } from '../testing/project-fixture';
 import { openDrizzle } from './db';
 import { DirectoryRepository } from './directory';
+import { OPEN } from './gate';
 import type { Project, Step, WorkItem, WriteStamp } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
@@ -49,6 +50,7 @@ const newItem = (
   serviceId: null,
   maxParallel: 1,
   startNoEarlierThanReason: null,
+  deadline: null,
   revision: 0,
 });
 
@@ -59,11 +61,11 @@ beforeEach(async () => {
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
   const db = openDrizzle(path);
-  repo = new DirectoryRepository(db);
-  workItems = new WorkItemRepository(db);
+  repo = new DirectoryRepository(db, OPEN);
+  workItems = new WorkItemRepository(db, OPEN);
 
   ownerId = crypto.randomUUID();
-  await new UserRepository(db).create(
+  await new UserRepository(db, OPEN).create(
     { id: ownerId, username: 'owner', passwordHash: 'x', createdAt: 1 },
     wrote(),
   );
@@ -73,7 +75,7 @@ beforeEach(async () => {
     ownerId,
   });
   const steps: Step[] = [{ id: crypto.randomUUID(), projectId, name: 'Dev', position: 10 }];
-  await new ProjectRepository(db).create(project, steps, wrote());
+  await new ProjectRepository(db, OPEN).create(project, steps, wrote());
 
   itemId = crypto.randomUUID();
   childId = crypto.randomUUID();
@@ -262,7 +264,17 @@ describe('the work item type vocabulary', () => {
     if (outcome.ok || outcome.reason !== 'in_use') throw new Error('the removal was not refused');
     // `DirectoryUsageRows` is the flat repository shape — the service is what
     // folds it into a per-project tree — so the row is read off `workItems`.
-    expect(outcome.usage.workItems.map((each) => each.id)).toEqual([itemId, childId]);
+    //
+    // **Ascending `work_item.id`, not insertion order.** This line asserted the
+    // order the rows happened to be inserted in, which was never what
+    // `usageRowsIn` promised: the select carried no `ORDER BY` at all, so what
+    // it returned was whatever plan SQLite chose. CI run 34020910596 at
+    // `44463938` chose the index and the two ids came back swapped —
+    // `0588a41f…` before `d705447e…`, ascending — on bytes whose only change
+    // was merging `work_item_project_id_id` in. The read now states its order
+    // and this states the same one; the ids are UUIDv4, so the expectation is
+    // sorted rather than written out.
+    expect(outcome.usage.workItems.map((each) => each.id)).toEqual([itemId, childId].sort());
     expect(outcome.usage.projects.map((each) => each.id)).toEqual([projectId]);
     expect(await repo.listWorkItemTypes()).toEqual([{ id: bug.id, name: 'Bug' }]);
   });

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
 import { ActualRepository } from '../repository/actual';
@@ -11,6 +11,7 @@ import { openDatabase, openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
+import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
 import { StepRepository } from '../repository/step';
@@ -18,6 +19,7 @@ import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { AuthService } from '../service/auth.service';
 import { DirectoryService } from '../service/directory.service';
 import { ProjectService } from '../service/project.service';
@@ -25,6 +27,7 @@ import { StepService } from '../service/step.service';
 import { WorkItemService } from '../service/work-item.service';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
@@ -59,39 +62,52 @@ beforeEach(async () => {
   const db = openDrizzle(path);
   sqlite = openDatabase(path);
 
-  projects = new ProjectRepository(db);
-  store = new DirectoryRepository(db);
-  workItems = new WorkItemRepository(db);
-  stepStore = new StepRepository(db);
+  projects = new ProjectRepository(db, OPEN);
+  store = new DirectoryRepository(db, OPEN);
+  workItems = new WorkItemRepository(db, OPEN);
+  stepStore = new StepRepository(db, OPEN);
 
-  app = buildApp({
-    savedPlans: testSavedPlanService(),
+  // One graph, used by the routes and by the batch alike: these stores hold no
+  // turn (`OPEN`), so there is nothing here for a second graph to keep apart.
+  // Handing the batch its own would put a `createTeam` command in stores the
+  // routes never read.
+  const writing = {
     directory: new DirectoryService({ directory: store, broadcast: recordingBroadcaster() }),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
-    history: testHistoryService(),
-    auth: new AuthService({ users: new UserRepository(db), jwtKey: TEST_JWT_KEY }),
+    calendarMarkers: testCalendarMarkerService(),
     projects: new ProjectService({ projects, broadcast: recordingBroadcaster() }),
     steps: new StepService({ projects, steps: stepStore, broadcast: recordingBroadcaster() }),
     workItems: new WorkItemService({
       workItems,
       projects,
-      estimates: new EstimateRepository(db),
-      actuals: new ActualRepository(db),
-      measures: new StepMeasureRepository(db),
-      progress: new StepProgressRepository(db),
-      dependencies: new DependencyRepository(db),
+      estimates: new EstimateRepository(db, OPEN),
+      actuals: new ActualRepository(db, OPEN),
+      measures: new StepMeasureRepository(db, OPEN),
+      progress: new StepProgressRepository(db, OPEN),
+      dependencies: new DependencyRepository(db, OPEN),
       directory: store,
       capacity: inMemoryCapacity(),
       priorityBands: inMemoryPriorityBands(),
-      subtrees: new SubtreeRepository(db),
-      journal: new CommandJournalRepository(db),
+      subtrees: new SubtreeRepository(db, OPEN),
+      journal: new CommandJournalRepository(db, OPEN),
       broadcast: recordingBroadcaster(),
+    }),
+  };
+  app = buildApp({
+    appOrigin: 'http://localhost',
+    savedPlans: testSavedPlanService(),
+    ...writing,
+    history: testHistoryService(),
+    auth: new AuthService({
+      users: new UserRepository(db, OPEN),
+      tokens: joseTokenCodec(TEST_JWT_KEY),
+      passwords: bunPasswordHasher,
     }),
     replay: testReplay().replay,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
-    writes: testWrites(),
+    writes: testWrites(undefined, writing),
     migrationsApplied: true,
   });
   token = await register('owner');
@@ -106,7 +122,7 @@ async function register(username: string): Promise<string> {
   const res = await app.handle(
     new Request('http://localhost/api/auth/register', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { origin: 'http://localhost', 'content-type': 'application/json' },
       body: JSON.stringify({ username, password: 'correct-horse' }),
     }),
   );
@@ -833,4 +849,93 @@ describe('the six directory reads', () => {
       Object.fromEntries(paths.map((path) => [path, 401])),
     );
   });
+});
+
+it('requires identity and refuses undeclared query on every directory read', async () => {
+  for (const path of [
+    '/teams',
+    '/people',
+    '/tags',
+    '/services',
+    '/work-item-types',
+    '/external-systems',
+  ]) {
+    const anonymous = await app.handle(new Request(`http://localhost/api${path}`));
+    expect(anonymous.status).toBe(401);
+    expect(await anonymous.json()).toEqual({ error: 'unauthenticated' });
+    expect(await call('GET', `/api${path}?extra=1`)).toEqual({
+      status: 400,
+      body: { error: 'invalid_query' },
+    });
+    expect((await call('GET', `/api${path}`)).status).toBe(200);
+  }
+});
+
+it('refuses damaged directory rows and propagates unavailable stores instead of an empty success', async () => {
+  const teams = spyOn(store, 'listTeams');
+  const people = spyOn(store, 'listPeople');
+  try {
+    teams.mockResolvedValueOnce([{ id: 't', name: 'Team' }] as never);
+    expect(
+      (
+        await app.handle(
+          new Request('http://localhost/api/teams', {
+            headers: { authorization: `Bearer ${token}` },
+          }),
+        )
+      ).status,
+    ).toBe(500);
+    for (const person of [
+      { id: 'p', name: 'Person', teamIds: [] },
+      { id: 'p', name: 'Person', kind: 'robot', teamIds: [] },
+      { id: 'p', name: 'Person', kind: 'person' },
+    ]) {
+      people.mockResolvedValueOnce([person] as never);
+      expect(
+        (
+          await app.handle(
+            new Request('http://localhost/api/people', {
+              headers: { authorization: `Bearer ${token}` },
+            }),
+          )
+        ).status,
+      ).toBe(500);
+    }
+    teams.mockRejectedValueOnce(new Error('directory unavailable'));
+    expect(
+      (
+        await app.handle(
+          new Request('http://localhost/api/teams', {
+            headers: { authorization: `Bearer ${token}` },
+          }),
+        )
+      ).status,
+    ).toBe(500);
+  } finally {
+    teams.mockRestore();
+    people.mockRestore();
+  }
+});
+
+it('retains additive directory audit fields in the mounted response', async () => {
+  const rows = [
+    {
+      id: 'p',
+      name: 'Person',
+      kind: 'agent' as const,
+      teamIds: ['t'],
+      createdAt: 42,
+      createdBy: 'owner',
+    },
+  ];
+  const people = spyOn(store, 'listPeople').mockResolvedValueOnce(rows);
+  try {
+    const response = await app.handle(
+      new Request('http://localhost/api/people', { headers: { authorization: `Bearer ${token}` } }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ people: rows });
+  } finally {
+    people.mockRestore();
+  }
 });

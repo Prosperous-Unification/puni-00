@@ -9,6 +9,7 @@ import { CapacityRepository } from '../repository/capacity';
 import type { Connection } from '../repository/db';
 import { openConnection } from '../repository/db';
 import { DirectoryRepository } from '../repository/directory';
+import { OPEN } from '../repository/gate';
 import type { WriteStamp } from '../repository/index';
 import { runMigrations } from '../repository/migrate';
 import { ProjectRepository } from '../repository/project';
@@ -18,6 +19,7 @@ import { SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { planEvent, savedPlan, savedPlanBody } from '../repository/schema';
 import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
+import { nodeDigest } from '../runtime/bun-runtime';
 import { projectRow } from '../testing/project-fixture';
 import { SavedPlanService } from './saved-plan.service';
 import { bodySha256, UnknownSavedPlanBodyVersionError } from './saved-plan-integrity';
@@ -32,7 +34,7 @@ const OPENED_AT = 1_756_000_123;
  * The id a saved plan in this file was written under.
  *
  * A *recorded older* one, which is what task 5.1 asks for: the live constant is
- * `slice-leveling-v1` (`libs/domain/src/schedule.ts`), and a record stamped
+ * `slice-leveling-v2` (`libs/domain/src/schedule.ts`), and a record stamped
  * with an id this build no longer produces is the only record that can tell a
  * reader-of-bytes apart from a reader-that-recomputes by anything other than
  * luck. Deliberately **not** imported from `SCHEDULE_ALGORITHM_ID` and not
@@ -82,6 +84,7 @@ describe('reading a saved plan back', () => {
     serviceId: null,
     maxParallel: 1,
     startNoEarlierThanReason: null,
+    deadline: null,
     revision: 0,
   });
 
@@ -92,11 +95,11 @@ describe('reading a saved plan back', () => {
     runMigrations(path, FOLDER);
     const seed = openConnection(path);
     const db = seed.db;
-    await new UserRepository(db).create(
+    await new UserRepository(db, OPEN).create(
       { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
       wrote,
     );
-    await new ProjectRepository(db).create(
+    await new ProjectRepository(db, OPEN).create(
       projectRow({
         id: 'p1',
         name: 'Rewire the shed',
@@ -107,11 +110,11 @@ describe('reading a saved plan back', () => {
       [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10 }],
       wrote,
     );
-    const directory = new DirectoryRepository(db);
+    const directory = new DirectoryRepository(db, OPEN);
     await directory.addTeam({ id: 't-platform', name: 'Platform' }, wrote);
     await directory.addPerson({ id: 'pp-ada', name: 'Ada' }, ['t-platform'], wrote);
-    await new CapacityRepository(db).set('p1', 't-platform', 4, wrote);
-    const items = new WorkItemRepository(db);
+    await new CapacityRepository(db, OPEN).set('p1', 't-platform', 4, wrote);
+    const items = new WorkItemRepository(db, OPEN);
     await items.insert(item('wi-1', 10), [], wrote);
     await items.insert(item('wi-2', 20), [], wrote);
     seed.close();
@@ -126,6 +129,7 @@ describe('reading a saved plan back', () => {
   /** The service under test, with a scheduler that records every call. */
   const service = (id = 'sp-1') =>
     new SavedPlanService({
+      digest: nodeDigest,
       capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),
       plans: new SavedPlanRepository({ openConnection: () => openConnection(path) }),
       newId: () => id,
@@ -179,7 +183,7 @@ describe('reading a saved plan back', () => {
     expect(stored.get('schedule')).toBe(read.plan.schedule.body.bytes);
     // The record still names the algorithm it was written under, rather than
     // the one this build would compute — a reader that re-derived would have
-    // had to say `slice-leveling-v1` here.
+    // had to say `slice-leveling-v2` here.
     expect(read.plan.schedule.algorithmId).toBe(OLDER_ALGORITHM_ID);
     // The header, handed over as stored.
     expect(read.plan.input.sha256).toBe(record.input.sha256);
@@ -196,7 +200,7 @@ describe('reading a saved plan back', () => {
     // claim with a false version.
     await saveUnderTheOlderAlgorithm();
     const live = openConnection(path);
-    await new WorkItemRepository(live.db).remove(['wi-2'], [], wrote);
+    await new WorkItemRepository(live.db, OPEN).remove(['wi-2'], [], wrote);
     live.close();
 
     scheduleCalls = [];
@@ -306,7 +310,7 @@ describe('reading a saved plan back', () => {
           createdBy: 'Ada Lovelace',
           createdById: null,
           createdAt: OPENED_AT,
-          input: { schemaVersion: 1, bytes, sha256: bodySha256(bytes) },
+          input: { schemaVersion: 1, bytes, sha256: await bodySha256(nodeDigest, bytes) },
           schedule: { present: false, absentReason },
         },
         () => Promise.resolve(null),
@@ -405,13 +409,13 @@ describe('reading a saved plan back', () => {
     const headers = await reader.db.select().from(savedPlan);
     // Trusting the stored column: the two disagree, which is the fault 5.1b
     // catches.
-    expect(bodySha256(flipped.bytes)).not.toBe(headers[0].inputSha256);
+    expect(await bodySha256(nodeDigest, flipped.bytes)).not.toBe(headers[0].inputSha256);
     const beforeRepair = await service().read('sp-1');
     if (beforeRepair.outcome !== 'corrupt') throw new Error('expected a hash refusal');
     expect(beforeRepair.refusal.reason).toBe('body_hash_mismatch');
 
     reader.db.run(
-      `UPDATE saved_plan SET input_sha256 = '${bodySha256(flipped.bytes)}' WHERE id = 'sp-1'`,
+      `UPDATE saved_plan SET input_sha256 = '${await bodySha256(nodeDigest, flipped.bytes)}' WHERE id = 'sp-1'`,
     );
     const repaired = await service().read('sp-1');
     if (repaired.outcome !== 'corrupt') throw new Error('a restated hash laundered the record');
