@@ -40,3 +40,18 @@ Full workspace, browser and merge checks remain parent-owned and were not run. N
 ## Independent review
 
 Parent reviewer approved the frozen four-file implementation and artifacts with no actionable findings. Review covered affected memberships, indexed delivery, explicit initial/reset rosters, close/auth races and production fault oracles. Reviewer read evidence and source only; did not run additional tests. Integration gates remain pending.
+
+## Archive reconciliation, 2026-09-08
+
+Current `main` at `5516d453` retains indexed affected-project delivery, explicit
+initial/reset rosters and connection-id isolation. The gateway/contracts selection
+run immediately before this reconciliation passed **504/504 tests with 4,516
+assertions across 56 files**, including the presence unit, fan-out socket and both
+authentication-race paths. Fresh `gw-01:typecheck`, `gw-01:lint`,
+`contracts:typecheck` and `contracts:lint`, all with `--skip-nx-cache`, passed on
+the same source.
+
+The main `realtime` spec already contained `websocket-ingress`'s two requirements
+and six scenarios. This delta appends three requirements and seven scenarios. The
+resulting five-requirement, thirteen-scenario union is checked against
+`docs/refactoring/r1-r9-spec-inventory.md` before archive.
