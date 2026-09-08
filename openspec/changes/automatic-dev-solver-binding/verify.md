@@ -171,3 +171,25 @@ With the runtime files overlaid on `bf37b632`, the full `tool-devsync` suite
 passed 85/85 cases (255 assertions). The focused test and Nx lint and TypeScript
 targets passed after mechanical import/test lint fixes. The production adapter
 was not invoked against the live host in this slice.
+
+## Sync target routing
+
+At 2026-09-08T03:24:11Z, the sync-routing test first failed because
+`deploySolverTarget` did not exist. The implementation now compares the live
+checkout with the fetched target and keeps source-unrelated targets on the
+existing preflight-then-reset path. A solver-compatible-tree change instead
+derives the target identity from the target clone, reads that identity's
+bounded durable state, and delegates the entire transition (including the
+last reset) to the production binding runtime. The deployed-HEAD proof still
+runs only after either route completes.
+
+The first implemented focused run exposed a test-only source-order search that
+matched a helper's earlier `rev-parse HEAD`; constraining the search to the
+post-routing region returned the focused suite to 29/29 cases (80 assertions).
+The full h2puni `tool-devsync` suite passed 86/86 cases (259 assertions), Nx
+lint and TypeScript passed, and both changed files passed Prettier. An earlier
+remote lint attempt had no scratch `node_modules` link and its uncached
+`bunx eslint` failed loading `@eslint/js`; it did not change tracked files.
+After revalidating the existing dependency tree (78 declared, 0 bad) and
+restoring the scratch-only link, all gates passed and the post-gate dependency
+check remained 78 declared, 0 bad. No live-host transition ran in this slice.
