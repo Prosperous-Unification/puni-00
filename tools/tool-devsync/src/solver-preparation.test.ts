@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import {
   decodeSolverPreparationState,
+  prepareSolverBindingBeforeReset,
   runTargetPinnedSolverPreparation,
   SOLVER_COMPATIBILITY_PATHS,
   solverCompatibilityIdentityAt,
@@ -207,6 +208,99 @@ describe('the target-pinned solver preparation runner', () => {
       ),
     ).toContain('compatibility identity does not match target');
     expect(commands).toBe(0);
+  });
+});
+
+describe('solver binding preparation order', () => {
+  const target = {
+    sourceSha: SOURCE_SHA,
+    compatibilityIdentity: IDENTITY,
+  };
+
+  it('publishes, materializes, installs, and verifies before reset', async () => {
+    const events: string[] = [];
+
+    await prepareSolverBindingBeforeReset(target, {
+      publish: (received) => {
+        expect(received).toEqual(target);
+        events.push('publish');
+        return Promise.resolve(IMAGE);
+      },
+      materialize: (binding) => {
+        expect(binding).toEqual({ ...target, image: IMAGE });
+        events.push('materialize');
+        return Promise.resolve();
+      },
+      install: (binding) => {
+        expect(binding).toEqual({ ...target, image: IMAGE });
+        events.push('install');
+        return Promise.resolve();
+      },
+      preflight: (binding) => {
+        expect(binding).toEqual({ ...target, image: IMAGE });
+        events.push('preflight');
+        return Promise.resolve();
+      },
+      reset: (sourceSha) => {
+        expect(sourceSha).toBe(SOURCE_SHA);
+        events.push('reset');
+        return Promise.resolve();
+      },
+    });
+
+    expect(events).toEqual(['publish', 'materialize', 'install', 'preflight', 'reset']);
+  });
+
+  it('never resets when any required preparation phase fails', async () => {
+    for (const failing of ['publish', 'materialize', 'install', 'preflight'] as const) {
+      const events: string[] = [];
+      const phase = async (name: typeof failing): Promise<void> => {
+        events.push(name);
+        if (name === failing) throw new Error(`${name} refused`);
+      };
+
+      expect(
+        await rejection(
+          prepareSolverBindingBeforeReset(target, {
+            publish: async () => {
+              await phase('publish');
+              return IMAGE;
+            },
+            materialize: () => phase('materialize'),
+            install: () => phase('install'),
+            preflight: () => phase('preflight'),
+            reset: () => {
+              events.push('reset');
+              return Promise.resolve();
+            },
+          }),
+        ),
+      ).toContain(`${failing} refused`);
+      expect(events).not.toContain('reset');
+    }
+  });
+
+  it('refuses a tag-only publish result before materialization or reset', async () => {
+    const events: string[] = [];
+
+    expect(
+      await rejection(
+        prepareSolverBindingBeforeReset(target, {
+          publish: () => Promise.resolve('registry.example/wbs-be:main'),
+          materialize: () => {
+            events.push('materialize');
+            return Promise.resolve();
+          },
+          install: () => Promise.resolve(),
+          preflight: () => Promise.resolve(),
+          reset: () => {
+            events.push('reset');
+            return Promise.resolve();
+          },
+        }),
+      ),
+    ).toContain('digest-pinned');
+    expect(events).toEqual([]);
   });
 });
 
