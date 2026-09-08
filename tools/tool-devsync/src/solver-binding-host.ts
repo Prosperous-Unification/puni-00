@@ -167,6 +167,9 @@ export function decodeProdContainerImages(bytes: Uint8Array): InstalledProdImage
     const name = container['name'];
     const running = container['running'];
     const image = container['image'];
+    // A stopped colour is expected between swaps. Its configured image is
+    // still the caller identity the supervisor must preserve; `running` is
+    // decoded only to fail closed on an unexpected Docker inspection shape.
     if (
       Object.keys(container).length !== 3 ||
       !Object.keys(container).every((key) => ['name', 'running', 'image'].includes(key)) ||
