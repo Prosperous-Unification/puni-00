@@ -125,7 +125,14 @@ test('a broad Find renders no more than its two filter-sensitive cells per row',
     .toBeLessThanOrEqual(1200);
   const firstName = page.locator(`[data-name-input="${seeded.ids[0]}"]`);
   await firstName.focus();
-  await firstName.press('End');
+  // This case measures whether virtualization preserves a live editor, not
+  // what the host OS assigns to the End key. Chromium on macOS left the caret
+  // at zero here while Linux moved it to the end, so place the precondition
+  // through the text-control API the later selection assertion reads.
+  await firstName.evaluate((node) => {
+    if (!(node instanceof HTMLTextAreaElement)) throw new Error('Name cell is not a textarea');
+    node.setSelectionRange(node.value.length, node.value.length);
+  });
   await firstName.pressSequentially(' half-typed');
   const nameNode = await firstName.evaluateHandle((node) => node);
   const selection = await firstName.evaluate((node) => {
