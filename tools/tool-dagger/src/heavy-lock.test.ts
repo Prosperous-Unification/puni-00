@@ -41,13 +41,13 @@ function readIfPresent(path: string): string {
 // `kill` and `printf` are bash builtins and `uname` is reached only by
 // `resolve_heavy_lock_path`, which the contender does not call — so this list is
 // the whole executable surface, not a sample of it.
+//
+// Resolved with `Bun.which` rather than by spawning `sh -c 'command -v'`: a
+// spawn resolves its OWN argv[0] through the supplied `PATH` too, so a pin that
+// holds nothing throws ENOENT on `sh` before the check can report which of the
+// six is missing — the raw errno this function exists to replace.
 function assertResolvable(pathValue: string, executables: string[]): void {
-  const missing = executables.filter((executable) => {
-    const found = Bun.spawnSync(['sh', '-c', `command -v "$1"`, 'resolve-check', executable], {
-      env: { PATH: pathValue },
-    });
-    return found.exitCode !== 0;
-  });
+  const missing = executables.filter((executable) => Bun.which(executable, { PATH: pathValue }) === null);
   if (missing.length > 0) {
     throw new Error(
       `PATH pinned to ${pathValue} does not resolve ${missing.join(', ')} on this image; ` +
