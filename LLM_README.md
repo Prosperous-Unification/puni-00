@@ -1,6 +1,6 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-326 is on `change/task-326-dev-solver-binding`: review blockers and the target-owned automatic loader are fixed; retry live after h2puni's 05:47 UTC reclaim, then exact-head review.
+TASK-326 is on `change/task-326-dev-solver-binding`: both ACs and OpenSpec task 7 are proved via the real refusal + ten-tick owner alarm; exact-head reviews and CI remain.
 
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),

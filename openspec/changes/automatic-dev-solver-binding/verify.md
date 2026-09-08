@@ -27,8 +27,8 @@ The terminal proof must include:
 | exclusion              | two different targets overlap                 | `cc6c050d`: overlap refused before second publish      |
 | interrupted retry      | stop after publish and during install         | `3017d066`: digest reused; premature completion red    |
 | target build tree      | narrow archive / old live working directory   | run 4: behavioral red, then 79/79 green on h2puni      |
-| live solver change     | poll target differs under `libs/solver-py`    | pending                                                |
-| alarm backstop         | ten consecutive injected preparation failures | pending                                                |
+| live solver change     | poll target differs under `libs/solver-py`    | live refusal; checkout/served SHA stayed `12302b8d`    |
+| alarm backstop         | ten consecutive injected preparation failures | alarmed at 10; stayed healthy below threshold at 11    |
 
 ## Identity and target runner
 
@@ -297,3 +297,13 @@ returned the documented deploy-lock skip; the uncontended retry refused before
 mutation because available memory was 8,465,108,992 bytes, 124,825,600 below
 the 8 GiB floor. The 05:47 UTC scheduled tmpfs gate reclaim is the next safe
 retry opportunity; no guard was bypassed and no scratch tree was deleted.
+
+The live target crossed the real compatibility diff from `12302b8d` and ran
+the exact target-owned preparation code. Its capacity refusal left image,
+config, checkpoint, checkout SHA, and served SHA unchanged; this is AC #2's
+explicit refusal branch, not a claimed deploy. The existing heartbeat alarm was
+then exercised on h2puni with ten injected copies of that preparation-failure
+marker: default `--max 10` exited 1 and named the stuck SHA and tmpfs cause,
+while the identical ten at `--max 11` exited 0. `notes/heartbeat.md` places that
+command in the owner-visible rotation. Thus a real solver-affecting refusal
+remains before mutation and reaches an owner within one ten-tick alarm period.
