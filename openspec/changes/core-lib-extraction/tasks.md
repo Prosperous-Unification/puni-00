@@ -78,7 +78,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
       moving the quota check outside the transaction to observe excess saved plans.
       Keep the event fault inside the transaction, not before the cache write.
 
-- [ ] 2.2b.1 **Move value contracts before consumers (C1/C2).** Split
+- [x] 2.2b.1 **Move value contracts before consumers (C1/C2).** Split
       `repository/index.ts` into `core/ports/<noun>-store.ts` and `ports/stores.ts`.
       Preserve all members and JSDoc; `PlanTransactionalStores` excludes only `users`,
       `TransactionalStores` adds `AccountStores`, and `HistoryStores` remains separate.

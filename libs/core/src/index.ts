@@ -14,8 +14,20 @@
  * `SavedPlanStore.holdingOf(db)` — which is `tasks.md` 2.2's first job rather
  * than a move.
  */
+export * from './ports/actual-store';
+export * from './ports/calendar-marker-store';
+export * from './ports/capacity-store';
 export { type Clock, clockOf } from './ports/clock';
+export * from './ports/command-journal-store';
+export * from './ports/dependency-store';
+export * from './ports/directory-store';
+export * from './ports/estimate-store';
 export type { EventLogStore, RecordedEvent } from './ports/event-log-store';
+export * from './ports/measure-store';
+export * from './ports/plan-event-store';
+export * from './ports/priority-band-store';
+export * from './ports/progress-store';
+export * from './ports/project-store';
 export type { Digest, PasswordHasher, SessionClaims, TokenCodec } from './ports/runtime';
 export type { PlanInputReads, SavedPlanCaptureStore } from './ports/saved-plan-capture-store';
 export type {
@@ -30,6 +42,10 @@ export type {
   SavedPlanWriteOutcome,
   StoredSavedPlan,
 } from './ports/saved-plan-store';
+export * from './ports/step-store';
 export * from './ports/stores';
+export * from './ports/subtree-store';
+export * from './ports/user-store';
+export * from './ports/work-item-store';
 export type { WriteStamp } from './ports/write-stamp';
 export { bodyByteLength } from './service/saved-plan-integrity';

@@ -81,6 +81,22 @@ coverage case on `Expected to contain: "libs/contracts/solver/supervisor-protoco
   `rolls a plan-infeasible certificate back when recording its event crashes`; both durable
   rows remain inside the same SQLite transaction.
 
+## Slice 2.2b.1 — core-owned store contracts
+
+- `bunx tsc --build --force libs/core/tsconfig.json`: clean; this compiles
+  `ports/stores.types.test.ts`.
+- `bunx tsc --build --force apps/be-01/tsconfig.json`: clean; this compiles
+  `repository/store-contracts.types.test.ts`.
+- `bun test` in `libs/core`: **5 pass / 0 fail**.
+- `bunx eslint libs/core/src apps/be-01/src/repository/store-contracts.types.test.ts`:
+  clean.
+- `bunx prettier --check libs/core/src apps/be-01/src/repository/store-contracts.types.test.ts`:
+  clean.
+- Removing the expected error from the valid command-scope fixture failed
+  `core:typecheck` on TS2339: `PlanTransactionalStores` has no `savedPlans`.
+- Dropping nullable `scheduleAbsentReason` from the explicit core row failed
+  `be-01:typecheck` at the adapter-to-port boundary on TS2741.
+
 ## Gate
 
 | Command | When | Result |
