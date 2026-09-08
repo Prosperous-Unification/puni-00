@@ -30,6 +30,7 @@ export const NODE_SUITES: readonly string[] = [
   'src/components/wbs/marker-rule-ink.test.ts',
   'src/components/wbs/mention.test.ts',
   'src/components/wbs/name-notes.test.ts',
+  'src/components/wbs/optimization-cue-reading.test.ts',
   'src/components/wbs/plan-completeness.test.ts',
   'src/components/wbs/pointed-row-store.test.ts',
   'src/components/wbs/project-picker.test.ts',

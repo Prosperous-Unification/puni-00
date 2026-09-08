@@ -49,7 +49,22 @@ export interface OptimizedScheduleRead {
   readonly contractVersion: string;
   readonly budgetMs: number;
   readonly variants: Readonly<Record<SolverObjectiveName, OptimizationVariantState>>;
-  readonly selectedSchedule: Schedule | null;
+  /**
+   * Both variants' materialized schedules, `null` for one that is not `ready`.
+   *
+   * **Both, and not just the selected one** (tasks.md 8b.3). The plan read
+   * compares every ready variant with Fast whatever is displayed, because a
+   * reader looking at Fast is the one who has to be told that PRI would land
+   * the plan three days earlier. The field this replaced carried only the
+   * variant on screen and the other decoded schedule was dropped on the floor:
+   * `readOptimizedPair` decodes both payloads on every read, so this costs the
+   * plan read nothing it was not already paying.
+   *
+   * `null` for a variant that is not `ready` rather than an absent key, so
+   * `schedules[objective]` is always a legal read and a caller cannot mistake
+   * "no schedule" for "no such objective".
+   */
+  readonly schedules: Readonly<Record<SolverObjectiveName, Schedule | null>>;
 }
 
 /** Add the full-key liveness fact to one stored-row outcome. */
@@ -72,10 +87,10 @@ export function optimizationVariantState(
  * The plan read's one question of the optimized cache: *what is the published
  * and live state for exactly this plan?*
  *
- * It returns the identity and both variants' seven-state projection as well as
- * the selected materialized schedule. `WorkItemService` therefore chooses Fast
- * from `ready` versus every other state without re-decoding cache rows or
- * guessing whether a slot is live.
+ * It returns the identity, both variants' seven-state projection, and both
+ * materialized schedules. `WorkItemService` therefore chooses Fast from `ready`
+ * versus every other state, and compares every ready variant with Fast, without
+ * re-decoding cache rows or guessing whether a slot is live.
  *
  * Synchronous, because every implementation is a SQLite read on the same
  * connection the plan read is already using and 4.1's `readOptimizedPair` is

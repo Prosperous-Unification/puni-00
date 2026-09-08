@@ -310,6 +310,52 @@ describe('the row actions menu', () => {
     ).toThrow(/no item/);
   });
 
+  itDom('keeps its focus on the last item when one leaves the open menu', () => {
+    // The fault this exists for is not hypothetical: the schedule cue offers a
+    // `Retry` that a variant's own state carries, so a plan read landing while
+    // the menu is open takes an item away under the reader's hand. The item
+    // array is written by index and never truncated, so the unmounting item's
+    // own ref callback leaves `null` behind at index 2.
+    //
+    // Proof: `focusAt`'s `Math.min` replaced by `active`, this failed on
+    // `expect(element).toHaveFocus()` with `Received element with focus:
+    // <body>` — the effect that focuses is keyed on the index, so an unchanged
+    // `active` never re-runs it and the focus goes with the unmounted item. Not
+    // a throw: `.at(2)` is only reached again on the next opening, and opening
+    // resets the index to 0. Watched 2026-09-08.
+    const three: MenuAction[] = [
+      { id: 'a', label: 'Duplicate', run: () => undefined },
+      { id: 'b', label: 'Unfreeze', run: () => undefined },
+      { id: 'c', label: 'Delete', run: () => undefined },
+    ];
+    const { rerender } = render(
+      <ActionsMenu
+        number="020"
+        actions={three}
+        busy={false}
+        open
+        onOpen={() => undefined}
+        onClose={() => undefined}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Duplicate' }), { key: 'ArrowUp' });
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toHaveFocus();
+
+    expect(() => {
+      rerender(
+        <ActionsMenu
+          number="020"
+          actions={three.slice(0, 2)}
+          busy={false}
+          open
+          onOpen={() => undefined}
+          onClose={() => undefined}
+        />,
+      );
+    }).not.toThrow();
+    expect(screen.getByRole('menuitem', { name: 'Unfreeze' })).toHaveFocus();
+  });
+
   itDom('grows the ⋯ button to a 44px tap target only when asked to', () => {
     const { rerender } = render(
       <ActionsMenu

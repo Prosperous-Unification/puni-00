@@ -181,6 +181,22 @@ export function MenuControl({
   const itemElements = useRef<(HTMLButtonElement | null)[]>([]);
   /** Which item holds the focus while the menu is open — the roving tab stop. */
   const [active, setActive] = useState(0);
+  /**
+   * That index, clamped to the items there are **now**.
+   *
+   * An item can leave a menu somebody is holding open: the schedule cue's
+   * `Retry` is offered by a variant's own state, and a plan read that lands
+   * while the menu is open takes it away. What that does unclamped is **drop
+   * the focus**, measured rather than reasoned about: the effect below is keyed
+   * on the index, so an unchanged `active` does not re-run it, the item holding
+   * the focus unmounts, and the focus falls to `<body>` while the roving tab
+   * stop points at an index that no longer exists. Clamped, the index moves,
+   * the effect runs, and the focus lands on the last item there is.
+   *
+   * It keeps the throw for the case that throw was written for: a menu with no
+   * items at all gives `-1`, and `.at(-1)` on an empty array is `undefined`.
+   */
+  const focusAt = Math.min(active, actions.length - 1);
 
   /**
    * Moves the DOM focus onto the active item whenever there is one.
@@ -199,12 +215,12 @@ export function MenuControl({
    */
   useEffect(() => {
     if (!open) return;
-    const item = itemElements.current.at(active);
+    const item = itemElements.current.at(focusAt);
     if (item === undefined || item === null) {
-      throw new Error(`The ${name} menu opened with no item ${String(active)} to focus.`);
+      throw new Error(`The ${name} menu opened with no item ${String(focusAt)} to focus.`);
     }
     item.focus();
-  }, [open, active, name]);
+  }, [open, focusAt, name]);
 
   /**
    * A press anywhere else closes the menu.
@@ -315,7 +331,7 @@ export function MenuControl({
               // Proof: hard-coded to 0, `moves the focus with the arrows, and
               // the tab stop with it` failed on `expected '0' to be '-1'`.
               // Watched, 2026-08-08.
-              tabIndex={at === active ? 0 : -1}
+              tabIndex={at === focusAt ? 0 : -1}
               // `aria-disabled`, never the attribute: a `disabled` button
               // cannot hold the DOM focus, so a menu that went busy while it
               // was open would drop the focus on the floor and one opened while

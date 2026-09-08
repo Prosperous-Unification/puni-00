@@ -1,0 +1,129 @@
+import { UNMEETABLE_DEADLINE_OFFSET } from '@wbs/domain/deadline-offsets';
+import { addWorkdays, withinDrift } from '@wbs/domain/workday';
+
+import type { PlanOptimizationView, ScheduleObjectiveView } from '@/lib/wbs-api';
+
+import { DEADLINE_UNREACHABLE_CELL } from './deadline-impossible';
+import { shortIsoDate } from './short-date';
+
+/**
+ * Every word the optimization cue says, in one module.
+ *
+ * Moved out of `optimization-indicator.tsx` when the banner became the cue
+ * (tasks.md 8b.6) and otherwise unchanged: the copy is what `deadline-copy.ts`'s
+ * repository assertion is about — no occurrence of "deadline" here may go
+ * unqualified, because a plan has a project deadline and a work item deadline
+ * and a bare one cannot say which moved. Two surfaces read these now (the pill's
+ * own sentence and its hover card), which is the reason they are not written
+ * where either of them is drawn.
+ */
+
+/** What a variant is called on a control, where there is room for two words at most. */
+export const OBJECTIVE_LABEL: Readonly<Record<ScheduleObjectiveView, string>> = {
+  pri: 'PRI',
+  time: 'Time',
+};
+
+/**
+ * What a variant is called in a sentence.
+ *
+ * Spelled out rather than `OBJECTIVE_LABEL`'s abbreviation, because a sentence
+ * is what a screen reader reads out and "PRI" is not a word. The two are the
+ * settings panel's own pair — its radio labels are the abbreviations and its
+ * description is these.
+ */
+export const OBJECTIVE_SENTENCE: Readonly<Record<ScheduleObjectiveView, string>> = {
+  pri: 'Priority-first',
+  time: 'Finish-first',
+};
+
+/** What the unoptimized schedule is called, on a control and in a sentence alike. */
+export const FAST_LABEL = 'Fast';
+
+/** A day count without solver-scale float noise, and never a bare `0`. */
+export function days(value: number): string {
+  const absolute = Math.abs(value);
+  if (absolute < 0.01) return '<0.01 day';
+  const shown = Math.round(absolute * 100) / 100;
+  return `${String(shown)} ${shown === 1 ? 'day' : 'days'}`;
+}
+
+/**
+ * Describe one schedule's finish against another's without exposing solver-scale
+ * float noise.
+ *
+ * `deltaDays` is the subtraction of two figures the plan read sends — negative
+ * for the earlier schedule — taken through the shared workday drift, which is
+ * what collapses a difference nobody could act on into "same project deadline".
+ * The shipped indicator took exactly this decision over exactly this tolerance;
+ * only the shape of what it is handed changed (tasks.md 8b.4).
+ */
+export function comparisonWords(deltaDays: number, sameOrder: boolean): string {
+  // Proof: the -Number.EPSILON case in `optimization-cue-reading.test.ts` reads
+  // "Same project deadline + same order" and fails as "Earlier project deadline
+  // · <0.01 day" when this check is replaced by exact zero, while -0.001 stays
+  // Earlier.
+  if (withinDrift(deltaDays, 0)) {
+    return sameOrder ? 'Same project deadline + same order' : 'Same project deadline + reordered';
+  }
+  if (deltaDays < 0) return `Earlier project deadline by ${days(deltaDays)}`;
+  return `Later project deadline by ${days(deltaDays)}`;
+}
+
+/** Render the stored deadline meaning without sending the legal -1 sentinel to addWorkdays. */
+export function deadlineWords(projectStart: string | null, offset: number, today: Date): string {
+  // Proof: the unmeetable-deadline case throws in render when this branch is
+  // removed and -1 reaches addWorkdays.
+  // The words are `DEADLINE_UNREACHABLE_CELL`'s and not this file's, for the
+  // reason that constant's own docstring gives: "before project start" is
+  // false about the case that reaches here. A project starting Saturday with a
+  // deadline on the Sunday after it is unmeetable — day zero rolls forward to
+  // Monday, the deadline rolls back to Friday — and the sentence would be
+  // telling the reader a *later* date came first.
+  if (offset === UNMEETABLE_DEADLINE_OFFSET) return DEADLINE_UNREACHABLE_CELL;
+  if (projectStart === null || offset < UNMEETABLE_DEADLINE_OFFSET) return 'date unavailable';
+  return shortIsoDate(addWorkdays(projectStart, offset), today);
+}
+
+/**
+ * What a variant's state says about itself, or `null` for the two states that
+ * are not news.
+ *
+ * `ready` says nothing here because the comparison beside it is what a ready
+ * variant has to say. `idle` says nothing either, unless something has been
+ * admitted for this plan — see the case below.
+ */
+export function variantStateWords(
+  state: PlanOptimizationView['variants'][ScheduleObjectiveView],
+  admitted: boolean,
+): string | null {
+  switch (state.state) {
+    case 'ready':
+      return null;
+    case 'idle':
+      // `idle` is "absent at this key with nothing in flight", which is two
+      // different situations wearing one word: a variant the cold read is about
+      // to admit, and a plan with no solvable work in it at all (no slices, or
+      // every slice zero days) — which is also what a **disabled** project
+      // reads as. `generation` is what separates them on the wire, so the
+      // waiting one says so and the other stays quiet rather than promising a
+      // solve that will never be asked for.
+      return admitted ? 'Optimizing…' : null;
+    case 'pending':
+    case 'retrying':
+      return 'Optimizing…';
+    case 'failed':
+    case 'corrupt':
+      return 'Optimization unavailable';
+    case 'plan-infeasible': {
+      const count = state.items.length;
+      return `Plan infeasible · ${String(count)} Work item deadline${count === 1 ? '' : 's'}`;
+    }
+    default: {
+      // Named with the underscore the unused-vars policy reads: this binding
+      // exists for the `never` check alone.
+      const _exhaustive: never = state;
+      return null;
+    }
+  }
+}

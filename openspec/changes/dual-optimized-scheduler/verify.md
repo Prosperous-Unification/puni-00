@@ -1,5 +1,60 @@
 # Dual optimized scheduler verification
 
+## 2026-09-08T20:55:00Z — slice 8b, the cue and the suggestion
+
+- Host: this Mac (`darwin`), branch `change/optimization-cue-and-suggestion`. The h2puni gate is
+  **not** run here: `bin/h2puni-gate.sh` exits 127 on macOS, so the whole gate is CI's on this
+  change and what follows is what was run locally, named exactly.
+- Ran and green locally: `libs/domain` 596 pass / 0 fail; be-01 unit tier 896 pass / 1 skip / 0
+  fail; be-01 store tier 1150 pass / 1 skip / 0 fail (**2 unhandled errors, pre-existing** — the
+  same two appear on `main` from a stashed tree, a teardown-race `disk I/O error` on
+  `solver_slot` and a deliberate push-failure log); fe-01 jsdom 2547 pass / 2 fail, both
+  `plan-mermaid.test.ts` timezone cases that **also fail on `main`** here; ESLint clean on
+  `apps/fe-01/{src,e2e}`, `apps/be-01/src`, `libs/domain/src`, `libs/contracts/src`;
+  `tsc --build --force` clean on all four projects, tests included; Prettier clean;
+  `openspec validate --all --json` 54/54.
+- Browser gate, `CI=1 E2E_PORT_SHIFT=1900` (never the shared dev stack — `LLM_README.md`'s
+  landmine): `optimization-cue.spec.ts` 6/6, `project-settings.spec.ts` 4/4, and the four
+  geometry-sensitive suites `layout`/`mobile`/`plan-surface`/`hints` 85/85. The rest of the
+  browser gate is CI's `pixels` job.
+
+### Failure proof table (R5)
+
+| Check                                                          | Injected fault                                                                                                      | Observed failure                                                                                                                                                                                                                                                                                           |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schedule-order.test.ts` differential + tie cases              | `denseRanks` giving every start its own rank (values paired with their index, stably sorted, position written back) | 3 red: `seed 52 · left {"slice-0":0.5,"slice-1":1.0104166666666667} · Expected: false · Received: true`, plus both named tie cases. Competition ranking was injected **first and passed, correctly** — it keeps one value per tie group, so it is the same weak order; the fault has to split a tie group. |
+| `schedule-order.test.ts` corpus is about ties                  | —                                                                                                                   | Measured 324 of 400 seeded pairs draw a tie; the assertion pins `> 200` so a pool change that stopped drawing them fails.                                                                                                                                                                                  |
+| `optimized-plan-read.test.ts` both-ready-behind-Fast           | the shipped `optimized === null ? … : comparedWithFast(…)` gate restored                                            | 2 red, the received `finishDays` losing `- "pri": 5, - "time": 8` and `- "pri": 5`.                                                                                                                                                                                                                        |
+| `optimization-cue-reading.test.ts` suggestion rule             | `finish < onScreen` replaced by "outside the drift **or** reordered against Fast"                                   | 5 red: `expected 'pri' to be null` (reordered), `expected 'time' to be null` (later than the schedule on screen), and three sentence assertions.                                                                                                                                                           |
+| `optimization-cue.test.tsx` pill wears only a saving           | the same loosened rule                                                                                              | 2 red on `expected <span …(2)></span> to be null`.                                                                                                                                                                                                                                                         |
+| `optimization-cue.test.tsx` in-flight switch                   | `reading.activeLabel` replaced by a constant `'PRI'` — an optimistic pill                                           | `Expected: "Fast" · Received: "PRI"`.                                                                                                                                                                                                                                                                      |
+| `actions-menu.test.tsx` roving index survives a shrinking menu | `focusAt`'s `Math.min` replaced by `active`                                                                         | `expect(element).toHaveFocus()` with `Received element with focus: <body>`. **Not** the throw the first draft of the comment guessed: the effect is keyed on the index, so an unchanged `active` never re-runs it. Both the comment and the JSDoc were rewritten from this output.                         |
+| `wbs-api.test.ts` both new wire fields are required            | `finishDays` made optional in `libs/contracts`                                                                      | `promise resolved "{ workItems: [], seq: 1, …(17) }" instead of rejecting`.                                                                                                                                                                                                                                |
+| `optimization-cue.spec.ts` 1280 toolbar budget                 | the pill's face given `reading.sentence` — the deleted banner in a pill's clothes                                   | `2082px of controls to lay out, against the 1563px this change left · Expected: <= 1565 · Received: 2081.92`.                                                                                                                                                                                              |
+| `optimization-cue.spec.ts` no sideways scroll at 390px         | the same fault                                                                                                      | `Expected: <= 390 · Received: 719` — the cue 329px off the side of the screen.                                                                                                                                                                                                                             |
+| `optimization-cue.spec.ts` card clear of the pill              | the anchor's `bottom` set to the pill's own `top`                                                                   | `the card is drawn over the pill · Expected: false · Received: true`.                                                                                                                                                                                                                                      |
+
+### What the browser found that jsdom could not
+
+- **The card's lines did not wrap.** `project-settings.spec.ts`'s phone case measured a
+  192-character work item name laying out `1386px` of text inside a `348px` card
+  (`Expected: <= 348 · Received: 1386`). The banner it replaced carried `break-words` and the
+  card did not; both the row and the `<li>` carry it now. Twenty-one jsdom cases over the same
+  component saw nothing, because jsdom lays nothing out.
+- **`aria-describedby` is a list.** `HintLayer` appends its own `hint-card` id to whatever the
+  focused element already points at, so the attribute reads `"_r_4_ hint-card"` and a
+  `#_r_4_ hint-card` selector is a descendant selector matching nothing. Both browser suites
+  split it now, and the phone case asserts `toContain` rather than `toBe`.
+- **A `role="tooltip"` query is ambiguous on this pill**, for the same reason: the hint layer
+  draws one too. The cue's card is located through the pill's own `aria-describedby`.
+
+### Pins moved
+
+- `optimization-cue.spec.ts` pins the 1280 toolbar row at **1563px** with the cue on it
+  (measured 1562.97, one row, optimization on). `project-settings.spec.ts` keeps its own
+  **1265px** pin, which is a fresh project where the toggle is off and the pill is not drawn —
+  the two figures are about different bars and neither is derived from the other.
+
 ## 2026-09-06T21:18:13Z — real supervisor orphan process boundary
 
 - Host: `h2puni`; exact tested branch bytes match head `dd86b47628dca2e690084c9c176531389beaad22`.

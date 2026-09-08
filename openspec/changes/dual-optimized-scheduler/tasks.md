@@ -3978,6 +3978,101 @@ workdays` per missed item — Fast's lateness is a report, never a verdict
       the API union and the hover words, so a resource-bound optimized slice
       keeps its explanation instead of being labelled `optimizer`.
 
+## 8b. The cue and the suggestion (2026-09-08)
+
+Dany, 2026-09-08: "it needs to be a small cue indicator not huge banner"; and
+compute PRI/Time in the background **while Fast is on screen**, suggesting a
+switch when they differ. Half of the second half already held: `readPlan` gates
+on `optimization_enabled` alone and `readOptimizedPairAndSpawn` starts both
+objectives, so both variants were already being solved behind a displayed Fast
+— and both payloads were already decoded on every plan read by
+`readOptimizedPair`. What was missing is that the **comparison** was built only
+for the variant on screen (`work-item.service.ts`, the `optimized === null`
+arm), so a reader looking at Fast had nothing to be told, and the indicator
+returned `null` for `engine === 'fast'` before drawing anything.
+
+- [x] 8b.1 `haveSameSliceOrder(left, right)` moves out of `work-item.service.ts`
+      into `libs/domain/src/schedule-order.ts` and becomes the dense-rank form:
+      rank each side's shared slice keys by `earliestStart` with ties sharing a
+      rank, then compare the two rank vectors. It is 8.7's relation unchanged —
+      a weak order is determined by its dense rank — and it is rewritten
+      because it now runs once per **ready variant** rather than once per plan
+      read, and the pairwise form is O(n²).
+- [x] 8b.2 **Proven by** `libs/domain/src/schedule-order.test.ts`: a
+      differential run against the pairwise oracle of 8.7 —
+      `sign(startA(s) - startA(t)) === sign(startB(s) - startB(t))` written out
+      in the test — over a seeded corpus that includes ties on both sides, ties
+      on one side only, a reversal, a shared-key subset, and the empty overlap.
+      **Negative check, watched red:** ranks assigned by sorted index instead of
+      densely, so tied starts take different ranks; the tie cases must fail.
+- [x] 8b.3 `OptimizedScheduleRead.selectedSchedule` becomes
+      `schedules: Record<SolverObjectiveName, Schedule | null>` — both
+      materialised schedules, `null` for a variant that is not `ready`. The
+      coordinator already holds both (`readOptimizedPair` decodes both payloads
+      on every read); the old field discarded one. `OptimizationCoordinator.read`
+      keeps its one-schedule shape by indexing the new field.
+- [x] 8b.4 `PlanOptimization.comparison` — one delta for the displayed variant —
+      becomes `finishDays: { fast, pri?, time? }` and
+      `sameOrderAsFast: { pri?, time? }`, computed for **every** ready variant
+      whatever `displayed` is, and against Fast in every case so one reference
+      serves all three rows of the cue. The delta is a subtraction of two
+      figures on the wire and is taken client-side through the shared workday
+      drift, exactly as the shipped indicator already takes it; the order
+      relation stays server-side per 8.7. `libs/contracts/src/http/work-item-response.ts`
+      and `PlanOptimizationView` in `apps/fe-01/src/lib/wbs-api.ts` mirror it.
+- [x] 8b.5 **Proven by** `optimized-plan-read.test.ts`: with `schedule_engine`
+      = `fast` and both variants `ready`, the plan read carries `fast`, `pri`
+      and `time` finishes and both order flags; with one variant `pending`, that
+      variant carries neither and the other still carries both; a variant's
+      figures are absent for `failed`, `corrupt` and `plan-infeasible`.
+      **Negative check, watched red:** restore the `optimized === null ? {} :`
+      gate and watch the Fast-displayed case lose both variants' figures.
+- [x] 8b.6 `optimization-indicator.tsx` — the full-width `bg-muted … px-3 py-2`
+      block above the table — is replaced by `optimization-cue.tsx`: one pill in
+      the toolbar row carrying a state dot and the active schedule's name, and
+      an accent tail naming the best earlier variant and the days it saves.
+      Its words move to `optimization-words.ts` unchanged, so
+      `deadline-copy.test.ts`'s qualified-deadline rule keeps its subject.
+      Reading is on the pill's `HoverCard` (per-variant status sentence, the
+      stale qualification, the `plan-infeasible` item list); acting is in its
+      `MenuControl` (Fast / PRI / Time with each one's figures, `Retry` for a
+      `failed` or `corrupt` variant). A hover surface is **not** the only home
+      of an action — it takes no pointer — which is why Retry is a menu item.
+- [x] 8b.7 The suggestion rule, stated once and in one place: a ready variant
+      whose finish is earlier than Fast's by more than the workday drift is
+      named and offered; one that reaches the same finish in a different order
+      is reported and not offered; one that finishes later is reported and not
+      suggested. Switch items render only where a settings writer is present,
+      because `schedule_engine` and `schedule_objective` are project-wide and
+      one reader's switch moves every collaborator's plan.
+- [x] 8b.8 **Proven by** `optimization-cue.test.tsx`: the accent tail appears
+      for an earlier finish and for nothing else; the menu lists all three with
+      their figures and checks the active one; a non-ready variant is present
+      and refused with its state as the reason; `Retry` appears for `failed`
+      and `corrupt` and for no other state; the pill renders no `dialog` or
+      `alert` role. **Negative check, watched red:** loosen the rule to "any
+      difference" and watch the same-finish-reordered case and the later-finish
+      case fail.
+- [x] 8b.9 **Proven by** `optimization-cue.test.tsx` in the window the fault
+      lives in: a switch the API refuses leaves the active schedule where it
+      was, asserted **while the patch is still in flight** — a fake that holds
+      the promise — because the plan is re-read after every write and an
+      optimistic pill and a patient one land on the same screen otherwise
+      (R5, `estimate-triple-visible`). Without a writer the cue reads and offers
+      no switch item at all.
+- [x] 8b.10 **Proven by** `apps/fe-01/e2e/optimization-cue.spec.ts`, in
+      Chromium: the pill's rectangle is inside the toolbar row's own box, the
+      document does not scroll sideways at 390×844 with the pill present, the
+      toolbar row stays within the budget `plan-toolbar-controls` pinned for
+      it, the menu opens on click and Escape returns the focus to the pill, and
+      the hover card's rectangle clears the pill it hangs from. jsdom performs
+      no default action and measures nothing, so none of those five is a jsdom
+      claim (R5 #14/#15/#17).
+- [x] 8b.11 Settings copy only, no behaviour: the optimization panel says what
+      ON means — both objectives computed in the background, Fast on screen
+      until someone switches. The toggle stays OFF by default for a new
+      project; solver time is spent on a project that asked for it.
+
 ## 9. Corpus and regression safety
 
 - [ ] 9.1 Extend the generated corpus to >=1,000 seeds covering

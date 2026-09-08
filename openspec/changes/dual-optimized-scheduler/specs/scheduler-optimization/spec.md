@@ -48,15 +48,55 @@ The coordinator SHALL emit one `schedule_optimized` event when a newly validated
 - **WHEN** a collaborator reads the schedule
 - **THEN** no `schedule_optimized` event is emitted
 
-### Requirement: The comparison indicator names the change against Fast
+### Requirement: Every computed variant is compared with Fast, whatever is displayed
 
-The compact indicator SHALL compare the selected optimized variant with the Fast schedule for the same exact input and SHALL report one of: Earlier project deadline by N days, Later project deadline by N days, Same project deadline + reordered, or Same project deadline + same order. Every one of the four SHALL name the deadline it means, because the schedule's project finish date and `work_item.deadline` are both live and an unqualified "deadline" cannot say which it is (`work-item-deadline` 8.9/8.9b).
+The plan read SHALL carry the Fast schedule's project finish in days for the exact input it was taken at, and — for every variant that is `ready` — that variant's own project finish and whether it places the slices present in both in the same relative order as Fast. It SHALL carry them whether the displayed schedule is Fast or an optimized variant: a reader looking at Fast is precisely the reader who has to be told that an optimized variant would land the plan differently, and the shipped read built the comparison only for the variant on screen. A variant that is not `ready` SHALL carry neither figure, and no figure SHALL come from a schedule computed for a different input hash. Every reported difference SHALL be against Fast, so the three schedules are read against one reference rather than against each other.
 
-#### Scenario: the selected variant finishes earlier
+#### Scenario: Fast is displayed while both variants are ready
 
-- **GIVEN** an optimized variant that finishes earlier than Fast for the same input
-- **WHEN** that variant is displayed
-- **THEN** the indicator reads "Earlier project deadline by N days" with the exact day count
+- **GIVEN** a project whose engine is Fast, optimization ON, and both variants stored `ready` for the current input hash
+- **WHEN** the plan is read
+- **THEN** the read carries Fast's finish, both variants' finishes, and both variants' order relations against Fast
+
+#### Scenario: one variant is still solving
+
+- **GIVEN** a stored `ready` PRI variant and a `pending` Time variant at the current input hash
+- **WHEN** the plan is read
+- **THEN** PRI carries a finish and an order relation and Time carries neither
+
+### Requirement: The comparison is one small cue, and it suggests only an earlier deadline
+
+While optimization is ON the plan SHALL carry exactly one compact cue in the toolbar row, naming the active schedule and the state of the computed variants, and SHALL NOT render a full-width banner, a toast or a modal for any of it. When a `ready` variant's project deadline is earlier by more than the shared workday drift than that of **the schedule currently displayed**, the cue SHALL name that variant and the days it saves and SHALL offer switching to it. Against the displayed schedule and not against Fast, because the reader is being asked to change what is on their screen: with a Priority-first schedule displayed three days ahead of Fast, a Finish-first one a single day ahead of Fast is a regression, and offering it against Fast's figure would be the cue talking about a schedule nobody is looking at. Every _reported_ comparison stays against Fast, so the three rows are read against one reference. A variant that reaches the same project deadline in a different order SHALL be reported without being offered as an improvement, and a variant that finishes later SHALL be reported without being suggested. Every reported comparison SHALL name the deadline it means, because the schedule's project finish date and `work_item.deadline` are both live and an unqualified "deadline" cannot say which it is (`work-item-deadline` 8.9/8.9b). Switching SHALL be offered only where a settings writer is present, because `schedule_engine` and `schedule_objective` are project-wide: one reader's switch moves every collaborator's plan. The failure, retry and plan-infeasible words the requirements below name SHALL live on this cue's own surfaces — its hover card for the reading, its menu for the Retry action — and a hover surface SHALL NOT be the only home of an action, because it takes no pointer.
+
+#### Scenario: a variant that finishes earlier is suggested
+
+- **GIVEN** Fast on screen and a ready variant that finishes three workdays earlier for the same input
+- **WHEN** the cue is drawn
+- **THEN** it names that variant and the three days, and offers a switch to it
+
+#### Scenario: earlier than Fast but later than what is displayed
+
+- **GIVEN** a Priority-first schedule displayed, three workdays ahead of Fast, and a ready Finish-first schedule one workday ahead of Fast
+- **WHEN** the cue is drawn
+- **THEN** no switch is suggested, and the Finish-first row still reads one workday earlier than Fast
+
+#### Scenario: the same deadline in a different order is reported, not urged
+
+- **GIVEN** a ready variant that reaches Fast's project deadline having reordered the shared slices
+- **WHEN** the cue is drawn
+- **THEN** the reordering is readable on the cue and no switch is suggested
+
+#### Scenario: a later deadline is never suggested
+
+- **GIVEN** a ready variant that finishes two workdays later than Fast
+- **WHEN** the cue is drawn
+- **THEN** the later deadline is readable and no switch is suggested
+
+#### Scenario: a reader who cannot write the settings
+
+- **GIVEN** a plan read by someone with no settings write
+- **WHEN** the cue is drawn
+- **THEN** every state and comparison is readable and no switch item is offered
 
 ### Requirement: Failure keeps Fast usable and requires manual retry
 
@@ -573,7 +613,7 @@ The build SHALL install the pinned Python runtime and the locked OR-Tools enviro
 
 ### Requirement: The comparison indicator names the change by an exact order relation
 
-Two schedules SHALL be reported as the same order iff, for every pair of slices present in both, the sign of the difference between their starts is equal in both, compared in the real fractional-workday domain on the two materialised schedules rather than in quantised units, because real Fast's starts need not lie on the unit grid and quantised comparison would report a reorder produced purely by rounding. The relation SHALL be computed server-side and shipped as one boolean beside the day-count delta.
+Two schedules SHALL be reported as the same order iff, for every pair of slices present in both, the sign of the difference between their starts is equal in both, compared in the real fractional-workday domain on the two materialised schedules rather than in quantised units, because real Fast's starts need not lie on the unit grid and quantised comparison would report a reorder produced purely by rounding. The relation SHALL be computed server-side and shipped as one boolean per ready variant, beside the project finish each comparison is taken from. It MAY be computed in any form that is provably the same relation — a weak order is determined by its dense rank, which is why the shipped pairwise form was replaced by a rank comparison once it began running once per ready variant rather than once per displayed one — and the equivalence SHALL be proven against the pairwise definition above rather than assumed.
 
 #### Scenario: a uniform shift is not a reorder
 

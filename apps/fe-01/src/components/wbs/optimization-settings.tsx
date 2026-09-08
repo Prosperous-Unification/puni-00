@@ -50,7 +50,9 @@ export function OptimizationSettingsPanel({
       <div>
         <h3 className="font-medium">Schedule optimization</h3>
         <p className="text-muted-foreground text-sm">
-          Compute and share priority-first and finish-first schedules for this project.
+          Compute priority-first and finish-first schedules for this project in the background. Fast
+          stays on screen until somebody switches, and the toolbar cue says when one of them would
+          land the plan earlier.
         </p>
       </div>
 
