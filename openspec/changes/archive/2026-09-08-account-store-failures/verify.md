@@ -35,3 +35,15 @@ After integrating `origin/main` a91f831b, conflicts preserve both R3/R5 authenti
 Full workspace/browser verification remains parent-owned.
 
 Restored focused run: **83 pass / 0 fail**, 272 assertions, four files, 5.77s (`/private/tmp/refactoring-boot-auth-restored.log`). `bunx tsc --build --force apps/be-01/tsconfig.json` compiled source and spec projects with **exit 0**, no diagnostics. Four-file ESLint and formatting passed. Strict OpenSpec validation passed with zero issues.
+
+## Archive reconciliation, 2026-09-08
+
+Current `main` at `5516d453` retains the mounted failure-boundary tests and the
+production `AuthService` boundary. The exact four-file boot, password, OIDC and
+null-password suite passed **103/103 tests with 422 assertions**. Fresh
+`be-01:typecheck --skip-nx-cache` and `be-01:lint --skip-nx-cache` both passed.
+
+The shared-capability baseline is recorded in
+`docs/refactoring/r1-r9-spec-inventory.md`. No `authentication` main spec existed
+before this sync, so this delta introduces its one requirement and three scenarios;
+`login-admission` remains active and will append its two requirements later.

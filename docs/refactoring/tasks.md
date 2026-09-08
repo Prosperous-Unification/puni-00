@@ -131,13 +131,14 @@ evidence as historical, including dead branch hashes carried by squash `cbad68af
 any missing raw logs. Current-head checks, if needed, require fresh output and owned ports.
 
 Before the first sync, record the exact requirement-heading/scenario sets from all nine
-deltas and any existing main specs. `authentication` and `realtime` contain overlapping
+deltas and any existing main specs in [the preservation inventory](r1-r9-spec-inventory.md).
+`authentication` and `realtime` contain overlapping
 **ADDED** capabilities, not replacement documents. Sync sequentially; after each sync
 assert the accumulated union and unrelated existing requirements are intact, validate
 the resulting specs, then archive without a second destructive overwrite. Keep the
 archive's original evidence limits. The bounded order is:
 
-- [ ] **A1 — R3 `account-store-failures`**: reconcile 8/8 and introduce/merge
+- [x] **A1 — R3 [`account-store-failures`](../../openspec/changes/archive/2026-09-08-account-store-failures/tasks.md)**: reconciled 8/8 and introduced
       `authentication` requirement “Account resolution failures remain server failures”.
 - [ ] **A2 — R5 `login-admission`**: reconcile 5/5 and append “Password login reserves
       bounded verification capacity” and “Login reservations end with their attempts”.
