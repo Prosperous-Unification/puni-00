@@ -477,6 +477,11 @@ failure mode has never been observed is a claim, not a gate.
   pins the head it finds at invocation, which is safe only if nothing else is
   gating. The gate prints `h2puni gate: running on <sha>`; that line, not your
   intention, is what the verdict is about.
+- Exit **65** means the gate tree was dirty after the checkout — a tracked edit
+  or an untracked file the commit does not contain, which Nx would have read and
+  attributed to that sha. The gate refuses instead of cleaning, because these
+  trees are shared and `git clean` unattended deletes somebody's work. Move or
+  commit the named files and re-run.
 - A gate that finds the lock held **queues** (30 minutes by default) rather than
   refusing with exit 75, because a refused gate costs a worker its whole
   75-minute run box. `HEAVY_LOCK_WAIT_SECONDS=0` restores refuse-now.

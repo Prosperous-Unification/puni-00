@@ -53,12 +53,28 @@ gate_with_pinned_head() {
   # The head is echoed after the checkout rather than before: what a gate result
   # is ABOUT is the head the tree actually had when the steps ran, and printing
   # the intended sha instead is how a report can be honest and wrong at once.
+  # `git checkout --detach` pins HEAD; it does not pin the BYTES. Non-conflicting
+  # tracked edits survive it and untracked files are not touched at all, and Nx
+  # reads the tree, not the commit — so a gate can report `running on <sha>` over
+  # a lint failure in a file that sha does not contain. That verdict is worse
+  # than a red one, because it is attributed to a commit.
+  #
+  # Refused rather than cleaned: `git clean -fd` in a tree several lanes share
+  # deletes work nobody asked us to delete, and this runs unattended. The gate
+  # gates a COMMIT; anything else in the tree is a caller error with a name
+  # printed next to it. Raised by the peer review of 75408058 (TASK-328).
   with_heavy_lock "$lock_path" -- bash -c '
     set -euo pipefail
     repo=$1
     pinned=$2
     shift 2
     git -C "$repo" checkout --detach --quiet "$pinned"
+    dirty=$(git -C "$repo" status --porcelain --untracked-files=normal)
+    if [[ -n $dirty ]]; then
+      printf "h2puni gate: %s is dirty after checking out %s; refusing to report a verdict about bytes that commit does not contain:\n" "$repo" "$pinned" >&2
+      printf "%s\n" "$dirty" | head -10 >&2
+      exit 65
+    fi
     printf "h2puni gate: running on %s\n" "$(git -C "$repo" rev-parse HEAD)" >&2
     cd "$repo"
     "$@"

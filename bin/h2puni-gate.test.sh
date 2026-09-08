@@ -136,7 +136,27 @@ else
   fail 'bin/h2puni-gate.sh does not set a non-zero HEAVY_LOCK_WAIT_SECONDS default'
 fi
 
-# 6. Contract check: that default reaches the lock as a shell variable and stops
+# 6. A pinned head is not a pinned tree. `checkout --detach` leaves
+# non-conflicting tracked edits and every untracked file in place, and Nx reads
+# the tree — so the gate must refuse rather than report a verdict about bytes the
+# commit does not contain. Both shapes are checked, because they survive a
+# checkout for different reasons.
+git -C "$repo" checkout -q --detach "$sha_b"
+printf 'local edit\n' >>"$repo/f"
+status=0
+run_gate "$repo" "$lock" "$sha_b" bash -c 'echo ran >"$0"' "$scratch/ran-dirty" 2>/dev/null || status=$?
+expect_status 65 "$status" 'a tracked edit surviving the checkout is refused'
+if [[ -e $scratch/ran-dirty ]]; then fail 'the steps ran over a modified tracked file'; else pass 'the steps never ran over a modified tracked file'; fi
+git -C "$repo" checkout -q -- f
+
+printf 'stray\n' >"$repo/untracked.ts"
+status=0
+run_gate "$repo" "$lock" "$sha_b" bash -c 'echo ran >"$0"' "$scratch/ran-untracked" 2>/dev/null || status=$?
+expect_status 65 "$status" 'an untracked file the commit does not contain is refused'
+if [[ -e $scratch/ran-untracked ]]; then fail 'the steps ran over an untracked file'; else pass 'the steps never ran over an untracked file'; fi
+rm -f "$repo/untracked.ts"
+
+# 7. Contract check: that default reaches the lock as a shell variable and stops
 # there. Exported, it would enter every gate step's environment, and
 # `bin/heavy-lock.test.sh`'s refusal cases forward `${HEAVY_LOCK_WAIT_SECONDS:-0}`
 # from theirs — under a gate they would inherit 1800 and spin for half an hour
