@@ -122,3 +122,20 @@ the borrowed `node_modules` symlink is excluded only in that clone's private
 Git metadata. The full poller suite passed 12/12 cases (37 assertions),
 including different-target and same-target overlap, and the Nx lint and
 TypeScript targets, changed-test Prettier, and ShellCheck passed on h2puni.
+
+## Host input decoders
+
+At 2026-09-08T02:59:48Z, the test-only host-input suite failed because
+`solver-binding-host.ts` did not exist, then passed 3/3 cases (9 assertions).
+The decoders accept exactly one non-empty `REGISTRY_PASS` without ever logging
+its value, require the one-tier publish manifest to carry the requested full
+SHA and its registry-returned digest, and preserve both installed prod image
+rules only when each solver image equals its authenticated caller image.
+Malformed, mismatched, tag-only, empty, missing, and duplicate inputs refuse.
+
+With those files overlaid on `4ac18c6c`, the full `tool-devsync` suite passed
+82/82 cases (237 assertions), and its Nx lint and TypeScript gates passed.
+Prettier initially reported both new files and passed after formatting on
+h2puni; the worker-host formatter could not load the repository's Tailwind
+plugin, so no local formatting result is claimed. The post-gate dependency
+check remained 78 declared, 0 bad.

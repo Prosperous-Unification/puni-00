@@ -32,6 +32,7 @@ export const TIERS: readonly Tier[] = ['be', 'gw', 'fe'];
  * every reader of this type.
  */
 export type Color = 'blue' | 'green';
+export { decodeSolverSupervisorConfig } from './solver-supervisor-config';
 
 /** The app name a tier is known by, independent of colour. */
 export const APP_NAME: Record<Tier, string> = { be: 'be-01', gw: 'gw-01', fe: 'fe-01' };
