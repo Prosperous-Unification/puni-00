@@ -501,6 +501,13 @@ export function fakeProjectApi(): ProjectApi & {
             pri: { state: 'idle' as const },
             time: { state: 'idle' as const },
           },
+          // Fast's finish and nothing else: this fake serves no optimized
+          // schedule at all, so a variant figure here would be a comparison
+          // against a schedule that does not exist. The cue reads it as "both
+          // variants are waiting", which is what an enabled project with an
+          // allocated generation and no stored result is.
+          finishDays: { fast: Math.max(0, ...rows.map((row) => scheduleOf(row).earliestFinish)) },
+          sameOrderAsFast: {},
         },
       };
       return Promise.resolve(plan);

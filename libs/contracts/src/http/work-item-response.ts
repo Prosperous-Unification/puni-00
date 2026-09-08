@@ -94,7 +94,18 @@ const optimization = type({
   budgetMs: 'number',
   displayed: "'fast' | 'pri' | 'time'",
   variants: { pri: optimizationVariant, time: optimizationVariant },
-  'comparison?': { deltaDays: 'number', sameOrder: 'boolean' },
+  // Absolute finishes rather than one delta, and one entry per schedule the
+  // read computed: the cue names Fast, PRI and Time together, every difference
+  // is taken against Fast, and the delta is that subtraction through the shared
+  // workday drift the client already applies. `fast` is required because a
+  // read that carries this object at all has computed Fast — it is the
+  // schedule the rows are placed by unless a variant displaces it.
+  finishDays: { fast: 'number', 'pri?': 'number', 'time?': 'number' },
+  // One boolean per variant that has a finish above, server-side per tasks.md
+  // 8.7: the order relation is the half of the comparison a client cannot
+  // derive from these numbers, and two implementations would disagree about
+  // the same pair.
+  sameOrderAsFast: { 'pri?': 'boolean', 'time?': 'boolean' },
 });
 
 /**

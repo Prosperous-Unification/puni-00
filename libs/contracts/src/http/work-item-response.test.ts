@@ -174,7 +174,12 @@ test('checks the optional optimization projection and every variant state', asyn
         items: [{ ownerWorkItemId: 'owner', boundWorkItemId: 'bound', effectiveDeadlineOffset: 4 }],
       },
     },
-    comparison: { deltaDays: -2, sameOrder: false },
+    // Both required, and both are what the cue reads: Fast's finish is what
+    // every comparison is measured against, and a variant contributes its own
+    // finish and its order relation only where be-01 holds a schedule for it —
+    // here `pri` does and the `plan-infeasible` `time` does not.
+    finishDays: { fast: 10, pri: 8 },
+    sameOrderAsFast: { pri: false },
   };
 
   expect((await validateSchema(schema, { ...tree, optimization })).issues).toBeUndefined();

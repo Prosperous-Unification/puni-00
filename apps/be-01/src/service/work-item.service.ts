@@ -28,6 +28,7 @@ import {
   type WorkItemState,
 } from '@wbs/domain';
 import {
+  haveSameSliceOrder,
   type Schedule,
   schedule,
   ScheduleCycleError,
@@ -69,7 +70,7 @@ import type {
   WorkItemStore,
   WriteStamp,
 } from '../repository';
-import { MEASURE_METRICS } from '../repository/schema';
+import { MEASURE_METRICS, SOLVER_OBJECTIVES, type SolverObjectiveName } from '../repository/schema';
 import { assumedAssignee } from './assumed-assignee';
 import type { Broadcaster } from './broadcast';
 import {
@@ -1301,7 +1302,30 @@ export interface PlanOptimization {
   readonly budgetMs: number;
   readonly displayed: 'fast' | Project['scheduleObjective'];
   readonly variants: Readonly<Record<Project['scheduleObjective'], OptimizationVariantState>>;
-  readonly comparison?: { readonly deltaDays: number; readonly sameOrder: boolean };
+  /**
+   * The project finish each computed schedule reaches, in workdays from day
+   * zero. `fast` always — it is the schedule this read had to compute anyway —
+   * and a variant's only while this read materialized it.
+   *
+   * Absolute figures rather than the one delta this shipped as: the cue names
+   * all three schedules at once, every difference is taken against Fast, and a
+   * delta is that subtraction through the shared workday drift, which the client
+   * already applies to decide "same project deadline". Sending the deltas
+   * instead would put the same fact on the wire twice.
+   */
+  readonly finishDays: { readonly fast: number } & Readonly<
+    Partial<Record<Project['scheduleObjective'], number>>
+  >;
+  /**
+   * Whether a variant places the slices it shares with Fast in the same
+   * relative order — {@link haveSameSliceOrder}, per variant, present exactly
+   * where {@link PlanOptimization.finishDays} carries that variant's finish.
+   *
+   * Server-side per tasks.md 8.7, because it is the one half of the comparison
+   * a client cannot derive from the numbers on the wire, and two implementations
+   * would label the same pair differently.
+   */
+  readonly sameOrderAsFast: Readonly<Partial<Record<Project['scheduleObjective'], boolean>>>;
 }
 
 function scheduleFinish(schedule: Schedule): number {
@@ -1311,28 +1335,36 @@ function scheduleFinish(schedule: Schedule): number {
   );
 }
 
-function schedulesHaveSameOrder(left: Schedule, right: Schedule): boolean {
-  const shared = [...left.slices.keys()].filter((key) => right.slices.has(key)).sort();
-  for (let first = 0; first < shared.length; first += 1) {
-    for (let second = first + 1; second < shared.length; second += 1) {
-      const firstKey = shared[first];
-      const secondKey = shared[second];
-      const leftFirst = left.slices.get(firstKey)?.earliestStart;
-      const leftSecond = left.slices.get(secondKey)?.earliestStart;
-      const rightFirst = right.slices.get(firstKey)?.earliestStart;
-      const rightSecond = right.slices.get(secondKey)?.earliestStart;
-      if (
-        leftFirst === undefined ||
-        leftSecond === undefined ||
-        rightFirst === undefined ||
-        rightSecond === undefined
-      ) {
-        throw new Error('shared schedule slice vanished during comparison');
-      }
-      if (Math.sign(leftFirst - leftSecond) !== Math.sign(rightFirst - rightSecond)) return false;
-    }
+/**
+ * The cue's figures: Fast's project finish, and for every variant this read
+ * materialized, that variant's own finish and its order against Fast.
+ *
+ * Driven by the **schedules** rather than by `variants`, because a finish can
+ * only be measured from a schedule that is in hand: the two agree by
+ * construction (a `ready` variant is exactly an `ok` cache row, which is
+ * exactly the row whose payload decoded into a schedule), and reading the
+ * states here would be this function trusting a claim instead of measuring the
+ * thing.
+ *
+ * Against Fast in both halves, whatever is displayed. That is what lets the
+ * three schedules be read against one reference — see tasks.md 8b.4 — and it is
+ * why the caller no longer decides whether to compute a comparison at all.
+ */
+function comparedWithFast(
+  fast: Schedule,
+  read: OptimizedScheduleRead,
+): Pick<PlanOptimization, 'finishDays' | 'sameOrderAsFast'> {
+  const finishDays: { fast: number } & Partial<Record<SolverObjectiveName, number>> = {
+    fast: scheduleFinish(fast),
+  };
+  const sameOrderAsFast: Partial<Record<SolverObjectiveName, boolean>> = {};
+  for (const objective of SOLVER_OBJECTIVES) {
+    const optimized = read.schedules[objective];
+    if (optimized === null) continue;
+    finishDays[objective] = scheduleFinish(optimized);
+    sameOrderAsFast[objective] = haveSameSliceOrder(fast.slices, optimized.slices);
   }
-  return true;
+  return { finishDays, sameOrderAsFast };
 }
 
 interface BatchCollector {
@@ -1717,10 +1749,11 @@ export class WorkItemService {
         project.scheduleEngine === 'optimized' &&
         optimizationRead.variants[project.scheduleObjective].state === 'ready'
       ) {
-        if (optimizationRead.selectedSchedule === null) {
+        const selected = optimizationRead.schedules[project.scheduleObjective];
+        if (selected === null) {
           throw new Error('optimized plan reader reported ready without a schedule');
         }
-        optimized = optimizationRead.selectedSchedule;
+        optimized = selected;
       }
       const planned = optimized ?? fast;
       if (optimizationRead !== null) {
@@ -1735,14 +1768,12 @@ export class WorkItemService {
           budgetMs: optimizationRead.budgetMs,
           displayed,
           variants: optimizationRead.variants,
-          ...(optimized === null
-            ? {}
-            : {
-                comparison: {
-                  deltaDays: scheduleFinish(optimized) - scheduleFinish(fast),
-                  sameOrder: schedulesHaveSameOrder(fast, optimized),
-                },
-              }),
+          // Unconditional, and that is the change: the figures used to be
+          // computed only for the variant on screen, so a project sitting on
+          // Fast — the state a project spends its first solve in, and the state
+          // the toggle leaves it in — had nothing to compare and the indicator
+          // drew nothing at all.
+          ...comparedWithFast(fast, optimizationRead),
         };
       }
       timing = planned.workItems;

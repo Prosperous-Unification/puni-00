@@ -1146,7 +1146,28 @@ export interface PlanOptimizationView {
   readonly budgetMs: number;
   readonly displayed: 'fast' | ScheduleObjectiveView;
   readonly variants: Readonly<Record<ScheduleObjectiveView, OptimizationVariantView>>;
-  readonly comparison?: { readonly deltaDays: number; readonly sameOrder: boolean };
+  /**
+   * The project finish each computed schedule reaches, in workdays from day
+   * zero. `fast` always; a variant's only while be-01 holds a schedule for it.
+   *
+   * Absolute figures rather than one delta, because the cue reads all three
+   * schedules at once: a delta against Fast is a subtraction of two of these,
+   * and which variant is worth *switching to* is a comparison against whichever
+   * one is displayed. See `optimization-cue-reading.ts`.
+   */
+  readonly finishDays: { readonly fast: number } & Readonly<
+    Partial<Record<ScheduleObjectiveView, number>>
+  >;
+  /**
+   * Whether a variant places the slices it shares with Fast in the same
+   * relative order — present exactly where that variant has a finish above.
+   *
+   * Computed by be-01 over the materialised schedules (`dual-optimized-scheduler`
+   * tasks.md 8.7): it is the half of the comparison no client can derive from
+   * the numbers on the wire, and a second implementation here would label the
+   * same pair differently.
+   */
+  readonly sameOrderAsFast: Readonly<Partial<Record<ScheduleObjectiveView, boolean>>>;
 }
 
 /**
