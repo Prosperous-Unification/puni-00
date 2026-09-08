@@ -151,7 +151,7 @@ added, and it silently holds the pre-reset version of one the target just bumped
 bundles the extracted deployer through the managed Bun with no install in scope, before running it,
 and refuses on any unresolvable specifier. Fix the target commit — `sync.ts`'s graph may use relative
 imports, `@wbs/*` aliases and Bun/Node builtins only — or vendor the code into `tools/` or `libs/` so
-the archive carries it. Do not restore the symlink: the deployer runs *before* any install for its
+the archive carries it. Do not restore the symlink: the deployer runs _before_ any install for its
 own commit can exist, which is the bootstrap deadlock TASK-354 fixed.
 
 Dev has **no edge password**. It was removed 2026-08-06: it was a second login on top of the
