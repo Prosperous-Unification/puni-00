@@ -39,27 +39,28 @@ function candidateDeployer(installed: string, sha: string): string {
 }
 
 /**
- * A fake `git` whose `archive` answers with a tar holding one deployer file,
- * the shape the loader extracts. `body` runs first with the requested commit
- * in `$sha` and must set `CONTENT`; it may block, which is what the race
- * cases use it for.
+ * A fake `git` that materializes one deployer file when the loader checks out
+ * its private clone. `body` runs first with the requested commit in `$sha` and
+ * must set `CONTENT`; it may block, which is what the race cases use it for.
  */
 function fakeGitArchiving(body: string): string {
   return `#!/usr/bin/env bash
 set -eu
-case " $* " in *" fetch "*) exit 0;; esac
-sha=$4
+if [ "$1" = clone ]; then
+  candidate=$6
+  mkdir -p "$candidate/.git/info" "$candidate/tools/tool-devsync/src"
+  exit 0
+fi
+if [ "$1" != -C ] || [ "$3" != checkout ] || [ "$4" != --quiet ] || [ "$5" != --detach ]; then exit 64; fi
+candidate=$2
+sha=$6
 ${body}
-tree=$(mktemp -d)
-mkdir -p "$tree/tools/tool-devsync/src"
-printf '%s\\n' "$CONTENT" > "$tree/${DEPLOYER}"
-tar -c -C "$tree" tools
-rm -rf "$tree"
+printf '%s\\n' "$CONTENT" > "$candidate/${DEPLOYER}"
 `;
 }
 
 /**
- * The files a candidate is archived from, in the shape the real repository has
+ * The files a candidate clone carries in the shape the real repository has
  * them: the deployer's project, the contract it imports through an `@wbs/*`
  * path, and the root configs Bun resolves that path with.
  */
@@ -354,11 +355,12 @@ exec ${process.execPath} build --target=bun --outdir=${out} "$1"
 set -eu
 if [ "$1" = --version ]; then echo ${Bun.version}; exit 0; fi
 target_root=$(cd "$(dirname "$1")/../../.." && pwd)
-test "$PWD" = "$target_root"
-test -f "$target_root/apps/be-01/Dockerfile"
-test -f "$target_root/bin/publish-release.sh"
-test -f "$target_root/deploy/solver-supervisor/wbs-solver-supervisor.service"
-test -f "$target_root/bun.lock"
+[ "$PWD" = "$target_root" ] || { echo "wrong cwd: $PWD" >&2; exit 41; }
+for required in apps/be-01/Dockerfile bin/publish-release.sh deploy/solver-supervisor/wbs-solver-supervisor.service bun.lock; do
+  [ -f "$target_root/$required" ] || { echo "missing target file: $required" >&2; exit 42; }
+done
+[ "$(git -C "$target_root" rev-parse HEAD)" = "$2" ] || { echo 'wrong target HEAD' >&2; exit 43; }
+[ -z "$(git -C "$target_root" status --porcelain)" ] || { echo 'target tree is dirty' >&2; exit 44; }
 printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
 `,
     );

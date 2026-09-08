@@ -113,3 +113,12 @@ through `/dev/shm/t326-r3-red-76e9ca4f/node_modules` before and after the gate:
 78 declared, 0 bad. `/dev/shm` was at 75% of the monitored per-user quota, so a
 new install was correctly refused and the already-proved dependency tree was
 reused only after the manifest check passed.
+
+At 2026-09-08T02:50:28Z, the candidate was tightened from a plain archive to
+an atomically renamed, shared, detached clone. The extended behavior first
+failed because the archive had no Git identity. It now requires the candidate
+HEAD to equal the requested full SHA and `git status --porcelain` to be empty;
+the borrowed `node_modules` symlink is excluded only in that clone's private
+Git metadata. The full poller suite passed 12/12 cases (37 assertions),
+including different-target and same-target overlap, and the Nx lint and
+TypeScript targets, changed-test Prettier, and ShellCheck passed on h2puni.

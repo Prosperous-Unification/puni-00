@@ -56,18 +56,17 @@ cleanup_candidate() {
 }
 trap cleanup_candidate EXIT HUP INT TERM
 CANDIDATE_NEXT=$(mktemp -d "$BIN/sync.${SHA}.XXXXXXXX")
-# Written to a file first so a refusal from git keeps git's own exit status
-# instead of tar's complaint about an empty stream.
-git -C "$SRC" archive "$SHA" > "$CANDIDATE_NEXT/.tree.tar"
-tar -xf "$CANDIDATE_NEXT/.tree.tar" -C "$CANDIDATE_NEXT"
-rm -f -- "$CANDIDATE_NEXT/.tree.tar"
+git clone --quiet --shared --no-checkout "$SRC" "$CANDIDATE_NEXT"
+git -C "$CANDIDATE_NEXT" checkout --quiet --detach "$SHA"
 # Packages resolve up the tree from the importing file, as the aliases do.
 # The pre-reset checkout's install is the only one on the host, and it is what
 # the deployer ran against before candidates existed.
+printf 'node_modules\n' >> "$CANDIDATE_NEXT/.git/info/exclude"
 ln -s "$SRC/node_modules" "$CANDIDATE_NEXT/node_modules"
 # Two ticks on one target race to the same name. The loser discards its own
-# tree and runs the winner's, which the commit hash makes byte-identical; a
-# tree only ever appears under the final name complete, by rename.
+# clean detached clone and runs the winner's, which the commit hash makes
+# byte-identical; a tree only ever appears under the final name complete, by
+# rename.
 if mv -T "$CANDIDATE_NEXT" "$CANDIDATE" 2>/dev/null; then
   CANDIDATE_NEXT=''
 else
