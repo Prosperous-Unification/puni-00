@@ -1,6 +1,6 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-326 is on `change/task-326-dev-solver-binding`: review blockers C1/C2/I1/I3 are fixed and remotely green; next retry the capacity-gated live solver-changing poll, then exact-head review.
+TASK-326 is on `change/task-326-dev-solver-binding`: review blockers and the target-owned automatic loader are fixed; retry live after h2puni's 05:47 UTC reclaim, then exact-head review.
 
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),

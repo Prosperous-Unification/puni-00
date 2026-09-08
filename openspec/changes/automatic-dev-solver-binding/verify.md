@@ -278,3 +278,22 @@ production `flock`; its holder attribution is inherited from the canonical
 lock implementation. ADR 0018 and the dev runbook record the brief production
 solver interruption and exclusion contract. This closes accepted peer findings
 C1, C2, I1, I3, M1, and M6; live capacity proof I4 remains open.
+
+## Target-owned automatic loader
+
+Live attempt 2 exposed a bootstrap gap before publication: h2puni's installed
+loader was the older narrow-archive generation, so it produced a candidate with
+no `.git` and target `sync.ts` failed its first exact-tree `git rev-parse`.
+Nothing published, installed, checkpointed, or reset. The narrow candidate was
+moved to an explicit recovery name rather than deleted.
+
+At watched-red head `f9238345`, the poller source-shape control failed because
+the automatic tick still invoked `"$BIN/dev-poll-sync.sh"`. At `6ccd51d3`, it
+passed 12/12 focused cases after the installed poller began streaming the
+target commit's loader with `git show`; ShellCheck, project ESLint, and
+TypeScript also passed on h2puni. A streamed live attempt then built a complete
+Git candidate and reached the publisher. One overlapping automatic tick first
+returned the documented deploy-lock skip; the uncontended retry refused before
+mutation because available memory was 8,465,108,992 bytes, 124,825,600 below
+the 8 GiB floor. The 05:47 UTC scheduled tmpfs gate reclaim is the next safe
+retry opportunity; no guard was bypassed and no scratch tree was deleted.
