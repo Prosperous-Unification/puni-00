@@ -48,7 +48,7 @@ design trades for its speed, not a feature — know which column your change is 
 | `bun.lock`                                                      | `tool-devsync` restarts and runs `bun install`.                                                                                                                                                                                               |
 | A migration under `apps/be-01/drizzle`                          | `tool-devsync` restarts; be-01 migrates at boot (`MIGRATE_ON_STARTUP=true`). Migrations are imported by no watched module, so nothing else would notice one arrive.                                                                           |
 | `package.json`, `nx.json`, any `project.json`, `vite.config.ts` | `tool-devsync` restarts. Nx and Vite read these once at startup.                                                                                                                                                                              |
-| `libs/solver-py`, `apps/be-01/Dockerfile`                       | **The deploy fails before reset** unless the host supervisor config binds the target source to a compatible digest-pinned solver image. The directory pathspec is recursive. Publish that image and materialize/install the new config first. |
+| `libs/solver-py`, `apps/be-01/Dockerfile`                       | The target-revision deployer automatically publishes a digest-pinned `be` image, materializes and installs its host-owned solver binding, preflights it, and only then resets. The directory pathspec is recursive; missing or contradictory host inputs fail before reset. |
 | `deploy/dev-src/Dockerfile`                                     | **The deploy fails and names the fix** (`RECREATE_PATHS`, since 2026-08-04). Rebuild the image on h2puni from `deploy/dev-src`, then recreate.                                                                                                |
 | `deploy/dev-src/compose.yml`                                    | **The deploy fails and names the fix.** `cd /home/puni1/wbs-dev/src/deploy/dev-src && docker compose up -d`.                                                                                                                                  |
 | Per-tier `apps/<tier>/.env`                                     | **Nothing** — gitignored, so a push cannot carry it. Edit on h2puni and restart the container.                                                                                                                                                |
@@ -61,16 +61,30 @@ nowhere. The env row is still silent, because a gitignored file cannot arrive in
 
 The host-owned solver supervisor service, config, and Unix socket are deploy prerequisites only
 when `libs/solver-py` or `apps/be-01/Dockerfile` changed between the currently deployed and
-requested commits; the directory pathspec is recursive. With no config installed, unrelated
-changes do not probe the service, and absence is the documented default until solver compatibility
-inputs move. Once a config exists, every deploy validates its `devSourceSha` against the requested
-tree even when the requested commit did not change solver paths. Thus a config staged for a future
-solver change makes an intervening unrelated deploy fail closed instead of pairing current sources
-with that future image. For a solver-affecting deploy, materialize a validated config with the
-`tool-remote-scripts:materialize-solver-supervisor-config` target, then dry-run and execute the
-`tool-remote-scripts:install-solver-supervisor` target. The checked-in installer publishes the
-bundle, mode-0600 config, and user unit and verifies the service and socket. The config contains
-only commit and digest-pinned image identities plus resource limits; it carries no secret.
+requested commits; the directory pathspec is recursive. Unrelated changes retain the existing
+preflight-then-reset path and do not publish or install anything.
+
+For a solver-affecting target, the candidate deployer runs from a clean detached clone of that
+exact revision. Under the deploy exclusion it derives the compatibility-tree identity, validates
+the installed production blue and green mappings, publishes only `be` through Dagger from the
+target clone, and accepts only the requested full SHA and registry-returned digest in the release
+manifest. It then materializes a replacement config that preserves both production mappings,
+builds and executes the checked-in supervisor installer, and runs the installed bundle's dev
+preflight. The live checkout reset is last.
+
+Publication is checkpointed at
+`/home/puni1/wbs-dev/state/solver-preparation.<compatibility-identity>.json`. A retry after an
+interrupted install reuses that exact immutable digest instead of publishing again; a completed
+retry still rechecks the current host before reset. State for another source or compatibility
+identity, a tag-only image, divergent production mappings, malformed host files, or a failed
+publish/install/preflight all refuse before reset. The registry credential is read only when a
+publish is required and is passed only in the publisher child's environment; neither the config
+nor durable state contains it.
+
+The commands below are recovery tools, not a prerequisite for an ordinary solver-affecting poll
+tick. Use them only to reconstruct a missing host baseline or to repair a refused automatic
+transition. The checked-in installer publishes the bundle, mode-0600 config, and user unit and
+verifies the service and socket.
 
 The command shape is explicit; replace the descriptive image identities and local output path
 with release-manifest values, first dry-run the installer, then repeat its last command with
@@ -92,9 +106,10 @@ bun run tools/tool-remote-scripts/src/install-solver-supervisor.ts \
 
 Use a new output path by default. Add `--replace` to the materializer only when intentionally
 overwriting an existing local output after rechecking every commit and digest identity; without it,
-an existing output fails closed. Publish the image first, materialize and dry-run locally, then
-install the target config and immediately deploy its matching source commit. Do not stage a future
-mapping and wait: any intervening deploy is deliberately refused until source and mapping agree.
+an existing output fails closed. In a manual recovery, publish the image first, materialize and
+dry-run locally, then install the target config and immediately deploy its matching source commit.
+Do not stage a future mapping and wait: any intervening deploy is deliberately refused until source
+and mapping agree.
 
 The config records a full `devSourceSha`; `tool-devsync` also diffs the solver compatibility
 paths between that commit and the requested commit, so a changed solver package cannot silently
@@ -130,18 +145,24 @@ version file move together; changing a literal in the loader is neither necessar
 
 Puni1's existing every-minute crontab continues to run `/home/puni1/wbs-dev/bin/poll.sh`. Each tick
 fetches `origin/main`, resolves that named remote ref rather than the process-global `FETCH_HEAD`,
-extracts the exact target commit's deployer to a commit-named candidate tree under `bin/`, and runs
-it from there with the managed interpreter. The tree is the target's `tools/`, `libs/` and root
-configs rather than `sync.ts` alone: the deployer reaches the deploy contract through the `@wbs/*`
-tsconfig paths, and Bun resolves those from the tsconfig nearest the importing file, so a bare copy
-in `bin/` fails on `Cannot find module '@wbs/deploy-contract'` — every tick did, the day that copy
-was first installed (2026-09-07). Different targets therefore cannot overwrite one another when a
-manual deploy overlaps a tick; `sync.ts`'s deploy lock still serializes the checkout mutation. If a
-target deployer throws before reset, the checkout stays put; a later fixed target supplies and
-executes its own repaired deployer on the next tick, against the contract it was written with rather
-than the checkout's. The extracted tool still performs every solver, restart, recreate and post-reset
-HEAD check, while the outer poll lock and `/health` commit proof remain intact. Do not recover with a
-raw `git reset`; that bypasses the checks whose refusal is the reason the checkout did not move.
+creates a shared detached clone at the exact target commit under `bin/`, atomically renames the
+completed candidate, and runs it from that clone with the managed interpreter. Its HEAD must equal
+the requested full SHA and its tracked tree must be clean. The candidate contains the complete
+target build context, including Dockerfiles, publisher, supervisor installer, lockfile, `tools/`,
+`libs/`, and root configs rather than `sync.ts` alone. A borrowed `node_modules` link is excluded
+only in that clone's private Git metadata, so it cannot mask target changes.
+
+The full clone matters twice: the deployer reaches the deploy contract through the `@wbs/*`
+tsconfig paths, and a solver-affecting tick must give Dagger the target revision's build context.
+Bun resolves path aliases from the tsconfig nearest the importing file, so a bare `sync.ts` copy in
+`bin/` fails on `Cannot find module '@wbs/deploy-contract'` — every tick did when that copy was first
+installed (2026-09-07). Different targets cannot overwrite one another when a manual deploy overlaps
+a tick; `sync.ts`'s deploy lock still serializes host work and checkout mutation. If a target deployer
+throws before reset, the checkout stays put; a later fixed target supplies and executes its own
+repaired deployer on the next tick, against the contract it was written with rather than the
+checkout's. The target tool still performs every solver, restart, recreate, and post-reset HEAD
+check, while the outer poll lock and `/health` commit proof remain intact. Do not recover with a raw
+`git reset`; that bypasses the checks whose refusal is the reason the checkout did not move.
 
 Dev has **no edge password**. It was removed 2026-08-06: it was a second login on top of the
 app's own, and a browser that had cached a wrong credential for the realm could not be talked

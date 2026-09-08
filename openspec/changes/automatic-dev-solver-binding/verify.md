@@ -193,3 +193,15 @@ remote lint attempt had no scratch `node_modules` link and its uncached
 After revalidating the existing dependency tree (78 declared, 0 bad) and
 restoring the scratch-only link, all gates passed and the post-gate dependency
 check remained 78 declared, 0 bad. No live-host transition ran in this slice.
+
+## Runbook and candidate installation
+
+At 2026-09-08T03:28:40Z, the dev runbook was changed from a manual publish and
+install prerequisite to the implemented target-revision route. It now records
+the detached clean candidate, complete Dagger build context, target identity,
+single exclusion, immutable publish checkpoint and retry, production mapping
+preservation, installed preflight, reset-last rule, credential boundary, and
+manual recovery commands. OpenSpec task 6 is closed. With these documentation
+changes overlaid on the h2puni candidate, OpenSpec 1.3.0 validation passed all
+54 items (54 passed, 0 failed). No build or autotest ran for this docs-only
+slice, and no live host state changed.
