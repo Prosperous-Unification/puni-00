@@ -67,3 +67,6 @@ __pycache__/
 *.py[cod]
 
 .nx/migrate-runs
+# Secret backups. `configure.sh` and hand-edits leave these beside the real
+# `.env`; they are as sensitive as the file they copy and must never be staged.
+**/.env.bak-*
