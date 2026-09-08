@@ -136,6 +136,18 @@ else
   fail 'bin/h2puni-gate.sh does not set a non-zero HEAVY_LOCK_WAIT_SECONDS default'
 fi
 
+# 6. Contract check: that default reaches the lock as a shell variable and stops
+# there. Exported, it would enter every gate step's environment, and
+# `bin/heavy-lock.test.sh`'s refusal cases forward `${HEAVY_LOCK_WAIT_SECONDS:-0}`
+# from theirs — under a gate they would inherit 1800 and spin for half an hour
+# instead of asserting an immediate refusal. That false red has been watched once
+# already, from the command-line recipe (`tools/tool-dagger/src/heavy-lock.test.ts:54`).
+if grep -q '^[[:space:]]*export[[:space:]]\+HEAVY_LOCK_WAIT_SECONDS' "$repo_root/bin/h2puni-gate.sh"; then
+  fail 'bin/h2puni-gate.sh exports its wait default into the gate steps'
+else
+  pass 'the wait default stops at the lock and never enters the steps environment'
+fi
+
 if ((failures)); then
   printf '\n%d failing case(s)\n' "$failures" >&2
   exit 1

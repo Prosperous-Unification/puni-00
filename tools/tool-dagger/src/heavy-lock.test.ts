@@ -52,7 +52,10 @@ async function until(ready: () => boolean, timeoutMs = 10_000): Promise<void> {
 // all, and a child's environment cannot reach its sibling contender.
 //
 // `heavy-lock-lib.sh` reads `HEAVY_LOCK_WAIT_SECONDS` from the environment
-// (`${HEAVY_LOCK_WAIT_SECONDS:-0}`), and `bin/h2puni-gate.sh` exports nothing —
+// (`${HEAVY_LOCK_WAIT_SECONDS:-0}`), and `bin/h2puni-gate.sh` still exports
+// nothing — it sets its own 1800-second default as a plain shell variable
+// precisely so the value reaches `with_heavy_lock` and stops there rather than
+// entering the gate steps' environment (TASK-328) —
 // so the value every lane is told to launch the gate with,
 // `HEAVY_LOCK_WAIT_SECONDS=900 ./bin/h2puni-gate.sh`, was inherited by this file
 // through the gate's child processes. The refusal case below asserts *immediate*

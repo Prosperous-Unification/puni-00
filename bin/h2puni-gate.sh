@@ -26,8 +26,17 @@ target=${1:-HEAD}
 # exit 75 and gives up burns the whole box having shipped nothing. Waiting 30
 # minutes for a 15-minute gate ahead of us still leaves room to gate and land.
 # Set it explicitly to override, including to 0 for the old refuse-now behaviour.
+#
+# NOT exported, deliberately. `with_heavy_lock` is a function in this same shell,
+# so a plain shell variable reaches it while staying out of the environment the
+# gate steps run under. Exporting it would put 1800 into every process the gate
+# launches, and `bin/heavy-lock.test.sh`'s refusal cases forward
+# `${HEAVY_LOCK_WAIT_SECONDS:-0}` from their environment — under a gate they
+# would inherit 1800 and spin for half an hour instead of asserting an immediate
+# refusal. `tools/tool-dagger/src/heavy-lock.test.ts:54` records that exact false
+# red happening once already, from a lane launching the gate with the value set
+# on its command line.
 : "${HEAVY_LOCK_WAIT_SECONDS:=1800}"
-export HEAVY_LOCK_WAIT_SECONDS
 
 gate_with_pinned_head "$repo_root" "$(resolve_heavy_lock_path)" "$target" -- bash -c '
   bunx nx format:check --all &&
