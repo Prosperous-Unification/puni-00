@@ -1,9 +1,9 @@
 # Tasks — Automatic dev solver binding
 
-- [ ] 1. Isolate compatibility detection and define a target-tree identity;
+- [x] 1. Isolate compatibility detection and define a target-tree identity;
       watched red: changing one solver byte must change it while an unrelated
       source change must not.
-- [ ] 2. Add a target-pinned preparation runner and durable state decoder;
+- [x] 2. Add a target-pinned preparation runner and durable state decoder;
       watched reds: old-live-tree imports, missing state, partial state, and a
       digest/source mismatch all refuse before host mutation.
 - [ ] 3. Compose publish, materialization, installer, and post-install preflight

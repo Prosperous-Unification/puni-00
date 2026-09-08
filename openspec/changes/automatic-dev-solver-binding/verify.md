@@ -19,12 +19,30 @@ claimed from it; the pinned package command above is the accepted gate.
 
 The terminal proof must include:
 
-| proof | required failure control | evidence |
-| --- | --- | --- |
-| compatibility identity | solver byte changed / unrelated byte changed | pending |
-| target-pinned runner | import available only in old live checkout | pending |
-| pre-reset ordering | omit each prepare/verify phase | pending |
-| exclusion | two different targets overlap | pending |
-| interrupted retry | stop after publish and during install | pending |
-| live solver change | poll target differs under `libs/solver-py` | pending |
-| alarm backstop | ten consecutive injected preparation failures | pending |
+| proof                  | required failure control                      | evidence |
+| ---------------------- | --------------------------------------------- | -------- |
+| compatibility identity | solver byte changed / unrelated byte changed  | pending  |
+| target-pinned runner   | import available only in old live checkout    | pending  |
+| pre-reset ordering     | omit each prepare/verify phase                | pending  |
+| exclusion              | two different targets overlap                 | pending  |
+| interrupted retry      | stop after publish and during install         | pending  |
+| live solver change     | poll target differs under `libs/solver-py`    | pending  |
+| alarm backstop         | ten consecutive injected preparation failures | pending  |
+
+## Identity and target runner
+
+At `99810aa385f240f1f3cb313eec2b83ec6a7aaa9c`, the clean detached h2puni
+worktree `/dev/shm/t326-r3-red-76e9ca4f` resolved 78 declared dependencies with
+`BAD_COUNT=0`. The target-pinned state suite passed 8/8 cases (16 assertions),
+the whole `tool-devsync` project passed 72/72 cases (197 assertions), and its
+TypeScript build, ESLint, and Prettier checks passed. The lint output warned
+that its standalone invocation had no cached Nx project graph; the full Nx
+project test subsequently built that graph and passed.
+
+The initial test-only tree failed because `solver-preparation` did not exist.
+After implementation, a control replaced the compatibility path contribution
+with the full commit SHA: the unrelated-source case failed at `toBe` while the
+other seven cases stayed green. Restoring the production source returned 8/8.
+The state and runner cases separately require the host command ledger to stay
+empty for old-live-tree code, absent or partial state, a non-digest image, a
+different source SHA, and a different compatibility identity.
