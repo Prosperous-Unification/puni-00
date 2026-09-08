@@ -8,19 +8,20 @@ what proves them and nothing does.
 
 ## 1. The rings, before a single file moves
 
-- [ ] 1.1 **The totality test first, watched red.** `tools/tool-devsync/src/workspace-targets.test.ts`
+- [x] 1.1 **The totality test first, watched red.** `tools/tool-devsync/src/workspace-targets.test.ts`
       grows a case walking every `project.json` under `apps/`, `libs/` and `tools/`: exactly one
       `scope:`, one `ring:`, one `runtime:`. On `main` **two** projects carry a ring
       (`observability`, `runtime-portable`) and twenty-three do not, so it fails naming them —
       record the list, because that list is this slice's work.
-- [ ] 1.2 A `ring:` tag on every project. `tools/*` are `ring:adapter` (they call adapters and
+- [x] 1.2 A `ring:` tag on every project. `tools/*` are `ring:adapter` (they call adapters and
       nothing calls them); `domain`, `contracts`, `validation` are `ring:domain`; the apps and
       the remaining libs are `ring:adapter`. Nothing is `ring:application` yet — there is no
       application project until slice 2.
-- [ ] 1.3 The `depConstraints` of plan §2 in `eslint.config.js`, with the `**/*.test.ts` and
-      `**/testing/**` override. Negatives 4, 5, 6, 13 and 15 of §3.5, each watched on its own
-      line before the rule is believed.
-- [ ] 1.4 `bunx nx run-many -t lint typecheck test` — the whole workspace, because a rule that
+- [x] 1.3 The `depConstraints` of plan §2 in `eslint.config.js`, with the `**/*.test.ts` and
+      `**/testing/**` override. Negatives 6, 13 and 15 of §3.5 watched here — 4 and 5 name
+      `@wbs/core`, which does not exist until slice 2, and are watched there rather than
+      simulated against a project that is not the one the rule is about.
+- [x] 1.4 `bunx nx run-many -t lint typecheck test` — the whole workspace, because a rule that
       changes what may import what is exactly the kind that passes per project and fails as a
       set (2026-08-30's import-sort incident).
 

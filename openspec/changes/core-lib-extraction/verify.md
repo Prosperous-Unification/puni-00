@@ -30,6 +30,18 @@ Re-run 2026-09-08 against `main` @ `5bb095a5`, over the file set this change dec
 | The typecheck target compiles something    | `const deliberatelyWrong: number = 'not a number'` in each new lib         |                       |          |
 | The composition runs without an adapter    | (the proof itself: core over the memory source, no HTTP, SQLite or Bun)    |                       |          |
 
+## Slice 1 — the rings
+
+| Command                                              | When       | Result                                                                                                                                                                                |
+| ---------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run-many -t lint typecheck --skip-nx-cache` | 2026-09-08 | **24 projects, clean**                                                                                                                                                                |
+| `bun run test:unit`                                  | 2026-09-08 | 7 tasks green                                                                                                                                                                         |
+| `bun test` in `tools/tool-devsync`                   | 2026-09-08 | 60 pass / 6 fail — the six are **pre-existing**, measured on the parent commit as 58/6, and are the poller's shell-helper cases; they fail the same way on `main` in this environment |
+
+The workspace lint is the verdict here rather than per-project runs: a rule that changes what
+may import what is exactly the kind that passes project by project and fails as a set
+(2026-08-30's import-sort incident).
+
 ## Gate
 
 | Command | When | Result |
