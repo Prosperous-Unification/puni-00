@@ -140,6 +140,70 @@ is the most generous in the market for a heavy interactive user, and that is exa
 it fences with caps rather than price. At this factory's own delivery volume, $110–250 a month
 of tokens, a $200 seat is at or below break-even before policy enters.
 
+## What the plans actually deliver, measured
+
+Searched 2026-09-08 for aggregated user telemetry pairing a subscription tier with a
+token count. Full tables, method and data-quality notes:
+[plan-allowances.md](sources/plan-allowances.md); the report sheets and their verification
+sit beside it. Web search was exhausted for the session, so Anthropic evidence comes from
+Hacker News (Algolia API) and claude-code GitHub issues; Reddit and X were unreachable.
+
+**No public dataset pairs a plan tier with a token count.** viberank, the only aggregate with
+a real sample (~1,200 developers live, 792 in its June 2026 snapshot), records no plan field.
+Every plan-labelled number below is one user's own log. Dollars are the source's own ccusage
+or `/usage` figure at list price; ~95% of the tokens behind them are cache reads.
+
+| Anthropic plan | Measured                                                                                                    | Per month at API list | Ratio  | Cap hit  | n, date                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------- | --------------------- | ------ | -------- | ------------------------------- |
+| Pro $20        | First 5-hour cap after ~30 minutes; one user found $49 of overage                                           | no figure             | —      | yes      | 2, 2026-03                      |
+| Max 5x $100    | ~$750 a week while hitting the 5-hour cap 4–5× a day and the weekly cap in 3 days                           | $3,000                | 30×    | yes      | 1, 2026-03                      |
+| Max 5x $100    | $3,200 in a month using about a third of the weekly limit                                                   | $3,200                | 32×    | no       | 1, 2026-05                      |
+| Max 5x $100    | 1.83B tokens (1.7B cache reads, 5M input, 1.5M output)                                                      | $1,500                | 15×    | no       | 1, 2026-01                      |
+| Max 20x $200   | Anthropic's rate-limit headers read by a local proxy: 7-day budget ≈ $1,300–1,900, 5-hour budget ≈ $120–280 | $5,600–8,200          | 28–41× | cap band | 1 account, 11 sessions, 2026-03 |
+| Max 20x $200   | Weekly quota filled at 335M weighted tokens one week and ~125M the next on the same account                 | —                     | —      | yes      | 1, 2026-08                      |
+
+Per model the record is thin. Opus exists only as a message count: about 4–5 Opus messages
+per 1% of the weekly Opus bar on Max 5x and about 2 on Max 20x, so the effective 20x-to-5x
+weekly ratio back-solves to 1.7–2.3× rather than 4×, corroborated by nine reporters in one
+issue. Sonnet appears once, as a ~$150-a-week sub-budget on Max 20x. Fable appears as the
+vendor's "up to 50% of your weekly usage limit" plus one prompt that emptied a five-hour window
+in eight minutes for about $100 of tokens.
+
+Two mechanics matter more than any single figure. The meter is price-weighted, not
+token-weighted: one back-solved formula is cache-write ×1.25, cache-read ×0.1, output ×5, raw
+input not counted, so 95% of a session's tokens cost 10% of its quota. And tokens per quota
+point swung 17–45× within a day and 2.7× week to week on one unchanged account, so "tokens the
+plan delivers" is not a stable quantity for anyone to publish. Anthropic itself publishes no
+token or dollar conversion for the 5x/20x multipliers, re-checked twice.
+
+**OpenAI.** Retrieved through the Hacker News and GitHub APIs and the OpenAI forum after the
+search quota ran out: 32 reports, 24 confirmed on re-fetch, 3 corrected, 3 refuted and dropped.
+No primary OpenAI source states a weekly cap. The only tokens-against-percent measurement is on
+a Team seat; every plan row is one user's log. API dollars use the rate card verified in
+[openai-pricing.md](sources/openai-pricing.md): Sol $4 / $0.40 / $20 per million input /
+cached / output, credits at $0.04.
+
+| OpenAI plan                 | Measured                                                                                                                                | API-list value                                                                                                                              | Ratio to plan price           | Cap hit | n, date                            |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ------- | ---------------------------------- |
+| Plus $20                    | Official window: 10–100 Sol messages at 5–30 credits; one user's estimate that "$20 buys about $400 of Codex credits"                   | $12–20 per 5-hour window; ~$400 a month claimed                                                                                             | ~20× claimed, unmeasured      | —       | official page; 1 estimate, 2026-08 |
+| Plus $20                    | GPT-6 Astra: a three-minute light task drained the whole 5-hour window                                                                  | no token count                                                                                                                              | —                             | yes     | 2 issues, 2026-09                  |
+| Team seat $20–25            | 23.5M tokens on GPT-5.6 Sol (96.8% cached, 117k output) = 98% of a 5-hour window; the weekly bar moved 59% → 74% in the same 2 h 14 min | $14.40 per window (0.76M × $4 + 22.6M × $0.40 + 0.12M × $20); derived: ~6–7 windows a week fit the weekly bar, ≈ $95 a week, ≈ $410 a month | ≈ 17–21×                      | 98%     | 1, 2026-09-02                      |
+| Pro 5x $100                 | Weekly allowance 100% → 0% in ~8 hours on ~8M tokens (~1M output) of Sol Ultra, during a spike several users called a nerf              | $25–48 a week by cache share (1M × $20 + 7M × $0.40–4)                                                                                      | 1.1–2.1× on a $23-a-week plan | yes     | 1 + 4 replies, 2026-07-22          |
+| Pro 5x $100                 | Exhausted in 2–3 days                                                                                                                   | no figure                                                                                                                                   | —                             | yes     | 1 + 2 replies, 2026-08             |
+| Pro 20x $200                | User's own estimate: ≈ $2,200 of API-equivalent Sol a week                                                                              | ≈ $9,500 a month                                                                                                                            | 48×                           | level   | 1, 2026-07-18                      |
+| Pro 20x $200                | "Millions of tokens a day, about $50 a day", the user's own $1,200 a month                                                              | $1,200 a month                                                                                                                              | 6×                            | unknown | 1, 2026                            |
+| Pro 20x $200                | Weekly cap reached in 12 hours to 5 days (Sol, Luna Max)                                                                                | no figures                                                                                                                                  | —                             | yes     | 5, 2026-05 to 2026-09              |
+| Business Standard / Premium | No measurement; official windows mirror Plus                                                                                            | —                                                                                                                                           | —                             | —       | —                                  |
+
+The one aggregate that includes Codex is viberank's August 2026 month: 149 Codex developers,
+$1.94M API-equivalent, per-model rows for gpt-5.6-sol and gpt-5.5, no plan field. Read together,
+the OpenAI picture is consistent with its own rate card: a Plus or Team five-hour window is worth
+$12–20 at list, a Pro 20x window $240–400, and the multiplier against the plan price is decided
+by the unpublished weekly cap, which the Team measurement puts near six or seven windows a week.
+Heavy Plus users therefore sit near 20×, Pro 20x anecdotes span 6–48×, and both plans are
+exhausted by heavy users in half a day to five days. That is the same order as Anthropic's
+15–41×, on even thinner measurement.
+
 ## Consequences for Twilight's own design
 
 These are findings against the shipped `execution.yaml` and the plan, not measurements.
@@ -200,11 +264,12 @@ next flagship on Max.
 
 ## Files
 
-| Path            | Holds                                                                                                                                                                                                               |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sources/`      | Nine fact sheets: Anthropic subscriptions, OpenAI pricing, the convergence thesis, open-weight models, tokens per unit of work, client pricing, Twilight's own cost structure, self-hosting, infrastructure prices. |
-| `verification/` | Seven fact-check passes over the sheets, each claim confirmed, corrected, unverifiable or refuted against its cited source.                                                                                         |
-| `models/`       | The three models, the three premise refutations and the arithmetic audit with its consensus table.                                                                                                                  |
+| Path                                                                                                  | Holds                                                                                                                                                                                                               |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sources/`                                                                                            | Nine fact sheets: Anthropic subscriptions, OpenAI pricing, the convergence thesis, open-weight models, tokens per unit of work, client pricing, Twilight's own cost structure, self-hosting, infrastructure prices. |
+| `verification/`                                                                                       | Seven fact-check passes over the sheets, each claim confirmed, corrected, unverifiable or refuted against its cited source.                                                                                         |
+| `models/`                                                                                             | The three models, the three premise refutations and the arithmetic audit with its consensus table.                                                                                                                  |
+| `sources/plan-allowances.md`, `sources/plan-allowances-reports.md`, `verification/plan-allowances.md` | The 2026-09-08 search for measured tokens per subscription tier: synthesis tables with data quality, the user-report sheets for Anthropic and OpenAI, and their verification.                                       |
 
 Every review receipt under `evidence/` and every sheet here is a snapshot of 2026-09-08; prices
 and limits in this market move on a 3–33 day notice cycle.
