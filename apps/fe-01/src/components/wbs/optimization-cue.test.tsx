@@ -101,7 +101,7 @@ describe('the schedule cue', () => {
   itDom('wears the saving when a variant would land the plan earlier', () => {
     render(<Harness optimization={SUGGESTING} onChoose={() => undefined} />);
     expect(document.querySelector('[data-cue-suggestion]')?.textContent).toBe(
-      '· PRI 3 days earlier',
+      '· Pri 3 days earlier',
     );
     expect(document.querySelector('[data-optimization-cue]')).toHaveAttribute(
       'data-cue-suggesting',
@@ -196,7 +196,7 @@ describe('the schedule cue', () => {
     fireEvent.click(pill());
     expect(items()).toEqual([
       '✓ Fast · 10 days',
-      'PRI · 7 days · Earlier project deadline by 3 days',
+      'Pri · 7 days · Earlier project deadline by 3 days',
       'Time · Optimizing…',
     ]);
     // The active one is checked and carries **no** fact: `MenuControl` focuses
@@ -228,7 +228,7 @@ describe('the schedule cue', () => {
       />,
     );
     fireEvent.click(pill());
-    fireEvent.click(screen.getByRole('menuitem', { name: /^PRI/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Pri/ }));
     expect(asked).toEqual([{ scheduleEngine: 'optimized', scheduleObjective: 'pri' }]);
   });
 
@@ -286,9 +286,9 @@ describe('the schedule cue', () => {
    * that window.
    *
    * Proof: with the pill's face rendering an optimistic label instead of the
-   * read's own — `reading.activeLabel` replaced by a constant `'PRI'`, which is
+   * read's own — `reading.activeLabel` replaced by a constant `'Pri'`, which is
    * what an optimistic switch would put there — this failed on `Expected:
-   * "Fast" · Received: "PRI"`. Watched 2026-09-08.
+   * "Fast" · Received: "Pri"`. Watched 2026-09-08.
    */
   itDom('leaves the active schedule alone until a plan read moves it', () => {
     const asked: ProjectOptimizationPatch[] = [];
@@ -301,7 +301,7 @@ describe('the schedule cue', () => {
       />,
     );
     fireEvent.click(pill());
-    fireEvent.click(screen.getByRole('menuitem', { name: /^PRI/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Pri/ }));
 
     // The window: the switch has been asked for and no plan read has answered.
     // `onChoose` returns nothing, so this **is** the in-flight state — the
@@ -322,7 +322,7 @@ describe('the schedule cue', () => {
         onChoose={() => undefined}
       />,
     );
-    expect(document.querySelector('[data-cue-active]')?.textContent).toBe('PRI');
+    expect(document.querySelector('[data-cue-active]')?.textContent).toBe('Pri');
   });
 
   itDom('shows the items unavailable while a write is in flight', () => {
@@ -337,8 +337,8 @@ describe('the schedule cue', () => {
       />,
     );
     fireEvent.click(pill());
-    expect(screen.getByRole('menuitem', { name: /^PRI/ })).toHaveAttribute('aria-disabled', 'true');
-    fireEvent.click(screen.getByRole('menuitem', { name: /^PRI/ }));
+    expect(screen.getByRole('menuitem', { name: /^Pri/ })).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Pri/ }));
     expect(asked).toEqual([]);
   });
 
@@ -409,11 +409,21 @@ describe('the schedule cue', () => {
     const fact = pill().getAttribute('data-fact');
     expect(pill()).not.toHaveAttribute('data-hint');
     expect(fact).toContain('Fast · 10 days · active');
-    expect(fact).toContain('PRI · 7 days · Earlier project deadline by 3 days');
+    expect(fact).toContain('Pri · 7 days · Earlier project deadline by 3 days');
     expect(fact).toContain('Time · Optimizing…');
+    // What the three algorithms are — a name this short cannot say it, and the
+    // reader has to choose between them.
+    expect(fact).toContain('Fast places the plan in milliseconds');
+    expect(fact).toContain('Time searches for the earliest project deadline');
+    expect(fact).toContain('Pri searches for the schedule that starts higher-priority work');
+    expect(fact).toContain('CP-SAT searches from Google OR-Tools');
     // The metadata, which is the only place a reader can find out which plan
     // and which solver contract produced the figures.
     expect(fact).toContain('Solver 1.5+test · 60s budget · generation 7 · plan hash-a');
+    // Blocks, not one line: the schedules, the algorithms and the run's
+    // identity are separated by a blank line each. The Pri-against-Time block
+    // is a fourth, and this fixture has no Time answer to contrast.
+    expect((fact ?? '').split('\n\n')).toHaveLength(3);
   });
 
   itDom('names the active schedule in the fact, wherever the project is', () => {
@@ -424,8 +434,32 @@ describe('the schedule cue', () => {
       />,
     );
     const fact = pill().getAttribute('data-fact');
-    expect(fact).toContain('PRI · 7 days · Earlier project deadline by 3 days · active');
+    expect(fact).toContain('Pri · 7 days · Earlier project deadline by 3 days · active');
     expect(fact).not.toContain('Fast · 10 days · active');
+  });
+
+  itDom('contrasts Pri with Time where both have an answer', () => {
+    render(
+      <Harness
+        optimization={{
+          ...SUGGESTING,
+          variants: { pri: { state: 'ready' }, time: { state: 'ready' } },
+          finishDays: { fast: 10, pri: 7, time: 8 },
+          sameOrderAsFast: { pri: true, time: false },
+        }}
+        onChoose={() => undefined}
+      />,
+    );
+    // The comparison a reader actually chooses between: Fast is the reference
+    // every figure is measured against, and the decision is Pri or Time.
+    expect(pill().getAttribute('data-fact')).toContain(
+      'Pri against Time: Pri 1 day earlier, in a different order from each other.',
+    );
+  });
+
+  itDom('says nothing about Pri against Time while one of them has no answer', () => {
+    render(<Harness optimization={SUGGESTING} onChoose={() => undefined} />);
+    expect(pill().getAttribute('data-fact')).not.toContain('Pri against Time');
   });
 
   itDom('says in the fact that a stale plan has no comparison to show', () => {
@@ -493,6 +527,6 @@ describe('the schedule cue', () => {
       'Schedule comparison unavailable while this plan may be stale',
     );
     fireEvent.click(pill());
-    expect(items()).toEqual(['✓ Fast', 'PRI', 'Time · Optimizing…']);
+    expect(items()).toEqual(['✓ Fast', 'Pri', 'Time · Optimizing…']);
   });
 });

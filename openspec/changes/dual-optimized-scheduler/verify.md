@@ -1,5 +1,62 @@
 # Dual optimized scheduler verification
 
+## 2026-09-09T00:20:00Z — slice 8b second review round: jitter, the card, the names
+
+Dany, on the cue as shipped in the round below: the pill "jitters when switch happens + the
+whole header toolbox jitters as a result"; the card "looks ugly — need separate the
+explanations + the reorder vs time", plus Pri-against-Time and an explanation of the
+algorithm; and `PRI` should be `Pri` with the three schedules explained on the card.
+
+- Local, in the merge worktree: fe-01 jsdom **2585 pass / 2 fail** (the two `plan-mermaid`
+  timezone cases that fail on `main` here too); `contracts`, `domain`, `core` and
+  `runtime-portable` test targets green — `contracts:test` is the one CI caught and this round
+  fixed, see below; ESLint, `tsc --build --force` and Prettier clean.
+- Browser, `CI=1 E2E_PORT_SHIFT=1900`: `optimization-cue.spec.ts` 8/8,
+  `project-settings.spec.ts` + `hints.spec.ts` 10/10, `hover-cards.spec.ts` + `gantt.spec.ts`
+  85/85 (`hint.tsx` and `hover-card.tsx` are shared, so both suites are part of this round's
+  evidence rather than a courtesy).
+
+### What CI caught that no local run had
+
+`contracts:test` failed on `must have required property 'finishDays'` /
+`'sameOrderAsFast'` at `work-item-response.test.ts:180`. The wire schema is **in
+`libs/contracts`** and I had run `domain`, `be-01` and `fe-01` and not the project I changed.
+The fixture carries both fields now, and `nx run-many -t test` over every library project is
+what was run before believing it.
+
+### Failure proof table (R5), this round
+
+| Check                                                                     | Injected fault                                                                | Observed failure                                                                                                                                                                                               |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `optimization-cue.spec.ts` a switch moves nothing else on the toolbar row | `w-[11.5rem]` removed from `PILL`, so the box is the width of its words again | `the toolbar moved under a switch: Starts · Expected: 1049.55 · Received: 1192.48` — the start-date control **143px** to the right of where it was, because the pill shrank by that much when its saving went. |
+
+### Measured, not reasoned about
+
+- **The width was chosen from the browser, twice.** `w-56` (224px) was the first guess and it
+  pushed the toolbar to a second row at 1600 — a fix that cost a line. The pin is the pill's
+  own measured widest instead, 184px (`11.5rem`), so the row wraps exactly where it wrapped
+  before. A fixed slot for the schedule's name was tried inside it and reverted: it cost the
+  saving 38px and truncated `· Pri 3 days earlier` at the width the pill is pinned to fit.
+- **The card was read before it was believed.** Screenshotted at 1600: four blocks, the
+  Pri-against-Time line, the four algorithm lines and the run's identity, ~410px wide and
+  inside the window.
+
+### Not ours: `rendering-baseline.spec.ts`
+
+CI's `pixels shard 4/4` failed on main's own new spec — `an editor that left the row window
+can commit, escape, and hold a refusal`, on a project name that arrived as
+`endering 100/2/sparse`, its first character lost. That is the race `create-project.ts`'s own
+docstring describes: the create **re-arms** the rename a round trip later, and a re-arm
+landing between the first keystroke and the second wipes it.
+
+Established rather than assumed: the same file fails **on unmodified `origin/main`** in a
+control worktree — `a broad Find renders no more than its two filter-sensitive cells per row`,
+`Expected: "Row 0000 half-typed" · Received: " half-typedRow 0000"`, keystrokes interleaved the
+same way — while the case CI failed on passes locally on both trees. Two different cases, two
+machines, one class of race, and none of it touched by this change: nothing here goes near the
+header, the picker, the rename or focus. The shard was re-run to clear it; the race itself
+belongs to the session that wrote that spec.
+
 ## 2026-09-08T22:40:00Z — slice 8b review round: the fact, the dot, the menu
 
 Dany, on the shipped pill: the reading must use the **project-fact** mechanic (no wait ring —

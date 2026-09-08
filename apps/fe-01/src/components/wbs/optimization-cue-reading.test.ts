@@ -43,7 +43,7 @@ describe('what the cue suggests', () => {
    * an earlier project deadline is the only thing worth being nudged about.
    */
   it.each([
-    ['an earlier finish is suggested', { pri: 7 }, { pri: true }, 'pri', 'PRI 3 days earlier'],
+    ['an earlier finish is suggested', { pri: 7 }, { pri: true }, 'pri', 'Pri 3 days earlier'],
     ['the same finish reordered is not', { pri: 10 }, { pri: false }, null, null],
     ['the same finish in the same order is not', { pri: 10 }, { pri: true }, null, null],
     ['a later finish is not', { pri: 12 }, { pri: true }, null, null],
@@ -143,8 +143,8 @@ describe('what the cue suggests', () => {
 
   it.each([
     [-Number.EPSILON, 'Same project deadline + same order', null],
-    [-0.001, 'Earlier project deadline by <0.01 day', 'PRI <0.01 day earlier'],
-    [-1 / 48, 'Earlier project deadline by 0.02 days', 'PRI 0.02 days earlier'],
+    [-0.001, 'Earlier project deadline by <0.01 day', 'Pri <0.01 day earlier'],
+    [-1 / 48, 'Earlier project deadline by 0.02 days', 'Pri 0.02 days earlier'],
   ] as const)('takes a %s difference through the workday drift', (delta, expected, suggested) => {
     const view = reading({
       finishDays: { fast: 10, pri: 10 + delta },
@@ -163,6 +163,7 @@ describe('what the cue reads out', () => {
     );
     expect(reading({}).sentence).toContain('Fast is the active schedule');
     expect(reading({ engine: 'optimized', displayed: 'time' }).activeLabel).toBe('Time');
+    expect(reading({ engine: 'optimized', displayed: 'pri' }).activeLabel).toBe('Pri');
   });
 
   it('says a variant is optimizing only once something has been admitted for the plan', () => {
@@ -183,12 +184,76 @@ describe('what the cue reads out', () => {
     expect(nothingToDo.sentence).toBe('Fast is the active schedule.');
   });
 
+  /**
+   * The contrast a reader actually decides on. Every figure on the card is
+   * measured against Fast, which is one reference and the right one — but the
+   * choice in front of them is Pri or Time, and neither of those rows says
+   * anything about the other.
+   *
+   * The order half is derived from the two relations against Fast and says only
+   * what they support; the last case is the one where they support nothing.
+   */
+  it.each([
+    [
+      'both keep Fast’s order',
+      { pri: 7, time: 8 },
+      { pri: true, time: true },
+      'Pri against Time: Pri 1 day earlier, in the same order as each other.',
+    ],
+    [
+      'exactly one reorders',
+      { pri: 7, time: 8 },
+      { pri: true, time: false },
+      'Pri against Time: Pri 1 day earlier, in a different order from each other.',
+    ],
+    [
+      'both reorder, so their order against each other is unknowable from these two facts',
+      { pri: 7, time: 8 },
+      { pri: false, time: false },
+      'Pri against Time: Pri 1 day earlier, each in an order of its own.',
+    ],
+    [
+      'they finish together',
+      { pri: 7, time: 7 },
+      { pri: true, time: true },
+      'Pri against Time: the same project deadline, in the same order as each other.',
+    ],
+    [
+      'Time is the earlier one',
+      { pri: 9, time: 7 },
+      { pri: true, time: true },
+      'Pri against Time: Time 2 days earlier, in the same order as each other.',
+    ],
+  ] as const)('contrasts the two variants when %s', (_what, finishes, orders, expected) => {
+    const view = reading({ finishDays: { fast: 10, ...finishes }, sameOrderAsFast: { ...orders } });
+    expect(view.variantContrast).toBe(expected);
+  });
+
+  it.each([
+    ['one is still solving', { pri: { state: 'ready' }, time: { state: 'pending' } } as const],
+    ['one failed', { pri: { state: 'ready' }, time: { state: 'failed', reason: 'oom' } } as const],
+    [
+      'one is infeasible',
+      { pri: { state: 'ready' }, time: { state: 'plan-infeasible', items: [] } } as const,
+    ],
+  ])('says nothing about the two variants while %s', (_what, variants) => {
+    // A figure with no schedule behind it is not a comparison. The `time`
+    // figure is left on the payload deliberately: the rule reads the state.
+    const view = reading({
+      variants,
+      finishDays: { fast: 10, pri: 7, time: 8 },
+      sameOrderAsFast: { pri: true, time: true },
+    });
+    expect(view.variantContrast).toBeNull();
+  });
+
   it('suppresses every comparison while the plan may be stale, and suggests nothing', () => {
     const view = reading({ finishDays: { fast: 10, pri: 6, time: 6 } }, true);
     expect(view.suggestion).toBeNull();
     expect(view.suggestionWords).toBeNull();
     expect(view.rows.map((row) => row.comparedWithFast)).toEqual([null, null, null]);
     expect(view.rows.map((row) => row.finishDays)).toEqual([null, null, null]);
+    expect(view.variantContrast).toBeNull();
     expect(view.sentence).toContain('Schedule comparison unavailable while this plan may be stale');
   });
 

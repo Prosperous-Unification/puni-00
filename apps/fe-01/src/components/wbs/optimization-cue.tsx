@@ -11,7 +11,13 @@ import {
   type CueRow,
   type UnmeetableDeadline,
 } from './optimization-cue-reading';
-import { days, deadlineWords, OBJECTIVE_LABEL, STALE_WORDS } from './optimization-words';
+import {
+  ALGORITHM_WORDS,
+  days,
+  deadlineWords,
+  OBJECTIVE_LABEL,
+  STALE_WORDS,
+} from './optimization-words';
 
 export interface OptimizationCueProps {
   readonly optimization: PlanOptimizationView;
@@ -42,14 +48,27 @@ export interface OptimizationCueProps {
 }
 
 /**
- * The pill, at rest and in every state.
+ * The pill, at rest and in every state — and a **fixed** box.
  *
- * A `<button>`'s own padding and border in both arms, so the two are the same
- * object to a reader: the writer's arm opens a menu, the reader's arm opens
- * nothing, and both carry the same words for the pointer and the keyboard.
+ * `w-56` rather than a box the width of its words, and it is the fix for a real
+ * fault rather than a preference: this control is the last item in a wrapping
+ * toolbar row, and its words change on every switch and on every solve that
+ * lands (`Fast` → `Pri`, a saving appearing or going). A control that changes
+ * width there can push itself over the wrap threshold, which re-lays the whole
+ * row and moves every other control on it — "the whole header toolbox jitters"
+ * (Dany, 2026-09-08). A fixed box cannot: the words inside it change and
+ * nothing outside it moves. `e2e/optimization-cue.spec.ts` measures a
+ * neighbour's edge across a switch.
+ *
+ * 11.5rem is the width the pill measured at its widest **before** it was
+ * pinned — 184px, a dot, `Fast` and `· Pri 3 days earlier`, measured in
+ * Chromium — so the row wraps exactly where it wrapped before and the pin
+ * costs no line. A longer saving truncates rather than growing past it; the
+ * whole of it is in the card and in the menu either way. A `<button>`'s own padding and border in both arms, so the menu arm and
+ * the read-only arm are the same object to a reader.
  */
 const PILL =
-  'inline-flex h-8 max-w-full cursor-pointer items-center gap-1.5 rounded-md border border-transparent bg-muted px-2 text-sm whitespace-nowrap hover:border-border';
+  'inline-flex h-8 w-[11.5rem] max-w-full cursor-pointer items-center gap-1.5 rounded-md border border-transparent bg-muted px-2 text-sm whitespace-nowrap tabular-nums hover:border-border';
 
 /**
  * What the dot has to say, worst-first, or `null` when it has nothing.
@@ -131,29 +150,38 @@ function factWords(
   optimization: PlanOptimizationView,
   lineFor: (unmeetable: UnmeetableDeadline) => string,
 ): string {
-  const parts: string[] = [];
-  for (const row of reading.rows) {
+  // One block per subject, blank line between them: the three schedules, then
+  // the choice between the two optimized ones, then what the algorithms are,
+  // then the identity of the run. It was one long ` — ` line for a commit and
+  // read as a wall (Dany, 2026-09-08); `HintLayer` renders the breaks.
+  const schedules = reading.rows.flatMap((row) => {
     const active = row.which === reading.active ? ' · active' : '';
-    parts.push(`${rowWords(row)}${active}`);
+    const lines = [`${rowWords(row)}${active}`];
     if (row.unmeetable !== null && row.unmeetable.length > 0) {
-      parts.push(`${row.label} cannot meet: ${row.unmeetable.map(lineFor).join('; ')}`);
+      // Indented under the row it belongs to — with a bullet rather than
+      // leading spaces, which `pre-line` does not keep.
+      lines.push(...row.unmeetable.map((unmeetable) => `· ${lineFor(unmeetable)}`));
     }
-  }
-  if (reading.stale) parts.push(STALE_WORDS);
-  parts.push(
-    [
-      `Solver ${optimization.contractVersion}`,
-      `${String(Math.round(optimization.budgetMs / 1000))}s budget`,
-      optimization.generation === null
-        ? 'no generation for this plan'
-        : `generation ${String(optimization.generation)}`,
-      // The first eight characters, which is what a reader needs to match a
-      // figure against a log line or a solver row; the whole SHA-256 is 64 and
-      // would be most of the card.
-      `plan ${optimization.inputHash.slice(0, 8)}`,
-    ].join(' · '),
-  );
-  return parts.join(' — ');
+    return lines;
+  });
+  const identity = [
+    `Solver ${optimization.contractVersion}`,
+    `${String(Math.round(optimization.budgetMs / 1000))}s budget`,
+    optimization.generation === null
+      ? 'no generation for this plan'
+      : `generation ${String(optimization.generation)}`,
+    // The first eight characters, which is what a reader needs to match a
+    // figure against a log line or a solver row; the whole SHA-256 is 64 and
+    // would be most of the card.
+    `plan ${optimization.inputHash.slice(0, 8)}`,
+  ].join(' · ');
+  return [
+    schedules.join('\n'),
+    ...(reading.variantContrast === null ? [] : [reading.variantContrast]),
+    ...(reading.stale ? [`${STALE_WORDS}.`] : []),
+    ALGORITHM_WORDS,
+    identity,
+  ].join('\n\n');
 }
 
 function rowWords(row: CueRow): string {
@@ -284,9 +312,16 @@ export function OptimizationCue({
           style={{ background: DOT[dot] }}
         />
       )}
+      {/*
+        The name sizes itself: the box around it is fixed, so the few pixels
+        between `Fast`, `Pri` and `Time` move the saving beside them and
+        nothing outside the pill. A slot wide enough for the longest of the
+        three cost the saving 38px of room and truncated it at 1600, which is
+        the width this pill is pinned to fit.
+      */}
       <span data-cue-active>{reading.activeLabel}</span>
       {reading.suggestionWords !== null && (
-        <span data-cue-suggestion className="text-primary truncate font-medium">
+        <span data-cue-suggestion className="text-primary min-w-0 truncate font-medium">
           · {reading.suggestionWords}
         </span>
       )}

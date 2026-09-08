@@ -94,6 +94,21 @@ export interface CueReading {
   /** One sentence naming the active schedule and everything else worth saying. */
   readonly sentence: string;
   /**
+   * How the two optimized variants compare with **each other**, or `null` when
+   * fewer than two of them have an answer to compare.
+   *
+   * Its own line on the card because it is the comparison a reader actually
+   * chooses between — Fast is the reference every figure is measured against,
+   * but the decision is Pri or Time (Dany, 2026-09-08).
+   *
+   * The order half is derived from the two relations against Fast and says only
+   * what those two can support: if both keep Fast's order they keep each
+   * other's; if exactly one of them reorders, they differ from each other; if
+   * **both** reorder, this cannot tell whether they reorder the same way, and
+   * says so rather than guessing.
+   */
+  readonly variantContrast: string | null;
+  /**
    * Whether this reading is of a plan that may have moved under it.
    *
    * Carried rather than left to the caller's own copy of the flag, because it
@@ -204,6 +219,7 @@ export function cueReading(optimization: PlanOptimizationView, stale = false): C
       return state === 'failed' || state === 'corrupt';
     }),
     stale,
+    variantContrast: contrastWords(optimization, stale),
     suggestion: suggested?.objective ?? null,
     suggestionWords:
       suggested === null
@@ -211,6 +227,43 @@ export function cueReading(optimization: PlanOptimizationView, stale = false): C
         : `${OBJECTIVE_LABEL[suggested.objective]} ${days(suggested.saving)} earlier`,
     sentence: sentenceOf(optimization, rows, suggested, stale),
   };
+}
+
+/**
+ * Pri against Time: the day difference between them, and whether they place the
+ * shared slices the same way.
+ *
+ * `null` unless both are `ready` with a finish, because there is nothing to
+ * contrast otherwise, and `null` while the plan may be stale, for the reason
+ * every other comparison is suppressed there.
+ */
+function contrastWords(optimization: PlanOptimizationView, stale: boolean): string | null {
+  if (stale) return null;
+  const pri = optimization.finishDays.pri;
+  const time = optimization.finishDays.time;
+  if (pri === undefined || time === undefined) return null;
+  if (optimization.variants.pri.state !== 'ready' || optimization.variants.time.state !== 'ready') {
+    return null;
+  }
+  const gap = withinDrift(pri - time, 0)
+    ? 'the same project deadline'
+    : pri < time
+      ? `Pri ${days(pri - time)} earlier`
+      : `Time ${days(time - pri)} earlier`;
+  const priKeepsOrder = optimization.sameOrderAsFast.pri;
+  const timeKeepsOrder = optimization.sameOrderAsFast.time;
+  const order =
+    priKeepsOrder === undefined || timeKeepsOrder === undefined
+      ? 'their order against each other is unknown'
+      : priKeepsOrder && timeKeepsOrder
+        ? 'in the same order as each other'
+        : priKeepsOrder === timeKeepsOrder
+          ? // Both reorder Fast, and two reorderings of one plan need not be the
+            // same reordering: the wire carries each variant's relation to Fast
+            // and nothing about the pair, so this says what it knows.
+            'each in an order of its own'
+          : 'in a different order from each other';
+  return `Pri against Time: ${gap}, ${order}.`;
 }
 
 /**

@@ -99,7 +99,7 @@ export function OptimizationSettingsPanel({
                 write({ scheduleEngine: 'optimized', scheduleObjective: 'pri' });
               }}
             />
-            PRI
+            Pri
           </label>
           <label className="flex items-center gap-1.5 text-sm">
             <input

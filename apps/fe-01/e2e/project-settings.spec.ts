@@ -174,7 +174,7 @@ test.describe('the project settings control, in a browser', () => {
     await expect(optimization).toBeChecked();
 
     const fast = dialog.getByRole('radio', { name: 'Fast' });
-    const priority = dialog.getByRole('radio', { name: 'PRI' });
+    const priority = dialog.getByRole('radio', { name: 'Pri' });
     const time = dialog.getByRole('radio', { name: 'Time' });
     await expect(fast).toBeEnabled();
     await fast.focus();

@@ -49,24 +49,38 @@ const SUGGESTING: PlanOptimizationView = {
   sameOrderAsFast: { pri: true },
 };
 
-/** A project with one row, whose plan read carries {@link SUGGESTING}. */
-async function planWithACue(page: Page): Promise<void> {
+/**
+ * A project with one row whose plan read carries {@link SUGGESTING}, and a
+ * handle that changes what the **next** read says.
+ *
+ * The handle is what makes a switch a switch: be-01's answer is intercepted, so
+ * without it the plan read would keep saying Fast is displayed however many
+ * times the reader chose Pri, and "nothing moved" would be a claim about a
+ * screen that never changed.
+ */
+async function planWithACue(page: Page): Promise<{ serve: (next: PlanOptimizationView) => void }> {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
   await createProject(page);
   await page.getByRole('button', { name: 'Add work item' }).click();
   await expect(page.getByLabel('Name of 010')).toBeVisible();
 
+  let optimization = SUGGESTING;
   await page.route('**/api/projects/*/work-items', async (route) => {
     const response = await route.fetch();
     const plan = (await response.json()) as PlanRead;
     await route.fulfill({
       response,
-      json: { ...plan, startDate: '2026-09-07', optimization: SUGGESTING },
+      json: { ...plan, startDate: '2026-09-07', optimization },
     });
   });
   await page.reload();
   await expect(page.locator('[data-optimization-cue]')).toBeVisible();
+  return {
+    serve: (next) => {
+      optimization = next;
+    },
+  };
 }
 
 const pill = (page: Page) => page.getByRole('button', { name: /is the active schedule/ });
@@ -110,7 +124,7 @@ test.describe('the schedule cue, in a browser', () => {
     // The saving is on the pill, drawn, and not merely in the markup.
     const saving = await boxOf(page, '[data-cue-suggestion]');
     expect(saving.width, 'the suggestion has no rendered width').toBeGreaterThan(0);
-    await expect(page.locator('[data-cue-suggestion]')).toHaveText('· PRI 3 days earlier');
+    await expect(page.locator('[data-cue-suggestion]')).toHaveText('· Pri 3 days earlier');
   });
 
   test('lays the 1280 toolbar out inside its budget with the cue on it', async ({ page }) => {
@@ -203,11 +217,22 @@ test.describe('the schedule cue, in a browser', () => {
     const card = cueCard(page);
     // Every schedule, its figures, its comparison and which one is active.
     await expect(card).toContainText('Fast · 10 days · active');
-    await expect(card).toContainText('PRI · 7 days · Earlier project deadline by 3 days');
+    await expect(card).toContainText('Pri · 7 days · Earlier project deadline by 3 days');
     await expect(card).toContainText('Time · Optimizing…');
-    // And the metadata, which is the only place a reader can find out which
-    // plan and which solver contract produced the figures above.
+    // What the three algorithms are, which a three-letter name cannot say.
+    await expect(card).toContainText('Fast places the plan in milliseconds');
+    await expect(card).toContainText('CP-SAT searches from Google OR-Tools');
+    // And the identity of the run, which is the only place a reader can find
+    // out which plan and which solver contract produced the figures above.
     await expect(card).toContainText('Solver 1.5+e2e · 60s budget · generation 1 · plan e2e-cue-');
+    // The blocks are really separate lines rather than one run-on paragraph:
+    // the attribute keeps its newlines and the layer renders them.
+    const lines = await card.evaluate((element) => {
+      const style = getComputedStyle(element.firstElementChild ?? element);
+      return { whiteSpace: style.whiteSpace, breaks: element.textContent.split('\n').length };
+    });
+    expect(lines.whiteSpace).toBe('pre-line');
+    expect(lines.breaks).toBeGreaterThan(6);
 
     const box = await boxOf(page, '#hint-card');
     expect(box.width, 'the card has no rendered width').toBeGreaterThan(0);
@@ -250,6 +275,70 @@ test.describe('the schedule cue, in a browser', () => {
     }
   });
 
+  /**
+   * The jitter (Dany, 2026-09-08): the pill's words change on every switch and
+   * on every solve that lands, and this control is the **last** item in a
+   * wrapping toolbar row — so a box that grows with its words can push itself
+   * over the wrap threshold and re-lay the entire row.
+   *
+   * Proof: `w-[11.5rem]` removed from `PILL`, so the box is the width of its
+   * words again, and this failed on `the toolbar moved under a switch: Starts ·
+   * Expected: 1049.55 · Received: 1192.48` — the project's start-date control
+   * **143px** to the right of where it had been, because the pill shrank by
+   * that much when its saving went and the row re-laid itself around it.
+   * Watched 2026-09-08.
+   */
+  test('a switch moves nothing else on the toolbar row', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    const plan = await planWithACue(page);
+    const shapeOf = () =>
+      page.evaluate(() => {
+        const toolbar = document.querySelector('[data-toolbar]');
+        if (toolbar === null) throw new Error('the plan has no toolbar');
+        const box = toolbar.getBoundingClientRect();
+        return {
+          height: Math.round(box.height),
+          rows: new Set(
+            [...toolbar.children].map((child) => Math.round(child.getBoundingClientRect().y)),
+          ).size,
+          children: [...toolbar.children].map((child) => {
+            const rect = child.getBoundingClientRect();
+            return { at: child.textContent.slice(0, 24), x: rect.x, y: rect.y };
+          }),
+        };
+      });
+    const before = await shapeOf();
+    expect(before.children.length).toBeGreaterThanOrEqual(16);
+
+    // The switch, all the way through: the menu item asks be-01, the next plan
+    // read says Pri is displayed, and the pill loses its saving and changes its
+    // name — the two changes that used to move the row.
+    plan.serve({
+      ...SUGGESTING,
+      engine: 'optimized',
+      displayed: 'pri',
+      variants: { pri: { state: 'ready' }, time: { state: 'ready' } },
+      finishDays: { fast: 10, pri: 7, time: 10 },
+      sameOrderAsFast: { pri: true, time: true },
+    });
+    await pill(page).click();
+    await page.getByRole('menuitem', { name: /^Pri/ }).click();
+    await expect(page.locator('[data-cue-active]')).toHaveText('Pri');
+    expect(await page.locator('[data-cue-suggestion]').count()).toBe(0);
+
+    const after = await shapeOf();
+    for (const [at, child] of before.children.entries()) {
+      // `.at` so the check is a check: a plain index is typed non-optional
+      // under this workspace's compiler options.
+      const found = after.children.at(at);
+      if (found === undefined) throw new Error(`the toolbar lost a control: ${child.at}`);
+      expect(found.x, `the toolbar moved under a switch: ${child.at}`).toBeCloseTo(child.x, 0);
+      expect(found.y, `the toolbar moved under a switch: ${child.at}`).toBeCloseTo(child.y, 0);
+    }
+    expect(after.rows, 'the toolbar re-wrapped under a switch').toBe(before.rows);
+    expect(after.height, 'the toolbar changed height under a switch').toBe(before.height);
+  });
+
   test('opens on a click, and Escape gives the focus back to the pill', async ({ page }) => {
     await planWithACue(page);
     // Default actions: a click on a button, and Escape inside a menu. jsdom
@@ -274,7 +363,7 @@ test.describe('the schedule cue, in a browser', () => {
         request.method() === 'PATCH' &&
         /\/api\/projects\/[^/]+$/.test(new URL(request.url()).pathname),
     );
-    await page.getByRole('menuitem', { name: /^PRI/ }).click();
+    await page.getByRole('menuitem', { name: /^Pri/ }).click();
     const request = await patched;
     expect(JSON.parse(request.postData() ?? '{}')).toEqual({
       scheduleEngine: 'optimized',

@@ -20,7 +20,11 @@ import { shortIsoDate } from './short-date';
 
 /** What a variant is called on a control, where there is room for two words at most. */
 export const OBJECTIVE_LABEL: Readonly<Record<ScheduleObjectiveView, string>> = {
-  pri: 'PRI',
+  // `Pri` and not `PRI`: three letters in capitals read as an initialism for
+  // something, and this one is just the first syllable of "priority" (Dany,
+  // 2026-09-08). What each of the three schedules actually **is** is in
+  // {@link ALGORITHM_WORDS}, because a label this short can only be a name.
+  pri: 'Pri',
   time: 'Time',
 };
 
@@ -28,8 +32,8 @@ export const OBJECTIVE_LABEL: Readonly<Record<ScheduleObjectiveView, string>> = 
  * What a variant is called in a sentence.
  *
  * Spelled out rather than `OBJECTIVE_LABEL`'s abbreviation, because a sentence
- * is what a screen reader reads out and "PRI" is not a word. The two are the
- * settings panel's own pair — its radio labels are the abbreviations and its
+ * is what a screen reader reads out and "Pri" is not a word. The two are the
+ * settings panel's own pair — its radio labels are the short names and its
  * description is these.
  */
 export const OBJECTIVE_SENTENCE: Readonly<Record<ScheduleObjectiveView, string>> = {
@@ -39,6 +43,24 @@ export const OBJECTIVE_SENTENCE: Readonly<Record<ScheduleObjectiveView, string>>
 
 /** What the unoptimized schedule is called, on a control and in a sentence alike. */
 export const FAST_LABEL = 'Fast';
+
+/**
+ * What each of the three schedules is, in the words a reader needs to choose
+ * between them.
+ *
+ * On the cue's own card and nowhere else: the pill has room for a name, and a
+ * name alone ("Fast", "Pri", "Time") says nothing about what the thing does —
+ * which was the complaint (Dany, 2026-09-08). The solver is named because it
+ * is the reason two of the three take seconds rather than milliseconds, and
+ * because a reader who wants to know why a plan came out as it did needs the
+ * name to look anything up.
+ */
+export const ALGORITHM_WORDS = [
+  'Fast places the plan in milliseconds by walking the graph once, and is never claimed optimal.',
+  'Time searches for the earliest project deadline it can find.',
+  'Pri searches for the schedule that starts higher-priority work sooner, which can finish later.',
+  'Time and Pri are both CP-SAT searches from Google OR-Tools, given the budget below.',
+].join('\n');
 
 /**
  * What a comparison against a plan that may have moved says instead of a figure.

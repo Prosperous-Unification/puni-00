@@ -4120,6 +4120,38 @@ returned `null` for `engine === 'fast'` before drawing anything.
       popped a card over its own menu on every opening. The active row is
       `✓ …`, carries no fact, and its `run` asks for nothing; every other
       refusal stays where it was.
+- [x] 8b.17 **The pill is a fixed box** (`w-[11.5rem]`, its own measured widest).
+      Its words change on every switch and on every solve that lands, and it is
+      the last item in a **wrapping** toolbar row — so a box that grew with its
+      words could push itself over the wrap threshold and re-lay the whole row.
+      "The Fast Pri Time button jitters when switch happens + the whole header
+      toolbox jitters as a result" (Dany, 2026-09-08). **Proven by**
+      `e2e/optimization-cue.spec.ts`: a switch driven all the way through — the
+      menu item, the PATCH, the plan read that answers `displayed: 'pri'` — and
+      every other control on the row measured before and after.
+- [x] 8b.18 **The fact card is blocks, not a paragraph**: one line per schedule
+      (with an infeasible variant's work item deadlines under it), then Pri
+      against Time, then what the three algorithms are, then the run's
+      identity. `HintLayer` renders the words with `white-space: pre-line`, so
+      a mark whose words are several reads as the paragraphs it was written as.
+      Every other hint in the app is one line and is unaffected.
+- [x] 8b.19 **Pri against Time**, the comparison a reader actually decides on:
+      the day difference between the two variants and whether they place the
+      shared slices the same way. Both halves are derived from what the wire
+      already carries — each variant's finish and its order relation against
+      Fast — and the order half says only what those two facts support: same
+      order as each other when both keep Fast's, different when exactly one
+      reorders, and **each in an order of its own** when both do, because two
+      reorderings of one plan need not be the same reordering.
+- [x] 8b.20 **`PRI` is `Pri`, and the card says what the three are.** Three
+      capitals read as an initialism for something; this one is the first
+      syllable of "priority" (Dany, 2026-09-08). The names are all a control
+      that size can carry, so the card carries the rest: Fast walks the graph
+      once in milliseconds and is never claimed optimal, Time searches for the
+      earliest project deadline, Pri searches for the schedule that starts
+      higher-priority work sooner and can finish later, and both optimized ones
+      are CP-SAT searches from Google OR-Tools under the budget the card names.
+      The settings panel's radio takes the same short name.
 
 ## 9. Corpus and regression safety
 

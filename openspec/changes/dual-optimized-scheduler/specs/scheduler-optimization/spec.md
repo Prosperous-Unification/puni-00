@@ -68,6 +68,10 @@ The plan read SHALL carry the Fast schedule's project finish in days for the exa
 
 While optimization is ON the plan SHALL carry exactly one compact cue in the toolbar row, naming the active schedule and the state of the computed variants, and SHALL NOT render a full-width banner, a toast or a modal for any of it. When a `ready` variant's project deadline is earlier by more than the shared workday drift than that of **the schedule currently displayed**, the cue SHALL name that variant and the days it saves and SHALL offer switching to it. Against the displayed schedule and not against Fast, because the reader is being asked to change what is on their screen: with a Priority-first schedule displayed three days ahead of Fast, a Finish-first one a single day ahead of Fast is a regression, and offering it against Fast's figure would be the cue talking about a schedule nobody is looking at. Every _reported_ comparison stays against Fast, so the three rows are read against one reference. A variant that reaches the same project deadline in a different order SHALL be reported without being offered as an improvement, and a variant that finishes later SHALL be reported without being suggested. Every reported comparison SHALL name the deadline it means, because the schedule's project finish date and `work_item.deadline` are both live and an unqualified "deadline" cannot say which it is (`work-item-deadline` 8.9/8.9b). Switching SHALL be offered only where a settings writer is present, because `schedule_engine` and `schedule_objective` are project-wide: one reader's switch moves every collaborator's plan. The failure, retry and plan-infeasible words the requirements below name SHALL be reachable from this cue: the **reading** SHALL be published as a project fact on the cue itself — opening at once and behind no wait ring, because it describes the project rather than what a control does — and SHALL carry every row's figures, its comparison, its state, the work item deadlines an infeasible variant proved unmeetable, and the solver identity those figures were produced under. The **actions** SHALL live in the cue's menu, because the surface a fact is drawn on takes no pointer and a control drawn on one cannot be pressed. The cue SHALL NOT draw a second explanatory surface of its own beside the one the application's hint layer already draws for it. An indicator dot SHALL be drawn only for a state a reader has to notice — a solve in flight, a variant that could not be computed, a plan that cannot meet a work item deadline — and SHALL NOT be drawn at all when there is nothing to indicate.
 
+The cue's own box SHALL NOT change size with its words. It is the last control in a wrapping toolbar row, and a box that grows and shrinks there re-lays every other control on that row each time a schedule is switched or a solve lands.
+
+The reading SHALL be readable as separate blocks rather than as one paragraph, and SHALL include: a line per schedule with its figures and state; the two optimized variants compared **with each other**, in both days and ordering, whenever both have a schedule; and what the three schedules are — that the unoptimized one is a single pass and is never claimed optimal, that one optimized objective searches for the earliest project deadline, that the other searches for the schedule that starts higher-priority work sooner, and the name of the solver both use. A schedule's short name on a control is a name; the system SHALL NOT rely on it to say what the schedule does.
+
 #### Scenario: a variant that finishes earlier is suggested
 
 - **GIVEN** Fast on screen and a ready variant that finishes three workdays earlier for the same input
@@ -97,6 +101,18 @@ While optimization is ON the plan SHALL carry exactly one compact cue in the too
 - **GIVEN** a plan whose optimizer state and comparison are known
 - **WHEN** the pointer arrives on the cue
 - **THEN** the reading is on screen without a wait and no wait ring is drawn
+
+#### Scenario: switching schedules moves nothing else
+
+- **GIVEN** a plan whose cue names Fast and offers an earlier variant
+- **WHEN** the reader switches to that variant and the plan read comes back
+- **THEN** every other control on the toolbar row is where it was, and the row has neither re-wrapped nor changed height
+
+#### Scenario: the two optimized variants are compared with each other
+
+- **GIVEN** both optimized variants ready, one finishing a workday before the other, and exactly one of them reordering Fast's shared slices
+- **WHEN** the reading is drawn
+- **THEN** it names the day difference between the two variants and says they are in a different order from each other
 
 #### Scenario: nothing to indicate draws no indicator
 

@@ -34,7 +34,7 @@ const OPTIMIZATION_BASE: PlanOptimizationView = {
   sameOrderAsFast: {},
 };
 
-/** PRI displayed, solved, and two workdays ahead of Fast for the same input. */
+/** Pri displayed, solved, and two workdays ahead of Fast for the same input. */
 const READY: PlanOptimizationView = {
   ...OPTIMIZATION_BASE,
   finishDays: { fast: 10, pri: 8 },
@@ -258,7 +258,7 @@ describe('project optimization in the plan', () => {
       fireEvent.click(screen.getByRole('button', { name: /is the active schedule/ }));
       expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
         '✓ Fast · 10 days',
-        'PRI · Plan infeasible · 1 Work item deadline',
+        'Pri · Plan infeasible · 1 Work item deadline',
         'Time · Optimizing…',
       ]);
       expect(screen.queryByRole('menuitem', { name: /retry/i })).toBeNull();
@@ -339,7 +339,7 @@ describe('project optimization in the plan', () => {
         'Plan infeasible · 1 Work item deadline',
       );
     });
-    // PRI's own words moved off `Optimizing…`; Time is still waiting for a
+    // Pri's own words moved off `Optimizing…`; Time is still waiting for a
     // seat and still says so, which is why this is scoped to the variant the
     // event was about rather than to the whole sentence.
     expect(screen.getByRole('status')).not.toHaveTextContent('Priority-first: Optimizing…');
@@ -566,8 +566,8 @@ describe('project optimization in the plan', () => {
     // holds it: this half is what makes the two `Optimizing…` assertions above
     // a deferral rather than a state nobody can act on either way.
     fireEvent.click(screen.getByRole('button', { name: /is the active schedule/ }));
-    expect(screen.getByRole('menuitem', { name: 'Retry PRI' })).toBeEnabled();
-    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Retry PRI' }), { key: 'Escape' });
+    expect(screen.getByRole('menuitem', { name: 'Retry Pri' })).toBeEnabled();
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Retry Pri' }), { key: 'Escape' });
     expect(calls.filter((method) => method.startsWith('tree/'))).toEqual(['tree/1']);
     expect([...calls].sort()).toEqual([...READS_THE_FULL_SCOPE_MAKES].sort());
   });
