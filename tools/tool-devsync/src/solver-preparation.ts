@@ -133,6 +133,10 @@ export interface SolverBindingPipelineDependencies {
   reset(sourceSha: string): Promise<void>;
 }
 
+export interface SolverBindingResumeDependencies extends SolverBindingPipelineDependencies {
+  checkpoint(state: SolverPreparationState): Promise<void>;
+}
+
 export interface SolverBindingExclusionLease {
   release(): Promise<void>;
 }
@@ -160,6 +164,47 @@ export async function prepareSolverBindingBeforeReset(
   await dependencies.preflight(binding);
   // Proof: solver-preparation.test.ts makes each preceding phase throw and
   // observes that the injected reset ledger remains empty in every case.
+  await dependencies.reset(target.sourceSha);
+}
+
+/** Resumes only a target-matching immutable binding and checkpoints completed work last. */
+export async function resumeSolverBindingBeforeReset(
+  target: SolverBindingTarget,
+  stateBytes: Uint8Array | undefined,
+  dependencies: SolverBindingResumeDependencies,
+): Promise<void> {
+  if (!COMMIT_SHA.test(target.sourceSha)) throw new Error('solver binding target SHA is invalid');
+  if (!COMPATIBILITY_IDENTITY.test(target.compatibilityIdentity)) {
+    throw new Error('solver binding target compatibility identity is invalid');
+  }
+
+  let state: SolverPreparationState;
+  if (stateBytes === undefined) {
+    const image = await dependencies.publish(target);
+    if (!DIGEST_PINNED_IMAGE.test(image)) {
+      throw new Error('solver binding publish result must be digest-pinned');
+    }
+    state = { schemaVersion: 1, ...target, image, phase: 'published' };
+    await dependencies.checkpoint(state);
+  } else {
+    state = decodeSolverPreparationState(stateBytes);
+    if (state.sourceSha !== target.sourceSha) {
+      throw new Error('solver preparation state source SHA does not match target');
+    }
+    if (state.compatibilityIdentity !== target.compatibilityIdentity) {
+      throw new Error('solver preparation state compatibility identity does not match target');
+    }
+  }
+
+  const binding: SolverBinding = { ...target, image: state.image };
+  if (state.phase === 'published') {
+    await dependencies.materialize(binding);
+    await dependencies.install(binding);
+    await dependencies.preflight(binding);
+    // Proof: solver-preparation.test.ts interrupts install, observes only the
+    // published checkpoint, then retries without another publish.
+    await dependencies.checkpoint({ schemaVersion: 1, ...binding, phase: 'complete' });
+  }
   await dependencies.reset(target.sourceSha);
 }
 
