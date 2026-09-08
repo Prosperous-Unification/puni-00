@@ -479,3 +479,23 @@ the stated scaling function.
 
 The review report was generated outside the repository and is not an authority;
 the claims accepted here were rechecked against the repository before inclusion.
+
+## Delivery handoff
+
+Paused on 2026-09-08 after the plan-only branch was committed and pushed.
+
+- Branch: `change/agent-scalable-llm-wiki`
+- First plan commit: `f0d2c2e454ffb7b2ba9d0b70ca16982e817948c7`
+- Isolated worktree: `.worktrees/agent-scalable-llm-wiki`
+- `bun run test:unit`: passed (`be-01`: 886 passed, 1 skipped; all seven
+  configured library targets succeeded).
+- Prettier and the commit hooks passed.
+- `bin/h2puni-gate.sh`: started but did not complete. The unchanged local
+  environment lacked the solver's `ortools` and `jsonschema` Python packages,
+  two macOS launcher checks failed at `RLIMIT_AS`, and the full `be-01` run
+  reported 1,952 passed, 2 skipped, 0 failed and 2 runtime errors. The command
+  then produced no output for more than four minutes and was interrupted at the
+  user's pause request (exit 130).
+- Merge status: not merged and no checks bypassed. Resume by opening or locating
+  the GitHub pull request, use CI as the clean-host gate, and merge only after
+  required checks pass.
