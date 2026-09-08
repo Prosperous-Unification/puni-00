@@ -238,7 +238,11 @@ describe('durable dev poller', () => {
 
     await writeFile(
       fakeBun,
-      '#!/usr/bin/env bash\nset -eu\nif [ "$1" = --version ]; then echo 1.3.14; exit 0; fi\nif grep -qx BROKEN "$1"; then exit 23; fi\ngit -C "$POLL_TEST_SRC" reset --hard --quiet "$2"\n',
+      '#!/usr/bin/env bash\nset -eu\nif [ "$1" = --version ]; then echo 1.3.14; exit 0; fi\n' +
+        // A fake Bun's `build` is a fake resolution guard that succeeds; this
+        // case is about recovery, not about the candidate's import graph.
+        'if [ "$1" = build ]; then exit 0; fi\n' +
+        'if grep -qx BROKEN "$1"; then exit 23; fi\ngit -C "$POLL_TEST_SRC" reset --hard --quiet "$2"\n',
     );
     await chmod(fakeBun, 0o755);
 
@@ -447,7 +451,11 @@ esac`),
     // this case read `cccc…:FIXEDbbbb…:BROKEN` in CI run 34169031212.
     await writeFile(
       fakeBun,
-      '#!/usr/bin/env bash\nset -eu\nif [ "$1" = --version ]; then echo 1.3.14; exit 0; fi\nprintf "%s:%s\\n" "$2" "$(cat "$1")" >> "$POLL_OBSERVATIONS"\n',
+      '#!/usr/bin/env bash\nset -eu\nif [ "$1" = --version ]; then echo 1.3.14; exit 0; fi\n' +
+        // The loader's resolution guard runs through this same fake Bun; only
+        // the deployer invocation is an observation.
+        'if [ "$1" = build ]; then exit 0; fi\n' +
+        'printf "%s:%s\\n" "$2" "$(cat "$1")" >> "$POLL_OBSERVATIONS"\n',
     );
     await chmod(fakeGit, 0o755);
     await chmod(fakeBun, 0o755);
@@ -493,7 +501,11 @@ CONTENT=SAME`),
     );
     await writeFile(
       fakeBun,
-      '#!/usr/bin/env bash\nset -eu\nif [ "$1" = --version ]; then echo 1.3.14; exit 0; fi\nprintf "%s:%s\\n" "$2" "$(cat "$1")" >> "$POLL_OBSERVATIONS"\n',
+      '#!/usr/bin/env bash\nset -eu\nif [ "$1" = --version ]; then echo 1.3.14; exit 0; fi\n' +
+        // The loader's resolution guard runs through this same fake Bun; only
+        // the deployer invocation is an observation.
+        'if [ "$1" = build ]; then exit 0; fi\n' +
+        'printf "%s:%s\\n" "$2" "$(cat "$1")" >> "$POLL_OBSERVATIONS"\n',
     );
     await chmod(fakeGit, 0o755);
     await chmod(fakeBun, 0o755);
