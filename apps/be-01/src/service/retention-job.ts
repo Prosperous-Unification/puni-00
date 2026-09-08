@@ -1,5 +1,6 @@
+import type { EventLogStore } from '@wbs/core';
+
 import type { PlanEventStore } from '../repository';
-import type { EventLogStore } from '../repository/event-log';
 
 export function runRetention(
   repo: EventLogStore,

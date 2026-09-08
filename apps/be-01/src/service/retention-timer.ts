@@ -1,5 +1,6 @@
+import type { EventLogStore } from '@wbs/core';
+
 import type { PlanEventStore } from '../repository';
-import type { EventLogStore } from '../repository/event-log';
 import { runPlanEventRetention, runRetention } from './retention-job';
 
 /** What one sweep removed, per table, because the two are pruned by different rules. */

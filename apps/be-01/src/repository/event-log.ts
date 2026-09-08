@@ -1,15 +1,9 @@
+import type { EventLogStore, RecordedEvent } from '@wbs/core';
 import { sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { rowsChanged } from './changes';
 import type { Gate } from './gate';
-
-export interface RecordedEvent {
-  subscription: string;
-  seq: number;
-  message: unknown;
-  createdAt: number;
-}
 
 /**
  * Drizzle's transaction handle, in a port's signature — which is the one thing
@@ -34,28 +28,7 @@ export type EventLogTransaction = Parameters<Parameters<SQLiteBunDatabase['trans
  * same history. Replay and retention read and prune through the public, gated
  * copy.
  */
-export interface EventLogStore {
-  recordEventIn(
-    tx: EventLogTransaction,
-    subscription: string,
-    message: unknown,
-    createdAt: number,
-  ): RecordedEvent;
-  recordEvent(subscription: string, message: unknown, createdAt: number): Promise<RecordedEvent>;
-  rangeSince(subscription: string, sinceSeq: number): Promise<RecordedEvent[]>;
-  oldestSeq(subscription: string): Promise<number | null>;
-  /**
-   * The sequence of the most recent event, or `-1` for a subscription that has
-   * recorded none.
-   *
-   * Read from `event_sequencer` rather than from `MAX(seq)` on the log: retention
-   * deletes log rows and the sequence must not move backwards when it does. A
-   * client resuming from a stale `MAX(seq)` would be told it was up to date while
-   * sitting behind every event that had been pruned.
-   */
-  latestSeq(subscription: string): Promise<number>;
-  pruneBeyond(maxPerSubscription: number): Promise<number>;
-}
+export type { EventLogStore, RecordedEvent } from '@wbs/core';
 
 export class DrizzleEventLogStore implements EventLogStore {
   constructor(

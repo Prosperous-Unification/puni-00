@@ -1,4 +1,5 @@
-import type { EventLogStore } from '../repository/event-log';
+import type { EventLogStore } from '@wbs/core';
+
 import type { ReplayBuffer } from './replay-buffer';
 
 export interface ReplayEvent {

@@ -1,6 +1,5 @@
-import { type Clock, clockOf } from '@wbs/core';
+import { type Clock, clockOf, type EventLogStore, type RecordedEvent } from '@wbs/core';
 
-import type { EventLogStore, RecordedEvent } from '../repository/event-log';
 import { type Broadcaster, type ProjectEvent, subscriptionFor } from './broadcast';
 import type { PushClient } from './push-client';
 import type { ReplayBuffer } from './replay-buffer';

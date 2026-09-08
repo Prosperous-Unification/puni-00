@@ -1,4 +1,5 @@
-import type { EventLogStore, RecordedEvent } from '../repository/event-log';
+import type { EventLogStore, RecordedEvent } from '@wbs/core';
+
 import { ReplayBuffer } from '../service/replay-buffer';
 import { ReplayOrchestrator } from '../service/replay-orchestrator';
 
@@ -24,9 +25,6 @@ export function inMemoryEventLog(): EventLogStore & {
   };
 
   const repo: EventLogStore = {
-    recordEventIn(_tx, subscription, message, createdAt) {
-      return record(subscription, message, createdAt);
-    },
     recordEvent(subscription, message, createdAt) {
       return Promise.resolve(record(subscription, message, createdAt));
     },

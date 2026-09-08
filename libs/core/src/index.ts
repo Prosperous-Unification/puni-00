@@ -15,5 +15,6 @@
  * than a move.
  */
 export { type Clock, clockOf } from './ports/clock';
+export type { EventLogStore, RecordedEvent } from './ports/event-log-store';
 export type { Digest, PasswordHasher, SessionClaims, TokenCodec } from './ports/runtime';
 export type { WriteStamp } from './ports/write-stamp';
