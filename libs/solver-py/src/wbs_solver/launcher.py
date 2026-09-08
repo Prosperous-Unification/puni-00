@@ -74,7 +74,11 @@ def _apply_address_space_limit(memory_limit_mb: int) -> None:
     caller has no ceiling to fall back to, so refusing to launch would trade a
     working unbounded solve for no solve, without adding a bound either way.
 
-    Proof: deleting the platform branch failed three cases on darwin/arm64 --
+    Proof, Linux arm: returning before the call on every platform failed
+    `test_the_limit_is_really_applied_by_the_kernel` on a real Linux kernel with
+    `AssertionError: -1 != 2147483648`, `-1` being RLIM_INFINITY.
+
+    Proof, Darwin arm: deleting the platform branch failed three cases on darwin/arm64 --
     `test_no_address_space_limit_is_attempted_off_linux` on "Expected 'setrlimit'
     to not have been called. Called 1 times.", and both real-process cases,
     `test_bound_execs_the_solver_without_consuming_its_request` and

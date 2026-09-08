@@ -138,6 +138,14 @@ class LauncherProcess(unittest.TestCase):
 
         In a subprocess because a limit applied to the test runner would follow
         it into every case after this one.
+
+        Proof: observed on a real Linux kernel (python:3.14-slim under Docker,
+        `Linux aarch64`) rather than on the darwin machine this was written on,
+        where it skips. Making `_apply_address_space_limit` return before the
+        call on every platform failed it with `AssertionError: -1 !=
+        2147483648` — `-1` being RLIM_INFINITY, the limit never reaching the
+        kernel. Unfaulted, the same container reported `before: (-1, -1)` and
+        `after: (2147483648, 2147483648)`.
         """
         probe = (
             "import resource, sys;"
