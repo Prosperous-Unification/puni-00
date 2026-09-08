@@ -19,15 +19,15 @@ claimed from it; the pinned package command above is the accepted gate.
 
 The terminal proof must include:
 
-| proof                  | required failure control                      | evidence |
-| ---------------------- | --------------------------------------------- | -------- |
+| proof                  | required failure control                      | evidence                                               |
+| ---------------------- | --------------------------------------------- | ------------------------------------------------------ |
 | compatibility identity | solver byte changed / unrelated byte changed  | `99810aa`: mutant failed only unrelated-source control |
-| target-pinned runner   | import available only in old live checkout    | `99810aa`: 8/8 focused cases green |
-| pre-reset ordering     | omit each prepare/verify phase                | `d9eeb611`: 75/75; preflight omission failed 2 cases |
-| exclusion              | two different targets overlap                 | pending  |
-| interrupted retry      | stop after publish and during install         | pending  |
-| live solver change     | poll target differs under `libs/solver-py`    | pending  |
-| alarm backstop         | ten consecutive injected preparation failures | pending  |
+| target-pinned runner   | import available only in old live checkout    | `99810aa`: 8/8 focused cases green                     |
+| pre-reset ordering     | omit each prepare/verify phase                | `d9eeb611`: 75/75; preflight omission failed 2 cases   |
+| exclusion              | two different targets overlap                 | `cc6c050d`: overlap refused before second publish      |
+| interrupted retry      | stop after publish and during install         | pending                                                |
+| live solver change     | poll target differs under `libs/solver-py`    | pending                                                |
+| alarm backstop         | ten consecutive injected preparation failures | pending                                                |
 
 ## Identity and target runner
 
@@ -61,3 +61,18 @@ and the injected preflight-failure case both failed, while the other nine
 cases stayed green. Restoring the exact source returned 11/11. The same table
 test injects failures at publish, materialize, install, and preflight and
 requires the reset ledger to remain empty for every phase.
+
+## Binding exclusion
+
+At `cc6c050d4e2427e047f61f98b5b233597487f5ce`, the exact-head h2puni
+`tool-devsync` gate passed 76/76 cases (217 assertions), ESLint, TypeScript,
+and Prettier. The focused preparation suite passed 12/12 cases (36
+assertions). Its overlap case blocks the first target in publish, submits a
+different target, and requires the second target to reach none of publish,
+materialize, install, preflight, or reset while the first lease remains held
+through reset.
+
+A control replaced the nonblocking acquisition with an unconditional lease.
+The overlap case failed because the different target completed instead of
+being refused; the other 11 focused cases stayed green. Restoring the exact
+source returned 12/12.

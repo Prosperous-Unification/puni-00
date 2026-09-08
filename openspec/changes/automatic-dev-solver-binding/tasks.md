@@ -9,7 +9,7 @@
 - [x] 3. Compose publish, materialization, installer, and post-install preflight
       behind injected boundaries; watched reds remove each phase and prove no
       reset can occur.
-- [ ] 4. Put preparation through reset under one exclusion boundary; prove two
+- [x] 4. Put preparation through reset under one exclusion boundary; prove two
       overlapping triggers cannot publish/install different target bindings.
 - [ ] 5. Prove retries after publish and interrupted install reuse only the
       matching immutable digest and never mark incomplete state complete.
