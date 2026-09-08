@@ -514,7 +514,11 @@ echo deployed >> ${ran}
     expect(await command(['test', '-e', ran])).toMatchObject({ code: 1 });
     expect(attempt.code).not.toBe(0);
     expect(attempt.stderr).toContain('resolves files outside the extracted candidate');
-    expect(attempt.stderr).toContain(borrowed);
+    // Named, so an operator reading a tick log sees which file escaped. Bun's
+    // metafile reports it relative to the build root, hence the leading `../`
+    // the audit keys on rather than the absolute path the source wrote.
+    expect(attempt.stderr).toContain('../');
+    expect(attempt.stderr).toContain('node_modules/borrowed/index.js');
     expect(await readdir(installed)).toEqual([]);
   });
 
