@@ -25,7 +25,7 @@ import { GanttFaultBoundary } from './gantt-fault';
 import { appliedGanttHeight, DAY_PX, GanttPanel } from './gantt-panel';
 import { KeyboardCheatSheet } from './keyboard-cheat-sheet';
 import { logicalGrid } from './logical-grid';
-import { OptimizationIndicator } from './optimization-indicator';
+import { OptimizationCue } from './optimization-cue';
 import { PlanCards } from './plan-cards';
 import {
   createPlanCellProps,
@@ -750,6 +750,14 @@ export function WbsTable({
    * that changes on a click remounts every cell in the table.
    */
   const [freezeMenuOpen, setFreezeMenuOpen] = useState(false);
+  /**
+   * Whether the schedule cue's menu is open.
+   *
+   * Its own flag for {@link freezeMenuOpen}'s reason, and no name collides with
+   * either of the other two: this menu's items are `Fast`, `PRI`, `Time` and a
+   * `Retry`. Not read by `columns`, and it must not become so — landmine #1.
+   */
+  const [cueMenuOpen, setCueMenuOpen] = useState(false);
   /**
    * Which of the two renderers is drawing the plan.
    *
@@ -1740,6 +1748,45 @@ export function WbsTable({
     />
   );
 
+  /*
+    The schedule cue, built here and rendered inside **both** toolbar faces
+    below — it is a status about the plan rather than one of the plan's
+    actions, so it does not join `toolbarControls` (which reaches the phone by
+    landing inside the actions sheet, where a status nobody has opened yet
+    would be invisible). `wbs-table.test.tsx` and `plan-cards.test.tsx` each
+    assert their own face.
+  */
+  const scheduleCue =
+    chartRead.optimization === undefined ? null : (
+      <OptimizationCue
+        optimization={chartRead.optimization}
+        stale={treeMayBeStale}
+        projectStart={startDate}
+        today={new Date()}
+        workItemName={(id) => flat.find((row) => row.id === id)?.name ?? null}
+        menuOpen={cueMenuOpen}
+        onMenuOpen={() => {
+          setCueMenuOpen(true);
+        }}
+        onMenuClose={() => {
+          setCueMenuOpen(false);
+        }}
+        busy={busy}
+        // Both writes go through `run` like every other write here, so a
+        // refusal becomes a toast and the plan is re-read afterwards. The plan
+        // read is the authority for what happened, never the answer to the
+        // write: be-01 answers a Retry `retrying` at once and the real outcome
+        // lands later, and a switch is only visible once the read that follows
+        // it comes back.
+        onChoose={(patch) => {
+          void run(() => api.setOptimizationSettings(projectId, patch));
+        }}
+        onRetry={(objective, inputHash) => {
+          void run(() => api.retryOptimization(projectId, objective, inputHash));
+        }}
+      />
+    );
+
   return (
     /*
       A link in the chain from `<main>` down to the frame: this section takes
@@ -1775,6 +1822,7 @@ export function WbsTable({
       */}
       {renderer === 'cards' ? (
         <div data-toolbar-sheet className="mb-1.5 flex shrink-0 items-center gap-2">
+          {scheduleCue}
           <PlanToolbarSheet>
             <div aria-busy={busy} className="flex flex-wrap items-center gap-2">
               {toolbarControls}
@@ -1850,29 +1898,8 @@ export function WbsTable({
                 Reset layout
               </Button>
             )}
+          {scheduleCue}
         </div>
-      )}
-
-      {chartRead.optimization !== undefined && (
-        <OptimizationIndicator
-          optimization={chartRead.optimization}
-
-          stale={treeMayBeStale}
-          projectStart={startDate}
-          today={new Date()}
-          workItemName={(id) => flat.find((row) => row.id === id)?.name ?? null}
-          // Through `run` like every other write here, so a refusal becomes a
-          // toast and the plan is re-read afterwards. The plan read is the
-          // authority for what happened, never the 202: be-01 answers
-          // `retrying` at once and the real outcome lands later.
-          //
-          // `inputHash` is the plan the reader is looking at. Sending it is
-          // what lets be-01 refuse a Retry aimed at a screen that has since
-          // moved on, rather than re-solving a plan nobody asked about.
-          onRetry={(objective, inputHash) => {
-            void run(() => api.retryOptimization(projectId, objective, inputHash));
-          }}
-        />
       )}
 
       {/*

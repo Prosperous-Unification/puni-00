@@ -1,5 +1,164 @@
 # Dual optimized scheduler verification
 
+## 2026-09-09T00:20:00Z — slice 8b second review round: jitter, the card, the names
+
+Dany, on the cue as shipped in the round below: the pill "jitters when switch happens + the
+whole header toolbox jitters as a result"; the card "looks ugly — need separate the
+explanations + the reorder vs time", plus Pri-against-Time and an explanation of the
+algorithm; and `PRI` should be `Pri` with the three schedules explained on the card.
+
+- Local, in the merge worktree: fe-01 jsdom **2585 pass / 2 fail** (the two `plan-mermaid`
+  timezone cases that fail on `main` here too); `contracts`, `domain`, `core` and
+  `runtime-portable` test targets green — `contracts:test` is the one CI caught and this round
+  fixed, see below; ESLint, `tsc --build --force` and Prettier clean.
+- Browser, `CI=1 E2E_PORT_SHIFT=1900`: `optimization-cue.spec.ts` 8/8,
+  `project-settings.spec.ts` + `hints.spec.ts` 10/10, `hover-cards.spec.ts` + `gantt.spec.ts`
+  85/85 (`hint.tsx` and `hover-card.tsx` are shared, so both suites are part of this round's
+  evidence rather than a courtesy).
+
+### What CI caught that no local run had
+
+`contracts:test` failed on `must have required property 'finishDays'` /
+`'sameOrderAsFast'` at `work-item-response.test.ts:180`. The wire schema is **in
+`libs/contracts`** and I had run `domain`, `be-01` and `fe-01` and not the project I changed.
+The fixture carries both fields now, and `nx run-many -t test` over every library project is
+what was run before believing it.
+
+### Failure proof table (R5), this round
+
+| Check                                                                     | Injected fault                                                                | Observed failure                                                                                                                                                                                               |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `optimization-cue.spec.ts` a switch moves nothing else on the toolbar row | `w-[11.5rem]` removed from `PILL`, so the box is the width of its words again | `the toolbar moved under a switch: Starts · Expected: 1049.55 · Received: 1192.48` — the start-date control **143px** to the right of where it was, because the pill shrank by that much when its saving went. |
+
+### Measured, not reasoned about
+
+- **The width was chosen from the browser, twice.** `w-56` (224px) was the first guess and it
+  pushed the toolbar to a second row at 1600 — a fix that cost a line. The pin is the pill's
+  own measured widest instead, 184px (`11.5rem`), so the row wraps exactly where it wrapped
+  before. A fixed slot for the schedule's name was tried inside it and reverted: it cost the
+  saving 38px and truncated `· Pri 3 days earlier` at the width the pill is pinned to fit.
+- **The card was read before it was believed.** Screenshotted at 1600: four blocks, the
+  Pri-against-Time line, the four algorithm lines and the run's identity, ~410px wide and
+  inside the window.
+
+### Not ours: `rendering-baseline.spec.ts`
+
+CI's `pixels shard 4/4` failed on main's own new spec — `an editor that left the row window
+can commit, escape, and hold a refusal`, on a project name that arrived as
+`endering 100/2/sparse`, its first character lost. That is the race `create-project.ts`'s own
+docstring describes: the create **re-arms** the rename a round trip later, and a re-arm
+landing between the first keystroke and the second wipes it.
+
+Established rather than assumed: the same file fails **on unmodified `origin/main`** in a
+control worktree — `a broad Find renders no more than its two filter-sensitive cells per row`,
+`Expected: "Row 0000 half-typed" · Received: " half-typedRow 0000"`, keystrokes interleaved the
+same way — while the case CI failed on passes locally on both trees. Two different cases, two
+machines, one class of race, and none of it touched by this change: nothing here goes near the
+header, the picker, the rename or focus. The shard was re-run to clear it; the race itself
+belongs to the session that wrote that spec.
+
+## 2026-09-08T22:40:00Z — slice 8b review round: the fact, the dot, the menu
+
+Dany, on the shipped pill: the reading must use the **project-fact** mechanic (no wait ring —
+"this is project inf, not tool inf") and carry all of the metadata; pressing the pill opened a
+menu **cropped by the screen**; and the state dot "looks like weird grey margin because it is
+grey on grey".
+
+- Same host and same commands as the entry below; `bin/h2puni-gate.sh` still exits 127 on
+  macOS, so the whole gate is CI's.
+- Browser, `CI=1 E2E_PORT_SHIFT=1900`: `optimization-cue.spec.ts` 7/7,
+  `project-settings.spec.ts` 4/4, and — because `HoverCard` and `MenuControl` are shared —
+  `gantt.spec.ts` + `hints.spec.ts` + `hover-cards.spec.ts` 91/91.
+
+### Failure proof table (R5), this round
+
+| Check                                                       | Injected fault                                | Observed failure                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `optimization-cue.spec.ts` open menu stays on screen        | `menuShift` returning `0` unconditionally     | `the menu is cropped on the right at 1600: 1400px + 359px · Expected: <= 1600 · Received: 1758.77`. With the clamp the same box opens at x=1233.                                                                                                                                          |
+| `optimization-cue.test.tsx` no dot with nothing to indicate | `dotState`'s `null` arm replaced by `'ready'` | both cases red on `expected <span data-cue-dot="ready" …(2)></span> to be null`.                                                                                                                                                                                                          |
+| `actions-menu.test.tsx` `menuShift` arithmetic              | —                                             | Written as cases rather than by injection: jsdom lays nothing out, so the function is asserted against the figures directly, including the measured 1600px case and a box wider than its window. A first draft returned `-0` for a box already at the gutter and was caught by `toBe(0)`. |
+
+### What the screenshots found, and nothing else did
+
+Three faults, all found by rendering the thing and looking at it (CLAUDE.md: "look at the thing
+you built"), none of them visible to 2,500 jsdom cases or to the seven browser assertions that
+were already green:
+
+- **A card anchored near the right edge measured 195px wide and eight lines tall.** A
+  `position: fixed` card laid out at its mark's own left edge has only the room between that
+  edge and the window: at x=1405 in a 1600px window it shrank to 195px, and
+  `surfacePlacement` was then handed a width that had already been squeezed, so there was
+  nothing left for it to clamp. It starts at `left: 0` for the unmeasured frame now and is
+  moved in a layout effect, before paint. Re-measured: ~410px and four lines.
+- **A long unbroken token did not wrap in any card.** 1396px of text inside a 388px phone card
+  (`Expected: <= 388 · Received: 1396`), fixed once for every card by
+  `overflow-wrap: break-word` on `HoverCard`'s box — `break-word` rather than `anywhere`, so a
+  compact card is still the width of its words.
+- **The menu popped a card over itself on every opening.** `MenuControl` focuses its first item
+  as it opens, a refused item carries its reason as a `data-fact`, and the first item is Fast —
+  so an active Fast covered the two rows underneath it. The active row is `✓ …` now, carries no
+  fact, and asks for nothing when taken.
+
+And one thing the measurement corrected rather than confirmed: the menu **was** already clamped
+to 1592 when the screenshot was taken, and what looked like a clipped third item was the focused
+item's own card drawn over it. Instrumented before believing the mechanism —
+`{"left":1089,"right":1592,"scrollWidth":501,"clientWidth":501,"itemRight":1587,"innerWidth":1600}`.
+
+## 2026-09-08T20:55:00Z — slice 8b, the cue and the suggestion
+
+- Host: this Mac (`darwin`), branch `change/optimization-cue-and-suggestion`. The h2puni gate is
+  **not** run here: `bin/h2puni-gate.sh` exits 127 on macOS, so the whole gate is CI's on this
+  change and what follows is what was run locally, named exactly.
+- Ran and green locally: `libs/domain` 596 pass / 0 fail; be-01 unit tier 896 pass / 1 skip / 0
+  fail; be-01 store tier 1150 pass / 1 skip / 0 fail (**2 unhandled errors, pre-existing** — the
+  same two appear on `main` from a stashed tree, a teardown-race `disk I/O error` on
+  `solver_slot` and a deliberate push-failure log); fe-01 jsdom 2547 pass / 2 fail, both
+  `plan-mermaid.test.ts` timezone cases that **also fail on `main`** here; ESLint clean on
+  `apps/fe-01/{src,e2e}`, `apps/be-01/src`, `libs/domain/src`, `libs/contracts/src`;
+  `tsc --build --force` clean on all four projects, tests included; Prettier clean;
+  `openspec validate --all --json` 54/54.
+- Browser gate, `CI=1 E2E_PORT_SHIFT=1900` (never the shared dev stack — `LLM_README.md`'s
+  landmine): `optimization-cue.spec.ts` 6/6, `project-settings.spec.ts` 4/4, and the four
+  geometry-sensitive suites `layout`/`mobile`/`plan-surface`/`hints` 85/85. The rest of the
+  browser gate is CI's `pixels` job.
+
+### Failure proof table (R5)
+
+| Check                                                          | Injected fault                                                                                                      | Observed failure                                                                                                                                                                                                                                                                                           |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schedule-order.test.ts` differential + tie cases              | `denseRanks` giving every start its own rank (values paired with their index, stably sorted, position written back) | 3 red: `seed 52 · left {"slice-0":0.5,"slice-1":1.0104166666666667} · Expected: false · Received: true`, plus both named tie cases. Competition ranking was injected **first and passed, correctly** — it keeps one value per tie group, so it is the same weak order; the fault has to split a tie group. |
+| `schedule-order.test.ts` corpus is about ties                  | —                                                                                                                   | Measured 324 of 400 seeded pairs draw a tie; the assertion pins `> 200` so a pool change that stopped drawing them fails.                                                                                                                                                                                  |
+| `optimized-plan-read.test.ts` both-ready-behind-Fast           | the shipped `optimized === null ? … : comparedWithFast(…)` gate restored                                            | 2 red, the received `finishDays` losing `- "pri": 5, - "time": 8` and `- "pri": 5`.                                                                                                                                                                                                                        |
+| `optimization-cue-reading.test.ts` suggestion rule             | `finish < onScreen` replaced by "outside the drift **or** reordered against Fast"                                   | 5 red: `expected 'pri' to be null` (reordered), `expected 'time' to be null` (later than the schedule on screen), and three sentence assertions.                                                                                                                                                           |
+| `optimization-cue.test.tsx` pill wears only a saving           | the same loosened rule                                                                                              | 2 red on `expected <span …(2)></span> to be null`.                                                                                                                                                                                                                                                         |
+| `optimization-cue.test.tsx` in-flight switch                   | `reading.activeLabel` replaced by a constant `'PRI'` — an optimistic pill                                           | `Expected: "Fast" · Received: "PRI"`.                                                                                                                                                                                                                                                                      |
+| `actions-menu.test.tsx` roving index survives a shrinking menu | `focusAt`'s `Math.min` replaced by `active`                                                                         | `expect(element).toHaveFocus()` with `Received element with focus: <body>`. **Not** the throw the first draft of the comment guessed: the effect is keyed on the index, so an unchanged `active` never re-runs it. Both the comment and the JSDoc were rewritten from this output.                         |
+| `wbs-api.test.ts` both new wire fields are required            | `finishDays` made optional in `libs/contracts`                                                                      | `promise resolved "{ workItems: [], seq: 1, …(17) }" instead of rejecting`.                                                                                                                                                                                                                                |
+| `optimization-cue.spec.ts` 1280 toolbar budget                 | the pill's face given `reading.sentence` — the deleted banner in a pill's clothes                                   | `2082px of controls to lay out, against the 1563px this change left · Expected: <= 1565 · Received: 2081.92`.                                                                                                                                                                                              |
+| `optimization-cue.spec.ts` no sideways scroll at 390px         | the same fault                                                                                                      | `Expected: <= 390 · Received: 719` — the cue 329px off the side of the screen.                                                                                                                                                                                                                             |
+| `optimization-cue.spec.ts` card clear of the pill              | the anchor's `bottom` set to the pill's own `top`                                                                   | `the card is drawn over the pill · Expected: false · Received: true`.                                                                                                                                                                                                                                      |
+
+### What the browser found that jsdom could not
+
+- **The card's lines did not wrap.** `project-settings.spec.ts`'s phone case measured a
+  192-character work item name laying out `1386px` of text inside a `348px` card
+  (`Expected: <= 348 · Received: 1386`). The banner it replaced carried `break-words` and the
+  card did not; both the row and the `<li>` carry it now. Twenty-one jsdom cases over the same
+  component saw nothing, because jsdom lays nothing out.
+- **`aria-describedby` is a list.** `HintLayer` appends its own `hint-card` id to whatever the
+  focused element already points at, so the attribute reads `"_r_4_ hint-card"` and a
+  `#_r_4_ hint-card` selector is a descendant selector matching nothing. Both browser suites
+  split it now, and the phone case asserts `toContain` rather than `toBe`.
+- **A `role="tooltip"` query is ambiguous on this pill**, for the same reason: the hint layer
+  draws one too. The cue's card is located through the pill's own `aria-describedby`.
+
+### Pins moved
+
+- `optimization-cue.spec.ts` pins the 1280 toolbar row at **1563px** with the cue on it
+  (measured 1562.97, one row, optimization on). `project-settings.spec.ts` keeps its own
+  **1265px** pin, which is a fresh project where the toggle is off and the pill is not drawn —
+  the two figures are about different bars and neither is derived from the other.
+
 ## 2026-09-06T21:18:13Z — real supervisor orphan process boundary
 
 - Host: `h2puni`; exact tested branch bytes match head `dd86b47628dca2e690084c9c176531389beaad22`.

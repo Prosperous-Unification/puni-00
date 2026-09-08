@@ -232,7 +232,7 @@ describe('work item routes', () => {
         ask.input.poolSizes,
         ask.input.reach,
       );
-      let selectedSchedule: Schedule | null = null;
+      let served: Schedule | null = null;
       if (serve && !empty) {
         const slices = new Map(fast.slices);
         const workItems = new Map(fast.workItems);
@@ -260,7 +260,7 @@ describe('work item routes', () => {
           }
           index += 1;
         }
-        selectedSchedule = { ...fast, slices, workItems };
+        served = { ...fast, slices, workItems };
       }
       return {
         inputHash: 'controller-input-hash',
@@ -268,7 +268,7 @@ describe('work item routes', () => {
         contractVersion: '7+controller',
         budgetMs: 60_000,
         variants: empty ? { pri: { state: 'idle' }, time: { state: 'idle' } } : variants,
-        selectedSchedule,
+        schedules: { pri: served, time: served },
       };
     };
     const { token, send, projectId } = await setup(optimized);
@@ -331,11 +331,20 @@ describe('work item routes', () => {
       serve = false;
       const response = await send(`/api/projects/${projectId}/work-items`, token);
       const body = (await response.json()) as {
-        optimization: { displayed: string; variants: Variants; comparison?: unknown };
+        optimization: {
+          displayed: string;
+          variants: Variants;
+          finishDays: Record<string, number>;
+          sameOrderAsFast: Record<string, boolean>;
+        };
       };
       expect(body.optimization.displayed).toBe('fast');
       expect(body.optimization.variants).toEqual(state);
-      expect(body.optimization).not.toHaveProperty('comparison');
+      // The reader serves no schedule in this half, so Fast's finish is the
+      // only figure there is to send however the variants label themselves —
+      // the comparison is measured off schedules, never off states.
+      expect(Object.keys(body.optimization.finishDays)).toEqual(['fast']);
+      expect(body.optimization.sameOrderAsFast).toEqual({});
     }
 
     for (const state of [
@@ -349,14 +358,22 @@ describe('work item routes', () => {
         optimization: {
           displayed: string;
           variants: Variants;
-          comparison?: { deltaDays: number; sameOrder: boolean };
+          finishDays: { fast: number; pri?: number; time?: number };
+          sameOrderAsFast: { pri?: boolean; time?: boolean };
         };
         slices: { boundBy: string }[];
       };
       expect(body.optimization.displayed).toBe('pri');
       expect(body.optimization.variants).toEqual(state);
-      expect(typeof body.optimization.comparison?.deltaDays).toBe('number');
-      expect(body.optimization.comparison?.sameOrder).toBe(false);
+      // Both variants are served the same reordered schedule here, so both
+      // carry a finish and both report a reorder — including the one whose
+      // *variant state* is `failed`, which is the whole point of measuring
+      // from the schedules: the wire carries a comparison for every schedule
+      // this read holds rather than for the one on screen.
+      expect(typeof body.optimization.finishDays.fast).toBe('number');
+      expect(typeof body.optimization.finishDays.pri).toBe('number');
+      expect(typeof body.optimization.finishDays.time).toBe('number');
+      expect(body.optimization.sameOrderAsFast).toEqual({ pri: false, time: false });
       expect(body.slices.every(({ boundBy }) => boundBy === 'optimizer')).toBe(true);
     }
   });

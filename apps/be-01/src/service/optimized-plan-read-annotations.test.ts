@@ -203,7 +203,7 @@ async function askedInput(): Promise<ScheduleInput> {
         contractVersion: '7+test',
         budgetMs: 60_000,
         variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
-        selectedSchedule: null,
+        schedules: { pri: null, time: null },
       };
     },
   });
@@ -263,7 +263,7 @@ async function servedBy(moved: Readonly<Record<string, number>>) {
       contractVersion: '7+test',
       budgetMs: 60_000,
       variants: { pri: { state: 'ready' }, time: { state: 'ready' } },
-      selectedSchedule: materialised,
+      schedules: { pri: materialised, time: materialised },
     }),
   });
   const tree = await service.tree(projectId);
