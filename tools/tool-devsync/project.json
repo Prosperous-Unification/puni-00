@@ -22,6 +22,7 @@
         "{workspaceRoot}/apps/*/project.json",
         "{workspaceRoot}/libs/*/project.json",
         "{workspaceRoot}/tools/*/project.json",
+        "{projectRoot}/workspace-projects.mjs",
         "{workspaceRoot}/apps/*/src/**/*.test.ts",
         "{workspaceRoot}/libs/*/src/**/*.test.ts",
         "{workspaceRoot}/tools/*/src/**/*.test.ts",
@@ -42,13 +43,13 @@
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint tools/tool-devsync/src"
+        "command": "bunx eslint tools/tool-devsync/src tools/tool-devsync/workspace-projects.mjs"
       }
     },
     "lint:fast": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint tools/tool-devsync/src --cache --cache-location .nx/eslintcache-tool-devsync"
+        "command": "bunx eslint tools/tool-devsync/src tools/tool-devsync/workspace-projects.mjs --cache --cache-location .nx/eslintcache-tool-devsync"
       }
     },
     "typecheck": {

@@ -38,7 +38,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
 
 ## 2. `libs/core`: the ports, the services, the use cases
 
-- [ ] 2.0 **Make project discovery complete before using its gates.** Add
+- [x] 2.0 **Make project discovery complete before using its gates.** Add
       `tools/tool-devsync/workspace-projects.mjs` exporting `readProjects(workspace)`;
       recursively discover nested `project.json` files under apps/libs/tools even below
       another project. Return validated `{ root, name, tags, targets }`, exclude only

@@ -2,6 +2,8 @@ import { readdir, readFile } from 'node:fs/promises';
 
 import { describe, expect, it } from 'bun:test';
 
+import { readProjects } from '../workspace-projects.mjs';
+
 /**
  * `tsc -p` on a solution-style config compiles **nothing**.
  *
@@ -30,37 +32,22 @@ import { describe, expect, it } from 'bun:test';
 const WORKSPACE = new URL('../../../', import.meta.url);
 
 interface ProjectTarget {
-  options?: { command?: string; commands?: string[] };
-  inputs?: (string | Record<string, unknown>)[];
+  readonly options?: Readonly<{ command?: string; commands?: readonly string[] }>;
+  readonly inputs?: readonly (string | Readonly<Record<string, unknown>>)[];
 }
 
 interface ProjectConfig {
-  name?: string;
-  tags?: string[];
-  targets?: Record<string, ProjectTarget>;
+  readonly name: string;
+  readonly tags: readonly string[];
+  readonly targets: Readonly<Record<string, ProjectTarget | undefined>>;
 }
 
-/** Every `<group>/<project>/project.json` on disk, read as JSON. */
+/** Every recursively discovered project, adapted to this file's older call sites. */
 async function projectsOnDisk(): Promise<{ dir: string; config: ProjectConfig }[]> {
-  const found: { dir: string; config: ProjectConfig }[] = [];
-  for (const group of ['apps', 'libs', 'tools']) {
-    const entries = await readdir(new URL(`${group}/`, WORKSPACE), { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const dir = `${group}/${entry.name}`;
-      const path = new URL(`${dir}/project.json`, WORKSPACE);
-      let raw: string;
-      try {
-        raw = await readFile(path, 'utf8');
-      } catch {
-        // Not every directory under these three is an Nx project; one that
-        // declares no `project.json` declares no targets to get wrong.
-        continue;
-      }
-      found.push({ dir, config: JSON.parse(raw) as ProjectConfig });
-    }
-  }
-  return found;
+  return (await readProjects(WORKSPACE)).map((project) => ({
+    dir: project.root,
+    config: project,
+  }));
 }
 
 /** The shell commands a target runs, whether it spells one or several. */
@@ -79,8 +66,8 @@ describe('every typecheck target compiles files', () => {
 
   it('never runs `tsc -p` against a solution-style config', async () => {
     const offenders: string[] = [];
-    for (const { dir, config } of await projectsOnDisk()) {
-      const target = config.targets?.['typecheck'];
+    for (const { config } of await projectsOnDisk()) {
+      const target = config.targets['typecheck'];
       if (target === undefined) continue;
       for (const command of commandsOf(target)) {
         const project = /tsc\s[^&|]*?--noEmit[^&|]*?-p\s+(\S+)/.exec(command)?.[1];
@@ -90,7 +77,7 @@ describe('every typecheck target compiles files', () => {
         // references; `-p` reads the former and ignores the latter.
         const compilesNothing =
           /"files"\s*:\s*\[\s*\]/.test(raw) && /"include"\s*:\s*\[\s*\]/.test(raw);
-        if (compilesNothing) offenders.push(config.name ?? dir);
+        if (compilesNothing) offenders.push(config.name);
       }
     }
     expect(offenders).toBeEmpty();
@@ -110,12 +97,12 @@ describe('every typecheck target compiles files', () => {
     // on `Expected value to be empty · Received: [ "gw-01" ]` (2026-09-02).
     const offenders: string[] = [];
     for (const { dir, config } of await projectsOnDisk()) {
-      const target = config.targets?.['typecheck'];
+      const target = config.targets['typecheck'];
       if (target === undefined) continue;
       const builds = commandsOf(target).some((command) =>
         new RegExp(`tsc\\s[^&|]*?--build[^&|]*?\\s${dir}/tsconfig\\.json(\\s|$)`).test(command),
       );
-      if (!builds) offenders.push(config.name ?? dir);
+      if (!builds) offenders.push(config.name);
     }
     expect(offenders).toBeEmpty();
   });
@@ -147,8 +134,8 @@ describe('every typecheck target compiles files', () => {
 
   it('gives every TypeScript project a typecheck target', async () => {
     const missing = (await projectsOnDisk())
-      .filter(({ config }) => !config.tags?.includes('runtime:python'))
-      .filter(({ config }) => config.targets?.['typecheck'] === undefined)
+      .filter(({ config }) => !config.tags.includes('runtime:python'))
+      .filter(({ config }) => config.targets['typecheck'] === undefined)
       .map(({ dir }) => dir);
     expect(missing).toBeEmpty();
   });
@@ -184,8 +171,6 @@ describe('every typecheck target compiles files', () => {
  * tool-devsync:test  [existing outputs match the cache, left as is]`, and with
  * it restored the same edit ran the suite.
  */
-const GROUPS = ['apps', 'libs', 'tools'];
-
 /** Workspace-relative paths a `*.test.ts` reads from outside its own project. */
 async function outsideReads(projectDir: string): Promise<string[]> {
   const found = new Set<string>();
@@ -217,37 +202,23 @@ describe('every cached target declares what it reads', () => {
     expect(shared).toBeDefined();
 
     const undeclared: string[] = [];
-    for (const group of GROUPS) {
-      const entries = await readdir(new URL(`${group}/`, WORKSPACE), { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        const dir = `${group}/${entry.name}`;
-        const reads = await outsideReads(dir);
-        if (reads.length === 0) continue;
-        let config: ProjectConfig;
-        try {
-          config = JSON.parse(
-            await readFile(new URL(`${dir}/project.json`, WORKSPACE), 'utf8'),
-          ) as ProjectConfig;
-        } catch {
-          continue;
-        }
-        const declared = [...(config.targets?.['test']?.inputs ?? []), ...(shared ?? [])]
-          .filter(
-            (each): each is string =>
-              typeof each === 'string' && each.startsWith('{workspaceRoot}/'),
-          )
-          .map((each) => each.slice('{workspaceRoot}/'.length));
-        for (const read of reads) {
-          const covered = declared.some(
-            (pattern) =>
-              new Bun.Glob(pattern).match(read) ||
-              // A directory read is covered by any declared input inside it:
-              // that is what makes the directory's contents part of the hash.
-              pattern.startsWith(`${read}/`),
-          );
-          if (!covered) undeclared.push(`${config.name ?? dir}:test does not declare ${read}`);
-        }
+    for (const { dir, config } of await projectsOnDisk()) {
+      const reads = await outsideReads(dir);
+      if (reads.length === 0) continue;
+      const declared = [...(config.targets['test']?.inputs ?? []), ...(shared ?? [])]
+        .filter(
+          (each): each is string => typeof each === 'string' && each.startsWith('{workspaceRoot}/'),
+        )
+        .map((each) => each.slice('{workspaceRoot}/'.length));
+      for (const read of reads) {
+        const covered = declared.some(
+          (pattern) =>
+            new Bun.Glob(pattern).match(read) ||
+            // A directory read is covered by any declared input inside it:
+            // that is what makes the directory's contents part of the hash.
+            pattern.startsWith(`${read}/`),
+        );
+        if (!covered) undeclared.push(`${config.name}:test does not declare ${read}`);
       }
     }
     expect(undeclared).toBeEmpty();
@@ -318,23 +289,19 @@ describe('the deploy contract', () => {
 
   it('is the only place a tier or a colour is spelled out', async () => {
     const copies: string[] = [];
-    for (const group of ['apps', 'libs', 'tools']) {
-      const projects = await readdir(new URL(`${group}/`, WORKSPACE), { withFileTypes: true });
-      for (const project of projects) {
-        if (!project.isDirectory()) continue;
-        const root = new URL(`${group}/${project.name}/src/`, WORKSPACE);
-        for (const file of await sourceFilesIn(root, `${group}/${project.name}/src`)) {
-          if (file.path === CONTRACT) continue;
-          // Assembled rather than written out, so this file is not a copy of
-          // the thing it refuses. Exempting itself instead would have exempted
-          // every future test in it too.
-          const unions = [
-            ['be', 'gw', 'fe'].map((tier) => `'${tier}'`).join(' | '),
-            ['blue', 'green'].map((color) => `'${color}'`).join(' | '),
-          ];
-          for (const union of unions) {
-            if (file.text.includes(union)) copies.push(`${file.path} re-declares ${union}`);
-          }
+    for (const project of await readProjects(WORKSPACE)) {
+      const root = new URL(`${project.root}/src/`, WORKSPACE);
+      for (const file of await sourceFilesIn(root, `${project.root}/src`)) {
+        if (file.path === CONTRACT) continue;
+        // Assembled rather than written out, so this file is not a copy of
+        // the thing it refuses. Exempting itself instead would have exempted
+        // every future test in it too.
+        const unions = [
+          ['be', 'gw', 'fe'].map((tier) => `'${tier}'`).join(' | '),
+          ['blue', 'green'].map((color) => `'${color}'`).join(' | '),
+        ];
+        for (const union of unions) {
+          if (file.text.includes(union)) copies.push(`${file.path} re-declares ${union}`);
         }
       }
     }
@@ -377,10 +344,10 @@ describe('every project says which ring, scope and runtime it is', () => {
     // a second `ring:domain` added beside it, on
     // `[ "observability: two ring: tags" ]`. Watched 2026-09-08.
     const wrong: string[] = [];
-    for (const { dir, config } of await projectsOnDisk()) {
-      const name = config.name ?? dir;
+    for (const { config } of await projectsOnDisk()) {
+      const name = config.name;
       for (const axis of AXES) {
-        const held = (config.tags ?? []).filter((tag) => tag.startsWith(axis));
+        const held = config.tags.filter((tag) => tag.startsWith(axis));
         if (held.length === 0) wrong.push(`${name}: no ${axis}`);
         if (held.length > 1) wrong.push(`${name}: two ${axis} tags`);
       }
@@ -396,7 +363,7 @@ describe('every project says which ring, scope and runtime it is', () => {
     const wrong: string[] = [];
     for (const { dir, config } of await projectsOnDisk()) {
       if (!dir.startsWith('tools/')) continue;
-      if (!(config.tags ?? []).includes('ring:adapter')) wrong.push(config.name ?? dir);
+      if (!config.tags.includes('ring:adapter')) wrong.push(config.name);
     }
     expect(wrong).toEqual([]);
   });
