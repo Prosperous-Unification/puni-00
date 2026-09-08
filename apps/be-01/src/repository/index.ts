@@ -8,22 +8,35 @@ import type {
   PriorityBand,
   StepState,
 } from '@wbs/domain';
+import type {
+  MeasureMetric,
+  PersonKind,
+  ScheduleEngine,
+  SolverObjectiveName,
+} from '@wbs/domain/stored-vocabularies';
 
 import type { EventLogStore } from './event-log';
-import type { SavedPlanCaptureStore, SavedPlanStore } from './saved-plan-ports';
-import type { MeasureMetric, PersonKind, ScheduleEngine, SolverObjectiveName } from './schema';
 
 /**
  * Re-exported as types, and deliberately not as values.
  *
- * The interfaces below name both, so every caller of a store already needs
- * them; making them reachable through this module rather than through
- * `schema.ts` keeps the service layer's imports pointing at the seam it talks
- * to. The **constants** stay in `schema.ts`: this file is type-only, and a value
- * re-export here would pull drizzle into everything that imports a store
- * interface.
+ * The interfaces below name all four, so every caller of a store already needs
+ * them; making them reachable through this module keeps the service layer's
+ * imports pointing at the seam it talks to. The **constants** are not
+ * re-exported: this file is type-only, and a value re-export would pull the
+ * whole vocabulary module into everything that imports a store interface.
+ *
+ * They come from `@wbs/domain` now rather than from `schema.ts`, which is what
+ * lets these interfaces move into the application ring: a port that reached
+ * into the drizzle schema to say what a person's kind is would be a port only
+ * drizzle can implement.
  */
-export type { MeasureMetric, PersonKind, ScheduleEngine, SolverObjectiveName } from './schema';
+export type {
+  MeasureMetric,
+  PersonKind,
+  ScheduleEngine,
+  SolverObjectiveName,
+} from '@wbs/domain/stored-vocabularies';
 
 export interface User {
   id: string;
@@ -2201,37 +2214,6 @@ export interface TransactionalStores {
   subtrees: SubtreeStore;
   journal: CommandJournalStore;
 }
-
-/**
- * The stores a source offers that are **not** part of any batch (D27).
- *
- * Saved plans are the whole of it today. They open their own connection per
- * call, check their quota inside their own write, take **no turn** at the write
- * coordinator, and survive a batch's outcome either way — a save that succeeded
- * while a batch was open is still there whether that batch committed or rolled
- * back. That is a property of the feature rather than an accident of the
- * wiring: a plan is immutable once written, so there is nothing for a rollback
- * to be consistent with.
- *
- * Separate from {@link TransactionalStores} rather than a section of it,
- * because the type is what stops a command enlisting one: `Scope` carries the
- * transactional composition alone, so `scope.stores.savedPlans` does not
- * compile.
- */
-export interface HistoryStores {
-  savedPlans: SavedPlanStore;
-  savedPlanCapture: SavedPlanCaptureStore;
-}
-
-/**
- * Everything a source offers, as one composition (D22).
- *
- * A composition rather than one interface: a source implements the ports it
- * has, and the type of what it composes says which services can then be built
- * over it. A browser source with no accounts is certified for what it has and
- * is not asked about the rest.
- */
-export type Stores = TransactionalStores & HistoryStores;
 
 /**
  * The audit stamp, from the ring it belongs to.

@@ -1,2 +1,12 @@
+# `nx format:check` passes files to prettier as explicit patterns and prettier
+# exits 2 on an explicitly-named symlink, so the two symlinks to AGENTS.md are
+# named here.
 CLAUDE.md
 GEMINI.md
+
+# A `git worktree` under the checkout is a second copy of every project, and
+# Nx's graph reads it as a duplicate: `MultipleProjectsWithSameNameError: be-01
+# is defined in multiple locations`, which fails `run-many` before a single
+# target runs. The convention here is `.worktrees/<name>` (AGENTS.md's agent
+# loop audit), so the directory is excluded rather than each worktree.
+.worktrees
