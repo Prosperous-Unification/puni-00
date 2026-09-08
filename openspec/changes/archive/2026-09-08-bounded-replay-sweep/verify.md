@@ -44,3 +44,11 @@ Exact measurement command:
 ```sh
 bun -e 'import { ReplayBuffer } from "./apps/be-01/src/service/replay-buffer.ts"; for (const entries of [100, 1000, 10000]) { const durations = []; for (let run = 0; run < 40; run++) { let now = 0; const buffer = new ReplayBuffer({ maxPerSubscription: entries, maxAgeMs: 1000, now: () => now }); for (let seq = 0; seq < entries; seq++) buffer.record("closed", seq, {}); now = 2000; const began = performance.now(); buffer.record("live", 0, {}); durations.push(performance.now() - began); if (buffer.oldestSeq("closed") !== null) throw new Error("expiry burst retained the closed subscription"); } durations.sort((a,b) => a-b); console.log(JSON.stringify({ entries, runs: 40, medianMs: durations[20], p95Ms: durations[38] })); }'
 ```
+
+## Archive reconciliation
+
+2026-09-08, archive branch based on merged `main` at `5516d453`:
+
+- `bun test apps/be-01/src/service/replay-buffer.test.ts apps/be-01/src/service/replay-orchestrator.test.ts apps/be-01/src/service/gateway-broadcaster.test.ts apps/be-01/src/service/gateway-broadcaster-durability.db.test.ts`: 33 pass, 0 fail, 72 assertions across 4 files. The two additional current-main cases also passed.
+- `bunx nx typecheck be-01 --skip-nx-cache` and `bunx nx lint be-01 --skip-nx-cache` passed on the same production source before the archive-only A1–A6 edits.
+- PR #356's exact-head workspace gate passed with the R8 implementation present. No browser or deployment behavior is claimed by this change.
