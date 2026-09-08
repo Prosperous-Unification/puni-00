@@ -18,3 +18,19 @@
 The existing audit schema stores updatedAt and preserves createdBy; it has no updatedBy column. No schema expansion was made.
 
 Parent verification: `bunx nx typecheck be-01 --skip-nx-cache` passed on the frozen backend sources containing R2 and R3. Independent task review approved with no findings. Full workspace gate remains pending.
+
+## Archive reconciliation, 2026-09-08
+
+Current `main` at `5516d453` retains the join-derived affected set, exactly-once
+revision stamp and stale-undo behavior. The exact three touched database suites
+passed **151/151 tests with 456 assertions**. Fresh `be-01:typecheck
+--skip-nx-cache` and `be-01:lint --skip-nx-cache` passed on this source.
+
+The full workspace gate for PR #356's exact head `cb0f13ee` also passed with the
+same A5 implementation present. The later combined-main run `34272524792` was
+still in progress when reconciled and already had an unrelated browser-shard
+failure; no browser evidence is claimed for this repository-only change.
+
+No `team-removal-revisions` main spec existed before sync. This delta introduces
+its two requirements and four scenarios, matching
+`docs/refactoring/r1-r9-spec-inventory.md`.

@@ -150,7 +150,7 @@ archive's original evidence limits. The bounded order is:
       affected projects”, “Initial and reset rosters are connection-specific”, and
       “Scoped presence preserves connection identity and isolation”. Assert all five
       realtime requirements and all their scenarios survive.
-- [ ] **A5 — R2 `team-removal-revisions`**: reconcile open 1.5's touched suites,
+- [x] **A5 — R2 [`team-removal-revisions`](../../openspec/changes/archive/2026-09-08-team-removal-revisions/tasks.md)**: reconciled open 1.5's touched suites,
       lint/typecheck and parent report before syncing its distinct capability.
 - [ ] **A6 — R6 `project-assignment-reads`**: reconcile open 1.4's touched checks and
       parent report before syncing its distinct capability.
