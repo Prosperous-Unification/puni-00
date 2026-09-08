@@ -34,3 +34,17 @@ Parent checkpoint: `bunx nx typecheck be-01 --skip-nx-cache` passed with R5/R6
 held unchanged, covering both source and spec projects. Log:
 `/private/tmp/wbs-refactoring-r5-r6-typecheck.log`. Independent task review
 approved without blocking findings. Full workspace/browser gates remain pending.
+
+## Archive reconciliation, 2026-09-08
+
+Current `main` at `5516d453` retains the synchronous reservation, configured
+global cap and `finally` release boundaries. The current password/OIDC route,
+throttle, app-route and Elysia production-path selection passed **106/106 tests
+with 929 assertions across six collected files**. The same frozen source passed
+fresh `be-01:typecheck --skip-nx-cache` and `be-01:lint --skip-nx-cache` during
+the immediately preceding `account-store-failures` reconciliation.
+
+The existing main `authentication` spec contained the one requirement and three
+scenarios synced from `account-store-failures`. This delta appends two requirements
+and five scenarios; the resulting three-requirement, eight-scenario union is
+checked against `docs/refactoring/r1-r9-spec-inventory.md` before archive.

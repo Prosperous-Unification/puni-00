@@ -140,7 +140,7 @@ archive's original evidence limits. The bounded order is:
 
 - [x] **A1 — R3 [`account-store-failures`](../../openspec/changes/archive/2026-09-08-account-store-failures/tasks.md)**: reconciled 8/8 and introduced
       `authentication` requirement “Account resolution failures remain server failures”.
-- [ ] **A2 — R5 `login-admission`**: reconcile 5/5 and append “Password login reserves
+- [x] **A2 — R5 [`login-admission`](../../openspec/changes/archive/2026-09-08-login-admission/tasks.md)**: reconciled 5/5 and appended “Password login reserves
       bounded verification capacity” and “Login reservations end with their attempts”.
       Assert all three authentication requirements and all their scenarios survive.
 - [ ] **A3 — R4 `websocket-ingress`**: reconcile 9/9 and introduce/merge `realtime`
