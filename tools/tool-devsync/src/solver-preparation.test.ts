@@ -434,32 +434,46 @@ describe('solver binding retries', () => {
     expect(events.filter((event) => event.includes(IMAGE))).toHaveLength(5);
   });
 
-  it('refuses a mismatched published checkpoint before any phase runs', async () => {
-    let mutations = 0;
-    const mutation = () => {
-      mutations += 1;
-      return Promise.resolve();
-    };
-    expect(
-      await rejection(
-        resumeSolverBindingBeforeReset(
-          { sourceSha: SOURCE_SHA, compatibilityIdentity: IDENTITY },
-          stateBytes({ ...STATE, sourceSha: OTHER_SOURCE_SHA }),
-          {
-            publish: async () => {
-              await mutation();
-              return IMAGE;
-            },
-            checkpoint: mutation,
-            materialize: mutation,
-            install: mutation,
-            preflight: mutation,
-            reset: mutation,
-          },
-        ),
-      ),
-    ).toContain('source SHA does not match target');
-    expect(mutations).toBe(0);
+  it('rebinds a published digest when an unrelated successor changes only the source SHA', async () => {
+    const checkpoints: SolverPreparationState[] = [];
+    const events: string[] = [];
+    await resumeSolverBindingBeforeReset(
+      { sourceSha: SOURCE_SHA, compatibilityIdentity: IDENTITY },
+      stateBytes({ ...STATE, sourceSha: OTHER_SOURCE_SHA }),
+      {
+        publish: () => Promise.reject(new Error('matching identity must reuse its image')),
+        checkpoint: (state) => {
+          checkpoints.push(state);
+          return Promise.resolve();
+        },
+        withHostMutationLock: async (action) => {
+          events.push('lock');
+          await action();
+          events.push('unlock');
+        },
+        materialize: () => {
+          events.push('materialize');
+          return Promise.resolve();
+        },
+        install: () => {
+          events.push('install');
+          return Promise.resolve();
+        },
+        preflight: () => {
+          events.push('preflight');
+          return Promise.resolve();
+        },
+        reset: () => {
+          events.push('reset');
+          return Promise.resolve();
+        },
+      },
+    );
+    expect(checkpoints).toEqual([
+      { ...STATE, sourceSha: SOURCE_SHA, phase: 'published' },
+      { ...STATE, sourceSha: SOURCE_SHA, phase: 'complete' },
+    ]);
+    expect(events).toEqual(['lock', 'materialize', 'install', 'preflight', 'unlock', 'reset']);
   });
 
   it('rechecks a completed binding before reset', async () => {
@@ -470,6 +484,8 @@ describe('solver binding retries', () => {
       {
         publish: () => Promise.reject(new Error('completed binding must not publish')),
         checkpoint: () => Promise.reject(new Error('completed binding must not checkpoint')),
+        withHostMutationLock: () =>
+          Promise.reject(new Error('healthy completed binding must not take mutation lock')),
         materialize: () => Promise.reject(new Error('completed binding must not materialize')),
         install: () => Promise.reject(new Error('completed binding must not install')),
         preflight: () => {
@@ -483,6 +499,50 @@ describe('solver binding retries', () => {
       },
     );
     expect(events).toEqual(['preflight', 'reset']);
+  });
+
+  it('repairs an overwritten completed binding once under the host mutation lock', async () => {
+    const events: string[] = [];
+    let checks = 0;
+    await resumeSolverBindingBeforeReset(
+      { sourceSha: SOURCE_SHA, compatibilityIdentity: IDENTITY },
+      stateBytes({ ...STATE, phase: 'complete' }),
+      {
+        publish: () => Promise.reject(new Error('completed binding must not publish')),
+        checkpoint: () => Promise.resolve(),
+        withHostMutationLock: async (action) => {
+          events.push('lock');
+          await action();
+          events.push('unlock');
+        },
+        materialize: () => {
+          events.push('materialize');
+          return Promise.resolve();
+        },
+        install: () => {
+          events.push('install');
+          return Promise.resolve();
+        },
+        preflight: () => {
+          checks += 1;
+          events.push(`preflight:${String(checks)}`);
+          return checks === 1 ? Promise.reject(new Error('mapping overwritten')) : Promise.resolve();
+        },
+        reset: () => {
+          events.push('reset');
+          return Promise.resolve();
+        },
+      },
+    );
+    expect(events).toEqual([
+      'preflight:1',
+      'lock',
+      'materialize',
+      'install',
+      'preflight:2',
+      'unlock',
+      'reset',
+    ]);
   });
 });
 

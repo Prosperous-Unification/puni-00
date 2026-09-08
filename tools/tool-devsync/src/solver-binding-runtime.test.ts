@@ -48,6 +48,7 @@ describe('the production solver binding runtime', () => {
     ]);
     const invocations: SolverBindingRuntimeInvocation[] = [];
     const checkpoints: { path: string; contents: string }[] = [];
+    const locks: string[] = [];
     const runtime = createTargetSolverBindingRuntime(
       { root: ROOT, bunPath: BUN, sourceSha: SHA, compatibilityIdentity: IDENTITY },
       {
@@ -62,6 +63,10 @@ describe('the production solver binding runtime', () => {
           return Promise.resolve({ exitCode: 0, stderr: '' });
         },
         query: () => Promise.reject(new Error('installed config must avoid container inspection')),
+        withLock: async (path, action) => {
+          locks.push(path);
+          return action();
+        },
         writeAtomic: (path, contents) => {
           checkpoints.push({ path, contents });
           return Promise.resolve();
@@ -80,6 +85,8 @@ describe('the production solver binding runtime', () => {
       BUN,
       BUN,
       BUN,
+      'systemctl',
+      'test',
       '/usr/local/bin/bun',
       'git',
     ]);
@@ -100,8 +107,20 @@ describe('the production solver binding runtime', () => {
     expect(invocations[1]?.argv).toContain(`--dev-solver-image=${DEV}`);
     expect(invocations[2]?.argv).toEqual([BUN, 'x', 'nx', 'run', 'tool-remote-scripts:build']);
     expect(invocations[3]?.argv).toContain('--execute');
-    expect(invocations[4]?.argv).toContain('--preflight=dev');
+    expect(invocations[4]?.argv).toEqual([
+      'systemctl',
+      '--user',
+      'is-active',
+      '--quiet',
+      'wbs-solver-supervisor.service',
+    ]);
     expect(invocations[5]?.argv).toEqual([
+      'test',
+      '-S',
+      '/run/user/1000/wbs-solver/supervisor.sock',
+    ]);
+    expect(invocations[6]?.argv).toContain('--preflight=dev');
+    expect(invocations[7]?.argv).toEqual([
       'git',
       '-C',
       '/home/puni1/wbs-dev/src',
@@ -119,6 +138,7 @@ describe('the production solver binding runtime', () => {
       return (checkpoint as Record<string, unknown>)['phase'];
     });
     expect(phases).toEqual(['published', 'complete']);
+    expect(locks).toEqual(['/home/puni1/wbs/state/deploy.lock']);
   });
 
   it('derives a missing config from exact prod container inspection but propagates unreadability', async () => {
@@ -135,6 +155,7 @@ describe('the production solver binding runtime', () => {
         exists: () => Promise.resolve(false),
         read: () => Promise.reject(new Error('missing config must not be read')),
         command: () => Promise.resolve({ exitCode: 0, stderr: '' }),
+        withLock: (_path, action) => action(),
         query: (invocation) => {
           queries.push(invocation);
           return Promise.resolve({ exitCode: 0, stdout: inspection, stderr: '' });
@@ -157,6 +178,7 @@ describe('the production solver binding runtime', () => {
         exists: () => Promise.resolve(true),
         read: () => Promise.reject(new Error('EACCES installed config')),
         command: () => Promise.resolve({ exitCode: 0, stderr: '' }),
+        withLock: (_path, action) => action(),
         query: () => Promise.reject(new Error('unreadable config must not fall back')),
         writeAtomic: () => Promise.resolve(),
       },
