@@ -67,3 +67,12 @@ __pycache__/
 *.py[cod]
 
 .nx/migrate-runs
+# Secret backups. `configure.sh` and hand-edits leave these beside the real
+# `.env`; they are as sensitive as the file they copy and must never be staged.
+**/.env.bak-*
+
+# The macOS development solver environment (tools/dev/solver-environment.ts)
+# and the setuptools artifacts its install leaves behind.
+.venv-solver/
+libs/solver-py/build/
+libs/solver-py/src/*.egg-info/
