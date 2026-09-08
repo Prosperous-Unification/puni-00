@@ -157,3 +157,106 @@ The count is a **rate**, not a pin: the case reads the rows and columns off the 
 `flexibleCellStyle` calls by `(rows + 1) × columns` to learn how many renders the gesture actually
 cost, and asserts one sentence per row per render. A pinned number would have to be re-guessed
 every time a column is added, and would pass for the wrong reason the first time one was.
+
+## 2.2, second part — the two scans of the whole plan that ran per cell, 2026-09-08
+
+Still not 2.2 itself. Two of the per-row readings the inventory listed as "no per-row cache"
+were worse than that: each was a scan of **every row on the plan**, run once per cell.
+
+- `dependenciesOf(ids)` did `flat.find` per dependency id, and every Depends on cell calls it
+  once per render. Rows × dependencies × rows per render — eight million comparisons to draw one
+  column on a thousand-row plan whose rows wait for eight others.
+- `anyAssigneeOn(stepId)` did `flat.some(...)`, and every **folded step cell** calls it. Rows ×
+  steps × rows per render, to decide whether the column reserves an assignee slot.
+
+Both are one pass per tree read now, through `plan-indexes.ts`: `indexRowsById(flat)` and
+`assignedSteps(flat)`, each behind a `useMemo` on `flat`. They live in a module of their own
+rather than in the hooks that use them, and that is load-bearing for the check below —
+`vi.mock` replaces a module's exports for its **importers**, so a pure function called from
+inside the file that declares it cannot be counted. The first form of this check mocked
+`./use-plan-dependencies` and `./use-reference-sets`, and the counter never moved.
+
+`assignedSteps` returns `{ everyStep, named }` rather than a bare set, because `doesEveryStep`
+staffs a step **no row lists by id** — a set of named steps alone would answer `false` for it.
+
+### Failure proof table
+
+| Check                                                               | Injected fault                                                       | Observed failure      |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------- |
+| `rebuilds no index over the plan for a gesture that changes no row` | `indexRowsById`'s `useMemo` dropped, rebuilt inside `dependenciesOf` | `expected 1 to be +0` |
+| the same case                                                       | `assignedSteps`' `useMemo` dropped, rebuilt inside `anyAssigneeOn`   | `expected 8 to be +0` |
+
+Two things the case had to be given before either fault could reach it, and both were watched
+failing at the **wired-check** rather than at the assertion first:
+
+- The plan needs a **dependency**. With none, `dependenciesOf` maps over an empty list and the
+  faulted rebuild inside it is never reached, so `toBe(0)` was true for the wrong reason. The
+  fixture adds one through `api.addDependency`; setting `row.dependsOn` on the view does not
+  work, because the fake derives that field from its own edge list.
+- The Depends on column has to be **on screen**; it is not in the default set.
+
+Each case asserts the counter moved during setup before asserting it is still zero after the
+gesture. Without that, a mock that never ran satisfies the assertion.
+
+## 2.2, third part — the directory lookups behind the two markers, 2026-09-08
+
+`indexById(items)` joins `plan-indexes.ts`, and the three lookups `useReferenceSets` already
+built by hand use it. `usePlanAssignments` — a separate hook with its own arguments — gains its
+own three, and the two markers stop scanning a directory per row: `nonOwnerNoteOf` did
+`services.find` per unowned service, `assigneeOn` did `people.find` per call (once per step per
+row), and `teamNamesOn`, which both of them call, did `teams.find` per team on the row.
+
+### Failure proof table
+
+| Injected fault                           | Observed failure      |
+| ---------------------------------------- | --------------------- |
+| `teamsById` rebuilt inside `teamNamesOn` | `expected 2 to be +0` |
+
+**Two forms of that fault were watched passing first, and both are the same mistake: injecting
+where the code does not go.** The first put `indexById(teams)` inside `teamNamesOn`'s `.map`
+callback — a plan whose rows carry no team maps over an empty list, so the rebuild was never
+reached. The second moved it out of the map but left the fixture with nobody assigned, and
+`teamNamesOn` is only ever called from inside the two markers, both of which return before it on
+a plan nobody is named on. The fixture now assigns a person through `api.addPerson` and
+`api.assignPerson`, and the fault is hoisted above the map.
+
+### Still open in 2.2
+
+`spanOf(row)` is called three times per row per render — the Start cell, the Finish cell, and
+once inside the Start sentence — and allocates a `Date` and two `printedDay` calls each time. It
+is not memoised here: the per-render `Map` that would do it has to live where `spanOf` is built,
+and the counting seam for its negative does not exist yet. Named so the next slice does not have
+to find it again. The three `effective*LabelOf` readings are called once per row and allocate two
+arrays each; that is a per-row cost 2.2's explicit render inputs are meant to own, not another
+memo.
+
+## 2.2, fourth part — one row, one span, 2026-09-08
+
+The last of the repeated per-row readings named in the inventory. `spanOf(row)` was worked out
+three times per row per render — the Start cell, the Finish cell and the Start sentence — and
+each call allocated a `Date` and two `printedDay`s.
+
+`spanOfRow(row, showSchedule)` is a pure function in `plan-span.ts` now, `usePlanSchedule`'s
+`spanOf` calls it, and `WbsTable` holds the same kind of per-render `Map` in front of it that the
+sentence already had. The chart keeps the **unmemoised** `spanOf`: it lays out in a `useMemo` of
+its own and may render on a commit this map was not rebuilt for. One side effect is a small
+consistency gain — `today` is now one moment per row per render rather than one per reader.
+
+The module is not decoration. `spanOfRow` first lived beside `usePlanSchedule` in
+`plan-chart-input.ts`, and the check was watched failing on `expected +0 to be 3`: `vi.mock`
+replaces a module's exports for its **importers**, so the hook's call to a function declared in
+its own file was invisible. That is the third time this session; it is now a rule for this
+change — **a pure function that has to be counted lives in a module of its own.**
+
+### Failure proof table
+
+| Check                                                                 | Injected fault                | Observed failure     |
+| --------------------------------------------------------------------- | ----------------------------- | -------------------- |
+| `works the Start sentence out once per row, however many readers ask` | `spanByRow`'s lookup bypassed | `expected 9 to be 3` |
+
+### What 2.2 still owes
+
+Its headline, and only its headline: explicit per-row render inputs and stable cell component
+identities. Every repeated reading the inventory named is now one per row per render or one per
+tree read; what is left is the contract change itself, which is where the `columns`-memo landmine
+and the `live` ref actually get replaced.
