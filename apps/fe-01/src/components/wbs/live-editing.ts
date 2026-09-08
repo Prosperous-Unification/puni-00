@@ -1,5 +1,12 @@
 import type { CellRef } from './cell-navigation';
-import { aListIsOpenIn, type CellElement, cellIn, cellKey, focusedCellKey } from './editable-grid';
+import {
+  aListIsOpenIn,
+  type CellAttacher,
+  type CellElement,
+  cellIn,
+  cellKey,
+  focusedCellKey,
+} from './editable-grid';
 
 /**
  * What became of an edit a cell sent.
@@ -470,6 +477,10 @@ export class LiveField {
         // with the face and a step change — or a breakpoint — takes the face
         // away. `text` rather than the node's value: this runs a round trip
         // later, and what was refused is what was sent.
+        // Proof: this write removed, `an editor that left the row window can
+        // commit, escape, and hold a refusal` failed after the refused priority
+        // remounted on `Expected: "0" · Received: "50"`. Watched in Chromium,
+        // 2026-09-08.
         if (outcome === 'refused') heldRefusals.set(this.cellKey, text);
         // Rule 4, and only for the refusal: an `unsent` commit is one where
         // the box and be-01 already agree, so there is no draft to hold.
@@ -582,7 +593,7 @@ export class FocusIntent {
    * clearing on that render would drop the focus on the floor rather than
    * carrying it to the tree that arrives next.
    */
-  land(grid: HTMLElement | null): void {
+  land(grid: HTMLElement | null, attach?: CellAttacher): void {
     const wanted = this.wanted;
     if (wanted === null || grid === null) return;
     // Cancelled rather than left pending: the reader has moved on, so this
@@ -595,7 +606,10 @@ export class FocusIntent {
       return;
     }
     const arrived = cellIn(grid, wanted);
-    if (arrived === undefined) return;
+    if (arrived === undefined) {
+      if (attach?.(wanted, 'focus') === true) this.wanted = null;
+      return;
+    }
     this.wanted = null;
     // Proof: left as a lookup that focuses nothing, both `lands in the same
     // column…` tests failed with the focus on the body. That is only visible

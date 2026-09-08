@@ -15,6 +15,14 @@ export function isCellElement(node: unknown): node is CellElement {
   return node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement;
 }
 
+/** The logical address written on a cell element, or null for unrelated or malformed markup. */
+export function cellRefOf(node: unknown): CellRef | null {
+  if (!isCellElement(node)) return null;
+  const parts = (node.dataset['cell'] ?? '').split('::');
+  const [rowId, columnId] = parts;
+  return parts.length === 2 && rowId !== '' && columnId !== '' ? { rowId, columnId } : null;
+}
+
 /** The `data-cell` value for one editable cell, and the selector that finds it. */
 export const cellKey = (rowId: string, columnId: string): string => `${rowId}::${columnId}`;
 
@@ -78,6 +86,8 @@ export const aListIsOpenIn = (grid: HTMLElement): boolean =>
 
 /** Where a keyboard arrival puts the caret: over the whole value, or at one offset. */
 export type Landing = 'all' | number;
+export type CellLanding = 'all' | 'start' | 'end' | 'focus';
+export type CellAttacher = (cell: CellRef, landing: CellLanding) => boolean;
 
 /**
  * Focuses a cell and places its caret, where the element has a caret to place.
@@ -115,16 +125,15 @@ export function focusCellAt(input: CellElement, landing: Landing): void {
  * 2026-08-07.
  */
 export function editableGrid(grid: HTMLElement): { input: CellElement; cell: CellRef }[] {
-  return [...grid.querySelectorAll<CellElement>('[data-cell]:not([readonly]):not([disabled])')]
-    .map((input) => ({ input, parts: (input.dataset['cell'] ?? '').split('::') }))
-    .flatMap(({ input, parts }) => {
-      // A `data-cell` that is not `row::column` is markup this component did
-      // not write. Skipped rather than guessed at, and not thrown on: a
-      // keystroke is not the moment to take the table down.
-      const [row, column] = parts;
-      if (parts.length !== 2 || row === '' || column === '') return [];
-      return [{ input, cell: { rowId: row, columnId: column } satisfies CellRef }];
-    });
+  return [
+    ...grid.querySelectorAll<CellElement>('[data-cell]:not([readonly]):not([disabled])'),
+  ].flatMap((input) => {
+    // A `data-cell` that is not `row::column` is markup this component did
+    // not write. Skipped rather than guessed at, and not thrown on: a
+    // keystroke is not the moment to take the table down.
+    const cell = cellRefOf(input);
+    return cell === null ? [] : [{ input, cell }];
+  });
 }
 
 /** The cell of `grid` that `wanted` names, or undefined when it is not on screen. */
@@ -136,16 +145,23 @@ export function cellIn(grid: HTMLElement, wanted: CellRef): CellElement | undefi
 }
 
 /**
- * Focuses the grid cell `delta` places from `from`, selecting its text the
- * way the browser's own Tab leaves a field. False at the grid's edge — the
- * caller then leaves the key to the browser rather than eating it.
+ * Focuses the logical cell `delta` places from `from`, selecting its text the
+ * way the browser's own Tab leaves a field. The supplied order chooses the
+ * destination; the DOM is consulted only to attach it. False at the grid's
+ * edge or while the destination is not mounted — the caller then leaves the
+ * key to the browser rather than eating it.
  */
-export function focusAdjacentCell(input: CellElement, from: CellRef, delta: 1 | -1): boolean {
+export function focusAdjacentCell(
+  input: CellElement,
+  cells: readonly CellRef[],
+  from: CellRef,
+  delta: 1 | -1,
+  attach?: CellAttacher,
+): boolean {
   const grid = gridOf(input);
   if (grid === null) return false;
-  const cells = editableGrid(grid);
   const at = cells.findIndex(
-    (g) => g.cell.rowId === from.rowId && g.cell.columnId === from.columnId,
+    (cell) => cell.rowId === from.rowId && cell.columnId === from.columnId,
   );
   if (at === -1) return false;
   // `.at(-1)` wraps to the far end, which would turn Shift+Tab in the first
@@ -155,6 +171,8 @@ export function focusAdjacentCell(input: CellElement, from: CellRef, delta: 1 | 
   // the focus jumped to the last cell of the table. Watched, 2026-08-07.
   const next = at + delta < 0 ? undefined : cells.at(at + delta);
   if (next === undefined) return false;
-  focusCellAt(next.input, 'all');
+  const target = cellIn(grid, next);
+  if (target === undefined) return attach?.(next, 'all') ?? false;
+  focusCellAt(target, 'all');
   return true;
 }
