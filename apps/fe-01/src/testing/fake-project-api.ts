@@ -86,7 +86,16 @@ export function fakeProjectApi(): ProjectApi & {
    * editor.
    */
   linkTo: (workItemId: string, refs: readonly { systemId: string; url: string }[]) => void;
+  /**
+   * Every Retry the screen asked for, in order.
+   *
+   * Recorded rather than answered, because the 202 is not what moves a screen:
+   * the plan read is, and a test that asserted on the return value would pass
+   * on a button that never re-read.
+   */
+  retries: readonly { objective: 'pri' | 'time'; inputHash: string }[];
 } {
+  const retries: { objective: 'pri' | 'time'; inputHash: string }[] = [];
   const rows: WorkItemView[] = [];
   const edges: { predecessorId: string; successorId: string }[] = [];
   let next = 0;
@@ -319,6 +328,7 @@ export function fakeProjectApi(): ProjectApi & {
       // read carries a fresh sequence and the table does not discard it.
       renumber();
     },
+    retries,
     linkTo(workItemId: string, refs: readonly { systemId: string; url: string }[]) {
       const row = rows.find((r) => r.id === workItemId);
       if (row === undefined) throw new Error(`no work item ${workItemId}`);
@@ -503,6 +513,12 @@ export function fakeProjectApi(): ProjectApi & {
     setEstimateMethod(_projectId, method) {
       estimateMethod = method;
       renumber();
+      return Promise.resolve();
+    },
+    // Records the ask and re-reads, which is what the real one causes: the
+    // page's authority for a variant's state is the plan read, never the 202.
+    retryOptimization(_projectId, objective, inputHash) {
+      retries.push({ objective, inputHash });
       return Promise.resolve();
     },
     setOptimizationSettings(_projectId, patch) {

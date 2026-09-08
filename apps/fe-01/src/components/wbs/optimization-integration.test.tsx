@@ -520,7 +520,7 @@ describe('project optimization in the plan', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent('Optimization unavailable · Retry');
+      expect(screen.getByRole('status')).toHaveTextContent('Optimization unavailable');
     });
     expect(calls.filter((method) => method.startsWith('tree/'))).toEqual(['tree/1']);
     expect([...calls].sort()).toEqual([...READS_THE_FULL_SCOPE_MAKES].sort());
@@ -601,7 +601,7 @@ describe('project optimization in the plan', () => {
    * an optional second callback, have the stream call it with the *whole*
    * failure frame beside the existing `onChange(changedFactOf(…))`, forward it
    * through the factory in `project-page.tsx`, and let the table render
-   * `Optimization unavailable · Retry` off `failureReason` the moment it
+   * `Optimization unavailable` off `failureReason` the moment it
    * arrives. Nothing above goes red: the stream case passes no such callback so
    * its argument list is unchanged, and the table case's fake stream never
    * invokes one. The client would be reading the variant's state out of a frame
@@ -676,7 +676,7 @@ describe('project optimization in the plan', () => {
       });
 
       await waitFor(() => {
-        expect(indicatorWords()).toBe('Optimization unavailable · Retry');
+        expect(indicatorWords()).toBe('Optimization unavailable');
       });
       expect(calls.filter((method) => method.startsWith('tree/'))).toEqual(['tree/1']);
       expect([...calls].sort()).toEqual([...READS_THE_FULL_SCOPE_MAKES].sort());

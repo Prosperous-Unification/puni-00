@@ -1399,10 +1399,22 @@ export function WbsTable({
       {chartRead.optimization !== undefined && (
         <OptimizationIndicator
           optimization={chartRead.optimization}
+
           stale={treeMayBeStale}
           projectStart={startDate}
           today={new Date()}
           workItemName={(id) => flat.find((row) => row.id === id)?.name ?? null}
+          // Through `run` like every other write here, so a refusal becomes a
+          // toast and the plan is re-read afterwards. The plan read is the
+          // authority for what happened, never the 202: be-01 answers
+          // `retrying` at once and the real outcome lands later.
+          //
+          // `inputHash` is the plan the reader is looking at. Sending it is
+          // what lets be-01 refuse a Retry aimed at a screen that has since
+          // moved on, rather than re-solving a plan nobody asked about.
+          onRetry={(objective, inputHash) => {
+            void run(() => api.retryOptimization(projectId, objective, inputHash));
+          }}
         />
       )}
 

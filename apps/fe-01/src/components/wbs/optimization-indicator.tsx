@@ -8,6 +8,16 @@ import { shortIsoDate } from './short-date';
 
 export interface OptimizationIndicatorProps {
   readonly optimization: PlanOptimizationView;
+  /**
+   * Asks for one more solve of the selected variant.
+   *
+   * **A control, not a word.** `Optimization unavailable · Retry` was rendered
+   * as text inside the status paragraph, so the one designed escape from a
+   * failed variant was something to read rather than something to press — and
+   * a plan whose solver had died had no route back on screen at all. Optional
+   * because the indicator is also rendered on screens with no writer.
+   */
+  readonly onRetry?: (objective: PlanOptimizationView['objective'], inputHash: string) => void;
   readonly stale?: boolean;
   readonly projectStart: string | null;
   readonly today: Date;
@@ -56,6 +66,7 @@ function deadlineWords(projectStart: string | null, offset: number, today: Date)
 /** One current-state sentence for the optimized schedule selected by the project. */
 export function OptimizationIndicator({
   optimization,
+  onRetry,
   stale = false,
   projectStart,
   today,
@@ -64,6 +75,7 @@ export function OptimizationIndicator({
   if (!optimization.enabled || optimization.engine === 'fast') return null;
   const variant = optimization.variants[optimization.objective];
   let statusWords: string;
+  let retryable = false;
   let affectedItems: Extract<typeof variant, { state: 'plan-infeasible' }>['items'] | null = null;
 
   if (optimization.displayed !== 'fast') {
@@ -85,7 +97,10 @@ export function OptimizationIndicator({
         break;
       case 'failed':
       case 'corrupt':
-        statusWords = 'Optimization unavailable · Retry';
+        // The word alone; the control is rendered beside it below, so a screen
+        // without a writer still reads correctly.
+        statusWords = 'Optimization unavailable';
+        retryable = true;
         break;
       case 'plan-infeasible': {
         const count = variant.items.length;
@@ -121,6 +136,18 @@ export function OptimizationIndicator({
       <p role="status" aria-live="polite" aria-atomic="true">
         {statusWords}
       </p>
+      {retryable && onRetry !== undefined && (
+        <button
+          type="button"
+          className="text-primary mt-1 cursor-pointer underline underline-offset-2"
+          data-optimization-retry
+          onClick={() => {
+            onRetry(optimization.objective, optimization.inputHash);
+          }}
+        >
+          Retry
+        </button>
+      )}
       {affectedItems !== null && (
         <details className="mt-2 min-w-0" aria-label="Affected work items">
           <summary className="text-muted-foreground cursor-pointer">

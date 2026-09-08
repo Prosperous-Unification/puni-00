@@ -535,7 +535,7 @@ export class OptimizationCoordinator {
         }
 
         const outcome = readOptimizedPair(tx, key)[ask.objective];
-        const live = optimizedVariantIsLive(tx, key, current.generation, ask.objective);
+        const live = optimizedVariantIsLive(tx, key, current.generation, ask.objective, now);
         if (outcome.kind !== 'failed' && outcome.kind !== 'corrupt') {
           return {
             kind: 'not-retryable',
@@ -740,7 +740,7 @@ export class OptimizationCoordinator {
     });
     const outcome = pair[ask.objective];
     const live = (objective: SolverObjectiveName): boolean =>
-      optimizedVariantIsLive(this.options.db, key, generation, objective);
+      optimizedVariantIsLive(this.options.db, key, generation, objective, now);
     return {
       ...key,
       generation,

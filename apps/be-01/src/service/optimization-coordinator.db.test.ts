@@ -148,6 +148,9 @@ function coordinator(
   onChildError: (error: unknown) => void = (error) => {
     throw error;
   },
+  // A movable clock, defaulting to the fixed instant every other case here
+  // relies on. Only the expiry cases below advance it.
+  now: () => number = () => 10,
 ): OptimizationCoordinator {
   let token = 0;
   return new OptimizationCoordinator({
@@ -156,7 +159,7 @@ function coordinator(
     solverVersion: '0.1.0',
     budgetMs: BUDGET,
     ownerId,
-    now: () => 10,
+    now,
     attemptToken: () => `${ownerId}-token-${String(token++)}`,
     inputOf: () => Promise.resolve(INPUT),
     enabledOf: () => Promise.resolve(true),
@@ -883,6 +886,97 @@ describe('OptimizationCoordinator read', () => {
 
     expect(instance.read({ projectId: 'p-1', objective: 'time', input: INPUT })).toBeNull();
     expect(calls).toHaveLength(2);
+  });
+
+  /**
+   * The stale-seat deadlock, end to end.
+   *
+   * A spawn failure keeps its seat on purpose — without terminal evidence a
+   * process may still be running — and for the seat's admitted lifetime the
+   * variant honestly reads `retrying`. What was wrong is what happened AFTER
+   * that lifetime: the reader never compared the deadline, so the seat stayed
+   * "live" for ever, the stored `failed` kept reading as `retrying`, and the
+   * explicit Retry that would have freed the project refused with
+   * `already-running` because it consults the same predicate.
+   *
+   * Both instants are asserted rather than one: at `deadline - 1` the mask is
+   * correct and must survive, and only at `deadline` — the exact boundary
+   * `reclaimExpiredSolverSlotsIn` uses for `deadline <= now` — does it lift.
+   * A test that only advanced "well past" would pass on an off-by-one that
+   * freed a live child a millisecond early.
+   *
+   * Proof: deleting `gt(solverSlot.admittedDeadlineAt, now)` — the original
+   * bug — failed this case on `Expected: "failed" · Received: "retrying"`, with
+   * the `deadline - 1` assertion above it still green. Widening it to `gte`
+   * failed the same assertion the same way, which is what pins the boundary to
+   * reclaim's `deadline <= now` rather than to an adjacent millisecond.
+   */
+  it('frees a variant whose retained seat expired, for both the read and Retry', async () => {
+    const { path, db } = database();
+    seedProject(path);
+    const calls: ReservedSpawnRequest[] = [];
+    let clock = 10;
+    const instance = coordinator(
+      db,
+      calls,
+      'blue',
+      () => {
+        throw new Error('launcher is absent');
+      },
+      () => new Promise(() => undefined),
+      () => undefined,
+      () => clock,
+    );
+
+    expect(instance.read({ projectId: 'p-1', objective: 'pri', input: INPUT })).toBeNull();
+    await instance.drain();
+
+    const key = {
+      projectId: 'p-1',
+      inputHash: scheduleInputHash(INPUT),
+      contractVersion: CONTRACT,
+      budgetMs: BUDGET,
+    };
+    // The stored outcome never changes across this test; only the seat expires.
+    expect(readOptimizedPair(db, key).pri).toMatchObject({
+      kind: 'failed',
+      reason: 'internal-error',
+    });
+    const seats = db
+      .select({ deadline: solverSlot.admittedDeadlineAt })
+      .from(solverSlot)
+      .all()
+      .map((row) => row.deadline);
+    expect(seats).toHaveLength(2);
+    const deadline = seats[0];
+
+    const stateOf = (): string =>
+      instance.readPlan({ projectId: 'p-1', objective: 'pri', input: INPUT }).variants.pri.state;
+
+    clock = deadline - 1;
+    expect(stateOf()).toBe('retrying');
+    expect(
+      instance.retry({
+        projectId: 'p-1',
+        objective: 'pri',
+        inputHash: key.inputHash,
+        input: INPUT,
+      }),
+    ).toEqual({ kind: 'already-running' });
+
+    clock = deadline;
+    expect(stateOf()).toBe('failed');
+    // And the escape is reachable: Retry admits rather than refusing, which is
+    // what puts a real solve back on the wire and sweeps the dead seat.
+    expect(
+      instance.retry({
+        projectId: 'p-1',
+        objective: 'pri',
+        inputHash: key.inputHash,
+        input: INPUT,
+      }),
+    ).toMatchObject({ kind: 'accepted', state: 'retrying' });
+    await instance.drain();
   });
 
   it('kills and stores failure without releasing when bind transport has no terminal proof', async () => {

@@ -33,6 +33,7 @@ import {
   removeCalendarMarker as removeCalendarMarkerShape,
   removeStep as removeStepShape,
   renameStep as renameStepShape,
+  retryProjectOptimization as retryProjectOptimizationShape,
   undoProject as undoProjectShape,
   updateCalendarMarker as updateCalendarMarkerShape,
 } from '@wbs/contracts';
@@ -1280,6 +1281,18 @@ export interface ProjectApi {
   setDepReach(projectId: string, reach: DependencyReach): Promise<void>;
   /** Changes the project-wide optimizer flag or the schedule every collaborator sees. */
   setOptimizationSettings(projectId: string, patch: ProjectOptimizationPatch): Promise<void>;
+  /**
+   * Asks for one more solve of a variant that failed or came back corrupt.
+   *
+   * `inputHash` is the plan the caller was looking at, not a value be-01 can
+   * supply for itself: a Retry pressed against a stale screen must be refused
+   * rather than silently re-solving a plan that has since changed.
+   */
+  retryOptimization(
+    projectId: string,
+    objective: ScheduleObjectiveView,
+    inputHash: string,
+  ): Promise<void>;
   /** Puts the plan on a calendar, or `null` to take it off again. */
   setStartDate(projectId: string, startDate: string | null): Promise<void>;
   /**
@@ -1600,6 +1613,7 @@ const WBS_SHAPES = [
   removeCalendarMarkerShape,
   removeStepShape,
   renameStepShape,
+  retryProjectOptimizationShape,
   undoProjectShape,
   updateCalendarMarkerShape,
 ] as const;
@@ -1648,7 +1662,11 @@ export function wbsFailureCode(failure: ClientFailure): string {
 function problemCode(problem: WbsProblem): string {
   switch (problem.kind) {
     case 'refusal':
-      return problem.refusal.error;
+      // Every refusal in the app answered with `error` until the optimizer's
+      // Retry, whose 409 answers with `code` and the variant's `state`. Reading
+      // whichever discriminant is present keeps this the one place that has to
+      // know, rather than every screen.
+      return 'error' in problem.refusal ? problem.refusal.error : problem.refusal.code;
     case 'failure':
       return wbsFailureCode(problem.failure);
   }
@@ -2393,6 +2411,16 @@ export function httpProjectApi(token: string): ProjectApi {
         await client.patchApiProjectsById({
           params: { id: projectId },
           body: { depReach: reach },
+          headers: auth(token),
+        }),
+      );
+    },
+    async retryOptimization(projectId, objective, inputHash) {
+      jsonBody(
+        retryProjectOptimizationShape,
+        await client.postApiProjectsByIdOptimizationRetry({
+          params: { id: projectId },
+          body: { objective, inputHash },
           headers: auth(token),
         }),
       );
