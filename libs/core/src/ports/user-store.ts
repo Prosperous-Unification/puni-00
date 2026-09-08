@@ -1,3 +1,5 @@
+import type { OidcIdentity } from '@wbs/contracts';
+
 import type { WriteStamp } from './write-stamp';
 
 export interface User {
@@ -17,13 +19,6 @@ export interface UserStore {
   findById(id: string): Promise<User | null>;
 }
 
-interface OidcAccountIdentity {
-  issuer: string;
-  subject: string;
-  email: string | null;
-  emailVerified: boolean;
-}
-
 export interface OidcIdentityStore {
   /** Returns null when an existing email belongs to a different federated identity. */
   /**
@@ -33,7 +28,7 @@ export interface OidcIdentityStore {
    * sources for one value.
    */
   resolveOidcIdentity(
-    identity: OidcAccountIdentity,
+    identity: Pick<OidcIdentity, 'issuer' | 'subject' | 'email' | 'emailVerified'>,
     create: { id: string },
     stamp: WriteStamp,
   ): Promise<User | null>;

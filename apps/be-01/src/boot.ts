@@ -1,3 +1,4 @@
+import { buildOidcVerifier } from '@wbs/auth';
 import type { Logger } from '@wbs/observability';
 
 import { buildApp } from './app';
@@ -83,14 +84,7 @@ export function bootBe01(opts: BootOptions): RunningBe {
     gwUrl: opts.gwUrl,
     internalAuthSecret: opts.internalAuthSecret,
     pushFetch: globalThis.fetch,
-    oidc:
-      opts.oidc === undefined
-        ? undefined
-        : {
-            groupPrefix: opts.oidc.groupPrefix,
-            groupsClaim: opts.oidc.groupsClaim,
-            verifier: opts.oidc.verifier,
-          },
+    oidc: opts.oidc === undefined ? undefined : buildOidcVerifier(opts.oidc.verifier, opts.oidc),
     passwordSessions: opts.oidc !== undefined && opts.oidc.passwordLoginEnabled !== false,
     localIdentity: opts.localIdentity,
     optimizer: opts.optimizer,

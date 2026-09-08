@@ -1,4 +1,4 @@
-import type { OidcIdentityOptions, TokenVerifier } from '@wbs/auth';
+import { buildOidcVerifier, type OidcIdentityOptions, type TokenVerifier } from '@wbs/auth';
 
 import type { OidcIdentityStore, User, UserStore, WriteStamp } from '../repository';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
@@ -100,7 +100,7 @@ export function testAuthService(
     // would make `register` a claim about nothing.
     tokens: joseTokenCodec(TEST_JWT_KEY),
     passwords: bunPasswordHasher,
-    oidc,
+    oidc: oidc === undefined ? undefined : buildOidcVerifier(oidc.verifier, oidc),
     passwordSessions: oidc !== undefined,
   });
 }

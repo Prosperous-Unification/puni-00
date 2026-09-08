@@ -1,13 +1,5 @@
-import {
-  type OidcIdentity,
-  oidcIdentityFromClaims,
-  type OidcIdentityOptions,
-  type TokenVerifier,
-  type WbsScope,
-} from '@wbs/auth';
-import type { PasswordHasher, TokenCodec } from '@wbs/core';
-import type { Clock } from '@wbs/core';
-import { errors } from 'jose';
+import type { OidcIdentity, WbsScope } from '@wbs/contracts';
+import type { Clock, OidcVerifier, PasswordHasher, TokenCodec } from '@wbs/core';
 
 import type { OidcIdentityStore, User, UserStore } from '../repository';
 
@@ -26,7 +18,7 @@ export type LoginOutcome = { ok: true; value: SignedIn } | { ok: false; reason: 
 export interface AuthServiceOptions {
   users: UserStore;
   identities?: OidcIdentityStore;
-  oidc?: OidcIdentityOptions & { verifier: TokenVerifier };
+  oidc?: OidcVerifier;
   /** Accept locally issued password sessions after OIDC verification fails. */
   passwordSessions?: boolean;
   /** Fixed cookie-free identity used only by explicit non-production local mode. */
@@ -122,27 +114,21 @@ export class AuthService {
    * Verifies credentials, then resolves their account outside the credential catch.
    * Unexpected verifier and account-store failures propagate to the server boundary.
    *
-   * Proof: restoring the broad catches makes the mounted password lookup and OIDC
-   * resolution failure tests receive 401 instead of the expected 500 (R3).
+   * Proof: catching `resolveOidcIdentity` as invalid credentials made the mounted
+   * account-store outage receive 401 instead of 500
+   * (controller/oidc.integration.test.ts).
    */
   async authenticate(token: string | null): Promise<AuthenticatedUser | null> {
     if (this.opts.localIdentity !== undefined) return this.opts.localIdentity;
     if (token === null) return null;
     if (this.opts.oidc !== undefined) {
-      let identity: OidcIdentity | undefined;
-      try {
-        identity = oidcIdentityFromClaims(
-          await this.opts.oidc.verifier.verify(token),
-          this.opts.oidc,
-        );
-      } catch (cause) {
-        // Proof: removing this rethrow makes the mounted unexpected-verifier
-        // regression receive 401 rather than 500. The real boot outage cases also
-        // receive 401 (password login off) and 200 (on), rather than 500.
-        if (!isInvalidCredential(cause)) throw cause;
+      const identity = await this.opts.oidc.verify(token);
+      if (identity === null) {
+        // Proof: falling through while password sessions were disabled made the
+        // literal fallback test authenticate the legacy account instead of null
+        // (auth-service-null-password.test.ts).
         if (this.opts.passwordSessions !== true) return null;
-      }
-      if (identity !== undefined) {
+      } else {
         const user = await this.resolveOidcIdentity(identity);
         if (user === null) return null;
         return { id: user.id, username: user.username, scopes: identity.scopes };
@@ -192,16 +178,3 @@ export class AuthService {
  */
 const DUMMY_HASH =
   '$argon2id$v=19$m=65536,t=2,p=1$YWJjZGVmZ2hpamtsbW5vcA$0RTS8ZC+9Bfl7Bx4rvGIYYqEs0mfOB5+3H4mPa0BvXk';
-
-/** Credential failures only; malformed JWKS, discovery and network faults propagate. */
-function isInvalidCredential(cause: unknown): boolean {
-  return (
-    cause instanceof errors.JWTClaimValidationFailed ||
-    cause instanceof errors.JWTExpired ||
-    cause instanceof errors.JWTInvalid ||
-    cause instanceof errors.JWSInvalid ||
-    cause instanceof errors.JWSSignatureVerificationFailed ||
-    cause instanceof errors.JOSEAlgNotAllowed ||
-    cause instanceof errors.JWKSNoMatchingKey
-  );
-}

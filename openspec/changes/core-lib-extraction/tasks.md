@@ -113,7 +113,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
       their production callers. Run `core:typecheck`, `runtime-portable:typecheck`,
       `be-01:typecheck` and touched lint targets after the cross-project move.
 
-- [ ] 2.2b.4 **Put OIDC failure classification behind its port (C4).** Add
+- [x] 2.2b.4 **Put OIDC failure classification behind its port (C4).** Add
       `core/ports/oidc-verifier.ts` and contract identity value types. The `@wbs/auth`
       adapter owns today's exact invalid-credential classification and returns null only
       for those cases. `AuthService` takes `OidcVerifier`; account lookup remains outside

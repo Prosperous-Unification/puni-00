@@ -1,5 +1,4 @@
 import { expect, it } from 'bun:test';
-import { errors } from 'jose';
 
 import type { UserStore } from '../repository';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
@@ -108,7 +107,7 @@ it('never feeds an unbounded login password into the expensive verifier', async 
   expect(verified[0]?.hash).not.toBe('real-hash');
 });
 
-it('rejects legacy HS256 sessions after OIDC mode is configured', async () => {
+it('falls back from invalid OIDC only when password sessions are enabled', async () => {
   const legacyUser = {
     id: 'legacy',
     username: 'legacy',
@@ -133,17 +132,28 @@ it('rejects legacy HS256 sessions after OIDC mode is configured', async () => {
   const login = await legacy.login('legacy', 'legacy-password');
   if (!login.ok) throw new Error('legacy fixture did not issue a token');
 
-  const oidc = new AuthService({
+  const invalidOidc = { verify: () => Promise.resolve(null) };
+  const oidcOnly = new AuthService({
     clock: testClock,
     users,
     tokens: joseTokenCodec(key),
     passwords: bunPasswordHasher,
-    oidc: {
-      groupPrefix: 'dev',
-      groupsClaim: 'wbs_groups',
-      verifier: { verify: () => Promise.reject(new errors.JOSEAlgNotAllowed('not an OIDC token')) },
-    },
+    oidc: invalidOidc,
+    passwordSessions: false,
+  });
+  const oidcWithPasswordFallback = new AuthService({
+    clock: testClock,
+    users,
+    tokens: joseTokenCodec(key),
+    passwords: bunPasswordHasher,
+    oidc: invalidOidc,
+    passwordSessions: true,
   });
 
-  expect(await oidc.authenticate(login.value.token)).toBeNull();
+  expect(await oidcOnly.authenticate(login.value.token)).toBeNull();
+  expect(await oidcWithPasswordFallback.authenticate(login.value.token)).toEqual({
+    id: 'legacy',
+    username: 'legacy',
+    scopes: ['read', 'write', 'editor'],
+  });
 });

@@ -24,6 +24,7 @@ export * from './ports/directory-store';
 export * from './ports/estimate-store';
 export type { EventLogStore, RecordedEvent } from './ports/event-log-store';
 export * from './ports/measure-store';
+export type { OidcVerifier } from './ports/oidc-verifier';
 export * from './ports/plan-event-store';
 export * from './ports/priority-band-store';
 export * from './ports/progress-store';

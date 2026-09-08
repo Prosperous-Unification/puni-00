@@ -129,6 +129,22 @@ coverage case on `Expected to contain: "libs/contracts/solver/supervisor-protoco
 - The existing deadline proof cases still cover a timeout during fetch, a delayed timer
   after fetch settles, and cleanup after completion.
 
+## Slice 2.2b.4 — OIDC verifier boundary
+
+- The four service/controller/identity files: **71 pass / 0 fail**; `boot.db.test.ts`:
+  **13 pass / 0 fail** with its required ephemeral localhost sockets.
+- `bun test` in `libs/auth`: **95 pass / 0 fail**, including the real local JWKS adapter.
+- `bun run test:unit`: **897 pass / 1 intentional skip / 0 fail** in `be-01`, then
+  all seven library test targets green.
+- Contracts, core, auth and `be-01` typechecks: clean. ESLint and Prettier over every
+  touched target: clean.
+- Returning null for a discovery outage failed the mounted verifier-outage case on
+  `Expected: 500 · Received: 401`.
+- Catching account resolution as an invalid credential failed its mounted outage case on
+  `Expected: 500 · Received: 401`.
+- Falling back while password sessions were disabled failed the literal service case:
+  expected null, received the authenticated `legacy` account.
+
 ## Gate
 
 | Command | When | Result |
