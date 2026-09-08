@@ -32,9 +32,6 @@ export const TIERS: readonly Tier[] = ['be', 'gw', 'fe'];
  * every reader of this type.
  */
 export type Color = 'blue' | 'green';
-export { writeAtomic } from './atomic';
-export { withLock } from './lock';
-export { decodeSolverSupervisorConfig } from './solver-supervisor-config';
 
 /** The app name a tier is known by, independent of colour. */
 export const APP_NAME: Record<Tier, string> = { be: 'be-01', gw: 'gw-01', fe: 'fe-01' };
@@ -104,6 +101,9 @@ export function bundleFilesFor(root: string): BundleFile[] {
   return BUNDLE_FILES.map((file) => ({ local: file.local, remote: `${root}${file.remote}` }));
 }
 
+export { writeAtomic } from './atomic';
+export { withLock } from './lock';
+export { decodeSolverSupervisorConfig } from './solver-supervisor-config';
 export {
   SOLVER_SUPERVISOR_BUN,
   SOLVER_SUPERVISOR_BUNDLE,

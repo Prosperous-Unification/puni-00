@@ -26,7 +26,13 @@ import { $ } from 'bun';
 
 import { prepareTargetSolverBinding } from './solver-binding-host';
 import { createTargetSolverBindingRuntime } from './solver-binding-runtime';
-import { type SolverBindingTarget, solverCompatibilityIdentityAt } from './solver-preparation';
+import {
+  SOLVER_COMPATIBILITY_PATHS,
+  type SolverBindingTarget,
+  solverCompatibilityIdentityAt,
+} from './solver-preparation';
+
+export { SOLVER_COMPATIBILITY_PATHS };
 
 const SRC = '/home/puni1/wbs-dev/src';
 const CONTAINER = 'wbs-dev-src';
@@ -35,7 +41,6 @@ const CONFIG_MAX_BYTES = 256 * 1024;
 const PREPARATION_STATE_MAX_BYTES = 64 * 1024;
 const TARGET_ROOT = resolve(import.meta.dir, '../../..');
 export const LOCK_BUSY_EXIT_CODE = 75;
-export const SOLVER_COMPATIBILITY_PATHS = ['libs/solver-py', 'apps/be-01/Dockerfile'] as const;
 
 export interface DevSolverMapping {
   sourceSha: string;

@@ -63,6 +63,9 @@ export function decodePublishedSolverImage(bytes: Uint8Array, sourceSha: string)
   if (Object.keys(manifest).some((key) => key !== 'be')) {
     throw new Error('solver publish manifest contains a non-backend tier');
   }
+  if (!Object.hasOwn(manifest, 'be')) {
+    throw new Error('solver publish manifest is missing its be entry');
+  }
   const entry = recordOf(manifest['be'], 'solver publish manifest be entry');
   if (entry['sha'] !== sourceSha) {
     throw new Error('solver publish manifest source SHA does not match target');
@@ -126,7 +129,11 @@ export function decodeInstalledProdImages(bytes: Uint8Array): InstalledProdImage
     }
     const callerImage = matches[0]?.['callerImage'];
     const solverImage = matches[0]?.['solverImage'];
-    if (typeof callerImage !== 'string' || callerImage !== solverImage) {
+    if (
+      typeof callerImage !== 'string' ||
+      !DIGEST_PINNED_IMAGE.test(callerImage) ||
+      callerImage !== solverImage
+    ) {
       throw new Error(`installed ${callerName} solver image must equal its caller image`);
     }
     return callerImage;

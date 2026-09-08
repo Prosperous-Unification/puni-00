@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'bun:test';
 
+import { SOLVER_COMPATIBILITY_PATHS as PREPARATION_PATHS } from './solver-preparation';
 import {
   assertDevSolverSourceCompatible,
   assertMcpEnv,
@@ -32,6 +33,10 @@ function solverConfigBytes(sourceSha: string): Uint8Array {
 }
 
 describe('needsRestart', () => {
+  it('uses the same solver path identity for detection and preparation', () => {
+    expect(SOLVER_COMPATIBILITY_PATHS).toBe(PREPARATION_PATHS);
+  });
+
   it('does not restart when nothing in the manifest changed', () => {
     expect(needsRestart({ 'bun.lock': 'a' }, { 'bun.lock': 'a' })).toBe(false);
   });
