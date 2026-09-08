@@ -98,3 +98,14 @@ Independent gateway review approved the scoped implementation with no findings (
 ## Gateway independent review
 
 Parent reported independent R9 gateway review approved with no findings. Task3.4 is complete; task4.1 remains pending for parent integration and frozen full gates. This worker commit records the reviewed implementation and scoped evidence, without claiming a full workspace or browser gate.
+
+## Archive reconciliation
+
+2026-09-08, archive branch based on merged `main` at `5516d453`:
+
+- Fresh restored backend scope, including both real Bun loopback cancellation cases: 73 pass, 0 fail, 218 assertions across 7 files. The sandbox run first produced two `EADDRINUSE` listener denials; those were not counted. The authorized listener run passed both held-header and held-body transport cases.
+- `bunx nx run-many -t test --projects=gw-01,runtime-portable --skip-nx-cache`: both targets passed. The immediately preceding direct gateway/contracts run on the same source passed 504 tests; runtime-portable's own target passed here.
+- `bunx nx run-many -t typecheck,lint --projects=be-01,gw-01,runtime-portable --skip-nx-cache`: all six targets passed with cache skipped. An earlier sandbox fallback that printed no target execution was discarded rather than counted.
+- Current-main CI run 34272524792 at exact SHA `5516d4531f7fb46f4b07be4f7a41c421fb3efc75`: workspace gate passed; Chromium shards 1, 2 and 4 passed initially. Shard 3 first failed in the separately merged scheduler cue fixture on `APIResponse.json: Response has been disposed`; its exact local case passed, then the same-head failed-job rerun passed shard 3 and the browser aggregate. All four shards and the aggregate are green on the exact integrated tree.
+- Independent backend and gateway reviews were already approved with no remaining findings. All recorded faults were restored before these runs. Production remains explicitly configured at 5,000ms per attempt and 15,000ms overall, no delivery worker was introduced, and synchronous event-loop stalls remain outside timer preemption.
+- OpenSpec strict validation, exact delta/main heading comparison, formatting and `git diff --check` are rerun during archive sync.

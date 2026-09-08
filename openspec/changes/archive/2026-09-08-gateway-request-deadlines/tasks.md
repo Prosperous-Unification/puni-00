@@ -26,4 +26,4 @@
 
 ## 4. Completion
 
-- [ ] 4.1 Parent frozen full gates, structural OpenSpec verification, fresh restoration results, review and commit. Every new check has actual failing fault output and adjacent Proof derived from it. Record no worker introduced, production budget values, genuine transport observations and any remaining limitation; no completion claim from finite attempt count alone.
+- [x] 4.1 Parent frozen full gates, structural OpenSpec verification, fresh restoration results, review and commit. Every new check has actual failing fault output and adjacent Proof derived from it. Record no worker introduced, production budget values, genuine transport observations and any remaining limitation; no completion claim from finite attempt count alone.

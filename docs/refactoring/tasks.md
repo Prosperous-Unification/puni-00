@@ -155,7 +155,7 @@ archive's original evidence limits. The bounded order is:
 - [x] **A6 — R6 [`project-assignment-reads`](../../openspec/changes/archive/2026-09-08-project-assignment-reads/tasks.md)**: reconciled open 1.4's touched checks and
       parent report before syncing its distinct capability.
 - [x] **A7 — R8 [`bounded-replay-sweep`](../../openspec/changes/archive/2026-09-08-bounded-replay-sweep/tasks.md)**: reconciled 4/4 and synced its distinct capability.
-- [ ] **A8 — R9 `gateway-request-deadlines`**: reconcile open 4.1's integrated full gates,
+- [x] **A8 — R9 [`gateway-request-deadlines`](../../openspec/changes/archive/2026-09-08-gateway-request-deadlines/tasks.md)**: reconciled open 4.1's integrated full gates,
       restoration evidence, OpenSpec validation and independent review before sync.
 - [ ] **A9 — R1 `plan-refresh`**: map or collect the actual 5.2 real-browser peer/marker
       scenario evidence, then reconcile 5.4 full gates and 5.5b merged integration record.
