@@ -33,6 +33,7 @@ export const TIERS: readonly Tier[] = ['be', 'gw', 'fe'];
  */
 export type Color = 'blue' | 'green';
 export { writeAtomic } from './atomic';
+export { withLock } from './lock';
 export { decodeSolverSupervisorConfig } from './solver-supervisor-config';
 
 /** The app name a tier is known by, independent of colour. */

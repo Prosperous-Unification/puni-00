@@ -6,10 +6,9 @@ import {
   SOLVER_SUPERVISOR_CONFIG,
   SOLVER_SUPERVISOR_SERVICE,
   SOLVER_SUPERVISOR_SOCKET,
+  withLock,
   writeAtomic,
 } from '@wbs/deploy-contract';
-
-import { withLock } from '../../tool-remote-scripts/src/lib/lock';
 
 import type { TargetSolverBindingDependencies } from './solver-binding-host';
 
