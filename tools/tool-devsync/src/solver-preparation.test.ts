@@ -417,9 +417,9 @@ describe('solver binding retries', () => {
     };
     const target = { sourceSha: SOURCE_SHA, compatibilityIdentity: IDENTITY };
 
-    expect(await rejection(resumeSolverBindingBeforeReset(target, undefined, dependencies))).toContain(
-      'install interrupted',
-    );
+    expect(
+      await rejection(resumeSolverBindingBeforeReset(target, undefined, dependencies)),
+    ).toContain('install interrupted');
     expect(checkpoints).toEqual([{ ...STATE, phase: 'published' }]);
     expect(events).not.toContain('reset');
 
