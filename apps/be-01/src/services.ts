@@ -11,7 +11,7 @@ import type { Drizzle } from './repository/db';
 import { DependencyRepository } from './repository/dependency';
 import { DirectoryRepository } from './repository/directory';
 import { EstimateRepository } from './repository/estimate';
-import { DrizzleEventLogRepo } from './repository/event-log';
+import { DrizzleEventLogStore } from './repository/event-log';
 import { type Gate, OPEN, type WriteCoordinator } from './repository/gate';
 import { PlanEventRepository } from './repository/plan-event';
 import { PriorityBandRepository } from './repository/priority-band';
@@ -155,7 +155,7 @@ export function buildStores(db: Drizzle, gate: Gate) {
     capacity: new CapacityRepository(db, gate),
     priorityBands: new PriorityBandRepository(db, gate),
     calendarMarkers: new CalendarMarkerRepository(db, gate),
-    eventLog: new DrizzleEventLogRepo(db, gate),
+    eventLog: new DrizzleEventLogStore(db, gate),
     planEvents: new PlanEventRepository(db, gate),
     steps: new StepRepository(db, gate),
     workItems: new WorkItemRepository(db, gate),

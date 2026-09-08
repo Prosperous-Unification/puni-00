@@ -13,7 +13,7 @@ import { openDrizzle } from '../repository/db';
 import { DependencyRepository } from '../repository/dependency';
 import { DirectoryRepository } from '../repository/directory';
 import { EstimateRepository } from '../repository/estimate';
-import { DrizzleEventLogRepo } from '../repository/event-log';
+import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN, WriteCoordinator } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
 import { PriorityBandRepository } from '../repository/priority-band';
@@ -79,7 +79,7 @@ let ownerId: string;
 let hold: ReturnType<typeof suspension>;
 let coordinator: WriteCoordinator;
 let publicDirectory: DirectoryRepository;
-let publicEventLog: DrizzleEventLogRepo;
+let publicEventLog: DrizzleEventLogStore;
 let publicProjects: ProjectRepository;
 
 beforeEach(async () => {
@@ -99,7 +99,7 @@ beforeEach(async () => {
   // The route's do, which is the whole subject of this file.
   stepStore = new StepRepository(db, coordinator);
   publicDirectory = new DirectoryRepository(db, coordinator);
-  publicEventLog = new DrizzleEventLogRepo(db, coordinator);
+  publicEventLog = new DrizzleEventLogStore(db, coordinator);
   publicProjects = new ProjectRepository(db, coordinator);
   const broadcast = recordingBroadcaster();
 

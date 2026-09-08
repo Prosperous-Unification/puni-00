@@ -98,18 +98,22 @@ does not wait for the turn its batch holds`: a `run` whose act writes through
 
 ## 3b. The event log and the history that is not in the batch
 
-- [ ] 3.3 `EventLogStore` replaces `EventLogRepo`, and `recordEventIn(tx)` loses its drizzle
-      transaction parameter: the batch records through `scope.stores.eventLog`, replay and
-      retention read and prune through the public gated store. The `EventLogTransaction` type
-      is deleted — it is drizzle's shape in a port's signature.
-- [ ] 3.4 `Stores`, `TransactionalStores` and `HistoryStores` in `repository/index.ts` as the
+- [x] 3.3 `EventLogStore` replaces `EventLogRepo` and joins `TransactionalStores`, so a batch
+      records through `scope.stores.eventLog` while replay and retention read and prune through
+      the public gated copy. **`recordEventIn(tx)` stays**, and says why at the declaration:
+      its one caller is the optimizer's `storeOptimizedOutcomeAndRecord`, which writes a solver
+      result and its replay record as one act on its own transaction, and moving that onto the
+      unit of work is `dual-optimized-scheduler`'s slice by the Wave 0 gate. `EventLogTransaction`
+      goes with it, not before it.
+- [x] 3.4 `Stores`, `TransactionalStores` and `HistoryStores` in `repository/index.ts` as the
       D22 composition; `Scope` carries the transactional subset only, so a command cannot
       enlist a saved plan. Type-level negative: a `scope.stores.savedPlans` reference must fail
       `tsc`, watched at the line it names.
-- [ ] 3.5 **Case (j).** A saved plan written while a batch is suspended either succeeds without
+- [x] 3.5 **Case (j).** A saved plan written while a batch is suspended either succeeds without
       waiting or reports `snapshot_busy`, and a successful save is still there after the batch
-      commits **and** after it rolls back. The memory negative puts the history tables back
-      inside the swapped clone and must lose the save on commit.
+      commits **and** after it rolls back — both arms, in
+      `saved-plan-in-transaction.db.test.ts`. The memory negative (history put back inside the
+      swapped clone) waits for slice 5, where a memory source exists to break.
 
 ## 4. What a broken reference means, said by the method it happened in
 
