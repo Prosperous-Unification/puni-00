@@ -104,6 +104,16 @@ async function boxOf(page: Page, selector: string): Promise<DOMRect> {
 }
 
 test.describe('the schedule cue, in a browser', () => {
+  test.afterEach(async ({ page }) => {
+    // A PATCH can start a plan read after the final request assertion. Drain its
+    // handler before context teardown disposes the response; do not ignore errors.
+    // Proof: pause 1s between fetch and json, end the request case once that read
+    // enters, and keep the worker alive 1.5s in afterAll. Without this drain it
+    // failed on `apiResponse.json: Response has been disposed`; with it, it passed.
+    // The temporary delay, read counter and afterAll probe were then removed.
+    await page.unrouteAll({ behavior: 'wait' });
+  });
+
   test('stands inside the toolbar row and takes the saving with it', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await planWithACue(page);
