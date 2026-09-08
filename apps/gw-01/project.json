@@ -46,6 +46,15 @@
       "options": {
         "command": "bunx tsc --build --force apps/gw-01/tsconfig.json"
       }
+    },
+    "serve-local-solver": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "options": {
+        "command": "bun --watch src/main.ts",
+        "cwd": "apps/gw-01"
+      },
+      "cache": false
     }
   }
 }

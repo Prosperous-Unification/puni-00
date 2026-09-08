@@ -1164,6 +1164,11 @@ could run. It is the only floor that names a choice rather than a constraint, an
 `projectStart` it carries no capacity predecessors and no binding team.
 _Avoid_: idle, slack, deliberate delay
 
+**Local solver**:
+The WBS solver run as a child process of be-01 on a development machine, with reduced
+resource and lifetime guarantees. A development-only alternative to the solver supervisor.
+_Avoid_: direct solver, direct optimizer, unsupervised solver, embedded solver
+
 **Solver quantum**:
 `SOLVER_QUANTUM = 48`, the number of integer solver units in one workday. It exists because
 Fast's durations are genuinely fractional — a width-two one-day slice is 0.5 workdays — and
