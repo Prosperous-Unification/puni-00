@@ -257,7 +257,7 @@ describe('project optimization in the plan', () => {
       // this menu is open and being read.
       fireEvent.click(screen.getByRole('button', { name: /is the active schedule/ }));
       expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
-        'Fast · 10 days',
+        '✓ Fast · 10 days',
         'PRI · Plan infeasible · 1 Work item deadline',
         'Time · Optimizing…',
       ]);

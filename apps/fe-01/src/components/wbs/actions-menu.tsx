@@ -4,6 +4,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -37,19 +38,28 @@ export interface MenuAction {
   refusedBecause?: string;
 }
 
-export interface MenuControlProps {
+/**
+ * The words a trigger explains itself with — exactly one of the two kinds.
+ *
+ * `data-hint` is about **what the control does** and waits behind a ring;
+ * `data-fact` is about **the thing on screen** and opens at once
+ * (`tool-hints-wait` is the change that split them, and `hint.ts` holds both
+ * attributes). A row's ⋯ is a hint; the schedule cue is a fact, because what
+ * it explains is the project's own state rather than the button's job.
+ *
+ * A union rather than two optional fields, so a trigger cannot carry both:
+ * `HintLayer` resolves a node with both to the fact and the hint would be
+ * words nothing draws.
+ */
+export type MenuControlWords =
+  { 'data-hint': string; 'data-fact'?: never } | { 'data-fact': string; 'data-hint'?: never };
+
+interface MenuControlBase {
   /**
    * The accessible name of the trigger **and** of the menu it opens — one name
    * for both, because they are one control.
    */
   name: string;
-  /**
-   * The trigger's hint, which is not its name: `Row actions` on a ⋯.
-   *
-   * `data-hint` and not `title`, because a `title` is the browser's tooltip and
-   * this app draws its own — see {@link HintLayer}.
-   */
-  'data-hint': string;
   /** What the trigger shows — a glyph, a word, an icon. */
   children: ReactNode;
   actions: readonly MenuAction[];
@@ -78,6 +88,8 @@ export interface MenuControlProps {
   align?: 'left' | 'right';
 }
 
+export type MenuControlProps = MenuControlBase & MenuControlWords;
+
 /**
  * The box the items sit in.
  *
@@ -93,6 +105,45 @@ export interface MenuControlProps {
  * A toolbar control is nowhere near an edge and hangs from its `left` instead,
  * so the items line up under the word that opened them.
  */
+/** How much clear air a clamped menu keeps between itself and the window edge. */
+const GUTTER_PX = 8;
+
+/**
+ * How far a menu has to move sideways to stay on screen, in CSS px.
+ *
+ * Negative pulls it left, positive right, zero leaves it where its `align`
+ * put it. Pure, and separate from the component for the reason every
+ * measurement in this app is: the numbers come from `getBoundingClientRect`,
+ * which jsdom answers with zeroes, so the arithmetic can only be asserted where
+ * it is handed the figures. That the shift is really applied is a browser fact
+ * and is asserted in `e2e/optimization-cue.spec.ts`.
+ *
+ * **The fault it exists for, measured.** The schedule cue is the last control
+ * in the plan toolbar, and on a window wide enough not to wrap that row the
+ * pill stands at its right end: at 1600 the pill was at x=1400 and its 359px
+ * box of items ran to 1759 — 159px of menu off the side of the screen, with no
+ * way to read or reach the items on it (Dany, 2026-09-08). A menu that hangs
+ * from `left: 0` cannot know that; only its own rectangle can say it.
+ *
+ * A box wider than the window it is in is pulled to the near gutter and clipped
+ * at the far one rather than centred: the first item is the one a reader needs,
+ * and `min` with the room actually available is what keeps the fix from
+ * creating the opposite fault.
+ */
+export function menuShift(box: { left: number; right: number }, viewportWidth: number): number {
+  const overRight = box.right - (viewportWidth - GUTTER_PX);
+  const overLeft = GUTTER_PX - box.left;
+  if (overRight > 0) {
+    // Negated only when there is something to move, so a box already at the
+    // gutter answers `0` rather than `-0` — which is a different value to
+    // `Object.is`, and would reach the DOM as `translateX(-0px)`.
+    const move = Math.min(overRight, Math.max(0, box.left - GUTTER_PX));
+    return move === 0 ? 0 : -move;
+  }
+  if (overLeft > 0) return Math.min(overLeft, Math.max(0, viewportWidth - GUTTER_PX - box.right));
+  return 0;
+}
+
 const menuBox = (align: 'left' | 'right'): CSSProperties => ({
   position: 'absolute',
   top: '100%',
@@ -158,6 +209,7 @@ const ITEM: CSSProperties = {
 export function MenuControl({
   name,
   'data-hint': hint,
+  'data-fact': fact,
   children,
   actions,
   open,
@@ -177,6 +229,28 @@ export function MenuControl({
   usePageShortcutsSuspended(open);
 
   const button = useRef<HTMLButtonElement | null>(null);
+  const items = useRef<HTMLDivElement | null>(null);
+  /**
+   * How far this menu has been moved to keep it on screen — see {@link
+   * menuShift}.
+   *
+   * Measured on every opening rather than once: the pill it hangs from is in a
+   * toolbar that wraps, so the same control stands at the right edge of a wide
+   * window and in the middle of a narrow one.
+   */
+  const [shift, setShift] = useState(0);
+  useLayoutEffect(() => {
+    if (!open) {
+      setShift(0);
+      return;
+    }
+    // Narrowing rather than a guard: a layout effect runs on a mounted tree and
+    // this branch only runs while the box is rendered. jsdom answers zeroes,
+    // which is a shift of zero and leaves every existing case unchanged.
+    const box = items.current?.getBoundingClientRect();
+    if (box === undefined) return;
+    setShift(menuShift({ left: box.left, right: box.right }, window.innerWidth));
+  }, [open]);
   /** The rendered items, in order, so the one that is active can be focused. */
   const itemElements = useRef<(HTMLButtonElement | null)[]>([]);
   /** Which item holds the focus while the menu is open — the roving tab stop. */
@@ -286,6 +360,7 @@ export function MenuControl({
         aria-haspopup="menu"
         aria-expanded={open}
         data-hint={hint}
+        data-fact={fact}
         onClick={() => {
           if (open) {
             onClose();
@@ -317,7 +392,18 @@ export function MenuControl({
         {children}
       </button>
       {open && (
-        <div role="menu" aria-label={name} style={menuBox(align)}>
+        <div
+          ref={items}
+          role="menu"
+          aria-label={name}
+          style={{
+            ...menuBox(align),
+            // Measured **after** the box is laid out at its own place, so the
+            // rectangle the shift is computed from is the unshifted one; a
+            // second pass would otherwise chase its own correction.
+            ...(shift === 0 ? {} : { transform: `translateX(${String(shift)}px)` }),
+          }}
+        >
           {actions.map((action, at) => (
             <button
               key={action.id}

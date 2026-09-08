@@ -2,7 +2,7 @@ import { cleanup, createEvent, fireEvent, render, screen } from '@testing-librar
 import { useState } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { ActionsMenu, type MenuAction } from './actions-menu';
+import { ActionsMenu, type MenuAction, menuShift } from './actions-menu';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -67,6 +67,35 @@ function twoActions(taken: string[]): MenuAction[] {
 
 const menuButton = (): HTMLElement => screen.getByRole('button', { name: 'Actions for 020' });
 const items = (): HTMLElement[] => screen.getAllByRole('menuitem');
+
+/**
+ * The sideways clamp, asserted where the figures can be handed to it.
+ *
+ * jsdom lays nothing out — every rectangle is zeroes — so the component cannot
+ * be observed shifting anything here. This is the arithmetic; that the shift is
+ * really applied to a real box is `e2e/optimization-cue.spec.ts`'s, against the
+ * 1600px window where the fault was measured.
+ */
+describe('menuShift', () => {
+  it.each([
+    ['a box with room on both sides stays put', { left: 400, right: 759 }, 1600, 0],
+    ['the schedule cue at 1600, measured', { left: 1400, right: 1759 }, 1600, -167],
+    ['a box exactly on the gutter stays put', { left: 100, right: 1592 }, 1600, 0],
+    ['one pixel past it moves one pixel', { left: 100, right: 1593 }, 1600, -1],
+    ['a box hanging off the left is pushed right', { left: -20, right: 300 }, 1600, 28],
+  ] as const)('%s', (_what, box, viewportWidth, expected) => {
+    expect(menuShift(box, viewportWidth)).toBe(expected);
+  });
+
+  it('pulls a box wider than the window to the near gutter and no further', () => {
+    // 500px of items in a 390px phone: the first item is the one a reader
+    // needs, so the box is clipped on the far side rather than centred.
+    expect(menuShift({ left: 16, right: 516 }, 390)).toBe(-8);
+    // And the same box already at the gutter cannot move at all, rather than
+    // being pushed off the left edge to satisfy the right one.
+    expect(menuShift({ left: 8, right: 508 }, 390)).toBe(0);
+  });
+});
 
 describe('the row actions menu', () => {
   itDom('says what it is before anything is pressed', () => {

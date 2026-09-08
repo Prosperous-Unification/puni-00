@@ -40,6 +40,15 @@ export const OBJECTIVE_SENTENCE: Readonly<Record<ScheduleObjectiveView, string>>
 /** What the unoptimized schedule is called, on a control and in a sentence alike. */
 export const FAST_LABEL = 'Fast';
 
+/**
+ * What a comparison against a plan that may have moved says instead of a figure.
+ *
+ * The shipped indicator's own words, and one constant because the sentence and
+ * the fact card both say it: a plan whose rows may be behind what be-01 holds
+ * has no comparison worth showing, and a wrong figure is worse than none.
+ */
+export const STALE_WORDS = 'Schedule comparison unavailable while this plan may be stale';
+
 /** A day count without solver-scale float noise, and never a bare `0`. */
 export function days(value: number): string {
   const absolute = Math.abs(value);

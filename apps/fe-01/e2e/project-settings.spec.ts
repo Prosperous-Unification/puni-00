@@ -260,27 +260,22 @@ test.describe('the project settings control, in a browser', () => {
     // the text of its live region both.
     await expect(cue).toContainText('Finish-first: Plan infeasible · 1 Work item deadline');
 
-    // By keyboard, and the focus is the whole of it: the reading opens on focus
-    // as well as on hover, so a phone reader who has tabbed to the pill gets
-    // the same words as one who pointed at it — and `aria-describedby` is what
-    // hands them over.
-    const disclosure = page.getByRole('button', { name: /is the active schedule/ });
-    await disclosure.focus();
-    // The cue's card and not the hint layer's, which draws a `role="tooltip"`
-    // of its own from this pill's `data-hint`.
-    const card = page.locator('[role="tooltip"]:not(#hint-card)');
+    // By keyboard, and the focus is the whole of it: `HintLayer` opens the same
+    // card from `focusin`, with no wait of either kind and no cursor to put a
+    // ring beside, so a phone reader who has tabbed to the pill gets the same
+    // words as one who pointed at it.
+    const pill = page.getByRole('button', { name: /is the active schedule/ });
+    await pill.focus();
+    const card = page.locator('#hint-card');
     await expect(card).toBeVisible();
-    // A list, not one id: `HintLayer` appends its own `hint-card` to whatever
-    // the focused element already pointed at (measured 2026-09-08).
-    const described = (await disclosure.getAttribute('aria-describedby'))?.split(/\s+/) ?? [];
-    expect(described).toContain(await card.getAttribute('id'));
-    await expect(page.getByText(/Work item deadline 11 Sep/).first()).toBeVisible();
-
-    const affectedItem = card
-      .locator('[data-cue-unmeetable]')
-      .filter({ hasText: longWorkItemName });
-    await expect(affectedItem).toBeVisible();
-    const overflow = await affectedItem.evaluate((element) => ({
+    const described = (await pill.getAttribute('aria-describedby'))?.split(/\s+/) ?? [];
+    expect(described).toContain('hint-card');
+    // The row's own name is in the card, with the work item deadline it cannot
+    // meet — this row's name being 192 characters of one unbroken token, which
+    // is what a card has to be able to wrap.
+    await expect(card).toContainText(longWorkItemName);
+    await expect(card).toContainText('Work item deadline 11 Sep');
+    const overflow = await card.evaluate((element) => ({
       clientWidth: element.clientWidth,
       scrollWidth: element.scrollWidth,
       documentWidth: document.documentElement.scrollWidth,

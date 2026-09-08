@@ -66,7 +66,7 @@ The plan read SHALL carry the Fast schedule's project finish in days for the exa
 
 ### Requirement: The comparison is one small cue, and it suggests only an earlier deadline
 
-While optimization is ON the plan SHALL carry exactly one compact cue in the toolbar row, naming the active schedule and the state of the computed variants, and SHALL NOT render a full-width banner, a toast or a modal for any of it. When a `ready` variant's project deadline is earlier by more than the shared workday drift than that of **the schedule currently displayed**, the cue SHALL name that variant and the days it saves and SHALL offer switching to it. Against the displayed schedule and not against Fast, because the reader is being asked to change what is on their screen: with a Priority-first schedule displayed three days ahead of Fast, a Finish-first one a single day ahead of Fast is a regression, and offering it against Fast's figure would be the cue talking about a schedule nobody is looking at. Every _reported_ comparison stays against Fast, so the three rows are read against one reference. A variant that reaches the same project deadline in a different order SHALL be reported without being offered as an improvement, and a variant that finishes later SHALL be reported without being suggested. Every reported comparison SHALL name the deadline it means, because the schedule's project finish date and `work_item.deadline` are both live and an unqualified "deadline" cannot say which it is (`work-item-deadline` 8.9/8.9b). Switching SHALL be offered only where a settings writer is present, because `schedule_engine` and `schedule_objective` are project-wide: one reader's switch moves every collaborator's plan. The failure, retry and plan-infeasible words the requirements below name SHALL live on this cue's own surfaces — its hover card for the reading, its menu for the Retry action — and a hover surface SHALL NOT be the only home of an action, because it takes no pointer.
+While optimization is ON the plan SHALL carry exactly one compact cue in the toolbar row, naming the active schedule and the state of the computed variants, and SHALL NOT render a full-width banner, a toast or a modal for any of it. When a `ready` variant's project deadline is earlier by more than the shared workday drift than that of **the schedule currently displayed**, the cue SHALL name that variant and the days it saves and SHALL offer switching to it. Against the displayed schedule and not against Fast, because the reader is being asked to change what is on their screen: with a Priority-first schedule displayed three days ahead of Fast, a Finish-first one a single day ahead of Fast is a regression, and offering it against Fast's figure would be the cue talking about a schedule nobody is looking at. Every _reported_ comparison stays against Fast, so the three rows are read against one reference. A variant that reaches the same project deadline in a different order SHALL be reported without being offered as an improvement, and a variant that finishes later SHALL be reported without being suggested. Every reported comparison SHALL name the deadline it means, because the schedule's project finish date and `work_item.deadline` are both live and an unqualified "deadline" cannot say which it is (`work-item-deadline` 8.9/8.9b). Switching SHALL be offered only where a settings writer is present, because `schedule_engine` and `schedule_objective` are project-wide: one reader's switch moves every collaborator's plan. The failure, retry and plan-infeasible words the requirements below name SHALL be reachable from this cue: the **reading** SHALL be published as a project fact on the cue itself — opening at once and behind no wait ring, because it describes the project rather than what a control does — and SHALL carry every row's figures, its comparison, its state, the work item deadlines an infeasible variant proved unmeetable, and the solver identity those figures were produced under. The **actions** SHALL live in the cue's menu, because the surface a fact is drawn on takes no pointer and a control drawn on one cannot be pressed. The cue SHALL NOT draw a second explanatory surface of its own beside the one the application's hint layer already draws for it. An indicator dot SHALL be drawn only for a state a reader has to notice — a solve in flight, a variant that could not be computed, a plan that cannot meet a work item deadline — and SHALL NOT be drawn at all when there is nothing to indicate.
 
 #### Scenario: a variant that finishes earlier is suggested
 
@@ -91,6 +91,18 @@ While optimization is ON the plan SHALL carry exactly one compact cue in the too
 - **GIVEN** a ready variant that finishes two workdays later than Fast
 - **WHEN** the cue is drawn
 - **THEN** the later deadline is readable and no switch is suggested
+
+#### Scenario: the reading opens at once, behind no ring
+
+- **GIVEN** a plan whose optimizer state and comparison are known
+- **WHEN** the pointer arrives on the cue
+- **THEN** the reading is on screen without a wait and no wait ring is drawn
+
+#### Scenario: nothing to indicate draws no indicator
+
+- **GIVEN** a project whose variants are both solved and neither failed nor infeasible
+- **WHEN** the cue is drawn
+- **THEN** it carries no state dot at all
 
 #### Scenario: a reader who cannot write the settings
 

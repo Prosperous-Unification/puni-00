@@ -1,5 +1,3 @@
-import { useId, useLayoutEffect, useRef, useState } from 'react';
-
 import type {
   PlanOptimizationView,
   ProjectOptimizationPatch,
@@ -7,9 +5,13 @@ import type {
 } from '@/lib/wbs-api';
 
 import { type MenuAction, MenuControl } from './actions-menu';
-import { type AnchorRect, HoverCard } from './hover-card';
-import { cueReading, type CueRow, type UnmeetableDeadline } from './optimization-cue-reading';
-import { days, deadlineWords, OBJECTIVE_LABEL } from './optimization-words';
+import {
+  type CueReading,
+  cueReading,
+  type CueRow,
+  type UnmeetableDeadline,
+} from './optimization-cue-reading';
+import { days, deadlineWords, OBJECTIVE_LABEL, STALE_WORDS } from './optimization-words';
 
 export interface OptimizationCueProps {
   readonly optimization: PlanOptimizationView;
@@ -43,14 +45,24 @@ export interface OptimizationCueProps {
  * The pill, at rest and in every state.
  *
  * A `<button>`'s own padding and border in both arms, so the two are the same
- * object to a reader: the writer's arm opens a menu and the reader's arm opens
- * the card, and nothing about the shape says which one you have.
+ * object to a reader: the writer's arm opens a menu, the reader's arm opens
+ * nothing, and both carry the same words for the pointer and the keyboard.
  */
 const PILL =
   'inline-flex h-8 max-w-full cursor-pointer items-center gap-1.5 rounded-md border border-transparent bg-muted px-2 text-sm whitespace-nowrap hover:border-border';
 
-/** The state the dot paints, worst-first: something broken outranks something pending. */
-function dotState(optimization: PlanOptimizationView): string {
+/**
+ * What the dot has to say, worst-first, or `null` when it has nothing.
+ *
+ * **`null` is the common case and it draws no dot at all.** A grey disc on a
+ * grey pill is not a quiet indicator, it is a smudge that reads as a margin
+ * somebody got wrong (Dany, 2026-09-08). A plan whose variants are solved, or
+ * whose input has nothing to solve, says so by the figures on the pill and in
+ * its card; the dot is for the three states a reader has to notice.
+ */
+function dotState(
+  optimization: PlanOptimizationView,
+): 'solving' | 'unavailable' | 'infeasible' | null {
   const states = [optimization.variants.pri.state, optimization.variants.time.state];
   if (states.includes('failed') || states.includes('corrupt')) return 'unavailable';
   if (states.includes('plan-infeasible')) return 'infeasible';
@@ -58,9 +70,23 @@ function dotState(optimization: PlanOptimizationView): string {
   // An admitted `idle` is waiting for a solver seat, which is the same news as
   // `pending` — `variantStateWords` has the whole of why the two words differ.
   if (optimization.generation !== null && states.includes('idle')) return 'solving';
-  if (states.includes('ready')) return 'ready';
-  return 'idle';
+  return null;
 }
+
+/**
+ * What each dot is painted in, and why it is a colour rather than a shade.
+ *
+ * `--destructive` for the two states a reader has to act on, told apart by
+ * which of them it is: a plan that cannot meet a work item deadline is the
+ * plan's problem, and a variant that failed to solve is the solver's — the
+ * card says which. `--muted-foreground` for a solve in flight, pulsing, which
+ * is the only state that is going to change on its own.
+ */
+const DOT: Readonly<Record<'solving' | 'unavailable' | 'infeasible', string>> = {
+  solving: 'var(--muted-foreground)',
+  unavailable: 'var(--highlight)',
+  infeasible: 'var(--destructive)',
+};
 
 /** One unmeetable work item deadline, as a line of the card. */
 function unmeetableLine(
@@ -84,6 +110,52 @@ function unmeetableLine(
  * `data-fact` and its `aria-disabled` reason, and a row whose state is already
  * in these words would otherwise say the same sentence twice.
  */
+/**
+ * Everything the optimizer knows about this plan, as the one string the fact
+ * card is drawn from.
+ *
+ * A string and not a rendered card, because {@link HintLayer} draws it: one
+ * layer, one card, one set of rules for the pointer, the keyboard, Escape and
+ * touch. Its parts are separated by ` — ` rather than by newlines, because a
+ * `data-*` attribute's newlines collapse in HTML rendering and a card that
+ * pretended to have lines would have one long one.
+ *
+ * The order is the order a reader needs it: what each schedule does, what a
+ * variant cannot do, the currency caveat, and last the solver identity — which
+ * is metadata rather than news, and is here because it is the only place a
+ * reader can find out **which** plan and **which** solver contract produced
+ * the figures above it.
+ */
+function factWords(
+  reading: CueReading,
+  optimization: PlanOptimizationView,
+  lineFor: (unmeetable: UnmeetableDeadline) => string,
+): string {
+  const parts: string[] = [];
+  for (const row of reading.rows) {
+    const active = row.which === reading.active ? ' · active' : '';
+    parts.push(`${rowWords(row)}${active}`);
+    if (row.unmeetable !== null && row.unmeetable.length > 0) {
+      parts.push(`${row.label} cannot meet: ${row.unmeetable.map(lineFor).join('; ')}`);
+    }
+  }
+  if (reading.stale) parts.push(STALE_WORDS);
+  parts.push(
+    [
+      `Solver ${optimization.contractVersion}`,
+      `${String(Math.round(optimization.budgetMs / 1000))}s budget`,
+      optimization.generation === null
+        ? 'no generation for this plan'
+        : `generation ${String(optimization.generation)}`,
+      // The first eight characters, which is what a reader needs to match a
+      // figure against a log line or a solver row; the whole SHA-256 is 64 and
+      // would be most of the card.
+      `plan ${optimization.inputHash.slice(0, 8)}`,
+    ].join(' · '),
+  );
+  return parts.join(' — ');
+}
+
 function rowWords(row: CueRow): string {
   const parts = [row.label];
   if (row.finishDays !== null) parts.push(days(row.finishDays));
@@ -103,22 +175,30 @@ function rowWords(row: CueRow): string {
  * state the toggle leaves it in. Both halves are gone: the plan read now
  * compares every ready variant, and this says so in the width of a control.
  *
- * Three surfaces, and each one has a job the others cannot do:
+ * Two surfaces, and the second one is **not this component's**:
  *
  * - **The pill** carries the state and, when a variant would land the plan
  *   earlier than the schedule on screen, the saving. Its accessible name is the
  *   whole sentence (`cueReading`), because the visible text is two words.
  * - **The menu** carries the actions: the three schedules with their figures,
- *   and a Retry for a variant a Retry can recover. Actions are here and not on
- *   the card because a `HoverCard` **takes no pointer** — a control drawn on
- *   one cannot be pressed (R5, `reference-cell-escape-and-hover`).
- * - **The card** carries the reading: every row's figures, why a row is
- *   refused, and the work item deadlines an infeasible variant proved
- *   unmeetable. It opens on hover **and on focus**, and the pill points
- *   `aria-describedby` at it, so a reader who never touches a mouse gets the
- *   same words.
+ *   and a Retry for a variant a Retry can recover.
+ * - **The reading is a `data-fact`**, drawn by {@link HintLayer} like every
+ *   other explanation in this app — one layer, one card, one set of rules for
+ *   the pointer, the keyboard, Escape and touch. `data-fact` and **not**
+ *   `data-hint`: this is information about the **project**, not about what a
+ *   control does, so it opens at once and behind no wait ring (Dany,
+ *   2026-09-08; `tool-hints-wait` is the change that split the two). Everything
+ *   the optimizer knows about this plan is in it — every row's figures, its
+ *   comparison, its state, the work item deadlines an infeasible variant
+ *   proved unmeetable, and the solver identity the result was produced under.
  *
- * A live region beside them says the sentence again when it changes: an
+ * This component drew a `HoverCard` of its own for one commit, and that was
+ * two cards on one control: the layer already draws one for any `data-hint`,
+ * so a pointer resting on the pill opened both and `aria-describedby` named
+ * them both. A control that explains itself twice explains itself once too
+ * often.
+ *
+ * A live region beside the pill says the sentence again when it changes: an
  * `aria-label` moving under a button announces nothing.
  */
 export function OptimizationCue({
@@ -134,41 +214,11 @@ export function OptimizationCue({
   onChoose,
   onRetry,
 }: OptimizationCueProps) {
-  const [pointed, setPointed] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const cardId = useId();
-  const pill = useRef<HTMLSpanElement | null>(null);
-  /**
-   * The pill's own rectangle while the card is open, or `null`.
-   *
-   * The card is **portalled and placed from a measurement** rather than
-   * absolutely positioned inside this wrapper, which is the one arrangement
-   * that promises both of its edges stay on screen: `surfacePlacement` clamps
-   * the left edge and flips the card above the pill when there is no room
-   * below. An absolutely positioned card carries `max-width: 420px` with no
-   * viewport clamp, and this pill sits at the left end of a toolbar that a
-   * 390px phone also draws — 420px of card from x=8 is a document that scrolls
-   * sideways, which is the fault `e2e/optimization-cue.spec.ts` measures.
-   */
-  const [anchor, setAnchor] = useState<AnchorRect | null>(null);
-  const cardOpen = pointed || focused;
-  useLayoutEffect(() => {
-    if (!cardOpen) {
-      setAnchor(null);
-      return;
-    }
-    // Narrowing rather than a guard: a layout effect runs on a mounted tree, so
-    // the ref is set. jsdom answers zeroes here and the card still renders,
-    // which is why the placement itself is a browser assertion (`hover-card.ts`
-    // says the same about every other card in this app).
-    const box = pill.current?.getBoundingClientRect();
-    if (box === undefined) return;
-    setAnchor({ left: box.left, top: box.top, bottom: box.bottom });
-  }, [cardOpen]);
-  // Hooks first, and the early return after them: a project with optimization
-  // off has nothing to say — the settings panel is where its one sentence
-  // lives ("Fast is active while optimization is off") — and this component
-  // must not change its hook order on the way there.
+  // No state at all, and that is the point: the pill's words come from the plan
+  // read, its menu's open flag is the caller's, and its card belongs to
+  // `HintLayer`. A project with optimization off has nothing to say — the
+  // settings panel is where its one sentence lives ("Fast is active while
+  // optimization is off").
   if (!optimization.enabled) return null;
 
   const reading = cueReading(optimization, stale);
@@ -177,18 +227,34 @@ export function OptimizationCue({
   const switches: MenuAction[] =
     onChoose === undefined
       ? []
-      : reading.rows.map((row) => ({
-          id: `schedule-${row.which}`,
-          label: rowWords(row),
-          ...(row.refusedBecause === null ? {} : { refusedBecause: row.refusedBecause }),
-          run: () => {
-            onChoose(
-              row.which === 'fast'
-                ? { scheduleEngine: 'fast' }
-                : { scheduleEngine: 'optimized', scheduleObjective: row.which },
-            );
-          },
-        }));
+      : reading.rows.map((row) => {
+          const active = row.which === reading.active;
+          return {
+            id: `schedule-${row.which}`,
+            // A check on the one the project is on, and **no refusal**: a
+            // refused item carries its reason as a `data-fact`, `MenuControl`
+            // focuses its first item the moment it opens, and the first item is
+            // Fast — so an active Fast popped a card over the menu on every
+            // single opening. Seen in a screenshot at 1600 (2026-09-08), which
+            // is the only way it was ever going to be seen.
+            label: active ? `✓ ${rowWords(row)}` : rowWords(row),
+            // The other reasons stay: a variant that has not solved says why,
+            // and a reader has to arrow onto it to be told.
+            ...(active || row.refusedBecause === null
+              ? {}
+              : { refusedBecause: row.refusedBecause }),
+            run: () => {
+              // Taking the schedule the project is already on is a write that
+              // changes nothing and a plan read nobody needs.
+              if (active) return;
+              onChoose(
+                row.which === 'fast'
+                  ? { scheduleEngine: 'fast' }
+                  : { scheduleEngine: 'optimized', scheduleObjective: row.which },
+              );
+            },
+          };
+        });
   const retries: MenuAction[] =
     onRetry === undefined
       ? []
@@ -203,14 +269,21 @@ export function OptimizationCue({
           },
         }));
   const actions = [...switches, ...retries];
+  const fact = factWords(reading, optimization, (unmeetable) =>
+    unmeetableLine(unmeetable, nameOf, projectStart, today),
+  );
 
+  const dot = dotState(optimization);
   const face = (
     <>
-      <span
-        data-cue-dot={dotState(optimization)}
-        aria-hidden="true"
-        className="size-2 shrink-0 rounded-full"
-      />
+      {dot !== null && (
+        <span
+          data-cue-dot={dot}
+          aria-hidden="true"
+          className={`size-2 shrink-0 rounded-full${dot === 'solving' ? 'animate-pulse' : ''}`}
+          style={{ background: DOT[dot] }}
+        />
+      )}
       <span data-cue-active>{reading.activeLabel}</span>
       {reading.suggestionWords !== null && (
         <span data-cue-suggestion className="text-primary truncate font-medium">
@@ -222,58 +295,30 @@ export function OptimizationCue({
 
   return (
     <span
-      ref={pill}
       data-optimization-cue
       data-cue-suggesting={reading.suggestion ?? undefined}
       className="relative inline-block min-w-0"
-      onMouseEnter={() => {
-        setPointed(true);
-      }}
-      onMouseLeave={() => {
-        setPointed(false);
-      }}
     >
       {actions.length === 0 ? (
-        // No writer and nothing to retry: there is nothing to press, so the
-        // pill is a disclosure for its own card rather than a menu button with
-        // an empty menu — `MenuControl` refuses to open with no item to focus,
-        // and it is right to.
-        <button
-          type="button"
-          className={PILL}
-          aria-label={reading.sentence}
-          aria-expanded={cardOpen}
-          aria-describedby={cardOpen ? cardId : undefined}
-          data-hint="What the optimizer found for this plan"
-          onFocus={() => {
-            setFocused(true);
-          }}
-          onBlur={() => {
-            setFocused(false);
-          }}
-        >
+        // No writer and nothing to retry: there is nothing to press. It stays a
+        // `<button>` so the keyboard can reach the fact — `HintLayer` opens the
+        // same card from `focusin` — rather than a `<span>` no Tab ever lands
+        // on. `MenuControl` refuses to open with no item to focus, and it is
+        // right to, so this arm is not one.
+        <button type="button" className={PILL} aria-label={reading.sentence} data-fact={fact}>
           {face}
         </button>
       ) : (
         <MenuControl
           name={reading.sentence}
-          data-hint="Switch this project between Fast, PRI and Time, or retry a variant"
+          data-fact={fact}
           align="left"
           open={menuOpen}
           onOpen={onMenuOpen}
           onClose={onMenuClose}
           busy={busy}
           actions={actions}
-          trigger={{
-            className: PILL,
-            'aria-describedby': cardOpen ? cardId : undefined,
-            onFocus: () => {
-              setFocused(true);
-            },
-            onBlur: () => {
-              setFocused(false);
-            },
-          }}
+          trigger={{ className: PILL }}
         >
           {face}
         </MenuControl>
@@ -286,42 +331,6 @@ export function OptimizationCue({
       <span role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {reading.sentence}
       </span>
-      {anchor !== null && (
-        <HoverCard id={cardId} anchor={anchor}>
-          {reading.rows.map((row) => (
-            // `break-words`, and it is load-bearing rather than tidy: a work
-            // item name is one unbroken token as often as not, and the phone
-            // case in `e2e/project-settings.spec.ts` measured a 192-character
-            // name laying 1386px of text inside a 348px card. The card's own
-            // box is clamped to the viewport; what its **content** does inside
-            // that box is this line.
-            <div key={row.which} data-cue-card-row={row.which} className="min-w-0 break-words">
-              {/*
-                The refusal is appended only where it is not already in the
-                words: a variant's reason for being unavailable **is** its
-                state, and a card that spelled both said `Plan infeasible · 3
-                Work item deadlines` twice in one line.
-              */}
-              {row.refusedBecause === null || row.refusedBecause === row.stateWords
-                ? rowWords(row)
-                : `${rowWords(row)} · ${row.refusedBecause}`}
-              {row.unmeetable !== null && (
-                <ul className="mt-1 min-w-0 list-disc pl-5">
-                  {row.unmeetable.map((unmeetable) => (
-                    <li
-                      key={`${unmeetable.ownerWorkItemId}:${unmeetable.boundWorkItemId}`}
-                      data-cue-unmeetable
-                      className="min-w-0 break-words"
-                    >
-                      {unmeetableLine(unmeetable, nameOf, projectStart, today)}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ))}
-        </HoverCard>
-      )}
     </span>
   );
 }

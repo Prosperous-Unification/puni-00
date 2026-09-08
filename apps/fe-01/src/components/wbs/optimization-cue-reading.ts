@@ -8,6 +8,7 @@ import {
   FAST_LABEL,
   OBJECTIVE_LABEL,
   OBJECTIVE_SENTENCE,
+  STALE_WORDS,
   variantStateWords,
 } from './optimization-words';
 
@@ -92,6 +93,15 @@ export interface CueReading {
   readonly suggestionWords: string | null;
   /** One sentence naming the active schedule and everything else worth saying. */
   readonly sentence: string;
+  /**
+   * Whether this reading is of a plan that may have moved under it.
+   *
+   * Carried rather than left to the caller's own copy of the flag, because it
+   * is what says the figures above are **absent on purpose**: a reader of
+   * `rows` cannot otherwise tell a suppressed comparison from a variant that
+   * has not solved.
+   */
+  readonly stale: boolean;
 }
 
 /** The finish of the schedule the project is on, which is Fast unless a variant displaced it. */
@@ -193,6 +203,7 @@ export function cueReading(optimization: PlanOptimizationView, stale = false): C
       const state = optimization.variants[objective].state;
       return state === 'failed' || state === 'corrupt';
     }),
+    stale,
     suggestion: suggested?.objective ?? null,
     suggestionWords:
       suggested === null
@@ -257,7 +268,7 @@ function sentenceOf(
   if (stale) {
     // Both sentences are the shipped indicator's own words. The second is only
     // said where there is a list to be stale about.
-    parts.push('Schedule comparison unavailable while this plan may be stale');
+    parts.push(STALE_WORDS);
     if (rows.some((row) => row.unmeetable !== null)) {
       parts.push('This result and affected-item list may be stale');
     }

@@ -125,27 +125,95 @@ describe('the schedule cue', () => {
     );
   });
 
+  /**
+   * Proof: the `null` arm of `dotState` replaced by `'ready'` — the grey disc
+   * this change deleted — and **both** cases below failed on `expected <span
+   * data-cue-dot="ready" …(2)></span> to be null`. A grey dot on a grey pill
+   * reads as a margin somebody got wrong rather than as a state (Dany,
+   * 2026-09-08). Watched 2026-09-08.
+   */
+  itDom('draws no dot at all when there is nothing to indicate', () => {
+    render(
+      <Harness
+        optimization={{
+          ...SUGGESTING,
+          variants: { pri: { state: 'ready' }, time: { state: 'ready' } },
+          finishDays: { fast: 10, pri: 7, time: 10 },
+          sameOrderAsFast: { pri: true, time: true },
+        }}
+        onChoose={() => undefined}
+      />,
+    );
+    expect(document.querySelector('[data-cue-dot]')).toBeNull();
+  });
+
+  itDom('draws no dot for a plan with nothing to solve', () => {
+    render(
+      <Harness
+        optimization={{
+          ...SUGGESTING,
+          generation: null,
+          variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
+          finishDays: { fast: 10 },
+          sameOrderAsFast: {},
+        }}
+        onChoose={() => undefined}
+      />,
+    );
+    expect(document.querySelector('[data-cue-dot]')).toBeNull();
+  });
+
+  itDom.each([
+    ['solving', { pri: { state: 'pending' }, time: { state: 'ready' } } as const, 'solving'],
+    [
+      'a variant that could not be computed',
+      { pri: { state: 'failed', reason: 'oom' }, time: { state: 'ready' } } as const,
+      'unavailable',
+    ],
+    [
+      'a plan that cannot meet a work item deadline',
+      { pri: { state: 'plan-infeasible', items: [] }, time: { state: 'ready' } } as const,
+      'infeasible',
+    ],
+    [
+      'a variant waiting for a solver seat',
+      { pri: { state: 'idle' }, time: { state: 'ready' } } as const,
+      'solving',
+    ],
+  ])('paints a dot for %s', (_what, variants, expected) => {
+    render(<Harness optimization={{ ...SUGGESTING, variants }} onChoose={() => undefined} />);
+    const dot = document.querySelector('[data-cue-dot]');
+    expect(dot).toHaveAttribute('data-cue-dot', expected);
+    // A colour rather than a shade of the pill it sits on: the whole complaint
+    // was grey on grey.
+    expect(dot?.getAttribute('style')).toMatch(
+      /background: var\(--(muted-foreground|highlight|destructive)\)/,
+    );
+  });
+
   itDom('lists all three schedules with their figures, and refuses the active one', () => {
     render(<Harness optimization={SUGGESTING} onChoose={() => undefined} />);
     fireEvent.click(pill());
     expect(items()).toEqual([
-      'Fast · 10 days',
+      '✓ Fast · 10 days',
       'PRI · 7 days · Earlier project deadline by 3 days',
       'Time · Optimizing…',
     ]);
-    // Present and refused rather than absent: a control that leaves a menu
-    // somebody is reading takes its own explanation with it.
-    expect(screen.getByRole('menuitem', { name: 'Fast · 10 days' })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
-    expect(screen.getByRole('menuitem', { name: 'Fast · 10 days' })).toHaveAttribute(
-      'data-fact',
-      'Fast is already the active schedule',
-    );
+    // The active one is checked and carries **no** fact: `MenuControl` focuses
+    // its first item on opening, and a fact there opens a card over the menu
+    // the moment it appears.
+    const fast = screen.getByRole('menuitem', { name: '✓ Fast · 10 days' });
+    expect(fast).not.toHaveAttribute('data-fact');
+    expect(fast).toHaveAttribute('aria-disabled', 'false');
+    // Present and refused rather than absent, for every other reason: a control
+    // that leaves a menu somebody is reading takes its own explanation with it.
     expect(screen.getByRole('menuitem', { name: /^Time/ })).toHaveAttribute(
       'data-fact',
       'Optimizing…',
+    );
+    expect(screen.getByRole('menuitem', { name: /^Time/ })).toHaveAttribute(
+      'aria-disabled',
+      'true',
     );
   });
 
@@ -177,6 +245,21 @@ describe('the schedule cue', () => {
     fireEvent.click(pill());
     fireEvent.click(screen.getByRole('menuitem', { name: /^Fast/ }));
     expect(asked).toEqual([{ scheduleEngine: 'fast' }]);
+  });
+
+  itDom('asks for nothing when the schedule on screen is chosen again', () => {
+    const asked: ProjectOptimizationPatch[] = [];
+    render(
+      <Harness
+        optimization={SUGGESTING}
+        onChoose={(patch) => {
+          asked.push(patch);
+        }}
+      />,
+    );
+    fireEvent.click(pill());
+    fireEvent.click(screen.getByRole('menuitem', { name: /^✓ Fast/ }));
+    expect(asked).toEqual([]);
   });
 
   itDom('takes nothing from the item that says why it cannot be taken', () => {
@@ -302,26 +385,57 @@ describe('the schedule cue', () => {
     render(<Harness optimization={SUGGESTING} />);
     // The pill is still there and still says everything: what a reader without
     // the project's settings loses is the ability to act, not the reading.
-    const disclosure = screen.getByRole('button', { name: /is the active schedule/ });
-    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    // Still a `<button>`, so the keyboard can reach the fact — `HintLayer`
+    // opens the same card from `focusin` — and still carrying every word.
+    const reader = screen.getByRole('button', { name: /is the active schedule/ });
+    expect(reader).toHaveAttribute('data-fact');
     expect(screen.getByRole('status')).toHaveTextContent('Priority-first finishes 3 days earlier');
-    fireEvent.click(disclosure);
+    fireEvent.click(reader);
     expect(screen.queryAllByRole('menuitem')).toHaveLength(0);
   });
 
-  itDom('opens its reading on focus, and points the pill at it', () => {
+  /**
+   * The reading is a `data-fact`, so what this suite asserts is the words on
+   * the mark; that a card is drawn from them, at once and behind no wait ring,
+   * is `HintLayer`'s contract and is proven in `hint.test.tsx` and in
+   * `e2e/optimization-cue.spec.ts`.
+   *
+   * `data-fact` and **not** `data-hint`: this is information about the project
+   * rather than about what the control does, and the two open on different
+   * rules (Dany, 2026-09-08).
+   */
+  itDom('carries the whole reading as a project fact, not as a tool hint', () => {
     render(<Harness optimization={SUGGESTING} onChoose={() => undefined} />);
-    expect(screen.queryByRole('tooltip')).toBeNull();
-    fireEvent.focus(pill());
-    const card = screen.getByRole('tooltip');
-    expect(pill()).toHaveAttribute('aria-describedby', card.id);
-    expect(card.textContent).toContain('Fast · 10 days · Fast is already the active schedule');
-    expect(card.textContent).toContain('PRI · 7 days · Earlier project deadline by 3 days');
-    fireEvent.blur(pill());
-    expect(screen.queryByRole('tooltip')).toBeNull();
+    const fact = pill().getAttribute('data-fact');
+    expect(pill()).not.toHaveAttribute('data-hint');
+    expect(fact).toContain('Fast · 10 days · active');
+    expect(fact).toContain('PRI · 7 days · Earlier project deadline by 3 days');
+    expect(fact).toContain('Time · Optimizing…');
+    // The metadata, which is the only place a reader can find out which plan
+    // and which solver contract produced the figures.
+    expect(fact).toContain('Solver 1.5+test · 60s budget · generation 7 · plan hash-a');
   });
 
-  itDom('lists the work item deadlines an infeasible variant proved unmeetable', () => {
+  itDom('names the active schedule in the fact, wherever the project is', () => {
+    render(
+      <Harness
+        optimization={{ ...SUGGESTING, engine: 'optimized', displayed: 'pri' }}
+        onChoose={() => undefined}
+      />,
+    );
+    const fact = pill().getAttribute('data-fact');
+    expect(fact).toContain('PRI · 7 days · Earlier project deadline by 3 days · active');
+    expect(fact).not.toContain('Fast · 10 days · active');
+  });
+
+  itDom('says in the fact that a stale plan has no comparison to show', () => {
+    render(<Harness optimization={SUGGESTING} stale onChoose={() => undefined} />);
+    const fact = pill().getAttribute('data-fact');
+    expect(fact).toContain('Schedule comparison unavailable while this plan may be stale');
+    expect(fact).not.toContain('Earlier project deadline');
+  });
+
+  itDom('puts every unmeetable work item deadline in the fact', () => {
     render(
       <Harness
         optimization={{
@@ -341,20 +455,14 @@ describe('the schedule cue', () => {
         onChoose={() => undefined}
       />,
     );
-    fireEvent.focus(pill());
-    // Scoped to the lines themselves: a bare text query matches every ancestor
-    // that contains the words too — the card's own row, and the sentence.
-    const lines = [...document.querySelectorAll('[data-cue-unmeetable]')].map(
-      (line) => line.textContent,
-    );
-    expect(lines).toEqual([
-      'Launch → Migration · Work item deadline 11 Sep',
-      // The same row on both ends of the binding is named once.
-      "Migration · Work item deadline before the project's first working day",
-      // A row that has left the plan is named, never its raw id.
-      'Work item no longer in this plan · Work item deadline 11 Sep',
-    ]);
-    expect(screen.queryByText(/gone/)).toBeNull();
+    const fact = pill().getAttribute('data-fact') ?? '';
+    expect(fact).toContain('Time · Plan infeasible · 3 Work item deadlines');
+    expect(fact).toContain('Launch → Migration · Work item deadline 11 Sep');
+    // The same row on both ends of the binding is named once.
+    expect(fact).toContain("Migration · Work item deadline before the project's first working day");
+    // A row that has left the plan is named, never its raw id.
+    expect(fact).toContain('Work item no longer in this plan · Work item deadline 11 Sep');
+    expect(fact).not.toContain('gone');
   });
 
   itDom('keeps one live region while the optimizer state changes under it', () => {
@@ -385,6 +493,6 @@ describe('the schedule cue', () => {
       'Schedule comparison unavailable while this plan may be stale',
     );
     fireEvent.click(pill());
-    expect(items()).toEqual(['Fast', 'PRI', 'Time · Optimizing…']);
+    expect(items()).toEqual(['✓ Fast', 'PRI', 'Time · Optimizing…']);
   });
 });

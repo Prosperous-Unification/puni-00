@@ -4072,6 +4072,54 @@ returned `null` for `engine === 'fast'` before drawing anything.
       ON means — both objectives computed in the background, Fast on screen
       until someone switches. The toggle stays OFF by default for a new
       project; solver time is spent on a project that asked for it.
+- [x] 8b.12 **The reading is a project `data-fact`, not a card of the cue's own**
+      (Dany, 2026-09-08). The pill drew its own `HoverCard` for one commit, which
+      was two cards on one control — `HintLayer` already draws one for any
+      hinted mark, so a pointer resting on the pill opened both and
+      `aria-describedby` named both. The whole reading moves into the pill's
+      `data-fact`: every row's figures, its comparison against Fast, its state,
+      the work item deadlines an infeasible variant proved unmeetable, and the
+      solver identity (`contractVersion`, budget, generation, the input hash's
+      first eight characters) — which is the only place a reader can find out
+      which plan and which contract produced the figures. `data-fact` and
+      **not** `data-hint`: this is information about the project rather than
+      about what the control does, so it opens at once and behind no wait ring.
+      `MenuControl`'s words become a union of the two attributes so a caller
+      must choose exactly one.
+- [x] 8b.13 **No dot where there is nothing to indicate.** `dotState` answers
+      `null` for `ready` and for a plan with nothing to solve, and the face
+      draws no disc at all: a grey dot on a grey pill reads as a margin
+      somebody got wrong rather than as a state (Dany, 2026-09-08). The three
+      states that remain are painted in real colours — `--muted-foreground`
+      pulsing while a solve is in flight, `--highlight` for a variant that
+      could not be computed, `--destructive` for a plan that cannot meet a work
+      item deadline.
+- [x] 8b.14 **An open menu stays on screen.** `menuShift` clamps `MenuControl`'s
+      item box into the viewport, measured on every opening. The cue is the last
+      control in the toolbar, so on a window wide enough not to wrap that row it
+      stands at the right edge: at 1600 the pill was at x=1400 and its 359px box
+      ran to 1759 — 159px of items nobody could read or reach.
+      **Proven by** `menuShift`'s own cases in `actions-menu.test.tsx` (jsdom
+      lays nothing out, so the arithmetic is asserted where the figures can be
+      handed to it) and by `e2e/optimization-cue.spec.ts` at 1600, 1440, 1280
+      and 390 — the three narrow widths unshifted in both arms, which is what
+      says the clamp only acts where it is needed.
+- [x] 8b.15 **A card measures itself before it is placed.** `HoverCard`'s
+      anchored arm laid out at its mark's own left edge, so a card anchored near
+      the right edge had only the room between that edge and the window to
+      measure in: the cue's fact card came out **195px wide and eight lines
+      tall** at x=1405 in a 1600px window, against a 420px ceiling it never got
+      near. It starts at `left: 0` for the unmeasured frame and
+      `surfacePlacement` moves it in a layout effect, before paint. Every card
+      also wraps a long unbroken token now (`overflow-wrap: break-word`) — a
+      192-character work item name laid 1396px of text inside a 388px phone
+      card. Both were found by taking a screenshot and looking at it.
+- [x] 8b.16 **The active schedule is a check, not a refusal.** A refused item
+      carries its reason as a `data-fact` and `MenuControl` focuses its first
+      item the moment it opens — and the first item is Fast, so an active Fast
+      popped a card over its own menu on every opening. The active row is
+      `✓ …`, carries no fact, and its `run` asks for nothing; every other
+      refusal stays where it was.
 
 ## 9. Corpus and regression safety
 

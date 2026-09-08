@@ -1,5 +1,52 @@
 # Dual optimized scheduler verification
 
+## 2026-09-08T22:40:00Z — slice 8b review round: the fact, the dot, the menu
+
+Dany, on the shipped pill: the reading must use the **project-fact** mechanic (no wait ring —
+"this is project inf, not tool inf") and carry all of the metadata; pressing the pill opened a
+menu **cropped by the screen**; and the state dot "looks like weird grey margin because it is
+grey on grey".
+
+- Same host and same commands as the entry below; `bin/h2puni-gate.sh` still exits 127 on
+  macOS, so the whole gate is CI's.
+- Browser, `CI=1 E2E_PORT_SHIFT=1900`: `optimization-cue.spec.ts` 7/7,
+  `project-settings.spec.ts` 4/4, and — because `HoverCard` and `MenuControl` are shared —
+  `gantt.spec.ts` + `hints.spec.ts` + `hover-cards.spec.ts` 91/91.
+
+### Failure proof table (R5), this round
+
+| Check                                                       | Injected fault                                | Observed failure                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `optimization-cue.spec.ts` open menu stays on screen        | `menuShift` returning `0` unconditionally     | `the menu is cropped on the right at 1600: 1400px + 359px · Expected: <= 1600 · Received: 1758.77`. With the clamp the same box opens at x=1233.                                                                                                                                          |
+| `optimization-cue.test.tsx` no dot with nothing to indicate | `dotState`'s `null` arm replaced by `'ready'` | both cases red on `expected <span data-cue-dot="ready" …(2)></span> to be null`.                                                                                                                                                                                                          |
+| `actions-menu.test.tsx` `menuShift` arithmetic              | —                                             | Written as cases rather than by injection: jsdom lays nothing out, so the function is asserted against the figures directly, including the measured 1600px case and a box wider than its window. A first draft returned `-0` for a box already at the gutter and was caught by `toBe(0)`. |
+
+### What the screenshots found, and nothing else did
+
+Three faults, all found by rendering the thing and looking at it (CLAUDE.md: "look at the thing
+you built"), none of them visible to 2,500 jsdom cases or to the seven browser assertions that
+were already green:
+
+- **A card anchored near the right edge measured 195px wide and eight lines tall.** A
+  `position: fixed` card laid out at its mark's own left edge has only the room between that
+  edge and the window: at x=1405 in a 1600px window it shrank to 195px, and
+  `surfacePlacement` was then handed a width that had already been squeezed, so there was
+  nothing left for it to clamp. It starts at `left: 0` for the unmeasured frame now and is
+  moved in a layout effect, before paint. Re-measured: ~410px and four lines.
+- **A long unbroken token did not wrap in any card.** 1396px of text inside a 388px phone card
+  (`Expected: <= 388 · Received: 1396`), fixed once for every card by
+  `overflow-wrap: break-word` on `HoverCard`'s box — `break-word` rather than `anywhere`, so a
+  compact card is still the width of its words.
+- **The menu popped a card over itself on every opening.** `MenuControl` focuses its first item
+  as it opens, a refused item carries its reason as a `data-fact`, and the first item is Fast —
+  so an active Fast covered the two rows underneath it. The active row is `✓ …` now, carries no
+  fact, and asks for nothing when taken.
+
+And one thing the measurement corrected rather than confirmed: the menu **was** already clamped
+to 1592 when the screenshot was taken, and what looked like a clipped third item was the focused
+item's own card drawn over it. Instrumented before believing the mechanism —
+`{"left":1089,"right":1592,"scrollWidth":501,"clientWidth":501,"itemRight":1587,"innerWidth":1600}`.
+
 ## 2026-09-08T20:55:00Z — slice 8b, the cue and the suggestion
 
 - Host: this Mac (`darwin`), branch `change/optimization-cue-and-suggestion`. The h2puni gate is

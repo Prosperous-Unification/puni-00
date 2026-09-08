@@ -72,36 +72,14 @@ async function planWithACue(page: Page): Promise<void> {
 const pill = (page: Page) => page.getByRole('button', { name: /is the active schedule/ });
 
 /**
- * The cue's own card, found through the pill's `aria-describedby`.
+ * The one card that explains this pill — `HintLayer`'s, because the cue's
+ * reading is a `data-fact` and the layer draws every one of those.
  *
- * Not `getByRole('tooltip')`: the app's **hint layer** draws one of those too —
- * `#hint-card`, from the `data-hint` on this very pill — so a bare role query
- * resolves to two elements and could resolve to the wrong one. Going through the
- * attribute also asserts the wiring a screen reader depends on.
- *
- * The attribute is a **list**, measured: `HintLayer` appends its own card's id
- * to whatever the element already pointed at, so this reads `"_r_4_ hint-card"`
- * with the pointer or the focus on the pill. Splitting it is not tidying — a
- * `#_r_4_ hint-card` selector is a descendant selector and matches nothing.
+ * There is exactly one card in the document for it. The cue drew a `HoverCard`
+ * of its own for one commit, and this locator had to go through
+ * `aria-describedby` to tell the two apart; that is gone.
  */
-async function cueCard(page: Page) {
-  const described = await pill(page).getAttribute('aria-describedby');
-  if (described === null) throw new Error('the pill points at no card');
-  const ids = described.split(/\s+/).filter((id) => id !== '' && id !== 'hint-card');
-  if (ids.length !== 1)
-    throw new Error(`the pill points at ${String(ids.length)} cards of its own`);
-  return page.locator(`#${ids.join('')}`);
-}
-
-/** The cue card's rectangle, in viewport coordinates. */
-async function cueCardBox(page: Page): Promise<DOMRect> {
-  const card = await cueCard(page);
-  const box = await card.evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-  });
-  return box as DOMRect;
-}
+const cueCard = (page: Page) => page.locator('#hint-card');
 
 async function boxOf(page: Page, selector: string): Promise<DOMRect> {
   const box = await page.locator(selector).evaluate((element) => {
@@ -194,13 +172,13 @@ test.describe('the schedule cue, in a browser', () => {
     expect(cue.x).toBeGreaterThanOrEqual(0);
     expect(cue.x + cue.width).toBeLessThanOrEqual(390 + NEARLY);
 
-    // And with the card open, which is the box that carries a 420px ceiling:
-    // it is portalled and clamped, and an absolutely positioned one would hang
-    // 38px off a 390px screen.
+    // And with the card open — the layer's, opened from the keyboard, which is
+    // the path a phone reader with a keyboard gets and the one that needs no
+    // pointer at all.
     await pill(page).focus();
-    const card = await cueCard(page);
+    const card = cueCard(page);
     await expect(card).toBeVisible();
-    const open = await cueCardBox(page);
+    const open = await boxOf(page, '#hint-card');
     expect(open.width).toBeGreaterThan(0);
     expect(open.x).toBeGreaterThanOrEqual(0);
     expect(open.x + open.width).toBeLessThanOrEqual(390 + NEARLY);
@@ -208,31 +186,68 @@ test.describe('the schedule cue, in a browser', () => {
     expect(withCardOpen.documentWidth).toBeLessThanOrEqual(withCardOpen.viewportWidth);
   });
 
-  test('opens its card clear of the pill it hangs from', async ({ page }) => {
+  test('explains the plan at once, with no wait ring, and holds the whole reading', async ({
+    page,
+  }) => {
     await planWithACue(page);
-    await pill(page).focus();
-    const cardLocator = await cueCard(page);
-    await expect(cardLocator).toBeVisible();
+    // A **fact**, not a tool hint: the words are about the project rather than
+    // about what the control does, so they open on arrival and behind no ring
+    // (`tool-hints-wait` split the two; `hint.ts` holds both attributes).
+    await pill(page).hover();
+    await expect(cueCard(page)).toBeVisible();
+    // Read once, at the instant it is about. `toHaveCount(0)` is a *retrying*
+    // assertion and would be satisfied by a ring that had simply finished —
+    // R5's own note on `tool-hints-wait`.
+    expect(await page.locator('[data-wait-ring]').count()).toBe(0);
 
-    const cue = await boxOf(page, '[data-optimization-cue]');
-    const card = await cueCardBox(page);
-    expect(card.width, 'the card has no rendered width').toBeGreaterThan(0);
-    expect(card.height, 'the card has no rendered height').toBeGreaterThan(0);
-    // Clear of it, on whichever side it opened: a card drawn over the control
-    // that opened it hides the thing being explained.
-    const overlaps =
-      card.x < cue.x + cue.width &&
-      cue.x < card.x + card.width &&
-      card.y < cue.y + cue.height &&
-      cue.y < card.y + card.height;
-    // Proof: the anchor's `bottom` set to the pill's own `top`, so
-    // `surfacePlacement` opens the card six pixels below the pill's top edge
-    // rather than below the pill — and this failed on `the card is drawn over
-    // the pill · Expected: false · Received: true`. Watched 2026-09-08. The
-    // two non-zero assertions above are what stop this being a claim about two
-    // empty boxes (R5 #16).
-    expect(overlaps, 'the card is drawn over the pill').toBe(false);
-    await expect(cardLocator).toContainText('PRI · 7 days · Earlier project deadline by 3 days');
+    const card = cueCard(page);
+    // Every schedule, its figures, its comparison and which one is active.
+    await expect(card).toContainText('Fast · 10 days · active');
+    await expect(card).toContainText('PRI · 7 days · Earlier project deadline by 3 days');
+    await expect(card).toContainText('Time · Optimizing…');
+    // And the metadata, which is the only place a reader can find out which
+    // plan and which solver contract produced the figures above.
+    await expect(card).toContainText('Solver 1.5+e2e · 60s budget · generation 1 · plan e2e-cue-');
+
+    const box = await boxOf(page, '#hint-card');
+    expect(box.width, 'the card has no rendered width').toBeGreaterThan(0);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+  });
+
+  /**
+   * The cue is the **last** control in the plan toolbar, so on a window wide
+   * enough not to wrap that row it stands at the right edge — which is where a
+   * menu hanging from `left: 0` runs off the screen.
+   *
+   * Proof: `menuShift` returning `0` unconditionally, and this failed on `the
+   * menu is cropped on the right at 1600: 1400px + 359px · Expected: <= 1600 ·
+   * Received: 1758.77` — 159px of items with no way to read or reach them.
+   * With the clamp the same box opens at x=1233. The three narrower widths are
+   * unshifted in both arms, which is what says the clamp only acts where it is
+   * needed. Watched 2026-09-08.
+   */
+  test('keeps its open menu inside the screen, wherever the pill sits', async ({ page }) => {
+    for (const width of [1600, 1440, 1280, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      if (width === 1600) await planWithACue(page);
+      else {
+        await page.reload();
+        await expect(page.locator('[data-optimization-cue]')).toBeVisible();
+      }
+      await pill(page).click();
+      const menu = page.getByRole('menu');
+      await expect(menu).toBeVisible();
+      const box = await boxOf(page, '[role="menu"]');
+      expect(box.width, `the menu has no rendered width at ${String(width)}`).toBeGreaterThan(0);
+      expect(box.x, `the menu is cropped on the left at ${String(width)}`).toBeGreaterThanOrEqual(
+        0,
+      );
+      expect(
+        box.x + box.width,
+        `the menu is cropped on the right at ${String(width)}: ${String(Math.round(box.x))}px + ${String(Math.round(box.width))}px`,
+      ).toBeLessThanOrEqual(width);
+      await page.keyboard.press('Escape');
+    }
   });
 
   test('opens on a click, and Escape gives the focus back to the pill', async ({ page }) => {
