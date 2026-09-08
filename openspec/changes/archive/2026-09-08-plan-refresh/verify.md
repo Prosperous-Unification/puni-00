@@ -108,4 +108,38 @@ On2026-09-06 the parent reported independent rereview approval: both Important f
 - `bunx nx typecheck fe-01 --skip-nx-cache`: passed, including the e2e project.
 - Prettier and `git diff --check`: passed.
 
-This completes task 5.2 with a real second browser, backend write, gateway event and browser-rendered marker. Tasks 5.4 and 5.5b remain open until this integrated branch's complete gates pass and the merged disposition is recorded.
+This completes task 5.2 with a real second browser, backend write, gateway event and browser-rendered marker. The integrated gate and merged disposition are recorded below.
+
+## Integrated closeout
+
+2026-09-09, archive branch frozen first at `61aef8e1`, ten commits ahead of and zero behind
+`origin/main` at `5516d453`:
+
+- Complete Chromium on isolated ports 5000/5100/6100: `CI=1 E2E_PORT_SHIFT=1900 bunx nx e2e
+fe-01 --skip-nx-cache` passed **315**, skipped the **37** opt-in rendering measurements, and
+  failed **0** in 17m53s. The peer rename case, the new peer marker case and the platform-neutral
+  active-editor fixture all passed inside that whole run.
+- `bin/h2puni-gate.sh` completed its Nx run on Darwin: **85 targets passed**. Its three failed
+  targets were reproduced as host/toolchain limits, not hidden: bare Python lacked the locked
+  solver packages; the shell had Bun 1.3.14 instead of `.bun-version`'s 1.4.2; and the Linux deploy
+  helper's GNU `mv -T` is rejected by Darwin `/bin/mv` on the unchanged `origin/main` line.
+- After installing Bun 1.4.2 and running `bunx nx run solver-py:setup-macos`, the locked solver
+  environment reported Python 3.14.2, `wbs-solver` 0.1.1 and a feasible golden request.
+  `solver-py:test` then passed. `tool-devsync:test` retained six Darwin-only failures because
+  `/bin/mv` exits 64 on `-T`; the production poller runs on Linux, and changing that deploy helper
+  is outside this no-production-code archive branch.
+- `be-01:test` passed **2,046**, skipped **2**, failed **0**, then reported two asynchronous
+  `SQLITE_IOERR_VNODE` errors after a test-owned database was removed. The focused production
+  coordinator plus following saved-plan-list reproduction passed **36/36** with 218 assertions.
+  Exact-base GitHub Actions run 34272524792 is green on `5516d453`, including the Auckland tier;
+  this branch changes only archive/spec documents and the two browser tests named above.
+- Before the whole runs, scoped ESLint, Prettier and the full FE TypeScript build passed. The
+  browser portability fix was also run alone and passed before the complete Chromium run.
+- After sync, the preservation oracle matched all **89** requirement/scenario headings across the
+  seven R1-R9 capability specs. `openspec validate --all --strict` passed all **61** items;
+  Prettier and `git diff --check` passed on the archived and queue documents.
+
+The original production refactor remains the squash merge `cbad68af`. HTTP migration and the
+checked R10 slices are already on the base. This closeout adds no production source: it preserves
+the nine R1-R9 contracts, supplies the two missing browser oracles, and records every local gate
+limit rather than converting it to a green claim.

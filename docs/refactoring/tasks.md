@@ -25,7 +25,7 @@ state is in [`verify.md`](verify.md) § "Merged state".
 | W4-4 `WbsTable` split into fourteen modules      | `apps/fe-01/src/components/wbs/{use-plan-*,plan-columns/*,plan-cell-props,plan-live,…}.ts`, on `main` since `cbad68af`                  | 10/10 tasks; [independent review](w4-4/verify.md#independent-review-2026-09-08) recorded 2026-09-08; 601 concept tests at merge; current `main` gate + four pixel shards green at `153c830a` |
 | HTTP Wave 0, collision gate                      | [`collisions.md`](collisions.md)                                                                                                        | inventory at base `f89ebf56`, feature integration recorded 2026-09-06                                                                                                                        |
 | HTTP Wave 1, `http-endpoint-port`                | `libs/contracts/src/http/*`, be-01's `http/` binders and Elysia mount, typed clients; `openapi.json` no longer tracked                  | change archived `openspec/changes/archive/2026-09-07-http-endpoint-port`, spec synced to `openspec/specs/http-endpoint-port`; TASK-347                                                       |
-| R1 `plan-refresh`                                | `apps/fe-01/src/lib/` invalidation coordinator, `use-plan-read`                                                                         | 25/28 tasks; 5.2 is a distinct real-browser scenario, 5.4 the full gate, and 5.5b integration/evidence reconciliation; historical CI does not establish 5.2                                  |
+| R1 `plan-refresh`                                | `apps/fe-01/src/lib/` invalidation coordinator, `use-plan-read`                                                                         | 28/28 tasks; archived after the real two-browser peer rename and marker checks, complete Chromium, integration reconciliation, and explicit Darwin workspace-gate limits                     |
 | R2 `team-removal-revisions`                      | be-01 service/repository                                                                                                                | 4/5 tasks; open 1.5 is touched suites/lint/typecheck and the parent verification report                                                                                                      |
 | R3 `account-store-failures`                      | auth / be-01                                                                                                                            | 8/8 tasks                                                                                                                                                                                    |
 | R4 `websocket-ingress`                           | gw-01                                                                                                                                   | 9/9 tasks                                                                                                                                                                                    |
@@ -62,9 +62,9 @@ Nothing below has an owning task in the external queue (`backlog/tasks/task-NNN 
       archived after recording the exact historical revisions, the later review-merge failure,
       and the receiving R1/R10 column-dependency, `PlanLive` and editor-identity obligations.
       No historical CI was relabelled as a pass on the current tree.
-- [ ] **Archive R1–R9** — the bounded [closeout order below](#r1r9-archival-closeout)
-      includes evidence reconciliation, R1's scenario gap and shared-capability spec unions.
-      Within this refactoring programme, only `http-endpoint-port` is already archived.
+- [x] **Archive R1–R9** — completed 2026-09-09 in the bounded
+      [closeout order below](#r1r9-archival-closeout), including R1's two real-browser scenarios,
+      evidence reconciliation and preservation of the shared-capability spec unions.
 - [x] **Ports Wave 2 `store-port-and-unit-of-work`** — **done, 2026-09-08**, in six numbered
       slices plus the 3b ports/history follow-up; see [What Wave 2 landed](#what-wave-2-landed) below. The change is
       `openspec/changes/store-port-and-unit-of-work`; its `verify.md` carries the failure-proof
@@ -157,10 +157,11 @@ archive's original evidence limits. The bounded order is:
 - [x] **A7 — R8 [`bounded-replay-sweep`](../../openspec/changes/archive/2026-09-08-bounded-replay-sweep/tasks.md)**: reconciled 4/4 and synced its distinct capability.
 - [x] **A8 — R9 [`gateway-request-deadlines`](../../openspec/changes/archive/2026-09-08-gateway-request-deadlines/tasks.md)**: reconciled open 4.1's integrated full gates,
       restoration evidence, OpenSpec validation and independent review before sync.
-- [ ] **A9 — R1 `plan-refresh`**: map or collect the actual 5.2 real-browser peer/marker
-      scenario evidence, then reconcile 5.4 full gates and 5.5b merged integration record.
-      A generic green browser job alone cannot complete 5.2. Sync its distinct capability
-      only when these obligations are met, then verify the complete nine-delta union.
+- [x] **A9 — R1 [`plan-refresh`](../../openspec/changes/archive/2026-09-08-plan-refresh/tasks.md)**:
+      added real two-browser peer rename and marker evidence, reconciled the full Chromium and
+      workspace-gate results, recorded the original squash merge and synced its distinct
+      capability. The preservation inventory and strict validation cover the complete nine-delta
+      union.
 
 W4-4 is a separate closeout: after its existing task 3.5 is satisfied, sync/archive its
 own `wbs-table-modules` capability. Its review is not a missing tenth implementation task.
