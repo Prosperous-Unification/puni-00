@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import {
   decodeSolverPreparationState,
   prepareSolverBindingBeforeReset,
+  prepareSolverBindingUnderExclusion,
   runTargetPinnedSolverPreparation,
   SOLVER_COMPATIBILITY_PATHS,
   solverCompatibilityIdentityAt,
@@ -302,6 +303,80 @@ describe('solver binding preparation order', () => {
       ),
     ).toContain('digest-pinned');
     expect(events).toEqual([]);
+  });
+});
+
+describe('solver binding exclusion', () => {
+  it('refuses an overlapping target before it can publish or install', async () => {
+    let held = false;
+    const exclusion = {
+      tryAcquire: () => {
+        if (held) return Promise.resolve(undefined);
+        held = true;
+        return Promise.resolve({
+          release: () => {
+            held = false;
+            return Promise.resolve();
+          },
+        });
+      },
+    };
+    let unblockPublish: (() => void) | undefined;
+    const publishBlocked = new Promise<void>((resolve) => {
+      unblockPublish = resolve;
+    });
+    const events: string[] = [];
+    const dependencies = (label: string, blocked: boolean) => ({
+      publish: async () => {
+        events.push(`publish:${label}`);
+        if (blocked) await publishBlocked;
+        return IMAGE;
+      },
+      materialize: () => {
+        events.push(`materialize:${label}`);
+        return Promise.resolve();
+      },
+      install: () => {
+        events.push(`install:${label}`);
+        return Promise.resolve();
+      },
+      preflight: () => {
+        events.push(`preflight:${label}`);
+        return Promise.resolve();
+      },
+      reset: () => {
+        events.push(`reset:${label}`);
+        return Promise.resolve();
+      },
+    });
+
+    const first = prepareSolverBindingUnderExclusion(
+      { sourceSha: SOURCE_SHA, compatibilityIdentity: IDENTITY },
+      exclusion,
+      dependencies('first', true),
+    );
+    await Promise.resolve();
+    expect(
+      await rejection(
+        prepareSolverBindingUnderExclusion(
+          { sourceSha: OTHER_SOURCE_SHA, compatibilityIdentity: IDENTITY },
+          exclusion,
+          dependencies('second', false),
+        ),
+      ),
+    ).toContain('exclusion is already held');
+    expect(events).toEqual(['publish:first']);
+
+    unblockPublish?.();
+    await first;
+    expect(events).toEqual([
+      'publish:first',
+      'materialize:first',
+      'install:first',
+      'preflight:first',
+      'reset:first',
+    ]);
+    expect(held).toBe(false);
   });
 });
 
