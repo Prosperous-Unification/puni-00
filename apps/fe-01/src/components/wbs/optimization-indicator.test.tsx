@@ -23,7 +23,11 @@ const READY: PlanOptimizationView = {
   comparison: { deltaDays: 0, sameOrder: true },
 };
 
-const draw = (optimization: PlanOptimizationView, stale = false) => {
+const draw = (
+  optimization: PlanOptimizationView,
+  stale = false,
+  onRetry?: (objective: 'pri' | 'time', inputHash: string) => void,
+) => {
   return render(
     <OptimizationIndicator
       optimization={optimization}
@@ -31,6 +35,7 @@ const draw = (optimization: PlanOptimizationView, stale = false) => {
       projectStart="2026-09-07"
       today={new Date(2026, 8, 7)}
       workItemName={(id) => (id === 'parent' ? 'Launch' : 'Migration')}
+      {...(onRetry === undefined ? {} : { onRetry })}
     />,
   );
 };
@@ -112,7 +117,7 @@ describe('schedule comparison indicator', () => {
       variants: { ...READY.variants, pri: state },
       comparison: undefined,
     });
-    expect(screen.getByRole('status')).toHaveTextContent('Optimization unavailable · Retry');
+    expect(screen.getByRole('status')).toHaveTextContent('Optimization unavailable');
     expect(screen.queryByText(/project deadline/)).toBeNull();
     expectNoIntrusiveSurface();
   });
@@ -330,5 +335,54 @@ describe('schedule comparison indicator', () => {
   itDom('says nothing when Fast is the project selection', () => {
     draw({ ...READY, engine: 'fast', displayed: 'fast', comparison: undefined });
     expect(screen.queryByRole('status')).toBeNull();
+  });
+});
+
+describe('the Retry control', () => {
+  const failed = {
+    ...READY,
+    displayed: 'fast',
+    variants: { ...READY.variants, pri: { state: 'failed', reason: 'timeout' } },
+    comparison: undefined,
+  } as const satisfies PlanOptimizationView;
+
+  /**
+   * The state this control exists for is the only terminal one a same-input
+   * solve can leave, and it used to be a word inside the status paragraph. A
+   * reader could see `Retry` and have nothing to press.
+   *
+   * Proof: putting `Retry` back into `statusWords` as a word failed this case
+   * with `TestingLibraryElementError: Unable to find an accessible element with
+   * the role "button" and name "Retry"`, which is precisely what the reader had
+   * before — the word present, nothing to press.
+   */
+  itDom('is a button, and reports the variant and the plan it was pressed against', () => {
+    const asked: { objective: string; inputHash: string }[] = [];
+    draw(failed, false, (objective, inputHash) => {
+      asked.push({ objective, inputHash });
+    });
+
+    const retry = screen.getByRole('button', { name: 'Retry' });
+    fireEvent.click(retry);
+
+    // The selected objective, not both: a Retry asks for the schedule the
+    // reader is looking at.
+    expect(asked).toEqual([{ objective: failed.objective, inputHash: failed.inputHash }]);
+  });
+
+  /**
+   * A ready variant has nothing to retry, and offering one would ask be-01 to
+   * re-solve a plan that already has an answer.
+   */
+  itDom('is absent while the variant is not terminal', () => {
+    draw({ ...READY, displayed: 'fast' }, false, () => undefined);
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+  });
+
+  /** Screens with no writer still read correctly; they simply cannot act. */
+  itDom('is absent when no writer was supplied', () => {
+    draw(failed);
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent('Optimization unavailable');
   });
 });

@@ -30,6 +30,7 @@ import {
   removeCalendarMarker,
   removeStep,
   renameStep,
+  retryProjectOptimization,
   undoProject,
   updateCalendarMarker,
 } from '@wbs/contracts';
@@ -178,6 +179,7 @@ const PROJECT_API_OPERATIONS = {
   setEstimateArithmetic: 'patchApiProjectsById',
   setDepReach: 'patchApiProjectsById',
   setOptimizationSettings: 'patchApiProjectsById',
+  retryOptimization: 'postApiProjectsByIdOptimizationRetry',
   setStartDate: 'patchApiProjectsById',
   listCalendarMarkers: 'getApiProjectsByIdCalendar-markers',
   createCalendarMarker: 'postApiProjectsByIdCalendar-markers',
@@ -593,6 +595,31 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
       throughProjectPatch(projectId, patch, (normalizedProjectId, normalizedPatch) =>
         setOptimizationSettingsAnswer(normalizedProjectId, normalizedPatch),
       );
+  }
+
+  const retryOptimizationAnswer = answers.retryOptimization;
+  if (retryOptimizationAnswer !== undefined) {
+    // Through the real shape like every wrapper here, so a test cannot assert
+    // on a body be-01 would have refused. The 202 carries the variant back;
+    // the caller ignores it and re-reads, which is what the screen does.
+    checked.retryOptimization = async (projectId, objective, inputHash) => {
+      const client = clientFromShapes([retryProjectOptimization], async () => {
+        await retryOptimizationAnswer(projectId, objective, inputHash);
+        return {
+          kind: 'json' as const,
+          status: 202,
+          body: { state: 'retrying' as const, generation: 1, inputHash },
+        };
+      });
+      const reply = await client.postApiProjectsByIdOptimizationRetry({
+        params: { id: projectId },
+        body: { objective, inputHash },
+      });
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') {
+        throw new Error('code' in reply.body ? reply.body.code : reply.body.error);
+      }
+    };
   }
 
   const setStartDateAnswer = answers.setStartDate;
