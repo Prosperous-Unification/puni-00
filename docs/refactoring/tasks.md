@@ -143,7 +143,7 @@ archive's original evidence limits. The bounded order is:
 - [x] **A2 — R5 [`login-admission`](../../openspec/changes/archive/2026-09-08-login-admission/tasks.md)**: reconciled 5/5 and appended “Password login reserves
       bounded verification capacity” and “Login reservations end with their attempts”.
       Assert all three authentication requirements and all their scenarios survive.
-- [ ] **A3 — R4 `websocket-ingress`**: reconcile 9/9 and introduce/merge `realtime`
+- [x] **A3 — R4 [`websocket-ingress`](../../openspec/changes/archive/2026-09-08-websocket-ingress/tasks.md)**: reconciled 9/9 and introduced `realtime`
       requirements “Gateway validates client frames before dispatch” and
       “Refused input does not disable a connection”.
 - [ ] **A4 — R7 `scoped-presence`**: reconcile 12/12 and append “Presence changes identify

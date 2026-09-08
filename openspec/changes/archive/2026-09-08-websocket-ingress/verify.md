@@ -34,3 +34,16 @@ The reviewer found Elysia 1.4.28’s first-character parser leaving whitespace-p
 - Deliberately omit the Bun wire envelope: **0 pass / 1 fail**, space-prefixed production socket case reports `WebSocket wire envelope missing` through the Elysia parser/adapter/dispatcher in 40.86ms, without a timeout (`/tmp/refactoring-r4-envelope-fault.log`). Both mutations restored before the final scoped checks.
 - An intermediate `bun test apps/gw-01/src libs/contracts` (without `./`) also discovered generated `dist/out-tsc` test copies after typecheck: **379 pass / 26 fail**, 26 unresolved-alias errors in those emitted copies. Explicit directory paths in the final command exclude generated output; no source failure was hidden or artifact deleted.
 - Fresh source+spec build and scoped six-file ESLint both exited **0** after the wire fix. Full workspace/browser gates remain deferred to parent integration.
+
+## Archive reconciliation, 2026-09-08
+
+Current `main` at `5516d453` retains the validated controller boundary and raw
+Bun wire envelope. The current gateway/contracts selection passed **504/504 tests
+with 4,516 assertions across 56 files**, including the six real-socket ingress
+cases. Fresh `gw-01:typecheck`, `gw-01:lint`, `contracts:typecheck` and
+`contracts:lint`, all with `--skip-nx-cache`, passed.
+
+No `realtime` main spec existed before this sync. This delta introduces two
+requirements and six scenarios. `scoped-presence` remains active and will append
+its three requirements; the complete expected union is recorded in
+`docs/refactoring/r1-r9-spec-inventory.md`.
