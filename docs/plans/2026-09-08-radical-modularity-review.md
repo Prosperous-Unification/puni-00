@@ -332,9 +332,9 @@ covers the revised design and dispositions, with tools disabled.
 The CLI reports success, 38,077 ms and USD 0.504530 including auxiliary usage;
 raw response SHA-256:
 `ade48fa6f692a1c020d4ae9538f34796e3ab69eb25496b13ddc5f70239a15d47`.
-All three responses report substantive `claude-fable-5` usage. The small Haiku
-usage in CLI bookkeeping is included in costs; it is not the substantive
-cross-review. Fresh contexts here do not claim independent model errors.
+All three responses report substantive `claude-fable-5` usage. The CLI also
+reports small additional Haiku usage, included in the costs; its purpose was
+not independently verified. Fresh contexts do not claim independent model errors.
 
 ### Verification scope
 

@@ -2,10 +2,12 @@
 
 Requested model: `claude-fable-5`, effort `high`. The CLI response reports
 `is_error: false`, `subtype: success` and substantive usage for `claude-fable-5`.
-Tools were disabled. The input contained only the original proposal and the
-initial fourteen-finding review; this was an independent document cross-review,
-not a repository inspection or test execution. The response below is preserved;
-[the review](2026-09-08-radical-modularity-review.md) records dispositions.
+Tools were disabled in every round. Round 1 received the original proposal and
+initial fourteen-finding review. Round 2 received the revised proposal, review
+dispositions and first response. Round 3 received the revised proposal and
+updated dispositions. These are document cross-reviews, not repository inspections
+or test executions. Responses are preserved below, newest first;
+[the review](2026-09-08-radical-modularity-review.md) records their dispositions.
 
 ## Round 3 response
 
