@@ -133,6 +133,14 @@ export interface SolverBindingPipelineDependencies {
   reset(sourceSha: string): Promise<void>;
 }
 
+export interface SolverBindingExclusionLease {
+  release(): Promise<void>;
+}
+
+export interface SolverBindingExclusion {
+  tryAcquire(): Promise<SolverBindingExclusionLease | undefined>;
+}
+
 /** Completes every host-owned binding phase before the live checkout can move. */
 export async function prepareSolverBindingBeforeReset(
   target: SolverBindingTarget,
@@ -153,6 +161,26 @@ export async function prepareSolverBindingBeforeReset(
   // Proof: solver-preparation.test.ts makes each preceding phase throw and
   // observes that the injected reset ledger remains empty in every case.
   await dependencies.reset(target.sourceSha);
+}
+
+/** Rejects contention before target-specific work and holds one lease through reset. */
+export async function prepareSolverBindingUnderExclusion(
+  target: SolverBindingTarget,
+  exclusion: SolverBindingExclusion,
+  dependencies: SolverBindingPipelineDependencies,
+): Promise<void> {
+  const lease = await exclusion.tryAcquire();
+  if (lease === undefined) {
+    throw new Error('solver binding exclusion is already held');
+  }
+  try {
+    // Proof: solver-preparation.test.ts overlaps two different targets while
+    // the first publish is blocked; the second target reaches no phase, and
+    // the first holds the same lease through its reset.
+    await prepareSolverBindingBeforeReset(target, dependencies);
+  } finally {
+    await lease.release();
+  }
 }
 
 function assertTargetPath(target: SolverPreparationTarget): void {
