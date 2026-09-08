@@ -13,13 +13,14 @@ const DEADLINE_MARK_PX = 10;
 export function createDeadlineColumn({ live }: { live: PlanLive }) {
   return column.display({
     id: 'deadline',
+    meta: { isEditable: (row) => row.readings.startDate !== null },
     header: () => <span>Due</span>,
     cell: ({ row }) => {
       const day = row.original.deadline;
-      const noCalendar = live.current.startDate === null;
-      const impossible = deadlineBeforeProjectStart(live.current.startDate, day);
+      const noCalendar = row.original.readings.startDate === null;
+      const impossible = deadlineBeforeProjectStart(row.original.readings.startDate, day);
       const impossibleMarkId = impossible ? `deadline-impossible-${row.original.id}` : undefined;
-      const editing = live.current.editingDeadline === row.original.id;
+      const editing = row.original.readings.editingDeadline;
       const open = (): void => {
         if (!noCalendar) live.current.openDeadline(row.original.id);
       };

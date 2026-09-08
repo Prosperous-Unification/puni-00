@@ -1,6 +1,6 @@
-import type * as React from 'react';
 import { type ComponentProps } from 'react';
 
+import { type CellCards } from './cell-card-store';
 import { type DepLights } from './dep-light-store';
 import { entersThroughDependsCard } from './depends-card';
 import { cellKey } from './editable-grid';
@@ -20,20 +20,12 @@ export function createPlanCellProps({
   dependenciesOf,
   depLights,
   depPicker,
-  setHoveredCell,
-  startSentence,
-  openCard,
+  cellCards,
 }: {
   dependenciesOf: (ids: readonly string[]) => { id: string; number: string; name: string }[];
   depLights: DepLights;
   depPicker: { rowId: string; typed: string; highlightId: string | null } | null;
-  setHoveredCell: React.Dispatch<React.SetStateAction<string | null>>;
-  /**
-   * One row's Start sentence, remembered for this render — {@link WbsTable}
-   * builds it, because the `<td>` here and the cell inside it both ask.
-   */
-  startSentence: (row: TreeRow) => string | null;
-  openCard: string | null;
+  cellCards: CellCards;
 }) {
   /**
    * What one row's Depends on `<td>` does with a pointer arriving and leaving.
@@ -89,11 +81,10 @@ export function createPlanCellProps({
               : { rowId: row.id, pillId: null },
           );
         }
-        // Nothing to open, nothing written. `hoveredCell` lives on the table,
-        // so every boundary the pointer crosses costs one render of the whole
-        // of it — and a cell with no card to show has no reason to spend one,
-        // nor to close the card open somewhere else on the pointer's way past.
-        // codex round 3, finding 5.
+        // Nothing to open, nothing written. This guard predates the external
+        // store: a cell with no card to show still has no reason to notify its
+        // subscribers, nor to close the card open somewhere else on the
+        // pointer's way past. codex round 3, finding 5.
         //
         // The key is a string, so a second enter on the same cell writes the
         // value already there and React bails out without rendering.
@@ -107,7 +98,7 @@ export function createPlanCellProps({
         // the state directly, because this is outside the column definitions.
         const cardable = dependenciesOf(row.dependsOn).length > 0 && depPicker?.rowId !== row.id;
         if (!cardable) return;
-        setHoveredCell(dependsCell);
+        cellCards.updateHovered(() => dependsCell);
       },
       onMouseLeave: () => {
         // The open dependency card owns dismissal through its document
@@ -120,12 +111,12 @@ export function createPlanCellProps({
         if (dependenciesOf(row.dependsOn).length > 0 && depPicker?.rowId !== row.id) return;
 
         // Leaving the cell clears the dependency hover outright — with the
-        // same-cell guard `hoveredCell`'s clear uses, because a leave lands
+        // same-cell guard the card store's clear uses, because a leave lands
         // after the next cell's enter.
         depLights.updateHover((current) => (current?.rowId === row.id ? null : current));
         // The same-cell guard, for the reason the Name cell's marker gives: a
         // leave lands after the next cell's enter.
-        setHoveredCell((current) => (current === dependsCell ? null : current));
+        cellCards.updateHovered((current) => (current === dependsCell ? null : current));
       },
     };
   };
@@ -151,6 +142,11 @@ export function createPlanCellProps({
    * here: the card is this cell's one hint, and a browser tooltip raced it over
    * the same pixels"_ — so this cell now does what that one does.
    *
+   * `aria-describedby` is **not** here and is on {@link PlanCell} instead: it
+   * is the one thing in this bag that changes with the open card, and this
+   * builder runs in {@link WbsTable}'s own render. The cell shell subscribes to
+   * {@link CellCards} and puts it on the same `<td>`.
+   *
    * The keyboard path is the reason `onFocus` is here beside `onMouseEnter`. A
    * `title` on a focusable cell is announced as its description; a card that
    * only a pointer can open is data withheld from anybody who does not use one
@@ -159,17 +155,17 @@ export function createPlanCellProps({
    */
   const startCellProps = (
     row: TreeRow,
+    said: string | null,
   ): Pick<
     ComponentProps<'td'>,
-    'tabIndex' | 'onMouseEnter' | 'onMouseLeave' | 'onFocus' | 'onBlur' | 'aria-describedby'
+    'tabIndex' | 'onMouseEnter' | 'onMouseLeave' | 'onFocus' | 'onBlur'
   > & { 'data-start-said'?: string } => {
-    const said = startSentence(row);
     if (said === null) return {};
     const startCell = cellKey(row.id, 'start');
     // The same-cell guard every surface here clears with: a leave fires after
     // the enter of whatever the pointer moved on to.
     const close = () => {
-      setHoveredCell((current) => (current === startCell ? null : current));
+      cellCards.updateHovered((current) => (current === startCell ? null : current));
     };
     return {
       /*
@@ -189,14 +185,13 @@ export function createPlanCellProps({
       'data-start-said': said,
       tabIndex: 0,
       onMouseEnter: () => {
-        setHoveredCell(startCell);
+        cellCards.updateHovered(() => startCell);
       },
       onMouseLeave: close,
       onFocus: () => {
-        setHoveredCell(startCell);
+        cellCards.updateHovered(() => startCell);
       },
       onBlur: close,
-      'aria-describedby': openCard === startCell ? startCardId(row.id) : undefined,
     };
   };
   return { dependsCellHoverProps, startCellProps };

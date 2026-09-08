@@ -1,9 +1,11 @@
+import { useCardOpenOn } from '../cell-card-store';
 import { CellInput } from '../cell-input';
 import { cellKey } from '../editable-grid';
 import { HoverPreview } from '../hover-preview';
 import { renderName } from '../inline-markdown';
 import { composeNameCell } from '../name-notes';
 import { MATCH_TINT } from '../plan-cell-props';
+import { useFilterReading } from '../plan-cell-reading-context';
 import type { PlanLive } from '../plan-live';
 import { hierarchyIndentFor, numberIndentFor } from '../table-frame';
 import { column } from './column';
@@ -12,8 +14,17 @@ import { column } from './column';
 export function createNameColumn({ live }: { live: PlanLive }) {
   return column.display({
     id: 'name',
+    meta: { isEditable: () => true },
     header: 'Name',
     cell: ({ row }) => {
+      // A subscription and not a reading off `live`: this cell is a component,
+      // so it can be told about its own card without the table rendering.
+      // First, and unconditionally, because it is a hook.
+      // `flexRender` builds this with `React.createElement`, so it **is** a
+      // component and the hook below is legal; the rule reads the property
+      // name `cell` and cannot see the call site.
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const cardOpen = useCardOpenOn(live.current.cellCards, cellKey(row.original.id, 'name'));
       // Why this row is on screen, at a glance: a hit is tinted, and every
       // other row in a narrowed table is context — an ancestor placing a
       // hit, or work underneath one. Read through `live` rather than closed
@@ -24,9 +35,10 @@ export function createNameColumn({ live }: { live: PlanLive }) {
       // a matched parent` failed — the second because it is the mark that
       // says the parent is the hit and the subtree is not. Watched,
       // 2026-08-06.
-      const matched = live.current.matchIds.has(row.original.id);
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const { matched } = useFilterReading();
       const nameCell = cellKey(row.original.id, 'name');
-      const hovered = live.current.openCard === nameCell;
+      const hovered = cardOpen;
       return (
         <span
           // `block`, not `inline-block`: a shrink-to-fit wrapper and a
@@ -58,7 +70,9 @@ export function createNameColumn({ live }: { live: PlanLive }) {
             // after the enter of whatever the pointer moved on to, so an
             // unconditional clear would close the card the next cell had
             // just opened.
-            live.current.setHoveredCell((current) => (current === nameCell ? null : current));
+            live.current.cellCards.updateHovered((current) =>
+              current === nameCell ? null : current,
+            );
           }}
           style={{
             position: 'relative',
@@ -198,7 +212,7 @@ export function createNameColumn({ live }: { live: PlanLive }) {
               aria-label={`Notes on ${row.original.number}`}
               data-notes-marker={row.original.id}
               onMouseEnter={() => {
-                live.current.setHoveredCell(nameCell);
+                live.current.cellCards.updateHovered(() => nameCell);
               }}
               // At 15px the glyph reads as clickable, and a click that
               // did nothing would eat the caret aimed at the name under

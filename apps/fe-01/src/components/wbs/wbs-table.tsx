@@ -1,9 +1,11 @@
-import { flexRender, useTable } from '@tanstack/react-table';
+import { type Cell as TableCell, flexRender, type Header, useTable } from '@tanstack/react-table';
 import {
   type ComponentProps,
+  memo,
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -12,23 +14,33 @@ import {
 
 import { Button } from '@/components/ui/button';
 
+import { type CellCards, createCellCards, useCardOpenOn } from './cell-card-store';
+import type { CellRef } from './cell-navigation';
 import { type ColumnHintState, hintFor } from './column-hints';
 import { createDepLights, type DepLights } from './dep-light-store';
 import { type DropZone, zoneFor } from './drag-drop';
-import { cellKey } from './editable-grid';
+import { cellIn, cellKey, type CellLanding, cellRefOf, focusCellAt } from './editable-grid';
 import { ExternalRefsModal } from './external-refs-modal';
 import { GanttFaultBoundary } from './gantt-fault';
 import { appliedGanttHeight, DAY_PX, GanttPanel } from './gantt-panel';
 import { KeyboardCheatSheet } from './keyboard-cheat-sheet';
+import { logicalGrid } from './logical-grid';
 import { OptimizationIndicator } from './optimization-indicator';
 import { PlanCards } from './plan-cards';
-import { createPlanCellProps, opensAPopover, readStartSentence } from './plan-cell-props';
+import {
+  createPlanCellProps,
+  opensAPopover,
+  readStartSentence,
+  startCardId,
+} from './plan-cell-props';
+import { FilterReadingProvider, StartSentenceProvider } from './plan-cell-reading-context';
 import { usePlanChartInput, usePlanSchedule } from './plan-chart-input';
-import { PLAN_TABLE_FEATURES } from './plan-columns/column';
+import { PLAN_TABLE_FEATURES, type PlanTableFeatures } from './plan-columns/column';
 import { createPlanColumns } from './plan-columns/columns';
 import { usePlanExportActions, usePlanOnScreenExport } from './plan-export-actions';
 import type { PlanLiveValues } from './plan-live';
 import { showDay } from './plan-number-format';
+import { attachRowReadings, type EstimateReadings, type PlanRenderRow } from './plan-render-rows';
 import { useRendererForViewport } from './plan-renderer';
 import { PlanToolbar } from './plan-toolbar';
 import { PlanToolbarSheet } from './plan-toolbar-sheet';
@@ -36,8 +48,11 @@ import { createPointedRows, type PointedRows } from './pointed-row-store';
 import { rememberGanttDayPx, rememberGanttLabels } from './remembered-layout';
 import {
   CELL,
+  FLEXIBLE_CAP,
   flexibleCellStyle,
+  type FrameLayout,
   frameLayout,
+  type FrameLayoutState,
   GANTT_DOCK_SLACK,
   pinnedCellStyle,
   POPOVER_ROW_LAYER,
@@ -80,12 +95,16 @@ import {
   usePlanStructure,
   usePlanStructureEffects,
 } from './use-plan-structure';
+import { usePlanViewport } from './use-plan-viewport';
 import { usePlanAssignments, usePlanLabels, useReferenceSets } from './use-reference-sets';
 import { type TreeRow } from './wbs-rows';
 
 /** What {@link PlanRow} needs beyond the cells it is handed. */
 interface PlanRowProps {
   rowId: string;
+  /** Zero-based position in the complete filtered and expanded row order. */
+  rowIndex: number;
+  attach: (rowId: string, node: HTMLTableRowElement | null) => void;
   frozen: boolean;
   /**
    * Where this row's **dependency** light is read from.
@@ -120,22 +139,19 @@ interface PlanRowProps {
  * enter and leave, and the **row light** from its own subscription.
  *
  * A component of its own so the light can move without the table rendering.
- * {@link WbsTable}'s cells read their live state through its `live` ref and
- * rely on every parent render reaching every cell, so the pointed row must not
- * be that component's state — held there it cost a render of all ~500 cells
- * and the whole chart per row the pointer crossed (75–120ms each, measured in
- * Chromium, `pointed-row-render-cost`). The shell subscribes to
+ * Before explicit row readings, cells relied on every parent render reaching
+ * them through `live`; holding the pointed row there cost a render of all ~500
+ * cells and the whole chart per row the pointer crossed (75–120ms each,
+ * measured in Chromium, `pointed-row-render-cost`). The shell subscribes to
  * {@link PointedRows} for the one boolean it draws; when only that changes,
  * React re-renders this `<tr>` and **bails on the unchanged cell elements**
  * handed in as `children`, so moving the light renders two shells and not one
- * cell. The cells stay the parent's render exactly so their `live` contract is
- * untouched — this is deliberately not `memo`, which would have to enumerate
- * everything a cell reads and would go silently stale on the first miss.
+ * cell. Cell content has its own explicit memo boundary one level down.
  *
  * `data-row-lit` says this is the **pointed row**, whichever face pointed it:
  * a bar or a row's line on the chart, a bar's focus, or the pointer resting on
  * this row here. Writing it on the hovered row itself makes
- * `tr:not([data-row-lit])…:nth-child(even):hover` unmatchable — deliberately,
+ * `tr:not([data-row-lit])…[data-row-parity='even']:hover` unmatchable — deliberately,
  * since `pointed-row-one-ink`: one ink for the row you are asking about, and
  * the alternating stripe left to say only which row is which at rest (Dany,
  * 2026-09-01: "highlighted row is colored independently of which odd or even
@@ -157,6 +173,8 @@ interface PlanRowProps {
  */
 function PlanRow({
   rowId,
+  rowIndex,
+  attach,
   frozen,
   depLights,
   armed,
@@ -169,8 +187,17 @@ function PlanRow({
 }: PlanRowProps) {
   const lit = useSyncExternalStore(pointed.subscribe, () => pointed.pointedAt() === rowId);
   const depLit = useSyncExternalStore(depLights.subscribe, () => depLights.isLit(rowId));
+  const attachThisRow = useCallback(
+    (node: HTMLTableRowElement | null) => {
+      attach(rowId, node);
+    },
+    [attach, rowId],
+  );
   return (
     <tr
+      ref={attachThisRow}
+      aria-rowindex={rowIndex + 2}
+      data-row-parity={rowIndex % 2 === 0 ? 'odd' : 'even'}
       // The row's identity, on the row — the handle the browser proofs find a
       // dependency's `<tr>` by (precedent: `data-armed`, `data-drop`), and the
       // shell's own subscription key. Nothing else in the app reads it.
@@ -205,6 +232,254 @@ function PlanRow({
     </tr>
   );
 }
+
+/** Preserves the unmounted rows' measured scroll extent without pretending to be a data row. */
+function ViewportRowSpacer({
+  position,
+  heightPx,
+  columnCount,
+}: {
+  position: 'before' | 'between' | 'after';
+  heightPx: number;
+  columnCount: number;
+}) {
+  if (heightPx === 0) return null;
+  return (
+    <tr aria-hidden="true" data-viewport-spacer={position}>
+      <td colSpan={columnCount} style={{ border: 0, height: heightPx, padding: 0 }} />
+    </tr>
+  );
+}
+
+/** Holds omitted columns against the complete `<colgroup>` without mounting a plan cell. */
+function ViewportColumnSpacer({ columnCount }: { columnCount: number }) {
+  return (
+    <td
+      aria-hidden="true"
+      data-viewport-column-spacer
+      colSpan={columnCount}
+      style={{ ...CELL, padding: 0 }}
+    />
+  );
+}
+
+/** What {@link PlanCell} needs beyond the `<td>` attributes it passes on. */
+interface PlanCellProps extends ComponentProps<'td'> {
+  cards: CellCards;
+  /** This cell's key, the one the store is asked about. */
+  cell: string;
+  /** The card this `<td>` points `aria-describedby` at while it is open. */
+  describedBy?: string;
+  /** Whether an open card here has to be lifted over the pinned layer. */
+  raiseWhenOpen?: boolean;
+}
+
+/**
+ * One plan cell's `<td>`: the attributes {@link WbsTable} works out, plus the
+ * two that depend on whether **this** cell's hover card is open.
+ *
+ * A component of its own so a card can open without the table rendering, which
+ * is {@link PlanRow}'s bargain one level down. The two readings that live here
+ * were the last things holding `openCard` in the composition: the Start cell's
+ * `aria-describedby`, and the Name cell's lift over the pinned layer. The cells
+ * inside subscribe for themselves ({@link useCardOpenOn}) and are handed in as
+ * `children`, so a card opening three rows away re-renders neither this shell
+ * nor them.
+ *
+ * The lift is last in the style order, so it wins over the pinned layer it is
+ * raising. A pinned cell is sticky *with a z-index*, which makes it a stacking
+ * context — so the preview hanging off this one is trapped inside it and the
+ * next row's pinned Name cell paints over it, whatever the preview's own
+ * z-index says. The Name column is the only cell in the table that is both
+ * pinned and holds a popover.
+ *
+ * Proof of that one: found in a browser rather than reasoned about — `4px below
+ * the name cell is <textarea> in the name column, not the preview`, on h2puni
+ * 2026-08-08, with `opensAPopover` and every other rule already correct.
+ */
+function PlanCell({
+  cards,
+  cell,
+  describedBy,
+  raiseWhenOpen = false,
+  style,
+  children,
+  ...attributes
+}: PlanCellProps) {
+  const carded = useCardOpenOn(cards, cell);
+  return (
+    <td
+      {...attributes}
+      aria-describedby={carded && describedBy !== undefined ? describedBy : undefined}
+      style={carded && raiseWhenOpen ? { ...style, zIndex: POPOVER_ROW_LAYER } : style}
+    >
+      {children}
+    </td>
+  );
+}
+
+interface PlanCellContentProps {
+  cell: TableCell<PlanTableFeatures, PlanRenderRow>;
+  expandable: boolean;
+  expanded: boolean;
+  startSentence: string | null;
+  filtering: boolean;
+  matched: boolean;
+}
+
+/**
+ * One stable boundary around a column cell's explicit row input.
+ *
+ * TanStack rebuilds its Cell wrappers with the table model. The rendered
+ * component must therefore compare the row value it actually receives rather
+ * than Cell identity; expansion is separate because Number renders it from the
+ * model rather than from {@link PlanRenderRow}. Filter readings travel beside
+ * that row, not inside it, because only Number and Name render them.
+ *
+ * Proof: putting `filtering` and `matched` back on every `PlanRowReadings`
+ * rebuilt every row for one broad Find; Chromium's production counter failed
+ * `a broad Find renders no more than its two filter-sensitive cells per row`
+ * on `Expected: <= 200, Received: 3000`. Watched 2026-09-08.
+ */
+function PlanCellContentView({ cell, startSentence, filtering, matched }: PlanCellContentProps) {
+  const content = flexRender(cell.column.columnDef.cell, cell.getContext());
+  if (cell.column.id === 'start') {
+    return <StartSentenceProvider sentence={startSentence}>{content}</StartSentenceProvider>;
+  }
+  if (cell.column.id === 'name' || cell.column.id === 'number') {
+    return (
+      <FilterReadingProvider filtering={filtering} matched={matched}>
+        {content}
+      </FilterReadingProvider>
+    );
+  }
+  return content;
+}
+
+const PlanCellContent = memo(PlanCellContentView, samePlanCellContent);
+
+function samePlanCellContent(before: PlanCellContentProps, after: PlanCellContentProps): boolean {
+  return (
+    before.cell.column.id === after.cell.column.id &&
+    before.cell.row.original === after.cell.row.original &&
+    (after.cell.column.id !== 'number' ||
+      (before.expandable === after.expandable &&
+        before.expanded === after.expanded &&
+        (!after.expandable || before.filtering === after.filtering))) &&
+    (after.cell.column.id !== 'name' || before.matched === after.matched) &&
+    (after.cell.column.id !== 'start' || before.startSentence === after.startSentence)
+  );
+}
+
+interface PlanTableCellProps extends PlanCellContentProps {
+  cards: CellCards;
+  frameState: FrameLayoutState;
+  layout: FrameLayout;
+  armed: boolean;
+  attributes: ComponentProps<'td'>;
+}
+
+/** A complete body cell whose render cost belongs only to its explicit readings. */
+function PlanTableCellView({
+  cards,
+  cell,
+  frameState,
+  layout,
+  armed,
+  attributes,
+  ...content
+}: PlanTableCellProps) {
+  const columnId = cell.column.id;
+  const sentence = columnId === 'start' ? content.startSentence : null;
+  return (
+    <PlanCell
+      cards={cards}
+      cell={cellKey(cell.row.original.id, columnId)}
+      describedBy={sentence === null ? undefined : startCardId(cell.row.original.id)}
+      raiseWhenOpen={columnId === 'name'}
+      {...attributes}
+      data-column={columnId}
+      style={{
+        ...CELL,
+        ...(opensAPopover(columnId) ? { overflow: 'visible' as const } : {}),
+        ...(sentence !== null ? { cursor: 'help' as const } : {}),
+        ...flexibleCellStyle(columnId, frameState),
+        ...pinnedCellStyle(layout, columnId, 'body'),
+        ...(armed ? { background: ARMED_TINT } : {}),
+      }}
+    >
+      <PlanCellContent cell={cell} {...content} />
+    </PlanCell>
+  );
+}
+
+const PlanTableCell = memo(
+  PlanTableCellView,
+  (before, after) =>
+    before.cards === after.cards &&
+    before.frameState === after.frameState &&
+    before.layout === after.layout &&
+    before.armed === after.armed &&
+    samePlanCellContent(before, after),
+);
+
+interface PlanHeaderCellProps {
+  header: Header<PlanTableFeatures, PlanRenderRow>;
+  frameState: FrameLayoutState;
+  layout: FrameLayout;
+  hasProjectStartDate: boolean;
+  projectId: string;
+  resizeHandle: (columnId: string, heading: unknown) => ReactNode;
+}
+
+/**
+ * A heading whose layout work reruns only when the column frame changes.
+ *
+ * `resizeHandle` is deliberately absent from the comparator: its closure changes
+ * with the table render, while the behavior it closes over changes only with the
+ * project or frame readings compared below. Keeping it out is what makes a Find
+ * leave invariant headings still.
+ */
+function PlanHeaderCellView({
+  header,
+  frameState,
+  layout,
+  hasProjectStartDate,
+  resizeHandle,
+}: PlanHeaderCellProps) {
+  const columnId = header.column.id;
+  return (
+    <th
+      scope="col"
+      data-column={columnId}
+      aria-label={header.column.columnDef.meta?.spokenHeading}
+      data-hint={hintFor(columnId, { hasProjectStartDate })}
+      style={{
+        ...CELL,
+        ...STICKY_HEADER_CELL,
+        ...flexibleCellStyle(columnId, frameState),
+        ...pinnedCellStyle(layout, columnId, 'header'),
+      }}
+    >
+      {flexRender(header.column.columnDef.header, header.getContext())}
+      {resizeHandle(
+        columnId,
+        header.column.columnDef.meta?.spokenHeading ?? header.column.columnDef.header,
+      )}
+    </th>
+  );
+}
+
+const PlanHeaderCell = memo(
+  PlanHeaderCellView,
+  (before, after) =>
+    before.header.column.id === after.header.column.id &&
+    before.header.column.columnDef === after.header.column.columnDef &&
+    before.frameState === after.frameState &&
+    before.layout === after.layout &&
+    before.projectId === after.projectId &&
+    before.hasProjectStartDate === after.hasProjectStartDate,
+);
 
 /**
  * The work breakdown: one grid that is a table and a nested list at once.
@@ -286,7 +561,7 @@ export function WbsTable({
     mermaidSectionMode,
     setMermaidSectionMode,
   } = useRememberedPlanLayout({ projectId });
-  const { query, setQuery, facets, setFacets, savedViews, setSavedViews } = usePlanFilterState({
+  const { query, commitQuery, facets, setFacets, savedViews, setSavedViews } = usePlanFilterState({
     projectId,
   });
   /**
@@ -302,52 +577,29 @@ export function WbsTable({
   const { drafts, setDrafts, mention, setMention, foldedBox, foldedAtFocus } =
     useEstimateDraftState();
   /**
-   * The one cell whose hover card is open, as a {@link cellKey}, or null.
+   * Which cell's hover card is on screen, and who says so.
    *
-   * One state for every surface that opens a card — the Name cell's notes
-   * marker, a folded step's figure, the depends chips — rather than one state
-   * each, and that is what makes "one card at a time" true by construction
-   * rather than by three pieces of code remembering to close each other.
+   * One store for every surface that opens a card — the Name cell's notes
+   * marker, a folded step's figure, the depends chips, the Start day, the links
+   * — rather than one state each, and that is what makes "one card at a time"
+   * true by construction rather than by five pieces of code remembering to
+   * close each other. Keyed by cell and not by row, because a row has several,
+   * and by the `rowId::columnId` the keyboard grid already spells cells with.
    *
-   * Keyed by cell rather than by row because a row has several of them, and by
-   * the `rowId::columnId` the keyboard grid already names cells with, so this
-   * file holds one spelling of "which cell".
-   *
-   * Read through {@link live} inside `columns`, never closed over: the memo's
-   * dependencies are the three {@link PlanLiveValues} names — `steps`,
-   * `unfoldedSteps`, `hiddenColumnIds` — and a dependency that changed on every
-   * mouse move would remount every cell in the table as the pointer crossed it.
+   * **Two `useState`s at the top of this component until R10**, and the address
+   * was the whole of the cost: the cells read their live state through
+   * `live.current` and rely on every parent render reaching every cell, so one
+   * pointer move onto a cardable cell re-rendered every row and the whole Gantt
+   * to draw one card. See {@link createCellCards} — this is W2-7's cell half,
+   * deferred out of W4-4 in writing and named there as R10's.
    */
-  const [hoveredCell, setHoveredCell] = useState<string | null>(null);
-  /**
-   * The one cell whose card is open because it has the **focus**, as a
-   * {@link cellKey}, or null.
-   *
-   * A second state rather than a second writer of {@link hoveredCell}, and round
-   * 4's finding 9 is why. The two are set and cleared by gestures that do not
-   * take turns: a pointer wandering across any other cardable cell and off it
-   * again ran the hover's guarded clear, and the still-focused cell was left
-   * with no card and no reason to fire a focus event ever again — a description
-   * that vanishes because a mouse went past.
-   *
-   * Not settled against a refreshed tree the way `hoveredCell` is, deliberately:
-   * a card that belongs to the focus should follow the focus, and the browser
-   * moves that with its element whatever the tree did. A row deleted while its
-   * box was focused leaves a key here that no rendered cell can ever match
-   * again, which shows nothing and is replaced by the next focus.
-   */
-  const [focusedCell, setFocusedCell] = useState<string | null>(null);
-  /**
-   * The one cell whose card is on screen: the pointer's while it is on
-   * something, and the focus's when it is not.
-   *
-   * Derived rather than stored, which is what keeps "one card at a time" true by
-   * construction now that two gestures can open one. The pointer wins because it
-   * is the deliberate act of the moment — a reader who moves the mouse onto a
-   * cell is asking about that cell — and the focus is still where they left it
-   * when they move away again.
-   */
-  const openCard = hoveredCell ?? focusedCell;
+  const cellCards = useRef(createCellCards()).current;
+  const [activeCell, setActiveCell] = useState<CellRef | null>(null);
+  const [requestedFocus, setRequestedFocus] = useState<{
+    cell: CellRef;
+    landing: CellLanding;
+  } | null>(null);
+
   /**
    * Where every row sat as of the last tree read, by {@link placementsOf}.
    *
@@ -366,6 +618,8 @@ export function WbsTable({
     gapVisit,
     setGapVisit,
     gridElement,
+    logicalCells,
+    attachCell,
   } = usePlanKeyboardState();
   const {
     unfoldedSteps,
@@ -523,7 +777,6 @@ export function WbsTable({
    * `[data-table-frame]`, and so does the browser gate.
    */
   const frameRef = useRef<HTMLDivElement | null>(null);
-  usePlanLayoutEffects({ frameRef, ganttOpen, renderer, chartRead, ganttColumn, setGanttRoomPx });
   const { refreshOrMarkStale, run, stepStack, runMarkerWrite } = usePlanRead({
     setDrafts,
     projectId,
@@ -540,7 +793,7 @@ export function WbsTable({
     setWorkItems,
     treeReadProject,
     rowPlacements,
-    setHoveredCell,
+    cellCards,
     setChartRead,
     setStack,
     setTeamCapacities,
@@ -571,6 +824,7 @@ export function WbsTable({
     workItems,
     focusIntent,
     gridElement,
+    attachCell,
   });
 
   /** Every row in the order the table renders them, ignoring collapse. */
@@ -756,6 +1010,8 @@ export function WbsTable({
     deleteRow,
     commandInFlight,
     addSibling,
+    logicalCells,
+    attachCell,
   });
   const { dependenciesOf, dependOn, depEntriesFor, pickDependency, moveDepHighlight } =
     usePlanDependencies({
@@ -851,20 +1107,6 @@ export function WbsTable({
   const startFloor = useRef<ReadonlyMap<string, string>>(new Map());
 
   /**
-   * One row's Start sentence, worked out once however many readers ask.
-   *
-   * Three did, per row, per render: the `<td>`'s own props, the `cursor: help`
-   * decided beside them, and the Start cell itself — and each call allocated a
-   * `Date` inside {@link spanOf} and walked the floor map again. A plain `Map`
-   * rebuilt every render rather than a `useMemo`, because what makes the answer
-   * stale is any of the three things it reads changing, and every one of them
-   * is replaced on the render that changes it.
-   *
-   * `startFloor.current` is read **inside** the call and not captured beside
-   * this line: the chart projection replaces that map further down the render,
-   * and all three readers run after it.
-   */
-  /**
    * One row's two printed days, worked out once however many readers ask.
    *
    * Three do, per row, per render: the Start cell, the Finish cell, and the
@@ -876,23 +1118,114 @@ export function WbsTable({
    * The chart is handed the unmemoised `spanOf`: it lays out in a `useMemo` of
    * its own and may render on a commit this map was not rebuilt for.
    */
-  const spanByRow = new Map<string, ReturnType<typeof spanOf>>();
-  const spanOfOnce = (row: TreeRow): ReturnType<typeof spanOf> => {
-    const known = spanByRow.get(row.id);
-    if (known !== undefined) return known;
-    const span = spanOf(row);
-    spanByRow.set(row.id, span);
-    return span;
-  };
-
-  const saidByRow = new Map<string, string | null>();
-  const startSentence = (row: TreeRow): string | null => {
-    const known = saidByRow.get(row.id);
-    if (known !== undefined) return known;
-    const said = readStartSentence(row, spanOfOnce, startFloor.current);
-    saidByRow.set(row.id, said);
-    return said;
-  };
+  const { rowsWithReadings, spanByRow } = useMemo(() => {
+    const assigneeEntries = people.map((person) => ({
+      id: person.id,
+      name: person.name,
+      detail:
+        person.teamIds.length === 0
+          ? 'free agent'
+          : person.teamIds
+              .map((id) => teams.find((team) => team.id === id)?.name ?? '?')
+              .join(', '),
+    }));
+    const spans = new Map<string, ReturnType<typeof spanOf>>();
+    const rows = attachRowReadings(workItems, (row) => {
+      const dependencyPicker = depPicker?.rowId === row.id ? depPicker : null;
+      const estimateReadings = new Map<string, EstimateReadings>();
+      for (const step of steps) {
+        if (hiddenColumnIds.includes(step.id)) continue;
+        const doing = assigneeOn(row, step.id);
+        const anyAssignee = anyAssigneeOn(step.id);
+        if (unfoldedSteps.includes(step.id)) {
+          estimateReadings.set(step.id, {
+            layout: 'unfolded',
+            anyAssignee,
+            doing,
+            estimateValues: {
+              optimistic: estimateValue(row, step.id, 'optimistic'),
+              realistic: estimateValue(row, step.id, 'realistic'),
+              pessimistic: estimateValue(row, step.id, 'pessimistic'),
+            },
+            trioProblem: trioProblemFor(row, step.id),
+          });
+          continue;
+        }
+        estimateReadings.set(step.id, {
+          layout: 'folded',
+          anyAssignee,
+          combinedProblem: combinedProblem(row, step.id),
+          combinedValue: combinedValue(row, step.id),
+          doing,
+          mentionOptions: mentionOptions(row, step.id),
+          mentioning: mention?.rowId === row.id && mention.stepId === step.id,
+        });
+      }
+      const span = spanOf(row);
+      spans.set(row.id, span);
+      return {
+        actionsOpen: openMenuRowId === row.id,
+        assigneeEntries,
+        busy,
+        dependencies: dependenciesOf(row.dependsOn),
+        dependencyEntries:
+          dependencyPicker === null ? [] : depEntriesFor(row, dependencyPicker.typed),
+        dependencyPicker,
+        editingDeadline: editingDeadline === row.id,
+        editingNotBefore: editingNotBefore === row.id,
+        externalSystems,
+        estimateReadings,
+        hasSchedule: hasSchedule(),
+        finish: span.finish,
+        nonOwnerNote: nonOwnerNoteOf(row),
+        priorityBands,
+        serviceLabel: effectiveServiceLabelOf(row),
+        services,
+        start: span.start,
+        startDate,
+        tagLabel: effectiveTagLabelOf(row),
+        tags,
+        teamLabel: effectiveTeamLabelOf(row),
+        teams,
+        workItemTypes,
+      };
+    });
+    return { rowsWithReadings: rows, spanByRow: spans };
+  }, [
+    anyAssigneeOn,
+    assigneeOn,
+    busy,
+    combinedProblem,
+    combinedValue,
+    depEntriesFor,
+    dependenciesOf,
+    depPicker,
+    editingDeadline,
+    editingNotBefore,
+    effectiveServiceLabelOf,
+    effectiveTagLabelOf,
+    effectiveTeamLabelOf,
+    estimateValue,
+    externalSystems,
+    hasSchedule,
+    hiddenColumnIds,
+    mention,
+    mentionOptions,
+    nonOwnerNoteOf,
+    openMenuRowId,
+    people,
+    priorityBands,
+    services,
+    spanOf,
+    startDate,
+    steps,
+    tags,
+    teams,
+    trioProblemFor,
+    unfoldedSteps,
+    workItems,
+    workItemTypes,
+  ]);
 
   /**
    * The current cell values, built once.
@@ -912,10 +1245,8 @@ export function WbsTable({
   const liveNow: PlanLiveValues = {
     focusIntent,
     gridElement,
-    startSentence,
     api,
     run,
-    busy,
     duplicateRow,
     deleteRow,
     commitNameCell,
@@ -926,55 +1257,30 @@ export function WbsTable({
     onCommandKey,
     setDragging,
     setDropHint,
-    dependenciesOf,
     dependOn,
-    hasSchedule,
-    depPicker,
     setDepPicker,
     depLights,
-    openMenuRowId,
     setOpenMenuRowId,
     depEntriesFor,
     pickDependency,
     moveDepHighlight,
-    estimateValue,
-    trioProblemFor,
     commitEstimate,
-    combinedValue,
-    combinedProblem,
     commitCombinedEstimate,
-    mention,
     enterFoldedCell,
     readFoldedCell,
     closeMention,
     leaveFoldedCell,
-    mentionOptions,
-    openCard,
-    setHoveredCell,
-    setFocusedCell,
+    cellCards,
     setNotBefore,
     setNotBeforeReason,
     setDeadline,
     setPriority,
-    priorityBands,
     setParallelism,
-    effectiveTeamLabelOf,
-    effectiveTagLabelOf,
-    effectiveServiceLabelOf,
-    editingNotBefore,
     openNotBefore,
     closeNotBefore,
-    editingDeadline,
     openDeadline,
     closeDeadline,
-    startDate,
-    teams,
-    tags,
-    services,
-    workItemTypes,
-    externalSystems,
     setRefsEditing,
-    people,
     setTeamOf,
     setTagsOf,
     setServicesOf,
@@ -986,12 +1292,6 @@ export function WbsTable({
     assignTo,
     createPersonFor,
     toggleStep,
-    spanOf: spanOfOnce,
-    assigneeOn,
-    anyAssigneeOn,
-    nonOwnerNoteOf,
-    matchIds: search.matchIds,
-    filtering,
   };
 
   const live = useRef(liveNow);
@@ -1008,7 +1308,7 @@ export function WbsTable({
 
   const table = useTable({
     features: PLAN_TABLE_FEATURES,
-    data: workItems,
+    data: rowsWithReadings,
     columns,
     // While a search is on, the expansion in force is the search's overlay:
     // every kept row open, so a hit inside a branch this reader had closed is
@@ -1056,6 +1356,22 @@ export function WbsTable({
     () => rowModel.filter((row) => search.visibleIds.has(row.id)),
     [rowModel, search.visibleIds],
   );
+  const shownRowIds = useMemo(() => shownRows.map((row) => row.original.id), [shownRows]);
+
+  const committedLogicalCells = useMemo(
+    () =>
+      logicalGrid(
+        shownRows.map((row) => row.original),
+        table.getAllLeafColumns().map((visibleColumn) => ({
+          id: visibleColumn.id,
+          isEditable: visibleColumn.columnDef.meta?.isEditable,
+        })),
+      ),
+    [shownRows, table],
+  );
+  useLayoutEffect(() => {
+    logicalCells.current = committedLogicalCells;
+  }, [committedLogicalCells, logicalCells]);
 
   // The rows a dependency hover lights were derived here, per render of the
   // table, until 2026-09-02: `dep-light-store.ts` owns that derivation and the
@@ -1111,11 +1427,9 @@ export function WbsTable({
     dependenciesOf,
     depLights,
     depPicker,
-    setHoveredCell,
-    startSentence,
-    openCard,
+    cellCards,
   });
-  const { ganttPlan } = usePlanChartInput({
+  const { ganttPlan, floorByRow } = usePlanChartInput({
     shownRows,
     startDate,
     effectiveTeamLabelOf,
@@ -1128,6 +1442,34 @@ export function WbsTable({
     priorityBands,
     startFloor,
   });
+  /**
+   * One row's Start sentence, worked out once however many readers and commits
+   * ask while its span and chart floor remain unchanged.
+   *
+   * Three readers ask per row: the `<td>`'s own props, the `cursor: help`
+   * decided beside them, and the Start cell itself. The chart projection above
+   * supplies the same floor map the cards read through `startFloor`.
+   */
+  const startSentence = useMemo(() => {
+    const saidByRow = new Map<string, string | null>();
+    const spanOfOnce = (row: TreeRow): ReturnType<typeof spanOf> => {
+      const span = spanByRow.get(row.id);
+      if (span === undefined) throw new Error(`Missing rendered span for row ${row.id}`);
+      return span;
+    };
+
+    return (row: TreeRow): string | null => {
+      const known = saidByRow.get(row.id);
+      if (known !== undefined) return known;
+      const said = readStartSentence(row, spanOfOnce, floorByRow);
+      saidByRow.set(row.id, said);
+      return said;
+    };
+    // Keep the sentence cache across commits that leave both its row spans and
+    // the chart floor unchanged. `Freeze #` currently commits twice; adding a
+    // fresh object to these dependencies failed `plan-row-render-cost.test.tsx`
+    // on `expected 6 to be +0`. Watched 2026-09-08.
+  }, [floorByRow, spanByRow]);
   const { downloadOnScreen } = usePlanOnScreenExport({
     planForExport,
     shownRows,
@@ -1147,7 +1489,14 @@ export function WbsTable({
   // state, so every column the table has is a shown one and the visibility
   // feature is not among `PLAN_TABLE_FEATURES`. Same for `getAllCells` on the
   // rows below.
-  const leafColumnIds = table.getAllLeafColumns().map((column) => column.id);
+  const leafColumnIds = useMemo(
+    () =>
+      columns.map((visibleColumn) => {
+        if (visibleColumn.id === undefined) throw new Error('a visible plan column has no id');
+        return visibleColumn.id;
+      }),
+    [columns],
+  );
 
   /**
    * Every width this render declares, resolved once.
@@ -1160,7 +1509,112 @@ export function WbsTable({
    * and take the focus and the half-typed value with it (LLM_README landmine
    * #1).
    */
-  const layout = frameLayout(leafColumnIds, frameState);
+  const layout = useMemo(() => frameLayout(leafColumnIds, frameState), [frameState, leafColumnIds]);
+  const viewportColumns = useMemo(
+    () =>
+      layout.columns.map((column) => ({
+        id: column.id,
+        widthPx: column.width ?? FLEXIBLE_CAP,
+        pinned: layout.pinned.has(column.id),
+      })),
+    [layout],
+  );
+  const pinnedCells = useMemo(
+    () =>
+      // The focused cell is part of the viewport even after both its row and
+      // column leave the ordinary windows. Its DOM node owns the only live
+      // half-typed value and caret; remounting an equivalent box loses both.
+      // Proof: activeCell removed here, the row case failed on `Expected: "Row
+      // 0000 half-typed" · Error: element(s) not found`, and `an unfolded plan
+      // mounts only its viewport columns` failed its node identity on
+      // `Expected: true · Received: false`. Watched in Chromium, 2026-09-08.
+      [activeCell, requestedFocus?.cell].filter(
+        (cell): cell is CellRef => cell !== null && cell !== undefined,
+      ),
+    [activeCell, requestedFocus],
+  );
+  const viewport = usePlanViewport({
+    frameRef,
+    rowIds: shownRowIds,
+    columns: viewportColumns,
+    pinnedCells,
+    enabled: renderer === 'table',
+  });
+  usePlanLayoutEffects({
+    frameRef,
+    ganttOpen,
+    renderer,
+    chartRead,
+    ganttColumn,
+    setGanttRoomPx,
+    rendererRows: viewport.rowLayout,
+  });
+  const mountedRows = viewport.rows.entries.map((entry) => ({
+    entry,
+    row: shownRows[entry.index],
+  }));
+  // Proof: replacing this set with every leaf id made `an unfolded plan mounts only its
+  // viewport columns` fail on `Expected: 0, Received: 43` for the offscreen Actions cells.
+  // Watched in Chromium, 2026-09-08.
+  const mountedColumnIds = new Set(viewport.columns.entries.map((entry) => entry.id));
+
+  const requestCellAttachment = useCallback(
+    (cell: CellRef, landing: CellLanding): boolean => {
+      const grid = gridElement.current;
+      if (grid === null) return false;
+      const attached = cellIn(grid, cell);
+      if (attached !== undefined) {
+        if (landing === 'focus') attached.focus();
+        else
+          focusCellAt(
+            attached,
+            landing === 'all' ? 'all' : landing === 'start' ? 0 : attached.value.length,
+          );
+        return true;
+      }
+      setRequestedFocus((current) =>
+        current?.cell.rowId === cell.rowId &&
+        current.cell.columnId === cell.columnId &&
+        current.landing === landing
+          ? current
+          : { cell, landing },
+      );
+      return true;
+    },
+    [gridElement],
+  );
+  useLayoutEffect(() => {
+    attachCell.current = requestCellAttachment;
+  }, [attachCell, requestCellAttachment]);
+  useLayoutEffect(() => {
+    if (requestedFocus === null) return;
+    if (
+      !committedLogicalCells.some(
+        (cell) =>
+          cell.rowId === requestedFocus.cell.rowId &&
+          cell.columnId === requestedFocus.cell.columnId,
+      )
+    ) {
+      setRequestedFocus(null);
+      return;
+    }
+    const grid = gridElement.current;
+    if (grid === null) return;
+    const attached = cellIn(grid, requestedFocus.cell);
+    if (attached === undefined) return;
+    attached.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (requestedFocus.landing === 'focus') attached.focus();
+    else
+      focusCellAt(
+        attached,
+        requestedFocus.landing === 'all'
+          ? 'all'
+          : requestedFocus.landing === 'start'
+            ? 0
+            : attached.value.length,
+      );
+    setRequestedFocus(null);
+  }, [committedLogicalCells, gridElement, requestedFocus, viewport]);
 
   /**
    * What the headings' hints may bend for, in one object beside the layout's.
@@ -1220,6 +1674,10 @@ export function WbsTable({
   }
   const toolbarControls = (
     <PlanToolbar
+      // Its urgent Find value belongs to one project. Proof: this key removed,
+      // `a project switch cannot show or apply the previous project’s query`
+      // failed on `expected 'skirting' to be ''`. Watched 2026-09-08.
+      key={projectId}
       criteria={criteria}
       freezeMenuOpen={freezeMenuOpen}
       setFreezeMenuOpen={setFreezeMenuOpen}
@@ -1245,8 +1703,7 @@ export function WbsTable({
       people={people}
       chartRead={chartRead}
       estimateMethod={estimateMethod}
-      query={query}
-      setQuery={setQuery}
+      commitQuery={commitQuery}
       facets={facets}
       setFacets={setFacets}
       facetTeams={facetTeams}
@@ -1641,7 +2098,29 @@ export function WbsTable({
             against this box — see `table-frame.ts` for why it has to be the one
             that scrolls.
           */}
-          <div data-table-frame ref={frameRef} style={TABLE_FRAME}>
+          <div
+            data-table-frame
+            ref={frameRef}
+            style={TABLE_FRAME}
+            onDragOver={(event) => {
+              if (dragging === null) return;
+              const frame = event.currentTarget;
+              const box = frame.getBoundingClientRect();
+              const edgePx = 48;
+              const direction =
+                event.clientY < box.top + edgePx ? -1 : event.clientY > box.bottom - edgePx ? 1 : 0;
+              if (direction === 0) return;
+              event.preventDefault();
+              // Native dragover repeats while the pointer rests at an edge;
+              // each event advances one logical Gantt-row step and lets the
+              // viewport attach the next possible destinations.
+              // Proof: removing this handler, `a row drag at the frame edge
+              // reaches an initially unmounted destination` failed on
+              // `Expected: visible · Error: element(s) not found`. Watched in
+              // Chromium, 2026-09-08.
+              frame.scrollTop += direction * 28;
+            }}
+          >
             {/*
             `separate` with no spacing rather than the browser's default gap:
             the pinned columns' offsets are the running total of their widths,
@@ -1665,12 +2144,20 @@ export function WbsTable({
           */}
             <table
               data-grid
+              aria-rowcount={shownRows.length + 1}
               // A callback rather than the ref object itself: `gridElement` holds
               // an `HTMLElement` since `M mobile-cards` — a `<table>` here and a
               // list of cards below the breakpoint — and React will not hand a
               // widened ref object to a `<table>`.
               ref={(node) => {
                 gridElement.current = node;
+              }}
+              onFocusCapture={(event) => {
+                const cell = cellRefOf(event.target);
+                if (cell !== null) setActiveCell(cell);
+              }}
+              onBlurCapture={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) setActiveCell(null);
               }}
               style={{
                 borderCollapse: 'separate',
@@ -1723,166 +2210,141 @@ export function WbsTable({
                 {table.getHeaderGroups().map((group) => (
                   <tr key={group.id}>
                     {group.headers.map((header) => (
-                      <th
+                      <PlanHeaderCell
                         key={header.id}
-                        scope="col"
-                        // Which column this cell is, on the cell itself. Nothing in
-                        // the app reads it: the browser layout gate does
-                        // (`e2e/layout.spec.ts`), and a measured rectangle with no
-                        // name attached is a failure that says two numbers
-                        // disagreed without saying which column moved.
-                        data-column={header.column.id}
-                        // The word, where the heading under it is a mark; see
-                        // {@link ColumnMeta.spokenHeading}. Undefined for every
-                        // other column, which renders no attribute at all.
-                        aria-label={header.column.columnDef.meta?.spokenHeading}
-                        // What this column does to the plan (`column-hints.ts`).
-                        // On the `<th>` and not on the heading inside it, for
-                        // the reason the `aria-label` is: the cell is what the
-                        // reader is resting on, and a `title` on an inner
-                        // `<span>` covers the word and none of the padding
-                        // around it. The two headings that carry their own
-                        // `title` after this — the step's fold button and the
-                        // resize handle — describe a *control*, not a column,
-                        // and the fold button opens with this same sentence so
-                        // that hovering it still teaches the column.
-                        data-hint={hintFor(header.column.id, hintState)}
-                        style={{
-                          ...CELL,
-                          ...STICKY_HEADER_CELL,
-                          ...flexibleCellStyle(header.column.id, frameState),
-                          ...pinnedCellStyle(layout, header.column.id, 'header'),
-                        }}
-                      >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {/*
-                        The grab handle, on the trailing edge of every column
-                        the layout declared a width for and on no other. The one
-                        column that resolves without a width is the flexible
-                        one, and it has nothing to be dragged to: it is the
-                        remainder above its floor, and asking for its declared
-                        width is already an error.
-
-                        Rendered here rather than in the column definition,
-                        which is the rule the whole seam is built around: a
-                        definition that changed with a width remounts every cell
-                        in the table (landmine #1). The `<th>` is
-                        `position: sticky` through `STICKY_HEADER_CELL`, which
-                        is what the absolute strip is positioned against.
-                      */}
-                        {resizeHandleFor(
-                          header.column.id,
-                          header.column.columnDef.meta?.spokenHeading ??
-                            header.column.columnDef.header,
-                        )}
-                      </th>
+                        header={header}
+                        frameState={frameState}
+                        layout={layout}
+                        hasProjectStartDate={hintState.hasProjectStartDate}
+                        projectId={projectId}
+                        resizeHandle={resizeHandleFor}
+                      />
                     ))}
                   </tr>
                 ))}
               </thead>
               <tbody>
-                {shownRows.map((row) => (
-                  <PlanRow
-                    key={row.id}
-                    rowId={row.original.id}
-                    frozen={row.original.frozenNumber !== null}
-                    depLights={depLights}
-                    armed={armedDelete?.rowId === row.original.id}
-                    drop={dropHint?.rowId === row.original.id ? dropHint.zone : undefined}
-                    pointed={pointedRows}
-                    // The drag handlers sit on the row rather than in a column
-                    // definition: `flexRender` renders each `cell` as a
-                    // component *type*, so a definition that changed with the
-                    // drag would remount every cell in the table on every
-                    // pointer move. Built here rather than in {@link PlanRow}
-                    // because they read this component's drag state, which the
-                    // shell has no business subscribing to.
-                    onDragOver={(event) => {
-                      if (dragging === null) return;
-                      // Without this the browser refuses the drop outright.
-                      event.preventDefault();
-                      const box = event.currentTarget.getBoundingClientRect();
-                      setDropHint({
-                        rowId: row.original.id,
-                        zone: zoneFor(event.clientY - box.top, box.height),
-                      });
-                    }}
-                    onDragLeave={() => {
-                      setDropHint((current) =>
-                        current?.rowId === row.original.id ? null : current,
-                      );
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      // The zone the last `dragover` worked out, not one recomputed
-                      // here. That one is the marker the person was looking at when
-                      // they let go, and a drop that lands somewhere other than where
-                      // the line was drawn is the one thing drag must never do.
-                      if (dropHint?.rowId !== row.original.id) return;
-                      dropOn(
-                        row.original.id,
-                        dropHint.zone,
-                        row.getIsExpanded() && row.subRows.length > 0,
-                      );
-                    }}
-                  >
-                    {row.getAllCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        // See the `th` above: the layout gate measures these boxes
-                        // and has to be able to name the one that moved.
-                        data-column={cell.column.id}
-                        // The dependency light's own cell-level reading, on the
-                        // cell. See {@link dependsCellHoverProps}: it is the
-                        // whole `<td>` and not a wrapper inside it, because the
-                        // gesture the spec names is "the pointer is in this
-                        // cell" and a wrapper stands inside the padding.
-                        {...(cell.column.id === 'depends'
-                          ? dependsCellHoverProps(row.original)
-                          : {})}
-                        {...(cell.column.id === 'start' ? startCellProps(row.original) : {})}
-                        style={{
-                          ...CELL,
-                          // The exception to the cell clip. See
-                          // {@link opensAPopover}: a popover's containing block is
-                          // the wrapper span *inside* this `<td>`, so this `<td>`
-                          // clips it unless it is told not to.
-                          ...(opensAPopover(cell.column.id)
-                            ? { overflow: 'visible' as const }
-                            : {}),
-                          ...(cell.column.id === 'start' && startSentence(row.original) !== null
-                            ? { cursor: 'help' as const }
-                            : {}),
-                          ...flexibleCellStyle(cell.column.id, frameState),
-                          ...pinnedCellStyle(layout, cell.column.id, 'body'),
-                          // Last, so it wins over the pinned layer it is raising.
-                          // A pinned cell is sticky *with a z-index*, which makes
-                          // it a stacking context — so the preview hanging off
-                          // this one is trapped inside it and the next row's
-                          // pinned Name cell paints over it, whatever the
-                          // preview's own z-index says. The Name column is the
-                          // only cell in the table that is both pinned and holds a
-                          // popover, and this is the row it is open on.
-                          // Proof: found in a browser rather than reasoned about —
-                          // `4px below the name cell is <textarea> in the name
-                          // column, not the preview`, on h2puni 2026-08-08, with
-                          // `opensAPopover` and every other rule already correct.
-                          ...(cell.column.id === 'name' &&
-                          openCard === cellKey(row.original.id, 'name')
-                            ? { zIndex: POPOVER_ROW_LAYER }
-                            : {}),
-                          // After the pinned background, so the warning is visible
-                          // on the three columns that hold the left edge too.
-                          ...(armedDelete?.rowId === row.original.id
-                            ? { background: ARMED_TINT }
-                            : {}),
-                        }}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </PlanRow>
-                ))}
+                {mountedRows.flatMap(({ row, entry }, mountedIndex) => {
+                  const previousEnd =
+                    mountedIndex === 0
+                      ? 0
+                      : viewport.rows.entries[mountedIndex - 1].startPx +
+                        viewport.rows.entries[mountedIndex - 1].sizePx;
+                  const gapPx = entry.startPx - previousEnd;
+                  return [
+                    <ViewportRowSpacer
+                      key={`gap-${row.id}`}
+                      position={mountedIndex === 0 ? 'before' : 'between'}
+                      heightPx={gapPx}
+                      columnCount={leafColumnIds.length}
+                    />,
+                    <PlanRow
+                      key={row.id}
+                      rowId={row.original.id}
+                      // Logical position drives both aria-rowindex and zebra
+                      // parity; spacer rows and a pinned editor make DOM order
+                      // a different sequence. Proof: passing mountedIndex,
+                      // `a broad Find renders no more than its two
+                      // filter-sensitive cells per row` failed on
+                      // `aria-rowindex Expected: "101" · Received: "36"`.
+                      // Watched in Chromium, 2026-09-08.
+                      rowIndex={entry.index}
+                      attach={viewport.attachRow}
+                      frozen={row.original.frozenNumber !== null}
+                      depLights={depLights}
+                      armed={armedDelete?.rowId === row.original.id}
+                      drop={dropHint?.rowId === row.original.id ? dropHint.zone : undefined}
+                      pointed={pointedRows}
+                      // The drag handlers sit on the row rather than in a column
+                      // definition: `flexRender` renders each `cell` as a
+                      // component *type*, so a definition that changed with the
+                      // drag would remount every cell in the table on every
+                      // pointer move. Built here rather than in {@link PlanRow}
+                      // because they read this component's drag state, which the
+                      // shell has no business subscribing to.
+                      onDragOver={(event) => {
+                        if (dragging === null) return;
+                        // Without this the browser refuses the drop outright.
+                        event.preventDefault();
+                        const box = event.currentTarget.getBoundingClientRect();
+                        setDropHint({
+                          rowId: row.original.id,
+                          zone: zoneFor(event.clientY - box.top, box.height),
+                        });
+                      }}
+                      onDragLeave={() => {
+                        setDropHint((current) =>
+                          current?.rowId === row.original.id ? null : current,
+                        );
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        // The zone the last `dragover` worked out, not one recomputed
+                        // here. That one is the marker the person was looking at when
+                        // they let go, and a drop that lands somewhere other than where
+                        // the line was drawn is the one thing drag must never do.
+                        if (dropHint?.rowId !== row.original.id) return;
+                        dropOn(
+                          row.original.id,
+                          dropHint.zone,
+                          row.getIsExpanded() && row.subRows.length > 0,
+                        );
+                      }}
+                    >
+                      {row.getAllCells().flatMap((cell, columnIndex, rowCells) => {
+                        if (!mountedColumnIds.has(cell.column.id)) {
+                          const previous = rowCells[columnIndex - 1];
+                          if (columnIndex > 0 && !mountedColumnIds.has(previous.column.id))
+                            return [];
+                          let columnCount = 1;
+                          while (
+                            columnIndex + columnCount < rowCells.length &&
+                            !mountedColumnIds.has(rowCells[columnIndex + columnCount].column.id)
+                          )
+                            columnCount += 1;
+                          return [
+                            <ViewportColumnSpacer
+                              key={`columns-${String(columnIndex)}`}
+                              columnCount={columnCount}
+                            />,
+                          ];
+                        }
+                        const sentence =
+                          cell.column.id === 'start' ? startSentence(row.original) : null;
+                        return [
+                          <PlanTableCell
+                            key={cell.id}
+                            cards={cellCards}
+                            cell={cell}
+                            frameState={frameState}
+                            layout={layout}
+                            armed={armedDelete?.rowId === row.original.id}
+                            attributes={{
+                              // The dependency light's handlers belong to the whole
+                              // `<td>`, not the wrapper inside its padding.
+                              ...(cell.column.id === 'depends'
+                                ? dependsCellHoverProps(row.original)
+                                : {}),
+                              ...(cell.column.id === 'start'
+                                ? startCellProps(row.original, sentence)
+                                : {}),
+                            }}
+                            expandable={row.getCanExpand()}
+                            expanded={row.getIsExpanded()}
+                            startSentence={sentence}
+                            filtering={filtering}
+                            matched={search.matchIds.has(row.id)}
+                          />,
+                        ];
+                      })}
+                    </PlanRow>,
+                  ];
+                })}
+                <ViewportRowSpacer
+                  position="after"
+                  heightPx={viewport.rows.afterPx}
+                  columnCount={leafColumnIds.length}
+                />
               </tbody>
             </table>
           </div>
