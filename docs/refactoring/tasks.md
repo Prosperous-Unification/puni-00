@@ -152,7 +152,7 @@ archive's original evidence limits. The bounded order is:
       realtime requirements and all their scenarios survive.
 - [x] **A5 — R2 [`team-removal-revisions`](../../openspec/changes/archive/2026-09-08-team-removal-revisions/tasks.md)**: reconciled open 1.5's touched suites,
       lint/typecheck and parent report before syncing its distinct capability.
-- [ ] **A6 — R6 `project-assignment-reads`**: reconcile open 1.4's touched checks and
+- [x] **A6 — R6 [`project-assignment-reads`](../../openspec/changes/archive/2026-09-08-project-assignment-reads/tasks.md)**: reconciled open 1.4's touched checks and
       parent report before syncing its distinct capability.
 - [ ] **A7 — R8 `bounded-replay-sweep`**: reconcile 4/4 and sync its distinct capability.
 - [ ] **A8 — R9 `gateway-request-deadlines`**: reconcile open 4.1's integrated full gates,

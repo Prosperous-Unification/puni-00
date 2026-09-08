@@ -37,3 +37,12 @@ projects) passed with R5/R6 held unchanged. Log:
 `/private/tmp/wbs-refactoring-r5-r6-typecheck.log`. Independent review approved
 after the saved-plan capture JSDoc correction; scoped re-review found no remaining
 findings. Implementation committed as `20801719`; full workspace gate pending.
+
+## Archive reconciliation
+
+2026-09-08, archive branch based on merged `main` at `5516d453`:
+
+- `bun test apps/be-01/src/repository/assignment-scope.db.test.ts apps/be-01/src/repository/directory.db.test.ts apps/be-01/src/service/work-item.service.test.ts apps/be-01/src/service/undo.db.test.ts apps/be-01/src/service/directory.service.db.test.ts apps/be-01/src/service/capacity-migration-identity.db.test.ts apps/be-01/src/service/priority-band-identity.db.test.ts apps/be-01/src/repository/saved-plan-capture.db.test.ts apps/be-01/src/repository/saved-plan-in-transaction.db.test.ts apps/be-01/src/service/saved-plan.service.db.test.ts`: 296 pass, 0 fail, 12,996 assertions across 10 files.
+- `bunx nx typecheck be-01 --skip-nx-cache`: passed on the same production source before the archive-only A1–A5 edits.
+- `bunx nx lint be-01 --skip-nx-cache`: passed on the same production source before the archive-only A1–A5 edits.
+- PR #356's exact-head workspace gate passed with the R6 implementation present. No browser or deployment behavior is claimed by this change.
