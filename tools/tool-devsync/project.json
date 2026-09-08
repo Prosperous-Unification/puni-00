@@ -10,6 +10,7 @@
       "inputs": [
         "default",
         "^production",
+        "{workspaceRoot}/bin/dev.sh",
         "{workspaceRoot}/bin/dev-be-probe.sh",
         "{workspaceRoot}/bin/dev-mcp-preflight.sh",
         "{workspaceRoot}/bin/dev-mcp-probe.sh",
@@ -62,6 +63,7 @@
         "production",
         "^production",
         "{workspaceRoot}/bin/dev-deploy.sh",
+        "{workspaceRoot}/bin/dev.sh",
         "{workspaceRoot}/bin/dev-be-probe.sh",
         "{workspaceRoot}/bin/dev-mcp-preflight.sh",
         "{workspaceRoot}/bin/dev-mcp-probe.sh",
