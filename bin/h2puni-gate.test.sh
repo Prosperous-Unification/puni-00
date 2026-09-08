@@ -149,12 +149,17 @@ expect_status 65 "$status" 'a tracked edit surviving the checkout is refused'
 if [[ -e $scratch/ran-dirty ]]; then fail 'the steps ran over a modified tracked file'; else pass 'the steps never ran over a modified tracked file'; fi
 git -C "$repo" checkout -q -- f
 
-printf 'stray\n' >"$repo/untracked.ts"
+# Twelve untracked files, not one, so the refusal's list is truncated as it would
+# be on a real dirty tree and the exit status is still 65. This does NOT prove
+# the `|| true` beside that `head -10`: removing it was watched leaving this case
+# green, because twelve lines fit the pipe buffer and `head` reads them all
+# before exiting. The case checks truncation, not SIGPIPE.
+for i in $(seq 1 12); do printf 'stray\n' >"$repo/untracked-$i.ts"; done
 status=0
 run_gate "$repo" "$lock" "$sha_b" bash -c 'echo ran >"$0"' "$scratch/ran-untracked" 2>/dev/null || status=$?
 expect_status 65 "$status" 'an untracked file the commit does not contain is refused'
 if [[ -e $scratch/ran-untracked ]]; then fail 'the steps ran over an untracked file'; else pass 'the steps never ran over an untracked file'; fi
-rm -f "$repo/untracked.ts"
+rm -f "$repo"/untracked-*.ts
 
 # 7. Contract check: that default reaches the lock as a shell variable and stops
 # there. Exported, it would enter every gate step's environment, and

@@ -72,7 +72,15 @@ gate_with_pinned_head() {
     dirty=$(git -C "$repo" status --porcelain --untracked-files=normal)
     if [[ -n $dirty ]]; then
       printf "h2puni gate: %s is dirty after checking out %s; refusing to report a verdict about bytes that commit does not contain:\n" "$repo" "$pinned" >&2
-      printf "%s\n" "$dirty" | head -10 >&2
+      # `|| true` is a belt, and it is honest to say it has NOT been watched
+      # earning its keep: with `head -10` exiting on the eleventh line, `printf`
+      # can take SIGPIPE and `set -euo pipefail` would report 141 in place of the
+      # refusal — but a twelve-file list fits the pipe buffer, so `head` consumes
+      # it all before exiting, and removing this `|| true` was watched leaving
+      # case 6 green. It stays because the list is unbounded in production and a
+      # refusal that reports a signal instead is unreadable; it is not a proved
+      # guard, and it is not counted as one.
+      printf "%s\n" "$dirty" | head -10 >&2 || true
       exit 65
     fi
     printf "h2puni gate: running on %s\n" "$(git -C "$repo" rev-parse HEAD)" >&2
