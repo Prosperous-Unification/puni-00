@@ -154,6 +154,16 @@ imports, `@wbs/*` aliases and Bun/Node builtins only — or vendor the code into
 the archive carries it. Do not restore the symlink: the deployer runs _before_ any install for its
 own commit can exist, which is the bootstrap deadlock TASK-354 fixed.
 
+The guard asks two questions, and the second has its own refusal, `the deployer resolves files
+outside the extracted candidate`, followed by the offending path. Resolving is not the same as
+staying home: an absolute path into `/home/puni1/wbs-dev/src/node_modules`, or enough `../`, resolves
+perfectly well and borrows the same stale install by hand. The loader therefore builds from inside
+the candidate with `--metafile` and refuses any input that is absolute or above it. `--reject-
+unresolved` covers the other half — Bun's default allows an opaque `await import(name)` straight
+through — at the price that every specifier in the deployer must be statically analysable, including
+a computed `node:fs`. Neither question can see code assembled at run time by `eval` or
+`new Function`; the contract is a contract, and this is the enforcement it admits of.
+
 Dev has **no edge password**. It was removed 2026-08-06: it was a second login on top of the
 app's own, and a browser that had cached a wrong credential for the realm could not be talked
 out of it — which cost a real debugging session. The gated config is backed up beside
