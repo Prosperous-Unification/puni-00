@@ -320,7 +320,7 @@ describe('OptimizationCoordinator read', () => {
       expect(read).toMatchObject({
         generation: null,
         variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
-        selectedSchedule: null,
+        schedules: { pri: null, time: null },
       });
       expect(calls).toEqual([]);
       expect(db.select().from(solverSlot).all()).toEqual([]);
@@ -347,7 +347,7 @@ describe('OptimizationCoordinator read', () => {
       inputHash: scheduleInputHash(INPUT),
       generation: 1,
       variants: { pri: { state: 'pending' }, time: { state: 'pending' } },
-      selectedSchedule: null,
+      schedules: { pri: null, time: null },
     });
     await Promise.resolve();
     await Promise.resolve();

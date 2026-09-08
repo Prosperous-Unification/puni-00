@@ -174,7 +174,7 @@ test.describe('the project settings control, in a browser', () => {
     await expect(optimization).toBeChecked();
 
     const fast = dialog.getByRole('radio', { name: 'Fast' });
-    const priority = dialog.getByRole('radio', { name: 'PRI' });
+    const priority = dialog.getByRole('radio', { name: 'Pri' });
     const time = dialog.getByRole('radio', { name: 'Time' });
     await expect(fast).toBeEnabled();
     await fast.focus();
@@ -195,7 +195,7 @@ test.describe('the project settings control, in a browser', () => {
     await expect(priority).toBeChecked();
   });
 
-  test('keeps the infeasible indicator inside a phone card plan and opens it by keyboard', async ({
+  test('keeps the infeasible cue inside a phone card plan and opens it by keyboard', async ({
     page,
   }) => {
     await freshProject(page);
@@ -229,7 +229,8 @@ test.describe('the project settings control, in a browser', () => {
         budgetMs: 60_000,
         displayed: 'fast',
         variants: {
-          pri: {
+          pri: { state: 'ready' },
+          time: {
             state: 'plan-infeasible',
             items: [
               {
@@ -239,8 +240,12 @@ test.describe('the project settings control, in a browser', () => {
               },
             ],
           },
-          time: { state: 'idle' },
         },
+        // Fast's finish and PRI's, which is what an enabled project with one
+        // solved variant really carries; the infeasible one has no schedule and
+        // so no figure.
+        finishDays: { fast: 4, pri: 4 },
+        sameOrderAsFast: { pri: true },
       };
       await route.fulfill({ response, json: { ...plan, startDate: '2026-09-07', optimization } });
     });
@@ -249,24 +254,32 @@ test.describe('the project settings control, in a browser', () => {
     await page.reload();
     await expect(page.getByRole('article', { name: 'Work item 010' })).toBeVisible();
 
-    const indicator = page.locator('[data-optimization-indicator]');
-    await expect(indicator).toContainText('Plan infeasible · 1 Work item deadline');
-    const indicatorBox = await indicator.boundingBox();
-    expect(indicatorBox, 'the phone indicator has no rendered box').not.toBeNull();
-    expect(indicatorBox?.x ?? -1).toBeGreaterThanOrEqual(0);
-    expect((indicatorBox?.x ?? 0) + (indicatorBox?.width ?? 391)).toBeLessThanOrEqual(390);
+    const cue = page.locator('[data-optimization-cue]');
+    await expect(cue).toBeVisible();
+    const cueBox = await cue.boundingBox();
+    expect(cueBox, 'the phone cue has no rendered box').not.toBeNull();
+    expect(cueBox?.x ?? -1).toBeGreaterThanOrEqual(0);
+    expect((cueBox?.x ?? 0) + (cueBox?.width ?? 391)).toBeLessThanOrEqual(390);
+    // The count is on the pill's own sentence, which is its accessible name and
+    // the text of its live region both.
+    await expect(cue).toContainText('Finish-first: Plan infeasible · 1 Work item deadline');
 
-    const disclosure = page.getByText('Show affected work items');
-    await expect(disclosure).toHaveAccessibleName('Show affected work items');
-    await disclosure.focus();
-    await page.keyboard.press('Enter');
-    await expect(page.getByText(/Work item deadline 11 Sep/)).toBeVisible();
-    const affectedItem = page
-      .getByLabel('Affected work items')
-      .locator('li')
-      .filter({ hasText: longWorkItemName });
-    await expect(affectedItem).toBeVisible();
-    const overflow = await affectedItem.evaluate((element) => ({
+    // By keyboard, and the focus is the whole of it: `HintLayer` opens the same
+    // card from `focusin`, with no wait of either kind and no cursor to put a
+    // ring beside, so a phone reader who has tabbed to the pill gets the same
+    // words as one who pointed at it.
+    const pill = page.getByRole('button', { name: /is the active schedule/ });
+    await pill.focus();
+    const card = page.locator('#hint-card');
+    await expect(card).toBeVisible();
+    const described = (await pill.getAttribute('aria-describedby'))?.split(/\s+/) ?? [];
+    expect(described).toContain('hint-card');
+    // The row's own name is in the card, with the work item deadline it cannot
+    // meet — this row's name being 192 characters of one unbroken token, which
+    // is what a card has to be able to wrap.
+    await expect(card).toContainText(longWorkItemName);
+    await expect(card).toContainText('Work item deadline 11 Sep');
+    const overflow = await card.evaluate((element) => ({
       clientWidth: element.clientWidth,
       scrollWidth: element.scrollWidth,
       documentWidth: document.documentElement.scrollWidth,
@@ -275,8 +288,9 @@ test.describe('the project settings control, in a browser', () => {
     expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth);
     expect(overflow.documentWidth).toBeLessThanOrEqual(overflow.viewportWidth);
 
-    const openBox = await indicator.boundingBox();
-    expect(openBox, 'the open phone indicator has no rendered box').not.toBeNull();
-    expect((openBox?.x ?? 0) + (openBox?.width ?? 391)).toBeLessThanOrEqual(390);
+    const openCard = await card.boundingBox();
+    expect(openCard, 'the open phone card has no rendered box').not.toBeNull();
+    expect(openCard?.x ?? -1).toBeGreaterThanOrEqual(0);
+    expect((openCard?.x ?? 0) + (openCard?.width ?? 391)).toBeLessThanOrEqual(390);
   });
 });

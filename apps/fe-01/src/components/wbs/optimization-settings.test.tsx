@@ -38,7 +38,7 @@ describe('project optimization settings', () => {
 
     expect(screen.getByRole('checkbox', { name: 'Optimize schedules' })).not.toBeChecked();
     expect(screen.getByRole('radio', { name: 'Fast' })).toBeChecked();
-    expect(screen.getByRole('radio', { name: 'PRI' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Pri' })).toBeDisabled();
     expect(screen.getByRole('radio', { name: 'Time' })).toBeDisabled();
     expect(screen.getByText('Fast is active while optimization is off.')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Active schedule' })).toHaveAccessibleDescription(
@@ -79,7 +79,7 @@ describe('project optimization settings', () => {
 
   itDom.each([
     ['Fast', ON, { scheduleEngine: 'fast' }],
-    ['PRI', ON, { scheduleEngine: 'optimized', scheduleObjective: 'pri' }],
+    ['Pri', ON, { scheduleEngine: 'optimized', scheduleObjective: 'pri' }],
     [
       'Time',
       { enabled: true, engine: 'optimized', objective: 'pri' },

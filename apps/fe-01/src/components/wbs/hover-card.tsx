@@ -327,9 +327,23 @@ export function HoverCard({
   // which is the only moment its own width and height exist. `useLayoutEffect`
   // rather than `useEffect`, so the correction lands before the browser paints
   // and no card is ever seen off the edge it is about to be pulled back from.
-  const [placed, setPlaced] = useState<Placement>(() =>
-    anchor === undefined ? { left: 0, top: 0 } : { left: anchor.left, top: anchor.bottom },
-  );
+  /**
+   * Where an anchored card is drawn, and `left: 0` on the first frame **even
+   * when it has an anchor**.
+   *
+   * A `position: fixed` card laid out at its mark's own left edge has only the
+   * room between that edge and the window to lay out in, so a card anchored
+   * near the right edge measures narrow and {@link surfacePlacement} is then
+   * handed a width that has already been squeezed — there is nothing left for
+   * it to clamp. Measured in Chromium: the schedule cue's fact card came out
+   * 195px wide and eight lines tall from a pill at x=1405 in a 1600px window,
+   * against a 420px ceiling it never got near.
+   *
+   * From zero it measures its own width up to that ceiling and the layout
+   * effect below moves it into place — in `useLayoutEffect`, so the correction
+   * lands before the browser paints and no card is ever seen at the left edge.
+   */
+  const [placed, setPlaced] = useState<Placement>(() => ({ left: 0, top: anchor?.bottom ?? 0 }));
   useLayoutEffect(() => {
     const node = card.current;
     if (anchor === undefined || node === null) return;
@@ -486,6 +500,16 @@ export function HoverCard({
         padding: '6px 10px',
         boxShadow: '0 4px 14px oklch(0 0 0 / 14%)',
         textAlign: 'left',
+        // A card's content is names and URLs, and both arrive as one unbroken
+        // token often enough that this is not a nicety: a 192-character work
+        // item name laid 1396px of text inside a 388px card on a phone, and
+        // the card was clipped rather than tall (measured in Chromium,
+        // 2026-09-08, `e2e/project-settings.spec.ts`'s phone case).
+        //
+        // `break-word` rather than `anywhere`: it leaves the card's
+        // **min-content** width alone, so a compact card is still the width of
+        // its words and only a token that cannot fit the ceiling is broken.
+        overflowWrap: 'break-word',
         // The cells these open from are bold, right-aligned, or both — a
         // folded step's figure is `font-weight: 600` — and a card inheriting
         // that reads as a heading rather than as a paragraph.

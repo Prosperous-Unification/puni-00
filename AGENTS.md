@@ -460,6 +460,32 @@ it. And the first theory for it — a scroll from the settling table — was **w
 own event log had no scroll in it at all. Instrument before you believe a mechanism, and look at the
 thing you built.
 
+Three on 2026-09-08 in `dual-optimized-scheduler` slice 8b, and **none shipped** — but the first
+is a new shape and the most reusable thing here since the auto-waiting matcher. **An injected
+fault that is not the fault proves nothing, and it looks exactly like a proof.** The dense-rank
+form of the schedule order relation was replaced by _competition_ ranking (`indexOf` plus the
+count of equal values) to watch the tie cases go red, and they stayed green — correctly, because
+competition ranking still gives a tie group one shared value and therefore represents the same
+weak order. The fault the tie handling is actually about is a ranking that **splits** a tie
+group, and injected that way it failed on `seed 52 · Expected: false · Received: true` plus both
+named cases. A green negative is a fact about the injection, not about the check.
+
+The second is R5 #22's own lesson wearing this change's clothes: a `Proof:` comment claimed
+`MenuControl` would **throw** when an item left an open menu, and what it really does is drop the
+focus to `<body>` — the effect that focuses is keyed on the index, so an unchanged index never
+re-runs it. Both the comment and the JSDoc were rewritten from the output. And the third is that
+the _whole gate_ is not what a local run is: `contracts:test` failed in CI on a wire fixture
+missing the two fields this change added, after local runs of `domain`, `be-01` and `fe-01` —
+every project **except** the one the schema lives in. Run the projects you changed, by name.
+
+Two faults in that slice were found by neither, and both were found by rendering the thing and
+looking at it: a `HoverCard` anchored near the right edge laid out at its mark's own left edge
+and so measured **195px wide and eight lines tall** against a 420px ceiling (a fixed box has
+only the room between its left edge and the window to shrink-to-fit in, and the placement
+function was then handed a width that had already been squeezed); and no card wrapped a long
+unbroken token — 1396px of text inside a 388px phone card. 2,500 jsdom cases and seven browser
+assertions were green over both.
+
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
 

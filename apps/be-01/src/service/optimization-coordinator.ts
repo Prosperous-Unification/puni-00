@@ -651,7 +651,7 @@ export class OptimizationCoordinator {
         ...key,
         generation: null,
         variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
-        selectedSchedule: null,
+        schedules: { pri: null, time: null },
       };
     }
 
@@ -668,7 +668,7 @@ export class OptimizationCoordinator {
         ...key,
         generation: null,
         variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
-        selectedSchedule: null,
+        schedules: { pri: null, time: null },
       };
     }
     let requests: SolverRequestPair | undefined;
@@ -738,9 +738,16 @@ export class OptimizationCoordinator {
         this.startReserved(launch);
       }
     });
-    const outcome = pair[ask.objective];
     const live = (objective: SolverObjectiveName): boolean =>
       optimizedVariantIsLive(this.options.db, key, generation, objective, now);
+    // Both, because `pair` already holds both decoded payloads and the plan
+    // read compares every ready variant with Fast (tasks.md 8b.3). `ask.objective`
+    // is still what *selects* the schedule to display; it no longer decides
+    // which one is handed over.
+    const scheduleOf = (objective: SolverObjectiveName): Schedule | null => {
+      const outcome = pair[objective];
+      return outcome.kind === 'ok' ? outcome.result.schedule : null;
+    };
     return {
       ...key,
       generation,
@@ -748,7 +755,7 @@ export class OptimizationCoordinator {
         pri: optimizationVariantState(pair.pri, live('pri')),
         time: optimizationVariantState(pair.time, live('time')),
       },
-      selectedSchedule: outcome.kind === 'ok' ? outcome.result.schedule : null,
+      schedules: { pri: scheduleOf('pri'), time: scheduleOf('time') },
     };
   };
 
@@ -757,5 +764,5 @@ export class OptimizationCoordinator {
     readonly projectId: string;
     readonly objective: SolverObjectiveName;
     readonly input: ScheduleInput;
-  }): Schedule | null => this.readPlan(ask).selectedSchedule;
+  }): Schedule | null => this.readPlan(ask).schedules[ask.objective];
 }

@@ -156,7 +156,7 @@ function recordingReader(): {
         contractVersion: '7+deadline-probe',
         budgetMs: 60_000,
         variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
-        selectedSchedule: null,
+        schedules: { pri: null, time: null },
       };
     },
   };
