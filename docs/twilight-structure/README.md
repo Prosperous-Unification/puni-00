@@ -60,6 +60,7 @@ note links to it rather than restating it.
 | Earlier local helper observations                                                         | [Compatibility findings](research/local-workflow-observations.md) preserved from the compacted, previously uncommitted proposal |
 | What happened in the trial                                                                | [Pilot verification](../../openspec/changes/twilight-sdlc-pilot/verify.md)                                                      |
 | What one accepted outcome costs for a client, and whether the three pricing premises hold | [Unit economics](research/unit-economics/README.md)                                                                             |
+| Which decisions need reconsideration after the economics research                         | [Decision review](evidence/unit-economics-decision-review.md)                                                                   |
 
 Design implications belong to the
 [control-plane design](../../openspec/changes/twilight-control-plane/design.md)
