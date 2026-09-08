@@ -26,6 +26,7 @@ The terminal proof must include:
 | pre-reset ordering     | omit each prepare/verify phase                | `d9eeb611`: 75/75; preflight omission failed 2 cases   |
 | exclusion              | two different targets overlap                 | `cc6c050d`: overlap refused before second publish      |
 | interrupted retry      | stop after publish and during install         | `3017d066`: digest reused; premature completion red    |
+| target build tree      | narrow archive / old live working directory   | run 4: behavioral red, then 79/79 green on h2puni     |
 | live solver change     | poll target differs under `libs/solver-py`    | pending                                                |
 | alarm backstop         | ten consecutive injected preparation failures | pending                                                |
 
@@ -92,3 +93,23 @@ failed on the unexpected complete checkpoint while the other 13 focused cases
 stayed green. Restoring the exact source returned 14/14. A mismatched source
 checkpoint separately reaches none of publish, checkpoint, materialize,
 install, preflight, or reset.
+
+## Complete target build tree
+
+At 2026-09-08T02:39:30Z, the run-4 candidate-boundary patch was overlaid on
+`533b67f4fb79547e207d8fddb59246640f044b42` in the h2puni worktree
+`/dev/shm/t326-r4-red.XHeZSa`. Its behavioral case requires both the target's
+backend Dockerfile, publisher, supervisor unit, and lockfile and a working
+directory rooted at that candidate. Before the loader change it failed with
+the candidate child exiting 1. After broadening the exact-commit archive and
+running from the candidate root, that case passed.
+
+The full `tool-devsync` project then passed 79/79 cases (228 assertions), its
+Nx lint and TypeScript targets passed, the changed TypeScript file passed
+Prettier, and `dev-poll-sync.sh` passed ShellCheck. The first formatting command
+also named the shell file and failed because Prettier has no shell parser; no
+format result is claimed from that invocation. Dependency manifests resolved
+through `/dev/shm/t326-r3-red-76e9ca4f/node_modules` before and after the gate:
+78 declared, 0 bad. `/dev/shm` was at 75% of the monitored per-user quota, so a
+new install was correctly refused and the already-proved dependency tree was
+reused only after the manifest check passed.

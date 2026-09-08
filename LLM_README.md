@@ -1,6 +1,6 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-326 is on `change/task-326-dev-solver-binding`: immutable retry state is green after publish and interrupted install; next wire preparation into the target-candidate deploy path and runbook.
+TASK-326 is on `change/task-326-dev-solver-binding`: the deployer now runs from a complete target-revision build tree; next wire the production binding adapter into `sync.ts` and update the runbook.
 
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),

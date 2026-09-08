@@ -341,6 +341,40 @@ exec ${process.execPath} build --target=bun --outdir=${out} "$1"
     expect(await readdir(out)).toEqual(['sync.js']);
   });
 
+  it('runs the deployer from a complete target-revision build tree', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-build-tree-'));
+    const installed = join(root, 'bin');
+    const probe = join(root, 'probe');
+    const repository = new URL('../../../', import.meta.url).pathname;
+    const head = await requireCommand(['git', '-C', repository, 'rev-parse', 'HEAD']);
+    const probingBun = join(root, 'bun');
+    await writeFile(
+      probingBun,
+      `#!/usr/bin/env bash
+set -eu
+if [ "$1" = --version ]; then echo ${Bun.version}; exit 0; fi
+target_root=$(cd "$(dirname "$1")/../../.." && pwd)
+test "$PWD" = "$target_root"
+test -f "$target_root/apps/be-01/Dockerfile"
+test -f "$target_root/bin/publish-release.sh"
+test -f "$target_root/deploy/solver-supervisor/wbs-solver-supervisor.service"
+test -f "$target_root/bun.lock"
+printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
+`,
+    );
+    await chmod(probingBun, 0o755);
+
+    const run = await command(
+      ['bash', HELPER, repository, installed, probingBun, head, Bun.version],
+      { POLL_TARGET_PROBE: probe },
+    );
+
+    // Proof: restoring the narrow tools/libs archive fails on the Dockerfile,
+    // and restoring `cd "$SRC"` fails the independent working-directory check.
+    expect(run).toEqual({ code: 0, stdout: '', stderr: '' });
+    expect(await readFile(probe, 'utf8')).toBe(`${join(installed, `sync.${head}`)}\n`);
+  });
+
   it('keeps concurrent target candidates isolated by commit', async () => {
     const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-race-'));
     const source = join(root, 'src');

@@ -38,13 +38,10 @@ mkdir -p "$BIN"
 # before 2026-09-07 and their interrupted `.XXXXXXXX` siblings.
 find "$BIN" -mindepth 1 -maxdepth 1 -name 'sync.*' -mtime +7 -exec rm -rf -- {} +
 
-# The deployer is one file, but it reaches the deploy contract through the
-# `@wbs/*` tsconfig paths, and Bun resolves those from the tsconfig nearest the
-# importing file. A bare `sync.ts` copied into $BIN has none: every tick on
-# h2puni failed on `Cannot find module '@wbs/deploy-contract'` the day that
-# copy was first installed (2026-09-07). So the candidate is the target's own
-# `tools/`, `libs/` and root configs, laid out as the commit has them, and the
-# deployer runs from inside that tree.
+# The deployer publishes a solver-affecting target from its own build context,
+# so a candidate is the target's complete committed tree, not only the module
+# graph needed to start sync.ts. A narrow tools/libs archive can execute while
+# a later Dagger snapshot silently comes from the older live checkout.
 #
 # Reading from the fetched target, rather than the checkout's pre-reset tree,
 # is the recovery boundary. A broken target deployer can refuse this attempt,
@@ -61,7 +58,7 @@ trap cleanup_candidate EXIT HUP INT TERM
 CANDIDATE_NEXT=$(mktemp -d "$BIN/sync.${SHA}.XXXXXXXX")
 # Written to a file first so a refusal from git keeps git's own exit status
 # instead of tar's complaint about an empty stream.
-git -C "$SRC" archive "$SHA" -- tools libs tsconfig.base.json package.json > "$CANDIDATE_NEXT/.tree.tar"
+git -C "$SRC" archive "$SHA" > "$CANDIDATE_NEXT/.tree.tar"
 tar -xf "$CANDIDATE_NEXT/.tree.tar" -C "$CANDIDATE_NEXT"
 rm -f -- "$CANDIDATE_NEXT/.tree.tar"
 # Packages resolve up the tree from the importing file, as the aliases do.
@@ -78,5 +75,7 @@ else
   CANDIDATE_NEXT=''
 fi
 trap - EXIT HUP INT TERM
-cd "$SRC"
+# Proof: poller.test.ts requires both the target Docker build inputs and this
+# working directory to resolve inside the immutable candidate.
+cd "$CANDIDATE"
 exec "$BUN" "$CANDIDATE/tools/tool-devsync/src/sync.ts" "$SHA"
