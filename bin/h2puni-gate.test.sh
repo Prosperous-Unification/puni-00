@@ -149,12 +149,21 @@ expect_status 65 "$status" 'a tracked edit surviving the checkout is refused'
 if [[ -e $scratch/ran-dirty ]]; then fail 'the steps ran over a modified tracked file'; else pass 'the steps never ran over a modified tracked file'; fi
 git -C "$repo" checkout -q -- f
 
-# Twelve untracked files, not one, so the refusal's list is truncated as it would
-# be on a real dirty tree and the exit status is still 65. This does NOT prove
-# the `|| true` beside that `head -10`: removing it was watched leaving this case
-# green, because twelve lines fit the pipe buffer and `head` reads them all
-# before exiting. The case checks truncation, not SIGPIPE.
-for i in $(seq 1 12); do printf 'stray\n' >"$repo/untracked-$i.ts"; done
+# Enough untracked bytes to overrun the pipe, not twelve short names. `head -10`
+# exits on the eleventh line; if the rest of the listing does not fit the pipe
+# buffer, `printf` takes SIGPIPE and `set -euo pipefail` reports 141 — a signal
+# where automation was promised the documented 65, and only ever on a tree dirty
+# enough to produce it.
+#
+# That is the theory. It did not reproduce: 400 x ~210-byte names is ~84 KB
+# against a 64 KB pipe buffer, and with the `|| true` deleted this case was
+# watched still exiting 65 — as was a twelve-name first cut. So the volume is
+# here to exercise the truncating path under load, and the guard beside
+# `head -10` is defence whose failure mode has NOT been observed. Said plainly
+# rather than left to read as a proof, because a check whose failure has never
+# been watched is a claim.
+long_name=$(printf 'u%.0s' $(seq 1 200))
+for i in $(seq 1 400); do printf 'stray\n' >"$repo/untracked-$i-$long_name.ts"; done
 status=0
 run_gate "$repo" "$lock" "$sha_b" bash -c 'echo ran >"$0"' "$scratch/ran-untracked" 2>/dev/null || status=$?
 expect_status 65 "$status" 'an untracked file the commit does not contain is refused'
