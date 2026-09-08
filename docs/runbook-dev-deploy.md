@@ -127,9 +127,11 @@ run under an older image.
 
 ### Durable poller recovery
 
-The poller, candidate loader, and its Bun 1.3.14 interpreter live outside the reset checkout. Their
-authoritative sources are `bin/dev-poll.sh` and `bin/dev-poll-sync.sh`; install the pair and a
-stable copy of the exact gate interpreter together after their reviewed commit lands on `main`:
+The poller and its managed interpreter live outside the reset checkout. The installed helper is a
+recovery copy, but a normal tick streams `bin/dev-poll-sync.sh` from the exact fetched target commit;
+otherwise the first target that changes the candidate shape would run through an older loader that
+cannot materialize it. Install the poller, recovery helper, and exact gate interpreter together
+after their reviewed commit lands on `main`:
 
 ```sh
 scp bin/dev-poll.sh h2puni:/home/puni1/wbs-dev/bin/poll.next.sh
@@ -155,7 +157,8 @@ version file move together; changing a literal in the loader is neither necessar
 
 Puni1's existing every-minute crontab continues to run `/home/puni1/wbs-dev/bin/poll.sh`. Each tick
 fetches `origin/main`, resolves that named remote ref rather than the process-global `FETCH_HEAD`,
-creates a shared detached clone at the exact target commit under `bin/`, atomically renames the
+reads the candidate loader from that exact commit with `git show`, creates a shared detached clone
+at the exact target commit under `bin/`, atomically renames the
 completed candidate, and runs it from that clone with the managed interpreter. Its HEAD must equal
 the requested full SHA and its tracked tree must be clean. The candidate contains the complete
 target build context, including Dockerfiles, publisher, supervisor installer, lockfile, `tools/`,
