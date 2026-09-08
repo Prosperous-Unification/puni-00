@@ -102,6 +102,44 @@ Infrastructure prices, fetched the same day: Netcup VPS 8 vCPU / 16 GB €19.25,
 $6.95 per TB-month. The three models had assumed $220–500 a month and $2 per cloud-browser
 session; the real figures are about $100 and cents.
 
+## Subscription dollar against API dollar
+
+The ratio depends on the user, because a plan is a capped pool rather than a quantity of
+tokens. Anthropic publishes multipliers and hours, never dollars, so the API-equivalent value
+of a seat has to be measured from usage logs:
+
+| Max 20x, $200 a month             | API-equivalent a month | Ratio      | Source                                                          |
+| --------------------------------- | ---------------------- | ---------- | --------------------------------------------------------------- |
+| Typical enterprise developer      | $150–250               | 0.75–1.25× | Anthropic docs: $13 per developer per active day, 90% under $30 |
+| Heavy Claude Code user, median    | $1,450                 | 7×         | viberank calculator, n=1,099, 2026-08-05                        |
+| Heavy user, top decile            | $7,358                 | 37×        | same                                                            |
+| August 2026 cohort median         | $6,085                 | 30×        | viberank monthly stats, n=215                                   |
+| Community 30 h/week Opus estimate | $5,800                 | 29×        | gist, May 2026                                                  |
+
+The published caps behind those figures: Max 20x gets 240–480 Sonnet hours plus 24–40 Opus
+hours a week (the only quantities Anthropic has released, 2025-08), with five-hour windows on
+top; overflow bills at API list and the prompt-cache lifetime drops from one hour to five
+minutes once on credits.
+
+OpenAI publishes the reverse: credits per message and message counts per window, no weekly
+figures. Since 2026-04-02 Codex usage inside a plan is metered in credits, and the rate card
+converts at $0.04 a credit to exactly API list for every model (Sol 100 / 10 / 500 credits per
+million tokens is $4 / $0.40 / $20), so the plan's unit of account already is the API price.
+
+| Plan         | Sol messages per 5 h | API-equivalent per window | Monthly bound                                           |
+| ------------ | -------------------- | ------------------------- | ------------------------------------------------------- |
+| Plus $20     | 10–100               | $12–20                    | weekly cap unpublished                                  |
+| Pro 5x $100  | 50–500               | $60–100                   | weekly cap unpublished                                  |
+| Pro 20x $200 | 200–2,000            | $240–400                  | $5,300–8,800 at one window a workday with no weekly cap |
+
+That upper bound is 26–44× and almost certainly unreachable; third-party break-even guides put
+Pro at 60–80M tokens a month, worth $300–800 at pre-cut prices, so 1.5–4× for a realistic heavy
+user. Resellers show where this lands once the subsidy is gone: Cursor Pro is $20 of inference
+at API prices for $20 (1.0×), Copilot Max $200 of credits for $100 (2×). Anthropic's flat pool
+is the most generous in the market for a heavy interactive user, and that is exactly the usage
+it fences with caps rather than price. At this factory's own delivery volume, $110–250 a month
+of tokens, a $200 seat is at or below break-even before policy enters.
+
 ## Consequences for Twilight's own design
 
 These are findings against the shipped `execution.yaml` and the plan, not measurements.
