@@ -109,7 +109,8 @@ describe('durable dev poller', () => {
   it('guards the installed poller source shape for its interpreter, target ref, and proof hooks', async () => {
     const poller = await readFile(new URL('../../../bin/dev-poll.sh', import.meta.url), 'utf8');
     expect(poller).toContain('flock -n 9');
-    expect(poller).toContain('dev-poll-sync.sh');
+    expect(poller).toContain('git show "$remote_sha:bin/dev-poll-sync.sh"');
+    expect(poller).not.toContain('"$BIN/dev-poll-sync.sh"');
     expect(poller).not.toContain('"$SRC/tools/tool-devsync/src/sync.ts"');
     expect(poller).toContain('BUN=/home/puni1/wbs-dev/bin/bun');
     expect(poller).not.toContain('/wbs-dark/');
