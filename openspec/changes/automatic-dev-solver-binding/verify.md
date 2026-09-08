@@ -26,7 +26,7 @@ The terminal proof must include:
 | pre-reset ordering     | omit each prepare/verify phase                | `d9eeb611`: 75/75; preflight omission failed 2 cases   |
 | exclusion              | two different targets overlap                 | `cc6c050d`: overlap refused before second publish      |
 | interrupted retry      | stop after publish and during install         | `3017d066`: digest reused; premature completion red    |
-| target build tree      | narrow archive / old live working directory   | run 4: behavioral red, then 79/79 green on h2puni     |
+| target build tree      | narrow archive / old live working directory   | run 4: behavioral red, then 79/79 green on h2puni      |
 | live solver change     | poll target differs under `libs/solver-py`    | pending                                                |
 | alarm backstop         | ten consecutive injected preparation failures | pending                                                |
 
@@ -205,3 +205,39 @@ manual recovery commands. OpenSpec task 6 is closed. With these documentation
 changes overlaid on the h2puni candidate, OpenSpec 1.3.0 validation passed all
 54 items (54 passed, 0 failed). No build or autotest ran for this docs-only
 slice, and no live host state changed.
+
+## Missing installed-config bootstrap
+
+At 2026-09-08T04:02:29Z, a read-only h2puni probe confirmed the first live
+automatic transition had no installed supervisor config and no preparation
+checkpoint. The protected registry environment existed at mode 0600 and its
+contents were not read. Prod's host-owned Docker state had exactly
+`be-01-blue` (stopped) and `be-01-green` (running), each configured with a
+distinct digest-pinned `wbs-be-01` image; the rendered Compose artifacts named
+the same two images. Prod state recorded green active at deployed source
+`0afc77758131bc4257dcaa78f0b26bc97ffd92dc`.
+
+The preparation test removed the installed config and first failed before any
+publish with `TypeError: undefined is not an object` in
+`decodeInstalledProdImages` while the other three cases stayed green. The
+runtime production-path test then failed because it tried to read the absent
+config rather than inspect the exact prod containers. The implementation now
+distinguishes absence from unreadability: absence queries only bounded Docker
+fields (`Name`, `State.Running`, `Config.Image`), accepts exactly one blue and
+one green caller with digest-pinned images, and uses them as the bootstrap
+baseline. A present but unreadable config still propagates its read failure;
+mutable, incomplete, duplicate, malformed, or oversized inspection output
+refuses before publish.
+
+On h2puni, the focused bootstrap pair passed 7/7 cases (34 assertions). The
+canonical `tool-devsync:test` Nx target passed 88/88 cases (267 assertions),
+and its lint and TypeScript targets plus changed-file Prettier passed. A raw
+`bun test tools/tool-devsync/src` attempt was noncanonical: it ran the suite
+from the repository root instead of the project's declared cwd and reported
+39 fixture/path failures, so it is recorded but not counted as a gate.
+Dependency manifests before and after resolved 78 declared, 0 bad. A fresh
+dependency install was unavailable because the monitored `/tmp` quota was
+already 66% (above the 65% pre-install ceiling); the previously proved
+task-private dependency tree was reused after validation. The post-gate sample
+was `/dev/shm` 59%, `/tmp` 69%, below the 85% hard alert. No live host mutation
+ran in this slice.

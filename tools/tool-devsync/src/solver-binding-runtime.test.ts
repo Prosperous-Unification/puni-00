@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { prepareTargetSolverBinding } from './solver-binding-host';
+import { decodeProdContainerImages, prepareTargetSolverBinding } from './solver-binding-host';
 import {
   createTargetSolverBindingRuntime,
   type SolverBindingRuntimeInvocation,
@@ -51,6 +51,7 @@ describe('the production solver binding runtime', () => {
     const runtime = createTargetSolverBindingRuntime(
       { root: ROOT, bunPath: BUN, sourceSha: SHA, compatibilityIdentity: IDENTITY },
       {
+        exists: () => Promise.resolve(true),
         read: (path) => {
           const contents = files.get(path);
           if (contents === undefined) throw new Error(`fixture has no ${path}`);
@@ -60,6 +61,7 @@ describe('the production solver binding runtime', () => {
           invocations.push(invocation);
           return Promise.resolve({ exitCode: 0, stderr: '' });
         },
+        query: () => Promise.reject(new Error('installed config must avoid container inspection')),
         writeAtomic: (path, contents) => {
           checkpoints.push({ path, contents });
           return Promise.resolve();
@@ -117,5 +119,55 @@ describe('the production solver binding runtime', () => {
       return (checkpoint as Record<string, unknown>)['phase'];
     });
     expect(phases).toEqual(['published', 'complete']);
+  });
+
+  it('derives a missing config from exact prod container inspection but propagates unreadability', async () => {
+    const inspection = [
+      { name: '/be-01-blue', running: false, image: BLUE },
+      { name: '/be-01-green', running: true, image: GREEN },
+    ]
+      .map((container) => JSON.stringify(container))
+      .join('\n');
+    const queries: SolverBindingRuntimeInvocation[] = [];
+    const missing = createTargetSolverBindingRuntime(
+      { root: ROOT, bunPath: BUN, sourceSha: SHA, compatibilityIdentity: IDENTITY },
+      {
+        exists: () => Promise.resolve(false),
+        read: () => Promise.reject(new Error('missing config must not be read')),
+        command: () => Promise.resolve({ exitCode: 0, stderr: '' }),
+        query: (invocation) => {
+          queries.push(invocation);
+          return Promise.resolve({ exitCode: 0, stdout: inspection, stderr: '' });
+        },
+        writeAtomic: () => Promise.resolve(),
+      },
+    );
+
+    expect(await missing.dependencies.readInstalledConfig()).toBeUndefined();
+    expect(decodeProdContainerImages(await missing.dependencies.readProdContainers())).toEqual({
+      blueImage: BLUE,
+      greenImage: GREEN,
+    });
+    expect(queries[0]?.argv.slice(0, 3)).toEqual(['docker', 'inspect', '--format']);
+    expect(queries[0]?.argv.slice(-2)).toEqual(['be-01-blue', 'be-01-green']);
+
+    const unreadable = createTargetSolverBindingRuntime(
+      { root: ROOT, bunPath: BUN, sourceSha: SHA, compatibilityIdentity: IDENTITY },
+      {
+        exists: () => Promise.resolve(true),
+        read: () => Promise.reject(new Error('EACCES installed config')),
+        command: () => Promise.resolve({ exitCode: 0, stderr: '' }),
+        query: () => Promise.reject(new Error('unreadable config must not fall back')),
+        writeAtomic: () => Promise.resolve(),
+      },
+    );
+    let rejection: unknown;
+    try {
+      await unreadable.dependencies.readInstalledConfig();
+    } catch (error) {
+      rejection = error;
+    }
+    expect(rejection).toBeInstanceOf(Error);
+    expect(String(rejection)).toMatch(/EACCES/);
   });
 });

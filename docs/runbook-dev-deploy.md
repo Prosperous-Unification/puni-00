@@ -42,16 +42,16 @@ unchanged to the nanosecond.
 **Not every change can reach a running process that way.** This is the constraint the
 design trades for its speed, not a feature — know which column your change is in:
 
-| Change                                                          | What carries it                                                                                                                                                                                                                               |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App source under `apps/*/src`                                   | The watchers. Nothing restarts.                                                                                                                                                                                                               |
-| `bun.lock`                                                      | `tool-devsync` restarts and runs `bun install`.                                                                                                                                                                                               |
-| A migration under `apps/be-01/drizzle`                          | `tool-devsync` restarts; be-01 migrates at boot (`MIGRATE_ON_STARTUP=true`). Migrations are imported by no watched module, so nothing else would notice one arrive.                                                                           |
-| `package.json`, `nx.json`, any `project.json`, `vite.config.ts` | `tool-devsync` restarts. Nx and Vite read these once at startup.                                                                                                                                                                              |
+| Change                                                          | What carries it                                                                                                                                                                                                                                                             |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App source under `apps/*/src`                                   | The watchers. Nothing restarts.                                                                                                                                                                                                                                             |
+| `bun.lock`                                                      | `tool-devsync` restarts and runs `bun install`.                                                                                                                                                                                                                             |
+| A migration under `apps/be-01/drizzle`                          | `tool-devsync` restarts; be-01 migrates at boot (`MIGRATE_ON_STARTUP=true`). Migrations are imported by no watched module, so nothing else would notice one arrive.                                                                                                         |
+| `package.json`, `nx.json`, any `project.json`, `vite.config.ts` | `tool-devsync` restarts. Nx and Vite read these once at startup.                                                                                                                                                                                                            |
 | `libs/solver-py`, `apps/be-01/Dockerfile`                       | The target-revision deployer automatically publishes a digest-pinned `be` image, materializes and installs its host-owned solver binding, preflights it, and only then resets. The directory pathspec is recursive; missing or contradictory host inputs fail before reset. |
-| `deploy/dev-src/Dockerfile`                                     | **The deploy fails and names the fix** (`RECREATE_PATHS`, since 2026-08-04). Rebuild the image on h2puni from `deploy/dev-src`, then recreate.                                                                                                |
-| `deploy/dev-src/compose.yml`                                    | **The deploy fails and names the fix.** `cd /home/puni1/wbs-dev/src/deploy/dev-src && docker compose up -d`.                                                                                                                                  |
-| Per-tier `apps/<tier>/.env`                                     | **Nothing** — gitignored, so a push cannot carry it. Edit on h2puni and restart the container.                                                                                                                                                |
+| `deploy/dev-src/Dockerfile`                                     | **The deploy fails and names the fix** (`RECREATE_PATHS`, since 2026-08-04). Rebuild the image on h2puni from `deploy/dev-src`, then recreate.                                                                                                                              |
+| `deploy/dev-src/compose.yml`                                    | **The deploy fails and names the fix.** `cd /home/puni1/wbs-dev/src/deploy/dev-src && docker compose up -d`.                                                                                                                                                                |
+| Per-tier `apps/<tier>/.env`                                     | **Nothing** — gitignored, so a push cannot carry it. Edit on h2puni and restart the container.                                                                                                                                                                              |
 
 `tools/tool-devsync/src/sync.ts` holds both lists: `RESTART_PATHS` (a restart applies it)
 and `RECREATE_PATHS` (a restart cannot — the running container was created from the old
@@ -66,9 +66,11 @@ preflight-then-reset path and do not publish or install anything.
 
 For a solver-affecting target, the candidate deployer runs from a clean detached clone of that
 exact revision. Under the deploy exclusion it derives the compatibility-tree identity, validates
-the installed production blue and green mappings, publishes only `be` through Dagger from the
-target clone, and accepts only the requested full SHA and registry-returned digest in the release
-manifest. It then materializes a replacement config that preserves both production mappings,
+the installed production blue and green mappings, or bootstraps a missing first config from the
+exact digest-pinned images configured on the two prod containers. A present but unreadable config
+never falls back. It publishes only `be` through Dagger from the target clone and accepts only the
+requested full SHA and registry-returned digest in the release manifest. It then materializes a
+replacement config that preserves both production mappings,
 builds and executes the checked-in supervisor installer, and runs the installed bundle's dev
 preflight. The live checkout reset is last.
 

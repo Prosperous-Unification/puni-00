@@ -2,9 +2,11 @@ import { describe, expect, it } from 'bun:test';
 
 import {
   decodeInstalledProdImages,
+  decodeProdContainerImages,
   decodePublishedSolverImage,
   prepareTargetSolverBinding,
   registryPasswordFromEnv,
+  type TargetSolverBindingDependencies,
 } from './solver-binding-host';
 
 const SHA = 'a'.repeat(40);
@@ -25,6 +27,14 @@ const installedConfig = () => ({
     { callerName: 'wbs-dev-src', callerImage: null, solverImage: DEV },
   ],
 });
+const prodContainers = bytes(
+  [
+    { name: '/be-01-blue', running: false, image: BLUE },
+    { name: '/be-01-green', running: true, image: GREEN },
+  ]
+    .map((container) => JSON.stringify(container))
+    .join('\n'),
+);
 
 describe('the automatic solver binding host inputs', () => {
   it('reads exactly one non-empty registry password without truncating equals signs', () => {
@@ -82,6 +92,33 @@ describe('the automatic solver binding host inputs', () => {
     );
   });
 
+  it('refuses incomplete or mutable production container inspection', () => {
+    expect(() =>
+      decodeProdContainerImages(
+        bytes(
+          [
+            { name: '/be-01-blue', running: false, image: 'registry.example/wbs-be:latest' },
+            { name: '/be-01-green', running: true, image: GREEN },
+          ]
+            .map((container) => JSON.stringify(container))
+            .join('\n'),
+        ),
+      ),
+    ).toThrow(/invalid/);
+    expect(() =>
+      decodeProdContainerImages(
+        bytes(
+          [
+            { name: '/be-01-blue', running: false, image: BLUE },
+            { name: '/be-01-blue', running: true, image: GREEN },
+          ]
+            .map((container) => JSON.stringify(container))
+            .join('\n'),
+        ),
+      ),
+    ).toThrow(/one be-01-blue/);
+  });
+
   it('validates host inputs, publishes, installs, verifies, checkpoints, then resets', async () => {
     const events: string[] = [];
     const digest = `sha256:${'d'.repeat(64)}`;
@@ -101,7 +138,11 @@ describe('the automatic solver binding host inputs', () => {
         },
         readInstalledConfig: () => {
           events.push('read-config');
-          return Promise.resolve(bytes(JSON.stringify(installedConfig())));
+          return Promise.resolve(undefined);
+        },
+        readProdContainers: () => {
+          events.push('read-prod-containers');
+          return Promise.resolve(prodContainers);
         },
         publish: (sourceSha, password) => {
           expect(sourceSha).toBe(SHA);
@@ -135,11 +176,12 @@ describe('the automatic solver binding host inputs', () => {
           events.push('reset');
           return Promise.resolve();
         },
-      },
+      } satisfies TargetSolverBindingDependencies,
     );
 
     expect(events).toEqual([
       'read-config',
+      'read-prod-containers',
       'read-registry',
       'publish',
       'checkpoint:published',

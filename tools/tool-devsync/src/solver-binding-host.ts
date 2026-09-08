@@ -97,7 +97,8 @@ export interface TargetSolverBindingConfig extends InstalledProdImages {
 
 export interface TargetSolverBindingDependencies {
   readRegistryEnv(): Promise<Uint8Array>;
-  readInstalledConfig(): Promise<Uint8Array>;
+  readInstalledConfig(): Promise<Uint8Array | undefined>;
+  readProdContainers(): Promise<Uint8Array>;
   publish(sourceSha: string, registryPassword: string): Promise<Uint8Array>;
   materialize(config: TargetSolverBindingConfig): Promise<void>;
   install(binding: SolverBinding): Promise<void>;
@@ -133,13 +134,74 @@ export function decodeInstalledProdImages(bytes: Uint8Array): InstalledProdImage
   return { blueImage: prodImage('be-01-blue'), greenImage: prodImage('be-01-green') };
 }
 
+/** Bootstraps a missing supervisor config from the exact deployed prod callers. */
+export function decodeProdContainerImages(bytes: Uint8Array): InstalledProdImages {
+  if (bytes.byteLength === 0 || bytes.byteLength > HOST_INPUT_MAX_BYTES) {
+    throw new Error(
+      `production container inspection must contain 1 through ${String(HOST_INPUT_MAX_BYTES)} bytes`,
+    );
+  }
+  let text: string;
+  try {
+    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch (error) {
+    throw new Error(`production container inspection is not valid UTF-8: ${String(error)}`, {
+      cause: error,
+    });
+  }
+  const lines = text.trimEnd().split('\n');
+  if (lines.length !== 2 || lines.some((line) => line === '')) {
+    throw new Error('production container inspection must contain exactly two JSON rows');
+  }
+  const containers = lines.map((line) => {
+    let value: unknown;
+    try {
+      value = JSON.parse(line) as unknown;
+    } catch (error) {
+      throw new Error(`production container inspection row is not valid JSON: ${String(error)}`, {
+        cause: error,
+      });
+    }
+    const container = recordOf(value, 'production container inspection row');
+    const name = container['name'];
+    const running = container['running'];
+    const image = container['image'];
+    if (
+      Object.keys(container).length !== 3 ||
+      !Object.keys(container).every((key) => ['name', 'running', 'image'].includes(key)) ||
+      typeof name !== 'string' ||
+      typeof running !== 'boolean' ||
+      typeof image !== 'string' ||
+      !DIGEST_PINNED_IMAGE.test(image)
+    ) {
+      throw new Error('production container inspection row is invalid');
+    }
+    return { name, running, image };
+  });
+  const imageFor = (callerName: 'be-01-blue' | 'be-01-green'): string => {
+    const matches = containers.filter(({ name }) => name === `/${callerName}`);
+    const match = matches[0];
+    if (matches.length !== 1) {
+      throw new Error(`production container inspection needs one ${callerName}`);
+    }
+    return match.image;
+  };
+  return { blueImage: imageFor('be-01-blue'), greenImage: imageFor('be-01-green') };
+}
+
 /** Runs the target binding transition after validating preserved host authority. */
 export async function prepareTargetSolverBinding(
   target: SolverBindingTarget,
   stateBytes: Uint8Array | undefined,
   dependencies: TargetSolverBindingDependencies,
 ): Promise<void> {
-  const prod = decodeInstalledProdImages(await dependencies.readInstalledConfig());
+  const installedConfig = await dependencies.readInstalledConfig();
+  // Proof: solver-binding-host.test.ts removes the installed config and makes
+  // the real preparation path recover both exact caller images before publish.
+  const prod =
+    installedConfig === undefined
+      ? decodeProdContainerImages(await dependencies.readProdContainers())
+      : decodeInstalledProdImages(installedConfig);
   await resumeSolverBindingBeforeReset(target, stateBytes, {
     publish: async ({ sourceSha }) => {
       const password = registryPasswordFromEnv(await dependencies.readRegistryEnv());

@@ -13,6 +13,8 @@ const LIVE_SOURCE_ROOT = '/home/puni1/wbs-dev/src';
 const HOST_STATE_ROOT = '/home/puni1/wbs-dev/state';
 const REGISTRY_ENV = '/home/puni1/wbs/.env';
 const HOST_INPUT_MAX_BYTES = 256 * 1024;
+const PROD_CONTAINER_INSPECT_FORMAT =
+  '{"name":{{json .Name}},"running":{{json .State.Running}},"image":{{json .Config.Image}}}';
 
 export interface SolverBindingRuntimeInvocation {
   cwd: string;
@@ -21,10 +23,14 @@ export interface SolverBindingRuntimeInvocation {
 }
 
 export interface SolverBindingRuntimeIo {
+  exists(path: string): Promise<boolean>;
   read(path: string): Promise<Uint8Array>;
   command(
     invocation: SolverBindingRuntimeInvocation,
   ): Promise<{ exitCode: number; stderr: string }>;
+  query(
+    invocation: SolverBindingRuntimeInvocation,
+  ): Promise<{ exitCode: number; stdout: string; stderr: string }>;
   writeAtomic(path: string, contents: string): Promise<void>;
 }
 
@@ -54,7 +60,25 @@ async function command(
   return { exitCode, stderr };
 }
 
+async function query(
+  invocation: SolverBindingRuntimeInvocation,
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  const child = Bun.spawn([...invocation.argv], {
+    cwd: invocation.cwd,
+    env: { ...process.env, ...invocation.env },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  return { exitCode, stdout, stderr };
+}
+
 const DEFAULT_IO: SolverBindingRuntimeIo = {
+  exists: (path) => Bun.file(path).exists(),
   read: async (path) =>
     new Uint8Array(
       await Bun.file(path)
@@ -62,6 +86,7 @@ const DEFAULT_IO: SolverBindingRuntimeIo = {
         .arrayBuffer(),
     ),
   command,
+  query,
   writeAtomic: (path, contents) => writeAtomic(path, contents),
 };
 
@@ -74,6 +99,24 @@ async function requireCommand(
   if (output.exitCode !== 0) {
     throw new Error(`${label} failed (exit ${String(output.exitCode)}): ${output.stderr.trim()}`);
   }
+}
+
+async function requireQuery(
+  label: string,
+  invocation: SolverBindingRuntimeInvocation,
+  io: SolverBindingRuntimeIo,
+): Promise<Uint8Array> {
+  const output = await io.query(invocation);
+  if (output.exitCode !== 0) {
+    throw new Error(`${label} failed (exit ${String(output.exitCode)}): ${output.stderr.trim()}`);
+  }
+  const bytes = new TextEncoder().encode(output.stdout);
+  if (bytes.byteLength === 0 || bytes.byteLength > HOST_INPUT_MAX_BYTES) {
+    throw new Error(
+      `${label} must return 1 through ${String(HOST_INPUT_MAX_BYTES)} bytes of stdout`,
+    );
+  }
+  return bytes;
 }
 
 /** Supplies the h2puni-only file and command boundary for one target clone. */
@@ -117,7 +160,24 @@ export function createTargetSolverBindingRuntime(
     configPath,
     dependencies: {
       readRegistryEnv: () => io.read(REGISTRY_ENV),
-      readInstalledConfig: () => io.read(SOLVER_SUPERVISOR_CONFIG),
+      readInstalledConfig: async () =>
+        (await io.exists(SOLVER_SUPERVISOR_CONFIG)) ? io.read(SOLVER_SUPERVISOR_CONFIG) : undefined,
+      readProdContainers: () =>
+        requireQuery(
+          'production backend container inspection',
+          {
+            cwd: target.root,
+            argv: [
+              'docker',
+              'inspect',
+              '--format',
+              PROD_CONTAINER_INSPECT_FORMAT,
+              'be-01-blue',
+              'be-01-green',
+            ],
+          },
+          io,
+        ),
       publish: async (sourceSha, registryPassword) => {
         await run(
           'solver image publish',
