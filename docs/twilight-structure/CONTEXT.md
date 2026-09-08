@@ -309,6 +309,22 @@ The run's attributable record of planned, reserved, and measured consumption,
 waits, human effort, serving choices, and profile epochs.
 _Avoid_: Usage, bill
 
+**Efficiency breakdown**:
+A reconciled explanation of an outcome's cost through its requests, attempts,
+model turns, token categories, tool context, and rates. It observes cost drivers
+and grants no spending authority.
+_Avoid_: Cost equation, budget, optimization score
+
+**Activity benchmark**:
+A versioned evaluation of model and execution choices for one activity class on
+authored adversarial cases and retained real work under fixed quality.
+_Avoid_: Model leaderboard, whole-run profile comparison
+
+**Optimization proposal**:
+An evidence-linked request to change a factory default for a named cost or elapsed-time
+driver, with its expected payback, quality floor and stopping condition.
+_Avoid_: Automatic tuning, saving
+
 **Outcome record**:
 The versioned record of a terminal run and candidate under a named evaluation,
 including acceptance, rework, findings, observations, costs, and later defect reports.

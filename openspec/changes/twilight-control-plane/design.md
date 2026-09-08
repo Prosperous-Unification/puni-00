@@ -630,6 +630,9 @@ release request starts a new candidate-bound run rather than reviving that autho
 `advisory`, they are warning targets and an explicit same-unit `hardLimits` vector
 at least as large is required; advisory never grants unbounded spend. Crossing a
 target records an overrun and continues only within the authorized hard vector.
+Optional warning thresholds are versioned same-unit values below the applicable
+hard vector. A transition across one emits one deduplicated event; it neither
+changes the account nor substitutes for enforcement.
 All supplied dimensions constrain admission. Changing hard ceilings or accounting
 scope changes the envelope; choosing a permitted model or bounded attempt allowance
 does not. Lowering a ceiling below settled usage plus holds is always refused. For example, an $8 advisory money target
@@ -668,6 +671,55 @@ categories, with coverage shown when total delivery cost is incomplete. Monetary
 reservation bounds include every charge category inside the authorized budget's
 scope; an unknown charge is not free. Aggregates retain units and coverage through
 run, request and repository roll-ups, including failed/cancelled attempts and runs.
+
+The ledger also derives an **efficiency breakdown** without creating a second
+accounting source. For each outcome and compatible cohort it reconciles request
+count, run count, activity attempts, model turns, input/output/cache-read/cache-write
+tokens, activity-scoped tool-definition bytes or tokens, failed context lookups,
+adapter polling cycles and pinned rates back to the attributable totals. Each
+factor retains measured/unavailable status and source coverage. Nested request,
+run, attempt and turn identities define denominators and are not added as money;
+token categories reconcile to model charges through pinned rates. Tool-definition
+tokens are an attributed subset of input tokens, never an additional charge, while
+byte-only observations remain an unpriced overhead signal. Counts are cost drivers,
+never accepted outcomes, and an unavailable factor makes that branch of the
+explanation incomplete rather than zero. The breakdown does not reserve, authorize
+or reprice anything.
+
+Every diagnostic observation declares `complete`, `sampled` with its sampling
+revision, or `unavailable`; sampled traces cannot satisfy a mandatory budget,
+effect, outcome or safety proof. Instrumentation reports its own bytes, tool time,
+latency and failures against a versioned overhead budget. A provider charge shared
+across activities is stored once and allocated only through a receipt whose members
+sum to that charge; otherwise activity attribution is unavailable. Later provider
+receipts append a new as-of revision to the outcome rather than rewriting the
+earlier estimate. Material estimate/bill divergence creates a pricing-drift
+finding. Money comparisons use the charged currency or one pinned conversion
+revision; mixed currencies without it are incomparable.
+
+Adapters keep repetitive polling outside model turns and report it as tool time
+and polling cycles. Agent adapters declare the tool descriptors exposed to each
+activity and, where the provider reports it, their prompt contribution. Required
+context declared by an activity is preflighted before its full attempt allowance
+is reserved; absence or unreadability blocks with the named source. M1 measures
+these costs but does not require lazy tool loading, a universal CLI projection or
+automatic prompt tuning.
+
+Post-M1 cache experiments bind every reusable prefix to client/repository security
+domain, effective policy, prompt, skill and tool-catalog digests. A revocation or
+digest change cannot reuse the prior prefix. Compaction retains authority,
+unresolved findings, effect identities, current task state, source/evaluation
+revisions and evidence links as an executable closure; summaries are derived
+knowledge claims, never replacement approvals or receipts.
+
+The authorized tool catalog pins its revision and selected schema digest in the
+profile epoch and effect intent. Descriptor text is validated external data and
+cannot alter policy or prompts. Search reveals only authorized descriptors; schema
+loading grants no dispatch authority, and disappearance before dispatch is an
+unavailable capability rather than implicit fallback. A compound effect pins member
+dependencies and stable identities. Only declared-independent members may run
+concurrently, and the parent remains non-terminal until every member is reconciled
+or explicitly abandoned.
 
 A charge record is keyed by run, attempt, logical effect and charge category, with
 currency, a conservative maximum, quoted/rate revision, observed amount or unavailable
@@ -719,6 +771,43 @@ the execution profile owns this shared definition, not delivery-profile override
 Publishing a changed evaluator preserves prior observations and creates a separate
 comparison cohort. M1 runs the same fixed evaluator on both delivery profiles;
 larger optimization and promotion remain later work.
+
+After M1, an **activity benchmark** may recommend an activity-class or
+per-activity default. Its revision pins authored adversarial cases, a sealed
+holdout, retained redacted real-work samples when available, model/effort and
+adapter revisions, quality rubric, latency/timeout/reliability observations and
+complete cost coverage. Publication declares and meets a positive minimum of
+retained real-work samples; without it the benchmark may exercise plumbing but
+cannot recommend a default. Results preserve every non-dominated quality,
+reliability, latency and cost choice; the publication record names the selected
+trade-off instead of collapsing it into one score. Missing coverage, mixed
+revisions or an unmatured required observation cannot support a default change.
+Recommendations remain findings: publishing a new default follows the ordinary
+evaluated workflow and authority boundary. Periodic recommendation generation and
+dynamic routing remain outside M1.
+
+The benchmark declares representative strata for task difficulty,
+repository/context shape, failure mode and warm/cold conditions, plus sample
+counts and uncertainty for each. Treatment order is randomized under a recorded
+seed. Provider quota, region, harness load and cache state are pinned or reported;
+incompatible conditions cannot support a ranking. Holdout assertions are stored
+outside worker-visible session, search and tool scopes. Repeated decision use is
+bounded so feedback cannot silently train selection against one holdout.
+
+A non-dominated result is a recommendation, not production proof. Before broad
+publication, a changed default uses a bounded canary or a shadow observation that
+cannot duplicate external effects. The proposal pins the prior default and the
+quality, timeout, reliability and cost thresholds that trigger a rollback proposal.
+Neither canary nor rollback bypasses the ordinary authority path, and admitted
+attempts retain their epoch.
+
+An **optimization proposal** names its baseline, target driver, expected payback,
+quality floor, analysis/rollout cost and stop condition. Expected payback remains
+an assumption until a compatible accepted-outcome comparison matures. Trace
+analysis clusters stable session/effect identities, retains sample counts and
+dissent, and exports redacted examples or access-checked evidence references.
+Frequency alone does not set priority, and analysis consumes a bounded charged
+activity allowance.
 
 Each expected observation is passed, failed, skipped or unavailable. Defect records
 show accepted time, observation coverage, `observedThrough`, and whether the window

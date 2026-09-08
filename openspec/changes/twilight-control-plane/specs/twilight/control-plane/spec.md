@@ -676,6 +676,31 @@ queue wait, human wait, human minutes, the serving provider/model revision,
 escalation step and profile epoch. Aggregates MUST preserve their component status
 and roll up failed attempts and runs rather than reporting only accepted work.
 
+The ledger MUST derive an efficiency breakdown that reconciles an attributable
+outcome total through request/run counts, activity attempts, model turns,
+input/output/cache-read/cache-write tokens, activity-scoped tool-definition
+overhead, failed context lookups, adapter polling cycles and pinned rates. Each
+factor MUST retain source coverage and measured or unavailable status. Driver
+identities and counts MUST define nested denominators and MUST NOT be added as
+money or presented as accepted outcomes. Token categories MUST reconcile to model
+charges through pinned rates. Attributed tool-definition tokens MUST remain a
+subset of input tokens, while byte-only observations MUST remain unpriced overhead;
+neither may be double charged. No factor may authorize spend or silently become
+zero when unavailable. Required activity context MUST be checked before the full
+attempt allowance is reserved, and adapter polling MUST NOT require model turns
+when a registered bounded poller can observe the same transition.
+
+Every diagnostic observation MUST declare complete, sampled with a sampling
+revision, or unavailable. Sampled traces MUST NOT satisfy mandatory budget,
+effect, outcome or safety evidence. Instrumentation MUST report its own bytes,
+tool time, latency and failures against a versioned overhead budget. A provider
+charge shared across activities MUST be stored once and allocated only through a
+receipt whose members sum to that charge; absent allocation MUST leave activity
+attribution unavailable. Late billing MUST append an as-of outcome revision and a
+material estimate/bill divergence MUST create a pricing-drift finding rather than
+rewrite history or silently change the rate card. Cross-currency ranking MUST use
+one pinned conversion revision or remain unavailable.
+
 #### Scenario: A review is skipped to save time
 
 - **WHEN** a request disables `review.judge` without violating a floor
@@ -703,6 +728,39 @@ and roll up failed attempts and runs rather than reporting only accepted work.
   whose fan-out is two
 - **THEN** admission holds the third and fourth as `queued` with the profile named,
   and the ledger records their queue wait separately from agent time
+
+#### Scenario: A repeated tool descriptor raises outcome cost
+
+- **GIVEN** two comparable accepted outcomes with complete ledger coverage and the
+  same model rate, where the second repeatedly injects a larger activity tool schema
+- **WHEN** their efficiency breakdowns are compared
+- **THEN** the second outcome attributes the increase to tool-definition overhead,
+  both breakdowns reconcile to their outcome totals, and removing that factor makes
+  the breakdown incomplete rather than cheaper
+
+#### Scenario: A required context source cannot be read
+
+- **GIVEN** an activity declares a required repository context source
+- **WHEN** that source is absent or unreadable before admission
+- **THEN** the activity is blocked with the source and condition named before its
+  full attempt allowance is reserved, and neither condition is recorded as an
+  empty context or a successful lookup
+
+#### Scenario: A sampled trace is offered as mandatory evidence
+
+- **GIVEN** a diagnostic trace covers only a declared sample of an attempt's tool
+  events
+- **WHEN** it is submitted as complete effect or budget evidence
+- **THEN** settlement refuses it for that purpose while retaining the sampled
+  diagnostic observation and its sampling revision
+
+#### Scenario: One cache charge spans two activities
+
+- **GIVEN** a provider reports one cache charge shared by two activities and no
+  defensible allocation receipt
+- **WHEN** their efficiency breakdowns are produced
+- **THEN** the charge exists once at run scope, both activity allocations are
+  unavailable, and neither duplicates or guesses a share
 
 ### Requirement: Outcomes use an independent evaluation definition
 
@@ -763,6 +821,120 @@ MUST NOT infer that a model or profile caused the defect.
   twice for an accepted candidate within its observation window
 - **THEN** one revisioned report is attached to that candidate and the retry returns
   its original receipt without attributing causation to a model
+
+### Requirement: Activity defaults are benchmark-driven
+
+After M1, a model, effort, tool-exposure or execution default for an activity class
+MUST change only through a versioned activity benchmark and the ordinary evaluated
+publication workflow. The benchmark MUST pin its activity class, authored
+adversarial cases, sealed holdout, retained redacted real-work samples,
+model/effort and adapter revisions, quality rubric, cost coverage, latency,
+timeouts and reliability observations. Default publication MUST declare and meet
+a positive minimum real-work sample count, representative strata for task
+difficulty, repository/context shape, failure mode and warm/cold conditions, and
+uncertainty for each. Treatment order MUST be randomized under a recorded seed.
+Provider quota, region, harness load and cache state MUST be pinned or reported,
+and incompatible conditions MUST NOT support ranking. Holdout assertions MUST be
+outside worker-visible session, search and tool scopes. It MUST preserve the
+non-dominated choices across quality, reliability, latency and cost, and the
+publication MUST name the selected trade-off rather than derive one opaque score.
+
+Missing observations, incompatible revisions, leaked holdout answers or an
+immature required outcome window MUST make a default recommendation unavailable.
+A recommendation MUST remain a finding with evidence and MUST NOT mutate a
+profile, skill or routing rule without the same authority, fixed-quality
+evaluation and promotion path as other factory changes.
+
+Before broad publication, the changed default MUST pass a bounded canary or a
+shadow observation that cannot duplicate external effects. The proposal MUST pin
+the prior default and quality, timeout, reliability and cost thresholds that
+trigger a rollback proposal. An optimization proposal MUST name its baseline,
+target driver, expected payback, quality floor, analysis/rollout cost and stop
+condition. Expected payback MUST remain an assumption until compatible
+accepted-outcome evidence matures. Analysis MUST be a bounded charged activity;
+frequency of a clustered papercut MUST NOT itself confer priority or publication
+authority.
+
+#### Scenario: A cheaper activity model passes the benchmark
+
+- **GIVEN** two model choices run the same activity benchmark with compatible
+  revisions, complete cost coverage and a sealed holdout
+- **WHEN** the cheaper choice remains non-dominated at the required quality,
+  reliability and latency bounds
+- **THEN** it may be proposed with its evidence and trade-off, but the current
+  activity default remains unchanged until the proposal is accepted and published
+
+#### Scenario: A routing recommendation mixes benchmark revisions
+
+- **GIVEN** quality observations from one activity-benchmark revision and cost or
+  timeout observations from another
+- **WHEN** a profile-default publication cites their combined ranking
+- **THEN** publication is refused as incomparable and no routing default changes
+
+#### Scenario: An offline winner has no safe rollout evidence
+
+- **GIVEN** one model is non-dominated in the activity benchmark but its activity
+  can create external effects
+- **WHEN** broad default publication has neither a bounded canary nor an
+  effect-safe shadow observation and rollback thresholds
+- **THEN** publication is refused while the benchmark result remains an attributed
+  recommendation
+
+#### Scenario: A benchmark exposes its holdout answer
+
+- **GIVEN** an activity benchmark stores its expected holdout answer in a session,
+  search index or tool scope visible to its worker
+- **WHEN** the benchmark is evaluated for a default recommendation
+- **THEN** the recommendation is unavailable for holdout leakage regardless of its
+  passing score
+
+### Requirement: Context and tool optimization preserves isolation
+
+Any reusable prompt prefix MUST be bound to client/repository security domain,
+effective policy, prompt, skill and tool-catalog digests. A revocation or digest
+change MUST prevent reuse. Compaction MUST retain authority, unresolved findings,
+effect identities, current task state, source/evaluation revisions and evidence
+links as a complete closure. A summary MUST remain a sourced derived claim and
+MUST NOT replace an approval, receipt or mandatory source.
+
+The lazy tool catalog MUST pin its revision and selected schema digest in the
+profile epoch and effect intent. Descriptor content MUST be boundary-validated and
+treated as untrusted text. Search MUST reveal only authorized descriptors, loading
+a schema MUST grant no dispatch authority, and a missing selected tool at dispatch
+MUST become unavailable without implicit replacement. Tool selection evaluation
+MUST report precision, recall, forbidden-tool refusals, schema overhead and
+end-to-end task success.
+
+A compound effect MUST pin stable member identities, dependency order, limits and
+partial outcomes. Only declared-independent members MAY run concurrently. The
+parent MUST remain non-terminal until each member is reconciled or explicitly
+abandoned, and retries MUST reuse member identities. Local computation MAY bypass
+external effect dispatch only when it is proven read-only and carries no external
+authority.
+
+#### Scenario: A revoked catalog prefix is offered for reuse
+
+- **GIVEN** a cached prefix names a policy and tool-catalog revision whose tool
+  grant is later revoked
+- **WHEN** a new activity attempts to reuse that prefix
+- **THEN** the digest mismatch prevents reuse and the revoked descriptor and its
+  content are unavailable to the activity
+
+#### Scenario: A tool descriptor contains policy instructions
+
+- **GIVEN** an authorized catalog entry contains text asking the worker to widen
+  its permissions
+- **WHEN** the descriptor is searched and loaded
+- **THEN** it remains attributed untrusted text, changes no prompt or authority,
+  and dispatch still requires the independently authorized effect
+
+#### Scenario: A compound effect restarts after one member succeeds
+
+- **GIVEN** the first member has an externally observed receipt and a dependent
+  second member is unfinished when the worker stops
+- **WHEN** the compound effect resumes
+- **THEN** it reconciles the first member under the same identity, does not repeat
+  it, and keeps the parent non-terminal until the second member is resolved
 
 ### Requirement: Hooks, critics and judges preserve authority
 
@@ -927,10 +1099,19 @@ partitioned-coordination design and race proofs before increasing supported scal
 ### Requirement: Observable evidence with focus access
 
 The service MUST expose attributable events, effective policy, artifact revisions,
-review dispositions, ledger entries and evidence through all clients. The focus
+review dispositions, ledger entries, efficiency breakdowns and evidence through
+all clients. The focus
 brief MUST retain blocking information and access to full detail, and the focus
 profile MUST be a per-actor preference that changes presentation only. The service
 MUST identify gaps in provider telemetry and redact secrets before storage and export.
+
+While a non-terminal run can still be controlled, FE and MCP MUST show settled
+spend, outstanding holds, applicable advisory thresholds, hard-cap headroom and
+coverage for every budget dimension. Warning thresholds MUST be versioned budget
+settings, emitted once per threshold crossing and MUST NOT replace hard caps. An
+unavailable charge category MUST keep full-delivery-cost headroom unavailable. A
+late correction below a crossed threshold MUST remain in history and MUST NOT
+re-arm that warning without a new threshold epoch.
 
 #### Scenario: Focus brief during a failed gate
 
@@ -943,3 +1124,12 @@ MUST identify gaps in provider telemetry and redact secrets before storage and e
 - **WHEN** an integration returns a credential-bearing response
 - **THEN** protected values are removed before persisted traces or client exports,
   and the record identifies that redaction occurred
+
+#### Scenario: A held attempt consumes the remaining headroom
+
+- **GIVEN** a running attempt holds the last authorized money allowance and has not
+  settled
+- **WHEN** the operator reads the run through FE and MCP
+- **THEN** both show the hold and zero remaining headroom, and removing the hold
+  from either projection fails their shared-contract assertion before another
+  dispatch can be presented as affordable

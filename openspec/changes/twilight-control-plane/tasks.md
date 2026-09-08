@@ -491,6 +491,31 @@ input-plus-cache double charging and unknown-as-zero; each fails its field asser
 Current rates re-evaluate new holds without repricing settled attempts.
 `set_capacity` and `publish_rate_card` refuse a non-administrator and are evented.
 
+Derive the efficiency breakdown from those same ledger entries: reconcile outcome
+cost through requests, runs, attempts, model turns, token categories,
+activity-scoped tool-definition overhead, failed context lookups, adapter polling
+cycles and rates. Use nested identities for denominators, reconcile disjoint token
+categories through rates, and keep attributed tool-schema tokens inside input
+tokens; byte-only schema observations remain unpriced. Record source coverage and unavailable factors. Inject a dropped
+failed attempt, cache tokens counted as both input and cache, and an unavailable
+tool-schema contribution treated as zero; each must fail the reconciled total or
+coverage assertion. Preflight a declared required context source before reserving
+the full attempt allowance, and test both absence and unreadability on the
+production admission path. Registered bounded pollers report cycles/tool time
+without model turns; move the poll into model turns and watch the turn-driver
+assertion fail.
+
+Mark diagnostics complete, sampled with a revision, or unavailable. Measure the
+instrumentation's own bytes, tool time, latency and failures against its overhead
+budget; inject a sampled tool trace as mandatory settlement evidence and watch the
+production consumer refuse it. Store one provider charge shared by two activities
+once; without an allocation receipt whose members sum to it, both activity shares
+remain unavailable. Duplicate the charge and invent equal shares separately to
+fail run-total and coverage assertions. Append a late billed receipt as a new
+as-of revision, emit a pricing-drift finding at the configured materiality
+threshold, and preserve the prior estimate. Compare currencies only with one
+pinned conversion revision; removing it makes the ranking unavailable.
+
 **Estimate:** 12–22 human hours; 3–7 agent hours; 200k–560k tokens, one build slot
 and two lightweight child-process slots for race tests.
 
@@ -541,7 +566,7 @@ configuration; Observable evidence with focus access (client halves) (A36).
 
 **Owns:** `apps/twilight-fe/src/routes/runs.tsx`, `workbench.tsx`,
 `workflow-editor.tsx`, `approval.tsx`, `capacity.tsx`, `evidence.tsx`,
-`recovery.tsx`, `levers.tsx`, `apps/twilight-mcp/src/server.ts`,
+`recovery.tsx`, `levers.tsx`, `efficiency.tsx`, `apps/twilight-mcp/src/server.ts`,
 `apps/twilight-be/src/policy.ts`, `apps/twilight-fe/e2e/workflow.spec.ts`,
 `apps/twilight-mcp/src/server.test.ts`.
 
@@ -576,6 +601,14 @@ deadline origin and ordered profile epochs; a mixed-epoch run is never presented
 single-profile. Change a profile while an activity is held running and assert the UI
 and MCP retain its old epoch while the queued activity shows the new one; collapse
 both onto latest-profile and watch the parity assertion fail.
+
+While a held attempt can still be cancelled, show settled spend, outstanding
+holds, versioned warning thresholds, hard-cap headroom and coverage per dimension
+through the shared FE/MCP contract. A hold consuming the last allowance shows zero
+headroom on both surfaces. Remove it from one projection and watch parity fail;
+treat an unavailable delivery charge as zero and watch the complete-headroom
+assertion fail. Emit one event per configured warning-threshold crossing and prove
+a repeated read or reconnect does not create another crossing.
 
 **Tests (5.3):** publishing a workflow creates canonical repository inputs and pins
 the immutable organization snapshot it used: check out the published revision and
@@ -801,6 +834,17 @@ write. Under factory-core it records the core accepted outcome even though the
 inactive `handoff.dev-main` tool has only a disposition; under personal-delivery
 handoff records progress into `awaiting_release`, not a terminal outcome.
 
+It also exposes each outcome's reconciled efficiency breakdown from Task 4's
+ledger. Driver counts remain diagnostic observations rather than outcome
+denominators. An unavailable driver keeps the relevant branch and aggregate
+coverage incomplete in stored evidence, FE and MCP.
+
+Outcome revisions expose their as-of time, sampling/coverage states, shared-charge
+allocation status, instrumentation overhead and pricing-drift findings. A later
+billing receipt appends evidence without replacing the earlier estimate or
+reclassifying the accepted result. Cross-currency cohorts remain visible but
+unranked unless they pin the same conversion revision.
+
 **Tests (7.1):** required hook timeout/malformed output keeps the independent
 worker launch counter at zero; a fixture-registered optional hook fails visibly as degraded;
 post-hook failure after an effect does not replay the effect; author cannot act as
@@ -925,6 +969,13 @@ credentials. Pin forbidden content canaries: `/home/df/`, `/Users/danylofedorov`
 this repository's own docs, receipts or archived changes, which is what makes the
 injection meaningful. A clean fixture passes; inject each into a copied template
 file and watch the actual acceptance gate fail.
+
+For both runs, require the efficiency breakdown to reconcile with the outcome
+ledger and expose the same coverage through FE and MCP. The comparison attributes
+differences to requests, attempts, model turns, token categories, tool context,
+failed lookups, polling and rates without treating any driver as another accepted
+outcome. These observations establish the baseline for later activity benchmarks;
+they do not select a default profile.
 
 Run source/spec typechecks, lint, build, all affected tests and the complete
 browser gate on the owned stack. The repository's Playwright server-reuse landmine
@@ -1106,6 +1157,9 @@ window whose duration is measured in rehearsal, not chosen in advance.
 
 ## Task 11: Expand agent roles, lifecycle hooks and automation
 
+Proves: Activity defaults are benchmark-driven; later expansion of versioned
+workflow configuration and the authorized command surface.
+
 - [ ] 11.1 Expand roles/hooks/capacity, model routing and cron/webhook automation for OpenSpec-origin plans after M1.
 - [ ] 11.2 After Task 10, connect the same automation to accepted WBS/Backlog plan revisions.
 
@@ -1114,7 +1168,8 @@ window whose duration is measured in rehearsal, not chosen in advance.
 expansion, automation admission and queue views, including
 `registered:notifications` and the human-only `publish_trigger_envelope` operation.
 Task 11 supplies the generic versioned trigger-envelope record, decision binding,
-allowance-to-occurrence-account copy and declared-profile resolution. Use the
+allowance-to-occurrence-account copy, declared-profile resolution, activity
+benchmark registry and authorized tool catalog. Use the
 [product matrix](../../../docs/twilight-structure/product-experience.md) as the
 coverage ledger: each control needs schema/form/API/MCP/runtime/test entries and,
 where it is a lever, ledger and outcome fields.
@@ -1128,6 +1183,43 @@ applicable `triggerKinds`, and recursion bounded by a profile `maxRecursion` fie
 Cron invokes the same admission path as manual work.
 A required unavailable channel is a failed operation, not a successful notification.
 
+Before changing an activity-class or per-activity model, effort, tool-exposure or
+execution default, run its versioned activity benchmark. Pin authored adversarial
+cases, a worker-inaccessible sealed holdout, retained redacted real-work samples,
+model/effort and adapter revisions, quality rubric, cost coverage, latency,
+timeouts and reliability. Declare and meet a positive minimum real-work sample
+count, representative task/context/failure/cache strata and uncertainty before
+recommending a default. Randomize treatment order with a recorded seed and pin or
+report provider quota, region, harness load and cache state. Preserve the
+non-dominated choices and publish the selected trade-off as an ordinary evaluated
+factory change; do not reduce them to one score or mutate a default from a
+recommendation. Holdout leakage, mixed revisions, incompatible conditions,
+missing observations and immature required outcome windows make the recommendation
+unavailable. Before broad publication, run an effect-safe bounded canary or shadow
+observation and pin the prior default plus quality, timeout, reliability and cost
+thresholds for a rollback proposal.
+
+Add activity-scoped lazy tool loading behind the existing effect broker: catalog
+search reveals only authorized descriptors; descriptor text is untrusted, and the
+catalog/schema digests are pinned in epoch and effect intent. Loading a selected
+schema grants no dispatch authority. Bind reusable prompt prefixes to client,
+repository security domain, effective policy, prompt, skill and catalog digests;
+revocation or change prevents reuse. Compaction retains the executable closure and
+keeps summaries as derived claims.
+
+Add bounded compound effects only for a measured chatty workflow; the parent
+records its ordered dependency plan and limits while every external sub-effect
+retains identity, fencing, reconciliation and partial outcome. Only declared
+independent members run concurrently. A universal shell projection and direct
+provider access remain forbidden. Analyze attributed session papercuts on demand
+first—repeated oversized context, polling turns, failed lookups, unchanged retries
+and consistently overpowered models—and emit an optimization proposal with
+redacted evidence references, baseline, target driver, expected payback, quality
+floor, analysis/rollout cost and stop condition. Analysis clusters stable
+session/effect identities, retains sample counts and dissent, and is itself a
+bounded charged activity. Scheduling it and dynamic routing need later evidence
+and a separate change.
+
 M1 retains one active coordinator. Multiple trigger/scheduler producers submit to
 that single admission authority. Active coordinator scale-out is a separate future
 change requiring a distributed store/lease decision and real two-process
@@ -1139,7 +1231,22 @@ replay yields one admitted occurrence; DST/missed/overlap fixtures; duplicate
 scheduler instances do not double-start; a retry beyond `retries.max` is refused and
 recorded; two clients contend under the queue policy: neither client's queue wait
 exceeds the aging window while the other holds capacity below its ceiling, and no
-context or credential crosses clients. Unknown telemetry remains explicit.
+context or credential crosses clients. Unknown telemetry remains explicit. Attempt
+to publish a routing default with mixed benchmark revisions and observe refusal;
+bypass that guard and watch the unchanged-default assertion fail. Leak a holdout
+answer, collapse the workload strata, omit a timeout sample and compare different
+quota/load conditions separately; none can produce a recommendation. Attempt broad
+publication without effect-safe rollout or rollback thresholds and observe refusal.
+An unauthorized catalog search reveals no descriptor or count, malicious
+descriptor text changes no prompt/authority, and a selected descriptor still
+cannot dispatch without effect authority. Reuse a cached prefix across clients or
+after revocation and observe the digest-bound refusal. Remove one retained
+compaction-closure member and observe compaction refusal. Kill a compound effect after one
+sub-effect and prove restart reconciles that identity without repeating it or
+hiding the unfinished member. Remove sub-effect identity and watch the independent
+receiver count fail; reorder dependent members and watch the second receiver remain
+untouched. A papercut proposal cannot edit its own skill or profile, expose private
+trace content or exceed its declared analysis allowance.
 
 **Estimate:** 24–48 human hours; 0.4M–1.0M tokens, recalibrated from M1 ledgers.
 
@@ -1363,8 +1470,10 @@ Spec requirement to task:
 | Run clocks preserve distinct time quantities                   | 4, 13           |
 | Model pricing is revision-bound and category-complete          | 4               |
 | K3s provides an expandable worker substrate                    | 4, 6, 8         |
-| Levers are configurable and their effects are measured         | 4, 6, 7, 8      |
+| Levers are configurable and their effects are measured         | 4–8             |
 | Outcomes use an independent evaluation definition              | 7, 8            |
+| Activity defaults are benchmark-driven                         | 11              |
+| Context and tool optimization preserves isolation              | 11              |
 | Hooks, critics and judges preserve authority                   | 7               |
 | Observable evidence with focus access                          | 5, 7            |
 | Repository planning: client repository contract                | 2, 8, 14        |

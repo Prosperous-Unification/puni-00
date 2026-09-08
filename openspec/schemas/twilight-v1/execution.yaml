@@ -269,6 +269,8 @@ hooks:
 # rework.maxRounds counts consumed rounds across profile epochs, including zero.
 # budget.limits are strict caps; advisory uses them as warning targets and MUST
 # supply explicit hardLimits in the same units, at least as high as each target.
+# Optional warningThresholds are same-unit values below the applicable hard vector;
+# no starting profile adds intermediate thresholds before measured operator need.
 # moneyScope selects priced model spend or all delivery charges; delivery requires
 # defensible bounds for every charge category. Both scopes expose cost coverage.
 # agentTime adds occupied agent-session time across attempts. deadline is a

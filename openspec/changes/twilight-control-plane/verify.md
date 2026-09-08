@@ -5,6 +5,23 @@ through 2026-09-08. This is a planning revision, not a factory implementation. C
 files describe the current contract; historical review receipts are not instructions.
 Product tasks remain unchecked. Specifications are not synchronized or archived.
 
+## Efficiency-grill reconciliation checks (2026-09-08)
+
+The two-pass, 120-question review applied Uber Engineering's public
+software-factory efficiency methods to the personal-first plan. Its accepted plan
+corrections add cost-driver explanations, live budget headroom, measurement
+validity and later evidence-gated activity defaults without claiming runtime
+implementation.
+
+| Command / inspection                                                                                                             | Observed result                                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rg` heading count, uniqueness and range assertions against `evidence/uber-efficiency-grill.md`                                  | Exactly 120 numbered self-questions, covering every integer from 1 through 120 once; no heading numbered above 120.                                                                                                                                                        |
+| `bunx nx format:check --all`                                                                                                     | Passed with no formatting differences.                                                                                                                                                                                                                                     |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                         | All 40 changes valid; existing informational archive notices remained non-failing.                                                                                                                                                                                         |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test check --projects=tool-workflows --parallel=2 --skip-nx-cache` | 25 tests passed and all 40 generated workflow variants checked.                                                                                                                                                                                                            |
+| `git diff --check`                                                                                                               | Passed with no whitespace errors.                                                                                                                                                                                                                                          |
+| Requested read-only `claude-fable-5-1` review                                                                                    | Ran at `xhigh`: 120 schema-valid rankings (2 rank 1, 10 rank 2, 73 rank 3, 29 rank 4, 6 rank 5); all 11 manifest hashes matched locally, and only the 12 rank-1/rank-2 answers were refined. See `docs/twilight-structure/evidence/claude-efficiency-question-ranking.md`. |
+
 ## Wayfinding reconciliation checks (2026-09-08)
 
 The personal/customer phase reconciliation added assistant interaction and delivery
@@ -92,21 +109,31 @@ No runtime safety check was implemented in this revision, and no new runtime
 `Proof:` claim was written. The production-path negatives belong to these slices;
 all remain **unrun**, including their positive controls and injected faults.
 
-| Contract                         | Planned fault and observation                                                                                                   | Owner         |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| Execution envelope               | Unconditional reapproval prevents an authorized launch; removed range guard permits an unauthorized launch                      | Task 3        |
-| Feasible scheduling and fairness | Head-only selection blocks backend work behind a browser; chain-first ordering starves an aged task                             | Task 4.4      |
-| Coordinator capacity             | Await remote response inside serialized dispatch; unrelated dispatch misses its budget                                          | Task 4.5      |
-| Deliverable pipeline             | Restore run-wide stage join; finished sibling cannot complete review while another is held                                      | Task 7.3      |
-| Integration acceptance           | Publish before the candidate's staging report completes or reuse branch greens; source ref/combined assertion exposes the error | Task 13.3     |
-| Speculation                      | Select first failing answer or let a losing worker publish; wrong candidate/forbidden effect is observed                        | Task 7.4      |
-| Fixed-quality scaling            | Advertise eight workers but execute one; speedup budget fails without changing task denominator or quality                      | Task 8.4      |
-| Planning concurrency             | Remove broker-derived cross-plan predicate; a forbidden reconciled command is accepted                                          | Task 9        |
-| K3s duplicate start              | Start two programs for one attempt; independent effect receiver and workspace counters observe duplication                      | Tasks 6, 8    |
-| K3s worker loss and drain        | Drain or abruptly lose an agent; capacity and scheduling observations retain holds and stop new placement                       | Tasks 5, 6, 8 |
-| Worker privilege boundary        | Request cluster, host, engine and deployment authority; live canaries and host inspection observe denial                        | Task 6        |
-| K3s observation loss             | Stop API or telemetry access; FE, MCP and `h3mon` show unknown/unavailable rather than empty or zero                            | Tasks 5, 6    |
-| K3s server reconstruction        | Rebuild from pinned inputs; recorded attempts reconcile before any replacement and durable records remain                       | Tasks 6, 8    |
+| Contract                         | Planned fault and observation                                                                                                       | Owner         |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| Execution envelope               | Unconditional reapproval prevents an authorized launch; removed range guard permits an unauthorized launch                          | Task 3        |
+| Efficiency breakdown             | Drop a failed attempt, double-count cache input or treat unavailable tool-schema overhead as zero; reconciliation or coverage moves | Tasks 4, 7–8  |
+| Diagnostic completeness          | Offer a sampled trace as mandatory evidence or omit instrumentation overhead; settlement refusal or overhead-budget assertion moves | Tasks 4, 7–8  |
+| Shared charge attribution        | Duplicate one shared provider charge or invent allocations; run total or allocation coverage moves                                  | Tasks 4, 7    |
+| Required context preflight       | Remove absence/unreadability refusal; the production admission path reserves a full attempt against missing context                 | Task 4        |
+| Live budget headroom             | Omit an outstanding hold or zero an unavailable charge; FE/MCP parity or complete-headroom assertion moves                          | Task 5        |
+| Activity benchmark publication   | Mix revisions, leak the holdout, collapse strata or compare incompatible load; recommendation refusal moves                         | Task 11       |
+| Default rollout and rollback     | Omit effect-safe canary/shadow evidence or rollback thresholds; broad publication refusal moves                                     | Task 11       |
+| Cache and tool isolation         | Reuse a cross-client/revoked prefix or obey a malicious descriptor; digest or authority assertion moves                             | Task 11       |
+| Lazy tools and compound effects  | Reveal an unauthorized descriptor, reorder dependencies or drop sub-effect identity; catalog/receiver assertion moves               | Task 11       |
+| Optimization proposal            | Expose private trace content, self-edit a default or exceed analysis allowance; export/authority/budget assertion moves             | Task 11       |
+| Feasible scheduling and fairness | Head-only selection blocks backend work behind a browser; chain-first ordering starves an aged task                                 | Task 4.4      |
+| Coordinator capacity             | Await remote response inside serialized dispatch; unrelated dispatch misses its budget                                              | Task 4.5      |
+| Deliverable pipeline             | Restore run-wide stage join; finished sibling cannot complete review while another is held                                          | Task 7.3      |
+| Integration acceptance           | Publish before the candidate's staging report completes or reuse branch greens; source ref/combined assertion exposes the error     | Task 13.3     |
+| Speculation                      | Select first failing answer or let a losing worker publish; wrong candidate/forbidden effect is observed                            | Task 7.4      |
+| Fixed-quality scaling            | Advertise eight workers but execute one; speedup budget fails without changing task denominator or quality                          | Task 8.4      |
+| Planning concurrency             | Remove broker-derived cross-plan predicate; a forbidden reconciled command is accepted                                              | Task 9        |
+| K3s duplicate start              | Start two programs for one attempt; independent effect receiver and workspace counters observe duplication                          | Tasks 6, 8    |
+| K3s worker loss and drain        | Drain or abruptly lose an agent; capacity and scheduling observations retain holds and stop new placement                           | Tasks 5, 6, 8 |
+| Worker privilege boundary        | Request cluster, host, engine and deployment authority; live canaries and host inspection observe denial                            | Task 6        |
+| K3s observation loss             | Stop API or telemetry access; FE, MCP and `h3mon` show unknown/unavailable rather than empty or zero                                | Tasks 5, 6    |
+| K3s server reconstruction        | Rebuild from pinned inputs; recorded attempts reconcile before any replacement and durable records remain                           | Tasks 6, 8    |
 
 Browser/deployment checks, live ACP calls, coordinator load, scaling benchmarks and
 all runtime fault injections, including K3s installation and multi-host execution,

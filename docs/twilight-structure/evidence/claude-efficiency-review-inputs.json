@@ -1,0 +1,56 @@
+{
+  "status": "reviewed",
+  "preparedOn": "2026-09-08",
+  "reviewedOn": "2026-09-08",
+  "requestedModel": "claude-fable-5-1",
+  "requestedEffort": "xhigh",
+  "rankingCounts": { "1": 2, "2": 10, "3": 73, "4": 29, "5": 6 },
+  "baseCommit": "c6b0c98a60f417b5a761d6bae78c61a978b9859e",
+  "article": "https://x.com/UberEng/article/2093444169037762840",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "412dcfa22531beeffe4f9b35fb5c5531cf0fabfd40dc8b7b28c48723ef6b0314"
+    },
+    {
+      "path": "LLM_README.md",
+      "sha256": "4e23704d54af597022b4881358fb9545fa41033db14c073b4ed33c70bda2bfea"
+    },
+    {
+      "path": "docs/twilight-structure/README.md",
+      "sha256": "c5ccf4e1c09e6843bc8a7c0831a5a6fa000ebcbb8646bef8253c79ac4ce34695"
+    },
+    {
+      "path": "docs/twilight-structure/CONTEXT.md",
+      "sha256": "c86b4bfdbcb3c4d61d1f409853389e4fb394aaac77375131c0f5fd48759ddd17"
+    },
+    {
+      "path": "docs/twilight-structure/product-experience.md",
+      "sha256": "e018162bdaa36943e574db54db3d982d62a5a7b93596c2b192dcffffb74821e3"
+    },
+    {
+      "path": "docs/twilight-structure/evidence/uber-efficiency-grill.md",
+      "sha256": "87d02215e63fda0af124c6706d49bfdcdd2847a6b979c6c9e330265129e28d60"
+    },
+    {
+      "path": "openspec/changes/twilight-control-plane/design.md",
+      "sha256": "fac2cb7c71427ddb9e6c08bafae58fc4d0cc6b0800b56399b21f2f3f62ca1370"
+    },
+    {
+      "path": "openspec/changes/twilight-control-plane/tasks.md",
+      "sha256": "8cd48d9fc1c689e11a83b550a35f334276b5ea7f5e8e7ec7515a1a13ccf61d21"
+    },
+    {
+      "path": "openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md",
+      "sha256": "83567944843e76d9f3712f988ef0bd53ce230e3aa7e15a6d66683aaf22cb74d4"
+    },
+    {
+      "path": "openspec/changes/twilight-control-plane/verify.md",
+      "sha256": "4a5481b17234c7fe957b89cea128b536947e86e53e29281efba5d6055b3199cb"
+    },
+    {
+      "path": "openspec/schemas/twilight-v1/execution.yaml",
+      "sha256": "c289c112f93262b778c09fc659f864f2fb42bcc8ec34e7f7cf27503f6e8a1814"
+    }
+  ]
+}

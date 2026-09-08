@@ -1,0 +1,933 @@
+{
+  "duration_api_ms": 484138,
+  "stop_reason": "tool_use",
+  "session_id": "4d306d39-3d0a-4e1f-aa5f-f01f25365738",
+  "total_cost_usd": 6.35987975,
+  "usage": {
+    "input_tokens": 164,
+    "cache_creation_input_tokens": 184357,
+    "cache_read_input_tokens": 423236,
+    "output_tokens": 35550,
+    "output_tokens_details": { "thinking_tokens": 22930 },
+    "server_tool_use": { "web_search_requests": 0, "web_fetch_requests": 0 },
+    "service_tier": "standard",
+    "cache_creation": { "ephemeral_1h_input_tokens": 184357, "ephemeral_5m_input_tokens": 0 },
+    "inference_geo": "not_available",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 32123,
+        "cache_read_input_tokens": 181903,
+        "cache_creation_input_tokens": 2454,
+        "cache_creation": { "ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 2454 },
+        "type": "message"
+      }
+    ],
+    "speed": "standard"
+  },
+  "modelUsage": {
+    "claude-haiku-4-5-20251001": {
+      "inputTokens": 916,
+      "outputTokens": 12,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0.0009760000000000001,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000,
+      "thinkingTokens": 0,
+      "canonicalModel": "claude-haiku-4-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    },
+    "claude-fable-5-1": {
+      "inputTokens": 362,
+      "outputTokens": 40601,
+      "cacheReadInputTokens": 495725,
+      "cacheCreationInputTokens": 225490,
+      "webSearchRequests": 0,
+      "costUSD": 6.3589037500000005,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000,
+      "thinkingTokens": 24448,
+      "canonicalModel": "claude-fable-5-1",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "permission_denials": [],
+  "terminal_reason": "completed",
+  "fast_mode_state": "off",
+  "fast_mode_disabled_reason": "sdk_opt_in_required",
+  "subagent_stats": {
+    "spawned": 3,
+    "requested": { "background": 1, "foreground": 2, "unset": 0 },
+    "started_in_background": 1,
+    "max_depth": 3,
+    "spawned_by_subagents": 2,
+    "completed": 3,
+    "failed": 0,
+    "killed": { "parent": 0, "user": 0, "system": 0 },
+    "refused": { "depth_limit": 0, "concurrency_limit": 0, "budget": 0 },
+    "by_type": { "general-purpose": 3 }
+  },
+  "is_error": false,
+  "num_turns": 20,
+  "subtype": "success",
+  "api_error_status": null,
+  "result": "{\"verdict\":\"NOT PASS\",\"rankings\":[{\"question\":1,\"rank\":3,\"reason\":\"Confirms the objective matches execution.objective minimize-accepted-elapsed; foundational, not new.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":2,\"rank\":4,\"reason\":\"Pins the denominator rules the spec carries: failed runs in the numerator, zero denominator unavailable.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":3,\"rank\":2,\"reason\":\"Adoption metrics are out of proportion for one operator and the customer phase is already gated elsewhere.\",\"refinedAnswer\":\"No. The personal phase has one operator, so adoption has no denominator worth tracking. Resolution: Add later. Adoption metrics belong to the customer-phase OpenSpec change that follows the A63 discovery gate (tasks.md 'Product phases'); until then the only adoption-shaped quantity kept is request count, which the efficiency breakdown already records as a nested denominator (design 'Pricing and the ledger').\",\"refinementBasis\":\"tasks.md Product phases table: customer phase is 'A new OpenSpec change after the A63 discovery gate... This plan does not invent them'; design.md efficiency breakdown reconciles 'request count, run count, activity attempts' as nested denominators.\"},{\"question\":4,\"rank\":4,\"reason\":\"Correctly separates factory-core handoff from personal-delivery release-observed acceptance.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":5,\"rank\":3,\"reason\":\"Fair time-to-feedback caveat; per-checkbox evidence is already required by Task 1.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":6,\"rank\":3,\"reason\":\"Useful guard against importing Uber's percentages; simple.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":7,\"rank\":4,\"reason\":\"Denominator gaming is a scaling-acceptance MUST; keeps it visible.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":8,\"rank\":3,\"reason\":\"Driver-versus-outcome labeling is now in design and spec; supporting.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":9,\"rank\":3,\"reason\":\"Confirms customer-phase deferral; low incremental value.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":10,\"rank\":4,\"reason\":\"Originates the payback and stop-condition obligation the optimization proposal now carries.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":11,\"rank\":5,\"reason\":\"P1 finding that produced the reconciled efficiency breakdown across design, spec and Task 4.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":12,\"rank\":2,\"reason\":\"Duplicates Q11 and uses 'Adapt', which is not one of the four defined resolutions.\",\"refinedAnswer\":\"No. Resolution: Strengthen, as Q11's accepted breakdown already does: reconcile outcome cost through request count, run count, activity attempts, model turns, input/output/cache-read/cache-write tokens, tool-definition overhead, failed lookups, polling cycles and pinned rates (design 'Pricing and the ledger'; spec 'Levers are configurable and their effects are measured'). Active users are not a factor until the customer phase.\",\"refinementBasis\":\"design.md: 'The ledger also derives an efficiency breakdown... reconciles request count, run count, activity attempts, model turns, input/output/cache-read/cache-write tokens, activity-scoped tool-definition bytes or tokens, failed context lookups, adapter polling cycles and pinned rates'; the grill intro defines only Keep, Strengthen, Add later and Reject.\"},{\"question\":13,\"rank\":3,\"reason\":\"Confirms category separation the pricing requirement already mandates.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":14,\"rank\":5,\"reason\":\"P1 finding; Task 11 and the benchmark-driven requirement now gate every default change.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":15,\"rank\":4,\"reason\":\"Non-dominated retention and a named trade-off entered design and spec.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":16,\"rank\":4,\"reason\":\"Real-work minimum beside authored adversarial cases is now a publication precondition.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":17,\"rank\":3,\"reason\":\"Confirms existing revision pinning.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":18,\"rank\":2,\"reason\":\"Names 'coordinator' and 'secretary' as classes to benchmark; neither is an activity class in the glossary or profile.\",\"refinedAnswer\":\"Yes in mechanism: class defaults and per-activity overrides exist. Resolution: Strengthen. Benchmark each declared activity class separately (research, plan, implement, review, judge, verify, knowledge, per execution.yaml profiles.*.models) rather than inheriting one default. The coordinator is a process with no model (CONTEXT.md 'Coordinator') and the secretary is admitted through OpenClaw's separate pool (design 'Assistant and work projection'); neither is an activity class to benchmark unless Task 15 registers one.\",\"refinementBasis\":\"execution.yaml profiles key models by research, plan, implement, review, judge, verify, knowledge; CONTEXT.md defines Coordinator as 'The single process that admits activities' and Activity class as 'the unit that supplies default model choices for agent-executed activities'.\"},{\"question\":19,\"rank\":3,\"reason\":\"Confirms no automatic recalibration; recommendation generation deferred consistently.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":20,\"rank\":3,\"reason\":\"Confirms epoch-attributed attempt cost.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":21,\"rank\":4,\"reason\":\"Produced the failed-lookup and context-hit factors in the breakdown.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":22,\"rank\":3,\"reason\":\"Sound rejection; low incremental value.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":23,\"rank\":3,\"reason\":\"Confirms provenance and freshness fields.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":24,\"rank\":4,\"reason\":\"Required-context preflight is now a spec MUST with its own scenario.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":25,\"rank\":4,\"reason\":\"Tool-definition token attribution is now a breakdown factor with a scenario.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":26,\"rank\":3,\"reason\":\"Correct rejection, consistent with Task 11's forbidden universal projection.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":27,\"rank\":3,\"reason\":\"Catalog-backed lazy loading is now in Task 11; supporting.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":28,\"rank\":3,\"reason\":\"Compound-effect contract is now in Task 11 and the spec.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":29,\"rank\":4,\"reason\":\"Polling outside model turns is now a spec MUST.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":30,\"rank\":2,\"reason\":\"Claims reasoning-effort defaults do not exist; execution.yaml pins effort per class and Q88 says so.\",\"refinedAnswer\":\"Partly. Session-context compaction and prompt-cache TTL are not in the plan; reasoning effort already is. Resolution: Add later for compaction and TTL as adapter capabilities with measured defaults; Keep effort as it stands: execution.yaml pins per-class effort (thorough implement high, balanced implement medium, economy implement low, with effort on each escalation step), so the obligation is Q88's separate effort treatment in the Task 11 benchmark, not a new default. Do not import Uber's 400k or one-hour settings.\",\"refinementBasis\":\"execution.yaml: thorough implement effort high; balanced implement effort medium and escalation to claude-opus-5 effort high; economy implement effort low and escalation effort medium. Q88 states 'profiles already pin it where specified', contradicting Q30.\"},{\"question\":31,\"rank\":3,\"reason\":\"Confirms envelope binding.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":32,\"rank\":3,\"reason\":\"Confirms human-only decisions.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":33,\"rank\":4,\"reason\":\"States the constraint every tool-efficiency idea must respect; grounded in Task 6 canaries.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":34,\"rank\":3,\"reason\":\"Confirms effect identity for batches.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":35,\"rank\":3,\"reason\":\"Confirms unknown spend retains its hold.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":36,\"rank\":3,\"reason\":\"Reasonable priority caveat; release suballocation already modeled.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":37,\"rank\":3,\"reason\":\"Confirms secretary pool and provider reserve.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":38,\"rank\":3,\"reason\":\"Confirms scheduler ordering.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":39,\"rank\":3,\"reason\":\"Confirms speculation defaults and asks for evidence.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":40,\"rank\":3,\"reason\":\"Led to the bounded charged analysis allowance.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":41,\"rank\":3,\"reason\":\"Confirms pinned evaluation.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":42,\"rank\":3,\"reason\":\"Confirms scaling workloads.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":43,\"rank\":3,\"reason\":\"Timeout observations are now pinned in benchmarks.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":44,\"rank\":4,\"reason\":\"Sealed holdout became a benchmark requirement and scenario.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":45,\"rank\":3,\"reason\":\"Confirms verifier-derived browser reports.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":46,\"rank\":3,\"reason\":\"Confirms the staging and compare-and-swap route.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":47,\"rank\":3,\"reason\":\"Confirms immutable floors.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":48,\"rank\":4,\"reason\":\"Ties each metric to an R5 negative; the verify.md table records them as planned.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":49,\"rank\":3,\"reason\":\"Confirms immature-window handling.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":50,\"rank\":3,\"reason\":\"Confirms two runs prove plumbing only.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":51,\"rank\":5,\"reason\":\"P1 finding; live spend, holds and headroom are now a spec MUST across FE and MCP.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":52,\"rank\":2,\"reason\":\"Uses non-canonical 'Adapt' and omits that no starting profile ships intermediate thresholds.\",\"refinedAnswer\":\"Not as fixed values. Resolution: Strengthen. Warning thresholds are versioned same-unit values below the hard vector, configured per budget account, and a crossing emits one deduplicated event (design 'Budget accounts and clocks'; spec 'Observable evidence with focus access'). No starting profile ships intermediate thresholds before measured operator need (execution.yaml profiles comment), so 50/80/100 remain an operator choice, not a default.\",\"refinementBasis\":\"execution.yaml comment: 'Optional warningThresholds are same-unit values below the applicable hard vector; no starting profile adds intermediate thresholds before measured operator need'; design: 'A transition across one emits one deduplicated event'.\"},{\"question\":53,\"rank\":2,\"reason\":\"Resolves 'Add later' while the plan owns the driver view in M1 (Task 5 route, Task 7.2, Task 8.1).\",\"refinedAnswer\":\"Raw ledger dimensions exist and the driver view is M1 work, not later. Resolution: Strengthen. Task 5 owns apps/twilight-fe/src/routes/efficiency.tsx, Task 7.2 exposes each outcome's reconciled breakdown through FE and MCP, and Task 8.1 requires the two-profile comparison to attribute differences to requests, attempts, model turns, token categories, tool context, failed lookups, polling and rates.\",\"refinementBasis\":\"tasks.md Task 5 Owns list includes efficiency.tsx; Task 7.2: 'exposes each outcome's reconciled efficiency breakdown from Task 4's ledger'; Task 8.1: 'The comparison attributes differences to requests, attempts, model turns, token categories, tool context, failed lookups, polling and rates'.\"},{\"question\":54,\"rank\":3,\"reason\":\"On-demand-first ordering matches Task 11.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":55,\"rank\":3,\"reason\":\"Anti-pattern list matches Task 11's papercut set.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":56,\"rank\":3,\"reason\":\"Confirms advisory recommendations.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":57,\"rank\":3,\"reason\":\"Real gap; the plan resolved ownership to Task 11 (Task 12 is the wiki).\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":58,\"rank\":3,\"reason\":\"Confirms the self-improvement boundary.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":59,\"rank\":4,\"reason\":\"Orders observability before optimization; matches the disposition.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":60,\"rank\":4,\"reason\":\"Concrete plan correction the disposition adopted.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":61,\"rank\":4,\"reason\":\"Partition/overlap/annotate declaration sharpens nested denominators.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":62,\"rank\":4,\"reason\":\"Shared charge stored once with an allocation receipt became spec text and a scenario.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":63,\"rank\":4,\"reason\":\"Bytes-versus-tokens distinction is a spec MUST with a planned fault.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":64,\"rank\":3,\"reason\":\"Confirms the primary metric.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":65,\"rank\":3,\"reason\":\"Confirms both dimensions are retained.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":66,\"rank\":4,\"reason\":\"Instrumentation overhead budget is now a spec MUST.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":67,\"rank\":5,\"reason\":\"Sampled traces cannot satisfy mandatory evidence; decisive invariant with a scenario.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":68,\"rank\":4,\"reason\":\"As-of revision for late bills entered design, spec and Task 4.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":69,\"rank\":4,\"reason\":\"Pricing-drift finding with a materiality threshold entered Task 4.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":70,\"rank\":3,\"reason\":\"Pinned conversion revision; narrow.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":71,\"rank\":4,\"reason\":\"Strata requirement entered the benchmark contract.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":72,\"rank\":3,\"reason\":\"Uncertainty publication; supporting.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":73,\"rank\":5,\"reason\":\"Holdout leakage makes recommendations unavailable; spec scenario.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":74,\"rank\":3,\"reason\":\"Bounded repeated decision use is already in design; rotation deferred.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":75,\"rank\":3,\"reason\":\"Recorded-seed randomization entered the spec.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":76,\"rank\":3,\"reason\":\"Quota and harness pinning entered the spec.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":77,\"rank\":3,\"reason\":\"Confirms human selection.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":78,\"rank\":4,\"reason\":\"Effect-safe canary or shadow is now a publication precondition.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":79,\"rank\":4,\"reason\":\"Rollback thresholds are pinned in proposals.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":80,\"rank\":3,\"reason\":\"Confirms the epoch rule.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":81,\"rank\":3,\"reason\":\"Confirms no TTL is selected.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":82,\"rank\":3,\"reason\":\"Names benchmark inputs for TTL; supporting.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":83,\"rank\":4,\"reason\":\"Cross-client prefix binding entered the spec.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":84,\"rank\":5,\"reason\":\"Revoked prefix reuse is a spec scenario; decisive isolation invariant.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":85,\"rank\":3,\"reason\":\"Defers a fixed compaction threshold consistently.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":86,\"rank\":4,\"reason\":\"Compaction closure is now a spec MUST.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":87,\"rank\":3,\"reason\":\"Summary as derived claim; supporting.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":88,\"rank\":3,\"reason\":\"Effort as a separate treatment; consistent with pinned effort.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":89,\"rank\":3,\"reason\":\"Confirms outcome-level comparison.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":90,\"rank\":2,\"reason\":\"Misses that the knowledge benchmark already measures correctness, traceability and effort.\",\"refinedAnswer\":\"No. Resolution: Strengthen only for irrelevant-context load. The knowledge benchmark already measures correctness (0.9), source traceability (1.0) and recorded retrieval effort (execution.yaml knowledge.benchmark), and Task 12 runs the same question set before and after compaction. Add irrelevant-context load as a measured factor in that benchmark rather than a new metric family.\",\"refinementBasis\":\"execution.yaml: 'knowledge: benchmark: { questions: 20, correctness: 0.9, traceability: 1.0, effort: recorded }'; tasks.md Task 12: 'record correctness, source traceability and retrieval effort against the profile's knowledge.benchmark targets'.\"},{\"question\":91,\"rank\":4,\"reason\":\"Descriptor injection is a spec scenario.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":92,\"rank\":4,\"reason\":\"Catalog and schema digest pinning entered epoch and intent.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":93,\"rank\":3,\"reason\":\"No-fallback policy confirmed.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":94,\"rank\":3,\"reason\":\"Count-leakage test is in Task 11.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":95,\"rank\":3,\"reason\":\"Confirms selection and dispatch separation.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":96,\"rank\":3,\"reason\":\"Tool-selection evaluation metrics are now a spec MUST.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":97,\"rank\":3,\"reason\":\"Opt-in compound effects; supporting.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":98,\"rank\":3,\"reason\":\"Confirms the parent non-terminal rule.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":99,\"rank\":3,\"reason\":\"Dependency order pinned; supporting.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":100,\"rank\":3,\"reason\":\"Read-only bypass rule matches the spec.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":101,\"rank\":3,\"reason\":\"Deduplicated crossings confirmed.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":102,\"rank\":3,\"reason\":\"Re-arm rule entered the spec; narrow edge.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":103,\"rank\":3,\"reason\":\"Confirms no single headline cost.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":104,\"rank\":3,\"reason\":\"Human effort in payback; supporting.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":105,\"rank\":3,\"reason\":\"Confirms reviewer cost stays in the comparison.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":106,\"rank\":3,\"reason\":\"Confirms profile input, not per-dispatch auction.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":107,\"rank\":3,\"reason\":\"Access-checked references; supporting.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":108,\"rank\":3,\"reason\":\"Matches the product-experience focus brief.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":109,\"rank\":2,\"reason\":\"Vague; the plan already routes recommendations through publication and has only two existing interrupt conditions.\",\"refinedAnswer\":\"No. Resolution: Keep. Recommendations are findings routed through the ordinary evaluated publication workflow (design 'Comparable outcomes'; spec 'Activity defaults are benchmark-driven'). The only conditions that already interrupt delivery are hard-cap exhaustion pausing ordinary dispatch and a mandatory hook denying; neither is a recommendation, so no new interrupt path is needed.\",\"refinementBasis\":\"design: 'Recommendations remain findings: publishing a new default follows the ordinary evaluated workflow and authority boundary'; spec: 'Reaching an ordinary hard cap MUST prevent ordinary dispatch and pause unresolved work' and 'Mandatory hooks MUST fail closed'.\"},{\"question\":110,\"rank\":3,\"reason\":\"FE/MCP parity with no second accounting source.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":111,\"rank\":4,\"reason\":\"Optimization proposal fields entered design, spec and glossary.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":112,\"rank\":3,\"reason\":\"Payback as assumption; matches CONTEXT.md.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":113,\"rank\":2,\"reason\":\"Duplicates Q19 and Q56 without naming the actual publication capability.\",\"refinedAnswer\":\"Resolution: Keep. Duplicate of Q19 and Q56. Publication uses the existing workflow publication operation: quality changes need the organization evaluation-publisher capability and a subject-bound human decision, and default changes follow ordinary evaluated profile publication (design 'Comparable outcomes'; spec 'Outcomes use an independent evaluation definition'). Dashboards, benchmarks and agents only propose.\",\"refinementBasis\":\"spec: 'The existing workflow publication operation MUST require the organization evaluation-publisher capability and a subject-bound human decision for its changes'; spec: 'A recommendation MUST remain a finding with evidence and MUST NOT mutate a profile, skill or routing rule without the same authority'.\"},{\"question\":114,\"rank\":3,\"reason\":\"Confirms Task 14's self-evaluation boundary.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":115,\"rank\":3,\"reason\":\"Cluster by stable identities; entered design.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":116,\"rank\":3,\"reason\":\"Redacted proposals; entered design and Task 11.\",\"refinedAnswer\":null,\"refinementBasis\":null},{\"question\":117,\"rank\":1,\"reason\":\"Restates Q54 with no new criterion.\",\"refinedAnswer\":\"Resolution: Add later, restating Q54. Task 11 fixes on-demand papercut analysis as a bounded charged activity and defers scheduling and dynamic routing to a separate change with later evidence; no additional criterion is needed here.\",\"refinementBasis\":\"tasks.md Task 11: 'Analyze attributed session papercuts on demand first... Scheduling it and dynamic routing need later evidence and a separate change'; Q54 already resolves 'Add on-demand first; schedule only after measured need'.\"},{\"question\":118,\"rank\":2,\"reason\":\"Largely duplicates Q19 and Q56; the plan already defers dynamic routing to its own change.\",\"refinedAnswer\":\"Resolution: Add later, in its own change. Design and Task 11 already place periodic recommendation generation and dynamic routing outside M1 and require a separate change; the preconditions are the benchmark contract's mature cohorts, effect-safe canary and rollback thresholds, and complete diagnostic coverage. Duplicate of Q19 and Q56.\",\"refinementBasis\":\"design: 'Periodic recommendation generation and dynamic routing remain outside M1'; tasks.md Task 11: 'Scheduling it and dynamic routing need later evidence and a separate change'.\"},{\"question\":119,\"rank\":1,\"reason\":\"Fourth restatement of rejections already made in Q6, Q22, Q26 and Q60.\",\"refinedAnswer\":\"Resolution: Reject, as Q6, Q22, Q26 and Q60 already do. Design states the boundary once: M1 measures tool and context costs but does not require lazy tool loading, a universal CLI projection or automatic prompt tuning, and Task 11 keeps universal shell projection and direct provider access forbidden.\",\"refinementBasis\":\"design 'Pricing and the ledger': 'M1 measures these costs but does not require lazy tool loading, a universal CLI projection or automatic prompt tuning'; tasks.md Task 11: 'A universal shell projection and direct provider access remain forbidden'.\"},{\"question\":120,\"rank\":3,\"reason\":\"Consolidates the second pass; matches the disposition.\",\"refinedAnswer\":null,\"refinementBasis\":null}],\"summary\":\"NOT PASS on an unmet precondition, not on content. The contract requires verifying each manifest file's SHA-256 before judging. All 11 files were present and readable, but no shell or hashing tool is exposed in this session; a delegated agent and its nested subagent confirmed the same, so no digest was computed and none is claimed. The manifest's baseCommit c6b0c98a matches the session's HEAD, but 8 of the 11 manifest files carry uncommitted working-tree modifications, so the content read cannot be assumed to equal the pinned digests. Rankings were produced against the files as read. Content findings, all repaired by rank-2 refinements: Q30 says reasoning-effort defaults do not exist while execution.yaml pins effort per class and Q88 says so; Q18 treats coordinator and secretary as activity classes, contradicting CONTEXT.md and the profile's class list; Q53 resolves 'Add later' although Task 5, Task 7.2 and Task 8.1 own the driver view in M1; Q12 and Q52 use 'Adapt', which is outside the four defined resolutions; Q3, Q90, Q109, Q113, Q117, Q118 and Q119 are duplicative or miss existing manifest facts. After those refinements no remaining pair contradicts the plan. Running sha256sum over the manifest and matching all 11 digests would let this review be re-issued as PASS without further changes.\"}",
+  "structured_output": {
+    "verdict": "NOT PASS",
+    "rankings": [
+      {
+        "question": 1,
+        "rank": 3,
+        "reason": "Confirms the objective matches execution.objective minimize-accepted-elapsed; foundational, not new.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 2,
+        "rank": 4,
+        "reason": "Pins the denominator rules the spec carries: failed runs in the numerator, zero denominator unavailable.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 3,
+        "rank": 2,
+        "reason": "Adoption metrics are out of proportion for one operator and the customer phase is already gated elsewhere.",
+        "refinedAnswer": "No. The personal phase has one operator, so adoption has no denominator worth tracking. Resolution: Add later. Adoption metrics belong to the customer-phase OpenSpec change that follows the A63 discovery gate (tasks.md 'Product phases'); until then the only adoption-shaped quantity kept is request count, which the efficiency breakdown already records as a nested denominator (design 'Pricing and the ledger').",
+        "refinementBasis": "tasks.md Product phases table: customer phase is 'A new OpenSpec change after the A63 discovery gate... This plan does not invent them'; design.md efficiency breakdown reconciles 'request count, run count, activity attempts' as nested denominators."
+      },
+      {
+        "question": 4,
+        "rank": 4,
+        "reason": "Correctly separates factory-core handoff from personal-delivery release-observed acceptance.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 5,
+        "rank": 3,
+        "reason": "Fair time-to-feedback caveat; per-checkbox evidence is already required by Task 1.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 6,
+        "rank": 3,
+        "reason": "Useful guard against importing Uber's percentages; simple.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 7,
+        "rank": 4,
+        "reason": "Denominator gaming is a scaling-acceptance MUST; keeps it visible.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 8,
+        "rank": 3,
+        "reason": "Driver-versus-outcome labeling is now in design and spec; supporting.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 9,
+        "rank": 3,
+        "reason": "Confirms customer-phase deferral; low incremental value.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 10,
+        "rank": 4,
+        "reason": "Originates the payback and stop-condition obligation the optimization proposal now carries.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 11,
+        "rank": 5,
+        "reason": "P1 finding that produced the reconciled efficiency breakdown across design, spec and Task 4.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 12,
+        "rank": 2,
+        "reason": "Duplicates Q11 and uses 'Adapt', which is not one of the four defined resolutions.",
+        "refinedAnswer": "No. Resolution: Strengthen, as Q11's accepted breakdown already does: reconcile outcome cost through request count, run count, activity attempts, model turns, input/output/cache-read/cache-write tokens, tool-definition overhead, failed lookups, polling cycles and pinned rates (design 'Pricing and the ledger'; spec 'Levers are configurable and their effects are measured'). Active users are not a factor until the customer phase.",
+        "refinementBasis": "design.md: 'The ledger also derives an efficiency breakdown... reconciles request count, run count, activity attempts, model turns, input/output/cache-read/cache-write tokens, activity-scoped tool-definition bytes or tokens, failed context lookups, adapter polling cycles and pinned rates'; the grill intro defines only Keep, Strengthen, Add later and Reject."
+      },
+      {
+        "question": 13,
+        "rank": 3,
+        "reason": "Confirms category separation the pricing requirement already mandates.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 14,
+        "rank": 5,
+        "reason": "P1 finding; Task 11 and the benchmark-driven requirement now gate every default change.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 15,
+        "rank": 4,
+        "reason": "Non-dominated retention and a named trade-off entered design and spec.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 16,
+        "rank": 4,
+        "reason": "Real-work minimum beside authored adversarial cases is now a publication precondition.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 17,
+        "rank": 3,
+        "reason": "Confirms existing revision pinning.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 18,
+        "rank": 2,
+        "reason": "Names 'coordinator' and 'secretary' as classes to benchmark; neither is an activity class in the glossary or profile.",
+        "refinedAnswer": "Yes in mechanism: class defaults and per-activity overrides exist. Resolution: Strengthen. Benchmark each declared activity class separately (research, plan, implement, review, judge, verify, knowledge, per execution.yaml profiles.*.models) rather than inheriting one default. The coordinator is a process with no model (CONTEXT.md 'Coordinator') and the secretary is admitted through OpenClaw's separate pool (design 'Assistant and work projection'); neither is an activity class to benchmark unless Task 15 registers one.",
+        "refinementBasis": "execution.yaml profiles key models by research, plan, implement, review, judge, verify, knowledge; CONTEXT.md defines Coordinator as 'The single process that admits activities' and Activity class as 'the unit that supplies default model choices for agent-executed activities'."
+      },
+      {
+        "question": 19,
+        "rank": 3,
+        "reason": "Confirms no automatic recalibration; recommendation generation deferred consistently.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 20,
+        "rank": 3,
+        "reason": "Confirms epoch-attributed attempt cost.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 21,
+        "rank": 4,
+        "reason": "Produced the failed-lookup and context-hit factors in the breakdown.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 22,
+        "rank": 3,
+        "reason": "Sound rejection; low incremental value.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 23,
+        "rank": 3,
+        "reason": "Confirms provenance and freshness fields.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 24,
+        "rank": 4,
+        "reason": "Required-context preflight is now a spec MUST with its own scenario.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 25,
+        "rank": 4,
+        "reason": "Tool-definition token attribution is now a breakdown factor with a scenario.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 26,
+        "rank": 3,
+        "reason": "Correct rejection, consistent with Task 11's forbidden universal projection.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 27,
+        "rank": 3,
+        "reason": "Catalog-backed lazy loading is now in Task 11; supporting.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 28,
+        "rank": 3,
+        "reason": "Compound-effect contract is now in Task 11 and the spec.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 29,
+        "rank": 4,
+        "reason": "Polling outside model turns is now a spec MUST.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 30,
+        "rank": 2,
+        "reason": "Claims reasoning-effort defaults do not exist; execution.yaml pins effort per class and Q88 says so.",
+        "refinedAnswer": "Partly. Session-context compaction and prompt-cache TTL are not in the plan; reasoning effort already is. Resolution: Add later for compaction and TTL as adapter capabilities with measured defaults; Keep effort as it stands: execution.yaml pins per-class effort (thorough implement high, balanced implement medium, economy implement low, with effort on each escalation step), so the obligation is Q88's separate effort treatment in the Task 11 benchmark, not a new default. Do not import Uber's 400k or one-hour settings.",
+        "refinementBasis": "execution.yaml: thorough implement effort high; balanced implement effort medium and escalation to claude-opus-5 effort high; economy implement effort low and escalation effort medium. Q88 states 'profiles already pin it where specified', contradicting Q30."
+      },
+      {
+        "question": 31,
+        "rank": 3,
+        "reason": "Confirms envelope binding.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 32,
+        "rank": 3,
+        "reason": "Confirms human-only decisions.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 33,
+        "rank": 4,
+        "reason": "States the constraint every tool-efficiency idea must respect; grounded in Task 6 canaries.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 34,
+        "rank": 3,
+        "reason": "Confirms effect identity for batches.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 35,
+        "rank": 3,
+        "reason": "Confirms unknown spend retains its hold.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 36,
+        "rank": 3,
+        "reason": "Reasonable priority caveat; release suballocation already modeled.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 37,
+        "rank": 3,
+        "reason": "Confirms secretary pool and provider reserve.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 38,
+        "rank": 3,
+        "reason": "Confirms scheduler ordering.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 39,
+        "rank": 3,
+        "reason": "Confirms speculation defaults and asks for evidence.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 40,
+        "rank": 3,
+        "reason": "Led to the bounded charged analysis allowance.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 41,
+        "rank": 3,
+        "reason": "Confirms pinned evaluation.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 42,
+        "rank": 3,
+        "reason": "Confirms scaling workloads.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 43,
+        "rank": 3,
+        "reason": "Timeout observations are now pinned in benchmarks.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 44,
+        "rank": 4,
+        "reason": "Sealed holdout became a benchmark requirement and scenario.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 45,
+        "rank": 3,
+        "reason": "Confirms verifier-derived browser reports.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 46,
+        "rank": 3,
+        "reason": "Confirms the staging and compare-and-swap route.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 47,
+        "rank": 3,
+        "reason": "Confirms immutable floors.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 48,
+        "rank": 4,
+        "reason": "Ties each metric to an R5 negative; the verify.md table records them as planned.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 49,
+        "rank": 3,
+        "reason": "Confirms immature-window handling.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 50,
+        "rank": 3,
+        "reason": "Confirms two runs prove plumbing only.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 51,
+        "rank": 5,
+        "reason": "P1 finding; live spend, holds and headroom are now a spec MUST across FE and MCP.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 52,
+        "rank": 2,
+        "reason": "Uses non-canonical 'Adapt' and omits that no starting profile ships intermediate thresholds.",
+        "refinedAnswer": "Not as fixed values. Resolution: Strengthen. Warning thresholds are versioned same-unit values below the hard vector, configured per budget account, and a crossing emits one deduplicated event (design 'Budget accounts and clocks'; spec 'Observable evidence with focus access'). No starting profile ships intermediate thresholds before measured operator need (execution.yaml profiles comment), so 50/80/100 remain an operator choice, not a default.",
+        "refinementBasis": "execution.yaml comment: 'Optional warningThresholds are same-unit values below the applicable hard vector; no starting profile adds intermediate thresholds before measured operator need'; design: 'A transition across one emits one deduplicated event'."
+      },
+      {
+        "question": 53,
+        "rank": 2,
+        "reason": "Resolves 'Add later' while the plan owns the driver view in M1 (Task 5 route, Task 7.2, Task 8.1).",
+        "refinedAnswer": "Raw ledger dimensions exist and the driver view is M1 work, not later. Resolution: Strengthen. Task 5 owns apps/twilight-fe/src/routes/efficiency.tsx, Task 7.2 exposes each outcome's reconciled breakdown through FE and MCP, and Task 8.1 requires the two-profile comparison to attribute differences to requests, attempts, model turns, token categories, tool context, failed lookups, polling and rates.",
+        "refinementBasis": "tasks.md Task 5 Owns list includes efficiency.tsx; Task 7.2: 'exposes each outcome's reconciled efficiency breakdown from Task 4's ledger'; Task 8.1: 'The comparison attributes differences to requests, attempts, model turns, token categories, tool context, failed lookups, polling and rates'."
+      },
+      {
+        "question": 54,
+        "rank": 3,
+        "reason": "On-demand-first ordering matches Task 11.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 55,
+        "rank": 3,
+        "reason": "Anti-pattern list matches Task 11's papercut set.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 56,
+        "rank": 3,
+        "reason": "Confirms advisory recommendations.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 57,
+        "rank": 3,
+        "reason": "Real gap; the plan resolved ownership to Task 11 (Task 12 is the wiki).",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 58,
+        "rank": 3,
+        "reason": "Confirms the self-improvement boundary.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 59,
+        "rank": 4,
+        "reason": "Orders observability before optimization; matches the disposition.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 60,
+        "rank": 4,
+        "reason": "Concrete plan correction the disposition adopted.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 61,
+        "rank": 4,
+        "reason": "Partition/overlap/annotate declaration sharpens nested denominators.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 62,
+        "rank": 4,
+        "reason": "Shared charge stored once with an allocation receipt became spec text and a scenario.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 63,
+        "rank": 4,
+        "reason": "Bytes-versus-tokens distinction is a spec MUST with a planned fault.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 64,
+        "rank": 3,
+        "reason": "Confirms the primary metric.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 65,
+        "rank": 3,
+        "reason": "Confirms both dimensions are retained.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 66,
+        "rank": 4,
+        "reason": "Instrumentation overhead budget is now a spec MUST.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 67,
+        "rank": 5,
+        "reason": "Sampled traces cannot satisfy mandatory evidence; decisive invariant with a scenario.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 68,
+        "rank": 4,
+        "reason": "As-of revision for late bills entered design, spec and Task 4.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 69,
+        "rank": 4,
+        "reason": "Pricing-drift finding with a materiality threshold entered Task 4.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 70,
+        "rank": 3,
+        "reason": "Pinned conversion revision; narrow.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 71,
+        "rank": 4,
+        "reason": "Strata requirement entered the benchmark contract.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 72,
+        "rank": 3,
+        "reason": "Uncertainty publication; supporting.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 73,
+        "rank": 5,
+        "reason": "Holdout leakage makes recommendations unavailable; spec scenario.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 74,
+        "rank": 3,
+        "reason": "Bounded repeated decision use is already in design; rotation deferred.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 75,
+        "rank": 3,
+        "reason": "Recorded-seed randomization entered the spec.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 76,
+        "rank": 3,
+        "reason": "Quota and harness pinning entered the spec.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 77,
+        "rank": 3,
+        "reason": "Confirms human selection.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 78,
+        "rank": 4,
+        "reason": "Effect-safe canary or shadow is now a publication precondition.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 79,
+        "rank": 4,
+        "reason": "Rollback thresholds are pinned in proposals.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 80,
+        "rank": 3,
+        "reason": "Confirms the epoch rule.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 81,
+        "rank": 3,
+        "reason": "Confirms no TTL is selected.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 82,
+        "rank": 3,
+        "reason": "Names benchmark inputs for TTL; supporting.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 83,
+        "rank": 4,
+        "reason": "Cross-client prefix binding entered the spec.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 84,
+        "rank": 5,
+        "reason": "Revoked prefix reuse is a spec scenario; decisive isolation invariant.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 85,
+        "rank": 3,
+        "reason": "Defers a fixed compaction threshold consistently.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 86,
+        "rank": 4,
+        "reason": "Compaction closure is now a spec MUST.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 87,
+        "rank": 3,
+        "reason": "Summary as derived claim; supporting.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 88,
+        "rank": 3,
+        "reason": "Effort as a separate treatment; consistent with pinned effort.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 89,
+        "rank": 3,
+        "reason": "Confirms outcome-level comparison.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 90,
+        "rank": 2,
+        "reason": "Misses that the knowledge benchmark already measures correctness, traceability and effort.",
+        "refinedAnswer": "No. Resolution: Strengthen only for irrelevant-context load. The knowledge benchmark already measures correctness (0.9), source traceability (1.0) and recorded retrieval effort (execution.yaml knowledge.benchmark), and Task 12 runs the same question set before and after compaction. Add irrelevant-context load as a measured factor in that benchmark rather than a new metric family.",
+        "refinementBasis": "execution.yaml: 'knowledge: benchmark: { questions: 20, correctness: 0.9, traceability: 1.0, effort: recorded }'; tasks.md Task 12: 'record correctness, source traceability and retrieval effort against the profile's knowledge.benchmark targets'."
+      },
+      {
+        "question": 91,
+        "rank": 4,
+        "reason": "Descriptor injection is a spec scenario.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 92,
+        "rank": 4,
+        "reason": "Catalog and schema digest pinning entered epoch and intent.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 93,
+        "rank": 3,
+        "reason": "No-fallback policy confirmed.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 94,
+        "rank": 3,
+        "reason": "Count-leakage test is in Task 11.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 95,
+        "rank": 3,
+        "reason": "Confirms selection and dispatch separation.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 96,
+        "rank": 3,
+        "reason": "Tool-selection evaluation metrics are now a spec MUST.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 97,
+        "rank": 3,
+        "reason": "Opt-in compound effects; supporting.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 98,
+        "rank": 3,
+        "reason": "Confirms the parent non-terminal rule.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 99,
+        "rank": 3,
+        "reason": "Dependency order pinned; supporting.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 100,
+        "rank": 3,
+        "reason": "Read-only bypass rule matches the spec.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 101,
+        "rank": 3,
+        "reason": "Deduplicated crossings confirmed.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 102,
+        "rank": 3,
+        "reason": "Re-arm rule entered the spec; narrow edge.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 103,
+        "rank": 3,
+        "reason": "Confirms no single headline cost.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 104,
+        "rank": 3,
+        "reason": "Human effort in payback; supporting.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 105,
+        "rank": 3,
+        "reason": "Confirms reviewer cost stays in the comparison.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 106,
+        "rank": 3,
+        "reason": "Confirms profile input, not per-dispatch auction.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 107,
+        "rank": 3,
+        "reason": "Access-checked references; supporting.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 108,
+        "rank": 3,
+        "reason": "Matches the product-experience focus brief.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 109,
+        "rank": 2,
+        "reason": "Vague; the plan already routes recommendations through publication and has only two existing interrupt conditions.",
+        "refinedAnswer": "No. Resolution: Keep. Recommendations are findings routed through the ordinary evaluated publication workflow (design 'Comparable outcomes'; spec 'Activity defaults are benchmark-driven'). The only conditions that already interrupt delivery are hard-cap exhaustion pausing ordinary dispatch and a mandatory hook denying; neither is a recommendation, so no new interrupt path is needed.",
+        "refinementBasis": "design: 'Recommendations remain findings: publishing a new default follows the ordinary evaluated workflow and authority boundary'; spec: 'Reaching an ordinary hard cap MUST prevent ordinary dispatch and pause unresolved work' and 'Mandatory hooks MUST fail closed'."
+      },
+      {
+        "question": 110,
+        "rank": 3,
+        "reason": "FE/MCP parity with no second accounting source.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 111,
+        "rank": 4,
+        "reason": "Optimization proposal fields entered design, spec and glossary.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 112,
+        "rank": 3,
+        "reason": "Payback as assumption; matches CONTEXT.md.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 113,
+        "rank": 2,
+        "reason": "Duplicates Q19 and Q56 without naming the actual publication capability.",
+        "refinedAnswer": "Resolution: Keep. Duplicate of Q19 and Q56. Publication uses the existing workflow publication operation: quality changes need the organization evaluation-publisher capability and a subject-bound human decision, and default changes follow ordinary evaluated profile publication (design 'Comparable outcomes'; spec 'Outcomes use an independent evaluation definition'). Dashboards, benchmarks and agents only propose.",
+        "refinementBasis": "spec: 'The existing workflow publication operation MUST require the organization evaluation-publisher capability and a subject-bound human decision for its changes'; spec: 'A recommendation MUST remain a finding with evidence and MUST NOT mutate a profile, skill or routing rule without the same authority'."
+      },
+      {
+        "question": 114,
+        "rank": 3,
+        "reason": "Confirms Task 14's self-evaluation boundary.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 115,
+        "rank": 3,
+        "reason": "Cluster by stable identities; entered design.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 116,
+        "rank": 3,
+        "reason": "Redacted proposals; entered design and Task 11.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      },
+      {
+        "question": 117,
+        "rank": 1,
+        "reason": "Restates Q54 with no new criterion.",
+        "refinedAnswer": "Resolution: Add later, restating Q54. Task 11 fixes on-demand papercut analysis as a bounded charged activity and defers scheduling and dynamic routing to a separate change with later evidence; no additional criterion is needed here.",
+        "refinementBasis": "tasks.md Task 11: 'Analyze attributed session papercuts on demand first... Scheduling it and dynamic routing need later evidence and a separate change'; Q54 already resolves 'Add on-demand first; schedule only after measured need'."
+      },
+      {
+        "question": 118,
+        "rank": 2,
+        "reason": "Largely duplicates Q19 and Q56; the plan already defers dynamic routing to its own change.",
+        "refinedAnswer": "Resolution: Add later, in its own change. Design and Task 11 already place periodic recommendation generation and dynamic routing outside M1 and require a separate change; the preconditions are the benchmark contract's mature cohorts, effect-safe canary and rollback thresholds, and complete diagnostic coverage. Duplicate of Q19 and Q56.",
+        "refinementBasis": "design: 'Periodic recommendation generation and dynamic routing remain outside M1'; tasks.md Task 11: 'Scheduling it and dynamic routing need later evidence and a separate change'."
+      },
+      {
+        "question": 119,
+        "rank": 1,
+        "reason": "Fourth restatement of rejections already made in Q6, Q22, Q26 and Q60.",
+        "refinedAnswer": "Resolution: Reject, as Q6, Q22, Q26 and Q60 already do. Design states the boundary once: M1 measures tool and context costs but does not require lazy tool loading, a universal CLI projection or automatic prompt tuning, and Task 11 keeps universal shell projection and direct provider access forbidden.",
+        "refinementBasis": "design 'Pricing and the ledger': 'M1 measures these costs but does not require lazy tool loading, a universal CLI projection or automatic prompt tuning'; tasks.md Task 11: 'A universal shell projection and direct provider access remain forbidden'."
+      },
+      {
+        "question": 120,
+        "rank": 3,
+        "reason": "Consolidates the second pass; matches the disposition.",
+        "refinedAnswer": null,
+        "refinementBasis": null
+      }
+    ],
+    "summary": "NOT PASS on an unmet precondition, not on content. The contract requires verifying each manifest file's SHA-256 before judging. All 11 files were present and readable, but no shell or hashing tool is exposed in this session; a delegated agent and its nested subagent confirmed the same, so no digest was computed and none is claimed. The manifest's baseCommit c6b0c98a matches the session's HEAD, but 8 of the 11 manifest files carry uncommitted working-tree modifications, so the content read cannot be assumed to equal the pinned digests. Rankings were produced against the files as read. Content findings, all repaired by rank-2 refinements: Q30 says reasoning-effort defaults do not exist while execution.yaml pins effort per class and Q88 says so; Q18 treats coordinator and secretary as activity classes, contradicting CONTEXT.md and the profile's class list; Q53 resolves 'Add later' although Task 5, Task 7.2 and Task 8.1 own the driver view in M1; Q12 and Q52 use 'Adapt', which is outside the four defined resolutions; Q3, Q90, Q109, Q113, Q117, Q118 and Q119 are duplicative or miss existing manifest facts. After those refinements no remaining pair contradicts the plan. Running sha256sum over the manifest and matching all 11 digests would let this review be re-issued as PASS without further changes."
+  },
+  "ttft_ms": 3145,
+  "type": "result",
+  "duration_ms": 457860,
+  "uuid": "0fcb36bb-878a-4f44-b69f-6eea66d6463d",
+  "ttft_stream_ms": 2767,
+  "time_to_request_ms": 28,
+  "first_content_frame_ms": 3141,
+  "queued_turn_count": 0
+}

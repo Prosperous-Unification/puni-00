@@ -77,6 +77,7 @@ rate card through privileged operations.
 | Hooks          | Registered implementation and version, lifecycle points, mandatory flag, timeout and timeout behavior, capability set, idempotency class                                                                                                                                                       |
 | Capacity       | Pools by organization/client/repo/provider/model/resource; secretary slot and provider reserve; registered provisioner; K3s readiness, drain, capability labels and Job resource bounds; request/token limits, reservations, queue priority and aging, per-client ceilings, cancellation drain |
 | Money          | Organization rate-card revision and charge categories; strict caps or advisory targets with explicit hard caps; estimated, billed and non-model costs                                                                                                                                          |
+| Efficiency     | Reconciled request/run/attempt/turn/token/rate drivers; tool-definition, failed-lookup and polling overhead; measured/unavailable coverage; activity-benchmark revision and recommendation evidence                                                                                            |
 | Integrations   | ACP/MCP server identity and allowed tools, credential reference, schedule timezone and DST policy, webhook verification, event delivery                                                                                                                                                        |
 | Knowledge      | Context/source scope, ingestion/review policy, provenance requirements, stale criteria, retrieval provider, benchmark targets                                                                                                                                                                  |
 | Retention      | No-age searchable session corpus and metadata under one storage ceiling; operational evidence for 365 days after the floor-specific terminal transition; overriding organization policy revision                                                                                               |
@@ -118,6 +119,21 @@ concurrency and resources with hard spending ceilings, then watch the scheduler
 use those bounds without a new decision for each adjustment. A capacity increase
 that cannot start more work names the limiting provider, build, browser, integration
 or authority constraint. No setting promises linear scaling.
+
+While intervention can still change a run, the same view and MCP reading show
+settled spend, outstanding holds, warning thresholds and hard-cap headroom per
+dimension. An unavailable cost category makes complete delivery-cost headroom
+unavailable. The efficiency breakdown explains changes through requests, attempts,
+model turns, token categories, tool context, failed lookups, polling and rates;
+those driver counts are never presented as outcomes or authority.
+
+Each diagnostic says whether coverage is complete, sampled under a named revision,
+or unavailable, and shows the measurement's own overhead. Late bills append an
+as-of revision and material estimate/bill divergence appears as a pricing-drift
+finding. Cross-currency results are visible but not ranked without one pinned
+conversion revision. The full view links any activity benchmark, rollout evidence,
+prior default and rollback thresholds behind an optimization proposal; the focus
+brief carries only an actionable finding and the current spend/hold/headroom state.
 
 Deliverables show simultaneous implementation, review and verification progress.
 The integration queue shows composition, exact candidate checks, repair and accepted
