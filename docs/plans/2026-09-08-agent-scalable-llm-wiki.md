@@ -1,501 +1,447 @@
-# Agent-scalable LLM wiki
+# Radical Modularity
 
-Status: proposed future work. This document records an approved direction, not
-authorization to implement it.
+Status: refined design for future implementation. This delivery applies the
+design-review corrections; it does not implement or certify the wiki, leases,
+sweep or scalability runner. The historical filename and branch remain stable
+navigation targets. [Design review and dispositions](2026-09-08-radical-modularity-review.md)
+explain the revisions to the original proposal at `a095fff8`.
 
-## Outcome
+## Intent
 
-Turn the repository's existing knowledge into a recursive, maintained map that
-lets more agents produce more independently verified changes. A new agent starts
-with a small index, reaches one relevant module without scanning the repository,
-receives an enforceable write boundary, and can determine the repository-visible
-consequences of changing any file in that module.
+The repository needs to increase useful model-assisted work without requiring
+each session to reconstruct the entire system. Radical Modularity makes
+responsibility, context, relationships and verification explicit, and makes
+their granularity adjustable enough to measure and improve.
 
-The scaling target is useful output, not edits or review reports:
+The desired outcome is a maintained LLM wiki, verifiable review evidence,
+temporary write ownership and reproducible experiments. A session can locate
+the relevant boundary, inspect its contract, obtain a work packet and deliver
+an independently accepted outcome. Measurements include the cost of keeping
+this machinery current.
 
-```text
-Q(N) = verified merge-ready task slices completed per hour by N agents
-
-Q(2) >= 1.6 * Q(1)
-Q(4) >= 3.2 * Q(1)
-Q(8) >= 6.4 * Q(1)
-```
-
-This is at least 80% linear efficiency through eight concurrent agents while an
-independent task frontier exists. Shared migrations, public contracts and root
-configuration remain explicitly serial. Compatible completed slices are batched
-so the repository gate does not erase the parallel gain.
-
-## Source idea and repository fit
-
-The source is
-[ry's 2026-08-25 revision of the LLM-wiki pattern](https://gist.github.com/ry/c56dfa7b1b90eeff2d8d0127e45ae3bb/revisions?short_path=4c66555#diff-4c66555dd402cc5d67a52a326ac73c0e13d09c5e3e6e2e32967808d23a576025):
-
-- `README.md` is the index;
-- indexes use standard relative Markdown links;
-- a coherent cluster is promoted into a subdirectory with its own `README.md`;
-- Git history is the chronological log, so there is no `docs/log.md`.
-
-This repository already has the three source layers:
-
-- raw authority: code, tests, OpenSpec changes, configuration and Git history;
-- compiled knowledge: `CONTEXT.md`, ADRs, runbooks, JSDoc and module READMEs;
-- schema: `AGENTS.md` and its linked conventions.
-
-The work adds recursive navigation, an exhaustive review protocol, freshness
-evidence and temporary module ownership. It does not create a parallel `wiki/`
-copy of code knowledge.
-
-## Non-goals
-
-- No embedding database, RAG service or third-party search dependency.
-- No page-per-source-file documentation layer.
-- No permanent assignment of a module to a particular agent.
-- No claim about consumers that are neither represented nor declared in this
-  repository.
-- No automated behavioral correction by thousands of concurrent file reviewers.
-- No implementation as part of the commit that introduces this plan.
+The approach introduces no embedding service, third-party search dependency,
+page-per-file knowledge copy or permanent assignment of modules to models.
+It does not promise complete semantic knowledge or universal linear scaling.
+Future behavior, contract, architecture and safety changes require their own
+OpenSpec artifacts and observed negative proofs under repository rules R4/R5.
 
 ## Assumptions
 
-1. “Every file” means every entry returned by `git ls-tree -r HEAD` at a pinned
-   base commit. Symlinks count as entries and are never followed.
-2. “100% non-breaking” means every repository-visible relationship is current,
-   applicable checks pass, and known external consumers are disclosed. An
-   unregistered external consumer cannot be proved from repository evidence.
-3. A fresh file reviewer receives the review protocol, pinned commit and one
-   path, but no conversation history, parent-agent conclusions or directory
-   summary before its cold-read judgment.
-4. File-level isolation is for comprehension and review. The smallest
-   independently testable module or change slice is the write-ownership unit.
-5. Documentation corrections may land directly. A finding that changes
-   observable behavior, a contract, deployment safety or architecture receives
-   its own OpenSpec change before implementation.
+1. The user's latest request is refinement, cross-review and delivery of the
+   approach. Operational implementation follows the sequence below.
+2. Acceptance quality is held constant; elapsed time and total cost are measured
+   separately. Twice as fast at four times the cost is a trade-off to report.
+3. Initial ownership authority covers one host and one Git common directory.
+   Coordination across independent clones or hosts is outside this version.
+4. Every tracked entry at a pinned Git revision is inventoried, partitioned into
+   content and reserved evidence paths by tool-owned classification. Complete
+   inventory is distinct from complete review under a named policy.
+5. Reviews are fallible observations. A cold diagnostic and a navigation-assisted
+   judgment have different scopes and recorded read sets. Fresh context does
+   not establish independent model errors. No judgment promises "100% non-breaking".
+6. Model configuration, context policy, task grouping and concurrency may vary
+   independently. Changing several together estimates their combined effect
+   unless the experiment separates those effects.
+7. Eight-way execution must be provisioned and verified before its benchmark.
+   Two successive four-session cohorts cannot represent eight simultaneous
+   sessions. Unavailable capacity leaves that experiment pending.
 
-## Knowledge topology
+The [review](2026-09-08-radical-modularity-review.md#mandate-and-assumptions)
+records the interpretation of the user's request without another interview.
 
-Navigation follows one direction:
+## Knowledge stays with its authority
 
-```text
-AGENTS.md (automatically loaded rules)
-  -> LLM_README.md (task router, at most 150 lines)
-    -> tree or project README.md
-      -> module README.md
-        -> source, test, configuration or detailed document
-```
+The source inspiration is
+[ry's LLM-wiki revision](https://gist.github.com/ry/c56dfa7b1b90eeff2d8d0127e45ae3bb/revisions?short_path=4c66555#diff-4c66555dd402cc5d67a52a326ac73c0e13d09c5e3e6e2e32967808d23a576025):
+relative Markdown links, recursive README indexes, coherent clusters and Git
+history as the chronological record. The mechanisms below are this repository's
+proposal, not claims about that source.
 
-`AGENTS.md` must stop instructing an agent to load `LLM_README.md` before the
-already-loaded rules. It states the traversal once. `LLM_README.md` contains only
-orientation needed before a task is known: the product map, canonical gate,
-current landmines, open findings and links into the recursive indexes.
-
-### When a directory gets an index
-
-A directory owns a `README.md` when it is:
-
-- an Nx project root;
-- a tree root outside an Nx project, such as `docs/`, `deploy/` or `openspec/`;
-- a directory containing at least two non-test source files;
-- a directory containing at least two qualifying child modules; or
-- a boundary that owns a cross-file invariant not correctly housed elsewhere.
-
-A directory does not get a README when it:
-
-- contains one child that its nearest indexed ancestor can name directly;
-- is test-only, fixture-only or vendored and its parent can describe the set;
-- is an archived OpenSpec change whose `proposal.md` already provides its index;
-- is `.github/workflows`; or
-- would produce fewer than eight content lines after applying the required
-  template.
-
-An index with more than forty direct entries must group them or promote coherent
-clusters into indexed subdirectories.
-
-### Index contents
-
-Every recursive README has:
-
-1. one heading and one purpose paragraph;
-2. `## Contents`, covering direct files and qualifying child modules in both
-   directions with relative links and one-line roles;
-3. `## Relationships`, naming consumed and exposed interfaces rather than
-   repeating implementation;
-4. `## Invariants`, containing only facts that span at least two paths and
-   therefore belong to no one symbol;
-5. `## Checks`, naming existing exact commands that verify this boundary;
-6. `## Known external consumers` for an app or deployable boundary.
-
-Indexes contain no dates, historical ledger, implementation walkthrough or
-symbol-level behavior. Symbol knowledge remains in names and JSDoc. Cross-project
-decisions remain in ADRs or runbooks. Domain vocabulary remains in `CONTEXT.md`.
-
-For Nx project roots, machine-readable frontmatter additionally declares:
-
-```yaml
-module: domain
-writes:
-  - libs/domain/**
-publicInterfaces:
-  - libs/domain/src/index.ts
-dependsOn:
-  - contracts
-checks:
-  - bunx nx run domain:test
-conflictGroup: scheduling-domain
-```
-
-The wiki lint checks frontmatter against `project.json`, Nx graph edges and the
-Git tree. Nested agent modules use the same fields. Root indexes link to child
-metadata; they do not copy it.
-
-## Review inventory
-
-The pinned starting point measured by Claude Fable was 2,379 tracked entries and
-782 directories at commit `619b714b`. Counts are observations, not constants;
-the implementation pins its own base SHA and derives the inventory again.
-
-Each entry is classified before review:
-
-| Class       | Examples                                      | Cold-read question after purpose                             |
-| ----------- | --------------------------------------------- | ------------------------------------------------------------ |
-| source      | non-test code                                 | What consumes and verifies its public surface?               |
-| test        | `*.test.ts`, `*.spec.ts`                      | Which production behavior and target does it guard?          |
-| config      | Nx, TypeScript, ESLint, compose, env examples | Which tool and workflow consume it?                          |
-| script      | `bin/`, hook and deploy entrypoints           | Who invokes it, with which working directory?                |
-| migration   | `apps/be-01/drizzle/**`                       | Is its down pair present, and is the applied file immutable? |
-| fixture     | JSON, SQL and corpus inputs                   | Which test or runtime reader requires it?                    |
-| generated   | emitted API or build input                    | What source and regeneration command own it?                 |
-| vendored    | pinned external skill or source               | Which lock entry owns its exact tree hash?                   |
-| symlink     | mode `120000` entries                         | Does its target exist and do tools treat it deliberately?    |
-| placeholder | `.gitkeep` and equivalents                    | Does the empty directory still have a consumer?              |
-| document    | guides, ADRs and plans                        | What authority does it summarize, and who links to it?       |
-| OpenSpec    | active and archived artifacts                 | Is it live authority, delta, evidence or frozen history?     |
-
-Binary entries are still reviewed individually, but the cold read judges their
-declared role, format and consumer rather than pretending their bytes are prose.
-Applied migrations and archived OpenSpec artifacts are reviewed but not rewritten.
-
-### Per-file protocol
-
-One fresh subagent is created for one tracked path:
-
-1. Read only the assigned file.
-2. Record `yes`, `partial` or `no` for:
-   - purpose is clear;
-   - relationships are clear;
-   - a repository-scoped change can be reasoned about without unknown impact.
-3. Only after recording that cold judgment, trace direct imports, reverse imports,
-   tests, scripts, configuration, generated relationships, documentation links,
-   runtime routes and declared external consumers.
-4. Emit evidence, findings and a proposed diff. Never edit the checkout.
-5. A write-owning module agent applies allowed documentation, naming and JSDoc
-   corrections coherently with adjacent tests.
-6. Behavioral or architectural findings are queued into an OpenSpec change.
-7. A second fresh file agent re-runs the cold judgment after corrections. All
-   three answers must be `yes`, or the ledger retains an explicit unresolved
-   finding and the sweep remains incomplete.
-
-The prompt template is versioned. Each ledger entry records the prompt blob so
-“fresh subagent” and the questions asked are auditable rather than asserted.
-
-### Directory, project and documentation passes
-
-File completion is not directory completion. After all child entries are current:
-
-1. One fresh directory agent reviews the directory tree, its README and child
-   findings without inheriting conversation context.
-2. One fresh boundary agent reviews every Nx app and library as a whole: purpose,
-   dependency direction, public interfaces, external consumers and checks.
-3. The docs pass repeats the file and directory protocol under `docs/`, active
-   OpenSpec artifacts and root documentation.
-4. Root navigation is reviewed last because it composes the child summaries.
-
-Directory entries are keyed by Git tree ID. Project entries additionally capture
-the ring, runtime, public surface and derived dependency graph.
-
-## Evidence without invalidation explosion
-
-A file blob alone proves only that the file itself has not changed. The ledger is
-therefore sharded: every agent module owns `.wiki-ledger.jsonl`, sorted by path.
-This prevents a central ledger from becoming a merge hotspot.
-
-A file entry records:
+Code, tests, configuration and accepted specifications are raw authority.
+`CONTEXT.md`, ADRs, runbooks, JSDoc and module READMEs explain that authority.
+`AGENTS.md` supplies the rules. No second `wiki/` tree or `docs/log.md` is added.
 
 ```text
-path, kind, class, blob, base, reviewedAt, protocolBlob, model,
-coldJudgments, evidence, consumedInterfaceFingerprints,
-reverseEdgeFingerprint, checks, findings, externalUnprovable
+AGENTS.md -> LLM_README.md -> tree/project README -> module README -> authority
 ```
 
-Freshness rules are deliberately asymmetric:
+Indexes provide the default entry route; cross-links expose relationships that
+do not form a tree. A model may follow evidence outside its initial reading
+packet. Read expansion is recorded separately from permission to write there.
+Symbol knowledge stays in names/JSDoc, cross-file invariants in their owning
+index or linked document, cross-project decisions in ADRs, terms in `CONTEXT.md`.
 
-- changing the file invalidates its entry;
-- changing a consumed public interface invalidates the consumer;
-- adding or removing a reverse edge changes the provider's reverse-edge
-  fingerprint and invalidates its relationship judgment;
-- editing a caller without changing its edge does not invalidate the provider;
-- editing an implementation dependency without changing its public fingerprint
-  does not invalidate every transitive consumer;
-- changing the review protocol invalidates entries produced by the older protocol
-  only when its semantic version says the judgment changed.
+The future foundation makes `LLM_README.md` a stable router: link to findings
+and boundary invariants rather than enumerating mutable findings and landmines
+there. Place extracted root findings under an indexed `docs/findings/` tree
+until ledger queries can replace that entry point. Keep the canonical gate and
+essential orientation in the router. Moving the existing content requires a
+complete source-to-destination inventory so no warning disappears.
 
-This answers Claude Fable's valid evidence-closure objection without making a hub
-file invalidate hundreds of attestations whenever a caller changes internally.
+`AGENTS.md` retains repository rules R1–R5 and links within 120 lines;
+`LLM_README.md` stays within 150. The R5 incident material moves to a catalogue grouped by fault shape with
+stable identifiers and observed proof details preserved. These are foundation
+tasks; this design revision changes no existing safety rule or gate obligation.
 
-Import relations come from parsers and the Nx graph. Non-import relations are
-explicit edge kinds:
+## Five independent granularities
 
-- dynamic filesystem reads and generated files;
-- shell and package-script invocation;
-- Nx inputs and targets;
-- CI and lefthook commands;
-- deployment, compose and Caddy references;
-- environment variables and ports;
-- database tables and migrations;
-- HTTP routes and shared contracts;
-- documentation links and claims sourced from executable configuration;
-- vendored tree locks and symlink targets;
-- declared external consumers.
+| Dimension   | Unit selected by policy                          | Evidence of a useful boundary                          |
+| ----------- | ------------------------------------------------ | ------------------------------------------------------ |
+| Knowledge   | Initial index, summary and source read set       | Discovery time, additional reads, missed relationships |
+| Review      | Files or behaviors assessed together             | Defects found, missed faults, disagreement and cost    |
+| Ownership   | Paths and conflict groups claimed by one session | Contention, expansion and conflicting changes          |
+| Task        | Work assigned toward a fixed benchmark outcome   | Completion time, retries and coordination cost         |
+| Integration | Submitted changes verified together              | Queue time, rework, acceptance and gate cost           |
 
-## Temporary module ownership
+A versioned granularity policy records these mappings and constraints. Nx
+projects and directories supply defaults, not proof of independent changeability.
+Different policies can group the same files without moving source. Smaller
+assignments cannot relax checks required by the actual affected boundary.
 
-File isolation is a review technique. Write ownership is a temporary lease on the
-smallest independently testable module or change slice.
+Modules have stable identifiers and versioned path mappings. Splits and merges
+record predecessor identities. Historical packets resolve their pinned mapping,
+never the current one. Ledger shard identity stays independent of task and
+ownership grouping. Overlapping knowledge/review views are legal; overlapping
+write claims require the same exclusive authority.
 
-Many agents may read a module. Exactly one session may write it while its lease is
-active. A cross-module task acquires every affected module before editing. Leases
-end when work is integrated or abandoned; they are not permanent team ownership.
+Physical refactoring follows measured coupling. A policy can group a coupled
+cluster for one writer while offering smaller views for discovery. Scope
+expansion names a missing relationship; the authority grants all additional
+claims atomically or keeps the task paused. Expansion is useful evidence, not
+an incentive to hide cross-boundary work.
 
-Live leases reside below the shared Git common directory, not in tracked files.
-The future Bun command must:
+Stable identities, evidence trust boundaries and admission authority earn ADRs
+when implemented and alternatives are decided. Allocate numbers from the live
+tree then. Thresholds and initial groupings are reversible policy defaults.
 
-1. resolve requested modules and their write patterns;
-2. refuse overlap with an active lease or conflict group;
-3. create an isolated worktree from a pinned base;
-4. emit a machine-readable work packet;
-5. release only the exact lease held by that session.
+## Recursive index conventions
 
-Every work packet contains:
+Nx project roots, major non-project trees and declared cross-file boundaries
+receive indexes. Initially suggest indexes for directories with two non-test
+sources or two indexed children; the adopted policy records boundaries and
+exclusions. File counts and minimum prose length do not certify a module or
+force empty templates into the repository.
+
+Test-only, fixture-only and vendored directories may be described as sets by
+their nearest index. Archived OpenSpec changes keep frozen artifacts, with
+their proposal as entry point. Every exclusion stays classified and visible in
+full-tree coverage. More than forty direct entries prompts navigation review
+or grouping, without automatically moving source.
+
+An index has a purpose, relative linked contents and applicable relationships,
+cross-file invariants, exact boundary checks and known external consumers.
+Metadata records why a section is inapplicable. Contents cover the selected
+entries in both directions; grouped sets have checkable membership declarations.
+Missing/case-mismatched paths, unresolved anchors and ambiguous links fail lint.
+Markdown links contain no globs. Declaration patterns have a validated grammar
+and resolve to concrete paths in a packet, including the allowed new-path rule.
+
+Project names, tags, graph edges, targets and commands are derived from Nx and
+executable configuration. Handwritten declarations hold only non-derivable
+facts: extra runtime relationships, semantic contracts, module identity and
+conflict groups. Reference authoritative targets instead of maintaining a
+second command list. Deployables declare known external consumers or an
+explicit "none known" and its knowledge limits; silence is unclassified.
+
+## Inventory and finite evidence
+
+At revision B enumerate exactly `git ls-tree -r B`: path, mode, blob and
+classification. Symlinks are inventoried without following them and their
+targets are checked deliberately. Content classes include source, test, config,
+script, migration, fixture, generated, vendored, placeholder, document and
+OpenSpec. Review binary format/consumer/regeneration authority as such. Applied
+migrations and frozen history are reviewed, not rewritten by a docs sweep.
+
+Compare complete path/mode/blob tuples, not a minimum count. The earlier 2,379
+entries at `619b714b` is a historical observation; every run derives its own set.
+Partition every entry into content or reserved evidence. Validate evidence
+artifacts through schema, provenance and referential integrity rather than
+requiring self-attestation of their own bytes. Reserved evidence paths accept
+only evidence schemas: hidden source, executable entries or arbitrary prose
+fail classification. Evidence policy and validator source are ordinary content.
+
+Content attestations reference content blobs and explicit relationship inputs.
+A normalized content manifest excludes evidence bytes from content-tree digests.
+Topology judgments use names, classifications, exposed boundaries and edges;
+implementation judgments retain their own byte inputs. A descendant's internal
+edit does not stale an unchanged ancestor navigation claim. The full inventory
+still detects every entry; these scopes are not enumeration exclusions.
+
+Attestations record the reviewed source base, not their eventual containing
+commit SHA. Final CI recomputes the manifest on the integration commit, validates
+its evidence artifacts and emits an external binding of commit, manifest,
+policy and command results. Evidence-only edits still require artifact validation.
+This avoids both ledger self-hashing and storing a commit's identity inside itself.
+
+Stable shards hold sorted file, boundary and documentation attestations, with
+protocol version/blob, actual model/configuration, invocation identity, supplied
+context, observed reads, cold/informed judgments, exact inputs, checks, findings
+and unresolved/external relationships. Retain raw responses as referenced
+artifacts with content identities and explicit retention. Raw responses live
+outside the tracked tree or in a declared evidence schema whose provenance
+envelope wraps an opaque payload. The arbitrary-prose refusal applies to files
+without such a schema, not schema-wrapped transcripts. Missing telemetry is
+unverified. A hash proves byte identity, not the honesty of a review's author.
+
+## Freshness and behavioral confidence
+
+- Changed content invalidates that file's content judgment.
+- Changed resolved public declarations invalidate structural consumer evidence,
+  including re-exported/transitive types behind an unchanged barrel.
+- Changed semantic contract selectors (selected specs, invariants and
+  conformance tests) invalidate judgments relying on them.
+- Added/removed reverse edges invalidate provider relationship judgments;
+  internal caller edits with the same edge do not.
+- Extractor/policy/protocol changes invalidate claims whose meaning or inputs
+  changed. Compatible protocol updates retain both identities and a reviewed
+  compatibility declaration; a version label alone is no proof.
+
+Stable types cannot establish stable behavior. Implementation edits run the
+applicable affected consumer/conformance checks and require impact classification.
+Unclassified/unsupported impact requires expanded review under the selected
+policy. An "implementation-only" declaration cannot alone skip behavioral
+checks. LLM re-review follows changed behavioral/structural review inputs;
+deterministic conformance checks may fan out without forcing identical LLM work.
+
+Parsers and Nx produce import edges with extractor/version provenance. Explicit
+edge kinds cover dynamic reads, generated artifacts, scripts, CI/hooks, deploy
+configuration, environments/ports, tables/migrations, HTTP contracts, document
+claims, vendored locks and external consumers. Each declares extraction coverage
+and exact selectors. Unsupported relationships remain declared or unresolved;
+a partial graph never certifies complete semantic knowledge.
+
+Typed fact references connect current prose to executable facts. Historical
+citations are marked and resolve against their historical revision. Lint does
+not claim to understand arbitrary prose. Semantic contradiction detection stays
+scheduled and non-gating until a specific deterministic rule is proved.
+
+## Review protocol and adoption
+
+A cold diagnostic gives a fresh reviewer a pinned path and protocol, records
+purpose/relationship/impact as yes, partial or no before additional context,
+then an informed pass follows the indexes, traces consumers/checks and records
+its judgment and read cost separately. Cold impact uncertainty can be legitimate
+for a module member. Informed success cannot rewrite the cold result to yes or
+justify copying module prose into every file.
+
+Reviewers propose corrections without writes. The module's writer applies them
+coherently with callers and tests; behavioral or architectural findings open an
+OpenSpec change. Fresh post-correction reviews verify revised evidence. Findings
+remain unresolved until source/check evidence supports closing them. Fresh
+file, directory, project and docs passes are distinct obligations under the
+exhaustive policy. Root navigation follows settled child topology.
+
+The exhaustive experiment reviews every content path and all its boundaries,
+projects and documentation; evidence artifacts follow their validation path.
+Compare risk-based alternatives only with their different coverage and full
+costs disclosed. A sampled review is never called exhaustive. Reports name the
+policy, reviewed set, unresolved set and unreviewed set.
+
+Select audits reproducibly from a pinned inventory with a stored seed and risk
+strata. The initial five-percent sample and ten-percent shard-disagreement
+trigger are experiment defaults, not confidence guarantees. Record population
+and sample sizes by stratum; exceeding the trigger requires source-based
+adjudication and a fresh shard review. Never resolve by majority vote alone.
+Record model identity/context overlap when interpreting reviewer agreement.
+
+## Ownership and integration
+
+The minimal enforced core is atomic all-or-nothing canonical path/conflict-group
+claims, a generation token, an admission diff boundary check and token validation
+at integration. It uses one authority below the shared Git common directory;
+multi-clone/multi-host coordination requires a later design. An isolated worktree
+and a prompt instruction by themselves provide no write-boundary guarantee.
+
+Pin base, policy/mapping, session, token and worktree. Refuse ancestor/child
+overlap, traversal, symlink escape, ambiguous patterns and invalid state. Include
+new paths/deletions and both sides of renames. Root contracts/schema/configuration
+are explicit shared claims. Acquire every claim atomically to avoid hold-and-wait.
+
+A work packet holds objective/outcome, base, policy, owned paths, read dependencies,
+consumed/produced interfaces, invariants, scoped/integration checks and required
+evidence. Revalidate read dependencies on the actual integration candidate.
+Ports, databases and heavy-work lanes still need their resource locks; file
+leases alone do not isolate runtime resources used by tests.
+
+States are working, submitted, integrated, rejected or abandoned. Submission
+freezes an immutable patch and fences further publication by that writer.
+Admission claims remain until integration or explicit rejection. Release is
+idempotent only for the exact session/generation and cannot release a successor's
+claim. A retry after rejection requires reacquisition and revalidation.
+
+Heartbeat expiry permits fencing/investigation, not an assertion that a process
+stopped. A resumed stale writer is refused at admission/integration. Preventing
+all out-of-packet filesystem writes requires a separately proved executor;
+until then reports distinguish detection/refusal from prevention during editing.
+
+Batches have maximum size and wait time fixed before measurement. Only the
+actual combined candidate can pass integration. Contract, policy, gate or
+relationship changes select affected checks again. Record conflicts/failures as
+rework; bound retries and expose terminal failure, starvation and queue time.
+
+For additive/versioned contracts, freeze a verified compatible interface commit
+before consumers update in parallel. Incompatible transitions require one
+coordinated batch integrating contract and consumers atomically. Never publish
+an unusable contract-only intermediate state. Recovery addresses exact immutable
+submissions and preserves other sessions' work.
+
+## Wiki lint and rollout
+
+The future `tool-wiki:lint` uses full-tree inputs with caching disabled initially.
+Wire it into Nx, `bin/h2puni-gate.sh`, CI and whole-tree pre-commit. Staged-path-only
+lint misses deleted targets and new reverse edges. Explicitly select working,
+staged or committed input: admission attests its actual candidate, not stale HEAD.
+Local working checks report untracked content separately so additions cannot
+silently disappear from candidate coverage. Cache optimization needs new proofs.
+
+Every mode enumerates the whole tree and applies supported deterministic link,
+metadata, classification, evidence-schema and input-coverage checks. Review
+obligations roll out as follows:
+
+- **Observe:** report review debt; never claim review certification.
+- **Ratchet:** enforce adopted boundaries, refuse regressions there, classify
+  every new path, and expose all debt outside the adopted set.
+- **Enforce:** require every obligation of the selected policy and refuse unmet
+  obligations across its declared coverage.
+
+Bootstrap records a reviewed initial policy/adoption set. Policy changes and
+exemptions are reviewed separately from work they could excuse. CI selects its
+trusted policy so a candidate cannot weaken its own gate. Observe cannot admit
+work requiring enforce. Existing repository gates remain in force throughout.
+
+The implementation's `verify.md` must record observed failures through production
+entrypoints before adjacent `Proof:` comments are written. Required fault families:
+
+| Boundary        | Deliberate fault                                                       | Required observation                                                      |
+| --------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Inventory       | Drop a path, replace one at equal count, omit a candidate addition     | Complete tuple/candidate mismatch                                         |
+| Classification  | Hide executable content under reserved evidence                        | Classification failure                                                    |
+| Evidence        | Delete coverage, stale a blob, orphan a path, forge an edge/invocation | Named unmet coverage/currency/provenance obligation                       |
+| Finite evidence | Change evidence bytes only, then change content                        | Artifact validation terminates; only content change stales content review |
+| Contracts       | Change a re-exported type; alter behavior with identical types         | Structural invalidation; applicable behavior check fails                  |
+| Topology        | Add importer/indexed child                                             | Relevant relationship/navigation judgment becomes stale                   |
+| Index           | Missing/deleted child, wrong case/anchor, invalid declaration          | Exact membership/link/metadata failure                                    |
+| Facts           | Change a current port, route, table or target                          | Authority-selector mismatch; historical claims distinguished              |
+| Policy          | Remove adopted boundary or admit enforced work using observe           | Trusted-policy/mode refusal                                               |
+| Leases          | Overlap, partial acquisition, escape, stale token, wrong release       | Atomic refusal preserving other claims                                    |
+| Admission       | Out-of-packet rename/new path, changed read dependency, stale writer   | Refusal/revalidation before admission                                     |
+| Integration     | Breaking contract-only candidate, changed gate after scoped checks     | Combined acceptance fails/checks are reselected                           |
+| Caps/cache      | 121 AGENTS lines; omitted input changed under warm cache               | Cap refusal; target reruns and fails                                      |
+| Host gate       | Stale an enforced obligation                                           | Wiki lint fails on that candidate in the full gate                        |
+| Measurement     | Split task, omit failed-attempt cost, lose usage or change conditions  | Outcome count stays fixed; incomplete/incomparable report refused         |
+
+These are future test requirements, not observed proofs. Also remove the guard
+where appropriate and watch the intended assertion detect the broken behavior.
+Test absence and unreadability separately when modeled separately. Do not derive
+an assertion's threshold from the faulted value it is meant to constrain.
+
+## Measurement contract
+
+Pin a corpus of benchmark outcomes and acceptance criteria before partitioning
+work. Each outcome counts once after integration and acceptance, irrespective
+of assignments, retries or commits. Compare the same corpus; heterogeneous task
+counts from different corpora are not interchangeable. Keep independent-module
+and shared-contract strata visible. Every result names its corpus; changing it
+breaks comparability explicitly. Results describe that workload, not development
+in general. Use held-out outcomes when tuning policies.
+
+For concurrency N and policy P record accepted outcomes per full elapsed hour,
+time to complete the fixed corpus, completion fraction, total usage/spend,
+human time, infrastructure allocation, failed attempts and defects within a
+predeclared post-acceptance window. Include discovery, review, upkeep, waiting,
+integration and gates. Capture raw token categories, actual model/provider and
+pricing identity for repricing. Missing required cost telemetry is unverified,
+never zero. Retain failed and censored trials.
+
+Pin repository base, corpus/acceptance, policy, actual model/version/effort,
+prompts/tools, resource envelope, seeds, retry/time budgets, prices and observation
+windows. Start with one varying factor; use repeated randomized trials and
+report counts/dispersion and warm/cold conditions for caches actually in play
+(Nx, build and model prompt caches). Wiki-lint cache fault proofs apply when
+its caching is introduced. Later experiments can measure interactions among
+granularity, models and concurrency. Report initial foundation/sweep cost
+separately from steady-state upkeep, including ledger churn, so amortization is
+visible. Label fixed-total and fixed-per-session resource experiments explicitly.
+
+Report trade-offs among quality, cost and latency. Keep the original hypotheses
+of at least 80% linear efficiency through eight simultaneous sessions on a named
+independent-work corpus:
 
 ```text
-objective
-owned write paths
-read-only dependencies
-consumed public interfaces
-produced public interfaces
-cross-file invariants
-scoped checks
-integration checks
-required completion evidence
+Q(2) / Q(1) >= 1.6
+Q(4) / Q(1) >= 3.2
+Q(8) / Q(1) >= 6.4
 ```
 
-The agent refuses a write outside the packet. Independent modules can therefore
-have independent writers rather than waiting for one repository-wide serial
-applier.
+Secondary hypotheses remain conflict rate <= 5%, integration rework <= 10%,
+median discovery <= 5 minutes, ordinary review amplification <= 3 reviews per
+changed file, and lease wait <= 10% of aggregate session time. Define each
+numerator, denominator and timing boundary in the experiment manifest before
+running. Thresholds trigger diagnosis/design review, never dropped verification
+or excluded failures. Audit thresholds are pinned similarly. Do not adjust
+thresholds after observing a result and report it as the original experiment.
 
-### Contract-changing work
-
-A task that changes a shared public contract is sequenced differently:
-
-```text
-contract owner changes and verifies the interface
-  -> interface commit is frozen
-    -> consumer modules update in parallel from that commit
-      -> compatible slices enter one integration batch
-```
-
-This makes the necessary serial point explicit and restores parallelism after it.
-
-## Wiki lint
-
-Add a `tool-wiki:lint` Nx target. It must run over the real Git tree with complete
-inputs or with caching disabled, run from `bin/h2puni-gate.sh`, and run as a
-whole-tree CI and pre-commit check. `{staged_files}` is insufficient for deletion
-and reverse-link checks.
-
-The lint rejects:
-
-- uncovered, stale or orphan ledger entries;
-- stale consumed-interface or reverse-edge fingerprints;
-- irreproducible relationship evidence;
-- missing required directory, project or documentation passes;
-- a qualifying directory with no README;
-- README contents disagreeing with the tree in either direction;
-- missing relative targets or anchors, case mismatches, globs or ambiguous
-  basenames in indexes;
-- README metadata disagreeing with Nx tags, graph edges, paths or checks;
-- missing declared external consumers at deployable boundaries;
-- stale extracted facts such as ports, scripts, CI jobs, routes and table names;
-- duplicate glossary terms or a canonical term appearing in its own `_Avoid_`;
-- `AGENTS.md` above 120 lines or `LLM_README.md` above 150 lines;
-- a filtered self-scope that sees fewer paths than `git ls-tree`.
-
-Semantic contradiction detection remains a scheduled, non-gating LLM lint until
-it can be made deterministic. Deterministic extracted facts are gating from the
-start.
-
-### Non-vacuous proof table
-
-Every rule is implemented test-first and watched through the production lint
-entrypoint with the named fault injected:
-
-| Rule               | Injected fault                                | Required observed failure           |
-| ------------------ | --------------------------------------------- | ----------------------------------- |
-| coverage           | remove one current entry                      | `uncovered: <path>`                 |
-| file freshness     | change one byte without review                | `stale: <path>`                     |
-| consumed interface | change an exported signature                  | consumer becomes stale              |
-| reverse relation   | add one new importer                          | provider relationship becomes stale |
-| orphan             | retain an entry after deleting its path       | `orphan: <path>`                    |
-| evidence           | claim an importer that has no edge            | `evidence mismatch`                 |
-| directory tree     | add a child without directory review          | `stale directory`                   |
-| required index     | add a qualifying two-file module              | `missing index`                     |
-| contents           | omit a child and list a deleted child         | both mismatches reported            |
-| links              | wrong case, missing anchor, glob and basename | each exact link refused             |
-| metadata           | claim `ring:domain` for an adapter            | ring mismatch                       |
-| caps               | make `AGENTS.md` 121 lines                    | `121 lines, capped at 120`          |
-| facts              | change MCP port, table or CI job in prose     | each source mismatch named          |
-| self-scope         | filter the inventory below 2,000 paths        | scope check fails                   |
-| cache              | omit an input and change a document           | target must re-execute and fail     |
-| full gate          | stale one file and run h2puni gate            | `tool-wiki:lint` fails there        |
-
-Adjacent `Proof:` comments are written from the observed output, never predicted
-before the negative is run.
-
-## Initial corrective sweep
-
-The pilot established real work, not hypothetical examples:
-
-- `LLM_README.md` misstates MCP transport, local app count, CI sharding, schema
-  naming, test scope, deployment authority and some open findings.
-- `AGENTS.md` is 477 lines; most of it is a chronological R5 incident ledger in
-  the automatically loaded context.
-- `CONTEXT.md` is 1,243 lines with duplicate or conflicting terms, implementation
-  detail, stale Role vocabulary and incorrect definitions.
-- `docs/local-dev.md` contradicts executable scripts and refers to an absent
-  observability compose file.
-- `apps/be-01/src/repository/db.ts` and frontend plan-column composition contain
-  stale or incomplete dependency contracts.
-
-The sweep moves the R5 incidents into `docs/r5-fault-catalogue.md`, grouped by
-fault shape with stable identifiers. It does not create a chronological log.
-`AGENTS.md` retains the rules and links the catalogue. `CONTEXT.md` retains only
-domain vocabulary; behavior moves to current specs and symbol mechanics to JSDoc.
-
-Every remaining path is reviewed through the same protocol. Pilot findings do not
-exempt those files from their final fresh review.
-
-## Agentic scalability verification
-
-The benchmark uses the same pinned repository state and representative independent
-module tasks. Run cohorts of one, two, four and eight agents with equivalent work
-packets. A task counts only when its scoped checks pass, its ledger is current and
-its change is accepted into an integration batch.
-
-In addition to `Q(N)`, record:
-
-```text
-merge-conflict rate          <= 5%
-integration rework rate      <= 10%
-median task discovery time   <= 5 minutes
-ordinary invalidation gain   <= 3 reviews per changed file
-lease wait time              <= 10% of aggregate agent time
-```
-
-If throughput misses the target, do not raise the threshold or exclude failed
-tasks. Report the limiting serial fraction: lease contention, contract fan-out,
-test duration, integration queue, root-file collision or review invalidation.
+Diagnose contention, contract fan-out, tests, queues, root collisions and
+invalidation when hypotheses fail. Distinguish validated tooling, an executed
+experiment and a supported scaling claim. An unavailable eight-agent trial is
+pending; a completed trial below target is a negative result. Neither proves
+eight-agent scaling. Export raw measurements in a documented format independent
+of the wiki commands so retiring the system cannot erase its evaluation evidence.
 
 ## Delivery sequence
 
-Implementation is intentionally split so multiple agents can work without one
-giant branch becoming its own serial bottleneck.
+Each operational change has intent, delta specs, ordered TDD slices and observed
+verification, with a design only where needed. This is the cross-change design;
+those changes use `tasks.md`, not a separate implementation plan artifact.
 
-### Change A: knowledge foundation
-
-- Create an OpenSpec change with ADDED capabilities `index-conventions`,
-  `wiki-ledger` and `wiki-lint`.
-- Record the hard-to-reverse deviations from the source pattern in ADR 0018: the
-  repository itself is the raw layer, and knowledge is placed locally instead of
-  copied into page-per-file summaries.
-- Amend R1/R3, cap `AGENTS.md`, extract the R5 catalogue and define traversal.
-- Implement the ledger schema, relation fingerprints, README conventions and
-  complete-tree lint with its negative proofs.
-- Wire the lint into Nx, lefthook, CI and `bin/h2puni-gate.sh`.
-
-### Change B: parallel ownership
-
-- Create an OpenSpec change for temporary module leases and work packets.
-- Derive top-level modules from Nx and nested modules from README metadata.
-- Implement overlap/conflict-group refusal and isolated-worktree creation.
-- Prove lease acquisition, overlap refusal, exact release, stale-session recovery
-  and out-of-packet write refusal through the production command.
-
-### Change C: exhaustive sweep
-
-- Pin the base commit and derive the complete path/directory/project inventory.
-- Dispatch one fresh propose-only reviewer per tracked path.
-- Apply corrections with one write owner per non-overlapping module.
-- Run fresh post-correction file reviews, then directory, project and docs passes.
-- Rebase and run catch-up rounds until the branch has zero stale entries.
-- Run a second fresh review over a 5% sample; re-run any shard with more than 10%
-  disagreement.
-
-### Change D: scalability measurement
-
-- Define representative independent work packets and a reproducible runner.
-- Measure one, two, four and eight agent cohorts.
-- Fix identified serial hotspots rather than excluding them from the measure.
-- Record results and limiting factors in `verify.md`.
-- Batch compatible slices, run the full repository gate and land through the
-  merge queue.
-
-Each implementation change has its own intent-first OpenSpec artifacts and review.
-The exhaustive sweep may open additional changes for behavioral findings; it is
-not allowed to hide them as documentation corrections.
+1. **Baseline and pilot:** pin inventory, acceptance corpus, policies and usage
+   capture before broad cleanup. Preserve baseline evidence, select representative
+   boundaries and prove outcome/cost accounting with injected faults. Provision
+   the required execution capacity.
+2. **Knowledge foundation:** create ADDED `index-conventions`, `wiki-ledger`
+   and `wiki-lint` capabilities. Build finite evidence, relationship extraction,
+   review protocol, indexes and deterministic full-tree lint. Wire observe and
+   explicit ratchet adoption. Correct pilot docs/glossary; extract root findings
+   and R5 catalogue with a complete destination map.
+3. **Ownership/admission:** implement the minimal lease/packet/fencing/diff core
+   and combined-candidate validation. Prove recovery, overlap refusal and state
+   transitions. Stronger filesystem prevention requires its own executor proof.
+4. **Exhaustive sweep/catch-up:** run all file/directory/project/docs obligations,
+   owned corrections, fresh post-correction reviews and reproducible audit
+   samples. Report unresolved findings and full cost. Catch up to the candidate,
+   distinguishing content from evidence edits. Selective policies remain named
+   alternatives, never substitutes described as an exhaustive run.
+5. **Experiments/adoption:** execute one/two/four/eight cohorts at controlled
+   granularities and model/resource settings. Record positive and negative
+   hypotheses and limiting factors. Adopt a policy with explicit coverage based
+   on that evidence, enable its enforce mode, batch compatible changes and run
+   full repository/OpenSpec gates before integration through normal PR checks.
 
 ## Completion evidence
 
-The future implementation is complete only when all of the following are true:
+### Tooling acceptance
 
-1. Every path at the final merge commit has a current, fresh-agent ledger entry
-   and all three post-correction judgments are `yes`.
-2. Every directory, Nx project, app, library and documentation tree has a current
-   aggregate review and every qualifying boundary has a compliant README.
-3. The complete-tree wiki lint passes and every rule's named fault has been
-   observed failing through its production call path.
-4. The full repository gate and OpenSpec validation pass at the final commit.
-5. The measured throughput meets the 80% linear-efficiency targets through eight
-   agents, or the change remains incomplete with its bottleneck named.
+All selected capabilities have implementation, full-tree accounting, correct
+finite evidence validation, enforced admission, observed fault proofs and full
+repository/OpenSpec gate evidence on the actual candidate. Every explicit future
+capability in the sequence must be accounted for; a working pilot alone does
+not complete the system. No required check is weakened to make rollout pass.
 
-## Review record
+### Adopted review policy
 
-Claude Fable 5 independently reviewed the first proposal at repository commit
-`619b714b` and returned `REQUEST CHANGES`. This plan incorporates its five
-critical findings: evidence closure, the uncapped automatically loaded rules,
-unsafe concurrent correction, missing directory/project/doc review kinds, and
-gate placement. It also replaces the proposed repository-wide serial applier with
-temporary per-module write leases and batched integration, which is required for
-the stated scaling function.
+The adopted policy is identified and its coverage obligations are met. Reports
+include current required reviews and explicit unresolved/unreviewed sets outside
+that obligation. Unresolved required findings fail enforce. Every content path
+and every evidence path is accounted for by its appropriate mechanism. Cold
+judgments remain diagnostic, with informed judgments separately reported.
 
-The review report was generated outside the repository and is not an authority;
-the claims accepted here were rechecked against the repository before inclusion.
+### Experiment reporting
 
-## Delivery handoff
-
-Paused on 2026-09-08 after the plan-only branch was committed and pushed.
-
-- Branch: `change/agent-scalable-llm-wiki`
-- First plan commit: `f0d2c2e454ffb7b2ba9d0b70ca16982e817948c7`
-- Isolated worktree: `.worktrees/agent-scalable-llm-wiki`
-- `bun run test:unit`: passed (`be-01`: 886 passed, 1 skipped; all seven
-  configured library targets succeeded).
-- Prettier and the commit hooks passed.
-- `bin/h2puni-gate.sh`: started but did not complete. The unchanged local
-  environment lacked the solver's `ortools` and `jsonschema` Python packages,
-  two macOS launcher checks failed at `RLIMIT_AS`, and the full `be-01` run
-  reported 1,952 passed, 2 skipped, 0 failed and 2 runtime errors. The command
-  then produced no output for more than four minutes and was interrupted at the
-  user's pause request (exit 130).
-- Merge status: not merged and no checks bypassed. Resume by opening or locating
-  the GitHub pull request, use CI as the clean-host gate, and merge only after
-  required checks pass.
+Experiment reporting is complete only after the exhaustive experiment and every
+required one/two/four/eight cohort measurement are executed and reported with
+pinned configuration, costs, coverage, uncertainty, failures and limiting factors.
+Unavailable trials remain pending with their cause, and keep this reporting
+obligation incomplete; tooling acceptance can be established separately. A
+negative scaling result can complete an experiment; it cannot substantiate the
+target. Claims of 80% linear efficiency require measurements meeting the
+hypotheses, independently of whether the measurement system is implemented.
