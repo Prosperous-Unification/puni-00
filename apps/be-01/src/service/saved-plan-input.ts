@@ -1,3 +1,4 @@
+import type { PlanInputReads } from '@wbs/core';
 import {
   type CanonicalExternalRef,
   type CanonicalStepValue,
@@ -5,8 +6,6 @@ import {
   type EstimateRule,
   type PlanInputRows,
 } from '@wbs/domain';
-
-import type { PlanInputReads } from '../repository/saved-plan-capture';
 
 /**
  * Fold one capture's seventeen reads into the nineteen collections

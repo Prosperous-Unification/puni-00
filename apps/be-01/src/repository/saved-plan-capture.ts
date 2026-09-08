@@ -1,4 +1,4 @@
-import type { PriorityBand } from '@wbs/domain';
+import type { PlanInputReads, SavedPlanCaptureStore } from '@wbs/core';
 
 import { ActualRepository } from './actual';
 import { CapacityRepository } from './capacity';
@@ -8,26 +8,8 @@ import { DependencyRepository } from './dependency';
 import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
 import { OPEN } from './gate';
-import type {
-  Assignment,
-  ExternalSystem,
-  LabelledWorkItem,
-  PersonWithTeams,
-  Project,
-  Service,
-  Step,
-  StoredActual,
-  StoredDependency,
-  StoredEstimate,
-  StoredMeasure,
-  StoredProgress,
-  Tag,
-  TeamWithServices,
-  WorkItemType,
-} from './index';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
-import type { SavedPlanCaptureStore } from './saved-plan-ports';
 import { StepMeasureRepository } from './step-measure';
 import { StepProgressRepository } from './step-progress';
 import { WorkItemRepository } from './work-item';
@@ -46,25 +28,7 @@ import { WorkItemRepository } from './work-item';
  * One field per read, named for the read. Nothing here is sorted, deduplicated
  * or reshaped; a row arrives exactly as its store handed it over.
  */
-export interface PlanInputReads {
-  readonly project: Project;
-  readonly steps: readonly Step[];
-  readonly workItems: readonly LabelledWorkItem[];
-  readonly estimates: readonly StoredEstimate[];
-  readonly actuals: readonly StoredActual[];
-  readonly progress: readonly StoredProgress[];
-  readonly measures: readonly StoredMeasure[];
-  readonly dependencies: readonly StoredDependency[];
-  readonly assignments: readonly Assignment[];
-  readonly capacity: ReadonlyMap<string, number>;
-  readonly priorityBands: readonly PriorityBand[];
-  readonly people: readonly PersonWithTeams[];
-  readonly teams: readonly TeamWithServices[];
-  readonly services: readonly Service[];
-  readonly tags: readonly Tag[];
-  readonly workItemTypes: readonly WorkItemType[];
-  readonly externalSystems: readonly ExternalSystem[];
-}
+export type { PlanInputReads, SavedPlanCaptureStore } from '@wbs/core';
 
 /** How the capture obtains the connection it holds its snapshot on. */
 export interface SavedPlanCaptureOptions {

@@ -68,6 +68,19 @@ may import what is exactly the kind that passes project by project and fails as 
 Removing the nested supervisor protocol entry from `RESTART_PATHS` failed the production
 coverage case on `Expected to contain: "libs/contracts/solver/supervisor-protocol/project.json"`.
 
+## Slice 2.2b — transaction-free history ports
+
+- `bun test` over the seven event-log, optimizer-event, saved-plan atomicity/quota/busy,
+  capture, and core boundary files: **50 pass / 0 fail** on 2026-09-09.
+- `bunx tsc --build --force libs/core/tsconfig.json apps/be-01/tsconfig.json`: clean.
+- Adding `recordEventIn`, `holdingOf`, or `bodyOf` to a core port independently failed
+  `store-boundaries.test.ts` at TS2741 because its adapter-free fixture lacked that method.
+- Moving the saved-plan quota callback before `BEGIN IMMEDIATE` admitted the injected rival
+  connection and failed on `Expected: [false] · Received: [true]`.
+- Throwing from event insertion after the optimized cache write is covered by
+  `rolls a plan-infeasible certificate back when recording its event crashes`; both durable
+  rows remain inside the same SQLite transaction.
+
 ## Gate
 
 | Command | When | Result |

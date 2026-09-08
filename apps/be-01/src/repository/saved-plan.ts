@@ -1,11 +1,12 @@
+import { bodyByteLength, type SavedPlanRow, type SavedPlanStore } from '@wbs/core';
 import { and, desc, eq, sql } from 'drizzle-orm';
 
 import { isWriteLockBusy } from './constraint';
 import type { Connection, Drizzle } from './db';
 import { drizzleOuterTransaction, drizzleReadTransaction, refuseToWaitForWriteLock } from './db';
-import type { SavedPlanStore } from './saved-plan-ports';
-import type { SavedPlanRow } from './schema';
 import { project, savedPlan, savedPlanBody } from './schema';
+
+export { bodyByteLength } from '@wbs/core';
 
 /**
  * How the writer obtains the connection it takes the write lock on.
@@ -171,13 +172,6 @@ export interface SavedPlanPrincipals {
  * measurement as each other or the bound is on a number nobody stores, so both
  * come through this function and neither counts for itself.
  */
-export function bodyByteLength(bytes: string): number {
-  // `TextEncoder` rather than `Buffer.byteLength`: the answer is identical and
-  // one of the two exists in every runtime (D10). Node's `Buffer` was the last
-  // thing in this file that only Bun and Node have.
-  return new TextEncoder().encode(bytes).length;
-}
-
 /**
  * Writes a saved plan's header and bodies, and reads what a project holds.
  *

@@ -1,3 +1,4 @@
+import type { PlanInputReads, SavedPlanCaptureStore } from '@wbs/core';
 import {
   deadlineOffsetsOf,
   effectiveTeamsOf,
@@ -9,7 +10,6 @@ import {
   workdaysBetween,
 } from '@wbs/domain';
 
-import type { PlanInputReads, SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { NO_DEADLINES, slicesOf } from './work-item.service';
 
 /**
@@ -125,7 +125,7 @@ export interface CapturedPlan {
  * transaction, which is the one thing this row exists to forbid.
  */
 export async function captureAndSchedulePlan(
-  capture: SavedPlanCaptureRepository,
+  capture: SavedPlanCaptureStore,
   projectId: string,
   schedulePlan: (reads: PlanInputReads) => Schedule = schedulePlanInput,
 ): Promise<CapturedPlan | null> {

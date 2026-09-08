@@ -17,4 +17,18 @@
 export { type Clock, clockOf } from './ports/clock';
 export type { EventLogStore, RecordedEvent } from './ports/event-log-store';
 export type { Digest, PasswordHasher, SessionClaims, TokenCodec } from './ports/runtime';
+export type { PlanInputReads, SavedPlanCaptureStore } from './ports/saved-plan-capture-store';
+export type {
+  SavedPlanBodyWrite,
+  SavedPlanHoldingRow,
+  SavedPlanPrincipals,
+  SavedPlanRow,
+  SavedPlanScheduleWrite,
+  SavedPlanStore,
+  SavedPlanTouchOutcome,
+  SavedPlanWrite,
+  SavedPlanWriteOutcome,
+  StoredSavedPlan,
+} from './ports/saved-plan-store';
 export type { WriteStamp } from './ports/write-stamp';
+export { bodyByteLength } from './service/saved-plan-integrity';

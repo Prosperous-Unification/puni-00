@@ -61,7 +61,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
       import them from `@wbs/core` now; `repository/index.ts` re-exports `WriteStamp` for the
       ninety that name it there, which is an adapter naming its application's type and the
       right direction either way.
-- [ ] 2.2b **Separate transaction-only methods from the ports (C1).** Create
+- [x] 2.2b **Separate transaction-only methods from the ports (C1).** Create
       `libs/core/src/ports/{event-log-store,saved-plan-store,saved-plan-capture-store}.ts`.
       Keep `recordEventIn`, `holdingOf` and `bodyOf` on the SQLite classes; retarget the
       optimizer's concrete `Pick` and the memory event-log fixture. Change

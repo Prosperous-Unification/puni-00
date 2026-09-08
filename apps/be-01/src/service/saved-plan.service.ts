@@ -1,4 +1,16 @@
-import type { Digest } from '@wbs/core';
+import {
+  bodyByteLength,
+  type Digest,
+  type PlanInputReads,
+  type SavedPlanBodyWrite,
+  type SavedPlanCaptureStore,
+  type SavedPlanPrincipals,
+  type SavedPlanScheduleWrite,
+  type SavedPlanStore,
+  type SavedPlanTouchOutcome,
+  type SavedPlanWrite,
+  type StoredSavedPlan,
+} from '@wbs/core';
 import {
   canonicalisePlanInput,
   diffPlans,
@@ -12,17 +24,6 @@ import {
   serialiseCanonicalPlanInput,
 } from '@wbs/domain';
 
-import type {
-  SavedPlanBodyWrite,
-  SavedPlanPrincipals,
-  SavedPlanRepository,
-  SavedPlanScheduleWrite,
-  SavedPlanTouchOutcome,
-  SavedPlanWrite,
-  StoredSavedPlan,
-} from '../repository/saved-plan';
-import { bodyByteLength } from '../repository/saved-plan';
-import type { PlanInputReads, SavedPlanCaptureRepository } from '../repository/saved-plan-capture';
 import { defaultSavedPlanName } from './saved-plan-default-name';
 import { planInputRowsOf } from './saved-plan-input';
 import type { SavedPlanIntegrityRefusal } from './saved-plan-integrity';
@@ -292,8 +293,8 @@ export interface SavedPlanServiceOptions {
    * saying which runtime it is (D10).
    */
   readonly digest: Digest;
-  readonly capture: SavedPlanCaptureRepository;
-  readonly plans: SavedPlanRepository;
+  readonly capture: SavedPlanCaptureStore;
+  readonly plans: SavedPlanStore;
   /** The saved plan's id. Injected so a test can name the row it then reads. */
   readonly newId: () => string;
   /** Epoch seconds. Injected for the same reason `createdAt` exists at all. */
@@ -356,7 +357,7 @@ async function bodyWrite(
  * first, because they depend on nothing in the database. Then `BEGIN
  * IMMEDIATE`, and only inside it the count and total — read outside, two saves
  * at 99 of 100 both pass and both commit while "refused before any row is
- * written" stays technically true. {@link SavedPlanRepository.write} takes that
+ * written" stays technically true. {@link SavedPlanStore.write} takes that
  * second check as a parameter for exactly this reason, so this class hands it
  * over rather than running it first.
  */
