@@ -5,6 +5,7 @@ import { bunPasswordHasher, joseTokenCodec } from '../../runtime/bun-runtime';
 import { AuthService } from '../../service/auth.service';
 import { LoginThrottle } from '../../service/login-throttle';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../../testing/auth-fixture';
+import { testClock } from '../../testing/clock-fixture';
 import type { IdentityResolver } from '../endpoint';
 import { mountEndpoints } from './mount';
 
@@ -187,6 +188,7 @@ test('mounted OIDC password login emits an empty token and one hardened access c
     { at: 1, by: 'password-user' },
   );
   const auth = new AuthService({
+    clock: testClock,
     users,
     tokens: joseTokenCodec(TEST_JWT_KEY),
     passwords: { ...bunPasswordHasher, verify: () => Promise.resolve(true) },
@@ -256,6 +258,7 @@ test('mounted login retains urlencoded credential admission', async () => {
     { at: 1, by: 'form-user' },
   );
   const auth = new AuthService({
+    clock: testClock,
     users,
     tokens: joseTokenCodec(TEST_JWT_KEY),
     passwords: { ...bunPasswordHasher, verify: () => Promise.resolve(true) },
@@ -284,6 +287,7 @@ function heldLogins(maxConcurrent = 8) {
   users.findByUsername = (username) =>
     Promise.resolve({ id: username, username, passwordHash: 'stored-hash', createdAt: 1 });
   const auth = new AuthService({
+    clock: testClock,
     users,
     tokens: joseTokenCodec(TEST_JWT_KEY),
     passwords: {

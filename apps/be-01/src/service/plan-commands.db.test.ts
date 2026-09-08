@@ -35,6 +35,7 @@ import { SubtreeRepository } from '../repository/work-item';
 import { WorkItemRepository } from '../repository/work-item';
 import { buildStores } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { testClock } from '../testing/clock-fixture';
 import type { Broadcaster } from './broadcast';
 import { CalendarMarkerService } from './calendar-marker.service';
 import { CapacityService } from './capacity.service';
@@ -116,6 +117,7 @@ beforeEach(async () => {
   );
 
   serviceOptions = {
+    clock: testClock,
     workItems: workItemStore,
     projects: projectStore,
     estimates: estimateStore,
@@ -146,26 +148,35 @@ beforeEach(async () => {
   const servicesWith = (selectedWorkItems: WorkItemService, selectedBroadcast: Broadcaster) => ({
     workItems: selectedWorkItems,
     directory: new DirectoryService({
+      clock: testClock,
       directory: directoryStore,
       broadcast: selectedBroadcast,
     }),
     capacity: new CapacityService({
+      clock: testClock,
       projects: projectStore,
       capacity: capacityStore,
       broadcast: selectedBroadcast,
     }),
     priorityBands: new PriorityBandService({
+      clock: testClock,
       projects: projectStore,
       bands: bandStore,
       broadcast: selectedBroadcast,
     }),
-    projects: new ProjectService({ projects: projectStore, broadcast: selectedBroadcast }),
+    projects: new ProjectService({
+      clock: testClock,
+      projects: projectStore,
+      broadcast: selectedBroadcast,
+    }),
     steps: new StepService({
+      clock: testClock,
       projects: projectStore,
       steps: new StepRepository(db, OPEN),
       broadcast: selectedBroadcast,
     }),
     calendarMarkers: new CalendarMarkerService({
+      clock: testClock,
       projects: projectStore,
       markers: new CalendarMarkerRepository(db, OPEN),
       broadcast: selectedBroadcast,
@@ -183,6 +194,7 @@ beforeEach(async () => {
   };
   runner = new PlanCommandRunner(runnerOptions);
   const created = await new ProjectService({
+    clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
   }).create('Rewire the shed', ownerId);
@@ -715,6 +727,7 @@ describe('the priority a create writes', () => {
     // failed on `Expected: 50 / Received: 200`. Watched 2026-08-29.
     const recut = applied(await run([{ kind: 'setPriorityBands', bands: RECUT }, add('w')]));
     const other = await new ProjectService({
+      clock: testClock,
       projects: projectStore,
       broadcast: recordingBroadcaster(),
     }).create('Tile it', ownerId);

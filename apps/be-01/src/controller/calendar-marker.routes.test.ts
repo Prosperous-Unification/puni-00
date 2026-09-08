@@ -5,6 +5,7 @@ import { EMPTY } from '../http/endpoint';
 import { CalendarMarkerService } from '../service/calendar-marker.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCalendarMarkers } from '../testing/calendar-marker-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { inMemoryProjects, projectRow } from '../testing/project-fixture';
 import { calendarMarkerRoutes } from './calendar-marker.routes';
 
@@ -25,7 +26,12 @@ async function fixture() {
   await projects.create(projectRow({ id: 'project' }), [], { at: 1, by: 'owner' });
   const store = inMemoryCalendarMarkers();
   const broadcast = recordingBroadcaster();
-  const service = new CalendarMarkerService({ projects, markers: store, broadcast });
+  const service = new CalendarMarkerService({
+    clock: testClock,
+    projects,
+    markers: store,
+    broadcast,
+  });
   return { projects, store, broadcast, endpoints: calendarMarkerRoutes(service) };
 }
 

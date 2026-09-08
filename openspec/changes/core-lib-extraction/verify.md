@@ -113,6 +113,22 @@ coverage case on `Expected to contain: "libs/contracts/solver/supervisor-protoco
 - Repairing through the discarded graph failed the in-window assertion on
   `Expected: true · Received: false`; the queued writer remained behind the repair turn.
 
+## Slice 2.2b.3 — runtime contracts and pure deadlines
+
+- `bun test` over the clock, push-deadline, retention-timer, saved-plan-retry and
+  logger suites: **38 pass / 0 fail**.
+- `bun run test:unit`: **897 pass / 1 intentional skip / 0 fail** in `be-01`, then
+  all seven library test targets green. The first restricted run failed only where three
+  tests needed ephemeral localhost sockets; the permitted rerun passed those cases.
+- `bunx tsc --build --force` for contracts, core, runtime-portable, observability and
+  `be-01`: clean.
+- ESLint and Prettier over every changed contracts, core, runtime-portable,
+  observability and `be-01` file: clean.
+- Removing the two expected errors from the real `WorkItemService` and `AuthService`
+  constructions failed `be-01:typecheck` twice on TS2741: required `clock` was missing.
+- The existing deadline proof cases still cover a timeout during fetch, a delayed timer
+  after fetch settles, and cleanup after completion.
+
 ## Gate
 
 | Command | When | Result |

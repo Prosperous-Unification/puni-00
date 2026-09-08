@@ -22,6 +22,7 @@ import { TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
@@ -96,6 +97,7 @@ describe('the saved-plan routes', () => {
     app = buildApp({
       appOrigin: 'http://localhost',
       auth: new AuthService({
+        clock: testClock,
         users: new UserRepository(connection.db, OPEN),
         tokens: joseTokenCodec(TEST_JWT_KEY),
         passwords: bunPasswordHasher,
@@ -105,7 +107,7 @@ describe('the saved-plan routes', () => {
       // production hands every service one announcer. A private recorder here
       // would compile and would quietly put this app's project events somewhere
       // nothing in the file can read.
-      projects: new ProjectService({ projects, broadcast }),
+      projects: new ProjectService({ clock: testClock, projects, broadcast }),
       savedPlans: savedPlanServiceOn(path),
       steps: testStepService(),
       workItems: testWorkItemService(),

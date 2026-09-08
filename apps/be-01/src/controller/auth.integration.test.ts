@@ -8,6 +8,7 @@ import { LoginThrottle } from '../service/login-throttle';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
@@ -124,6 +125,7 @@ describe('GET /api/auth/me', () => {
   it('returns the fixed development identity without a token in local mode', async () => {
     const users = inMemoryUsers();
     const local = new AuthService({
+      clock: testClock,
       users,
       identities: users,
       tokens: joseTokenCodec(TEST_JWT_KEY),
@@ -299,6 +301,7 @@ function heldLogins(maxConcurrentLogins?: number, now?: () => number) {
       createdAt: 1,
     });
   const auth = new AuthService({
+    clock: testClock,
     users,
     tokens: joseTokenCodec(TEST_JWT_KEY),
     passwords: {

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe } from 'bun:test';
 import { ProjectService } from '../service/project.service';
 import { buildStores } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { testClock } from '../testing/clock-fixture';
 import {
   unitOfWorkConformance,
   type UnitOfWorkFixture,
@@ -41,6 +42,7 @@ beforeEach(async () => {
   // Through the service, so the row this writes is the row production writes —
   // `NewProject` carries nine fields a literal here would have to keep in step.
   const created = await new ProjectService({
+    clock: testClock,
     projects: publicStores.projects,
     broadcast: recordingBroadcaster(),
   }).create('Rewire the shed', ownerId);

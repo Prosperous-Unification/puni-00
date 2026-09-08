@@ -9,6 +9,7 @@ import type {
 import type { Broadcaster } from '../service/broadcast';
 import { PriorityBandService } from '../service/priority-band.service';
 import { recordingBroadcaster } from './broadcast-fixture';
+import { testClock } from './clock-fixture';
 import { inMemoryProjects } from './project-fixture';
 
 /**
@@ -78,5 +79,5 @@ export function testPriorityBandService(
   bands: PriorityBandStore = inMemoryPriorityBands(),
   broadcast: Broadcaster = recordingBroadcaster(),
 ): PriorityBandService {
-  return new PriorityBandService({ projects, bands, broadcast });
+  return new PriorityBandService({ clock: testClock, projects, bands, broadcast });
 }

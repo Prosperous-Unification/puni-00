@@ -1,4 +1,4 @@
-import { type Clock, clockOf } from '@wbs/core';
+import type { Clock } from '@wbs/core';
 import { DEFAULT_ESTIMATE_RULE, isIsoDate, PertWeights } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
@@ -47,7 +47,7 @@ export type UpdateOutcome =
 export interface ProjectServiceOptions {
   projects: ProjectStore;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
-  clock?: Clock;
+  clock: Clock;
   /**
    * Where `project_settings_changed` goes (tasks.md 3b.3).
    *
@@ -105,7 +105,7 @@ export class ProjectService {
   private readonly optimizerAvailable: OptimizerAvailability;
 
   constructor(private readonly opts: ProjectServiceOptions) {
-    this.clock = opts.clock ?? clockOf();
+    this.clock = opts.clock;
     this.optimizerAvailable = opts.optimizerAvailable ?? (() => false);
   }
 

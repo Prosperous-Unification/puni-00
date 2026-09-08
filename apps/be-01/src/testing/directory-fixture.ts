@@ -14,6 +14,7 @@ import type {
 import type { Broadcaster } from '../service/broadcast';
 import { DirectoryService } from '../service/directory.service';
 import { recordingBroadcaster } from './broadcast-fixture';
+import { testClock } from './clock-fixture';
 
 /** The empty usage, both halves present — what this fixture can honestly say. */
 const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
@@ -412,7 +413,7 @@ export function testDirectoryService(
   directory: DirectoryStore = inMemoryDirectory(),
   broadcast: Broadcaster = recordingBroadcaster(),
 ) {
-  return new DirectoryService({ directory, broadcast });
+  return new DirectoryService({ clock: testClock, directory, broadcast });
 }
 
 /**

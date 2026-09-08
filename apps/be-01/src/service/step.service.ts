@@ -1,4 +1,4 @@
-import { type Clock, clockOf } from '@wbs/core';
+import type { Clock } from '@wbs/core';
 
 import type { ProjectStore, Step, StepStore, StepUsageRows } from '../repository';
 // Imported from the module that owns the rule rather than through the barrel:
@@ -22,7 +22,7 @@ export interface StepServiceOptions {
    */
   broadcast: Broadcaster;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
-  clock?: Clock;
+  clock: Clock;
 }
 
 /** Why a step could not be added or renamed. All four are states, not faults. */
@@ -125,7 +125,7 @@ export class StepService {
   private readonly clock: Clock;
 
   constructor(private readonly opts: StepServiceOptions) {
-    this.clock = opts.clock ?? clockOf();
+    this.clock = opts.clock;
   }
 
   async add(projectId: string, actorId: string, name: string): Promise<StepOutcome> {

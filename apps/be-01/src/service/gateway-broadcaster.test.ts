@@ -30,7 +30,7 @@ function bootstrap(mode: 'accepts' | 'refuses' = 'accepts') {
   const failures: string[] = [];
   const broadcaster = new GatewayBroadcaster({
     eventLog: log,
-    clock: clockOf({ now: () => 1_000 }),
+    clock: clockOf({ now: () => 1_000, newId: () => crypto.randomUUID() }),
     buffer,
     push: client,
     onPushFailed: (_err, subscription) => failures.push(subscription),

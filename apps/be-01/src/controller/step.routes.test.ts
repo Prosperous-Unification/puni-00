@@ -3,6 +3,7 @@ import { expect, spyOn, test } from 'bun:test';
 import { EMPTY } from '../http/endpoint';
 import { StepService } from '../service/step.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { inMemoryProjects, projectRow } from '../testing/project-fixture';
 import { inMemorySteps, stepRow } from '../testing/step-fixture';
 import { stepRoutes } from './step.routes';
@@ -23,7 +24,7 @@ async function fixture(restricted = false) {
     stepRow({ id: 'foreign', projectId: 'elsewhere', name: 'Foreign' }),
   ]);
   const broadcast = recordingBroadcaster();
-  const service = new StepService({ projects, steps: stored, broadcast });
+  const service = new StepService({ clock: testClock, projects, steps: stored, broadcast });
   return { projects, stored, broadcast, service, endpoints: stepRoutes(service) };
 }
 
@@ -105,6 +106,7 @@ test('typed name bindings preserve every modeled service refusal without a statu
 test('typed removal carries every usage field and only literal true confirms cascade', async () => {
   const { projects, stored, broadcast } = await fixture();
   const service = new StepService({
+    clock: testClock,
     projects,
     broadcast,
     steps: {

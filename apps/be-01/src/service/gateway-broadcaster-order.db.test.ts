@@ -9,6 +9,7 @@ import { openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { OPEN } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
+import { testClock } from '../testing/clock-fixture';
 import { GatewayBroadcaster } from './gateway-broadcaster';
 import { PushClient } from './push-client';
 import { ReplayBuffer } from './replay-buffer';
@@ -29,6 +30,7 @@ it('allows C to overtake recorded B while its push is held', async () => {
   });
   const delivered: { seq: number; message: { type: string } }[] = [];
   const broadcaster = new GatewayBroadcaster({
+    clock: testClock,
     eventLog,
     buffer: new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000 }),
     push: new PushClient({

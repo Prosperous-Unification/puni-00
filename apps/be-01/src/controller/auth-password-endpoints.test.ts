@@ -5,6 +5,7 @@ import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { AuthService } from '../service/auth.service';
 import { LoginThrottle } from '../service/login-throttle';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { authPasswordEndpoints } from './auth-password-endpoints';
 
 const request = (path: string, method = 'POST') => ({
@@ -125,6 +126,7 @@ test('direct login releases its reservation after an account-store failure', asy
 test('OIDC password success keeps the token in the hardened access cookie', async () => {
   const users = inMemoryUsers();
   const auth = new AuthService({
+    clock: testClock,
     users,
     identities: users,
     tokens: joseTokenCodec(TEST_JWT_KEY),

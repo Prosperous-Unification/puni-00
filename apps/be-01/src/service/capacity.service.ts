@@ -1,4 +1,4 @@
-import { type Clock, clockOf } from '@wbs/core';
+import type { Clock } from '@wbs/core';
 
 import type { CapacityStore, ProjectStore, TeamCapacity } from '../repository';
 import type { Broadcaster } from './broadcast';
@@ -9,7 +9,7 @@ export interface CapacityServiceOptions {
   capacity: CapacityStore;
   broadcast: Broadcaster;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
-  clock?: Clock;
+  clock: Clock;
 }
 
 /** Why a capacity write did not happen. */
@@ -31,7 +31,7 @@ export class CapacityService {
   private readonly clock: Clock;
 
   constructor(private readonly opts: CapacityServiceOptions) {
-    this.clock = opts.clock ?? clockOf();
+    this.clock = opts.clock;
   }
 
   listFor(projectId: string): Promise<TeamCapacity[]> {

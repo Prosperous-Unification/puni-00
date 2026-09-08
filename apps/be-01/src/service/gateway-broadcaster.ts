@@ -1,4 +1,4 @@
-import { type Clock, clockOf, type EventLogStore, type RecordedEvent } from '@wbs/core';
+import type { Clock, EventLogStore, RecordedEvent } from '@wbs/core';
 
 import { type Broadcaster, type ProjectEvent, subscriptionFor } from './broadcast';
 import type { PushClient } from './push-client';
@@ -16,7 +16,7 @@ export interface GatewayBroadcasterOptions {
    */
   eventLog: EventLogStore;
   /** The instant each event is recorded at — see {@link Clock}. */
-  clock?: Clock;
+  clock: Clock;
   push: PushClient;
   /**
    * The same buffer the replay orchestrator reads. Required: a broadcaster that
@@ -42,7 +42,7 @@ export class GatewayBroadcaster implements Broadcaster {
   private readonly clock: Clock;
 
   constructor(private readonly opts: GatewayBroadcasterOptions) {
-    this.clock = opts.clock ?? clockOf();
+    this.clock = opts.clock;
   }
 
   latestSeq(projectId: string): Promise<number> {

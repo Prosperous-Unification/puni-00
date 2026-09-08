@@ -16,6 +16,7 @@ import { AuthService } from './service/auth.service';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from './testing/auth-fixture';
 import { testCalendarMarkerService } from './testing/calendar-marker-fixture';
 import { testCapacityService } from './testing/capacity-fixture';
+import { testClock } from './testing/clock-fixture';
 import { testDirectoryService } from './testing/directory-fixture';
 import { testHistoryService } from './testing/history-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
@@ -275,6 +276,7 @@ async function reachabilityOptions(
   spyOn(savedPlans, 'rename').mockResolvedValue({ outcome: 'not_found' });
   spyOn(savedPlans, 'delete').mockResolvedValue({ outcome: 'not_found' });
   const auth = new AuthService({
+    clock: testClock,
     users,
     identities: users,
     tokens: joseTokenCodec(TEST_JWT_KEY),

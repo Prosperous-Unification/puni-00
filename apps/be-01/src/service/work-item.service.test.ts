@@ -11,6 +11,7 @@ import type {
   WriteStamp,
 } from '../repository';
 import { type RecordingBroadcaster } from '../testing/broadcast-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
@@ -51,7 +52,7 @@ beforeEach(async () => {
   // Kept whole: three cases below build a second service from these options with
   // one store swapped for a broken one, which is how they drive a failure the
   // real stores cannot produce.
-  serviceOptions = { ...harness.stores, broadcast };
+  serviceOptions = { clock: testClock, ...harness.stores, broadcast };
   service = harness.service;
   const project: Project = projectRow({
     id: crypto.randomUUID(),

@@ -12,6 +12,7 @@ import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
@@ -28,6 +29,7 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
   const capacity = testCapacityService();
   const priorityBands = testPriorityBandService();
   const projects = new ProjectService({
+    clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
     ...(optimized === undefined ? {} : { optimizerAvailable: () => true }),
@@ -37,7 +39,12 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
   const workItems =
     optimized === undefined
       ? plan.service
-      : new WorkItemService({ ...plan.stores, broadcast: plan.broadcast, optimized });
+      : new WorkItemService({
+          clock: testClock,
+          ...plan.stores,
+          broadcast: plan.broadcast,
+          optimized,
+        });
   // The batch writes through the **same** services the routes do: on the
   // in-memory fixtures there is one set of stores and no turn to hold, so the
   // two graphs the composition root keeps apart are one object here. Given a

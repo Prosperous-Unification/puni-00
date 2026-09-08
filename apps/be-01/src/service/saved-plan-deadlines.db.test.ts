@@ -24,6 +24,7 @@ import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { projectRow } from '../testing/project-fixture';
 import { captureAndSchedulePlan, schedulePlanInput } from './saved-plan-schedule';
 import { WorkItemService } from './work-item.service';
@@ -170,6 +171,7 @@ describe('a captured plan and its deadlines', () => {
     opened.push(live);
     const { db } = live;
     return new WorkItemService({
+      clock: testClock,
       workItems: new WorkItemRepository(db, OPEN),
       projects: new ProjectRepository(db, OPEN),
       estimates: new EstimateRepository(db, OPEN),

@@ -3,6 +3,7 @@ import type { OidcIdentityOptions, TokenVerifier } from '@wbs/auth';
 import type { OidcIdentityStore, User, UserStore, WriteStamp } from '../repository';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { AuthService } from '../service/auth.service';
+import { testClock } from './clock-fixture';
 
 /**
  * A UserStore backed by a Map, for tests that need `buildApp` to be
@@ -91,6 +92,7 @@ export function testAuthService(
   oidc?: TestOidcAuthentication,
 ): AuthService {
   return new AuthService({
+    clock: testClock,
     users,
     identities: users,
     // The real adapters over the test key: a fake codec would make every token

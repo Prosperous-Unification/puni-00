@@ -31,6 +31,7 @@ import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
@@ -110,6 +111,7 @@ beforeEach(async () => {
   const announcements = broadcast;
 
   auth = new AuthService({
+    clock: testClock,
     users: new UserRepository(db, OPEN),
     tokens: joseTokenCodec(TEST_JWT_KEY),
     passwords: bunPasswordHasher,
@@ -118,7 +120,11 @@ beforeEach(async () => {
   // so there is nothing for a second graph to keep apart, and a batch given its
   // own would write into stores nothing here reads.
   const writing = {
-    directory: new DirectoryService({ directory, broadcast: recordingBroadcaster() }),
+    directory: new DirectoryService({
+      clock: testClock,
+      directory,
+      broadcast: recordingBroadcaster(),
+    }),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
     calendarMarkers: testCalendarMarkerService(),
@@ -127,11 +133,17 @@ beforeEach(async () => {
     // landed in a log nothing reads. Harmless while no step route mutates
     // project settings — and exactly the shape in which a future assertion
     // reads an empty log and passes. See {@link writes}.
-    projects: new ProjectService({ projects, broadcast: announcements }),
+    projects: new ProjectService({ clock: testClock, projects, broadcast: announcements }),
     // The shared wrapper, as `services.ts` wires `StepService` — not a private
     // recorder. See {@link writes}.
-    steps: new StepService({ projects, steps: stepStore, broadcast: announcements }),
+    steps: new StepService({
+      clock: testClock,
+      projects,
+      steps: stepStore,
+      broadcast: announcements,
+    }),
     workItems: new WorkItemService({
+      clock: testClock,
       workItems,
       projects,
       estimates,

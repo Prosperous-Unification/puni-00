@@ -30,6 +30,7 @@ import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { directoryWith, personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
@@ -106,7 +107,12 @@ beforeEach(async () => {
   progressStore = new StepProgressRepository(db, OPEN);
   directory = new DirectoryRepository(db, OPEN);
   broadcast = recordingBroadcaster();
-  steps = new StepService({ projects: projectStore, steps: stepStore, broadcast });
+  steps = new StepService({
+    clock: testClock,
+    projects: projectStore,
+    steps: stepStore,
+    broadcast,
+  });
 
   const users = new UserRepository(db, OPEN);
   ownerId = crypto.randomUUID();
@@ -121,6 +127,7 @@ beforeEach(async () => {
   );
 
   const created = await new ProjectService({
+    clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
   }).create('Shed', ownerId);
@@ -212,6 +219,7 @@ describe('StepService.rename', () => {
 
   it('refuses a step that belongs to another project', async () => {
     const other = await new ProjectService({
+      clock: testClock,
       projects: projectStore,
       broadcast: recordingBroadcaster(),
     }).create('Roof', ownerId);
@@ -404,6 +412,7 @@ describe('StepService.remove', () => {
     // still refuse: it was never consent to take anything, and what it would
     // take is a trio nobody has been shown.
     const service = new StepService({
+      clock: testClock,
       projects: projectStore,
       steps: storeWith({
         async usageOf(watchedProject, watchedStep) {
@@ -431,6 +440,7 @@ describe('StepService.remove', () => {
     // move for a write nobody made.
     let winnerRevision: number | undefined;
     const service = new StepService({
+      clock: testClock,
       projects: projectStore,
       steps: storeWith({
         async findById(watched) {
@@ -493,6 +503,7 @@ describe('a step removed between the check and the write', () => {
       },
     });
     return new WorkItemService({
+      clock: testClock,
       workItems: new WorkItemRepository(db, OPEN),
       projects: projectStore,
       estimates: vanishing,
@@ -535,6 +546,7 @@ describe('a step removed between the check and the write', () => {
     // reads the person inside its own transaction — but the thing being
     // asserted is unchanged: `writeNamingStep` must not claim the step.
     const workItems = new WorkItemService({
+      clock: testClock,
       workItems: new WorkItemRepository(db, OPEN),
       projects: projectStore,
       estimates,
@@ -579,6 +591,7 @@ describe('step events', () => {
     // only moment that can tell the two orders apart.
     const watching = watchingBroadcaster();
     const service = new StepService({
+      clock: testClock,
       projects: projectStore,
       steps: stepStore,
       broadcast: watching,
@@ -595,9 +608,11 @@ describe('step events', () => {
     const eventLog = new DrizzleEventLogStore(db, OPEN);
     const buffer = new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000 });
     const durable = new StepService({
+      clock: testClock,
       projects: projectStore,
       steps: stepStore,
       broadcast: new GatewayBroadcaster({
+        clock: testClock,
         eventLog,
         buffer,
         // Nowhere to push, deliberately: the replay must come from what was

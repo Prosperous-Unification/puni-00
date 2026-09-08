@@ -19,6 +19,7 @@ import { ProjectService } from '../service/project.service';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { projectRow } from '../testing/project-fixture';
@@ -93,15 +94,25 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
     bands = new PriorityBandRepository(db, OPEN);
     broadcast = recordingBroadcaster();
     const auth = new AuthService({
+      clock: testClock,
       users: new UserRepository(db, OPEN),
       tokens: joseTokenCodec(TEST_JWT_KEY),
       passwords: bunPasswordHasher,
     });
     const writing = {
-      projects: new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() }),
+      projects: new ProjectService({
+        clock: testClock,
+        projects: projectStore,
+        broadcast: recordingBroadcaster(),
+      }),
       directory: testDirectoryService(),
       capacity: testCapacityService(),
-      priorityBands: new PriorityBandService({ projects: projectStore, bands, broadcast }),
+      priorityBands: new PriorityBandService({
+        clock: testClock,
+        projects: projectStore,
+        bands,
+        broadcast,
+      }),
       calendarMarkers: testCalendarMarkerService(),
       steps: testStepService(),
       workItems: testWorkItemService(),

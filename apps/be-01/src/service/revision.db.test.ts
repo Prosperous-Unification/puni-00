@@ -20,6 +20,7 @@ import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
@@ -102,13 +103,19 @@ beforeEach(async () => {
     wrote(),
   );
 
-  projects = new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() });
+  projects = new ProjectService({
+    clock: testClock,
+    projects: projectStore,
+    broadcast: recordingBroadcaster(),
+  });
   stepService = new StepService({
+    clock: testClock,
     projects: projectStore,
     steps: new StepRepository(db, OPEN),
     broadcast: recordingBroadcaster(),
   });
   workItems = new WorkItemService({
+    clock: testClock,
     workItems: workItemStore,
     projects: projectStore,
     estimates: estimateStore,

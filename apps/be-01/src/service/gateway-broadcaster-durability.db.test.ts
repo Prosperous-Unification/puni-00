@@ -10,6 +10,7 @@ import { drizzleOuterTransaction, openDrizzle } from '../repository/db';
 import { DrizzleEventLogStore } from '../repository/event-log';
 import { WriteCoordinator } from '../repository/gate';
 import { runMigrations } from '../repository/migrate';
+import { testClock } from '../testing/clock-fixture';
 import { subscriptionFor } from './broadcast';
 import { GatewayBroadcaster } from './gateway-broadcaster';
 import { PushClient } from './push-client';
@@ -68,6 +69,7 @@ describe('the durable record of a project event', () => {
       lock,
       buffer,
       broadcaster: new GatewayBroadcaster({
+        clock: testClock,
         eventLog,
         buffer,
         // A push that answers immediately, so what these two cases measure is
@@ -180,6 +182,7 @@ describe('the durable record of a project event', () => {
     const lock = new WriteCoordinator();
     const eventLog = new DrizzleEventLogStore(db, lock);
     const broadcaster = new GatewayBroadcaster({
+      clock: testClock,
       eventLog,
       buffer: new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000 }),
       push: {
@@ -232,6 +235,7 @@ describe('the durable record of a project event', () => {
         }),
     });
     const broadcaster = new GatewayBroadcaster({
+      clock: testClock,
       eventLog,
       buffer,
       push,

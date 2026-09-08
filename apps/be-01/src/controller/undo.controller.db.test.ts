@@ -28,6 +28,7 @@ import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
@@ -78,13 +79,15 @@ beforeEach(() => {
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
     calendarMarkers: testCalendarMarkerService(),
-    projects: new ProjectService({ projects, broadcast: recordingBroadcaster() }),
+    projects: new ProjectService({ clock: testClock, projects, broadcast: recordingBroadcaster() }),
     steps: new StepService({
+      clock: testClock,
       projects,
       steps: new StepRepository(db, OPEN),
       broadcast: recordingBroadcaster(),
     }),
     workItems: new WorkItemService({
+      clock: testClock,
       workItems,
       projects,
       estimates,
@@ -105,6 +108,7 @@ beforeEach(() => {
     savedPlans: testSavedPlanService(),
     history: testHistoryService(),
     auth: new AuthService({
+      clock: testClock,
       users: new UserRepository(db, OPEN),
       tokens: joseTokenCodec(TEST_JWT_KEY),
       passwords: bunPasswordHasher,

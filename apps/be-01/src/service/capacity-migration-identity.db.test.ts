@@ -21,6 +21,7 @@ import {
 } from '../testing/assumed-duration-oracle';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryDependencies } from '../testing/dependency-fixture';
 import { inMemoryDirectory } from '../testing/directory-fixture';
@@ -564,6 +565,7 @@ describe('every plan schedules identically across the migration', () => {
     const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
     const service = new WorkItemService({
+      clock: testClock,
       workItems,
       projects,
       estimates,

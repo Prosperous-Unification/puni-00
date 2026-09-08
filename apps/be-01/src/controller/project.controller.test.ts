@@ -13,6 +13,7 @@ import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../testing/auth-fi
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
@@ -44,6 +45,7 @@ function buildHarness(
   const users = inMemoryUsers();
   const auth = options.writeOnly
     ? new AuthService({
+        clock: testClock,
         users,
         identities: users,
         tokens: joseTokenCodec(TEST_JWT_KEY),
@@ -70,6 +72,7 @@ function buildHarness(
     // held to being one argument.
     optimizerAvailable: () => options.optimizerAvailable ?? true,
     clock: clockOf({
+      newId: () => crypto.randomUUID(),
       now: () => {
         tick += 1;
         return tick;

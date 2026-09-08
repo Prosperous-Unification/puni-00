@@ -8,6 +8,7 @@ import type {
 import type { Broadcaster } from '../service/broadcast';
 import { CapacityService } from '../service/capacity.service';
 import { recordingBroadcaster } from './broadcast-fixture';
+import { testClock } from './clock-fixture';
 import { inMemoryProjects } from './project-fixture';
 
 /**
@@ -92,5 +93,5 @@ export function testCapacityService(
   capacity: CapacityStore = inMemoryCapacity(),
   broadcast: Broadcaster = recordingBroadcaster(),
 ): CapacityService {
-  return new CapacityService({ projects, capacity, broadcast });
+  return new CapacityService({ clock: testClock, projects, capacity, broadcast });
 }

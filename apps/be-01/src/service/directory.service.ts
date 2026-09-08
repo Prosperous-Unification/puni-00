@@ -1,4 +1,4 @@
-import { type Clock, clockOf } from '@wbs/core';
+import type { Clock } from '@wbs/core';
 
 import type {
   DirectoryRemoved,
@@ -44,7 +44,7 @@ export interface DirectoryServiceOptions {
    */
   broadcast: Broadcaster;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
-  clock?: Clock;
+  clock: Clock;
 }
 
 /**
@@ -184,7 +184,7 @@ export class DirectoryService {
   private readonly clock: Clock;
 
   constructor(private readonly opts: DirectoryServiceOptions) {
-    this.clock = opts.clock ?? clockOf();
+    this.clock = opts.clock;
   }
 
   /**

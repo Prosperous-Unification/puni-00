@@ -31,6 +31,7 @@ import { WorkItemService } from '../service/work-item.service';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
@@ -136,9 +137,15 @@ describe('the schedule identity guarantee', () => {
     const projects = new ProjectRepository(db, OPEN);
 
     const writing = {
-      projects: new ProjectService({ projects, broadcast }),
-      steps: new StepService({ projects, steps: new StepRepository(db, OPEN), broadcast }),
+      projects: new ProjectService({ clock: testClock, projects, broadcast }),
+      steps: new StepService({
+        clock: testClock,
+        projects,
+        steps: new StepRepository(db, OPEN),
+        broadcast,
+      }),
       workItems: new WorkItemService({
+        clock: testClock,
         workItems: new WorkItemRepository(db, OPEN),
         projects,
         estimates: new EstimateRepository(db, OPEN),
@@ -163,13 +170,14 @@ describe('the schedule identity guarantee', () => {
       calendarMarkers: new CalendarMarkerService({
         projects,
         markers: new CalendarMarkerRepository(db, OPEN),
-        clock: clockOf(),
+        clock: clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() }),
       }),
     };
     app = buildApp({
       ...writing,
       appOrigin: 'http://localhost',
       auth: new AuthService({
+        clock: testClock,
         users: new UserRepository(db, OPEN),
         tokens: joseTokenCodec(TEST_JWT_KEY),
         passwords: bunPasswordHasher,

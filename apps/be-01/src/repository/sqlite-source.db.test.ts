@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { ProjectService } from '../service/project.service';
 import { buildStores } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { sourceConformance, type SourceUnderTest } from '../testing/kits/source-conformance';
 import { openConnection } from './db';
 import { OPEN } from './gate';
@@ -46,6 +47,7 @@ beforeEach(async () => {
     stamp,
   );
   const created = await new ProjectService({
+    clock: testClock,
     projects: stores.projects,
     broadcast: recordingBroadcaster(),
   }).create('Rewire the shed', ownerId);

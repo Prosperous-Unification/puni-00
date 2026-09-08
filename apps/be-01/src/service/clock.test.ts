@@ -82,6 +82,7 @@ describe('one clock', () => {
     // clock is exactly the drift the type exists to stop.
     let reading = 0;
     const clock = clockOf({
+      newId: () => crypto.randomUUID(),
       now: () => {
         reading += 1;
         return reading;

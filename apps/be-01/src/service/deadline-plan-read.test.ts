@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { DirectoryStore, ProjectStore, WriteStamp } from '../repository';
+import { testClock } from '../testing/clock-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { projectRow, testProjectService } from '../testing/project-fixture';
 import type { OptimizedScheduleAsk, OptimizedScheduleRead } from './optimized-schedule-reader';
@@ -56,7 +57,7 @@ let stepId: string;
 beforeEach(async () => {
   const harness = inMemoryServices();
   ({ projects, directory } = harness.stores);
-  serviceOptions = { ...harness.stores, broadcast: harness.broadcast };
+  serviceOptions = { clock: testClock, ...harness.stores, broadcast: harness.broadcast };
   service = harness.service;
   stepId = crypto.randomUUID();
   const project = projectRow({

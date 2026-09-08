@@ -3,6 +3,7 @@ import { WorkItemService } from '../service/work-item.service';
 import { inMemoryActuals } from './actual-fixture';
 import { type RecordingBroadcaster, recordingBroadcaster } from './broadcast-fixture';
 import { inMemoryCapacity } from './capacity-fixture';
+import { testClock } from './clock-fixture';
 import { inMemoryCommandJournal } from './command-journal-fixture';
 import { inMemoryDependencies } from './dependency-fixture';
 import { inMemoryDirectory } from './directory-fixture';
@@ -118,7 +119,7 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
     subtrees,
   };
   return {
-    service: new WorkItemService({ ...stores, broadcast }),
+    service: new WorkItemService({ clock: testClock, ...stores, broadcast }),
     broadcast: broadcast as RecordingBroadcaster,
     stores,
   };

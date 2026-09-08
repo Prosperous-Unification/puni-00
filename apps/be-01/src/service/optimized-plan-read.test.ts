@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { ProjectPatch, ProjectStore, WorkItemStore, WriteStamp } from '../repository';
 import type { SolverObjectiveName } from '../repository/schema';
+import { testClock } from '../testing/clock-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { projectRow } from '../testing/project-fixture';
 import type { OptimizationVariantState, OptimizedScheduleAsk } from './optimized-schedule-reader';
@@ -40,7 +41,7 @@ let stepId: string;
 beforeEach(async () => {
   const harness = inMemoryServices();
   ({ projects, workItems } = harness.stores);
-  serviceOptions = { ...harness.stores, broadcast: harness.broadcast };
+  serviceOptions = { clock: testClock, ...harness.stores, broadcast: harness.broadcast };
   const project = projectRow({ id: crypto.randomUUID(), ownerId: OWNER });
   stepId = crypto.randomUUID();
   await projects.create(
@@ -286,10 +287,9 @@ describe('the plan read and the optimized cache', () => {
       pri: movedTo(asked.input, 3),
       time: movedTo(asked.input, 6),
     });
-    const tree = await new WorkItemService({
-      ...serviceOptions,
-      optimized: served.read,
-    }).tree(projectId);
+    const tree = await new WorkItemService({ ...serviceOptions, optimized: served.read }).tree(
+      projectId,
+    );
     if (tree === null) throw new Error('project vanished');
     // Fast is still what the rows carry: the toggle permits the solver work and
     // the engine alone decides what is displayed.
@@ -320,10 +320,9 @@ describe('the plan read and the optimized cache', () => {
       { pri: movedTo(asked.input, 3), time: null },
       { time: { state: 'pending' } },
     );
-    const tree = await new WorkItemService({
-      ...serviceOptions,
-      optimized: served.read,
-    }).tree(projectId);
+    const tree = await new WorkItemService({ ...serviceOptions, optimized: served.read }).tree(
+      projectId,
+    );
     if (tree === null) throw new Error('project vanished');
     // Absent rather than zero: a zero finish is a legal answer about a plan of
     // nothing, and a reader cannot tell the two apart.
@@ -341,10 +340,9 @@ describe('the plan read and the optimized cache', () => {
       { pri: null, time: null },
       { pri: { state: 'ready' }, time: { state: 'ready' } },
     );
-    const tree = await new WorkItemService({
-      ...serviceOptions,
-      optimized: served.read,
-    }).tree(projectId);
+    const tree = await new WorkItemService({ ...serviceOptions, optimized: served.read }).tree(
+      projectId,
+    );
     if (tree === null) throw new Error('project vanished');
     expect(tree.optimization?.variants).toEqual({
       pri: { state: 'ready' },

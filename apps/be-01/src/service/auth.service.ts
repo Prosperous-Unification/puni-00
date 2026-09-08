@@ -6,7 +6,7 @@ import {
   type WbsScope,
 } from '@wbs/auth';
 import type { PasswordHasher, TokenCodec } from '@wbs/core';
-import { type Clock, clockOf } from '@wbs/core';
+import type { Clock } from '@wbs/core';
 import { errors } from 'jose';
 
 import type { OidcIdentityStore, User, UserStore } from '../repository';
@@ -56,7 +56,7 @@ export interface AuthServiceOptions {
    */
   passwords: PasswordHasher;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
-  clock?: Clock;
+  clock: Clock;
 }
 
 export interface AuthenticatedUser {
@@ -84,7 +84,7 @@ export class AuthService {
   private readonly clock: Clock;
 
   constructor(private readonly opts: AuthServiceOptions) {
-    this.clock = opts.clock ?? clockOf();
+    this.clock = opts.clock;
   }
 
   async register(username: string, password: string): Promise<RegisterOutcome> {

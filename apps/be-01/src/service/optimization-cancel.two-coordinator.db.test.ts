@@ -177,7 +177,7 @@ describe('cross-coordinator cancellation', () => {
       projects: new ProjectRepository(green, OPEN),
       broadcast,
       optimizerAvailable: () => true,
-      clock: clockOf({ now: () => 50 }),
+      clock: clockOf({ now: () => 50, newId: () => crypto.randomUUID() }),
     });
     expect(await service.update('p-1', 'u-1', { optimizationEnabled: false })).toMatchObject({
       ok: true,

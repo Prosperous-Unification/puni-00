@@ -1,4 +1,4 @@
-import { type Clock, clockOf } from '@wbs/core';
+import type { Clock } from '@wbs/core';
 import {
   addWorkdays,
   deadlineOffsetOf,
@@ -958,7 +958,7 @@ export interface WorkItemServiceOptions {
    */
   optimized?: OptimizedScheduleReader;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
-  clock?: Clock;
+  clock: Clock;
 }
 
 /** Why an undo or a redo did not happen. */
@@ -1397,7 +1397,7 @@ export class WorkItemService {
   private collector: BatchCollector | null = null;
 
   constructor(private readonly opts: WorkItemServiceOptions) {
-    this.clock = opts.clock ?? clockOf();
+    this.clock = opts.clock;
   }
 
   /**

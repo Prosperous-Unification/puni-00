@@ -283,7 +283,7 @@ export function buildServices(opts: ServicesOptions): BeServices {
   // broadcaster: the seven services each built their own `stampFor` out of
   // their own `now`, so "an act reads the clock once" (ADR 0012) was seven
   // separate promises about seven separate objects.
-  const clock = clockOf();
+  const clock = clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() });
   // The process's own stores: every write through them waits for its turn at
   // the coordinator, which is what keeps a route write out of an open batch's
   // transaction. The batch's own stores are `admitted` below.

@@ -22,6 +22,7 @@ import { ProjectService } from '../service/project.service';
 import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
@@ -153,6 +154,7 @@ describe('the calendar-marker routes', () => {
     const projects = new ProjectRepository(db, OPEN);
 
     auth = new AuthService({
+      clock: testClock,
       users: new UserRepository(db, OPEN),
       tokens: joseTokenCodec(TEST_JWT_KEY),
       passwords: bunPasswordHasher,
@@ -160,7 +162,7 @@ describe('the calendar-marker routes', () => {
     app = buildApp({
       appOrigin: 'http://localhost',
       auth,
-      projects: new ProjectService({ projects, broadcast }),
+      projects: new ProjectService({ clock: testClock, projects, broadcast }),
       // A clock held still, because `createdAt` is an ordering key here rather
       // than a stamp: every marker this file creates ties on `(date,
       // createdAt)`, which is the only state in which the third key decides

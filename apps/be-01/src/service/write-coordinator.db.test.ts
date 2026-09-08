@@ -26,6 +26,7 @@ import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { buildStores } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
+import { testClock } from '../testing/clock-fixture';
 import type { Broadcaster } from './broadcast';
 import { CalendarMarkerService } from './calendar-marker.service';
 import { CapacityService } from './capacity.service';
@@ -148,28 +149,41 @@ beforeEach(async () => {
   // turn for them. The suspending work-item store above is one of these.
   const admitted = { ...buildStores(db, OPEN), workItems: suspendingWorkItems };
   const servicesWith = (selectedBroadcast: Broadcaster) => ({
-    workItems: new WorkItemService({ ...serviceOptions, broadcast: selectedBroadcast }),
+    workItems: new WorkItemService({
+      clock: testClock,
+      ...serviceOptions,
+      broadcast: selectedBroadcast,
+    }),
     directory: new DirectoryService({
+      clock: testClock,
       directory: directoryStore,
       broadcast: selectedBroadcast,
     }),
     capacity: new CapacityService({
+      clock: testClock,
       projects: projectStore,
       capacity: capacityStore,
       broadcast: selectedBroadcast,
     }),
     priorityBands: new PriorityBandService({
+      clock: testClock,
       projects: projectStore,
       bands: bandStore,
       broadcast: selectedBroadcast,
     }),
-    projects: new ProjectService({ projects: projectStore, broadcast: selectedBroadcast }),
+    projects: new ProjectService({
+      clock: testClock,
+      projects: projectStore,
+      broadcast: selectedBroadcast,
+    }),
     steps: new StepService({
+      clock: testClock,
       projects: projectStore,
       steps: stepStore,
       broadcast: selectedBroadcast,
     }),
     calendarMarkers: new CalendarMarkerService({
+      clock: testClock,
       projects: projectStore,
       markers: new CalendarMarkerRepository(db, OPEN),
       broadcast: selectedBroadcast,
@@ -183,9 +197,15 @@ beforeEach(async () => {
   });
   // The route's own service, built exactly as `buildServices` builds it: the
   // step store on the process connection, and no knowledge of the batch at all.
-  steps = new StepService({ projects: projectStore, steps: stepStore, broadcast });
+  steps = new StepService({
+    clock: testClock,
+    projects: projectStore,
+    steps: stepStore,
+    broadcast,
+  });
 
   const created = await new ProjectService({
+    clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
   }).create('Rewire the shed', ownerId);

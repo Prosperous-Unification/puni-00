@@ -1,4 +1,4 @@
-import { type Clock, clockOf } from '@wbs/core';
+import type { Clock } from '@wbs/core';
 import type { PriorityBand } from '@wbs/domain';
 
 import type { PriorityBandStore, ProjectStore } from '../repository';
@@ -10,7 +10,7 @@ export interface PriorityBandServiceOptions {
   bands: PriorityBandStore;
   broadcast: Broadcaster;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
-  clock?: Clock;
+  clock: Clock;
 }
 
 /** Why a ladder write did not happen. */
@@ -42,7 +42,7 @@ export class PriorityBandService {
   private readonly clock: Clock;
 
   constructor(private readonly opts: PriorityBandServiceOptions) {
-    this.clock = opts.clock ?? clockOf();
+    this.clock = opts.clock;
   }
 
   listFor(projectId: string): Promise<PriorityBand[]> {

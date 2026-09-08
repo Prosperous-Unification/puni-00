@@ -101,7 +101,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
       repair while a second writer waits. Preserve `announcement-ownership.db.test.ts`,
       `plan-commands.db.test.ts` and the whole current unit-of-work conformance suite.
 
-- [ ] 2.2b.3 **Extract runtime value types and pure deadline logic (C4).** Move
+- [x] 2.2b.3 **Extract runtime value types and pure deadline logic (C4).** Move
       `Logger`/no-op to contracts, `Timers` to `core/ports/timers.ts`, and the four pure
       deadline helpers to `core/runtime/deadline.ts`. Runtime-portable reexports those
       names and keeps only concrete timers/digest adapters. Make `clockOf` arguments and

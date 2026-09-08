@@ -1,4 +1,4 @@
-import { type Clock, clockOf } from '@wbs/core';
+import type { Clock } from '@wbs/core';
 import type { IsoDate } from '@wbs/domain';
 
 import type { CalendarMarker, CalendarMarkerStore, ProjectStore } from '../repository';
@@ -9,7 +9,7 @@ export interface CalendarMarkerServiceOptions {
   projects: ProjectStore;
   markers: CalendarMarkerStore;
   /** The instant every marker is dated from and the ids it mints — see {@link Clock}. */
-  clock?: Clock;
+  clock: Clock;
   /**
    * Where `calendar_markers_changed` goes. Optional, because the controller
    * suites that only assert an HTTP answer have no collaborator to announce to;
@@ -96,7 +96,7 @@ export class CalendarMarkerService {
   private readonly clock: Clock;
 
   constructor(private readonly opts: CalendarMarkerServiceOptions) {
-    this.clock = opts.clock ?? clockOf();
+    this.clock = opts.clock;
   }
 
   async list(projectId: string): Promise<CalendarMarkerListOutcome> {

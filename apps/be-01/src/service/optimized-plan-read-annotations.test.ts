@@ -12,6 +12,7 @@ import type {
   WorkItemStore,
   WriteStamp,
 } from '../repository';
+import { testClock } from '../testing/clock-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { projectRow } from '../testing/project-fixture';
 import type { OptimizedScheduleAsk } from './optimized-schedule-reader';
@@ -77,7 +78,7 @@ let laterStepId: string;
 beforeEach(async () => {
   const harness = inMemoryServices();
   ({ projects, workItems, estimates, capacity, directory } = harness.stores);
-  serviceOptions = { ...harness.stores, broadcast: harness.broadcast };
+  serviceOptions = { clock: testClock, ...harness.stores, broadcast: harness.broadcast };
   const project = projectRow({ id: crypto.randomUUID(), ownerId: OWNER });
   stepId = crypto.randomUUID();
   laterStepId = crypto.randomUUID();

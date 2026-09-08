@@ -45,7 +45,9 @@ export type {
 export * from './ports/step-store';
 export * from './ports/stores';
 export * from './ports/subtree-store';
+export type { Timers } from './ports/timers';
 export * from './ports/user-store';
 export * from './ports/work-item-store';
 export type { WriteStamp } from './ports/write-stamp';
+export { DeadlineExceeded, delay, untilAborted, withinDeadline } from './runtime/deadline';
 export { bodyByteLength } from './service/saved-plan-integrity';

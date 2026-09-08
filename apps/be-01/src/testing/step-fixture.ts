@@ -9,6 +9,7 @@ import type {
 import { STEP_POSITION_STEP } from '../repository';
 import { StepService } from '../service/step.service';
 import { recordingBroadcaster } from './broadcast-fixture';
+import { testClock } from './clock-fixture';
 import { inMemoryProjects } from './project-fixture';
 
 /**
@@ -138,5 +139,5 @@ export function testStepService(
   projects: ProjectStore = inMemoryProjects(),
   steps: StepStore = inMemorySteps(),
 ): StepService {
-  return new StepService({ projects, steps, broadcast: recordingBroadcaster() });
+  return new StepService({ clock: testClock, projects, steps, broadcast: recordingBroadcaster() });
 }

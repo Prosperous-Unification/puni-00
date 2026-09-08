@@ -22,6 +22,7 @@ import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
@@ -109,8 +110,13 @@ beforeEach(async () => {
     { at: 2, by: strangerId },
   );
 
-  projects = new ProjectService({ projects: projectStore, broadcast: recordingBroadcaster() });
+  projects = new ProjectService({
+    clock: testClock,
+    projects: projectStore,
+    broadcast: recordingBroadcaster(),
+  });
   workItems = new WorkItemService({
+    clock: testClock,
     workItems: workItemStore,
     projects: projectStore,
     estimates: estimateStore,
