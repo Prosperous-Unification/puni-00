@@ -257,3 +257,24 @@ but combined `/tmp` and `/dev/shm` occupancy was 8,444,461,056 of
 checkout reset was produced. The 04:17 UTC scheduled aged-`/tmp` reclaim is the
 first safe retry opportunity; the guard was not bypassed and no unattended
 cleanup was run.
+
+## Terminal review repair
+
+At `8b7a4452`, the h2puni watched-red pair failed three independent controls:
+same-identity retry refused an unrelated successor SHA, an overwritten complete
+binding propagated its first failed preflight instead of repairing, and runtime
+preflight omitted the service and socket checks. At exact pushed head
+`8c676bc90c4e28c10efcc8e412e3b48c222eebda`, the replacement controls and full
+remote gates are green: `tool-devsync` 91/91 tests (275 assertions),
+`tool-remote-scripts` 275 passing with one Docker-only skip, both projects'
+TypeScript and ESLint targets, changed-file Prettier, and OpenSpec 55/55.
+Dependency integrity was 78 declared, 0 bad before and after.
+
+The implementation reuses an identity-pinned image across unrelated successor
+commits while checkpointing the new source SHA before host mutation, repairs a
+stale completed binding once, and checks service, socket, and mapping before
+reset. Config publication through post-install readiness is held by the real
+production `flock`; its holder attribution is inherited from the canonical
+lock implementation. ADR 0018 and the dev runbook record the brief production
+solver interruption and exclusion contract. This closes accepted peer findings
+C1, C2, I1, I3, M1, and M6; live capacity proof I4 remains open.

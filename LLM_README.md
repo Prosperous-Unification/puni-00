@@ -1,6 +1,6 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-326 is on `change/task-326-dev-solver-binding`: automatic binding and missing-config bootstrap are implemented; next fix review findings C1/C2/I1/I3, then retry the live solver-changing poll and exact-head review.
+TASK-326 is on `change/task-326-dev-solver-binding`: review blockers C1/C2/I1/I3 are fixed and remotely green; next retry the capacity-gated live solver-changing poll, then exact-head review.
 
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),
