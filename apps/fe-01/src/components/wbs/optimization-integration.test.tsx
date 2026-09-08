@@ -158,8 +158,8 @@ describe('project optimization in the plan', () => {
   });
 
   /**
-   * 9.3, and the half `optimization-indicator.test.tsx` cannot reach: that
-   * suite renders the banner alone, so "Fast is still on screen and usable"
+   * 9.3, and the half `optimization-cue.test.tsx` cannot reach: that
+   * suite renders the cue alone, so "Fast is still on screen and usable"
    * is trivially true there — there is nothing else on screen to lose. The
    * claim is about the table, so it is asserted against the table.
    */

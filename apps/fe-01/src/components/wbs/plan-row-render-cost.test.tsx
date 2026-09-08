@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEV, fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 
+import type * as InlineMarkdownModule from './inline-markdown';
 import type * as PlanCellPropsModule from './plan-cell-props';
 import type * as PlanIndexesModule from './plan-indexes';
 import type * as PlanSpanModule from './plan-span';
@@ -15,12 +16,10 @@ const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
 
 /**
- * How many `<td>`/`<th>` renders the table has performed, counted through
- * {@link flexibleCellStyle} — every body cell and heading computes its flexible
- * width exactly once per render, so this divided by `(rows + 1) × columns` is
- * how many times the whole table rendered. That is the denominator this file
- * needs: "once per row" is a claim about a render, and a jsdom action costs
- * however many renders it costs.
+ * How many `<td>`/`<th>` render boundaries performed their layout work,
+ * counted through {@link flexibleCellStyle}. Heading styles are resolved only
+ * when layout changes; body cells have their own memo boundary, so this
+ * detects an unrelated body cell escaping it.
  */
 const cellStyleCalls = vi.hoisted(() => ({ count: 0 }));
 
@@ -29,6 +28,9 @@ const startSentenceCalls = vi.hoisted(() => ({ count: 0 }));
 
 /** How many times one row's two printed days were worked out. */
 const spanCalls = vi.hoisted(() => ({ count: 0 }));
+
+/** How many Name cell bodies reached their first-line renderer. */
+const nameCellRenders = vi.hoisted(() => ({ count: 0 }));
 
 /** How many times each index over the whole plan was rebuilt. */
 const indexBuilds = vi.hoisted(() => ({ rowsById: 0, assignedSteps: 0, byId: 0 }));
@@ -51,6 +53,17 @@ vi.mock('./plan-span', async (importOriginal) => {
     spanOfRow: (...args: Parameters<typeof real.spanOfRow>) => {
       spanCalls.count += 1;
       return real.spanOfRow(...args);
+    },
+  };
+});
+
+vi.mock('./inline-markdown', async (importOriginal) => {
+  const real = await importOriginal<typeof InlineMarkdownModule>();
+  return {
+    ...real,
+    renderName: (...args: Parameters<typeof real.renderName>) => {
+      nameCellRenders.count += 1;
+      return real.renderName(...args);
     },
   };
 });
@@ -90,6 +103,7 @@ beforeEach(() => {
   cellStyleCalls.count = 0;
   startSentenceCalls.count = 0;
   spanCalls.count = 0;
+  nameCellRenders.count = 0;
   indexBuilds.rowsById = 0;
   indexBuilds.assignedSteps = 0;
   indexBuilds.byId = 0;
@@ -105,7 +119,73 @@ const click = (name: string) => {
 };
 
 describe('what one row costs per render', () => {
-  itDom('works the Start sentence out once per row, however many readers ask', async () => {
+  itDom('a broad Find rerenders only the cells whose filter reading changed', async () => {
+    const api = fakeApi();
+    for (const name of ['Road', 'River', 'Rock']) {
+      await api.createWorkItem('p1', { parentId: null, afterId: null, name });
+    }
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 030');
+
+    cellStyleCalls.count = 0;
+    nameCellRenders.count = 0;
+    fireEvent.change(screen.getByLabelText('Find'), { target: { value: 'R' } });
+
+    expect(screen.getAllByRole('row')).toHaveLength(4);
+    expect(nameCellRenders.count).toBeGreaterThan(0);
+    expect(nameCellRenders.count).toBeLessThanOrEqual(6);
+    // React's deferred development pass can render the three Name cells twice.
+    // No other body cell may reach its style work.
+    expect(cellStyleCalls.count).toBeLessThanOrEqual(6);
+  });
+
+  itDom('keeps explicit unchanged cells behind their stable component boundary', async () => {
+    // Proof: replacing `memo(PlanCellContentView, ...)` with the view itself
+    // failed below on `expected 4 to be +0`: all four Name cells rendered for
+    // a toolbar state change that altered no row input. Watched 2026-09-08.
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    for (const number of ['010', '020', '030']) {
+      click('Add work item');
+      await screen.findByLabelText(`Name of ${number}`);
+    }
+
+    expect(nameCellRenders.count).toBeGreaterThan(0);
+    nameCellRenders.count = 0;
+    cellStyleCalls.count = 0;
+    click('Freeze #');
+
+    expect(cellStyleCalls.count).toBe(0);
+    expect(nameCellRenders.count).toBe(0);
+  });
+
+  itDom('opens one cell card without rendering any unrelated row', async () => {
+    // Proof: with `WbsTable` subscribed to `cellCards` again, opening this one
+    // card failed below on `expected 60 to be +0`. Watched 2026-09-08.
+    const api = fakeApi();
+    render(<WbsTable projectId="p1" api={api} />);
+    for (const number of ['010', '020', '030']) {
+      click('Add work item');
+      await screen.findByLabelText(`Name of ${number}`);
+    }
+
+    // The counter is wired before it is used as an absence assertion. A mock
+    // that never saw production would otherwise make zero true for free.
+    expect(cellStyleCalls.count).toBeGreaterThan(0);
+    const final = screen
+      .getByLabelText('Name of 010')
+      .closest('tr')
+      ?.querySelector('[data-final="step-dev"]');
+    if (!(final instanceof HTMLElement)) throw new Error('row 010 has no Dev final cell');
+
+    cellStyleCalls.count = 0;
+    fireEvent.mouseEnter(final);
+
+    expect(screen.getByRole('tooltip')).toBeInTheDocument();
+    expect(cellStyleCalls.count).toBe(0);
+  });
+
+  itDom('keeps each Start sentence while its span and chart floor stay unchanged', async () => {
     // Three readers ask for it: the `<td>`'s own props, the `cursor: help`
     // decided beside them, and the Start cell itself. Each call allocates a
     // `Date` inside `spanOf` and walks the floor map, so on a 1,000-row plan
@@ -130,21 +210,18 @@ describe('what one row costs per render', () => {
     cellStyleCalls.count = 0;
     startSentenceCalls.count = 0;
     spanCalls.count = 0;
-    // Any gesture that renders the table. How many renders it costs is not this
-    // case's business — it is read back below rather than assumed, which is why
-    // the assertion is a rate and not a pinned number.
+    // A toolbar-only gesture changes neither input to a Start sentence.
     click('Freeze #');
 
-    const renders = cellStyleCalls.count / ((rows + 1) * columns);
-    expect(Number.isInteger(renders)).toBe(true);
-    expect(renders).toBeGreaterThan(0);
-    expect(startSentenceCalls.count).toBe(renders * rows);
-    // And the span under it, which the Start cell, the Finish cell and that
-    // sentence each used to ask for separately.
+    expect(cellStyleCalls.count).toBe(0);
+    expect(startSentenceCalls.count).toBe(0);
+    // The row projection is unchanged, so its already explicit span and Start
+    // sentence are not rebuilt for this toolbar-only render.
     //
-    // Proof: `spanOfOnce`'s `spanByRow` lookup bypassed, this failed on
-    // `expected 9 to be 3`. Watched 2026-09-08.
-    expect(spanCalls.count).toBe(renders * rows);
+    // Proof: adding `freezeMenuOpen` to the row projection's inputs failed
+    // below on `expected 3 to be +0`: the menu rebuilt all three spans despite
+    // changing no row reading. Watched 2026-09-08.
+    expect(spanCalls.count).toBe(0);
   });
 
   itDom('rebuilds no index over the plan for a gesture that changes no row', async () => {
@@ -197,7 +274,7 @@ describe('what one row costs per render', () => {
     cellStyleCalls.count = 0;
     click('Freeze #');
 
-    expect(cellStyleCalls.count).toBeGreaterThan(0);
+    expect(cellStyleCalls.count).toBe(0);
     expect(indexBuilds.rowsById).toBe(0);
     expect(indexBuilds.assignedSteps).toBe(0);
     expect(indexBuilds.byId).toBe(0);

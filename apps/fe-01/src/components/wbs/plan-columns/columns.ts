@@ -31,7 +31,7 @@ export function createPlanColumns(
   return (
     [
       createDragColumn({ live }),
-      createNumberColumn({ live }),
+      createNumberColumn(),
       createRefsColumn({ live }),
       createNameColumn({ live }),
       createDependsColumn({ live }),
@@ -46,8 +46,8 @@ export function createPlanColumns(
       createNotBeforeColumn({ live }),
       createDeadlineColumn({ live }),
       createStartColumn({ live }),
-      createFinishColumn({ live }),
-      createFloatColumn({ live }),
+      createFinishColumn(),
+      createFloatColumn(),
       createActionsColumn({ live }),
     ]
       // **A hidden column is not in the table model at all.** Not merely

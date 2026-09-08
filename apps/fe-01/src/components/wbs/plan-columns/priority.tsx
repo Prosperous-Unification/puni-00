@@ -8,6 +8,7 @@ import { column } from './column';
 export function createPriorityColumn({ live }: { live: PlanLive }) {
   return column.display({
     id: 'priority',
+    meta: { isEditable: () => true },
     // `Prio`, not `Priority` and not `PRIORITY`: the column is 48px and the
     // header row is 10px all-caps, in which the full word wraps to two
     // lines and takes the whole header row with it. The sentence is on the
@@ -28,7 +29,7 @@ export function createPriorityColumn({ live }: { live: PlanLive }) {
         cellKey={cellKey(row.original.id, 'priority')}
         rowNumber={row.original.number}
         rowId={row.original.id}
-        bands={live.current.priorityBands}
+        bands={row.original.readings.priorityBands}
         priority={row.original.priority}
         commit={(typed) => live.current.setPriority(row.original.id, typed)}
         // A picked line is the same write a typed number is — one `patch`,
