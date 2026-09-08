@@ -97,3 +97,15 @@ Final review-fix checks: corrected persistent-refusal cases both passed (`r1-rev
 ## Independent rereview approval
 
 On2026-09-06 the parent reported independent rereview approval: both Important findings (persistent replay refusal loop and stale socket callbacks) are resolved. Task5.5's review/validation portion and6.4 are complete. Integration, current-branch adaptation of the new broadcaster test to R9 PushClient dependencies, full workspace gate and complete Chromium gate remain parent-owned and pending. The parent authorized committing the explicit owned R1 paths with hooks enabled; this worker has not claimed those integration gates passed.
+
+## Real-browser peer closeout
+
+2026-09-08, archive branch based on merged `main` at `5516d453`:
+
+- `CI=1 E2E_PORT_SHIFT=1900 ... playwright test ... live-caret.spec.ts`: 2 passed in 12.2s on an isolated stack at 5000/5100/6100. The existing two-browser rename case observed the bystander revision before preserving the focused editor's node, typed value, backward selection and caret. The new two-browser marker case observed the peer-created `Peer checkpoint` chip before preserving the same editor state.
+- Marker-scope fault: changed `resourcesFor('calendar_markers_changed')` from `['markers']` to `['tree']`. The new case failed at its installed-output window after 30s: `the peer marker never reached this session`, expected count 1, received 0. Source was restored; the complete two-case file then passed.
+- `bunx eslint apps/fe-01/e2e/live-caret.spec.ts`: passed.
+- `bunx nx typecheck fe-01 --skip-nx-cache`: passed, including the e2e project.
+- Prettier and `git diff --check`: passed.
+
+This completes task 5.2 with a real second browser, backend write, gateway event and browser-rendered marker. Tasks 5.4 and 5.5b remain open until this integrated branch's complete gates pass and the merged disposition is recorded.
