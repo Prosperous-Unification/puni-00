@@ -155,3 +155,19 @@ The focused pair passed 19/19 cases (59 assertions). The full h2puni
 and changed-file Prettier passed after replacing four unbound method references
 with explicit forwarding closures. No production host mutation ran in this
 slice.
+
+## Production runtime adapter
+
+At 2026-09-08T03:14:53Z, the runtime-adapter test failed on the missing module
+and then passed 1/1 case (13 assertions). It proves the protected registry
+value appears only in the publisher child's environment and in no argv. The
+explicit command ledger acquires the canonical heavy-work lock, publishes only
+be from the target clone, materializes while preserving blue and green, builds
+the supervisor bundle on h2puni, executes the existing installer, runs the
+installed bundle preflight, atomically checkpoints both phases, and resets the
+live checkout last.
+
+With the runtime files overlaid on `bf37b632`, the full `tool-devsync` suite
+passed 85/85 cases (255 assertions). The focused test and Nx lint and TypeScript
+targets passed after mechanical import/test lint fixes. The production adapter
+was not invoked against the live host in this slice.

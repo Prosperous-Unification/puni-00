@@ -1,0 +1,121 @@
+import { describe, expect, it } from 'bun:test';
+
+import { prepareTargetSolverBinding } from './solver-binding-host';
+import {
+  createTargetSolverBindingRuntime,
+  type SolverBindingRuntimeInvocation,
+} from './solver-binding-runtime';
+
+const SHA = 'a'.repeat(40);
+const IDENTITY = 'b'.repeat(64);
+const BLUE = `registry.example/wbs-be@sha256:${'c'.repeat(64)}`;
+const GREEN = `registry.example/wbs-be@sha256:${'d'.repeat(64)}`;
+const DEV = `registry.example/wbs-be@sha256:${'e'.repeat(64)}`;
+const ROOT = '/home/puni1/wbs-dev/bin/sync.target';
+const BUN = '/home/puni1/wbs-dev/bin/bun';
+const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
+
+const installed = bytes(
+  JSON.stringify({
+    socketPath: '/run/user/1000/wbs-solver/supervisor.sock',
+    maxSearchWorkers: 2,
+    maxMemoryLimitMb: 512,
+    pidsLimit: 128,
+    maxManagedContainers: 16,
+    devSourceSha: 'f'.repeat(40),
+    images: [
+      { callerName: 'be-01-blue', callerImage: BLUE, solverImage: BLUE },
+      { callerName: 'be-01-green', callerImage: GREEN, solverImage: GREEN },
+      { callerName: 'wbs-dev-src', callerImage: null, solverImage: GREEN },
+    ],
+  }),
+);
+
+describe('the production solver binding runtime', () => {
+  it('keeps the credential out of argv and drives the exact host transition', async () => {
+    const digest = `sha256:${'e'.repeat(64)}`;
+    const files = new Map<string, Uint8Array>([
+      ['/home/puni1/wbs/.env', bytes('REGISTRY_PASS=protected-value\n')],
+      ['/home/puni1/.config/wbs-solver/solver-supervisor.json', installed],
+      [
+        `${ROOT}/dist/tool-dagger/release.json`,
+        bytes(
+          JSON.stringify({
+            be: { sha: SHA, digest, ref: `registry.example/wbs-be:${SHA}`, image: DEV },
+          }),
+        ),
+      ],
+    ]);
+    const invocations: SolverBindingRuntimeInvocation[] = [];
+    const checkpoints: { path: string; contents: string }[] = [];
+    const runtime = createTargetSolverBindingRuntime(
+      { root: ROOT, bunPath: BUN, sourceSha: SHA, compatibilityIdentity: IDENTITY },
+      {
+        read: (path) => {
+          const contents = files.get(path);
+          if (contents === undefined) throw new Error(`fixture has no ${path}`);
+          return Promise.resolve(contents);
+        },
+        command: (invocation) => {
+          invocations.push(invocation);
+          return Promise.resolve({ exitCode: 0, stderr: '' });
+        },
+        writeAtomic: (path, contents) => {
+          checkpoints.push({ path, contents });
+          return Promise.resolve();
+        },
+      },
+    );
+
+    await prepareTargetSolverBinding(
+      { sourceSha: SHA, compatibilityIdentity: IDENTITY },
+      undefined,
+      runtime.dependencies,
+    );
+
+    expect(invocations.map(({ argv }) => argv[0])).toEqual([
+      `${ROOT}/bin/with-heavy-lock.sh`,
+      BUN,
+      BUN,
+      BUN,
+      '/usr/local/bin/bun',
+      'git',
+    ]);
+    expect(invocations[0]?.argv).toEqual([
+      `${ROOT}/bin/with-heavy-lock.sh`,
+      '--',
+      'env',
+      `WBS_SHA=${SHA}`,
+      BUN,
+      'run',
+      `${ROOT}/tools/tool-dagger/src/main.ts`,
+      'be',
+    ]);
+    expect(invocations[0]?.env).toEqual({ REGISTRY_PASS: 'protected-value' });
+    expect(invocations.flatMap(({ argv }) => argv)).not.toContain('protected-value');
+    expect(invocations[1]?.argv).toContain(`--blue-image=${BLUE}`);
+    expect(invocations[1]?.argv).toContain(`--green-image=${GREEN}`);
+    expect(invocations[1]?.argv).toContain(`--dev-solver-image=${DEV}`);
+    expect(invocations[2]?.argv).toEqual([BUN, 'x', 'nx', 'run', 'tool-remote-scripts:build']);
+    expect(invocations[3]?.argv).toContain('--execute');
+    expect(invocations[4]?.argv).toContain('--preflight=dev');
+    expect(invocations[5]?.argv).toEqual([
+      'git',
+      '-C',
+      '/home/puni1/wbs-dev/src',
+      'reset',
+      '--hard',
+      '--quiet',
+      SHA,
+    ]);
+    expect(checkpoints.map(({ path }) => path)).toEqual([runtime.statePath, runtime.statePath]);
+    const phases = checkpoints.map(({ contents }) => {
+      const checkpoint = JSON.parse(contents) as unknown;
+      if (typeof checkpoint !== 'object' || checkpoint === null || Array.isArray(checkpoint)) {
+        throw new Error('checkpoint fixture is not an object');
+      }
+      return (checkpoint as Record<string, unknown>)['phase'];
+    });
+    expect(phases).toEqual(['published', 'complete']);
+  });
+});
