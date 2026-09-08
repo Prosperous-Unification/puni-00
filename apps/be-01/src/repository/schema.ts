@@ -1,3 +1,9 @@
+import {
+  MEASURE_METRICS,
+  PERSON_KINDS,
+  SOLVER_FAILURE_REASONS,
+  SOLVER_OBJECTIVES,
+} from '@wbs/domain';
 import { sql } from 'drizzle-orm';
 import {
   type AnySQLiteColumn,
@@ -305,8 +311,7 @@ export type ProjectRow = typeof project.$inferSelect;
  * enumerates, and a value in one and not the other is a row the database
  * accepts and the read refuses, or the reverse.
  */
-export const SCHEDULE_ENGINES = ['fast', 'optimized'] as const;
-export type ScheduleEngine = (typeof SCHEDULE_ENGINES)[number];
+export { SCHEDULE_ENGINES, type ScheduleEngine } from '@wbs/domain';
 
 /**
  * When one account last opened one project, and nothing else.
@@ -899,9 +904,7 @@ export const stepProgress = sqliteTable(
  * rather than defaulting it — the cost of a discriminated table, paid on
  * purpose. `openspec/changes/token-tracking/design.md` D1.
  */
-export const MEASURE_METRICS = ['token_estimate', 'token_actual', 'hours_actual'] as const;
-
-export type MeasureMetric = (typeof MEASURE_METRICS)[number];
+export { MEASURE_METRICS, type MeasureMetric } from '@wbs/domain';
 
 /**
  * What one step's work on one work item cost, in a unit that is not days.
@@ -1639,9 +1642,7 @@ export type ProjectPriorityBandRow = typeof projectPriorityBand.$inferSelect;
  * third kind arrives it is a value added here and not a schema change.
  * `openspec/changes/token-tracking/design.md` D6.
  */
-export const PERSON_KINDS = ['person', 'agent'] as const;
-
-export type PersonKind = (typeof PERSON_KINDS)[number];
+export { PERSON_KINDS, type PersonKind } from '@wbs/domain';
 
 /**
  * Somebody who does work. Global, like the teams, and for the same reason.
@@ -1976,9 +1977,7 @@ export type PlanEventRow = typeof planEvent.$inferSelect;
  * `#/$defs/request.properties.objective` — the two independently solved runs,
  * and a key column of three of the four tables below.
  */
-export const SOLVER_OBJECTIVES = ['pri', 'time'] as const;
-
-export type SolverObjectiveName = (typeof SOLVER_OBJECTIVES)[number];
+export { SOLVER_OBJECTIVES, type SolverObjectiveName } from '@wbs/domain';
 
 /**
  * What a stored outcome row is: a schedule, a recorded failure, or a proof that
@@ -1998,17 +1997,7 @@ export type OptimizedScheduleStatus = (typeof OPTIMIZED_SCHEDULE_STATUSES)[numbe
  * The seven ways a solve can fail, and the whole of what `failure_reason` may
  * hold (tasks.md 3.8). Any non-null text was previously accepted.
  */
-export const SOLVER_FAILURE_REASONS = [
-  'timeout',
-  'invalid-output',
-  'no-solution',
-  'internal-error',
-  'oom',
-  'horizon-overflow',
-  'objective-overflow',
-] as const;
-
-export type SolverFailureReason = (typeof SOLVER_FAILURE_REASONS)[number];
+export { SOLVER_FAILURE_REASONS, type SolverFailureReason } from '@wbs/domain';
 
 /** Whether a generation still admits new work, or is draining towards deletion. */
 export const OPTIMIZATION_ADMISSION_STATES = ['open', 'draining'] as const;

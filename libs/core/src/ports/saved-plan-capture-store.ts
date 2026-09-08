@@ -3,6 +3,7 @@ import type {
   EstimateMethod,
   EstimateRounding,
   IsoDate,
+  MeasureMetric,
   PertWeights,
   PriorityBand,
 } from '@wbs/domain';
@@ -78,7 +79,7 @@ export interface CapturedProgress {
 export interface CapturedMeasure {
   readonly workItemId: string;
   readonly stepId: string;
-  readonly metric: string;
+  readonly metric: MeasureMetric;
   readonly value: number;
   readonly recordedAt: number;
 }

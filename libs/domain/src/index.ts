@@ -61,6 +61,7 @@ export * from './saved-plan';
 // and answer a question about a plan's shape — which is what everything else in
 // here is. It reads four of its neighbours and no repository.
 export * from './schedule';
+export * from './store-values';
 // The exact-input hash and the string it is taken over (tasks.md 1.1, 1.2) are
 // NOT here, and this comment is the enforcement note rather than a description.
 // `canonical-schedule-input.ts` imports `node:crypto`; this barrel is reachable

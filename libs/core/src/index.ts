@@ -30,5 +30,6 @@ export type {
   SavedPlanWriteOutcome,
   StoredSavedPlan,
 } from './ports/saved-plan-store';
+export * from './ports/stores';
 export type { WriteStamp } from './ports/write-stamp';
 export { bodyByteLength } from './service/saved-plan-integrity';
