@@ -241,3 +241,18 @@ already 66% (above the 65% pre-install ceiling); the previously proved
 task-private dependency tree was reused after validation. The post-gate sample
 was `/dev/shm` 59%, `/tmp` 69%, below the 85% hard alert. No live host mutation
 ran in this slice.
+
+## Live solver-affecting transition
+
+At 2026-09-08T04:09:46Z, before attempt 1, dev was still at
+`12302b8d63757c6ca47a0138b33540deeb7f7160`, the installed config and
+preparation checkpoint were absent, and the independent alarm reported 180
+consecutive failed poll ticks. The exact pushed target `08524d31` entered the
+new missing-config path and reached the immutable publisher, proving the live
+prod-container baseline decoded before any mutation. Publication then refused
+on its existing capacity guard: 9,697,058,816 bytes of memory were available,
+but combined `/tmp` and `/dev/shm` occupancy was 8,444,461,056 of
+16,361,123,840 bytes, above the 25% ceiling. No image, config, checkpoint, or
+checkout reset was produced. The 04:17 UTC scheduled aged-`/tmp` reclaim is the
+first safe retry opportunity; the guard was not bypassed and no unattended
+cleanup was run.
