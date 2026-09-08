@@ -89,7 +89,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
       Negative: `scope.stores.savedPlans` fails to compile through a valid scope fixture;
       deliberately drop a nullable saved-plan column and watch the adapter type test fail.
 
-- [ ] 2.2b.2 **Construct command services from the admitted scope (C2).** Change
+- [x] 2.2b.2 **Construct command services from the admitted scope (C2).** Change
       `PlanCommandRunnerOptions.batchServices` to `(scope, broadcast) => WritingServices`,
       add `publicServices`, and move construction inside both `execute` and `walk`.
       `afterRollback(scope)` discards through that surviving scope; postcommit tree and

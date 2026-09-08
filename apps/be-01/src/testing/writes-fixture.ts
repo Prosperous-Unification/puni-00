@@ -1,6 +1,6 @@
 import type { TransactionalStores } from '../repository';
 import type { Broadcaster } from '../service/broadcast';
-import type { UnitOfWork } from '../service/unit-of-work';
+import type { Scope, UnitOfWork } from '../service/unit-of-work';
 import type { WritingServices } from '../services';
 import { testCalendarMarkerService } from './calendar-marker-fixture';
 import { testCapacityService } from './capacity-fixture';
@@ -62,11 +62,10 @@ export function countingUnitOfWork(): UnitOfWork & {
 /**
  * What `buildApp` needs to run command batches, for a test on the fixtures.
  *
- * `batch` is the service graph the runner writes through. On real SQLite these
- * are built over admitted stores while the routes' are built over gated ones
- * (D20); on the in-memory fixtures there is one connectionless set of stores
- * and no turn to hold, so the same doubles serve both and the distinction is
- * the composition root's to make, not this fixture's to imitate.
+ * `batch` is the service graph the runner writes through. A real source builds
+ * it from each admitted scope (D20); these connectionless doubles have no store
+ * graph or turn, so they deliberately ignore the scope while retaining the
+ * production factory shape.
  */
 export function testWrites(
   broadcast: Broadcaster = silentBroadcaster(),
@@ -81,7 +80,7 @@ export function testWrites(
   },
 ): {
   uow: ReturnType<typeof countingUnitOfWork>;
-  batch: (broadcast: Broadcaster) => WritingServices;
+  batch: (scope: Scope, broadcast: Broadcaster) => WritingServices;
   announcements: Broadcaster;
 } {
   return {

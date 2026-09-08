@@ -97,6 +97,22 @@ coverage case on `Expected to contain: "libs/contracts/solver/supervisor-protoco
 - Dropping nullable `scheduleAbsentReason` from the explicit core row failed
   `be-01:typecheck` at the adapter-to-port boundary on TS2741.
 
+## Slice 2.2b.2 — command graphs from admitted scopes
+
+- `bun test` over `plan-command-scope.test.ts`, `announcement-ownership.db.test.ts`,
+  `plan-commands.db.test.ts` and `sqlite-unit-of-work.db.test.ts`: **33 pass / 0 fail**.
+- `bun test` over the write-coordinator, mounted work-item, route and app files:
+  **20 pass / 0 fail**. The framed-request case required the permitted localhost socket;
+  under the restricted sandbox Bun reported `EADDRINUSE` for `port: 0`.
+- `bunx tsc --build --force apps/be-01/tsconfig.json`: clean.
+- ESLint and Prettier over every changed application file: clean.
+- Building a batch from `publicServices` let `rolled back` survive a refusal and failed
+  on `Expected: [] · Received: ["rolled back"]`.
+- Reusing the first staged graph made the later batch disappear and failed on
+  `Expected: ["kept", "later"] · Received: ["kept"]`.
+- Repairing through the discarded graph failed the in-window assertion on
+  `Expected: true · Received: false`; the queued writer remained behind the repair turn.
+
 ## Gate
 
 | Command | When | Result |

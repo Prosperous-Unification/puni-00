@@ -34,7 +34,7 @@ import type { ProjectService } from './service/project.service';
 import type { ReplayOrchestrator } from './service/replay-orchestrator';
 import type { SavedPlanService } from './service/saved-plan.service';
 import type { StepService } from './service/step.service';
-import type { UnitOfWork } from './service/unit-of-work';
+import type { Scope, UnitOfWork } from './service/unit-of-work';
 import type { WorkItemService } from './service/work-item.service';
 import type { WritingServices } from './services';
 
@@ -139,14 +139,14 @@ export interface AppOptions {
      */
     uow: UnitOfWork;
     /**
-     * How a batch's services are built: over stores that hold no turn because
-     * the batch holds it for them (D20), and over the collector the runner
-     * hands in so the batch's announcements are its own (D24). These are
+     * How a batch's services are built: over the stores its unit-of-work scope
+     * admits (D20), and over the collector the runner hands in so the batch's
+     * announcements are its own (D24). These are
      * **not** the services beside them in these options: those take a turn per
      * write and publish straight through, which is what keeps a route write —
      * and a route event — out of an open batch.
      */
-    batch: (broadcast: Broadcaster) => WritingServices;
+    batch: (scope: Scope, broadcast: Broadcaster) => WritingServices;
     /**
      * Where a batch's collected announcements go once it has committed and let
      * go of its turn, and where every route publishes directly.
@@ -192,6 +192,15 @@ export function mountedEndpoints(
   });
   const commands = new PlanCommandRunner({
     batchServices: opts.writes.batch,
+    publicServices: {
+      projects: opts.projects,
+      workItems: opts.workItems,
+      steps: opts.steps,
+      directory: opts.directory,
+      capacity: opts.capacity,
+      priorityBands: opts.priorityBands,
+      calendarMarkers: opts.calendarMarkers,
+    },
     uow: opts.writes.uow,
     announcements: opts.writes.announcements,
   });

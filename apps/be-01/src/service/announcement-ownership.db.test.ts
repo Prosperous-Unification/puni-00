@@ -142,7 +142,9 @@ beforeEach(async () => {
   const batchStores = { ...admitted, workItems: suspendingWorkItems };
   runner = new PlanCommandRunner({
     // The graph the runner builds per batch, over the collector it hands in.
-    batchServices: (collector) => servicesOver(batchStores, { ...shared, broadcast: collector }),
+    batchServices: (_scope, collector) =>
+      servicesOver(batchStores, { ...shared, broadcast: collector }),
+    publicServices: servicesOver(stores, { ...shared, broadcast: announcements }),
     uow: sqliteUnitOfWork(db, coordinator, batchStores),
     announcements,
   });

@@ -1,4 +1,4 @@
-import { type Clock, clockOf } from '@wbs/core';
+import { type Clock, clockOf, type PlanTransactionalStores } from '@wbs/core';
 import { contractVersionOf } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
 import { systemTimers } from '@wbs/runtime-portable';
@@ -41,7 +41,7 @@ import { ReplayBuffer } from './service/replay-buffer';
 import { ReplayOrchestrator } from './service/replay-orchestrator';
 import { RetentionTimer } from './service/retention-timer';
 import { StepService } from './service/step.service';
-import type { UnitOfWork } from './service/unit-of-work';
+import type { Scope, UnitOfWork } from './service/unit-of-work';
 import { WorkItemService } from './service/work-item.service';
 
 /**
@@ -117,18 +117,19 @@ export interface BeServices extends WritingServices {
   gate: WriteCoordinator;
   /**
    * The source's unit of work: what `buildApp` gives `PlanCommandRunner` as
-   * `writes.uow`. One per process, over the same admitted stores {@link batch}
-   * is built from.
+   * `writes.uow`. One per process; each act hands {@link batch} the stores
+   * admitted for that act.
    */
   uow: UnitOfWork;
   auth: AuthService;
   /**
-   * How a batch's service graph is built: over stores that hold no turn because
-   * `UnitOfWork.run` holds it for them (D20), and over the collector its runner
-   * hands in (D24). `PlanCommandRunner` is its only caller; a route reaching
-   * for it would write inside somebody else's batch and announce into it.
+   * How a batch's service graph is built: over the act's {@link Scope}, whose
+   * stores need no second turn because `UnitOfWork.run` holds it (D20), and
+   * over the collector its runner hands in (D24). `PlanCommandRunner` is its
+   * only caller; a route reaching for it would write inside somebody else's
+   * batch and announce into it.
    */
-  batch: (broadcast: Broadcaster) => WritingServices;
+  batch: (scope: Scope, broadcast: Broadcaster) => WritingServices;
   history: HistoryService;
   replay: ReplayOrchestrator;
   retention: RetentionTimer;
@@ -202,13 +203,12 @@ export interface SharedRuntime {
 /**
  * The services that write through one set of stores.
  *
- * Called once for the process's own graph and once for the batch's, so that the
- * difference between them is exactly the two arguments: which gate their stores
- * hold, and where their announcements go. Everything shared — the clock, the
- * replay buffer, the throttle, the optimizer wiring — is built by
- * {@link buildServices} and passed in.
+ * Called once for the process's own graph and once per admitted batch scope.
+ * The two arguments say which stores this graph sees and where its
+ * announcements go. Everything shared — the clock, replay buffer, throttle and
+ * optimizer wiring — is built by {@link buildServices} and passed in.
  */
-export function servicesOver(stores: Stores, shared: SharedRuntime) {
+export function servicesOver(stores: PlanTransactionalStores, shared: SharedRuntime) {
   const { clock, broadcast } = shared;
   return {
     projects: new ProjectService({
@@ -397,12 +397,12 @@ export function buildServices(opts: ServicesOptions): BeServices {
     // the broadcaster that publishes straight out. A route's event leaves as
     // soon as its write has committed, whoever else is mid-batch.
     ...servicesOver(stores, { clock, broadcast: announcements, optimized: optimizer }),
-    // How the batch's graph is built: over the admitted stores, because its
+    // How the batch's graph is built: over this act's admitted scope, because
     // writes are already the batch's and nothing in it waits for the turn
     // `UnitOfWork` holds; and over whichever collector the runner hands in, so
     // one batch's announcements are never another's (D24).
-    batch: (broadcast: Broadcaster) =>
-      servicesOver(admitted, { clock, broadcast, optimized: optimizer }),
+    batch: (scope: Scope, broadcast: Broadcaster) =>
+      servicesOver(scope.stores, { clock, broadcast, optimized: optimizer }),
     // Built here because this is where the admitted stores are: the unit of
     // work hands its act the same objects the batch's services write through,
     // and a second set would be a scope nothing in the graph is holding.

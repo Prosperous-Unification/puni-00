@@ -16,7 +16,7 @@ import type {
 } from './directory.service';
 import type { DirectoryUsage } from './directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand, type PlanCommandKind } from './plan-command';
-import type { Decision, UnitOfWork } from './unit-of-work';
+import type { Decision, Scope, UnitOfWork } from './unit-of-work';
 import type { WorkItemRefusal } from './work-item.service';
 import type { Collected, UndoOutcome } from './work-item.service';
 
@@ -94,8 +94,8 @@ export type BatchOutcome =
 
 export interface PlanCommandRunnerOptions {
   /**
-   * The batch's own service graph, built **per batch** over the broadcaster
-   * this runner hands it (D24).
+   * The batch's own service graph, built **per batch** over the admitted scope
+   * and broadcaster this runner hands it (D20/D24).
    *
    * A factory rather than the services themselves, and that is the whole of who
    * owns an announcement: every batch gets its own {@link AnnouncementCollector},
@@ -103,11 +103,16 @@ export interface PlanCommandRunnerOptions {
    * route's graph is built over the direct broadcaster and is never this one, so
    * a committed route event cannot be dropped by somebody else's refusal.
    *
-   * The stores underneath are the same objects every time, over an already-open
-   * gate because this runner holds the turn for them (D20). What is rebuilt per
-   * batch is the thin service layer, which holds no state but its collector.
+   * The scope is the unit of work's for this act. A staged source hands out new
+   * stores on every run; retaining an earlier graph would write into discarded
+   * state.
    */
-  batchServices: (broadcast: Broadcaster) => WritingServices;
+  batchServices: (scope: Scope, broadcast: Broadcaster) => WritingServices;
+  /**
+   * The process graph used after the unit of work settles: reads and broadcasts
+   * here observe the committed source and take their own turn.
+   */
+  publicServices: WritingServices;
   /**
    * What the batch is one of. It takes the source's one turn for the whole act
    * and settles every write together (ADR 0015).
@@ -218,9 +223,13 @@ export class PlanCommandRunner {
     // This batch's own collector and its own graph over it. Two batches never
     // share either, and no route's graph is built over this one.
     const collector = new AnnouncementCollector(this.opts.announcements);
-    const graph = this.opts.batchServices(collector);
     type Applied = BatchOutcome | Collected<AppliedCommand[]>;
-    const done = await this.opts.uow.run<Applied>(async (): Promise<Decision<Applied>> => {
+    const done = await this.opts.uow.run<Applied>(async (scope): Promise<Decision<Applied>> => {
+      // Proof: building from publicServices let the refused write survive:
+      // expected [], received ["rolled back"] (2026-09-09).
+      // Proof: caching the first graph made the subsequent batch omit `later`:
+      // expected ["kept", "later"], received ["kept"] (2026-09-09).
+      const graph = this.opts.batchServices(scope, collector);
       // Proof: admitting one extra command returned404 instead of400 in the mounted cap-order case.
       const over = commands.at(MOST_COMMANDS_IN_A_BATCH);
       if (over !== undefined) {
@@ -264,12 +273,10 @@ export class PlanCommandRunner {
     await collector.send();
     if (projectId === null)
       return { ok: true, results: done.result, undoable: false, redoable: false };
-    // Through a graph over the **direct** broadcaster, because this runs after
-    // the collector has been drained: a tree announcement made through the
-    // batch's own collector would be collected by an object nothing will drain
-    // again, and the event would never leave. It is the same reason it happens
-    // out here at all — the push is a network call and the turn is long gone.
-    const afterCommit = this.opts.batchServices(this.opts.announcements);
+    // Through the public graph, because this runs after the collector has been
+    // drained and the unit of work has settled. A staged graph may now name
+    // discarded stores; its collector will never be drained again.
+    const afterCommit = this.opts.publicServices;
     if (done.dirty) await afterCommit.workItems.announceTreeNow(projectId);
     const state = await afterCommit.workItems.undoState(projectId, actorId);
     return { ok: true, results: done.result, ...state };
@@ -294,12 +301,12 @@ export class PlanCommandRunner {
     step: (graph: WritingServices) => Promise<UndoOutcome>,
   ): Promise<UndoOutcome> {
     const collector = new AnnouncementCollector(this.opts.announcements);
-    const graph = this.opts.batchServices(collector);
-    const { workItems } = graph;
     // The step's own broadcast is collected rather than sent, for the reason
     // `execute` gives: the push happens after the turn is let go.
     const walked = await this.opts.uow.run<Collected<UndoOutcome>>(
-      async (): Promise<Decision<Collected<UndoOutcome>>> => {
+      async (scope): Promise<Decision<Collected<UndoOutcome>>> => {
+        const graph = this.opts.batchServices(scope, collector);
+        const { workItems } = graph;
         const collected = await workItems.collect(() => step(graph));
         if (collected.result.ok) return { commit: true, value: collected };
         const entryId = collected.result.entryId;
@@ -311,19 +318,15 @@ export class PlanCommandRunner {
           // after `run` returns would be a second batch queueing behind this
           // one (D28).
           //
-          // Through `workItems` rather than through the scope it is handed, and
-          // the two are the same objects: this runner's services are the batch
-          // graph, built over the **admitted** stores the unit of work hands
-          // out. What the public journal would do instead is ask the
-          // coordinator for the turn this `run` is still holding, which is a
-          // deadlock — the kit's (k) watches that through `scope.stores`. When
-          // the batch's graph is built per scope with its own collector (D24),
-          // this becomes `servicesOver(scope.stores, …).workItems`.
           afterRollback:
             entryId === undefined
               ? undefined
-              : async () => {
-                  await workItems.discardEntry(entryId);
+              : async (repairScope) => {
+                  // Proof: discarding through the rolled-back graph left the
+                  // repair-start assertion false (2026-09-09).
+                  await this.opts
+                    .batchServices(repairScope, collector)
+                    .workItems.discardEntry(entryId);
                 },
         };
       },
@@ -332,7 +335,7 @@ export class PlanCommandRunner {
     // The direct broadcaster, for `execute`'s reason: the collector has been
     // drained and will not be again.
     if (walked.dirty) {
-      await this.opts.batchServices(this.opts.announcements).workItems.announceTreeNow(projectId);
+      await this.opts.publicServices.workItems.announceTreeNow(projectId);
     }
     return walked.result;
   }

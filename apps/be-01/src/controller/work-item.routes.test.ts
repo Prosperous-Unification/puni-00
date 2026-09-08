@@ -10,6 +10,7 @@ function fixture() {
   const writes = testWrites(undefined, batchServices(plan));
   const runner = new PlanCommandRunner({
     batchServices: writes.batch,
+    publicServices: batchServices(plan),
     uow: writes.uow,
     announcements: writes.announcements,
   });

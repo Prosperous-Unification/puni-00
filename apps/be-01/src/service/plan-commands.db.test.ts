@@ -143,34 +143,39 @@ beforeEach(async () => {
     },
   });
   batchBroadcast = broadcast;
+  const servicesWith = (selectedWorkItems: WorkItemService, selectedBroadcast: Broadcaster) => ({
+    workItems: selectedWorkItems,
+    directory: new DirectoryService({
+      directory: directoryStore,
+      broadcast: selectedBroadcast,
+    }),
+    capacity: new CapacityService({
+      projects: projectStore,
+      capacity: capacityStore,
+      broadcast: selectedBroadcast,
+    }),
+    priorityBands: new PriorityBandService({
+      projects: projectStore,
+      bands: bandStore,
+      broadcast: selectedBroadcast,
+    }),
+    projects: new ProjectService({ projects: projectStore, broadcast: selectedBroadcast }),
+    steps: new StepService({
+      projects: projectStore,
+      steps: new StepRepository(db, OPEN),
+      broadcast: selectedBroadcast,
+    }),
+    calendarMarkers: new CalendarMarkerService({
+      projects: projectStore,
+      markers: new CalendarMarkerRepository(db, OPEN),
+      broadcast: selectedBroadcast,
+    }),
+  });
   runnerOptions = {
     // The batch's graph, built over whichever collector the runner hands in —
     // which is what makes these services' announcements the batch's own.
-    batchServices: (collector) => ({
-      workItems: relayTo(collector),
-      directory: new DirectoryService({ directory: directoryStore, broadcast: collector }),
-      capacity: new CapacityService({
-        projects: projectStore,
-        capacity: capacityStore,
-        broadcast: collector,
-      }),
-      priorityBands: new PriorityBandService({
-        projects: projectStore,
-        bands: bandStore,
-        broadcast: collector,
-      }),
-      projects: new ProjectService({ projects: projectStore, broadcast: collector }),
-      steps: new StepService({
-        projects: projectStore,
-        steps: new StepRepository(db, OPEN),
-        broadcast: collector,
-      }),
-      calendarMarkers: new CalendarMarkerService({
-        projects: projectStore,
-        markers: new CalendarMarkerRepository(db, OPEN),
-        broadcast: collector,
-      }),
-    }),
+    batchServices: (_scope, collector) => servicesWith(relayTo(collector), collector),
+    publicServices: servicesWith(new WorkItemService({ ...serviceOptions, broadcast }), broadcast),
     // The real unit of work over this file's own connection: every case here
     // is about what a batch leaves behind, which is the transaction's answer.
     uow: sqliteUnitOfWork(db, new WriteCoordinator(), buildStores(db, OPEN)),
@@ -494,14 +499,14 @@ describe('a command batch', () => {
       publish: () => held,
       latestSeq: () => Promise.resolve(0),
     };
-    // The slow publisher replaces the batch graph's work-item service, so the
-    // held batch is the one driven through `slowRunner` by construction.
+    // The slow publisher replaces the public graph's work-item service, so the
+    // postcommit push driven through `slowRunner` is held by construction.
     const slowRunner = new PlanCommandRunner({
       ...runnerOptions,
-      batchServices: (collector) => ({
-        ...runnerOptions.batchServices(collector),
+      publicServices: {
+        ...runnerOptions.publicServices,
         workItems: new WorkItemService({ ...serviceOptions, broadcast: slow }),
-      }),
+      },
     });
     const fastRunner = new PlanCommandRunner(runnerOptions);
 
