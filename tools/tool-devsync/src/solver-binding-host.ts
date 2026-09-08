@@ -104,6 +104,7 @@ export interface TargetSolverBindingDependencies {
   install(binding: SolverBinding): Promise<void>;
   preflight(binding: SolverBinding): Promise<void>;
   checkpoint(state: SolverPreparationState): Promise<void>;
+  withHostMutationLock<T>(action: () => Promise<T>): Promise<T>;
   reset(sourceSha: string): Promise<void>;
 }
 
@@ -208,6 +209,7 @@ export async function prepareTargetSolverBinding(
       return decodePublishedSolverImage(await dependencies.publish(sourceSha, password), sourceSha);
     },
     checkpoint: (state) => dependencies.checkpoint(state),
+    withHostMutationLock: (action) => dependencies.withHostMutationLock(action),
     materialize: (binding) =>
       dependencies.materialize({
         ...prod,

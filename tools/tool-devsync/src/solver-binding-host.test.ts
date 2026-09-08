@@ -172,6 +172,11 @@ describe('the automatic solver binding host inputs', () => {
           events.push(`checkpoint:${state.phase}`);
           return Promise.resolve();
         },
+        withHostMutationLock: async (action) => {
+          events.push('prod-lock');
+          await action();
+          events.push('prod-unlock');
+        },
         reset: () => {
           events.push('reset');
           return Promise.resolve();
@@ -185,9 +190,11 @@ describe('the automatic solver binding host inputs', () => {
       'read-registry',
       'publish',
       'checkpoint:published',
+      'prod-lock',
       'materialize',
       'install',
       'preflight',
+      'prod-unlock',
       'checkpoint:complete',
       'reset',
     ]);

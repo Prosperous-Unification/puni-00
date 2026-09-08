@@ -4,14 +4,19 @@ import {
   SOLVER_SUPERVISOR_BUN,
   SOLVER_SUPERVISOR_BUNDLE,
   SOLVER_SUPERVISOR_CONFIG,
+  SOLVER_SUPERVISOR_SERVICE,
+  SOLVER_SUPERVISOR_SOCKET,
   writeAtomic,
 } from '@wbs/deploy-contract';
+
+import { withLock } from '../../tool-remote-scripts/src/lib/lock';
 
 import type { TargetSolverBindingDependencies } from './solver-binding-host';
 
 const LIVE_SOURCE_ROOT = '/home/puni1/wbs-dev/src';
 const HOST_STATE_ROOT = '/home/puni1/wbs-dev/state';
 const REGISTRY_ENV = '/home/puni1/wbs/.env';
+const PROD_DEPLOY_LOCK = '/home/puni1/wbs/state/deploy.lock';
 const HOST_INPUT_MAX_BYTES = 256 * 1024;
 const PROD_CONTAINER_INSPECT_FORMAT =
   '{"name":{{json .Name}},"running":{{json .State.Running}},"image":{{json .Config.Image}}}';
@@ -32,6 +37,7 @@ export interface SolverBindingRuntimeIo {
     invocation: SolverBindingRuntimeInvocation,
   ): Promise<{ exitCode: number; stdout: string; stderr: string }>;
   writeAtomic(path: string, contents: string): Promise<void>;
+  withLock<T>(path: string, action: () => Promise<T>): Promise<T>;
 }
 
 export interface SolverBindingRuntimeTarget {
@@ -88,6 +94,7 @@ const DEFAULT_IO: SolverBindingRuntimeIo = {
   command,
   query,
   writeAtomic: (path, contents) => writeAtomic(path, contents),
+  withLock,
 };
 
 async function requireCommand(
@@ -222,15 +229,25 @@ export function createTargetSolverBindingRuntime(
           '--execute',
         ]);
       },
-      preflight: (binding) =>
-        run('solver supervisor preflight', [
+      preflight: async (binding) => {
+        await run('solver supervisor service preflight', [
+          'systemctl',
+          '--user',
+          'is-active',
+          '--quiet',
+          SOLVER_SUPERVISOR_SERVICE,
+        ]);
+        await run('solver supervisor socket preflight', ['test', '-S', SOLVER_SUPERVISOR_SOCKET]);
+        await run('solver supervisor mapping preflight', [
           SOLVER_SUPERVISOR_BUN,
           SOLVER_SUPERVISOR_BUNDLE.remote,
           '--preflight=dev',
           `--config=${SOLVER_SUPERVISOR_CONFIG}`,
           `--solver-image=${binding.image}`,
-        ]),
+        ]);
+      },
       checkpoint: (state) => io.writeAtomic(statePath, `${JSON.stringify(state, null, 2)}\n`),
+      withHostMutationLock: (action) => io.withLock(PROD_DEPLOY_LOCK, action),
       reset: (sourceSha) =>
         run('dev checkout reset', [
           'git',

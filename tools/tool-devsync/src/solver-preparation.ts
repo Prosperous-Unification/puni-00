@@ -135,6 +135,7 @@ export interface SolverBindingPipelineDependencies {
 
 export interface SolverBindingResumeDependencies extends SolverBindingPipelineDependencies {
   checkpoint(state: SolverPreparationState): Promise<void>;
+  withHostMutationLock<T>(action: () => Promise<T>): Promise<T>;
 }
 
 export interface SolverBindingExclusionLease {
@@ -167,7 +168,18 @@ export async function prepareSolverBindingBeforeReset(
   await dependencies.reset(target.sourceSha);
 }
 
-/** Resumes only a target-matching immutable binding and checkpoints completed work last. */
+async function installSolverBinding(
+  binding: SolverBinding,
+  dependencies: SolverBindingResumeDependencies,
+): Promise<void> {
+  await dependencies.withHostMutationLock(async () => {
+    await dependencies.materialize(binding);
+    await dependencies.install(binding);
+    await dependencies.preflight(binding);
+  });
+}
+
+/** Resumes one compatibility identity's immutable image and checkpoints host activation last. */
 export async function resumeSolverBindingBeforeReset(
   target: SolverBindingTarget,
   stateBytes: Uint8Array | undefined,
@@ -188,26 +200,30 @@ export async function resumeSolverBindingBeforeReset(
     await dependencies.checkpoint(state);
   } else {
     state = decodeSolverPreparationState(stateBytes);
-    if (state.sourceSha !== target.sourceSha) {
-      throw new Error('solver preparation state source SHA does not match target');
-    }
     if (state.compatibilityIdentity !== target.compatibilityIdentity) {
       throw new Error('solver preparation state compatibility identity does not match target');
     }
   }
 
   const binding: SolverBinding = { ...target, image: state.image };
-  if (state.phase === 'published') {
-    await dependencies.materialize(binding);
-    await dependencies.install(binding);
-    await dependencies.preflight(binding);
+  const successorCommit = state.sourceSha !== target.sourceSha;
+  if (state.phase === 'published' || successorCommit) {
+    if (successorCommit) {
+      // The image belongs to the compatibility tree, not to an unrelated
+      // successor commit. Rebind before host mutation so interruption resumes.
+      await dependencies.checkpoint({ schemaVersion: 1, ...binding, phase: 'published' });
+    }
+    await installSolverBinding(binding, dependencies);
     // Proof: solver-preparation.test.ts interrupts install, observes only the
     // published checkpoint, then retries without another publish.
     await dependencies.checkpoint({ schemaVersion: 1, ...binding, phase: 'complete' });
   } else {
-    // A durable checkpoint proves the prior transition, not current host
-    // readiness. A service or socket can disappear between poll ticks.
-    await dependencies.preflight(binding);
+    try {
+      // A prior transition does not prove current shared config or readiness.
+      await dependencies.preflight(binding);
+    } catch {
+      await installSolverBinding(binding, dependencies);
+    }
   }
   await dependencies.reset(target.sourceSha);
 }
