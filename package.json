@@ -21,7 +21,8 @@
     "dev:setup": "bun run tools/dev/setup.ts",
     "e2e": "nx run fe-01:e2e",
     "e2e:beside-dev": "CI=1 E2E_PORT_SHIFT=500 nx run fe-01:e2e",
-    "heavy-lock:test": "bash bin/heavy-lock.test.sh"
+    "heavy-lock:test": "bash bin/heavy-lock.test.sh",
+    "gate-pinning:test": "bash bin/h2puni-gate.test.sh"
   },
   "dependencies": {
     "@ark/schema": "0.56.0",
