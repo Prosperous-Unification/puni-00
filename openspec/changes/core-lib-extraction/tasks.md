@@ -27,15 +27,26 @@ what proves them and nothing does.
 
 ## 2. `libs/core`: the ports, the services, the use cases
 
-- [ ] 2.1 The project: `project.json` with `ring:application` + `runtime:isomorphic`, its
+- [x] 2.1 The project: `project.json` with `ring:application` + `runtime:isomorphic`, its
       `tsconfig`s, and `typecheck` running `tsc --build --force` on the **source** project
       (R5 #16/#17 — a solution config compiles nothing). Watched failing on a deliberate
       `const deliberatelyWrong: number = 'not a number'`.
-- [ ] 2.2 `git mv` the ports and services: `repository/index.ts` becomes `core/ports/*`, one
-      file per port; `service/*.ts` that hold no adapter move whole; `service/unit-of-work.ts`
-      and `service/runtime-ports.ts` go with them. `Logger` and its no-op move from
-      `@wbs/observability` to `@wbs/contracts`, which is what lets core hold no adapter at all.
-      `bun run test:unit` green, same count.
+- [x] 2.2a **What has no adapter in its signature, moved first**: `WriteStamp`, `Clock` and
+      the three runtime ports (`PasswordHasher`, `TokenCodec`, `Digest`). Twenty be-01 files
+      import them from `@wbs/core` now; `repository/index.ts` re-exports `WriteStamp` for the
+      ninety that name it there, which is an adapter naming its application's type and the
+      right direction either way.
+- [ ] 2.2b **The store ports, and the two signatures that block them.**
+      `EventLogStore.recordEventIn(tx)` takes drizzle's transaction handle and
+      `SavedPlanStore.holdingOf(db)`/`bodyOf(db)` take a `Drizzle`; a port carrying either
+      cannot live in a ring that may not import drizzle. Neither is a move — each is a design
+      question with a caller that depends on the answer (the optimizer's atomic
+      result-plus-event write; the quota read inside the save's own transaction). Split the
+      adapter-only half off each before moving the rest of `repository/index.ts` to
+      `core/ports/*`, one file per port.
+- [ ] 2.2c `service/*.ts` that hold no adapter move whole, `unit-of-work.ts` with them.
+      `Logger` and its no-op move from `@wbs/observability` to `@wbs/contracts`, which is what
+      lets core hold no adapter at all. `bun run test:unit` green, same count.
 - [ ] 2.3 `no-restricted-imports` and `no-restricted-globals` in `libs/core/src` and
       `libs/domain/src`. Negatives 1, 2, 3 and 9 of §3.5, watched.
 - [ ] 2.4 The four use-case entrypoints — `runCommandBatch`, `savePlan`, `replay`,

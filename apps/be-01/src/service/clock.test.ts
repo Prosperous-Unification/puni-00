@@ -1,9 +1,8 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { clockOf } from '@wbs/core';
 import { describe, expect, it } from 'bun:test';
-
-import { clockOf } from './clock';
 
 /** Where the services live, relative to this file. */
 const FOLDER = import.meta.dir;

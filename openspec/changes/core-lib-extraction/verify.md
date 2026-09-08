@@ -42,6 +42,14 @@ The workspace lint is the verdict here rather than per-project runs: a rule that
 may import what is exactly the kind that passes project by project and fails as a set
 (2026-08-30's import-sort incident).
 
+## Slice 2a — `libs/core` exists, and holds what has no adapter in it
+
+| Command                                              | When       | Result                                                      |
+| ---------------------------------------------------- | ---------- | ----------------------------------------------------------- |
+| `bunx nx run-many -t lint typecheck --skip-nx-cache` | 2026-09-08 | **25 projects, clean** (24 before; `core` is the new one)   |
+| `bun test` in `apps/be-01`                           | 2026-09-08 | 2,035 pass / 2 skip / 0 fail, same count as before the move |
+| `bun run test:unit`                                  | 2026-09-08 | 7 tasks green                                               |
+
 ## Gate
 
 | Command | When | Result |
