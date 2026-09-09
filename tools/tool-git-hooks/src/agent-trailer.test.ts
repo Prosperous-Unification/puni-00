@@ -101,7 +101,11 @@ describe('agent trailer hook integration', () => {
     expect(git(['add', 'topic'], hookEnv).exitCode).toBe(0);
     expect(
       git(
-        ['commit', '-qm', 'topic mentions ------------------------ >8 ------------------------ inline'],
+        [
+          'commit',
+          '-qm',
+          'topic mentions ------------------------ >8 ------------------------ inline',
+        ],
         hookEnv,
       ).exitCode,
     ).toBe(0);
@@ -147,7 +151,9 @@ describe('agent trailer hook integration', () => {
       env: humanEnv,
       stderr: 'pipe',
       stdout: 'pipe',
-    }).stdout.toString().trim();
+    })
+      .stdout.toString()
+      .trim();
     expect(realGit).not.toBe('');
     const fakeBin = join(repository, 'fake-bin');
     mkdirSync(fakeBin);
