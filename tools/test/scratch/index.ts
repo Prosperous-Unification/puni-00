@@ -3,6 +3,8 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { afterAll } from 'bun:test';
+
 let processRoot: string | undefined;
 
 function removeProcessRoot(): void {
@@ -14,6 +16,10 @@ function removeProcessRoot(): void {
   }
   processRoot = undefined;
 }
+
+// Bun test workers do not run process exit hooks when the runner tears them
+// down, so clean at the test-runner boundary as well.
+afterAll(removeProcessRoot);
 
 /**
  * One lazily-created scratch root for this test process.
