@@ -26,6 +26,11 @@ async function seedDatedWorkItem(page: Page): Promise<void> {
   await projectStart.blur();
   await actions.getByRole('button', { name: 'Add work item' }).click();
   await expect(page.getByLabel('Name of 010')).toBeVisible();
+  await page.getByRole('button', { name: 'Plan actions' }).click();
+  await page.getByRole('dialog', { name: 'Plan actions' }).getByRole('button', {
+    name: 'Add work item',
+  }).click();
+  await expect(page.getByLabel('Name of 020')).toBeVisible();
 }
 
 /** A positive-area browser box or a failure naming the surface that vanished. */
@@ -41,9 +46,11 @@ async function renderedBox(
 }
 
 /** Opens the card's bottom editor and returns the dialog that owns Save and Clear. */
-async function openDeadlineEditor(page: Page): Promise<Locator> {
-  await page.getByRole('button', { name: 'Work item deadline for 010' }).click();
-  const editor = page.getByRole('dialog', { name: /Work item deadline for 010/ });
+async function openDeadlineEditor(page: Page, number = '010'): Promise<Locator> {
+  await page.getByRole('button', { name: `Work item deadline for ${number}` }).click();
+  const editor = page.getByRole('dialog', {
+    name: new RegExp(`Work item deadline for ${number}`),
+  });
   await expect(editor).toBeVisible();
   return editor;
 }
@@ -130,40 +137,51 @@ test.beforeEach(async ({ page }) => {
 test('the phone deadline sheet leaves its card visible and drives Save and Clear', async ({
   page,
 }) => {
-  // Radix makes the page accessibility-inert while the dialog is open, but it
-  // remains painted; this selector deliberately measures that painted trigger.
-  const trigger = page.locator('[data-card-deadline-field]');
-  const cardId = await trigger.evaluate((control) =>
+  const accessibleTrigger = page.getByRole('button', { name: 'Work item deadline for 020' });
+  const cardId = await accessibleTrigger.evaluate((control) =>
     control.closest('[data-card]')?.getAttribute('data-card'),
   );
   if (cardId === null || cardId === undefined)
     throw new Error('the deadline control has no work-item card');
   const card = page.locator(`[data-card="${cardId}"]`);
-  const editor = await openDeadlineEditor(page);
-  const cardBox = await renderedBox(card, 'the edited card');
-  const triggerBox = await renderedBox(trigger, 'the edited deadline control');
-  const editorBox = await renderedBox(editor, 'the deadline sheet');
+  // Keep the low card at the viewport edge and fire the button's real click
+  // without Playwright's own pre-click scrolling. The sheet guard, not the
+  // test driver, must make room for the field after the portal appears.
+  const trigger = card.locator('[data-card-deadline-field]');
+  await trigger.evaluate((control) => {
+    control.scrollIntoView({ block: 'end' });
+    if (!(control instanceof HTMLButtonElement)) throw new Error('deadline trigger is not a button');
+    control.click();
+  });
+  const editor = page.getByRole('dialog', { name: /Work item deadline for 020/ });
+  await expect(editor).toBeVisible();
   // Proof target: removing useTriggerAboveSheet leaves the card under the fixed
   // bottom sheet; this geometry compares the two painted surfaces, not markup.
-  expect(triggerBox.y + triggerBox.height, 'the sheet covers the field it edits').toBeLessThan(
-    editorBox.y,
-  );
+  await expect
+    .poll(async () => {
+      const triggerBox = await renderedBox(trigger, 'the edited deadline control');
+      const currentEditorBox = await renderedBox(editor, 'the deadline sheet');
+      return triggerBox.y + triggerBox.height - currentEditorBox.y;
+    })
+    .toBeLessThan(0);
+  const cardBox = await renderedBox(card, 'the edited card');
+  const editorBox = await renderedBox(editor, 'the deadline sheet');
   expect(
     Math.min(cardBox.y + cardBox.height, editorBox.y) - Math.max(cardBox.y, 0),
     'none of the edited card remains visible above the sheet',
   ).toBeGreaterThan(0);
 
-  await editor.getByLabel('Work item deadline for 010').fill(WORK_ITEM_DEADLINE);
+  await editor.getByLabel('Work item deadline for 020').fill(WORK_ITEM_DEADLINE);
   await editor.getByRole('button', { name: 'Save' }).click();
-  await expect(page.locator('[data-card-deadline]')).toBeVisible();
+  await expect(card.locator('[data-card-deadline]')).toBeVisible();
   await page.reload();
-  await expect(page.locator('[data-card-deadline]')).toBeVisible();
+  await expect(page.locator(`[data-card="${cardId}"] [data-card-deadline]`)).toBeVisible();
 
-  const reopened = await openDeadlineEditor(page);
+  const reopened = await openDeadlineEditor(page, '020');
   await reopened.getByRole('button', { name: 'Clear' }).click();
-  await expect(page.locator('[data-card-deadline]')).toHaveCount(0);
+  await expect(page.locator(`[data-card="${cardId}"] [data-card-deadline]`)).toHaveCount(0);
   await page.reload();
-  await expect(page.locator('[data-card-deadline]')).toHaveCount(0);
+  await expect(page.locator(`[data-card="${cardId}"] [data-card-deadline]`)).toHaveCount(0);
 });
 
 test('renders impossible marks on both faces and downloads both deadline columns', async ({
