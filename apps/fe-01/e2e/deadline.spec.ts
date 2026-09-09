@@ -1,6 +1,13 @@
 import { readFile } from 'node:fs/promises';
 
-import { type Download, expect, type Locator, type Page, type Response, test } from '@playwright/test';
+import {
+  type Download,
+  expect,
+  type Locator,
+  type Page,
+  type Response,
+  test,
+} from '@playwright/test';
 
 import { createProject } from './create-project';
 
@@ -233,7 +240,10 @@ test('the phone deadline sheet leaves its card visible and drives Save and Clear
     })
     .toBeLessThan(0);
   const visibleTrigger = await renderedBox(trigger, 'the edited deadline control');
-  expect(visibleTrigger.y, 'the edited deadline control moved above the viewport').toBeGreaterThanOrEqual(0);
+  expect(
+    visibleTrigger.y,
+    'the edited deadline control moved above the viewport',
+  ).toBeGreaterThanOrEqual(0);
   const cardBox = await renderedBox(card, 'the edited card');
   const editorBox = await renderedBox(editor, 'the deadline sheet');
   expect(
