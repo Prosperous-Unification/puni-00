@@ -597,3 +597,23 @@ deadline before project start`, and the stored-result decoder now rejects
 
 The branch was then merged with current `origin/main`; CI and the terminal
 re-review are the exact merged-head gates.
+
+## 2026-09-09T09:04Z — terminal lint, prune-boundary, and refusal-order follow-ups
+
+- `89fcd757` repaired the configured proof-lint failures: the two asynchronous
+  stubs now return explicit resolved promises, empty listener callbacks return
+  `undefined`, and the poller imports use the configured sort order. The one
+  production-file hunk is inert callback style despite the commit's `test:`
+  prefix; the production review accepted that provenance defect without a
+  history rewrite.
+- `7b7155d1` widened candidate pruning to include interrupted candidates. Its
+  exact-head gate was CI run `34085674029`, where both `gate` and `pixels`
+  passed, and canonical Anthropic review round 2 returned APPROVE with
+  0 Critical and 0 Important findings.
+- TASK-320 strengthened that proof at red head `510b2dc1`: `/home/puni1/wbs-dev/bin/bun test
+  tools/tool-devsync/src/poller.test.ts` failed 1/12 because a stale candidate
+  survived the managed-Bun mismatch. At green head `42a4b5e5`, the same command
+  passed 12/12 with 38 assertions, including a fresh interrupted candidate that
+  survives the seven-day boundary and stale reclamation before the explicit
+  version refusal. `shellcheck -s bash bin/dev-poll-sync.sh` also passed on
+  h2puni. No build or autotest ran on the queue-worker host.
