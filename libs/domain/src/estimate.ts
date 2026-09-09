@@ -31,16 +31,13 @@ export const ThreePointEstimate = type({
   realistic: 'number>=0',
   pessimistic: 'number>=0',
 }).narrow((estimate, ctx) => {
-  if (
-    estimate.optimistic <= estimate.realistic &&
-    estimate.realistic <= estimate.pessimistic &&
-    estimate.pessimistic <= MAX_ESTIMATE_DAYS
-  ) {
-    return true;
+  if (!(estimate.optimistic <= estimate.realistic && estimate.realistic <= estimate.pessimistic)) {
+    return ctx.mustBe('ordered optimistic <= realistic <= pessimistic');
   }
-  return ctx.mustBe(
-    `ordered optimistic <= realistic <= pessimistic <= ${String(MAX_ESTIMATE_DAYS)} days`,
-  );
+  if (estimate.pessimistic > MAX_ESTIMATE_DAYS) {
+    return ctx.mustBe(`no point above ${String(MAX_ESTIMATE_DAYS)} days`);
+  }
+  return true;
 });
 export type ThreePointEstimate = typeof ThreePointEstimate.infer;
 
