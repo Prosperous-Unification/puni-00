@@ -1,5 +1,6 @@
 # LLM_README — read this, then only the doc your task needs
 
+TASK-304 session-response hardening is on `fix/task304-anonymous-session-hardening`: remote-gate the auth, client, and packaged-document proofs, then open the dev PR.
 TASK-507 agent-trailer fixture hardening is on `fix/task507-agent-trailer-hardening`: PR 388, refreshed-base gates pending.
 TASK-508 milestone-wire and Fast trailing-zero fixes are on `fix/task508-milestone-proof` in PR #384; finish the exact-head gates and merge.
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),

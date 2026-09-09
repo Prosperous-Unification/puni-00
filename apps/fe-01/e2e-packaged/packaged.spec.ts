@@ -63,6 +63,11 @@ test.describe('the built site, asked for an address it holds no file for', () =>
     expect(body, 'the served document is not the built index.html').toMatch(
       /<script[^>]+type="module"/,
     );
+    // Proof: deleting the icon declaration from the built index.html makes
+    // this packaged response return no match, while the source DOM test stays green.
+    expect(body, 'the built document lost its intentional empty favicon').toMatch(
+      /<link[^>]+rel="icon"[^>]+href="data:,"/,
+    );
   });
 
   test('draws the directory on a reload of /directory', async ({ page }) => {
