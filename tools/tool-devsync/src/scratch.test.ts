@@ -6,6 +6,7 @@ import { describe, expect, it } from 'bun:test';
 import { scratchSync } from '../../test/scratch';
 
 const HELPER = join(import.meta.dir, '../../test/scratch/index.ts');
+const PRELOAD = join(import.meta.dir, '../../test/scratch/preload.ts');
 
 function childSource(ending: 'failure' | 'signal'): string {
   const finish =
@@ -55,7 +56,7 @@ async function readScratchDirectory(stream: ReadableStream<Uint8Array>): Promise
 
 describe('per-process test scratch', () => {
   it('removes its root when a test process fails', async () => {
-    const child = Bun.spawn([process.execPath, 'test', childTest('failure')], {
+    const child = Bun.spawn([process.execPath, 'test', '--preload', PRELOAD, childTest('failure')], {
       stdout: 'pipe',
       stderr: 'ignore',
     });
@@ -66,7 +67,7 @@ describe('per-process test scratch', () => {
   });
 
   it('removes its root and preserves signal termination', async () => {
-    const child = Bun.spawn([process.execPath, 'test', childTest('signal')], {
+    const child = Bun.spawn([process.execPath, 'test', '--preload', PRELOAD, childTest('signal')], {
       stdout: 'pipe',
       stderr: 'ignore',
     });
