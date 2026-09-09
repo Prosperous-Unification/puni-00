@@ -27,6 +27,17 @@ const ANCHOR_GAP_PX = 6;
 const CARD_MAX_WIDTH_PX = 420;
 
 /**
+ * How far a card is pulled left of its cell to leave its own trigger's lane
+ * clear, in CSS pixels — see {@link HoverCardProps.clearsMarkerLane}.
+ *
+ * 24 against a 15px marker sitting 1px in from the cell's right edge, measured
+ * in the running app on 2026-09-09. The surplus is deliberate: the lane has to
+ * be comfortably hoverable rather than exactly uncovered, and a reader running
+ * down forty of them should not have to be accurate to the pixel.
+ */
+const MARKER_LANE_PX = 24;
+
+/**
  * How narrow a card explaining a cell may be, in CSS pixels.
  *
  * A floor rather than a fit, because these cards hold sentences: a card sized
@@ -240,6 +251,34 @@ export interface HoverCardProps {
    * a card under a cell already did. That is unchanged rather than solved here.
    */
   opensSideways?: boolean;
+  /**
+   * Whether this card is pulled clear of the lane its own trigger stands in, so
+   * that a reader can run the pointer down that lane and read each row's card
+   * in turn.
+   *
+   * The Name cell's notes preview, and Dany asked for it on 2026-09-09: *"move
+   * the preview tooltip window slightly to the left - so that preview icons can
+   * be scrolled down and up by moving the mouse"*. The `≡` markers are
+   * `position: absolute; right: 1` on every Name cell, so they form a column at
+   * the cell's right edge — and the preview opened at `left: 0` across the whole
+   * cell, which put its right edge **on that column**. Measured in the running
+   * app: the preview at `[145, 240, 555, 370]`, the lane at x 685–700, and
+   * `elementFromPoint` at the next marker down answering the preview's own
+   * `DIV`. The marker below was unreachable, so the pointer could read one row's
+   * notes and no more.
+   *
+   * A **horizontal** pull rather than a vertical one, because the preview flips
+   * above its cell for a row low in the table ({@link roomForCard}) and would
+   * then cover the lane *upward* instead. Left clear of the lane, it is out of
+   * the way whichever side it opens on.
+   *
+   * The width ceiling becomes `100%` of the cell as well as the pixel cap: an
+   * absolutely positioned box shrinks to fit the room between its `left` and its
+   * containing block's right edge, so pulling `left` negative without capping
+   * the width would just let the card grow the 24px back and land on the lane
+   * again.
+   */
+  clearsMarkerLane?: boolean;
   children: ReactNode;
 }
 
@@ -377,6 +416,7 @@ export function HoverCard({
   scrolls = false,
   takesPointer = false,
   opensSideways = false,
+  clearsMarkerLane = false,
   compact = false,
   anchor,
   beside,
@@ -523,9 +563,25 @@ export function HoverCard({
             // has the room below.
             ...(opensSideways
               ? { left: '100%', top: 0 }
-              : { left: 0, ...(room?.side === 'above' ? { bottom: '100%' } : { top: '100%' }) }),
+              : {
+                  // Pulled left of its trigger's lane where the card is asked to
+                  // leave one — see {@link HoverCardProps.clearsMarkerLane}.
+                  left: clearsMarkerLane ? -MARKER_LANE_PX : 0,
+                  ...(room?.side === 'above' ? { bottom: '100%' } : { top: '100%' }),
+                }),
             maxWidth: scrolls
-              ? `min(${String(SCROLLING_MAX_WIDTH_PX)}px, 100vw)`
+              ? // Where the card is pulled left, `100%` of the cell joins the
+                // pixel cap, and it is what makes the pull hold: shrink-to-fit
+                // measures the room from `left` to the containing block's right
+                // edge, so a card pulled 24px left with no such cap simply grows
+                // 24px wider and covers the lane again. Watched: with the `100%`
+                // taken out, `leaves the marker lane clear` fails on `Expected:
+                // <= 486.40625 · Received: 502` — the same two figures the pull's
+                // own removal produces, which is the 24px arriving back on the
+                // right edge (2026-09-09). It is tied to the pull rather than to
+                // `scrolls`: a scrolling card over a *narrow* cell wants the
+                // 640px it asked for, not its cell's width.
+                `min(${String(SCROLLING_MAX_WIDTH_PX)}px, ${clearsMarkerLane ? '100%, ' : ''}100vw)`
               : CARD_MAX_WIDTH_PX,
           }
         : {

@@ -915,6 +915,81 @@ test.describe('the Name cell answers from its marker alone', () => {
     expect(await preview.locator('li em').textContent()).toBe('unsurveyed');
   });
 
+  test('leaves the marker lane clear, so the pointer can run down it', async ({ page }) => {
+    // Dany, 2026-09-09: _"move the preview tooltip window slightly to the left -
+    // so that preview icons can be scrolled down and up by moving the mouse"_.
+    // The `≡` markers are `right: 1` on every Name cell, so they stand in a
+    // column at the cell's right edge — and the preview opened at `left: 0`
+    // across the whole cell, which put its right edge **on that column**.
+    // Measured in the running app before the fix: the preview at
+    // `[145, 240, 555, 370]`, the lane at x 685–700, and `elementFromPoint` at
+    // the next marker down answering the preview's own `DIV`. One row's notes
+    // were readable and no more.
+    //
+    // Proof: `clearsMarkerLane` taken off `HoverPreview`'s `HoverCard` — this
+    // failed on `Error: the preview covers the marker lane · Expected: <=
+    // 486.40625 · Received: 502`, 15.6px of card over the lane's left edge.
+    // Watched in Chromium, 2026-09-09.
+    //
+    // Three markers, because a lane freed for the first and not the third would
+    // pass a check made once — and the seed makes two rows, so the third is
+    // this test's own. The notes are long on purpose: a card narrow enough to
+    // shrink-to-fit inside its cell never reaches the lane, and the first cut
+    // of this test wrote one sentence and was watched **passing** with the
+    // whole fix reverted.
+    await page.getByRole('button', { name: 'Add work item' }).click();
+    await expect(page.getByLabel('Name of 030')).toBeVisible();
+    for (const number of ['010', '020', '030']) {
+      const name = page.getByLabel(`Name of ${number}`);
+      await name.fill(
+        `Row ${number}\n\nNotes for ${number}: ` +
+          'a paragraph long enough that the card takes every pixel its cell allows, '.repeat(5),
+      );
+      await name.blur();
+    }
+
+    await page.getByLabel('Notes on 010').hover();
+    const preview = page.getByRole('tooltip', { name: 'Notes for 010, rendered' });
+    await expect(preview).toBeVisible();
+
+    const card = await preview.boundingBox();
+    const below = await page.getByLabel('Notes on 020').boundingBox();
+    // The cell is the card's containing block, so `cell.x` is where the card
+    // would stand with nothing pulling it left.
+    const cell = await page
+      .getByLabel('Notes on 010')
+      .locator('xpath=ancestor::td[1]')
+      .boundingBox();
+    if (card === null || below === null || cell === null) throw new Error('no boxes to compare');
+    // The preconditions, before the claim. A card that reaches neither down to
+    // the next row nor across to the lane cannot cover it whatever the
+    // placement says, and asserting a clear lane in that state is R5 #16's own
+    // shape — a geometry claim made where the fault cannot appear.
+    expect(card.y + card.height, 'the preview does not reach the row below').toBeGreaterThan(
+      below.y,
+    );
+    expect(
+      cell.x + card.width,
+      'the preview is too narrow to reach the lane from its cell’s left edge',
+    ).toBeGreaterThan(below.x);
+
+    expect(card.x + card.width, 'the preview covers the marker lane').toBeLessThanOrEqual(below.x);
+
+    // And the markers really are reachable: walked down, each one opening its
+    // own row's notes. Asserted per row, because a lane that freed the first
+    // marker and not the third would pass a check made only once.
+    for (const number of ['020', '030']) {
+      const marker = page.getByLabel(`Notes on ${number}`);
+      const at = await marker.boundingBox();
+      if (at === null) throw new Error(`no marker on ${number}`);
+      await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2, { steps: 6 });
+      await expect(
+        page.getByRole('tooltip', { name: `Notes for ${number}, rendered` }),
+        `the marker on ${number} could not be reached`,
+      ).toBeVisible();
+    }
+  });
+
   test('a link in the notes is followable, and drawn like the name’s', async ({ page }) => {
     // Dany, 2026-08-30: _"can you make the links in markdown of the workitem
     // clickable - both the title and body links"_. The title's were already
