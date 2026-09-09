@@ -226,11 +226,11 @@ test.describe('the project settings control, in a browser', () => {
       }
       const response = await route.fetch();
       const plan = (await response.json()) as PlanRead;
-      const first = plan.workItems[0];
-      expect(first?.name, 'the long-name command was not persisted before reload').toBe(
+      const first = plan.workItems.at(0);
+      if (first === undefined) throw new Error('the persisted plan has no first work item');
+      expect(first.name, 'the long-name command was not persisted before reload').toBe(
         longWorkItemName,
       );
-      if (first === undefined) throw new Error('the persisted plan has no first work item');
       const optimization: PlanOptimizationView = {
         enabled: true,
         engine: 'optimized',

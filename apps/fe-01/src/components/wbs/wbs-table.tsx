@@ -522,7 +522,7 @@ export function WbsTable({
   // callsite churned the cue's identity, while a UTC date string can name the
   // wrong local day around midnight and therefore the wrong display year.
   const todayIso = isoToday(new Date());
-  const today = useMemo(() => new Date(), [todayIso]);
+  const today = useMemo(() => new Date(`${todayIso}T12:00:00`), [todayIso]);
   const {
     activeProject,
     workItems,
