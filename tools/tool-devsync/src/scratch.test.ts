@@ -56,10 +56,13 @@ async function readScratchDirectory(stream: ReadableStream<Uint8Array>): Promise
 
 describe('per-process test scratch', () => {
   it('removes its root when a test process fails', async () => {
-    const child = Bun.spawn([process.execPath, 'test', '--preload', PRELOAD, childTest('failure')], {
-      stdout: 'pipe',
-      stderr: 'ignore',
-    });
+    const child = Bun.spawn(
+      [process.execPath, 'test', '--preload', PRELOAD, childTest('failure')],
+      {
+        stdout: 'pipe',
+        stderr: 'ignore',
+      },
+    );
     const output = new Response(child.stdout).text();
     expect(await child.exited).not.toBe(0);
     const directory = scratchDirectory(await output);
