@@ -143,6 +143,14 @@ export function refusalTypeCases() {
   expectTypeOf<Refusal>({ code: 'not-retryable', state: 'future' });
 }
 
+// Case budget stated, not defaulted (TASK-415). Two observations that disagree
+// by 1.7x: 1952ms on h2puni at load 7-9, and 1125ms in the sweep recorded in
+// notes/t415-per-case-duration-sweep.txt. This case spawns tsc, so its duration
+// tracks host load rather than anything the assertion does, and it is the one
+// case of the four where the choice of observation changes the answer -- 5x the
+// sweep figure would give 6000ms. 10000ms is 5x the slower observation, rounded
+// up, deliberately: for a load-sensitive case the safe direction is the one
+// that does not redden on a busy host. Re-derive with notes/t415-sweep.sh.
 test('the compiler enforces closed refusal codes, detail variants and command context', () => {
   const checked = Bun.spawnSync({
     cmd: [
@@ -171,7 +179,7 @@ test('the compiler enforces closed refusal codes, detail variants and command co
     '',
   );
   expect(checked.exitCode).toBe(0);
-});
+}, 10000);
 
 export function deadlineRefusalTypes() {
   const valid = {

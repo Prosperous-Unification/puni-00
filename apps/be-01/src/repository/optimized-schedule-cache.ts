@@ -10,7 +10,7 @@ import {
 } from '@wbs/contracts/solver/plan-infeasible';
 import { type Schedule } from '@wbs/domain';
 import { type ScheduleInput, scheduleInputHash } from '@wbs/domain/canonical-schedule-input';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, gt } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { readGeneration } from './optimization-generation';
@@ -104,12 +104,57 @@ export type CachedOutcome =
 /** Both objectives' outcomes for one key, which is what a plan read asks for. */
 export type OptimizedPair = Readonly<Record<SolverObjectiveName, CachedOutcome>>;
 
-/** Whether this exact generation/objective/key still owns a slot or FIFO entry. */
+/**
+ * Whether this exact generation/objective/key still owns a slot or FIFO entry.
+ *
+ * **A seat past its `admittedDeadlineAt` is nobody's, and this is where that
+ * stopped being true.** Admission has always honoured the deadline —
+ * `reserveSolverSlotIn` reclaims expired seats before it counts either ceiling —
+ * but this predicate asked only whether a row EXISTS. The two disagreeing is a
+ * closed loop, not a cosmetic gap:
+ *
+ * 1. a spawn failure stores `failed` and deliberately KEEPS the seat, because
+ *    without terminal evidence a process may still be running;
+ * 2. an expired seat read as live turns that stored `failed` into `retrying`
+ *    ({@link optimizationVariantState}), which the UI renders as `Optimizing…`;
+ * 3. the only thing that deletes an expired seat is admission, and admission
+ *    runs only for a `miss` — a stored `failed` is terminal;
+ * 4. the one designed escape, an explicit Retry, refuses with `already-running`
+ *    because it asks this same predicate first.
+ *
+ * So the state that frees the project was reachable only through the state it
+ * was masking. Observed on 2026-09-08 as a plan stuck on `Optimizing…` for
+ * hours with `status=failed` sitting in the cache, and freed only incidentally
+ * when an unrelated project's admission ran the global sweep.
+ *
+ * `now` is the caller's already-captured instant rather than a clock read here:
+ * `readPlan` and `retry` each take one, and a predicate that read its own would
+ * let a retry's admission decision and its liveness decision straddle a
+ * millisecond.
+ *
+ * **Strictly greater, matching reclaim's `deadline <= now` exactly**, so the
+ * reader and the reclaimer agree on the same instant rather than on two
+ * adjacent ones. The supervisor arms its external kill at the *child* deadline,
+ * `SLOT_RECLAIM_MARGIN_MS` earlier, so this opens no window in which a live
+ * child reads dead.
+ *
+ * The FIFO half below is deliberately NOT deadline-gated: a queue row is
+ * unstarted work with no admitted process lifetime, `solver_queue` carries
+ * `enqueued_at` and no deadline, and inventing a staleness horizon would be new
+ * policy rather than agreement with existing policy.
+ *
+ * Proof: deleting this condition failed
+ * `optimization-coordinator.db.test.ts`'s `frees a variant whose retained seat
+ * expired, for both the read and Retry` on `Expected: "failed" · Received:
+ * "retrying"`; widening it to `gte` failed the same assertion, pinning the
+ * boundary to reclaim's own instant.
+ */
 export function optimizedVariantIsLive(
   db: Reader,
   key: OptimizedCacheKey,
   generation: number,
   objective: SolverObjectiveName,
+  now: number,
 ): boolean {
   const identity = [
     eq(solverSlot.projectId, key.projectId),
@@ -117,6 +162,7 @@ export function optimizedVariantIsLive(
     eq(solverSlot.generation, generation),
     eq(solverSlot.objective, objective),
     eq(solverSlot.budgetMs, key.budgetMs),
+    gt(solverSlot.admittedDeadlineAt, now),
   ] as const;
   if (
     db

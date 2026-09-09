@@ -3,9 +3,10 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { ProjectPatch, ProjectStore, WorkItemStore, WriteStamp } from '../repository';
+import type { SolverObjectiveName } from '../repository/schema';
 import { inMemoryServices } from '../testing/harness';
 import { projectRow } from '../testing/project-fixture';
-import type { OptimizedScheduleAsk } from './optimized-schedule-reader';
+import type { OptimizationVariantState, OptimizedScheduleAsk } from './optimized-schedule-reader';
 import { WorkItemService, type WorkItemServiceOptions } from './work-item.service';
 
 /**
@@ -97,20 +98,38 @@ async function settings(patch: ProjectPatch): Promise<void> {
  * happened not to change the answer", which is the whole of what 3b.1's two
  * separate settings buy.
  */
-function recordingReader(answer: Schedule | null) {
+function recordingReader(
+  answer: Schedule | null | Readonly<Record<SolverObjectiveName, Schedule | null>>,
+  /**
+   * A variant's state, where it is not the one its schedule implies.
+   *
+   * The two are separate facts and slice 8b needs them apart for one case: a
+   * reader that claims `ready` and hands back no schedule must not have a
+   * finish invented for it. Everywhere else the state is derived, because a
+   * fake free to disagree with itself is a fake that can pass a case the
+   * production reader could never reach.
+   */
+  states: Readonly<Partial<Record<SolverObjectiveName, OptimizationVariantState>>> = {},
+) {
   const asks: OptimizedScheduleAsk[] = [];
+  // One schedule means "both variants answer this", which is what every case
+  // written before slice 8b meant by it.
+  const schedules: Record<SolverObjectiveName, Schedule | null> =
+    answer === null || 'slices' in answer ? { pri: answer, time: answer } : answer;
+  const stateOf = (objective: SolverObjectiveName): OptimizationVariantState =>
+    states[objective] ??
+    (schedules[objective] === null ? { state: 'idle' } : { state: 'ready', proof: 'proven' });
   return {
     asks,
     read: (ask: OptimizedScheduleAsk) => {
       asks.push(ask);
-      const state = answer === null ? ({ state: 'idle' } as const) : ({ state: 'ready' } as const);
       return {
         inputHash: 'test-input-hash',
-        generation: answer === null ? null : 1,
+        generation: schedules.pri === null && schedules.time === null ? null : 1,
         contractVersion: '7+test',
         budgetMs: 60_000,
-        variants: { pri: state, time: state },
-        selectedSchedule: answer,
+        variants: { pri: stateOf('pri'), time: stateOf('time') },
+        schedules,
       };
     },
   };
@@ -188,8 +207,14 @@ describe('the plan read and the optimized cache', () => {
       contractVersion: '7+test',
       budgetMs: 60_000,
       displayed: 'pri',
-      variants: { pri: { state: 'ready' }, time: { state: 'ready' } },
-      comparison: { deltaDays: 3, sameOrder: true },
+      variants: {
+        pri: { state: 'ready', proof: 'proven' },
+        time: { state: 'ready', proof: 'proven' },
+      },
+      // The unestimated leaf occupies `ASSUMED_SLICE_WORKDAYS`, so Fast
+      // finishes on day 2 and a slice moved to day 3 finishes on day 5.
+      finishDays: { fast: 2, pri: 5, time: 5 },
+      sameOrderAsFast: { pri: true, time: true },
     });
   });
 
@@ -210,8 +235,48 @@ describe('the plan read and the optimized cache', () => {
     expect(tree.optimization).toMatchObject({
       displayed: 'fast',
       variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
+      // Fast's own finish is always there — it is the schedule this read had to
+      // compute — and a variant that answered nothing contributes neither
+      // figure rather than a zero, which would read as "finishes on day zero".
+      finishDays: { fast: 2 },
+      sameOrderAsFast: {},
     });
-    expect(tree.optimization).not.toHaveProperty('comparison');
+  });
+
+  it('recovers a legacy out-of-range estimate when a later valid estimate replaces it', async () => {
+    const id = await leaf('Rewire');
+    await settings({
+      startDate: '2026-09-09',
+      optimizationEnabled: true,
+      scheduleEngine: 'optimized',
+    });
+    await serviceOptions.estimates.set(
+      {
+        workItemId: id,
+        stepId,
+        optimistic: 4_000_000_000,
+        realistic: 4_000_000_000,
+        pessimistic: 4_000_000_000,
+      },
+      WROTE,
+    );
+    const service = new WorkItemService({
+      ...serviceOptions,
+      optimized: recordingReader(null).read,
+    });
+
+    // Legacy rows can still reach datesOf -> addWorkdays -> Date#toISOString,
+    // which is the RangeError that made the whole plan read fail. The write
+    // path must not need that broken read in order to replace the stored trio.
+    expect(service.tree(projectId)).rejects.toBeInstanceOf(RangeError);
+    expect(
+      await service.setEstimate(id, OWNER, stepId, {
+        optimistic: 1,
+        realistic: 2,
+        pessimistic: 3,
+      }),
+    ).toEqual({ ok: true, value: null });
+    expect(await service.tree(projectId)).not.toBeNull();
   });
 
   it('reads disabled identity without serving a solver schedule', async () => {
@@ -241,6 +306,92 @@ describe('the plan read and the optimized cache', () => {
     expect(first.slices.map((each) => [each.earliestStart, each.boundBy])).toEqual([
       [0, 'projectStart'],
     ]);
+  });
+
+  /**
+   * The plan read's own half of slice 8b, and the reason the cue can say
+   * anything at all while the project is sitting on Fast.
+   */
+  it('compares both ready variants with Fast while Fast is the schedule on screen', async () => {
+    await leaf('Rewire');
+    await settings({ optimizationEnabled: true, scheduleEngine: 'fast' });
+    const seen = recordingReader(null);
+    await new WorkItemService({ ...serviceOptions, optimized: seen.read }).tree(projectId);
+    if (seen.asks.length !== 1) throw new Error('the reader was not consulted exactly once');
+    const asked = seen.asks[0];
+
+    // Two different variants, because one figure standing for both would pass
+    // against a read that computed either one of them twice.
+    const served = recordingReader({
+      pri: movedTo(asked.input, 3),
+      time: movedTo(asked.input, 6),
+    });
+    const tree = await new WorkItemService({
+      ...serviceOptions,
+      optimized: served.read,
+    }).tree(projectId);
+    if (tree === null) throw new Error('project vanished');
+    // Fast is still what the rows carry: the toggle permits the solver work and
+    // the engine alone decides what is displayed.
+    expect(tree.slices.map((each) => [each.earliestStart, each.boundBy])).toEqual([
+      [0, 'projectStart'],
+    ]);
+    expect(tree.optimization).toMatchObject({ engine: 'fast', displayed: 'fast' });
+    // Proof: with the `optimized === null ? … : comparedWithFast(…)` gate this
+    // replaced put back — the shipped `comparison` was built only for a
+    // displayed variant — this failed on `expect(received).toEqual(expected)`
+    // dropping `- "pri": 5, - "time": 8` from the received object, and the case
+    // below failed the same way on `pri`. That is the state a project is in for
+    // the whole of its first solve and after any switch back to Fast: nothing
+    // to compare, and so nothing for the cue to say. Watched 2026-09-08.
+    expect(tree.optimization?.finishDays).toEqual({ fast: 2, pri: 5, time: 8 });
+    expect(tree.optimization?.sameOrderAsFast).toEqual({ pri: true, time: true });
+  });
+
+  it('carries neither figure for a variant that has no schedule yet', async () => {
+    await leaf('Rewire');
+    await settings({ optimizationEnabled: true, scheduleEngine: 'fast' });
+    const seen = recordingReader(null);
+    await new WorkItemService({ ...serviceOptions, optimized: seen.read }).tree(projectId);
+    if (seen.asks.length !== 1) throw new Error('the reader was not consulted exactly once');
+    const asked = seen.asks[0];
+
+    const served = recordingReader(
+      { pri: movedTo(asked.input, 3), time: null },
+      { time: { state: 'pending' } },
+    );
+    const tree = await new WorkItemService({
+      ...serviceOptions,
+      optimized: served.read,
+    }).tree(projectId);
+    if (tree === null) throw new Error('project vanished');
+    // Absent rather than zero: a zero finish is a legal answer about a plan of
+    // nothing, and a reader cannot tell the two apart.
+    expect(tree.optimization?.finishDays).toEqual({ fast: 2, pri: 5 });
+    expect(tree.optimization?.sameOrderAsFast).toEqual({ pri: true });
+  });
+
+  it('invents no figure for a variant that claims ready with nothing behind it', async () => {
+    // The figures are measured off the schedules rather than read off the
+    // states, and this is where the two can disagree. The engine stays Fast so
+    // that the displayed-variant throw is not what is being observed.
+    await leaf('Rewire');
+    await settings({ optimizationEnabled: true, scheduleEngine: 'fast' });
+    const served = recordingReader(
+      { pri: null, time: null },
+      { pri: { state: 'ready', proof: 'proven' }, time: { state: 'ready', proof: 'proven' } },
+    );
+    const tree = await new WorkItemService({
+      ...serviceOptions,
+      optimized: served.read,
+    }).tree(projectId);
+    if (tree === null) throw new Error('project vanished');
+    expect(tree.optimization?.variants).toEqual({
+      pri: { state: 'ready', proof: 'proven' },
+      time: { state: 'ready', proof: 'proven' },
+    });
+    expect(tree.optimization?.finishDays).toEqual({ fast: 2 });
+    expect(tree.optimization?.sameOrderAsFast).toEqual({});
   });
 
   it('asks for the objective the project publishes, under the plan the pass is about to run', async () => {

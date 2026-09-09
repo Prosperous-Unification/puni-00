@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import pathlib
 import stat
 import subprocess
 import sys
@@ -74,7 +75,7 @@ class LauncherProcess(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         # Proof: restoring `__version__ = "0.1.0"` failed here with
         # `b'0.1.0\n' != b'0.1.1\n'`; watched 2026-09-07.
-        self.assertEqual(done.stdout, b"0.1.1\n")
+        self.assertEqual(done.stdout, b"0.1.3\n")
 
     def test_bound_execs_the_solver_without_consuming_its_request(self) -> None:
         request = b'{"wireVersion":1}\n'
@@ -110,12 +111,85 @@ class LauncherProcess(unittest.TestCase):
         )
 
     def test_memory_limit_is_converted_to_a_hard_address_space_backstop(self) -> None:
-        with mock.patch.object(launcher.resource, "setrlimit") as setrlimit:
+        """The Linux arm, selected explicitly so this passes on any host.
+
+        Patching `sys.platform` rather than skipping off Linux is the point: the
+        backstop is production behaviour, and a test that vanishes on the
+        developer's machine is a test that stops describing it there.
+        """
+        with (
+            mock.patch.object(launcher.sys, "platform", "linux"),
+            mock.patch.object(launcher.resource, "setrlimit") as setrlimit,
+        ):
             launcher._apply_address_space_limit(512)
         setrlimit.assert_called_once_with(
             launcher.resource.RLIMIT_AS,
             (512 * 4 * 1024 * 1024, 512 * 4 * 1024 * 1024),
         )
+
+    @unittest.skipUnless(sys.platform == "linux", "RLIMIT_AS is only settable on Linux")
+    def test_the_limit_is_really_applied_by_the_kernel(self) -> None:
+        """The real call, against the real kernel. Mirrors test_cli's prctl case.
+
+        This is the non-vacuous half of the two mocked cases around it: both
+        would pass against an `_apply_address_space_limit` that computed the
+        right number and never reached the kernel with it, which is exactly what
+        the Darwin branch above now does deliberately.
+
+        In a subprocess because a limit applied to the test runner would follow
+        it into every case after this one.
+
+        Proof: observed on a real Linux kernel (python:3.14-slim under Docker,
+        `Linux aarch64`) rather than on the darwin machine this was written on,
+        where it skips. Making `_apply_address_space_limit` return before the
+        call on every platform failed it with `AssertionError: -1 !=
+        2147483648` — `-1` being RLIM_INFINITY, the limit never reaching the
+        kernel. Unfaulted, the same container reported `before: (-1, -1)` and
+        `after: (2147483648, 2147483648)`.
+        """
+        probe = (
+            "import resource, sys;"
+            "sys.path.insert(0, 'src');"
+            "from wbs_solver import launcher;"
+            "launcher._apply_address_space_limit(512);"
+            "print(resource.getrlimit(resource.RLIMIT_AS)[0])"
+        )
+        done = subprocess.run(
+            [sys.executable, "-c", probe],
+            capture_output=True,
+            cwd=str(pathlib.Path(__file__).resolve().parent.parent),
+            check=False,
+        )
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(int(done.stdout.strip()), 512 * 4 * 1024 * 1024)
+
+    def test_a_linux_setrlimit_failure_is_not_swallowed(self) -> None:
+        """The platform branch must not become a general exception guard.
+
+        Proof: rewriting the branch as `try: setrlimit(...) except ValueError: return`
+        failed this case on `ValueError not raised`.
+        """
+        with (
+            mock.patch.object(launcher.sys, "platform", "linux"),
+            mock.patch.object(
+                launcher.resource, "setrlimit", side_effect=ValueError("current limit")
+            ),
+        ):
+            with self.assertRaises(ValueError):
+                launcher._apply_address_space_limit(512)
+
+    def test_no_address_space_limit_is_attempted_off_linux(self) -> None:
+        """Darwin has no cgroup ceiling to complete, and refuses this call.
+
+        Proof: deleting the branch failed this case on "Expected 'setrlimit' to not
+        have been called. Called 1 times."
+        """
+        with (
+            mock.patch.object(launcher.sys, "platform", "darwin"),
+            mock.patch.object(launcher.resource, "setrlimit") as setrlimit,
+        ):
+            launcher._apply_address_space_limit(512)
+        setrlimit.assert_not_called()
 
     def test_abort_never_execs_the_solver(self) -> None:
         done = subprocess.run(
@@ -188,13 +262,31 @@ class ParentGuard(unittest.TestCase):
     def test_parent_change_inside_the_prctl_window_self_terminates(self) -> None:
         with (
             mock.patch.object(launcher.os, "getppid", side_effect=[100, 101]),
-            mock.patch.object(launcher, "set_parent_death_signal"),
+            mock.patch.object(launcher, "set_parent_death_signal", return_value=True),
             mock.patch.object(launcher.os, "getpid", return_value=200),
             mock.patch.object(launcher.os, "kill") as kill,
         ):
             with self.assertRaisesRegex(RuntimeError, "parent changed"):
                 launcher._install_parent_guard()
         kill.assert_called_once_with(200, launcher.signal.SIGKILL)
+
+    def test_no_parent_race_check_where_no_guard_was_installed(self) -> None:
+        """An unguarded launcher must survive an ordinary re-parenting.
+
+        The helper returns False having installed nothing, so the window this
+        check exists for never opened. Running it anyway would SIGKILL a healthy
+        Darwin launcher whose parent merely changed.
+
+        Proof: discarding the helper's return value failed this case with
+        `RuntimeError: parent changed while installing PR_SET_PDEATHSIG`.
+        """
+        with (
+            mock.patch.object(launcher.os, "getppid", side_effect=[100, 101]),
+            mock.patch.object(launcher, "set_parent_death_signal", return_value=False),
+            mock.patch.object(launcher.os, "kill") as kill,
+        ):
+            launcher._install_parent_guard()
+        kill.assert_not_called()
 
     def test_importing_the_launcher_does_not_import_cp_sat(self) -> None:
         done = subprocess.run(

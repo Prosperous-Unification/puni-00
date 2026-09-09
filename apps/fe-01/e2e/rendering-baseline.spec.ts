@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { arch, cpus, platform, release } from 'node:os';
 
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from '@playwright/test';
 
+import { caretToLineEnd } from './caret';
 import { createRenderingEvidence, renderingProvenance } from './rendering-evidence';
 import { painted, renderingGeometry, seedRenderingPlan } from './rendering-fixture';
 
@@ -22,7 +23,7 @@ type ObservedWindow = Window & {
 async function findSample(page: Page, character: string, rows: number) {
   const field = page.getByLabel('Find', { exact: true });
   await field.fill('');
-  await expect(page.locator('[data-grid] tbody tr[data-row-id]')).toHaveCount(rows);
+  await expect(page.locator('[data-grid] tbody tr[data-row-id]').first()).toBeVisible();
   await painted(page);
   await field.focus();
   await page.evaluate(
@@ -41,10 +42,12 @@ async function findSample(page: Page, character: string, rows: number) {
           };
           observed.renderingInput = observation;
           const observeFilter = () => {
+            const grid = document.querySelector('[data-grid]');
+            const mountedRows = grid?.querySelectorAll('tbody tr[data-row-id]') ?? [];
             if (
-              document.querySelectorAll('[data-grid] tbody tr[data-row-id]').length ===
-                expectedRows &&
-              document.querySelectorAll('[data-grid] [data-match="true"]').length === expectedRows
+              grid?.getAttribute('aria-rowcount') === String(expectedRows + 1) &&
+              mountedRows.length > 0 &&
+              grid.querySelectorAll('[data-match="true"]').length === mountedRows.length
             ) {
               requestAnimationFrame(() => {
                 observation.filtered = performance.now();
@@ -64,10 +67,14 @@ async function findSample(page: Page, character: string, rows: number) {
     character === 'z' ? 1 : rows,
   );
   await page.keyboard.type(character);
-  await expect(page.locator('[data-grid] tbody tr[data-row-id]')).toHaveCount(
-    character === 'z' ? 1 : rows,
+  await expect(page.locator('[data-grid]')).toHaveAttribute(
+    'aria-rowcount',
+    String((character === 'z' ? 1 : rows) + 1),
   );
   await painted(page);
+  await expect
+    .poll(() => page.evaluate(() => (window as ObservedWindow).renderingInput?.filtered ?? null))
+    .not.toBeNull();
   const observed = await page.evaluate(() => {
     const observation = (window as ObservedWindow).renderingInput;
     if (observation?.paint == null || observation.filtered === null)
@@ -82,10 +89,10 @@ async function findSample(page: Page, character: string, rows: number) {
 }
 
 /** Chromium's actual production function counts, in a separate instrumented pass. */
-async function cellRenderCalls(page: Page, rows: number) {
+async function cellRenderCalls(page: Page) {
   const field = page.getByLabel('Find', { exact: true });
   await field.fill('');
-  await expect(page.locator('[data-grid] tbody tr[data-row-id]')).toHaveCount(rows);
+  await expect(page.locator('[data-grid] tbody tr[data-row-id]').first()).toBeVisible();
   await painted(page);
   const session = await page.context().newCDPSession(page);
   await session.send('Profiler.enable');
@@ -106,6 +113,335 @@ async function cellRenderCalls(page: Page, rows: number) {
     await session.detach();
   }
 }
+
+test('a broad Find renders no more than its two filter-sensitive cells per row', async ({
+  page,
+}) => {
+  const rows = 100;
+  const seeded = await seedRenderingPlan(page, { rows, steps: 2, density: 'sparse' });
+  await page.goto('/');
+  await expect(page.locator(`[data-name-input="${seeded.ids[0]}"]`)).toHaveValue('Row 0000');
+  await expect
+    .poll(async () => (await renderingGeometry(page)).mountedCells)
+    .toBeLessThanOrEqual(1200);
+  const firstName = page.locator(`[data-name-input="${seeded.ids[0]}"]`);
+  await firstName.focus();
+  await caretToLineEnd(firstName);
+  await firstName.pressSequentially(' half-typed');
+  const nameNode = await firstName.evaluateHandle((node) => node);
+  const selection = await firstName.evaluate((node) => {
+    if (!(node instanceof HTMLTextAreaElement)) throw new Error('Name cell is not a textarea');
+    return { start: node.selectionStart, end: node.selectionEnd };
+  });
+  await page.locator('[data-table-frame]').evaluate((frame) => {
+    frame.scrollTop = frame.scrollHeight;
+  });
+  expect(await firstName.evaluate((node, before) => node === before, nameNode)).toBe(true);
+  await expect(firstName).toBeFocused();
+  await expect(firstName).toHaveValue('Row 0000 half-typed');
+  expect(
+    await firstName.evaluate((node) => {
+      if (!(node instanceof HTMLTextAreaElement)) throw new Error('Name cell is not a textarea');
+      return { start: node.selectionStart, end: node.selectionEnd };
+    }),
+  ).toEqual(selection);
+  await expect(page.locator(`[data-name-input="${seeded.ids[rows - 1]}"]`)).toHaveValue(
+    'Row 0099 z',
+  );
+  await expect(page.locator('[data-grid]')).toHaveAttribute('aria-rowcount', '101');
+  await expect(page.locator(`tr[data-row-id="${seeded.ids[0]}"]`)).toHaveAttribute(
+    'aria-rowindex',
+    '2',
+  );
+  await expect(page.locator(`tr[data-row-id="${seeded.ids[0]}"]`)).toHaveAttribute(
+    'data-row-parity',
+    'odd',
+  );
+  await expect(page.locator(`tr[data-row-id="${seeded.ids[rows - 1]}"]`)).toHaveAttribute(
+    'aria-rowindex',
+    '101',
+  );
+  await expect(page.locator(`tr[data-row-id="${seeded.ids[rows - 1]}"]`)).toHaveAttribute(
+    'data-row-parity',
+    'even',
+  );
+  expect((await renderingGeometry(page)).mountedCells).toBeLessThanOrEqual(1200);
+  await page.reload();
+  await expect(firstName).toHaveValue('Row 0000');
+
+  expect(await cellRenderCalls(page)).toBeLessThanOrEqual(rows * 2);
+
+  const mountedRows = page.locator('[data-grid] tbody tr[data-row-id]');
+  const lastMountedId = await mountedRows.last().getAttribute('data-row-id');
+  if (lastMountedId === null) throw new Error('the last mounted row has no logical id');
+  const lastMountedIndex = seeded.ids.indexOf(lastMountedId);
+  if (lastMountedIndex < 0) throw new Error('the last mounted row is absent from the seeded plan');
+  if (lastMountedIndex >= seeded.ids.length - 1)
+    throw new Error('the initial row window reaches the end of the plan');
+  const nextId = seeded.ids[lastMountedIndex + 1];
+  const nextName = page.locator(`[data-name-input="${nextId}"]`);
+  expect(await nextName.count()).toBe(0);
+  await page.locator(`[data-name-input="${lastMountedId}"]`).evaluate((node) => {
+    if (!(node instanceof HTMLElement)) throw new Error('the source cell cannot take focus');
+    node.focus({ preventScroll: true });
+  });
+  expect(await nextName.count()).toBe(0);
+  await page.keyboard.press('Control+j');
+  await expect(nextName).toBeFocused();
+});
+
+test('an editor that left the row window can commit, escape, and hold a refusal', async ({
+  page,
+}) => {
+  const rows = 100;
+  const seeded = await seedRenderingPlan(page, { rows, steps: 2, density: 'sparse' });
+  await page.goto('/');
+  const frame = page.locator('[data-table-frame]');
+  const firstName = page.locator(`[data-name-input="${seeded.ids[0]}"]`);
+  const lastName = page.locator(`[data-name-input="${seeded.ids[rows - 1]}"]`);
+  const leaveFirstBehind = async (active: Locator): Promise<void> => {
+    await frame.evaluate((node) => {
+      node.scrollTop = node.scrollHeight;
+    });
+    await expect(lastName).toBeVisible();
+    await expect(active).toBeFocused();
+  };
+  const returnToFirst = async (): Promise<void> => {
+    await frame.evaluate((node) => {
+      node.scrollTop = 0;
+    });
+    await expect(firstName).toBeVisible();
+  };
+
+  await firstName.fill('Committed after leaving the row window');
+  await leaveFirstBehind(firstName);
+  await lastName.focus();
+  await expect.poll(() => firstName.count()).toBe(0);
+  await returnToFirst();
+  await expect(firstName).toHaveValue('Committed after leaving the row window');
+  await page.reload();
+  await expect(firstName).toHaveValue('Committed after leaving the row window');
+
+  await page.getByLabel('Project start date').fill('2026-06-01');
+  await page.getByLabel('Project start date').blur();
+  await page.locator('thead th[data-column="not-before"]').evaluate((heading) => {
+    heading.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  });
+  const firstStart = page.getByLabel('Earliest start for 0010');
+  await firstStart.fill('2026-09-09');
+  await leaveFirstBehind(firstStart);
+  await page.keyboard.press('Escape');
+  await returnToFirst();
+  await expect(firstStart).toHaveValue('—');
+
+  await page.locator('thead th[data-column="priority"]').evaluate((heading) => {
+    heading.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  });
+  const firstPriority = page.getByLabel('Priority for 0010');
+  await firstPriority.fill('0');
+  await leaveFirstBehind(firstPriority);
+  const refusalResponse = page.waitForResponse(
+    (response) => response.request().method() === 'POST' && response.url().endsWith('/commands'),
+  );
+  await lastName.focus();
+  expect(await (await refusalResponse).text()).toContain('priority_must_be_a_whole_number_from_1');
+  await expect(page.getByRole('alert')).toContainText(
+    'That change could not be completed (priority_must_be_a_whole_number_from_1).',
+  );
+  await expect.poll(() => firstPriority.count()).toBe(0);
+  await returnToFirst();
+  await expect(firstPriority).toHaveValue('0');
+});
+
+test('an unfolded plan mounts only its viewport columns', async ({ page }) => {
+  await seedRenderingPlan(page, { rows: 100, steps: 8, density: 'sparse' });
+  await page.goto('/');
+  const unfold = page.getByRole('button', { name: /^Unfold .* estimates$/ });
+  await expect(unfold).toHaveCount(8);
+  for (let index = 0; index < 8; index += 1) await unfold.first().click();
+
+  const actions = page.locator('[data-grid] tbody td[data-column="actions"]');
+  expect(await actions.count()).toBe(0);
+  expect((await renderingGeometry(page)).mountedCells).toBeLessThanOrEqual(2250);
+
+  // Pinned to one cell rather than left as `.first()`, and the reason is
+  // measured: the unfolded columns are still mounting, so `.first()` re-resolves
+  // on **every** action and the node typed into is not the node focused a line
+  // earlier — observed here as `focus()` landing on `…7eaef440…-optimistic` and
+  // the typing arriving at `…c25249bc…-optimistic`. It is `tool-hints-wait`'s
+  // lesson in AGENTS.md: a locator that says "the first mark of this kind" is
+  // not about any particular mark.
+  const firstEstimate = page.locator('[data-grid] input[data-cell$="-optimistic"]').first();
+  const estimateCell = await firstEstimate.getAttribute('data-cell');
+  if (estimateCell === null) throw new Error('the first estimate cell carries no id');
+  const estimate = page.locator(`[data-grid] input[data-cell="${estimateCell}"]`);
+  await estimate.focus();
+  await caretToLineEnd(estimate);
+  await estimate.pressSequentially('7');
+  const estimateNode = await estimate.evaluateHandle((node) => node);
+  const estimateValue = await estimate.inputValue();
+  const pinnedName = page.locator('[data-grid] tbody td[data-column="name"]').first();
+  const pinnedBefore = await pinnedName.boundingBox();
+  if (pinnedBefore === null) throw new Error('the pinned Name cell has no geometry');
+
+  await page.locator('[data-table-frame]').evaluate((frame) => {
+    frame.scrollLeft = frame.scrollWidth;
+  });
+  await expect(actions.first()).toBeVisible();
+  expect(await estimate.evaluate((node, before) => node === before, estimateNode)).toBe(true);
+  await expect(estimate).toBeFocused();
+  await expect(estimate).toHaveValue(estimateValue);
+  const pinnedAfter = await pinnedName.boundingBox();
+  if (pinnedAfter === null) throw new Error('the scrolled pinned Name cell has no geometry');
+  expect(Math.abs(pinnedAfter.x - pinnedBefore.x)).toBeLessThanOrEqual(1);
+  expect((await renderingGeometry(page)).mountedCells).toBeLessThanOrEqual(2250);
+});
+
+test('a measured row above the viewport leaves the visible row anchored', async ({ page }) => {
+  const seeded = await seedRenderingPlan(page, { rows: 100, steps: 2, density: 'sparse' });
+  await page.goto('/');
+  const firstName = page.locator(`[data-name-input="${seeded.ids[0]}"]`);
+  await firstName.evaluate((node) => {
+    if (!(node instanceof HTMLElement)) throw new Error('the first Name cannot take focus');
+    node.focus({ preventScroll: true });
+  });
+  const frame = page.locator('[data-table-frame]');
+  await frame.evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+  });
+  await expect(page.locator(`[data-name-input="${seeded.ids[99]}"]`)).toBeVisible();
+
+  const anchor = await frame.evaluate((node) => {
+    const frameTop = node.getBoundingClientRect().top;
+    const row = [...node.querySelectorAll<HTMLElement>('tbody tr[data-row-id]')].find(
+      (candidate) => candidate.getBoundingClientRect().bottom > frameTop,
+    );
+    if (row === undefined) throw new Error('the viewport has no visible logical row');
+    return {
+      id: row.dataset['rowId'],
+      top: row.getBoundingClientRect().top,
+      scrollTop: node.scrollTop,
+    };
+  });
+  if (anchor.id === undefined) throw new Error('the visible anchor has no row id');
+
+  await firstName.evaluate((node) => {
+    if (!(node instanceof HTMLTextAreaElement)) throw new Error('the first Name is not a textarea');
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+    if (descriptor?.set === undefined) throw new Error('the textarea value boundary is unreadable');
+    descriptor.set.call(node, `${node.value}\nsecond line\nthird line\nfourth line`);
+    node.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
+  });
+  await expect
+    .poll(async () => frame.evaluate((node) => node.scrollTop))
+    .toBeGreaterThan(anchor.scrollTop);
+  const settled = await page.locator(`tr[data-row-id="${anchor.id}"]`).evaluate((row) => ({
+    top: row.getBoundingClientRect().top,
+  }));
+  expect(Math.abs(settled.top - anchor.top)).toBeLessThanOrEqual(1);
+});
+
+test('a row drag at the frame edge reaches an initially unmounted destination', async ({
+  page,
+}) => {
+  const seeded = await seedRenderingPlan(page, { rows: 100, steps: 2, density: 'sparse' });
+  await page.goto('/');
+  const destination = page.locator(`tr[data-row-id="${seeded.ids[60]}"]`);
+  expect(await destination.count()).toBe(0);
+  await page.locator('[aria-label^="Reorder "]').first().dispatchEvent('dragstart');
+  const frame = page.locator('[data-table-frame]');
+  const box = await frame.boundingBox();
+  if (box === null) throw new Error('the table frame has no drag geometry');
+  for (let event = 0; event < 60; event += 1)
+    await frame.dispatchEvent('dragover', { clientY: box.y + box.height - 1 });
+  await expect(destination).toBeVisible();
+  const destinationBox = await destination.boundingBox();
+  if (destinationBox === null) throw new Error('the mounted drag destination has no geometry');
+  await destination.dispatchEvent('dragover', {
+    clientY: destinationBox.y + destinationBox.height / 2,
+  });
+  await expect(destination).toHaveAttribute('data-drop', 'into');
+});
+
+test('a windowed table and the complete Gantt stay on the same logical row', async ({ page }) => {
+  const seeded = await seedRenderingPlan(page, { rows: 100, steps: 2, density: 'sparse' });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Gantt', exact: true }).click();
+  const labels = page.locator('[data-gantt-label]');
+  await expect(labels).toHaveCount(100);
+  await painted(page);
+  const frame = page.locator('[data-table-frame]');
+  const panel = page.locator('[data-gantt-panel]');
+
+  const firstShown = async (surface: 'table' | 'gantt') =>
+    page.evaluate((asked) => {
+      const port = document.querySelector<HTMLElement>(
+        asked === 'table' ? '[data-table-frame]' : '[data-gantt-panel]',
+      );
+      const heading = document.querySelector<HTMLElement>(
+        asked === 'table' ? '[data-grid] thead th' : '[data-gantt-axis]',
+      );
+      if (port === null || heading === null) throw new Error(`${asked} face is absent`);
+      const selector = asked === 'table' ? 'tr[data-row-id]' : '[data-gantt-label]';
+      const row = [...port.querySelectorAll<HTMLElement>(selector)].find(
+        (candidate) =>
+          candidate.getBoundingClientRect().bottom > heading.getBoundingClientRect().bottom + 1,
+      );
+      if (row === undefined) throw new Error(`${asked} face shows no row`);
+      return asked === 'table' ? row.dataset['rowId'] : row.dataset['ganttLabel'];
+    }, surface);
+
+  await frame.evaluate((node) => {
+    node.scrollTop = 50 * 28;
+  });
+  await painted(page);
+  const tableFromFrame = await firstShown('table');
+  const tableIndex = seeded.ids.indexOf(tableFromFrame ?? '');
+  await expect
+    .poll(async () => seeded.ids.indexOf((await firstShown('gantt')) ?? ''))
+    .toBe(tableIndex);
+  expect(tableIndex).toBeGreaterThan(40);
+
+  await panel.evaluate((node) => {
+    node.scrollTop = 70 * 28;
+  });
+  await painted(page);
+  const ganttIndex = seeded.ids.indexOf((await firstShown('gantt')) ?? '');
+  await expect
+    .poll(async () => seeded.ids.indexOf((await firstShown('table')) ?? ''))
+    .toBe(ganttIndex);
+
+  const alignedId = seeded.ids[ganttIndex];
+  const alignedLabel = page.locator(`[data-gantt-label="${alignedId}"]`);
+  await alignedLabel.hover();
+  await expect(page.locator(`tr[data-row-id="${alignedId}"]`)).toHaveAttribute(
+    'data-row-lit',
+    'true',
+  );
+  const label = await labels.nth(ganttIndex).boundingBox();
+  const following = await labels.nth(ganttIndex + 1).boundingBox();
+  if (label === null || following === null)
+    throw new Error('aligned Gantt labels have no geometry');
+  expect(Math.abs(following.y - label.y - 28)).toBeLessThanOrEqual(1);
+
+  await page.setViewportSize({ width: 1200, height: 800 });
+  await painted(page);
+  await frame.evaluate((node) => {
+    node.scrollTop = 60 * 28;
+  });
+  await painted(page);
+  const tableAfterResize = seeded.ids.indexOf((await firstShown('table')) ?? '');
+  await expect
+    .poll(async () => seeded.ids.indexOf((await firstShown('gantt')) ?? ''))
+    .toBe(tableAfterResize);
+
+  const saving = page.waitForEvent('download');
+  await page.locator('[data-gantt-svg-download]').click();
+  const saved = await saving;
+  const file = await readFile(await saved.path(), 'utf8');
+  expect(file).toContain('Row 0000');
+  expect(file).toContain('Row 0099 z');
+});
 
 test.use({
   actionTimeout: 120_000,
@@ -193,8 +529,12 @@ test.describe('Chromium rendering baseline', () => {
                       });
                   }).observe({ type: 'longtask', buffered: true });
                   const ready = new MutationObserver(() => {
+                    const grid = document.querySelector('[data-grid]');
+                    // Proof: asking for rows + 2 here failed this production measurement at
+                    // `table readiness paint was not observed`.
                     if (
-                      document.querySelectorAll('[data-grid] tbody tr[data-row-id]').length !== rows
+                      grid?.getAttribute('aria-rowcount') !== String(rows + 1) ||
+                      grid.querySelector('tbody tr[data-row-id]') === null
                     )
                       return;
                     ready.disconnect();
@@ -210,10 +550,14 @@ test.describe('Chromium rendering baseline', () => {
                 const rounds = phase === 'latency' && contextIndex === 0 ? warmCount + 1 : 1;
                 for (let round = 0; round < rounds; round += 1) {
                   await measured.goto('/');
-                  await expect(measured.locator('[data-grid] tbody tr[data-row-id]')).toHaveCount(
-                    rows,
+                  await expect(measured.locator('[data-grid]')).toHaveAttribute(
+                    'aria-rowcount',
+                    String(rows + 1),
                     { timeout: 120_000 },
                   );
+                  await expect(
+                    measured.locator('[data-grid] tbody tr[data-row-id]').first(),
+                  ).toBeVisible();
                   await expect(
                     measured.locator(`[data-name-input="${seeded.ids[0]}"]`),
                   ).toHaveValue('Row 0000');
@@ -251,13 +595,14 @@ test.describe('Chromium rendering baseline', () => {
                   }
                 }
                 if (phase === 'coverage') {
-                  const calls = await cellRenderCalls(measured, rows);
+                  const calls = await cellRenderCalls(measured);
                   await record({ kind: 'precise-coverage', broadFindCellStyleCalls: calls });
                 }
                 if (phase === 'gantt') {
                   await measured.getByLabel('Find', { exact: true }).fill('');
-                  await expect(measured.locator('[data-grid] tbody tr[data-row-id]')).toHaveCount(
-                    rows,
+                  await expect(measured.locator('[data-grid]')).toHaveAttribute(
+                    'aria-rowcount',
+                    String(rows + 1),
                   );
                   await measured.getByRole('button', { name: 'Gantt', exact: true }).click();
                   await expect(measured.getByLabel('Gantt chart', { exact: true })).toBeVisible();

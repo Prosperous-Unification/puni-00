@@ -126,15 +126,35 @@ describe('RESTART_PATHS coverage', () => {
 });
 
 describe('dev supervisor', () => {
-  // The root `dev` script feeds `nx run-many -t serve --projects=...`. A tier
-  // left out of that list has no watcher and no supervisor, so it never
+  // The dev stack's project list feeds `nx run-many -t <target> --projects=...`.
+  // A tier left out of that list has no watcher and no supervisor, so it never
   // starts. mcp-01 must run beside be-01, gw-01 and fe-01.
-  it('names mcp-01 in the root serve target', async () => {
+  //
+  // **The list moved out of `package.json` and into `bin/dev.sh`**, which is
+  // where both dev modes now build their nx arguments — the root scripts are
+  // `bin/dev.sh` and `bin/dev.sh --local-solver`, and neither carries a project
+  // name of its own. Reading `package.json` for this fact would now pass on a
+  // `dev` script that names nothing at all, which is the fault this test exists
+  // to catch wearing the new arrangement's clothes.
+  //
+  // Proof: dropping mcp-01 from `bin/dev.sh`'s `--projects=` list failed this
+  // case on `- "mcp-01", · Expected - 1 · Received + 0`. Pointing the read back
+  // at `package.json`'s `dev` script instead passes with that same tier gone,
+  // because the script no longer names any project.
+  it('names every tier in the dev stack, for both dev modes', async () => {
     const { readFile } = await import('node:fs/promises');
+    const script = await readFile(new URL('../../../bin/dev.sh', import.meta.url), 'utf8');
+    const projects = /--projects=([A-Za-z0-9,-]+)/.exec(script)?.[1];
+    expect(projects).toBeDefined();
+    // One list serves both `serve` and `serve-local-solver`, so a tier missing
+    // here is missing from both modes at once.
+    expect(projects?.split(',').sort()).toEqual(['be-01', 'fe-01', 'gw-01', 'mcp-01']);
+
     const pkg = JSON.parse(
       await readFile(new URL('../../../package.json', import.meta.url), 'utf8'),
     ) as { scripts: Record<string, string> };
-    expect(pkg.scripts['dev']).toContain('mcp-01');
+    expect(pkg.scripts['dev']).toBe('bin/dev.sh');
+    expect(pkg.scripts['dev:local-solver']).toBe('bin/dev.sh --local-solver');
   });
 
   it('binds the dev mapping to the solver sources and package image', () => {

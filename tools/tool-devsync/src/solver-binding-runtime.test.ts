@@ -1,3 +1,4 @@
+import { SOLVER_SUPERVISOR_BUN } from '@wbs/deploy-contract';
 import { describe, expect, it } from 'bun:test';
 
 import { decodeProdContainerImages, prepareTargetSolverBinding } from './solver-binding-host';
@@ -87,7 +88,7 @@ describe('the production solver binding runtime', () => {
       BUN,
       'systemctl',
       'test',
-      '/usr/local/bin/bun',
+      SOLVER_SUPERVISOR_BUN,
       'git',
     ]);
     expect(invocations[0]?.argv).toEqual([

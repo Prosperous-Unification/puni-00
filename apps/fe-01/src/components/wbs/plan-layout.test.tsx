@@ -255,15 +255,15 @@ describe('the frame the table scrolls inside', () => {
 
     const cells = [...rowFor('020').querySelectorAll('td')];
 
-    // Each offset is the sum of the widths in front of it — 24, then 24+105,
-    // then 129+40 since `external-refs` put the ref column between `#` and
+    // Each offset is the sum of the widths in front of it — 16, then 16+105,
+    // then 121+40 since `external-refs` put the ref column between `#` and
     // Name. Four pinned columns now, and the fourth is pinned because it had to
     // be: an unpinned column between two pinned ones scrolls under the second.
     expect(cells.slice(0, 4).map((td) => [td.style.position, td.style.left])).toEqual([
       ['sticky', '0px'],
-      ['sticky', '24px'],
-      ['sticky', '129px'],
-      ['sticky', '169px'],
+      ['sticky', '16px'],
+      ['sticky', '121px'],
+      ['sticky', '161px'],
     ]);
     // Pinned and still flexible: the pin places the Name cell and the colgroup
     // sizes it, and a `width` here would be the second opinion that put a
@@ -288,7 +288,7 @@ describe('the frame the table scrolls inside', () => {
 
     // Sticky on both axes at once: scrolled right *and* down, the Number
     // heading is the one cell that has to stay in its corner.
-    expect(headers[1]?.style.left).toBe('24px');
+    expect(headers[1]?.style.left).toBe('16px');
     expect(headers[1]?.style.top).toBe('0px');
     // And it crosses both of the others, so it paints over both.
     const [pinnedBodyCell] = [...rowFor('020').querySelectorAll('td')].slice(1);
@@ -326,7 +326,7 @@ describe('the widths the table is laid out by', () => {
     // Proof: the colgroup made to declare `360` for a flexible column, this
     // failed on `expected ['24px','93px','360px'] to deeply equal
     // ['24px','93px','']`. Watched, 2026-08-08, when this column was 169px.
-    expect(cols.slice(0, 4).map((col) => col.style.width)).toEqual(['24px', '105px', '40px', '']);
+    expect(cols.slice(0, 4).map((col) => col.style.width)).toEqual(['16px', '105px', '40px', '']);
     for (const [at, col] of cols.entries()) {
       expect(col.style.width === '').toBe(at === 3);
     }
@@ -375,16 +375,17 @@ describe('the widths the table is laid out by', () => {
     );
     expect(table.style.minWidth).toBe(`${String(frameLayout(columnIds, UNDATED).minWidth)}px`);
     // Not a constant, which is the point of computing it per render: this
-    // plan has Dev unfolded and QA folded, so the floor is the 855px of fixed
+    // plan has Dev unfolded and QA folded, so the floor is the 847px of fixed
     // columns (827 → 839 → 879 in `number-column-widen` and then
-    // `external-refs`, 879 → 855 on 2026-08-31) — nobody has dated a row, so
+    // `external-refs`, 879 → 855 on 2026-08-31, then 855 → 847 with the
+    // narrower drag column) — nobody has dated a row, so
     // `not-before` is at its narrow 56 — plus 348 for the open step, 96 for
-    // the closed one and Name's 200. Folded it would be 1247, and both open
-    // 1751 — the difference is what `unfolding-may-scroll` decided to spend
+    // the closed one and Name's 200. Folded it is 1239, and both open 1743 —
+    // the difference is what `unfolding-may-scroll` decided to spend
     // the frame's scrollbar on.
-    expect(table.style.minWidth).toBe('1499px');
+    expect(table.style.minWidth).toBe('1491px');
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
-    expect(screen.getByRole('table').style.minWidth).toBe('1247px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1239px');
   });
 
   itDom('says nothing in a number cell that is showing the whole number', async () => {
@@ -901,7 +902,7 @@ describe('the widths this browser has dragged', () => {
     // ceiling is the one the stored-width check reads.
     expect(widthFromDrag('number', 93, 40, UNDATED)).toBe(133);
     expect(widthFromDrag('number', 93, -1000, UNDATED)).toBe(36);
-    expect(widthFromDrag('drag', 24, -50, UNDATED)).toBe(24);
+    expect(widthFromDrag('drag', 16, -50, UNDATED)).toBe(16);
     expect(widthFromDrag('number', 93, 10_000, UNDATED)).toBe(600);
     // The Name column clamps to its own bounds: the flexible floor — the same
     // 200 the cell's `min-width` declares — up to the one shared ceiling. Its
@@ -937,14 +938,15 @@ describe('the widths this browser has dragged', () => {
       expect(body?.style.width).toBe('');
       expect(body?.style.minWidth).toBe('300px');
       expect(laidOut()['name']).toBe('');
-      // The table's own width is the declaration: the resolved sum — the 1499
+      // The table's own width is the declaration: the resolved sum — the 1491
       // this plan resolves at rest (1471 → 1483 → 1523 in
       // `number-column-widen` and then `external-refs`, and 1523 → 1499 on
-      // 2026-08-31), less the 200 floor, plus the 300 override
+      // 2026-08-31, then 1499 → 1491 with the narrower drag column), less the
+      // 200 floor, plus the 300 override
       // — as its width and its minimum alike, so the frame keeps the slack
       // above it and scrolls below it.
-      expect(screen.getByRole('table').style.width).toBe('1599px');
-      expect(screen.getByRole('table').style.minWidth).toBe('1599px');
+      expect(screen.getByRole('table').style.width).toBe('1591px');
+      expect(screen.getByRole('table').style.minWidth).toBe('1591px');
     },
   );
 
@@ -1033,7 +1035,7 @@ describe('the widths this browser has dragged', () => {
     expect(laidOut()['number']).toBe('240px');
     // And the pinned column behind it moved with it, which is the whole of why
     // the override lives in the frame layout rather than in the `<colgroup>`.
-    expect([...rowFor('020').querySelectorAll('td')][2]?.style.left).toBe(`${String(24 + 240)}px`);
+    expect([...rowFor('020').querySelectorAll('td')][2]?.style.left).toBe(`${String(16 + 240)}px`);
     // Read, not written back: nothing about opening a project changes what is
     // remembered about it.
     expect(stored()).toBe(JSON.stringify({ number: 240 }));
@@ -1053,25 +1055,35 @@ describe('the widths this browser has dragged', () => {
     expect(laidOut()['number']).toBe('600px');
   });
 
-  itDom('drops storage that is not a set of column widths, key and all', async () => {
-    // localStorage is user-editable, so what comes back is a claim. A table
-    // that cannot be opened until somebody clears storage by hand is a worse
-    // answer than a table at its defaults, which is the posture the remembered
-    // expansion beside it takes.
-    // Proof: the `isWidthOverrides` guard deleted, this failed on `TypeError:
-    // Cannot convert undefined or null to object`, thrown out of the render
-    // that mounts the table — the text that is not JSON reaching
-    // `Object.entries` as `undefined`. Watched, 2026-08-09.
-    for (const junk of ['not json at all', '[93, 240]', '{"number":"wide"}', '"a string"']) {
-      cleanup();
-      localStorage.clear();
+  // localStorage is user-editable, so what comes back is a claim. A table
+  // that cannot be opened until somebody clears storage by hand is a worse
+  // answer than a table at its defaults, which is the posture the remembered
+  // expansion beside it takes.
+  // Proof: the `isWidthOverrides` guard deleted, all four go red, and they go
+  // red differently — which is the point of one case per value. Watched
+  // 2026-08-09 as one looping case, which only ever reached the first value,
+  // and re-watched per case 2026-09-08 after the split:
+  //   not json at all    TypeError: Cannot convert undefined or null to object
+  //                      out of the render that mounts the table, the stored
+  //                      text reaching `Object.entries` as `undefined`
+  //   [93, 240]          expected '[93, 240]' to be null
+  //   {"number":"wide"}  expected '' to be '105px'
+  //   "a string"         expected '"a string"' to be null
+  // One case per junk value rather than one case looping over four: four mounts
+  // under vitest's single 5000ms default made this the first case in the suite
+  // to tip on a loaded runner — measured at 2137ms against a 1224ms
+  // next-slowest sibling — and a red named the case, never which junk value
+  // produced it (TASK-405).
+  itDom.each(['not json at all', '[93, 240]', '{"number":"wide"}', '"a string"'])(
+    'drops storage that is not a set of column widths, key and all: %s',
+    async (junk) => {
       storedWidths(junk);
       await threeRoots();
 
       expect(laidOut()['number']).toBe('105px');
       expect(stored()).toBe(null);
-    }
-  });
+    },
+  );
 
   itDom(
     'drops an entry naming a column nothing can size, and keeps the one beside it',
@@ -1944,8 +1956,9 @@ describe('the columns a reader has hidden', () => {
       // Unticked for the reason Types is: `work-item-deadline` 9.1 put
       // `deadline` in `INITIAL_HIDDEN_COLUMNS` so the folded table at 1280
       // stays the width it was, and the whole words are here because this
-      // control has the room the 84px `Due` heading does not.
-      { label: 'Work item deadline', checked: false },
+      // control uses the same exact product label as the compact heading.
+      // Proof: with `Work item deadline` this one filtered case failed on this entry.
+      { label: 'Deadline', checked: false },
       { label: 'Start', checked: true },
       { label: 'End', checked: true },
       { label: 'Slack', checked: true },

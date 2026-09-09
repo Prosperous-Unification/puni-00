@@ -547,7 +547,20 @@ export function HintLayer(): React.JSX.Element {
       {ring === null ? null : <WaitRing at={ring} />}
       {open === null ? null : (
         <HoverCard id={HINT_CARD_ID} anchor={open.anchor} compact>
-          {open.words}
+          {/*
+            `pre-line`, so a mark whose words are **several** — the schedule
+            cue's, which carries a block per schedule, one comparing the two
+            optimized ones, what the three algorithms are, and the solver
+            identity — reads as the paragraphs it was written as rather than as
+            one run-on line. An attribute value keeps its newlines; only the
+            rendering collapses them, and this is where.
+
+            Every other hint in the app is one line and is unaffected: `pre-line`
+            collapses runs of spaces exactly as `normal` does and wraps the same
+            way. What it does not do is preserve **leading** spaces, which is
+            why the cue's own lines carry none.
+          */}
+          <span style={{ whiteSpace: 'pre-line' }}>{open.words}</span>
         </HoverCard>
       )}
     </>

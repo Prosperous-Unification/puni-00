@@ -819,6 +819,11 @@ behind every directory id it uses, under a format name and version. Derived figu
 along for readers and are never restored.
 _Avoid_: backup, dump, snapshot, JSON export (as a term)
 
+**Working plan**:
+The current plan values a single admitted command batch reads and updates while carrying
+out its commands. It ends with that batch; a saved plan is a separate record of history.
+_Avoid_: plan snapshot (for this), cached plan, saved plan (for this)
+
 **Saved plan**:
 One project's whole plan copied by value at one instant and kept in the database: the
 settings, the tree, the estimates, the ownership, the names behind every id it uses, and
@@ -921,12 +926,27 @@ unrestricted project may be edited by any of them.
 _Avoid_: private, locked project
 
 **External ref**:
-One link out of a work item to where that work also exists — an external system and a URL,
-in the order the refs were added. A work item may hold several into one system, because two
-pull requests are two links. Nothing about it is fetched: a ref is an address, never a
-status. Always said in full — the bare **Ref** above is the batch-scoped name, and they are
-different things.
+One link out of a work item to where that work also exists — an external system, a URL and
+a **name**, in the order the refs were added. A work item may hold several into one system,
+because two pull requests are two links. Nothing about it is fetched: a ref is an address
+and a reader's words about it, never a status. Always said in full — the bare **Ref** above
+is the batch-scoped name, and they are different things.
 _Avoid_: link (alone), reference, external link, integration
+
+**Link name**:
+What a reader calls one external ref, typed by them and stored as typed. Never fetched — a
+Jira summary is somebody's to write down here, not this tool's to go and read. A ref may
+carry none, which is a stated absence and the only spelling of one; the surfaces then show
+its **derived link label** instead.
+_Avoid_: title, subject, summary (alone), label
+
+**Derived link label**:
+What a ref's URL calls itself, read off the address and never stored: a Jira issue's key, a
+pull request's `#` and number, a Confluence page's title, otherwise the host and the last
+path segment. Computed wherever a ref is drawn, so a rule added to it improves every ref
+with no **link name** at once and rewrites no row. The opposite bargain from an **external
+system**, which is derived once at the write and frozen because a reader may override it.
+_Avoid_: derived name, fallback title, auto-name
 
 **External system**:
 The name an external ref's target belongs to — `jira-issue`, `github-pr`, `github-issue`,
@@ -1168,6 +1188,11 @@ delayed because its assignee or team was busy keeps that explanation instead —
 could run. It is the only floor that names a choice rather than a constraint, and like
 `projectStart` it carries no capacity predecessors and no binding team.
 _Avoid_: idle, slack, deliberate delay
+
+**Local solver**:
+The WBS solver run as a child process of be-01 on a development machine, with reduced
+resource and lifetime guarantees. A development-only alternative to the solver supervisor.
+_Avoid_: direct solver, direct optimizer, unsupervised solver, embedded solver
 
 **Solver quantum**:
 `SOLVER_QUANTUM = 48`, the number of integer solver units in one workday. It exists because

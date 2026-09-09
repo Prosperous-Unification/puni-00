@@ -1,0 +1,215 @@
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { describe, expect, it } from 'bun:test';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const hook = join(root, 'ops/agent-trailer/prepare-commit-msg');
+type FixtureEnvironmentKey =
+  | 'AGENT_AUTHORED_BY'
+  | 'CODEX_SANDBOX'
+  | 'FLEET_HOOK'
+  | 'GIT_CONFIG_GLOBAL'
+  | 'GIT_CONFIG_SYSTEM'
+  | 'GIT_EDITOR'
+  | 'HOME'
+  | 'HOOK_TRACE'
+  | 'PATH';
+type FixtureEnvironment = Partial<Record<FixtureEnvironmentKey, string | undefined>>;
+
+const humanEnv: FixtureEnvironment = {
+  HOME: process.env['HOME'],
+  PATH: process.env['PATH'],
+  GIT_CONFIG_GLOBAL: '/dev/null',
+  GIT_CONFIG_SYSTEM: '/dev/null',
+};
+
+function makeRepository() {
+  const repository = mkdtempSync(join(tmpdir(), 'wbs-agent-trailer-'));
+  const trace = join(repository, 'hook-trace');
+  const git = (args: string[], env: FixtureEnvironment = humanEnv) =>
+    Bun.spawnSync(['git', '-C', repository, ...args], { env, stderr: 'pipe', stdout: 'pipe' });
+
+  expect(git(['init', '-q', '-b', 'main']).exitCode).toBe(0);
+  expect(git(['config', 'user.email', 'test@example.com']).exitCode).toBe(0);
+  expect(git(['config', 'user.name', 'Test']).exitCode).toBe(0);
+
+  const hooks = join(repository, '.git', 'hooks');
+  mkdirSync(hooks, { recursive: true });
+  for (const stage of ['prepare-commit-msg', 'commit-msg']) {
+    const wrapper = join(hooks, stage);
+    writeFileSync(
+      wrapper,
+      '#!/bin/sh\nprintf "%s\\n" "$(basename "$0")" >>"$HOOK_TRACE"\nexec "$FLEET_HOOK" "$@"\n',
+    );
+    chmodSync(wrapper, 0o755);
+  }
+
+  const hookEnv = {
+    ...humanEnv,
+    FLEET_HOOK: hook,
+    HOOK_TRACE: trace,
+  };
+  const agentEnv = { ...hookEnv, AGENT_AUTHORED_BY: 'openai/gpt-5.6-sol' };
+  return { agentEnv, git, hookEnv, repository, trace };
+}
+
+function stages(trace: string) {
+  return readFileSync(trace, 'utf8').trim().split('\n');
+}
+
+function body(git: ReturnType<typeof makeRepository>['git']) {
+  return git(['log', '-1', '--format=%B']).stdout.toString();
+}
+
+describe('agent trailer hook integration', () => {
+  it('keeps the isolated human environment surface explicit', () => {
+    expect(Object.keys(humanEnv).sort()).toEqual([
+      'GIT_CONFIG_GLOBAL',
+      'GIT_CONFIG_SYSTEM',
+      'HOME',
+      'PATH',
+    ]);
+  });
+
+  it('keeps both production lefthook stages wired to the shared hook', () => {
+    const config = readFileSync(join(root, 'lefthook.yml'), 'utf8');
+    expect(config).toContain(
+      '\nprepare-commit-msg:\n  commands:\n    agent-authored-by:\n      run: ops/agent-trailer/prepare-commit-msg {1} {2}\n',
+    );
+    expect(config).toContain(
+      '\ncommit-msg:\n  commands:\n    agent-authored-by:\n      run: ops/agent-trailer/prepare-commit-msg {1}\n',
+    );
+  });
+
+  it('runs both stages and falls back from an unsafe override without injection', () => {
+    const { agentEnv, git, repository, trace } = makeRepository();
+    writeFileSync(join(repository, 'one'), 'one\n');
+    expect(git(['add', 'one'], agentEnv).exitCode).toBe(0);
+    const committed = git(['commit', '-m', 'fix: one'], {
+      ...agentEnv,
+      AGENT_AUTHORED_BY: 'safe\nInjected: yes',
+      CODEX_SANDBOX: 'seatbelt',
+    });
+    expect(committed.stderr.toString()).toBe('');
+    expect(committed.exitCode).toBe(0);
+    expect(stages(trace)).toEqual(['prepare-commit-msg', 'commit-msg']);
+    expect(body(git)).toContain('Agent-Authored-By: codex');
+    expect(body(git)).not.toContain('Injected: yes');
+  });
+
+  function expectGeneratedSquashUnstamped(verbose: boolean) {
+    const { agentEnv, git, hookEnv, repository, trace } = makeRepository();
+    writeFileSync(join(repository, 'base'), 'base\n');
+    expect(git(['add', 'base'], hookEnv).exitCode).toBe(0);
+    expect(git(['commit', '-qm', 'base'], hookEnv).exitCode).toBe(0);
+    expect(git(['checkout', '-qb', 'topic'], hookEnv).exitCode).toBe(0);
+    writeFileSync(join(repository, 'topic'), 'topic\n');
+    expect(git(['add', 'topic'], hookEnv).exitCode).toBe(0);
+    expect(
+      git(
+        [
+          'commit',
+          '-qm',
+          'topic mentions ------------------------ >8 ------------------------ inline',
+        ],
+        hookEnv,
+      ).exitCode,
+    ).toBe(0);
+    expect(git(['checkout', '-q', 'main'], hookEnv).exitCode).toBe(0);
+    expect(git(['merge', '--squash', 'topic'], hookEnv).exitCode).toBe(0);
+    writeFileSync(trace, '');
+    expect(
+      git(['commit', ...(verbose ? ['-v'] : [])], { ...agentEnv, GIT_EDITOR: 'true' }).exitCode,
+    ).toBe(0);
+    expect(stages(trace)).toEqual(['prepare-commit-msg', 'commit-msg']);
+    expect(body(git)).not.toContain('Agent-Authored-By:');
+  }
+
+  it('runs both stages without stamping a plain generated squash message', () => {
+    expectGeneratedSquashUnstamped(false);
+  });
+
+  it('runs both stages without stamping a verbose generated squash message', () => {
+    expectGeneratedSquashUnstamped(true);
+  });
+
+  it('stamps an ordinary verbose commit above the discarded diff', () => {
+    const { agentEnv, git, repository, trace } = makeRepository();
+    const editor = join(repository, 'editor');
+    writeFileSync(
+      editor,
+      '#!/bin/sh\nmsg="$1"\n{ printf "fix: ordinary verbose\\n\\n"; cat "$msg"; } >"$msg.tmp"\nmv "$msg.tmp" "$msg"\n',
+    );
+    chmodSync(editor, 0o755);
+    writeFileSync(join(repository, 'ordinary'), 'ordinary\n');
+    expect(git(['add', 'ordinary'], agentEnv).exitCode).toBe(0);
+    const committed = git(['commit', '-v'], { ...agentEnv, GIT_EDITOR: editor });
+    expect(committed.stderr.toString()).toBe('');
+    expect(committed.exitCode).toBe(0);
+    expect(stages(trace)).toEqual(['prepare-commit-msg', 'commit-msg']);
+    expect(body(git).match(/^Agent-Authored-By:/gm)).toHaveLength(1);
+    expect(body(git)).not.toContain('diff --git');
+  });
+
+  it('keeps the legacy fallback above exact scissors without truncating a body substring', () => {
+    const { agentEnv, repository } = makeRepository();
+    const realGit = Bun.spawnSync(['sh', '-c', 'command -v git'], {
+      env: humanEnv,
+      stderr: 'pipe',
+      stdout: 'pipe',
+    })
+      .stdout.toString()
+      .trim();
+    expect(realGit).not.toBe('');
+    const fakeBin = join(repository, 'fake-bin');
+    mkdirSync(fakeBin);
+    const fakeGit = join(fakeBin, 'git');
+    writeFileSync(
+      fakeGit,
+      `#!/bin/sh\nif [ "\${1:-}" = interpret-trailers ]; then exit 1; fi\nexec ${JSON.stringify(realGit)} "$@"\n`,
+    );
+    chmodSync(fakeGit, 0o755);
+    const message = join(repository, 'COMMIT_EDITMSG');
+    writeFileSync(
+      message,
+      [
+        'fix: body mentions ------------------------ >8 ------------------------ without being a marker',
+        '',
+        '# ------------------------ >8 ------------------------',
+        'diff --git a/a b/a',
+        '--- a/a',
+      ].join('\n'),
+    );
+    const result = Bun.spawnSync(['sh', hook, message], {
+      cwd: repository,
+      env: { ...agentEnv, PATH: `${fakeBin}:${humanEnv.PATH ?? ''}` },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+    expect(result.exitCode).toBe(0);
+    const text = readFileSync(message, 'utf8');
+    expect(text.match(/^Agent-Authored-By:/gm)).toHaveLength(1);
+    expect(text.indexOf('Agent-Authored-By:')).toBeGreaterThan(
+      text.indexOf('body mentions ------------------------ >8'),
+    );
+    expect(text.indexOf('Agent-Authored-By:')).toBeLessThan(
+      text.indexOf('# ------------------------ >8'),
+    );
+    expect(text).toContain(
+      'body mentions ------------------------ >8 ------------------------ without being a marker',
+    );
+  });
+
+  it('treats a non-matching SQUASH_MSG as stale and stamps the explicit message', () => {
+    const { agentEnv, git, repository, trace } = makeRepository();
+    writeFileSync(join(repository, '.git', 'SQUASH_MSG'), 'Squashed commit of an earlier topic\n');
+    writeFileSync(join(repository, 'later'), 'later\n');
+    expect(git(['add', 'later'], agentEnv).exitCode).toBe(0);
+    expect(git(['commit', '-m', 'fix: later work'], agentEnv).exitCode).toBe(0);
+    expect(stages(trace)).toEqual(['prepare-commit-msg', 'commit-msg']);
+    expect(body(git)).toContain('Agent-Authored-By: openai/gpt-5.6-sol');
+  });
+});

@@ -12,6 +12,13 @@
         "cwd": "libs/solver-py"
       },
       "cache": false
+    },
+    "setup-macos": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run tools/dev/solver-setup-cli.ts"
+      },
+      "cache": false
     }
   }
 }

@@ -85,8 +85,20 @@ export function fakeProjectApi(): ProjectApi & {
    * that needs a row already wired up is arranging a screen, not driving the
    * editor.
    */
-  linkTo: (workItemId: string, refs: readonly { systemId: string; url: string }[]) => void;
+  linkTo: (
+    workItemId: string,
+    refs: readonly { systemId: string; url: string; name?: string }[],
+  ) => void;
+  /**
+   * Every Retry the screen asked for, in order.
+   *
+   * Recorded rather than answered, because the 202 is not what moves a screen:
+   * the plan read is, and a test that asserted on the return value would pass
+   * on a button that never re-read.
+   */
+  retries: readonly { objective: 'pri' | 'time'; inputHash: string }[];
 } {
+  const retries: { objective: 'pri' | 'time'; inputHash: string }[] = [];
   const rows: WorkItemView[] = [];
   const edges: { predecessorId: string; successorId: string }[] = [];
   let next = 0;
@@ -319,12 +331,22 @@ export function fakeProjectApi(): ProjectApi & {
       // read carries a fresh sequence and the table does not discard it.
       renumber();
     },
-    linkTo(workItemId: string, refs: readonly { systemId: string; url: string }[]) {
+    retries,
+    linkTo(workItemId: string, refs: readonly { systemId: string; url: string; name?: string }[]) {
       const row = rows.find((r) => r.id === workItemId);
       if (row === undefined) throw new Error(`no work item ${workItemId}`);
       row.externalRefs = refs.map((ref) => {
         nextRefId += 1;
-        return { id: `ref${String(nextRefId)}`, systemId: ref.systemId, url: ref.url };
+        // `''` where a fixture states no name, which is what be-01's own
+        // boundary supplies for a ref stated without one: a fake that left the
+        // field off would be the one surface where `name` is optional, and the
+        // card's fallback would be exercised by nothing but an accident.
+        return {
+          id: `ref${String(nextRefId)}`,
+          systemId: ref.systemId,
+          url: ref.url,
+          name: ref.name ?? '',
+        };
       });
     },
     labelWithTag(workItemId: string, tagIds: readonly string[]) {
@@ -491,6 +513,13 @@ export function fakeProjectApi(): ProjectApi & {
             pri: { state: 'idle' as const },
             time: { state: 'idle' as const },
           },
+          // Fast's finish and nothing else: this fake serves no optimized
+          // schedule at all, so a variant figure here would be a comparison
+          // against a schedule that does not exist. The cue reads it as "both
+          // variants are waiting", which is what an enabled project with an
+          // allocated generation and no stored result is.
+          finishDays: { fast: Math.max(0, ...rows.map((row) => scheduleOf(row).earliestFinish)) },
+          sameOrderAsFast: {},
         },
       };
       return Promise.resolve(plan);
@@ -503,6 +532,12 @@ export function fakeProjectApi(): ProjectApi & {
     setEstimateMethod(_projectId, method) {
       estimateMethod = method;
       renumber();
+      return Promise.resolve();
+    },
+    // Records the ask and re-reads, which is what the real one causes: the
+    // page's authority for a variant's state is the plan read, never the 202.
+    retryOptimization(_projectId, objective, inputHash) {
+      retries.push({ objective, inputHash });
       return Promise.resolve();
     },
     setOptimizationSettings(_projectId, patch) {
@@ -780,13 +815,22 @@ export function fakeProjectApi(): ProjectApi & {
       // wire shape has no `id` and a spread would put `{systemId, url}` on the
       // view where every reader expects an `ExternalRefView`.
       const { externalRefs: statedRefs, ...restOfPatch } = written as Record<string, unknown> & {
-        externalRefs?: readonly { systemId: string; url: string }[];
+        externalRefs?: readonly { systemId: string; url: string; name?: string }[];
       };
       if (row !== undefined) Object.assign(row, restOfPatch);
       if (row !== undefined && statedRefs !== undefined) {
         row.externalRefs = statedRefs.map((ref) => {
           nextRefId += 1;
-          return { id: `ref${String(nextRefId)}`, systemId: ref.systemId, url: ref.url };
+          // `''` for an entry that names nothing, which is exactly what
+          // `asOptionalExternalRefs` supplies at be-01's boundary. A fake that
+          // stored `undefined` would let the card's fallback be reached by a
+          // row shape be-01 can never send.
+          return {
+            id: `ref${String(nextRefId)}`,
+            systemId: ref.systemId,
+            url: ref.url,
+            name: ref.name ?? '',
+          };
         });
       }
       // The dual write be-01 performs: the column and the join, in one act, and

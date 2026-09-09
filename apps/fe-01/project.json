@@ -75,6 +75,15 @@
       "options": {
         "command": "bunx tsc --build --force apps/fe-01/tsconfig.json"
       }
+    },
+    "serve-local-solver": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "options": {
+        "command": "bunx vite",
+        "cwd": "apps/fe-01"
+      },
+      "cache": false
     }
   }
 }

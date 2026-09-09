@@ -8,7 +8,7 @@ import {
   tableFeatures,
 } from '@tanstack/react-table';
 
-import { type TreeRow } from '../wbs-rows';
+import { type PlanRenderRow } from '../plan-render-rows';
 
 /**
  * The table's features, named once: rows that expand, and the row model that
@@ -22,7 +22,7 @@ export const PLAN_TABLE_FEATURES = tableFeatures({
 });
 export type PlanTableFeatures = typeof PLAN_TABLE_FEATURES;
 
-export const column = createColumnHelper<PlanTableFeatures, TreeRow>();
+export const column = createColumnHelper<PlanTableFeatures, PlanRenderRow>();
 
 declare module '@tanstack/table-core' {
   /**
@@ -52,6 +52,8 @@ declare module '@tanstack/table-core' {
     in out TData extends RowData,
     TValue extends CellData = CellData,
   > {
+    /** Whether this row contributes an editable cell to the committed keyboard grid. */
+    isEditable?: (row: TData) => boolean;
     spokenHeading?: string;
   }
   /* eslint-enable @typescript-eslint/no-unused-vars */

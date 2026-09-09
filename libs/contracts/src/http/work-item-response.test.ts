@@ -62,7 +62,9 @@ test('checks deadline and slice lateness while retaining additive nested respons
     tagIds: [],
     serviceIds: [],
     typeIds: [],
-    externalRefs: [{ id: 'ref', systemId: 'jira', url: 'https://example.test/issue/1' }],
+    externalRefs: [
+      { id: 'ref', systemId: 'jira', url: 'https://example.test/issue/1', name: 'AB-1 Wiring' },
+    ],
     number: '010',
     estimates: { s: { optimistic: 1, realistic: 1, pessimistic: 1 } },
     rolledUp: false,
@@ -134,6 +136,30 @@ test('checks deadline and slice lateness while retaining additive nested respons
         },
       ],
     },
+    // A read is where `name` is **not** optional: the column is
+    // `NOT NULL DEFAULT ''`, so a row that came back without the field is a
+    // be-01 that did not select it, and the client's fallback would draw the
+    // derived label over a name somebody typed.
+    {
+      ...tree,
+      workItems: [
+        {
+          ...row,
+          externalRefs: [{ id: 'ref', systemId: 'jira', url: 'https://example.test/issue/1' }],
+        },
+      ],
+    },
+    {
+      ...tree,
+      workItems: [
+        {
+          ...row,
+          externalRefs: [
+            { id: 'ref', systemId: 'jira', url: 'https://example.test/issue/1', name: 7 },
+          ],
+        },
+      ],
+    },
   ])
     expect((await validateSchema(schema, altered)).issues).toBeDefined();
 });
@@ -168,13 +194,18 @@ test('checks the optional optimization projection and every variant state', asyn
     budgetMs: 60_000,
     displayed: 'pri',
     variants: {
-      pri: { state: 'ready' },
+      pri: { state: 'ready', proof: 'proven' },
       time: {
         state: 'plan-infeasible',
         items: [{ ownerWorkItemId: 'owner', boundWorkItemId: 'bound', effectiveDeadlineOffset: 4 }],
       },
     },
-    comparison: { deltaDays: -2, sameOrder: false },
+    // Both required, and both are what the cue reads: Fast's finish is what
+    // every comparison is measured against, and a variant contributes its own
+    // finish and its order relation only where be-01 holds a schedule for it —
+    // here `pri` does and the `plan-infeasible` `time` does not.
+    finishDays: { fast: 10, pri: 8 },
+    sameOrderAsFast: { pri: false },
   };
 
   expect((await validateSchema(schema, { ...tree, optimization })).issues).toBeUndefined();
