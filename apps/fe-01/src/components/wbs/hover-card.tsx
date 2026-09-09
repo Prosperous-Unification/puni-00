@@ -272,11 +272,14 @@ export interface HoverCardProps {
    * then cover the lane *upward* instead. Left clear of the lane, it is out of
    * the way whichever side it opens on.
    *
-   * The width ceiling becomes `100%` of the cell as well as the pixel cap: an
-   * absolutely positioned box shrinks to fit the room between its `left` and its
-   * containing block's right edge, so pulling `left` negative without capping
-   * the width would just let the card grow the 24px back and land on the lane
-   * again.
+   * Placed by its **right** edge, `right: 24px` inside the cell, rather than by
+   * a negative `left`. Both put the same box on a wide cell, and only this one
+   * holds on a narrow one: shrink-to-fit takes the room between the containing
+   * block's left edge and `right`, and where that is under
+   * {@link CARD_MIN_WIDTH_PX} the card grows *leftwards* out of its cell
+   * instead of over the lane. A `left: -24px` card capped at `100%` of the cell
+   * loses to the same minimum and covers the lane again — which is what the
+   * Name column does at 192px, with the four reference columns on screen.
    */
   clearsMarkerLane?: boolean;
   children: ReactNode;
@@ -564,24 +567,23 @@ export function HoverCard({
             ...(opensSideways
               ? { left: '100%', top: 0 }
               : {
-                  // Pulled left of its trigger's lane where the card is asked to
-                  // leave one — see {@link HoverCardProps.clearsMarkerLane}.
-                  left: clearsMarkerLane ? -MARKER_LANE_PX : 0,
+                  // A card asked to leave its trigger's lane clear is anchored
+                  // by its **right** edge, 24px inside its cell's — see
+                  // {@link HoverCardProps.clearsMarkerLane}. Anchoring the edge
+                  // that has to stay clear is what makes the promise hold at
+                  // any column width: the first cut of this pulled `left` 24px
+                  // negative and capped the width at `100%` of the cell, which
+                  // is the same box only while the cell is wider than
+                  // {@link CARD_MIN_WIDTH_PX}. With the four reference columns
+                  // on screen the Name cell is 192px, the minimum won, and the
+                  // card stood 44px over the lane again — measured in Chromium
+                  // on 2026-09-09, `elementFromPoint` at the next row's marker
+                  // answering the card's own `H1`.
+                  ...(clearsMarkerLane ? { right: MARKER_LANE_PX, left: 'auto' } : { left: 0 }),
                   ...(room?.side === 'above' ? { bottom: '100%' } : { top: '100%' }),
                 }),
             maxWidth: scrolls
-              ? // Where the card is pulled left, `100%` of the cell joins the
-                // pixel cap, and it is what makes the pull hold: shrink-to-fit
-                // measures the room from `left` to the containing block's right
-                // edge, so a card pulled 24px left with no such cap simply grows
-                // 24px wider and covers the lane again. Watched: with the `100%`
-                // taken out, `leaves the marker lane clear` fails on `Expected:
-                // <= 486.40625 · Received: 502` — the same two figures the pull's
-                // own removal produces, which is the 24px arriving back on the
-                // right edge (2026-09-09). It is tied to the pull rather than to
-                // `scrolls`: a scrolling card over a *narrow* cell wants the
-                // 640px it asked for, not its cell's width.
-                `min(${String(SCROLLING_MAX_WIDTH_PX)}px, ${clearsMarkerLane ? '100%, ' : ''}100vw)`
+              ? `min(${String(SCROLLING_MAX_WIDTH_PX)}px, 100vw)`
               : CARD_MAX_WIDTH_PX,
           }
         : {
