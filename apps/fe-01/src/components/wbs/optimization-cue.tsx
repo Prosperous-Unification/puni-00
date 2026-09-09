@@ -15,7 +15,6 @@ import {
   ALGORITHM_WORDS,
   days,
   deadlineWords,
-  hasEffectiveDeadline,
   OBJECTIVE_LABEL,
   STALE_WORDS,
 } from './optimization-words';
@@ -82,10 +81,16 @@ const PILL =
  */
 function dotState(
   optimization: PlanOptimizationView,
-): 'solving' | 'unavailable' | 'infeasible' | null {
+): 'solving' | 'unavailable' | 'infeasible' | 'incomplete' | null {
   const states = [optimization.variants.pri.state, optimization.variants.time.state];
   if (states.includes('failed') || states.includes('corrupt')) return 'unavailable';
   if (states.includes('plan-infeasible')) return 'infeasible';
+  if (
+    Object.values(optimization.variants).some(
+      (variant) => variant.state === 'ready' && variant.proof === 'incomplete',
+    )
+  )
+    return 'incomplete';
   if (states.includes('pending') || states.includes('retrying')) return 'solving';
   // An admitted `idle` is waiting for a solver seat, which is the same news as
   // `pending` — `variantStateWords` has the whole of why the two words differ.
@@ -102,10 +107,11 @@ function dotState(
  * card says which. `--muted-foreground` for a solve in flight, pulsing, which
  * is the only state that is going to change on its own.
  */
-const DOT: Readonly<Record<'solving' | 'unavailable' | 'infeasible', string>> = {
+const DOT: Readonly<Record<'solving' | 'unavailable' | 'infeasible' | 'incomplete', string>> = {
   solving: 'var(--muted-foreground)',
   unavailable: 'var(--highlight)',
   infeasible: 'var(--destructive)',
+  incomplete: 'var(--highlight)',
 };
 
 /** One unmeetable work item deadline, as a line of the card. */
@@ -119,10 +125,9 @@ function unmeetableLine(
     unmeetable.ownerWorkItemId === unmeetable.boundWorkItemId
       ? nameOf(unmeetable.boundWorkItemId)
       : `${nameOf(unmeetable.ownerWorkItemId)} → ${nameOf(unmeetable.boundWorkItemId)}`;
-  const effective = hasEffectiveDeadline(projectStart, unmeetable.effectiveDeadlineOffset)
-    ? ' (effective workday)'
-    : '';
-  return `${who} · Work item deadline${effective} ${deadlineWords(projectStart, unmeetable.effectiveDeadlineOffset, today)}`;
+  const deadline = deadlineWords(projectStart, unmeetable.effectiveDeadlineOffset, today);
+  const effective = deadline.isEffectiveWorkday ? ' (effective workday)' : '';
+  return `${who} · Work item deadline${effective} ${deadline.text}`;
 }
 
 /**
