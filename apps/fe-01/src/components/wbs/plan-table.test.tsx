@@ -253,28 +253,31 @@ async function threeRoots() {
 }
 
 describe('the WBS table', () => {
-  itDom('keeps today stable within a local day and refreshes on the first render after midnight', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 8, 9, 23, 59, 59));
-    try {
-      const held = renderHook(() => useToday());
-      const beforeMidnight = held.result.current;
+  itDom(
+    'keeps today stable within a local day and refreshes on the first render after midnight',
+    () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 8, 9, 23, 59, 59));
+      try {
+        const held = renderHook(() => useToday());
+        const beforeMidnight = held.result.current;
 
-      held.rerender();
-      expect(held.result.current).toBe(beforeMidnight);
+        held.rerender();
+        expect(held.result.current).toBe(beforeMidnight);
 
-      vi.setSystemTime(new Date(2026, 8, 10, 0, 0, 1));
-      held.rerender();
-      expect(held.result.current).not.toBe(beforeMidnight);
-      expect(held.result.current).toEqual(new Date(2026, 8, 10, 12));
+        vi.setSystemTime(new Date(2026, 8, 10, 0, 0, 1));
+        held.rerender();
+        expect(held.result.current).not.toBe(beforeMidnight);
+        expect(held.result.current).toEqual(new Date(2026, 8, 10, 12));
 
-      const afterMidnight = held.result.current;
-      held.rerender();
-      expect(held.result.current).toBe(afterMidnight);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
+        const afterMidnight = held.result.current;
+        held.rerender();
+        expect(held.result.current).toBe(afterMidnight);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
 
   itDom('types a three-level breakdown without touching the mouse', async () => {
     const api = fakeApi();
