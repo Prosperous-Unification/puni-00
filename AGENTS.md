@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — twenty-six times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — twenty-seven times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -624,11 +624,20 @@ twenty-sixth. `e2e/hover-cards.spec.ts`'s `paints over the pinned cell of the ro
 compared two screenshots of the overlap between an open card and the pinned Name cell under it:
 one with the card open, one with the pointer moved away. Moving the pointer away also **unlights
 the row**, so the two shots differ whether the card was painted or hidden — watched green with
-`zIndex: 20` deleted. Replaced by `elementFromPoint` at the middle of the overlap, it failed
-**with the z-index in place**: `Expected: "the card" · Received: "TEXTAREA"`. A folded step card
-is genuinely painted under a pinned cell once its column is scrolled under the pinned block, and
-nobody had seen it because the oracle was a diff of two pictures the pointer itself changed.
-**A before/after screenshot is only a check when nothing else moved between the two.**
+`zIndex: 20` deleted.
+
+**And its first replacement was wrong in the other direction, which is the twenty-seventh and the
+more useful half.** `elementFromPoint` at the middle of the overlap answered the pinned
+`<textarea>` **with the z-index in place**, and that was read as "the card is painted underneath"
+— a defect was written into `LLM_README.md`, a memory and a change's verify.md on the strength of
+it. A hover card is `pointer-events: none`: the hit test reports whatever is beneath it _however_
+the paint came out, so it cannot answer a paint question at all. What settled it was one **pixel**,
+screenshotted at that point with the card open and again with it closed, in the row **below** the
+pointer's own so that nothing else moves between the two reads: `(221, 221, 224)` against
+`(255, 255, 255)`, and both `(255, 255, 255)` with the z-index gone. There was never a defect.
+**Ask the paint question with paint, in a place the pointer does not change** — and when a check
+is replaced because it could not fail, the replacement needs its own watched negative before its
+answer is believed, not after it has been written down as a finding.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.

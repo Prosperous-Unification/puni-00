@@ -279,6 +279,136 @@ test.describe('a hover card answers at once, whole, and out past its cell', () =
   });
 });
 
+/** How far under the pinned block the card's own column is pushed, in px. */
+const PIN_OVERLAP = 60;
+
+/**
+ * The colour actually painted at one point of the page, as three bytes.
+ *
+ * A one-pixel screenshot rather than `getComputedStyle`, because what is asked
+ * here is what a reader *sees* where two boxes overlap — which is the one
+ * question a declaration cannot answer and `elementFromPoint` answers wrongly:
+ * a card is `pointer-events: none`, so the hit test reports whatever is
+ * underneath it whether the card is painted on top or not.
+ */
+async function paintedAt(page: Page, at: { x: number; y: number }): Promise<string> {
+  const shot = await page.screenshot({ clip: { ...at, width: 1, height: 1 } });
+  return shot.toString('base64');
+}
+
+test.describe('a card and the pinned columns it slides under', () => {
+  test('paints over the pinned cell of the row below it', async ({ page }) => {
+    // The row lift (`POPOVER_ROW_LAYER`) is applied to the pinned columns that
+    // open cards, so does a card from an **unpinned** column paint *under* a
+    // pinned cell of the row below? The answer is no, and the reason is the
+    // lift's own: it exists because a pinned cell is `position: sticky` **with a
+    // z-index**, which makes that `<td>` a stacking context and traps a popover
+    // inside it at the pinned layer. A folded step column is not pinned
+    // (`table-frame.test.ts` asserts `pinnedCellStyle` answers `undefined` for
+    // it), so nothing between its card and the frame establishes a stacking
+    // context and the card's own `z-index: 20` competes directly with the pinned
+    // layer, which is 1.
+    //
+    // Reasoning is not evidence, hence this. The two never overlap sitting still
+    // — the pinned block is to the *left* and a card opens downwards — so the
+    // frame is scrolled until the folded step column is 60px under the pin, and
+    // the point compared is inside the pinned Name cell of the **row below**.
+    //
+    // **The comparison is one painted pixel, open against closed**, and the two
+    // oracles this replaces are why it is spelt out. A pair of *strips* was
+    // compared until 2026-09-09 — and the pointer that opens the card also
+    // lights its own row, so the two shots differ whether the card was drawn or
+    // hidden: watched green with `zIndex: 20` deleted (R5 #26). Its replacement,
+    // `elementFromPoint` at the same place, is wrong in the other direction: the
+    // card is `pointer-events: none`, so the hit test answers the pinned
+    // `<textarea>` underneath **however** the paint came out, and reading that
+    // as "the card is hidden" invented a defect that was never there. One pixel,
+    // in the row below the pointer's own, is the thing neither of them was.
+    //
+    // Proof: `zIndex: 20` removed from `HoverCard` — this failed on `the pinned
+    // cell below hides the card · Expected: false · Received: true`, the two
+    // reads becoming the same pixel. Measured beside it, with a probe that
+    // printed the bytes: `(221, 221, 224)` open against `(255, 255, 255)` closed
+    // with the z-index in place, and `(255, 255, 255)` both ways without it.
+    // Watched in Chromium, 2026-09-10.
+    await page.setViewportSize({ width: 900, height: 700 });
+    await page.getByRole('button', { name: 'Add work item' }).click();
+    await expect(page.getByLabel('Name of 030')).toBeVisible();
+
+    // A trio on 010, so its folded cell has a card to open at all.
+    const estimate = page.getByLabel('Dev estimate for 010');
+    await estimate.fill('2/3/8');
+    await estimate.blur();
+    // The box owns the cell while it has the focus, so the card only opens once
+    // it has been left — which is how a reader reaches it too.
+    await page.getByLabel('Name of 020').click();
+    await page.mouse.move(0, 0);
+
+    const foldedCell = page.getByLabel('Dev estimate for 010').locator('..');
+    // The pinned cell, not the box inside it: the `<td>` is what is sticky, what
+    // carries the opaque background, and what would hide the card.
+    const pinnedBelow = page.getByLabel('Name of 020').locator('xpath=ancestor::td');
+
+    // Narrower for the scroll: a frame can only travel `content - viewport`, and
+    // at 900px the scroll this needs runs out 19px short. 800 and not less — the
+    // table becomes cards below 768px, and at 760 the cell has no box at all.
+    await page.setViewportSize({ width: 800, height: 700 });
+
+    // Measured, not guessed: how far the frame has to travel to put the left
+    // 60px of the folded step column under the pinned block, leaving its right
+    // edge clear for a pointer. Asserted rather than assumed, because a frame
+    // that would not scroll leaves everything below overlapping nothing.
+    const atRest = await boxOf(foldedCell, 'the folded step cell');
+    const pinRight = await boxOf(pinnedBelow, 'the pinned cell below').then(
+      (pin) => pin.x + pin.width,
+    );
+    const slide = Math.round(atRest.x - pinRight + PIN_OVERLAP);
+    expect(slide, 'the folded step column already sits under the pin').toBeGreaterThan(0);
+    const reached = await page.evaluate((left) => {
+      const frame = document.querySelector('[data-table-frame]');
+      if (frame === null) throw new Error('the scrolling frame is not on the page');
+      frame.scrollLeft = left;
+      return frame.scrollLeft;
+    }, slide);
+    expect(reached, 'the frame would not scroll that far').toBe(slide);
+
+    // On the half of the cell that is still clear of the pinned block: a pointer
+    // aimed at the half under it lands on the pin instead.
+    await foldedCell.hover({ position: { x: PIN_OVERLAP + 16, y: 4 } });
+    expect(await cardsOpen(page), 'no card opened on the folded step cell').toBe(1);
+
+    const card = await boxOf(page.locator('[role="tooltip"]').first(), 'the card');
+    const pinned = await boxOf(pinnedBelow, 'the pinned cell below');
+    // The overlap, and it is a precondition rather than a formality: an empty
+    // rectangle would make the comparison below two reads of the same patch of
+    // nothing — R5 tally #16, which is exactly this mistake.
+    const strip = {
+      x: Math.round(Math.max(card.x, pinned.x)),
+      y: Math.round(Math.max(card.y, pinned.y)),
+      width: 0,
+      height: 0,
+    };
+    strip.width = Math.round(Math.min(card.x + card.width, pinned.x + pinned.width) - strip.x);
+    strip.height = Math.round(Math.min(card.y + card.height, pinned.y + pinned.height) - strip.y);
+    expect(strip.width, 'the card and the pinned box below it do not overlap').toBeGreaterThan(8);
+    expect(strip.height, 'the card and the pinned box below it do not overlap').toBeGreaterThan(4);
+    // And the row it is taken in is not the row the pointer is lighting, which
+    // is what makes open-against-closed a reading of the card alone.
+    expect(
+      strip.y,
+      'the overlap is in the pointed row, whose colour the pointer moves',
+    ).toBeGreaterThanOrEqual(Math.round(pinned.y));
+
+    const middle = { x: strip.x + strip.width / 2, y: strip.y + strip.height / 2 };
+    const open = await paintedAt(page, middle);
+    await page.mouse.move(0, 0);
+    await expect(page.locator('[role="tooltip"]')).toHaveCount(0);
+    const shut = await paintedAt(page, middle);
+
+    expect(open === shut, 'the pinned cell below hides the card').toBe(false);
+  });
+});
+
 /** The `<tr>` a numbered row's cells sit in, found through its own Name box. */
 const rowOf = (page: Page, number: string): Locator =>
   page.getByLabel(`Name of ${number}`).locator('xpath=ancestor::tr');
