@@ -1245,11 +1245,14 @@ in **one declared unit** and includes JSX text and `aria-label`.
 
 **Two corrections that survive the withdrawn count, and they change the item.**
 
-- The claim that the two cell sentences are unqualified-but-unambiguous "because
-  the **Work item deadline** label is above them" is **false**. The visible
-  column heading is `Due` (`wbs-table.tsx:10238-10242`); `Work item deadline` is
-  the separate Columns-control label (`:2560-2562`). The referent those
-  sentences were said to inherit is not on screen beside them.
+- The withdrawn measurement claimed that the two cell sentences were
+  unqualified-but-unambiguous "because the **Work item deadline** label is above
+  them". That was **false at its measured head**: the visible heading then read
+  `Due`, while `Work item deadline` was a separate Columns-control label. The
+  referent those sentences were said to inherit was not on screen beside them.
+  The later normative amendment now makes that compact heading one of the two
+  exact **Deadline** contract labels; the historical correction does not
+  describe the current tree.
 - **The original standing SHALL allowed no exception.** Closing 8.9 therefore
   required both changes that now ship: qualify the reader-facing copy, then
   amend the scenario to name exactly two product-contract exceptions — the

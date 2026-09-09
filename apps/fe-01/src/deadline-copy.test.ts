@@ -79,17 +79,20 @@ function isExactDeadlineColumnLabel(
   if (node.text !== 'Deadline') return false;
 
   if (file === 'src/components/wbs/plan-columns/deadline.tsx' && ts.isJsxText(node)) {
-    const element = node.parent;
-    const arrow = element.parent;
-    const property = arrow.parent;
+    const element = parentOf(node);
+    const arrow = parentOf(element);
+    const property = parentOf(arrow);
     return (
+      element !== undefined &&
       ts.isJsxElement(element) &&
       element.children.length === 1 &&
       element.children[0] === node &&
       ts.isIdentifier(element.openingElement.tagName) &&
       element.openingElement.tagName.text === 'span' &&
+      arrow !== undefined &&
       ts.isArrowFunction(arrow) &&
       arrow.body === element &&
+      property !== undefined &&
       ts.isPropertyAssignment(property) &&
       ts.isIdentifier(property.name) &&
       property.name.text === 'header' &&
