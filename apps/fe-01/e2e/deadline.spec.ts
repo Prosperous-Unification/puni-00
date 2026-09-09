@@ -27,9 +27,12 @@ async function seedDatedWorkItem(page: Page): Promise<void> {
   await actions.getByRole('button', { name: 'Add work item' }).click();
   await expect(page.getByLabel('Name of 010')).toBeVisible();
   await page.getByRole('button', { name: 'Plan actions' }).click();
-  await page.getByRole('dialog', { name: 'Plan actions' }).getByRole('button', {
-    name: 'Add work item',
-  }).click();
+  await page
+    .getByRole('dialog', { name: 'Plan actions' })
+    .getByRole('button', {
+      name: 'Add work item',
+    })
+    .click();
   await expect(page.getByLabel('Name of 020')).toBeVisible();
 }
 
@@ -150,7 +153,8 @@ test('the phone deadline sheet leaves its card visible and drives Save and Clear
   const trigger = card.locator('[data-card-deadline-field]');
   await trigger.evaluate((control) => {
     control.scrollIntoView({ block: 'end' });
-    if (!(control instanceof HTMLButtonElement)) throw new Error('deadline trigger is not a button');
+    if (!(control instanceof HTMLButtonElement))
+      throw new Error('deadline trigger is not a button');
     control.click();
   });
   const editor = page.getByRole('dialog', { name: /Work item deadline for 020/ });
