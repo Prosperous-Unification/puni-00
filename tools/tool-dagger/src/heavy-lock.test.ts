@@ -32,11 +32,20 @@ function readIfPresent(path: string): string {
   }
 }
 
-// Generated shell source needs shell quoting, not JSON string quoting: within
-// double quotes bash would still expand `$`, backticks, and command syntax.
-// Close the single-quoted word, emit one quoted apostrophe, then reopen it.
+// Every filesystem path entering generated shell source in this file routes
+// through this helper. JSON string quoting is insufficient: within double
+// quotes bash would still expand `$`, backticks, and command syntax. Close the
+// single-quoted word, emit one quoted apostrophe, then reopen it.
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+// PATH is a colon-delimited environment value, not shell source, so quoting an
+// entry cannot preserve an embedded colon. Refuse that unsupported temp-root
+// shape at the construction boundary instead of silently splitting the shim.
+function pathEntry(value: string): string {
+  if (value.includes(':')) throw new Error(`PATH entry contains a colon: ${value}`);
+  return value;
 }
 
 // The executables a pinned `PATH` must actually hold, checked on the image the
@@ -138,14 +147,8 @@ afterEach(async () => {
 });
 
 describe('with-heavy-lock', () => {
-  it('shell-quotes hostile generated path characters without expansion', () => {
-    const hostileRoot = mkdtempSync(join(tmpdir(), "wbs shell $dollar `backtick` 'apostrophe'-"));
-    roots.push(hostileRoot);
-    const marker = join(hostileRoot, 'marker with spaces');
-    const quoted = Bun.spawnSync(['bash', '-c', `printf '%s' reached >${shellQuote(marker)}`]);
-
-    expect(quoted.exitCode).toBe(0);
-    expect(readFileSync(marker, 'utf8')).toBe('reached');
+  it('rejects colon-bearing generated PATH entries instead of splitting them', () => {
+    expect(() => pathEntry('/tmp/wbs:shim')).toThrow('PATH entry contains a colon');
   });
 
   it('uses one canonical production lock that no caller can move', () => {
@@ -253,7 +256,10 @@ describe('with-heavy-lock', () => {
   }, 11000);
 
   it('queues for the wait budget instead of refusing, and takes the lock when the holder releases it', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'wbs-heavy-lock-'));
+    // The hostile root reaches the real holder and generated retry shim below.
+    // Watched: reverting the shim injection sites to JSON.stringify expands
+    // `$dollar` and the backticks, so the retry marker is never observed.
+    const root = mkdtempSync(join(tmpdir(), "wbs heavy $dollar `backtick` 'apostrophe'-"));
     roots.push(root);
     const lock = join(root, 'heavy.lock');
 
@@ -296,7 +302,7 @@ describe('with-heavy-lock', () => {
         // normally, which is what "when the holder releases it" means.
         'bash',
         '-c',
-        `while [[ ! -e ${JSON.stringify(release)} ]]; do sleep 0.05; done`,
+        `while [[ ! -e ${shellQuote(release)} ]]; do sleep 0.05; done`,
       ],
       // Captured because the readiness wait below is the one place this case can
       // fail without saying why. `heavy-lock-lib.sh` names every refusal path in
@@ -372,8 +378,9 @@ describe('with-heavy-lock', () => {
     // this case is meant to kill.
     // Pinning drops the inherited interception route. The check proves all six
     // names on the running image and returns the exact bash/sleep paths the shim
-    // embeds. Verified on h2puni, ubuntu-latest, and macOS in TASK-409; the
-    // runtime check is what makes an additional image fail diagnostically.
+    // embeds. TASK-409 executed this proof on h2puni and the workstation, and
+    // reasoned about ubuntu-latest and macOS; the runtime check is what makes an
+    // additional image fail diagnostically.
     const CONTENDER_PATH_TAIL = '/usr/bin:/bin';
     const contenderExecutables = assertResolvable(CONTENDER_PATH_TAIL, [
       'bash',
@@ -436,7 +443,7 @@ describe('with-heavy-lock', () => {
     // about, and `HOME` because tooling under it expects one. Nothing else
     // reaches it, so nothing else can write the marker.
     const contenderEnv: Record<string, string> = {
-      PATH: `${shim}:${CONTENDER_PATH_TAIL}`,
+      PATH: `${pathEntry(shim)}:${CONTENDER_PATH_TAIL}`,
       HEAVY_LOCK_WAIT_SECONDS: '30',
       HOME: process.env['HOME'] ?? root,
     };
