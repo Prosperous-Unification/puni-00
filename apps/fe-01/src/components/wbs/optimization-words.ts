@@ -101,25 +101,17 @@ export function comparisonWords(deltaDays: number, sameOrder: boolean): string {
   return `Later project deadline by ${days(deltaDays)}`;
 }
 
-/** Whether an effective offset can be reconstructed as a calendar date without taking down render. */
-export function hasEffectiveDeadline(projectStart: string | null, offset: number): boolean {
-  if (
-    projectStart === null ||
-    !isIsoDate(projectStart) ||
-    !Number.isSafeInteger(offset) ||
-    offset < 0
-  ) {
-    return false;
-  }
-  try {
-    return isIsoDate(addWorkdays(projectStart, offset));
-  } catch {
-    return false;
-  }
+export interface DeadlineWords {
+  readonly text: string;
+  readonly isEffectiveWorkday: boolean;
 }
 
-/** Render the stored deadline meaning without sending invalid input to addWorkdays. */
-export function deadlineWords(projectStart: string | null, offset: number, today: Date): string {
+/** Render and classify the stored deadline with at most one calendar reconstruction. */
+export function deadlineWords(
+  projectStart: string | null,
+  offset: number,
+  today: Date,
+): DeadlineWords {
   // Proof: the unmeetable-deadline case throws in render when this branch is
   // removed and -1 reaches addWorkdays.
   // The words are `DEADLINE_UNREACHABLE_CELL`'s and not this file's, for the
@@ -128,13 +120,27 @@ export function deadlineWords(projectStart: string | null, offset: number, today
   // deadline on the Sunday after it is unmeetable — day zero rolls forward to
   // Monday, the deadline rolls back to Friday — and the sentence would be
   // telling the reader a *later* date came first.
-  if (projectStart === null || !isIsoDate(projectStart)) return 'date unavailable';
-  if (offset === UNMEETABLE_DEADLINE_OFFSET) return DEADLINE_UNREACHABLE_CELL;
+  if (projectStart === null || !isIsoDate(projectStart)) {
+    return { text: 'date unavailable', isEffectiveWorkday: false };
+  }
+  if (offset === UNMEETABLE_DEADLINE_OFFSET) {
+    return { text: DEADLINE_UNREACHABLE_CELL, isEffectiveWorkday: false };
+  }
   // The DTO refuses these values too, but this is a rendering boundary fed by
   // a plain `number` in the FE mirror. Keep a stale or hand-built payload from
   // turning a fact card into a React render failure.
-  if (!hasEffectiveDeadline(projectStart, offset)) return 'date unavailable';
-  return shortIsoDate(addWorkdays(projectStart, offset), today);
+  if (!Number.isSafeInteger(offset) || offset < 0) {
+    return { text: 'date unavailable', isEffectiveWorkday: false };
+  }
+  try {
+    const effectiveDeadline = addWorkdays(projectStart, offset);
+    if (!isIsoDate(effectiveDeadline)) {
+      return { text: 'date unavailable', isEffectiveWorkday: false };
+    }
+    return { text: shortIsoDate(effectiveDeadline, today), isEffectiveWorkday: true };
+  } catch {
+    return { text: 'date unavailable', isEffectiveWorkday: false };
+  }
 }
 
 /**
