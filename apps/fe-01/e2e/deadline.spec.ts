@@ -130,7 +130,9 @@ test.beforeEach(async ({ page }) => {
 test('the phone deadline sheet leaves its card visible and drives Save and Clear', async ({
   page,
 }) => {
-  const trigger = page.getByRole('button', { name: 'Work item deadline for 010' });
+  // Radix makes the page accessibility-inert while the dialog is open, but it
+  // remains painted; this selector deliberately measures that painted trigger.
+  const trigger = page.locator('[data-card-deadline-field]');
   const cardId = await trigger.evaluate((control) =>
     control.closest('[data-card]')?.getAttribute('data-card'),
   );
