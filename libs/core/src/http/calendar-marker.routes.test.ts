@@ -1,13 +1,13 @@
 import { automaticColor } from '@wbs/domain';
 import { expect, spyOn, test } from 'bun:test';
 
-import { EMPTY } from '../http/endpoint';
 import { CalendarMarkerService } from '../service/calendar-marker.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCalendarMarkers } from '../testing/calendar-marker-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { inMemoryProjects, projectRow } from '../testing/project-fixture';
 import { calendarMarkerRoutes } from './calendar-marker.routes';
+import { EMPTY } from './endpoint';
 
 const markerId = '10000000-0000-4000-8000-000000000001';
 const principal = { id: 'owner', username: 'owner', scopes: ['read', 'write'] as const };

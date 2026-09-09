@@ -1,11 +1,11 @@
 import { expect, spyOn, test } from 'bun:test';
 
-import { EMPTY } from '../http/endpoint';
 import { StepService } from '../service/step.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { inMemoryProjects, projectRow } from '../testing/project-fixture';
 import { inMemorySteps, stepRow } from '../testing/step-fixture';
+import { EMPTY } from './endpoint';
 import { stepRoutes } from './step.routes';
 
 const principal = { id: 'owner', username: 'owner', scopes: ['read', 'write'] as const };

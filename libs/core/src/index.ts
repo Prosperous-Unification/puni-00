@@ -88,3 +88,7 @@ export * from './service/saved-plan-schedule';
 export * from './service/saved-plan-schedule-body';
 export * from './service/step.service';
 export * from './service/work-item.service';
+export * from './use-cases/replay';
+export * from './use-cases/retention-sweep';
+export * from './use-cases/run-command-batch';
+export * from './use-cases/save-plan';

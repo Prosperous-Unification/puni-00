@@ -1,9 +1,9 @@
 import { expect, spyOn, test } from 'bun:test';
 
-import { EMPTY } from '../http/endpoint';
 import type { AuthenticatedUser } from '../service/auth.service';
+import { testWorkItemService } from '../testing/memory-work-item-fixture';
 import { testProjectService } from '../testing/project-fixture';
-import { testWorkItemService } from '../testing/work-item-fixture';
+import { EMPTY } from './endpoint';
 import { projectRoutes } from './project.routes';
 
 const principal: AuthenticatedUser = { id: 'owner', username: 'Owner', scopes: ['read', 'write'] };

@@ -431,6 +431,7 @@ export function buildServices(opts: ServicesOptions): BeServices {
     history: new HistoryService({ projects: projectStore, events: planEventStore }),
     replay: new ReplayOrchestrator({ log: eventLog, buffer: replayBuffer }),
     retention: new RetentionTimer({
+      principal: { kind: 'internal' },
       repo: eventLog,
       maxPerSubscription: EVENT_LOG_MAX_PER_SUBSCRIPTION,
       // The same store the history route reads, so the table pruned is the table

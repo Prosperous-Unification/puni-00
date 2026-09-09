@@ -1,16 +1,11 @@
-import { afterEach, expect, spyOn, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 
-import { EMPTY } from '../http/endpoint';
-import type { SavedPlanWrite } from '../repository/saved-plan';
+import type { SavedPlanWrite } from '../ports/saved-plan-store';
 import type { AuthenticatedUser } from '../service/auth.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { projectRow, testProjectService } from '../testing/project-fixture';
-import { testSavedPlanService } from '../testing/saved-plan-fixture';
+import { projectRow } from '../testing/project-fixture';
+import { EMPTY } from './endpoint';
 import { savedPlanRoutes } from './saved-plan.routes';
-const restorations: (() => void)[] = [];
-afterEach(() => {
-  for (const restore of restorations.splice(0)) restore();
-});
 const principal: AuthenticatedUser = { id: 'actor', username: 'Ada', scopes: ['read', 'write'] };
 const record: SavedPlanWrite = {
   id: 's',
@@ -35,27 +30,27 @@ const direct = {
 };
 
 function fixture() {
-  const plans = testSavedPlanService();
-  const projects = testProjectService();
   const announcements = recordingBroadcaster();
-  const projectRead = spyOn(projects, 'read').mockResolvedValue({
-    project: projectRow({ id: 'p' }),
-    steps: [],
-  });
-  const save = spyOn(plans, 'save').mockResolvedValue({ outcome: 'saved', record });
-  const list = spyOn(plans, 'list').mockResolvedValue([]);
-  const read = spyOn(plans, 'read').mockResolvedValue({ outcome: 'read', plan: record });
-  const compare = spyOn(plans, 'compare').mockResolvedValue({
-    outcome: 'compared',
-    diff: { input: [], schedule: [] },
-  });
-  const rename = spyOn(plans, 'rename').mockResolvedValue({ outcome: 'touched', projectId: 'p' });
-  const remove = spyOn(plans, 'delete').mockResolvedValue({ outcome: 'touched', projectId: 'p' });
-  for (const spy of [projectRead, save, list, read, compare, rename, remove])
-    restorations.push(() => {
-      spy.mockRestore();
-    });
-  const endpoints = savedPlanRoutes(plans, projects, announcements);
+  const projectRead = mock(() =>
+    Promise.resolve({
+      project: projectRow({ id: 'p' }),
+      steps: [],
+    }),
+  );
+  const save = mock(() => Promise.resolve({ outcome: 'saved' as const, record }));
+  const list = mock(() => Promise.resolve([]));
+  const read = mock(() => Promise.resolve({ outcome: 'read' as const, plan: record }));
+  const compare = mock(() =>
+    Promise.resolve({
+      outcome: 'compared',
+      diff: { input: [], schedule: [] },
+    } as const),
+  );
+  const rename = mock(() => Promise.resolve({ outcome: 'touched' as const, projectId: 'p' }));
+  const remove = mock(() => Promise.resolve({ outcome: 'touched' as const, projectId: 'p' }));
+  const plans = { save, list, read, compare, rename, delete: remove };
+  const projects = { read: projectRead };
+  const endpoints = savedPlanRoutes(plans as never, projects as never, announcements);
   return { endpoints, save, list, read, compare, rename, remove, projectRead, announcements };
 }
 

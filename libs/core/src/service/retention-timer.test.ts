@@ -64,6 +64,7 @@ function event(id: string, daysAgo: number): PlanEvent {
 
 /** The options every case shares beyond what it varies. Written out so a new required one lands here once. */
 const history = () => inMemoryPlanEvents();
+const internal = { principal: { kind: 'internal' as const } };
 
 describe('RetentionTimer', () => {
   it('prunes the log on every tick', async () => {
@@ -71,6 +72,7 @@ describe('RetentionTimer', () => {
     const schedule = fakeSchedule();
     const swept: number[] = [];
     const timer = new RetentionTimer({
+      ...internal,
       repo: log,
       maxPerSubscription: 2,
       planEvents: history(),
@@ -112,6 +114,7 @@ describe('RetentionTimer', () => {
     const errors: unknown[] = [];
     const swept: number[] = [];
     const timer = new RetentionTimer({
+      ...internal,
       repo: failing,
       maxPerSubscription: 2,
       planEvents: history(),
@@ -151,6 +154,7 @@ describe('RetentionTimer', () => {
     };
     let finished = false;
     const timer = new RetentionTimer({
+      ...internal,
       repo: slow,
       maxPerSubscription: 2,
       planEvents: history(),
@@ -184,6 +188,7 @@ describe('RetentionTimer', () => {
     const log = await seed(1);
     const schedule = fakeSchedule();
     const timer = new RetentionTimer({
+      ...internal,
       repo: log,
       maxPerSubscription: 2,
       planEvents: history(),
@@ -223,6 +228,7 @@ describe('RetentionTimer', () => {
     };
     const schedule = fakeSchedule();
     const timer = new RetentionTimer({
+      ...internal,
       repo: slow,
       maxPerSubscription: 2,
       planEvents: history(),
@@ -265,6 +271,7 @@ describe('RetentionTimer, on the plan’s history', () => {
     const schedule = fakeSchedule();
     const swept: Swept[] = [];
     const timer = new RetentionTimer({
+      ...internal,
       repo: log,
       maxPerSubscription: 2,
       planEvents: events,
@@ -292,6 +299,7 @@ describe('RetentionTimer, on the plan’s history', () => {
     const events = inMemoryPlanEvents([event('exactly', 365)]);
     const schedule = fakeSchedule();
     const timer = new RetentionTimer({
+      ...internal,
       repo: await seed(1),
       maxPerSubscription: 2,
       planEvents: events,
@@ -326,6 +334,7 @@ describe('RetentionTimer, on the plan’s history', () => {
     const schedule = fakeSchedule();
     const errors: unknown[] = [];
     const timer = new RetentionTimer({
+      ...internal,
       repo: await seed(1),
       maxPerSubscription: 2,
       planEvents: failing,

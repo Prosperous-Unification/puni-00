@@ -1,7 +1,8 @@
+import type { InternalIdentity } from '../http/endpoint';
 import type { EventLogStore } from '../ports/event-log-store';
 import type { PlanEventStore } from '../ports/plan-event-store';
 import type { Intervals } from '../ports/timers';
-import { runPlanEventRetention, runRetention } from './retention-job';
+import { retentionSweep } from '../use-cases/retention-sweep';
 
 /** What one sweep removed, per table, because the two are pruned by different rules. */
 export interface Swept {
@@ -10,6 +11,8 @@ export interface Swept {
 }
 
 export interface RetentionTimerOptions {
+  /** Trusted scheduler identity supplied by the trigger adapter. */
+  principal: InternalIdentity;
   repo: EventLogStore;
   maxPerSubscription: number;
   /**
@@ -116,9 +119,20 @@ export class RetentionTimer {
 
   private async sweep(): Promise<void> {
     try {
-      const eventLog = await runRetention(this.opts.repo, {
-        maxPerSubscription: this.opts.maxPerSubscription,
-      });
+      const outcome = await retentionSweep(
+        {
+          eventLog: this.opts.repo,
+          planEvents: this.opts.planEvents,
+          maxPerSubscription: this.opts.maxPerSubscription,
+          retainDays: this.opts.planEventRetentionDays,
+          now: this.now,
+        },
+        { principal: this.opts.principal },
+      );
+      if (outcome.outcome === 'forbidden') {
+        throw new Error('retention timer received a noninternal principal');
+      }
+      const eventLog = outcome.eventLogRemoved;
       // After the log, and not in parallel with it: both are DELETEs against one
       // SQLite file that the other deployment colour is also writing to, and
       // SQLite serialises writers anyway. Sequential is what the reported numbers
@@ -131,10 +145,7 @@ export class RetentionTimer {
       // `keeps sweeping after a history sweep fails` goes red beside it on
       // `Expected length: 1 / Received length: 0`, because a sweep that never runs
       // never fails. 6 pass, 2 fail; watched 2026-08-17.
-      const planEvents = await runPlanEventRetention(this.opts.planEvents, {
-        now: this.now(),
-        retainDays: this.opts.planEventRetentionDays,
-      });
+      const planEvents = outcome.planEventsRemoved;
       this.opts.onSweep?.({ eventLog, planEvents });
     } catch (err) {
       // Caught, reported, and the schedule left running: one failed sweep is a

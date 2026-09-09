@@ -158,7 +158,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
       deadline/cleanup fault oracles and independent history commit/rollback cases.
       Run touched targets and root unit tier; keep DB-only tests with their adapter.
 
-- [ ] 2.2d **Move endpoint bindings and extract use-case admission (C5).** Create
+- [x] 2.2d **Move endpoint bindings and extract use-case admission (C5).** Create
       `core/http/endpoint.ts`, move framework-free bindings, and create
       `core/use-cases/{run-command-batch,save-plan,replay,retention-sweep}.ts` with C5's
       inputs and outcomes. Move ownership/scope checks and success-only publication with

@@ -332,6 +332,62 @@ cleanup oracles retained their names and passed after relocation. `SavedPlanRetr
 also requires `nowMs` and `sleep`; it has no production caller until task 2.2d creates the
 save use case, so this slice has no production-call-path negative for those two fields.
 
+## Slice 2.2d — endpoint bindings and use-case admission
+
+Verified 2026-09-10 from base `3b0668a9`.
+
+- The framework-free endpoint contract, route builder and ten binding modules now live
+  under `libs/core/src/http/`; the old be-01 paths are inward reexports. OIDC,
+  password-auth and infrastructure endpoint builders remain in be-01 because they bind
+  provider, cookie, throttle, logger, metric and database adapters.
+- Nine pure route suites (20 cases) and the two-case endpoint suite moved beside their
+  authorities. Their named `describe`/`it`/`test` calls and order are unchanged. SQLite,
+  mounted Elysia and controller tests remain with the application adapter.
+- `runCommandBatch`, `savePlan`, `replay` and `retentionSweep` expose named graph, input
+  and outcome interfaces. Batch and save admission now check write scope directly;
+  save also reads the project, checks ownership and publishes once only after `saved`.
+  Replay and retention require an internal principal at their direct boundaries.
+- HTTP still authenticates the principal before invoking the bindings. The use cases
+  consume that trusted principal and never derive identity from request bodies. An actor
+  id without account provenance is denied when it does not own the project; adapter
+  authentication remains the guarantee that the principal represents an account.
+- Pre-parse policies and status-specific response alternatives are unchanged. The
+  production application still binds every shared HTTP shape exactly once.
+
+- Focused core HTTP, use-case and retention-timer source tests: **36 pass / 0 fail**,
+  136 assertions across 12 files.
+- `bun test apps/be-01/src/http/elysia/*.test.ts`: **85 pass / 0 fail**, 681
+  assertions across seven files.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx test core`: **390 pass / 0
+  fail**, 1379 assertions across 41 files.
+- Uncached `core:typecheck`, `be-01:typecheck`, `core:lint` and `be-01:lint`: all
+  pass. Prettier over the touched core/app sources is clean.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun run test:unit` with permitted
+  localhost sockets: be-01 **510 pass / 1 intentional capability skip / 0 fail**;
+  all seven listed library targets passed.
+
+The first restricted root-unit run could not bind the production-health test's ephemeral
+localhost socket: be-01 reached 509 pass, 1 intentional skip and 1 `EADDRINUSE` failure,
+then the root `&&` stopped before the seven library targets. The permitted rerun above
+executed that case and the downstream targets successfully. A directory-based Bun source
+command also collected generated `dist/out-tsc` JavaScript and reported 11 module-resolution
+errors after 35 source cases passed. The authoritative focused command is
+`bun test libs/core/src/http/*.test.ts libs/core/src/use-cases/*.test.ts
+libs/core/src/service/retention-timer.test.ts`; its file globs exclude build output.
+Complete database and browser gates remain task 5.2.
+
+| Check                          | Injected fault                                          | Observed                                                                                                                   |
+| ------------------------------ | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Direct write-scope admission   | Delete `runCommandBatch`'s scope refusal                | The read-only direct test returned `ok: true` and failed its expected `insufficient_scope` outcome                         |
+| Authenticated actor forwarding | Replace the admitted actor id with the project owner    | The absent-account direct test returned `ok: true` and created one work item                                               |
+| Direct project ownership       | Delete `savePlan`'s `canEdit` refusal                   | The wrong-owner direct test saved a record instead of returning `forbidden`                                                |
+| Success-only publication       | Publish before `SavedPlanService.save`                  | The quota-refusal test observed `["publish", "save"]` instead of `["save"]`                                                |
+| One binding per shape          | Run the binding inventory after relocating the builders | `binds each shared HTTP shape once in every configuration that owns it` passed; its existing omission proofs stay adjacent |
+
+All injected faults were removed before the green runs. The first TDD run failed with
+`Cannot find module './replay'` before the four use-case modules existed. No required
+check was skipped; remote CI execution was not invoked.
+
 ## Gate
 
 | Command | When | Result |
