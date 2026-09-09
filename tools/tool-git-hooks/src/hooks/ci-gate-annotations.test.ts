@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
 
 import { scratchSync } from '../../../test/scratch';
-import { readErrorAnnotations, selectErrorAnnotations } from './ci-gate-annotations';
+import { readErrorAnnotations, safeGateTail, selectErrorAnnotations } from './ci-gate-annotations';
 
 describe('CI gate annotations', () => {
   test('the production helper never emits a second command after a bare carriage return', () => {
@@ -52,6 +52,52 @@ describe('CI gate annotations', () => {
     // Policy: Bun can emit raw tabs, so this may cost an inline annotation;
     // the gate verdict and uploaded log remain. Keep the full C0 boundary.
     expect(selectErrorAnnotations(`${rawTab}\n${percentSpellings}`)).toEqual([percentSpellings]);
+  });
+
+  test('the production helper reports a rejected tab without exposing it', () => {
+    const dir = scratchSync('wbs-ci-annotations-');
+    const log = join(dir, 'nx-gate.log');
+    const rejected = '::error file=raw-tab.test.ts,line=1::secret-before\tsecret-after';
+    const accepted = '::error file=accepted.test.ts,line=2::before%0A%0D%25%09! after';
+
+    try {
+      writeFileSync(log, `${rejected}\n${accepted}\n`);
+      const run = Bun.spawnSync({
+        cmd: [
+          process.execPath,
+          'run',
+          join(import.meta.dir, 'ci-gate-annotations.ts'),
+          log,
+          '--tail',
+          '2',
+        ],
+        stdout: 'pipe',
+        stderr: 'pipe',
+      });
+
+      // Proof: deleting the production-path control guard exposes `rejected`
+      // and makes this exact stdout assertion fail.
+      expect(run.exitCode).toBe(0);
+      expect(new TextDecoder().decode(run.stdout)).toBe(
+        `| ::error file=raw-tab.test.ts,line=1::secret-before\\x09secret-after\n| ${accepted}\n${accepted}\n`,
+      );
+      expect(new TextDecoder().decode(run.stderr)).toBe(
+        'ci-gate-annotations: skipped unsafe annotation commands containing control characters\n',
+      );
+      expect(new TextDecoder().decode(run.stderr)).not.toContain('secret-before');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('the retained-log tail cannot emit a workflow command after any line boundary', () => {
+    const raw = 'ordinary\n::warning::first\r::add-mask::second\r\nlast\tfield\u001b';
+
+    // Proof: deleting the prefix or splitting only LF lets this test observe
+    // a line beginning `::warning` or `::add-mask`; keeping controls raw fails the final line.
+    expect(safeGateTail(raw, 4)).toBe(
+      '| ordinary\n| ::warning::first\n| ::add-mask::second\n| last\\x09field\\x1b',
+    );
   });
 
   test('preserves the exact file and line command emitted by the failing assertion', () => {
