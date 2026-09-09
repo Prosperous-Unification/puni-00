@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — twenty-two times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — twenty-three times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -550,6 +550,32 @@ column, and the tree read then fails its own response schema. A 400 either way, 
 and a stored row no reader can name. Two codes now, both watched failing, and the probe's own
 answers are assertions in `work-item.controller.test.ts` rather than a sentence in a comment.
 **Which layer refuses a bad field is a measurement, not a reading.**
+
+One more on 2026-09-09, in `links-card-takes-the-pointer`, and it **shipped** — the
+twenty-third, found by Dany moving a mouse at the thing an hour after it merged: _"i cannot
+hover over the dropdown - it disappears when i move cursor down to it"_. The links card was
+`pointer-events: none` with `padding: 6px 10px` and only its **lines** took the pointer, so the
+6px band around them hit-tested the row _beneath_ the card; a cursor moving down fired the
+cell's `mouseleave` and the card unmounted before the cursor reached a line. Measured in the
+running app: the card at `[88, 242, 370, 56]`, and `elementFromPoint` 1px and 4px inside its
+top edge both answering the next row's name `<textarea>`.
+
+**The oracle was `locator.hover()`, which teleports.** Playwright puts the pointer straight on
+an element's centre, so `await name.hover()` never crossed the band the hand has to cross —
+and two browser assertions about reaching and clicking that link passed over the defect twice.
+The fix is `HoverCard`'s new `takesPointer`; the test now walks with
+`page.mouse.move(x, y, { steps: 12 })`, and the negative was watched on `the card closed on
+the way down to it`.
+
+And the second half of the same report needed a **second** fix, with its own negative: the
+cell is 40px and its card up to 400px, so a hand reaching for a link on the right leaves the
+cell **sideways into the Name column** before descending onto the card — there is no instant at
+which the pointer is over either. Probed at 15 steps: `card.count() === 0` before arrival.
+`CARD_GRACE_MS` (200ms, on the way out only) holds the card for the transit; set to 0 it fails
+on `the card closed on a diagonal reach for a link`. Two faults, two proofs, and each is blind
+to the other's — the straight-down case passes with the grace at 0, and the diagonal passes
+without `takesPointer`. **`locator.hover()` proves an element is clickable, never that a hand
+can get to it.**
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
