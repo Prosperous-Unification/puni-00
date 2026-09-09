@@ -204,6 +204,34 @@ Builds, the complete database tier, Chromium and the final landing gate were not
 for this checkpoint. Task 5.1 still owns adding core to the root fast-tier inventory;
 core was run explicitly here.
 
+### Review fix 1 — clock oracle follows moved services
+
+The review found that `apps/be-01/src/service/clock.test.ts` still scanned only its
+own folder. That folder now contains compatibility reexports for this slice's services.
+
+- Adding `now?: () => number;` to the moved `CapacityServiceOptions` left the old
+  oracle green: **4 pass, 0 fail**. It was reading the be-01 shim.
+- The oracle now scans both `apps/be-01/src/service` and `libs/core/src/service`,
+  reports paths instead of ambiguous basenames, and asserts that it sees the actual
+  core CapacityService and still-local WorkItemService definitions.
+- With that same core fault retained, the corrected clock case failed:
+  expected `[]`, received `["libs/core/src/service/capacity.service.ts"]`
+  (**3 pass, 1 fail**).
+- A separate injected private `stampFor(actorId: string): WriteStamp` method in
+  core's CapacityService failed the second case on that same path (**3 pass, 1 fail**).
+- Removing the core folder from the scan failed its coverage assertion on
+  `Received: undefined`, while both shape checks passed (**3 pass, 1 fail**).
+  The initial coverage assertion used `toContain` on an absent value and produced a
+  matcher type error; it now checks presence first and the final negative above
+  was observed at `toBeDefined`.
+- All injected faults are removed. The clock, core clock and calendar-marker suites
+  pass **23 tests, 0 fail**; the clock suite remains four cases.
+  Forced core/be-01 lint and typecheck targets pass; Prettier and `git diff --check`
+  are clean. Only the clock oracle and this evidence changed; production code is
+  byte-identical to the checkpoint.
+- The broader unit, database and browser gates were not repeated for this test-only
+  review fix; their checkpoint results and outstanding limitations above still apply.
+
 ## Gate
 
 | Command | When | Result |

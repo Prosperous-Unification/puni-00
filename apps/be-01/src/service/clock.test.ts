@@ -5,12 +5,12 @@ import { clockOf } from '@wbs/core';
 import { describe, expect, it } from 'bun:test';
 
 /**
- * Where the services live — this file's own folder, which is the point: what it
- * refuses is a **service** growing a clock back, and `Clock` itself is in
- * `@wbs/core` now. A copy of this test moved next to the clock would scan a
- * folder with no services in it and pass forever.
+ * Both service authorities during extraction. The be-01 folder still owns
+ * work-item and publication services, while moved services are defined in
+ * core. Reading only be-01 would inspect their compatibility reexports.
  */
-const FOLDER = import.meta.dir;
+const FOLDERS = ['apps/be-01/src/service', 'libs/core/src/service'];
+const ROOT = join(import.meta.dir, '../../../..');
 
 /**
  * The three classes that keep a `now` of their own, and why each is not a
@@ -27,10 +27,16 @@ const AGE_THEIR_OWN_ENTRIES = new Set([
   'login-throttle.ts',
 ]);
 
-function serviceSources(): { name: string; text: string }[] {
-  return readdirSync(FOLDER)
-    .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
-    .map((name) => ({ name, text: readFileSync(join(FOLDER, name), 'utf8') }));
+function serviceSources(): { name: string; path: string; text: string }[] {
+  return FOLDERS.flatMap((folder) =>
+    readdirSync(join(ROOT, folder))
+      .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
+      .map((name) => ({
+        name,
+        path: join(folder, name),
+        text: readFileSync(join(ROOT, folder, name), 'utf8'),
+      })),
+  );
 }
 
 describe('one clock', () => {
@@ -45,24 +51,27 @@ describe('one clock', () => {
    * The exemptions are named, so re-adding one is a deliberate act with a
    * reader's question attached.
    *
-   * Proof: `now?: () => number;` put back on `CapacityServiceOptions`, watched
-   * failing on `expect(received).toEqual(expected) · + ["capacity.service.ts"]`;
-   * and with `stampFor` restored as a private method on that service, on
-   * `+ ["capacity.service.ts"]` from the second case. Observed 2026-09-02.
+   * Proof: adding `now?: () => number;` to core's CapacityServiceOptions left
+   * all four cases green with only the be-01 scan. With both folders scanned,
+   * this case failed on expected [], received
+   * ["libs/core/src/service/capacity.service.ts"] (2026-09-09).
    */
   it('is the only clock a service that stamps a write reads', () => {
     const growingOne = serviceSources()
       .filter((file) => !AGE_THEIR_OWN_ENTRIES.has(file.name))
       .filter((file) => /\n\s+now\?: \(\) => number;/.test(file.text))
-      .map((file) => file.name);
+      .map((file) => file.path);
 
     expect(growingOne).toEqual([]);
   });
 
   it('is the only place a stamp is built', () => {
+    // Proof: restoring private stampFor(actorId: string): WriteStamp on core's
+    // CapacityService failed here on expected [], received
+    // ["libs/core/src/service/capacity.service.ts"] (2026-09-09).
     const stamping = serviceSources()
       .filter((file) => file.text.includes('stampFor(actorId: string): WriteStamp'))
-      .map((file) => file.name);
+      .map((file) => file.path);
 
     expect(stamping).toEqual([]);
   });
@@ -74,6 +83,18 @@ describe('one clock', () => {
     expect(sources.length).toBeGreaterThan(20);
     expect(sources.map((file) => file.name)).toContain('work-item.service.ts');
     expect(sources.some((file) => file.text.includes('this.clock.stampFor('))).toBe(true);
+    const coreCapacity = sources.find(
+      (file) => file.path === 'libs/core/src/service/capacity.service.ts',
+    );
+    const beWorkItems = sources.find(
+      (file) => file.path === 'apps/be-01/src/service/work-item.service.ts',
+    );
+    // Proof: removing the core folder from FOLDERS failed this assertion on
+    // Received: undefined while the two shape checks passed (2026-09-09).
+    expect(coreCapacity).toBeDefined();
+    expect(coreCapacity?.text).toContain('export class CapacityService');
+    expect(beWorkItems).toBeDefined();
+    expect(beWorkItems?.text).toContain('export class WorkItemService');
   });
 
   it('dates one act from one reading of the clock', () => {
