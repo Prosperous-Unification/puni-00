@@ -7,12 +7,15 @@ import { describe, expect, it } from 'bun:test';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const hook = join(root, 'ops/agent-trailer/prepare-commit-msg');
-const humanEnv = { HOME: process.env.HOME, PATH: process.env.PATH };
+const humanEnv: Record<string, string | undefined> = {
+  HOME: process.env['HOME'],
+  PATH: process.env['PATH'],
+};
 
 function makeRepository() {
   const repository = mkdtempSync(join(tmpdir(), 'wbs-agent-trailer-'));
   const trace = join(repository, 'hook-trace');
-  const git = (args: string[], env = humanEnv) =>
+  const git = (args: string[], env: Record<string, string | undefined> = humanEnv) =>
     Bun.spawnSync(['git', '-C', repository, ...args], { env, stderr: 'pipe', stdout: 'pipe' });
 
   expect(git(['init', '-q', '-b', 'main']).exitCode).toBe(0);
