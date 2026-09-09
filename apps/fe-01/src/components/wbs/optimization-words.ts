@@ -157,7 +157,9 @@ export function variantStateWords(
 ): string | null {
   switch (state.state) {
     case 'ready':
-      return null;
+      return state.proof === 'incomplete'
+        ? 'Search stopped before proving this schedule optimal'
+        : null;
     case 'idle':
       // `idle` is "absent at this key with nothing in flight", which is two
       // different situations wearing one word: a variant the cold read is about

@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — twenty-three times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — twenty-four times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -580,6 +580,20 @@ re-run its negative after every change to the geometry it was about, not only wh
 written.**
 
 `locator.hover()` proves an element is clickable, never that a hand can get to it.
+
+One more on 2026-09-09 in `notes-preview-clears-the-marker-lane`, and it **did not ship** —
+caught while the test was being written, which is where these belong. The Name cell's notes
+preview had to be pulled 24px left so the `≡` markers' lane stays hoverable, and the negative
+written for it — the preview's right edge against the next row's marker — was watched
+**passing** with the pull removed. The notes it typed were one sentence, so the card
+shrink-to-fit **well inside its own cell** and its right edge was 200px short of the lane: a
+true statement about a card that was never near the fault. Given a paragraph, and with the
+card's width asserted big enough to reach the lane from its cell's left edge first, the same
+injection failed on `the preview covers the marker lane · Expected: <= 486.40625 · Received:
+502`. The `100%` width cap beside the pull was then watched producing the **same** two figures,
+which is how a second load-bearing line got a proof of its own. **A geometry proof needs a box
+big enough to commit the fault** — `estimate-triple-visible`'s "assert in the window the fault
+lives in", now with a horizontal axis.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
