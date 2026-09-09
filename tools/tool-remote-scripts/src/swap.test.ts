@@ -1,9 +1,9 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
+import { scratchSync } from '../../test/scratch';
 import { assembleCaddyfile } from './lib/caddy';
 import { drain } from './lib/drain';
 import { type EnvLayout, envLayout } from './lib/env';
@@ -231,7 +231,7 @@ describe('drain', () => {
 describe('readSiteCaddy', () => {
   let dir: string;
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'wbs-swap-'));
+    dir = scratchSync('wbs-swap-');
   });
   afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
@@ -564,7 +564,7 @@ describe('isFileAbsent', () => {
 describe('readMcpExposure', () => {
   let dir: string;
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'wbs-mcp-exposure-'));
+    dir = scratchSync('wbs-mcp-exposure-');
   });
   afterEach(() => {
     rmSync(dir, { recursive: true, force: true });

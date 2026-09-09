@@ -1,9 +1,9 @@
-import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { chmod, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'bun:test';
 
+import { scratchAsync } from '../../test/scratch';
 import {
   assertDevSolverSourceCompatible,
   assertMcpEnv,
@@ -315,7 +315,7 @@ describe('dev supervisor', () => {
 
 describe('dev-sync lock diagnostics', () => {
   it('passes the dedicated contention exit code to the production flock invocation', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'wbs-devsync-flock-'));
+    const directory = await scratchAsync('wbs-devsync-flock-');
     const argumentsPath = join(directory, 'arguments');
     const flockPath = join(directory, 'flock');
     const lockPath = join(directory, 'devsync.lock');
@@ -355,7 +355,7 @@ describe('dev-sync lock diagnostics', () => {
   // Asserted through the recorded argv rather than the source text, because
   // the shape this file used to grep for no longer exists.
   it('defaults the locked child to this process interpreter, never PATH', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'wbs-devsync-interpreter-'));
+    const directory = await scratchAsync('wbs-devsync-interpreter-');
     const argumentsPath = join(directory, 'arguments');
     const flockPath = join(directory, 'flock');
     const lockPath = join(directory, 'devsync.lock');
@@ -411,7 +411,7 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
 
 describe('MCP environment prerequisite', () => {
   it('fails clearly before restarting a supervisor that cannot start mcp-01', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'wbs-mcp-env-'));
+    const directory = await scratchAsync('wbs-mcp-env-');
     const missing = join(directory, '.env');
 
     expect(await rejection(assertMcpEnv(missing))).toContain(
@@ -420,7 +420,7 @@ describe('MCP environment prerequisite', () => {
   });
 
   it('checks the gitignored environment before fetch or reset can move the tree', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'wbs-mcp-env-order-'));
+    const directory = await scratchAsync('wbs-mcp-env-order-');
     const missing = join(directory, '.env');
 
     expect(await rejection(sync('unreachable-sha', { mcpEnvPath: missing }))).toContain(

@@ -1,8 +1,9 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'bun:test';
+
+import { scratchSync } from '../../test/scratch';
 
 const GATE = join(import.meta.dir, '../../../bin/assert-no-prod-release.sh');
 const trees: string[] = [];
@@ -23,7 +24,7 @@ afterEach(() => {
 
 /** A fresh tree with a `state` directory, plus whatever tier files are asked for. */
 function stateDir(files: Record<string, string> = {}): string {
-  const tree = mkdtempSync(join(tmpdir(), 'prod-release-gate-'));
+  const tree = scratchSync('prod-release-gate-');
   trees.push(tree);
   const dir = join(tree, 'state');
   mkdirSync(dir);
