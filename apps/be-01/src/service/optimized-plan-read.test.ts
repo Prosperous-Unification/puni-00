@@ -246,7 +246,7 @@ describe('the plan read and the optimized cache', () => {
       optimizationEnabled: true,
       scheduleEngine: 'optimized',
     });
-    serviceOptions.estimates.set(
+    await serviceOptions.estimates.set(
       {
         workItemId: id,
         stepId,
@@ -264,7 +264,7 @@ describe('the plan read and the optimized cache', () => {
     // Legacy rows can still reach datesOf -> addWorkdays -> Date#toISOString,
     // which is the RangeError that made the whole plan read fail. The write
     // path must not need that broken read in order to replace the stored trio.
-    await expect(service.tree(projectId)).rejects.toBeInstanceOf(RangeError);
+    expect(service.tree(projectId)).rejects.toBeInstanceOf(RangeError);
     expect(
       await service.setEstimate(id, OWNER, stepId, {
         optimistic: 1,
