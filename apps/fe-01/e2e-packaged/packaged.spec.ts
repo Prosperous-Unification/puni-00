@@ -31,7 +31,9 @@ async function signedIn(page: Page): Promise<void> {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ people: [{ id: 'p1', name: 'Kat', teamIds: [] }] }),
+      body: JSON.stringify({
+        people: [{ id: 'p1', name: 'Kat', kind: 'person', teamIds: [] }],
+      }),
     }),
   );
   await page.route('**/api/teams', (route) =>
@@ -41,6 +43,15 @@ async function signedIn(page: Page): Promise<void> {
       body: JSON.stringify({ teams: [] }),
     }),
   );
+  for (const [path, body] of [
+    ['tags', { tags: [] }],
+    ['services', { services: [] }],
+    ['work-item-types', { workItemTypes: [] }],
+  ] as const) {
+    await page.route(`**/api/${path}`, (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }),
+    );
+  }
   // The API is stubbed and the **serving** is the image's, which is the split
   // this file is for: nothing here claims anything about be-01, and everything
   // here claims something about the static server in front of the build.
