@@ -6,14 +6,14 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * `work-item-deadline` 8.9's repository assertion: **no unqualified deadline
- * copy remains in shipped UI text.**
+ * copy remains in shipped UI text outside the two exact column-label sites.**
  *
  * The standing scenario is `specs/scheduler-optimization/spec.md`'s "no
  * unqualified deadline copy remains" — every occurrence reads either
  * _project deadline_ or _work item deadline_, because the two are different
- * dates and a bare "deadline" beside a row does not say which one moved. A
- * pinned list of allowed exceptions cannot satisfy it; the scenario says
- * _every_.
+ * dates and a bare "deadline" beside a row does not say which one moved. The
+ * only exceptions are the compact table heading and the matching entry in the
+ * Columns control, whose exact label is the product contract `Deadline`.
  *
  * The unit is **one occurrence of the word inside one run of user-visible
  * text**, and it is declared here, once, because the review that produced this
@@ -64,6 +64,62 @@ interface Run {
   readonly line: number;
   readonly text: string;
   readonly shown: boolean;
+  readonly exactDeadlineColumnLabel: boolean;
+}
+
+/** The two product-contract `Deadline` labels, identified by their syntax rather than their files. */
+function isExactDeadlineColumnLabel(
+  file: string,
+  node: ts.Node & { readonly text: string },
+): boolean {
+  if (node.text !== 'Deadline') return false;
+
+  if (file === 'src/components/wbs/plan-columns/deadline.tsx' && ts.isJsxText(node)) {
+    const element = node.parent;
+    const arrow = element.parent;
+    const property = arrow.parent;
+    return (
+      ts.isJsxElement(element) &&
+      element.children.length === 1 &&
+      element.children[0] === node &&
+      ts.isIdentifier(element.openingElement.tagName) &&
+      element.openingElement.tagName.text === 'span' &&
+      ts.isArrowFunction(arrow) &&
+      arrow.body === element &&
+      ts.isPropertyAssignment(property) &&
+      ts.isIdentifier(property.name) &&
+      property.name.text === 'header' &&
+      property.initializer === arrow
+    );
+  }
+
+  if (file === 'src/components/wbs/plan-toolbar.tsx' && ts.isStringLiteral(node)) {
+    const tuple = node.parent;
+    const key = ts.isArrayLiteralExpression(tuple) ? tuple.elements[0] : undefined;
+    const entries = tuple.parent;
+    const constructor = entries.parent;
+    const declaration = constructor.parent;
+    return (
+      ts.isArrayLiteralExpression(tuple) &&
+      tuple.elements.length === 2 &&
+      tuple.elements[1] === node &&
+      key !== undefined &&
+      ts.isStringLiteral(key) &&
+      key.text === 'deadline' &&
+      ts.isArrayLiteralExpression(entries) &&
+      ts.isNewExpression(constructor) &&
+      ts.isIdentifier(constructor.expression) &&
+      constructor.expression.text === 'Map' &&
+      constructor.arguments?.length === 1 &&
+      constructor.arguments[0] === entries &&
+      ts.isVariableDeclaration(declaration) &&
+      ts.isIdentifier(declaration.name) &&
+      declaration.name.text === 'COLUMN_LABELS' &&
+      declaration.initializer === constructor
+    );
+  }
+
+  return false;
 }
 
 /**
@@ -120,9 +176,19 @@ function runsIn(file: string, source: string): Run[] {
         ts.isEnumMember(node.parent)
           ? node.parent.name === node
           : false;
+      const parent = node.parent;
       const isModuleSpecifier =
-        (ts.isImportDeclaration(node.parent) || ts.isExportDeclaration(node.parent)) &&
-        node.parent.moduleSpecifier === node;
+        ((ts.isImportDeclaration(parent) || ts.isExportDeclaration(parent)) &&
+          parent.moduleSpecifier === node) ||
+        (ts.isCallExpression(parent) &&
+          parent.expression.kind === ts.SyntaxKind.ImportKeyword &&
+          parent.arguments.at(0) === node) ||
+        (ts.isExternalModuleReference(parent) && parent.expression === node) ||
+        (ts.isLiteralTypeNode(parent) &&
+          parent.literal === node &&
+          ts.isImportTypeNode(parent.parent) &&
+          parent.parent.argument === parent) ||
+        (ts.isModuleDeclaration(parent) && parent.name === node);
       if (!isQuotedKey && !isModuleSpecifier) {
         const { line } = tree.getLineAndCharacterOfPosition(node.getStart(tree));
         runs.push({
@@ -133,6 +199,7 @@ function runsIn(file: string, source: string): Run[] {
             ts.isJsxText(node) ||
             ts.isJsxAttribute(node.parent) ||
             ts.isBinaryExpression(node.parent),
+          exactDeadlineColumnLabel: isExactDeadlineColumnLabel(file, node),
         });
       }
     }
@@ -177,7 +244,7 @@ const couldBeCopy = (run: Run): boolean =>
 
 /** The occurrences in one run that do not say which deadline they mean. */
 function unqualifiedIn(run: Run): string[] {
-  if (!couldBeCopy(run)) return [];
+  if (!couldBeCopy(run) || run.exactDeadlineColumnLabel) return [];
   const bare: string[] = [];
   for (const match of run.text.matchAll(OCCURRENCE)) {
     if (!QUALIFIER.test(run.text.slice(0, match.index))) {
@@ -239,6 +306,37 @@ describe('the scan, on sources written to fail it', () => {
     expect(runsIn('src/x.ts', acrossAPlus).flatMap(unqualifiedIn)).toHaveLength(1);
   });
 
+  it('exempts only the exact Deadline table heading and COLUMN_LABELS entry', () => {
+    const heading = 'const column = { header: () => <span>Deadline</span> };\n';
+    const labels = "const COLUMN_LABELS = new Map([['deadline', 'Deadline']]);\n";
+    expect(
+      runsIn('src/components/wbs/plan-columns/deadline.tsx', heading).flatMap(unqualifiedIn),
+    ).toEqual([]);
+    expect(runsIn('src/components/wbs/plan-toolbar.tsx', labels).flatMap(unqualifiedIn)).toEqual(
+      [],
+    );
+  });
+
+  it('rejects other bare Deadline copy in both files that contain an exact label', () => {
+    const headingFile = [
+      'const column = { header: () => <span>Deadline</span> };',
+      'const action = <button>Deadline</button>;',
+      '',
+    ].join('\n');
+    const labelsFile = [
+      "const COLUMN_LABELS = new Map([['deadline', 'Deadline']]);",
+      'const field = <input aria-label="Deadline" />;',
+      "const toast = 'Deadline';",
+      '',
+    ].join('\n');
+    expect(
+      runsIn('src/components/wbs/plan-columns/deadline.tsx', headingFile).flatMap(unqualifiedIn),
+    ).toHaveLength(1);
+    expect(
+      runsIn('src/components/wbs/plan-toolbar.tsx', labelsFile).flatMap(unqualifiedIn),
+    ).toHaveLength(2);
+  });
+
   it('ignores a quoted key even when it reads like a sentence', () => {
     // Sol r6b Important 1: `'release deadline'` has whitespace and fails the
     // qualifier, so only its position says it is a key. A false positive here
@@ -248,13 +346,20 @@ describe('the scan, on sources written to fail it', () => {
     expect(runsIn('src/x.ts', source).flatMap(unqualifiedIn)).toEqual([]);
   });
 
-  it('ignores a module specifier even when its path names a deadline module', () => {
+  it('ignores every module specifier while still reading adjacent ordinary copy', () => {
     const source = [
       "import { offset } from '@wbs/domain/deadline-offsets';",
-      "export { offset } from './project deadline adapter';",
+      "export { offset } from './deadline-adapter';",
+      "const lazy = import('./deadline-lazy');",
+      "import deadlinePort = require('./deadline-port');",
+      "type DeadlinePort = import('./deadline-type').Port;",
+      "declare module './deadline-ambient' {}",
+      "const copy = 'Move the deadline.';",
       '',
     ].join('\n');
-    expect(runsIn('src/x.ts', source).flatMap(unqualifiedIn)).toEqual([]);
+    const findings = runsIn('src/x.ts', source).flatMap(unqualifiedIn);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toContain('Move the deadline.');
   });
 
   it('ignores the column ids and cell keys this app is full of', () => {

@@ -799,3 +799,67 @@ then confirmed that the new Chromium case fully covers the task and reported no 
 
 The documentation-only closure commit is subject to the same PR checks before the authorized
 merge. No implementation or evidence artifact changes after the exact implementation head above.
+
+## Follow-up — two oracle faults in `rendering-baseline.spec.ts`, 2026-09-09
+
+Found from outside this change: `pixels shard 4/4` failed on PR #354 in this spec, and the
+control run that established the failure was not that PR's found a **second**, different
+failure in the same file on unmodified `main`. Both are the spec's own oracle rather than the
+code it measures, and both are fixed here.
+
+### 1. `press('End')` does nothing on a Mac
+
+`a broad Find renders no more than its two filter-sensitive cells per row` failed locally on
+every run, on this branch and on plain `origin/main`, with
+`Expected: "Row 0000 half-typed" · Received: " half-typedRow 0000"` — the typed text at the
+**start** of the field. Measured in this suite's own Chromium on darwin, on the `<textarea>`
+holding `Row 0000`:
+
+| after                               | `selectionStart` |
+| ----------------------------------- | ---------------- |
+| `focus()`                           | 0                |
+| `press('End')`                      | **0**            |
+| `press('ControlOrMeta+ArrowRight')` | 8                |
+| `press('Meta+ArrowRight')`          | 8                |
+
+macOS gives `End` to the document — it scrolls — and puts end-of-line on ⌘→; Linux, which is
+what CI runs, gives it end-of-line. So the caret never moved here and the test typed at
+position 0. It is **not** a race, and it was written down as one in
+`dual-optimized-scheduler`'s verify.md before it was measured; that entry now carries the
+correction.
+
+`e2e/caret.ts`'s `caretToLineEnd` presses the right key per platform and is used at both `End`
+sites in this spec. `ControlOrMeta` is deliberately not the answer: `Control+ArrowRight` on
+Linux moves by a **word**, which stops at 3 rather than 8 for `Row 0000`.
+
+Watched: with `press('End')` restored, the case fails on darwin with the received value above;
+with the helper, all six cases in the file pass (34.2s).
+
+### 2. `.first()` was not about any particular estimate cell
+
+`caretToLineEnd` asserts the field holds the focus before pressing, and that assertion
+immediately failed the **other** case — `an unfolded plan mounts only its viewport columns` —
+on `expect(locator).toBeFocused() failed · Received: inactive`, for the full 30s timeout. The
+cause, measured with a probe: `page.locator('[data-grid] input[data-cell$="-optimistic"]')
+.first()` re-resolves on every action while the unfolded columns are still mounting, so the
+node focused was `…7eaef440…-optimistic` and the node typed into was `…c25249bc…-optimistic`.
+The test passed before only because nothing between the two resolutions asserted identity —
+`tool-hints-wait`'s lesson in `AGENTS.md`, in a different file.
+
+The locator is pinned to one cell's `data-cell` now. The focus assertion inside the helper is
+what made the fault observable, which is the reason it lives there rather than at the call
+sites.
+
+### What was not established
+
+CI's own failure — a project created as `endering 100/2/sparse`, the first character lost —
+did **not** reproduce: fifteen attempts at 1×, 4×, 10× and 20× CPU throttling, plus a 700ms
+delayed project-list read, all clean. `create-project.ts` is hardened rather than fixed: it
+now waits for the armed field to hold the keyboard **and** its placeholder selection before
+typing (the two states `page.keyboard.type` depends on and does not check), and reads the
+field back before committing, so a loss names the field and its text instead of surfacing at
+the picker one round trip later. Watched, with a `select()` deferred past React's commit on
+every `input` event: `the armed rename lost characters on the way in · Expected: "Rendering
+100/2/sparse" · Received: "rse"`. The paired demonstration against the old form could not be
+obtained — without the two waits the typing starts before the injected fault can attach — so
+this is containment with a legible failure, not a proven root cause.
