@@ -32,6 +32,13 @@ function readIfPresent(path: string): string {
   }
 }
 
+// Generated shell source needs shell quoting, not JSON string quoting: within
+// double quotes bash would still expand `$`, backticks, and command syntax.
+// Close the single-quoted word, emit one quoted apostrophe, then reopen it.
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
 // The executables a pinned `PATH` must actually hold, checked on the image the
 // suite is running on rather than assumed from the one it was written on. The
 // contender below runs `bash -c` with a pinned tail; without this a missing
@@ -45,7 +52,9 @@ function readIfPresent(path: string): string {
 // Resolved with `Bun.which` rather than by spawning `sh -c 'command -v'`: a
 // spawn resolves its OWN argv[0] through the supplied `PATH` too, so a pin that
 // holds nothing throws ENOENT on `sh` before the check can report which of the
-// six is missing — the raw errno this function exists to replace.
+// six is missing — the raw errno this function exists to replace. The exact
+// resolutions are returned so generated helpers consume the same proof instead
+// of adding their own absolute-path assumptions.
 function assertResolvable(pathValue: string, executables: string[]): ReadonlyMap<string, string> {
   const resolved = new Map<string, string>();
   const missing: string[] = [];
@@ -129,6 +138,16 @@ afterEach(async () => {
 });
 
 describe('with-heavy-lock', () => {
+  it('shell-quotes hostile generated path characters without expansion', () => {
+    const hostileRoot = mkdtempSync(join(tmpdir(), "wbs shell $dollar `backtick` 'apostrophe'-"));
+    roots.push(hostileRoot);
+    const marker = join(hostileRoot, 'marker with spaces');
+    const quoted = Bun.spawnSync(['bash', '-c', `printf '%s' reached >${shellQuote(marker)}`]);
+
+    expect(quoted.exitCode).toBe(0);
+    expect(readFileSync(marker, 'utf8')).toBe('reached');
+  });
+
   it('uses one canonical production lock that no caller can move', () => {
     // **The property, restated after the mechanism changed under it.**
     //
@@ -351,6 +370,10 @@ describe('with-heavy-lock', () => {
     // `sleep` too, so a shared shim would collapse the holder's wait, releasing
     // the lock before the contender ever contended — exactly the false green
     // this case is meant to kill.
+    // Pinning drops the inherited interception route. The check proves all six
+    // names on the running image and returns the exact bash/sleep paths the shim
+    // embeds. Verified on h2puni, ubuntu-latest, and macOS in TASK-409; the
+    // runtime check is what makes an additional image fail diagnostically.
     const CONTENDER_PATH_TAIL = '/usr/bin:/bin';
     const contenderExecutables = assertResolvable(CONTENDER_PATH_TAIL, [
       'bash',
@@ -387,10 +410,10 @@ describe('with-heavy-lock', () => {
       // Any other `sleep` is passed through unchanged rather than swallowed.
       `#!${shimBash}\n` +
         `if [[ \${1:-} == 5 ]]; then\n` +
-        `  printf 'retry\\n' >>${JSON.stringify(retries)}\n` +
-        `  exec ${JSON.stringify(shimSleep)} 0.05\n` +
+        `  printf 'retry\\n' >>${shellQuote(retries)}\n` +
+        `  exec ${shellQuote(shimSleep)} 0.05\n` +
         `fi\n` +
-        `exec ${JSON.stringify(shimSleep)} "$@"\n`,
+        `exec ${shellQuote(shimSleep)} "$@"\n`,
       { mode: 0o755 },
     );
 
@@ -412,29 +435,6 @@ describe('with-heavy-lock', () => {
     // exhaustively instead: the shim's `PATH`, the wait budget the case is
     // about, and `HOME` because tooling under it expects one. Nothing else
     // reaches it, so nothing else can write the marker.
-    // Round 4 (TASK-409) named the one route the allowlist left open: the
-    // inherited `PATH` tail. A CI image that prepends a directory holding a
-    // `bash` or `dirname` wrapper calling `sleep 5` gets that wrapper resolved
-    // through the tail, its `sleep` resolved to the shim above, and the marker
-    // written before the first claim — after which a contender pointed at a
-    // free lock passes without ever entering the retry branch. Same false green
-    // as the other four routes, reached from outside the environment rather
-    // than through it.
-    //
-    // So the tail is pinned rather than inherited. The objection to pinning is
-    // real and is what kept this open: it asserts what a directory holds on
-    // every image the suite runs on, and a wrong assertion is a hard red
-    // somewhere nobody is watching. `assertResolvable` is the answer to that
-    // objection rather than a hedge against it — the pin now proves itself on
-    // whatever image it lands on, and an image that does not hold one of these
-    // gets a message naming it instead of a `bash -c` failing at 127 with the
-    // lock semantics apparently broken.
-    //
-    // Verified under this exact pinned value on the two images reachable from
-    // the lane, 2026-09-08: the gate host and the workstation. CI is
-    // `ubuntu-latest`, uncontainerised, and macOS matters here because it is
-    // why the lock is `mkdir` rather than `flock`; both keep all six in
-    // /usr/bin or /bin. The check is what makes a third image safe.
     const contenderEnv: Record<string, string> = {
       PATH: `${shim}:${CONTENDER_PATH_TAIL}`,
       HEAVY_LOCK_WAIT_SECONDS: '30',
