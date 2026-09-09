@@ -41,6 +41,7 @@
     },
     "test": {
       "executor": "nx:run-commands",
+      "inputs": ["default", "^production", "{workspaceRoot}/tools/test/**/*.ts"],
       "options": {
         "command": "bun test",
         "cwd": "tools/tool-remote-scripts"
