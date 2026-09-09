@@ -77,7 +77,7 @@ and pre-existing dirt. Never overwrite the active optimizer feature's edits.
 
 ## 4. Integration and evidence
 
-- [ ] 4.1 **Verify production paths and hand back to core.** Run touched lint/typecheck
+- [x] 4.1 **Verify production paths and hand back to core.** Run touched lint/typecheck
       and tests plus existing optimization process/database suites without altering host
       authority. Run the complete `bin/h2puni-gate.sh` on its configured host/frozen tree;
       run the whole browser suite with owned, safe ports

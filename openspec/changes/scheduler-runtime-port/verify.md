@@ -90,6 +90,8 @@ date — the last refresh failed. Retry`; the restored run kept the `2026-09-07`
 
 - `git fetch origin main` on 2026-09-09 advanced `origin/main` to `cb472a0e`; merge
   `1f018ee3` contains that revision on this branch.
+- A later fetch advanced `origin/main` to `0dc0a831`; merge `8b1352fb` contains that
+  revision on this branch. The final scheduler checks below ran after that merge.
 
 ## Slices 3.1–3.2 — detached selected captures
 
@@ -169,3 +171,27 @@ open · Expected: 0 · Received: 1`.
   fail** in 36m1s. The formerly failing case passed inside that run. The recurring Vite
   websocket `EPIPE`/`ECONNRESET` diagnostics accompanied context teardown and did not fail
   a browser case.
+- The final canonical gate ran from clean exact merged revision `8b1352fb` and completed
+  all **88 Nx tasks** in 9m37s. Its real Docker `be-01:solver-image-smoke` completed with
+  **3 pass / 0 fail**; the target took 53.1s and the solver process took 12.07s.
+- Two whole-browser runs against the source-module Vite server each completed **315 pass /
+  37 intentionally skipped / 1 fail**, in 35m21s and 40m6s. The failing case moved from
+  Gantt to name Markdown, and each exact case then passed alone. The second trace showed
+  simultaneous `net::ERR_NETWORK_CHANGED` failures across `/@fs/` source modules and an
+  empty mounted root, so the gate now builds once and serves the bundled app with Vite
+  preview.
+- Replacing that command with `bunx vite` failed its production config check on the exact
+  received and expected commands. The restored local frontend suite completed **2598 pass /
+  0 fail** across the normal and zoned projects; frontend lint, typecheck, build and the
+  **23 pass / 0 fail** config checks were clean.
+- The first bundled whole-browser run at exact `228929dc` completed **314 pass / 37
+  intentionally skipped / 2 fail** in 22m30s. Both failures were harness compatibility:
+  the dark-mode case still intercepted the source entry, and minification removed the
+  function name used by rendering coverage. Revision `53efcbb6` intercepts the built entry
+  and uses an unminified build; those exact two cases completed **2 pass / 0 fail** in
+  20.4s.
+- The final whole-browser run used owned ports 5000/5100/6100 against clean exact revision
+  `53efcbb6`. Playwright's persisted result is `status: passed` with an empty failed-test
+  list. The SSH transport stopped returning output after the remote Playwright and preview
+  processes exited, so the final aggregate count and duration were unavailable; the saved
+  status and artifacts were read directly rather than inferring success from the transport.
