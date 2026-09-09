@@ -597,3 +597,26 @@ deadline before project start`, and the stored-result decoder now rejects
 
 The branch was then merged with current `origin/main`; CI and the terminal
 re-review are the exact merged-head gates.
+
+## 2026-09-07T03:47:16Z — TASK-294 final browser and scanner closure
+
+- CI run `34076293626` first made the phone proof fail for the right reason:
+  its aggregate pixels job ended with 294 pass / 1 fail because the reload
+  raced the long-name command, leaving an empty textbox and an orphan deadline
+  bullet in the uploaded accessibility snapshot.
+- Head `e6b887e2` awaited that exact persisted command and corrected the strict
+  locator exposed once the 192-character name really rendered. The focused
+  h2puni Chromium case passed 1/1 with both card and document overflow checks.
+  Rebase head `4d4bca43` repeated the same browser proof against current main.
+- CI run `34078821695` supplied the scanner's watched red: the leaf module
+  specifier `@wbs/domain/deadline-offsets` was reported as copy, making the FE
+  gate fail 2,399 pass / 1 fail. Head `4e9cefb7` excluded import/export module
+  specifiers by AST position and passed the focused h2puni set 36/36.
+- Replacement run `34079682370` was green at that exact source head: gate job
+  `101612516597` and pixels job `101612516483`, with 295/295 browser cases.
+  Verified exact-head review artifact `task294-terminal-r5-opus.txt` recorded
+  0 Critical, and PR #268 merged as `2c3be50b`.
+
+These entries extend the TASK-294 sequence chronologically from the 02:01
+accessibility checkpoint through the 02:22 render-safety checkpoint and this
+terminal closure. No build or autotest ran on the queue-worker box.
