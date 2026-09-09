@@ -3,7 +3,14 @@ import { type ExpandedState } from '@tanstack/react-table';
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import type { EffectiveTeams } from '@wbs/domain/effective-team';
 import type * as React from 'react';
-import { type CSSProperties, type ReactNode, useId, useState } from 'react';
+import {
+  type CSSProperties,
+  type ReactNode,
+  useDeferredValue,
+  useEffect,
+  useId,
+  useState,
+} from 'react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +25,7 @@ import type { PlanTableFeatures } from './plan-columns/column';
 import type { EstimateGaps } from './plan-completeness';
 import { describeGaps } from './plan-completeness';
 import { isSectionMode, SECTION_MODES } from './plan-mermaid';
+import { type PlanRenderRow } from './plan-render-rows';
 import type { PlanRenderer } from './plan-renderer';
 import { TAKES_THE_FOCUS } from './plan-toolbar-sheet';
 import { ProjectSettingsModal } from './project-settings-modal';
@@ -327,7 +335,7 @@ export const COLUMN_LABELS: ReadonlyMap<string, string> = new Map([
   ['in-parallel', 'People at once'],
   ['final-total', 'Days'],
   ['not-before', 'Not before'],
-  ['deadline', 'Work item deadline'],
+  ['deadline', 'Deadline'],
   ['start', 'Start'],
   ['finish', 'End'],
   ['float', 'Slack'],
@@ -545,8 +553,7 @@ export function PlanToolbar({
   people,
   chartRead,
   estimateMethod,
-  query,
-  setQuery,
+  commitQuery,
   facets,
   setFacets,
   facetTeams,
@@ -606,8 +613,7 @@ export function PlanToolbar({
   people: PersonView[];
   chartRead: ChartRead;
   estimateMethod: 'pert' | 'optimistic' | 'realistic' | 'pessimistic';
-  query: string;
-  setQuery: React.Dispatch<React.SetStateAction<string>>;
+  commitQuery: (projectId: string, query: string) => void;
   facets: Omit<FilterCriteria, 'query'>;
   setFacets: React.Dispatch<React.SetStateAction<Omit<FilterCriteria, 'query'>>>;
   facetTeams: FacetOption[];
@@ -624,7 +630,7 @@ export function PlanToolbar({
   setStoredHiddenColumns: React.Dispatch<React.SetStateAction<readonly string[]>>;
   offeredColumns: { id: string; label: string }[];
   toggleColumn: (columnId: string) => void;
-  shownRows: Row<PlanTableFeatures, TreeRow>[];
+  shownRows: Row<PlanTableFeatures, PlanRenderRow>[];
   search: TreeNarrowing;
   gaps: EstimateGaps;
   walkToNextGap: () => void;
@@ -642,6 +648,13 @@ export function PlanToolbar({
   startDate: string | null;
   chooseEstimateMethod: (method: 'pert' | 'optimistic' | 'realistic' | 'pessimistic') => void;
 }) {
+  const [query, setQuery] = useState(criteria.query);
+  const deferredQuery = useDeferredValue(query);
+  useEffect(() => {
+    commitQuery(projectId, deferredQuery);
+  }, [commitQuery, deferredQuery, projectId]);
+  const currentCriteria = { ...criteria, query };
+
   return (
     <>
       {/*
@@ -930,12 +943,12 @@ export function PlanToolbar({
       */}
       <SavedViews
         views={savedViews}
-        current={criteria}
+        current={currentCriteria}
         labels={filterLabels}
         onSave={(name) => {
           const next = [
             ...savedViews,
-            { id: crypto.randomUUID(), name, criteria, hiddenColumnIds },
+            { id: crypto.randomUUID(), name, criteria: currentCriteria, hiddenColumnIds },
           ];
           setSavedViews(next);
           rememberSavedViews(projectId, next);
@@ -980,9 +993,11 @@ export function PlanToolbar({
       */}
       {filtering && search.matchIds.size === 0 && (
         <span className="text-sm">
-          {query.trim() === ''
+          {criteria.query.trim() === ''
             ? 'No rows match these filters'
-            : `No matches for “${query}”${facetsChosen(facets) > 0 ? ' with these filters' : ''}`}
+            : `No matches for “${criteria.query}”${
+                facetsChosen(facets) > 0 ? ' with these filters' : ''
+              }`}
         </span>
       )}
       {/*

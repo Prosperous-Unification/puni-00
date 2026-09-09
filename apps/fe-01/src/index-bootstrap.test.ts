@@ -72,6 +72,18 @@ beforeEach(() => {
  * `openspec/changes/dark-mode/verify.md`.
  */
 describe('the palette applied before the first paint', () => {
+  /**
+   * Pins the document mechanism; Browser Use Cloud is the oracle for whether Chromium stays quiet.
+   *
+   * Proof: removing the link at 04a01c63 failed this case on h2puni while the other 14 passed.
+   */
+  itDom('declares the intentional empty favicon', () => {
+    const html = readFileSync(indexHtml, 'utf8');
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+
+    expect(parsed.querySelector('link[rel~="icon"]')?.getAttribute('href')).toBe('data:,');
+  });
+
   itDom('reads the key the module writes, by name', () => {
     // Not a paraphrase of the logic: the literal string. A bootstrap reading
     // `wbs.theme2` would agree with the module on every case below, because

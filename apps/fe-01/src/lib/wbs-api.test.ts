@@ -1039,6 +1039,11 @@ describe('read ownership across API lifetimes', () => {
         pri: { state: 'failed', reason: 'unknown' },
         time: { state: 'idle' },
       },
+      // Present and well formed, so the only fault in this payload is the
+      // variant reason above. Left off, this case would reject for two reasons
+      // and prove neither.
+      finishDays: { fast: 10 },
+      sameOrderAsFast: {},
     };
     vi.stubGlobal(
       'fetch',
@@ -1047,6 +1052,74 @@ describe('read ownership across API lifetimes', () => {
 
     await expect(httpProjectApi('t').tree('p1')).rejects.toMatchObject({
       message: 'invalid_response',
+      problem: { kind: 'failure', failure: { code: 'invalid_response' } },
+    });
+  });
+
+  it.each(['finishDays', 'sameOrderAsFast'] as const)(
+    'rejects an optimization payload with no %s',
+    async (missing) => {
+      // Both are required on the wire, and the cue reads them without asking
+      // whether they arrived: Fast's finish is what every comparison is taken
+      // against, and a release that stopped sending either would otherwise
+      // reach a screen as a pill with nothing on it.
+      //
+      // Proof: with `finishDays` made optional in
+      // `libs/contracts/src/http/work-item-response.ts`, the first case failed
+      // on `promise resolved "{ workItems: [], seq: 1, …(17) }" instead of
+      // rejecting`. Watched 2026-09-08.
+      const tree = JSON.parse(TREE('p1', [])) as { optimization?: Record<string, unknown> };
+      const whole: Record<string, unknown> = {
+        enabled: true,
+        engine: 'optimized',
+        objective: 'pri',
+        inputHash: 'input',
+        generation: 1,
+        contractVersion: '7+test',
+        budgetMs: 60_000,
+        displayed: 'fast',
+        variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'idle' } },
+        finishDays: { fast: 10 },
+        sameOrderAsFast: {},
+      };
+      // Rebuilt without the field rather than deleted out of it: a dynamic
+      // `delete` is banned here, and this says the same thing.
+      tree.optimization = Object.fromEntries(
+        Object.entries(whole).filter(([field]) => field !== missing),
+      );
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
+      );
+
+      await expect(httpProjectApi('t').tree('p1')).rejects.toMatchObject({
+        message: 'invalid_response',
+        problem: { kind: 'failure', failure: { code: 'invalid_response' } },
+      });
+    },
+  );
+
+  it('rejects a ready optimization variant whose proof disposition is missing', async () => {
+    const tree = JSON.parse(TREE('p1', [])) as { optimization?: Record<string, unknown> };
+    tree.optimization = {
+      enabled: true,
+      engine: 'optimized',
+      objective: 'pri',
+      inputHash: 'input',
+      generation: 1,
+      contractVersion: '7+test',
+      budgetMs: 60_000,
+      displayed: 'fast',
+      variants: { pri: { state: 'ready' }, time: { state: 'idle' } },
+      finishDays: { fast: 10, pri: 9 },
+      sameOrderAsFast: { pri: true },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
+    );
+
+    await expect(httpProjectApi('t').tree('p1')).rejects.toMatchObject({
       problem: { kind: 'failure', failure: { code: 'invalid_response' } },
     });
   });
@@ -1209,8 +1282,9 @@ describe('what a full-scope read puts on the wire', () => {
       contractVersion: '1.5+test',
       budgetMs: 60_000,
       displayed: 'pri',
-      variants: { pri: { state: 'ready' }, time: { state: 'idle' } },
-      comparison: { deltaDays: -2, sameOrder: true },
+      variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'idle' } },
+      finishDays: { fast: 10, pri: 8 },
+      sameOrderAsFast: { pri: true },
     };
     const bodies: Record<string, string | undefined> = {
       '/api/projects/p1/work-items': JSON.stringify(optimized),

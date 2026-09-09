@@ -227,6 +227,8 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'too_many_externalRefs':
     case 'externalRefs_entry_needs_a_systemId':
     case 'externalRefs_entry_needs_a_url':
+    case 'externalRefs_entry_name_is_not_text':
+    case 'externalRefs_entry_name_is_too_long':
     case 'invalid_actual':
     case 'invalid_measure':
     case 'invalid_progress':
@@ -334,6 +336,29 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
   }
 }
 
+function optimizationRetryCode(refusal: RefusalOf<'postApiProjectsByIdOptimizationRetry'>): string {
+  // The 409 arm is the only refusal in this file that answers with `code`
+  // rather than `error`: it carries the variant's `state` beside it, because
+  // "why can this not be retried" is a fact about the schedule rather than
+  // about the request. Both discriminants are read here so a future arm cannot
+  // fall through to a screen that says nothing.
+  if ('code' in refusal) return refusal.code;
+  switch (refusal.error) {
+    case 'invalid_query':
+    case 'invalid_params':
+    case 'invalid_json':
+    case 'invalid_body':
+    case 'unauthenticated':
+    case 'invalid_origin':
+    case 'insufficient_scope':
+    case 'forbidden':
+    case 'not_found':
+      return refusal.error;
+    default:
+      return unreachable(refusal);
+  }
+}
+
 function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string {
   switch (problem.operation) {
     case 'getApiPeople':
@@ -372,6 +397,8 @@ function refusalCode(problem: Extract<WbsProblem, { kind: 'refusal' }>): string 
       return stepWriteCode(problem.refusal);
     case 'deleteApiProjectsByIdStepsByStepId':
       return stepRemoveCode(problem.refusal);
+    case 'postApiProjectsByIdOptimizationRetry':
+      return optimizationRetryCode(problem.refusal);
     default:
       return unreachable(problem);
   }

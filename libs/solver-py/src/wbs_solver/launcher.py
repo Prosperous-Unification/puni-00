@@ -58,14 +58,64 @@ def _apply_address_space_limit(memory_limit_mb: int) -> None:
     Native OR-Tools maps substantially more virtual address space than resident
     memory. Equating RLIMIT_AS to the RSS limit made a valid 512 MB solve fail
     while creating its worker pool, so this deliberately leaves 4x headroom.
+
+    **Linux only, and the branch is not a portability nicety.** The backstop is
+    the inner half of a pair whose outer half is the cgroup ceiling, and a
+    platform with no cgroup has no pair to complete. macOS reports RLIMIT_AS as
+    unlimited and then refuses to set it -- ``getrlimit`` returns
+    ``(9223372036854775807, 9223372036854775807)`` and ``setrlimit`` raises
+    ``ValueError: current limit exceeds maximum limit`` -- so on Darwin this
+    call cannot narrow anything and can only abort a solve that would have
+    succeeded. The development profile that runs here therefore has NO memory
+    enforcement at all, which is a fact its capability status must carry rather
+    than a fact this function may quietly imply it handled.
+
+    Raising on an unsupported platform was the alternative and is wrong: the
+    caller has no ceiling to fall back to, so refusing to launch would trade a
+    working unbounded solve for no solve, without adding a bound either way.
+
+    Proof, Linux arm: returning before the call on every platform failed
+    `test_the_limit_is_really_applied_by_the_kernel` on a real Linux kernel with
+    `AssertionError: -1 != 2147483648`, `-1` being RLIM_INFINITY.
+
+    Proof, Darwin arm: deleting the platform branch failed three cases on darwin/arm64 --
+    `test_no_address_space_limit_is_attempted_off_linux` on "Expected 'setrlimit'
+    to not have been called. Called 1 times.", and both real-process cases,
+    `test_bound_execs_the_solver_without_consuming_its_request` and
+    `test_bound_passes_the_absolute_deadline_to_the_solver`, on `1 != 0` carrying
+    this machine's `ValueError: current limit exceeds maximum limit`. Replacing the
+    branch with `try: ... except ValueError: return` instead -- which passes on this
+    machine and would silently drop the backstop on Linux -- failed
+    `test_a_linux_setrlimit_failure_is_not_swallowed` on `ValueError not raised`.
     """
+    if sys.platform != "linux":
+        return
     limit = memory_limit_mb * 4 * 1024 * 1024
     resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
 
 
 def _install_parent_guard() -> None:
+    """Arm the parent-death guard, and check the race it opens -- on Linux.
+
+    ``set_parent_death_signal`` already answers for the platform: it returns
+    ``False`` on non-Linux having installed nothing. The race check below is
+    about the window *between* reading ``getppid`` and the kernel accepting
+    ``prctl``, so where no ``prctl`` happened there is no window, and running
+    the check anyway would let an ordinary re-parenting on Darwin SIGKILL a
+    launcher that was never guarded in the first place.
+
+    The return value is now read rather than discarded, so this function's
+    branch is decided by what the helper actually did instead of by a second,
+    independent reading of ``sys.platform``.
+
+    Proof: restoring the discarded call (`set_parent_death_signal()` with no branch)
+    failed `test_no_parent_race_check_where_no_guard_was_installed` with
+    `RuntimeError: parent changed while installing PR_SET_PDEATHSIG` -- the launcher
+    self-terminating over a window that never opened.
+    """
     parent = os.getppid()
-    set_parent_death_signal()
+    if not set_parent_death_signal():
+        return
     if os.getppid() != parent:
         # The parent died in the prctl race.  SIGKILL is deliberate: this is
         # the same terminal state the kernel would have delivered afterwards.

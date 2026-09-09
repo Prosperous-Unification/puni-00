@@ -43,7 +43,10 @@ const NEARLY = 2;
  * a budget resolved from the bar it is measuring is decoration.
  */
 const LAID_OUT_BEFORE_AT_1280 = 1445.33;
-const LAID_OUT_NOW_AT_1280 = 1265;
+// Chromium153 on Linux resolves the same unchanged toolbar to1268.46875px;
+// retain the measured cross-platform high-water mark rather than failing on a
+// fractional glyph advance that added no control.
+const LAID_OUT_NOW_AT_1280 = 1268.5;
 const ROWS_BEFORE_AT_1280 = 2;
 
 /** Registers a throwaway account and opens an empty project. */
@@ -111,8 +114,9 @@ test.describe('the project settings control, in a browser', () => {
     // matching none of the three the precondition names (`Squad`, `Precedence`,
     // so the precondition still passes). Against `BEFORE` that fault was
     // watched **passing** — 1428px against a 1447.33px ceiling. Against this
-    // line it fails on `1428px of controls to lay out, against the 1265px this
-    // change left`. Watched 2026-08-30, both arms.
+    // line it failed on `Expected: <= 1268.5 · Received: 1427.21875`.
+    // Re-watched in Chromium153 on Linux, 2026-09-08, after moving the
+    // cross-platform pin to the measured high-water mark.
     expect(
       measured.laidOut,
       `${String(Math.round(measured.laidOut))}px of controls to lay out, against the ${String(
@@ -170,7 +174,7 @@ test.describe('the project settings control, in a browser', () => {
     await expect(optimization).toBeChecked();
 
     const fast = dialog.getByRole('radio', { name: 'Fast' });
-    const priority = dialog.getByRole('radio', { name: 'PRI' });
+    const priority = dialog.getByRole('radio', { name: 'Pri' });
     const time = dialog.getByRole('radio', { name: 'Time' });
     await expect(fast).toBeEnabled();
     await fast.focus();
@@ -191,7 +195,7 @@ test.describe('the project settings control, in a browser', () => {
     await expect(priority).toBeChecked();
   });
 
-  test('keeps the infeasible indicator inside a phone card plan and opens it by keyboard', async ({
+  test('keeps the infeasible cue inside a phone card plan and opens it by keyboard', async ({
     page,
   }) => {
     await freshProject(page);
@@ -204,6 +208,7 @@ test.describe('the project settings control, in a browser', () => {
         response.request().method() === 'POST' &&
         response.url().includes('/commands') &&
         (response.request().postData() ?? '').includes('"kind":"patchWorkItem"') &&
+        (response.request().postData() ?? '').includes(longWorkItemName) &&
         response.ok(),
     );
     await name.fill(longWorkItemName);
@@ -211,10 +216,22 @@ test.describe('the project settings control, in a browser', () => {
     await nameSaved;
     await expect(name).toHaveValue(longWorkItemName);
 
+    let resolvePersistedName: (name: string | undefined) => void = () => undefined;
+    const persistedName = new Promise<string | undefined>((resolve) => {
+      resolvePersistedName = resolve;
+    });
     await page.route('**/api/projects/*/work-items', async (route) => {
+      // Only reads are synthetic. The long name above is a real persisted
+      // command round trip; startDate and optimization below are renderer
+      // fixtures because this is a layout/keyboard case, not a solver e2e.
+      if (route.request().method() !== 'GET') {
+        await route.continue();
+        return;
+      }
       const response = await route.fetch();
       const plan = (await response.json()) as PlanRead;
-      const first = plan.workItems[0];
+      const first = plan.workItems.at(0);
+      const firstId = first?.id ?? 'missing-persisted-work-item';
       const optimization: PlanOptimizationView = {
         enabled: true,
         engine: 'optimized',
@@ -225,44 +242,67 @@ test.describe('the project settings control, in a browser', () => {
         budgetMs: 60_000,
         displayed: 'fast',
         variants: {
-          pri: {
+          pri: { state: 'ready', proof: 'proven' },
+          time: {
             state: 'plan-infeasible',
             items: [
               {
-                ownerWorkItemId: first.id,
-                boundWorkItemId: first.id,
+                ownerWorkItemId: firstId,
+                boundWorkItemId: firstId,
                 effectiveDeadlineOffset: 4,
               },
             ],
           },
-          time: { state: 'idle' },
         },
+        // Fast's finish and PRI's, which is what an enabled project with one
+        // solved variant really carries; the infeasible one has no schedule and
+        // so no figure.
+        finishDays: { fast: 4, pri: 4 },
+        sameOrderAsFast: { pri: true },
       };
       await route.fulfill({ response, json: { ...plan, startDate: '2026-09-07', optimization } });
+      resolvePersistedName(first?.name);
     });
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload();
+    // The route must settle first. An assertion inside its callback leaves the
+    // request unresolved and hides this diagnostic behind a navigation timeout.
+    const reloadedName = await persistedName;
+    expect(reloadedName, 'the persisted plan has no first work item').toBeDefined();
+    expect(reloadedName, 'the long-name command was not persisted before reload').toBe(
+      longWorkItemName,
+    );
     await expect(page.getByRole('article', { name: 'Work item 010' })).toBeVisible();
 
-    const indicator = page.locator('[data-optimization-indicator]');
-    await expect(indicator).toContainText('Plan infeasible · 1 Work item deadline');
-    const indicatorBox = await indicator.boundingBox();
-    expect(indicatorBox, 'the phone indicator has no rendered box').not.toBeNull();
-    expect(indicatorBox?.x ?? -1).toBeGreaterThanOrEqual(0);
-    expect((indicatorBox?.x ?? 0) + (indicatorBox?.width ?? 391)).toBeLessThanOrEqual(390);
+    const cue = page.locator('[data-optimization-cue]');
+    await expect(cue).toBeVisible();
+    const cueBox = await cue.boundingBox();
+    expect(cueBox, 'the phone cue has no rendered box').not.toBeNull();
+    expect(cueBox?.x ?? -1).toBeGreaterThanOrEqual(0);
+    expect((cueBox?.x ?? 0) + (cueBox?.width ?? 391)).toBeLessThanOrEqual(390);
+    // The count is on the pill's own sentence, which is its accessible name and
+    // the text of its live region both.
+    await expect(cue).toContainText('Finish-first: Plan infeasible · 1 Work item deadline');
 
-    const disclosure = page.getByText('Show affected work items');
-    await expect(disclosure).toHaveAccessibleName('Show affected work items');
-    await disclosure.focus();
-    await page.keyboard.press('Enter');
-    await expect(page.getByText(/Work item deadline 11 Sep/)).toBeVisible();
-    const affectedItem = page
-      .getByLabel('Affected work items')
-      .locator('li')
-      .filter({ hasText: longWorkItemName });
-    await expect(affectedItem).toBeVisible();
-    const overflow = await affectedItem.evaluate((element) => ({
+    // By keyboard, and the focus is the whole of it: `HintLayer` opens the same
+    // card from `focusin`, with no wait of either kind and no cursor to put a
+    // ring beside, so a phone reader who has tabbed to the pill gets the same
+    // words as one who pointed at it.
+    const pill = page.getByRole('button', { name: /is the active schedule/ });
+    await pill.focus();
+    const card = page.locator('#hint-card');
+    await expect(card).toBeVisible();
+    const described = (await pill.getAttribute('aria-describedby'))?.split(/\s+/) ?? [];
+    expect(described).toContain('hint-card');
+    // Proof: before the persisted-write wait, CI's first complete pixels run
+    // was red 1/294 here: the 192-character locator was absent and the snapshot
+    // showed an empty textbox plus an orphan deadline bullet. The row's own
+    // name is in the card now, with the effective workday deadline it cannot
+    // meet — one unbroken token, which is what the overflow checks exercise.
+    await expect(card).toContainText(longWorkItemName);
+    await expect(card).toContainText('Work item deadline (effective workday) 11 Sep');
+    const overflow = await card.evaluate((element) => ({
       clientWidth: element.clientWidth,
       scrollWidth: element.scrollWidth,
       documentWidth: document.documentElement.scrollWidth,
@@ -271,8 +311,9 @@ test.describe('the project settings control, in a browser', () => {
     expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth);
     expect(overflow.documentWidth).toBeLessThanOrEqual(overflow.viewportWidth);
 
-    const openBox = await indicator.boundingBox();
-    expect(openBox, 'the open phone indicator has no rendered box').not.toBeNull();
-    expect((openBox?.x ?? 0) + (openBox?.width ?? 391)).toBeLessThanOrEqual(390);
+    const openCard = await card.boundingBox();
+    expect(openCard, 'the open phone card has no rendered box').not.toBeNull();
+    expect(openCard?.x ?? -1).toBeGreaterThanOrEqual(0);
+    expect((openCard?.x ?? 0) + (openCard?.width ?? 391)).toBeLessThanOrEqual(390);
   });
 });

@@ -1,7 +1,7 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-364 restored the archived multi-team-engine record in PR #313; its reconciled history and h2puni red/green evidence are in `openspec/changes/archive/2026-09-08-multi-team-engine/verify.md`.
-
+TASK-507 agent-trailer fixture hardening is on `fix/task507-agent-trailer-hardening`: PR 388, refreshed-base gates pending.
+TASK-508 milestone-wire and Fast trailing-zero fixes are on `fix/task508-milestone-proof` in PR #384; finish the exact-head gates and merge.
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),
 `mcp-01` (MCP server over be-01, stdio, spawned by its client). Nx monorepo, Bun — never npm.
@@ -128,7 +128,7 @@ Both open findings are **prod-phase** (Dany, 2026-08-06): recorded, not pending.
 
 Findings 3–5 closed. Lower priority: fe/smoke health takes any non-empty body; the WS ping passes on
 any first message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
-`tool-secrets` only prints. Checks that cannot fail: **21** (R5).
+`tool-secrets` only prints. Checks that cannot fail: **23** (R5).
 
 ## More
 
@@ -137,7 +137,7 @@ any first message _containing_ `"pong"`; drain reads a malformed metrics body as
 | `docs/superpowers/{plans,specs}/2026-08-02-compose-blue-green-*.md`                                                                                         | before touching deploy, and why the pipeline is shaped this way                                                                                                                                                                                        |
 | `docs/runbook-dev-deploy.md`                                                                                                                                | deploying dev; what a deploy cannot carry                                                                                                                                                                                                              |
 | `docs/runbook-prod-deploy.md`                                                                                                                               | deploying prod; commands and their refusals                                                                                                                                                                                                            |
-| `openspec/changes/dual-optimized-scheduler/supervisor-amendment.md`                                                                                         | before changing solver host authority, installer, image mapping, or runtime-directory mount                                                                                                                                                            |
+| `openspec/changes/dual-optimized-scheduler/supervisor-amendment.md`, `docs/2026-09-08-hosted-optimization-api.md`                                           | before changing solver host authority, installer, image mapping, or runtime-directory mount; the second is the exploratory commercial API note                                                                                                         |
 | `docs/runbook-dagger-engine-registry-dns.md`                                                                                                                | engine can't resolve `registry`                                                                                                                                                                                                                        |
 | `docs/local-dev.md`                                                                                                                                         | running locally                                                                                                                                                                                                                                        |
 | `docs/capacity.md`                                                                                                                                          | why a plan's dates moved; where a team's number is typed                                                                                                                                                                                               |

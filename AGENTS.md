@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — twenty-one times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — twenty-four times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -459,6 +459,141 @@ the fault lives only in the second after a write. It was found by taking a scree
 it. And the first theory for it — a scroll from the settling table — was **wrong**: the document's
 own event log had no scroll in it at all. Instrument before you believe a mechanism, and look at the
 thing you built.
+
+Three on 2026-09-08 in `dual-optimized-scheduler` slice 8b, and **none shipped** — but the first
+is a new shape and the most reusable thing here since the auto-waiting matcher. **An injected
+fault that is not the fault proves nothing, and it looks exactly like a proof.** The dense-rank
+form of the schedule order relation was replaced by _competition_ ranking (`indexOf` plus the
+count of equal values) to watch the tie cases go red, and they stayed green — correctly, because
+competition ranking still gives a tie group one shared value and therefore represents the same
+weak order. The fault the tie handling is actually about is a ranking that **splits** a tie
+group, and injected that way it failed on `seed 52 · Expected: false · Received: true` plus both
+named cases. A green negative is a fact about the injection, not about the check.
+
+The second is R5 #22's own lesson wearing this change's clothes: a `Proof:` comment claimed
+`MenuControl` would **throw** when an item left an open menu, and what it really does is drop the
+focus to `<body>` — the effect that focuses is keyed on the index, so an unchanged index never
+re-runs it. Both the comment and the JSDoc were rewritten from the output. And the third is that
+the _whole gate_ is not what a local run is: `contracts:test` failed in CI on a wire fixture
+missing the two fields this change added, after local runs of `domain`, `be-01` and `fe-01` —
+every project **except** the one the schema lives in. Run the projects you changed, by name.
+
+Two faults in that slice were found by neither, and both were found by rendering the thing and
+looking at it: a `HoverCard` anchored near the right edge laid out at its mark's own left edge
+and so measured **195px wide and eight lines tall** against a 420px ceiling (a fixed box has
+only the room between its left edge and the window to shrink-to-fit in, and the placement
+function was then handed a width that had already been squeezed); and no card wrapped a long
+unbroken token — 1396px of text inside a 388px phone card. 2,500 jsdom cases and seven browser
+assertions were green over both.
+
+One on 2026-09-09, in `rendering-baseline.spec.ts`, and it is the browser gate's own version of
+"the oracle was jsdom": **a key is not the same key on both platforms, and the spec is green on
+the one CI runs.** `press('End')` leaves `selectionStart` at 0 in a focused `<textarea>` on
+macOS — that key belongs to the document there and scrolls it, while end-of-line is ⌘→ — so
+everything typed after it lands at the **start** of the field. On Linux, which is what CI runs,
+`End` is end-of-line and the same spec is green. The failure it produces, `Expected: "Row 0000
+half-typed" · Received: " half-typedRow 0000"`, looks exactly like interleaved keystrokes, and
+it was written into a verify.md as "one class of race" with a genuine CI flake before anybody
+measured it. `ControlOrMeta` does not paper over it either: `Control+ArrowRight` moves by a word
+on Linux. `e2e/caret.ts` carries the measured table and the per-platform press.
+
+Its second half is `tool-hints-wait`'s locator lesson in a new file, and it was found **because**
+the fix asserted something the spec had not: `caretToLineEnd` waits for the field to hold the
+focus, and that turned the _other_ case in the file red at once —
+`page.locator('…input[data-cell$="-optimistic"]').first()` re-resolves on every action while the
+unfolded columns mount, so the node focused (`…7eaef440…`) was not the node typed into
+(`…c25249bc…`). It had passed for as long as nothing between the two resolutions asserted
+identity. An assertion added to a helper is a cheap way to find every caller that was relying on
+something it never said.
+
+One on 2026-09-09 in `link-names-and-card`, and it **shipped** — the twenty-second, and R5
+#14/#15's fault class again: jsdom as the oracle for a fault that is a browser's. The links
+card had a whole describe block about it in `plan-cells.test.tsx` — `the card lists every ref
+and follows one`, `a non-http URL is not a link` — and every case passed while **no reader
+could see the card at all**. It was in the DOM, the right size, in the right place, and painted
+over: the Links column is pinned, a pinned cell is `position: sticky` _with_ a `z-index` and so
+a stacking context, and `raiseWhenOpen` was `columnId === 'name'` — the Name column named alone,
+by the change that discovered this exact fault in 2026-08-08 and fixed it for one column.
+Measured in Chromium on 2026-09-09: the card's rectangle `[94, 229, 284, 68]`, with
+`elementFromPoint` at its own middle answering the _next_ row's name `<textarea>`. The lift now
+asks the two facts — `layout.pinned.has(columnId) && opensAPopover(columnId)` — and
+`e2e/external-refs.spec.ts` asserts the element painted at the card's middle is part of the
+card. **A jsdom test can see a popover exist and can never see it be invisible.**
+
+Three more the same day and in the same change, and **none shipped**. The first is a negative
+watched **passing**: the add row's name box holds `null` for "nobody has typed here" so that a
+box a reader **emptied on purpose** is not refilled with the URL's derived label, and the test
+written for it typed `My own words` and then changed the URL. Both readings keep non-empty
+words — that is what makes them both correct about that case — so the `''` sentinel was put back
+and the test stayed green. The case the sentinel exists for is the box cleared to empty, and
+rewritten that way it failed on `expect(element).toHaveValue() · Received: #4178`.
+**A sentinel that distinguishes "unset" from "empty" can only be tested with the empty one.**
+
+The third is the browser proof written for the shipped fault above, and it **passed** with the
+fault injected. `raiseWhenOpen` narrowed back to `columnId === 'name'` and
+`e2e/external-refs.spec.ts`'s `the card is drawn on top of the rows below it` was watched green
+— because the same change had also made the cell's hover surface
+`position: absolute; inset: 0`, and an absolutely positioned wrapper keeps the card on top by
+itself. Two fixes, either sufficient, and a browser can only see that the card is visible. The
+lift's real negative is the jsdom one (`expected 1 to be 2`); the browser check is the
+end-to-end guarantee and now says so. **When two edits in one change fix one fault, the
+negative for either of them passes — inject them together or prove them apart.**
+
+The second is a claim about **which boundary refuses what**, written from the code's shape
+rather than from the wire. `plan-command-shapes.ts` declares `'name?': 'string'`, so the JSDoc
+said a mistyped name is refused by the shape before the parser runs, the parser's `typeof` was
+demoted to "narrowing", and the two refusals were collapsed into one. Probed against `buildApp`:
+the shape refuses an unknown **key** (`{"error":"invalid_body"}`) and lets a mistyped **value**
+straight through, so `name: 7` was answered `externalRefs_entry_name_is_too_long` — `(7).length`
+is `undefined`, `undefined > 300` is false, the ref is **written** with a number in its name
+column, and the tree read then fails its own response schema. A 400 either way, a wrong reason,
+and a stored row no reader can name. Two codes now, both watched failing, and the probe's own
+answers are assertions in `work-item.controller.test.ts` rather than a sentence in a comment.
+**Which layer refuses a bad field is a measurement, not a reading.**
+
+One more on 2026-09-09, in `links-card-takes-the-pointer`, and it **shipped** — the
+twenty-third, found by Dany moving a mouse at the thing an hour after it merged: _"i cannot
+hover over the dropdown - it disappears when i move cursor down to it"_. The links card was
+`pointer-events: none` with `padding: 6px 10px` and only its **lines** took the pointer, so the
+6px band around them hit-tested the row _beneath_ the card; a cursor moving down fired the
+cell's `mouseleave` and the card unmounted before the cursor reached a line. Measured in the
+running app: the card at `[88, 242, 370, 56]`, and `elementFromPoint` 1px and 4px inside its
+top edge both answering the next row's name `<textarea>`.
+
+**The oracle was `locator.hover()`, which teleports.** Playwright puts the pointer straight on
+an element's centre, so `await name.hover()` never crossed the band the hand has to cross —
+and two browser assertions about reaching and clicking that link passed over the defect twice.
+The fix is `HoverCard`'s new `takesPointer`; the test now walks with
+`page.mouse.move(x, y, { steps: 12 })`, and the negative was watched on `the card closed on
+the way down to it`.
+
+And the second half of the same report — reaching for a link on the right of a 400px card from
+a 40px cell — got a **grace period on closing** that was then **measured and deleted**, which
+is the more useful half of the story. `CARD_GRACE_MS` (200ms) held the card while the pointer
+crossed the Name column, and with the card _under_ the cell its negative was real: set to 0,
+`the card closed on a diagonal reach for a link`. Then Dany asked for the card **beside** the
+cell (_"so that i can move my cursor down to look at each item one by one uninterrupted"_), the
+card's left edge became the cell's right edge, and the gap the timer covered stopped existing.
+Re-measured with the whole timer **and** its re-arm removed: the walk still passed. So it went.
+**A guard can be genuinely load-bearing and then be made vacuous by the fix that follows it —
+re-run its negative after every change to the geometry it was about, not only when it is
+written.**
+
+`locator.hover()` proves an element is clickable, never that a hand can get to it.
+
+One more on 2026-09-09 in `notes-preview-clears-the-marker-lane`, and it **did not ship** —
+caught while the test was being written, which is where these belong. The Name cell's notes
+preview had to be pulled 24px left so the `≡` markers' lane stays hoverable, and the negative
+written for it — the preview's right edge against the next row's marker — was watched
+**passing** with the pull removed. The notes it typed were one sentence, so the card
+shrink-to-fit **well inside its own cell** and its right edge was 200px short of the lane: a
+true statement about a card that was never near the fault. Given a paragraph, and with the
+card's width asserted big enough to reach the lane from its cell's left edge first, the same
+injection failed on `the preview covers the marker lane · Expected: <= 486.40625 · Received:
+502`. The `100%` width cap beside the pull was then watched producing the **same** two figures,
+which is how a second load-bearing line got a proof of its own. **A geometry proof needs a box
+big enough to commit the fault** — `estimate-triple-visible`'s "assert in the window the fault
+lives in", now with a horizontal axis.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.

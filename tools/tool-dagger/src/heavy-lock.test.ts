@@ -32,6 +32,68 @@ function readIfPresent(path: string): string {
   }
 }
 
+// Every filesystem path interpolated into a generated shell command in this
+// file routes through this helper. JSON string quoting is insufficient: within
+// double quotes bash would still expand `$`, backticks, and command syntax.
+// Close the single-quoted word, emit one quoted apostrophe, then reopen it.
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+// PATH is a colon-delimited environment value, not shell source, so quoting an
+// entry cannot preserve an embedded colon. Refuse that unsupported temp-root
+// shape at the construction boundary instead of silently splitting the shim.
+function pathEntry(value: string): string {
+  if (value.includes(':')) throw new Error(`PATH entry contains a colon: ${value}`);
+  return value;
+}
+
+function contenderEnvironment(
+  shim: string,
+  pathTail: string,
+  home: string,
+): Record<string, string> {
+  return {
+    PATH: `${pathEntry(shim)}:${pathTail}`,
+    HEAVY_LOCK_WAIT_SECONDS: '30',
+    HOME: home,
+  };
+}
+
+// The executables a pinned `PATH` must actually hold, checked on the image the
+// suite is running on rather than assumed from the one it was written on. The
+// contender below runs `bash -c` with a pinned tail; without this a missing
+// entry surfaces as a 127 somewhere inside the library, which reads like the
+// lock being broken rather than the image lacking `dirname`.
+//
+// `kill` and `printf` are bash builtins and `uname` is reached only by
+// `resolve_heavy_lock_path`, which the contender does not call — so this list is
+// the whole executable surface, not a sample of it.
+//
+// Resolved with `Bun.which` rather than by spawning `sh -c 'command -v'`: a
+// spawn resolves its OWN argv[0] through the supplied `PATH` too, so a pin that
+// holds nothing throws ENOENT on `sh` before the check can report which of the
+// six is missing — the raw errno this function exists to replace. The exact
+// resolutions are returned so generated helpers consume the same proof instead
+// of adding their own absolute-path assumptions.
+function assertResolvable(pathValue: string, executables: string[]): ReadonlyMap<string, string> {
+  const resolved = new Map<string, string>();
+  const missing: string[] = [];
+  for (const executable of executables) {
+    const path = Bun.which(executable, { PATH: pathValue });
+    if (path === null) missing.push(executable);
+    else resolved.set(executable, path);
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `PATH pinned to ${pathValue} does not resolve ${missing.join(', ')} on this image; ` +
+        'widen the pin for this image rather than falling back to the inherited PATH, ' +
+        'whose tail is the interception route this pin exists to close (TASK-409)',
+    );
+  }
+  return resolved;
+}
+
 // Polls a condition instead of sleeping a guessed interval. The rejection is
 // what keeps a broken run honest: a case that stops observing what it waited for
 // is a case that has to say so, rather than continuing on an assumption.
@@ -100,6 +162,12 @@ afterEach(async () => {
 });
 
 describe('with-heavy-lock', () => {
+  it('rejects a colon-bearing shim at the contender environment boundary', () => {
+    expect(() => contenderEnvironment('/tmp/wbs:shim', '/usr/bin:/bin', '/tmp')).toThrow(
+      'PATH entry contains a colon',
+    );
+  });
+
   it('uses one canonical production lock that no caller can move', () => {
     // **The property, restated after the mechanism changed under it.**
     //
@@ -139,6 +207,28 @@ describe('with-heavy-lock', () => {
     expect(run.exitCode).toBe(0);
   });
 
+  // The refusal must be immediate, and the case name is not what says so
+  // (TASK-423). The runner timeout below bounds the whole case, which is
+  // dominated by the holder's fixed two-second lifetime; a refusal that took
+  // nine seconds would still fit inside it. `IMMEDIATE_REFUSAL_BUDGET_MS`
+  // bounds the refusal alone, so "immediately" is checked rather than asserted
+  // by wording.
+  //
+  // Observed on h2puni at head 653ecbdd, five consecutive runs under the heavy
+  // lock: 11.9, 15.6, 16.2, 17.7, 26.3ms. 500ms is ~19x that observed ceiling
+  // — deliberately loose, because the number this must separate from is not
+  // the next millisecond but the ~2000ms a refusal that waited for the lock
+  // would cost, which is 4x the other side of this bound.
+  const IMMEDIATE_REFUSAL_BUDGET_MS = 500;
+
+  // Case budget stated, not defaulted (TASK-415). Two observations, not a
+  // floor: 2016ms on h2puni at load 7-9, and 2020ms in the sweep recorded in
+  // notes/t415-per-case-duration-sweep.txt. Both give a ~2.5x margin on the
+  // 5000ms default, and 5x either, rounded up to the next second, is 11000ms.
+  // TASK-288 timed out on exactly this case; dfe395fd fixed inheritance, not
+  // the margin. Re-derive with notes/t415-sweep.sh rather than trusting either
+  // number -- two passes over the same tree disagree by whatever the host was
+  // doing at the time.
   it('refuses immediately with exit 75 while another heavy operation owns the lock', async () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-heavy-lock-'));
     roots.push(root);
@@ -164,17 +254,29 @@ describe('with-heavy-lock', () => {
     // `'0'` is the library's own default and is passed anyway: the point of this
     // case is the no-wait branch, so it says so rather than letting the ambient
     // environment decide which branch runs.
+    const startedAt = Bun.nanoseconds();
     const refused = runWithTestLock(lock, '0');
+    const refusalMs = (Bun.nanoseconds() - startedAt) / 1e6;
     holder.kill();
     await holder.exited;
 
     // Proof: this reaches the production wrapper and distinguishes contention
     // from command failure by its dedicated conflict exit code.
     expect(refused.exitCode).toBe(75);
-  });
+    // Proof: put a `sleep 0.9` in front of the `return 75` in
+    // `bin/heavy-lock-lib.sh` and this is the only assertion in the two suites
+    // that goes red (measured 922ms). The exit code stays 75 and the case's own
+    // duration stays ~2018ms, unchanged, which is the whole point: the runner
+    // timeout above cannot see a delayed refusal, because it is not what
+    // dominates the case.
+    expect(refusalMs).toBeLessThan(IMMEDIATE_REFUSAL_BUDGET_MS);
+  }, 11000);
 
   it('queues for the wait budget instead of refusing, and takes the lock when the holder releases it', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'wbs-heavy-lock-'));
+    // The hostile root reaches the real holder and generated retry shim below.
+    // Watched: reverting the shim injection sites to JSON.stringify expands
+    // `$dollar` and the backticks, so the retry marker is never observed.
+    const root = mkdtempSync(join(tmpdir(), "wbs heavy $dollar `backtick` 'apostrophe'-"));
     roots.push(root);
     const lock = join(root, 'heavy.lock');
 
@@ -217,7 +319,7 @@ describe('with-heavy-lock', () => {
         // normally, which is what "when the holder releases it" means.
         'bash',
         '-c',
-        `while [[ ! -e ${JSON.stringify(release)} ]]; do sleep 0.05; done`,
+        `while [[ ! -e ${shellQuote(release)} ]]; do sleep 0.05; done`,
       ],
       // Captured because the readiness wait below is the one place this case can
       // fail without saying why. `heavy-lock-lib.sh` names every refusal path in
@@ -291,6 +393,27 @@ describe('with-heavy-lock', () => {
     // `sleep` too, so a shared shim would collapse the holder's wait, releasing
     // the lock before the contender ever contended — exactly the false green
     // this case is meant to kill.
+    // Pinning drops the inherited interception route. The check proves all six
+    // names on the running image and returns the exact bash/sleep paths the shim
+    // embeds. TASK-409 executed this proof on h2puni and the workstation, CI
+    // executes it on ubuntu-latest, and macOS was reasoned about; the runtime
+    // check is what makes an additional image fail diagnostically.
+    const CONTENDER_PATH_TAIL = '/usr/bin:/bin';
+    const contenderExecutables = assertResolvable(CONTENDER_PATH_TAIL, [
+      'bash',
+      'mkdir',
+      'dirname',
+      'cat',
+      'rm',
+      'sleep',
+    ]);
+    // Both values are present because the exact keys are in the checked list
+    // above. Embedding those resolved paths makes the generated shim consume
+    // the same proof as the contender instead of adding /usr/bin/env and
+    // /bin/sleep as two unproved image assumptions of its own.
+    const shimBash = contenderExecutables.get('bash')!;
+    const shimSleep = contenderExecutables.get('sleep')!;
+
     const shim = mkdtempSync(join(tmpdir(), 'wbs-heavy-lock-shim-'));
     roots.push(shim);
     const retries = join(root, 'retries');
@@ -309,12 +432,12 @@ describe('with-heavy-lock', () => {
       // before the contention it is supposed to be evidence of, and the case
       // would go green on a free lock: the exact false green this task removed.
       // Any other `sleep` is passed through unchanged rather than swallowed.
-      `#!/usr/bin/env bash\n` +
+      `#!${shimBash}\n` +
         `if [[ \${1:-} == 5 ]]; then\n` +
-        `  printf 'retry\\n' >>${JSON.stringify(retries)}\n` +
-        `  exec /bin/sleep 0.05\n` +
+        `  printf 'retry\\n' >>${shellQuote(retries)}\n` +
+        `  exec ${shellQuote(shimSleep)} 0.05\n` +
         `fi\n` +
-        `exec /bin/sleep "$@"\n`,
+        `exec ${shellQuote(shimSleep)} "$@"\n`,
       { mode: 0o755 },
     );
 
@@ -336,11 +459,11 @@ describe('with-heavy-lock', () => {
     // exhaustively instead: the shim's `PATH`, the wait budget the case is
     // about, and `HOME` because tooling under it expects one. Nothing else
     // reaches it, so nothing else can write the marker.
-    const contenderEnv: Record<string, string> = {
-      PATH: `${shim}:${process.env['PATH'] ?? ''}`,
-      HEAVY_LOCK_WAIT_SECONDS: '30',
-      HOME: process.env['HOME'] ?? root,
-    };
+    const contenderEnv = contenderEnvironment(
+      shim,
+      CONTENDER_PATH_TAIL,
+      process.env['HOME'] ?? root,
+    );
 
     const queued = Bun.spawn(
       [

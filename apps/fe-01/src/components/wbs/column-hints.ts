@@ -89,11 +89,11 @@ export interface ColumnHintState {
  * error in a 24-project run no suite here can see. Keep emphasis off the first
  * column.)
  *
- * The optimizing engines turn the same
- * date into `start + max(duration, 1) <= deadline`
+ * The optimizing engines constrain the projected finish, adding one solver
+ * unit only for an all-zero work-item milestone
  * (`libs/solver-py/src/wbs_solver/model.py`), a CP-SAT constraint whose
  * violation is a typed `plan-infeasible` the reader is shown by name —
- * `optimization-indicator.tsx`'s *"Plan infeasible · N Work item deadlines"*.
+ * `optimization-words.ts`'s *"Plan infeasible · N Work item deadlines"*.
  * Neither is a promise about something unshipped: the three choices are the
  * radios in `optimization-settings.tsx`, and the date reaches the solver
  * through `buildSolverSlices`' `deadlineUnits`.

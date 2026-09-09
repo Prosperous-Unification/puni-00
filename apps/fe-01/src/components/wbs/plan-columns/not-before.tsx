@@ -9,6 +9,7 @@ import { column } from './column';
 export function createNotBeforeColumn({ live }: { live: PlanLive }) {
   return column.display({
     id: 'not-before',
+    meta: { isEditable: (row) => row.readings.startDate !== null },
     // Abbreviated, because the column is 84px at its widest and 56 at its
     // narrowest. The sentence it used to be is on the `<th>`
     // (`column-hints.ts`) — the same bargain Days, Start, End and Slack
@@ -24,8 +25,8 @@ export function createNotBeforeColumn({ live }: { live: PlanLive }) {
       // be-01 ignores the constraint entirely. A rendered disabled state
       // rather than an editor that opens onto nothing: a date that saves
       // and does nothing is worse than a field that will not take one.
-      const noCalendar = live.current.startDate === null;
-      const editing = live.current.editingNotBefore === row.original.id;
+      const noCalendar = row.original.readings.startDate === null;
+      const editing = row.original.readings.editingNotBefore;
       const open = (): void => {
         if (noCalendar) return;
         live.current.openNotBefore(row.original.id);
