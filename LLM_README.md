@@ -120,14 +120,15 @@ contract: `docs/runbook-prod-deploy.md`.**
 
 ## Open findings
 
-Both open findings are **prod-phase** (Dany, 2026-08-06): recorded, not pending. Work stops at dev.
+1 and 2 are **prod-phase** (Dany, 2026-08-06): recorded, not pending — work stops at dev. 3 is live.
 
 1. Rollback unimplemented — `--version` is _refused_, so an older commit means a rebuild.
 2. `configure.sh`'s root phase never run on a fresh host; only the plan is tested.
+3. A folded step card paints **under a pinned Name cell** once scrolled under the pin (2026-09-09).
 
-Findings 3–5 closed. Lower priority: fe/smoke health takes any non-empty body; the WS ping passes on
-any first message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
-`tool-secrets` only prints. Checks that cannot fail: **23** (R5).
+2026-08's 3–5 closed. Lower: fe/smoke health takes any non-empty body; the WS ping passes on any
+message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
+`tool-secrets` only prints. Checks that cannot fail: **26** (R5).
 
 ## More
 

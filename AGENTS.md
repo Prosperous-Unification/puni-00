@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — twenty-four times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — twenty-six times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -594,6 +594,41 @@ injection failed on `the preview covers the marker lane · Expected: <= 486.4062
 which is how a second load-bearing line got a proof of its own. **A geometry proof needs a box
 big enough to commit the fault** — `estimate-triple-visible`'s "assert in the window the fault
 lives in", now with a horizontal axis.
+
+One more on 2026-09-09 in `every-cell-card-clears-its-lane`, and it is the previous entry's own
+fix half a day later: **a cap only binds while the box is above its minimum.** The notes preview
+was pulled `left: -24px` with `max-width: min(640px, 100%, 100vw)`, and both halves were watched
+failing — on a **555px** Name cell. `HoverCard` also carries `min-width: 260px`, so the moment the
+column is narrower than that the minimum wins, the cap is decoration, and the pull just moves a
+260px card 24px left of a 192px cell: 44px back over the lane. That is the Name column with the
+four reference columns on screen, which is one checkbox away from the layout every proof was taken
+in. The card is anchored by its **right** edge now — the edge that carries the promise — and the
+cap is deleted, because a promise about one edge should be made about that edge rather than
+inferred from a width. `min`/`max` pairs are not the same box at every size; test the size where
+the other constraint wins.
+
+Two more in the same change, both about the **oracle for a walk**. The first cut of
+`e2e/card-lanes.spec.ts` walked the Depends on column at `box.x + 2` — the passive 2px strip the
+existing helper uses to open that card without hitting a chip — and the negative (the card put back
+under its cell) **passed**: the card starts at the cell's `<td>` padding, so those two pixels are
+the one lane in that column the card never covers. And once the walk moved to the column's middle,
+the negative passed **again**, because `mouse.move(..., { steps: 12 })` samples the row boundary,
+the enter fires there, the next row's card opens, and the pointer's final position on the card's
+line is never the state the assertion reads. A walk is an end-to-end fact and a poor geometric
+oracle; the geometry is now asserted separately, with `elementFromPoint` at the point the reader
+aims for, and **that** injection failed on `Received: "the open card (DIV)"`. Both claims are kept:
+the hit test sees a card in the way, the walk sees a guard that swallows the arrival.
+
+One more from that change, and it is a **shipped** check that could not fail — the
+twenty-sixth. `e2e/hover-cards.spec.ts`'s `paints over the pinned cell of the row below it`
+compared two screenshots of the overlap between an open card and the pinned Name cell under it:
+one with the card open, one with the pointer moved away. Moving the pointer away also **unlights
+the row**, so the two shots differ whether the card was painted or hidden — watched green with
+`zIndex: 20` deleted. Replaced by `elementFromPoint` at the middle of the overlap, it failed
+**with the z-index in place**: `Expected: "the card" · Received: "TEXTAREA"`. A folded step card
+is genuinely painted under a pinned cell once its column is scrolled under the pinned block, and
+nobody had seen it because the oracle was a diff of two pictures the pointer itself changed.
+**A before/after screenshot is only a check when nothing else moved between the two.**
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.

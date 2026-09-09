@@ -1,7 +1,7 @@
 import { useCardOpenOn } from '../cell-card-store';
 import { PICKER_PANEL_STYLE } from '../creatable-picker';
 import { REFUSAL_SUFFIX } from '../dep-picker';
-import { DependsCard, dependsLine, entersThroughDependsCard } from '../depends-card';
+import { DependsCard, dependsLine } from '../depends-card';
 import { cellKey } from '../editable-grid';
 import { commandChordIn, escapesAnOpenList } from '../keyboard-bindings';
 import { DEP_EDGE_FADE, DEP_LIST_WIDTH } from '../plan-cell-props';
@@ -380,24 +380,13 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                 // enter above still lights every dependency's row, which
                 // is the U3→U4 case named in the plan rather than
                 // discovered.
-                onMouseEnter={(event) => {
-                  // The cell's guard, for the pill's write: through the
-                  // open card's passive padding this pill is what the
-                  // pointer lands on, and narrowing to its row would
-                  // light the wrong plan. See {@link entersThroughDependsCard}.
-                  // Proof: this line removed, `leaves the open card alone
-                  // when the row beneath it is entered through its
-                  // padding` failed on `expected ['020'] to deeply equal
-                  // ['010']`. Watched, 2026-08-29; in a browser the band
-                  // over a pill is under 1px, so jsdom is the oracle.
-                  if (
-                    entersThroughDependsCard(
-                      { x: event.clientX, y: event.clientY },
-                      event.currentTarget,
-                    )
-                  ) {
-                    return;
-                  }
+                onMouseEnter={() => {
+                  // **No guard, since 2026-09-09**, and the cell's own is gone
+                  // with it: while the card stood *under* its cell, a chip of
+                  // the row beneath was what the pointer landed on inside the
+                  // card's passive padding, and narrowing to that chip's row lit
+                  // the wrong plan. The card opens **beside** its cell now, so
+                  // no chip but this card's own row's is ever under it.
                   live.current.depLights.updateHover((current) =>
                     current?.rowId === row.original.id && current.pillId === id
                       ? current
