@@ -36,7 +36,9 @@ const numberedWorkItem = type({
   typeIds: type('string[]').readonly(),
   // Proof: removing id made the direct production-client boundary test resolve a tree
   // containing numeric external-reference ids instead of rejecting.
-  externalRefs: type({ id: 'string', systemId: 'string', url: 'string' }).array().readonly(),
+  externalRefs: type({ id: 'string', systemId: 'string', url: 'string', name: 'string' })
+    .array()
+    .readonly(),
   number: 'string',
   estimates: type({ '[string]': triple }),
   rolledUp: 'boolean',
@@ -67,7 +69,11 @@ const slice = scheduled.and({
   effort: 'number',
   lateBy: 'number | null',
 });
-const optimizationVariant = type({ state: "'ready' | 'pending' | 'retrying' | 'idle'" })
+const optimizationVariant = type({ state: "'pending' | 'retrying' | 'idle'" })
+  .or({
+    state: "'ready'",
+    proof: "'proven' | 'incomplete' | 'quantisation-floor'",
+  })
   .or({
     state: "'failed'",
     reason:
