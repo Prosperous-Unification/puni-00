@@ -1,6 +1,6 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-499 estimate-boundary fix is on `fix/task499-estimate-boundary` (PR #377): exact-head reviews and CI, then merge and deploy.
+TASK-493 deadline-cue durability fixes are on `fix/task493-deadline-durability`: PR #379 is open; await exact-head CI, then merge and verify dev.
 
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),
