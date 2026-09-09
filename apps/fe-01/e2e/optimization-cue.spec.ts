@@ -104,6 +104,12 @@ async function boxOf(page: Page, selector: string): Promise<DOMRect> {
 }
 
 test.describe('the schedule cue, in a browser', () => {
+  test.afterEach(async ({ page }) => {
+    // Wait for route.fetch() and response.json() before Playwright tears down
+    // the page and disposes the handler's APIResponse underneath that read.
+    await page.unrouteAll({ behavior: 'wait' });
+  });
+
   test('stands inside the toolbar row and takes the saving with it', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await planWithACue(page);
