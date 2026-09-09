@@ -98,8 +98,9 @@ describe('the browser gate’s port shift', () => {
     // network notification canceled one batch with `net::ERR_NETWORK_CHANGED`
     // and left only an empty `#root`, twice in two whole-browser runs.
     // Proof: replacing this with `bunx vite` failed on `expected
-    // "bunx vite" to be "bunx vite build && bunx vite preview"`.
-    expect(frontend.command).toBe('bunx vite build && bunx vite preview');
+    // "bunx vite" to be "bunx vite build --minify=false && bunx vite
+    // preview"`.
+    expect(frontend.command).toBe('bunx vite build --minify=false && bunx vite preview');
   });
 
   /**
