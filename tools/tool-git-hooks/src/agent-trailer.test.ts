@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,6 +48,16 @@ function body(git: ReturnType<typeof makeRepository>['git']) {
 }
 
 describe('agent trailer hook integration', () => {
+  it('keeps both production lefthook stages wired to the shared hook', () => {
+    const config = readFileSync(join(root, 'lefthook.yml'), 'utf8');
+    expect(config).toContain(
+      'prepare-commit-msg:\n  commands:\n    agent-authored-by:\n      run: ops/agent-trailer/prepare-commit-msg {1} {2}',
+    );
+    expect(config).toContain(
+      'commit-msg:\n  commands:\n    agent-authored-by:\n      run: ops/agent-trailer/prepare-commit-msg {1}',
+    );
+  });
+
   it('runs both stages and falls back from an unsafe override without injection', () => {
     const { agentEnv, git, repository, trace } = makeRepository();
     writeFileSync(join(repository, 'one'), 'one\n');
@@ -65,20 +75,22 @@ describe('agent trailer hook integration', () => {
   });
 
   it('runs both stages without stamping a generated squash message', () => {
-    const { agentEnv, git, hookEnv, repository, trace } = makeRepository();
-    writeFileSync(join(repository, 'base'), 'base\n');
-    expect(git(['add', 'base'], hookEnv).exitCode).toBe(0);
-    expect(git(['commit', '-qm', 'base'], hookEnv).exitCode).toBe(0);
-    expect(git(['checkout', '-qb', 'topic'], hookEnv).exitCode).toBe(0);
-    writeFileSync(join(repository, 'topic'), 'topic\n');
-    expect(git(['add', 'topic'], hookEnv).exitCode).toBe(0);
-    expect(git(['commit', '-qm', 'topic'], hookEnv).exitCode).toBe(0);
-    expect(git(['checkout', '-q', 'main'], hookEnv).exitCode).toBe(0);
-    expect(git(['merge', '--squash', 'topic'], hookEnv).exitCode).toBe(0);
-    writeFileSync(trace, '');
-    expect(git(['commit'], { ...agentEnv, GIT_EDITOR: 'true' }).exitCode).toBe(0);
-    expect(stages(trace)).toEqual(['prepare-commit-msg', 'commit-msg']);
-    expect(body(git)).not.toContain('Agent-Authored-By:');
+    for (const verbose of [false, true]) {
+      const { agentEnv, git, hookEnv, repository, trace } = makeRepository();
+      writeFileSync(join(repository, 'base'), 'base\n');
+      expect(git(['add', 'base'], hookEnv).exitCode).toBe(0);
+      expect(git(['commit', '-qm', 'base'], hookEnv).exitCode).toBe(0);
+      expect(git(['checkout', '-qb', 'topic'], hookEnv).exitCode).toBe(0);
+      writeFileSync(join(repository, 'topic'), 'topic\n');
+      expect(git(['add', 'topic'], hookEnv).exitCode).toBe(0);
+      expect(git(['commit', '-qm', 'topic'], hookEnv).exitCode).toBe(0);
+      expect(git(['checkout', '-q', 'main'], hookEnv).exitCode).toBe(0);
+      expect(git(['merge', '--squash', 'topic'], hookEnv).exitCode).toBe(0);
+      writeFileSync(trace, '');
+      expect(git(['commit', ...(verbose ? ['-v'] : [])], { ...agentEnv, GIT_EDITOR: 'true' }).exitCode).toBe(0);
+      expect(stages(trace)).toEqual(['prepare-commit-msg', 'commit-msg']);
+      expect(body(git)).not.toContain('Agent-Authored-By:');
+    }
   });
 
   it('treats a non-matching SQUASH_MSG as stale and stamps the explicit message', () => {

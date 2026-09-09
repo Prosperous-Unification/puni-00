@@ -44,8 +44,10 @@ merge_head=$(git rev-parse --git-path MERGE_HEAD 2>/dev/null) || merge_head=""
 squash_msg=$(git rev-parse --git-path SQUASH_MSG 2>/dev/null) || squash_msg=""
 if [ -n "$squash_msg" ] && [ -f "$squash_msg" ]; then
 	# prepare-commit-msg may append its editor template comments after copying
-	# SQUASH_MSG. Compare the effective messages, not those comments.
-	message_body=$(git stripspace --strip-comments <"$msg_file" 2>/dev/null) || message_body=""
+	# SQUASH_MSG, and verbose mode appends a diff below Git's scissors line.
+	# Compare the effective messages above that line. If the committer edits the
+	# squash text, that new message is authored and should be attributed.
+	message_body=$(awk 'index($0, "------------------------ >8 ------------------------") { exit } { print }' "$msg_file" 2>/dev/null | git stripspace --strip-comments 2>/dev/null) || message_body=""
 	squash_body=$(git stripspace --strip-comments <"$squash_msg" 2>/dev/null) || squash_body=""
 	[ -n "$squash_body" ] && [ "$message_body" = "$squash_body" ] && exit 0
 fi
