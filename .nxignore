@@ -1,2 +1,7 @@
 CLAUDE.md
 GEMINI.md
+# Git worktrees of this repo. Each is a full checkout, so every project in one
+# collides with the project it was checked out from and Nx refuses to build a
+# graph at all — `nx run fe-01:test` exits 1 before running anything. `git`
+# ignores them through `.git/info/exclude`, which Nx does not read.
+.worktrees

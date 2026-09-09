@@ -121,14 +121,14 @@ contract: `docs/runbook-prod-deploy.md`.**
 
 ## Open findings
 
-1 and 2 are **prod-phase** (Dany, 2026-08-06): recorded, not pending — work stops at dev. 3 is live.
+Both are **prod-phase** (Dany, 2026-08-06): recorded, not pending. Work stops at dev.
 
 1. Rollback unimplemented — `--version` is _refused_, so an older commit means a rebuild.
 2. `configure.sh`'s root phase never run on a fresh host; only the plan is tested.
-3. A folded step card paints **under a pinned Name cell** once scrolled under the pin (2026-09-09).
 
-3–5 closed. Lower: fe/smoke health takes any body; the WS ping any message with `"pong"`; drain
-reads a bad metrics body as zero sockets; `tool-secrets` only prints. Cannot-fail: **26** (R5).
+3–5 closed, and so is 2026-09-09's "folded card under a pinned cell": a misread hit test, not a
+fault. Lower: fe/smoke health takes any body; the WS ping any message with `"pong"`; drain reads
+a bad metrics body as zero sockets; `tool-secrets` only prints. Cannot-fail: **27** (R5).
 
 ## More
 
