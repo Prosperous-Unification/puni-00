@@ -51,10 +51,10 @@ describe('agent trailer hook integration', () => {
   it('keeps both production lefthook stages wired to the shared hook', () => {
     const config = readFileSync(join(root, 'lefthook.yml'), 'utf8');
     expect(config).toContain(
-      'prepare-commit-msg:\n  commands:\n    agent-authored-by:\n      run: ops/agent-trailer/prepare-commit-msg {1} {2}',
+      '\nprepare-commit-msg:\n  commands:\n    agent-authored-by:\n      run: ops/agent-trailer/prepare-commit-msg {1} {2}\n',
     );
     expect(config).toContain(
-      'commit-msg:\n  commands:\n    agent-authored-by:\n      run: ops/agent-trailer/prepare-commit-msg {1}',
+      '\ncommit-msg:\n  commands:\n    agent-authored-by:\n      run: ops/agent-trailer/prepare-commit-msg {1}\n',
     );
   });
 
