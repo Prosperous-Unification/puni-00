@@ -1,8 +1,9 @@
-import { chmod, mkdir, mkdtemp, readdir, readFile, utimes, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { chmod, mkdir, readdir, readFile, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'bun:test';
+
+import { scratchAsync } from '../../test/scratch';
 
 interface CommandResult {
   code: number;
@@ -125,7 +126,7 @@ describe('durable dev poller', () => {
   });
 
   it('names the managed Bun installation remedy before reading the target', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-missing-bun-'));
+    const root = await scratchAsync('wbs-dev-poller-missing-bun-');
     const source = join(root, 'src');
     const installed = join(root, 'bin');
     const helper = new URL('../../../bin/dev-poll-sync.sh', import.meta.url).pathname;
@@ -148,7 +149,7 @@ describe('durable dev poller', () => {
   });
 
   it('removes its private candidate when target extraction fails', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-extract-failure-'));
+    const root = await scratchAsync('wbs-dev-poller-extract-failure-');
     const source = join(root, 'src');
     const installed = join(root, 'bin');
     const commands = join(root, 'commands');
@@ -175,7 +176,7 @@ describe('durable dev poller', () => {
   });
 
   it('prunes stale installed and interrupted candidates before running the target', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-prune-'));
+    const root = await scratchAsync('wbs-dev-poller-prune-');
     const source = join(root, 'src');
     const installed = join(root, 'bin');
     const commands = join(root, 'commands');
@@ -220,7 +221,7 @@ describe('durable dev poller', () => {
   });
 
   it('a repaired target deployer replaces a broken candidate without bypassing sync', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-'));
+    const root = await scratchAsync('wbs-dev-poller-');
     const source = join(root, 'src');
     const installed = join(root, 'bin');
     const fakeBun = join(root, 'bun');
@@ -257,7 +258,7 @@ describe('durable dev poller', () => {
   });
 
   it('runs the target deployer against the contract the target commit carries', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-contract-'));
+    const root = await scratchAsync('wbs-dev-poller-contract-');
     const source = join(root, 'src');
     const installed = join(root, 'bin');
 
@@ -301,7 +302,7 @@ describe('durable dev poller', () => {
   });
 
   it('extracts everything the committed deployer imports, resolved by the real bundler', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-repository-'));
+    const root = await scratchAsync('wbs-dev-poller-repository-');
     const installed = join(root, 'bin');
     const out = join(root, 'out');
     const repository = new URL('../../../', import.meta.url).pathname;
@@ -342,7 +343,7 @@ exec ${process.execPath} build --target=bun --outdir=${out} "$1"
   });
 
   it('keeps concurrent target candidates isolated by commit', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-race-'));
+    const root = await scratchAsync('wbs-dev-poller-race-');
     const source = join(root, 'src');
     const installed = join(root, 'bin');
     const commands = join(root, 'commands');
@@ -401,7 +402,7 @@ esac`),
   });
 
   it('runs byte-identical candidates when the same target overlaps itself', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-same-sha-'));
+    const root = await scratchAsync('wbs-dev-poller-same-sha-');
     const source = join(root, 'src');
     const installed = join(root, 'bin');
     const commands = join(root, 'commands');

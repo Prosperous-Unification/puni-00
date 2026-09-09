@@ -1,16 +1,16 @@
 import {
   closeSync,
-  mkdtempSync,
   openSync,
   readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'bun:test';
+
+import { scratchSync } from '../../test/scratch';
 
 const SCRIPT = join(import.meta.dir, '../../../bin/with-heavy-lock.sh');
 const LOCK_LIB = join(import.meta.dir, '../../../bin/heavy-lock-lib.sh');
@@ -157,7 +157,7 @@ describe('with-heavy-lock', () => {
   });
 
   it('runs the requested command while the lock is free', () => {
-    const root = mkdtempSync(join(tmpdir(), 'wbs-heavy-lock-'));
+    const root = scratchSync('wbs-heavy-lock-');
     roots.push(root);
     const run = runWithTestLock(join(root, 'heavy.lock'), '0');
     expect(run.exitCode).toBe(0);
@@ -186,7 +186,7 @@ describe('with-heavy-lock', () => {
   // number -- two passes over the same tree disagree by whatever the host was
   // doing at the time.
   it('refuses immediately with exit 75 while another heavy operation owns the lock', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'wbs-heavy-lock-'));
+    const root = scratchSync('wbs-heavy-lock-');
     roots.push(root);
     const lock = join(root, 'heavy.lock');
 
@@ -229,7 +229,7 @@ describe('with-heavy-lock', () => {
   }, 11000);
 
   it('queues for the wait budget instead of refusing, and takes the lock when the holder releases it', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'wbs-heavy-lock-'));
+    const root = scratchSync('wbs-heavy-lock-');
     roots.push(root);
     const lock = join(root, 'heavy.lock');
 
@@ -346,7 +346,7 @@ describe('with-heavy-lock', () => {
     // `sleep` too, so a shared shim would collapse the holder's wait, releasing
     // the lock before the contender ever contended — exactly the false green
     // this case is meant to kill.
-    const shim = mkdtempSync(join(tmpdir(), 'wbs-heavy-lock-shim-'));
+    const shim = scratchSync('wbs-heavy-lock-shim-');
     roots.push(shim);
     const retries = join(root, 'retries');
     writeFileSync(
