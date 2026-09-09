@@ -127,9 +127,8 @@ contract: `docs/runbook-prod-deploy.md`.**
 2. `configure.sh`'s root phase never run on a fresh host; only the plan is tested.
 3. A folded step card paints **under a pinned Name cell** once scrolled under the pin (2026-09-09).
 
-2026-08's 3–5 closed. Lower: fe/smoke health takes any non-empty body; the WS ping passes on any
-message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
-`tool-secrets` only prints. Checks that cannot fail: **26** (R5).
+3–5 closed. Lower: fe/smoke health takes any body; the WS ping any message with `"pong"`; drain
+reads a bad metrics body as zero sockets; `tool-secrets` only prints. Cannot-fail: **26** (R5).
 
 ## More
 
