@@ -8,6 +8,7 @@ import {
   encodePlanInfeasible,
   type PlanInfeasibleResult,
 } from '@wbs/contracts/solver/plan-infeasible';
+import type { OptimizationVariantState } from '@wbs/core';
 import { type Schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { and, desc, eq, gt } from 'drizzle-orm';
@@ -101,6 +102,22 @@ export type CachedOutcome =
       readonly generation: number;
       readonly createdAt: number;
     };
+
+/** Add the full-key liveness fact to one stored-row outcome. */
+export function optimizationVariantState(
+  outcome: CachedOutcome,
+  live: boolean,
+): OptimizationVariantState {
+  if (outcome.kind === 'ok') return { state: 'ready' };
+  if (outcome.kind === 'miss') return { state: live ? 'pending' : 'idle' };
+  if (outcome.kind === 'failed') {
+    return live ? { state: 'retrying' } : { state: 'failed', reason: outcome.reason };
+  }
+  if (outcome.kind === 'corrupt') {
+    return live ? { state: 'retrying' } : { state: 'corrupt', message: outcome.reason };
+  }
+  return { state: 'plan-infeasible', items: outcome.certificate.items };
+}
 
 /** Both objectives' outcomes for one key, which is what a plan read asks for. */
 export type OptimizedPair = Readonly<Record<SolverObjectiveName, CachedOutcome>>;

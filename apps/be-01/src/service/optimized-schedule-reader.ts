@@ -1,31 +1,11 @@
-import type {
-  OptimizationVariantState,
-  OptimizedScheduleAsk,
-  OptimizedScheduleRead,
-} from '@wbs/core';
+import type { OptimizedScheduleAsk, OptimizedScheduleRead } from '@wbs/core';
 
-import type { CachedOutcome } from '../repository/optimized-schedule-cache';
+export { optimizationVariantState } from '../repository/optimized-schedule-cache';
 export type {
   OptimizationVariantState,
   OptimizedScheduleAsk,
   OptimizedScheduleRead,
 } from '@wbs/core';
-
-/** Add the full-key liveness fact to one stored-row outcome. */
-export function optimizationVariantState(
-  outcome: CachedOutcome,
-  live: boolean,
-): OptimizationVariantState {
-  if (outcome.kind === 'ok') return { state: 'ready' };
-  if (outcome.kind === 'miss') return { state: live ? 'pending' : 'idle' };
-  if (outcome.kind === 'failed') {
-    return live ? { state: 'retrying' } : { state: 'failed', reason: outcome.reason };
-  }
-  if (outcome.kind === 'corrupt') {
-    return live ? { state: 'retrying' } : { state: 'corrupt', message: outcome.reason };
-  }
-  return { state: 'plan-infeasible', items: outcome.certificate.items };
-}
 
 /**
  * The plan read's one question of the optimized cache: *what is the published

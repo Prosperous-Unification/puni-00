@@ -23,7 +23,7 @@ and pre-existing dirt. Never overwrite the active optimizer feature's edits.
       omit reach/deadlines from hashing and observe a wrong addressed row/hash. Run domain,
       contracts and be-01 relevant tests/typecheck; verify domain imports no node:crypto.
       Do not increment the semantic version for a file move.
-- [ ] 1.3 **Add nonadmitting captured cache reads.** Add
+- [x] 1.3 **Add nonadmitting captured cache reads.** Add
       `repository/captured-optimization-reader.db.test.ts` against real cache rows and
       generation/slot/queue tables. Exercise ready, pending, failed, corrupt, infeasible
       and missing results for exact/mismatched keys. Inject a call to `readPlan` for the

@@ -43,3 +43,18 @@
   `e35e9e9c28d2d392bfca660c9892de1682ddbf7e86ede0878bd8eafa26167e14` to
   `db508ad760d4acd7813774dd6674d5e7cbaf47d3`; the literal test observed and names that
   failure.
+
+## Slice 1.3 — nonadmitting captured cache read
+
+- `capturedOptimizationReaderOf` reads the exact input hash, contract, budget and current
+  generation directly from SQLite. It projects ready, pending, retrying, failed, corrupt,
+  plan-infeasible and idle states plus both decoded schedules.
+- Four real-database captured-reader cases plus the existing normalizer and coordinator
+  suites completed with **39 pass / 0 fail**. Fresh `be-01` typecheck, full source lint and
+  touched-file Prettier checks are clean.
+- Replacing the unallocated captured read with the production coordinator's
+  `readPlan({ enabled:true })` returned generation 1 instead of `null`; the state-table
+  snapshot sits immediately after that assertion and would also see its slots and queue.
+- Reusing live `readPlan`'s `enabled:false` early return for capture returned a null
+  generation instead of 1 and removed the stored ready PRI schedule. The restored reader
+  ignores admission enablement and reads that exact row.
