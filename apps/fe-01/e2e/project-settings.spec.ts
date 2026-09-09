@@ -216,7 +216,10 @@ test.describe('the project settings control, in a browser', () => {
     await nameSaved;
     await expect(name).toHaveValue(longWorkItemName);
 
-    const persistedName = Promise.withResolvers<string | undefined>();
+    let resolvePersistedName: (name: string | undefined) => void = () => undefined;
+    const persistedName = new Promise<string | undefined>((resolve) => {
+      resolvePersistedName = resolve;
+    });
     await page.route('**/api/projects/*/work-items', async (route) => {
       // Only reads are synthetic. The long name above is a real persisted
       // command round trip; startDate and optimization below are renderer
@@ -258,14 +261,14 @@ test.describe('the project settings control, in a browser', () => {
         sameOrderAsFast: { pri: true },
       };
       await route.fulfill({ response, json: { ...plan, startDate: '2026-09-07', optimization } });
-      persistedName.resolve(first?.name);
+      resolvePersistedName(first?.name);
     });
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload();
     // The route must settle first. An assertion inside its callback leaves the
     // request unresolved and hides this diagnostic behind a navigation timeout.
-    const reloadedName = await persistedName.promise;
+    const reloadedName = await persistedName;
     expect(reloadedName, 'the persisted plan has no first work item').toBeDefined();
     expect(reloadedName, 'the long-name command was not persisted before reload').toBe(
       longWorkItemName,
