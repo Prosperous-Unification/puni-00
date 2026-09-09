@@ -114,3 +114,27 @@ optimized:2.4:pri:12345 · Received: slice-leveling-v2`. Both faults were restor
   read path; restoration completed the focused case with **1 pass / 0 fail**.
 - Fresh forced typechecks for `be-01` and core are clean. Fresh uncached ESLint runs for
   both projects are clean; the core boundary fixture completed with **3 pass / 0 fail**.
+
+## Slice 4.1 — integration gate in progress
+
+- The canonical `HEAVY_LOCK_WAIT_SECONDS=3600 bin/h2puni-gate.sh` ran from a clean,
+  isolated h2puni checkout at `ca5190cfc066` after a frozen Bun install. **86 targets
+  succeeded**, but the gate exited 1 on two stale test oracles: `be-01:test` completed
+  with **2045 pass / 2 skip / 1 fail**, and `fe-01:test` completed with **2589 pass /
+  1 fail** across 102 files. This is recorded as a failed gate and must be rerun at the
+  repaired revision.
+- The backend failure scanned the former WorkItemService scheduler call and therefore
+  found no call after the runtime-port extraction. The oracle now parses the production
+  Fast call in `libs/runtime-portable/src/scheduler.ts` and asserts all seven named input
+  fields. Removing `ask.input.deadlines` from that call failed with the six received
+  fields and the seventh missing; restoration completed the identity file with **3 pass /
+  0 fail** and the runtime scheduler file with **11 pass / 0 fail**.
+- The frontend failure queried the Export control synchronously while the initial tree
+  read was pending. That observed fault failed with `Unable to find a label with the text
+of: Mermaid lanes`. The test now waits for the successful read that makes Export
+  available; restoration completed the focused case with **1 pass / 0 fail** and the
+  whole toolbar file with **25 pass / 0 fail**.
+- A local whole-Chromium attempt used confirmed-free owned ports 5000/5100/6100 and a
+  frozen tree. It was stopped after 70 minutes with **143 pass / 5 Gantt timeouts / 1
+  skip / 203 unrun**. It is not a browser-gate success; the whole suite remains required
+  on the final h2puni revision.

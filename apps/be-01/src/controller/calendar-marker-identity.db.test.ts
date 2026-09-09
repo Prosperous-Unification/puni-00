@@ -105,13 +105,14 @@ describe('the schedule identity guarantee', () => {
    * the very connection 5.1's captures are taken through, not a copy of it.
    *
    * A **runtime** reach rather than a source scan, and that is round-5 Sol's
-   * Critical 1: (a) and (b) leave a hole a source scan cannot close. The six
-   * arguments are not built in `schedule.ts`, they are built in
-   * `WorkItemService.tree()`, so marker-derived data can be folded into
-   * `notBefore`, `slices` or `slotsOf` while the call site still passes six
-   * arguments and `schedule.ts` still names no marker — (a) and (b) both stay
-   * green. A scan of one file is bounded by that file; a SQL log is transitive
-   * and holds however many helpers the fold is hidden behind.
+   * Critical 1: (a) and (b) leave a hole a source scan cannot close. The seven
+   * arguments are not built in `schedule.ts`: WorkItemService builds the
+   * canonical input and the runtime scheduler hands its fields to Fast, so
+   * marker-derived data can be folded into `notBefore`, `slices` or
+   * `poolSizes` while the call site still passes seven arguments and
+   * `schedule.ts` still names no marker — (a) and (b) both stay green. A scan
+   * of one file is bounded by that file; a SQL log is transitive and holds
+   * however many helpers the fold is hidden behind.
    */
   const statements: string[] = [];
 
@@ -307,20 +308,29 @@ describe('the schedule identity guarantee', () => {
    * the seam.
    */
   it('passes the scheduler exactly its own argument tuple, and the engine names no marker', () => {
-    const service = readFileSync(join(import.meta.dir, '../service/work-item.service.ts'), 'utf8');
+    const scheduler = readFileSync(
+      join(import.meta.dir, '../../../../libs/runtime-portable/src/scheduler.ts'),
+      'utf8',
+    );
 
-    // (a) The single production call site, arguments parsed rather than matched.
-    const call = /const fast = schedule\(([^)]*)\);/.exec(service);
+    // (a) The single production Fast call, arguments parsed rather than matched.
+    const call = /const fastSchedule = fast\(([^)]*)\);/.exec(scheduler);
     expect(call).not.toBeNull();
-    const args = (call?.[1] ?? '').split(',').map((each) => each.trim());
+    const args = (call?.[1] ?? '')
+      .replaceAll(/\/\/.*$/gm, '')
+      .split(',')
+      .map((each) => each.trim())
+      .filter((each) => each !== '');
+    // Proof: removing `ask.input.deadlines` from the production Fast call
+    // failed here with the six received fields and this seventh one missing.
     expect(args).toEqual([
-      'rows',
-      'edges',
-      'slices',
-      'notBefore',
-      'slotsOf',
-      'project.depReach',
-      'deadlines',
+      'ask.input.rows',
+      'ask.input.edges',
+      'ask.input.slices',
+      'ask.input.notBefore',
+      'ask.input.poolSizes',
+      'ask.input.reach',
+      'ask.input.deadlines',
     ]);
 
     // (b) The engine itself. Both halves matter: an import of the marker module
