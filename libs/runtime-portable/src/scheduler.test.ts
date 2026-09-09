@@ -65,8 +65,8 @@ function ask(overrides: Partial<ScheduleAsk> = {}): ScheduleAsk {
 }
 
 function optimizedRead(
-  pri: OptimizationVariantState = { state: 'ready' },
-  time: OptimizationVariantState = { state: 'ready' },
+  pri: OptimizationVariantState = { state: 'ready', proof: 'proven' },
+  time: OptimizationVariantState = { state: 'ready', proof: 'proven' },
 ): OptimizedScheduleRead {
   return {
     inputHash: 'input-hash',
@@ -177,15 +177,17 @@ describe('createScheduler', () => {
     ]);
   });
 
-  it.each<OptimizationVariantState>([
-    { state: 'ready' },
+  const states: OptimizationVariantState[] = [
+    { state: 'ready', proof: 'proven' },
     { state: 'pending' },
     { state: 'retrying' },
     { state: 'failed', reason: 'timeout' },
     { state: 'corrupt', message: 'bad payload' },
     { state: 'plan-infeasible', items: [] },
     { state: 'idle' },
-  ])('retains the installed selected variant state %#', (state) => {
+  ];
+
+  it.each(states)('retains the installed selected variant state %#', (state) => {
     const optimization = optimizedRead(state);
     const scheduler = createScheduler(() => FAST, {
       readLive: () => optimization,
