@@ -8,12 +8,13 @@ import { describe, expect, it } from 'vitest';
  * `work-item-deadline` 8.9's repository assertion: **no unqualified deadline
  * copy remains in shipped UI text outside the two exact column-label sites.**
  *
- * The standing scenario is `specs/scheduler-optimization/spec.md`'s "no
- * unqualified deadline copy remains" — every occurrence reads either
- * _project deadline_ or _work item deadline_, because the two are different
- * dates and a bare "deadline" beside a row does not say which one moved. The
- * only exceptions are the compact table heading and the matching entry in the
- * Columns control, whose exact label is the product contract `Deadline`.
+ * The standing scenario is `specs/scheduler-optimization/spec.md`'s "only the
+ * exact column labels use unqualified Deadline": every other occurrence reads
+ * either _project deadline_ or _work item deadline_, because the two are
+ * different dates and a bare "deadline" beside a row does not say which one
+ * moved. The only exceptions are the compact table heading and the matching
+ * entry in the Columns control, whose exact label is the product contract
+ * `Deadline`.
  *
  * The unit is **one occurrence of the word inside one run of user-visible
  * text**, and it is declared here, once, because the review that produced this
