@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-import { expect, type Download, type Locator, type Page, test } from '@playwright/test';
+import { type Download, expect, type Locator, type Page, test } from '@playwright/test';
 
 import { createProject } from './create-project';
 
@@ -90,7 +90,6 @@ function csvFields(record: string): string[] {
   let quoted = false;
   for (let index = 0; index < record.length; index += 1) {
     const character = record[index];
-    if (character === undefined) throw new Error('CSV index escaped its record');
     if (character === '"') {
       if (quoted && record[index + 1] === '"') {
         field += '"';
@@ -172,8 +171,7 @@ test('renders impossible marks on both faces and downloads both deadline columns
   await moveProjectStart(page, MOVED_PROJECT_DAY);
   await page.reload();
 
-  const impossibleName =
-    "Work item deadline for 010 falls before the project's first working day";
+  const impossibleName = "Work item deadline for 010 falls before the project's first working day";
   const cardMark = page.getByRole('img', { name: impossibleName });
   await expect(cardMark).toHaveAttribute('data-card-deadline-impossible');
   await renderedBox(cardMark, 'the card impossible-date mark');
