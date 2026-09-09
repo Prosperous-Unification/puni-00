@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import type * as WorkdayModule from '@wbs/domain/workday';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type * as WorkdayModule from '@wbs/domain/workday';
 import type { PlanOptimizationView, ProjectOptimizationPatch } from '@/lib/wbs-api';
 
 import { OptimizationCue } from './optimization-cue';
