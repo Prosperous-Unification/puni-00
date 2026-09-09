@@ -16,7 +16,7 @@ and pre-existing dirt. Never overwrite the active optimizer feature's edits.
       assert unavailable plus zero Fast invocations; drop the seventh argument and assert
       the literal deadline map at the injected domain call. Run core/runtime-portable
       lint, typecheck and tests, including spec compilation.
-- [ ] 1.2 **Move the synchronous hash without changing its bytes.** Inventory every
+- [x] 1.2 **Move the synchronous hash without changing its bytes.** Inventory every
       `scheduleInputHash` import; move it to the temporary repository file from S2 and
       retarget all callers. Keep canonicalization and corpus in domain. Tests use literal
       hashes captured from unchanged input and an existing-key cache row; deliberately

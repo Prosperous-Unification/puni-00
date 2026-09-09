@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
-import { scheduleInputHash } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from '../repository/db';
@@ -15,6 +14,7 @@ import { DRAIN_RECONCILE_INTERVAL_MS } from '../repository/optimization-drain';
 import { allocateGeneration, readGeneration } from '../repository/optimization-generation';
 import { enqueueSolverRequest } from '../repository/optimization-queue';
 import { readOptimizedPair } from '../repository/optimized-schedule-cache';
+import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { eventLog, optimizedScheduleCache, solverQueue, solverSlot } from '../repository/schema';
 import {
   OptimizationCoordinator,

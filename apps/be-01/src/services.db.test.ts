@@ -2,7 +2,6 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { scheduleInputHash } from '@wbs/domain/canonical-schedule-input';
 import { createLogger } from '@wbs/observability';
 import { afterEach, describe, expect, it } from 'bun:test';
 
@@ -13,6 +12,7 @@ import { WriteCoordinator } from './repository/gate';
 import { runMigrations } from './repository/migrate';
 import { allocateGeneration } from './repository/optimization-generation';
 import { ProjectRepository } from './repository/project';
+import { scheduleInputHash } from './repository/schedule-input-hash';
 import { optimizedScheduleCache } from './repository/schema';
 import { UserRepository } from './repository/user';
 import type { ReservedSpawner, ReservedSpawnRequest } from './service/optimization-coordinator';

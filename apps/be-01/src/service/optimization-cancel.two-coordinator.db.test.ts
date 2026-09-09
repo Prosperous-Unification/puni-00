@@ -4,7 +4,6 @@ import { join } from 'node:path';
 
 import { clockOf } from '@wbs/core';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
-import { scheduleInputHash } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from '../repository/db';
@@ -15,6 +14,7 @@ import { bindSolverSlot, reserveSolverSlot } from '../repository/optimization-ad
 import { allocateGeneration } from '../repository/optimization-generation';
 import { storeOptimizedOutcome } from '../repository/optimized-schedule-cache';
 import { ProjectRepository } from '../repository/project';
+import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { optimizedScheduleCache, solverQueue, solverSlot } from '../repository/schema';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import {

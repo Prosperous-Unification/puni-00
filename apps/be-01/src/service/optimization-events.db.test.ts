@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import type { OptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import { schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
-import { scheduleInputHash } from '@wbs/domain/canonical-schedule-input';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from '../repository/db';
@@ -15,6 +14,7 @@ import { runMigrations } from '../repository/migrate';
 import { reserveSolverSlot } from '../repository/optimization-admission';
 import { allocateGeneration } from '../repository/optimization-generation';
 import type { OutcomeWrite } from '../repository/optimized-schedule-cache';
+import { scheduleInputHash } from '../repository/schedule-input-hash';
 import type { SolverFailureReason } from '../repository/schema';
 import {
   OptimizationCoordinator,

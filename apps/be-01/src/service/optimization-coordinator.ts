@@ -6,7 +6,6 @@ import {
 import type { RecordedEvent } from '@wbs/core';
 import type { Schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
-import { scheduleInputHash } from '@wbs/domain/canonical-schedule-input';
 
 import type { Drizzle } from '../repository/db';
 import type { DrizzleEventLogStore } from '../repository/event-log';
@@ -37,6 +36,7 @@ import {
   type SpawnRequest,
   storeOptimizedOutcomeIn,
 } from '../repository/optimized-schedule-cache';
+import { scheduleInputHash } from '../repository/schedule-input-hash';
 import type { SolverObjectiveName } from '../repository/schema';
 import { type ProjectEvent, subscriptionFor } from './broadcast';
 import {

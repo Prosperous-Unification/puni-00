@@ -20,7 +20,7 @@ import {
   sliceKey,
   SOLVER_QUANTUM,
 } from '@wbs/domain';
-import { type ScheduleInput, scheduleInputHash } from '@wbs/domain/canonical-schedule-input';
+import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';
@@ -43,6 +43,7 @@ import {
   storeOptimizedOutcome,
   writerStillHolds,
 } from './optimized-schedule-cache';
+import { scheduleInputHash } from './schedule-input-hash';
 import { optimizedScheduleCache } from './schema';
 
 /**
@@ -2462,6 +2463,40 @@ describe('the adapter a plan read asks', () => {
       // Load-bearing: over an empty plan the comparison below is vacuous.
       expect(plan.slices.size).toBe(3);
       expect(served === null ? null : encodeSchedule(served)).toEqual(encodeSchedule(plan));
+    } finally {
+      db.cleanup();
+    }
+  });
+
+  it('misses the stored row when only dependency reach or a deadline changes', () => {
+    const db = tempDb();
+    try {
+      const generation = prepared(db.path);
+      const input = planInput();
+      storeRow(db.path, {
+        objective: 'pri',
+        generation,
+        status: 'ok',
+        resultJson: JSON.stringify(encodeOptimizedResult(solverResult(realPlan()))),
+        failureReason: null,
+        inputHash: scheduleInputHash(input),
+      });
+      const read = publishedScheduleReaderOf(openDrizzle(db.path), {
+        contractVersion: CONTRACT,
+        budgetMs: BUDGET,
+      });
+      const withAnchorSliceReach: ScheduleInput = { ...input, reach: 'anchor-slice' };
+      const withDeadline: ScheduleInput = {
+        ...input,
+        deadlines: new Map([['c', 12]]),
+      };
+
+      // Proof: hard-coding `reach` served the stored schedule in array slot 0;
+      // emptying `deadlines` served it in slot 1, where each expected `null`.
+      expect([
+        read({ projectId: 'p-1', objective: 'pri', input: withAnchorSliceReach }),
+        read({ projectId: 'p-1', objective: 'pri', input: withDeadline }),
+      ]).toEqual([null, null]);
     } finally {
       db.cleanup();
     }

@@ -9,12 +9,13 @@ import {
   type PlanInfeasibleResult,
 } from '@wbs/contracts/solver/plan-infeasible';
 import { type Schedule } from '@wbs/domain';
-import { type ScheduleInput, scheduleInputHash } from '@wbs/domain/canonical-schedule-input';
+import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { and, desc, eq, gt } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { readGeneration } from './optimization-generation';
 import { toOptimizedScheduleCacheRow, toSolverSlotRow } from './optimizer-rows';
+import { scheduleInputHash } from './schedule-input-hash';
 import {
   optimizedScheduleCache,
   project,

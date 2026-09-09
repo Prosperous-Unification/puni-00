@@ -23,3 +23,23 @@
   from every recorded call.
 - Removing the ready-schedule invariant returned `kind: scheduled` with a null PRI
   schedule instead of throwing.
+
+## Slice 1.2 — synchronous cache hash move
+
+- `scheduleInputHash` now lives at the repository cache boundary; all eight importing
+  production/test files use that adapter, while canonicalization and its mutation corpus
+  remain in domain. The scheduler contract version is unchanged.
+- The focused domain, hash, cache and coordinator/service run completed with **143 pass /
+  0 fail**. The restored final domain/hash/cache run completed with **94 pass / 0 fail**.
+- Fresh `tsc --build --force` runs for domain, contracts and `be-01`: clean. Fresh ESLint
+  runs for all three projects: clean. Prettier over every touched TypeScript file: clean.
+- `rg` found no production `node:crypto` import under `libs/domain/src` (exit 1, no
+  matches); the SHA-256 import exists only in the new repository adapter.
+- Hard-coding canonical `reach` to `whole-item` made the real published-cache read serve
+  the stored schedule in array slot 0 instead of returning `null`. Emptying canonical
+  `deadlines` served it in slot 1. Both faults ran through `publishedScheduleReaderOf`
+  against a real SQLite row and were restored.
+- Changing the adapter from SHA-256 to SHA-1 changed the literal address from
+  `e35e9e9c28d2d392bfca660c9892de1682ddbf7e86ede0878bd8eafa26167e14` to
+  `db508ad760d4acd7813774dd6674d5e7cbaf47d3`; the literal test observed and names that
+  failure.
