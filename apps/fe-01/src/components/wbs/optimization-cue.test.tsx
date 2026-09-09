@@ -500,13 +500,9 @@ describe('the schedule cue', () => {
     // Offset 4 is also what a user-entered Saturday 12 Sep folds to. The cue
     // has only the effective offset, so it labels the reconstructed Friday
     // honestly instead of presenting it as the date the user entered.
-    expect(fact).toContain(
-      'Launch → Migration · Work item deadline (effective workday) 11 Sep',
-    );
+    expect(fact).toContain('Launch → Migration · Work item deadline (effective workday) 11 Sep');
     // The same row on both ends of the binding is named once.
-    expect(fact).toContain(
-      "Migration · Work item deadline before the project's first working day",
-    );
+    expect(fact).toContain("Migration · Work item deadline before the project's first working day");
     // A row that has left the plan is named, never its raw id.
     expect(fact).toContain(
       'Work item no longer in this plan · Work item deadline (effective workday) 11 Sep',
@@ -555,7 +551,11 @@ describe('the schedule cue', () => {
               state: 'plan-infeasible',
               items: [
                 { ownerWorkItemId: 'leaf', boundWorkItemId: 'leaf', effectiveDeadlineOffset: 1.5 },
-                { ownerWorkItemId: 'parent', boundWorkItemId: 'parent', effectiveDeadlineOffset: -2 },
+                {
+                  ownerWorkItemId: 'parent',
+                  boundWorkItemId: 'parent',
+                  effectiveDeadlineOffset: -2,
+                },
               ],
             },
           },

@@ -116,10 +116,7 @@ export function deadlineWords(projectStart: string | null, offset: number, today
   // The DTO refuses these values too, but this is a rendering boundary fed by
   // a plain `number` in the FE mirror. Keep a stale or hand-built payload from
   // turning a fact card into a React render failure.
-  if (
-    !Number.isSafeInteger(offset) ||
-    offset < UNMEETABLE_DEADLINE_OFFSET
-  ) {
+  if (!Number.isSafeInteger(offset) || offset < UNMEETABLE_DEADLINE_OFFSET) {
     return 'date unavailable';
   }
   return shortIsoDate(addWorkdays(projectStart, offset), today);
