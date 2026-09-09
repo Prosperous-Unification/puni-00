@@ -141,10 +141,7 @@ export async function readErrorAnnotations(path: string): Promise<string[]> {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  if (
-    (args.length !== 1 && args.length !== 3) ||
-    (args.length === 3 && args[1] !== '--tail')
-  ) {
+  if ((args.length !== 1 && args.length !== 3) || (args.length === 3 && args[1] !== '--tail')) {
     throw new Error('usage: bun run ci-gate-annotations.ts <nx-gate.log> [--tail <lines>]');
   }
   const path = args[0];
