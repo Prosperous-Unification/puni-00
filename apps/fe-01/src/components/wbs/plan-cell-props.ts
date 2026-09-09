@@ -2,7 +2,6 @@ import { type ComponentProps } from 'react';
 
 import { type CellCards } from './cell-card-store';
 import { type DepLights } from './dep-light-store';
-import { entersThroughDependsCard } from './depends-card';
 import { cellKey } from './editable-grid';
 import { REFERENCE_SET_EDGE_FADE } from './reference-set-field';
 import type { PrintedDay } from './short-date';
@@ -59,14 +58,17 @@ export function createPlanCellProps({
   ): Pick<ComponentProps<'td'>, 'onMouseEnter' | 'onMouseLeave'> => {
     const dependsCell = cellKey(row.id, 'depends');
     return {
-      onMouseEnter: (event) => {
-        // Not an enter at all when it arrives through the open card's passive
-        // padding, which hit-tests to this cell while the pointer is on its
-        // way to a card line — see {@link entersThroughDependsCard}. Writing
-        // either state here would take the card over from the row above.
-        if (entersThroughDependsCard({ x: event.clientX, y: event.clientY }, event.currentTarget)) {
-          return;
-        }
+      onMouseEnter: () => {
+        // **No guard on the way in, since 2026-09-09.** A card standing *under*
+        // its cell put its passive padding over the Depends on cell of the row
+        // beneath, so an enter there was the padding being crossed rather than a
+        // cell being pointed at, and a guard called `entersThroughDependsCard`
+        // swallowed it — deleted with this line.
+        // The card opens **beside** its cell now, so no Depends on cell but its
+        // own is ever under it; with the guard deleted, `deps-cell.spec.ts` and
+        // `e2e/card-lanes.spec.ts` both walk clean. Measured, not assumed: the
+        // guard's own two proofs were the only things that failed with it gone,
+        // and both describe the geometry it was written for.
         // Every row this one waits for is lit, `pillId: null` saying the
         // pointer is on the cell rather than on one pill. Guarded by the same
         // "nothing to say, nothing written" rule as the card below — a cell

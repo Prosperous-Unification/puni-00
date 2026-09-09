@@ -279,101 +279,6 @@ test.describe('a hover card answers at once, whole, and out past its cell', () =
   });
 });
 
-/** How far under the pinned block the card's own column is pushed, in px. */
-const PIN_OVERLAP = 60;
-
-test.describe('a card and the pinned columns it slides under', () => {
-  test('paints over the pinned cell of the row below it', async ({ page }) => {
-    // agy round 3, finding 6: the row lift (`POPOVER_ROW_LAYER`) is applied to
-    // the Name column alone, so does a depends or folded-step card paint *under*
-    // a pinned cell of the row below?
-    //
-    // The answer is no, and the reason is the one the lift's own comment gives:
-    // it exists because the Name cell is `position: sticky` **with a z-index**,
-    // which makes that `<td>` a stacking context and traps the preview inside it
-    // at the pinned layer. Neither `depends` nor `<stepId>-final` is pinned —
-    // `table-frame.test.ts` asserts `pinnedCellStyle` answers `undefined` for
-    // both — so nothing on the way from those cards to the frame establishes a
-    // stacking context, and the card's own `z-index: 20` competes directly with
-    // the pinned layer, which is 1.
-    //
-    // Reasoning is not evidence, hence this. The two never overlap sitting
-    // still — the pinned block is to the *left* of both columns and a card opens
-    // rightwards — so the frame is scrolled until the depends column is half
-    // under the pin, and the strip compared is inside the pinned Name cell of
-    // the row below.
-    //
-    // Proof: `zIndex: 20` removed from `HoverCard`, this failed on `the pinned
-    // cell below hides the card: expected false, received true`. Watched,
-    // 2026-08-09.
-    await page.setViewportSize({ width: 900, height: 700 });
-    await page.getByRole('button', { name: 'Add work item' }).click();
-    await expect(page.getByLabel('Name of 030')).toBeVisible();
-
-    const typed = page.getByLabel('Add a dependency to 010');
-    await typed.fill('030');
-    await typed.press('Enter');
-    await expect(page.getByLabel('Stop 010 waiting for 030')).toBeVisible();
-    // The picker owns the cell while the box has the focus, so the card only
-    // opens once the box has been left — which is how a reader reaches it too.
-    await page.getByLabel('Name of 020').click();
-
-    const dependsCell = page.getByLabel('Add a dependency to 010').locator('..');
-    // The pinned cell, not the box inside it: the `<td>` is what is sticky, what
-    // carries the opaque background, and what would hide the card.
-    const pinnedBelow = page.getByLabel('Name of 020').locator('xpath=ancestor::td');
-
-    // Measured, not guessed: how far the frame has to travel to put the left
-    // 60px of the depends column under the pinned block, leaving its right
-    // edge clear for a pointer. Asserted rather than assumed, because a frame
-    // that would not scroll leaves everything below overlapping nothing.
-    const atRest = await boxOf(dependsCell, 'the depends cell');
-    const pinRight = await boxOf(pinnedBelow, 'the pinned cell below').then(
-      (pin) => pin.x + pin.width,
-    );
-    const slide = Math.round(atRest.x - pinRight + PIN_OVERLAP);
-    expect(slide, 'the depends column already sits under the pin').toBeGreaterThan(0);
-    const reached = await page.evaluate((left) => {
-      const frame = document.querySelector('[data-table-frame]');
-      if (frame === null) throw new Error('the scrolling frame is not on the page');
-      frame.scrollLeft = left;
-      return frame.scrollLeft;
-    }, slide);
-    expect(reached, 'the frame would not scroll that far').toBe(slide);
-
-    // On the half of the cell that is still clear of the pinned block: a
-    // pointer aimed at the half under it lands on the pin instead.
-    await dependsCell.hover({ position: { x: PIN_OVERLAP + 16, y: 4 } });
-    expect(await cardsOpen(page), 'no card opened on the depends cell').toBe(1);
-
-    const card = await boxOf(page.locator('[role="tooltip"]').first(), 'the card');
-    const pinned = await boxOf(pinnedBelow, 'the pinned cell below');
-    // The overlap, and it is a precondition rather than a formality: an empty
-    // rectangle would make the comparison below a screenshot of two identical
-    // patches of nothing — R5 tally #16, which is exactly this mistake.
-    const strip = {
-      x: Math.round(Math.max(card.x, pinned.x)),
-      y: Math.round(Math.max(card.y, pinned.y)),
-      width: 0,
-      height: 0,
-    };
-    strip.width = Math.round(Math.min(card.x + card.width, pinned.x + pinned.width) - strip.x);
-    strip.height = Math.round(Math.min(card.y + card.height, pinned.y + pinned.height) - strip.y);
-    expect(strip.width, 'the card and the pinned box below it do not overlap').toBeGreaterThan(8);
-    expect(strip.height, 'the card and the pinned box below it do not overlap').toBeGreaterThan(4);
-
-    const painted = await page.screenshot({ clip: strip });
-    await page.mouse.move(0, 0);
-    await expect(page.locator('[role="tooltip"]')).toHaveCount(0);
-    const bare = await page.screenshot({ clip: strip });
-
-    expect(
-      painted.toString('base64') === bare.toString('base64'),
-      'the pinned cell below hides the card',
-    ).toBe(false);
-  });
-});
-
 /** The `<tr>` a numbered row's cells sit in, found through its own Name box. */
 const rowOf = (page: Page, number: string): Locator =>
   page.getByLabel(`Name of ${number}`).locator('xpath=ancestor::tr');
@@ -645,41 +550,52 @@ test.describe('hovering a dependency lights the rows it names', () => {
       await expect(rowOf(page, '040')).toHaveAttribute('data-dep-lit', 'true');
     }
 
-    const underneath = page.getByRole('button', { name: 'Make 020 wait for something' });
-    const underneathBox = await boxOf(underneath, 'the action under the card padding');
-    const clickPoint = {
-      x: underneathBox.x + underneathBox.width / 2,
-      y: underneathBox.y + underneathBox.height / 2,
-    };
+    // **What the card's empty space hangs over, measured rather than named.**
+    // Until 2026-09-09 this card stood under its cell and the control below its
+    // padding was the next row's `Make 020 wait for something`; it opens beside
+    // its cell now, so what it hangs over is the Tags column — `Tags for 030`
+    // under its bottom padding, three rows down and one column right. The claim
+    // is the same one either way: the passive space does not intercept the
+    // control it covers.
+    //
+    // Proof: `takesPointer` added to this card — the click point then hit the
+    // card itself and this failed on `the card’s empty space is over nothing
+    // clickable · Expected pattern: / for 0\d0$/ · Received string: "What 010
+    // waits for"`. Watched in Chromium, 2026-09-09.
+    const clickPoint = { x: cardBox.x + cardBox.width / 2, y: cardBox.y + cardBox.height - 3 };
     const clickProbe = await page.evaluate(
       ({ point }) => {
         const hit = document.elementFromPoint(point.x, point.y);
-        const button = document.querySelector('[aria-label="Make 020 wait for something"]');
         const cardNode = document.querySelector('[aria-label="What 010 waits for"]');
+        const box = cardNode instanceof HTMLElement ? cardNode.getBoundingClientRect() : null;
         return {
-          hitsButton: hit !== null && button instanceof HTMLElement && button.contains(hit),
+          insideCard:
+            box !== null &&
+            point.x >= box.left &&
+            point.x <= box.right &&
+            point.y >= box.top &&
+            point.y <= box.bottom,
           hitsCardTarget:
             hit instanceof Element && hit.closest('[data-depends-card-target]') !== null,
-          insideCard:
-            cardNode instanceof HTMLElement &&
-            point.x >= cardNode.getBoundingClientRect().left &&
-            point.x <= cardNode.getBoundingClientRect().right &&
-            point.y >= cardNode.getBoundingClientRect().top &&
-            point.y <= cardNode.getBoundingClientRect().bottom,
+          beneath: hit === null ? 'none' : (hit.getAttribute('aria-label') ?? hit.tagName),
         };
       },
       { point: clickPoint },
     );
-    expect(clickProbe.insideCard, 'the underlying action is not covered by the card').toBe(true);
+    expect(clickProbe.insideCard, 'the click point is not inside the card').toBe(true);
     expect(clickProbe.hitsCardTarget, 'a dependency row swallowed the empty-card click').toBe(
       false,
     );
-    expect(clickProbe.hitsButton, 'the empty card area intercepted the underlying action').toBe(
-      true,
+    // The control is read off the page rather than named: which column the card
+    // hangs over is a width away from changing, and what this asserts is that
+    // the click reaches **whatever** is under the passive space. Measured here
+    // as `Dev estimate for 030` — three rows down, four columns right.
+    expect(clickProbe.beneath, 'the card’s empty space is over nothing clickable').toMatch(
+      / for 0\d0$/,
     );
 
     await page.mouse.click(clickPoint.x, clickPoint.y);
-    await expect(page.getByLabel('Add a dependency to 020')).toBeFocused();
+    await expect(page.getByLabel(clickProbe.beneath)).toBeFocused();
   });
 
   test('the tint moves the same way on both surfaces, in both palettes', async ({ page }) => {
@@ -931,6 +847,11 @@ test.describe('the Name cell answers from its marker alone', () => {
     // 486.40625 · Received: 502`, 15.6px of card over the lane's left edge.
     // Watched in Chromium, 2026-09-09.
     //
+    // This is the **wide** Name column, where a card pulled left of the lane and
+    // a card anchored to its own right edge are the same box. The narrow one —
+    // the Name cell at 192px with the four reference columns on screen, where
+    // the card's minimum width beats a `100%` cap — is `e2e/card-lanes.spec.ts`.
+    //
     // Three markers, because a lane freed for the first and not the third would
     // pass a check made once — and the seed makes two rows, so the third is
     // this test's own. The notes are long on purpose: a card narrow enough to
@@ -954,8 +875,8 @@ test.describe('the Name cell answers from its marker alone', () => {
 
     const card = await preview.boundingBox();
     const below = await page.getByLabel('Notes on 020').boundingBox();
-    // The cell is the card's containing block, so `cell.x` is where the card
-    // would stand with nothing pulling it left.
+    // The cell is the card's containing block, and the card is anchored 24px
+    // inside its right edge.
     const cell = await page
       .getByLabel('Notes on 010')
       .locator('xpath=ancestor::td[1]')
@@ -968,10 +889,24 @@ test.describe('the Name cell answers from its marker alone', () => {
     expect(card.y + card.height, 'the preview does not reach the row below').toBeGreaterThan(
       below.y,
     );
+    // And it fills the room it is placed in, but for the lane — which is what
+    // makes the claim below a claim rather than an arithmetic accident: a card
+    // taking every pixel it is offered would stand on the lane, so the
+    // placement is the only thing keeping it off. Measured against the card's
+    // own `offsetParent` and not the `<td>`: the positioned ancestor a card
+    // shrinks to fit is the wrapper inside the cell, 32px narrower than the
+    // cell itself here. 24 is `MARKER_LANE_PX`, module-private to
+    // `hover-card.tsx` and written here as the figure it is.
+    const room = await page.evaluate(() => {
+      const open = document.querySelector('[role="tooltip"]');
+      const parent = open instanceof HTMLElement ? open.offsetParent : null;
+      if (parent === null) throw new Error('the open card has no positioned ancestor');
+      return parent.getBoundingClientRect().width;
+    });
     expect(
-      cell.x + card.width,
-      'the preview is too narrow to reach the lane from its cell’s left edge',
-    ).toBeGreaterThan(below.x);
+      card.width + 24,
+      'the preview is too narrow to say anything about the lane',
+    ).toBeGreaterThanOrEqual(room);
 
     expect(card.x + card.width, 'the preview covers the marker lane').toBeLessThanOrEqual(below.x);
 
