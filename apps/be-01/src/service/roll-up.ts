@@ -1,3 +1,4 @@
+import type { Days } from '@wbs/core';
 import {
   agree,
   type EstimateRule,
@@ -15,13 +16,6 @@ import type {
   StoredProgress,
   WorkItem,
 } from '../repository';
-
-/** Three durations in days, summed or held directly. */
-export interface Days {
-  optimistic: number;
-  realistic: number;
-  pessimistic: number;
-}
 
 const add = (a: Days, b: Days): Days => ({
   optimistic: a.optimistic + b.optimistic,
@@ -345,3 +339,4 @@ export function rollUpWorkItemStates(
   for (const row of rows) stateFor(row.id);
   return answers;
 }
+export type { Days } from '@wbs/core';

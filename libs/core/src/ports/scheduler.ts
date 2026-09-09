@@ -99,3 +99,13 @@ export interface Scheduler {
   supports(engine: ScheduleEngine): boolean;
   read(ask: ScheduleAsk): ScheduleRead;
 }
+
+/**
+ * Whether *this deployment* can honour optimized scheduling at all.
+ *
+ * A predicate rather than a boolean, and never constructed by hand — see
+ * {@link optimizerWiring}. The distinction it draws is not about a project: it
+ * is about whether an optimized cache is wired into the process the settings
+ * PATCH just landed in.
+ */
+export type OptimizerAvailability = () => boolean;

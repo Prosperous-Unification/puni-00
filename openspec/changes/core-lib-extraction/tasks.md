@@ -125,7 +125,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
       enclose account resolution in the credential catch, or fallback when disabled;
       assert existing 500/401/200 distinctions at the mounted route and the service.
 
-- [ ] 2.2c **Move directory and project service families (C4).** Move
+- [x] 2.2c **Move directory and project service families (C4).** Move
       auth/project/step/directory/capacity/priority/calendar services.
       Preserve basenames under `libs/core/src/service/`. `servicesOver` takes
       `PlanTransactionalStores`, not `ReturnType<typeof buildStores>`; pure predicates

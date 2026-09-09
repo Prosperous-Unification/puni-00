@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { Assignment } from '../repository';
+import type { Assignment } from '../index';
 import { assumedAssignee, assumedAssigneeFlips } from './assumed-assignee';
 
 const assigned = (workItemId: string, stepId: string, personId: string): Assignment => ({

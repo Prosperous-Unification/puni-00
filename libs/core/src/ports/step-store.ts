@@ -1,3 +1,5 @@
+export { STEP_POSITION_STEP } from '@wbs/domain';
+
 import type { Assignment } from './directory-store';
 import type { WriteStamp } from './write-stamp';
 
@@ -18,14 +20,6 @@ export interface Step {
  * once would otherwise both read the same last place.
  */
 export type NewStep = Omit<Step, 'position'>;
-
-/**
- * The gap between two consecutive steps' positions.
- *
- * Ten, like a work item's, and for the same reason: a step can be put between
- * two others without rewriting either.
- */
-export const STEP_POSITION_STEP = 10;
 
 /** Why a step could not be added or renamed. Both are states of the project, not faults. */
 type StepWriteRefusal = 'taken' | 'not_found';

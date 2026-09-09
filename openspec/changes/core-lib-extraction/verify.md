@@ -145,6 +145,65 @@ coverage case on `Expected to contain: "libs/contracts/solver/supervisor-protoco
 - Falling back while password sessions were disabled failed the literal service case:
   expected null, received the authenticated `legacy` account.
 
+## Slice 2.2c — directory and project service families
+
+Verified 2026-09-09 from base `7cf1631849bb980660d172f44be57e6aa8dd089f`.
+
+- Auth, project, step, directory, capacity, priority-band and calendar-marker services
+  now live under `libs/core/src/service/` with their original basenames. Their old
+  be-01 paths reexport inward. Shared pure siblings moved first: assumed-assignee,
+  broadcast, clean-name, directory-usage and login-throttle.
+- `NumberedWorkItem` and its `Days` value shape were extracted into
+  `numbered-work-item.ts` so broadcast does not import work-item behavior.
+  The old work-item and roll-up type exports remain compatible. Optimizer process
+  code remains in be-01; only `OptimizerAvailability` moved to the scheduler port.
+- `STEP_POSITION_STEP`, `StepHoldings` and `stepIsInUse` now have one domain
+  authority in `libs/domain/src/step.ts`. SQLite and service callers use it;
+  previous exports remain compatible. `servicesOver` already accepted
+  `PlanTransactionalStores` at this slice's base and required no further change.
+
+| Command                                                                                       | Observed                                                                                      |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Baseline nine service suites before moving                                                    | 124 pass, 0 fail                                                                              |
+| `bun test ./libs/core/src`                                                                    | 35 pass, 0 fail, 8 files                                                                      |
+| Six retained service suites below                                                             | 97 pass, 0 fail, 6 files                                                                      |
+| `bun test ./apps/be-01/src/repository/step.db.test.ts`                                        | 25 pass, 0 fail                                                                               |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun run test:unit` with permitted localhost sockets | be-01: 872 pass, 1 intentional source-capability skip, 0 fail; all seven library targets pass |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck --skip-nx-cache` | 25 projects, all 50 targets pass, 1m 14s                                                      |
+| Prettier check through its API on all changed/new code and config                             | 53 files pass                                                                                 |
+| `git diff --check`                                                                            | clean                                                                                         |
+
+Four suites relocated without changing executable assertions: `assumed-assignee.test.ts`
+(7), `calendar-marker.service.test.ts` (17), `directory-usage.test.ts` (3) and
+`login-throttle.test.ts` (2). This transfers 29 cases out of be-01; core now has its
+previous 5 plus those 29 and one new production-boundary test (35 total).
+
+Retained in be-01: `auth-service-null-password.test.ts` (4) uses real Bun password/token
+adapters; `broadcast.test.ts` (11) composes the be-01 service graph; and the SQLite
+suites `step.service.db.test.ts` (22), `directory.service.db.test.ts` (51),
+`capacity-migration-identity.db.test.ts` (3), `priority-band-identity.db.test.ts` (6).
+Moving adapter-composition tests produced a real Nx cycle through their be-01 fixtures.
+The authorized resolution retained those suites and extracted only the pure fixtures
+needed by relocated tests into `libs/core/src/testing/`, with old fixture paths
+reexporting inward. No lint exception or hidden graph edge was introduced.
+
+| Check                                           | Injected fault                                                                                                        | Observed                                                                                                                                                                                 |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The production family exists in core            | Before moving the family, run `service-boundaries.test.ts`                                                            | Expected true, received false for core's missing `assumed-assignee.ts`                                                                                                                   |
+| The test exemption stops at adjacent production | Add `import '../../../../apps/be-01/src/repository/schema';` at the top of `libs/core/src/service/project.service.ts` | Both `core:lint` and `service-boundaries.test.ts` fail on `@nx/enforce-module-boundaries`: “Projects cannot be imported by a relative or absolute path, and must begin with a npm scope” |
+
+The injected import was removed before green verification; the observed diagnostic is
+recorded beside the test. The broader driver/global enforcement inventory remains task 2.3.
+
+The first restricted unit run failed only its three ephemeral HTTP-server cases; the
+permitted rerun above passed them. One exploratory Bun command omitted `./` and also
+collected generated `dist/out-tsc` tests; the final runs explicitly scoped source paths.
+An initially requested nonexistent `repository/step.test.ts` contributed no cases;
+the actual `step.db.test.ts` was then run separately with the 25-case result above.
+Builds, the complete database tier, Chromium and the final landing gate were not run
+for this checkpoint. Task 5.1 still owns adding core to the root fast-tier inventory;
+core was run explicitly here.
+
 ## Gate
 
 | Command | When | Result |

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { DirectoryUsageRows, LabelledWorkItem } from '../repository';
+import type { DirectoryUsageRows, LabelledWorkItem } from '../index';
 import { labelledRow } from '../testing/work-item-fixture';
 import { directoryUsageOfTeam } from './directory-usage';
 

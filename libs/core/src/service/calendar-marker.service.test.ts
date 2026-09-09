@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { CalendarMarker } from '../repository';
+import type { CalendarMarker } from '../index';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import {
   inMemoryCalendarMarkers,

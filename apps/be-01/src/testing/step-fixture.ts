@@ -1,3 +1,5 @@
+import { STEP_POSITION_STEP } from '@wbs/domain';
+
 import type {
   ProjectStore,
   Step,
@@ -6,7 +8,6 @@ import type {
   StepUsageRows,
   WriteStamp,
 } from '../repository';
-import { STEP_POSITION_STEP } from '../repository';
 import { StepService } from '../service/step.service';
 import { recordingBroadcaster } from './broadcast-fixture';
 import { testClock } from './clock-fixture';
