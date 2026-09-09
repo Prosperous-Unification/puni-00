@@ -193,6 +193,14 @@ As of 2026-08-24, discovery and the real Auth0 Universal Login page are verified
 Credentialed callback acceptance (`/api/auth/me`, WebSocket, MCP, and the emitted
 editor scope) remains pending TASK-110's password-login path.
 
+`GET /api/auth/me` is also the explicit signed-out probe: no presented
+credential returns `200 {"user":null}`, while a rejected access cookie, Bearer
+header, or retired `x-wbs-token` carrier returns `401 invalid_token`. Every arm
+sets `Cache-Control: no-store` and `Vary: Cookie, Authorization, X-WBS-Token`; session identity
+must never be replayed across callers by an intermediary. Credential presence
+and token extraction are one boundary in `middleware/authenticated.ts`, where
+the retired header is deliberately counted as presented but never extracted.
+
 ### Auth0-backed MCP on dev
 
 `mcp-01` reuses the WBS Auth0 client and secret. Its deployment-only keys live

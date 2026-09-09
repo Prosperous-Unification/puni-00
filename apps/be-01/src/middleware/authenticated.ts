@@ -8,9 +8,42 @@ import type { AuthenticatedUser, AuthService } from '../service/auth.service';
  * the required 401.
  */
 export function tokenFromHeaders(headers: Record<string, string | undefined>): string | null {
-  const cookie = cookieValue(headers['cookie'], '__Host-wbs_access');
+  return credentialFromHeaders(headers).token;
+}
+
+export interface PresentedCredential {
+  token: string | null;
+  presented: boolean;
+}
+
+/**
+ * The session credential and whether the caller tried to send one.
+ *
+ * Token extraction and presence deliberately differ for the retired
+ * `x-wbs-token`: it never authenticates, but `/api/auth/me` must reject it
+ * rather than report an anonymous session. Keeping both answers here prevents
+ * a new credential carrier from being accepted in one boundary and forgotten
+ * by the other.
+ */
+export function credentialFromHeaders(
+  headers: Record<string, string | undefined>,
+): PresentedCredential {
+  const cookies = cookiesIn(headers['cookie']);
+  const encodedCookie = cookies.get('__Host-wbs_access');
   const bearer = headers['authorization'];
-  return cookie ?? (bearer?.startsWith('Bearer ') === true ? bearer.slice(7) : null);
+  let cookie: string | null = null;
+  if (encodedCookie !== undefined) {
+    try {
+      cookie = decodeURIComponent(encodedCookie);
+    } catch {
+      cookie = null;
+    }
+  }
+  return {
+    token: cookie ?? (bearer?.startsWith('Bearer ') === true ? bearer.slice(7) : null),
+    presented:
+      encodedCookie !== undefined || bearer !== undefined || headers['x-wbs-token'] !== undefined,
+  };
 }
 
 /** The authenticated account, or null when the request carries no usable token. */
@@ -26,7 +59,7 @@ export async function userFromHeaders(
  * percent-encoded.
  *
  * Undecoded on purpose, because the two callers want different things of a
- * malformed value: {@link tokenFromHeaders} reads one value and treats an
+ * malformed value: {@link credentialFromHeaders} reads one value and treats an
  * undecodable one as no cookie at all (so a Bearer header still gets its
  * chance), while `hasInvalidCookieOrigin` only asks **whether** a session
  * cookie is there and must not care. Decoding here would force one answer on

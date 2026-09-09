@@ -1,7 +1,7 @@
 # LLM_README — read this, then only the doc your task needs
 
 `integration/open-prs` (PR #391) carries every open PR merged onto main — #334, #340, #347,
-#350, #361, #369, #373, #390 — gated as one branch before it merges.
+#350, #361, #369, #373, #395 — gated as one branch before it merges.
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),
 `mcp-01` (MCP server over be-01, stdio, spawned by its client). Nx monorepo, Bun — never npm.
