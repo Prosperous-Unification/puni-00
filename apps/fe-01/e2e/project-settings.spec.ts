@@ -78,6 +78,12 @@ function measureToolbar(page: Page): Promise<{ laidOut: number; rows: number; co
 }
 
 test.describe('the project settings control, in a browser', () => {
+  test.afterEach(async ({ page }) => {
+    // Wait for route.fetch() and response.json() before Playwright tears down
+    // the page and disposes the handler's APIResponse underneath that read.
+    await page.unrouteAll({ behavior: 'wait' });
+  });
+
   test('the toolbar keeps its 1280 budget with one settings control', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await freshProject(page);
