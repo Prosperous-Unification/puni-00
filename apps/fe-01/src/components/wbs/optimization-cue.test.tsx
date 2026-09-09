@@ -36,12 +36,18 @@ const SUGGESTING: PlanOptimizationView = {
 function Harness({
   optimization,
   stale = false,
+  projectStart = '2026-09-07',
+  today = new Date(2026, 8, 7),
+  workItemName = (id) => (id === 'parent' ? 'Launch' : id === 'leaf' ? 'Migration' : null),
   onChoose,
   onRetry,
   busy = false,
 }: {
   optimization: PlanOptimizationView;
   stale?: boolean;
+  projectStart?: string | null;
+  today?: Date;
+  workItemName?: (id: string) => string | null;
   onChoose?: (patch: ProjectOptimizationPatch) => void;
   onRetry?: (objective: 'pri' | 'time', inputHash: string) => void;
   busy?: boolean;
@@ -51,9 +57,9 @@ function Harness({
     <OptimizationCue
       optimization={optimization}
       stale={stale}
-      projectStart="2026-09-07"
-      today={new Date(2026, 8, 7)}
-      workItemName={(id) => (id === 'parent' ? 'Launch' : id === 'leaf' ? 'Migration' : null)}
+      projectStart={projectStart}
+      today={today}
+      workItemName={workItemName}
       menuOpen={open}
       onMenuOpen={() => {
         setOpen(true);
@@ -491,12 +497,154 @@ describe('the schedule cue', () => {
     );
     const fact = pill().getAttribute('data-fact') ?? '';
     expect(fact).toContain('Time · Plan infeasible · 3 Work item deadlines');
-    expect(fact).toContain('Launch → Migration · Work item deadline 11 Sep');
+    // Offset 4 is also what a user-entered Saturday 12 Sep folds to. The cue
+    // has only the effective offset, so it labels the reconstructed Friday
+    // honestly instead of presenting it as the date the user entered.
+    expect(fact).toContain('Launch → Migration · Work item deadline (effective workday) 11 Sep');
     // The same row on both ends of the binding is named once.
     expect(fact).toContain("Migration · Work item deadline before the project's first working day");
     // A row that has left the plan is named, never its raw id.
-    expect(fact).toContain('Work item no longer in this plan · Work item deadline 11 Sep');
+    expect(fact).toContain(
+      'Work item no longer in this plan · Work item deadline (effective workday) 11 Sep',
+    );
     expect(fact).not.toContain('gone');
+  });
+
+  itDom('distinguishes unnamed and missing rows without an orphan deadline bullet', () => {
+    render(
+      <Harness
+        optimization={{
+          ...SUGGESTING,
+          variants: {
+            ...SUGGESTING.variants,
+            time: {
+              state: 'plan-infeasible',
+              items: [
+                { ownerWorkItemId: 'empty', boundWorkItemId: 'empty', effectiveDeadlineOffset: 4 },
+                { ownerWorkItemId: 'gone', boundWorkItemId: 'gone', effectiveDeadlineOffset: 4 },
+              ],
+            },
+          },
+        }}
+        workItemName={(id) => (id === 'empty' ? '' : id === 'leaf' ? 'Migration' : null)}
+        onChoose={() => undefined}
+      />,
+    );
+    const fact = pill().getAttribute('data-fact') ?? '';
+    expect(fact).toContain('Unnamed work item · Work item deadline (effective workday) 11 Sep');
+    expect(fact).toContain(
+      'Work item no longer in this plan · Work item deadline (effective workday) 11 Sep',
+    );
+    expect(fact).not.toContain('\n· · Work item deadline');
+  });
+
+  itDom('refuses malformed offsets at the renderer boundary without throwing', () => {
+    render(
+      <Harness
+        optimization={{
+          ...SUGGESTING,
+          variants: {
+            ...SUGGESTING.variants,
+            time: {
+              state: 'plan-infeasible',
+              items: [
+                { ownerWorkItemId: 'leaf', boundWorkItemId: 'leaf', effectiveDeadlineOffset: 1.5 },
+                {
+                  ownerWorkItemId: 'parent',
+                  boundWorkItemId: 'parent',
+                  effectiveDeadlineOffset: -2,
+                },
+                {
+                  ownerWorkItemId: 'gone',
+                  boundWorkItemId: 'gone',
+                  effectiveDeadlineOffset: Number.MAX_SAFE_INTEGER,
+                },
+              ],
+            },
+          },
+        }}
+        onChoose={() => undefined}
+      />,
+    );
+    const fact = pill().getAttribute('data-fact') ?? '';
+    expect(fact).toContain('Migration · Work item deadline date unavailable');
+    expect(fact).toContain('Launch · Work item deadline date unavailable');
+    expect(fact).toContain(
+      'Work item no longer in this plan · Work item deadline date unavailable',
+    );
+  });
+
+  itDom('refuses a malformed project start at the renderer boundary without throwing', () => {
+    render(
+      <Harness
+        optimization={{
+          ...SUGGESTING,
+          variants: {
+            ...SUGGESTING.variants,
+            time: {
+              state: 'plan-infeasible',
+              items: [
+                { ownerWorkItemId: 'leaf', boundWorkItemId: 'leaf', effectiveDeadlineOffset: 4 },
+              ],
+            },
+          },
+        }}
+        projectStart="the end of August"
+        onChoose={() => undefined}
+      />,
+    );
+    expect(pill().getAttribute('data-fact')).toContain(
+      'Migration · Work item deadline date unavailable',
+    );
+  });
+
+  itDom('does not invent sentinel copy when the project has no calendar start', () => {
+    render(
+      <Harness
+        optimization={{
+          ...SUGGESTING,
+          variants: {
+            ...SUGGESTING.variants,
+            time: {
+              state: 'plan-infeasible',
+              items: [
+                { ownerWorkItemId: 'leaf', boundWorkItemId: 'leaf', effectiveDeadlineOffset: -1 },
+              ],
+            },
+          },
+        }}
+        projectStart={null}
+        onChoose={() => undefined}
+      />,
+    );
+    expect(pill().getAttribute('data-fact')).toContain(
+      'Migration · Work item deadline date unavailable',
+    );
+  });
+
+  itDom('uses the reader local year when an effective deadline crosses New Year', () => {
+    render(
+      <Harness
+        optimization={{
+          ...SUGGESTING,
+          variants: {
+            ...SUGGESTING.variants,
+            time: {
+              state: 'plan-infeasible',
+              items: [
+                { ownerWorkItemId: 'leaf', boundWorkItemId: 'leaf', effectiveDeadlineOffset: 4 },
+              ],
+            },
+          },
+        }}
+        projectStart="2026-12-28"
+        today={new Date(2026, 11, 31, 23, 30)}
+        onChoose={() => undefined}
+      />,
+    );
+    expect(pill().getAttribute('data-fact')).toContain(
+      'Migration · Work item deadline (effective workday) 1 Jan 2027',
+    );
   });
 
   itDom('keeps one live region while the optimizer state changes under it', () => {

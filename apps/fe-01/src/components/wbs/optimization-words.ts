@@ -1,5 +1,5 @@
 import { UNMEETABLE_DEADLINE_OFFSET } from '@wbs/domain/deadline-offsets';
-import { addWorkdays, withinDrift } from '@wbs/domain/workday';
+import { addWorkdays, isIsoDate, withinDrift } from '@wbs/domain/workday';
 
 import type { PlanOptimizationView, ScheduleObjectiveView } from '@/lib/wbs-api';
 
@@ -101,7 +101,24 @@ export function comparisonWords(deltaDays: number, sameOrder: boolean): string {
   return `Later project deadline by ${days(deltaDays)}`;
 }
 
-/** Render the stored deadline meaning without sending the legal -1 sentinel to addWorkdays. */
+/** Whether an effective offset can be reconstructed as a calendar date without taking down render. */
+export function hasEffectiveDeadline(projectStart: string | null, offset: number): boolean {
+  if (
+    projectStart === null ||
+    !isIsoDate(projectStart) ||
+    !Number.isSafeInteger(offset) ||
+    offset < 0
+  ) {
+    return false;
+  }
+  try {
+    return isIsoDate(addWorkdays(projectStart, offset));
+  } catch {
+    return false;
+  }
+}
+
+/** Render the stored deadline meaning without sending invalid input to addWorkdays. */
 export function deadlineWords(projectStart: string | null, offset: number, today: Date): string {
   // Proof: the unmeetable-deadline case throws in render when this branch is
   // removed and -1 reaches addWorkdays.
@@ -111,8 +128,12 @@ export function deadlineWords(projectStart: string | null, offset: number, today
   // deadline on the Sunday after it is unmeetable — day zero rolls forward to
   // Monday, the deadline rolls back to Friday — and the sentence would be
   // telling the reader a *later* date came first.
+  if (projectStart === null || !isIsoDate(projectStart)) return 'date unavailable';
   if (offset === UNMEETABLE_DEADLINE_OFFSET) return DEADLINE_UNREACHABLE_CELL;
-  if (projectStart === null || offset < UNMEETABLE_DEADLINE_OFFSET) return 'date unavailable';
+  // The DTO refuses these values too, but this is a rendering boundary fed by
+  // a plain `number` in the FE mirror. Keep a stale or hand-built payload from
+  // turning a fact card into a React render failure.
+  if (!hasEffectiveDeadline(projectStart, offset)) return 'date unavailable';
   return shortIsoDate(addWorkdays(projectStart, offset), today);
 }
 
