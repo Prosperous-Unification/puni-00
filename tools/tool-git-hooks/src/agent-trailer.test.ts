@@ -87,7 +87,9 @@ describe('agent trailer hook integration', () => {
       expect(git(['checkout', '-q', 'main'], hookEnv).exitCode).toBe(0);
       expect(git(['merge', '--squash', 'topic'], hookEnv).exitCode).toBe(0);
       writeFileSync(trace, '');
-      expect(git(['commit', ...(verbose ? ['-v'] : [])], { ...agentEnv, GIT_EDITOR: 'true' }).exitCode).toBe(0);
+      expect(
+        git(['commit', ...(verbose ? ['-v'] : [])], { ...agentEnv, GIT_EDITOR: 'true' }).exitCode,
+      ).toBe(0);
       expect(stages(trace)).toEqual(['prepare-commit-msg', 'commit-msg']);
       expect(body(git)).not.toContain('Agent-Authored-By:');
     }
