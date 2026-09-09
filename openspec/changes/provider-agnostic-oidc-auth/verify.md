@@ -158,6 +158,14 @@ watched red before implementation: the retired header authenticated and
 returned 200 when the test required 401. It now returns 401; cookie and standard
 Bearer inputs remain supported.
 
+The session-read boundary now keeps the accepted and presented sets together:
+the retired header is presented but never accepted, and an invalid
+`__Host-wbs_access` cookie is pinned to 401 rather than the anonymous 200. The
+signed-in 200, anonymous 200, and rejected 401 all declare
+`Cache-Control: no-store` plus `Vary: Cookie, Authorization, X-WBS-Token`; frontend contract
+tests distinguish the two successful bodies and refuse missing or malformed user
+payloads as schema failures.
+
 Fresh h2puni candidate gate:
 
 - be-01: 1,101 tests passed, 0 failed; lint and typecheck clean

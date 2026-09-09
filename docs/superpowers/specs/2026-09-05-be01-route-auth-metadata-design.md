@@ -448,7 +448,9 @@ covered".
   `{ error: 'invalid_token' }` for a rejected credential** (`auth.routes.ts`). The canonical
   anonymous body is read by `bin/dev-be-probe.sh` and `tools/tool-devsync/src/be-probe.test.ts`. It
   declares `identity: 'open'` and keeps checking its own token, so nothing intercepts it. A clause
-  asserts the body, not just the status.
+  asserts the body, not just the status. Both success shapes and the refusal carry
+  `Cache-Control: no-store` and `Vary: Cookie, Authorization, X-WBS-Token`; the shared credential boundary
+  counts the retired `x-wbs-token` as presented without accepting it as a token.
 - **`POST /api/projects/:id/opened` keeps `scope: 'write'`**, asserted today by
   `oidc.integration.test.ts:446`. It is a row in the quadruple table and in the predicate diff.
 
@@ -600,7 +602,8 @@ Neither route is touched, because neither uses `callerGuard` and neither gets a 
 
 - `GET /api/auth/me` resolves its own token and distinguishes an anonymous caller (`{ user: null }`)
   from a rejected credential (`{ error: 'invalid_token' }`). The anonymous response is read by
-  `bin/dev-be-probe.sh` and `tools/tool-devsync/src/be-probe.test.ts`.
+  `bin/dev-be-probe.sh` and `tools/tool-devsync/src/be-probe.test.ts`; every identity-dependent
+  session response is `no-store` and varies on Cookie, Authorization, and the retired X-WBS-Token carrier.
 - `/internal/forward` and `/internal/resume` check a pre-shared secret inline
   (`internal.routes.ts:51`, `:68`).
 
