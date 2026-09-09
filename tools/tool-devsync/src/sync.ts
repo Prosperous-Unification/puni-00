@@ -12,6 +12,19 @@
  * script. See RESTART_PATHS.
  *
  * Run via: `bun tools/tool-devsync/src/sync.ts <sha>`.
+ *
+ * THIS FILE'S IMPORT GRAPH MAY NOT REACH A THIRD-PARTY PACKAGE (TASK-376).
+ * Relative imports, `@wbs/*` aliases and Bun/Node builtins only. The poller
+ * extracts this file from the target commit and runs it BEFORE anything has
+ * installed that commit's dependencies -- an install can only arrive through a
+ * deploy, and the deploy is this file. `bin/dev-poll-sync.sh` enforces the rule
+ * by bundling the extracted candidate with no `node_modules` in scope, so
+ * adding a dependency here does not fail mysteriously in production: the tick
+ * refuses, by name, before it deploys anything.
+ *
+ * If a dependency here ever becomes genuinely necessary, the shape that works
+ * is to vendor it into the archived tree (`tools/`, `libs/`) so the extraction
+ * carries it -- not to reintroduce a borrowed install from the pinned checkout.
  */
 import {
   SOLVER_SUPERVISOR_BUN,
