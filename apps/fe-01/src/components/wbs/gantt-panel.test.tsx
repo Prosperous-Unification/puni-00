@@ -3227,6 +3227,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     renameTag: () => notImplemented('renameTag'),
     setDepReach: () => notImplemented('setDepReach'),
     setOptimizationSettings: () => notImplemented('setOptimizationSettings'),
+    retryOptimization: () => notImplemented('retryOptimization'),
     setEstimateArithmetic: () => notImplemented('setEstimateArithmetic'),
     setPriorityBands: () => notImplemented('setPriorityBands'),
     setTeamCapacity: () => notImplemented('setTeamCapacity'),

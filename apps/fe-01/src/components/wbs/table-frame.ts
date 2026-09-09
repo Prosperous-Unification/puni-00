@@ -190,7 +190,7 @@ const DATE_COLUMN_WIDTH = 98;
 const COLUMN_WIDTHS = new Map<string, number>([
   // The handle and nothing else. 28 was room for a handle and a hover target;
   // the glyph is the hover target.
-  ['drag', 24],
+  ['drag', 16],
   // {@link NUMBER_ENVELOPE} says what this number is sized to hold, and
   // `e2e/layout.spec.ts`'s `the Number column fits its envelope` is the
   // browser that picked it. It is not a guess at the longest number — there is
@@ -738,7 +738,7 @@ export const WIDEST_COLUMN = 600;
  * taken into account.
  *
  * A cell that can still be aimed at with a pointer. Columns whose default is
- * already narrower than this — the drag handle's 24px — stop at their default
+ * already narrower than this — the drag handle's 16px — stop at their default
  * instead; see {@link floorFor}.
  */
 const NARROWEST_COLUMN = 36;
@@ -1217,11 +1217,20 @@ const ROW_BACKGROUND = 'var(--cell-bg, var(--background))';
  * found the reason. A pinned cell is `position: sticky` **with a z-index**,
  * which makes it a stacking context — so a popover inside one is trapped in
  * it, however high its own z-index, and the *next* row's pinned cell paints
- * straight over it. The Name column is the only cell in this table that is
- * both pinned and holds a popover, and the notes preview hanging off it was
- * invisible under the row below until this layer existed. Observed on h2puni,
- * 2026-08-08: `4px below the name cell is <textarea> in the name column, not
- * the preview`.
+ * straight over it. The notes preview hanging off the Name column was invisible
+ * under the row below until this layer existed. Observed on h2puni, 2026-08-08:
+ * `4px below the name cell is <textarea> in the name column, not the preview`.
+ *
+ * **Every pinned column that opens a popover needs it, and for a year the Name
+ * column was the only one told so.** `raiseWhenOpen={columnId === 'name'}` was
+ * the whole of the wiring, and the Links column — pinned since it was added
+ * beside the number, carded since `external-refs` — hit this exact fault the
+ * day it shipped and nobody saw the card at all. Measured in Chromium,
+ * 2026-09-09: the card's rectangle `[94, 229, 284, 68]`, painted over, with
+ * `elementFromPoint` at its middle answering the next row's name `<textarea>`.
+ * `PlanTableCellView` now asks the layout which columns are pinned and
+ * `opensAPopover` which of them card, so a column cannot join either set and
+ * miss this one.
  *
  * It sits above the other body cells and below both header layers, which is
  * the whole of what it has to do: the preview opens downwards, over the rows,

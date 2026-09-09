@@ -36,7 +36,9 @@ const numberedWorkItem = type({
   typeIds: type('string[]').readonly(),
   // Proof: removing id made the direct production-client boundary test resolve a tree
   // containing numeric external-reference ids instead of rejecting.
-  externalRefs: type({ id: 'string', systemId: 'string', url: 'string' }).array().readonly(),
+  externalRefs: type({ id: 'string', systemId: 'string', url: 'string', name: 'string' })
+    .array()
+    .readonly(),
   number: 'string',
   estimates: type({ '[string]': triple }),
   rolledUp: 'boolean',
@@ -67,7 +69,11 @@ const slice = scheduled.and({
   effort: 'number',
   lateBy: 'number | null',
 });
-const optimizationVariant = type({ state: "'ready' | 'pending' | 'retrying' | 'idle'" })
+const optimizationVariant = type({ state: "'pending' | 'retrying' | 'idle'" })
+  .or({
+    state: "'ready'",
+    proof: "'proven' | 'incomplete' | 'quantisation-floor'",
+  })
   .or({
     state: "'failed'",
     reason:
@@ -94,7 +100,18 @@ const optimization = type({
   budgetMs: 'number',
   displayed: "'fast' | 'pri' | 'time'",
   variants: { pri: optimizationVariant, time: optimizationVariant },
-  'comparison?': { deltaDays: 'number', sameOrder: 'boolean' },
+  // Absolute finishes rather than one delta, and one entry per schedule the
+  // read computed: the cue names Fast, PRI and Time together, every difference
+  // is taken against Fast, and the delta is that subtraction through the shared
+  // workday drift the client already applies. `fast` is required because a
+  // read that carries this object at all has computed Fast — it is the
+  // schedule the rows are placed by unless a variant displaces it.
+  finishDays: { fast: 'number', 'pri?': 'number', 'time?': 'number' },
+  // One boolean per variant that has a finish above, server-side per tasks.md
+  // 8.7: the order relation is the half of the comparison a client cannot
+  // derive from these numbers, and two implementations would disagree about
+  // the same pair.
+  sameOrderAsFast: { 'pri?': 'boolean', 'time?': 'boolean' },
 });
 
 /**

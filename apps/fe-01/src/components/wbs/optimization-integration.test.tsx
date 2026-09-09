@@ -15,10 +15,12 @@ const itDom = hasDom ? it : it.skip;
 
 afterEach(cleanup);
 
-// A non-comparison wire payload, rather than READY plus `comparison: undefined`:
-// JSON has no undefined member, and spreading READY without the override keeps
-// its old comparison on pending and infeasible fixtures.
-const OPTIMIZATION_BASE: Omit<PlanOptimizationView, 'comparison'> = {
+// A payload with no variant comparison in it: Fast's finish is always there,
+// and a variant contributes its figures only where be-01 holds a schedule for
+// it. Spread by the pending, failed and infeasible fixtures below, which is
+// what makes them describe a plan the wire could really carry — a variant that
+// is not `ready` has no finish to compare.
+const OPTIMIZATION_BASE: PlanOptimizationView = {
   enabled: true,
   engine: 'optimized',
   objective: 'pri',
@@ -27,12 +29,16 @@ const OPTIMIZATION_BASE: Omit<PlanOptimizationView, 'comparison'> = {
   contractVersion: '1.5+test',
   budgetMs: 60_000,
   displayed: 'pri',
-  variants: { pri: { state: 'ready' }, time: { state: 'idle' } },
+  variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'idle' } },
+  finishDays: { fast: 10 },
+  sameOrderAsFast: {},
 };
 
+/** Pri displayed, solved, and two workdays ahead of Fast for the same input. */
 const READY: PlanOptimizationView = {
   ...OPTIMIZATION_BASE,
-  comparison: { deltaDays: -2, sameOrder: true },
+  finishDays: { fast: 10, pri: 8 },
+  sameOrderAsFast: { pri: true },
 };
 
 async function openOptimization(): Promise<void> {
@@ -67,7 +73,17 @@ describe('project optimization in the plan', () => {
       ['p1', { optimizationEnabled: true }],
       ['p1', { scheduleEngine: 'optimized', scheduleObjective: 'time' }],
     ]);
-    expect(screen.getByRole('status')).toHaveTextContent('Optimizing…');
+    // The cue is on screen and names the schedule the rows are actually placed
+    // by, which for a project with no optimized result is Fast.
+    //
+    // Queried by its mark rather than by role: this assertion is made with the
+    // settings modal still open, and Radix aria-hides the toolbar the cue sits
+    // in while it is — correctly, nothing behind a modal should be announced.
+    // The claim this replaced was `role="status"` saying `Optimizing…`, which
+    // was a promise an **empty** project could not keep: the fake allocates no
+    // generation for a plan with no rows, nothing is ever admitted, and the
+    // indicator said "Optimizing…" for ever. `variantStateWords` has the rule.
+    expect(document.querySelector('[data-cue-active]')?.textContent).toBe('Fast');
 
     first.unmount();
     render(<WbsTable projectId="p1" api={api} />);
@@ -136,11 +152,14 @@ describe('project optimization in the plan', () => {
       );
     });
     expect(screen.queryByText(/project deadline by/)).toBeNull();
+    // The pill's own face loses the figures with the sentence: a suggestion is
+    // a comparison, and this read is not prepared to show one.
+    expect(document.querySelector('[data-cue-suggestion]')).toBeNull();
   });
 
   /**
-   * 9.3, and the half `optimization-indicator.test.tsx` cannot reach: that
-   * suite renders the banner alone, so "Fast is still on screen and usable"
+   * 9.3, and the half `optimization-cue.test.tsx` cannot reach: that
+   * suite renders the cue alone, so "Fast is still on screen and usable"
    * is trivially true there — there is nothing else on screen to lose. The
    * claim is about the table, so it is asserted against the table.
    */
@@ -175,7 +194,11 @@ describe('project optimization in the plan', () => {
       });
       render(<WbsTable projectId="p1" api={api} />);
 
-      expect(await screen.findByText('Plan infeasible · 1 Work item deadline')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByRole('status')).toHaveTextContent(
+          'Priority-first: Plan infeasible · 1 Work item deadline',
+        );
+      });
 
       // **On screen** is the Fast schedule itself, not merely the row list: an
       // infeasible optimized plan is a statement about the optimized variant,
@@ -226,8 +249,19 @@ describe('project optimization in the plan', () => {
       expect(document.querySelectorAll('[data-toast]')).toHaveLength(0);
       expect(screen.queryByRole('dialog')).toBeNull();
       expect(screen.queryByRole('alert')).toBeNull();
-      expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
       expect(screen.queryByText(/Optimization unavailable/)).toBeNull();
+      // The Retry lives in the cue's menu now, so "no Retry" has to be asked
+      // **of an open menu** — a closed one has no items at all and the query
+      // below would answer null whatever the state was. The three schedules
+      // are asserted first for exactly that reason: they are the evidence that
+      // this menu is open and being read.
+      fireEvent.click(screen.getByRole('button', { name: /is the active schedule/ }));
+      expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+        '✓ Fast · 10 days',
+        'Pri · Plan infeasible · 1 Work item deadline',
+        'Time · Optimizing…',
+      ]);
+      expect(screen.queryByRole('menuitem', { name: /retry/i })).toBeNull();
     },
   );
 
@@ -305,11 +339,17 @@ describe('project optimization in the plan', () => {
         'Plan infeasible · 1 Work item deadline',
       );
     });
-    expect(screen.queryByText('Optimizing…')).toBeNull();
+    // Pri's own words moved off `Optimizing…`; Time is still waiting for a
+    // seat and still says so, which is why this is scoped to the variant the
+    // event was about rather than to the whole sentence.
+    expect(screen.getByRole('status')).not.toHaveTextContent('Priority-first: Optimizing…');
     // Still not a failure, on the path that used to be the only way here: an
     // event that flipped the variant to `failed` would offer the Retry this
-    // state exists to withhold.
-    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
+    // state exists to withhold. Asked of an open menu, and after the items
+    // that prove it opened.
+    fireEvent.click(screen.getByRole('button', { name: /is the active schedule/ }));
+    expect(screen.getAllByRole('menuitem').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('menuitem', { name: /retry/i })).toBeNull();
   });
 
   /**
@@ -520,8 +560,14 @@ describe('project optimization in the plan', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent('Optimization unavailable · Retry');
+      expect(screen.getByRole('status')).toHaveTextContent('Optimization unavailable');
     });
+    // And the control the state exists for is really on offer, in the menu that
+    // holds it: this half is what makes the two `Optimizing…` assertions above
+    // a deferral rather than a state nobody can act on either way.
+    fireEvent.click(screen.getByRole('button', { name: /is the active schedule/ }));
+    expect(screen.getByRole('menuitem', { name: 'Retry Pri' })).toBeEnabled();
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Retry Pri' }), { key: 'Escape' });
     expect(calls.filter((method) => method.startsWith('tree/'))).toEqual(['tree/1']);
     expect([...calls].sort()).toEqual([...READS_THE_FULL_SCOPE_MAKES].sort());
   });
@@ -563,8 +609,12 @@ describe('project optimization in the plan', () => {
   }
 
   /**
-   * What the optimization indicator is currently saying, and nothing else's
+   * What the optimization cue is currently saying, and nothing else's
    * `status`.
+   *
+   * A `toContain` subject rather than a `toBe` one since the cue replaced the
+   * banner: one sentence now names the active schedule and both variants, so a
+   * case about one variant's state asserts that variant's own clause.
    *
    * Scoped rather than `getByRole('status')`, because this case mounts the
    * whole page and not the table alone, and several components under it own a
@@ -576,11 +626,9 @@ describe('project optimization in the plan', () => {
    * indicator rather than silently taking the first.
    */
   function indicatorWords(): string {
-    const found = document.querySelectorAll('[data-optimization-indicator] [role="status"]');
+    const found = document.querySelectorAll('[data-optimization-cue] [role="status"]');
     if (found.length !== 1) {
-      throw new Error(
-        `expected one optimization indicator on screen, found ${String(found.length)}`,
-      );
+      throw new Error(`expected one optimization cue on screen, found ${String(found.length)}`);
     }
     return found[0].textContent;
   }
@@ -601,7 +649,7 @@ describe('project optimization in the plan', () => {
    * an optional second callback, have the stream call it with the *whole*
    * failure frame beside the existing `onChange(changedFactOf(…))`, forward it
    * through the factory in `project-page.tsx`, and let the table render
-   * `Optimization unavailable · Retry` off `failureReason` the moment it
+   * `Optimization unavailable` off `failureReason` the moment it
    * arrives. Nothing above goes red: the stream case passes no such callback so
    * its argument list is unchanged, and the table case's fake stream never
    * invokes one. The client would be reading the variant's state out of a frame
@@ -634,7 +682,7 @@ describe('project optimization in the plan', () => {
         <ProjectPage token="t" api={api} savedPlansDeps={SHELF_OFF} streamDeps={socket.deps} />,
       );
       await waitFor(() => {
-        expect(indicatorWords()).toBe('Optimizing…');
+        expect(indicatorWords()).toContain('Priority-first: Optimizing…');
       });
 
       // Selecting the project and the table's first read are not what this case
@@ -668,7 +716,7 @@ describe('project optimization in the plan', () => {
       await waitFor(() => {
         expect(calls).toContain('tree/1');
       });
-      expect(indicatorWords()).toBe('Optimizing…');
+      expect(indicatorWords()).toContain('Priority-first: Optimizing…');
 
       await act(async () => {
         plan.releaseTheHeldRead();
@@ -676,7 +724,7 @@ describe('project optimization in the plan', () => {
       });
 
       await waitFor(() => {
-        expect(indicatorWords()).toBe('Optimization unavailable · Retry');
+        expect(indicatorWords()).toContain('Priority-first: Optimization unavailable');
       });
       expect(calls.filter((method) => method.startsWith('tree/'))).toEqual(['tree/1']);
       expect([...calls].sort()).toEqual([...READS_THE_FULL_SCOPE_MAKES].sort());

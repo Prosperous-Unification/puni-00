@@ -33,6 +33,7 @@ import {
   removeCalendarMarker as removeCalendarMarkerShape,
   removeStep as removeStepShape,
   renameStep as renameStepShape,
+  retryProjectOptimization as retryProjectOptimizationShape,
   undoProject as undoProjectShape,
   updateCalendarMarker as updateCalendarMarkerShape,
 } from '@wbs/contracts';
@@ -608,6 +609,20 @@ export interface ExternalRefView {
   id: string;
   systemId: string;
   url: string;
+  /**
+   * What a reader calls this link, or `''` where nobody has said.
+   *
+   * **A stated absence and the only spelling of one** — the column is
+   * `NOT NULL DEFAULT ''` — so no surface here has to collapse two ways of
+   * saying the same thing. Where it is `''`, `refLabelOf(url)` is drawn in its
+   * place, computed at render rather than stored, so a rule added to that
+   * function improves every unnamed ref at once.
+   *
+   * Never fetched. Dany asked for it on 2026-09-09 as *"ticket key + summary"*;
+   * the summary is the reader's half, because a field filled from Jira would go
+   * quietly stale and this one cannot.
+   */
+  name: string;
 }
 
 /**
@@ -1109,7 +1124,10 @@ export interface ProjectOptimizationPatch {
 }
 
 export type OptimizationVariantView =
-  | { readonly state: 'ready' }
+  | {
+      readonly state: 'ready';
+      readonly proof: 'proven' | 'incomplete' | 'quantisation-floor';
+    }
   | { readonly state: 'pending' }
   | { readonly state: 'retrying' }
   | {
@@ -1145,7 +1163,28 @@ export interface PlanOptimizationView {
   readonly budgetMs: number;
   readonly displayed: 'fast' | ScheduleObjectiveView;
   readonly variants: Readonly<Record<ScheduleObjectiveView, OptimizationVariantView>>;
-  readonly comparison?: { readonly deltaDays: number; readonly sameOrder: boolean };
+  /**
+   * The project finish each computed schedule reaches, in workdays from day
+   * zero. `fast` always; a variant's only while be-01 holds a schedule for it.
+   *
+   * Absolute figures rather than one delta, because the cue reads all three
+   * schedules at once: a delta against Fast is a subtraction of two of these,
+   * and which variant is worth *switching to* is a comparison against whichever
+   * one is displayed. See `optimization-cue-reading.ts`.
+   */
+  readonly finishDays: { readonly fast: number } & Readonly<
+    Partial<Record<ScheduleObjectiveView, number>>
+  >;
+  /**
+   * Whether a variant places the slices it shares with Fast in the same
+   * relative order — present exactly where that variant has a finish above.
+   *
+   * Computed by be-01 over the materialised schedules (`dual-optimized-scheduler`
+   * tasks.md 8.7): it is the half of the comparison no client can derive from
+   * the numbers on the wire, and a second implementation here would label the
+   * same pair differently.
+   */
+  readonly sameOrderAsFast: Readonly<Partial<Record<ScheduleObjectiveView, boolean>>>;
 }
 
 /**
@@ -1280,6 +1319,18 @@ export interface ProjectApi {
   setDepReach(projectId: string, reach: DependencyReach): Promise<void>;
   /** Changes the project-wide optimizer flag or the schedule every collaborator sees. */
   setOptimizationSettings(projectId: string, patch: ProjectOptimizationPatch): Promise<void>;
+  /**
+   * Asks for one more solve of a variant that failed or came back corrupt.
+   *
+   * `inputHash` is the plan the caller was looking at, not a value be-01 can
+   * supply for itself: a Retry pressed against a stale screen must be refused
+   * rather than silently re-solving a plan that has since changed.
+   */
+  retryOptimization(
+    projectId: string,
+    objective: ScheduleObjectiveView,
+    inputHash: string,
+  ): Promise<void>;
   /** Puts the plan on a calendar, or `null` to take it off again. */
   setStartDate(projectId: string, startDate: string | null): Promise<void>;
   /**
@@ -1600,6 +1651,7 @@ const WBS_SHAPES = [
   removeCalendarMarkerShape,
   removeStepShape,
   renameStepShape,
+  retryProjectOptimizationShape,
   undoProjectShape,
   updateCalendarMarkerShape,
 ] as const;
@@ -1648,7 +1700,11 @@ export function wbsFailureCode(failure: ClientFailure): string {
 function problemCode(problem: WbsProblem): string {
   switch (problem.kind) {
     case 'refusal':
-      return problem.refusal.error;
+      // Every refusal in the app answered with `error` until the optimizer's
+      // Retry, whose 409 answers with `code` and the variant's `state`. Reading
+      // whichever discriminant is present keeps this the one place that has to
+      // know, rather than every screen.
+      return 'error' in problem.refusal ? problem.refusal.error : problem.refusal.code;
     case 'failure':
       return wbsFailureCode(problem.failure);
   }
@@ -2393,6 +2449,16 @@ export function httpProjectApi(token: string): ProjectApi {
         await client.patchApiProjectsById({
           params: { id: projectId },
           body: { depReach: reach },
+          headers: auth(token),
+        }),
+      );
+    },
+    async retryOptimization(projectId, objective, inputHash) {
+      jsonBody(
+        retryProjectOptimizationShape,
+        await client.postApiProjectsByIdOptimizationRetry({
+          params: { id: projectId },
+          body: { objective, inputHash },
           headers: auth(token),
         }),
       );

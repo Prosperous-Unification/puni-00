@@ -48,15 +48,83 @@ The coordinator SHALL emit one `schedule_optimized` event when a newly validated
 - **WHEN** a collaborator reads the schedule
 - **THEN** no `schedule_optimized` event is emitted
 
-### Requirement: The comparison indicator names the change against Fast
+### Requirement: Every computed variant is compared with Fast, whatever is displayed
 
-The compact indicator SHALL compare the selected optimized variant with the Fast schedule for the same exact input and SHALL report one of: Earlier project deadline by N days, Later project deadline by N days, Same project deadline + reordered, or Same project deadline + same order. Every one of the four SHALL name the deadline it means, because the schedule's project finish date and `work_item.deadline` are both live and an unqualified "deadline" cannot say which it is (`work-item-deadline` 8.9/8.9b).
+The plan read SHALL carry the Fast schedule's project finish in days for the exact input it was taken at, and — for every variant that is `ready` — that variant's own project finish and whether it places the slices present in both in the same relative order as Fast. It SHALL carry them whether the displayed schedule is Fast or an optimized variant: a reader looking at Fast is precisely the reader who has to be told that an optimized variant would land the plan differently, and the shipped read built the comparison only for the variant on screen. A variant that is not `ready` SHALL carry neither figure, and no figure SHALL come from a schedule computed for a different input hash. Every reported difference SHALL be against Fast, so the three schedules are read against one reference rather than against each other.
 
-#### Scenario: the selected variant finishes earlier
+#### Scenario: Fast is displayed while both variants are ready
 
-- **GIVEN** an optimized variant that finishes earlier than Fast for the same input
-- **WHEN** that variant is displayed
-- **THEN** the indicator reads "Earlier project deadline by N days" with the exact day count
+- **GIVEN** a project whose engine is Fast, optimization ON, and both variants stored `ready` for the current input hash
+- **WHEN** the plan is read
+- **THEN** the read carries Fast's finish, both variants' finishes, and both variants' order relations against Fast
+
+#### Scenario: one variant is still solving
+
+- **GIVEN** a stored `ready` PRI variant and a `pending` Time variant at the current input hash
+- **WHEN** the plan is read
+- **THEN** PRI carries a finish and an order relation and Time carries neither
+
+### Requirement: The comparison is one small cue, and it suggests only an earlier deadline
+
+While optimization is ON the plan SHALL carry exactly one compact cue in the toolbar row, naming the active schedule and the state of the computed variants, and SHALL NOT render a full-width banner, a toast or a modal for any of it. When a `ready` variant's project deadline is earlier by more than the shared workday drift than that of **the schedule currently displayed**, the cue SHALL name that variant and the days it saves and SHALL offer switching to it. Against the displayed schedule and not against Fast, because the reader is being asked to change what is on their screen: with a Priority-first schedule displayed three days ahead of Fast, a Finish-first one a single day ahead of Fast is a regression, and offering it against Fast's figure would be the cue talking about a schedule nobody is looking at. Every _reported_ comparison stays against Fast, so the three rows are read against one reference. A variant that reaches the same project deadline in a different order SHALL be reported without being offered as an improvement, and a variant that finishes later SHALL be reported without being suggested. Every reported comparison SHALL name the deadline it means, because the schedule's project finish date and `work_item.deadline` are both live and an unqualified "deadline" cannot say which it is (`work-item-deadline` 8.9/8.9b). Switching SHALL be offered only where a settings writer is present, because `schedule_engine` and `schedule_objective` are project-wide: one reader's switch moves every collaborator's plan. The failure, retry and plan-infeasible words the requirements below name SHALL be reachable from this cue: the **reading** SHALL be published as a project fact on the cue itself — opening at once and behind no wait ring, because it describes the project rather than what a control does — and SHALL carry every row's figures, its comparison, its state, the work item deadlines an infeasible variant proved unmeetable, and the solver identity those figures were produced under. The **actions** SHALL live in the cue's menu, because the surface a fact is drawn on takes no pointer and a control drawn on one cannot be pressed. The cue SHALL NOT draw a second explanatory surface of its own beside the one the application's hint layer already draws for it. An indicator dot SHALL be drawn only for a state a reader has to notice — a solve in flight, a variant that could not be computed, a plan that cannot meet a work item deadline — and SHALL NOT be drawn at all when there is nothing to indicate.
+
+The cue's own box SHALL NOT change size with its words. It is the last control in a wrapping toolbar row, and a box that grows and shrinks there re-lays every other control on that row each time a schedule is switched or a solve lands.
+
+The reading SHALL be readable as separate blocks rather than as one paragraph, and SHALL include: a line per schedule with its figures and state; the two optimized variants compared **with each other**, in both days and ordering, whenever both have a schedule; and what the three schedules are — that the unoptimized one is a single pass and is never claimed optimal, that one optimized objective searches for the earliest project deadline, that the other searches for the schedule that starts higher-priority work sooner, and the name of the solver both use. A schedule's short name on a control is a name; the system SHALL NOT rely on it to say what the schedule does.
+
+#### Scenario: a variant that finishes earlier is suggested
+
+- **GIVEN** Fast on screen and a ready variant that finishes three workdays earlier for the same input
+- **WHEN** the cue is drawn
+- **THEN** it names that variant and the three days, and offers a switch to it
+
+#### Scenario: earlier than Fast but later than what is displayed
+
+- **GIVEN** a Priority-first schedule displayed, three workdays ahead of Fast, and a ready Finish-first schedule one workday ahead of Fast
+- **WHEN** the cue is drawn
+- **THEN** no switch is suggested, and the Finish-first row still reads one workday earlier than Fast
+
+#### Scenario: the same deadline in a different order is reported, not urged
+
+- **GIVEN** a ready variant that reaches Fast's project deadline having reordered the shared slices
+- **WHEN** the cue is drawn
+- **THEN** the reordering is readable on the cue and no switch is suggested
+
+#### Scenario: a later deadline is never suggested
+
+- **GIVEN** a ready variant that finishes two workdays later than Fast
+- **WHEN** the cue is drawn
+- **THEN** the later deadline is readable and no switch is suggested
+
+#### Scenario: the reading opens at once, behind no ring
+
+- **GIVEN** a plan whose optimizer state and comparison are known
+- **WHEN** the pointer arrives on the cue
+- **THEN** the reading is on screen without a wait and no wait ring is drawn
+
+#### Scenario: switching schedules moves nothing else
+
+- **GIVEN** a plan whose cue names Fast and offers an earlier variant
+- **WHEN** the reader switches to that variant and the plan read comes back
+- **THEN** every other control on the toolbar row is where it was, and the row has neither re-wrapped nor changed height
+
+#### Scenario: the two optimized variants are compared with each other
+
+- **GIVEN** both optimized variants ready, one finishing a workday before the other, and exactly one of them reordering Fast's shared slices
+- **WHEN** the reading is drawn
+- **THEN** it names the day difference between the two variants and says they are in a different order from each other
+
+#### Scenario: nothing to indicate draws no indicator
+
+- **GIVEN** a project whose variants are both solved and neither failed nor infeasible
+- **WHEN** the cue is drawn
+- **THEN** it carries no state dot at all
+
+#### Scenario: a reader who cannot write the settings
+
+- **GIVEN** a plan read by someone with no settings write
+- **WHEN** the cue is drawn
+- **THEN** every state and comparison is readable and no switch item is offered
 
 ### Requirement: Failure keeps Fast usable and requires manual retry
 
@@ -76,7 +144,7 @@ When a solve exits non-zero, times out, is killed, or returns output that fails 
 
 ### Requirement: Solver output is independently re-validated
 
-Every solver response SHALL be a single well-formed JSON line and SHALL be independently re-validated in Bun: every offset present and non-negative, no dependency violated, no pool over capacity in **any** of a slice's named pools (the whole width is spent in each), and no assignee double-booked. Every effective work-item deadline SHALL also be re-validated, and it SHALL be checked on the **materialised** schedule in the real fractional domain as `lastWorkdayOf(start, finish) <= effectiveDeadlineOffset` for every slice, SHALL NOT be checked in quantised units, and a violation SHALL be invalid-output rather than `plan-infeasible`, because a feasible schedule that breaks a deadline is a broken engine rather than an infeasible plan. `objectiveValues[T].value` SHALL be recomputed from the final offsets and matched, and it SHALL be the only recomputed field; `stageValue`, `bound` and `status` describe a stage rather than the published schedule. A response that fails any check SHALL be treated as invalid-output (a failure).
+Every solver response SHALL be a single well-formed JSON line and SHALL be independently re-validated in Bun: every offset present and non-negative, no dependency violated, no pool over capacity in **any** of a slice's named pools (the whole width is spent in each), and no assignee double-booked. Every effective work-item deadline SHALL also be re-validated, and it SHALL be checked on the **materialised** schedule in the real fractional domain through `isOnTime`: by the projected finish for a work item containing positive work, without extending that span for a trailing zero step, and by the occupied standing day for an all-zero milestone work item. It SHALL NOT be checked in quantised units, and a violation SHALL be invalid-output rather than `plan-infeasible`, because a feasible schedule that breaks a deadline is a broken engine rather than an infeasible plan. `objectiveValues[T].value` SHALL be recomputed from the final offsets and matched, and it SHALL be the only recomputed field; `stageValue`, `bound` and `status` describe a stage rather than the published schedule. A response that fails any check SHALL be treated as invalid-output (a failure).
 
 #### Scenario: a malformed response is rejected
 
@@ -96,7 +164,7 @@ The coordinator SHALL cap solver processes at 4 per project and 16 globally. A v
 
 ### Requirement: The solver wire contract is one versioned schema every consumer reads
 
-The request and the response SHALL be defined by one checked-in JSON Schema, `libs/contracts/solver/solver-wire.v1.json`, and prose SHALL NOT be a second definition. Exactly four consumers SHALL read that file: the Bun request builder, `parseSolverResponse`, the `wbs-solver` Python entrypoint, and a shared golden-fixture corpus both suites run. Every message SHALL carry the required literal `wireVersion`, and the schema SHALL state the unit of every numeric field. <!-- wire-fields:request -->The request SHALL be one JSON line carrying `wireVersion`, `contractVersion`, `solverVersion`, `objective`, `budgetMs`, `stageBudgetSplit`, `quantum`, `horizonUnits`, `slices`, `edges`, `pools`, `baselineOffsets` and `fastHint`. <!-- wire-fields:slice -->Each slice SHALL carry `{ key, durationUnits, width, personId, poolIds, priorityWeight, notBeforeUnits, deadlineUnits }`. The wire property is named `key`; no artifact SHALL spell it sliceKey, unbackticked here deliberately so that the prohibition is not read as a member of the span carrying it. `durationUnits` SHALL be an integer, `poolIds` set-valued, `priorityWeight` and `notBeforeUnits` resolved, and `deadlineUnits` a resolved `integer | null`. `deadlineUnits` SHALL be in the same units as `notBeforeUnits`, `horizonUnits` and every returned offset; it SHALL be the **effective** deadline for that slice, already folded over the tree and already converted to `(D + 1) × quantum`, so the solver applies it without seeing the tree exactly as it never sees `reach`; and `null` SHALL mean unconstrained. `horizonUnits` SHALL be unchanged and SHALL NOT be tightened to the latest deadline, which would make an infeasible plan indistinguishable from a horizon overflow and would remove the serial bound that makes the horizon provably safe. `edges` SHALL already be leaf-expanded with the project's dependency reach applied and SHALL already include the intra-work-item step-order edges, so the solver never receives the tree, `parentId`, or `dep_reach`. `baselineOffsets` SHALL be the **quantised** Fast baseline for the same canonical input — Fast re-run through `schedule()` over the rounded integer `durationUnits` — the wire's own field name, and the only duration name any artifact uses — expressed in integer solver units — and SHALL NOT be real Fast's offsets, whose fractional `days / width` starts can be infeasible in the integer model on legal widths and would make `fastHint` reject a hint the solver must be able to accept. Real Fast is named **Baseline schedule** and is used only by the real-domain publication guard. `baselineOffsets` SHALL be the only movement reference either objective uses. The solver SHALL NOT read a clock, a database, or any other schedule, and SHALL NOT derive a duration, a priority, or a floor. That prohibition binds the deterministic solve; the process's **lifecycle wrapper** SHALL be permitted to read the clock solely to arm the absolute `childDeadlineAt` it is given, and that instant together with the `attemptToken` SHALL be passed as process arguments rather than as request fields, so neither enters the schema, the golden corpus, or the solved model.
+The request and the response SHALL be defined by one checked-in JSON Schema, `libs/contracts/solver/solver-wire.v1.json`, and prose SHALL NOT be a second definition. Exactly four consumers SHALL read that file: the Bun request builder, `parseSolverResponse`, the `wbs-solver` Python entrypoint, and a shared golden-fixture corpus both suites run. Every message SHALL carry the required literal `wireVersion`, and the schema SHALL state the unit of every numeric field. <!-- wire-fields:request -->The request SHALL be one JSON line carrying `wireVersion`, `contractVersion`, `solverVersion`, `objective`, `budgetMs`, `stageBudgetSplit`, `quantum`, `horizonUnits`, `slices`, `edges`, `pools`, `baselineOffsets` and `fastHint`. <!-- wire-fields:slice -->Each slice SHALL carry `{ workItemKey, key, durationUnits, width, personId, poolIds, priorityWeight, notBeforeUnits, deadlineUnits, workItemIsMilestone }`. The wire property is named `key`; no artifact SHALL spell it sliceKey, unbackticked here deliberately so that the prohibition is not read as a member of the span carrying it. `workItemKey` SHALL carry opaque grouping identity separately so neither consumer parses `key`. `durationUnits` SHALL be an integer, `poolIds` set-valued, `priorityWeight` and `notBeforeUnits` resolved, and `deadlineUnits` a resolved `integer | null`. `deadlineUnits` SHALL be in the same units as `notBeforeUnits`, `horizonUnits` and every returned offset; it SHALL be the **effective** deadline for that slice, already folded over the tree and already converted to `(D + 1) × quantum`, so the solver applies it without seeing the tree exactly as it never sees `reach`; and `null` SHALL mean unconstrained. `horizonUnits` SHALL be unchanged and SHALL NOT be tightened to the latest deadline, which would make an infeasible plan indistinguishable from a horizon overflow and would remove the serial bound that makes the horizon provably safe. `edges` SHALL already be leaf-expanded with the project's dependency reach applied and SHALL already include the intra-work-item step-order edges, so the solver never receives the tree, `parentId`, or `dep_reach`. `baselineOffsets` SHALL be the **quantised** Fast baseline for the same canonical input — Fast re-run through `schedule()` over the rounded integer `durationUnits` — the wire's own field name, and the only duration name any artifact uses — expressed in integer solver units — and SHALL NOT be real Fast's offsets, whose fractional `days / width` starts can be infeasible in the integer model on legal widths and would make `fastHint` reject a hint the solver must be able to accept. Real Fast is named **Baseline schedule** and is used only by the real-domain publication guard. `baselineOffsets` SHALL be the only movement reference either objective uses. The solver SHALL NOT read a clock, a database, or any other schedule, and SHALL NOT derive a duration, a priority, or a floor. That prohibition binds the deterministic solve; the process's **lifecycle wrapper** SHALL be permitted to read the clock solely to arm the absolute `childDeadlineAt` it is given, and that instant together with the `attemptToken` SHALL be passed as process arguments rather than as request fields, so neither enters the schema, the golden corpus, or the solved model.
 
 #### Scenario: a consumer that diverges from the schema fails the gate
 
@@ -109,6 +177,31 @@ The request and the response SHALL be defined by one checked-in JSON Schema, `li
 - **GIVEN** two solves for the same input hash with different schedules already published
 - **WHEN** each solve computes its movement term
 - **THEN** both use the identical `baselineOffsets` derived from that input, so the input hash fully determines the objective
+
+### Requirement: deadline occupancy follows the work-item projection
+
+`workItemIsMilestone` SHALL be true for every slice of a work item exactly when
+all of that work item's slices have zero duration, and false for every slice of
+an item containing positive-duration work. The deadline clause SHALL constrain
+`end + 1 unit <= deadlineUnits` only for a milestone work item and SHALL
+constrain `end <= deadlineUnits` otherwise. A zero-duration step beside positive
+work SHALL remain an endpoint inside the projected work-item span; it SHALL NOT
+extend an exactly-met deadline into the next workday. Bun SHALL derive the flag
+while it owns the work-item grouping. The wire SHALL carry that grouping as the
+separate opaque `workItemKey`; both Bun and Python SHALL prove the fact in both
+directions without parsing `key`.
+
+#### Scenario: an exactly-met span with a trailing zero step remains feasible
+
+- **GIVEN** a work item whose positive work spans day zero through the end of day three, followed by a zero-duration step at day four
+- **WHEN** its effective deadline is day three
+- **THEN** `workItemIsMilestone` is false for both slices and the solver accepts the plan
+
+#### Scenario: a true milestone still occupies its standing day
+
+- **GIVEN** a work item whose every slice has zero duration
+- **WHEN** it stands at the exclusive boundary after its deadline
+- **THEN** `workItemIsMilestone` is true and the solver reports the deadline infeasible
 
 ### Requirement: The solver budget is a cache key dimension
 
@@ -573,7 +666,7 @@ The build SHALL install the pinned Python runtime and the locked OR-Tools enviro
 
 ### Requirement: The comparison indicator names the change by an exact order relation
 
-Two schedules SHALL be reported as the same order iff, for every pair of slices present in both, the sign of the difference between their starts is equal in both, compared in the real fractional-workday domain on the two materialised schedules rather than in quantised units, because real Fast's starts need not lie on the unit grid and quantised comparison would report a reorder produced purely by rounding. The relation SHALL be computed server-side and shipped as one boolean beside the day-count delta.
+Two schedules SHALL be reported as the same order iff, for every pair of slices present in both, the sign of the difference between their starts is equal in both, compared in the real fractional-workday domain on the two materialised schedules rather than in quantised units, because real Fast's starts need not lie on the unit grid and quantised comparison would report a reorder produced purely by rounding. The relation SHALL be computed server-side and shipped as one boolean per ready variant, beside the project finish each comparison is taken from. It MAY be computed in any form that is provably the same relation — a weak order is determined by its dense rank, which is why the shipped pairwise form was replaced by a rank comparison once it began running once per ready variant rather than once per displayed one — and the equivalence SHALL be proven against the pairwise definition above rather than assumed.
 
 #### Scenario: a uniform shift is not a reorder
 

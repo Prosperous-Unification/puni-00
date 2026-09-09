@@ -1,6 +1,8 @@
+import { useCardOpenOn } from '../cell-card-store';
 import { cellKey } from '../editable-grid';
 import { HoverCard } from '../hover-card';
-import { readStartSentence, startCardId } from '../plan-cell-props';
+import { startCardId } from '../plan-cell-props';
+import { useStartSentence } from '../plan-cell-reading-context';
 import type { PlanLive } from '../plan-live';
 import { rowWords } from '../work-item-words';
 import { column } from './column';
@@ -15,10 +17,19 @@ export function createStartColumn({ live }: { live: PlanLive }) {
     // is a figure either way and the cell shows which kind it is.
     header: () => <span>Start</span>,
     cell: ({ row }) => {
-      const start = live.current.spanOf(row.original).start;
-      const said = readStartSentence(row.original, live);
-      // The open card is a mutable reading under the PlanLive contract.
-      const carded = said !== null && live.current.openCard === cellKey(row.original.id, 'start');
+      // A subscription and not a reading off `live`: this cell is a component,
+      // so it can be told about its own card without the table rendering.
+      // First, and unconditionally, because it is a hook.
+      // `flexRender` builds this with `React.createElement`, so it **is** a
+      // component and the hook below is legal; the rule reads the property
+      // name `cell` and cannot see the call site.
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const cardOpen = useCardOpenOn(live.current.cellCards, cellKey(row.original.id, 'start'));
+      const { start } = row.original.readings;
+      // eslint-disable-next-line react-hooks/rules-of-hooks -- TanStack flexRender invokes this cell as a React component.
+      const said = useStartSentence();
+      // The open card is the cell store's own mutable reading.
+      const carded = said !== null && cardOpen;
       return (
         // The positioned ancestor the card opens from, `display: block` so
         // the figure still fills the cell. The pointer handlers are on the

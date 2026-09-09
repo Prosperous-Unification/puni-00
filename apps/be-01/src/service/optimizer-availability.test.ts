@@ -28,7 +28,7 @@ describe('optimizerWiring', () => {
       contractVersion: '7+test',
       budgetMs: 60_000,
       variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
-      selectedSchedule: null,
+      schedules: { pri: null, time: null },
     });
     const wiring = optimizerWiring(read);
     // The same function object, not merely a truthy one — a wiring that

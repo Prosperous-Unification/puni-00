@@ -76,6 +76,12 @@ export * from './schedule';
 // backend callers reach it by the explicit Node subpath
 // `@wbs/domain/canonical-schedule-input` (tsconfig.base.json). One import, one
 // canonicaliser, and no browser-reachable path to `node:crypto`.
+// The order relation two schedules are compared by (tasks.md 8.7, 8b.1). Here
+// rather than in the plan read that shipped it: with slice 8b the comparison is
+// taken for every ready variant instead of the one on screen, and the relation
+// is a fact about two sets of starts — nothing about a project row, a cache or
+// a route belongs in it.
+export * from './schedule-order';
 // The real-domain scorer (tasks.md 4.11b, 4.12b), beside `schedule` because it
 // reads nothing but a `Schedule` and exists so the publication guard's two
 // sides are summed over the same slices in the same order.
