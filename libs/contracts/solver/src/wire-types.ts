@@ -126,6 +126,7 @@ export interface SolverEdge {
 
 /** `#/$defs/slice`. Every member is required; two of them are nullable. */
 export const SOLVER_SLICE_KEYS = [
+  'workItemKey',
   'key',
   'durationUnits',
   'width',
@@ -137,6 +138,8 @@ export const SOLVER_SLICE_KEYS = [
   'workItemIsMilestone',
 ] as const;
 export interface SolverSlice {
+  /** Opaque work-item identity, carried separately so consumers never parse {@link key}. */
+  readonly workItemKey: string;
   readonly key: string;
   readonly durationUnits: number;
   /** People, so at least 1: duration is effort divided by width and 0 is Infinity days. */

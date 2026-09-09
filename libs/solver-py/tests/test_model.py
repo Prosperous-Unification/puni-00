@@ -52,6 +52,7 @@ from wbs_solver.validate import (  # noqa: E402
 def a_slice(
     key: str,
     *,
+    work_item_key: str | None = None,
     duration: int = 10,
     width: int = 1,
     person: str | None = None,
@@ -59,9 +60,10 @@ def a_slice(
     weight: int = 0,
     not_before: int = 0,
     deadline: int | None = None,
-    work_item_is_milestone: bool | None = None,
+    work_item_is_milestone: bool = False,
 ) -> dict[str, Any]:
     return {
+        "workItemKey": key if work_item_key is None else work_item_key,
         "key": key,
         "durationUnits": duration,
         "width": width,
@@ -70,7 +72,7 @@ def a_slice(
         "priorityWeight": weight,
         "notBeforeUnits": not_before,
         "deadlineUnits": deadline,
-        "workItemIsMilestone": duration == 0 if work_item_is_milestone is None else work_item_is_milestone,
+        "workItemIsMilestone": work_item_is_milestone,
     }
 
 
@@ -99,8 +101,8 @@ def a_request(
     offsets = dict(baseline) if baseline is not None else {key: 0 for key in keys}
     return {
         "wireVersion": 1,
-        "contractVersion": "8+0.1.2",
-        "solverVersion": "0.1.2",
+        "contractVersion": "9+0.1.3",
+        "solverVersion": "0.1.3",
         "objective": objective,
         "budgetMs": 30000,
         "stageBudgetSplit": [0.6, 0.25, 0.15],
@@ -183,7 +185,7 @@ class HandBuiltInstancesAreRealRequests(unittest.TestCase):
 
     The deadline cases further down keep their unit-granularity numbers on
     purpose and this case no longer speaks for them. What they test is the
-    CONSTRAINT FORM — `start + max(duration, 1) <= deadlineUnits`, tasks.md 8.3
+    CONSTRAINT FORM — `end + int(workItemIsMilestone) <= deadlineUnits`, tasks.md 8.3
     — which is arithmetic in units and is the same statement at any quantum;
     watched red W2 is stated against exactly that form. Rescaling them to
     multiples of 48 would change every number those reds are calibrated on to
@@ -208,9 +210,13 @@ class HandBuiltInstancesAreRealRequests(unittest.TestCase):
             "a deadline and a floor": a_request(
                 [a_slice("a", not_before=5, deadline=48)], horizon=48
             ),
-            "a zero duration": a_request([a_slice("a", duration=0, pools=["t"])], pools={"t": 1}),
+            "a zero duration": a_request(
+                [a_slice("a", duration=0, pools=["t"], work_item_is_milestone=True)],
+                pools={"t": 1},
+            ),
             "a fenced zero duration": a_request(
-                [a_slice("a", duration=0, person="p", not_before=5, deadline=48),
+                [a_slice("a", duration=0, person="p", not_before=5, deadline=48,
+                         work_item_is_milestone=True),
                  a_slice("b", duration=10, person="p", deadline=96)],
                 horizon=96,
             ),
@@ -445,11 +451,11 @@ class DeadlineClause(unittest.TestCase):
                 request = a_request(
                     [
                         a_slice(
-                            "work\x00dev", duration=192, not_before=floor,
+                            "work\x00dev", work_item_key="work", duration=192, not_before=floor,
                             deadline=deadline,
                         ),
                         a_slice(
-                            "work\x00qa", duration=0, not_before=floor,
+                            "work\x00qa", work_item_key="work", duration=0, not_before=floor,
                             deadline=deadline, work_item_is_milestone=False,
                         ),
                     ],
@@ -465,10 +471,10 @@ class DeadlineClause(unittest.TestCase):
         request = a_request(
             [
                 a_slice(
-                    "work\x00dev", duration=192, not_before=1, deadline=192,
+                    "work\x00dev", work_item_key="work", duration=192, not_before=1, deadline=192,
                 ),
                 a_slice(
-                    "work\x00qa", duration=0, not_before=1, deadline=192,
+                    "work\x00qa", work_item_key="work", duration=0, not_before=1, deadline=192,
                     work_item_is_milestone=False,
                 ),
             ],
@@ -482,7 +488,7 @@ class DeadlineClause(unittest.TestCase):
 
     def test_a_zero_duration_milestone_one_day_late_is_infeasible(self) -> None:
         """**WATCHED RED W2** (tasks.md 8.4). Substitute `end <= deadlineUnits`
-        for `start + max(duration, 1) <= deadlineUnits` and this goes OPTIMAL.
+        for `end + int(workItemIsMilestone) <= deadlineUnits` and this goes OPTIMAL.
 
         The milestone is the only input the two forms disagree on. `end == start`
         at duration zero, so the substituted form admits a start of exactly `48`
@@ -497,7 +503,8 @@ class DeadlineClause(unittest.TestCase):
         which is why the case has to be the milestone and not a shorter task.
         """
         request = a_request(
-            [a_slice("a", duration=0, not_before=0, deadline=48)], horizon=96
+            [a_slice("a", duration=0, not_before=0, deadline=48,
+                     work_item_is_milestone=True)], horizon=96
         )
         built = build_model(request)
         built.model.add(built.starts["a"] == 48)
@@ -508,7 +515,8 @@ class DeadlineClause(unittest.TestCase):
         forbid it. Unit 47 is still inside day 0 — `lastWorkdayOf(47/48, 47/48)`
         is 0 — and `47 + max(0, 1) <= 48` admits it."""
         request = a_request(
-            [a_slice("a", duration=0, not_before=0, deadline=48)], horizon=96
+            [a_slice("a", duration=0, not_before=0, deadline=48,
+                     work_item_is_milestone=True)], horizon=96
         )
         built = build_model(request)
         built.model.add(built.starts["a"] == 47)
@@ -638,14 +646,15 @@ class ZeroDurationSlices(unittest.TestCase):
         zero-length placements before counting, would have accepted.
 
         `a`'s deadline is 6 and not 5. Clause 6 became
-        `start + max(duration, 1) <= deadlineUnits` (tasks.md 8.3), so the
+        `end + int(workItemIsMilestone) <= deadlineUnits` (tasks.md 8.3), so the
         exclusive bound that pins a zero-duration slice to unit 5 is 6; under the
         old `end <= deadlineUnits` it was 5. The fence is the same fence and the
         assertion below is unchanged — only the number that expresses "no later
         than unit 5" moved, because the clause it is written against changed.
         """
         request = a_request(
-            [a_slice("a", duration=0, person="p", not_before=5, deadline=6),
+            [a_slice("a", duration=0, person="p", not_before=5, deadline=6,
+                     work_item_is_milestone=True),
              a_slice("b", duration=10, person="p", deadline=10)],
             horizon=20,
         )
@@ -679,10 +688,11 @@ class ZeroDurationSlices(unittest.TestCase):
 
         `a`'s deadline is 6 for the same reason as the assignee case above: the
         exclusive bound that pins a zero-duration slice to unit 5 is 6 under
-        clause 6's `start + max(duration, 1) <= deadlineUnits`.
+        clause 6's `end + int(workItemIsMilestone) <= deadlineUnits`.
         """
         request = a_request(
-            [a_slice("a", duration=0, width=9, pools=["t"], not_before=5, deadline=6),
+            [a_slice("a", duration=0, width=9, pools=["t"], not_before=5, deadline=6,
+                     work_item_is_milestone=True),
              a_slice("b", duration=10, width=1, pools=["t"], deadline=10)],
             pools={"t": 1},
             horizon=20,
@@ -696,7 +706,8 @@ class ZeroDurationSlices(unittest.TestCase):
         """Occupying nothing is not the same as being absent: the edge still
         orders it and the terms still count it."""
         request = a_request(
-            [a_slice("a", duration=10), a_slice("b", duration=0, weight=2)],
+            [a_slice("a", duration=10),
+             a_slice("b", duration=0, weight=2, work_item_is_milestone=True)],
             edges=[an_edge("a", "b")],
         )
         terms = terms_at(request, {"a": 0, "b": 10})

@@ -278,11 +278,21 @@ export const revalidateSolverResult = (
   response: SolverResponse,
 ): RevalidatedSolverResult => {
   const slices = new Map<string, SolverSlice>();
+  const workItems = new Map<string, SolverSlice[]>();
   for (const slice of request.slices) {
     if (slices.has(slice.key)) {
       return refuse('malformed-request', `duplicate slice key ${JSON.stringify(slice.key)}`);
     }
     slices.set(slice.key, slice);
+    if (typeof slice.workItemKey !== 'string' || slice.workItemKey.length === 0) {
+      return refuse(
+        'malformed-request',
+        `slice ${JSON.stringify(slice.key)} has workItemKey ${JSON.stringify(slice.workItemKey)}`,
+      );
+    }
+    const peers = workItems.get(slice.workItemKey) ?? [];
+    peers.push(slice);
+    workItems.set(slice.workItemKey, peers);
     // The objective arithmetic below converts these three to `bigint`, and
     // `BigInt(1.5)` throws. A re-validator that crashes on a malformed request
     // reports nothing at all, so the domain is proved before it is used.
@@ -294,13 +304,10 @@ export const revalidateSolverResult = (
         );
       }
     }
-    if (
-      typeof slice.workItemIsMilestone !== 'boolean' ||
-      (slice.workItemIsMilestone && slice.durationUnits !== 0)
-    ) {
+    if (typeof slice.workItemIsMilestone !== 'boolean') {
       return refuse(
         'malformed-request',
-        `slice ${JSON.stringify(slice.key)} has workItemIsMilestone ${JSON.stringify(slice.workItemIsMilestone)} with durationUnits ${JSON.stringify(slice.durationUnits)}`,
+        `slice ${JSON.stringify(slice.key)} has workItemIsMilestone ${JSON.stringify(slice.workItemIsMilestone)}`,
       );
     }
     // MOVEMENT is measured against the baseline, so a slice with no baseline is
@@ -331,6 +338,19 @@ export const revalidateSolverResult = (
           `slice ${JSON.stringify(slice.key)} draws on pool ${JSON.stringify(poolId)}, which has no capacity`,
         );
       }
+    }
+  }
+  for (const [workItemKey, peers] of workItems) {
+    // Proof: deleting this group comparison admits an all-zero work item whose
+    // flag is false; `an all-zero work item denying that it is a milestone`
+    // observed that acceptance on h2puni 2026-09-09.
+    const isMilestone = peers.every((slice) => slice.durationUnits === 0);
+    const disagrees = peers.find((slice) => slice.workItemIsMilestone !== isMilestone);
+    if (disagrees !== undefined) {
+      return refuse(
+        'malformed-request',
+        `slice ${JSON.stringify(disagrees.key)} has workItemIsMilestone ${JSON.stringify(disagrees.workItemIsMilestone)}, but work item ${JSON.stringify(workItemKey)} milestone fact is ${JSON.stringify(isMilestone)}`,
+      );
     }
   }
   for (const edge of request.edges) {
@@ -546,8 +566,8 @@ export const revalidateOptimizedDeadlines = (
     // not the independent guard either of them is here to be. Without the
     // division below on a non-multiple, the due day is a FRACTION — 49 units is
     // day 1/48 — which `isOnTime` was never written to take, and the CP-SAT
-    // model and this side then disagree about the same placement: `start +
-    // max(duration, 1) <= deadlineUnits` admits it there while
+    // model and this side then disagree about the same placement: `end +
+    // int(workItemIsMilestone) <= deadlineUnits` admits it there while
     // `deadline-violated` refuses it here, naming a plan for a fault in the
     // request and sending the reader to the wrong file.
     const malformedDeadline = refuseMalformedDeadlineUnits(slice);

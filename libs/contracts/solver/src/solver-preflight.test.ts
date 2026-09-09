@@ -4,6 +4,7 @@ import { preflightSolverRequest } from './solver-preflight';
 import { SOLVER_HORIZON_UNITS_MAX, type SolverSlice } from './wire-types';
 
 const sliceOf = (over: Partial<SolverSlice> = {}): SolverSlice => ({
+  workItemKey: 'work',
   key: 'k',
   durationUnits: 48,
   width: 1,
