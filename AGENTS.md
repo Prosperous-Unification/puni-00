@@ -486,6 +486,26 @@ function was then handed a width that had already been squeezed); and no card wr
 unbroken token — 1396px of text inside a 388px phone card. 2,500 jsdom cases and seven browser
 assertions were green over both.
 
+One on 2026-09-09, in `rendering-baseline.spec.ts`, and it is the browser gate's own version of
+"the oracle was jsdom": **a key is not the same key on both platforms, and the spec is green on
+the one CI runs.** `press('End')` leaves `selectionStart` at 0 in a focused `<textarea>` on
+macOS — that key belongs to the document there and scrolls it, while end-of-line is ⌘→ — so
+everything typed after it lands at the **start** of the field. On Linux, which is what CI runs,
+`End` is end-of-line and the same spec is green. The failure it produces, `Expected: "Row 0000
+half-typed" · Received: " half-typedRow 0000"`, looks exactly like interleaved keystrokes, and
+it was written into a verify.md as "one class of race" with a genuine CI flake before anybody
+measured it. `ControlOrMeta` does not paper over it either: `Control+ArrowRight` moves by a word
+on Linux. `e2e/caret.ts` carries the measured table and the per-platform press.
+
+Its second half is `tool-hints-wait`'s locator lesson in a new file, and it was found **because**
+the fix asserted something the spec had not: `caretToLineEnd` waits for the field to hold the
+focus, and that turned the _other_ case in the file red at once —
+`page.locator('…input[data-cell$="-optimistic"]').first()` re-resolves on every action while the
+unfolded columns mount, so the node focused (`…7eaef440…`) was not the node typed into
+(`…c25249bc…`). It had passed for as long as nothing between the two resolutions asserted
+identity. An assertion added to a helper is a cheap way to find every caller that was relying on
+something it never said.
+
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
 

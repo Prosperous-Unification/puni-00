@@ -51,11 +51,18 @@ landing between the first keystroke and the second wipes it.
 
 Established rather than assumed: the same file fails **on unmodified `origin/main`** in a
 control worktree — `a broad Find renders no more than its two filter-sensitive cells per row`,
-`Expected: "Row 0000 half-typed" · Received: " half-typedRow 0000"`, keystrokes interleaved the
-same way — while the case CI failed on passes locally on both trees. Two different cases, two
-machines, one class of race, and none of it touched by this change: nothing here goes near the
-header, the picker, the rename or focus. The shard was re-run to clear it; the race itself
-belongs to the session that wrote that spec.
+`Expected: "Row 0000 half-typed" · Received: " half-typedRow 0000"` — while the case CI failed
+on passes locally on both trees. Neither is touched by this change: nothing here goes near the
+header, the picker, the rename or focus. The shard was re-run and passed.
+
+**Corrected 2026-09-09, and the correction is the point.** This entry called the local failure
+"keystrokes interleaved the same way ... one class of race" with CI's. It is not a race at
+all. Measured in this suite's own Chromium on darwin: `press('End')` leaves
+`selectionStart` at **0** in a focused `<textarea>` — macOS gives that key to the document —
+so the text that follows is typed at the **start** of the field. `Meta+ArrowRight` moves it to 8. A deterministic platform difference, diagnosed as a race because its output looks like one,
+and written down here as one before it was measured. The fix and its evidence are in
+`measured-rendering`'s verify.md; the rule it belongs under is R5's
+"instrument before you believe a mechanism".
 
 ## 2026-09-08T22:40:00Z — slice 8b review round: the fact, the dot, the menu
 
