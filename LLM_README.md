@@ -1,6 +1,6 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-364 restored the archived multi-team-engine record in PR #313; its reconciled history and h2puni red/green evidence are in `openspec/changes/archive/2026-09-08-multi-team-engine/verify.md`.
+TASK-508 milestone-wire and Fast trailing-zero fixes merged in [upstream PR #384](https://github.com/Prosperous-Unification/wbs-tool-v1/pull/384).
 
 **puni-00** — company monorepo ([wiki](docs/wiki/README.md)). [Twilight Structure](docs/twilight-structure/README.md): SDLC pilot and delivery plan.
 WBS: `be-01` (Elysia+Drizzle+bun:sqlite, :3100), `gw-01` (WS, :3200),
@@ -128,7 +128,7 @@ Both open findings are **prod-phase** (Dany, 2026-08-06): recorded, not pending.
 
 Findings 3–5 closed. Lower priority: fe/smoke health takes any non-empty body; the WS ping passes on
 any first message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
-`tool-secrets` only prints. Checks that cannot fail: **22** (R5).
+`tool-secrets` only prints. Checks that cannot fail: **24** (R5).
 
 ## More
 

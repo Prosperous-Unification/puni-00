@@ -6,6 +6,7 @@ import { envLayout } from './lib/env';
 import {
   assertSolverSupervisorBunVersion,
   SOLVER_SUPERVISOR_BUN,
+  SOLVER_SUPERVISOR_BUN_SOURCE,
   SOLVER_SUPERVISOR_BUN_VERSIONS,
   SOLVER_SUPERVISOR_BUNDLE,
   SOLVER_SUPERVISOR_CONFIG,
@@ -138,15 +139,37 @@ describe('the install target must build what it ships', () => {
 });
 
 describe('host-wide solver supervisor contract', () => {
+  it('documents the measured Bun path without an uninterpolated placeholder', async () => {
+    const source = await Bun.file(
+      new URL('./lib/solver-supervisor-install-contract.ts', import.meta.url),
+    ).text();
+    const declaration = 'export const SOLVER_SUPERVISOR_BUN_VERSIONS';
+    const declarationAt = source.indexOf(declaration);
+    expect(declarationAt).toBeGreaterThan(-1);
+
+    const jsdocAt = source.lastIndexOf('/**', declarationAt);
+    expect(jsdocAt).toBeGreaterThan(-1);
+
+    const jsdoc = source.slice(jsdocAt, declarationAt);
+    expect(jsdoc).toMatch(/^\/\*\*[\s\S]*\*\/\s*$/);
+    expect(
+      [SOLVER_SUPERVISOR_BUN_SOURCE, '{@link SOLVER_SUPERVISOR_BUN_SOURCE}'].some((spelling) =>
+        jsdoc.includes(spelling),
+      ),
+    ).toBe(true);
+    expect(jsdoc).not.toMatch(/\$\{[^}]*\}/);
+  });
+
   it('keeps the singleton artifact and config outside both environment roots', () => {
     for (const layout of [envLayout('prod'), envLayout('dev')]) {
       expect(SOLVER_SUPERVISOR_BUNDLE.remote).not.toStartWith(`${layout.root}/`);
       expect(SOLVER_SUPERVISOR_CONFIG).not.toStartWith(`${layout.root}/`);
+      expect(SOLVER_SUPERVISOR_BUN).not.toStartWith(`${layout.root}/`);
     }
   });
 
   it('refuses any host Bun outside the measured-compatible set', () => {
-    // Every listed version is one somebody ran the bundle under on h2puni; an
+    // The listed version is one somebody ran the accepted-socket proof under on h2puni; an
     // unlisted one is refused precisely because nobody has.
     for (const version of SOLVER_SUPERVISOR_BUN_VERSIONS) {
       assertSolverSupervisorBunVersion(`${version}\n`);

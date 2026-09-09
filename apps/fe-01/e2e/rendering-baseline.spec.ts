@@ -3,6 +3,7 @@ import { arch, cpus, platform, release } from 'node:os';
 
 import { expect, type Locator, type Page, test } from '@playwright/test';
 
+import { caretToLineEnd } from './caret';
 import { createRenderingEvidence, renderingProvenance } from './rendering-evidence';
 import { painted, renderingGeometry, seedRenderingPlan } from './rendering-fixture';
 
@@ -125,7 +126,7 @@ test('a broad Find renders no more than its two filter-sensitive cells per row',
     .toBeLessThanOrEqual(1200);
   const firstName = page.locator(`[data-name-input="${seeded.ids[0]}"]`);
   await firstName.focus();
-  await firstName.press('End');
+  await caretToLineEnd(firstName);
   await firstName.pressSequentially(' half-typed');
   const nameNode = await firstName.evaluateHandle((node) => node);
   const selection = await firstName.evaluate((node) => {
@@ -263,9 +264,19 @@ test('an unfolded plan mounts only its viewport columns', async ({ page }) => {
   expect(await actions.count()).toBe(0);
   expect((await renderingGeometry(page)).mountedCells).toBeLessThanOrEqual(2250);
 
-  const estimate = page.locator('[data-grid] input[data-cell$="-optimistic"]').first();
+  // Pinned to one cell rather than left as `.first()`, and the reason is
+  // measured: the unfolded columns are still mounting, so `.first()` re-resolves
+  // on **every** action and the node typed into is not the node focused a line
+  // earlier — observed here as `focus()` landing on `…7eaef440…-optimistic` and
+  // the typing arriving at `…c25249bc…-optimistic`. It is `tool-hints-wait`'s
+  // lesson in AGENTS.md: a locator that says "the first mark of this kind" is
+  // not about any particular mark.
+  const firstEstimate = page.locator('[data-grid] input[data-cell$="-optimistic"]').first();
+  const estimateCell = await firstEstimate.getAttribute('data-cell');
+  if (estimateCell === null) throw new Error('the first estimate cell carries no id');
+  const estimate = page.locator(`[data-grid] input[data-cell="${estimateCell}"]`);
   await estimate.focus();
-  await estimate.press('End');
+  await caretToLineEnd(estimate);
   await estimate.pressSequentially('7');
   const estimateNode = await estimate.evaluateHandle((node) => node);
   const estimateValue = await estimate.inputValue();
