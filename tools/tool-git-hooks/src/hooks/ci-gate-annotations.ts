@@ -67,8 +67,9 @@ function hasSourceLocation(command: string): boolean {
 
 function locatedErrorCommandOf(line: string): string | null {
   const command = errorCommandOf(line);
-  // Proof: removing this guard makes "rejects embedded C0 controls and DEL"
-  // and "the production helper reports a rejected tab without exposing it" retain unsafe commands.
+  // Proof: removing this guard breaks "rejects embedded C0 controls and DEL",
+  // "keeps literal tabs fail-closed while preserving printable percent spellings",
+  // and "the production helper reports a rejected tab without exposing it".
   if (!command || containsCommandControl(command)) return null;
   return hasSourceLocation(command) ? command : null;
 }
@@ -90,8 +91,8 @@ export function selectErrorAnnotations(raw: string, limit = DEFAULT_LIMIT): stri
     // Proof: deleting `seen.has(command)` breaks
     // "keeps the first twenty unique commands in first-seen order".
     if (!command || seen.has(command)) continue;
-    // Proof: stripping `,col=9` breaks
-    // "preserves the exact file and line command emitted by the failing assertion".
+    // Proof: stripping `,col=9` breaks "preserves the exact file and line command emitted
+    // by the failing assertion" and "preserves a raw comma inside a workflow-command property value".
     selected.push(command);
     seen.add(command);
     // Proof: deleting this break breaks
