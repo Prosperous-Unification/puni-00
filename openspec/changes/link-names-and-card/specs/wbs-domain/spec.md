@@ -50,9 +50,10 @@ name to a ref that has none.
 
 ### Requirement: The links dropdown is read with the pointer on it
 
-The system SHALL, while the pointer rests on a work item's Links cell, draw a
-card that stays on screen while the pointer travels from the cell onto the card
-and rests anywhere on it.
+The system SHALL, while the pointer rests **anywhere on** a work item's Links
+cell, draw a card that stays on screen while the pointer travels from the cell
+onto the card and rests anywhere on it. The whole of the cell SHALL arm the
+card, not only the marks drawn inside it.
 
 The card SHALL NOT be painted over by any other cell of the table. It SHALL be
 drawn above every pinned body cell, whatever column it opens from.
@@ -72,13 +73,20 @@ SHALL carry no link target on either the name or the URL.
 - **THEN** the topmost element at the middle of the card SHALL be part of the
   card
 
+#### Scenario: the pointer rests in the cell's own empty room
+
+- **GIVEN** a work item with one ref
+- **WHEN** the pointer rests on the Links cell at a point no mark is drawn at
+- **THEN** the card SHALL be on screen
+
 #### Scenario: the pointer reaches a link and follows it
 
 - **GIVEN** the card open over the rows below
 - **WHEN** the pointer travels from the cell to the card's first row
 - **THEN** the card SHALL still be on screen
 - **AND** the row SHALL be tinted
-- **AND** clicking the name SHALL open the ref's URL in a new context
+- **AND** clicking the name SHALL open the ref's URL in a new context, leaving
+  the plan where it was
 
 #### Scenario: a row says what it links to and where
 

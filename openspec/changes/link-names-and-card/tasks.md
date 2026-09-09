@@ -87,6 +87,27 @@ label` and `keeps a typed name when the URL changes`.
 card` and `the pointed row of the card is the tinted one`.
       Negative: the tint rule deleted; watched failing on the computed colour.
 
+## 7. The whole cell, and the click through
+
+- [x] 7.1 The refs cell's button fills the `<td>` and the marks move into a
+      12px box inside it, so a pointer resting anywhere in the column arms the
+      card. Dany, 2026-09-09: _"i want hover over the whole cell surface to
+      trigger the tooltip"_ — the target had been 28×12 inside a 40×26 cell.
+      Test: `e2e/external-refs.spec.ts` — `the pointer opens the card from
+anywhere in the cell, not just off a dot`, at both corners.
+      Negative: the button's `height` back to `MARK_BOX_PX`; watched failing at
+      the bottom-right corner.
+      Also re-points the existing containment measurement at
+      `[data-ref-marks-box]`: measured against a button that now fills the cell
+      it was a claim the design could not break.
+- [x] 7.2 A real click through the card, because _"i want to then be able to
+      hover over the tooltip to click and go to the linked item"_ is three
+      browser facts and an `href` assertion is none of them.
+      Test: `e2e/external-refs.spec.ts` — `the pointer walks onto the card and
+follows a link`, which waits for the popup and reads its URL.
+      Negative: `pointerEvents: 'auto'` removed from the card's line; watched
+      failing on no tab opening at all.
+
 ## 6. Gate
 
 - [ ] 6.1 `bun run test:unit`, then the projects this change touches by name,

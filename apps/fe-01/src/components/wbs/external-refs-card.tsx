@@ -119,8 +119,14 @@ export function ExternalRefsCard({ number, refs, systems }: ExternalRefsCardProp
           // The name a reader typed, or what the URL calls itself. Computed here
           // rather than stored, so a rule added to `refLabelOf` improves every
           // unnamed ref at once — see its own JSDoc for why that is the opposite
-          // bargain from a derived *system*.
-          const label = ref.name === '' ? refLabelOf(ref.url) : ref.name;
+          // bargain from a derived _system_.
+          //
+          // `trim()` and not `=== ''`, because a name of nothing but spaces is
+          // a name nobody can see **or click**: this label is the line's anchor
+          // text, and an anchor with no text is a link that is not there. The
+          // stored value is left exactly as it was typed — be-01 does not
+          // normalise it and neither does this; only what is drawn changes.
+          const label = ref.name.trim() === '' ? refLabelOf(ref.url) : ref.name;
           return (
             <div
               key={ref.id}

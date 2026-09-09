@@ -3070,6 +3070,25 @@ describe('the links column', () => {
     ).toEqual(['AB-1', '#4178']);
   });
 
+  itDom('a name of nothing but spaces reads as the URL’s label, not as a blank', async () => {
+    // The label is the line's **anchor text**, so a name of spaces is not a
+    // quiet oddity — it is a link with nothing to click. The stored value is
+    // left exactly as typed; only what is drawn falls back.
+    //
+    // Proof: `ref.name.trim() === ''` narrowed back to `ref.name === ''` — this
+    // failed on `expected ' ' to be '#4178'`, a card line whose only link is
+    // one space wide. Watched 2026-09-09.
+    const api = await twoRows();
+    api.linkTo(api.first, [
+      { systemId: GH_PR, url: 'https://github.com/o/r/pull/4178', name: ' ' },
+    ]);
+    await drawn(api);
+
+    fireEvent.mouseEnter(screen.getByLabelText('Links for 010'));
+    const card = await screen.findByRole('tooltip', { name: 'Where 010 also exists' });
+    expect(card.querySelector('[data-refs-card-name]')?.textContent).toBe('#4178');
+  });
+
   itDom('a non-http URL puts no link on the name either', async () => {
     // The name is not a safer place to put a `javascript:` href than the URL
     // is, and `followableHref` is asked once for both.

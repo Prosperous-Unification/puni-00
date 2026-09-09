@@ -278,7 +278,14 @@ test.describe('the ref column, in a browser', () => {
         if (!(td instanceof HTMLElement)) throw new Error(`no cell for ${number}`);
         return td.getBoundingClientRect();
       };
-      const box = cellOf('010').getBoundingClientRect();
+      // The marks' own 12px box, not the button. The button fills the whole
+      // `<td>` since 2026-09-09 (Dany: *"i want hover over the whole cell
+      // surface to trigger the tooltip"*), so measuring containment against it
+      // would be a claim the design cannot break — the marks are its children
+      // however they are placed.
+      const marksBox = cellOf('010').querySelector('[data-ref-marks-box]');
+      if (marksBox === null) throw new Error('no marks box in the links cell');
+      const box = marksBox.getBoundingClientRect();
       return {
         wiredRow: rowOf('010').height,
         bareRow: rowOf('020').height,
@@ -610,16 +617,98 @@ test.describe('the ref column, in a browser', () => {
 
     await second.fill('The wiring spec');
     await second.blur();
-    // Wait on something only the answer can produce — the editor's own box
-    // holding the value after the round trip replaced it — rather than on the
-    // box a keystroke already filled.
+    // **This box is uncontrolled, and it is still the answer's** — which is
+    // worth stating, because an uncontrolled box normally holds what was typed
+    // whatever the server said, and asserting on one is
+    // `estimate-triple-visible`'s trap. What saves it here is that the store
+    // mints a fresh `crypto.randomUUID()` per ref on every replacement, so a
+    // write changes every `ref.id`, so the `key` changes, so React remounts the
+    // input and its `defaultValue` is the name be-01 sent back.
     await expect(editor.getByLabel('Name of link 2')).toHaveValue('The wiring spec');
 
     await page.keyboard.press('Escape');
     await expect(editor).toBeHidden();
+    // And the card, which reads the row rather than any box: this is the
+    // assertion no keystroke could satisfy.
     await page.getByLabel('Links for 010').hover();
     const card = page.getByRole('tooltip', { name: 'Where 010 also exists' });
     await expect(card.locator('[data-refs-card-name]').nth(1)).toHaveText('The wiring spec');
+  });
+
+  test('the pointer opens the card from anywhere in the cell, not just off a dot', async ({
+    page,
+  }) => {
+    // Dany, 2026-09-09: *"i want hover over the whole cell surface to trigger
+    // the tooltip"*. The hover target was a 28×12 button inside a 40×26 cell,
+    // so a pointer resting in the column's own empty room got nothing — found
+    // by hovering the column by hand and watching the card not open, twice,
+    // before the button was measured.
+    //
+    // Both corners, because one of them is inside the old 28×12 box and the
+    // other never was: the bottom-right of the cell is the room the button did
+    // not cover.
+    //
+    // Proof: the button's `height: '100%'` put back to `MARK_BOX_PX` and its
+    // `display` back to `block` — the bottom-right case failed on
+    // `expect(locator).toBeVisible() failed · Locator: getByRole('tooltip', …)
+    // · Expected: visible · Received: <element(s) not found>`. Watched
+    // 2026-09-09.
+    await seed(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    const cell = page.locator('td[data-column="refs"]').first();
+    const box = await cell.boundingBox();
+    if (box === null) throw new Error('the links cell has no box');
+    // Or this is a claim about a corner of nothing.
+    expect(box.width, 'the links cell has no width').toBeGreaterThan(20);
+    expect(box.height, 'the links cell has no height').toBeGreaterThan(20);
+    const card = page.getByRole('tooltip', { name: 'Where 010 also exists' });
+
+    for (const [where, at] of [
+      ['top left', { x: 3, y: 3 }],
+      ['bottom right', { x: box.width - 3, y: box.height - 3 }],
+    ] as const) {
+      // Away first, so each case opens the card rather than finding one the
+      // previous case left open — the assertion has to be about this corner.
+      await page.mouse.move(box.x + box.width + 200, box.y + 200);
+      expect(await card.count(), `the card was already open before the ${where} case`).toBe(0);
+      await page.mouse.move(box.x + at.x, box.y + at.y);
+      await expect(card, `the ${where} of the cell opened no card`).toBeVisible();
+    }
+  });
+
+  test('the pointer walks onto the card and follows a link', async ({ page, context }) => {
+    // Dany, 2026-09-09: *"i want to then be able to hover over the tooltip to
+    // click and go to the linked item"*. Every part of that is the browser's:
+    // the card must survive the pointer leaving the cell, it must take the
+    // pointer at all — it is `pointer-events: none` but for its lines — and the
+    // click must really open the page.
+    //
+    // A real click and a real popup, not an `href` assertion: the card hangs
+    // over the rows below, so "the anchor is there" and "the anchor is what the
+    // pointer reaches" are two different facts, and `AGENTS.md`'s
+    // `name-links-and-height` note is a proof that guessed the second one.
+    //
+    // Proof: `pointerEvents: 'auto'` removed from the card's line — this failed
+    // on `page.waitForEvent: Test timeout of 120000ms exceeded while waiting
+    // for event "page"`, no tab opened at all. Watched 2026-09-09.
+    await seed(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    await page.getByLabel('Links for 010').hover();
+    const card = page.getByRole('tooltip', { name: 'Where 010 also exists' });
+    await expect(card).toBeVisible();
+
+    const name = card.locator('a[data-refs-card-name]').first();
+    await name.hover();
+    await expect(card, 'the card closed on the way to the link').toBeVisible();
+
+    const [opened] = await Promise.all([context.waitForEvent('page'), name.click()]);
+    await expect.poll(() => opened.url()).toBe('https://acme.atlassian.net/browse/AB-1');
+    await opened.close();
+    // The plan is still where it was: a link that opened in a new context did
+    // not take the reader off their own page.
+    expect(page.url()).toContain('localhost');
   });
 
   test('the card as a reader sees it', async ({ page }, testInfo) => {
