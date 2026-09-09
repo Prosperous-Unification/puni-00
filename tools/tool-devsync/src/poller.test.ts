@@ -174,7 +174,7 @@ describe('durable dev poller', () => {
     expect(await readdir(installed)).toEqual([]);
   });
 
-  it('prunes stale installed and interrupted candidates before running the target', async () => {
+  it('prunes stale candidates while preserving a fresh interrupted candidate', async () => {
     const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-prune-'));
     const source = join(root, 'src');
     const installed = join(root, 'bin');
@@ -187,6 +187,7 @@ describe('durable dev poller', () => {
     const staleInstalled = join(installed, `sync.${staleSha}`);
     const staleInterrupted = join(installed, `sync.${staleSha}.deadbeef`);
     const staleSingleFile = join(installed, `sync.${staleSha}.ts`);
+    const freshInterrupted = join(installed, `sync.${'c'.repeat(40)}.deadbeef`);
 
     await requireCommand(['mkdir', '-p', source, installed, commands]);
     await writeFile(fakeGit, fakeGitArchiving('CONTENT=CURRENT'));
@@ -197,6 +198,7 @@ describe('durable dev poller', () => {
     await Promise.all([
       mkdir(join(staleInstalled, 'tools'), { recursive: true }),
       mkdir(staleInterrupted, { recursive: true }),
+      mkdir(freshInterrupted, { recursive: true }),
       writeFile(staleSingleFile, 'a candidate the loader wrote before 2026-09-07'),
     ]);
     const staleTime = new Date(Date.now() - 9 * 24 * 60 * 60 * 1_000);
@@ -216,7 +218,43 @@ describe('durable dev poller', () => {
     // directories and fails here on `Received + 2`: `sync.bbbb…` and
     // `sync.bbbb….deadbeef` beside the fresh candidate.
     expect(result.code).toBe(0);
-    expect(await readdir(installed)).toEqual([`sync.${sha}`]);
+    expect((await readdir(installed)).sort()).toEqual(
+      [`sync.${'c'.repeat(40)}.deadbeef`, `sync.${sha}`].sort(),
+    );
+  });
+
+  it('prunes stale candidates before refusing a managed Bun version mismatch', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'wbs-dev-poller-prune-refusal-'));
+    const source = join(root, 'src');
+    const installed = join(root, 'bin');
+    const staleCandidate = join(installed, `sync.${'b'.repeat(40)}.deadbeef`);
+    const freshCandidate = join(installed, `sync.${'c'.repeat(40)}.deadbeef`);
+    const fakeBun = join(root, 'bun');
+    const helper = new URL('../../../bin/dev-poll-sync.sh', import.meta.url).pathname;
+
+    await Promise.all([
+      mkdir(source, { recursive: true }),
+      mkdir(staleCandidate, { recursive: true }),
+      mkdir(freshCandidate, { recursive: true }),
+      writeFile(fakeBun, '#!/usr/bin/env bash\necho 1.2.20\n'),
+    ]);
+    const staleTime = new Date(Date.now() - 9 * 24 * 60 * 60 * 1_000);
+    await utimes(staleCandidate, staleTime, staleTime);
+    await chmod(fakeBun, 0o755);
+
+    const failed = await command([
+      'bash',
+      helper,
+      source,
+      installed,
+      fakeBun,
+      'a'.repeat(40),
+      '1.3.14',
+    ]);
+
+    expect(failed.code).not.toBe(0);
+    expect(failed.stderr).toContain('does not match 1.3.14');
+    expect(await readdir(installed)).toEqual([`sync.${'c'.repeat(40)}.deadbeef`]);
   });
 
   it('a repaired target deployer replaces a broken candidate without bypassing sync', async () => {
