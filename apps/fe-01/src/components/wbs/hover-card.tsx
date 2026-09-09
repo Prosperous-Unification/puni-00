@@ -188,6 +188,33 @@ export interface HoverCardProps {
    * card is pointer-transparent.
    */
   scrolls?: boolean;
+  /**
+   * Whether the **whole** card takes the pointer, rather than only the lines
+   * inside it that ask for it.
+   *
+   * **A card a reader is meant to walk onto needs this, and a per-line
+   * `pointer-events: auto` is not enough.** The card has 6px of its own padding
+   * and gaps between its lines, and every one of those pixels is
+   * pointer-transparent without this — so a cursor travelling down from the
+   * cell crosses that band, hit-tests the row *beneath* the card, fires the
+   * cell wrapper's `mouseleave`, and the card unmounts before the cursor ever
+   * reaches a line. Dany, 2026-09-09: *"i cannot hover over the dropdown - it
+   * disappears when i move cursor down to it"*.
+   *
+   * Measured in the running app at that moment: the card at `[88, 242, 370,
+   * 56]` with `pointer-events: none` and `padding: 6px 10px`, and
+   * `elementFromPoint` 1px and 4px inside its top edge both answering the next
+   * row's name `<textarea>`.
+   *
+   * **`locator.hover()` cannot see this.** Playwright puts the pointer straight
+   * on the element's centre, so it skips the band a hand has to cross — which
+   * is why `e2e/external-refs.spec.ts` walks the pointer in `steps` now.
+   *
+   * Off by default, because {@link HoverCard}'s transparency is load-bearing
+   * for every card that is only there to be read: one that takes the mouse eats
+   * a click aimed at the row it hangs over.
+   */
+  takesPointer?: boolean;
   children: ReactNode;
 }
 
@@ -297,6 +324,12 @@ export function roomForCard(
  * card, which has to be scrollable to be readable at all, and {@link
  * HoverCardProps.scrolls} is that one exception.
  *
+ * The other is {@link HoverCardProps.takesPointer}, for a card a reader is
+ * meant to walk onto and click something on. Its own JSDoc has the measurement:
+ * a card's 6px padding is pointer-transparent without it, so the cursor
+ * hit-tests the row beneath on the way in and the card closes under the hand
+ * reaching for it.
+ *
  * No delay and no follow-cursor anywhere: the state that renders one is set on
  * `mouseenter` and cleared on `mouseleave`. A fixed-size card opening from a
  * **cell** is not flipped — it opens from the wrapper's bottom edge and that is
@@ -317,6 +350,7 @@ export function HoverCard({
   label,
   id,
   scrolls = false,
+  takesPointer = false,
   compact = false,
   anchor,
   beside,
@@ -436,7 +470,7 @@ export function HoverCard({
         overflowY: 'auto',
         pointerEvents: 'auto',
       }
-    : { pointerEvents: 'none' };
+    : { pointerEvents: takesPointer ? 'auto' : 'none' };
   const anchored: CSSProperties =
     besidePlaced !== null
       ? {

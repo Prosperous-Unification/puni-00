@@ -766,6 +766,62 @@ test.describe('the ref column, in a browser', () => {
     const card = page.getByRole('tooltip', { name: 'Where 010 also exists' });
     await expect(card).toBeVisible();
 
+    // **Walked, not teleported, and that is the whole of this test.**
+    // `locator.hover()` puts the pointer straight on an element's centre, so it
+    // never crosses the card's own 6px padding — and that padding was
+    // `pointer-events: none`, so a real cursor hit-tested the row *beneath* the
+    // card on its way in, fired the cell wrapper's `mouseleave`, and the card
+    // vanished under the hand reaching for it. Dany found it in the running app
+    // on 2026-09-09; this file's `.hover()` had passed over it twice.
+    //
+    // Proof: `takesPointer` taken off `ExternalRefsCard`'s `HoverCard` — this
+    // failed on `the card closed on the way down to it`. Watched 2026-09-09.
+    const cellBox = await page.getByLabel('Links for 010').boundingBox();
+    const cardBox = await card.boundingBox();
+    if (cellBox === null || cardBox === null) throw new Error('no box to walk between');
+    // **Straight down the cell's own column**, which is what "move cursor down
+    // to it" is: the card starts at the cell's bottom edge and is far wider, so
+    // a vertical path from the marks stays inside the cell and then inside the
+    // card with nothing in between. A diagonal to the card's *centre* leaves
+    // the 36px cell sideways into the Name column while still in the row, and
+    // that is a different problem — see the case below.
+    const walkX = cellBox.x + cellBox.width / 2;
+    await page.mouse.move(walkX, cellBox.y + cellBox.height / 2);
+    await page.mouse.move(walkX, cardBox.y + 2, { steps: 12 });
+    await expect(card, 'the card closed on the way down to it').toBeVisible();
+    // And the card's own padding is hit-testable, which is the mechanism rather
+    // than the symptom: this is the pixel the cursor fell through before.
+    expect(
+      await page.evaluate(
+        ([x, y]) => {
+          const found = document.querySelector('[role="tooltip"]');
+          const at = document.elementFromPoint(x, y);
+          return found !== null && at !== null && (at === found || found.contains(at));
+        },
+        [walkX, cardBox.y + 2],
+      ),
+      'the card does not take the pointer in its own padding',
+    ).toBe(true);
+
+    // **And the diagonal, which is how a hand reaches a link on the right.**
+    // The cell is 40px and the card up to 400px, so this path leaves the cell
+    // sideways into the Name column before it descends onto the card — there is
+    // no moment at which the pointer is over both. Measured with no grace
+    // period at all: `card.count() === 0` before the pointer arrived.
+    //
+    // Proof: `CARD_GRACE_MS` set to 0 — this failed on `the card closed on a
+    // diagonal reach for a link`. Watched 2026-09-09.
+    await page.mouse.move(walkX, cellBox.y + cellBox.height / 2);
+    const far = await card.locator('[data-refs-card-line]').nth(1).boundingBox();
+    if (far === null) throw new Error('no second line to reach for');
+    // Or the reach is not a reach: the target has to be well right of the cell,
+    // or this walks straight down again and proves the case above twice.
+    expect(far.x + far.width - 20, 'the second line is not right of the cell').toBeGreaterThan(
+      cellBox.x + cellBox.width + 100,
+    );
+    await page.mouse.move(far.x + far.width - 20, far.y + far.height / 2, { steps: 15 });
+    await expect(card, 'the card closed on a diagonal reach for a link').toBeVisible();
+
     const name = card.locator('a[data-refs-card-name]').first();
     await name.hover();
     await expect(card, 'the card closed on the way to the link').toBeVisible();

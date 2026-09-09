@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+
 import { useCardOpenOn } from '../cell-card-store';
 import { cellKey } from '../editable-grid';
 import { MARK_BOX_PX, markStyle, refMarksOf, refMarksSentence } from '../external-ref-marks';
@@ -5,6 +7,33 @@ import { ExternalRefsCard } from '../external-refs-card';
 import type { PlanLive } from '../plan-live';
 import { LinkIcon } from '../toolbar-icons';
 import { column } from './column';
+
+/**
+ * How long an open links card survives the pointer leaving its cell, in ms.
+ *
+ * **A grace period on closing, and it is what makes the card reachable at all.**
+ * The cell is 40px wide and its card is up to 400px, so a pointer aimed at a
+ * link on the right leaves the cell **sideways into the Name column** before it
+ * has descended far enough to be over the card. There is no corridor to model
+ * the way {@link dependencyPointerRegion} models one — the cell and the card
+ * touch, and the path between them crosses a third cell — so the card is held
+ * for long enough to be walked to instead.
+ *
+ * Measured, 2026-09-09: with no grace at all, a 15-step diagonal from the marks
+ * to the second card line's right-hand end left `card.count() === 0` before it
+ * arrived. Dany, the same day: _"i want to then be able to hover over the
+ * tooltip to click and go to the linked item"_.
+ *
+ * 200ms, which is a hand's transit and not a wait anybody reads as one — and it
+ * is **only** on the way out. Opening stays instant, which is the rule
+ * `hints-are-the-page-s-own` set for words about the project.
+ *
+ * A late clear is safe rather than merely unlikely: it goes through the same
+ * `(current) => current === refsCell ? null : current` guard every writer here
+ * uses, so a timer that fires after the pointer has armed another cell is a
+ * no-op on that cell's card.
+ */
+const CARD_GRACE_MS = 200;
 
 /** Builds the refs column family against the stable live cell contract. */
 export function createRefsColumn({ live }: { live: PlanLive }) {
@@ -35,6 +64,16 @@ export function createRefsColumn({ live }: { live: PlanLive }) {
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const cardOpen = useCardOpenOn(live.current.cellCards, cellKey(row.original.id, 'refs'));
       // The vocabulary is the immutable directory reading for this render.
+      // The pending close, so the pointer arriving on the card can call it off.
+      // A hook, for {@link useCardOpenOn}'s reason: `flexRender` builds this
+      // with `React.createElement`, so this really is a component.
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const closing = useRef<ReturnType<typeof setTimeout> | null>(null);
+      const cancelClose = (): void => {
+        if (closing.current === null) return;
+        clearTimeout(closing.current);
+        closing.current = null;
+      };
       const marks = refMarksOf(row.original.externalRefs, row.original.readings.externalSystems);
       const refsCell = cellKey(row.original.id, 'refs');
       const carded = marks.length > 0 && cardOpen;
@@ -72,12 +111,28 @@ export function createRefsColumn({ live }: { live: PlanLive }) {
           // height" rather than weakening it: the row is the Name cell's, as it
           // already was.
           style={{ position: 'absolute', inset: 0, display: 'block' }}
+          onMouseEnter={() => {
+            // **The card's own re-arm.** The pointer left this wrapper on its
+            // way here — across the Name cell — so this fires when it arrives
+            // on the card, which is the moment the pending close has to be
+            // called off. Without it the grace period would expire under a
+            // reader who had already got where they were going.
+            cancelClose();
+            live.current.cellCards.updateHovered(() => refsCell);
+          }}
           onMouseLeave={() => {
-            // The same-cell guard every surface here clears with: a leave
-            // fires after the enter of whatever the pointer moved on to.
-            live.current.cellCards.updateHovered((current) =>
-              current === refsCell ? null : current,
-            );
+            // Held for {@link CARD_GRACE_MS} rather than cleared here, because
+            // the trip from a 40px cell to a link on a 400px card leaves the
+            // cell before it reaches the card. The same-cell guard makes the
+            // late clear safe: a leave fires after the enter of whatever the
+            // pointer moved on to.
+            cancelClose();
+            closing.current = setTimeout(() => {
+              closing.current = null;
+              live.current.cellCards.updateHovered((current) =>
+                current === refsCell ? null : current,
+              );
+            }, CARD_GRACE_MS);
           }}
         >
           <button
