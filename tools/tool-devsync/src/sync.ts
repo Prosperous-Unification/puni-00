@@ -26,6 +26,8 @@
  * is to vendor it into the archived tree (`tools/`, `libs/`) so the extraction
  * carries it -- not to reintroduce a borrowed install from the pinned checkout.
  */
+import { resolve } from 'node:path';
+
 import {
   SOLVER_SUPERVISOR_BUN,
   SOLVER_SUPERVISOR_BUNDLE,
@@ -35,12 +37,23 @@ import {
 } from '@wbs/deploy-contract';
 import { $ } from 'bun';
 
+import { prepareTargetSolverBinding } from './solver-binding-host';
+import { createTargetSolverBindingRuntime } from './solver-binding-runtime';
+import {
+  SOLVER_COMPATIBILITY_PATHS,
+  type SolverBindingTarget,
+  solverCompatibilityIdentityAt,
+} from './solver-preparation';
+
+export { SOLVER_COMPATIBILITY_PATHS };
+
 const SRC = '/home/puni1/wbs-dev/src';
 const CONTAINER = 'wbs-dev-src';
 const LOCK = '/home/puni1/wbs-dev/state/devsync.lock';
 const CONFIG_MAX_BYTES = 256 * 1024;
+const PREPARATION_STATE_MAX_BYTES = 64 * 1024;
+const TARGET_ROOT = resolve(import.meta.dir, '../../..');
 export const LOCK_BUSY_EXIT_CODE = 75;
-export const SOLVER_COMPATIBILITY_PATHS = ['libs/solver-py', 'apps/be-01/Dockerfile'] as const;
 
 export interface DevSolverMapping {
   sourceSha: string;
@@ -138,6 +151,66 @@ export async function preflightSolver(
   // observes refusal before its injected host preflight can run.
   if (targetChanges.length === 0) return;
   await dependencies.requireHost(mapping.image);
+}
+
+export interface SolverTargetDependencies {
+  currentSha(): Promise<string>;
+  changedPaths(from: string, to: string): Promise<readonly string[]>;
+  compatibilityIdentity(sourceSha: string): Promise<string>;
+  readState(target: SolverBindingTarget): Promise<Uint8Array | undefined>;
+  prepare(target: SolverBindingTarget, stateBytes: Uint8Array | undefined): Promise<void>;
+  preflight(sourceSha: string): Promise<void>;
+  reset(sourceSha: string): Promise<void>;
+}
+
+/** Chooses automatic preparation only for a changed solver compatibility tree. */
+export async function deploySolverTarget(
+  sourceSha: string,
+  dependencies: SolverTargetDependencies,
+): Promise<void> {
+  const deployedSha = await dependencies.currentSha();
+  const changed = await dependencies.changedPaths(deployedSha, sourceSha);
+  if (changed.length === 0) {
+    await dependencies.preflight(sourceSha);
+    await dependencies.reset(sourceSha);
+    return;
+  }
+  const target = {
+    sourceSha,
+    compatibilityIdentity: await dependencies.compatibilityIdentity(sourceSha),
+  };
+  await dependencies.prepare(target, await dependencies.readState(target));
+}
+
+function solverTargetDependencies(): SolverTargetDependencies {
+  const runtimeFor = (target: SolverBindingTarget) =>
+    createTargetSolverBindingRuntime({
+      root: TARGET_ROOT,
+      bunPath: process.execPath,
+      ...target,
+    });
+  return {
+    currentSha: async () => (await $`git -C ${SRC} rev-parse HEAD`.text()).trim(),
+    changedPaths: changedSolverPaths,
+    compatibilityIdentity: (sourceSha) =>
+      solverCompatibilityIdentityAt(sourceSha, {
+        objectIdAt: async (sha, path) =>
+          (await $`git -C ${TARGET_ROOT} rev-parse ${`${sha}:${path}`}`.text()).trim(),
+      }),
+    readState: async (target) => {
+      const file = Bun.file(runtimeFor(target).statePath);
+      if (!(await file.exists())) return undefined;
+      return new Uint8Array(await file.slice(0, PREPARATION_STATE_MAX_BYTES + 1).arrayBuffer());
+    },
+    prepare: (target, stateBytes) => {
+      const runtime = runtimeFor(target);
+      return prepareTargetSolverBinding(target, stateBytes, runtime.dependencies);
+    },
+    preflight: preflightSolver,
+    reset: async (sha) => {
+      await $`git -C ${SRC} reset --hard --quiet ${sha}`;
+    },
+  };
 }
 
 export function devSyncFailureMessage(exitCode: number): string {
@@ -297,8 +370,7 @@ export async function sync(sha: string, options: { mcpEnvPath?: string } = {}): 
   const containerBefore = await fingerprint(RECREATE_PATHS);
 
   await $`git -C ${SRC} fetch --quiet origin`;
-  await preflightSolver(sha);
-  await $`git -C ${SRC} reset --hard --quiet ${sha}`;
+  await deploySolverTarget(sha, solverTargetDependencies());
 
   // The reset is only believed once HEAD says so. `git reset` on a SHA the
   // fetch did not deliver fails, but a partially applied reset would otherwise

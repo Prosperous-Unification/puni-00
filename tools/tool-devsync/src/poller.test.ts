@@ -40,27 +40,32 @@ function candidateDeployer(installed: string, sha: string): string {
 }
 
 /**
- * A fake `git` whose `archive` answers with a tar holding one deployer file,
- * the shape the loader extracts. `body` runs first with the requested commit
- * in `$sha` and must set `CONTENT`; it may block, which is what the race
- * cases use it for.
+ * A fake `git` that materializes one deployer file when the loader checks out
+ * its private clone. `body` runs first with the requested commit in `$sha` and
+ * must set `CONTENT`; it may block, which is what the race cases use it for.
+ *
+ * The fake clone carries no `.git/info`: the loader has nothing to write there
+ * since TASK-376 took the borrowed `node_modules` link out, and the exclude
+ * that hid that link was the only thing that ever needed the directory.
  */
 function fakeGitArchiving(body: string): string {
   return `#!/usr/bin/env bash
 set -eu
-case " $* " in *" fetch "*) exit 0;; esac
-sha=$4
+if [ "$1" = clone ]; then
+  candidate=$6
+  mkdir -p "$candidate/tools/tool-devsync/src"
+  exit 0
+fi
+if [ "$1" != -C ] || [ "$3" != checkout ] || [ "$4" != --quiet ] || [ "$5" != --detach ]; then exit 64; fi
+candidate=$2
+sha=$6
 ${body}
-tree=$(mktemp -d)
-mkdir -p "$tree/tools/tool-devsync/src"
-printf '%s\\n' "$CONTENT" > "$tree/${DEPLOYER}"
-tar -c -C "$tree" tools
-rm -rf "$tree"
+printf '%s\\n' "$CONTENT" > "$candidate/${DEPLOYER}"
 `;
 }
 
 /**
- * The files a candidate is archived from, in the shape the real repository has
+ * The files a candidate clone carries in the shape the real repository has
  * them: the deployer's project, the contract it imports through an `@wbs/*`
  * path, and the root configs Bun resolves that path with.
  */
@@ -109,7 +114,8 @@ describe('durable dev poller', () => {
   it('guards the installed poller source shape for its interpreter, target ref, and proof hooks', async () => {
     const poller = await readFile(new URL('../../../bin/dev-poll.sh', import.meta.url), 'utf8');
     expect(poller).toContain('flock -n 9');
-    expect(poller).toContain('dev-poll-sync.sh');
+    expect(poller).toContain('git show "$remote_sha:bin/dev-poll-sync.sh"');
+    expect(poller).not.toContain('"$BIN/dev-poll-sync.sh"');
     expect(poller).not.toContain('"$SRC/tools/tool-devsync/src/sync.ts"');
     expect(poller).toContain('BUN=/home/puni1/wbs-dev/bin/bun');
     expect(poller).not.toContain('/wbs-dark/');
@@ -350,9 +356,9 @@ describe('durable dev poller', () => {
     const repository = new URL('../../../', import.meta.url).pathname;
     const head = await requireCommand(['git', '-C', repository, 'rev-parse', 'HEAD']);
     // Resolves the whole import graph of the candidate's deployer without
-    // running it: an alias outside the archived pathspecs fails the build.
-    // `build` is forwarded verbatim because the loader now runs its own
-    // resolution guard through this same Bun before it runs the deployer.
+    // running it: an alias whose target the clone does not carry fails the
+    // build. `build` is forwarded verbatim because the loader now runs its
+    // own resolution guard through this same Bun before it runs the deployer.
     const bundlingBun = join(root, 'bun');
     await writeFile(
       bundlingBun,
@@ -376,17 +382,15 @@ exec ${process.execPath} build --target=bun --outdir=${out} "$1"
     ]);
 
     // Proof: the single-file loader fails here on
-    // `error: Could not resolve: "@wbs/deploy-contract". Maybe you need to "bun install"?`;
-    // `tools` dropped from the archived pathspecs fails on exit 1 with
-    // `ENOENT opening root directory "…/sync.<sha>/tools/tool-devsync/src"`.
-    // `libs` dropped stays green today because the deployer imports only from
-    // `tools/`; the day it imports `@wbs/contracts`, this is the case that says
-    // the archive no longer covers it.
+    // `error: Could not resolve: "@wbs/deploy-contract". Maybe you need to "bun install"?`
+    // (observed 2026-09-07, when the candidate was an archive of pathspecs;
+    // since TASK-326 it is a clone of the whole commit, so no pathspec can be
+    // dropped any more).
     //
     // Since TASK-376 this is also the negative control for the removed
     // `node_modules` symlink: the candidate has no install in or above it, so
     // green here is the statement that the real deployer's whole graph
-    // resolves from the archive alone.
+    // resolves from the clone alone.
     expect(built.stderr).not.toContain('Could not resolve');
     expect(built.code).toBe(0);
     expect(await readdir(out)).toEqual(['sync.js']);
@@ -559,6 +563,62 @@ echo deployed >> ${ran}
     expect(attempt.stderr).toContain('../');
     expect(attempt.stderr).toContain('node_modules/borrowed/index.js');
     expect(await readdir(installed)).toEqual([]);
+  });
+
+  it('runs the deployer from a complete, clean, uninstalled target-revision tree', async () => {
+    const root = await scratchAsync('wbs-dev-poller-build-tree-');
+    const installed = join(root, 'bin');
+    const probe = join(root, 'probe');
+    const repository = new URL('../../../', import.meta.url).pathname;
+    const head = await requireCommand(['git', '-C', repository, 'rev-parse', 'HEAD']);
+    // Two contracts meet on the candidate. TASK-326 needs the target's whole
+    // build context — Dockerfile, publisher, supervisor unit, lockfile — at
+    // the target SHA, clean, with the deployer's cwd at its root. TASK-376
+    // needs no install borrowed into it. The guard runs through the real Bun
+    // against the real deployer, so green here is also the statement that
+    // sync.ts's whole graph, solver preparation included, resolves from the
+    // clone alone.
+    const probingBun = join(root, 'bun');
+    await writeFile(
+      probingBun,
+      `#!/usr/bin/env bash
+set -eu
+if [ "$1" = --version ]; then echo ${Bun.version}; exit 0; fi
+if [ "$1" = build ] || [ "$1" = -e ]; then exec ${process.execPath} "$@"; fi
+target_root=$(cd "$(dirname "$1")/../../.." && pwd)
+[ "$PWD" = "$target_root" ] || { echo "wrong cwd: $PWD" >&2; exit 41; }
+for required in apps/be-01/Dockerfile bin/publish-release.sh deploy/solver-supervisor/wbs-solver-supervisor.service bun.lock; do
+  [ -f "$target_root/$required" ] || { echo "missing target file: $required" >&2; exit 42; }
+done
+[ "$(git -C "$target_root" rev-parse HEAD)" = "$2" ] || { echo 'wrong target HEAD' >&2; exit 43; }
+[ -z "$(git -C "$target_root" status --porcelain)" ] || { echo 'target tree is dirty' >&2; exit 44; }
+if [ -e "$target_root/node_modules" ] || [ -L "$target_root/node_modules" ]; then
+  echo 'target tree borrows an install' >&2; exit 45
+fi
+printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
+`,
+    );
+    await chmod(probingBun, 0o755);
+
+    const run = await command(
+      ['bash', HELPER, repository, installed, probingBun, head, Bun.version],
+      { POLL_TARGET_PROBE: probe },
+    );
+
+    // Proof, each watched failing on the merged loader (2026-09-09), all as
+    // `Received` stderr on the `toEqual` below: the pre-TASK-326 `git archive`
+    // of tools/libs/root configs — `missing target file: apps/be-01/Dockerfile`;
+    // `cd "$SRC"` restored before the exec — `wrong cwd: <the source checkout>`;
+    // the guard's `rm -rf` of its scratch removed — `target tree is dirty`;
+    // the pre-TASK-376 `ln -s "$SRC/node_modules"` restored together with the
+    // `.git/info/exclude` line that hid it — `target tree borrows an install`,
+    // and restored without that line — `target tree is dirty` one check
+    // earlier, because `.gitignore`'s `node_modules/` does not match a symlink;
+    // and `import '@dagger.io/dagger'` committed into sync.ts — the guard
+    // refuses before the probe runs, on
+    // `error: Could not resolve: "@dagger.io/dagger". Maybe you need to "bun install"?`.
+    expect(run).toEqual({ code: 0, stdout: '', stderr: '' });
+    expect(await readFile(probe, 'utf8')).toBe(`${join(installed, `sync.${head}`)}\n`);
   });
 
   it('keeps concurrent target candidates isolated by commit', async () => {

@@ -41,17 +41,24 @@ if [ "$("$BUN" --version)" != "$EXPECTED_BUN_VERSION" ]; then
   exit 1
 fi
 
-# The deployer is one file, but it reaches the deploy contract through the
-# `@wbs/*` tsconfig paths, and Bun resolves those from the tsconfig nearest the
-# importing file. A bare `sync.ts` copied into $BIN has none: every tick on
-# h2puni failed on `Cannot find module '@wbs/deploy-contract'` the day that
-# copy was first installed (2026-09-07). So the candidate is the target's own
-# `tools/`, `libs/` and root configs, laid out as the commit has them, and the
-# deployer runs from inside that tree.
+# The candidate is the target's complete committed tree, checked out detached
+# at the exact SHA from a clone that shares the checkout's objects. Two things
+# need the whole tree rather than the deployer's module graph alone:
+#
+# - The deployer reaches the deploy contract through the `@wbs/*` tsconfig
+#   paths, and Bun resolves those from the tsconfig nearest the importing
+#   file. A bare `sync.ts` copied into $BIN has none: every tick on h2puni
+#   failed on `Cannot find module '@wbs/deploy-contract'` the day that copy
+#   was first installed (2026-09-07).
+# - A solver-affecting target publishes its `be` image from its own build
+#   context (TASK-326): Dockerfile, publisher, supervisor unit and lockfile
+#   as the target commit has them, with a HEAD that answers the target SHA.
+#   A narrower archive executes while a later Dagger snapshot silently comes
+#   from the older live checkout.
 #
 # Reading from the fetched target, rather than the checkout's pre-reset tree,
 # is the recovery boundary. A broken target deployer can refuse this attempt,
-# but its repaired successor is extracted on the next tick and can deploy
+# but its repaired successor is materialized on the next tick and can deploy
 # itself — with the contract it was written against, not the one the checkout
 # still has. The candidate still runs sync.ts, so solver, restart, recreate
 # and post-reset HEAD checks are never bypassed.
@@ -62,11 +69,8 @@ cleanup_candidate() {
 }
 trap cleanup_candidate EXIT HUP INT TERM
 CANDIDATE_NEXT=$(mktemp -d "$BIN/sync.${SHA}.XXXXXXXX")
-# Written to a file first so a refusal from git keeps git's own exit status
-# instead of tar's complaint about an empty stream.
-git -C "$SRC" archive "$SHA" -- tools libs tsconfig.base.json package.json > "$CANDIDATE_NEXT/.tree.tar"
-tar -xf "$CANDIDATE_NEXT/.tree.tar" -C "$CANDIDATE_NEXT"
-rm -f -- "$CANDIDATE_NEXT/.tree.tar"
+git clone --quiet --shared --no-checkout "$SRC" "$CANDIDATE_NEXT"
+git -C "$CANDIDATE_NEXT" checkout --quiet --detach "$SHA"
 # NO INSTALL IS LINKED IN, AND THAT IS THE CONTRACT (TASK-376).
 #
 # Until 2026-09-08 this linked `$SRC/node_modules` into the candidate. The
@@ -79,21 +83,16 @@ rm -f -- "$CANDIDATE_NEXT/.tree.tar"
 # bootstrap deadlock the candidate tree exists to break.
 #
 # The answer is that the deployer's import graph is out of bounds for
-# third-party packages: relative imports, the `@wbs/*` aliases the archive
-# above carries, and Bun/Node builtins only. That is what `sync.ts` already is
+# third-party packages: relative imports, the `@wbs/*` aliases the tree
+# carries, and Bun/Node builtins only. That is what `sync.ts` already is
 # (`@wbs/deploy-contract` plus `bun`), and it is now enforced rather than
 # assumed. Bun's own resolver is the enforcement: bundling the candidate's
 # deployer resolves the whole transitive graph without running it, and with no
 # `node_modules` in or above the candidate, any bare specifier that is not a
 # builtin cannot resolve.
 #
-# The cost is one extra Bun invocation per tick, ahead of a deploy that takes
-# orders of magnitude longer. What it buys: the day someone adds a real
-# dependency to this graph, the tick refuses here by name instead of deploying
-# against a stale install.
-#
 # The guard is two questions, because "it resolved" is not the property that
-# matters — "it resolved to a file the archive carries" is.
+# matters — "it resolved to a file the candidate carries" is.
 #
 # 1. `--reject-unresolved`. Bun's default is `--allow-unresolved='*'`: a static
 #    bare import fails the build, but an opaque `await import(name)` or
@@ -111,8 +110,11 @@ rm -f -- "$CANDIDATE_NEXT/.tree.tar"
 #    the candidate refuses the tick.
 #
 # What neither question covers, stated rather than implied: code assembled at
-# run time by `eval` or `new Function` is invisible to any build-time graph.
-# The contract is a contract, and this is the enforcement it admits of.
+# run time by `eval` or `new Function` is invisible to any build-time graph,
+# and so is any process the deployer SPAWNS. The graph checked here is the one
+# `exec` below starts; a child the deployer runs from this tree — the Dagger
+# publisher on a solver-affecting tick — resolves for itself, against a tree
+# that has no install. docs/runbook-dev-deploy.md says what that means.
 #
 # The cost is one extra Bun invocation per tick, ahead of a deploy that takes
 # orders of magnitude longer — and `dev-poll.sh` exits before this loader
@@ -140,14 +142,17 @@ if (outside.length) {
 }
 ' > "$CANDIDATE_NEXT/.resolve.log" 2>&1; then
   echo "refusing target $SHA: the deployer resolves files outside the extracted candidate." >&2
-  echo "Every file the dev deployer imports must be one the candidate archive carries; a path into the pinned checkout is the stale install this guard exists to refuse. See docs/runbook-dev-deploy.md." >&2
+  echo "Every file the dev deployer imports must be one the candidate tree carries; a path into the pinned checkout is the stale install this guard exists to refuse. See docs/runbook-dev-deploy.md." >&2
   cat "$CANDIDATE_NEXT/.resolve.log" >&2
   exit 1
 fi
+# The guard's scratch is removed so the tree the deployer sees is the clean
+# target tree: sync.ts refuses a candidate whose `git status` is not empty.
 rm -rf -- "$RESOLVE_OUT" "$RESOLVE_META" "$CANDIDATE_NEXT/.resolve.log"
 # Two ticks on one target race to the same name. The loser discards its own
-# tree and runs the winner's, which the commit hash makes byte-identical; a
-# tree only ever appears under the final name complete, by rename.
+# clean detached clone and runs the winner's, which the commit hash makes
+# byte-identical; a tree only ever appears under the final name complete, by
+# rename.
 if mv -T "$CANDIDATE_NEXT" "$CANDIDATE" 2>/dev/null; then
   CANDIDATE_NEXT=''
 else
@@ -155,5 +160,7 @@ else
   CANDIDATE_NEXT=''
 fi
 trap - EXIT HUP INT TERM
-cd "$SRC"
+# Proof: poller.test.ts requires both the target Docker build inputs and this
+# working directory to resolve inside the immutable candidate.
+cd "$CANDIDATE"
 exec "$BUN" "$CANDIDATE/tools/tool-devsync/src/sync.ts" "$SHA"
