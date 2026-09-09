@@ -99,7 +99,12 @@ describe('agent trailer hook integration', () => {
     expect(git(['checkout', '-qb', 'topic'], hookEnv).exitCode).toBe(0);
     writeFileSync(join(repository, 'topic'), 'topic\n');
     expect(git(['add', 'topic'], hookEnv).exitCode).toBe(0);
-    expect(git(['commit', '-qm', 'topic'], hookEnv).exitCode).toBe(0);
+    expect(
+      git(
+        ['commit', '-qm', 'topic mentions ------------------------ >8 ------------------------ inline'],
+        hookEnv,
+      ).exitCode,
+    ).toBe(0);
     expect(git(['checkout', '-q', 'main'], hookEnv).exitCode).toBe(0);
     expect(git(['merge', '--squash', 'topic'], hookEnv).exitCode).toBe(0);
     writeFileSync(trace, '');
