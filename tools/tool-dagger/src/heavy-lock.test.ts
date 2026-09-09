@@ -32,10 +32,10 @@ function readIfPresent(path: string): string {
   }
 }
 
-// Every filesystem path entering generated shell source in this file routes
-// through this helper. JSON string quoting is insufficient: within double
-// quotes bash would still expand `$`, backticks, and command syntax. Close the
-// single-quoted word, emit one quoted apostrophe, then reopen it.
+// Every filesystem path interpolated into a generated shell command in this
+// file routes through this helper. JSON string quoting is insufficient: within
+// double quotes bash would still expand `$`, backticks, and command syntax.
+// Close the single-quoted word, emit one quoted apostrophe, then reopen it.
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
@@ -46,6 +46,14 @@ function shellQuote(value: string): string {
 function pathEntry(value: string): string {
   if (value.includes(':')) throw new Error(`PATH entry contains a colon: ${value}`);
   return value;
+}
+
+function contenderEnvironment(shim: string, pathTail: string, home: string): Record<string, string> {
+  return {
+    PATH: `${pathEntry(shim)}:${pathTail}`,
+    HEAVY_LOCK_WAIT_SECONDS: '30',
+    HOME: home,
+  };
 }
 
 // The executables a pinned `PATH` must actually hold, checked on the image the
@@ -147,8 +155,10 @@ afterEach(async () => {
 });
 
 describe('with-heavy-lock', () => {
-  it('rejects colon-bearing generated PATH entries instead of splitting them', () => {
-    expect(() => pathEntry('/tmp/wbs:shim')).toThrow('PATH entry contains a colon');
+  it('rejects a colon-bearing shim at the contender environment boundary', () => {
+    expect(() => contenderEnvironment('/tmp/wbs:shim', '/usr/bin:/bin', '/tmp')).toThrow(
+      'PATH entry contains a colon',
+    );
   });
 
   it('uses one canonical production lock that no caller can move', () => {
@@ -378,9 +388,9 @@ describe('with-heavy-lock', () => {
     // this case is meant to kill.
     // Pinning drops the inherited interception route. The check proves all six
     // names on the running image and returns the exact bash/sleep paths the shim
-    // embeds. TASK-409 executed this proof on h2puni and the workstation, and
-    // reasoned about ubuntu-latest and macOS; the runtime check is what makes an
-    // additional image fail diagnostically.
+    // embeds. TASK-409 executed this proof on h2puni and the workstation, CI
+    // executes it on ubuntu-latest, and macOS was reasoned about; the runtime
+    // check is what makes an additional image fail diagnostically.
     const CONTENDER_PATH_TAIL = '/usr/bin:/bin';
     const contenderExecutables = assertResolvable(CONTENDER_PATH_TAIL, [
       'bash',
@@ -442,11 +452,11 @@ describe('with-heavy-lock', () => {
     // exhaustively instead: the shim's `PATH`, the wait budget the case is
     // about, and `HOME` because tooling under it expects one. Nothing else
     // reaches it, so nothing else can write the marker.
-    const contenderEnv: Record<string, string> = {
-      PATH: `${pathEntry(shim)}:${CONTENDER_PATH_TAIL}`,
-      HEAVY_LOCK_WAIT_SECONDS: '30',
-      HOME: process.env['HOME'] ?? root,
-    };
+    const contenderEnv = contenderEnvironment(
+      shim,
+      CONTENDER_PATH_TAIL,
+      process.env['HOME'] ?? root,
+    );
 
     const queued = Bun.spawn(
       [
