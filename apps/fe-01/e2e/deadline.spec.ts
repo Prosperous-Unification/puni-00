@@ -28,11 +28,6 @@ async function seedDatedWorkItem(page: Page): Promise<void> {
   await expect(page.getByLabel('Name of 010')).toBeVisible();
 }
 
-/** The card containing `control`, rather than whichever card happens to be first. */
-function cardOf(control: Locator): Locator {
-  return control.locator('xpath=ancestor::*[@data-card][1]');
-}
-
 /** A positive-area browser box or a failure naming the surface that vanished. */
 async function renderedBox(
   surface: Locator,
@@ -136,7 +131,7 @@ test('the phone deadline sheet leaves its card visible and drives Save and Clear
   page,
 }) => {
   const trigger = page.getByRole('button', { name: 'Work item deadline for 010' });
-  const card = cardOf(trigger);
+  const card = page.locator('[data-card]').filter({ has: trigger });
   const editor = await openDeadlineEditor(page);
   const cardBox = await renderedBox(card, 'the edited card');
   const triggerBox = await renderedBox(trigger, 'the edited deadline control');
@@ -178,6 +173,10 @@ test('renders impossible marks on both faces and downloads both deadline columns
 
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.reload();
+  await page.getByText('Columns', { exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Deadline' }).check();
+  await expect(page.locator('thead th[data-column="deadline"]')).toHaveCount(1);
+  await page.getByText('Columns', { exact: true }).click();
   const tableMark = page.getByRole('img', { name: impossibleName });
   await expect(tableMark).toHaveAttribute('data-deadline-impossible');
   await renderedBox(tableMark, 'the table impossible-date mark');
