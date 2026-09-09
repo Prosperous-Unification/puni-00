@@ -48,18 +48,30 @@ export function createRefsColumn({ live }: { live: PlanLive }) {
           // the trip from a 6px dot down to a link on the card never
           // unmounts what it is travelling to.
           //
-          // `height: 100%` because the card is armed by the **whole cell**
-          // since 2026-09-09, not by the marks: the button below fills this
-          // span, and this span fills the `<td>`. Dany, that day: *"i want
-          // hover over the whole cell surface to trigger the tooltip"* — the
-          // hover target had been a 28×12 box inside a 40×26 cell, so a pointer
-          // resting anywhere else in the column got nothing. A percentage
-          // height on a child of a `table-cell` is undefined in the spec and
-          // resolved against the cell by Chromium; where it is not resolved it
-          // falls back to the content's own height, which is the marks' 12px
-          // box — smaller than the cell, never larger, so this cannot make the
-          // row taller either way.
-          style={{ position: 'relative', display: 'block', height: '100%' }}
+          // **Absolute, filling the `<td>`, because the card is armed by the
+          // whole cell** since 2026-09-09. Dany, that day: _"i want hover over
+          // the whole cell surface to trigger the tooltip"_ — the hover target
+          // had been a 28×12 box inside a 40×26 cell, so a pointer resting
+          // anywhere else in the column got nothing.
+          //
+          // `position: relative` with `height: '100%'` was the first attempt and
+          // **does not work**: a percentage height on a child of a `table-cell`
+          // is undefined in the spec and Chromium does not resolve it, so the
+          // box fell back to its content's 12px and the cell's bottom-right
+          // corner still armed nothing (watched: `the bottom right of the cell
+          // opened no card`). An absolutely positioned box resolves `inset`
+          // against the **padding box of the nearest positioned ancestor**,
+          // which here is the `<td>` itself — every cell in this column is
+          // `position: sticky`, and sticky is positioned. So `inset: 0` is
+          // exactly the cell's own rectangle, padding included, and
+          // `e2e/external-refs.spec.ts` asserts the two boxes match rather than
+          // trusting that sentence.
+          //
+          // Out of flow, so this cell contributes no height at all to its row —
+          // which strengthens design D2's "the dots never change the row's
+          // height" rather than weakening it: the row is the Name cell's, as it
+          // already was.
+          style={{ position: 'absolute', inset: 0, display: 'block' }}
           onMouseLeave={() => {
             // The same-cell guard every surface here clears with: a leave
             // fires after the enter of whatever the pointer moved on to.
@@ -96,14 +108,17 @@ export function createRefsColumn({ live }: { live: PlanLive }) {
             style={{
               display: 'flex',
               alignItems: 'center',
+              // The whole of the span above, which is the whole of the cell.
+              // Percentages resolve here because the span has a definite size —
+              // it is absolutely positioned with `inset: 0`.
               width: '100%',
               height: '100%',
-              // The floor for the case the percentage above does not resolve:
-              // the marks' own box. Not a guard against a fault — a height that
-              // falls back to `auto` is the marks' box already — but stated so
-              // the button can never be shorter than what it draws.
-              minHeight: MARK_BOX_PX,
-              padding: 0,
+              // The 4px `CELL` gives every `<td>` horizontally, put back where
+              // the marks are drawn rather than where the pointer is read: the
+              // span above covers the padding so a hover lands anywhere in the
+              // column, and this keeps the dots at the same x they have always
+              // been drawn at.
+              padding: '0 4px',
               margin: 0,
               border: 0,
               background: 'transparent',

@@ -517,9 +517,21 @@ test.describe('the ref column, in a browser', () => {
     // `<textarea>`. Every one of the 2000-odd jsdom cases stayed green through
     // it, because jsdom paints nothing at all.
     //
-    // Proof: `raiseWhenOpen` narrowed back to `columnId === 'name'` — this
-    // failed on `the element painted at the middle of the card is not part of
-    // it · Expected: true · Received: false`. Watched 2026-09-09.
+    // **This test does not distinguish the lift, and that was measured rather
+    // than assumed.** With `raiseWhenOpen` narrowed back to
+    // `columnId === 'name'` it still **passes** — because the hover surface
+    // this change also added is `position: absolute`, and an absolutely
+    // positioned wrapper paints its own descendants late enough to keep the
+    // card on top by itself. Two fixes, either sufficient, and the browser can
+    // only see that the card is visible.
+    //
+    // So the negative for the lift is the jsdom one — `lifts the links cell
+    // over the pinned layer while its card is open` in `plan-cells.test.tsx`,
+    // watched failing on `expected 1 to be 2` — and this is the end-to-end
+    // guarantee that no arrangement of the two leaves the card painted over.
+    // The lift stays because it is the general rule: the Name column's own
+    // 2026-08-08 fault is the same one, and that column has no absolutely
+    // positioned wrapper to save it.
     await seed(page);
     await page.setViewportSize({ width: 1280, height: 800 });
 
@@ -580,8 +592,7 @@ test.describe('the ref column, in a browser', () => {
     //
     // Proof: the `[data-refs-card-line]:hover` rule deleted from `styles.css` —
     // this failed on `the pointed line of the card does not tint ·
-    // Expected: not "rgba(0, 0, 0, 0)" · Received: "rgba(0, 0, 0, 0)"`.
-    // Watched 2026-09-09.
+    // Expected: not "rgba(0, 0, 0, 0)"`. Watched 2026-09-09.
     const line = card.locator('[data-refs-card-line]').first();
     const atRest = await line.evaluate((node) => getComputedStyle(node).backgroundColor);
     await line.hover();
@@ -648,11 +659,21 @@ test.describe('the ref column, in a browser', () => {
     // other never was: the bottom-right of the cell is the room the button did
     // not cover.
     //
-    // Proof: the button's `height: '100%'` put back to `MARK_BOX_PX` and its
-    // `display` back to `block` — the bottom-right case failed on
-    // `expect(locator).toBeVisible() failed · Locator: getByRole('tooltip', …)
-    // · Expected: visible · Received: <element(s) not found>`. Watched
-    // 2026-09-09.
+    // Proof, and it took three watched failures to get the mechanism right,
+    // all on 2026-09-09:
+    //   - the surface sized to the cell's **content** box: `the top left of the
+    //     cell opened no card`, because `x + 1` is inside the `<td>`'s 4px
+    //     horizontal padding.
+    //   - the surface given `position: relative; height: 100%`: `the bottom
+    //     right of the cell opened no card`, because Chromium does not resolve
+    //     a percentage height against a `table-cell` and the box fell back to
+    //     the marks' 12px.
+    //   - the pointer parked 200px below the cell between cases: `the card
+    //     stayed open after the pointer left it`, for 30s — that point is
+    //     *inside* the card, which is a child of the span that owns the
+    //     `mouseleave`. The design working, not failing.
+    // With the surface back to `MARK_BOX_PX` tall the bottom-right case fails
+    // again, which is the standing negative.
     await seed(page);
     await page.setViewportSize({ width: 1280, height: 800 });
 
@@ -662,16 +683,62 @@ test.describe('the ref column, in a browser', () => {
     // Or this is a claim about a corner of nothing.
     expect(box.width, 'the links cell has no width').toBeGreaterThan(20);
     expect(box.height, 'the links cell has no height').toBeGreaterThan(20);
+
+    // **The surface and the cell are the same rectangle**, which is the
+    // mechanism the two corner cases exercise — and asserting it here is what
+    // keeps the design's one assumption honest: the hover surface is
+    // `position: absolute; inset: 0`, so it fills the nearest *positioned*
+    // ancestor, and that is the `<td>` only because every cell in this column
+    // is `position: sticky`. A layout change that unpinned the column would
+    // move the surface somewhere else entirely, and this line is what would
+    // say so.
+    const surface = await page.getByLabel('Links for 010').boundingBox();
+    if (surface === null) throw new Error('the links surface has no box');
+    expect(
+      {
+        x: Math.round(surface.x),
+        y: Math.round(surface.y),
+        width: Math.round(surface.width),
+        height: Math.round(surface.height),
+      },
+      'the hover surface is not the cell',
+    ).toEqual({
+      x: Math.round(box.x),
+      y: Math.round(box.y),
+      width: Math.round(box.width),
+      height: Math.round(box.height),
+    });
     const card = page.getByRole('tooltip', { name: 'Where 010 also exists' });
 
+    // A pixel in from each corner of the cell's **own** rectangle, padding
+    // included. `CELL` gives every `<td>` `padding: 1px 4px`, so a surface
+    // sized to the content box leaves a 4px strip down each side that arms
+    // nothing — which is exactly what a hover at `x + 3` found before the
+    // button was given negative margins.
     for (const [where, at] of [
-      ['top left', { x: 3, y: 3 }],
-      ['bottom right', { x: box.width - 3, y: box.height - 3 }],
+      ['top left', { x: 1, y: 1 }],
+      ['bottom right', { x: box.width - 1, y: box.height - 1 }],
     ] as const) {
-      // Away first, so each case opens the card rather than finding one the
-      // previous case left open — the assertion has to be about this corner.
-      await page.mouse.move(box.x + box.width + 200, box.y + 200);
-      expect(await card.count(), `the card was already open before the ${where} case`).toBe(0);
+      // Away first, and **waited on**, so each case opens the card rather than
+      // finding one the previous case left open: the claim has to be about this
+      // corner.
+      //
+      // **Away has to be clear of the card, not just of the cell**, and that
+      // took two goes to get right. A one-shot `count()` read the card at the
+      // instant of the move, before React had unmounted it (`Expected: 0 ·
+      // Received: 1`). Waiting on it then failed for 30 seconds on the *second*
+      // case — because a point 200px right and 200px down from a 40px cell is
+      // inside the card itself: five refs make it about 185px tall, and the
+      // card is a child of the span that owns the `mouseleave`, so resting on
+      // it is resting on the cell. That is the design working, not failing.
+      // `+800` clears the card's own 400px ceiling on a 1280px viewport.
+      //
+      // `toHaveCount(0)` is the retrying matcher `AGENTS.md` warns about, and
+      // this is the one shape it is right for: the absence is a **precondition**
+      // that holds until the pointer moves back, not a temporary silence being
+      // asserted. The claim below is the `toBeVisible`.
+      await page.mouse.move(box.x + 800, box.y + 5);
+      await expect(card, 'the card stayed open after the pointer left it').toHaveCount(0);
       await page.mouse.move(box.x + at.x, box.y + at.y);
       await expect(card, `the ${where} of the cell opened no card`).toBeVisible();
     }

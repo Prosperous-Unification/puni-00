@@ -520,7 +520,7 @@ asks the two facts — `layout.pinned.has(columnId) && opensAPopover(columnId)` 
 `e2e/external-refs.spec.ts` asserts the element painted at the card's middle is part of the
 card. **A jsdom test can see a popover exist and can never see it be invisible.**
 
-Two more the same day and in the same change, and **neither shipped**. The first is a negative
+Three more the same day and in the same change, and **none shipped**. The first is a negative
 watched **passing**: the add row's name box holds `null` for "nobody has typed here" so that a
 box a reader **emptied on purpose** is not refilled with the URL's derived label, and the test
 written for it typed `My own words` and then changed the URL. Both readings keep non-empty
@@ -528,6 +528,16 @@ words — that is what makes them both correct about that case — so the `''` s
 and the test stayed green. The case the sentinel exists for is the box cleared to empty, and
 rewritten that way it failed on `expect(element).toHaveValue() · Received: #4178`.
 **A sentinel that distinguishes "unset" from "empty" can only be tested with the empty one.**
+
+The third is the browser proof written for the shipped fault above, and it **passed** with the
+fault injected. `raiseWhenOpen` narrowed back to `columnId === 'name'` and
+`e2e/external-refs.spec.ts`'s `the card is drawn on top of the rows below it` was watched green
+— because the same change had also made the cell's hover surface
+`position: absolute; inset: 0`, and an absolutely positioned wrapper keeps the card on top by
+itself. Two fixes, either sufficient, and a browser can only see that the card is visible. The
+lift's real negative is the jsdom one (`expected 1 to be 2`); the browser check is the
+end-to-end guarantee and now says so. **When two edits in one change fix one fault, the
+negative for either of them passes — inject them together or prove them apart.**
 
 The second is a claim about **which boundary refuses what**, written from the code's shape
 rather than from the wire. `plan-command-shapes.ts` declares `'name?': 'string'`, so the JSDoc

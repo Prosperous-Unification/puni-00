@@ -18,8 +18,8 @@ Run on this Mac (darwin 25.5.0, bun 1.4.2). `bin/h2puni-gate.sh` is h2puni's and
 | `nx run-many -t build`                                         | 12 projects green       |
 | `openspec validate --all --json`                               | 64 items, 64 passed     |
 | `nx run-many -t test`                                          | _see below_             |
-| `CI=1 E2E_PORT_SHIFT=500 playwright test … external-refs`      | 10 passed (35.9s)       |
-| `CI=1 E2E_PORT_SHIFT=500 playwright test` (whole browser gate) | _see below_             |
+| `CI=1 E2E_PORT_SHIFT=500 playwright test … external-refs`      | 12 passed (38.4s)       |
+| `CI=1 E2E_PORT_SHIFT=500 playwright test` (whole browser gate) | 319 passed, 37 skipped  |
 
 `E2E_PORT_SHIFT=500` and `CI=1` throughout, which is `bun run e2e:beside-dev`: the
 committed Playwright config sets `reuseExistingServer: !isCi`, so a bare `bun run e2e`
@@ -31,8 +31,11 @@ was a `bun run dev` on those ports for this whole session.
 | Check                                                                           | Injected fault                                                                     | Watched failure                                                                                               |
 | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `plan-cells.test.tsx` — lifts the links cell over the pinned layer              | `raiseWhenOpen` narrowed back to `columnId === 'name'`                             | `expected 1 to be 2`                                                                                          |
-| `e2e/external-refs.spec.ts` — the card is drawn on top of the rows below it     | the same narrowing                                                                 | _filled in below_                                                                                             |
-| `e2e/external-refs.spec.ts` — a card line … tints under the pointer             | the `[data-refs-card-line]:hover` rule deleted from `styles.css`                   | _filled in below_                                                                                             |
+| `e2e/external-refs.spec.ts` — the card is drawn on top of the rows below it     | the same narrowing                                                                 | **passed** — see the note below; this browser check does not distinguish the lift                             |
+| `e2e/external-refs.spec.ts` — a card line … tints under the pointer             | the `[data-refs-card-line]:hover` rule deleted from `styles.css`                   | `the pointed line of the card does not tint · Expected: not "rgba(0, 0, 0, 0)"`                               |
+| `e2e/external-refs.spec.ts` — opens the card from anywhere in the cell          | the surface sized to the cell's **content** box                                    | `the top left of the cell opened no card` — `x + 1` is inside the `<td>`'s 4px padding                        |
+| `e2e/external-refs.spec.ts` — the same case                                     | the surface given `position: relative; height: 100%`                               | `the bottom right of the cell opened no card` — Chromium resolves no percentage height against a `table-cell` |
+| `plan-cells.test.tsx` — a name of nothing but spaces reads as the URL's label   | `ref.name.trim() === ''` narrowed to `ref.name === ''`                             | `expected ' ' to be '#4178'`                                                                                  |
 | `external-system.test.ts` — reads a Jira issue as its key                       | the `browse` arm removed                                                           | `Expected: "WCN-3887" · Received: "newsiteam.atlassian.net/WCN-3887"`                                         |
 | `external-system.test.ts` — reads a pull request … as their number              | the GitHub arm removed                                                             | `Expected: "#4178" · Received: "github.com/4178"`                                                             |
 | `external-system.test.ts` — reads a Confluence page as its title                | `readableSegment` reduced to the raw segment                                       | `Expected: "Cache warm-up plan" · Received: "Cache+warm-up+plan"`                                             |
@@ -64,6 +67,30 @@ mistyped **value** through, so `name: 7` was answered `..._is_too_long` — `(7)
 `undefined`, `undefined > 300` is false, the ref is written with a number in its name column
 and the tree read then fails its own response schema. Two codes now, both watched, and the
 probe's answers are assertions rather than a sentence. Recorded in `AGENTS.md`.
+
+### A browser proof that turned out not to be one
+
+`the card is drawn on top of the rows below it` carried a `Proof:` comment naming a failure
+that had never been observed. Injected — `raiseWhenOpen` narrowed back to
+`columnId === 'name'` — it **passed**, and the reason is the other half of this change: the
+hover surface added for the whole-cell hover is `position: absolute`, and an absolutely
+positioned wrapper keeps the card on top by itself. Two fixes, either sufficient, and a
+browser can only see that the card is visible.
+
+The negative for the lift is therefore the jsdom one — `lifts the links cell over the pinned
+layer while its card is open`, watched on `expected 1 to be 2` — and the browser check is the
+end-to-end guarantee rather than the proof. The lift stays because it is the general rule: the
+Name column's own 2026-08-08 fault is the same one, and it has no absolutely positioned
+wrapper to save it. The comment in the spec now says all of this instead of the prediction.
+
+### A third finding, from the pointer's own geometry
+
+`the card stayed open after the pointer left it` failed for 30 seconds with the pointer parked
+200px below the cell — and the card was **right to stay open**: five refs make it about 185px
+tall, and it is a child of the span that owns the `mouseleave`, so resting on the card is
+resting on the cell. The test's away-point moved sideways instead. Nothing in the product
+changed for this; it is written down because the next person to write a hover test here will
+park the pointer in the same place.
 
 ### One check kept although it cannot fail
 
