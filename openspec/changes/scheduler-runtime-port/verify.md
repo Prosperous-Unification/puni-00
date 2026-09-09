@@ -138,3 +138,12 @@ of: Mermaid lanes`. The test now waits for the successful read that makes Export
   frozen tree. It was stopped after 70 minutes with **143 pass / 5 Gantt timeouts / 1
   skip / 203 unrun**. It is not a browser-gate success; the whole suite remains required
   on the final h2puni revision.
+- A second canonical h2puni gate ran from clean exact revision `1f018ee374b6` and ended
+  after 9m32s with **87 successful tasks / 1 failed task**. Both `be-01:test` and
+  `fe-01:test` passed, proving the two repaired oracles in the full gate. The remaining
+  `tool-devsync:test` failure named an undeclared cached-target read exactly:
+  `be-01:test does not declare libs/runtime-portable/src/scheduler.ts`.
+- `be-01:test` now declares that exact external test input. The restored
+  `workspace-targets.test.ts` run completed with **10 pass / 0 fail**; the h2puni failure
+  above is the observed negative for omitting the declaration. The canonical gate still
+  requires one final rerun at the commit containing this repair.
