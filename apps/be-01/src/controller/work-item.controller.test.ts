@@ -1726,8 +1726,10 @@ describe('work item routes', () => {
     expect(await refused.json()).toEqual({ error: 'invalid_estimate', at: 0, kind: 'setEstimate' });
     const tree = await send(`/api/projects/${projectId}/work-items`, token);
     expect(tree.status).toBe(200);
-    expect(((await tree.json()) as { workItems: { estimates: Record<string, unknown> }[] })
-      .workItems[0]?.estimates).toEqual({});
+    expect(
+      ((await tree.json()) as { workItems: { estimates: Record<string, unknown> }[] }).workItems[0]
+        ?.estimates,
+    ).toEqual({});
   });
 
   it('accepts an ordered estimate and rolls it into the parent', async () => {
