@@ -111,8 +111,17 @@ export function deadlineWords(projectStart: string | null, offset: number, today
   // deadline on the Sunday after it is unmeetable — day zero rolls forward to
   // Monday, the deadline rolls back to Friday — and the sentence would be
   // telling the reader a *later* date came first.
+  if (projectStart === null) return 'date unavailable';
   if (offset === UNMEETABLE_DEADLINE_OFFSET) return DEADLINE_UNREACHABLE_CELL;
-  if (projectStart === null || offset < UNMEETABLE_DEADLINE_OFFSET) return 'date unavailable';
+  // The DTO refuses these values too, but this is a rendering boundary fed by
+  // a plain `number` in the FE mirror. Keep a stale or hand-built payload from
+  // turning a fact card into a React render failure.
+  if (
+    !Number.isSafeInteger(offset) ||
+    offset < UNMEETABLE_DEADLINE_OFFSET
+  ) {
+    return 'date unavailable';
+  }
   return shortIsoDate(addWorkdays(projectStart, offset), today);
 }
 

@@ -22,7 +22,7 @@ import { type DropZone, zoneFor } from './drag-drop';
 import { cellIn, cellKey, type CellLanding, cellRefOf, focusCellAt } from './editable-grid';
 import { ExternalRefsModal } from './external-refs-modal';
 import { GanttFaultBoundary } from './gantt-fault';
-import { appliedGanttHeight, DAY_PX, GanttPanel } from './gantt-panel';
+import { appliedGanttHeight, DAY_PX, GanttPanel, isoToday } from './gantt-panel';
 import { KeyboardCheatSheet } from './keyboard-cheat-sheet';
 import { logicalGrid } from './logical-grid';
 import { OptimizationCue } from './optimization-cue';
@@ -518,6 +518,11 @@ export function WbsTable({
   subscribe,
   savedPlansShelf,
 }: WbsTableProps) {
+  // Stable for every render in one local calendar day. `new Date()` at the
+  // callsite churned the cue's identity, while a UTC date string can name the
+  // wrong local day around midnight and therefore the wrong display year.
+  const todayIso = isoToday(new Date());
+  const today = useMemo(() => new Date(), [todayIso]);
   const {
     activeProject,
     workItems,
@@ -1779,7 +1784,7 @@ export function WbsTable({
         optimization={chartRead.optimization}
         stale={treeMayBeStale}
         projectStart={startDate}
-        today={new Date()}
+        today={today}
         workItemName={(id) => flat.find((row) => row.id === id)?.name ?? null}
         menuOpen={cueMenuOpen}
         onMenuOpen={() => {
