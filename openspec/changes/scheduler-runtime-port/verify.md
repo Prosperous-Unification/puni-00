@@ -88,8 +88,8 @@ date — the last refresh failed. Retry`; the restored run kept the `2026-09-07`
 
 ## Main synchronization
 
-- `git fetch origin main` on 2026-09-09 left `origin/main` at `530d25bc`; merge `7fa7ea54`
-  already contains that revision on this branch.
+- `git fetch origin main` on 2026-09-09 advanced `origin/main` to `cb472a0e`; merge
+  `1f018ee3` contains that revision on this branch.
 
 ## Slices 3.1–3.2 — detached selected captures
 
@@ -115,7 +115,7 @@ optimized:2.4:pri:12345 · Received: slice-leveling-v2`. Both faults were restor
 - Fresh forced typechecks for `be-01` and core are clean. Fresh uncached ESLint runs for
   both projects are clean; the core boundary fixture completed with **3 pass / 0 fail**.
 
-## Slice 4.1 — integration gate in progress
+## Slice 4.1 — integration gate
 
 - The canonical `HEAVY_LOCK_WAIT_SECONDS=3600 bin/h2puni-gate.sh` ran from a clean,
   isolated h2puni checkout at `ca5190cfc066` after a frozen Bun install. **86 targets
@@ -148,5 +148,24 @@ of: Mermaid lanes`. The test now waits for the successful read that makes Export
   hashes the production scheduler file. The workspace check now resolves the actual Nx
   graph and applies Nx's own dependency-input glob rules. Ignoring that coverage failed
   on the exact scheduler diagnostic above; restoration completed the suite with **10 pass
-  / 0 fail** without a redundant explicit input. The canonical gate still requires one
-  final rerun at the commit containing this correction.
+  / 0 fail** without a redundant explicit input.
+- The corrected canonical gate ran at clean exact revision `9a714b9940bb` and completed
+  all **88 Nx tasks** in 9m12s. Its final real Docker
+  `be-01:solver-image-smoke` completed with **3 pass / 0 fail** in 48.2s.
+- The first isolated h2puni browser attempt could not launch Chromium because Playwright's
+  pinned revision 1243 was absent; it ended with **2 pass / 37 skip / browser launches
+  failed** and is not counted as a behavior result. `bunx playwright install chromium`
+  installed that exact revision before the real run.
+- The first real whole-browser run at `9a714b9940bb` completed **315 pass / 37 skip / 1
+  fail** in 32m58s. The failure exposed a real late-mount fault: Export became available
+  after `useClosedByPointerOutside`'s one-shot effect had already read a null ref, so its
+  outside-pointer listener was never installed. The assertion failed on `Export stayed
+open · Expected: 0 · Received: 1`.
+- The hook now follows its mounted `<details>` node. The exact failed production-path case
+  passed remotely with **1 pass / 0 fail** in 15.8s. Fresh frontend typecheck and uncached
+  lint are clean.
+- After confirming owned ports 5000/5100/6100 were free, the whole browser suite at clean
+  exact revision `2e135b2b4114` completed with **316 pass / 37 intentionally skipped / 0
+  fail** in 36m1s. The formerly failing case passed inside that run. The recurring Vite
+  websocket `EPIPE`/`ECONNRESET` diagnostics accompanied context teardown and did not fail
+  a browser case.
