@@ -141,9 +141,12 @@ of: Mermaid lanes`. The test now waits for the successful read that makes Export
 - A second canonical h2puni gate ran from clean exact revision `1f018ee374b6` and ended
   after 9m32s with **87 successful tasks / 1 failed task**. Both `be-01:test` and
   `fe-01:test` passed, proving the two repaired oracles in the full gate. The remaining
-  `tool-devsync:test` failure named an undeclared cached-target read exactly:
+  `tool-devsync:test` failure reported this outside read as undeclared:
   `be-01:test does not declare libs/runtime-portable/src/scheduler.ts`.
-- `be-01:test` now declares that exact external test input. The restored
-  `workspace-targets.test.ts` run completed with **10 pass / 0 fail**; the h2puni failure
-  above is the observed negative for omitting the declaration. The canonical gate still
-  requires one final rerun at the commit containing this repair.
+- Inspection of Nx's actual graph showed that report was a false positive: `be-01`
+  directly depends on `runtime-portable`, and its existing `^production` input already
+  hashes the production scheduler file. The workspace check now resolves the actual Nx
+  graph and applies Nx's own dependency-input glob rules. Ignoring that coverage failed
+  on the exact scheduler diagnostic above; restoration completed the suite with **10 pass
+  / 0 fail** without a redundant explicit input. The canonical gate still requires one
+  final rerun at the commit containing this correction.

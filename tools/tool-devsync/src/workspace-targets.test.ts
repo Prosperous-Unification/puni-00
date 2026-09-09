@@ -1,6 +1,12 @@
 import { readdir, readFile } from 'node:fs/promises';
 
 import { describe, expect, it } from 'bun:test';
+import {
+  createProjectGraphAsync,
+  type NxJsonConfiguration,
+  type ProjectGraph,
+} from 'nx/src/devkit-exports';
+import { filterUsingGlobPatterns, getTargetInputs } from 'nx/src/hasher/task-hasher';
 
 import { readProjects } from '../workspace-projects.mjs';
 
@@ -192,14 +198,39 @@ async function outsideReads(projectDir: string): Promise<string[]> {
   return [...found].sort();
 }
 
+/** Whether Nx hashes `read` through the target's declared dependency inputs. */
+function dependencyInputCovers(
+  read: string,
+  projectName: string,
+  projectGraph: ProjectGraph,
+  nxJson: NxJsonConfiguration,
+): boolean {
+  if (!(projectName in projectGraph.nodes))
+    throw new Error(`Nx graph has no project ${projectName}`);
+  const project = projectGraph.nodes[projectName];
+  const owner = Object.values(projectGraph.nodes)
+    .filter(({ data: { root } }) => read === root || read.startsWith(`${root}/`))
+    .sort((left, right) => right.data.root.length - left.data.root.length)
+    .at(0);
+  if (owner === undefined) return false;
+  if (!(projectGraph.dependencies[projectName] ?? []).some(({ target }) => target === owner.name)) {
+    return false;
+  }
+  const patterns = getTargetInputs(nxJson, project, 'test').dependencyInputs;
+  return (
+    filterUsingGlobPatterns(owner.data.root, [{ file: read, hash: 'coverage-probe' }], patterns)
+      .length === 1
+  );
+}
+
 describe('every cached target declares what it reads', () => {
   it('names every file a suite reads from outside its own project', async () => {
-    const shared = (
-      JSON.parse(await readFile(new URL('nx.json', WORKSPACE), 'utf8')) as {
-        namedInputs?: Record<string, string[]>;
-      }
-    ).namedInputs?.['sharedGlobals'];
+    const nxJson = JSON.parse(
+      await readFile(new URL('nx.json', WORKSPACE), 'utf8'),
+    ) as NxJsonConfiguration;
+    const shared = nxJson.namedInputs?.['sharedGlobals'];
     expect(shared).toBeDefined();
+    const projectGraph = await createProjectGraphAsync({ exitOnError: true });
 
     const undeclared: string[] = [];
     for (const { dir, config } of await projectsOnDisk()) {
@@ -218,7 +249,12 @@ describe('every cached target declares what it reads', () => {
             // that is what makes the directory's contents part of the hash.
             pattern.startsWith(`${read}/`),
         );
-        if (!covered) undeclared.push(`${config.name}:test does not declare ${read}`);
+        // Proof: ignoring dependency inputs failed on
+        // `be-01:test does not declare libs/runtime-portable/src/scheduler.ts`,
+        // even though Nx hashes that production file through `^production`.
+        if (!covered && !dependencyInputCovers(read, config.name, projectGraph, nxJson)) {
+          undeclared.push(`${config.name}:test does not declare ${read}`);
+        }
       }
     }
     expect(undeclared).toBeEmpty();
