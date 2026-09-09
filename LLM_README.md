@@ -1,6 +1,6 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-499 estimate-boundary fix is on `fix/task499-estimate-boundary` (PR #377): exact-head reviews and CI, then merge and deploy.
+TASK-501 exact-deadline solver fix is on `fix/task501-deadline-boundary`: run the h2puni gate, then open the PR and review it.
 
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),
