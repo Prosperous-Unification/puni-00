@@ -46,10 +46,7 @@ function readIfPresent(path: string): string {
 // spawn resolves its OWN argv[0] through the supplied `PATH` too, so a pin that
 // holds nothing throws ENOENT on `sh` before the check can report which of the
 // six is missing — the raw errno this function exists to replace.
-function assertResolvable(
-  pathValue: string,
-  executables: string[],
-): ReadonlyMap<string, string> {
+function assertResolvable(pathValue: string, executables: string[]): ReadonlyMap<string, string> {
   const resolved = new Map<string, string>();
   const missing: string[] = [];
   for (const executable of executables) {
