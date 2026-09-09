@@ -610,8 +610,8 @@ re-review are the exact merged-head gates.
   exact-head gate was CI run `34085674029`, where both `gate` and `pixels`
   passed, and canonical Anthropic review round 2 returned APPROVE with
   0 Critical and 0 Important findings.
-- TASK-320 strengthened that proof at red head `510b2dc1`: `/home/puni1/wbs-dev/bin/bun test
-  tools/tool-devsync/src/poller.test.ts` failed 1/12 because a stale candidate
+- TASK-320 strengthened that proof at red head `510b2dc1`: the focused poller
+  command failed 1/12 because a stale candidate
   survived the managed-Bun mismatch. At green head `42a4b5e5`, the same command
   passed 12/12 with 38 assertions, including a fresh interrupted candidate that
   survives the seven-day boundary and stale reclamation before the explicit
