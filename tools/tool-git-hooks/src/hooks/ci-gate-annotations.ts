@@ -140,15 +140,15 @@ export async function readErrorAnnotations(path: string): Promise<string[]> {
 }
 
 async function main(): Promise<void> {
-  const [path, tailFlag, tailValue, unexpected] = process.argv.slice(2);
+  const args = process.argv.slice(2);
   if (
-    !path ||
-    unexpected ||
-    (tailFlag !== undefined && tailFlag !== '--tail') ||
-    (tailFlag && !tailValue)
+    (args.length !== 1 && args.length !== 3) ||
+    (args.length === 3 && args[1] !== '--tail')
   ) {
     throw new Error('usage: bun run ci-gate-annotations.ts <nx-gate.log> [--tail <lines>]');
   }
+  const path = args[0];
+  const tailValue = args.length === 3 ? args[2] : undefined;
 
   const raw = await readFile(path, 'utf8');
   if (tailValue) {
