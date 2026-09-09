@@ -7,6 +7,11 @@ cd "$repo_root"
 # shellcheck source=bin/h2puni-gate-lib.sh
 source "$repo_root/bin/h2puni-gate-lib.sh"
 
+# Remote gates must not leave Nx daemon children behind when SSH disconnects.
+# Exported deliberately, unlike HEAVY_LOCK_WAIT_SECONDS below: this one has to
+# reach the Nx processes the gate steps launch, which is the whole point.
+export NX_DAEMON=false
+
 # The head to gate. Pass the sha explicitly — `bin/h2puni-gate.sh <sha>` — and
 # do NOT check it out yourself first: the point of the argument is that the
 # checkout happens inside the heavy lock, where no other lane sharing this tree

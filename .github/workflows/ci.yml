@@ -305,9 +305,8 @@ jobs:
           bunx nx run-many -t test lint typecheck build --parallel=2 --output-style=stream \
             > nx-gate.log 2>&1
           gate_status=$?
-          tail -n 200 nx-gate.log
           annotation_status=0
-          bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log || annotation_status=$?
+          bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?
           if [ "$gate_status" -ne 0 ]; then
             exit "$gate_status"
           fi
