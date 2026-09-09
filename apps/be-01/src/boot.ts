@@ -115,6 +115,7 @@ export function bootBe01(opts: BootOptions): RunningBe {
         openConnection: () => openConnection(opts.dbPath),
       }),
       plans: new SavedPlanRepository({ openConnection: () => openConnection(opts.dbPath) }),
+      scheduler: services.scheduler,
       newId: () => crypto.randomUUID(),
       // Epoch **seconds**, matching the column: `Date.now()` is milliseconds and
       // would store a stamp a thousand times too large without failing anything.

@@ -5,20 +5,29 @@ import { join } from 'node:path';
 import { createLogger } from '@wbs/observability';
 import { afterEach, describe, expect, it } from 'bun:test';
 
-import { openDrizzle } from './repository/db';
+import { openConnection, openDrizzle } from './repository/db';
 import { DrizzleEventLogStore } from './repository/event-log';
 import { OPEN } from './repository/gate';
 import { WriteCoordinator } from './repository/gate';
 import { runMigrations } from './repository/migrate';
 import { allocateGeneration } from './repository/optimization-generation';
 import { ProjectRepository } from './repository/project';
+import { SavedPlanRepository } from './repository/saved-plan';
+import { SavedPlanCaptureRepository } from './repository/saved-plan-capture';
 import { scheduleInputHash } from './repository/schedule-input-hash';
-import { optimizedScheduleCache } from './repository/schema';
+import {
+  optimizationGeneration,
+  optimizedScheduleCache,
+  solverQueue,
+  solverSlot,
+} from './repository/schema';
 import { UserRepository } from './repository/user';
 import { WorkItemRepository } from './repository/work-item';
+import { nodeDigest } from './runtime/bun-runtime';
 import { subscriptionFor } from './service/broadcast';
 import type { ReservedSpawner, ReservedSpawnRequest } from './service/optimization-coordinator';
 import { PlanCommandRunner } from './service/plan-commands';
+import { SavedPlanService } from './service/saved-plan.service';
 import { readRuntimeSolverVersion } from './service/solver-launcher-process';
 import { buildServices } from './services';
 import { projectRow } from './testing/project-fixture';
@@ -68,7 +77,7 @@ function bootstrap(optimizer?: {
     },
     optimizer,
   });
-  return { db, services, pushUrls };
+  return { db, path, services, pushUrls };
 }
 
 async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
@@ -98,6 +107,71 @@ async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
 }
 
 describe('buildServices', () => {
+  it('saves an idle optimized capture without admitting solver state', async () => {
+    const { db, path, services } = bootstrap({
+      solverVersion: '2.4',
+      budgetMs: 12_345,
+      spawn: () => {
+        throw new Error('captured scheduling admitted a solver process');
+      },
+    });
+    const { projectId, ownerId } = await seedProject(db);
+    await new ProjectRepository(db, OPEN).update(
+      projectId,
+      { optimizationEnabled: true, scheduleEngine: 'optimized', scheduleObjective: 'pri' },
+      { at: 2, by: ownerId },
+    );
+    await new WorkItemRepository(db, OPEN).insert(
+      {
+        id: 'captured-work',
+        projectId,
+        parentId: null,
+        position: 10,
+        name: 'Captured work',
+        notes: '',
+        frozenNumber: null,
+        priority: null,
+        startNoEarlierThan: null,
+        startNoEarlierThanReason: null,
+        deadline: null,
+        serviceTeamId: null,
+        serviceId: null,
+        maxParallel: 1,
+        revision: 0,
+      },
+      [],
+      { at: 2, by: ownerId },
+    );
+    const state = () => ({
+      generations: db.select().from(optimizationGeneration).all(),
+      slots: db.select().from(solverSlot).all(),
+      queue: db.select().from(solverQueue).all(),
+    });
+    const before = state();
+    const savedPlans = new SavedPlanService({
+      scheduler: services.scheduler,
+      digest: nodeDigest,
+      capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),
+      plans: new SavedPlanRepository({ openConnection: () => openConnection(path) }),
+      newId: () => 'saved-idle',
+      now: () => 3,
+    });
+
+    const saved = await savedPlans.save({
+      projectId,
+      name: 'idle optimized capture',
+      createdBy: 'owner',
+      createdById: ownerId,
+    });
+
+    expect(saved.outcome).toBe('saved');
+    if (saved.outcome !== 'saved') return;
+    expect(saved.record.schedule).toEqual({ present: false, absentReason: 'pending' });
+    // Proof: routing capture through the live coordinator allocated generation 1
+    // before save returned, instead of leaving all three admission tables empty.
+    expect(state()).toEqual(before);
+  });
+
   it('gives the broadcaster and the replay orchestrator the same buffer', async () => {
     // The wiring, not the classes. `GatewayBroadcaster` filling a buffer and
     // `ReplayOrchestrator` reading one were each proven in isolation, and both

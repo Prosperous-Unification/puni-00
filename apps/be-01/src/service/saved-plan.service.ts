@@ -9,6 +9,7 @@ import {
   type SavedPlanStore,
   type SavedPlanTouchOutcome,
   type SavedPlanWrite,
+  type Scheduler,
   type StoredSavedPlan,
 } from '@wbs/core';
 import {
@@ -20,6 +21,7 @@ import {
   type PlanScheduleValue,
   type PlanSide,
   type Schedule,
+  SCHEDULE_ALGORITHM_ID,
   ScheduleCycleError,
   serialiseCanonicalPlanInput,
 } from '@wbs/domain';
@@ -36,7 +38,7 @@ import {
 } from './saved-plan-integrity';
 import type { SavedPlanQuota, SavedPlanQuotaRefusal } from './saved-plan-quota';
 import { bodyBytesRefusal, DEFAULT_SAVED_PLAN_QUOTA, holdingRefusal } from './saved-plan-quota';
-import { captureAndSchedulePlan, schedulePlanInput } from './saved-plan-schedule';
+import { scheduleInputOfCaptured } from './saved-plan-schedule';
 import { buildScheduleBody, serialiseScheduleBody } from './saved-plan-schedule-body';
 
 /**
@@ -304,17 +306,8 @@ export interface SavedPlanServiceOptions {
    * A literal at the call site is a limit each caller may spell differently.
    */
   readonly quota?: SavedPlanQuota;
-  /**
-   * The scheduler the **save** path runs over its detached reads.
-   *
-   * Injected for one reason, and it is the read path's (task 5.1): a reader
-   * that re-derives dates from stored settings passes every comparison of dates
-   * a test could make, because it computes the same answer the writer did. The
-   * only observation that separates it from a reader returning stored bytes is
-   * whether `schedule()` was *called*, and that needs a seam. Defaulted to
-   * {@link schedulePlanInput}, so no production caller passes one.
-   */
-  readonly schedule?: (reads: PlanInputReads) => Schedule;
+  /** The installed scheduling capability used after captured reads detach. */
+  readonly scheduler: Scheduler;
 }
 
 /**
@@ -325,7 +318,7 @@ export interface SavedPlanServiceOptions {
  * the second.
  */
 type CapturedSchedule =
-  | { readonly present: true; readonly planned: Schedule }
+  | { readonly present: true; readonly planned: Schedule; readonly algorithmId: string }
   | { readonly present: false; readonly absentReason: SavedPlanScheduleAbsentReason };
 
 /** One capture's reads and the outcome of scheduling them. */
@@ -363,11 +356,9 @@ async function bodyWrite(
  */
 export class SavedPlanService {
   private readonly quota: SavedPlanQuota;
-  private readonly schedule: (reads: PlanInputReads) => Schedule;
 
   constructor(private readonly opts: SavedPlanServiceOptions) {
     this.quota = opts.quota ?? DEFAULT_SAVED_PLAN_QUOTA;
-    this.schedule = opts.schedule ?? schedulePlanInput;
   }
 
   /**
@@ -392,6 +383,8 @@ export class SavedPlanService {
   async read(savedPlanId: string): Promise<SavedPlanReadOutcome> {
     const stored = await this.opts.plans.readOf(savedPlanId);
     if (stored === null) return { outcome: 'not_found' };
+    // Proof: recomputing here through `captureAndAttempt` threw `stored history
+    // invoked the scheduler` before the saved bytes could be returned.
     return await readOfStored(this.opts.digest, stored);
   }
 
@@ -437,7 +430,11 @@ export class SavedPlanService {
     // The captured project's own start date, not today's — `scheduleWrite`'s
     // rule, for the same reason: re-rendering against a start that has since
     // moved would restate the plan.
-    const built = buildScheduleBody(attempt.schedule.planned, attempt.reads.project.startDate);
+    const built = buildScheduleBody(
+      attempt.schedule.planned,
+      attempt.reads.project.startDate,
+      attempt.schedule.algorithmId,
+    );
     return {
       input,
       schedule: {
@@ -719,43 +716,81 @@ export class SavedPlanService {
   }
 
   /**
-   * The capture and its scheduling run, with a cycle recovered rather than lost.
+   * Captures one detached input and asks the shared scheduler for that exact input.
    *
-   * A plan whose dependencies form a cycle is still **saved** — with the reason
-   * `infeasible` and no schedule body — so this needs the capture's reads on the
-   * path where `schedule()` threw. `captureAndSchedulePlan` cannot return them:
-   * it composes the two and a throw takes the whole call with it. So the
-   * outcome is recorded in the injected scheduler, which is handed the reads,
-   * and the `ScheduleCycleError` is **re-thrown** from there: the composition's
-   * own return value is never made to lie about a schedule it does not have,
-   * and every other caller of it sees the cycle exactly as before.
+   * {@link SavedPlanCaptureStore.readPlanInput} closes its snapshot before it
+   * returns, so both Fast scheduling and optimized-cache selection happen with
+   * no capture connection held. The scheduler receives `mode: 'capture'`: it
+   * may read an already-computed optimized answer, but it cannot mutate live
+   * generations, slots or queues to create one for a historical record.
    *
-   * The connection is already closed when the scheduler runs (task 3.3), so a
-   * throw out of it leaks no handle.
-   *
-   * Collected into an array rather than assigned to a `ScheduleAttempt | null`:
-   * an assignment inside a callback stays `null` to the narrowing, and the
-   * length also distinguishes "the scheduler never ran" — a project that does
-   * not exist — from "it ran and found nothing".
+   * The scheduler's closed state is mapped to the stored S4 policy here:
+   * selected ready answers are stored with their exact algorithm identity;
+   * work still converging is `pending`; failed or corrupt work is
+   * `unavailable`; solver infeasibility and dependency cycles are
+   * `infeasible`. A missing project remains distinct as `null`.
    */
   private async captureAndAttempt(projectId: string): Promise<ScheduleAttempt | null> {
-    const attempts: ScheduleAttempt[] = [];
+    const reads = await this.opts.capture.readPlanInput(projectId);
+    if (reads === null) return null;
+    const input = scheduleInputOfCaptured(reads);
     try {
-      await captureAndSchedulePlan(this.opts.capture, projectId, (reads: PlanInputReads) => {
-        try {
-          const planned = this.schedule(reads);
-          attempts.push({ reads, schedule: { present: true, planned } });
-          return planned;
-        } catch (failure) {
-          if (!(failure instanceof ScheduleCycleError)) throw failure;
-          attempts.push({ reads, schedule: { present: false, absentReason: 'infeasible' } });
-          throw failure;
-        }
+      const scheduled = this.opts.scheduler.read({
+        projectId,
+        input,
+        engine: reads.project.scheduleEngine,
+        objective: reads.project.scheduleObjective,
+        enabled: reads.project.optimizationEnabled,
+        mode: 'capture',
       });
+      if (scheduled.kind === 'engine_unavailable')
+        return { reads, schedule: { present: false, absentReason: 'unavailable' } };
+      if (!reads.project.optimizationEnabled || reads.project.scheduleEngine === 'fast') {
+        return {
+          reads,
+          schedule: {
+            present: true,
+            planned: scheduled.fast,
+            algorithmId: SCHEDULE_ALGORITHM_ID,
+          },
+        };
+      }
+      const optimization = scheduled.optimization;
+      if (optimization === null) {
+        throw new Error('optimized capture returned no optimization state');
+      }
+      const objective = reads.project.scheduleObjective;
+      const variant = optimization.variants[objective];
+      switch (variant.state) {
+        case 'ready': {
+          const planned = optimization.schedules[objective];
+          if (planned === null)
+            throw new Error(`optimized capture reported ready without ${objective}`);
+          return {
+            reads,
+            schedule: {
+              present: true,
+              // Proof: substituting `scheduled.fast` here stored
+              // `waitingForCapacity: 0`; the selected ready schedule test expected 73.
+              planned,
+              algorithmId: `optimized:${optimization.contractVersion}:${objective}:${String(optimization.budgetMs)}`,
+            },
+          };
+        }
+        case 'idle':
+        case 'pending':
+        case 'retrying':
+          return { reads, schedule: { present: false, absentReason: 'pending' } };
+        case 'failed':
+        case 'corrupt':
+          return { reads, schedule: { present: false, absentReason: 'unavailable' } };
+        case 'plan-infeasible':
+          return { reads, schedule: { present: false, absentReason: 'infeasible' } };
+      }
     } catch (failure) {
       if (!(failure instanceof ScheduleCycleError)) throw failure;
+      return { reads, schedule: { present: false, absentReason: 'infeasible' } };
     }
-    return attempts.length === 0 ? null : attempts[0];
   }
 }
 
@@ -926,7 +961,11 @@ async function scheduleWrite(
   }
   // The captured project's own start date, not today's: re-rendering the dates
   // against a start that has since moved would restate the plan.
-  const built = buildScheduleBody(attempt.schedule.planned, attempt.reads.project.startDate);
+  const built = buildScheduleBody(
+    attempt.schedule.planned,
+    attempt.reads.project.startDate,
+    attempt.schedule.algorithmId,
+  );
   return {
     present: true,
     body: await bodyWrite(digest, serialiseScheduleBody(built), built.version),

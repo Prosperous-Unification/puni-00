@@ -6,6 +6,8 @@ import type {
   MeasureMetric,
   PertWeights,
   PriorityBand,
+  ScheduleEngine,
+  SolverObjectiveName,
 } from '@wbs/domain';
 
 export interface CapturedProject {
@@ -18,6 +20,9 @@ export interface CapturedProject {
   readonly pertWeights: PertWeights;
   readonly estimateRounding: EstimateRounding;
   readonly startDate: IsoDate | null;
+  readonly scheduleEngine: ScheduleEngine;
+  readonly scheduleObjective: SolverObjectiveName;
+  readonly optimizationEnabled: boolean;
   readonly solutionRef: { readonly slug: string; readonly url: string } | null;
 }
 

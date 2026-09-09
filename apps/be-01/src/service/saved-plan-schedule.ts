@@ -9,6 +9,7 @@ import {
   type Slice,
   workdaysBetween,
 } from '@wbs/domain';
+import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import { NO_DEADLINES, slicesOf } from './work-item.service';
 
@@ -31,7 +32,7 @@ import { NO_DEADLINES, slicesOf } from './work-item.service';
  * (`pending`, and the other reasons), and swallowing it now would leave that
  * row nothing to test.
  */
-export function schedulePlanInput(reads: PlanInputReads): Schedule {
+export function scheduleInputOfCaptured(reads: PlanInputReads): ScheduleInput {
   const rows = reads.workItems;
   const rule: EstimateRule = {
     method: reads.project.estimateMethod,
@@ -91,14 +92,28 @@ export function schedulePlanInput(reads: PlanInputReads): Schedule {
               .map((row) => [row.id, row.deadline]),
           ),
         );
-  return schedule(
+  return {
     rows,
-    reads.dependencies,
+    edges: reads.dependencies,
     slices,
     notBefore,
-    reads.capacity,
-    reads.project.depReach,
+    poolSizes: reads.capacity,
+    reach: reads.project.depReach,
     deadlines,
+  };
+}
+
+/** Schedules the canonical seven-field input derived from detached capture reads. */
+export function schedulePlanInput(reads: PlanInputReads): Schedule {
+  const input = scheduleInputOfCaptured(reads);
+  return schedule(
+    input.rows,
+    input.edges,
+    input.slices,
+    input.notBefore,
+    input.poolSizes,
+    input.reach,
+    input.deadlines,
   );
 }
 

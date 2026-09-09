@@ -4,7 +4,6 @@ import {
   type IsoDate,
   lastWorkdayOf,
   type Schedule,
-  SCHEDULE_ALGORITHM_ID,
   type Scheduled,
 } from '@wbs/domain';
 
@@ -17,7 +16,7 @@ import {
  * {@link buildScheduleBody} untouched by construction (see its doc), and a
  * reader that does not know the new key simply does not read it.
  *
- * Not to be confused with {@link SCHEDULE_ALGORITHM_ID}, which names the
+ * Not to be confused with `SCHEDULE_ALGORITHM_ID`, which names the
  * arithmetic rather than the container. Two bodies can share this version and
  * disagree about every date in them.
  */
@@ -153,11 +152,21 @@ function datedRecordOf(
  * saved, and re-rendering them against a project whose start has since moved
  * would restate the plan, which is the fault this whole feature exists to
  * prevent.
+ *
+ * `algorithmId` names the answer actually selected for this capture. Fast uses
+ * `SCHEDULE_ALGORITHM_ID`; an optimized answer includes its contract version,
+ * objective and budget so stored dates never claim a different arithmetic.
  */
-export function buildScheduleBody(planned: Schedule, startDate: IsoDate | null): ScheduleBody {
+export function buildScheduleBody(
+  planned: Schedule,
+  startDate: IsoDate | null,
+  algorithmId: string,
+): ScheduleBody {
   const body: Record<string, unknown> = {
     version: SCHEDULE_BODY_SCHEMA_VERSION,
-    algorithmId: SCHEDULE_ALGORITHM_ID,
+    // Proof: hardcoding `SCHEDULE_ALGORITHM_ID` here stored `slice-leveling-v2`;
+    // the ready optimized schedule test expected `optimized:2.4:pri:12345`.
+    algorithmId,
   };
   for (const key of Object.keys(planned).sort()) {
     if (NOT_STORED.has(key)) continue;

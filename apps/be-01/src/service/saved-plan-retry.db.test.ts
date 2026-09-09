@@ -19,6 +19,7 @@ import { UserRepository } from '../repository/user';
 import { WorkItemRepository } from '../repository/work-item';
 import { nodeDigest } from '../runtime/bun-runtime';
 import { projectRow } from '../testing/project-fixture';
+import { fastScheduler } from './optimizer-wiring';
 import { SavedPlanService } from './saved-plan.service';
 import { saveWithBoundedRetry } from './saved-plan-retry';
 
@@ -118,6 +119,7 @@ describe('a refused save retried inside its budget saves the project as it is th
 
   const service = (now: () => number): SavedPlanService =>
     new SavedPlanService({
+      scheduler: fastScheduler,
       digest: nodeDigest,
       capture: new SavedPlanCaptureRepository({ openConnection: () => openConnection(path) }),
       plans: new SavedPlanRepository({ openConnection: () => openConnection(path) }),

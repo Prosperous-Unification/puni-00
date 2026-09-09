@@ -59,13 +59,13 @@ and pre-existing dirt. Never overwrite the active optimizer feature's edits.
 
 ## 3. Detached captures
 
-- [ ] 3.1 **Expose captured canonical input without scheduling.** Extract
+- [x] 3.1 **Expose captured canonical input without scheduling.** Extract
       scheduleInputOfCaptured from saved-plan-schedule.ts and require Scheduler at the
       SavedPlanService construction sites. Compare live and captured inputs against
       literal seven-field fixtures, not only each other. Preserve read-connection-closed
       at scheduler-entry assertions; deliberately move scheduling inside capture and
       observe the open reader at that exact instant. Run saved-plan capture/deadline tests.
-- [ ] 3.2 **Store the actual selected schedule or named absence.** Apply S4's complete
+- [x] 3.2 **Store the actual selected schedule or named absence.** Apply S4's complete
       table to save/current and parameterize buildScheduleBody's algorithm identity.
       Add selected-ready schedules observably different from Fast, all absence states,
       disabled preference, no-adapter and zero-work cases. Faults: store Fast for ready,

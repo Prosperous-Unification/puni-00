@@ -90,3 +90,27 @@ date — the last refresh failed. Retry`; the restored run kept the `2026-09-07`
 
 - `git fetch origin main` on 2026-09-09 left `origin/main` at `530d25bc`; merge `7fa7ea54`
   already contains that revision on this branch.
+
+## Slices 3.1–3.2 — detached selected captures
+
+- `scheduleInputOfCaptured` derives the same literal seven fields as the live projection:
+  rows, edges, slices, not-before offsets, capacity pools, dependency reach and deadline
+  offsets. The saved-plan suite completed with **120 pass / 0 fail**; its connection-entry
+  check observed `[0]`, while the counting control observed `[1]` for a live handle.
+- SavedPlanService now receives the shared Scheduler and selects from detached capture
+  state. Ready optimized output is stored with identity
+  `optimized:2.4:pri:12345`; idle, pending and retrying store `pending`; failed and corrupt
+  store `unavailable`; plan infeasibility and dependency cycles store `infeasible`.
+  Disabled optimized preference stores Fast, and a zero-work optimized capture stays pending.
+- The real service graph and captured-reader database run completed with **14 pass / 0
+  fail**. A save through the captured reader left generation, slot and queue tables exactly
+  unchanged. Routing it through the live coordinator admitted generation 1 and left two
+  `starting` solver slots at save return.
+- Substituting Fast for a ready selected result failed on `Expected: 73 · Received: 0` for
+  `waitingForCapacity`. Hardcoding the Fast algorithm identity failed on `Expected:
+optimized:2.4:pri:12345 · Received: slice-leveling-v2`. Both faults were restored.
+- Stored-history reads use only persisted bytes. Deliberately recomputing one through
+  `captureAndAttempt` failed with `stored history invoked the scheduler` on the production
+  read path; restoration completed the focused case with **1 pass / 0 fail**.
+- Fresh forced typechecks for `be-01` and core are clean. Fresh uncached ESLint runs for
+  both projects are clean; the core boundary fixture completed with **3 pass / 0 fail**.

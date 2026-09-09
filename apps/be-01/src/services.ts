@@ -1,4 +1,4 @@
-import { type Clock, clockOf, type PlanTransactionalStores } from '@wbs/core';
+import { type Clock, clockOf, type PlanTransactionalStores, type Scheduler } from '@wbs/core';
 import { contractVersionOf } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
 import { systemTimers } from '@wbs/runtime-portable';
@@ -135,6 +135,7 @@ export interface BeServices extends WritingServices {
   replay: ReplayOrchestrator;
   retention: RetentionTimer;
   optimizer: OptimizationCoordinator | undefined;
+  scheduler: Scheduler;
 }
 
 /**
@@ -393,6 +394,7 @@ export function buildServices(opts: ServicesOptions): BeServices {
     // the wiring instead of observing it. Nothing writes through this.
     gate: opts.gate,
     optimizer: coordinator,
+    scheduler: optimizer.scheduler,
     auth: new AuthService({
       clock,
       users: userStore,
