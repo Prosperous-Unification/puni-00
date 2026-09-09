@@ -134,6 +134,7 @@ export const SOLVER_SLICE_KEYS = [
   'priorityWeight',
   'notBeforeUnits',
   'deadlineUnits',
+  'workItemIsMilestone',
 ] as const;
 export interface SolverSlice {
   readonly key: string;
@@ -147,6 +148,8 @@ export interface SolverSlice {
   readonly notBeforeUnits: number;
   /** The **effective** deadline, already folded over the tree. `null` is unconstrained. */
   readonly deadlineUnits: number | null;
+  /** True only when every slice of this work item has zero duration. */
+  readonly workItemIsMilestone: boolean;
 }
 
 /**

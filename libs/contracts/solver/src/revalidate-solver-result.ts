@@ -294,6 +294,15 @@ export const revalidateSolverResult = (
         );
       }
     }
+    if (
+      typeof slice.workItemIsMilestone !== 'boolean' ||
+      (slice.workItemIsMilestone && slice.durationUnits !== 0)
+    ) {
+      return refuse(
+        'malformed-request',
+        `slice ${JSON.stringify(slice.key)} has workItemIsMilestone ${JSON.stringify(slice.workItemIsMilestone)} with durationUnits ${JSON.stringify(slice.durationUnits)}`,
+      );
+    }
     // MOVEMENT is measured against the baseline, so a slice with no baseline is
     // a term that cannot be computed rather than a term that is zero. ONE check
     // covers both absent and out-of-domain, and it is one check on purpose: an
@@ -484,8 +493,11 @@ export const revalidateSolverResult = (
  * about the seam, not a convenience.
  *
  * The clause is stated on the MATERIALISED schedule in the real fractional
- * domain — `lastWorkdayOf(start, finish) <= effectiveDeadlineOffset` for every
- * slice — and deliberately not in quantised units, because checking it in units
+ * domain. For a work item containing positive work, the projected span's last
+ * occupied day is driven by each slice's finish; a zero step at that finish
+ * does not mint another day. For an all-zero work item, the start is the
+ * milestone's occupied day. Both readings go through {@link isOnTime}, and the
+ * check is deliberately not in quantised units, because checking it in units
  * would re-implement the inclusive-ceiling rounding a second time and could
  * disagree with the End date the column prints. Materialising needs
  * `materialiseOptimized`, and that needs `rows`, `edges`, `slices`,
@@ -548,8 +560,12 @@ export const revalidateOptimizedDeadlines = (
       );
     }
     const dueDay = slice.deadlineUnits / SOLVER_QUANTUM - 1;
-    if (!isOnTime(timing.earliestStart, timing.earliestFinish, dueDay)) {
-      const lastDay = lastWorkdayOf(timing.earliestStart, timing.earliestFinish);
+    // `isOnTime(0, finish, due)` asks which day the work-item span is still on.
+    // Only an all-zero item needs its real start so the instant itself occupies
+    // a day. TASK-501's trailing zero step is the case these two readings split.
+    const deadlineStart = slice.workItemIsMilestone ? timing.earliestStart : 0;
+    if (!isOnTime(deadlineStart, timing.earliestFinish, dueDay)) {
+      const lastDay = lastWorkdayOf(deadlineStart, timing.earliestFinish);
       return refuse(
         'deadline-violated',
         `slice ${JSON.stringify(slice.key)} last works on day ${String(lastDay)}, past its deadline day ${String(dueDay)}`,

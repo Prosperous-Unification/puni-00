@@ -4,7 +4,7 @@
     "wi-2\u0000": 10
   },
   "budgetMs": 30000,
-  "contractVersion": "8+0.1.1",
+  "contractVersion": "8+0.1.2",
   "edges": [["wi-1\u0000step-a", "wi-2\u0000"]],
   "fastHint": {
     "wi-1\u0000step-a": 0,
@@ -19,6 +19,7 @@
   "slices": [
     {
       "deadlineUnits": null,
+      "workItemIsMilestone": false,
       "durationUnits": 10,
       "key": "wi-1\u0000step-a",
       "notBeforeUnits": 0,
@@ -29,6 +30,7 @@
     },
     {
       "deadlineUnits": 96,
+      "workItemIsMilestone": false,
       "durationUnits": 20,
       "key": "wi-2\u0000",
       "notBeforeUnits": 0,
@@ -38,7 +40,7 @@
       "width": 1
     }
   ],
-  "solverVersion": "0.1.1",
+  "solverVersion": "0.1.2",
   "stageBudgetSplit": [0.6, 0.25, 0.15],
   "wireVersion": 1
 }

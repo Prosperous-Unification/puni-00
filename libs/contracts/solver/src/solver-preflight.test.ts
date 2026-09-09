@@ -12,6 +12,7 @@ const sliceOf = (over: Partial<SolverSlice> = {}): SolverSlice => ({
   priorityWeight: 0,
   notBeforeUnits: 0,
   deadlineUnits: null,
+  workItemIsMilestone: false,
   ...over,
 });
 
