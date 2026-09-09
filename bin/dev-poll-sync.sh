@@ -147,7 +147,15 @@ if (outside.length) {
   exit 1
 fi
 # The guard's scratch is removed so the tree the deployer sees is the clean
-# target tree: sync.ts refuses a candidate whose `git status` is not empty.
+# target tree, exactly as `git checkout --detach` left it.
+#
+# Nothing in sync.ts enforces that — `grep status tools/tool-devsync/src/sync.ts`
+# is empty, and a comment here once claimed otherwise. What holds the line is
+# `poller.test.ts`'s complete-tree case, whose probing Bun runs
+# `git status --porcelain` in the candidate and exits 44 `target tree is dirty`;
+# deleting this `rm -rf` was watched failing there. Stated rather than implied,
+# because a cleanup whose reason is a check that does not exist is one edit away
+# from being dropped as redundant.
 rm -rf -- "$RESOLVE_OUT" "$RESOLVE_META" "$CANDIDATE_NEXT/.resolve.log"
 # Two ticks on one target race to the same name. The loser discards its own
 # clean detached clone and runs the winner's, which the commit hash makes

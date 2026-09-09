@@ -610,11 +610,17 @@ printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
     // of tools/libs/root configs — `missing target file: apps/be-01/Dockerfile`;
     // `cd "$SRC"` restored before the exec — `wrong cwd: <the source checkout>`;
     // the guard's `rm -rf` of its scratch removed — `target tree is dirty`;
-    // the pre-TASK-376 `ln -s "$SRC/node_modules"` restored together with the
-    // `.git/info/exclude` line that hid it — `target tree borrows an install`,
-    // and restored without that line — `target tree is dirty` one check
-    // earlier, because `.gitignore`'s `node_modules/` does not match a symlink;
-    // and `import '@dagger.io/dagger'` committed into sync.ts — the guard
+    // the pre-TASK-376 `ln -s "$SRC/node_modules"` restored, with or without
+    // the `.git/info/exclude` line that used to hide it — `target tree borrows
+    // an install` (watched 2026-09-10, both variants). It reaches that check
+    // rather than the dirty one because `.gitignore` now carries a bare
+    // `node_modules` beside `node_modules/`: the slashed form matches a
+    // directory only, so before that line a symlink was `?? node_modules` and
+    // this failed one check earlier on `target tree is dirty` instead. The
+    // borrows-an-install probe is what makes the guarantee hold either way,
+    // which is the point — the dirty check could never see a symlink.
+    //
+    // And `import '@dagger.io/dagger'` committed into sync.ts — the guard
     // refuses before the probe runs, on
     // `error: Could not resolve: "@dagger.io/dagger". Maybe you need to "bun install"?`.
     expect(run).toEqual({ code: 0, stdout: '', stderr: '' });

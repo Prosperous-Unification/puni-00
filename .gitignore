@@ -45,6 +45,11 @@ test-results/
 test-results-packaged/
 playwright-report/
 .claude/worktrees
+# `.nxignore` codifies `.worktrees/<name>` as the convention for agent lanes, and
+# a nested worktree is untracked. `bin/h2puni-gate.sh` refuses a tree that is
+# dirty after its checkout (exit 65), so without this line one lane following
+# that convention makes every gate in the shared h2puni tree refuse.
+.worktrees/
 .nx/polygraph
 .nx/self-healing
 
