@@ -323,7 +323,10 @@ test.describe('the schedule cue, in a browser', () => {
       ...SUGGESTING,
       engine: 'optimized',
       displayed: 'pri',
-      variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'ready', proof: 'proven' } },
+      variants: {
+        pri: { state: 'ready', proof: 'proven' },
+        time: { state: 'ready', proof: 'proven' },
+      },
       finishDays: { fast: 10, pri: 7, time: 10 },
       sameOrderAsFast: { pri: true, time: true },
     });

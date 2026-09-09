@@ -9,7 +9,11 @@ const STORED = { generation: 4, createdAt: 12 } as const;
 
 function result(
   publication: OptimizedResult['publication'],
-  statuses: readonly ['optimal' | 'feasible' | 'unknown', 'optimal' | 'feasible' | 'unknown', 'optimal' | 'feasible' | 'unknown'],
+  statuses: readonly [
+    'optimal' | 'feasible' | 'unknown',
+    'optimal' | 'feasible' | 'unknown',
+    'optimal' | 'feasible' | 'unknown',
+  ],
 ): OptimizedResult {
   const term = (status: 'optimal' | 'feasible' | 'unknown') => ({
     value: 0,

@@ -230,11 +230,23 @@ describe('what the cue reads out', () => {
   });
 
   it.each([
-    ['one is still solving', { pri: { state: 'ready', proof: 'proven' }, time: { state: 'pending' } } as const],
-    ['one failed', { pri: { state: 'ready', proof: 'proven' }, time: { state: 'failed', reason: 'oom' } } as const],
+    [
+      'one is still solving',
+      { pri: { state: 'ready', proof: 'proven' }, time: { state: 'pending' } } as const,
+    ],
+    [
+      'one failed',
+      {
+        pri: { state: 'ready', proof: 'proven' },
+        time: { state: 'failed', reason: 'oom' },
+      } as const,
+    ],
     [
       'one is infeasible',
-      { pri: { state: 'ready', proof: 'proven' }, time: { state: 'plan-infeasible', items: [] } } as const,
+      {
+        pri: { state: 'ready', proof: 'proven' },
+        time: { state: 'plan-infeasible', items: [] },
+      } as const,
     ],
   ])('says nothing about the two variants while %s', (_what, variants) => {
     // A figure with no schedule behind it is not a comparison. The `time`

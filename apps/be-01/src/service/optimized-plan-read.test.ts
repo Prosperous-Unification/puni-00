@@ -117,7 +117,8 @@ function recordingReader(
   const schedules: Record<SolverObjectiveName, Schedule | null> =
     answer === null || 'slices' in answer ? { pri: answer, time: answer } : answer;
   const stateOf = (objective: SolverObjectiveName): OptimizationVariantState =>
-    states[objective] ?? (schedules[objective] === null ? { state: 'idle' } : { state: 'ready', proof: 'proven' });
+    states[objective] ??
+    (schedules[objective] === null ? { state: 'idle' } : { state: 'ready', proof: 'proven' });
   return {
     asks,
     read: (ask: OptimizedScheduleAsk) => {
@@ -206,7 +207,10 @@ describe('the plan read and the optimized cache', () => {
       contractVersion: '7+test',
       budgetMs: 60_000,
       displayed: 'pri',
-      variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'ready', proof: 'proven' } },
+      variants: {
+        pri: { state: 'ready', proof: 'proven' },
+        time: { state: 'ready', proof: 'proven' },
+      },
       // The unestimated leaf occupies `ASSUMED_SLICE_WORKDAYS`, so Fast
       // finishes on day 2 and a slice moved to day 3 finishes on day 5.
       finishDays: { fast: 2, pri: 5, time: 5 },
