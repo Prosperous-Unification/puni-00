@@ -14,8 +14,8 @@ export const SOLVER_SUPERVISOR_UNIT_SOURCE =
 export const SOLVER_SUPERVISOR_SERVICE = 'wbs-solver-supervisor.service';
 /** Stable host-wide runtime published atomically with the supervisor service. */
 export const SOLVER_SUPERVISOR_BUN = '/home/puni1/.local/lib/wbs-solver/bun';
-/** Deployment-managed source copied into the host-wide runtime location. */
-export const SOLVER_SUPERVISOR_BUN_SOURCE = '/home/puni1/wbs-dev/bin/bun';
+/** Exact local Bun executing the installer and copied into the host-wide location. */
+export const SOLVER_SUPERVISOR_BUN_SOURCE = process.execPath;
 /**
  * Host Bun versions from {@link SOLVER_SUPERVISOR_BUN_SOURCE} whose accepted Unix sockets expose the fd required for
  * Linux SO_PEERCRED authentication.

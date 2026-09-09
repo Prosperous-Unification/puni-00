@@ -69,6 +69,7 @@ export function parseSolverSupervisorInstallArgs(
 
 export function solverSupervisorInstallFiles(config: string): readonly BundleFile[] {
   return [
+    { local: SOLVER_SUPERVISOR_BUN_SOURCE, remote: SOLVER_SUPERVISOR_BUN },
     SOLVER_SUPERVISOR_BUNDLE,
     { local: config, remote: SOLVER_SUPERVISOR_CONFIG },
     { local: SOLVER_SUPERVISOR_UNIT_SOURCE, remote: SOLVER_SUPERVISOR_UNIT },
@@ -83,6 +84,17 @@ export function buildSolverSupervisorInstallPlan(
   const files = solverSupervisorInstallFiles(config);
   const temp = files.map((file) => ({ ...file, remote: `${file.remote}.tmp` }));
   const moves = files.map((file, index) => `mv ${temp[index]?.remote} ${file.remote}`).join(' && ');
+  const permissions = temp
+    .map((file) => {
+      const mode =
+        file.remote === `${SOLVER_SUPERVISOR_CONFIG}.tmp`
+          ? '0600'
+          : file.remote === `${SOLVER_SUPERVISOR_UNIT}.tmp`
+            ? '0644'
+            : '0755';
+      return `chmod ${mode} ${file.remote}`;
+    })
+    .join(' && ');
   const readiness =
     `set -eu; systemctl --user is-active --quiet ${SOLVER_SUPERVISOR_SERVICE}; ` +
     'solver_probe=0; ' +
@@ -94,8 +106,8 @@ export function buildSolverSupervisorInstallPlan(
   return [
     {
       phase: 'preflight',
-      description: `require ${host}:${SOLVER_SUPERVISOR_BUN_SOURCE} with accepted-socket fd support`,
-      argv: ['ssh', host, `${SOLVER_SUPERVISOR_BUN_SOURCE} --version`],
+      description: 'require the installer Bun to have accepted-socket fd support',
+      argv: [SOLVER_SUPERVISOR_BUN_SOURCE, '--version'],
     },
     {
       phase: 'files',
@@ -106,15 +118,6 @@ export function buildSolverSupervisorInstallPlan(
         'install -d -m 0755 /home/puni1/.local/lib/wbs-solver /home/puni1/.config/systemd/user && install -d -m 0700 /home/puni1/.config/wbs-solver',
       ],
     },
-    {
-      phase: 'files',
-      description: 'stage the measured Bun runtime at the host-wide path',
-      argv: [
-        'ssh',
-        host,
-        `install -m 0755 ${SOLVER_SUPERVISOR_BUN_SOURCE} ${SOLVER_SUPERVISOR_BUN}.tmp`,
-      ],
-    },
     ...temp.map((file, index) => ({
       phase: 'files' as const,
       description: `stage ${files[index]?.local} at ${file.remote}`,
@@ -122,12 +125,13 @@ export function buildSolverSupervisorInstallPlan(
     })),
     {
       phase: 'files',
+      description: 'verify the staged Bun runtime before publication',
+      argv: ['ssh', host, `${SOLVER_SUPERVISOR_BUN}.tmp --version`],
+    },
+    {
+      phase: 'files',
       description: 'atomically publish the supervisor bundle, config, and unit',
-      argv: [
-        'ssh',
-        host,
-        `chmod 0755 ${temp[0]?.remote} && chmod 0600 ${temp[1]?.remote} && chmod 0644 ${temp[2]?.remote} && ${moves} && mv ${SOLVER_SUPERVISOR_BUN}.tmp ${SOLVER_SUPERVISOR_BUN}`,
-      ],
+      argv: ['ssh', host, `${permissions} && ${moves}`],
     },
     {
       phase: 'service',
@@ -219,7 +223,10 @@ export async function installSolverSupervisor(
   assertSolverSupervisorBunVersion((await requireCommand(preflight, dependencies)).stdout);
 
   for (const step of plan.filter((candidate) => candidate.phase === 'files')) {
-    await requireCommand(step, dependencies);
+    const output = await requireCommand(step, dependencies);
+    if (step.description === 'verify the staged Bun runtime before publication') {
+      assertSolverSupervisorBunVersion(output.stdout);
+    }
   }
   // Proof: install-solver-supervisor.test.ts requires this marker to precede
   // daemon-reload, so mismatched bytes cannot be activated.

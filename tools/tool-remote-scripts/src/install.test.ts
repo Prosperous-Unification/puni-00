@@ -168,7 +168,7 @@ describe('host-wide solver supervisor contract', () => {
   });
 
   it('refuses any host Bun outside the measured-compatible set', () => {
-    // Every listed version is one somebody ran the bundle under on h2puni; an
+    // The listed version is one somebody ran the accepted-socket proof under on h2puni; an
     // unlisted one is refused precisely because nobody has.
     for (const version of SOLVER_SUPERVISOR_BUN_VERSIONS) {
       assertSolverSupervisorBunVersion(`${version}\n`);
