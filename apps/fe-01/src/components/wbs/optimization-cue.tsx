@@ -15,6 +15,7 @@ import {
   ALGORITHM_WORDS,
   days,
   deadlineWords,
+  hasEffectiveDeadline,
   OBJECTIVE_LABEL,
   STALE_WORDS,
 } from './optimization-words';
@@ -118,7 +119,10 @@ function unmeetableLine(
     unmeetable.ownerWorkItemId === unmeetable.boundWorkItemId
       ? nameOf(unmeetable.boundWorkItemId)
       : `${nameOf(unmeetable.ownerWorkItemId)} → ${nameOf(unmeetable.boundWorkItemId)}`;
-  return `${who} · Work item deadline ${deadlineWords(projectStart, unmeetable.effectiveDeadlineOffset, today)}`;
+  const effective = hasEffectiveDeadline(projectStart, unmeetable.effectiveDeadlineOffset)
+    ? ' (effective workday)'
+    : '';
+  return `${who} · Work item deadline${effective} ${deadlineWords(projectStart, unmeetable.effectiveDeadlineOffset, today)}`;
 }
 
 /**
@@ -250,7 +254,11 @@ export function OptimizationCue({
   if (!optimization.enabled) return null;
 
   const reading = cueReading(optimization, stale);
-  const nameOf = (id: string): string => workItemName(id) ?? 'Work item no longer in this plan';
+  const nameOf = (id: string): string => {
+    const name = workItemName(id);
+    if (name === null) return 'Work item no longer in this plan';
+    return name.trim() === '' ? 'Unnamed work item' : name;
+  };
 
   const switches: MenuAction[] =
     onChoose === undefined
