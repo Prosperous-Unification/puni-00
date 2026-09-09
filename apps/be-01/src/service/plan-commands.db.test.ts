@@ -40,6 +40,7 @@ import type { Broadcaster } from './broadcast';
 import { CalendarMarkerService } from './calendar-marker.service';
 import { CapacityService } from './capacity.service';
 import { DirectoryService } from './directory.service';
+import { fastScheduler } from './optimizer-wiring';
 import type { PlanCommand } from './plan-command';
 import {
   type AppliedCommand,
@@ -117,6 +118,7 @@ beforeEach(async () => {
   );
 
   serviceOptions = {
+    scheduler: fastScheduler,
     clock: testClock,
     workItems: workItemStore,
     projects: projectStore,

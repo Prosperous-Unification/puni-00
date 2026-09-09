@@ -7,6 +7,7 @@ import { PLAN_EVENT_RETENTION_DAYS } from './repository';
 import { ActualRepository } from './repository/actual';
 import { CalendarMarkerRepository } from './repository/calendar-marker';
 import { CapacityRepository } from './repository/capacity';
+import { capturedOptimizationReaderOf } from './repository/captured-optimization-reader';
 import { CommandJournalRepository } from './repository/command-journal';
 import type { Drizzle } from './repository/db';
 import { DependencyRepository } from './repository/dependency';
@@ -258,7 +259,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: SharedRunt
       // The other half of the same `optimizerWiring` the settings gate reads,
       // so this process cannot serve optimized plans while refusing to be
       // switched on to them, or the reverse.
-      optimized: shared.optimized.read,
+      scheduler: shared.optimized.scheduler,
     }),
   };
 }
@@ -371,7 +372,18 @@ export function buildServices(opts: ServicesOptions): BeServices {
   // Both service-facing halves derive from the same coordinator instance: a
   // process cannot accept the ON setting unless its plan reader can also admit
   // and consume optimized rows.
-  const optimizer = optimizerWiring(coordinator?.readPlan);
+  const optimizer = optimizerWiring(
+    coordinator === undefined || opts.optimizer === undefined
+      ? undefined
+      : {
+          readLive: coordinator.readPlan,
+          readCaptured: capturedOptimizationReaderOf(opts.db, {
+            contractVersion: contractVersionOf(opts.optimizer.solverVersion),
+            budgetMs: opts.optimizer.budgetMs,
+            now: Date.now,
+          }),
+        },
+  );
 
   const services: BeServices = {
     announcements,

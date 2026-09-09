@@ -33,14 +33,14 @@ and pre-existing dirt. Never overwrite the active optimizer feature's edits.
 
 ## 2. Live read and publication
 
-- [ ] 2.1 **Wire the scheduler through current services.** Change work-item options and
+- [x] 2.1 **Wire the scheduler through current services.** Change work-item options and
       composition, preserve one source of ProjectService availability, and use the port
       in tree. Keep current optimized-plan-read, annotation, availability, cycle and
       fractional-schedule suites. Add a real service unavailable fixture; fault is omitted
       refusal propagation, assertion is the unavailable arm with no Fast dates. Hold a
       fake solve unresolved and prove the live read settles before releasing it, using a
       controlled completion signal rather than a latency threshold.
-- [ ] 2.2 **Bind the 409 contract.** Extend exact getWorkItems/exportProject reply shapes,
+- [x] 2.2 **Bind the 409 contract.** Extend exact getWorkItems/exportProject reply shapes,
       shared refusals and both binders. Mounted tests call GET and JSON/Markdown export
       on a directly stored optimized project with no adapter; assert status/body/media
       type and unchanged successful exports. Fault: remove each unavailable mapping,
@@ -48,7 +48,7 @@ and pre-existing dirt. Never overwrite the active optimizer feature's edits.
       Run contracts, generated-client/MCP-tool and route-bijection tests; retain settings
       PATCH's optimizer_unavailable spelling. Frontend renders the named message through
       its resource-failure path and creates no export download on refusal.
-- [ ] 2.3 **Make committed-write publication explicit.** Add plan_unavailable to
+- [x] 2.3 **Make committed-write publication explicit.** Add plan_unavailable to
       ProjectEvent, implement announceTree's branch, and narrow resourcesFor to tree.
       Drive a real runner mutation, commit, durable event and peer coordinator refetch;
       assert stored mutation, successful response, exactly one invalidation, typed read

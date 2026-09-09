@@ -22,6 +22,7 @@ import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { AuthService } from '../service/auth.service';
 import { DirectoryService } from '../service/directory.service';
+import { fastScheduler } from '../service/optimizer-wiring';
 import { ProjectService } from '../service/project.service';
 import { StepService } from '../service/step.service';
 import { WorkItemService } from '../service/work-item.service';
@@ -89,6 +90,7 @@ beforeEach(async () => {
       broadcast: recordingBroadcaster(),
     }),
     workItems: new WorkItemService({
+      scheduler: fastScheduler,
       clock: testClock,
       workItems,
       projects,

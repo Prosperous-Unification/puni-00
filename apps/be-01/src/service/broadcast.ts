@@ -23,6 +23,7 @@ import type { NumberedWorkItem } from './work-item.service';
  */
 export type ProjectEvent =
   | { type: 'tree_replaced'; workItems: NumberedWorkItem[] }
+  | { type: 'plan_unavailable'; error: 'engine_unavailable'; engine: 'optimized' }
   | { type: 'step_added'; step: Step }
   | { type: 'step_renamed'; step: Step }
   | { type: 'step_removed'; stepId: string }

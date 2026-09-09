@@ -25,6 +25,7 @@ import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { AuthService } from '../service/auth.service';
 import { CalendarMarkerService } from '../service/calendar-marker.service';
+import { fastScheduler } from '../service/optimizer-wiring';
 import { ProjectService } from '../service/project.service';
 import { StepService } from '../service/step.service';
 import { WorkItemService } from '../service/work-item.service';
@@ -145,6 +146,7 @@ describe('the schedule identity guarantee', () => {
         broadcast,
       }),
       workItems: new WorkItemService({
+        scheduler: fastScheduler,
         clock: testClock,
         workItems: new WorkItemRepository(db, OPEN),
         projects,

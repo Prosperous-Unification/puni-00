@@ -19,6 +19,7 @@ import {
   withoutPlacement,
   withSnappedRollUps,
 } from '../testing/assumed-duration-oracle';
+import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
@@ -33,7 +34,7 @@ import { inMemoryProjects, projectRow } from '../testing/project-fixture';
 import { inMemorySubtrees } from '../testing/subtree-fixture';
 import { inMemoryWorkItems, workItemRow } from '../testing/work-item-fixture';
 import captured from './fixtures/capacity-oracle-2026-08-13.json';
-import { WorkItemService } from './work-item.service';
+import { fastScheduler } from './optimizer-wiring';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
 /** The pre-C5 tip: `main@050fd45`'s schema, and the state the migration runs against. */
@@ -565,6 +566,7 @@ describe('every plan schedules identically across the migration', () => {
     const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
     const service = new WorkItemService({
+      scheduler: fastScheduler,
       clock: testClock,
       workItems,
       projects,

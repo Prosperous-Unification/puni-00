@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import type { WorkItemService } from '../service/work-item.service';
+import type { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { personAdded } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { projectRow } from '../testing/project-fixture';

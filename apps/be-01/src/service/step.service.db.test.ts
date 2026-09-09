@@ -36,6 +36,7 @@ import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
 import type { Broadcaster } from './broadcast';
 import { GatewayBroadcaster } from './gateway-broadcaster';
+import { fastScheduler } from './optimizer-wiring';
 import { ProjectService } from './project.service';
 import { PushClient } from './push-client';
 import { ReplayBuffer } from './replay-buffer';
@@ -503,6 +504,7 @@ describe('a step removed between the check and the write', () => {
       },
     });
     return new WorkItemService({
+      scheduler: fastScheduler,
       clock: testClock,
       workItems: new WorkItemRepository(db, OPEN),
       projects: projectStore,
@@ -546,6 +548,7 @@ describe('a step removed between the check and the write', () => {
     // reads the person inside its own transaction — but the thing being
     // asserted is unchanged: `writeNamingStep` must not claim the step.
     const workItems = new WorkItemService({
+      scheduler: fastScheduler,
       clock: testClock,
       workItems: new WorkItemRepository(db, OPEN),
       projects: projectStore,

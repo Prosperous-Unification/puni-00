@@ -9,6 +9,7 @@ import type {
   OptimizationRetryResult,
 } from '../service/optimization-coordinator';
 import { ProjectService } from '../service/project.service';
+import { WorkItemService } from '../service/work-item.service';
 import { inMemoryUsers, TEST_JWT_KEY, testAuthService } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
@@ -28,7 +29,13 @@ function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>)
   // The project store is this suite's own — the list route resolves each
   // project's owner name through it, so it has to be the one the harness above
   // seeded. Everything else the harness builds.
-  return inMemoryServices({ projects: projectStore }).service;
+  const plan = inMemoryServices({ projects: projectStore });
+  return new WorkItemService({
+    clock: testClock,
+    ...plan.stores,
+    broadcast: plan.broadcast,
+    scheduler: plan.scheduler,
+  });
 }
 
 function buildHarness(
@@ -221,6 +228,28 @@ describe('projects', () => {
     );
     expect(markdown).toContain('| 010 | Build \\| ship |');
   });
+
+  for (const format of ['json', 'markdown'] as const)
+    it(`refuses an unavailable optimized ${format} export as JSON`, async () => {
+      const { projectStore, register, send } = buildHarness();
+      const token = await register('owner');
+      const create = await send('/api/projects', token, created('Unavailable export'));
+      const { project } = (await create.json()) as { project: { id: string } };
+      await projectStore.update(
+        project.id,
+        { optimizationEnabled: true, scheduleEngine: 'optimized' },
+        { at: 1, by: 'owner' },
+      );
+
+      const response = await send(`/api/projects/${project.id}/export?format=${format}`, token);
+
+      expect(response.status).toBe(409);
+      expect(response.headers.get('content-type')).toContain('application/json');
+      expect(await response.json()).toEqual({
+        error: 'engine_unavailable',
+        engine: 'optimized',
+      });
+    });
 
   it('refuses an unsupported export format', async () => {
     const { register, send } = buildHarness();
@@ -1417,7 +1446,7 @@ it('exports complete deadline tree fields without undo flags and rejects malform
   });
   expect(command.status).toBe(200);
   const core = await h.workItems.tree(project.id);
-  if (core === null) throw new Error('fixture tree missing');
+  if (core === null || 'kind' in core) throw new Error('fixture tree missing');
   expect(core.workItems.length).toBeGreaterThan(0);
   expect(core.slices.length).toBeGreaterThan(0);
   const response = await h.send(`/api/projects/${project.id}/export?format=json`, token);

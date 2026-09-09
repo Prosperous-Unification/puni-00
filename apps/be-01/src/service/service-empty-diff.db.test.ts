@@ -19,11 +19,12 @@ import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
+import { fastScheduler } from './optimizer-wiring';
 import { ProjectService } from './project.service';
-import { WorkItemService } from './work-item.service';
 
 /**
  * **Task 4.5, asserted on a plan where a label really does decide dates.**
@@ -144,6 +145,7 @@ beforeEach(async () => {
     broadcast: recordingBroadcaster(),
   });
   workItems = new WorkItemService({
+    scheduler: fastScheduler,
     clock: testClock,
     workItems: workItemStore,
     projects: projectStore,

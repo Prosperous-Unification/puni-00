@@ -31,6 +31,7 @@ import type { Broadcaster } from './broadcast';
 import { CalendarMarkerService } from './calendar-marker.service';
 import { CapacityService } from './capacity.service';
 import { DirectoryService } from './directory.service';
+import { fastScheduler } from './optimizer-wiring';
 import type { PlanCommand } from './plan-command';
 import { type BatchOutcome, PlanCommandRunner } from './plan-commands';
 import { PriorityBandService } from './priority-band.service';
@@ -131,6 +132,7 @@ beforeEach(async () => {
   }) as WorkItemRepository;
 
   const serviceOptions = {
+    scheduler: fastScheduler,
     workItems: suspendingWorkItems,
     projects: projectStore,
     estimates: new EstimateRepository(db, OPEN),

@@ -1,4 +1,4 @@
-import type { Clock } from '@wbs/core';
+import type { Clock, EngineUnavailable, Scheduler } from '@wbs/core';
 import {
   addWorkdays,
   deadlineOffsetOf,
@@ -30,7 +30,6 @@ import {
 import {
   haveSameSliceOrder,
   type Schedule,
-  schedule,
   ScheduleCycleError,
   type Scheduled,
   type ScheduledSlice,
@@ -84,11 +83,7 @@ import {
   touchedBy,
 } from './compensating';
 import { canDepend } from './dependency';
-import type {
-  OptimizationVariantState,
-  OptimizedScheduleRead,
-  OptimizedScheduleReader,
-} from './optimized-schedule-reader';
+import type { OptimizationVariantState, OptimizedScheduleRead } from './optimized-schedule-reader';
 import { canEdit } from './project.service';
 import {
   type Days,
@@ -939,27 +934,17 @@ export interface WorkItemServiceOptions {
    */
   journal: CommandJournalStore;
   broadcast: Broadcaster;
-  /**
-   * Where a published solver schedule is looked up, or absent — tasks.md 4.11's
-   * seam, and the only thing on this service that knows the optimizer exists.
-   *
-   * **Optional, unlike every required collaborator above, and for the opposite
-   * reason.** Those are required because a service built without one answers
-   * with a silence indistinguishable from the truth. Here the silence *is* the
-   * truth: a deployment with no optimized cache wired in has no published
-   * solver schedules, and every project is `optimization_enabled = false` by
-   * 3b.1's column default anyway. Requiring it would make sixteen construction
-   * sites pass a reader that can only answer `null`.
-   *
-   * A function rather than an interface with one method, matching
-   * {@link WorkItemServiceOptions.capacity}'s `slotsFor` shape at the point of
-   * use: there is one question, and a named port type carries the whole of the
-   * documentation an interface would.
-   */
-  optimized?: OptimizedScheduleReader;
+  /** The installed scheduling capabilities for live plan reads. */
+  scheduler: Scheduler;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock: Clock;
 }
+
+/** A successful project-tree read, excluding absence and engine refusal. */
+export type PlanTree = Exclude<
+  Awaited<ReturnType<WorkItemService['tree']>>,
+  EngineUnavailable | null
+>;
 
 /** Why an undo or a redo did not happen. */
 export type UndoRefusal =
@@ -1400,35 +1385,6 @@ export class WorkItemService {
     this.clock = opts.clock;
   }
 
-  /**
-   * The published solver schedule for exactly this plan, or `null` — tasks.md
-   * 4.11's three refusals and the read behind them.
-   *
-   * **`optimizationEnabled` and `scheduleEngine` are two conditions, not one**
-   * (3b.1's own words): the flag is whether this project may spend solver time
-   * at all, the engine is which one it wants, and a project switched off keeps
-   * `optimized` recorded so it returns to it. Reading only the engine would
-   * serve a stored schedule to a project an administrator has just switched
-   * off; reading only the flag would serve one to a project that asked for
-   * Fast. Both are read here rather than inside the reader because the reader
-   * is handed no project row.
-   *
-   * The whole `ScheduleInput` goes down verbatim, including `poolSizes` and
-   * `reach` — the plan read's own arguments to `schedule()` one line below. A
-   * key built from anything else would name a different plan than the one about
-   * to be scheduled, which is the ABA the `inputHash` exists to fence.
-   */
-  private readOptimization(project: Project, input: ScheduleInput): OptimizedScheduleRead | null {
-    const read = this.opts.optimized;
-    if (read === undefined) return null;
-    return read({
-      projectId: project.id,
-      objective: project.scheduleObjective,
-      input,
-      enabled: project.optimizationEnabled,
-    });
-  }
-
   /** Rebuild the canonical input a durable solver queue entry names. */
   async scheduleInput(projectId: string): Promise<ScheduleInput | null> {
     const project = await this.opts.projects.findById(projectId);
@@ -1460,145 +1416,149 @@ export class WorkItemService {
    * first, the same event is replayed and the client refetches once too often —
    * the harmless direction.
    */
-  async tree(projectId: string): Promise<{
-    workItems: NumberedWorkItem[];
-    seq: number;
-    scheduleError: ScheduleError;
-    /**
-     * How many work items hold a slice a person is the reason for — the
-     * schedule header's "N tasks wait for a person".
-     *
-     * A count rather than the slices themselves: what the reader is told here
-     * is that people are the constraint and how much of the plan they hold up.
-     * Which slice waits for whom is in {@link IdentifiedSlice.boundBy} beside
-     * it, and is a Gantt bar rather than a sentence.
-     */
-    waitingForPerson: number;
-    /**
-     * How many work items hold a slice a **team's capacity** is the reason for.
-     *
-     * Beside `waitingForPerson` rather than folded into it: a planner reads a
-     * queue and a headcount differently, and `boundBy` names exactly one of the
-     * two for any slice.
-     */
-    waitingForCapacity: number;
-    /**
-     * Every slice the schedule placed, in the order the engine placed them.
-     *
-     * The projection in each row's `schedule` is what a table column shows; this
-     * is what it is a projection **of**, and it is what a chart draws — one bar
-     * per entry, and the person links from `resourcePredecessorId`. Both are
-     * carried because they answer different questions, and neither is derivable
-     * from the other: a row's span does not say which step ran when, and a
-     * slice does not know its parent's bracket.
-     *
-     * Empty when there is no schedule at all, exactly as the row schedules
-     * degrade to {@link UNSCHEDULED} — a cycle leaves the rows on screen and
-     * takes the dates away, and bars left over from a plan that no longer
-     * computes would be the same confident lie in a different shape.
-     */
-    slices: IdentifiedSlice[];
-    /**
-     * The project's steps, in the order the engine ran the slices in.
-     *
-     * The same array `slicesOf` was given, carried on the read that produced
-     * the slices rather than left to `/api/projects/:id` — which is a second
-     * request at a second moment. A chart reads a slice's `stepId` to place its
-     * bar and to name its step, and a peer removing a step between the two
-     * reads left a client holding slices under a step its own step list no
-     * longer had. Within one payload that skew cannot exist.
-     *
-     * Read **after** the rows and before the schedule, so a step added between
-     * them is at worst a step nothing points at, never a slice with no step.
-     */
-    steps: Step[];
-    /**
-     * Every person an assignment on these rows names, by id and name.
-     *
-     * The names, not the whole directory: a chart paints a bar in its
-     * assignee's colour and writes their name on it, and both are facts about
-     * the slices in this very payload. `/api/people` answers a different question — who
-     * could be assigned — and is still what the pickers read.
-     *
-     * Read together with assignments through {@link DirectoryStore.assignmentsInProject},
-     * so the names and assignments share one project-scoped database statement.
-     *
-     * Typed as the two columns it is, not as a `Person`. The builder has always
-     * mapped to `{ id, name }` — "the names, not the whole directory" above is
-     * that decision — and while `Person.kind` was optional, TypeScript accepted
-     * a projection where a whole person was declared. Narrowing `kind` made the
-     * mismatch a compile error, which is the type telling the truth rather than
-     * a new rule: a chart that wanted to paint agents differently would read
-     * `kind` off `/api/people`, the payload that answers who exists.
-     */
-    assignedPeople: { id: string; name: string }[];
-    /**
-     * How many of each team this project may have at work at once, for the teams
-     * it has stated a number about.
-     *
-     * The same map `slotsOf` was built from, carried on the read that produced
-     * the slices rather than left to a route of its own — the argument
-     * {@link steps} makes, and it is stronger here: the dates in this payload were
-     * computed **from** these numbers, and a second request at a second moment
-     * could hand a client a number that does not explain the bars beside it.
-     *
-     * A team the project has stated nothing about is **absent** rather than
-     * present as `null`, exactly as it is absent from `slotsOf`: unstated
-     * constrains nothing, and one spelling of it is the rule the column is shaped
-     * by. Every team on the plan is in `/api/teams`; this says which of them this
-     * plan bounds.
-     */
-    teamCapacities: TeamCapacity[];
-    /**
-     * What this project calls its priority numbers — five bands in rank order.
-     *
-     * Carried on the read that produced the rows rather than left to a route of
-     * its own, which is the argument {@link steps} and {@link teamCapacities}
-     * make. The reason is weaker here in one way and stronger in another: no date
-     * in this payload was computed from the ladder, so a stale one cannot
-     * contradict a bar the way a stale capacity can — but *every* face draws
-     * every priority through it, so a client holding a ladder from one moment
-     * over numbers from another paints the wrong label on every row of the plan
-     * rather than on one.
-     *
-     * Never absent and never empty: a project holding no rows reads as
-     * {@link DEFAULT_PRIORITY_BANDS}, so a client can resolve every priority
-     * without a fallback of its own.
-     * `openspec/changes/priority-bands/design.md` D2.
-     */
-    priorityBands: PriorityBand[];
-    estimateMethod: EstimateMethod;
-    /**
-     * The coefficients the PERT figures above were weighed by, and the rounding
-     * they were charged at.
-     *
-     * On the wire for {@link depReach}'s reason: a client that guessed would
-     * describe the numbers in front of it with an arithmetic they did not come
-     * from. Both are reported and set through the project patch, never sent per
-     * read.
-     */
-    pertWeights: PertWeights;
-    estimateRounding: EstimateRounding;
-    /**
-     * How far into a predecessor this project's dependencies reach.
-     *
-     * On the wire so that the **drawing** and the schedule cannot disagree: the
-     * chart routes a dependency arrow out of the slice the reach names, and a
-     * client that guessed would draw an arrow leaving a slice the engine never
-     * joined the edge to. It is reported, never accepted — see
-     * `docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md`.
-     */
-    depReach: DependencyReach;
-    startDate: IsoDate | null;
-    /**
-     * The project row's own revision, which moves on its name, restriction,
-     * estimate method, start date and steps — and on none of the work items
-     * below it, each of which carries its own.
-     */
-    projectRevision: number;
-    /** Present when this process has the optimizer runtime wired. */
-    optimization?: PlanOptimization;
-  } | null> {
+  async tree(projectId: string): Promise<
+    | {
+        workItems: NumberedWorkItem[];
+        seq: number;
+        scheduleError: ScheduleError;
+        /**
+         * How many work items hold a slice a person is the reason for — the
+         * schedule header's "N tasks wait for a person".
+         *
+         * A count rather than the slices themselves: what the reader is told here
+         * is that people are the constraint and how much of the plan they hold up.
+         * Which slice waits for whom is in {@link IdentifiedSlice.boundBy} beside
+         * it, and is a Gantt bar rather than a sentence.
+         */
+        waitingForPerson: number;
+        /**
+         * How many work items hold a slice a **team's capacity** is the reason for.
+         *
+         * Beside `waitingForPerson` rather than folded into it: a planner reads a
+         * queue and a headcount differently, and `boundBy` names exactly one of the
+         * two for any slice.
+         */
+        waitingForCapacity: number;
+        /**
+         * Every slice the schedule placed, in the order the engine placed them.
+         *
+         * The projection in each row's `schedule` is what a table column shows; this
+         * is what it is a projection **of**, and it is what a chart draws — one bar
+         * per entry, and the person links from `resourcePredecessorId`. Both are
+         * carried because they answer different questions, and neither is derivable
+         * from the other: a row's span does not say which step ran when, and a
+         * slice does not know its parent's bracket.
+         *
+         * Empty when there is no schedule at all, exactly as the row schedules
+         * degrade to {@link UNSCHEDULED} — a cycle leaves the rows on screen and
+         * takes the dates away, and bars left over from a plan that no longer
+         * computes would be the same confident lie in a different shape.
+         */
+        slices: IdentifiedSlice[];
+        /**
+         * The project's steps, in the order the engine ran the slices in.
+         *
+         * The same array `slicesOf` was given, carried on the read that produced
+         * the slices rather than left to `/api/projects/:id` — which is a second
+         * request at a second moment. A chart reads a slice's `stepId` to place its
+         * bar and to name its step, and a peer removing a step between the two
+         * reads left a client holding slices under a step its own step list no
+         * longer had. Within one payload that skew cannot exist.
+         *
+         * Read **after** the rows and before the schedule, so a step added between
+         * them is at worst a step nothing points at, never a slice with no step.
+         */
+        steps: Step[];
+        /**
+         * Every person an assignment on these rows names, by id and name.
+         *
+         * The names, not the whole directory: a chart paints a bar in its
+         * assignee's colour and writes their name on it, and both are facts about
+         * the slices in this very payload. `/api/people` answers a different question — who
+         * could be assigned — and is still what the pickers read.
+         *
+         * Read together with assignments through {@link DirectoryStore.assignmentsInProject},
+         * so the names and assignments share one project-scoped database statement.
+         *
+         * Typed as the two columns it is, not as a `Person`. The builder has always
+         * mapped to `{ id, name }` — "the names, not the whole directory" above is
+         * that decision — and while `Person.kind` was optional, TypeScript accepted
+         * a projection where a whole person was declared. Narrowing `kind` made the
+         * mismatch a compile error, which is the type telling the truth rather than
+         * a new rule: a chart that wanted to paint agents differently would read
+         * `kind` off `/api/people`, the payload that answers who exists.
+         */
+        assignedPeople: { id: string; name: string }[];
+        /**
+         * How many of each team this project may have at work at once, for the teams
+         * it has stated a number about.
+         *
+         * The same map `slotsOf` was built from, carried on the read that produced
+         * the slices rather than left to a route of its own — the argument
+         * {@link steps} makes, and it is stronger here: the dates in this payload were
+         * computed **from** these numbers, and a second request at a second moment
+         * could hand a client a number that does not explain the bars beside it.
+         *
+         * A team the project has stated nothing about is **absent** rather than
+         * present as `null`, exactly as it is absent from `slotsOf`: unstated
+         * constrains nothing, and one spelling of it is the rule the column is shaped
+         * by. Every team on the plan is in `/api/teams`; this says which of them this
+         * plan bounds.
+         */
+        teamCapacities: TeamCapacity[];
+        /**
+         * What this project calls its priority numbers — five bands in rank order.
+         *
+         * Carried on the read that produced the rows rather than left to a route of
+         * its own, which is the argument {@link steps} and {@link teamCapacities}
+         * make. The reason is weaker here in one way and stronger in another: no date
+         * in this payload was computed from the ladder, so a stale one cannot
+         * contradict a bar the way a stale capacity can — but *every* face draws
+         * every priority through it, so a client holding a ladder from one moment
+         * over numbers from another paints the wrong label on every row of the plan
+         * rather than on one.
+         *
+         * Never absent and never empty: a project holding no rows reads as
+         * {@link DEFAULT_PRIORITY_BANDS}, so a client can resolve every priority
+         * without a fallback of its own.
+         * `openspec/changes/priority-bands/design.md` D2.
+         */
+        priorityBands: PriorityBand[];
+        estimateMethod: EstimateMethod;
+        /**
+         * The coefficients the PERT figures above were weighed by, and the rounding
+         * they were charged at.
+         *
+         * On the wire for {@link depReach}'s reason: a client that guessed would
+         * describe the numbers in front of it with an arithmetic they did not come
+         * from. Both are reported and set through the project patch, never sent per
+         * read.
+         */
+        pertWeights: PertWeights;
+        estimateRounding: EstimateRounding;
+        /**
+         * How far into a predecessor this project's dependencies reach.
+         *
+         * On the wire so that the **drawing** and the schedule cannot disagree: the
+         * chart routes a dependency arrow out of the slice the reach names, and a
+         * client that guessed would draw an arrow leaving a slice the engine never
+         * joined the edge to. It is reported, never accepted — see
+         * `docs/adr/0010-a-dependencys-reach-is-a-projects-choice.md`.
+         */
+        depReach: DependencyReach;
+        startDate: IsoDate | null;
+        /**
+         * The project row's own revision, which moves on its name, restriction,
+         * estimate method, start date and steps — and on none of the work items
+         * below it, each of which carries its own.
+         */
+        projectRevision: number;
+        /** Present when this process has the optimizer runtime wired. */
+        optimization?: PlanOptimization;
+      }
+    | EngineUnavailable
+    | null
+  > {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return null;
     const seq = await this.opts.broadcast.latestSeq(projectId);
@@ -1687,23 +1647,10 @@ export class WorkItemService {
       slotsOf,
     );
     const { assigneesOf, hasChildren, rule } = canonical;
-    const { slices, notBefore, deadlines } = canonical.input;
     // What each row is **charged**, per step: a leaf's own estimate rounded, a
     // parent's the sum of its descendants' rounded figures. Not `totals` put
     // through the method — see `rollUpFinals`.
     const charged = rollUpFinals(rows, stored, rule);
-    // tasks.md 4.11's seam, and the reason `readOptimizedPair` finally has a
-    // production caller. Asked **before** the `try` on purpose: everything the
-    // cache models — a miss, a `failed` row, a superseded generation, a
-    // `corrupt` payload — comes back as `null` and falls through to Fast below,
-    // so anything this throws is a defect and must surface as one rather than
-    // be caught by a block whose only modelled failure is a dependency cycle.
-    //
-    // A served schedule is necessarily acyclic: the write path materialises
-    // through `schedule()` itself, which throws on a cycle before anything is
-    // stored, so a plan that would raise `ScheduleCycleError` here has no row
-    // to serve. The cycle banner is not lost by taking this branch.
-    const optimizationRead = this.readOptimization(project, canonical.input);
     let optimization: PlanOptimization | undefined;
     let timing = new Map<string, Scheduled>();
     let scheduleError: ScheduleError = null;
@@ -1741,7 +1688,19 @@ export class WorkItemService {
       // memoised on the first plan read — the read hoisted out of the run — and
       // `each project is scheduled by its own reach` failed on `Expected: 5 /
       // Received: 3` for the second project's successor; watched 2026-08-29.
-      const fast = schedule(rows, edges, slices, notBefore, slotsOf, project.depReach, deadlines);
+      const scheduleRead = this.opts.scheduler.read({
+        projectId: project.id,
+        input: canonical.input,
+        // Proof: forcing `fast` here made the unavailable service fixture
+        // return a full Fast tree with one dated slice instead of this refusal.
+        engine: project.scheduleEngine,
+        objective: project.scheduleObjective,
+        enabled: project.optimizationEnabled,
+        mode: 'live',
+      });
+      if (scheduleRead.kind === 'engine_unavailable') return scheduleRead;
+      const fast = scheduleRead.fast;
+      const optimizationRead = scheduleRead.optimization;
       let optimized: Schedule | null = null;
       if (
         optimizationRead !== null &&
@@ -4270,6 +4229,17 @@ export class WorkItemService {
     }
     const tree = await this.tree(projectId);
     if (tree === null) return;
+    if ('kind' in tree) {
+      // Proof: publishing an empty `tree_replaced` here made the real-runner
+      // test receive `{ type: 'tree_replaced', workItems: [] }` instead of the
+      // durable `plan_unavailable` event after the mutation had committed.
+      await this.opts.broadcast.publish(projectId, {
+        type: 'plan_unavailable',
+        error: tree.error,
+        engine: tree.engine,
+      });
+      return;
+    }
     await this.opts.broadcast.publish(projectId, {
       type: 'tree_replaced',
       workItems: tree.workItems,

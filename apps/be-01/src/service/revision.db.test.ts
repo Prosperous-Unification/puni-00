@@ -18,6 +18,7 @@ import { StepMeasureRepository } from '../repository/step-measure';
 import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
+import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
@@ -25,9 +26,9 @@ import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
+import { fastScheduler } from './optimizer-wiring';
 import { ProjectService } from './project.service';
 import { StepService } from './step.service';
-import { WorkItemService } from './work-item.service';
 
 /**
  * The revision battery: every mutation the API offers, and exactly which
@@ -115,6 +116,7 @@ beforeEach(async () => {
     broadcast: recordingBroadcaster(),
   });
   workItems = new WorkItemService({
+    scheduler: fastScheduler,
     clock: testClock,
     workItems: workItemStore,
     projects: projectStore,

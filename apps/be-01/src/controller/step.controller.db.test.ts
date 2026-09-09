@@ -24,6 +24,7 @@ import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
 import { AuthService } from '../service/auth.service';
 import { AnnouncementCollector } from '../service/broadcast';
 import { DirectoryService } from '../service/directory.service';
+import { fastScheduler } from '../service/optimizer-wiring';
 import { ProjectService } from '../service/project.service';
 import { StepService } from '../service/step.service';
 import { WorkItemService } from '../service/work-item.service';
@@ -143,6 +144,7 @@ beforeEach(async () => {
       broadcast: announcements,
     }),
     workItems: new WorkItemService({
+      scheduler: fastScheduler,
       clock: testClock,
       workItems,
       projects,

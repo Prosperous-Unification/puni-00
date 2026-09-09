@@ -1018,6 +1018,14 @@ export function workItemRoutes(workItems: WorkItemService, commands: PlanCommand
     bind(getWorkItems, async ({ params, principal }): Promise<HttpReply<typeof getWorkItems>> => {
       const tree = await workItems.tree(params.id);
       if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+      // Proof: removing this branch made the mounted unavailable work-item read
+      // receive 500 instead of the required 409.
+      if ('kind' in tree)
+        return {
+          ok: false,
+          status: 409,
+          body: { error: tree.error, engine: tree.engine },
+        };
       return {
         ok: true,
         status: 200,

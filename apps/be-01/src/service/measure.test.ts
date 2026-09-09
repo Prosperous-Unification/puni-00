@@ -7,10 +7,10 @@ import type {
   ProjectStore,
   StoredMeasure,
 } from '../repository';
+import type { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { projectRow } from '../testing/project-fixture';
-import type { WorkItemService } from './work-item.service';
 
 const OWNER = 'owner-account';
 const OTHER = 'somebody-else';

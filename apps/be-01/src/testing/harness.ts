@@ -1,6 +1,7 @@
+import { optimizerWiring } from '../service/optimizer-wiring';
 import type { WorkItemServiceOptions } from '../service/work-item.service';
-import { WorkItemService } from '../service/work-item.service';
 import { inMemoryActuals } from './actual-fixture';
+import { AvailableWorkItemService } from './available-work-item-service';
 import { type RecordingBroadcaster, recordingBroadcaster } from './broadcast-fixture';
 import { inMemoryCapacity } from './capacity-fixture';
 import { testClock } from './clock-fixture';
@@ -50,7 +51,8 @@ import { inMemoryWorkItems } from './work-item-fixture';
  * projects seeds the project store. Anything not named is built here.
  */
 export interface InMemoryPlan {
-  service: WorkItemService;
+  service: AvailableWorkItemService;
+  scheduler: WorkItemServiceOptions['scheduler'];
   /** The recording broadcaster, unless one was passed in. */
   broadcast: RecordingBroadcaster;
   stores: Required<
@@ -103,6 +105,7 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
   // says which: a suite that passes its own gets it back as the type it passed,
   // and one that does not gets the recorder it will want to read.
   const broadcast = overrides.broadcast ?? recordingBroadcaster();
+  const scheduler = overrides.scheduler ?? optimizerWiring(undefined).scheduler;
 
   const stores = {
     workItems,
@@ -119,7 +122,8 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
     subtrees,
   };
   return {
-    service: new WorkItemService({ clock: testClock, ...stores, broadcast }),
+    service: new AvailableWorkItemService({ clock: testClock, ...stores, broadcast, scheduler }),
+    scheduler,
     broadcast: broadcast as RecordingBroadcaster,
     stores,
   };

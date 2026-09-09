@@ -10,6 +10,7 @@ import type {
   WorkItemStore,
   WriteStamp,
 } from '../repository';
+import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { type RecordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { personAdded } from '../testing/directory-fixture';
@@ -17,7 +18,7 @@ import { inMemoryServices } from '../testing/harness';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { projectRow } from '../testing/project-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
-import { poolsFor, WorkItemService, type WorkItemServiceOptions } from './work-item.service';
+import { poolsFor, type WorkItemServiceOptions } from './work-item.service';
 
 const OWNER = 'owner-account';
 const STRANGER = 'stranger-account';
@@ -52,7 +53,7 @@ beforeEach(async () => {
   // Kept whole: three cases below build a second service from these options with
   // one store swapped for a broken one, which is how they drive a failure the
   // real stores cannot produce.
-  serviceOptions = { clock: testClock, ...harness.stores, broadcast };
+  serviceOptions = { clock: testClock, ...harness.stores, broadcast, scheduler: harness.scheduler };
   service = harness.service;
   const project: Project = projectRow({
     id: crypto.randomUUID(),

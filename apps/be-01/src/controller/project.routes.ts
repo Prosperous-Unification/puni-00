@@ -118,6 +118,14 @@ export function projectRoutes(
         if (found === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         const tree = await workItems.tree(params.id);
         if (tree === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        // Proof: removing this branch made both mounted unavailable export cases
+        // receive 500 instead of 409, before either could inspect media or body.
+        if ('kind' in tree)
+          return {
+            ok: false,
+            status: 409,
+            body: { error: tree.error, engine: tree.engine },
+          };
         if (query.format === 'markdown')
           return {
             ok: true,

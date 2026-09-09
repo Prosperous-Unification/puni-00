@@ -58,3 +58,35 @@
 - Reusing live `readPlan`'s `enabled:false` early return for capture returned a null
   generation instead of 1 and removed the stored ready PRI schedule. The restored reader
   ignores admission enablement and reads that exact row.
+
+## Slices 2.1–2.3 — live read, HTTP refusal and publication
+
+- `WorkItemService.tree` now reads through the scheduler port. The real composition without
+  an optimizer adapter returns the exact unavailable value; the live composition returns
+  while its admitted fake solver is still held. The focused scheduler/service run completed
+  with **33 pass / 0 fail** and `be-01`'s forced solution-build typecheck is clean.
+- GET work-items plus JSON and Markdown export map the shared unavailable value to exact
+  `409 application/json` replies. The mounted controller run completed with **130 pass /
+  0 fail**. Removing either binder mapping produced 500 instead of 409 before restoration.
+- Shared shape/client checks completed with **61 pass / 0 fail**, generated frontend client
+  checks with **51 pass / 0 fail**, generated MCP checks with **49 pass / 0 fail**, and the
+  production route-bijection/reachability file with **5 pass / 0 fail**. Contracts, MCP and
+  frontend forced typechecks are clean.
+- A real command runner commits the mutation and appends exactly one `plan_unavailable`
+  event. Publishing `tree_replaced` instead failed on the durable event itself before the
+  peer read. A refused batch appends no event. Removing its narrow resource mapping made the
+  peer refresh request tree, steps, directory and markers instead of tree alone.
+- The frontend names `Optimized scheduling is unavailable in this runtime.` on the initial
+  refusal, exposes no export before a successful tree, and retains the installed plan on a
+  peer failure. The focused jsdom run completed with **67 pass / 0 fail**; touched frontend,
+  backend and contracts lint are clean.
+- Chromium on owned ports 5500/5600/6600 completed the dated-plan failure window with **1
+  pass / 0 fail**. Suppressing the modeled failure text failed there on `Expected:
+Optimized scheduling is unavailable in this runtime. · Received: This plan may be out of
+date — the last refresh failed. Retry`; the restored run kept the `2026-09-07` Start fact
+  installed and passed.
+
+## Main synchronization
+
+- `git fetch origin main` on 2026-09-09 left `origin/main` at `530d25bc`; merge `7fa7ea54`
+  already contains that revision on this branch.
