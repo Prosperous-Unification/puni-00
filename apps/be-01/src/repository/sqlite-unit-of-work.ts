@@ -23,13 +23,15 @@ export function sqliteUnitOfWork(
   db: Drizzle,
   gate: Gate,
   admitted: TransactionalStores,
-): UnitOfWork {
-  const scope: Scope = { stores: admitted };
+): UnitOfWork<TransactionalStores> {
+  const scope: Scope<TransactionalStores> = { stores: admitted };
   return {
-    run<T>(act: (scope: Scope) => Promise<Decision<T>>): Promise<T> {
+    run<T>(
+      act: (scope: Scope<TransactionalStores>) => Promise<Decision<T, TransactionalStores>>,
+    ): Promise<T> {
       return gate.enter(async () => {
         db.run(sql.raw('BEGIN IMMEDIATE'));
-        let decision: Decision<T>;
+        let decision: Decision<T, TransactionalStores>;
         try {
           decision = await act(scope);
           db.run(sql.raw(decision.commit ? 'COMMIT' : 'ROLLBACK'));

@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { TransactionalStores } from '../repository';
-import type { WritingServices } from '../services';
+import type { PlanTransactionalStores } from '../ports/stores';
+import type { Decision, Scope, UnitOfWork } from '../ports/unit-of-work';
 import type { Broadcaster } from './broadcast';
-import { PlanCommandRunner } from './plan-commands';
-import type { Decision, Scope, UnitOfWork } from './unit-of-work';
+import { PlanCommandRunner, type PlanCommandServices } from './plan-commands';
 
 interface JournalEntry {
   id: string;
@@ -48,8 +47,8 @@ function clonePlan(source: PlanState): PlanState {
 
 function stagedSource() {
   const publicPlan: PlanState = { names: [], undo: [], redo: [], stale: false };
-  const plans = new WeakMap<TransactionalStores, PlanState>();
-  const scopedStores: TransactionalStores[] = [];
+  const plans = new WeakMap<PlanTransactionalStores, PlanState>();
+  const scopedStores: PlanTransactionalStores[] = [];
   const rollbackReached = deferred();
   const repairReached = deferred();
   const repairRelease = deferred();
@@ -57,7 +56,7 @@ function stagedSource() {
   let turn = Promise.resolve();
 
   const makeScope = (plan: PlanState): Scope => {
-    const stores = {} as TransactionalStores;
+    const stores = {} as PlanTransactionalStores;
     plans.set(stores, plan);
     return { stores };
   };
@@ -114,7 +113,7 @@ describe('the command runner builds services from each unit-of-work scope', () =
     let publicAnnouncements = 0;
     let publicReads = 0;
 
-    const servicesFor = (plan: PlanState, publicGraph: boolean): WritingServices => {
+    const servicesFor = (plan: PlanState, publicGraph: boolean): PlanCommandServices => {
       let dirty = false;
       const workItems = {
         async collect<T>(work: () => Promise<T>) {
@@ -199,7 +198,7 @@ describe('the command runner builds services from each unit-of-work scope', () =
           plan.redo = plan.redo.filter((entry) => entry.id !== entryId);
         },
       };
-      return { workItems } as unknown as WritingServices;
+      return { workItems } as unknown as PlanCommandServices;
     };
 
     const runner = new PlanCommandRunner({

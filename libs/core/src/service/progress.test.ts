@@ -7,7 +7,7 @@ import type {
   ProjectStore,
   StepProgressStore,
   StoredProgress,
-} from '../repository';
+} from '../index';
 import type { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryServices } from '../testing/harness';

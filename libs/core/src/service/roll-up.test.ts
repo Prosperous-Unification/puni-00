@@ -1,14 +1,12 @@
+import type { MeasureMetric } from '@wbs/domain';
 import { DEFAULT_ESTIMATE_RULE, type EstimateRule } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import type {
-  MeasureMetric,
-  StoredActual,
-  StoredEstimate,
-  StoredMeasure,
-  StoredProgress,
-  WorkItem,
-} from '../repository';
+import type { StoredActual } from '../ports/actual-store';
+import type { StoredEstimate } from '../ports/estimate-store';
+import type { StoredMeasure } from '../ports/measure-store';
+import type { StoredProgress } from '../ports/progress-store';
+import type { WorkItem } from '../ports/work-item-store';
 import { workItemRow } from '../testing/work-item-fixture';
 import {
   rollUp,

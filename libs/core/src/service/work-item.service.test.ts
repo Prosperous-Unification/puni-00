@@ -9,7 +9,7 @@ import type {
   ProjectStore,
   WorkItemStore,
   WriteStamp,
-} from '../repository';
+} from '../index';
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { type RecordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';

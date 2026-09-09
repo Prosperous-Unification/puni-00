@@ -1,3 +1,4 @@
+import type { PlanTransactionalStores } from '@wbs/core';
 import { expect, it } from 'bun:test';
 
 import type { TransactionalStores, WriteStamp } from '../../repository';
@@ -35,7 +36,7 @@ export interface UnitOfWorkFixture {
  */
 export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
   const threeWrites = async (
-    stores: TransactionalStores,
+    stores: PlanTransactionalStores,
     projectId: string,
     stamp: WriteStamp,
   ): Promise<void> => {
@@ -45,7 +46,7 @@ export function unitOfWorkConformance(open: () => UnitOfWorkFixture): void {
   };
 
   const written = async (
-    reader: TransactionalStores,
+    reader: PlanTransactionalStores,
     projectId: string,
   ): Promise<{ steps: string[]; tags: string[]; name: string | undefined }> => ({
     steps: (await reader.steps.listByProject(projectId)).map((each) => each.name),

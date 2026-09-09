@@ -130,7 +130,7 @@ export interface AppOptions {
    * What a command batch runs inside: the source's unit of work and the batch's
    * own service graph — `sqliteUnitOfWork(db, coordinator, admitted)` in
    * production, the counting fixture on in-memory stores. See
-   * `service/plan-commands.ts`, ADR 0007 and ADR 0015.
+   * `libs/core/src/service/plan-commands.ts`, ADR 0007 and ADR 0015.
    */
   writes: {
     /**
@@ -193,13 +193,10 @@ export function mountedEndpoints(
   const commands = new PlanCommandRunner({
     batchServices: opts.writes.batch,
     publicServices: {
-      projects: opts.projects,
       workItems: opts.workItems,
-      steps: opts.steps,
       directory: opts.directory,
       capacity: opts.capacity,
       priorityBands: opts.priorityBands,
-      calendarMarkers: opts.calendarMarkers,
     },
     uow: opts.writes.uow,
     announcements: opts.writes.announcements,

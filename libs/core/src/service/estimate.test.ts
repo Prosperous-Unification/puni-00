@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Project, ProjectStore } from '../repository';
+import type { Project, ProjectStore } from '../index';
 import type { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import type { RecordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryServices } from '../testing/harness';

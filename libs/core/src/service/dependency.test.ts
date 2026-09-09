@@ -1,7 +1,8 @@
 import { schedule } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import type { StoredDependency, WorkItem } from '../repository';
+import type { StoredDependency } from '../ports/dependency-store';
+import type { WorkItem } from '../ports/work-item-store';
 import { workItemRow } from '../testing/work-item-fixture';
 import { canDepend, type DependencyRefusal } from './dependency';
 

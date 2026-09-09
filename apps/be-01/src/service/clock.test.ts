@@ -5,9 +5,9 @@ import { clockOf } from '@wbs/core';
 import { describe, expect, it } from 'bun:test';
 
 /**
- * Both service authorities during extraction. The be-01 folder still owns
- * work-item and publication services, while moved services are defined in
- * core. Reading only be-01 would inspect their compatibility reexports.
+ * Both service locations during extraction. Core owns the moved services;
+ * be-01 retains compatibility reexports and the publication services that have
+ * not moved yet.
  */
 const FOLDERS = ['apps/be-01/src/service', 'libs/core/src/service'];
 const ROOT = join(import.meta.dir, '../../../..');
@@ -86,6 +86,9 @@ describe('one clock', () => {
     const coreCapacity = sources.find(
       (file) => file.path === 'libs/core/src/service/capacity.service.ts',
     );
+    const coreWorkItems = sources.find(
+      (file) => file.path === 'libs/core/src/service/work-item.service.ts',
+    );
     const beWorkItems = sources.find(
       (file) => file.path === 'apps/be-01/src/service/work-item.service.ts',
     );
@@ -93,8 +96,12 @@ describe('one clock', () => {
     // Received: undefined while the two shape checks passed (2026-09-09).
     expect(coreCapacity).toBeDefined();
     expect(coreCapacity?.text).toContain('export class CapacityService');
+    expect(coreWorkItems).toBeDefined();
+    // Proof: removing `export` from core's WorkItemService failed here on
+    // Expected to contain "export class WorkItemService" (2026-09-09).
+    expect(coreWorkItems?.text).toContain('export class WorkItemService');
     expect(beWorkItems).toBeDefined();
-    expect(beWorkItems?.text).toContain('export class WorkItemService');
+    expect(beWorkItems?.text).toContain("export * from '@wbs/core/service/work-item.service'");
   });
 
   it('dates one act from one reading of the clock', () => {

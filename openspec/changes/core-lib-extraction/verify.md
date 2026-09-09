@@ -232,6 +232,53 @@ own folder. That folder now contains compatibility reexports for this slice's se
 - The broader unit, database and browser gates were not repeated for this test-only
   review fix; their checkpoint results and outstanding limitations above still apply.
 
+## Slice 2.2c.1 — work-item services and pure satellites
+
+Verified 2026-09-09 from clean, current-main-merged base `5352ae704041`.
+
+- `work-item.service`, `plan-command`, `plan-commands`, `compensating`, `dependency`
+  and `roll-up` now live under `libs/core/src/service/`; their be-01 paths reexport
+  inward. `UnitOfWork`, generic `Scope<S>` and `Decision<T, S>` live in
+  `core/ports/unit-of-work.ts` and preserve a source's admitted store subtype.
+- The command runner consumes the four-service `PlanCommandServices` contract. The app
+  supplies work items, directory, capacity and priority bands; core no longer imports the
+  app graph, SQLite schema or optimized runtime reader.
+- Ten pure suites moved adjacent to core without changing their named test structure:
+  compensating (3), dependency (16), plan-command scope (1), roll-up (34), work-item
+  service (98), estimate (13), actual (17), progress (21), measure (27) and freeze (8).
+  An AST comparison found every named `describe`/`it`/`test` call identical and ordered
+  for every old/new pair.
+- `revision.db.test.ts` (27), `undo.db.test.ts` (89) and `plan-commands.db.test.ts` (23)
+  remain in be-01 because they open SQLite and construct repository adapters directly.
+  Their 139 cases ran with the 238 relocated cases: **377 pass / 0 fail**, 946 assertions.
+- Pure in-memory fixtures required by the relocated suites now live under
+  `libs/core/src/testing/`; old app fixture paths reexport inward. The core scheduler fake
+  implements the scheduler port and imports no optimizer runtime adapter.
+
+| Command                                                        | Observed                                                                                 |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `bun test ./libs/core/src`                                     | 273 pass, 0 fail                                                                         |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun run test:unit`   | be-01 640 pass, 1 intentional capability skip, 0 fail; all seven listed libraries passed |
+| forced `core:typecheck` and `be-01:typecheck`                  | both pass                                                                                |
+| uncached `core:lint`, `be-01:lint` and `fe-01:lint`            | all pass                                                                                 |
+| Prettier over core and touched app sources; `git diff --check` | clean                                                                                    |
+
+The be-01 fast-tier count fell by 238 because those exact cases moved into core. Core is
+still outside the root fast-tier project list until task 5.1, so its complete 273-case
+source suite was run explicitly rather than inferred from `test:unit`.
+
+| Check                                     | Injected fault                                                                      | Observed                                                                                                                                                          |
+| ----------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Relocated production family exists        | Run the expanded boundary test before moving production                             | Expected true, received false for missing `libs/core/src/service/compensating.ts`                                                                                 |
+| Production core cannot import the app     | Import `apps/be-01/src/repository/schema` from adjacent core `work-item.service.ts` | `core:lint` failed at line 41 with `@nx/enforce-module-boundaries`: “Projects cannot be imported by a relative or absolute path, and must begin with a npm scope” |
+| Source-specific stores survive the port   | Remove the store generic from `UnitOfWork`                                          | `core:typecheck` failed on TS2315 (`UnitOfWork` is not generic) and TS7006 for the erased scope parameter                                                         |
+| Clock authority follows the moved service | Remove `export` from core's `WorkItemService`                                       | Clock authority test failed because the core source no longer contained `export class WorkItemService`                                                            |
+
+All injected faults were removed before the restored green runs. Independent review found
+and rechecked the generic port, test relocation, live source links and source-neutral JSDoc;
+spec compliance and code quality passed with no remaining findings. The complete workspace,
+database and browser gates remain owned by the final integration task.
+
 ## Gate
 
 | Command | When | Result |

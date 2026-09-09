@@ -324,8 +324,8 @@ describe('the steps routes are the only spelling', () => {
  * Steps are the worst case rather than another instance of it: `readScopeFor`
  * maps `step_added` / `step_renamed` / `step_removed` to `tree-and-steps`, so
  * these are the events the table refetches on. `PlanCommandKind`
- * (`service/plan-command.ts:16-94`) declares no step command and
- * `plan-commands.ts` never references `StepService`, so a step mutation is
+ * (`libs/core/src/service/plan-command.ts`) declares no step command and
+ * `libs/core/src/service/plan-commands.ts` never references `StepService`, so a step mutation is
  * reachable only through this controller — it is never *inside* a batch, and
  * being captured by one is always wrong.
  *

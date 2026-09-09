@@ -12,20 +12,26 @@ const services = [
   'calendar-marker.service',
   'capacity.service',
   'clean-name',
+  'compensating',
+  'dependency',
   'directory-usage',
   'directory.service',
   'login-throttle',
   'numbered-work-item',
+  'plan-command',
+  'plan-commands',
   'priority-band.service',
   'project.service',
+  'roll-up',
   'step.service',
+  'work-item.service',
 ];
 
-// Proof: importing be-01's repository/schema from adjacent project.service.ts
-// failed this assertion and core:lint with @nx/enforce-module-boundaries:
-// "Projects cannot be imported by a relative or absolute path, and must begin
-// with a npm scope" (2026-09-09).
-it('keeps the directory and project production family inside the core boundary', async () => {
+// Proof: importing be-01's repository/schema from adjacent
+// work-item.service.ts failed core:lint at that production import with
+// @nx/enforce-module-boundaries: "Projects cannot be imported by a relative or
+// absolute path, and must begin with a npm scope" (2026-09-09).
+it('keeps extracted production services inside the core boundary', async () => {
   const files = services.map((name) => `${root}/libs/core/src/service/${name}.ts`);
   for (const file of files) expect(existsSync(file), file).toBe(true);
   const lint = new ESLint({ cwd: root });

@@ -141,7 +141,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
   imported core sibling it needs is present; move shared pure sibling helpers first
   within the family and leave adapter consumers pointing inward through reexports.
 
-- [ ] 2.2c.1 **Move work-item services and their pure satellites (C4).** Requires
+- [x] 2.2c.1 **Move work-item services and their pure satellites (C4).** Requires
       `scheduler-runtime-port`. Move `work-item.service.ts`, command runner/normalizer,
       derivation, compensation and dependency helpers to `core/service/`, retaining
       basenames. Use the port contracts already extracted; no schema/adapter imports.

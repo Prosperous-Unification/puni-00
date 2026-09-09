@@ -585,7 +585,7 @@ export const workItem = sqliteTable(
      * waits. Clamped down by the team's own size, so an item cannot claim more
      * people than the team has, and overridden to 1 by a named assignee — one
      * human cannot work beside themselves. See `widthFor` in
-     * `service/work-item.service.ts` for where the three rules meet.
+     * `libs/core/src/service/work-item.service.ts` for where the three rules meet.
      *
      * `NOT NULL DEFAULT 1` rather than `priority`'s nullable shape, because
      * unlike a priority `1` and *unset* are the same fact: one at a time. Two
