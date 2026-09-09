@@ -56,18 +56,20 @@ describe('a hover card hangs over the rows below without touching them', () => {
     expect(preview.style.maxHeight).toBe(
       `${String(roomForCard({ top: 0, bottom: 0 }, { top: 0, bottom: window.innerHeight }).maxHeight)}px`,
     );
-    // `100%` joins the pixel cap because this card is pulled 24px left of its
-    // cell ({@link HoverCardProps.clearsMarkerLane}) and would otherwise grow
-    // the 24px straight back. Both declarations are read here, and neither is
-    // the geometry: jsdom lays nothing out, so what the pull *does* is
-    // `e2e/hover-cards.spec.ts`'s `leaves the marker lane clear`, where its
-    // removal was watched failing on `Expected: <= 486.40625 · Received: 502`.
+    // The card is placed by its **right** edge, 24px inside its cell's, so that
+    // the lane of `≡` markers stays hoverable at any column width
+    // ({@link HoverCardProps.clearsMarkerLane}) — and the width is the pixel cap
+    // alone, since nothing has to be capped once the edge that matters is the
+    // anchored one. jsdom lays nothing out, so these are the declarations and
+    // not the geometry; what they *do* is `e2e/card-lanes.spec.ts`'s notes
+    // preview lane, in a layout whose Name cell is 192px.
     //
-    // Proof: `clearsMarkerLane` dropped from `HoverPreview`'s card — this
-    // failed on `expected 'min(640px, 100vw)' to be 'min(640px, 100%,
-    // 100vw)'`, one line before the `left` below. Watched 2026-09-09.
-    expect(preview.style.maxWidth).toBe('min(640px, 100%, 100vw)');
-    expect(preview.style.left).toBe('-24px');
+    // Proof: `clearsMarkerLane` dropped from `HoverPreview`'s card — this failed
+    // on `expected '' to be '24px'`, the empty string being an unset `right`.
+    // Watched 2026-09-09.
+    expect(preview.style.right).toBe('24px');
+    expect(preview.style.left).toBe('auto');
+    expect(preview.style.maxWidth).toBe('min(640px, 100vw)');
   });
 
   itDom('leaves every other card its own width', () => {
