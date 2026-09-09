@@ -1,7 +1,7 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-507 agent-trailer fixture hardening is on `fix/task507-agent-trailer-hardening`: PR 388, h2puni gate and CI pending.
-TASK-305 marker-oracle review follow-up is on `change/marker-pixel-oracle-review`: repeated browser measurement, controlled area fault, full gate, PR, CI, review, merge, deploy.
+TASK-507 agent-trailer fixture hardening is on `fix/task507-agent-trailer-hardening`: PR 388, refreshed-base gates pending.
+TASK-508 milestone-wire and Fast trailing-zero fixes are on `fix/task508-milestone-proof` in PR #384; finish the exact-head gates and merge.
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),
 `mcp-01` (MCP server over be-01, stdio, spawned by its client). Nx monorepo, Bun — never npm.

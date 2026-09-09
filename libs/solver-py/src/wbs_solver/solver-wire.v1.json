@@ -49,6 +49,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "workItemKey",
         "key",
         "durationUnits",
         "width",
@@ -60,6 +61,11 @@
         "workItemIsMilestone"
       ],
       "properties": {
+        "workItemKey": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Opaque work-item identity shared by every slice of one work item. Carried separately so Bun and Python can prove the bidirectional workItemIsMilestone fact by grouping slices without parsing sliceKey's deliberately opaque representation."
+        },
         "key": { "$ref": "#/$defs/sliceKey" },
         "durationUnits": {
           "$ref": "#/$defs/safeInteger",
@@ -96,7 +102,7 @@
         },
         "workItemIsMilestone": {
           "type": "boolean",
-          "$comment": "True only when every slice of this work item has durationUnits 0. Such an item is a milestone and its deadline constraint gives it one solver unit of occupancy. False for every slice of an item containing positive work, including its zero-duration steps: those steps are endpoints inside the projected work-item span and do not extend an exactly-met deadline into the next workday. Bun derives this while it owns the work-item grouping; Python SHALL NOT parse key to reconstruct it."
+          "$comment": "True exactly when every slice sharing workItemKey has durationUnits 0. Such an item is a milestone and its deadline constraint gives it one solver unit of occupancy. False for every slice of an item containing positive work, including its zero-duration steps: those steps are endpoints inside the projected work-item span and do not extend an exactly-met deadline into the next workday. Both consumers independently group on workItemKey and SHALL NOT parse key to reconstruct it."
         }
       }
     },
