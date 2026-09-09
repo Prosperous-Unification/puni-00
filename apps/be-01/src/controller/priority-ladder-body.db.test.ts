@@ -118,6 +118,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       workItems: testWorkItemService(),
     };
     app = buildApp({
+      clock: testClock,
       ...writing,
       appOrigin: 'http://localhost',
       auth,

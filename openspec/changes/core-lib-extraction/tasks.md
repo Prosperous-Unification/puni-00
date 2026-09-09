@@ -150,7 +150,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
       Verify no production core-to-app edge with actual lint; inject such an edge to
       observe its diagnostic. Compare every pre-move test file with its new location.
 
-- [ ] 2.2c.2 **Move saved-plan and publication services (C4).** Move saved-plan pure
+- [x] 2.2c.2 **Move saved-plan and publication services (C4).** Move saved-plan pure
       helpers, history, replay, retention and broadcaster services to `core/service/`.
       `GatewayBroadcaster` receives `PushTransport`; the concrete HTTP retry client stays
       in `runtime-portable/src/push-client.ts`. Tests: the existing saved-plan suites,

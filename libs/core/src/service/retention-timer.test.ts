@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import type { PlanEvent } from '../repository';
+import type { PlanEvent } from '../ports/plan-event-store';
 import { inMemoryPlanEvents } from '../testing/history-fixture';
 import { inMemoryEventLog } from '../testing/replay-fixture';
 import { RetentionTimer, type Swept } from './retention-timer';
@@ -16,15 +16,14 @@ function fakeSchedule() {
   let cleared = 0;
   let scheduled = 0;
   return {
-    setInterval: (fn: () => void) => {
+    every: (_milliseconds: number, fn: () => void) => {
       tick = fn;
       scheduled += 1;
-      return 'handle';
+      return () => {
+        cleared += 1;
+      };
     },
     scheduledCount: () => scheduled,
-    clearInterval: () => {
-      cleared += 1;
-    },
     advance: () => {
       if (tick === null) throw new Error('the timer never started');
       tick();
@@ -82,7 +81,7 @@ describe('RetentionTimer', () => {
       onError: (err) => {
         throw err;
       },
-      ...schedule,
+      intervals: schedule,
     });
 
     timer.start();
@@ -121,7 +120,7 @@ describe('RetentionTimer', () => {
       intervalMs: 1_000,
       onSweep: (removed) => swept.push(removed.eventLog),
       onError: (err) => errors.push(err),
-      ...schedule,
+      intervals: schedule,
     });
 
     timer.start();
@@ -164,7 +163,7 @@ describe('RetentionTimer', () => {
       onError: (err) => {
         throw err;
       },
-      ...schedule,
+      intervals: schedule,
     });
 
     timer.start();
@@ -192,7 +191,7 @@ describe('RetentionTimer', () => {
       now: () => NOW,
       intervalMs: 1_000,
       onError: rethrow,
-      ...schedule,
+      intervals: schedule,
     });
 
     timer.start();
@@ -231,7 +230,7 @@ describe('RetentionTimer', () => {
       now: () => NOW,
       intervalMs: 1_000,
       onError: rethrow,
-      ...schedule,
+      intervals: schedule,
     });
 
     timer.start();
@@ -274,7 +273,7 @@ describe('RetentionTimer, on the plan’s history', () => {
       intervalMs: 1_000,
       onSweep: (removed) => swept.push(removed),
       onError: rethrow,
-      ...schedule,
+      intervals: schedule,
     });
 
     timer.start();
@@ -300,7 +299,7 @@ describe('RetentionTimer, on the plan’s history', () => {
       now: () => NOW,
       intervalMs: 1_000,
       onError: rethrow,
-      ...schedule,
+      intervals: schedule,
     });
 
     timer.start();
@@ -334,7 +333,7 @@ describe('RetentionTimer, on the plan’s history', () => {
       now: () => NOW,
       intervalMs: 1_000,
       onError: (err) => errors.push(err),
-      ...schedule,
+      intervals: schedule,
     });
 
     timer.start();

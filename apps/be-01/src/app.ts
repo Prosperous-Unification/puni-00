@@ -1,3 +1,10 @@
+import type {
+  Broadcaster,
+  Clock,
+  HistoryService,
+  ReplayOrchestrator,
+  SavedPlanService,
+} from '@wbs/core';
 import { createLogger, type Logger, type MetricsScrape, scrapeMetrics } from '@wbs/observability';
 import { Elysia } from 'elysia';
 
@@ -21,24 +28,21 @@ import { identityResolver } from './http/identity';
 import { openApiPlugin } from './openapi/openapi-plugin';
 import type { DatabaseHealth } from './repository/health-probe';
 import type { AuthService } from './service/auth.service';
-import type { Broadcaster } from './service/broadcast';
 import type { CalendarMarkerService } from './service/calendar-marker.service';
 import type { CapacityService } from './service/capacity.service';
 import type { DirectoryService } from './service/directory.service';
-import type { HistoryService } from './service/history.service';
 import { LoginThrottle } from './service/login-throttle';
 import type { OptimizationCoordinator } from './service/optimization-coordinator';
 import { PlanCommandRunner } from './service/plan-commands';
 import type { PriorityBandService } from './service/priority-band.service';
 import type { ProjectService } from './service/project.service';
-import type { ReplayOrchestrator } from './service/replay-orchestrator';
-import type { SavedPlanService } from './service/saved-plan.service';
 import type { StepService } from './service/step.service';
 import type { Scope, UnitOfWork } from './service/unit-of-work';
 import type { WorkItemService } from './service/work-item.service';
 import type { WritingServices } from './services';
 
 export interface AppOptions {
+  clock: Pick<Clock, 'now'>;
   /** Trusted browser origin, resolved from operator configuration before boot. */
   appOrigin: string;
   migrationsApplied: boolean;
@@ -187,7 +191,9 @@ export function mountedEndpoints(
   },
 ) {
   const passwordThrottle = new LoginThrottle({
-    now: opts.oidc?.now,
+    // Proof: omitting this production clock made `be-01:typecheck` fail here
+    // with TS2741: property `now` is missing in `LoginThrottleOptions`.
+    now: () => opts.clock.now(),
     maxConcurrent: opts.maxConcurrentLogins ?? 8,
   });
   const commands = new PlanCommandRunner({

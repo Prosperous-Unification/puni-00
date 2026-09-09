@@ -99,6 +99,7 @@ function buildHarness(
     steps: testStepService(projectStore),
   };
   const app = buildApp({
+    clock: testClock,
     appOrigin: 'http://localhost',
     history: testHistoryService(),
     auth,

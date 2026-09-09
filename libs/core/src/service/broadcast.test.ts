@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Project, ProjectStore } from '../repository';
+import type { Project, ProjectStore } from '../ports/project-store';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import {
   inMemoryCalendarMarkers,

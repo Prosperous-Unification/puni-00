@@ -95,6 +95,7 @@ describe('the saved-plan routes', () => {
     const projects = new ProjectRepository(connection.db, OPEN);
 
     app = buildApp({
+      clock: testClock,
       appOrigin: 'http://localhost',
       auth: new AuthService({
         clock: testClock,

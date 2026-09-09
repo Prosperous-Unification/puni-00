@@ -30,6 +30,7 @@ import { testWrites } from './testing/writes-fixture';
 function options(): AppOptions {
   return {
     appOrigin: 'http://localhost',
+    clock: testClock,
     directory: testDirectoryService(),
     capacity: testCapacityService(),
     calendarMarkers: testCalendarMarkerService(),

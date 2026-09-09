@@ -609,7 +609,11 @@ describe('step events', () => {
 
   it('replays a step event to a client that reconnects', async () => {
     const eventLog = new DrizzleEventLogStore(db, OPEN);
-    const buffer = new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000 });
+    const buffer = new ReplayBuffer({
+      maxPerSubscription: 100,
+      maxAgeMs: 60_000,
+      now: Date.now,
+    });
     const durable = new StepService({
       clock: testClock,
       projects: projectStore,

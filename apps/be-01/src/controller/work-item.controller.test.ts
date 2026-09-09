@@ -65,6 +65,7 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
     calendarMarkers,
   });
   const app = buildApp({
+    clock: testClock,
     appOrigin: 'http://localhost',
     // **One** directory, shared with the work item service below. Two would
     // both look healthy while a person created through a `createPerson`

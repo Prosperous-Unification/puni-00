@@ -19,10 +19,14 @@ function mounted(
   oidc?: { passwordLoginEnabled?: boolean; passwordRegisterEnabled?: boolean },
   maxConcurrent = 8,
 ) {
-  return mountEndpoints(authPasswordEndpoints(auth, oidc, new LoginThrottle({ maxConcurrent })), {
-    appOrigin,
-    resolveIdentity: unusedIdentity,
-  });
+  return mountEndpoints(
+    authPasswordEndpoints(
+      auth,
+      oidc,
+      new LoginThrottle({ now: () => testClock.now(), maxConcurrent }),
+    ),
+    { appOrigin, resolveIdentity: unusedIdentity },
+  );
 }
 
 function loginRequest(

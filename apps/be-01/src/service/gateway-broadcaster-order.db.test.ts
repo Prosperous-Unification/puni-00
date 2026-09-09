@@ -32,7 +32,7 @@ it('allows C to overtake recorded B while its push is held', async () => {
   const broadcaster = new GatewayBroadcaster({
     clock: testClock,
     eventLog,
-    buffer: new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000 }),
+    buffer: new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000, now: Date.now }),
     push: new PushClient({
       gwUrl: 'http://transport.test',
       secret: 'fixture',

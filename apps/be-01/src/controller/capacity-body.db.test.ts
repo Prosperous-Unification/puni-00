@@ -123,6 +123,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       }),
     };
     app = buildApp({
+      clock: testClock,
       ...writing,
       appOrigin: 'http://localhost',
       savedPlans: testSavedPlanService(),

@@ -1,4 +1,5 @@
 import { buildOidcVerifier } from '@wbs/auth';
+import { SavedPlanService } from '@wbs/core';
 import type { Logger } from '@wbs/observability';
 
 import { buildApp } from './app';
@@ -14,7 +15,6 @@ import { SavedPlanCaptureRepository } from './repository/saved-plan-capture';
 import { UserRepository } from './repository/user';
 import { nodeDigest } from './runtime/bun-runtime';
 import type { AuthenticatedUser } from './service/auth.service';
-import { SavedPlanService } from './service/saved-plan.service';
 import { type BeServices, buildServices, type OptimizerRuntime } from './services';
 
 export interface BootOptions {
@@ -93,6 +93,7 @@ export function bootBe01(opts: BootOptions): RunningBe {
   const state = { migrationsApplied: false };
   const app = buildApp({
     appOrigin: opts.appOrigin,
+    clock: services.clock,
     get migrationsApplied() {
       return state.migrationsApplied;
     },

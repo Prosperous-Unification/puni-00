@@ -1,8 +1,7 @@
 import { readHistory } from '@wbs/contracts';
+import type { HistoryService, PlanEventFilter } from '@wbs/core';
 
 import { bind } from '../http/endpoint';
-import type { PlanEventFilter } from '../repository';
-import type { HistoryService } from '../service/history.service';
 
 /**
  * What the query string narrows the history to.

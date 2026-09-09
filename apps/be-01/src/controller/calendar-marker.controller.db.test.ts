@@ -160,6 +160,7 @@ describe('the calendar-marker routes', () => {
       passwords: bunPasswordHasher,
     });
     app = buildApp({
+      clock: testClock,
       appOrigin: 'http://localhost',
       auth,
       projects: new ProjectService({ clock: testClock, projects, broadcast }),

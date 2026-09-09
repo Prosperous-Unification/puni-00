@@ -5,6 +5,7 @@ import type { PlanEvent, Project, ProjectStore } from '../repository';
 import { inMemoryUsers, testAuthService } from '../testing/auth-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
+import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryPlanEvents, testHistoryService } from '../testing/history-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
@@ -63,6 +64,7 @@ describe('one plan’s history, over HTTP', () => {
       event('frozen', { kind: 'freeze', workItemId: null, stepId: null, createdAt: 4_000 }),
     ]);
     app = buildApp({
+      clock: testClock,
       appOrigin: 'http://localhost',
       auth,
       projects: testProjectService(projects),

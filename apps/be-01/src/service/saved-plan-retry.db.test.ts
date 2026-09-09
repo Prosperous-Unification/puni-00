@@ -197,16 +197,19 @@ describe('a refused save retried inside its budget saves the project as it is th
     const saver = service(now);
 
     let edits = 0;
+    let retryMs = 0;
     const outcome = await saveWithBoundedRetry(
       saver,
       { projectId: 'p1', name: 'once more', createdBy: 'Ada Lovelace', createdById: null },
       {
+        nowMs: () => retryMs,
         // The loop's wait is this test's interleaving point, chosen because it
         // is the only instant that is *provably* between the refusal and the
         // retry's acquisition. Issuing the edit from a timer beside the save
         // would be a race, and a race that usually lands is a test that
         // usually tests the right thing.
         sleep: async (ms: number) => {
+          retryMs += ms;
           if (edits === 0) {
             edits += 1;
             // `reader` carries the ordinary 5 s `busy_timeout`, so this waits

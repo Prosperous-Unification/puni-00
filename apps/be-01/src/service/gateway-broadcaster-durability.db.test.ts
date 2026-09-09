@@ -58,7 +58,11 @@ describe('the durable record of a project event', () => {
     lock: WriteCoordinator;
     buffer: ReplayBuffer;
   } {
-    const buffer = new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000 });
+    const buffer = new ReplayBuffer({
+      maxPerSubscription: 100,
+      maxAgeMs: 60_000,
+      now: Date.now,
+    });
     const lock = new WriteCoordinator();
     // Over the coordinator, which is where the durable record's turn is taken
     // now: the broadcaster used to wrap this call in `lock.run` itself, and the
@@ -76,7 +80,7 @@ describe('the durable record of a project event', () => {
         // what survived in the log and never a delivery that timed out. The
         // real `PushClient` against an unroutable host would sit in its
         // 500ms→30s backoff for about a minute per event.
-        push: { push: () => Promise.resolve({ delivered: 1 }) } as unknown as PushClient,
+        push: { push: () => Promise.resolve({ delivered: 1 }) },
         onPushFailed: () => undefined,
       }),
     };
@@ -184,10 +188,10 @@ describe('the durable record of a project event', () => {
     const broadcaster = new GatewayBroadcaster({
       clock: testClock,
       eventLog,
-      buffer: new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000 }),
+      buffer: new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60_000, now: Date.now }),
       push: {
         push: () => inFlight.then(() => ({ delivered: 1 })),
-      } as unknown as PushClient,
+      },
     });
 
     const published = broadcaster.publish('p-3', { type: 'saved_plans_changed' });
@@ -211,7 +215,11 @@ describe('the durable record of a project event', () => {
     const timers = new DeadlineClock();
     const lock = new WriteCoordinator();
     const eventLog = new DrizzleEventLogStore(db, lock);
-    const buffer = new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 60000 });
+    const buffer = new ReplayBuffer({
+      maxPerSubscription: 100,
+      maxAgeMs: 60_000,
+      now: Date.now,
+    });
     const failures: unknown[] = [];
     let aborted = false;
     const push = new PushClient({

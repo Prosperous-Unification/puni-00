@@ -177,6 +177,7 @@ describe('the schedule identity guarantee', () => {
       }),
     };
     app = buildApp({
+      clock: testClock,
       ...writing,
       appOrigin: 'http://localhost',
       auth: new AuthService({

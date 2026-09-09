@@ -106,6 +106,7 @@ beforeEach(() => {
     }),
   };
   app = buildApp({
+    clock: testClock,
     appOrigin: 'http://localhost',
     savedPlans: testSavedPlanService(),
     history: testHistoryService(),

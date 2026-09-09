@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import type { Project, ProjectStore } from '../repository';
+import type { Project, ProjectStore } from '../ports/project-store';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { projectRow } from '../testing/project-fixture';

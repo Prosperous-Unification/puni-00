@@ -1,7 +1,19 @@
-import { type Clock, clockOf, type PlanTransactionalStores, type Scheduler } from '@wbs/core';
+import {
+  type Broadcaster,
+  type Clock,
+  clockOf,
+  GatewayBroadcaster,
+  HistoryService,
+  OptimizerTriggerBroadcaster,
+  type PlanTransactionalStores,
+  ReplayBuffer,
+  ReplayOrchestrator,
+  RetentionTimer,
+  type Scheduler,
+} from '@wbs/core';
 import { contractVersionOf } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
-import { systemTimers } from '@wbs/runtime-portable';
+import { type FetchLike, PushClient, systemTimers } from '@wbs/runtime-portable';
 
 import { PLAN_EVENT_RETENTION_DAYS } from './repository';
 import { ActualRepository } from './repository/actual';
@@ -26,21 +38,13 @@ import { UserRepository } from './repository/user';
 import { SubtreeRepository, WorkItemRepository } from './repository/work-item';
 import { bunPasswordHasher, joseTokenCodec, systemInterval } from './runtime/bun-runtime';
 import { AuthService, type AuthServiceOptions } from './service/auth.service';
-import type { Broadcaster } from './service/broadcast';
 import { CalendarMarkerService } from './service/calendar-marker.service';
 import { CapacityService } from './service/capacity.service';
 import { DirectoryService } from './service/directory.service';
-import { GatewayBroadcaster } from './service/gateway-broadcaster';
-import { HistoryService } from './service/history.service';
 import { OptimizationCoordinator, type ReservedSpawner } from './service/optimization-coordinator';
-import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
 import { optimizerWiring } from './service/optimizer-wiring';
 import { PriorityBandService } from './service/priority-band.service';
 import { ProjectService } from './service/project.service';
-import { type FetchLike, PushClient } from './service/push-client';
-import { ReplayBuffer } from './service/replay-buffer';
-import { ReplayOrchestrator } from './service/replay-orchestrator';
-import { RetentionTimer } from './service/retention-timer';
 import { StepService } from './service/step.service';
 import type { Scope, UnitOfWork } from './service/unit-of-work';
 import { WorkItemService } from './service/work-item.service';
@@ -91,6 +95,7 @@ export interface ServicesOptions {
 }
 
 export interface BeServices extends WritingServices {
+  clock: Clock;
   /**
    * The one broadcaster every route publishes through, and where a batch's own
    * collector drains to once it has committed and let go of its turn.
@@ -303,6 +308,7 @@ export function buildServices(opts: ServicesOptions): BeServices {
   const replayBuffer = new ReplayBuffer({
     maxPerSubscription: EVENT_LOG_MAX_PER_SUBSCRIPTION,
     maxAgeMs: REPLAY_BUFFER_MAX_AGE_MS,
+    now: () => clock.now(),
   });
 
   // One broadcaster for every service that changes a project, so a step event
@@ -387,6 +393,7 @@ export function buildServices(opts: ServicesOptions): BeServices {
   );
 
   const services: BeServices = {
+    clock,
     announcements,
     gatewayBroadcaster: broadcast,
     // The process's one coordinator, for **one** reader: `boot.db.test.ts` has
@@ -433,7 +440,8 @@ export function buildServices(opts: ServicesOptions): BeServices {
       planEventRetentionDays: PLAN_EVENT_RETENTION_DAYS,
       intervalMs: RETENTION_INTERVAL_MS,
       // This process's own timers, handed over rather than reached for (D10).
-      ...systemInterval,
+      intervals: systemInterval,
+      now: () => clock.now(),
       onSweep: (removed) => {
         if (removed.eventLog > 0) {
           opts.logger.info({ removed: removed.eventLog }, 'event log pruned');

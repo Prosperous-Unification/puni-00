@@ -5,7 +5,7 @@ interface AttemptWindow {
 }
 
 export interface LoginThrottleOptions {
-  now?: () => number;
+  now: () => number;
   maxConcurrent: number;
 }
 
@@ -28,7 +28,7 @@ export class LoginThrottle {
     if (!Number.isSafeInteger(options.maxConcurrent) || options.maxConcurrent <= 0) {
       throw new Error('Login concurrency must be a positive integer');
     }
-    this.now = options.now ?? Date.now;
+    this.now = options.now;
   }
 
   canAttempt(username: string, clientIp: string): boolean {

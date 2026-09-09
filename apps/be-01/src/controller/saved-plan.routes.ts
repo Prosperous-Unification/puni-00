@@ -6,16 +6,17 @@ import {
   renameSavedPlan,
   savePlan,
 } from '@wbs/contracts';
-
-import { bind, EMPTY, type HttpReply, type RequestFailure } from '../http/endpoint';
-import type { Broadcaster } from '../service/broadcast';
-import { canEdit, type ProjectService } from '../service/project.service';
 import type {
+  Broadcaster,
+  ProjectService,
   SavedPlanService,
   SavedPlanSideRef,
   SavedPlanTouchResult,
-} from '../service/saved-plan.service';
-import { UnknownSavedPlanBodyVersionError } from '../service/saved-plan-integrity';
+} from '@wbs/core';
+import { UnknownSavedPlanBodyVersionError } from '@wbs/core';
+
+import { bind, EMPTY, type HttpReply, type RequestFailure } from '../http/endpoint';
+import { canEdit } from '../service/project.service';
 
 /**
  * The reserved current sentinel names the live plan in the addressed project.

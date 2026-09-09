@@ -25,6 +25,7 @@ const TEST_SECRET = 'x'.repeat(32);
 function app(auth = testAuthService(), maxConcurrentLogins?: number) {
   return buildApp({
     appOrigin: 'http://localhost',
+    clock: testClock,
     directory: testDirectoryService(),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
@@ -138,6 +139,7 @@ describe('GET /api/auth/me', () => {
     });
     const res = await buildApp({
       appOrigin: 'http://localhost',
+      clock: testClock,
       directory: testDirectoryService(),
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
@@ -312,7 +314,10 @@ function heldLogins(maxConcurrentLogins?: number, now?: () => number) {
         }),
     },
   });
-  const throttle = new LoginThrottle({ now, maxConcurrent: maxConcurrentLogins ?? 8 });
+  const throttle = new LoginThrottle({
+    now: now ?? (() => testClock.now()),
+    maxConcurrent: maxConcurrentLogins ?? 8,
+  });
   const application = now === undefined ? app(auth, maxConcurrentLogins) : null;
   const timedLogin = authPasswordEndpoints(auth, undefined, throttle)[1];
   const requests: Promise<{ status: number }>[] = [];

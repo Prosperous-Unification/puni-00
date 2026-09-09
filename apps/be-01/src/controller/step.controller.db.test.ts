@@ -163,6 +163,7 @@ beforeEach(async () => {
   };
   writes = testWrites(broadcast, writing);
   app = buildApp({
+    clock: testClock,
     appOrigin: 'http://localhost',
     savedPlans: testSavedPlanService(),
     history: testHistoryService(),

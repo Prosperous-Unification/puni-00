@@ -1,7 +1,7 @@
 import { canonicalisePlanInput } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import type { PlanInputReads } from '../repository/saved-plan-capture';
+import type { PlanInputReads } from '../ports/saved-plan-capture-store';
 import { planInputRowsOf } from './saved-plan-input';
 
 /**

@@ -16,19 +16,33 @@ const services = [
   'dependency',
   'directory-usage',
   'directory.service',
+  'gateway-broadcaster',
+  'history.service',
   'login-throttle',
   'numbered-work-item',
+  'optimizer-trigger-broadcaster',
   'plan-command',
   'plan-commands',
   'priority-band.service',
   'project.service',
+  'replay-buffer',
+  'replay-orchestrator',
+  'retention-job',
+  'retention-timer',
   'roll-up',
+  'saved-plan-default-name',
+  'saved-plan-input',
+  'saved-plan-quota',
+  'saved-plan-retry',
+  'saved-plan-schedule-body',
+  'saved-plan-schedule',
+  'saved-plan.service',
   'step.service',
   'work-item.service',
 ];
 
 // Proof: importing be-01's repository/schema from adjacent
-// work-item.service.ts failed core:lint at that production import with
+// gateway-broadcaster.ts failed core:lint at that production import with
 // @nx/enforce-module-boundaries: "Projects cannot be imported by a relative or
 // absolute path, and must begin with a npm scope" (2026-09-09).
 it('keeps extracted production services inside the core boundary', async () => {

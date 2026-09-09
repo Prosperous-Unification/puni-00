@@ -279,6 +279,59 @@ and rechecked the generic port, test relocation, live source links and source-ne
 spec compliance and code quality passed with no remaining findings. The complete workspace,
 database and browser gates remain owned by the final integration task.
 
+## Slice 2.2c.2 — saved-plan and publication services
+
+Verified 2026-09-09 from base `207bc347`.
+
+- Saved-plan default naming, input projection, integrity, quota, retry, schedule body,
+  captured scheduling and `SavedPlanService` now live under `libs/core/src/service/`.
+  History, replay buffer/orchestration, retention jobs and `GatewayBroadcaster` moved with
+  them. `OptimizerTriggerBroadcaster`, another pure publisher, moved in the same family.
+- `GatewayBroadcaster` consumes the source-neutral `PushTransport` port. The HTTP client,
+  bounded retry logic and real fetch cancellation live in
+  `libs/runtime-portable/src/push-client.ts`; the old be-01 paths reexport inward.
+- `ReplayBuffer` and `RetentionTimer` require clocks from composition. Retention consumes
+  `Intervals.every`, whose cancellation closes the runtime-owned handle, and drains an
+  active sweep before stopping. Saved-plan retry likewise requires its monotonic clock and
+  sleep capability instead of reaching runtime globals. `LoginThrottle` also requires its
+  clock, and ordinary password-only app composition receives the same process clock as the
+  rest of the service graph.
+- Fifteen pure test files moved beside their authorities. An AST comparison found every
+  named `describe`/`it`/`test` node identical and ordered for all old/new pairs, including
+  broadcast, gateway, optimizer trigger, plan history, replay buffer and its properties,
+  retention, five saved-plan helpers, and the three push-client suites.
+- SQLite suites remain in be-01. The focused saved-plan/replay/retention/gateway group ran
+  **98 pass / 0 fail**. The independent-history suite separately ran **3 pass / 0 fail**,
+  including successful saved plans surviving both batch commit and rollback.
+
+| Command                                                                                       | Observed                                                                                       |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `bun test ./libs/core/src/service ./libs/core/src/ports`                                      | 362 pass, 0 fail                                                                               |
+| Push unit/deadline suites                                                                     | 17 pass, 0 fail                                                                                |
+| Push real-socket cancellation suite with permitted localhost sockets                          | 2 pass, 0 fail; headers and body stalls both cancelled                                         |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun run test:unit` with permitted localhost sockets | be-01: 532 pass, 1 intentional source-capability skip, 0 fail; all seven listed libraries pass |
+| forced `core:typecheck`, `runtime-portable:typecheck` and `be-01:typecheck`                   | all pass                                                                                       |
+| uncached `core:lint`, `runtime-portable:lint` and `be-01:lint`                                | all pass                                                                                       |
+
+The be-01 fast tier fell from 640 to 532 because 108 pure cases moved to core or
+runtime-portable. Those two projects remain outside the root fast-tier inventory until task
+5.1, so both were run explicitly here. The first restricted root run failed only when a
+test tried to bind an ephemeral localhost socket; the permitted rerun passed. The complete
+database, browser and landing gates remain task 5.2.
+
+| Check                                   | Injected fault                                                                | Observed                                                                                                                                               |
+| --------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Production family exists in core        | Run the expanded boundary test before moving production                       | Expected true, received false for missing `libs/core/src/service/gateway-broadcaster.ts`                                                               |
+| Core cannot import the SQLite adapter   | Import be-01 repository schema from adjacent core `gateway-broadcaster.ts`    | `core:lint` failed with `@nx/enforce-module-boundaries`: “Projects cannot be imported by a relative or absolute path, and must begin with a npm scope” |
+| Replay clock is supplied by composition | Remove `now` from production `ReplayBuffer` construction                      | `be-01:typecheck` failed at `services.ts:303` with TS2741: property `now` is missing in `ReplayBufferOptions`                                          |
+| Retention runtime is explicit           | Remove `intervals`, then `now`, from production `RetentionTimer` construction | `be-01:typecheck` failed at `services.ts:427` with TS2741 for each missing required property                                                           |
+| Login throttle clock is composed        | Remove `now` from production `LoginThrottle` construction                     | `be-01:typecheck` failed at `app.ts:193` with TS2741: property `now` is missing in `LoginThrottleOptions`                                              |
+
+All injected faults were removed before green verification. The existing push deadline and
+cleanup oracles retained their names and passed after relocation. `SavedPlanRetryOptions`
+also requires `nowMs` and `sleep`; it has no production caller until task 2.2d creates the
+save use case, so this slice has no production-call-path negative for those two fields.
+
 ## Gate
 
 | Command | When | Result |

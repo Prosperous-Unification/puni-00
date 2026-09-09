@@ -1,10 +1,10 @@
-import { clockOf } from '@wbs/core';
 import { describe, expect, it } from 'bun:test';
 
+import { clockOf } from '../ports/clock';
+import type { PushTransport } from '../ports/push-transport';
 import { inMemoryEventLog } from '../testing/replay-fixture';
 import { type ProjectEvent, subscriptionFor } from './broadcast';
 import { GatewayBroadcaster } from './gateway-broadcaster';
-import { type PushClient, PushFailed } from './push-client';
 import { ReplayBuffer } from './replay-buffer';
 import { ReplayOrchestrator } from './replay-orchestrator';
 
@@ -15,17 +15,21 @@ function fakePush(mode: 'accepts' | 'refuses' = 'accepts') {
   const pushed: { subscription: string; seq: number }[] = [];
   const client = {
     push(payload: { subscription: string; seq: number }) {
-      if (mode === 'refuses') return Promise.reject(new PushFailed('gateway down'));
+      if (mode === 'refuses') return Promise.reject(new Error('gateway down'));
       pushed.push({ subscription: payload.subscription, seq: payload.seq });
       return Promise.resolve({ delivered: 1 });
     },
-  } as unknown as PushClient;
+  } satisfies PushTransport;
   return { pushed, client };
 }
 
 function bootstrap(mode: 'accepts' | 'refuses' = 'accepts') {
   const log = inMemoryEventLog();
-  const buffer = new ReplayBuffer({ maxPerSubscription: 100, maxAgeMs: 5 * 60_000 });
+  const buffer = new ReplayBuffer({
+    maxPerSubscription: 100,
+    maxAgeMs: 5 * 60_000,
+    now: () => Date.now(),
+  });
   const { pushed, client } = fakePush(mode);
   const failures: string[] = [];
   const broadcaster = new GatewayBroadcaster({
