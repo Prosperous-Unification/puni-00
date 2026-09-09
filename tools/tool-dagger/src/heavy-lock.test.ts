@@ -48,7 +48,11 @@ function pathEntry(value: string): string {
   return value;
 }
 
-function contenderEnvironment(shim: string, pathTail: string, home: string): Record<string, string> {
+function contenderEnvironment(
+  shim: string,
+  pathTail: string,
+  home: string,
+): Record<string, string> {
   return {
     PATH: `${pathEntry(shim)}:${pathTail}`,
     HEAVY_LOCK_WAIT_SECONDS: '30',
