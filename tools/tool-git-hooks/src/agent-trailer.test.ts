@@ -172,6 +172,9 @@ describe('agent trailer hook integration', () => {
     expect(result.exitCode).toBe(0);
     const text = readFileSync(message, 'utf8');
     expect(text.match(/^Agent-Authored-By:/gm)).toHaveLength(1);
+    expect(text.indexOf('Agent-Authored-By:')).toBeGreaterThan(
+      text.indexOf('body mentions ------------------------ >8'),
+    );
     expect(text.indexOf('Agent-Authored-By:')).toBeLessThan(
       text.indexOf('# ------------------------ >8'),
     );
