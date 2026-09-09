@@ -22,7 +22,9 @@ async function signedIn(page: Page): Promise<void> {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ user: { id: 'u1', username: 'kat' } }),
+      body: JSON.stringify({
+        user: { id: 'u1', username: 'kat', scopes: ['read', 'write', 'editor'] },
+      }),
     }),
   );
   await page.route('**/api/people', (route) =>
@@ -45,7 +47,10 @@ async function signedIn(page: Page): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem(
       'wbs.session',
-      JSON.stringify({ token: 'packaged', user: { id: 'u1', username: 'kat' } }),
+      JSON.stringify({
+        token: 'packaged',
+        user: { id: 'u1', username: 'kat', scopes: ['read', 'write', 'editor'] },
+      }),
     );
   });
 }
