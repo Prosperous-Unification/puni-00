@@ -110,9 +110,19 @@ async function seed(page: Page): Promise<Seed> {
       workItemId: first,
       patch: {
         externalRefs: [
-          { systemId: systemOf['jira-issue'], url: 'https://acme.atlassian.net/browse/AB-1' },
+          // Two named and two not, so one card holds both readings: the words a
+          // reader typed, and `refLabelOf(url)` where nobody has typed any.
+          {
+            systemId: systemOf['jira-issue'],
+            url: 'https://acme.atlassian.net/browse/AB-1',
+            name: 'AB-1 Strip the walls',
+          },
           { systemId: systemOf['confluence-page'], url: 'https://acme.atlassian.net/wiki/spec' },
-          { systemId: systemOf['github-pr'], url: 'https://github.com/acme/tool/pull/7' },
+          {
+            systemId: systemOf['github-pr'],
+            url: 'https://github.com/acme/tool/pull/7',
+            name: '#7 Rewire the shed',
+          },
           { systemId: systemOf['slack-message'], url: 'https://acme.slack.com/archives/C1/p1' },
           // The fault the scheme guard exists for, stored the way it really
           // arrives. It rides on an existing system so that it is a *link* the
@@ -487,5 +497,144 @@ test.describe('the ref column, in a browser', () => {
     await expect(editor).toBeVisible();
     await expect(editor.locator('a[data-refs-editor-url]')).toHaveCount(4);
     await expect(editor.locator('span[data-refs-editor-url]')).toHaveText(['javascript:alert(1)']);
+  });
+
+  test('the card is drawn on top of the rows below it, not under them', async ({ page }) => {
+    // **The fault this whole change started from, and only a browser can see
+    // it.** The Links column is pinned, a pinned cell is `position: sticky`
+    // *with* a `z-index`, and that makes it a stacking context — so the card
+    // inside it was trapped there and the Name cell beside it painted straight
+    // over it. The card was in the DOM, the right size, in the right place, and
+    // invisible: measured in Chromium on 2026-09-09 at `[94, 229, 284, 68]`
+    // with `elementFromPoint` at its own middle answering the *next* row's name
+    // `<textarea>`. Every one of the 2000-odd jsdom cases stayed green through
+    // it, because jsdom paints nothing at all.
+    //
+    // Proof: `raiseWhenOpen` narrowed back to `columnId === 'name'` — this
+    // failed on `the element painted at the middle of the card is not part of
+    // it · Expected: true · Received: false`. Watched 2026-09-09.
+    await seed(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    await page.getByLabel('Links for 010').hover();
+    const card = page.getByRole('tooltip', { name: 'Where 010 also exists' });
+    await expect(card).toBeVisible();
+
+    const painted = await page.evaluate(() => {
+      const found = document.querySelector('[role="tooltip"]');
+      if (found === null) throw new Error('no card on the page');
+      const box = found.getBoundingClientRect();
+      // Or this is a claim about a box with nothing in it, which is
+      // `G gantt-view`'s zero-width bar wearing a third hat.
+      if (box.width === 0 || box.height === 0) throw new Error('the card has no area');
+      const at = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return {
+        inside: at !== null && found.contains(at),
+        instead: at === null ? 'nothing' : at.tagName,
+        box: { width: box.width, height: box.height },
+      };
+    });
+    expect(
+      painted.inside,
+      `the element painted at the middle of the card is not part of it: ${painted.instead}`,
+    ).toBe(true);
+  });
+
+  test('a card line says what the link is called, and tints under the pointer', async ({
+    page,
+  }) => {
+    // Dany, 2026-09-09: *"i can then hover over the dropdown and see the link's
+    // summary + link to click to follow it"*. Two facts, and both are the
+    // browser's: that the pointer can travel from a 6px dot onto the card
+    // without the card closing, and that the line it comes to rest on is the
+    // line that lights up.
+    await seed(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    await page.getByLabel('Links for 010').hover();
+    const card = page.getByRole('tooltip', { name: 'Where 010 also exists' });
+    await expect(card).toBeVisible();
+
+    // The names a reader typed, and the labels their URLs carry where nobody
+    // typed one. Asserted as the whole list rather than one line, because a
+    // fallback that answered for every ref — named or not — would still make
+    // any single assertion pass.
+    await expect(card.locator('[data-refs-card-name]')).toHaveText([
+      'AB-1 Strip the walls',
+      'acme.atlassian.net/spec',
+      '#7 Rewire the shed',
+      'acme.slack.com/p1',
+      'javascript:alert(1)',
+    ]);
+
+    // The travel, and then the tint. Read **while the pointer is on the line**,
+    // which is the window the fault lives in: a colour read after the pointer
+    // has moved on is a colour about nothing.
+    //
+    // Proof: the `[data-refs-card-line]:hover` rule deleted from `styles.css` —
+    // this failed on `the pointed line of the card does not tint ·
+    // Expected: not "rgba(0, 0, 0, 0)" · Received: "rgba(0, 0, 0, 0)"`.
+    // Watched 2026-09-09.
+    const line = card.locator('[data-refs-card-line]').first();
+    const atRest = await line.evaluate((node) => getComputedStyle(node).backgroundColor);
+    await line.hover();
+    await expect(card, 'the card closed on the way to it').toBeVisible();
+    const pointed = await line.evaluate((node) => getComputedStyle(node).backgroundColor);
+    expect(pointed, 'the pointed line of the card does not tint').not.toBe(atRest);
+
+    // And the link under the pointer is the one a click would follow. The name
+    // is the anchor, which is what makes the line's own words the thing a
+    // reader aims at.
+    const name = card.locator('a[data-refs-card-name]').first();
+    await expect(name).toHaveAttribute('href', 'https://acme.atlassian.net/browse/AB-1');
+    await expect(name).toHaveAttribute('target', '_blank');
+    await expect(name).toHaveAttribute('rel', 'noreferrer noopener');
+  });
+
+  test('a name typed into the editor is what the card then says', async ({ page }) => {
+    // The whole round trip through the real stack: the editor states the list,
+    // be-01 writes the column, the tree read carries it back and the card draws
+    // it. The one assertion in this file that would fail if any single layer of
+    // this change were missing.
+    await seed(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    await page.getByLabel('Links for 010').click();
+    const editor = page.getByRole('dialog', { name: 'Links for 010' });
+    await expect(editor).toBeVisible();
+    // The second link is the unnamed Confluence page, and its box shows the
+    // derived label as a placeholder rather than as a value.
+    const second = editor.getByLabel('Name of link 2');
+    await expect(second).toHaveValue('');
+    await expect(second).toHaveAttribute('placeholder', 'acme.atlassian.net/spec');
+
+    await second.fill('The wiring spec');
+    await second.blur();
+    // Wait on something only the answer can produce — the editor's own box
+    // holding the value after the round trip replaced it — rather than on the
+    // box a keystroke already filled.
+    await expect(editor.getByLabel('Name of link 2')).toHaveValue('The wiring spec');
+
+    await page.keyboard.press('Escape');
+    await expect(editor).toBeHidden();
+    await page.getByLabel('Links for 010').hover();
+    const card = page.getByRole('tooltip', { name: 'Where 010 also exists' });
+    await expect(card.locator('[data-refs-card-name]').nth(1)).toHaveText('The wiring spec');
+  });
+
+  test('the card as a reader sees it', async ({ page }, testInfo) => {
+    // Not an assertion — a picture, attached to the run so a person can look at
+    // the thing rather than at a list of numbers about it. Dany judges rendered
+    // output, and this change exists because five months of green tests never
+    // showed anybody that the card was invisible.
+    await seed(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.getByLabel('Links for 010').hover();
+    const card = page.getByRole('tooltip', { name: 'Where 010 also exists' });
+    await expect(card).toBeVisible();
+    await testInfo.attach('links-card.png', {
+      body: await page.screenshot({ clip: { x: 0, y: 80, width: 700, height: 260 } }),
+      contentType: 'image/png',
+    });
   });
 });

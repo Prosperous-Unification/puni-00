@@ -1,9 +1,11 @@
 import { refLabelOf } from '@wbs/domain/external-system';
+import type { CSSProperties } from 'react';
 
 import { type ExternalRefView, type ExternalSystemView, followableHref } from '@/lib/wbs-api';
 
 import { familyDotStyle, familyOf } from './external-ref-marks';
 import { HoverCard } from './hover-card';
+import { LINK_INK } from './inline-markdown';
 
 export interface ExternalRefsCardProps {
   /** The linked work item's number, so the card says whose list this is. */
@@ -24,6 +26,33 @@ export interface ExternalRefsCardProps {
  */
 const systemWord = (systemId: string, systems: readonly ExternalSystemView[]): string =>
   systems.find((system) => system.id === systemId)?.name ?? systemId;
+
+/**
+ * How wide this card may grow to keep its addresses on one line each, in px.
+ *
+ * Twenty under the `HoverCard`'s own 420px ceiling, which is not arbitrary: the
+ * card adds 10px of padding either side and `box-sizing: border-box` means the
+ * ceiling is the whole box, so a 420px child inside a 420px card would push the
+ * text past the border it is drawn inside.
+ */
+const WIDEST_LINE_PX = 400;
+
+/**
+ * How the address under a name is drawn: one line, elided rather than wrapped.
+ *
+ * A URL is a thing to recognise and to click, not to read, and a wrapped one
+ * breaks at whichever character the algorithm reaches — measured in Chromium
+ * before this existed, `https://acme.atlassian.net/browse/AB-1` came out as
+ * `…/browse/AB-` and `1`, which reads as two different tickets. `minWidth: 0`
+ * because this is a flex child: without it a flex item refuses to shrink below
+ * its content and the ellipsis never happens.
+ */
+const ADDRESS: CSSProperties = {
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  minWidth: 0,
+};
 
 /**
  * Where a row's work also exists, in full, each entry named and followable.
@@ -72,99 +101,119 @@ const systemWord = (systemId: string, systems: readonly ExternalSystemView[]): s
 export function ExternalRefsCard({ number, refs, systems }: ExternalRefsCardProps) {
   return (
     <HoverCard label={`Where ${number} also exists`}>
-      {refs.map((ref) => {
-        const href = followableHref(ref.url);
-        const word = systemWord(ref.systemId, systems);
-        // The name a reader typed, or what the URL calls itself. Computed here
-        // rather than stored, so a rule added to `refLabelOf` improves every
-        // unnamed ref at once — see its own JSDoc for why that is the opposite
-        // bargain from a derived *system*.
-        const label = ref.name === '' ? refLabelOf(ref.url) : ref.name;
-        return (
-          <div
-            key={ref.id}
-            data-refs-card-line={ref.id}
-            // The line takes the pointer, which is what lets the anchors inside
-            // a pointer-transparent card be clicked at all, and what lets the
-            // `:hover` rule in `styles.css` find this element.
-            style={{
-              pointerEvents: 'auto',
-              display: 'flex',
-              alignItems: 'baseline',
-              gap: 6,
-              padding: '3px 4px',
-              borderRadius: 'var(--radius-sm)',
-            }}
-          >
-            <span
-              // The same disc the cell draws, from the same paint — see
-              // {@link familyDotStyle}. `aria-hidden` because the line's words
-              // already name the system: a screen reader that read the mark too
-              // would say `Jira` twice per link.
-              aria-hidden="true"
-              data-ref-mark={familyOf(word)}
-              style={{ ...familyDotStyle(familyOf(word)), position: 'relative', top: -1 }}
-            />
-            <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 1 }}>
-              {href === null ? (
-                // Text, not a dead anchor: an `<a>` with no `href` is not a
-                // link to a browser or to a screen reader, but it still reads
-                // as one to anybody scanning the markup, and this is the
-                // surface the rule exists to be visible on.
-                <span data-refs-card-name={ref.id} style={{ fontWeight: 500 }}>
-                  {label}
-                </span>
-              ) : (
-                <a
-                  data-refs-card-name={ref.id}
-                  href={href}
-                  target="_blank"
-                  // Both words, and neither is decoration: `noopener` stops the
-                  // opened page reaching back through `window.opener`, and
-                  // `noreferrer` stops this plan's URL — which names a project
-                  // — being handed to whatever is on the other end.
-                  rel="noreferrer noopener"
-                  style={{ fontWeight: 500 }}
-                >
-                  {label}
-                </a>
-              )}
+      {/*
+        **The card is as wide as its widest address, up to `WIDEST_LINE_PX`.**
+        A cell's card is `position: absolute` inside the cell's own 40px
+        wrapper, so its shrink-to-fit width is computed against 40px of
+        available room and comes out at the `HoverCard`'s 260px floor whatever
+        it holds — measured in Chromium at 284px, with
+        `https://acme.atlassian.net/browse/AB-1` broken across two lines at the
+        hyphen. `width: max-content` here makes the card's own min-content width
+        this list's widest line, so the card grows to fit and the addresses stay
+        on one line each.
+      */}
+      <div style={{ width: 'max-content', maxWidth: WIDEST_LINE_PX }}>
+        {refs.map((ref) => {
+          const href = followableHref(ref.url);
+          const word = systemWord(ref.systemId, systems);
+          // The name a reader typed, or what the URL calls itself. Computed here
+          // rather than stored, so a rule added to `refLabelOf` improves every
+          // unnamed ref at once — see its own JSDoc for why that is the opposite
+          // bargain from a derived *system*.
+          const label = ref.name === '' ? refLabelOf(ref.url) : ref.name;
+          return (
+            <div
+              key={ref.id}
+              data-refs-card-line={ref.id}
+              // The line takes the pointer, which is what lets the anchors inside
+              // a pointer-transparent card be clicked at all, and what lets the
+              // `:hover` rule in `styles.css` find this element.
+              style={{
+                pointerEvents: 'auto',
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 6,
+                padding: '3px 4px',
+                borderRadius: 'var(--radius-sm)',
+              }}
+            >
               <span
-                style={{
-                  display: 'flex',
-                  alignItems: 'baseline',
-                  gap: 4,
-                  fontSize: '0.75rem',
-                  color: 'var(--muted-foreground)',
-                  minWidth: 0,
-                }}
-              >
-                <span data-refs-card-system style={{ flexShrink: 0 }}>
-                  {word}
-                </span>
-                <span aria-hidden="true">·</span>
+                // The same disc the cell draws, from the same paint — see
+                // {@link familyDotStyle}. `aria-hidden` because the line's words
+                // already name the system: a screen reader that read the mark too
+                // would say `Jira` twice per link.
+                aria-hidden="true"
+                data-ref-mark={familyOf(word)}
+                style={{ ...familyDotStyle(familyOf(word)), position: 'relative', top: -1 }}
+              />
+              <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 1 }}>
                 {href === null ? (
-                  <span data-refs-card-url={ref.id}>{ref.url}</span>
+                  // Text, not a dead anchor: an `<a>` with no `href` is not a
+                  // link to a browser or to a screen reader, but it still reads
+                  // as one to anybody scanning the markup, and this is the
+                  // surface the rule exists to be visible on.
+                  <span data-refs-card-name={ref.id} style={{ fontWeight: 500 }}>
+                    {label}
+                  </span>
                 ) : (
                   <a
-                    data-refs-card-url={ref.id}
+                    data-refs-card-name={ref.id}
                     href={href}
                     target="_blank"
+                    // Both words, and neither is decoration: `noopener` stops the
+                    // opened page reaching back through `window.opener`, and
+                    // `noreferrer` stops this plan's URL — which names a project
+                    // — being handed to whatever is on the other end.
                     rel="noreferrer noopener"
-                    // Inherited, so the address reads as the quiet half of the
-                    // line: the name above it is the link a reader is meant to
-                    // aim at, and two equally loud links per row is a row with
-                    // no answer to "which one do I click".
-                    style={{ color: 'inherit' }}
+                    // The palette's own ink, not the user agent's: `-webkit-link`
+                    // is a blue on a light page and a periwinkle nothing names on
+                    // a dark one, which is the fault `dark-mode.spec.ts` holds
+                    // the header's links to. {@link LINK_INK} is where this app
+                    // answers that, once.
+                    style={{ ...LINK_INK, fontWeight: 500 }}
                   >
-                    {ref.url}
+                    {label}
                   </a>
                 )}
+                <span
+                  style={{
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    gap: 4,
+                    fontSize: '0.75rem',
+                    color: 'var(--muted-foreground)',
+                    minWidth: 0,
+                  }}
+                >
+                  <span data-refs-card-system style={{ flexShrink: 0 }}>
+                    {word}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  {href === null ? (
+                    <span data-refs-card-url={ref.id} style={ADDRESS}>
+                      {ref.url}
+                    </span>
+                  ) : (
+                    <a
+                      data-refs-card-url={ref.id}
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      // Inherited ink, so the address reads as the quiet half of
+                      // the line: the name above it is the link a reader is meant
+                      // to aim at, and two equally loud links per row is a row
+                      // with no answer to "which one do I click".
+                      style={{ ...ADDRESS, color: 'inherit' }}
+                    >
+                      {ref.url}
+                    </a>
+                  )}
+                </span>
               </span>
-            </span>
-          </div>
-        );
-      })}
+            </div>
+          );
+        })}
+      </div>
     </HoverCard>
   );
 }
