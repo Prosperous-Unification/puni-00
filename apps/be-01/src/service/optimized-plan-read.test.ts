@@ -239,6 +239,42 @@ describe('the plan read and the optimized cache', () => {
     });
   });
 
+  it('recovers a legacy out-of-range estimate when a later valid estimate replaces it', async () => {
+    const id = await leaf('Rewire');
+    await settings({
+      startDate: '2026-09-09',
+      optimizationEnabled: true,
+      scheduleEngine: 'optimized',
+    });
+    await serviceOptions.estimates.set(
+      {
+        workItemId: id,
+        stepId,
+        optimistic: 4_000_000_000,
+        realistic: 4_000_000_000,
+        pessimistic: 4_000_000_000,
+      },
+      WROTE,
+    );
+    const service = new WorkItemService({
+      ...serviceOptions,
+      optimized: recordingReader(null).read,
+    });
+
+    // Legacy rows can still reach datesOf -> addWorkdays -> Date#toISOString,
+    // which is the RangeError that made the whole plan read fail. The write
+    // path must not need that broken read in order to replace the stored trio.
+    await expect(service.tree(projectId)).rejects.toBeInstanceOf(RangeError);
+    expect(
+      await service.setEstimate(id, OWNER, stepId, {
+        optimistic: 1,
+        realistic: 2,
+        pessimistic: 3,
+      }),
+    ).toEqual({ ok: true, value: null });
+    expect(await service.tree(projectId)).not.toBeNull();
+  });
+
   it('reads disabled identity without serving a solver schedule', async () => {
     await leaf('Rewire');
     await settings({ optimizationEnabled: false, scheduleEngine: 'optimized' });
