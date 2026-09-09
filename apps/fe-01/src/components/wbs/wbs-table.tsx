@@ -499,6 +499,18 @@ const PlanHeaderCell = memo(
 );
 
 /**
+ * The reader's local day at noon, stable until the first render after local midnight.
+ *
+ * No timer forces a midnight render: the date is presentation context and the
+ * next ordinary table render refreshes it. Local noon keeps a zone/DST change
+ * from moving the calendar day that {@link shortIsoDate} reads.
+ */
+export function useToday(): Date {
+  const todayIso = isoToday(new Date());
+  return useMemo(() => new Date(`${todayIso}T12:00:00`), [todayIso]);
+}
+
+/**
  * The work breakdown: one grid that is a table and a nested list at once.
  *
  * TanStack Table owns exactly one thing here — which branches are open. Ordering
@@ -518,11 +530,7 @@ export function WbsTable({
   subscribe,
   savedPlansShelf,
 }: WbsTableProps) {
-  // Stable for every render in one local calendar day. `new Date()` at the
-  // callsite churned the cue's identity, while a UTC date string can name the
-  // wrong local day around midnight and therefore the wrong display year.
-  const todayIso = isoToday(new Date());
-  const today = useMemo(() => new Date(`${todayIso}T12:00:00`), [todayIso]);
+  const today = useToday();
   const {
     activeProject,
     workItems,

@@ -210,6 +210,10 @@ def check_cross_field(request: dict[str, Any]) -> None:
     # multiple of every quantum, so no exemption is written here.
     quantum = request["quantum"]
     for index, slice_ in enumerate(request["slices"]):
+        if slice_["workItemIsMilestone"] and slice_["durationUnits"] != 0:
+            raise RequestRejected(
+                f"slices[{index}].workItemIsMilestone is true with non-zero durationUnits"
+            )
         deadline_units = slice_.get("deadlineUnits")
         if deadline_units is None:
             continue

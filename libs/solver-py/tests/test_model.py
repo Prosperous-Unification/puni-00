@@ -59,6 +59,7 @@ def a_slice(
     weight: int = 0,
     not_before: int = 0,
     deadline: int | None = None,
+    work_item_is_milestone: bool | None = None,
 ) -> dict[str, Any]:
     return {
         "key": key,
@@ -69,6 +70,7 @@ def a_slice(
         "priorityWeight": weight,
         "notBeforeUnits": not_before,
         "deadlineUnits": deadline,
+        "workItemIsMilestone": duration == 0 if work_item_is_milestone is None else work_item_is_milestone,
     }
 
 
@@ -97,8 +99,8 @@ def a_request(
     offsets = dict(baseline) if baseline is not None else {key: 0 for key in keys}
     return {
         "wireVersion": 1,
-        "contractVersion": "8+0.1.1",
-        "solverVersion": "0.1.1",
+        "contractVersion": "8+0.1.2",
+        "solverVersion": "0.1.2",
         "objective": objective,
         "budgetMs": 30000,
         "stageBudgetSplit": [0.6, 0.25, 0.15],
@@ -428,6 +430,55 @@ class DeadlineClause(unittest.TestCase):
             [a_slice("a", duration=10, not_before=20, deadline=None)], horizon=40
         )
         self.assertEqual(status_of(request), cp_model.OPTIMAL)
+
+    def test_an_exact_deadline_ignores_a_trailing_zero_step(self) -> None:
+        """TASK-501. A leaf spanning ``[0, 192)`` meets an exclusive bound
+        of 192 even when its next step is a zero-duration marker at 192.
+
+        Fast projects the leaf from the minimum start and maximum finish, so
+        the marker does not extend that span into the next workday. Applying
+        milestone occupancy to the marker anyway made both optimized variants
+        report ``plan-infeasible`` for the live two-step fixture.
+        """
+        for floor, deadline in ((0, 192), (48, 240)):
+            with self.subTest(floor=floor):
+                request = a_request(
+                    [
+                        a_slice(
+                            "work\x00dev", duration=192, not_before=floor,
+                            deadline=deadline,
+                        ),
+                        a_slice(
+                            "work\x00qa", duration=0, not_before=floor,
+                            deadline=deadline, work_item_is_milestone=False,
+                        ),
+                    ],
+                    horizon=384,
+                    edges=[{
+                        "predecessorKey": "work\x00dev",
+                        "successorKey": "work\x00qa",
+                    }],
+                )
+                self.assertEqual(status_of(request), cp_model.OPTIMAL)
+
+    def test_that_same_work_item_one_unit_late_is_still_infeasible(self) -> None:
+        request = a_request(
+            [
+                a_slice(
+                    "work\x00dev", duration=192, not_before=1, deadline=192,
+                ),
+                a_slice(
+                    "work\x00qa", duration=0, not_before=1, deadline=192,
+                    work_item_is_milestone=False,
+                ),
+            ],
+            horizon=384,
+            edges=[{
+                "predecessorKey": "work\x00dev",
+                "successorKey": "work\x00qa",
+            }],
+        )
+        self.assertEqual(status_of(request), cp_model.INFEASIBLE)
 
     def test_a_zero_duration_milestone_one_day_late_is_infeasible(self) -> None:
         """**WATCHED RED W2** (tasks.md 8.4). Substitute `end <= deadlineUnits`
