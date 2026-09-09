@@ -7,15 +7,29 @@ import { describe, expect, it } from 'bun:test';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const hook = join(root, 'ops/agent-trailer/prepare-commit-msg');
-const humanEnv: Record<string, string | undefined> = {
+type FixtureEnvironmentKey =
+  | 'AGENT_AUTHORED_BY'
+  | 'CODEX_SANDBOX'
+  | 'FLEET_HOOK'
+  | 'GIT_CONFIG_GLOBAL'
+  | 'GIT_CONFIG_SYSTEM'
+  | 'GIT_EDITOR'
+  | 'HOME'
+  | 'HOOK_TRACE'
+  | 'PATH';
+type FixtureEnvironment = Partial<Record<FixtureEnvironmentKey, string | undefined>>;
+
+const humanEnv: FixtureEnvironment = {
   HOME: process.env['HOME'],
   PATH: process.env['PATH'],
+  GIT_CONFIG_GLOBAL: '/dev/null',
+  GIT_CONFIG_SYSTEM: '/dev/null',
 };
 
 function makeRepository() {
   const repository = mkdtempSync(join(tmpdir(), 'wbs-agent-trailer-'));
   const trace = join(repository, 'hook-trace');
-  const git = (args: string[], env: Record<string, string | undefined> = humanEnv) =>
+  const git = (args: string[], env: FixtureEnvironment = humanEnv) =>
     Bun.spawnSync(['git', '-C', repository, ...args], { env, stderr: 'pipe', stdout: 'pipe' });
 
   expect(git(['init', '-q', '-b', 'main']).exitCode).toBe(0);
@@ -77,25 +91,93 @@ describe('agent trailer hook integration', () => {
     expect(body(git)).not.toContain('Injected: yes');
   });
 
-  it('runs both stages without stamping a generated squash message', () => {
-    for (const verbose of [false, true]) {
-      const { agentEnv, git, hookEnv, repository, trace } = makeRepository();
-      writeFileSync(join(repository, 'base'), 'base\n');
-      expect(git(['add', 'base'], hookEnv).exitCode).toBe(0);
-      expect(git(['commit', '-qm', 'base'], hookEnv).exitCode).toBe(0);
-      expect(git(['checkout', '-qb', 'topic'], hookEnv).exitCode).toBe(0);
-      writeFileSync(join(repository, 'topic'), 'topic\n');
-      expect(git(['add', 'topic'], hookEnv).exitCode).toBe(0);
-      expect(git(['commit', '-qm', 'topic'], hookEnv).exitCode).toBe(0);
-      expect(git(['checkout', '-q', 'main'], hookEnv).exitCode).toBe(0);
-      expect(git(['merge', '--squash', 'topic'], hookEnv).exitCode).toBe(0);
-      writeFileSync(trace, '');
-      expect(
-        git(['commit', ...(verbose ? ['-v'] : [])], { ...agentEnv, GIT_EDITOR: 'true' }).exitCode,
-      ).toBe(0);
-      expect(stages(trace)).toEqual(['prepare-commit-msg', 'commit-msg']);
-      expect(body(git)).not.toContain('Agent-Authored-By:');
-    }
+  function expectGeneratedSquashUnstamped(verbose: boolean) {
+    const { agentEnv, git, hookEnv, repository, trace } = makeRepository();
+    writeFileSync(join(repository, 'base'), 'base\n');
+    expect(git(['add', 'base'], hookEnv).exitCode).toBe(0);
+    expect(git(['commit', '-qm', 'base'], hookEnv).exitCode).toBe(0);
+    expect(git(['checkout', '-qb', 'topic'], hookEnv).exitCode).toBe(0);
+    writeFileSync(join(repository, 'topic'), 'topic\n');
+    expect(git(['add', 'topic'], hookEnv).exitCode).toBe(0);
+    expect(git(['commit', '-qm', 'topic'], hookEnv).exitCode).toBe(0);
+    expect(git(['checkout', '-q', 'main'], hookEnv).exitCode).toBe(0);
+    expect(git(['merge', '--squash', 'topic'], hookEnv).exitCode).toBe(0);
+    writeFileSync(trace, '');
+    expect(
+      git(['commit', ...(verbose ? ['-v'] : [])], { ...agentEnv, GIT_EDITOR: 'true' }).exitCode,
+    ).toBe(0);
+    expect(stages(trace)).toEqual(['prepare-commit-msg', 'commit-msg']);
+    expect(body(git)).not.toContain('Agent-Authored-By:');
+  }
+
+  it('runs both stages without stamping a plain generated squash message', () => {
+    expectGeneratedSquashUnstamped(false);
+  });
+
+  it('runs both stages without stamping a verbose generated squash message', () => {
+    expectGeneratedSquashUnstamped(true);
+  });
+
+  it('stamps an ordinary verbose commit above the discarded diff', () => {
+    const { agentEnv, git, repository, trace } = makeRepository();
+    const editor = join(repository, 'editor');
+    writeFileSync(
+      editor,
+      '#!/bin/sh\nmsg="$1"\n{ printf "fix: ordinary verbose\\n\\n"; cat "$msg"; } >"$msg.tmp"\nmv "$msg.tmp" "$msg"\n',
+    );
+    chmodSync(editor, 0o755);
+    writeFileSync(join(repository, 'ordinary'), 'ordinary\n');
+    expect(git(['add', 'ordinary'], agentEnv).exitCode).toBe(0);
+    const committed = git(['commit', '-v'], { ...agentEnv, GIT_EDITOR: editor });
+    expect(committed.stderr.toString()).toBe('');
+    expect(committed.exitCode).toBe(0);
+    expect(stages(trace)).toEqual(['prepare-commit-msg', 'commit-msg']);
+    expect(body(git).match(/^Agent-Authored-By:/gm)).toHaveLength(1);
+    expect(body(git)).not.toContain('diff --git');
+  });
+
+  it('keeps the legacy fallback above exact scissors without truncating a body substring', () => {
+    const { agentEnv, repository } = makeRepository();
+    const realGit = Bun.spawnSync(['sh', '-c', 'command -v git'], {
+      env: humanEnv,
+      stderr: 'pipe',
+      stdout: 'pipe',
+    }).stdout.toString().trim();
+    expect(realGit).not.toBe('');
+    const fakeBin = join(repository, 'fake-bin');
+    mkdirSync(fakeBin);
+    const fakeGit = join(fakeBin, 'git');
+    writeFileSync(
+      fakeGit,
+      `#!/bin/sh\nif [ "\${1:-}" = interpret-trailers ]; then exit 1; fi\nexec ${JSON.stringify(realGit)} "$@"\n`,
+    );
+    chmodSync(fakeGit, 0o755);
+    const message = join(repository, 'COMMIT_EDITMSG');
+    writeFileSync(
+      message,
+      [
+        'fix: body mentions ------------------------ >8 ------------------------ without being a marker',
+        '',
+        '# ------------------------ >8 ------------------------',
+        'diff --git a/a b/a',
+        '--- a/a',
+      ].join('\n'),
+    );
+    const result = Bun.spawnSync(['sh', hook, message], {
+      cwd: repository,
+      env: { ...agentEnv, PATH: `${fakeBin}:${humanEnv.PATH ?? ''}` },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+    expect(result.exitCode).toBe(0);
+    const text = readFileSync(message, 'utf8');
+    expect(text.match(/^Agent-Authored-By:/gm)).toHaveLength(1);
+    expect(text.indexOf('Agent-Authored-By:')).toBeLessThan(
+      text.indexOf('# ------------------------ >8'),
+    );
+    expect(text).toContain(
+      'body mentions ------------------------ >8 ------------------------ without being a marker',
+    );
   });
 
   it('treats a non-matching SQUASH_MSG as stale and stamps the explicit message', () => {
