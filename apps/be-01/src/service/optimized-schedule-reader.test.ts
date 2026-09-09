@@ -1,6 +1,5 @@
+import type { OptimizedResult } from '@wbs/contracts/solver/optimized-result';
 import { describe, expect, it } from 'bun:test';
-
-import type { OptimizedResult } from '@wbs/contracts/solver/optimized-result-dto';
 
 import type { CachedOutcome } from '../repository/optimized-schedule-cache';
 import { optimizationVariantState } from './optimized-schedule-reader';
