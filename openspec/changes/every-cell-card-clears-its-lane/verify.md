@@ -89,6 +89,7 @@ about the card. It was replaced with `elementFromPoint` at the middle of the ove
 answered the pinned `<textarea>` **with the z-index in place**, and this file recorded a defect on
 the strength of it. Wrong: a card is `pointer-events: none`, so the hit test answers what is
 beneath it however the paint came out. Corrected on 2026-09-10 in
-`fix/an-unpinned-cards-lift`, which restores the test as a **painted-pixel** comparison — open
-against closed, in the row below the pointer's own — watched failing with the z-index removed.
-R5 #27.
+`fix/an-unpinned-cards-lift`, which restores the test with a third oracle — the card's
+`pointer-events` set to `auto` for the length of one `elementFromPoint` — watched answering `the
+card` with the z-index in place and `TEXTAREA` without it. (A painted-pixel comparison was tried
+in between and failed on CI: both surfaces are white.) R5 #27.

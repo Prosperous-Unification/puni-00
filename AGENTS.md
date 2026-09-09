@@ -631,13 +631,18 @@ more useful half.** `elementFromPoint` at the middle of the overlap answered the
 `<textarea>` **with the z-index in place**, and that was read as "the card is painted underneath"
 — a defect was written into `LLM_README.md`, a memory and a change's verify.md on the strength of
 it. A hover card is `pointer-events: none`: the hit test reports whatever is beneath it _however_
-the paint came out, so it cannot answer a paint question at all. What settled it was one **pixel**,
-screenshotted at that point with the card open and again with it closed, in the row **below** the
-pointer's own so that nothing else moves between the two reads: `(221, 221, 224)` against
-`(255, 255, 255)`, and both `(255, 255, 255)` with the z-index gone. There was never a defect.
-**Ask the paint question with paint, in a place the pointer does not change** — and when a check
-is replaced because it could not fail, the replacement needs its own watched negative before its
-answer is believed, not after it has been written down as a finding.
+the paint came out, so it cannot answer a paint question at all. The **third** oracle, one _pixel_ of the overlap screenshotted open against
+closed, passed on a Mac and failed on CI: `--popover` and `--cell-bg` are both white, so whether
+the two reads differ depends on whether that pixel lands on the card's own text — a fact about the
+font, not about the paint order. What settles it is asking the browser: the card's
+`pointer-events` is set to `auto` for the length of one `elementFromPoint` and restored, which
+changes what the hit test can **see** and nothing about which box is on **top**. `the card`
+against `TEXTAREA`, watched both ways. There was never a defect.
+
+**Three wrong oracles for one claim**, and the shape they share is that each was chosen for being
+easy to write rather than for being able to distinguish the two states. When a check is replaced
+because it could not fail, the replacement needs its own watched negative **before** its answer is
+believed — not after it has been written down as a finding in three files.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.

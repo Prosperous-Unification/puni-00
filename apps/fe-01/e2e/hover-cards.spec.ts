@@ -283,17 +283,28 @@ test.describe('a hover card answers at once, whole, and out past its cell', () =
 const PIN_OVERLAP = 60;
 
 /**
- * The colour actually painted at one point of the page, as three bytes.
+ * Whether the card is **above** what it overlaps at one point, asked of the
+ * browser's own paint order.
  *
- * A one-pixel screenshot rather than `getComputedStyle`, because what is asked
- * here is what a reader *sees* where two boxes overlap — which is the one
- * question a declaration cannot answer and `elementFromPoint` answers wrongly:
- * a card is `pointer-events: none`, so the hit test reports whatever is
- * underneath it whether the card is painted on top or not.
+ * A hit test taken with the card's `pointer-events` momentarily set to `auto`,
+ * which is the one property that decides whether hit testing *sees* a box and
+ * the one that has nothing to do with which box is on top. Restored on the way
+ * out, so the page the next assertion reads is the page the reader has.
+ *
+ * Two simpler oracles were tried first and neither can answer this — see the
+ * case below for what each one did instead.
  */
-async function paintedAt(page: Page, at: { x: number; y: number }): Promise<string> {
-  const shot = await page.screenshot({ clip: { ...at, width: 1, height: 1 } });
-  return shot.toString('base64');
+async function cardIsOnTopAt(page: Page, at: { x: number; y: number }): Promise<string> {
+  return page.evaluate((point) => {
+    const card = document.querySelector('[role="tooltip"]');
+    if (!(card instanceof HTMLElement)) throw new Error('no card is open');
+    const was = card.style.pointerEvents;
+    card.style.pointerEvents = 'auto';
+    const hit = document.elementFromPoint(point.x, point.y);
+    card.style.pointerEvents = was;
+    if (hit === null) return 'nothing';
+    return hit.closest('[role="tooltip"]') === null ? hit.tagName : 'the card';
+  }, at);
 }
 
 test.describe('a card and the pinned columns it slides under', () => {
@@ -314,23 +325,29 @@ test.describe('a card and the pinned columns it slides under', () => {
     // frame is scrolled until the folded step column is 60px under the pin, and
     // the point compared is inside the pinned Name cell of the **row below**.
     //
-    // **The comparison is one painted pixel, open against closed**, and the two
-    // oracles this replaces are why it is spelt out. A pair of *strips* was
-    // compared until 2026-09-09 — and the pointer that opens the card also
-    // lights its own row, so the two shots differ whether the card was drawn or
-    // hidden: watched green with `zIndex: 20` deleted (R5 #26). Its replacement,
-    // `elementFromPoint` at the same place, is wrong in the other direction: the
-    // card is `pointer-events: none`, so the hit test answers the pinned
-    // `<textarea>` underneath **however** the paint came out, and reading that
-    // as "the card is hidden" invented a defect that was never there. One pixel,
-    // in the row below the pointer's own, is the thing neither of them was.
+    // **Three oracles have been tried for this one claim, and the first two are
+    // why the third is spelt out.** A pair of *strips*, one with the card open
+    // and one with the pointer moved away, was compared until 2026-09-09 — and
+    // the pointer that opens a card also lights its own row, so the two shots
+    // differ whether the card was drawn or hidden: watched green with
+    // `zIndex: 20` deleted (R5 #26). A plain `elementFromPoint` is wrong in the
+    // other direction: a card is `pointer-events: none`, so the hit test answers
+    // the pinned `<textarea>` underneath **however** the paint came out, and
+    // reading that as "the card is hidden" invented a defect that was never
+    // there (R5 #27). And one *painted pixel* of the overlap, open against
+    // closed, passed here and failed on CI: `--popover` and `--cell-bg` are both
+    // white, so whether the two reads differ depends on whether that pixel
+    // happens to land on the card's own text — which is a fact about the font,
+    // not about the paint order.
+    //
+    // {@link cardIsOnTopAt} asks the browser instead: the card is made
+    // hit-testable for the length of one `elementFromPoint`, which changes what
+    // the hit test can see and nothing about which box is on top.
     //
     // Proof: `zIndex: 20` removed from `HoverCard` — this failed on `the pinned
-    // cell below hides the card · Expected: false · Received: true`, the two
-    // reads becoming the same pixel. Measured beside it, with a probe that
-    // printed the bytes: `(221, 221, 224)` open against `(255, 255, 255)` closed
-    // with the z-index in place, and `(255, 255, 255)` both ways without it.
-    // Watched in Chromium, 2026-09-10.
+    // cell below hides the card · Expected: "the card" · Received: "TEXTAREA"`.
+    // With it in place the same point answers `DIV IN-CARD`. Watched in
+    // Chromium, 2026-09-10.
     await page.setViewportSize({ width: 900, height: 700 });
     await page.getByRole('button', { name: 'Add work item' }).click();
     await expect(page.getByLabel('Name of 030')).toBeVisible();
@@ -400,12 +417,9 @@ test.describe('a card and the pinned columns it slides under', () => {
     ).toBeGreaterThanOrEqual(Math.round(pinned.y));
 
     const middle = { x: strip.x + strip.width / 2, y: strip.y + strip.height / 2 };
-    const open = await paintedAt(page, middle);
-    await page.mouse.move(0, 0);
-    await expect(page.locator('[role="tooltip"]')).toHaveCount(0);
-    const shut = await paintedAt(page, middle);
-
-    expect(open === shut, 'the pinned cell below hides the card').toBe(false);
+    expect(await cardIsOnTopAt(page, middle), 'the pinned cell below hides the card').toBe(
+      'the card',
+    );
   });
 });
 
