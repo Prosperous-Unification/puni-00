@@ -65,6 +65,15 @@ function body(git: ReturnType<typeof makeRepository>['git']) {
 }
 
 describe('agent trailer hook integration', () => {
+  it('keeps the isolated human environment surface explicit', () => {
+    expect(Object.keys(humanEnv).sort()).toEqual([
+      'GIT_CONFIG_GLOBAL',
+      'GIT_CONFIG_SYSTEM',
+      'HOME',
+      'PATH',
+    ]);
+  });
+
   it('keeps both production lefthook stages wired to the shared hook', () => {
     const config = readFileSync(join(root, 'lefthook.yml'), 'utf8');
     expect(config).toContain(
