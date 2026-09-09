@@ -299,14 +299,22 @@ class MilestoneFlagMatchesDuration(unittest.TestCase):
             check_cross_field(request)
         self.assertIn("workItemIsMilestone", str(caught.exception))
 
-    def test_a_zero_slice_may_carry_either_group_fact(self) -> None:
-        for is_milestone in (False, True):
-            with self.subTest(workItemIsMilestone=is_milestone):
-                request = valid_request()
-                request["slices"][0]["durationUnits"] = 0
-                request["slices"][0]["workItemIsMilestone"] = is_milestone
-                validate_against_schema(request, "request")
-                check_cross_field(request)
+    def test_an_all_zero_work_item_cannot_deny_that_it_is_a_milestone(self) -> None:
+        request = valid_request()
+        request["slices"][0]["durationUnits"] = 0
+        request["slices"][0]["workItemIsMilestone"] = False
+        validate_against_schema(request, "request")
+        with self.assertRaises(RequestRejected) as caught:
+            check_cross_field(request)
+        self.assertIn("milestone fact is True", str(caught.exception))
+
+    def test_a_trailing_zero_slice_may_deny_milestone_status(self) -> None:
+        request = valid_request()
+        request["slices"][1]["workItemKey"] = request["slices"][0]["workItemKey"]
+        request["slices"][1]["durationUnits"] = 0
+        request["slices"][1]["workItemIsMilestone"] = False
+        validate_against_schema(request, "request")
+        check_cross_field(request)
 
 
 class ObjectiveOverflow(unittest.TestCase):

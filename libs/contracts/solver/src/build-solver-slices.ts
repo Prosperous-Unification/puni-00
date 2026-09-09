@@ -103,6 +103,9 @@ export function buildSolverSlices(
     }
 
     return {
+      // Group identity is explicit because `key` is opaque outside this
+      // builder; neither validator may split it to rediscover the work item.
+      workItemKey: slice.workItemId,
       key,
       durationUnits: durations[at],
       width: slice.width,

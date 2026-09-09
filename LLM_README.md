@@ -1,6 +1,8 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-501 exact-deadline solver fix is on `fix/task501-deadline-boundary`: PR #382 is open; await exact-head CI, then merge and verify dev.
+TASK-508 milestone-wire and Fast trailing-zero fixes are on
+`fix/task508-milestone-proof`, based on TASK-501's PR #382 head; run the full
+h2puni gate, open the follow-up PR after #382 merges, then complete exact-head reviews.
 
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),

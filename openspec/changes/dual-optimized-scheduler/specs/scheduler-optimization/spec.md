@@ -164,13 +164,19 @@ The coordinator SHALL cap solver processes at 4 per project and 16 globally. A v
 
 ### Requirement: The solver wire contract is one versioned schema every consumer reads
 
-The request and the response SHALL be defined by one checked-in JSON Schema, `libs/contracts/solver/solver-wire.v1.json`, and prose SHALL NOT be a second definition. Exactly four consumers SHALL read that file: the Bun request builder, `parseSolverResponse`, the `wbs-solver` Python entrypoint, and a shared golden-fixture corpus both suites run. Every message SHALL carry the required literal `wireVersion`, and the schema SHALL state the unit of every numeric field. <!-- wire-fields:request -->The request SHALL be one JSON line carrying `wireVersion`, `contractVersion`, `solverVersion`, `objective`, `budgetMs`, `stageBudgetSplit`, `quantum`, `horizonUnits`, `slices`, `edges`, `pools`, `baselineOffsets` and `fastHint`. <!-- wire-fields:slice -->Each slice SHALL carry `{ key, durationUnits, width, personId, poolIds, priorityWeight, notBeforeUnits, deadlineUnits, workItemIsMilestone }`. The wire property is named `key`; no artifact SHALL spell it sliceKey, unbackticked here deliberately so that the prohibition is not read as a member of the span carrying it. `durationUnits` SHALL be an integer, `poolIds` set-valued, `priorityWeight` and `notBeforeUnits` resolved, and `deadlineUnits` a resolved `integer | null`. `deadlineUnits` SHALL be in the same units as `notBeforeUnits`, `horizonUnits` and every returned offset; it SHALL be the **effective** deadline for that slice, already folded over the tree and already converted to `(D + 1) × quantum`, so the solver applies it without seeing the tree exactly as it never sees `reach`; and `null` SHALL mean unconstrained. `horizonUnits` SHALL be unchanged and SHALL NOT be tightened to the latest deadline, which would make an infeasible plan indistinguishable from a horizon overflow and would remove the serial bound that makes the horizon provably safe. `edges` SHALL already be leaf-expanded with the project's dependency reach applied and SHALL already include the intra-work-item step-order edges, so the solver never receives the tree, `parentId`, or `dep_reach`. `baselineOffsets` SHALL be the **quantised** Fast baseline for the same canonical input — Fast re-run through `schedule()` over the rounded integer `durationUnits` — the wire's own field name, and the only duration name any artifact uses — expressed in integer solver units — and SHALL NOT be real Fast's offsets, whose fractional `days / width` starts can be infeasible in the integer model on legal widths and would make `fastHint` reject a hint the solver must be able to accept. Real Fast is named **Baseline schedule** and is used only by the real-domain publication guard. `baselineOffsets` SHALL be the only movement reference either objective uses. The solver SHALL NOT read a clock, a database, or any other schedule, and SHALL NOT derive a duration, a priority, or a floor. That prohibition binds the deterministic solve; the process's **lifecycle wrapper** SHALL be permitted to read the clock solely to arm the absolute `childDeadlineAt` it is given, and that instant together with the `attemptToken` SHALL be passed as process arguments rather than as request fields, so neither enters the schema, the golden corpus, or the solved model.
+The request and the response SHALL be defined by one checked-in JSON Schema, `libs/contracts/solver/solver-wire.v1.json`, and prose SHALL NOT be a second definition. Exactly four consumers SHALL read that file: the Bun request builder, `parseSolverResponse`, the `wbs-solver` Python entrypoint, and a shared golden-fixture corpus both suites run. Every message SHALL carry the required literal `wireVersion`, and the schema SHALL state the unit of every numeric field. <!-- wire-fields:request -->The request SHALL be one JSON line carrying `wireVersion`, `contractVersion`, `solverVersion`, `objective`, `budgetMs`, `stageBudgetSplit`, `quantum`, `horizonUnits`, `slices`, `edges`, `pools`, `baselineOffsets` and `fastHint`. <!-- wire-fields:slice -->Each slice SHALL carry `{ workItemKey, key, durationUnits, width, personId, poolIds, priorityWeight, notBeforeUnits, deadlineUnits, workItemIsMilestone }`. The wire property is named `key`; no artifact SHALL spell it sliceKey, unbackticked here deliberately so that the prohibition is not read as a member of the span carrying it. `workItemKey` SHALL carry opaque grouping identity separately so neither consumer parses `key`. `durationUnits` SHALL be an integer, `poolIds` set-valued, `priorityWeight` and `notBeforeUnits` resolved, and `deadlineUnits` a resolved `integer | null`. `deadlineUnits` SHALL be in the same units as `notBeforeUnits`, `horizonUnits` and every returned offset; it SHALL be the **effective** deadline for that slice, already folded over the tree and already converted to `(D + 1) × quantum`, so the solver applies it without seeing the tree exactly as it never sees `reach`; and `null` SHALL mean unconstrained. `horizonUnits` SHALL be unchanged and SHALL NOT be tightened to the latest deadline, which would make an infeasible plan indistinguishable from a horizon overflow and would remove the serial bound that makes the horizon provably safe. `edges` SHALL already be leaf-expanded with the project's dependency reach applied and SHALL already include the intra-work-item step-order edges, so the solver never receives the tree, `parentId`, or `dep_reach`. `baselineOffsets` SHALL be the **quantised** Fast baseline for the same canonical input — Fast re-run through `schedule()` over the rounded integer `durationUnits` — the wire's own field name, and the only duration name any artifact uses — expressed in integer solver units — and SHALL NOT be real Fast's offsets, whose fractional `days / width` starts can be infeasible in the integer model on legal widths and would make `fastHint` reject a hint the solver must be able to accept. Real Fast is named **Baseline schedule** and is used only by the real-domain publication guard. `baselineOffsets` SHALL be the only movement reference either objective uses. The solver SHALL NOT read a clock, a database, or any other schedule, and SHALL NOT derive a duration, a priority, or a floor. That prohibition binds the deterministic solve; the process's **lifecycle wrapper** SHALL be permitted to read the clock solely to arm the absolute `childDeadlineAt` it is given, and that instant together with the `attemptToken` SHALL be passed as process arguments rather than as request fields, so neither enters the schema, the golden corpus, or the solved model.
 
 #### Scenario: a consumer that diverges from the schema fails the gate
 
 - **GIVEN** the checked-in wire schema and its golden fixture corpus
 - **WHEN** any one of the request builder, the response parser, the Python entrypoint or the generated TypeScript types accepts a message the schema rejects, or rejects one it accepts
 - **THEN** the contract test fails, so no consumer can carry a private variant of the request
+
+#### Scenario: the movement term uses the passed baseline, not live state
+
+- **GIVEN** two solves for the same input hash with different schedules already published
+- **WHEN** each solve computes its movement term
+- **THEN** both use the identical `baselineOffsets` derived from that input, so the input hash fully determines the objective
 
 ### Requirement: deadline occupancy follows the work-item projection
 
@@ -181,8 +187,9 @@ an item containing positive-duration work. The deadline clause SHALL constrain
 constrain `end <= deadlineUnits` otherwise. A zero-duration step beside positive
 work SHALL remain an endpoint inside the projected work-item span; it SHALL NOT
 extend an exactly-met deadline into the next workday. Bun SHALL derive the flag
-while it owns the work-item grouping, and Python SHALL NOT parse `key` to
-reconstruct that grouping.
+while it owns the work-item grouping. The wire SHALL carry that grouping as the
+separate opaque `workItemKey`; both Bun and Python SHALL prove the fact in both
+directions without parsing `key`.
 
 #### Scenario: an exactly-met span with a trailing zero step remains feasible
 
@@ -195,12 +202,6 @@ reconstruct that grouping.
 - **GIVEN** a work item whose every slice has zero duration
 - **WHEN** it stands at the exclusive boundary after its deadline
 - **THEN** `workItemIsMilestone` is true and the solver reports the deadline infeasible
-
-#### Scenario: the movement term uses the passed baseline, not live state
-
-- **GIVEN** two solves for the same input hash with different schedules already published
-- **WHEN** each solve computes its movement term
-- **THEN** both use the identical `baselineOffsets` derived from that input, so the input hash fully determines the objective
 
 ### Requirement: The solver budget is a cache key dimension
 
