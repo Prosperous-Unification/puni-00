@@ -15,6 +15,7 @@ import {
   ALGORITHM_WORDS,
   days,
   deadlineWords,
+  hasEffectiveDeadline,
   OBJECTIVE_LABEL,
   STALE_WORDS,
 } from './optimization-words';
@@ -118,12 +119,9 @@ function unmeetableLine(
     unmeetable.ownerWorkItemId === unmeetable.boundWorkItemId
       ? nameOf(unmeetable.boundWorkItemId)
       : `${nameOf(unmeetable.ownerWorkItemId)} → ${nameOf(unmeetable.boundWorkItemId)}`;
-  const effective =
-    projectStart !== null &&
-    Number.isSafeInteger(unmeetable.effectiveDeadlineOffset) &&
-    unmeetable.effectiveDeadlineOffset >= 0
-      ? ' (effective workday)'
-      : '';
+  const effective = hasEffectiveDeadline(projectStart, unmeetable.effectiveDeadlineOffset)
+    ? ' (effective workday)'
+    : '';
   return `${who} · Work item deadline${effective} ${deadlineWords(projectStart, unmeetable.effectiveDeadlineOffset, today)}`;
 }
 

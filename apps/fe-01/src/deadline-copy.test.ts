@@ -353,7 +353,7 @@ describe('the scan, on sources written to fail it', () => {
       "const lazy = import('./deadline-lazy');",
       "import deadlinePort = require('./deadline-port');",
       "type DeadlinePort = import('./deadline-type').Port;",
-      "declare module 'deadline-ambient' {}",
+      "declare module './deadline-ambient' {}",
       "const copy = 'Move the deadline.';",
       '',
     ].join('\n');

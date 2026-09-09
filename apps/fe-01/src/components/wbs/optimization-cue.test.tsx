@@ -520,7 +520,7 @@ describe('the schedule cue', () => {
             time: {
               state: 'plan-infeasible',
               items: [
-                { ownerWorkItemId: 'empty', boundWorkItemId: 'leaf', effectiveDeadlineOffset: 4 },
+                { ownerWorkItemId: 'empty', boundWorkItemId: 'empty', effectiveDeadlineOffset: 4 },
                 { ownerWorkItemId: 'gone', boundWorkItemId: 'gone', effectiveDeadlineOffset: 4 },
               ],
             },
@@ -531,9 +531,7 @@ describe('the schedule cue', () => {
       />,
     );
     const fact = pill().getAttribute('data-fact') ?? '';
-    expect(fact).toContain(
-      'Unnamed work item → Migration · Work item deadline (effective workday) 11 Sep',
-    );
+    expect(fact).toContain('Unnamed work item · Work item deadline (effective workday) 11 Sep');
     expect(fact).toContain(
       'Work item no longer in this plan · Work item deadline (effective workday) 11 Sep',
     );
@@ -556,6 +554,11 @@ describe('the schedule cue', () => {
                   boundWorkItemId: 'parent',
                   effectiveDeadlineOffset: -2,
                 },
+                {
+                  ownerWorkItemId: 'gone',
+                  boundWorkItemId: 'gone',
+                  effectiveDeadlineOffset: Number.MAX_SAFE_INTEGER,
+                },
               ],
             },
           },
@@ -566,6 +569,33 @@ describe('the schedule cue', () => {
     const fact = pill().getAttribute('data-fact') ?? '';
     expect(fact).toContain('Migration · Work item deadline date unavailable');
     expect(fact).toContain('Launch · Work item deadline date unavailable');
+    expect(fact).toContain(
+      'Work item no longer in this plan · Work item deadline date unavailable',
+    );
+  });
+
+  itDom('refuses a malformed project start at the renderer boundary without throwing', () => {
+    render(
+      <Harness
+        optimization={{
+          ...SUGGESTING,
+          variants: {
+            ...SUGGESTING.variants,
+            time: {
+              state: 'plan-infeasible',
+              items: [
+                { ownerWorkItemId: 'leaf', boundWorkItemId: 'leaf', effectiveDeadlineOffset: 4 },
+              ],
+            },
+          },
+        }}
+        projectStart="the end of August"
+        onChoose={() => undefined}
+      />,
+    );
+    expect(pill().getAttribute('data-fact')).toContain(
+      'Migration · Work item deadline date unavailable',
+    );
   });
 
   itDom('does not invent sentinel copy when the project has no calendar start', () => {
