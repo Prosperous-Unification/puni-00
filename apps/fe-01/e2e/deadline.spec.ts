@@ -71,7 +71,7 @@ async function moveProjectStart(page: Page, day: string): Promise<void> {
 /** Downloads from the real Export menu and reads the bytes Chromium saved. */
 async function downloadedText(page: Page, action: string): Promise<string> {
   const exportMenu = page.locator('[data-export]');
-  if (!(await exportMenu.getAttribute('open'))) await exportMenu.locator('summary').click();
+  if ((await exportMenu.getAttribute('open')) === null) await exportMenu.locator('summary').click();
   const saving = page.waitForEvent('download');
   await page.getByRole('button', { name: action, exact: true }).click();
   const download: Download = await saving;
@@ -131,7 +131,12 @@ test('the phone deadline sheet leaves its card visible and drives Save and Clear
   page,
 }) => {
   const trigger = page.getByRole('button', { name: 'Work item deadline for 010' });
-  const card = page.locator('[data-card]').filter({ has: trigger });
+  const cardId = await trigger.evaluate((control) =>
+    control.closest('[data-card]')?.getAttribute('data-card'),
+  );
+  if (cardId === null || cardId === undefined)
+    throw new Error('the deadline control has no work-item card');
+  const card = page.locator(`[data-card="${cardId}"]`);
   const editor = await openDeadlineEditor(page);
   const cardBox = await renderedBox(card, 'the edited card');
   const triggerBox = await renderedBox(trigger, 'the edited deadline control');
