@@ -168,7 +168,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
       owner check and observe a direct caller mutate; move publication before save and
       observe an event on a quota refusal. Every shape must still bind exactly once.
 
-- [ ] 2.3 **Enforce the production/test boundary (C7).** Extend existing ring rules and
+- [x] 2.3 **Enforce the production/test boundary (C7).** Extend existing ring rules and
       bans to the new core/domain paths and actual test suffixes. Test the effective ESLint
       configuration on temporary sibling production/test files using production lint
       targets, not a copy of the rule. Watch ports plan §3.5 negatives 1–4, 6, 9, 12 and

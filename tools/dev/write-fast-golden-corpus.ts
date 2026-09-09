@@ -1,4 +1,5 @@
-import { computeFastGoldenCorpus } from './fast-golden-corpus';
+import { computeFastGoldenCorpus } from '@wbs/domain';
+
 import { writeGoldenCorpusFile } from './write-golden-corpus-file';
 
 /**
@@ -28,7 +29,7 @@ import { writeGoldenCorpusFile } from './write-golden-corpus-file';
  * corpus stops being evidence — the sequence is decide, bump, regenerate, then
  * read the diff.
  *
- *   bun libs/domain/src/write-fast-golden-corpus.ts
+ *   bun tools/dev/write-fast-golden-corpus.ts
  *
  * **One line, and the second one is gone rather than moved.** This used to tell
  * you to follow it with `bunx prettier --write` on the fixture, because
@@ -48,5 +49,5 @@ import { writeGoldenCorpusFile } from './write-golden-corpus-file';
  * A writer that had never been run against the current fixture would leave
  * every future regeneration carrying an unknown amount of its own formatting.
  */
-const target = new URL('../fixtures/fast-golden-corpus.json', import.meta.url);
+const target = new URL('../../libs/domain/fixtures/fast-golden-corpus.json', import.meta.url);
 process.stdout.write(`wrote ${await writeGoldenCorpusFile(target, computeFastGoldenCorpus())}\n`);

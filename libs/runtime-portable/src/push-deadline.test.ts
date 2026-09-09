@@ -1,8 +1,8 @@
-import { systemTimers } from '@wbs/runtime-portable';
-import { DeadlineClock } from '@wbs/runtime-portable/testing';
 import { describe, expect, it } from 'bun:test';
 
+import { systemTimers } from './deadline';
 import { PushClient } from './push-client';
+import { DeadlineClock } from './testing';
 
 const payload = { subscription: 'doc:a', seq: 1, message: {} };
 

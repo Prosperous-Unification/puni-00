@@ -388,6 +388,77 @@ All injected faults were removed before the green runs. The first TDD run failed
 `Cannot find module './replay'` before the four use-case modules existed. No required
 check was skipped; remote CI execution was not invoked.
 
+## Slice 2.3 — production/test boundary enforcement
+
+Verified 2026-09-10 from base `cb077938`.
+
+- The effective Nx rule now combines `ring:adapter` and `runtime:browser`: browser
+  adapters may depend on domain-ring code or another browser adapter, and may not depend
+  on application-ring code. The scope and runtime constraints remain active in tests;
+  only ring composition is exempt.
+- Core and domain production reject Bun and Node imports, framework and persistence
+  drivers, ambient runtime globals, and both direct forms of `globalThis.fetch`. Tests
+  with the four tracked suffixes may import their runner; core testing fixtures retain
+  the same exception.
+- TypeBox is forbidden repository-wide so ArkType remains the wire-schema authority.
+- The three Bun corpus writers moved from domain production to `tools/dev`; their pure
+  corpus computations remain exported by domain. Running both writer entrypoints left
+  their checked-in fixtures byte-for-byte unchanged.
+- `eslint-boundaries.test.ts` exercises ESLint's calculated configuration and lint result
+  for real project paths. Its adjacent `Proof:` comments record the observed fault for
+  each changed safety check.
+- Four runtime-portable tests now use relative imports for their own deadline and testing
+  modules. Restoring Nx constraints in tests exposed those same-project aliases through
+  the whole-workspace lint target.
+
+| Command                                                                                                               | Observed                                                                                |
+| --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `bun test tools/tool-devsync/src/eslint-boundaries.test.ts --timeout 30000`                                           | 8 pass, 0 fail, 50 assertions                                                           |
+| `bun test tools/tool-devsync/src/workspace-projects.test.ts --timeout 30000`                                          | 11 pass, 0 fail, 13 assertions                                                          |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test tools/tool-devsync/src/workspace-targets.test.ts --timeout 120000` | 10 pass, 0 fail, 36 assertions; the external-input inventory completed in 109ms         |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint --all --skip-nx-cache`                             | all 25 projects pass in 1m19s                                                           |
+| forced `core`, `domain`, `fe-01`, `tool-dev-setup` and `tool-devsync` typecheck targets                               | all pass                                                                                |
+| uncached forced `domain`, `runtime-portable`, `tool-devsync` and `config` typecheck targets                           | all pass                                                                                |
+| `bunx nx test core --skip-nx-cache`                                                                                   | pass                                                                                    |
+| `bunx nx test domain --skip-nx-cache`                                                                                 | 604 pass, 0 fail                                                                        |
+| `bun test tools/tool-dev-setup/src`                                                                                   | 17 pass, 0 fail                                                                         |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun run test:unit` with permitted localhost sockets                         | be-01: 510 pass, 1 intentional capability skip, 0 fail; all seven listed libraries pass |
+| `bun tools/dev/write-fast-golden-corpus.ts` and `bun tools/dev/write-solver-quantum-golden-corpus.ts`                 | both completed; `git diff --exit-code` reported no fixture changes                      |
+
+| Ports-plan negative  | Injected fault                                                                           | Observed diagnostic                                                                                                                                                                      |
+| -------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1                    | `elysia` imported from temporary core production sibling                                 | `no-restricted-imports`: “Core and domain receive runtime behavior through ports.”                                                                                                       |
+| 2                    | `node:crypto` imported from temporary domain production sibling                          | `no-restricted-imports`: “Core and domain receive runtime behavior through ports.”                                                                                                       |
+| 3                    | `globalThis.fetch(...)`, then `globalThis['fetch'](...)`, in core production             | `no-restricted-syntax`: “Core and domain receive fetch through a transport port.” for each spelling                                                                                      |
+| 4                    | `@wbs/core` imported from tracked frontend production, then test, source                 | `@nx/enforce-module-boundaries`: “A project tagged with \"ring:adapter\" and \"runtime:browser\" can only depend on libs tagged with \"ring:domain\", \"runtime:browser\"” in both files |
+| 6                    | `@wbs/be-01` imported from domain production                                             | `@nx/enforce-module-boundaries` reported the domain↔be-01 circular dependency and its file chain                                                                                         |
+| domain ring fence    | non-circular `@wbs/contracts/solver/supervisor-protocol` imported from domain production | `@nx/enforce-module-boundaries`: “A project tagged with \"ring:domain\" can only depend on libs tagged with \"ring:domain\"”                                                             |
+| 9                    | `@sinclair/typebox` imported from `tools/dev` production                                 | `no-restricted-imports`: “Declare wire schemas with ArkType; TypeBox would restore a second schema authority.”                                                                           |
+| 12                   | remove domain's ring tag, then add a second ring tag                                     | `libs/domain/project.json must carry exactly one ring: tag; found 0`, then `found 2`                                                                                                     |
+| 15                   | import `bun:test` from a temporary core test, then its production sibling                | the test passed `core:lint` and Bun with 1 pass; production failed `no-restricted-imports`: “Core and domain receive runtime behavior through ports.”                                    |
+| driver fence         | import `drizzle-orm`, then `bun:sqlite`, from core production                            | each failed `no-restricted-imports`: “Core and domain receive runtime behavior through ports.”                                                                                           |
+| scope fence in tests | `@wbs/tool-compose` imported from config's tracked test source                           | `@nx/enforce-module-boundaries`: “A project tagged with \"scope:shared\" can only depend on libs tagged with \"scope:shared\"”                                                           |
+
+All probes were injected one at a time and removed before the green runs. A new untracked
+frontend probe initially produced no Nx diagnostic because it was absent from the cached
+project graph; the production and test imports were therefore injected into tracked
+frontend sources and both failed the real uncached `fe-01:lint` target as recorded above.
+After the runtime-portable self-import fixes, its permitted real-socket test target passed
+32 cases with 95 assertions. The restricted run had first passed its 30 pure cases and
+failed only the two `Bun.serve` cases with sandbox `EADDRINUSE`.
+
+The first serial `workspace-targets.test.ts` run left the Nx daemon enabled and its
+external-input inventory timed out after 30 seconds; the other nine cases passed. The
+daemon-disabled rerun above completed the whole suite in 432ms. The full branch
+`tool-devsync:test` target reported 79 pass and six failures in `poller.test.ts`. A fresh
+isolated checkout of exact `origin/main` `11e11358` reported the same six diagnostics (60
+pass, six fail), so those environment-sensitive poller failures are unchanged by this
+slice; the changed boundary and totality suites are green.
+
+Ports-plan cases 5 and 13 remain deferred to task 4.3, when the store projects exist.
+Product/layout cases 10 and 11 and the product half of case 16 remain with
+repo-namespacing. The complete database, browser and landing gates remain task 5.2.
+
 ## Gate
 
 | Command | When | Result |

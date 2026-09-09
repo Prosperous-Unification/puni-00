@@ -1,6 +1,6 @@
-import { systemTimers } from '@wbs/runtime-portable';
 import { expect, it } from 'bun:test';
 
+import { systemTimers } from './deadline';
 import { PushClient } from './push-client';
 
 for (const phase of ['headers', 'body'] as const) {

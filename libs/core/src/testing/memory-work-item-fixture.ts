@@ -284,4 +284,4 @@ export function testWorkItemService(): WorkItemService {
   return inMemoryServices().service;
 }
 
-export { labelledRow, workItemRow } from '@wbs/core/testing/work-item-fixture';
+export { labelledRow, workItemRow } from './work-item-fixture';

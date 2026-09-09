@@ -99,5 +99,6 @@ export * from './slice-groups';
 // `schedule.ts` because the quantum is a fact about CP-SAT and not about the
 // calendar: 2,212 lines of placement have no business knowing the wire's unit.
 export * from './solver-quantum';
+export * from './solver-quantum-golden-corpus';
 export * from './step';
 export * from './workday';

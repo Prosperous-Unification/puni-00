@@ -13,6 +13,31 @@ import jsdoc from 'eslint-plugin-jsdoc';
 import prettier from 'eslint-config-prettier';
 import nxPlugin from '@nx/eslint-plugin';
 
+const browserAdapterConstraint = {
+  allSourceTags: ['ring:adapter', 'runtime:browser'],
+  onlyDependOnLibsWithTags: ['ring:domain', 'runtime:browser'],
+};
+
+const runtimeConstraints = [
+  {
+    sourceTag: 'runtime:browser',
+    onlyDependOnLibsWithTags: ['runtime:browser', 'runtime:isomorphic'],
+  },
+  {
+    sourceTag: 'runtime:bun',
+    onlyDependOnLibsWithTags: ['runtime:bun', 'runtime:isomorphic'],
+  },
+  { sourceTag: 'runtime:isomorphic', onlyDependOnLibsWithTags: ['runtime:isomorphic'] },
+];
+
+const scopeConstraints = [
+  { sourceTag: 'scope:app', onlyDependOnLibsWithTags: ['scope:shared'] },
+  { sourceTag: 'scope:shared', onlyDependOnLibsWithTags: ['scope:shared'] },
+  { sourceTag: 'scope:infra', onlyDependOnLibsWithTags: ['scope:shared', 'scope:infra'] },
+];
+
+const testSourceFiles = ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.property.test.ts'];
+
 const nxRules = {
   '@nx/enforce-module-boundaries': [
     'error',
@@ -36,18 +61,9 @@ const nxRules = {
           sourceTag: 'ring:adapter',
           onlyDependOnLibsWithTags: ['ring:domain', 'ring:application', 'ring:adapter'],
         },
-        { sourceTag: 'scope:app', onlyDependOnLibsWithTags: ['scope:shared'] },
-        { sourceTag: 'scope:shared', onlyDependOnLibsWithTags: ['scope:shared'] },
-        { sourceTag: 'scope:infra', onlyDependOnLibsWithTags: ['scope:shared', 'scope:infra'] },
-        {
-          sourceTag: 'runtime:browser',
-          onlyDependOnLibsWithTags: ['runtime:browser', 'runtime:isomorphic'],
-        },
-        {
-          sourceTag: 'runtime:bun',
-          onlyDependOnLibsWithTags: ['runtime:bun', 'runtime:isomorphic'],
-        },
-        { sourceTag: 'runtime:isomorphic', onlyDependOnLibsWithTags: ['runtime:isomorphic'] },
+        browserAdapterConstraint,
+        ...scopeConstraints,
+        ...runtimeConstraints,
       ],
     },
   ],
@@ -124,6 +140,27 @@ export default [
     },
   },
 
+  // TypeBox was the handwritten wire-schema authority. The endpoint contract
+  // now derives validators and JSON Schema from one ArkType declaration, so a
+  // new TypeBox import would recreate the two-authority drift D16 removed.
+  {
+    files: ['**/*.{js,mjs,cjs,ts,tsx,mts,cts}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@sinclair/typebox', '@sinclair/typebox/*'],
+              message:
+                'Declare wire schemas with ArkType; TypeBox would restore a second schema authority.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   {
     files: ['apps/fe-01/**/*.{ts,tsx}', 'libs/realtime/**/*.{ts,tsx}'],
     plugins: {
@@ -184,7 +221,22 @@ export default [
     files: ['apps/be-01/src/**/*.ts'],
     ignores: ['apps/be-01/src/repository/**'],
     rules: {
-      'no-restricted-imports': ['error', { patterns: ['drizzle-orm/*', 'drizzle-orm'] }],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['drizzle-orm', 'drizzle-orm/*'],
+              message: 'Import Drizzle only from the repository adapter.',
+            },
+            {
+              group: ['@sinclair/typebox', '@sinclair/typebox/*'],
+              message:
+                'Declare wire schemas with ArkType; TypeBox would restore a second schema authority.',
+            },
+          ],
+        },
+      ],
     },
   },
 
@@ -409,6 +461,62 @@ export default [
     },
   },
 
+  // Core and domain execute in every supported runtime. Static package
+  // imports and ambient defaults are therefore adapter dependencies even when
+  // the imported API happens to exist in today's Bun process. Tests are the
+  // explicit composition boundary and are excluded below by their real tracked
+  // suffixes; `testing/` holds their fixtures.
+  {
+    files: ['libs/core/src/**/*.{ts,tsx}', 'libs/domain/src/**/*.{ts,tsx}'],
+    ignores: [...testSourceFiles, '**/testing/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                'node:*',
+                'bun:*',
+                'elysia',
+                'elysia/*',
+                '@elysiajs/*',
+                'drizzle-orm',
+                'drizzle-orm/*',
+                'jose',
+              ],
+              message: 'Core and domain receive runtime behavior through ports.',
+            },
+            {
+              group: ['@sinclair/typebox', '@sinclair/typebox/*'],
+              message:
+                'Declare wire schemas with ArkType; TypeBox would restore a second schema authority.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        ...['Bun', 'process', 'fetch', 'setTimeout', 'setInterval', 'Buffer'].map((name) => ({
+          name,
+          message: 'Core and domain receive runtime behavior through ports.',
+        })),
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "MemberExpression[object.name='globalThis'][property.name='fetch']",
+          message: 'Core and domain receive fetch through a transport port.',
+        },
+        {
+          selector:
+            "MemberExpression[object.name='globalThis'][computed=true][property.value='fetch']",
+          message: 'Core and domain receive fetch through a transport port.',
+        },
+      ],
+    },
+  },
+
   // AGENTS.md R3: knowledge about a symbol lives in JSDoc on that symbol.
   //
   // Deliberately NOT `jsdoc/require-jsdoc`. A rule demanding a comment on every
@@ -466,9 +574,16 @@ export default [
    * `verify.md`.
    */
   {
-    files: ['**/*.{test,spec}.{ts,tsx}', '**/testing/**/*.{ts,tsx}'],
+    files: [...testSourceFiles, '**/testing/**/*.{ts,tsx}'],
     rules: {
-      '@nx/enforce-module-boundaries': 'off',
+      '@nx/enforce-module-boundaries': [
+        'error',
+        {
+          enforceBuildableLibDependency: true,
+          allow: [],
+          depConstraints: [browserAdapterConstraint, ...scopeConstraints, ...runtimeConstraints],
+        },
+      ],
     },
   },
 

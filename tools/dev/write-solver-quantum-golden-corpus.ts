@@ -1,4 +1,5 @@
-import { computeQuantumGoldenCorpus } from './solver-quantum-golden-corpus';
+import { computeQuantumGoldenCorpus } from '@wbs/domain';
+
 import { writeGoldenCorpusFile } from './write-golden-corpus-file';
 
 /**
@@ -24,7 +25,7 @@ import { writeGoldenCorpusFile } from './write-golden-corpus-file';
  * corpus stops being evidence — the sequence is decide, bump, regenerate, then
  * read the diff.
  *
- *   bun libs/domain/src/write-solver-quantum-golden-corpus.ts
+ *   bun tools/dev/write-solver-quantum-golden-corpus.ts
  *
  * **One line.** This used to require a `bunx prettier --write` after it, because
  * `JSON.stringify(…, 2)` and prettier do not agree about every shape and the
@@ -34,7 +35,10 @@ import { writeGoldenCorpusFile } from './write-golden-corpus-file';
  * array whose shape moved; the writer had the same defect as Fast's and is fixed
  * with it rather than left to fail later.
  */
-const target = new URL('../fixtures/solver-quantum-golden-corpus.json', import.meta.url);
+const target = new URL(
+  '../../libs/domain/fixtures/solver-quantum-golden-corpus.json',
+  import.meta.url,
+);
 process.stdout.write(
   `wrote ${await writeGoldenCorpusFile(target, computeQuantumGoldenCorpus())}\n`,
 );
