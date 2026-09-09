@@ -308,7 +308,7 @@ export default defineConfig({
     // prefixed variable already in the environment over the one in `.env`, so
     // these reach both the dev proxy's upstreams and the client bundle's own
     // idea of where the socket lives. `PORT` is read by `server.port` there.
-    server('fe-01', 'bunx vite', `http://localhost:${String(fePort)}`, {
+    server('fe-01', 'bunx vite build && bunx vite preview', `http://localhost:${String(fePort)}`, {
       PORT: String(fePort),
       VITE_BE_URL: beUrl,
       VITE_GW_URL: gwUrl,
