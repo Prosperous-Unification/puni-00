@@ -47,7 +47,10 @@ if [ -n "$squash_msg" ] && [ -f "$squash_msg" ]; then
 	# SQUASH_MSG, and verbose mode appends a diff below Git's scissors line.
 	# Compare the effective messages above that line. If the committer edits the
 	# squash text, that new message is authored and should be attributed.
-	message_body=$(awk 'index($0, "------------------------ >8 ------------------------") { exit } { print }' "$msg_file" 2>/dev/null | git stripspace --strip-comments 2>/dev/null) || message_body=""
+	# Git prefixes this exact marker with its configurable one-byte comment
+	# character. Match the complete remainder of the line: an ordinary body
+	# substring containing the dash run is content, not a scissors boundary.
+	message_body=$(awk 'substr($0, 2) == " ------------------------ >8 ------------------------" { exit } { print }' "$msg_file" 2>/dev/null | git stripspace --strip-comments 2>/dev/null) || message_body=""
 	squash_body=$(git stripspace --strip-comments <"$squash_msg" 2>/dev/null) || squash_body=""
 	[ -n "$squash_body" ] && [ "$message_body" = "$squash_body" ] && exit 0
 fi
@@ -103,7 +106,22 @@ if git interpret-trailers --in-place --trailer "Agent-Authored-By: $label" "$msg
 	exit 0
 fi
 
-# Fallback for a git too old for --in-place: append and accept the cruder
-# placement rather than losing the signal.
-printf '\nAgent-Authored-By: %s\n' "$label" >>"$msg_file" 2>/dev/null || true
+# Fallback for a git too old for --in-place. A verbose message's tail is below
+# Git's scissors marker and is discarded, so put the trailer immediately above
+# that exact boundary; append only when no boundary exists.
+fallback=$(mktemp "${msg_file}.agent-trailer.XXXXXX" 2>/dev/null) || exit 0
+awk -v trailer="Agent-Authored-By: $label" '
+	substr($0, 2) == " ------------------------ >8 ------------------------" && !inserted {
+		print ""
+		print trailer
+		inserted = 1
+	}
+	{ print }
+	END {
+		if (!inserted) {
+			print ""
+			print trailer
+		}
+	}
+' "$msg_file" >"$fallback" 2>/dev/null && mv "$fallback" "$msg_file" 2>/dev/null || true
 exit 0
