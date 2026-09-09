@@ -6,3 +6,4 @@ export {
   untilAborted,
   withinDeadline,
 } from './deadline';
+export { createScheduler } from './scheduler';

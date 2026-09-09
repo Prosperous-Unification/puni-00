@@ -7,7 +7,7 @@ and pre-existing dirt. Never overwrite the active optimizer feature's edits.
 
 ## 1. Port and adapters
 
-- [ ] 1.1 **Characterize selection, then introduce the value port.** Add core
+- [x] 1.1 **Characterize selection, then introduce the value port.** Add core
       `ports/scheduler.ts` and runtime-portable `scheduler.test.ts`; use literal fixtures
       with distinct Fast/PRI/time outputs and nonempty capacity/reach/deadlines. Implement
       `createScheduler` with one optional two-reader adapter. Cases: all selections,

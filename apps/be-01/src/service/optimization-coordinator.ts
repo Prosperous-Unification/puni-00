@@ -644,7 +644,7 @@ export class OptimizationCoordinator {
       budgetMs: this.options.budgetMs,
     };
     if (
-      ask.enabled === false ||
+      !ask.enabled ||
       ask.input.slices.length === 0 ||
       ask.input.slices.every((slice) => slice.days === 0)
     ) {
@@ -765,5 +765,5 @@ export class OptimizationCoordinator {
     readonly projectId: string;
     readonly objective: SolverObjectiveName;
     readonly input: ScheduleInput;
-  }): Schedule | null => this.readPlan(ask).schedules[ask.objective];
+  }): Schedule | null => this.readPlan({ ...ask, enabled: true }).schedules[ask.objective];
 }

@@ -316,7 +316,12 @@ describe('OptimizationCoordinator read', () => {
     };
 
     for (const input of [empty, zeroDuration]) {
-      const read = coordinator(db, calls).readPlan({ projectId: 'p-1', objective: 'pri', input });
+      const read = coordinator(db, calls).readPlan({
+        projectId: 'p-1',
+        objective: 'pri',
+        input,
+        enabled: true,
+      });
       expect(read).toMatchObject({
         generation: null,
         variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
@@ -342,6 +347,7 @@ describe('OptimizationCoordinator read', () => {
       projectId: 'p-1',
       objective: 'pri',
       input: INPUT,
+      enabled: true,
     });
     expect(read).toMatchObject({
       inputHash: scheduleInputHash(INPUT),
@@ -419,6 +425,7 @@ describe('OptimizationCoordinator read', () => {
       projectId: 'p-1',
       objective: 'pri',
       input: INPUT,
+      enabled: true,
     });
     expect(read.variants).toEqual({
       pri: { state: 'failed', reason: 'timeout' },
@@ -951,7 +958,8 @@ describe('OptimizationCoordinator read', () => {
     const deadline = seats[0];
 
     const stateOf = (): string =>
-      instance.readPlan({ projectId: 'p-1', objective: 'pri', input: INPUT }).variants.pri.state;
+      instance.readPlan({ projectId: 'p-1', objective: 'pri', input: INPUT, enabled: true })
+        .variants.pri.state;
 
     clock = deadline - 1;
     expect(stateOf()).toBe('retrying');
