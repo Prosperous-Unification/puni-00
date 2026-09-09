@@ -108,7 +108,15 @@ export function optimizationVariantState(
   outcome: CachedOutcome,
   live: boolean,
 ): OptimizationVariantState {
-  if (outcome.kind === 'ok') return { state: 'ready' };
+  if (outcome.kind === 'ok') {
+    if (outcome.result.publication === 'quantisation-floor') {
+      return { state: 'ready', proof: 'quantisation-floor' };
+    }
+    const proven = Object.values(outcome.result.objectiveValues).every(
+      ({ status }) => status === 'optimal',
+    );
+    return { state: 'ready', proof: proven ? 'proven' : 'incomplete' };
+  }
   if (outcome.kind === 'miss') return { state: live ? 'pending' : 'idle' };
   if (outcome.kind === 'failed') {
     return live ? { state: 'retrying' } : { state: 'failed', reason: outcome.reason };

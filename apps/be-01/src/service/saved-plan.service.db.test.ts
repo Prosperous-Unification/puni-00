@@ -189,7 +189,7 @@ describe('SavedPlanService.save', () => {
 
   it('stores the selected ready schedule and its identity in body and header', async () => {
     await selectOptimized();
-    const scheduler = schedulerWith({ state: 'ready' });
+    const scheduler = schedulerWith({ state: 'ready', proof: 'proven' });
     const savedPlans = service(scheduler);
     const result = await savedPlans.save({
       projectId: 'p1',
@@ -241,7 +241,9 @@ describe('SavedPlanService.save', () => {
     reader.close();
     reader = openConnection(path);
     await selectOptimized('p1', false);
-    const disabled = await service(schedulerWith({ state: 'ready' })).projectCurrentPlan('p1');
+    const disabled = await service(
+      schedulerWith({ state: 'ready', proof: 'proven' }),
+    ).projectCurrentPlan('p1');
     expect(disabled?.schedule.present).toBe(true);
     if (!disabled?.schedule.present) return;
     expect(disabled.schedule.algorithmId).toBe(SCHEDULE_ALGORITHM_ID);

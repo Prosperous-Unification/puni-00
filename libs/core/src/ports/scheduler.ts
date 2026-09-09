@@ -41,7 +41,11 @@ export interface OptimizedScheduleAsk {
 }
 
 export type OptimizationVariantState =
-  | { readonly state: 'ready' }
+  | {
+      readonly state: 'ready';
+      /** Whether the published schedule is proved, unfinished, or Fast retained at the floor. */
+      readonly proof: 'proven' | 'incomplete' | 'quantisation-floor';
+    }
   | { readonly state: 'pending' }
   | { readonly state: 'retrying' }
   | { readonly state: 'failed'; readonly reason: SolverFailureReason }

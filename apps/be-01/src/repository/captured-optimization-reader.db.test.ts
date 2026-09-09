@@ -147,7 +147,10 @@ describe('capturedOptimizationReaderOf', () => {
       // Proof: reusing live readPlan's `enabled:false` early return made this
       // `null` instead of 1 and removed the stored PRI schedule from the answer.
       expect(answer.generation).toBe(generation);
-      expect(answer.variants).toEqual({ pri: { state: 'ready' }, time: { state: 'idle' } });
+      expect(answer.variants).toEqual({
+        pri: { state: 'ready', proof: 'proven' },
+        time: { state: 'idle' },
+      });
       expect(answer.schedules.pri === null ? null : encodeSchedule(answer.schedules.pri)).toEqual(
         encodeSchedule(PLAN),
       );

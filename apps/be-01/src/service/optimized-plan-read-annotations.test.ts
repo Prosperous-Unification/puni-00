@@ -269,7 +269,10 @@ async function servedBy(moved: Readonly<Record<string, number>>) {
     generation: 1,
     contractVersion: '7+test',
     budgetMs: 60_000,
-    variants: { pri: { state: 'ready' as const }, time: { state: 'ready' as const } },
+    variants: {
+      pri: { state: 'ready' as const, proof: 'proven' as const },
+      time: { state: 'ready' as const, proof: 'proven' as const },
+    },
     schedules: { pri: materialised, time: materialised },
   });
   const service = new WorkItemService({
