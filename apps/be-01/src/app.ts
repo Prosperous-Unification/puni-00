@@ -251,7 +251,17 @@ export function buildApp(opts: AppOptions) {
   // (TASK-273). A caller that supplied its own wins — that is how a test
   // asserts on what a refused login writes down without a pino destination.
   const routedOptions: AppOptions =
-    opts.oidc === undefined ? opts : { ...opts, oidc: { logger, ...opts.oidc } };
+    opts.oidc === undefined
+      ? opts
+      : {
+          ...opts,
+          oidc: { logger, ...opts.oidc },
+          // Spreading `opts` snapshots accessors. Keep readiness live so the
+          // health endpoint observes boot's post-migration state transition.
+          get migrationsApplied() {
+            return opts.migrationsApplied;
+          },
+        };
   const endpoints: readonly BoundEndpoint[] = mountedEndpoints(routedOptions, {
     logger,
     scrapeMetrics: opts.metricsScrape ?? (() => scrapeMetrics('be-01')),

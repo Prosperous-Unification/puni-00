@@ -442,6 +442,24 @@ it('binds each shared HTTP shape once in every configuration that owns it', () =
   }
 });
 
+it('keeps OIDC health readiness live after the endpoint table is built', async () => {
+  const state = { migrationsApplied: false };
+  const app = buildApp({
+    ...options(),
+    oidc: oidcOptions(),
+    get migrationsApplied() {
+      return state.migrationsApplied;
+    },
+  });
+
+  const pre = await app.handle(new Request(`${ORIGIN}/health`));
+  expect(pre.status).toBe(503);
+
+  state.migrationsApplied = true;
+  const post = await app.handle(new Request(`${ORIGIN}/health`));
+  expect(post.status).toBe(200);
+});
+
 it('enforces the complete pinned identity and origin policy inventory on the production app', async () => {
   const unauthenticated = buildApp({ ...options(), appOrigin: ORIGIN });
   // Proof: adding a signed-in policy to health made this production request
