@@ -262,7 +262,7 @@ describe('GET /api/auth/me', () => {
     expect(await res.json()).toEqual({ user: null });
   });
 
-  it('keeps every identity-dependent response out of stores and varies intermediaries by credential', async () => {
+  it('keeps every session response out of stores and varies intermediaries by credential', async () => {
     const application = app();
     const registered = await application.handle(
       json('/api/auth/register', { username: 'ada', password: 'lovelace99' }),
