@@ -1,7 +1,6 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-501 exact-deadline solver fix is on `fix/task501-deadline-boundary`: PR #382 is open; await exact-head CI, then merge and verify dev.
-
+TASK-494 browser coverage is on `test/task494-deadline-browser`: PR, green CI, merge, dev deploy, then verify both downloaded formats.
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),
 `mcp-01` (MCP server over be-01, stdio, spawned by its client). Nx monorepo, Bun — never npm.
