@@ -110,7 +110,7 @@ follows a link`, which waits for the popup and reads its URL.
 
 ## 6. Gate
 
-- [ ] 6.1 `bun run test:unit`, then the projects this change touches by name,
+- [x] 6.1 `bun run test:unit`, then the projects this change touches by name,
       then the whole workspace gate, then `bun run e2e` on the shifted ports.
-- [ ] 6.2 `verify.md` records every command, its result, and the failure-proof
+- [x] 6.2 `verify.md` records every command, its result, and the failure-proof
       table.

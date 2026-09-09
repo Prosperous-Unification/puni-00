@@ -10,16 +10,16 @@ Run on this Mac (darwin 25.5.0, bun 1.4.2). `bin/h2puni-gate.sh` is h2puni's and
 
 ## Commands
 
-| Command                                                        | Result                  |
-| -------------------------------------------------------------- | ----------------------- |
-| `nx format:check --all`                                        | clean                   |
-| `nx run-many -t lint`                                          | 25 projects, 0 problems |
-| `nx run-many -t typecheck`                                     | 25 projects green       |
-| `nx run-many -t build`                                         | 12 projects green       |
-| `openspec validate --all --json`                               | 64 items, 64 passed     |
-| `nx run-many -t test`                                          | _see below_             |
-| `CI=1 E2E_PORT_SHIFT=500 playwright test … external-refs`      | 12 passed (38.4s)       |
-| `CI=1 E2E_PORT_SHIFT=500 playwright test` (whole browser gate) | 319 passed, 37 skipped  |
+| Command                                                        | Result                         |
+| -------------------------------------------------------------- | ------------------------------ |
+| `nx format:check --all`                                        | clean                          |
+| `nx run-many -t lint`                                          | 25 projects, 0 problems        |
+| `nx run-many -t typecheck`                                     | 25 projects green              |
+| `nx run-many -t build`                                         | 12 projects green              |
+| `openspec validate --all --json`                               | 64 items, 64 passed            |
+| `nx run-many -t test`                                          | 22/26 green; see below         |
+| `CI=1 E2E_PORT_SHIFT=500 playwright test … external-refs`      | 12 passed (38.4s)              |
+| `CI=1 E2E_PORT_SHIFT=500 playwright test` (whole browser gate) | 320 passed, 37 skipped, exit 0 |
 
 `E2E_PORT_SHIFT=500` and `CI=1` throughout, which is `bun run e2e:beside-dev`: the
 committed Playwright config sets `reuseExistingServer: !isCi`, so a bare `bun run e2e`
@@ -96,6 +96,23 @@ park the pointer in the same place.
 
 `e2e/external-refs.spec.ts`'s `the card as a reader sees it` asserts only that the card is
 visible; its point is the attached screenshot. It is a picture, not a gate, and it says so.
+
+## CI
+
+All six checks green on PR #365 — `gate` (format, lint, typecheck, test, build, the secrets
+scan, the migration lint and `openspec validate`, on Linux with `ortools` installed) and all
+four `pixels` shards plus the aggregate.
+
+## The four locally-failing test tasks, none from this change
+
+- `solver-py` — `ModuleNotFoundError: No module named 'ortools'`; not installed in this
+  Python. Green on CI.
+- `tool-devsync` — the 6 `durable dev poller` cases that fail on macOS on clean `main`.
+- `tool-bootstrap` — 59 pass / 2 fail, both `configure.sh Caddyfile merge, executed` timing out
+  at 120s; nx flagged the task **flaky** itself.
+- `be-01` — 2052 pass / **0 fail**; the task's non-zero exit is 2 async teardown errors in the
+  optimization-queue SQLite pump (`SQLITE_IOERR_VNODE` from a timer firing after a temp
+  database was removed), in code this change does not touch.
 
 ## What this change does not do
 
