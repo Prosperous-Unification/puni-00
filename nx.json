@@ -18,7 +18,7 @@
       "{workspaceRoot}/.prettierrc.json",
       "{workspaceRoot}/package.json",
       "{workspaceRoot}/bun.lock",
-      "{workspaceRoot}/tools/test/**/*.ts"
+      "{workspaceRoot}/tools/test/scratch/**/*"
     ]
   },
   "targetDefaults": {

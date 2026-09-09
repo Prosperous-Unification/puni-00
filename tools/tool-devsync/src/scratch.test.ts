@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'bun:test';
 
-const HELPER = join(import.meta.dir, '../../test/scratch.ts');
+const HELPER = join(import.meta.dir, '../../test/scratch/index.ts');
 
 function childSource(ending: 'failure' | 'signal'): string {
   const finish =
@@ -39,7 +39,7 @@ describe('per-process test scratch', () => {
     const reader = child.stdout.getReader();
     const first = await reader.read();
     reader.releaseLock();
-    if (first.done || first.value === undefined) throw new Error('child exited without its path');
+    if (first.done) throw new Error('child exited without its path');
     const directory = new TextDecoder().decode(first.value).trim();
     child.kill('SIGTERM');
     expect(await child.exited).not.toBe(0);
