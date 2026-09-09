@@ -22,6 +22,16 @@ if [[ ! "$EXPECTED_BUN_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   exit 2
 fi
 
+mkdir -p "$BIN"
+# Commit candidates are recovery snapshots, not an archive. Bound inode use on
+# the durable host while leaving recent targets available for diagnosis. The
+# pattern also retires the single-file `sync.<sha>.ts` candidates written
+# before 2026-09-07 and their interrupted `.XXXXXXXX` siblings.
+find "$BIN" -mindepth 1 -maxdepth 1 -name 'sync.*' -mtime +7 -exec rm -rf -- {} +
+
+# Reclaiming commit-derived snapshots does not depend on the interpreter. Keep
+# it ahead of these refusals so a broken or interrupted managed-Bun handoff
+# cannot also pin old candidates while the operator repairs the installation.
 if [ ! -x "$BUN" ]; then
   echo "refusing: missing managed Bun $EXPECTED_BUN_VERSION at $BUN; install it with the poller pair per docs/runbook-dev-deploy.md" >&2
   exit 1
@@ -30,13 +40,6 @@ if [ "$("$BUN" --version)" != "$EXPECTED_BUN_VERSION" ]; then
   echo "refusing: managed Bun at $BUN does not match $EXPECTED_BUN_VERSION from .bun-version; after a version bump, reinstall the poller pair per docs/runbook-dev-deploy.md" >&2
   exit 1
 fi
-
-mkdir -p "$BIN"
-# Commit candidates are recovery snapshots, not an archive. Bound inode use on
-# the durable host while leaving recent targets available for diagnosis. The
-# pattern also retires the single-file `sync.<sha>.ts` candidates written
-# before 2026-09-07 and their interrupted `.XXXXXXXX` siblings.
-find "$BIN" -mindepth 1 -maxdepth 1 -name 'sync.*' -mtime +7 -exec rm -rf -- {} +
 
 # The deployer is one file, but it reaches the deploy contract through the
 # `@wbs/*` tsconfig paths, and Bun resolves those from the tsconfig nearest the
