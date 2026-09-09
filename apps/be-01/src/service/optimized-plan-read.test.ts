@@ -246,7 +246,7 @@ describe('the plan read and the optimized cache', () => {
       optimizationEnabled: true,
       scheduleEngine: 'optimized',
     });
-    await serviceOptions.estimates.set(
+    serviceOptions.estimates.set(
       {
         workItemId: id,
         stepId,
