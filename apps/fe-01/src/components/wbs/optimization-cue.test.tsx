@@ -1,13 +1,31 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type * as WorkdayModule from '@wbs/domain/workday';
 import type { PlanOptimizationView, ProjectOptimizationPatch } from '@/lib/wbs-api';
 
 import { OptimizationCue } from './optimization-cue';
 
 const hasDom = typeof document !== 'undefined';
 const itDom = hasDom ? it : it.skip;
+
+const addWorkdaysCalls = vi.hoisted(() => ({ count: 0 }));
+
+vi.mock('@wbs/domain/workday', async (importOriginal) => {
+  const real = await importOriginal<typeof WorkdayModule>();
+  return {
+    ...real,
+    addWorkdays: (...args: Parameters<typeof real.addWorkdays>) => {
+      addWorkdaysCalls.count += 1;
+      return real.addWorkdays(...args);
+    },
+  };
+});
+
+beforeEach(() => {
+  addWorkdaysCalls.count = 0;
+});
 
 afterEach(cleanup);
 
@@ -508,6 +526,9 @@ describe('the schedule cue', () => {
       'Work item no longer in this plan · Work item deadline (effective workday) 11 Sep',
     );
     expect(fact).not.toContain('gone');
+    // Proof: the two valid offsets above each reconstruct once. Reintroducing
+    // separate validity, suffix and copy reconstructions makes this 6.
+    expect(addWorkdaysCalls.count).toBe(2);
   });
 
   itDom('distinguishes unnamed and missing rows without an orphan deadline bullet', () => {

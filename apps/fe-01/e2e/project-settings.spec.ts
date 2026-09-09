@@ -216,6 +216,7 @@ test.describe('the project settings control, in a browser', () => {
     await nameSaved;
     await expect(name).toHaveValue(longWorkItemName);
 
+    let persistedName: string | undefined;
     await page.route('**/api/projects/*/work-items', async (route) => {
       // Only reads are synthetic. The long name above is a real persisted
       // command round trip; startDate and optimization below are renderer
@@ -227,10 +228,8 @@ test.describe('the project settings control, in a browser', () => {
       const response = await route.fetch();
       const plan = (await response.json()) as PlanRead;
       const first = plan.workItems.at(0);
-      if (first === undefined) throw new Error('the persisted plan has no first work item');
-      expect(first.name, 'the long-name command was not persisted before reload').toBe(
-        longWorkItemName,
-      );
+      persistedName = first?.name;
+      const firstId = first?.id ?? 'missing-persisted-work-item';
       const optimization: PlanOptimizationView = {
         enabled: true,
         engine: 'optimized',
@@ -246,8 +245,8 @@ test.describe('the project settings control, in a browser', () => {
             state: 'plan-infeasible',
             items: [
               {
-                ownerWorkItemId: first.id,
-                boundWorkItemId: first.id,
+                ownerWorkItemId: firstId,
+                boundWorkItemId: firstId,
                 effectiveDeadlineOffset: 4,
               },
             ],
@@ -264,6 +263,12 @@ test.describe('the project settings control, in a browser', () => {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload();
+    // The route must settle first. An assertion inside its callback leaves the
+    // request unresolved and hides this diagnostic behind a navigation timeout.
+    expect(persistedName, 'the persisted plan has no first work item').toBeDefined();
+    expect(persistedName, 'the long-name command was not persisted before reload').toBe(
+      longWorkItemName,
+    );
     await expect(page.getByRole('article', { name: 'Work item 010' })).toBeVisible();
 
     const cue = page.locator('[data-optimization-cue]');
