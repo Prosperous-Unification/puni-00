@@ -1,9 +1,7 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-299 clean-console follow-up is on `fix/task299-favicon-console` (PR #362): h2puni gate, exact-head reviews, CI, merge, deploy, then two fresh Browser Use Cloud probes.
 TASK-494 browser coverage is on `test/task494-deadline-browser`: PR, green CI, merge, dev deploy, then verify both downloaded formats.
 TASK-499 estimate-boundary fix is on `fix/task499-estimate-boundary` (PR #377): exact-head reviews and CI, then merge and deploy.
-
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),
 `mcp-01` (MCP server over be-01, stdio, spawned by its client). Nx monorepo, Bun — never npm.
