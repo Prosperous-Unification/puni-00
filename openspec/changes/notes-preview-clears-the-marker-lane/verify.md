@@ -10,7 +10,7 @@
 | `nx format:check --all`                                      | clean               |
 | `nx run fe-01:test`                                          | 2598 + 3 passed     |
 | `playwright test -g "leaves the marker lane clear"`          | 1 passed            |
-| `playwright test` (whole browser gate, `E2E_PORT_SHIFT=500`) | (pending)           |
+| `playwright test` (whole browser gate, `E2E_PORT_SHIFT=500`) | 321 passed, exit 0  |
 
 ## Failure proofs
 
