@@ -105,7 +105,7 @@ const ADDRESS: CSSProperties = {
  */
 export function ExternalRefsCard({ number, refs, systems }: ExternalRefsCardProps) {
   return (
-    <HoverCard label={`Where ${number} also exists`} takesPointer>
+    <HoverCard label={`Where ${number} also exists`} takesPointer opensSideways>
       {/*
         **The card is as wide as its widest address, up to `WIDEST_LINE_PX`.**
         A cell's card is `position: absolute` inside the cell's own 40px

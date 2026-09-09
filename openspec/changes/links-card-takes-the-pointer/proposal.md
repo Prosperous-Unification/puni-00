@@ -31,8 +31,13 @@ over both defects. R5 #23.
   be read, because one that takes the mouse eats a click aimed at the row it hangs over.
 - The links card passes it, and drops its per-line `pointer-events: auto`. Two answers to
   "what takes the pointer" is how this happened.
-- The links cell holds an open card for **`CARD_GRACE_MS` (200ms)** after the pointer leaves,
-  cancelled by the pointer arriving on the card. Closing only; opening stays instant.
+- The card opens **beside** its cell rather than under it — `opensSideways`, still an absolute
+  child of the cell's wrapper, tops aligned. Dany asked for it (_"so that i can move my cursor
+  down to look at each item one by one uninterrupted"_), and it also removes the gap outright:
+  the card's left edge is the cell's right edge.
+- A 200ms grace period on closing was written for the reach across the Name column, watched
+  failing, and then **deleted**: with the card beside the cell the walk passes with the whole
+  timer gone. A guard whose removal cannot be seen is not kept here.
 
 ## Non-goals
 

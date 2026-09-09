@@ -215,6 +215,31 @@ export interface HoverCardProps {
    * a click aimed at the row it hangs over.
    */
   takesPointer?: boolean;
+  /**
+   * Whether this card opens **beside** its cell rather than under it, aligned
+   * with the cell's top edge.
+   *
+   * The links card's, and Dany asked for it on 2026-09-09 for a reason about
+   * the pointer rather than about looks: *"can you please move the on-hover
+   * hint to the right of the cell - so that i can move my cursor down to look
+   * at each item one by one uninterrupted"*. A card under a 40px cell is reached
+   * by a path that leaves the cell **sideways** — there is no instant at which
+   * the pointer is over both, which is what {@link CARD_GRACE_MS} in
+   * `plan-columns/refs.tsx` exists to cover. Beside it there is no such gap at
+   * all: the card's left edge **is** the cell's right edge, so the pointer
+   * crosses straight from one to the other and then walks down the list without
+   * ever leaving the card.
+   *
+   * Still an absolutely positioned child of the cell's own wrapper, not a
+   * portal — which is the whole reason to prefer it over
+   * {@link HoverCardProps.beside}: the wrapper stays the element that owns the
+   * `mouseleave`, so the cell keeps the card open with no bridge, no document
+   * listener and no second copy of the open state.
+   *
+   * It follows that a card on a row low in the table extends below its row, as
+   * a card under a cell already did. That is unchanged rather than solved here.
+   */
+  opensSideways?: boolean;
   children: ReactNode;
 }
 
@@ -351,6 +376,7 @@ export function HoverCard({
   id,
   scrolls = false,
   takesPointer = false,
+  opensSideways = false,
   compact = false,
   anchor,
   beside,
@@ -486,11 +512,18 @@ export function HoverCard({
       : anchor === undefined
         ? {
             position: 'absolute',
-            // Measured, so `null` is the frame before the layout effect has run
-            // rather than a card with no room: it opens downward, which is where
-            // it will stay for every row that has the room below.
-            ...(room?.side === 'above' ? { bottom: '100%' } : { top: '100%' }),
-            left: 0,
+            // Beside the cell, or under it. Sideways is `left: 100%` with the
+            // tops aligned, so the card's left edge is the cell's right edge
+            // and a pointer crosses between them with nothing in between — see
+            // {@link HoverCardProps.opensSideways}.
+            //
+            // The vertical `room` is measured, so `null` is the frame before
+            // the layout effect has run rather than a card with no room: it
+            // opens downward, which is where it will stay for every row that
+            // has the room below.
+            ...(opensSideways
+              ? { left: '100%', top: 0 }
+              : { left: 0, ...(room?.side === 'above' ? { bottom: '100%' } : { top: '100%' }) }),
             maxWidth: scrolls
               ? `min(${String(SCROLLING_MAX_WIDTH_PX)}px, 100vw)`
               : CARD_MAX_WIDTH_PX,

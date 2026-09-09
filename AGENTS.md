@@ -567,15 +567,19 @@ The fix is `HoverCard`'s new `takesPointer`; the test now walks with
 `page.mouse.move(x, y, { steps: 12 })`, and the negative was watched on `the card closed on
 the way down to it`.
 
-And the second half of the same report needed a **second** fix, with its own negative: the
-cell is 40px and its card up to 400px, so a hand reaching for a link on the right leaves the
-cell **sideways into the Name column** before descending onto the card — there is no instant at
-which the pointer is over either. Probed at 15 steps: `card.count() === 0` before arrival.
-`CARD_GRACE_MS` (200ms, on the way out only) holds the card for the transit; set to 0 it fails
-on `the card closed on a diagonal reach for a link`. Two faults, two proofs, and each is blind
-to the other's — the straight-down case passes with the grace at 0, and the diagonal passes
-without `takesPointer`. **`locator.hover()` proves an element is clickable, never that a hand
-can get to it.**
+And the second half of the same report — reaching for a link on the right of a 400px card from
+a 40px cell — got a **grace period on closing** that was then **measured and deleted**, which
+is the more useful half of the story. `CARD_GRACE_MS` (200ms) held the card while the pointer
+crossed the Name column, and with the card _under_ the cell its negative was real: set to 0,
+`the card closed on a diagonal reach for a link`. Then Dany asked for the card **beside** the
+cell (_"so that i can move my cursor down to look at each item one by one uninterrupted"_), the
+card's left edge became the cell's right edge, and the gap the timer covered stopped existing.
+Re-measured with the whole timer **and** its re-arm removed: the walk still passed. So it went.
+**A guard can be genuinely load-bearing and then be made vacuous by the fix that follows it —
+re-run its negative after every change to the geometry it was about, not only when it is
+written.**
+
+`locator.hover()` proves an element is clickable, never that a hand can get to it.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.

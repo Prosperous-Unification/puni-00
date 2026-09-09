@@ -7,29 +7,27 @@ Ordered TDD slices. Only `- [ ]` checkboxes are tracked by the apply phase.
 - [x] 1.1 `HoverCard` gains `takesPointer`, and `ExternalRefsCard` passes it and drops its
       per-line `pointer-events: auto`.
       Test: `e2e/external-refs.spec.ts` — `the pointer walks onto the card and follows a link`
-      walks straight down the cell's column with `{ steps: 12 }` and asserts both that the card
-      is still there and that `elementFromPoint` in its padding is inside it.
-      Negative: `takesPointer` removed; watched failing on `the card closed on the way down to
-it`.
+      asserts that `elementFromPoint` inside the card's own padding is part of the card.
+      Negative: `takesPointer` removed; watched failing on `the card does not take the pointer
+in its own padding`.
 
-## 2. Held long enough to reach
+## 2. Beside the cell, not under it
 
-- [x] 2.1 The links cell holds an open card for `CARD_GRACE_MS` after `mouseleave`, cancelled
-      by the wrapper's `mouseenter` — which is what fires when the pointer arrives on the card,
-      having crossed the Name cell to get there. The late clear goes through the same same-cell
-      guard every writer here uses, so a timer that fires after another cell is armed is a
-      no-op.
-      Test: the same browser case's second half — a 15-step diagonal to the right-hand end of
-      the card's second line, with the target asserted to be well right of the cell first, or
-      the reach is not a reach.
-      Negative: `CARD_GRACE_MS` set to 0; watched failing on `the card closed on a diagonal
-reach for a link`.
-- [x] 2.2 `plan-cells.test.tsx`'s lift case reads the hold in jsdom: the cell stays on
-      `POPOVER_ROW_LAYER` immediately after the leave, and drops back once the grace is out.
-      Read immediately, which is the window the fault lives in — a `waitFor` there is satisfied
-      by its own first sample either way.
+- [x] 2.1 `HoverCard` gains `opensSideways` — `left: 100%` with the tops aligned, still an
+      absolute child of the cell's wrapper — and the links card passes it. Dany, 2026-09-09:
+      _"move the on-hover hint to the right of the cell - so that i can move my cursor down to
+      look at each item one by one uninterrupted"_.
+      Test: the same case measures the card against the cell, then walks sideways onto it and
+      down every item in turn, asserting after **each** one.
+      Negative: `opensSideways` removed; watched failing on `the card does not open beside the
+cell`.
+- [x] 2.2 A 200ms grace period on closing was written for the reach across the Name column and
+      **deleted**. Its negative was real while the card opened _under_ the cell (`the card
+closed on a diagonal reach for a link` with the timer at 0); beside the cell there is no
+      gap, and the walk passes with the timer and its re-arm entirely removed. Measured before
+      deleting, not assumed.
 
 ## 3. Gate
 
 - [x] 3.1 `fe-01:test`, then the whole browser gate on the shifted ports.
-- [x] 3.2 R5 #23 recorded in `AGENTS.md`, tally 22 → 23.
+- [x] 3.2 R5 #23 recorded in `AGENTS.md`, tally 22 → 23, including the deleted guard.

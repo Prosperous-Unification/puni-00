@@ -2988,23 +2988,8 @@ describe('the links column', () => {
 
     expect(Number(cell().style.zIndex)).toBe(POPOVER_ROW_LAYER);
 
-    // **The leave does not close it, and that is the point.** The card is held
-    // for `CARD_GRACE_MS` so a reader can walk from a 40px cell to a link on a
-    // 400px card — the trip leaves the cell sideways into the Name column
-    // before it reaches the card, so an instant close takes the card away under
-    // the hand reaching for it. Read immediately, which is the window the fault
-    // lives in: a `waitFor` here is satisfied by its own first sample either
-    // way.
     fireEvent.mouseLeave(screen.getByLabelText('Links for 010'));
-    expect(
-      Number(cell().style.zIndex),
-      'the card closed the instant the pointer left the cell',
-    ).toBe(POPOVER_ROW_LAYER);
-
-    // And it does close once the grace is out.
-    await waitFor(() => {
-      expect(cell().style.zIndex).toBe('1');
-    });
+    expect(cell().style.zIndex).toBe('1');
   });
 
   itDom('a non-http URL is not a link, on the card or in the editor', async () => {
