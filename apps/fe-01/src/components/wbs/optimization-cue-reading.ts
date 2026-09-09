@@ -159,6 +159,8 @@ function variantRow(optimization: PlanOptimizationView, objective: ScheduleObjec
     refusedBecause:
       optimization.displayed === objective
         ? `${OBJECTIVE_SENTENCE[objective]} is already the active schedule`
+        : state.state === 'ready'
+          ? null
         : // A schedule that does not exist cannot be displayed, and the state
           // is why. This is the one place the cue's menu gets its reasons from,
           // so an item is never removed from a menu somebody is reading.

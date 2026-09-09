@@ -242,7 +242,7 @@ test.describe('the project settings control, in a browser', () => {
         budgetMs: 60_000,
         displayed: 'fast',
         variants: {
-          pri: { state: 'ready' },
+          pri: { state: 'ready', proof: 'proven' },
           time: {
             state: 'plan-infeasible',
             items: [

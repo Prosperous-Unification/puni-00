@@ -39,7 +39,7 @@ const SUGGESTING: PlanOptimizationView = {
   contractVersion: '1.5+test',
   budgetMs: 60_000,
   displayed: 'fast',
-  variants: { pri: { state: 'ready' }, time: { state: 'pending' } },
+  variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'pending' } },
   finishDays: { fast: 10, pri: 7 },
   sameOrderAsFast: { pri: true },
 };
@@ -161,7 +161,7 @@ describe('the schedule cue', () => {
       <Harness
         optimization={{
           ...SUGGESTING,
-          variants: { pri: { state: 'ready' }, time: { state: 'ready' } },
+          variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'ready', proof: 'proven' } },
           finishDays: { fast: 10, pri: 7, time: 10 },
           sameOrderAsFast: { pri: true, time: true },
         }}
@@ -187,21 +187,63 @@ describe('the schedule cue', () => {
     expect(document.querySelector('[data-cue-dot]')).toBeNull();
   });
 
+  itDom('marks an unfinished search without changing or disabling its served schedule', () => {
+    render(
+      <Harness
+        optimization={{
+          ...SUGGESTING,
+          variants: {
+            pri: { state: 'ready', proof: 'incomplete' },
+            time: { state: 'pending' },
+          },
+        }}
+        onChoose={() => undefined}
+      />,
+    );
+
+    expect(document.querySelector('[data-cue-dot]')).toHaveAttribute(
+      'data-cue-dot',
+      'incomplete',
+    );
+    expect(pill()).toHaveAccessibleName(/Search stopped before proving this schedule optimal/);
+    fireEvent.click(pill());
+    const pri = screen.getByRole('menuitem', {
+      name: /Pri · 7 days · Earlier project deadline by 3 days · Search stopped/,
+    });
+    expect(pri).toHaveAttribute('aria-disabled', 'false');
+  });
+
+  itDom.each(['proven', 'quantisation-floor'] as const)(
+    'does not show the unfinished-search marker for %s results',
+    (proof) => {
+      render(
+        <Harness
+          optimization={{
+            ...SUGGESTING,
+            variants: { pri: { state: 'ready', proof }, time: { state: 'pending' } },
+          }}
+          onChoose={() => undefined}
+        />,
+      );
+      expect(pill()).not.toHaveAccessibleName(/Search stopped/);
+    },
+  );
+
   itDom.each([
-    ['solving', { pri: { state: 'pending' }, time: { state: 'ready' } } as const, 'solving'],
+    ['solving', { pri: { state: 'pending' }, time: { state: 'ready', proof: 'proven' } } as const, 'solving'],
     [
       'a variant that could not be computed',
-      { pri: { state: 'failed', reason: 'oom' }, time: { state: 'ready' } } as const,
+      { pri: { state: 'failed', reason: 'oom' }, time: { state: 'ready', proof: 'proven' } } as const,
       'unavailable',
     ],
     [
       'a plan that cannot meet a work item deadline',
-      { pri: { state: 'plan-infeasible', items: [] }, time: { state: 'ready' } } as const,
+      { pri: { state: 'plan-infeasible', items: [] }, time: { state: 'ready', proof: 'proven' } } as const,
       'infeasible',
     ],
     [
       'a variant waiting for a solver seat',
-      { pri: { state: 'idle' }, time: { state: 'ready' } } as const,
+      { pri: { state: 'idle' }, time: { state: 'ready', proof: 'proven' } } as const,
       'solving',
     ],
   ])('paints a dot for %s', (_what, variants, expected) => {
@@ -388,7 +430,7 @@ describe('the schedule cue', () => {
   itDom.each([
     ['plan-infeasible', { state: 'plan-infeasible', items: [] } as const],
     ['pending', { state: 'pending' } as const],
-    ['ready', { state: 'ready' } as const],
+    ['ready', { state: 'ready', proof: 'proven' } as const],
   ])('offers no Retry for a %s variant', (_what, state) => {
     render(
       <Harness
@@ -467,7 +509,7 @@ describe('the schedule cue', () => {
       <Harness
         optimization={{
           ...SUGGESTING,
-          variants: { pri: { state: 'ready' }, time: { state: 'ready' } },
+          variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'ready', proof: 'proven' } },
           finishDays: { fast: 10, pri: 7, time: 8 },
           sameOrderAsFast: { pri: true, time: false },
         }}
@@ -678,7 +720,7 @@ describe('the schedule cue', () => {
       <Harness
         optimization={{
           ...SUGGESTING,
-          variants: { pri: { state: 'failed', reason: 'oom' }, time: { state: 'ready' } },
+          variants: { pri: { state: 'failed', reason: 'oom' }, time: { state: 'ready', proof: 'proven' } },
           finishDays: { fast: 10, time: 10 },
           sameOrderAsFast: { time: true },
         }}

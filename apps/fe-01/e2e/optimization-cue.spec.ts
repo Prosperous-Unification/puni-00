@@ -44,7 +44,7 @@ const SUGGESTING: PlanOptimizationView = {
   contractVersion: '1.5+e2e',
   budgetMs: 60_000,
   displayed: 'fast',
-  variants: { pri: { state: 'ready' }, time: { state: 'pending' } },
+  variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'pending' } },
   finishDays: { fast: 10, pri: 7 },
   sameOrderAsFast: { pri: true },
 };
@@ -323,7 +323,7 @@ test.describe('the schedule cue, in a browser', () => {
       ...SUGGESTING,
       engine: 'optimized',
       displayed: 'pri',
-      variants: { pri: { state: 'ready' }, time: { state: 'ready' } },
+      variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'ready', proof: 'proven' } },
       finishDays: { fast: 10, pri: 7, time: 10 },
       sameOrderAsFast: { pri: true, time: true },
     });
