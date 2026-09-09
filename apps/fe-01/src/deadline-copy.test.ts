@@ -419,7 +419,8 @@ describe('shipped deadline copy', () => {
   it('preserves exactly the two product-contract Deadline labels', () => {
     const labels = deadlineCopy()
       .filter((run) => run.exactDeadlineColumnLabel)
-      .map((run) => `${run.file}:${run.text}`);
+      .map((run) => `${run.file}:${run.text}`)
+      .sort();
     expect(labels).toEqual([
       'src/components/wbs/plan-columns/deadline.tsx:Deadline',
       'src/components/wbs/plan-toolbar.tsx:Deadline',
