@@ -118,7 +118,8 @@ function visibleTailLine(line: string): string {
   let visible = '';
   for (let index = 0; index < line.length; index += 1) {
     const code = line.charCodeAt(index);
-    visible += code < 0x20 || code === 0x7f ? `\\x${code.toString(16).padStart(2, '0')}` : line[index];
+    visible +=
+      code < 0x20 || code === 0x7f ? `\\x${code.toString(16).padStart(2, '0')}` : line[index];
   }
   return `${SAFE_TAIL_PREFIX}${visible}`;
 }
@@ -140,7 +141,12 @@ export async function readErrorAnnotations(path: string): Promise<string[]> {
 
 async function main(): Promise<void> {
   const [path, tailFlag, tailValue, unexpected] = process.argv.slice(2);
-  if (!path || unexpected || (tailFlag !== undefined && tailFlag !== '--tail') || (tailFlag && !tailValue)) {
+  if (
+    !path ||
+    unexpected ||
+    (tailFlag !== undefined && tailFlag !== '--tail') ||
+    (tailFlag && !tailValue)
+  ) {
     throw new Error('usage: bun run ci-gate-annotations.ts <nx-gate.log> [--tail <lines>]');
   }
 
