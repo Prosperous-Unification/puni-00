@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
-import { type Download, expect, type Locator, type Page, test } from '@playwright/test';
+import { type Download, expect, type Locator, type Page, type Response, test } from '@playwright/test';
 
 import { createProject } from './create-project';
 
@@ -9,6 +9,8 @@ const WORK_ITEM_DEADLINE = '2030-01-07';
 const MOVED_PROJECT_DAY = '2030-02-01';
 const DEADLINE_COLUMN = 'Work item deadline';
 const UNREACHABLE_COLUMN = 'Work item deadline unreachable';
+// Deliberately copied instead of imported from deadline-impossible.ts: the export test must
+// pin the shipped words independently, or changing producer and oracle together stays green.
 const UNREACHABLE_CELL = "before the project's first working day";
 
 test.use({ viewport: { width: 390, height: 844 } });
@@ -59,20 +61,39 @@ async function openDeadlineEditor(page: Page, number = '010'): Promise<Locator> 
 }
 
 /** Saves one deadline through the phone sheet, with no direct API shortcut. */
-async function saveDeadline(page: Page, day: string): Promise<void> {
-  const editor = await openDeadlineEditor(page);
-  await editor.getByLabel('Work item deadline for 010').fill(day);
+async function saveDeadline(page: Page, number: string, day: string): Promise<void> {
+  const editor = await openDeadlineEditor(page, number);
+  await editor.getByLabel(`Work item deadline for ${number}`).fill(day);
+  const saved = savedWorkItemDeadline(page);
   await editor.getByRole('button', { name: 'Save' }).click();
+  await saved;
   await expect(editor).toBeHidden();
   await expect(page.locator('[data-card-deadline]')).toBeVisible();
 }
+
+/** The command response that makes a work-item deadline durable before navigation. */
+const savedWorkItemDeadline = (page: Page): Promise<Response> =>
+  page.waitForResponse((response) => {
+    const request = response.request();
+    return (
+      request.method() === 'POST' &&
+      response.url().includes('/commands') &&
+      (request.postData() ?? '').includes('"kind":"patchWorkItem"') &&
+      (request.postData() ?? '').includes('"deadline":')
+    );
+  });
 
 /** Moves day zero through the phone's only route to the project-start control. */
 async function moveProjectStart(page: Page, day: string): Promise<void> {
   await page.getByRole('button', { name: 'Plan actions' }).click();
   const actions = page.getByRole('dialog', { name: 'Plan actions' });
   const projectStart = actions.getByLabel('Project start date');
+  const saved = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PATCH' && /\/api\/projects\/[^/]+$/.test(response.url()),
+  );
   await projectStart.fill(day);
+  await saved;
   await projectStart.blur();
   await page.keyboard.press('Escape');
   await expect(actions).toBeHidden();
@@ -88,7 +109,37 @@ async function downloadedText(page: Page, action: string): Promise<string> {
   return readFile(await download.path(), 'utf8');
 }
 
-/** RFC 4180's quoting rules, enough to identify exact fields rather than substrings. */
+/** RFC 4180 records, preserving quoted CRLF inside a field. */
+function csvRecords(csv: string): string[] {
+  const records: string[] = [];
+  let record = '';
+  let quoted = false;
+  for (let index = 0; index < csv.length; index += 1) {
+    const character = csv[index];
+    if (character === '"') {
+      record += character;
+      if (quoted && csv[index + 1] === '"') {
+        record += '"';
+        index += 1;
+      } else quoted = !quoted;
+    } else if (character === '\r' && csv[index + 1] === '\n' && !quoted) {
+      records.push(record);
+      record = '';
+      index += 1;
+    } else record += character;
+  }
+  if (quoted) throw new Error('downloaded CSV has an unterminated quoted record');
+  if (record !== '') records.push(record);
+  return records;
+}
+
+/**
+ * RFC 4180 fields from one complete record.
+ *
+ * This returns the serialized spreadsheet guard apostrophe unchanged. The fields this suite
+ * compares start with letters or digits, never `=`, `+`, `-`, `@`, tab or CR; a fixture that
+ * adds one of those leaders must expect the writer's protective apostrophe explicitly.
+ */
 function csvFields(record: string): string[] {
   const fields: string[] = [];
   let field = '';
@@ -112,10 +163,20 @@ function csvFields(record: string): string[] {
 
 /** The fields from one Markdown table line, excluding its framing pipes. */
 function markdownFields(line: string): string[] {
-  return line
-    .split('|')
-    .slice(1, -1)
-    .map((field) => field.trim());
+  const fields: string[] = [];
+  let field = '';
+  for (let index = 1; index < line.length - 1; index += 1) {
+    const character = line[index];
+    if (character === '\\' && line[index + 1] === '|') {
+      field += '|';
+      index += 1;
+    } else if (character === '|') {
+      fields.push(field.trim());
+      field = '';
+    } else field += character;
+  }
+  fields.push(field.trim());
+  return fields;
 }
 
 /** Pins both deadline columns, their neighbours, and their corresponding row values. */
@@ -154,9 +215,9 @@ test('the phone deadline sheet leaves its card visible and drives Save and Clear
   // test driver, must make room for the field after the portal appears.
   const trigger = card.locator('[data-card-deadline-field]');
   await trigger.evaluate((control) => {
-    control.scrollIntoView({ block: 'end' });
     if (!(control instanceof HTMLButtonElement))
       throw new Error('deadline trigger is not a button');
+    control.scrollIntoView({ block: 'end' });
     control.click();
   });
   const editor = page.getByRole('dialog', { name: /Work item deadline for 020/ });
@@ -171,30 +232,39 @@ test('the phone deadline sheet leaves its card visible and drives Save and Clear
       return triggerBox.y + triggerBox.height - currentEditorBox.y;
     })
     .toBeLessThan(0);
+  const visibleTrigger = await renderedBox(trigger, 'the edited deadline control');
+  expect(visibleTrigger.y, 'the edited deadline control moved above the viewport').toBeGreaterThanOrEqual(0);
   const cardBox = await renderedBox(card, 'the edited card');
   const editorBox = await renderedBox(editor, 'the deadline sheet');
   expect(
     Math.min(cardBox.y + cardBox.height, editorBox.y) - Math.max(cardBox.y, 0),
     'none of the edited card remains visible above the sheet',
-  ).toBeGreaterThan(0);
+  ).toBeGreaterThanOrEqual(44);
 
   await editor.getByLabel('Work item deadline for 020').fill(WORK_ITEM_DEADLINE);
+  const saved = savedWorkItemDeadline(page);
   await editor.getByRole('button', { name: 'Save' }).click();
+  await saved;
   await expect(card.locator('[data-card-deadline]')).toBeVisible();
   await page.reload();
+  await expect(card).toHaveCount(1);
   await expect(page.locator(`[data-card="${cardId}"] [data-card-deadline]`)).toBeVisible();
 
   const reopened = await openDeadlineEditor(page, '020');
+  const cleared = savedWorkItemDeadline(page);
   await reopened.getByRole('button', { name: 'Clear' }).click();
+  await cleared;
+  await expect(card).toHaveCount(1);
   await expect(page.locator(`[data-card="${cardId}"] [data-card-deadline]`)).toHaveCount(0);
   await page.reload();
+  await expect(card).toHaveCount(1);
   await expect(page.locator(`[data-card="${cardId}"] [data-card-deadline]`)).toHaveCount(0);
 });
 
 test('renders impossible marks on both faces and downloads both deadline columns', async ({
   page,
 }) => {
-  await saveDeadline(page, WORK_ITEM_DEADLINE);
+  await saveDeadline(page, '010', WORK_ITEM_DEADLINE);
   await moveProjectStart(page, MOVED_PROJECT_DAY);
   await page.reload();
 
@@ -204,11 +274,17 @@ test('renders impossible marks on both faces and downloads both deadline columns
   // lookup fail in Chromium. Watched on h2puni, 2026-09-09.
   await expect(cardMark).toHaveAttribute('data-card-deadline-impossible');
   await renderedBox(cardMark, 'the card impossible-date mark');
+  const cardMarkId = await cardMark.getAttribute('id');
+  if (cardMarkId === null) throw new Error('the card impossible-date mark has no id');
+  await expect(page.getByRole('button', { name: 'Work item deadline for 010' })).toHaveAttribute(
+    'aria-describedby',
+    cardMarkId,
+  );
 
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.reload();
   await page.getByText('Columns', { exact: true }).click();
-  await page.getByRole('checkbox', { name: 'Deadline' }).check();
+  await page.getByRole('checkbox', { name: 'Deadline', exact: true }).check();
   await expect(page.locator('thead th[data-column="deadline"]')).toHaveCount(1);
   await page.getByText('Columns', { exact: true }).click();
   const tableMark = page.getByRole('img', { name: impossibleName });
@@ -218,9 +294,9 @@ test('renders impossible marks on both faces and downloads both deadline columns
   await renderedBox(tableMark, 'the table impossible-date mark');
 
   const csv = (await downloadedText(page, 'Download CSV')).replace(/^\uFEFF/, '');
-  const csvRecords = csv.split('\r\n').map(csvFields);
-  const csvHeaders = csvRecords.find((record) => record[0] === 'Number');
-  const csvRow = csvRecords.find((record) => record[0] === '010');
+  const parsedCsv = csvRecords(csv).map(csvFields);
+  const csvHeaders = parsedCsv.find((record) => record[0] === 'Number');
+  const csvRow = parsedCsv.find((record) => record[0] === '010');
   if (csvHeaders === undefined || csvRow === undefined)
     throw new Error('downloaded CSV has no plan header or row 010');
   expectDeadlineColumns(csvHeaders, csvRow);
