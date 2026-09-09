@@ -3,6 +3,7 @@ import type { BundleFile } from './lib/deploy-contract';
 import {
   assertSolverSupervisorBunVersion,
   SOLVER_SUPERVISOR_BUN,
+  SOLVER_SUPERVISOR_BUN_SOURCE,
   SOLVER_SUPERVISOR_BUNDLE,
   SOLVER_SUPERVISOR_CONFIG,
   SOLVER_SUPERVISOR_SERVICE,
@@ -93,8 +94,8 @@ export function buildSolverSupervisorInstallPlan(
   return [
     {
       phase: 'preflight',
-      description: `require ${host}:${SOLVER_SUPERVISOR_BUN} at a measured-compatible version`,
-      argv: ['ssh', host, `${SOLVER_SUPERVISOR_BUN} --version`],
+      description: `require ${host}:${SOLVER_SUPERVISOR_BUN_SOURCE} with accepted-socket fd support`,
+      argv: ['ssh', host, `${SOLVER_SUPERVISOR_BUN_SOURCE} --version`],
     },
     {
       phase: 'files',
@@ -103,6 +104,15 @@ export function buildSolverSupervisorInstallPlan(
         'ssh',
         host,
         'install -d -m 0755 /home/puni1/.local/lib/wbs-solver /home/puni1/.config/systemd/user && install -d -m 0700 /home/puni1/.config/wbs-solver',
+      ],
+    },
+    {
+      phase: 'files',
+      description: 'stage the measured Bun runtime at the host-wide path',
+      argv: [
+        'ssh',
+        host,
+        `install -m 0755 ${SOLVER_SUPERVISOR_BUN_SOURCE} ${SOLVER_SUPERVISOR_BUN}.tmp`,
       ],
     },
     ...temp.map((file, index) => ({
@@ -116,7 +126,7 @@ export function buildSolverSupervisorInstallPlan(
       argv: [
         'ssh',
         host,
-        `chmod 0755 ${temp[0]?.remote} && chmod 0600 ${temp[1]?.remote} && chmod 0644 ${temp[2]?.remote} && ${moves}`,
+        `chmod 0755 ${temp[0]?.remote} && chmod 0600 ${temp[1]?.remote} && chmod 0644 ${temp[2]?.remote} && ${moves} && mv ${SOLVER_SUPERVISOR_BUN}.tmp ${SOLVER_SUPERVISOR_BUN}`,
       ],
     },
     {

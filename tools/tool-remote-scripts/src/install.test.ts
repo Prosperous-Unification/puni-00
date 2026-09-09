@@ -6,6 +6,7 @@ import { envLayout } from './lib/env';
 import {
   assertSolverSupervisorBunVersion,
   SOLVER_SUPERVISOR_BUN,
+  SOLVER_SUPERVISOR_BUN_SOURCE,
   SOLVER_SUPERVISOR_BUN_VERSIONS,
   SOLVER_SUPERVISOR_BUNDLE,
   SOLVER_SUPERVISOR_CONFIG,
@@ -151,7 +152,7 @@ describe('host-wide solver supervisor contract', () => {
     expect(jsdocAt).toBeGreaterThan(-1);
     expect(jsdoc).toMatch(/^\/\*\*[\s\S]*\*\/\s*$/);
     expect(
-      [SOLVER_SUPERVISOR_BUN, '{@link SOLVER_SUPERVISOR_BUN}'].some((spelling) =>
+      [SOLVER_SUPERVISOR_BUN_SOURCE, '{@link SOLVER_SUPERVISOR_BUN_SOURCE}'].some((spelling) =>
         jsdoc.includes(spelling),
       ),
     ).toBe(true);
@@ -162,6 +163,7 @@ describe('host-wide solver supervisor contract', () => {
     for (const layout of [envLayout('prod'), envLayout('dev')]) {
       expect(SOLVER_SUPERVISOR_BUNDLE.remote).not.toStartWith(`${layout.root}/`);
       expect(SOLVER_SUPERVISOR_CONFIG).not.toStartWith(`${layout.root}/`);
+      expect(SOLVER_SUPERVISOR_BUN).not.toStartWith(`${layout.root}/`);
     }
   });
 
