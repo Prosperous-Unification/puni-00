@@ -78,6 +78,52 @@ describe('the automatic solver binding host inputs', () => {
         SHA,
       ),
     ).toThrow(/digest-pinned/);
+    // Proof: the case above cannot reach `!image.endsWith(`@${digest}`)` —
+    // `registry.example/wbs-be:latest` is already refused by
+    // DIGEST_PINNED_IMAGE, so deleting that clause left the whole suite green
+    // (`98 pass, 0 fail`). This is the manifest the clause exists for: an image
+    // pinned to a real digest that is NOT the one the entry reports, which is a
+    // registry answer naming a different build. Watched failing on
+    // `error: expect(received).toThrow(expected)` with the clause removed.
+    expect(() =>
+      decodePublishedSolverImage(
+        bytes(
+          JSON.stringify({
+            be: {
+              sha: SHA,
+              digest,
+              ref: 'tag',
+              image: `registry.example/wbs-be@sha256:${'e'.repeat(64)}`,
+            },
+          }),
+        ),
+        SHA,
+      ),
+    ).toThrow(/digest-pinned to its returned digest/);
+    // Proof: `!DIGEST.test(digest)` had no case at all — deleted, the suite
+    // stayed green. A digest too short to be a sha256 is the fault it is about.
+    // Watched failing on `expect(received).toThrow(expected)` without it.
+    expect(() =>
+      decodePublishedSolverImage(
+        bytes(JSON.stringify({ be: { sha: SHA, digest: 'sha256:short', ref: 'tag', image: DEV } })),
+        SHA,
+      ),
+    ).toThrow(/digest is invalid/);
+  });
+
+  it('refuses an input above the host decoder byte ceiling', () => {
+    // Proof: `bytes.byteLength > HOST_INPUT_MAX_BYTES` in `jsonOf` had no case
+    // on any of its four callers — removing the clause from both its sites left
+    // the suite green (`98 pass, 0 fail`). The empty half was covered; the
+    // ceiling was not, so an oversized manifest was parsed rather than refused.
+    // One byte over 256 KiB, still valid JSON so the refusal cannot be the
+    // parser's. Watched failing on `expect(received).toThrow(expected)`.
+    const oversized = bytes(
+      JSON.stringify({ be: { sha: SHA, ref: 'tag', pad: 'x'.repeat(256 * 1024) } }),
+    );
+    expect(oversized.byteLength).toBeGreaterThan(256 * 1024);
+    expect(() => decodePublishedSolverImage(oversized, SHA)).toThrow(/1 through 262144 bytes/);
+    expect(() => decodeInstalledProdImages(oversized)).toThrow(/1 through 262144 bytes/);
   });
 
   it('preserves both exact prod mappings and refuses a divergent prod solver image', () => {

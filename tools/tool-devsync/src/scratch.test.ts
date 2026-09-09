@@ -77,6 +77,42 @@ describe('per-process test scratch', () => {
     const directory = await readScratchDirectory(child.stdout);
     child.kill('SIGTERM');
     expect(await child.exited).not.toBe(0);
+    // The signal itself, not merely a non-zero exit. `preserves signal
+    // termination` is the whole claim of the handler's re-raise, and
+    // `not.toBe(0)` cannot see it: replacing the re-raise with
+    // `process.exit(1)` leaves the root removed and the exit non-zero, so the
+    // case stayed green while the guarantee was gone. Measured: with the
+    // re-raise, `{exited: 143, exitCode: null, signalCode: 'SIGTERM'}`; with
+    // `process.exit(1)`, `{exited: 1, exitCode: 1, signalCode: null}`.
+    // Proof: watched failing on `Expected: "SIGTERM" · Received: null`.
+    expect(child.signalCode).toBe('SIGTERM');
     expect(existsSync(directory)).toBe(false);
+  });
+
+  it('removes its root from a plain Bun process, where no preload hook runs', async () => {
+    // Every one of the eight consumers runs `bun test --preload
+    // ../test/scratch/preload.ts`, and that preload's `afterAll` is what
+    // removes the root under the gate. So `process.on('exit',
+    // removeProcessRoot)` in the helper had no call path any test could see:
+    // deleting it left `scratch.test.ts` at `2 pass`. This is the path it is
+    // actually for — a plain `bun <script>`, no test runner and no preload,
+    // which is what any future consumer that forgets the preload gets.
+    // Proof: watched failing on `expect(received).toBe(expected) · Expected:
+    // false · Received: true`, the root surviving, with the exit hook removed.
+    const directory = scratchSync('scratch-plain-');
+    const script = join(directory, 'plain.ts');
+    writeFileSync(
+      script,
+      `
+        import { scratchSync } from ${JSON.stringify(HELPER)};
+        const made = scratchSync('plain-proof-');
+        process.stdout.write('SCRATCH_DIRECTORY=' + made + '\\n');
+        throw new Error('deliberate failure');
+      `,
+    );
+    const child = Bun.spawn([process.execPath, script], { stdout: 'pipe', stderr: 'ignore' });
+    const output = new Response(child.stdout).text();
+    expect(await child.exited).not.toBe(0);
+    expect(existsSync(scratchDirectory(await output))).toBe(false);
   });
 });

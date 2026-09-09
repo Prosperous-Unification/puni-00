@@ -207,8 +207,16 @@ export async function prepareTargetSolverBinding(
   dependencies: TargetSolverBindingDependencies,
 ): Promise<void> {
   const installedConfig = await dependencies.readInstalledConfig();
-  // Proof: solver-binding-host.test.ts removes the installed config and makes
-  // the real preparation path recover both exact caller images before publish.
+  // Proof, both halves, because they live in different files and naming only
+  // the first was watched hiding the second: the MISSING-config half is
+  // `solver-binding-host.test.ts`'s bootstrap case, which removes the installed
+  // config and requires the real preparation path to recover both exact caller
+  // images from inspection before publish. The PRESENT-config half — that an
+  // installed config is used rather than inspection — is
+  // `solver-binding-runtime.test.ts`'s `keeps the credential out of argv and
+  // drives the exact host transition`; making this ternary always inspect was
+  // watched leaving `solver-binding-host.test.ts` green at `6 pass` and failing
+  // only there.
   const prod =
     installedConfig === undefined
       ? decodeProdContainerImages(await dependencies.readProdContainers())

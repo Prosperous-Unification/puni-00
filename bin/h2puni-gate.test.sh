@@ -153,8 +153,18 @@ git -C "$repo" checkout -q -- f
 # the documented 65 and the listing must be bounded: an earlier cut of this code
 # truncated with `printf … | head -10`, where a large enough listing makes the
 # builtin `printf` take SIGPIPE and `set -euo pipefail` report 141 instead — the
-# refusal replaced by a signal on the dirtiest trees. There is no pipe there now,
-# so this case pins the contract rather than a guard.
+# refusal replaced by a signal on the dirtiest trees. There is no pipe there now.
+#
+# This case is a real guard here, not merely a contract pin: restoring
+# `printf "  %s\n" $dirty | head -10` in h2puni-gate-lib.sh was watched on this
+# workstation failing three of its own assertions —
+#   FAIL: an untracked file the commit does not contain is refused: want exit 65, got 141
+#   FAIL: a 400-file refusal lists ten paths and says how many more: want '11', got '10'
+#   FAIL: the refusal did not report the remaining count
+# — at these 400 files with 200-character names, well under the 4,000,151-byte
+# listing the round-3 peer needed. Observed 2026-09-10; the earlier note saying
+# an 88 KB listing did not reproduce it is about a different pipe buffer, not
+# about this case being unable to fail.
 long_name=$(printf 'u%.0s' $(seq 1 200))
 for i in $(seq 1 400); do printf 'stray\n' >"$repo/untracked-$i-$long_name.ts"; done
 status=0
