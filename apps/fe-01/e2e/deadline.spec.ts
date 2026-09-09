@@ -122,6 +122,8 @@ function markdownFields(line: string): string[] {
 function expectDeadlineColumns(headers: string[], row: string[]): void {
   const deadline = headers.indexOf(DEADLINE_COLUMN);
   expect(deadline, `${DEADLINE_COLUMN} is absent`).toBeGreaterThan(1);
+  // Proof: renaming the shipped unreachable header to `Unreachable` made the
+  // CSV download fail here with that exact fourth field. Watched 2026-09-09.
   expect(headers.slice(deadline - 2, deadline + 3)).toEqual([
     'Not before',
     'Not before because',
@@ -159,8 +161,9 @@ test('the phone deadline sheet leaves its card visible and drives Save and Clear
   });
   const editor = page.getByRole('dialog', { name: /Work item deadline for 020/ });
   await expect(editor).toBeVisible();
-  // Proof target: removing useTriggerAboveSheet leaves the card under the fixed
-  // bottom sheet; this geometry compares the two painted surfaces, not markup.
+  // Proof: replacing useTriggerAboveSheet with an inert ref left this field
+  // 285px under the fixed bottom sheet and this poll failed. Watched in real
+  // Chromium at 390x844 on h2puni, 2026-09-09.
   await expect
     .poll(async () => {
       const triggerBox = await renderedBox(trigger, 'the edited deadline control');
@@ -197,6 +200,8 @@ test('renders impossible marks on both faces and downloads both deadline columns
 
   const impossibleName = "Work item deadline for 010 falls before the project's first working day";
   const cardMark = page.getByRole('img', { name: impossibleName });
+  // Proof: role="presentation" on this card mark made this accessible-role
+  // lookup fail in Chromium. Watched on h2puni, 2026-09-09.
   await expect(cardMark).toHaveAttribute('data-card-deadline-impossible');
   await renderedBox(cardMark, 'the card impossible-date mark');
 
@@ -207,6 +212,8 @@ test('renders impossible marks on both faces and downloads both deadline columns
   await expect(page.locator('thead th[data-column="deadline"]')).toHaveCount(1);
   await page.getByText('Columns', { exact: true }).click();
   const tableMark = page.getByRole('img', { name: impossibleName });
+  // Proof: role="presentation" on the table's independent mark made this
+  // lookup fail after the card assertion passed. Watched on h2puni, 2026-09-09.
   await expect(tableMark).toHaveAttribute('data-deadline-impossible');
   await renderedBox(tableMark, 'the table impossible-date mark');
 
