@@ -1,6 +1,13 @@
 # Verification
 
-Remote h2puni gate evidence will be recorded before merge.
+At `58884b708056ccb181c8577de1891fac7023eea9` on h2puni:
+
+- `bin/h2puni-gate.sh` passed all test, lint, typecheck, and build targets for 26
+  projects, then passed the three-case solver image smoke.
+- The borrowed dependency tree passed the required manifest check before and after
+  the gate: 78 declared dependencies, 0 mismatches.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`
+  passed 68/68 items.
 
 | Fault                                        | Expected proof                                            |
 | -------------------------------------------- | --------------------------------------------------------- |

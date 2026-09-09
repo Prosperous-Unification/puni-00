@@ -8,4 +8,4 @@
 
 - [x] 2.1 Drive a tab-bearing assertion through the real Bun CLI helper.
 - [x] 2.2 Cover bare CR/LF command boundaries and printable percent spellings.
-- [ ] 2.3 Run test, lint, typecheck, build, and OpenSpec validation on h2puni.
+- [x] 2.3 Run test, lint, typecheck, build, and OpenSpec validation on h2puni.
