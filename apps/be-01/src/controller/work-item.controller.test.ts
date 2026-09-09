@@ -348,8 +348,8 @@ describe('work item routes', () => {
     }
 
     for (const state of [
-      { pri: { state: 'ready' }, time: { state: 'failed', reason: 'timeout' } },
-      { pri: { state: 'ready' }, time: { state: 'ready' } },
+      { pri: { state: 'ready', proof: 'proven' }, time: { state: 'failed', reason: 'timeout' } },
+      { pri: { state: 'ready', proof: 'proven' }, time: { state: 'ready', proof: 'proven' } },
     ] satisfies Variants[]) {
       variants = state;
       serve = true;
