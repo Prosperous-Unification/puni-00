@@ -830,12 +830,30 @@ now discover nested `core`, `domain`, `store-memory`, and `store-sqlite` changes
 | warm-cache devsync target, then nested ring removal   | cache hit on the unchanged run; removal re-executed and failed with `must carry exactly one ring: tag; found 0` |
 | remove each added devsync restart path in sequence    | each restored fault failed on its missing `core`, `domain`, `store-memory`, or `store-sqlite` path              |
 
-The full local tool test gate is not a valid completion result in the restricted
-sandbox: Unix-listener cases fail with `EPERM`/address ownership errors. Task 5.2
-therefore remains open for the exact committed SHA on `h2puni`, including the
-frozen landing gate, OpenSpec validation, and browser gate. Task 5.3 remains open
-for the final documentation reconciliation after those results exist.
+## 2026-09-10 landing evidence
 
-| Command | When | Result |
-| ------- | ---- | ------ |
-|         |      |        |
+The first h2puni invocation used the gate script from its stale checkout and is
+not evidence about this branch. The valid run used a dedicated detached worktree
+at the requested revision and invoked that worktree's gate script. Its printed
+HEAD matched `1212c159ea086a82a58fcea3bee0b77ffc3f382d` before any check ran.
+
+| Command / fault                                                                                     | Result                                                                                                                                               |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bin/h2puni-gate.sh 1212c159ea086a82a58fcea3bee0b77ffc3f382d` in the exact detached worktree        | all 101 lint, typecheck, test and build tasks passed uncached across 30 projects in 10m05s; `be-01:solver-image-smoke` then passed 3/3 process cases |
+| `CI=1 E2E_PORT_SHIFT=1900 bun run e2e`, with 5000/5100/6100 checked free first                      | 327 pass, 37 intentional rendering-baseline skips, 0 fail in 17m38s; Playwright retries are disabled                                                 |
+| widen the production optimization cue from 11.5rem to 44rem, then run its real Chromium budget case | failed on `Expected: <= 1568 · Received: 2085.875`; the restored case passed and the complete browser run above passed it again                      |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json` at `0dbf2913`          | 70 items passed, 0 failed, including the two synced main specs                                                                                       |
+| pre-commit checks at `0dbf2913`                                                                     | doc cap, plaintext-secrets scan, Prettier and lint passed                                                                                            |
+
+The browser run initially found the toolbar budget pinned 0.875px below the
+landing Chromium measurement: 1565.875px against the old 1565px tolerated
+ceiling. The pin now records 1566px with the existing 2px tolerance. Replaying
+the proof named in the old comment also found that it had become vacuous: putting
+the reading sentence inside the already fixed-width pill passed. The proof above
+breaks the production width boundary itself and fails at the assertion it names.
+
+Task 5.2 remains open only for the final committed SHA's complete h2puni gate.
+The last local changes after `1212c159` are the browser pin/proof, synced specs,
+ADR statuses and queue reconciliation; the browser, OpenSpec and pre-commit
+checks above cover those changes. Task 5.3 remains open until that exact-SHA
+result is recorded and the two completed changes are archived.
