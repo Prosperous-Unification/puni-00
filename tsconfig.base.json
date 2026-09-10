@@ -29,6 +29,8 @@
       "@wbs/contracts": ["./libs/contracts/src/index.ts"],
       "@wbs/core": ["./libs/core/src/index.ts"],
       "@wbs/core/*": ["./libs/core/src/*"],
+      "@wbs/conformance": ["./libs/conformance/src/index.ts"],
+      "@wbs/conformance/*": ["./libs/conformance/src/*"],
       "@wbs/domain": ["./libs/domain/src/index.ts"],
       "@wbs/domain/workday": ["./libs/domain/src/workday.ts"],
       "@wbs/domain/deadline-offsets": ["./libs/domain/src/deadline-offsets.ts"],

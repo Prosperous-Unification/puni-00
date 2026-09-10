@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { unitOfWorkConformance, type UnitOfWorkFixture } from '@wbs/conformance';
 import { ProjectService } from '@wbs/core';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
@@ -12,7 +13,6 @@ import { openDrizzle } from './db';
 import { OPEN, WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
-import { unitOfWorkConformance, type UnitOfWorkFixture } from './testing/unit-of-work-conformance';
 
 const FOLDER = new URL('../../../apps/be-01/drizzle', import.meta.url).pathname;
 

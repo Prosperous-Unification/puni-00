@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { sourceConformance, type SourceUnderTest } from '@wbs/conformance';
 import { ProjectService } from '@wbs/core';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
@@ -11,7 +12,6 @@ import { buildStores } from './build-stores';
 import { openConnection } from './db';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
-import { sourceConformance, type SourceUnderTest } from './testing/source-conformance';
 
 const FOLDER = new URL('../../../apps/be-01/drizzle', import.meta.url).pathname;
 

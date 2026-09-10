@@ -1,13 +1,13 @@
-import { openMemorySource } from '@wbs/store-memory';
+import { sourceConformance, type SourceUnderTest, unitOfWorkConformance } from '@wbs/conformance';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import { NOT_OFFERED_BY_MEMORY } from './in-memory-source';
-import { sourceConformance, type SourceUnderTest } from './kits/source-conformance';
-import { unitOfWorkConformance } from './kits/unit-of-work-conformance';
 import { projectRow } from './project-fixture';
+import { openMemorySource } from './source';
 
-// Proof: throwing from this source kit's app barrel invalidated a confirmed
-// store-memory:test cache hit and failed on the injected barrel diagnostic.
+// Proof: after a confirmed `store-memory:test` local-cache hit, a throw in the
+// imported conformance source forced Nx to rerun and fail on
+// `injected conformance dependency cache fault`.
 
 /**
  * The in-memory source under the same kits the SQLite one runs, and its

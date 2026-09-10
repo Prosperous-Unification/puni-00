@@ -603,11 +603,14 @@ mentioned by task 3.3 are not the source-conformance store families and are not
 claimed here; task 4.2 remains unchecked. SQLite's immediate-busy test remains in
 `store-sqlite` and was not represented as an interleaved success here.
 
-| Check                                                                    | Injected fault                                                                                                          | Observed                                                                                      |
-| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Every explicit memory binding detaches returned state                    | Bypass the one catalog detacher while the 17-key public/admitted inventory and mutation matrix run                      | Both boundary cases reread user id `reader:caller-mutation` instead of `reader`               |
-| Saved-plan quota is atomic independently of command batches              | Bypass the history coordinator around holding/check/set                                                                 | Competing production saves returned `["saved", "saved"]` instead of `["refused", "saved"]`    |
-| The external source-kit import chain invalidates the memory target cache | Warm to a confirmed local cache hit, then throw from the app source-conformance barrel and repeat the identical command | Nx reran instead of reading cache and surfaced `injected app source-conformance barrel fault` |
+| Check                                                       | Injected fault                                                                                     | Observed                                                                                   |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Every explicit memory binding detaches returned state       | Bypass the one catalog detacher while the 17-key public/admitted inventory and mutation matrix run | Both boundary cases reread user id `reader:caller-mutation` instead of `reader`            |
+| Saved-plan quota is atomic independently of command batches | Bypass the history coordinator around holding/check/set                                            | Competing production saves returned `["saved", "saved"]` instead of `["refused", "saved"]` |
+
+The app-barrel cache proof belonged to the source-kit path retired by slice 4.1.
+The replacement project-edge proof and its observed diagnostic are recorded in
+that slice rather than preserving evidence about a path that no longer exists.
 
 The restricted root `bun run test:unit` run reached 502 pass and one intentional
 skip before its sole failure: `app.routes.test.ts` could not bind
@@ -615,6 +618,35 @@ skip before its sole failure: `app.routes.test.ts` could not bind
 the same sandbox failure. A permitted rerun passed 503 backend cases with the one
 declared memory-source capability skip and 0 failures, then passed all seven
 library targets.
+
+## Slice 4.1 — shared conformance kits
+
+Verified 2026-09-10. The four existing source-family kits and the unit-of-work
+harness now live in `libs/conformance`, tagged `ring:application` and
+`runtime:bun`. The shared project imports core ports and core test rows only; it
+contains no SQLite or memory adapter import or construction. SQLite and staged
+memory tests import the shared kit and supply their own opened source. The
+memory certification moved from the app into its source project, removing the
+app-to-SQLite re-export chain.
+
+| Command                                                                                  | Observed                                                    |
+| ---------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `nx run conformance:test --skip-nx-cache`                                                | 1 pass, 0 fail; independent missing-registration diagnostic |
+| `nx run store-memory:test --skip-nx-cache`                                               | 29 pass, 1 declared skip, 0 fail, 196 assertions            |
+| `nx run store-sqlite:test --skip-nx-cache`                                               | 652 pass, 0 fail, 2,005 assertions, 59 files                |
+| `nx run-many -t lint typecheck -p conformance store-memory store-sqlite --skip-nx-cache` | all six targets clean                                       |
+| focused SQLite source and unit-of-work files                                             | 20 pass, 0 fail, 42 assertions                              |
+
+The SQLite target printed all twelve case IDs as ran and `not offered: none`.
+The memory target printed eleven as ran and
+`not offered: estimates.set:unknown_step`. The thirteen unimplemented store
+families remain assigned to `source-conformance-completion` and are not counted
+by this catalog.
+
+| Check                                              | Injected fault                                                                                                                                       | Observed                                                                                                                                      |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Expected cases are independent of kit registration | Delete the step-family registration from the real shared `sourceConformance` composition, then run the memory source test                            | The report failed on `in-memory certification missing cases: steps.add, steps.rename, steps.rename:unknown` while every remaining body passed |
+| The source target hashes its shared production kit | Warm `store-memory:test` to a confirmed local-cache hit, add a top-level throw to the imported conformance source, then repeat the identical command | Nx reran and failed on `injected conformance dependency cache fault` instead of replaying the cached green result                             |
 
 ## Gate
 

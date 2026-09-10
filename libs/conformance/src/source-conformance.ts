@@ -2,6 +2,8 @@ import type { Step, TransactionalStores, WriteStamp } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { describe, expect, it } from 'bun:test';
 
+import { certifySourceReport, SOURCE_CONFORMANCE_CASES } from './certification';
+
 /**
  * One source, opened for one case, with the rows a kit needs to hang writes off.
  *
@@ -283,6 +285,11 @@ export function sourceConformance(
   });
   describe(`${source.name}: the event log`, () => {
     eventLogStoreConformance(kit);
+  });
+  const offeredCases = SOURCE_CONFORMANCE_CASES.filter((id) => !declared.includes(id));
+  const notOfferedCases = SOURCE_CONFORMANCE_CASES.filter((id) => declared.includes(id));
+  it(`${source.name} report — ran: ${offeredCases.join(', ')}; not offered: ${notOfferedCases.join(', ') || 'none'}`, () => {
+    certifySourceReport(source.name, report);
   });
   return report;
 }

@@ -221,7 +221,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
 
 ## 4. `libs/conformance`, and the proof the ports are ports
 
-- [ ] 4.1 **Move conformance without a dependency cycle.** Move `testing/kits/` to
+- [x] 4.1 **Move conformance without a dependency cycle.** Move `testing/kits/` to
       `libs/conformance` (`ring:application`, `runtime:bun`). Kits import core ports and
       take source factories; they never instantiate/import SQLite or memory production
       adapters. Each source's test file imports the kits and supplies its own factory.

@@ -17,19 +17,9 @@
     },
     "test": {
       "executor": "nx:run-commands",
-      "inputs": [
-        "default",
-        "^production",
-        "{workspaceRoot}/apps/be-01/src/testing/in-memory-source.test.ts",
-        "{workspaceRoot}/apps/be-01/src/testing/in-memory-source.ts",
-        "{workspaceRoot}/apps/be-01/src/testing/project-fixture.ts",
-        "{workspaceRoot}/apps/be-01/src/testing/kits/source-conformance.ts",
-        "{workspaceRoot}/apps/be-01/src/testing/kits/unit-of-work-conformance.ts",
-        "{workspaceRoot}/libs/store-sqlite/src/testing/source-conformance.ts",
-        "{workspaceRoot}/libs/store-sqlite/src/testing/unit-of-work-conformance.ts"
-      ],
+      "inputs": ["default", "^production"],
       "options": {
-        "command": "bun test src ../../apps/be-01/src/testing/in-memory-source.test.ts --coverage --coverage-reporter=lcov",
+        "command": "bun test src --coverage --coverage-reporter=lcov",
         "cwd": "libs/store-memory"
       },
       "outputs": ["{projectRoot}/coverage"]

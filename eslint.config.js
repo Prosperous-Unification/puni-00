@@ -596,5 +596,23 @@ export default [
     },
   },
 
+  // The memory source is isomorphic, while its certification executes in Bun.
+  // This one test-only edge admits the Bun kit without changing the source's
+  // production runtime or allowing another Bun adapter into its graph.
+  {
+    files: ['libs/store-memory/src/**/*.test.ts'],
+    rules: {
+      '@nx/enforce-module-boundaries': [
+        'error',
+        {
+          enforceBuildableLibDependency: true,
+          allow: ['@wbs/conformance', '@wbs/conformance/*'],
+          ignoredCircularDependencies: [['core', 'store-memory']],
+          depConstraints: [browserAdapterConstraint, ...scopeConstraints, ...runtimeConstraints],
+        },
+      ],
+    },
+  },
+
   prettier,
 ];
