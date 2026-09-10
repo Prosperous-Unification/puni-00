@@ -92,12 +92,18 @@ export interface CellCards {
 /**
  * How long a cell's card is held after the pointer leaves it, in milliseconds.
  *
- * 300ms is the reach measured at speed and then some: 260px of travel at a
- * flick's ~2000px/s is 130ms. A card that outlives the pointer by a moment
- * costs nothing — any write cancels the hold, and the same-cell guard inside it
- * means a card another cell has opened is never the one closed.
+ * 180ms, and the two numbers it sits between are why. The **floor** is the
+ * travel: 260px from a trigger to its card at a flick's ~2000px/s is 130ms, so
+ * anything under that loses the card under the hand it was written for. The
+ * **ceiling** is Dany's eye — 300ms was the first cut and he asked for it
+ * shorter on 2026-09-10 (*"ok, can you remove it just a bit faster"*), a card
+ * that lingers being a card in the way.
+ *
+ * A hold that outlives the pointer by a moment costs nothing else: any write
+ * cancels it, and the same-cell guard inside it means a card another cell has
+ * opened is never the one closed.
  */
-export const REACH_FOR_THE_CARD_MS = 300;
+export const REACH_FOR_THE_CARD_MS = 180;
 
 export function createCellCards(): CellCards {
   let hovered: string | null = null;

@@ -58,6 +58,11 @@ The rule the cards ended on:
 | off the card                   | the cell's own leave holds, then gone |
 | onto another cardable cell     | gone at once, replaced                |
 
+The hold was 300ms first and is **180ms**: Dany asked for it shorter (_"ok, can you remove it
+just a bit faster"_), and 180 still clears the 130ms a 260px flick takes. The negative was
+re-watched at the new figure — the reach set to 0, `the preview did not survive the reach ·
+Expected: 1 · Received: 0`.
+
 Two cuts were wrong before this one. The **first** put the timer in each cell, and a cell that
 re-opened its own card could not cancel a hold another cell had started — the dependency card
 died to it, 120 seconds of `waiting for locator('[role="tooltip"]')`. The **second** cancelled
