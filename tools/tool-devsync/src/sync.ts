@@ -294,7 +294,11 @@ export const RESTART_PATHS: readonly string[] = [
   // disk is missing from this list, so adding one cannot silently skip it.
   'libs/auth/project.json',
   'libs/config/project.json',
+  'libs/conformance/project.json',
   'libs/contracts/project.json',
+  // Proof: removing this nested entry failed `names every library project.json`
+  // on `Expected to contain: "libs/contracts/solver/supervisor-protocol/project.json"`.
+  'libs/contracts/solver/supervisor-protocol/project.json',
   'libs/core/project.json',
   'libs/domain/project.json',
   'libs/observability/project.json',
@@ -302,6 +306,11 @@ export const RESTART_PATHS: readonly string[] = [
   // Proof: removing this entry failed `names every library project.json that exists on disk`
   // on `Expected to contain: "libs/runtime-portable/project.json"`.
   'libs/runtime-portable/project.json',
+  'libs/store-memory/project.json',
+  // Proof: recursive project discovery first failed the restart coverage test
+  // on conformance, then store-memory, then store-sqlite as each preceding
+  // omission was restored. Watched 2026-09-10.
+  'libs/store-sqlite/project.json',
   'libs/validation/project.json',
   'libs/solver-py/project.json',
 ];
