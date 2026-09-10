@@ -222,7 +222,7 @@ export function mountedEndpoints(
     // instead of the 44 required by the OIDC composition.
     ...(opts.oidc === undefined ? [] : authOidcEndpoints(opts.auth, opts.oidc)),
     // Proof: omitting this binding made “binds each shared HTTP shape once”
-    // receive39 instead of40 in app.routes.test.ts.
+    // receive 40 endpoints instead of 41 in app.routes.test.ts (2026-09-10).
     ...smokeRoutes(),
     ...stepRoutes(opts.steps),
     ...directoryRoutes(opts.directory),

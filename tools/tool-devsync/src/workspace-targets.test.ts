@@ -56,6 +56,15 @@ async function projectsOnDisk(): Promise<{ dir: string; config: ProjectConfig }[
   }));
 }
 
+/** Whether this library owns a tracked `*.test.ts(x)` not filed in the database tier. */
+async function hasUnitSuite(projectDir: string): Promise<boolean> {
+  const tests = new Bun.Glob('src/**/*.test.{ts,tsx}');
+  for await (const path of tests.scan({ cwd: new URL(`${projectDir}/`, WORKSPACE).pathname })) {
+    if (!/\.db\.test\.tsx?$/.test(path)) return true;
+  }
+  return false;
+}
+
 /** The shell commands a target runs, whether it spells one or several. */
 function commandsOf(target: ProjectTarget): string[] {
   return [
@@ -375,19 +384,32 @@ describe('every project says which ring, scope and runtime it is', () => {
   const AXES = ['scope:', 'ring:', 'runtime:'] as const;
 
   it('carries exactly one tag on each axis', async () => {
-    // Proof: `ring:adapter` removed from `libs/observability/project.json`,
-    // watched failing on `Expected: [] · Received: [ "observability: no ring:" ]`;
-    // a second `ring:domain` added beside it, on
-    // `[ "observability: two ring: tags" ]`. Watched 2026-09-08.
     const wrong: string[] = [];
-    for (const { config } of await projectsOnDisk()) {
-      const name = config.name;
-      for (const axis of AXES) {
-        const held = config.tags.filter((tag) => tag.startsWith(axis));
-        if (held.length === 0) wrong.push(`${name}: no ${axis}`);
-        if (held.length > 1) wrong.push(`${name}: two ${axis} tags`);
+    try {
+      for (const { config } of await projectsOnDisk()) {
+        const name = config.name;
+        for (const axis of AXES) {
+          const held = config.tags.filter((tag) => tag.startsWith(axis));
+          if (held.length === 0) wrong.push(`${name}: no ${axis}`);
+          if (held.length > 1) wrong.push(`${name}: two ${axis} tags`);
+        }
       }
+    } catch (failure) {
+      if (
+        !(failure instanceof Error) ||
+        !/\.json must carry exactly one (?:scope:|ring:|runtime:) tag; found \d+$/.test(
+          failure.message,
+        )
+      ) {
+        throw failure;
+      }
+      wrong.push(failure.message);
     }
+    // Proof: removing `ring:adapter` from the discovered nested supervisor-protocol
+    // project failed this assertion with its manifest path and `found 0`; adding
+    // `ring:domain` beside it failed with the same path and `found 2`. Removing
+    // the ring from `tools/dev/project.json` likewise failed here with its path.
+    // Watched 2026-09-10.
     expect(wrong).toEqual([]);
   });
 
@@ -402,5 +424,49 @@ describe('every project says which ring, scope and runtime it is', () => {
       if (!config.tags.includes('ring:adapter')) wrong.push(config.name);
     }
     expect(wrong).toEqual([]);
+  });
+});
+
+describe('the root fast tier discovers every eligible project', () => {
+  it('requires a test:unit target independently of target presence', async () => {
+    const projects = await projectsOnDisk();
+    const requiredNonLibraries = new Set(['be-01', 'fe-01']);
+    const missing: string[] = [];
+    const unexpected: string[] = [];
+    for (const { dir, config } of projects) {
+      const declared = config.targets['test:unit'] !== undefined;
+      if (!dir.startsWith('libs/')) {
+        if (requiredNonLibraries.has(config.name) && !declared) missing.push(config.name);
+        if (!requiredNonLibraries.has(config.name) && declared) unexpected.push(config.name);
+        continue;
+      }
+      const eligible = !config.tags.includes('runtime:python') && (await hasUnitSuite(dir));
+      if (eligible && !declared) missing.push(config.name);
+      if (!eligible && declared) unexpected.push(config.name);
+    }
+    // Proof: removing `test:unit` from the recursively discovered nested
+    // supervisor-protocol project failed this assertion with `missing:
+    // ["solver-supervisor-protocol"]` and `unexpected: []` (2026-09-10).
+    // Adding `test:unit` to the discovered tool-devsync project failed here
+    // with `missing: []` and `unexpected: ["tool-devsync"]` (2026-09-10).
+    expect({ missing, unexpected }).toEqual({ missing: [], unexpected: [] });
+  });
+
+  it('selects the discovered target rather than naming projects', async () => {
+    const root: unknown = JSON.parse(await readFile(new URL('package.json', WORKSPACE), 'utf8'));
+    if (
+      typeof root !== 'object' ||
+      root === null ||
+      !('scripts' in root) ||
+      typeof root.scripts !== 'object' ||
+      root.scripts === null
+    ) {
+      throw new Error('package.json has no scripts object');
+    }
+    // Proof: a temporary eligible project nested at
+    // `libs/fast-tier-proof/nested` appeared in the real root run's 16-project
+    // inventory, and its deliberate assertion failed on Expected: false,
+    // Received: true. Watched through `bun run test:unit` on 2026-09-10.
+    expect(Reflect.get(root.scripts, 'test:unit')).toBe('nx run-many -t test:unit');
   });
 });

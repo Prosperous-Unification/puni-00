@@ -722,6 +722,71 @@ request then failed on the exact unexpected URL.
 | Portable TypeScript is discovered          | Assign `'portable type fault'` to a number in the portable probe | `core:typecheck` failed at `portable-composition.ts:12` with TS2322          |
 | Root Playwright config is linted           | Add an unused declaration to `libs/core/playwright.config.ts`    | `core:lint` failed at line 3 with `@typescript-eslint/no-unused-vars`        |
 
+## Slice 4.3 — original enforcement inventory
+
+Verified 2026-09-10. Current-tree lint passed for `core`, `domain`, `fe-01`,
+`store-sqlite` and `tool-dev-setup`. Core's real `compose.test.ts` passed 8
+cases with 26 assertions while importing both `bun:test` and
+`@wbs/store-memory`; the adjacent production probe was refused. The tag and
+binding tests were green again after every injected fault was restored.
+
+| Ports-plan case | Disposition                                                       | Fault and observed diagnostic                                                                                                                                                                                                                                                                                                                                                                        |
+| --------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1               | Existing evidence revalidated on this tree                        | A temporary core production sibling importing `elysia` failed `no-restricted-imports`: “Core and domain receive runtime behavior through ports.” Current `core:lint` is clean.                                                                                                                                                                                                                       |
+| 2               | Existing evidence revalidated on this tree                        | A temporary domain production sibling importing `node:crypto` failed `no-restricted-imports` with the same runtime-through-ports diagnostic. Current `domain:lint` is clean.                                                                                                                                                                                                                         |
+| 3               | Existing evidence revalidated on this tree                        | `globalThis.fetch(...)` and `globalThis['fetch'](...)` in core production each failed `no-restricted-syntax`: “Core and domain receive fetch through a transport port.” Current `core:lint` is clean.                                                                                                                                                                                                |
+| 4               | Existing evidence revalidated on this tree                        | A tracked fe-01 production import and test import of `@wbs/core` each failed `@nx/enforce-module-boundaries`: a `ring:adapter` + `runtime:browser` project may depend only on `ring:domain` or `runtime:browser`. Current uncached `fe-01:lint` is clean.                                                                                                                                            |
+| 5               | Observed here                                                     | A core production sibling importing `@wbs/store-sqlite`, with only circular-diagnostic preemption disabled for the probe, failed the generic `@nx/enforce-module-boundaries` ring rule: a `ring:application` project may depend only on `ring:domain` or `ring:application`. Without that probe-only diagnostic setting, the same rule first reported the real `core -> store-sqlite -> core` cycle. |
+| 6               | Existing evidence revalidated on this tree                        | A domain production import of `@wbs/be-01` failed `@nx/enforce-module-boundaries` on the domain/be-01 cycle; a non-circular adapter import separately failed the generic domain-ring restriction. Current `domain:lint` is clean.                                                                                                                                                                    |
+| 7               | Existing evidence revalidated on this tree                        | A production `direct-open-probe.ts` importing `Database` from `bun:sqlite` outside `store-sqlite/db.ts` failed `store-sqlite:lint` at 1:1: “Open connections through openDatabase() in store-sqlite/db.ts.” Current `store-sqlite:lint` is clean.                                                                                                                                                    |
+| 8               | Observed in task 5.1                                              | The root now selects `test:unit` targets. A temporary eligible library nested at `libs/fast-tier-proof/nested` appeared in the real root run's 16-project inventory and failed its deliberate assertion on Expected: false, Received: true.                                                                                                                                                          |
+| 9               | Existing evidence revalidated on this tree                        | A production `@sinclair/typebox` import under `tools/dev` failed `no-restricted-imports`: “Declare wire schemas with ArkType; TypeBox would restore a second schema authority.” Current `tool-dev-setup:lint` is clean.                                                                                                                                                                              |
+| 10              | Owned by `repo-namespacing`                                       | That change owns the `libs/wbs/adapters/` layout rule and its misplaced `ring:application` project fault.                                                                                                                                                                                                                                                                                            |
+| 11              | Owned by `repo-namespacing`                                       | That change owns the cross-product dependency constraint and the second product importing `@wbs/core` fault.                                                                                                                                                                                                                                                                                         |
+| 12              | Observed here                                                     | Removing `ring:adapter` from the recursively discovered `libs/contracts/solver/supervisor-protocol/project.json` failed the totality assertion with `... must carry exactly one ring: tag; found 0`; adding `ring:domain` beside it failed the same assertion with `found 2`.                                                                                                                        |
+| 13              | Observed here                                                     | A core production sibling importing `@wbs/store-memory` failed the generic ring rule: a `ring:application` project may depend only on `ring:domain` or `ring:application`. The real import in `compose.test.ts` passed 8 cases, proving the exemption's test edge.                                                                                                                                   |
+| 14              | Observed here                                                     | Removing the real `...smokeRoutes()` binding failed `binds each shared HTTP shape once in every configuration that owns it`: expected 41 endpoints and received 40. Restored, it passed with 88 assertions.                                                                                                                                                                                          |
+| 15              | Existing evidence revalidated on this tree                        | A core test importing `bun:test` passed; moving the same import to its production sibling failed `no-restricted-imports`: “Core and domain receive runtime behavior through ports.” The real core composition test and current `core:lint` are green.                                                                                                                                                |
+| 16              | Tool half observed here; product half owned by `repo-namespacing` | Removing the ring from recursively discovered `tools/dev/project.json` failed the totality assertion with `tools/dev/project.json ... found 0`. `repo-namespacing` owns both the missing `product:` tag and the forbidden `product:` tag on a tool.                                                                                                                                                  |
+
+The first version of the current-tree tag probes stopped in `readProjects`
+before the totality assertion. The inventory test now converts only its exact
+axis-cardinality rejection into the `wrong` list; malformed, unreadable and
+otherwise unexpected discovery failures still throw. The three injected tag
+faults above consequently failed `expect(wrong).toEqual([])` with their real
+manifest paths, rather than dying during fixture setup or defaulting unreadable
+output.
+
+## Slice 5.1 — discovered fast tier
+
+Verified 2026-09-10. The root `test:unit` script now runs
+`nx run-many -t test:unit`. be-01 retains its non-DB split and fe-01 retains its
+Node-only Vitest tier. Every non-Python library with at least one tracked
+`*.test.ts(x)` outside the `.db.test` tier declares the target; store-sqlite's
+target runs its six non-DB files, excludes its database suite, and hashes the
+be-01 migrations read by `source.test.ts`. Playwright `*.spec.ts`, Python and
+the be-01 `.proc.db.test.ts` process cases are outside this target. The inventory
+allows only be-01 and fe-01 to declare the target outside `libs/`; a process,
+browser or tool project that adds it is reported as unexpected.
+
+| Command                                                                                                 | Observed                                                                                       |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun run test:unit` with permitted localhost sockets           | all 15 discovered targets passed uncached in 23.3s                                             |
+| `nx run store-sqlite:test:unit --skip-nx-cache`                                                         | 20 pass, 0 fail, 26 assertions across six non-DB files                                         |
+| `nx run contracts:test` and `nx run contracts:test:unit`, each uncached                                 | each passed 378 tests / 1,067 assertions across the parent's 40 owned files                    |
+| `nx run solver-supervisor-protocol:test:unit --skip-nx-cache`                                           | 9 pass, 0 fail, 26 assertions across its one nested file                                       |
+| focused `workspace-targets.test.ts`                                                                     | 12 pass, 0 fail, 41 assertions on the restored tree                                            |
+| remove nested supervisor protocol's `test:unit`, then run the independent inventory assertion           | `missing: ["solver-supervisor-protocol"]`, `unexpected: []`                                    |
+| add `test:unit` to the discovered `tool-devsync` project, then run that assertion                       | `missing: []`, `unexpected: ["tool-devsync"]`; 0 pass, 1 fail                                  |
+| add temporary nested `fast-tier-negative` project and failing test, then run the exact root `test:unit` | target discovered among 16; assertion failed on Expected: false, Received: true; root exited 1 |
+
+The restricted negative run also reported the repository's three known
+localhost-socket failures in auth, runtime-portable and be-01. They did not
+substitute for the injected proof: the captured output separately named
+`fast-tier-negative:test:unit`, its test file, its assertion and its 0-pass /
+1-fail count. The restored permitted run then passed those three socket-owning
+targets along with the other twelve.
+
 ## Gate
 
 | Command | When | Result |

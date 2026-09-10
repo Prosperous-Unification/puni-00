@@ -23,6 +23,14 @@
       },
       "outputs": ["{projectRoot}/coverage"]
     },
+    "test:unit": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --coverage --coverage-reporter=lcov",
+        "cwd": "libs/conformance"
+      },
+      "outputs": ["{projectRoot}/coverage"]
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": { "command": "bunx tsc --build --force libs/conformance/tsconfig.json" }

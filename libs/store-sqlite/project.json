@@ -32,6 +32,15 @@
       },
       "outputs": ["{projectRoot}/coverage"]
     },
+    "test:unit": {
+      "executor": "nx:run-commands",
+      "inputs": ["default", "^production", "{workspaceRoot}/apps/be-01/drizzle"],
+      "options": {
+        "command": "bun test $(find src -name '*.test.ts' ! -name '*.db.test.ts' | tr '\\n' ' ') --coverage --coverage-reporter=lcov",
+        "cwd": "libs/store-sqlite"
+      },
+      "outputs": ["{projectRoot}/coverage"]
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {

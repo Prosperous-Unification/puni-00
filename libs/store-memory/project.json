@@ -24,6 +24,15 @@
       },
       "outputs": ["{projectRoot}/coverage"]
     },
+    "test:unit": {
+      "executor": "nx:run-commands",
+      "inputs": ["default", "^production"],
+      "options": {
+        "command": "bun test src --coverage --coverage-reporter=lcov",
+        "cwd": "libs/store-memory"
+      },
+      "outputs": ["{projectRoot}/coverage"]
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": { "command": "bunx tsc --build --force libs/store-memory/tsconfig.json" }

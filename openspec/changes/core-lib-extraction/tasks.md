@@ -261,7 +261,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
       `bunx nx run core:test:portable` after its build dependency; retain the output and
       bundle identity. A Bun-only test cannot complete this checkbox.
 
-- [ ] 4.3 **Close the original enforcement inventory.** In `verify.md`, give each of
+- [x] 4.3 **Close the original enforcement inventory.** In `verify.md`, give each of
       ports plan §3.5's sixteen negatives one disposition: observed here with diagnostic,
       existing evidence revalidated on this tree, or explicitly owned by repo-namespacing.
       Cases5/13 import the now-existing store-sqlite/store-memory projects from core and
@@ -272,7 +272,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
 
 ## 5. The gate, and the docs
 
-- [ ] 5.1 **Discover every fast-tier project.** Change the root `test:unit` script to
+- [x] 5.1 **Discover every fast-tier project.** Change the root `test:unit` script to
       `nx run-many -t test:unit`; declare library targets for the eligible unit suites,
       preserving be-01's split and excluding process/browser/Python suites. Reuse2.0's
       complete nested-project discovery in `workspace-targets.test.ts` for totality.
