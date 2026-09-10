@@ -1,1 +1,2 @@
-export * from '@wbs/core/testing/step-fixture';
+export * from '@wbs/store-memory/step-fixture';
+export { testStepService } from '@wbs/store-memory/testing/service-fixtures';

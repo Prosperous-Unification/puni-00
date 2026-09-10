@@ -1,10 +1,10 @@
+import { inMemoryUsers } from '@wbs/store-memory/auth-fixture';
+import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { describe, expect, test } from 'bun:test';
 
 import type { AuthenticatedUser } from '../service/auth.service';
 import { PlanCommandRunner } from '../service/plan-commands';
-import { inMemoryUsers } from '../testing/auth-fixture';
 import { inMemoryServices } from '../testing/harness';
-import { inMemoryProjects, projectRow } from '../testing/project-fixture';
 import { batchServices, testWrites } from '../testing/writes-fixture';
 import { replay } from './replay';
 import { retentionSweep } from './retention-sweep';

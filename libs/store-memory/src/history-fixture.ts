@@ -1,7 +1,4 @@
-import type { PlanEvent, PlanEventStore } from '../ports/plan-event-store';
-import type { ProjectStore } from '../ports/project-store';
-import { HistoryService } from '../service/history.service';
-import { inMemoryProjects } from './project-fixture';
+import type { PlanEvent, PlanEventStore } from '@wbs/core';
 
 /**
  * A {@link PlanEventStore} backed by an array, for service and controller tests
@@ -18,10 +15,20 @@ import { inMemoryProjects } from './project-fixture';
  * parse runs against the real store, exactly as `inMemoryCommandJournal` says of
  * the journal's three columns.
  */
-export function inMemoryPlanEvents(seed: readonly PlanEvent[] = []): PlanEventStore & {
+export interface MemoryPlanEventTable {
+  readonly held: PlanEvent[];
+}
+export function memoryPlanEventTable(seed: readonly PlanEvent[] = []): MemoryPlanEventTable {
+  return { held: structuredClone([...seed]) };
+}
+
+export function inMemoryPlanEvents(
+  seed: readonly PlanEvent[] = [],
+  table: MemoryPlanEventTable = memoryPlanEventTable(seed),
+): PlanEventStore & {
   readonly held: PlanEvent[];
 } {
-  const held: PlanEvent[] = [...seed];
+  const { held } = table;
   return {
     held,
     listFor(projectId, filter) {
@@ -42,19 +49,4 @@ export function inMemoryPlanEvents(seed: readonly PlanEvent[] = []): PlanEventSt
       return Promise.resolve(doomed.length);
     },
   };
-}
-
-/**
- * A HistoryService over the in-memory stores, for tests that only need `buildApp`
- * to construct.
- *
- * Required rather than optional in `AppOptions` for the reason every other service
- * there is: a process built without it answers 404 on the history route, which a
- * client cannot tell from a plan whose history is empty.
- */
-export function testHistoryService(
-  projects: ProjectStore = inMemoryProjects(),
-  events: PlanEventStore = inMemoryPlanEvents(),
-): HistoryService {
-  return new HistoryService({ projects, events });
 }

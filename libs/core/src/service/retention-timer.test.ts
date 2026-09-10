@@ -1,8 +1,8 @@
+import { inMemoryPlanEvents } from '@wbs/store-memory/history-fixture';
+import { inMemoryEventLog } from '@wbs/store-memory/replay-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import type { PlanEvent } from '../ports/plan-event-store';
-import { inMemoryPlanEvents } from '../testing/history-fixture';
-import { inMemoryEventLog } from '../testing/replay-fixture';
 import { RetentionTimer, type Swept } from './retention-timer';
 
 /**

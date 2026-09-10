@@ -1,6 +1,6 @@
+import { testHistoryService } from '@wbs/store-memory/testing/service-fixtures';
 import { expect, it } from 'bun:test';
 
-import { testHistoryService } from '../testing/history-fixture';
 import { historyRoutes } from './history.routes';
 
 it('returns the modeled missing-project refusal from a literal history request', async () => {

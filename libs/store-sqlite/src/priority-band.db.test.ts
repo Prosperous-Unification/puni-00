@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Project, WriteStamp } from '@wbs/core';
-import { projectRow } from '@wbs/core/testing/project-fixture';
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand } from '@wbs/domain';
+import { projectRow } from '@wbs/store-memory/project-fixture';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 

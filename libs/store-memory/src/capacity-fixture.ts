@@ -1,15 +1,4 @@
-import type {
-  CapacityStore,
-  CapacityWritten,
-  ProjectStore,
-  TeamCapacity,
-  WriteStamp,
-} from '../index';
-import type { Broadcaster } from '../service/broadcast';
-import { CapacityService } from '../service/capacity.service';
-import { recordingBroadcaster } from './broadcast-fixture';
-import { testClock } from './clock-fixture';
-import { inMemoryProjects } from './project-fixture';
+import type { CapacityStore, CapacityWritten, TeamCapacity } from '@wbs/core';
 
 /**
  * A {@link CapacityStore} backed by a Map, for service and controller tests that
@@ -37,19 +26,15 @@ export function inMemoryCapacity(
    * the setup at the mercy of the thing under test.
    */
   seed: Readonly<Record<string, Readonly<Record<string, number>>>> = {},
-): CapacityStore & { stampsSeen: WriteStamp[] } {
-  const held = new Map<string, Map<string, number>>();
-  for (const [projectId, teams] of Object.entries(seed)) {
-    held.set(projectId, new Map(Object.entries(teams)));
-  }
+  table: MemoryCapacityTable = memoryCapacityTable(seed),
+): CapacityStore {
+  const { held } = table;
   /**
    * Every stamp this store was handed, in call order, so a service test can
    * assert who wrote and when without a database to read audit columns from.
    */
-  const stampsSeen: WriteStamp[] = [];
 
   return {
-    stampsSeen,
     slotsFor(projectId) {
       // A copy, not the stored Map: the engine's adapter is handed this and a
       // caller that mutated it would be editing the store from the read side.
@@ -67,8 +52,7 @@ export function inMemoryCapacity(
       }));
       return Promise.resolve(listed);
     },
-    set(projectId, serviceTeamId, size, stamp) {
-      stampsSeen.push(stamp);
+    set(projectId, serviceTeamId, size, _stamp) {
       const forProject = held.get(projectId) ?? new Map<string, number>();
       if (size === null) forProject.delete(serviceTeamId);
       else forProject.set(serviceTeamId, size);
@@ -79,19 +63,15 @@ export function inMemoryCapacity(
   };
 }
 
-/**
- * A CapacityService over the in-memory stores, for tests that only need
- * `buildApp` to construct.
- *
- * Required rather than optional in `AppOptions` for the reason every other
- * service there is: a process built without it answers 404 on the capacity route,
- * and a plan whose capacity box silently does nothing reads as a plan whose
- * numbers do not matter.
- */
-export function testCapacityService(
-  projects: ProjectStore = inMemoryProjects(),
-  capacity: CapacityStore = inMemoryCapacity(),
-  broadcast: Broadcaster = recordingBroadcaster(),
-): CapacityService {
-  return new CapacityService({ clock: testClock, projects, capacity, broadcast });
+export interface MemoryCapacityTable {
+  readonly held: Map<string, Map<string, number>>;
+}
+export function memoryCapacityTable(
+  seed: Readonly<Record<string, Readonly<Record<string, number>>>> = {},
+): MemoryCapacityTable {
+  return {
+    held: new Map(
+      Object.entries(seed).map(([projectId, teams]) => [projectId, new Map(Object.entries(teams))]),
+    ),
+  };
 }

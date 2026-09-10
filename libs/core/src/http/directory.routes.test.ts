@@ -1,6 +1,7 @@
+import { inMemoryDirectory } from '@wbs/store-memory/directory-fixture';
+import { testDirectoryService } from '@wbs/store-memory/testing/service-fixtures';
 import { expect, spyOn, test } from 'bun:test';
 
-import { inMemoryDirectory, testDirectoryService } from '../testing/directory-fixture';
 import { directoryRoutes } from './directory.routes';
 
 const input = {

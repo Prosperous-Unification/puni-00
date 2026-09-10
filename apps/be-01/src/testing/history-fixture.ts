@@ -1,1 +1,2 @@
-export * from '@wbs/core/testing/history-fixture';
+export * from '@wbs/store-memory/history-fixture';
+export { testHistoryService } from '@wbs/store-memory/testing/service-fixtures';

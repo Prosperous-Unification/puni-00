@@ -7,8 +7,7 @@ import type {
   StepProgressStore,
   SubtreeStore,
   WorkItemStore,
-  WriteStamp,
-} from '../index';
+} from '@wbs/core';
 
 /**
  * A SubtreeStore that writes a copy through the six in-memory stores it is
@@ -32,19 +31,9 @@ export function inMemorySubtrees(stores: {
   measures: MeasureStore;
   dependencies: DependencyStore;
   directory: DirectoryStore;
-}): SubtreeStore & { stampsSeen: WriteStamp[] } {
-  /**
-   * Every stamp this store was handed, in call order, so a service test can
-   * assert who wrote and when without a database to read audit columns from.
-   *
-   * One entry per copy, not per row: the stamp the stores below are handed is
-   * this one, so the rows it produced are counted in their own lists.
-   */
-  const stampsSeen: WriteStamp[] = [];
+}): SubtreeStore {
   return {
-    stampsSeen,
     async insertSubtree(copy, stamp) {
-      stampsSeen.push(stamp);
       // The respacing rides with the first row, which is how `WorkItemStore.insert`
       // takes it — one call applies both, as the one transaction does.
       for (const [index, row] of copy.rows.entries()) {

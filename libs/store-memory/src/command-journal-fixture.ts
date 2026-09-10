@@ -4,7 +4,7 @@ import {
   type JournalEntry,
   type NewJournalEntry,
   type PlanEvent,
-} from '../index';
+} from '@wbs/core';
 
 /**
  * The undo stack in an array, for tests whose subject is not SQLite.
@@ -33,12 +33,21 @@ import {
  * atomically is the one claim this fixture cannot make, so it is asserted against
  * real SQLite in `repository/command-journal.test.ts` and nowhere else.
  */
-export function inMemoryCommandJournal(): CommandJournalStore & {
+export interface MemoryCommandJournalTables {
+  readonly entries: JournalEntry[];
+  readonly events: PlanEvent[];
+}
+export function memoryCommandJournalTables(): MemoryCommandJournalTables {
+  return { entries: [], events: [] };
+}
+
+export function inMemoryCommandJournal(
+  tables: MemoryCommandJournalTables = memoryCommandJournalTables(),
+): CommandJournalStore & {
   readonly entries: JournalEntry[];
   readonly events: PlanEvent[];
 } {
-  const entries: JournalEntry[] = [];
-  const events: PlanEvent[] = [];
+  const { entries, events } = tables;
   const mine = (projectId: string, userId: string): JournalEntry[] =>
     entries.filter((each) => each.projectId === projectId && each.userId === userId);
 

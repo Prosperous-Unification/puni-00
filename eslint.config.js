@@ -44,6 +44,11 @@ const nxRules = {
     {
       enforceBuildableLibDependency: true,
       allow: [],
+      // Core's tests execute its ports over the memory adapter. Nx builds one
+      // project graph across production and tests, so that permitted test edge
+      // otherwise makes the adapter's required production edge back to core
+      // look circular. Production core imports remain blocked by the ring rule.
+      ignoredCircularDependencies: [['core', 'store-memory']],
       depConstraints: [
         // The rings, and the direction the whole ports-and-adapters split is
         // for: a domain lib may reach nothing but another domain lib, an
@@ -584,6 +589,7 @@ export default [
         {
           enforceBuildableLibDependency: true,
           allow: [],
+          ignoredCircularDependencies: [['core', 'store-memory']],
           depConstraints: [browserAdapterConstraint, ...scopeConstraints, ...runtimeConstraints],
         },
       ],

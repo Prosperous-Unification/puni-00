@@ -1,4 +1,7 @@
 import { workdaysBetween } from '@wbs/domain';
+import { inMemoryPriorityBands } from '@wbs/store-memory/priority-band-fixture';
+import { projectRow } from '@wbs/store-memory/project-fixture';
+import { personAdded } from '@wbs/store-memory/testing/service-fixtures';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
@@ -13,10 +16,7 @@ import type {
 import { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
 import { type RecordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { personAdded } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
-import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
-import { projectRow } from '../testing/project-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
 import { poolsFor, type WorkItemServiceOptions } from './work-item.service';
 

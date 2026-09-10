@@ -3,10 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AvailableWorkItemService as WorkItemService } from '@wbs/core/testing/available-work-item-service';
-import { personAdded } from '@wbs/core/testing/directory-fixture';
 import { inMemoryServices } from '@wbs/core/testing/harness';
-import { projectRow } from '@wbs/core/testing/project-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
+import { projectRow } from '@wbs/store-memory/project-fixture';
+import { personAdded } from '@wbs/store-memory/testing/service-fixtures';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';

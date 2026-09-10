@@ -1,5 +1,3 @@
-import { isOrphanedNotBeforeReason } from '@wbs/domain';
-
 import type {
   DirectoryStore,
   ExternalRef,
@@ -8,9 +6,28 @@ import type {
   WorkItem,
   WorkItemStore,
   WriteStamp,
-} from '../index';
-import type { WorkItemService } from '../service/work-item.service';
-import { inMemoryServices } from './harness';
+} from '@wbs/core';
+import { isOrphanedNotBeforeReason } from '@wbs/domain';
+
+export interface MemoryWorkItemTables {
+  readonly byId: Map<string, WorkItem>;
+  readonly teamsOf: Map<string, readonly string[]>;
+  readonly tagsOf: Map<string, readonly string[]>;
+  readonly servicesOf: Map<string, readonly string[]>;
+  readonly typesOf: Map<string, readonly string[]>;
+  readonly refsOf: Map<string, readonly ExternalRef[]>;
+}
+
+export function memoryWorkItemTables(): MemoryWorkItemTables {
+  return {
+    byId: new Map(),
+    teamsOf: new Map(),
+    tagsOf: new Map(),
+    servicesOf: new Map(),
+    typesOf: new Map(),
+    refsOf: new Map(),
+  };
+}
 
 /**
  * A WorkItemStore backed by a Map.
@@ -38,13 +55,13 @@ export function inMemoryWorkItems(
    * `work-item.controller.test.ts` said so out loud until this line existed.
    */
   teams?: Pick<DirectoryStore, 'listTeams' | 'listServices'>,
-): WorkItemStore & { stampsSeen: WriteStamp[] } {
-  const byId = new Map<string, WorkItem>();
+  tables: MemoryWorkItemTables = memoryWorkItemTables(),
+): WorkItemStore {
+  const { byId, teamsOf, tagsOf, servicesOf, typesOf, refsOf } = tables;
   /**
    * Every stamp this store was handed, in call order, so a service test can
    * assert who wrote and when without a database to read audit columns from.
    */
-  const stampsSeen: WriteStamp[] = [];
   /**
    * The teams each work item is joined to, held apart from the row exactly as
    * `work_item_team` is held apart from `work_item`.
@@ -54,14 +71,12 @@ export function inMemoryWorkItems(
    * answered `[serviceTeamId]` on read could never see a write path that
    * forgets the join, which is the fault the real repository's tests inject.
    */
-  const teamsOf = new Map<string, readonly string[]>();
   /**
    * The tags each work item is joined to, held apart from the row for
    * `teamsOf`'s reason — and unlike the teams, with no column to derive from.
    * A tag set arrives on the patch and nowhere else, so this map is written only
    * where the patch names one.
    */
-  const tagsOf = new Map<string, readonly string[]>();
   /**
    * The service sets, `tagsOf`'s shape and for its reason: since task 10.2 the
    * dimension is `work_item_service` and there is no column to derive it from.
@@ -69,7 +84,6 @@ export function inMemoryWorkItems(
    * this fixture, exactly as the real store leaves it standing — and, exactly as
    * the real store, nothing here reads it back.
    */
-  const servicesOf = new Map<string, readonly string[]>();
   /**
    * The type sets, `servicesOf`'s shape and for its reason: no column to derive
    * from, so a type set arrives on the patch and nowhere else.
@@ -79,12 +93,10 @@ export function inMemoryWorkItems(
    * (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`), so no walk
    * stands between this and what a reader sees.
    */
-  const typesOf = new Map<string, readonly string[]>();
   /**
    * The refs each work item carries, in order — `servicesOf`'s shape, holding
    * records rather than ids because a ref is a vocabulary name plus an address.
    */
-  const refsOf = new Map<string, readonly ExternalRef[]>();
 
   /** The join rows one write owes, as `WorkItemRepository` derives them. */
   const joinFor = (row: WorkItem): readonly string[] =>
@@ -99,33 +111,33 @@ export function inMemoryWorkItems(
   }
 
   return {
-    stampsSeen,
     listByProject(projectId) {
       return Promise.resolve(
         [...byId.values()]
           .filter((w) => w.projectId === projectId)
-          .map((row) => ({
-            ...row,
-            teamIds: teamsOf.get(row.id) ?? [],
-            tagIds: tagsOf.get(row.id) ?? [],
-            serviceIds: servicesOf.get(row.id) ?? [],
-            typeIds: typesOf.get(row.id) ?? [],
-            externalRefs: refsOf.get(row.id) ?? [],
-          })),
+          .map((row) =>
+            structuredClone({
+              ...row,
+              teamIds: teamsOf.get(row.id) ?? [],
+              tagIds: tagsOf.get(row.id) ?? [],
+              serviceIds: servicesOf.get(row.id) ?? [],
+              typeIds: typesOf.get(row.id) ?? [],
+              externalRefs: refsOf.get(row.id) ?? [],
+            }),
+          ),
       );
     },
     findById(id) {
-      return Promise.resolve(byId.get(id) ?? null);
+      const found = byId.get(id);
+      return Promise.resolve(found === undefined ? null : structuredClone(found));
     },
-    insert(workItem, respaced, stamp) {
-      stampsSeen.push(stamp);
+    insert(workItem, respaced, _stamp) {
       reposition(respaced);
-      byId.set(workItem.id, workItem);
+      byId.set(workItem.id, structuredClone(workItem));
       teamsOf.set(workItem.id, joinFor(workItem));
       return Promise.resolve();
     },
-    async patch(id, patch, stamp) {
-      stampsSeen.push(stamp);
+    async patch(id, patch, _stamp) {
       const existing = byId.get(id);
       if (existing === undefined) return { ok: false, reason: 'not_found' };
       const wanted = patch.serviceTeamId;
@@ -230,16 +242,14 @@ export function inMemoryWorkItems(
       }
       return { ok: true, workItem: updated };
     },
-    move(id, parentId, position, respaced, stamp) {
-      stampsSeen.push(stamp);
+    move(id, parentId, position, respaced, _stamp) {
       const existing = byId.get(id);
       if (existing === undefined) throw new Error(`cannot move unknown ${id}`);
       reposition(respaced);
       byId.set(id, { ...existing, parentId, position });
       return Promise.resolve();
     },
-    setFrozenNumbers(updates: readonly FrozenNumber[], stamp: WriteStamp) {
-      stampsSeen.push(stamp);
+    setFrozenNumbers(updates: readonly FrozenNumber[], _stamp: WriteStamp) {
       for (const update of updates) {
         const existing = byId.get(update.id);
         if (existing === undefined) throw new Error(`cannot freeze unknown ${update.id}`);
@@ -247,8 +257,7 @@ export function inMemoryWorkItems(
       }
       return Promise.resolve();
     },
-    remove(ids, promoted, stamp) {
-      stampsSeen.push(stamp);
+    remove(ids, promoted, _stamp) {
       // Promotions land before the deletion, and deletion runs deepest-first,
       // because that is the order the foreign keys force on the real
       // repository. A fixture free to do it in any order would let a test pass
@@ -270,18 +279,3 @@ export function inMemoryWorkItems(
     },
   };
 }
-
-/**
- * A WorkItemService over in-memory stores, for tests that only need `buildApp`
- * to construct.
- *
- * The graph comes from {@link inMemoryServices}, which is the one place that
- * knows how these thirteen ports wire together. This wrapper survives because
- * nine callers want only the service and would otherwise write `.service` at
- * every one of them.
- */
-export function testWorkItemService(): WorkItemService {
-  return inMemoryServices().service;
-}
-
-export { labelledRow, workItemRow } from './work-item-fixture';

@@ -1,11 +1,5 @@
+import type { PriorityBandStore, PriorityBandsWritten } from '@wbs/core';
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand } from '@wbs/domain';
-
-import type { PriorityBandStore, PriorityBandsWritten, ProjectStore, WriteStamp } from '../index';
-import type { Broadcaster } from '../service/broadcast';
-import { PriorityBandService } from '../service/priority-band.service';
-import { recordingBroadcaster } from './broadcast-fixture';
-import { testClock } from './clock-fixture';
-import { inMemoryProjects } from './project-fixture';
 
 /**
  * A {@link PriorityBandStore} backed by a Map, for service and controller tests
@@ -26,21 +20,14 @@ import { inMemoryProjects } from './project-fixture';
 export function inMemoryPriorityBands(
   /** What the store starts holding, as `projectId -> its five bands`. */
   seed: Readonly<Record<string, readonly PriorityBand[]>> = {},
-): PriorityBandStore & { stampsSeen: WriteStamp[] } {
-  const held = new Map<string, PriorityBand[]>();
-  for (const [projectId, bands] of Object.entries(seed)) {
-    held.set(
-      projectId,
-      bands.map((band) => ({ ...band })),
-    );
-  }
+  table: MemoryPriorityBandTable = memoryPriorityBandTable(seed),
+): PriorityBandStore {
+  const { held } = table;
   /**
    * Every stamp this store was handed, in call order, so a service test can
    * assert who wrote and when without a database to read audit columns from.
    */
-  const stampsSeen: WriteStamp[] = [];
   return {
-    stampsSeen,
     listFor(projectId) {
       const own = held.get(projectId);
       // A copy either way: a caller that mutated what it was handed would be
@@ -48,8 +35,7 @@ export function inMemoryPriorityBands(
       // would edit every project at once.
       return Promise.resolve((own ?? DEFAULT_PRIORITY_BANDS).map((band) => ({ ...band })));
     },
-    replace(projectId, bands, stamp) {
-      stampsSeen.push(stamp);
+    replace(projectId, bands, _stamp) {
       held.set(
         projectId,
         bands.map((band) => ({ ...band, label: band.label.trim() })),
@@ -60,19 +46,15 @@ export function inMemoryPriorityBands(
   };
 }
 
-/**
- * A PriorityBandService over the in-memory stores, for tests that only need
- * `buildApp` to construct.
- *
- * Required rather than optional in `AppOptions` for the reason every other
- * service there is: a process built without it answers 404 on the ladder route,
- * and a Priorities dialog whose Save silently does nothing reads as a plan whose
- * configuration does not matter.
- */
-export function testPriorityBandService(
-  projects: ProjectStore = inMemoryProjects(),
-  bands: PriorityBandStore = inMemoryPriorityBands(),
-  broadcast: Broadcaster = recordingBroadcaster(),
-): PriorityBandService {
-  return new PriorityBandService({ clock: testClock, projects, bands, broadcast });
+export interface MemoryPriorityBandTable {
+  readonly held: Map<string, PriorityBand[]>;
+}
+export function memoryPriorityBandTable(
+  seed: Readonly<Record<string, readonly PriorityBand[]>> = {},
+): MemoryPriorityBandTable {
+  return {
+    held: new Map(
+      Object.entries(seed).map(([projectId, bands]) => [projectId, structuredClone([...bands])]),
+    ),
+  };
 }

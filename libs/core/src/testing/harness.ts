@@ -1,20 +1,21 @@
+import { inMemoryActuals } from '@wbs/store-memory/actual-fixture';
+import { inMemoryCapacity } from '@wbs/store-memory/capacity-fixture';
+import { inMemoryCommandJournal } from '@wbs/store-memory/command-journal-fixture';
+import { inMemoryDependencies } from '@wbs/store-memory/dependency-fixture';
+import { inMemoryDirectory } from '@wbs/store-memory/directory-fixture';
+import { inMemoryEstimates } from '@wbs/store-memory/estimate-fixture';
+import { inMemoryMeasures } from '@wbs/store-memory/measure-fixture';
+import { inMemoryWorkItems } from '@wbs/store-memory/memory-work-item-fixture';
+import { inMemoryPriorityBands } from '@wbs/store-memory/priority-band-fixture';
+import { inMemoryProgress } from '@wbs/store-memory/progress-fixture';
+import { inMemoryProjects } from '@wbs/store-memory/project-fixture';
+import { inMemorySubtrees } from '@wbs/store-memory/subtree-fixture';
+
 import type { WorkItemServiceOptions } from '../service/work-item.service';
-import { inMemoryActuals } from './actual-fixture';
 import { AvailableWorkItemService } from './available-work-item-service';
 import { type RecordingBroadcaster, recordingBroadcaster } from './broadcast-fixture';
-import { inMemoryCapacity } from './capacity-fixture';
 import { testClock } from './clock-fixture';
-import { inMemoryCommandJournal } from './command-journal-fixture';
-import { inMemoryDependencies } from './dependency-fixture';
-import { inMemoryDirectory } from './directory-fixture';
-import { inMemoryEstimates } from './estimate-fixture';
-import { inMemoryMeasures } from './measure-fixture';
-import { inMemoryWorkItems } from './memory-work-item-fixture';
-import { inMemoryPriorityBands } from './priority-band-fixture';
-import { inMemoryProgress } from './progress-fixture';
-import { inMemoryProjects } from './project-fixture';
 import { fastScheduler } from './scheduler-fixture';
-import { inMemorySubtrees } from './subtree-fixture';
 
 /**
  * A {@link WorkItemService} over in-memory stores, **with the stores.**

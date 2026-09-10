@@ -1,13 +1,11 @@
+import { inMemoryCalendarMarkers } from '@wbs/store-memory/calendar-marker-fixture';
+import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
+import { testCalendarMarkerService } from '@wbs/store-memory/testing/service-fixtures';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, ProjectStore } from '../ports/project-store';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
-import {
-  inMemoryCalendarMarkers,
-  testCalendarMarkerService,
-} from '../testing/calendar-marker-fixture';
 import { inMemoryServices } from '../testing/harness';
-import { inMemoryProjects, projectRow } from '../testing/project-fixture';
 import { AnnouncementCollector, type ProjectEvent } from './broadcast';
 import type { CalendarMarkerService } from './calendar-marker.service';
 import type { WorkItemService } from './work-item.service';

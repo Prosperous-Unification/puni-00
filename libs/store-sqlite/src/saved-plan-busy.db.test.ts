@@ -4,8 +4,8 @@ import { join } from 'node:path';
 
 import type { WriteStamp } from '@wbs/core';
 import { SavedPlanService } from '@wbs/core';
-import { projectRow } from '@wbs/core/testing/project-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
+import { projectRow } from '@wbs/store-memory/project-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CapacityRepository } from './capacity';

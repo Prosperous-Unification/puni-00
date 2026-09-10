@@ -1,1 +1,2 @@
-export * from '@wbs/core/testing/replay-fixture';
+export * from '@wbs/store-memory/replay-fixture';
+export { testReplay } from '@wbs/store-memory/testing/service-fixtures';

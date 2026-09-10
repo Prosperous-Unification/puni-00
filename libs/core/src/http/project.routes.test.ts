@@ -1,8 +1,10 @@
+import {
+  testProjectService,
+  testWorkItemService,
+} from '@wbs/store-memory/testing/service-fixtures';
 import { expect, spyOn, test } from 'bun:test';
 
 import type { AuthenticatedUser } from '../service/auth.service';
-import { testWorkItemService } from '../testing/memory-work-item-fixture';
-import { testProjectService } from '../testing/project-fixture';
 import { EMPTY } from './endpoint';
 import { projectRoutes } from './project.routes';
 

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import type { NewProject, Project, Step, WriteStamp } from '@wbs/core';
 import { STEP_POSITION_STEP } from '@wbs/core';
-import { projectRow } from '@wbs/core/testing/project-fixture';
+import { projectRow } from '@wbs/store-memory/project-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { messagesOf } from './constraint';

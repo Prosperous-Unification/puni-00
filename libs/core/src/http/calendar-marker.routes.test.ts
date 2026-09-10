@@ -1,11 +1,11 @@
 import { automaticColor } from '@wbs/domain';
+import { inMemoryCalendarMarkers } from '@wbs/store-memory/calendar-marker-fixture';
+import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
 import { CalendarMarkerService } from '../service/calendar-marker.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { inMemoryCalendarMarkers } from '../testing/calendar-marker-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { inMemoryProjects, projectRow } from '../testing/project-fixture';
 import { calendarMarkerRoutes } from './calendar-marker.routes';
 import { EMPTY } from './endpoint';
 

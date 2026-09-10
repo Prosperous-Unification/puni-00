@@ -1,2 +1,2 @@
 /** Compatibility reexport while test sources migrate to their adapter projects. */
-export * from '@wbs/core/testing/command-journal-fixture';
+export * from '@wbs/store-memory/command-journal-fixture';

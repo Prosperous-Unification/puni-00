@@ -1,2 +1,2 @@
 /** Compatibility reexport while test sources migrate to their adapter projects. */
-export * from '@wbs/core/testing/dependency-fixture';
+export * from '@wbs/store-memory/dependency-fixture';

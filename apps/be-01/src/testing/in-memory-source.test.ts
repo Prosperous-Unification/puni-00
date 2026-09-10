@@ -1,8 +1,13 @@
+import { openMemorySource } from '@wbs/store-memory';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
-import { inMemoryStores, NOT_OFFERED_BY_MEMORY } from './in-memory-source';
+import { NOT_OFFERED_BY_MEMORY } from './in-memory-source';
 import { sourceConformance, type SourceUnderTest } from './kits/source-conformance';
+import { unitOfWorkConformance } from './kits/unit-of-work-conformance';
 import { projectRow } from './project-fixture';
+
+// Proof: throwing from this source kit's app barrel invalidated a confirmed
+// store-memory:test cache hit and failed on the injected barrel diagnostic.
 
 /**
  * The in-memory source under the same kits the SQLite one runs, and its
@@ -13,6 +18,7 @@ import { projectRow } from './project-fixture';
  * by name, and counted here.
  */
 let latest: SourceUnderTest | null = null;
+let latestSource: ReturnType<typeof openMemorySource> | null = null;
 
 const open = (): SourceUnderTest => {
   const held = latest;
@@ -24,7 +30,8 @@ const projectId = 'p1';
 const stepId = 'st-1';
 
 beforeEach(async () => {
-  const stores = inMemoryStores();
+  const source = openMemorySource();
+  const { stores } = source;
   const ownerId = crypto.randomUUID();
   const stamp = { at: 1, by: ownerId };
   await stores.users.create(
@@ -38,6 +45,22 @@ beforeEach(async () => {
   );
   await stores.steps.add({ id: stepId, projectId, name: 'Dev' }, stamp);
   latest = { stores, projectId, ownerId, stamp, stepId };
+  latestSource = source;
+});
+
+describe('the in-memory unit of work', () => {
+  unitOfWorkConformance(() => {
+    const source = latestSource;
+    const fixture = latest;
+    if (source === null || fixture === null)
+      throw new Error('the source was read before it opened');
+    return {
+      uow: source.uow,
+      reader: source.stores,
+      projectId: fixture.projectId,
+      stamp: fixture.stamp,
+    };
+  });
 });
 
 const report = sourceConformance({ name: 'in-memory', notOffered: NOT_OFFERED_BY_MEMORY }, open);

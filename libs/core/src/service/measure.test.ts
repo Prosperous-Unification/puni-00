@@ -1,3 +1,5 @@
+import { inMemoryCommandJournal } from '@wbs/store-memory/command-journal-fixture';
+import { projectRow } from '@wbs/store-memory/project-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
@@ -8,9 +10,7 @@ import type {
   StoredMeasure,
 } from '../index';
 import type { AvailableWorkItemService as WorkItemService } from '../testing/available-work-item-service';
-import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryServices } from '../testing/harness';
-import { projectRow } from '../testing/project-fixture';
 
 const OWNER = 'owner-account';
 const OTHER = 'somebody-else';

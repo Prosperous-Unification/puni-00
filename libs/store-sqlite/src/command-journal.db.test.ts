@@ -9,7 +9,7 @@ import {
   type Project,
   type WriteStamp,
 } from '@wbs/core';
-import { projectRow } from '@wbs/core/testing/project-fixture';
+import { projectRow } from '@wbs/store-memory/project-fixture';
 import type { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 

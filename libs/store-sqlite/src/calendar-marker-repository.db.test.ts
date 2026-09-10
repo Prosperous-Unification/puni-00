@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { CalendarMarker, WriteStamp } from '@wbs/core';
-import { projectRow } from '@wbs/core/testing/project-fixture';
 import { automaticColor } from '@wbs/domain';
+import { projectRow } from '@wbs/store-memory/project-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { CalendarMarkerRepository } from './calendar-marker';

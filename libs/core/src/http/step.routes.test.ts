@@ -1,10 +1,10 @@
+import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture';
+import { inMemorySteps, stepRow } from '@wbs/store-memory/step-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
 import { StepService } from '../service/step.service';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { inMemoryProjects, projectRow } from '../testing/project-fixture';
-import { inMemorySteps, stepRow } from '../testing/step-fixture';
 import { EMPTY } from './endpoint';
 import { stepRoutes } from './step.routes';
 
@@ -23,15 +23,17 @@ async function fixture(restricted = false) {
     stepRow({ id: 'other', projectId: 'project', name: 'QA', position: 20 }),
     stepRow({ id: 'foreign', projectId: 'elsewhere', name: 'Foreign' }),
   ]);
+  const addWrite = spyOn(stored, 'add');
   const broadcast = recordingBroadcaster();
   const service = new StepService({ clock: testClock, projects, steps: stored, broadcast });
-  return { projects, stored, broadcast, service, endpoints: stepRoutes(service) };
+  return { projects, stored, addWrite, broadcast, service, endpoints: stepRoutes(service) };
 }
 
 test('typed step bindings preserve the service value, actor and trimmed name', async () => {
   const {
     endpoints: [add, rename],
     stored,
+    addWrite,
     broadcast,
   } = await fixture();
   const added = await add.handle({
@@ -46,7 +48,10 @@ test('typed step bindings preserve the service value, actor and trimmed name', a
   expect(added.status).toBe(200);
   expect(added.body.step.name).toBe('Build');
   expect(await stored.findById(added.body.step.id)).toEqual(added.body.step);
-  expect(stored.stampsSeen.at(-1)?.by).toBe('owner');
+  expect(addWrite).toHaveBeenLastCalledWith(
+    expect.objectContaining({ name: 'Build' }),
+    expect.objectContaining({ by: 'owner' }),
+  );
   const renamed = await rename.handle({
     params: { id: 'project', stepId: 'step' },
     query: undefined,

@@ -18,22 +18,28 @@ Re-run 2026-09-08 against `main` @ `5bb095a5`, over the file set this change dec
 
 ## Failure-proof table
 
-| Check                                      | Fault injected                                                             | Test that observed it        | Observed                                                                         |
-| ------------------------------------------ | -------------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------- |
-| Every project declares one ring            | a project's `ring:` tag removed                                            |                              |                                                                                  |
-| A project cannot declare two               | a second `ring:` tag added                                                 |                              |                                                                                  |
-| The application ring imports no adapter    | `@wbs/store-sqlite` imported from a `libs/core` production file            |                              |                                                                                  |
-| The exemption stops at the production file | the same import moved out of `compose.test.ts` and into the file beside it |                              |                                                                                  |
-| Core reaches for no driver                 | `drizzle-orm` imported, and `Bun` referenced, in a core production file    |                              |                                                                                  |
-| Domain reaches for no node built-in        | `node:crypto` imported in `libs/domain`                                    |                              |                                                                                  |
-| The relocated `bun:sqlite` ban still bites | `new Database()` outside `store-sqlite/db.ts`                              | `store-sqlite:lint`          | `direct-open-probe.ts:1:1`: restricted import; open through `store-sqlite/db.ts` |
-| The typecheck target compiles something    | `const deliberatelyWrong: number = 'not a number'` in each new lib         |                              |                                                                                  |
-| The composition runs without an adapter    | (the proof itself: core over the memory source, no HTTP, SQLite or Bun)    |                              |                                                                                  |
-| Project discovery reaches nested projects  | recursive descent replaced with `continue`                                 | `workspace-projects.test.ts` | expected outer/protocol; received `[]`                                           |
-| Manifest axes and targets are required     | axis loop and nonempty-target guard removed                                | `workspace-projects.test.ts` | `readProjects unexpectedly succeeded`                                            |
-| Duplicate project names are refused        | duplicate-name branch removed                                              | `workspace-projects.test.ts` | `readProjects unexpectedly succeeded`                                            |
-| Unreadable state is not absence            | unreadable directory and manifest treated as empty/absent                  | `workspace-projects.test.ts` | both reported `readProjects unexpectedly succeeded`                              |
-| Project symlinks are refused               | symlink rejection skipped                                                  | `workspace-projects.test.ts` | `readProjects unexpectedly succeeded`                                            |
+| Check                                      | Fault injected                                                             | Test that observed it        | Observed                                                                           |
+| ------------------------------------------ | -------------------------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------- |
+| Every project declares one ring            | a project's `ring:` tag removed                                            |                              |                                                                                    |
+| A project cannot declare two               | a second `ring:` tag added                                                 |                              |                                                                                    |
+| The application ring imports no adapter    | `@wbs/store-sqlite` imported from a `libs/core` production file            |                              |                                                                                    |
+| The exemption stops at the production file | the same import moved out of `compose.test.ts` and into the file beside it |                              |                                                                                    |
+| Core reaches for no driver                 | `drizzle-orm` imported, and `Bun` referenced, in a core production file    |                              |                                                                                    |
+| Domain reaches for no node built-in        | `node:crypto` imported in `libs/domain`                                    |                              |                                                                                    |
+| The relocated `bun:sqlite` ban still bites | `new Database()` outside `store-sqlite/db.ts`                              | `store-sqlite:lint`          | `direct-open-probe.ts:1:1`: restricted import; open through `store-sqlite/db.ts`   |
+| The typecheck target compiles something    | `const deliberatelyWrong: number = 'not a number'` in each new lib         |                              |                                                                                    |
+| The composition runs without an adapter    | (the proof itself: core over the memory source, no HTTP, SQLite or Bun)    |                              |                                                                                    |
+| Project discovery reaches nested projects  | recursive descent replaced with `continue`                                 | `workspace-projects.test.ts` | expected outer/protocol; received `[]`                                             |
+| Manifest axes and targets are required     | axis loop and nonempty-target guard removed                                | `workspace-projects.test.ts` | `readProjects unexpectedly succeeded`                                              |
+| Duplicate project names are refused        | duplicate-name branch removed                                              | `workspace-projects.test.ts` | `readProjects unexpectedly succeeded`                                              |
+| Unreadable state is not absence            | unreadable directory and manifest treated as empty/absent                  | `workspace-projects.test.ts` | both reported `readProjects unexpectedly succeeded`                                |
+| Project symlinks are refused               | symlink rejection skipped                                                  | `workspace-projects.test.ts` | `readProjects unexpectedly succeeded`                                              |
+| Memory history survives a staged commit    | replace independent history with the committed staged state                | `memory-source.test.ts`      | saved input was `undefined`; `toContain` rejected the non-array/non-string value   |
+| Memory reads detach stored values          | return a stored project-step array directly                                | `memory-source.test.ts`      | expected `Dev`; received `Caller mutation`                                         |
+| Memory dependencies have one table         | construct subtrees over a second dependency fixture                        | `memory-source.test.ts`      | expected the committed dependency; received `[]`                                   |
+| Admitted stores do not retake their gate   | gate the stores already admitted inside a held batch                       | `memory-source.test.ts`      | expected `applied`; received `timed-out`                                           |
+| A rollback discards its staged graph       | reuse the refused staged state for the next batch                          | `memory-source.test.ts`      | expected no refused step; received `["Refused only"]`                              |
+| Capture is independent of the command gate | take the command coordinator while production `SavedPlanService.save` runs | `memory-source.test.ts`      | expected not `timed-out`; received `timed-out`, then cleanup drained both promises |
 
 ## Slice 1 — the rings
 
@@ -558,6 +564,57 @@ intentional Docker/Linux skips, and 2 failures because the sandbox denied the
 Unix listener sockets (`EADDRINUSE`). Those two environment-sensitive listener
 cases do not exercise the migration commands. A permitted rerun and the final
 whole-workspace gate remain outstanding.
+
+## Slice 3.3 — one staged memory source
+
+Verified 2026-09-10. `libs/store-memory` is discovered as an isomorphic adapter
+with lint, typecheck, and test targets. Its `MemoryState` owns only cloneable table
+values; recording counters live outside production. Each command act receives a
+fresh staged graph, and commit copies staged tables into the stable committed state
+observed by public store closures. One catalog-level boundary detaches returns from
+all 17 explicit stores for both public and admitted graphs. Public writes serialize
+behind command acts while admitted scope stores use their held turn. Saved-plan
+history and capture remain independent: capture clones committed state at entry,
+and a production `SavedPlanService.save` completes while a batch is held and
+survives both commit and rollback. A second, independent coordinator holds saved-plan
+quota calculation, its awaited check, and the history write in one turn.
+
+| Command                                                       | Observed                                                                       |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `nx run store-memory:test --skip-nx-cache`                    | 28 pass, 1 declared estimate capability skip, 0 fail, 196 assertions           |
+| `nx run store-memory:lint --skip-nx-cache`                    | clean                                                                          |
+| `nx run store-memory:typecheck --skip-nx-cache`               | source and spec projects compile clean                                         |
+| source-conformance and unit-of-work reports                   | 11 named source cases ran, 1 declared skip; all 6 named unit-of-work cases ran |
+| `nx run-many -t lint typecheck -p core be-01 --skip-nx-cache` | all four affected consumer targets clean                                       |
+| `nx run core:test --skip-nx-cache`                            | 390 pass, 0 fail, 1,382 assertions                                             |
+
+Sixty-four non-adapter consumer, test, and compatibility files now import the
+memory fixtures from their owning project. Nx represents production and tests in
+one graph, so the boundary rule ignores only the `core`/`store-memory` circular
+pair needed for core's tests to execute its ports over the adapter. The ring rule
+still rejects adapter imports from core production files.
+
+The original six injected faults and their observed diagnostics remain beside
+their assertions. The capture deadlock branch
+releases the held batch and awaits both promises before reporting its bounded
+failure, so the negative cannot leak pending work into another case. The source
+allowlist contains only `estimates.set:unknown_step`. The four composition cases
+mentioned by task 3.3 are not the source-conformance store families and are not
+claimed here; task 4.2 remains unchecked. SQLite's immediate-busy test remains in
+`store-sqlite` and was not represented as an interleaved success here.
+
+| Check                                                                    | Injected fault                                                                                                          | Observed                                                                                      |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Every explicit memory binding detaches returned state                    | Bypass the one catalog detacher while the 17-key public/admitted inventory and mutation matrix run                      | Both boundary cases reread user id `reader:caller-mutation` instead of `reader`               |
+| Saved-plan quota is atomic independently of command batches              | Bypass the history coordinator around holding/check/set                                                                 | Competing production saves returned `["saved", "saved"]` instead of `["refused", "saved"]`    |
+| The external source-kit import chain invalidates the memory target cache | Warm to a confirmed local cache hit, then throw from the app source-conformance barrel and repeat the identical command | Nx reran instead of reading cache and surfaced `injected app source-conformance barrel fault` |
+
+The restricted root `bun run test:unit` run reached 502 pass and one intentional
+skip before its sole failure: `app.routes.test.ts` could not bind
+`Bun.serve({ port: 0 })` and reported `EADDRINUSE`. The isolated case reproduced
+the same sandbox failure. A permitted rerun passed 503 backend cases with the one
+declared memory-source capability skip and 0 failures, then passed all seven
+library targets.
 
 ## Gate
 

@@ -3,18 +3,12 @@ import type {
   DirectoryStore,
   DirectoryUsageRows,
   Person,
-  PersonAdded,
   PersonWithTeams,
   Service,
   ServiceTeam,
   Tag,
   WorkItemType,
-  WriteStamp,
-} from '../index';
-import type { Broadcaster } from '../service/broadcast';
-import { DirectoryService } from '../service/directory.service';
-import { recordingBroadcaster } from './broadcast-fixture';
-import { testClock } from './clock-fixture';
+} from '@wbs/core';
 
 /** The empty usage, both halves present — what this fixture can honestly say. */
 const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
@@ -63,27 +57,43 @@ export function directoryWith(
   });
 }
 
+export interface MemoryDirectoryTables {
+  readonly teams: Map<string, ServiceTeam>;
+  readonly tags: Map<string, Tag>;
+  readonly services: Map<string, Service>;
+  readonly workItemTypes: Map<string, WorkItemType>;
+  readonly people: Map<string, Person>;
+  readonly memberships: Map<string, Set<string>>;
+  readonly owned: Map<string, Set<string>>;
+  readonly assignments: Map<string, Assignment>;
+}
+
+export function memoryDirectoryTables(): MemoryDirectoryTables {
+  return {
+    teams: new Map(),
+    tags: new Map(),
+    services: new Map(),
+    workItemTypes: new Map(),
+    people: new Map(),
+    memberships: new Map(),
+    owned: new Map(),
+    assignments: new Map(),
+  };
+}
+
 export function inMemoryDirectory(
   readProject?: (projectId: string) => Promise<readonly { id: string }[]>,
-): DirectoryStore & { stampsSeen: WriteStamp[] } {
-  const teams = new Map<string, ServiceTeam>();
-  const tags = new Map<string, Tag>();
-  const services = new Map<string, Service>();
-  const workItemTypes = new Map<string, WorkItemType>();
-  const people = new Map<string, Person>();
-  const memberships = new Map<string, Set<string>>();
+  tables: MemoryDirectoryTables = memoryDirectoryTables(),
+): DirectoryStore {
+  const { teams, tags, services, workItemTypes, people, memberships, owned, assignments } = tables;
   /** The ownership map, by team — `memberships`' shape, one dimension over. */
-  const owned = new Map<string, Set<string>>();
-  const assignments = new Map<string, Assignment>();
   const key = (workItemId: string, stepId: string) => `${workItemId}::${stepId}`;
   /**
    * Every stamp this store was handed, in call order, so a service test can
    * assert who wrote and when without a database to read audit columns from.
    */
-  const stampsSeen: WriteStamp[] = [];
 
   return {
-    stampsSeen,
     listTeams: () =>
       Promise.resolve(
         [...teams.values()]
@@ -96,15 +106,13 @@ export function inMemoryDirectory(
     // dimension has no cascade here and cannot: an in-memory store models no
     // foreign keys, which is exactly why the tag write path's own tests run
     // against real SQLite instead of this.
-    addTag(toAdd, stamp) {
-      stampsSeen.push(stamp);
+    addTag(toAdd, _stamp) {
       const already = [...tags.values()].find((each) => each.name === toAdd.name);
       if (already !== undefined) return Promise.resolve(already);
       tags.set(toAdd.id, toAdd);
       return Promise.resolve(toAdd);
     },
-    renameTag(tagId, name, stamp) {
-      stampsSeen.push(stamp);
+    renameTag(tagId, name, _stamp) {
       const found = tags.get(tagId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       // The unique index, modelled, for `renameTeam`'s reason: a fixture that
@@ -143,8 +151,7 @@ export function inMemoryDirectory(
         { id: 'sys-confluence-page', name: 'confluence-page' },
         { id: 'sys-slack-message', name: 'slack-message' },
       ]),
-    removeTag(tagId, cascade, stamp) {
-      stampsSeen.push(stamp);
+    removeTag(tagId, _cascade, _stamp) {
       const found = tags.get(tagId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       tags.delete(tagId);
@@ -155,15 +162,13 @@ export function inMemoryDirectory(
     // `addTag`'s shape and its caveat: idempotent by name as the repository is at
     // its unique index, with no cascade, because an in-memory store models no
     // foreign keys. The type write path's own tests run against real SQLite.
-    addWorkItemType(toAdd, stamp) {
-      stampsSeen.push(stamp);
+    addWorkItemType(toAdd, _stamp) {
       const already = [...workItemTypes.values()].find((each) => each.name === toAdd.name);
       if (already !== undefined) return Promise.resolve(already);
       workItemTypes.set(toAdd.id, toAdd);
       return Promise.resolve(toAdd);
     },
-    renameWorkItemType(typeId, name, stamp) {
-      stampsSeen.push(stamp);
+    renameWorkItemType(typeId, name, _stamp) {
       const found = workItemTypes.get(typeId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       // The unique index, modelled, for `renameTag`'s reason: a fixture that let
@@ -189,8 +194,7 @@ export function inMemoryDirectory(
         members: [],
         capacityOf: new Map<string, number>(),
       }),
-    removeWorkItemType(typeId, cascade, stamp) {
-      stampsSeen.push(stamp);
+    removeWorkItemType(typeId, _cascade, _stamp) {
       const found = workItemTypes.get(typeId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       workItemTypes.delete(typeId);
@@ -200,15 +204,13 @@ export function inMemoryDirectory(
       Promise.resolve([...services.values()].sort((a, b) => a.name.localeCompare(b.name))),
     // Idempotent by name, as the repository is at its unique index — `addTag`'s
     // rule and its reason.
-    addService(toAdd, stamp) {
-      stampsSeen.push(stamp);
+    addService(toAdd, _stamp) {
       const already = [...services.values()].find((each) => each.name === toAdd.name);
       if (already !== undefined) return Promise.resolve(already);
       services.set(toAdd.id, toAdd);
       return Promise.resolve(toAdd);
     },
-    renameService(serviceId, name, stamp) {
-      stampsSeen.push(stamp);
+    renameService(serviceId, name, _stamp) {
       const found = services.get(serviceId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       const held = [...services.values()].some(
@@ -225,21 +227,18 @@ export function inMemoryDirectory(
     // Every behavioural claim about removing a service is asserted against real
     // SQLite in `service/directory.service.test.ts`.
     usageOfService: () => Promise.resolve(NOTHING_POINTS_AT_IT),
-    removeService(serviceId, cascade, stamp) {
-      stampsSeen.push(stamp);
+    removeService(serviceId, _cascade, _stamp) {
       if (!services.has(serviceId)) return Promise.resolve({ ok: false, reason: 'not_found' });
       services.delete(serviceId);
       return Promise.resolve({ ok: true, removal: { workItemIds: [], projectIds: [] } });
     },
-    addTeam(team, stamp) {
-      stampsSeen.push(stamp);
+    addTeam(team, _stamp) {
       const already = [...teams.values()].find((each) => each.name === team.name);
       if (already !== undefined) return Promise.resolve(already);
       teams.set(team.id, team);
       return Promise.resolve(team);
     },
-    patchTeam(teamId, patch, stamp) {
-      stampsSeen.push(stamp);
+    patchTeam(teamId, patch, _stamp) {
       const found = teams.get(teamId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       // The unique index, modelled: a fixture that let two `Platform`s exist
@@ -278,8 +277,7 @@ export function inMemoryDirectory(
             teamIds: [...(memberships.get(each.id) ?? [])],
           })),
       ),
-    addPerson(toAdd, teamIds, stamp) {
-      stampsSeen.push(stamp);
+    addPerson(toAdd, teamIds, _stamp) {
       // The teams are checked before anything is written, as production checks
       // them inside the create's own transaction: `person_team` has a foreign
       // key, so a fixture that wrote a dead membership would be laxer than the
@@ -300,8 +298,7 @@ export function inMemoryDirectory(
       }
       return Promise.resolve({ ok: true, person: kept });
     },
-    patchPerson(personId, patch, stamp) {
-      stampsSeen.push(stamp);
+    patchPerson(personId, patch, _stamp) {
       const found = people.get(personId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       const wanted = patch.teamIds === undefined ? null : [...new Set(patch.teamIds)];
@@ -348,8 +345,7 @@ export function inMemoryDirectory(
         ...NOTHING_POINTS_AT_IT,
         members: [...people.values()].filter((each) => memberships.get(each.id)?.has(teamId)),
       }),
-    removePerson(personId, cascade, stamp) {
-      stampsSeen.push(stamp);
+    removePerson(personId, _cascade, _stamp) {
       if (!people.has(personId)) return Promise.resolve({ ok: false, reason: 'not_found' });
       const held = [...assignments.values()].filter((each) => each.personId === personId);
       for (const each of held) assignments.delete(key(each.workItemId, each.stepId));
@@ -360,8 +356,7 @@ export function inMemoryDirectory(
         removal: { workItemIds: held.map((each) => each.workItemId), projectIds: [] },
       });
     },
-    removeTeam(teamId, cascade, stamp) {
-      stampsSeen.push(stamp);
+    removeTeam(teamId, _cascade, _stamp) {
       if (!teams.has(teamId)) return Promise.resolve({ ok: false, reason: 'not_found' });
       for (const held of memberships.values()) held.delete(teamId);
       teams.delete(teamId);
@@ -393,8 +388,7 @@ export function inMemoryDirectory(
       const wanted = new Set(workItemIds);
       return Promise.resolve([...assignments.values()].filter((a) => wanted.has(a.workItemId)));
     },
-    assign(workItemId, stepId, personId, stamp) {
-      stampsSeen.push(stamp);
+    assign(workItemId, stepId, personId, _stamp) {
       // The person is checked here because production checks it inside the
       // write's own transaction: a fixture that wrote an assignment naming
       // nobody would let a caller's `unknown_person` branch pass untested.
@@ -406,25 +400,4 @@ export function inMemoryDirectory(
       return Promise.resolve({ ok: true });
     },
   };
-}
-
-/** A DirectoryService over the in-memory store, for tests that only need `buildApp` to construct. */
-export function testDirectoryService(
-  directory: DirectoryStore = inMemoryDirectory(),
-  broadcast: Broadcaster = recordingBroadcaster(),
-) {
-  return new DirectoryService({ clock: testClock, directory, broadcast });
-}
-
-/**
- * The person a create made, or a throw.
- *
- * For test setup only: a fixture whose own `addPerson` was refused has not
- * produced a test result, and carrying on would assert against a directory
- * that is missing the row the test is about.
- */
-export async function personAdded(added: Promise<PersonAdded>): Promise<Person> {
-  const written = await added;
-  if (!written.ok) throw new Error(`the fixture person was refused: ${written.reason}`);
-  return written.person;
 }

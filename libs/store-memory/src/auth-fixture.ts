@@ -1,4 +1,4 @@
-import type { OidcIdentityStore, User, UserStore, WriteStamp } from '../index';
+import type { OidcIdentityStore, User, UserStore } from '@wbs/core';
 
 /**
  * A UserStore backed by a Map, for tests that need `buildApp` to be
@@ -6,17 +6,24 @@ import type { OidcIdentityStore, User, UserStore, WriteStamp } from '../index';
  * SQLite index does — a fixture that accepts duplicate usernames would let a
  * registration test pass against behaviour production does not have.
  */
-export function inMemoryUsers(): UserStore & OidcIdentityStore & { stampsSeen: WriteStamp[] } {
-  const byId = new Map<string, User>();
+export interface MemoryUserTable {
+  readonly byId: Map<string, User>;
+}
+
+export function memoryUserTable(): MemoryUserTable {
+  return { byId: new Map() };
+}
+
+export function inMemoryUsers(
+  table: MemoryUserTable = memoryUserTable(),
+): UserStore & OidcIdentityStore {
+  const { byId } = table;
   /**
    * Every stamp this store was handed, in call order, so a service test can
    * assert who wrote and when without a database to read audit columns from.
    */
-  const stampsSeen: WriteStamp[] = [];
   return {
-    stampsSeen,
-    create(user, stamp) {
-      stampsSeen.push(stamp);
+    create(user, _stamp) {
       for (const existing of byId.values()) {
         if (existing.username === user.username) return Promise.resolve(null);
       }
@@ -33,7 +40,6 @@ export function inMemoryUsers(): UserStore & OidcIdentityStore & { stampsSeen: W
       return Promise.resolve(byId.get(id) ?? null);
     },
     resolveOidcIdentity(identity, create, stamp) {
-      stampsSeen.push(stamp);
       for (const user of byId.values()) {
         if (user.idpIssuer === identity.issuer && user.idpSub === identity.subject) {
           return Promise.resolve(user);

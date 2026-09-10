@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Project, Step, WorkItem, WriteStamp } from '@wbs/core';
-import { personAdded } from '@wbs/core/testing/directory-fixture';
-import { projectRow } from '@wbs/core/testing/project-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
+import { projectRow } from '@wbs/store-memory/project-fixture';
+import { personAdded } from '@wbs/store-memory/testing/service-fixtures';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { eq } from 'drizzle-orm';
 

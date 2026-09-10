@@ -1,3 +1,13 @@
+import {
+  testCalendarMarkerService,
+  testCapacityService,
+  testDirectoryService,
+  testPriorityBandService,
+  testProjectService,
+  testStepService,
+  testWorkItemService,
+} from '@wbs/store-memory/testing/service-fixtures';
+
 import type { TransactionalStores } from '../ports/stores';
 import type { Scope, UnitOfWork } from '../ports/unit-of-work';
 import type { Broadcaster } from '../service/broadcast';
@@ -5,14 +15,7 @@ import type { CalendarMarkerService } from '../service/calendar-marker.service';
 import type { PlanCommandServices } from '../service/plan-commands';
 import type { ProjectService } from '../service/project.service';
 import type { StepService } from '../service/step.service';
-import { testCalendarMarkerService } from './calendar-marker-fixture';
-import { testCapacityService } from './capacity-fixture';
-import { testDirectoryService } from './directory-fixture';
 import type { InMemoryPlan } from './harness';
-import { testWorkItemService } from './memory-work-item-fixture';
-import { testPriorityBandService } from './priority-band-fixture';
-import { testProjectService } from './project-fixture';
-import { testStepService } from './step-fixture';
 
 export interface WritingServices extends PlanCommandServices {
   projects: ProjectService;

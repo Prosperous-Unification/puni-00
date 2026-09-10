@@ -1,12 +1,5 @@
+import type { Step, StepRemoved, StepStore, StepUsageRows } from '@wbs/core';
 import { STEP_POSITION_STEP } from '@wbs/domain';
-
-import type { ProjectStore } from '../ports/project-store';
-import type { Step, StepRemoved, StepStore, StepUsageRows } from '../ports/step-store';
-import type { WriteStamp } from '../ports/write-stamp';
-import { StepService } from '../service/step.service';
-import { recordingBroadcaster } from './broadcast-fixture';
-import { testClock } from './clock-fixture';
-import { inMemoryProjects } from './project-fixture';
 
 /**
  * A `Step` row carrying every field the schema requires.
@@ -41,19 +34,25 @@ export function stepRow(overrides: Partial<Step> = {}): Step {
  * `service/step.service.test.ts` — the same call `subtree-fixture.ts` makes,
  * for the same reason.
  */
-export function inMemorySteps(seed: readonly Step[] = []): StepStore & {
+export interface MemoryStepTable {
   readonly rows: Step[];
-  stampsSeen: WriteStamp[];
-} {
-  const rows: Step[] = [...seed];
+}
+
+export function memoryStepTable(seed: readonly Step[] = []): MemoryStepTable {
+  return { rows: structuredClone([...seed]) };
+}
+
+export function inMemorySteps(
+  seed: readonly Step[] = [],
+  table: MemoryStepTable = memoryStepTable(seed),
+): StepStore & { readonly rows: Step[] } {
+  const { rows } = table;
   /**
    * Every stamp this store was handed, in call order, so a service test can
    * assert who wrote and when without a database to read audit columns from.
    */
-  const stampsSeen: WriteStamp[] = [];
   return {
     rows,
-    stampsSeen,
     listByProject(projectId) {
       // Sorted, because production is: without the `ORDER BY` SQLite answers
       // this from the name index, and a fixture that happened to return
@@ -68,8 +67,7 @@ export function inMemorySteps(seed: readonly Step[] = []): StepStore & {
     findById(stepId) {
       return Promise.resolve(rows.find((each) => each.id === stepId) ?? null);
     },
-    add(toAdd, stamp) {
-      stampsSeen.push(stamp);
+    add(toAdd, _stamp) {
       const held = rows.filter((each) => each.projectId === toAdd.projectId);
       if (held.some((each) => each.name === toAdd.name)) {
         return Promise.resolve({ ok: false, reason: 'taken' });
@@ -81,8 +79,7 @@ export function inMemorySteps(seed: readonly Step[] = []): StepStore & {
       rows.push(written);
       return Promise.resolve({ ok: true, step: written });
     },
-    rename(stepId, name, stamp) {
-      stampsSeen.push(stamp);
+    rename(stepId, name, _stamp) {
       const found = rows.find((each) => each.id === stepId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
       const taken = rows.some(
@@ -104,8 +101,7 @@ export function inMemorySteps(seed: readonly Step[] = []): StepStore & {
         assignments: [],
       });
     },
-    remove(projectId, stepId, cascade, stamp): Promise<StepRemoved> {
-      stampsSeen.push(stamp);
+    remove(projectId, stepId, _cascade, _stamp): Promise<StepRemoved> {
       const found = rows.findIndex((each) => each.id === stepId && each.projectId === projectId);
       // The one thing this can model of the real removal: a step that is not
       // this project's, or is already gone, is `not_found` and writes nothing.
@@ -128,12 +124,4 @@ export function inMemorySteps(seed: readonly Step[] = []): StepStore & {
       });
     },
   };
-}
-
-/** A StepService over the in-memory stores, for tests that only need `buildApp` to construct. */
-export function testStepService(
-  projects: ProjectStore = inMemoryProjects(),
-  steps: StepStore = inMemorySteps(),
-): StepService {
-  return new StepService({ clock: testClock, projects, steps, broadcast: recordingBroadcaster() });
 }

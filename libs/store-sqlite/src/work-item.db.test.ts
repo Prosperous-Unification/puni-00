@@ -4,9 +4,9 @@ import { join } from 'node:path';
 
 import type { SubtreeCopy, WorkItem, WriteStamp } from '@wbs/core';
 import { slicesOf } from '@wbs/core';
-import { personAdded } from '@wbs/core/testing/directory-fixture';
-import { projectRow } from '@wbs/core/testing/project-fixture';
 import { effectiveTeamsOf, type Schedule, schedule } from '@wbs/domain';
+import { projectRow } from '@wbs/store-memory/project-fixture';
+import { personAdded } from '@wbs/store-memory/testing/service-fixtures';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDatabase, openDrizzle } from './db';

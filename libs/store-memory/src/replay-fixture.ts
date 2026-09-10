@@ -1,6 +1,4 @@
-import type { EventLogStore, RecordedEvent } from '../ports/event-log-store';
-import { ReplayBuffer } from '../service/replay-buffer';
-import { ReplayOrchestrator } from '../service/replay-orchestrator';
+import type { EventLogStore, RecordedEvent } from '@wbs/core';
 
 /**
  * The event log in a Map, for tests whose subject is not SQLite.
@@ -9,11 +7,20 @@ import { ReplayOrchestrator } from '../service/replay-orchestrator';
  * stored rows, because that is what the real one does — `pruneBeyond` must not
  * move the stream backwards, and a length-based sequence would.
  */
-export function inMemoryEventLog(): EventLogStore & {
+export interface MemoryEventLogTables {
+  readonly rows: Map<string, RecordedEvent[]>;
+  readonly nextSeq: Map<string, number>;
+}
+export function memoryEventLogTables(): MemoryEventLogTables {
+  return { rows: new Map(), nextSeq: new Map() };
+}
+
+export function inMemoryEventLog(
+  tables: MemoryEventLogTables = memoryEventLogTables(),
+): EventLogStore & {
   record(subscription: string, message: unknown): Promise<RecordedEvent>;
 } {
-  const rows = new Map<string, RecordedEvent[]>();
-  const nextSeq = new Map<string, number>();
+  const { rows, nextSeq } = tables;
 
   const record = (subscription: string, message: unknown, createdAt: number): RecordedEvent => {
     const seq = nextSeq.get(subscription) ?? 0;
@@ -53,15 +60,4 @@ export function inMemoryEventLog(): EventLogStore & {
     ...repo,
     record: (subscription, message) => Promise.resolve(record(subscription, message, 1_000)),
   };
-}
-
-/** A replay orchestrator over an empty in-memory log, and the log behind it. */
-export function testReplay(maxEvents?: number) {
-  const log = inMemoryEventLog();
-  const buffer = new ReplayBuffer({
-    maxPerSubscription: 100,
-    maxAgeMs: 5 * 60_000,
-    now: () => 1_000,
-  });
-  return { log, buffer, replay: new ReplayOrchestrator({ log, buffer, maxEvents }) };
 }

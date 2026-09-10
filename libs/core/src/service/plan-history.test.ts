@@ -1,9 +1,9 @@
+import { inMemoryCommandJournal } from '@wbs/store-memory/command-journal-fixture';
+import { projectRow } from '@wbs/store-memory/project-fixture';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Project, ProjectStore } from '../ports/project-store';
-import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
 import { inMemoryServices } from '../testing/harness';
-import { projectRow } from '../testing/project-fixture';
 import type { Days } from './roll-up';
 import type { WorkItemService } from './work-item.service';
 

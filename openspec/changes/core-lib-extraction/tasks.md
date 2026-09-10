@@ -201,7 +201,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
       Up then down must still reproduce the prior schema. Do not apply migrations to a
       shared or deployed database for this check.
 
-- [ ] 3.3 **Promote one staged memory source (C6).** Create `libs/store-memory`, moving
+- [x] 3.3 **Promote one staged memory source (C6).** Create `libs/store-memory`, moving
       reusable fixtures and making `MemoryState` the single owner of transactional table
       values. Construct subtrees and public dependencies over the same dependency table.
       Implement `openMemorySource`, coordinator, fresh scope per act and independent

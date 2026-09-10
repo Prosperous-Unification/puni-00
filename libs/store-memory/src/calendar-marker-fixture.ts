@@ -1,14 +1,4 @@
-import type {
-  CalendarMarker,
-  CalendarMarkerStore,
-  CalendarMarkerWritten,
-  ProjectStore,
-} from '../index';
-import type { Clock } from '../ports/clock';
-import type { Broadcaster } from '../service/broadcast';
-import { CalendarMarkerService } from '../service/calendar-marker.service';
-import { testClock } from './clock-fixture';
-import { inMemoryProjects } from './project-fixture';
+import type { CalendarMarker, CalendarMarkerStore, CalendarMarkerWritten } from '@wbs/core';
 
 /**
  * A {@link CalendarMarkerStore} backed by a Map, for the callers that need
@@ -28,8 +18,20 @@ import { inMemoryProjects } from './project-fixture';
  * is asserted against real SQLite in
  * `repository/calendar-marker-repository.db.test.ts`.
  */
-export function inMemoryCalendarMarkers(seed: readonly CalendarMarker[] = []): CalendarMarkerStore {
-  const held = new Map<string, CalendarMarker>(seed.map((marker) => [marker.id, { ...marker }]));
+export interface MemoryCalendarMarkerTable {
+  readonly held: Map<string, CalendarMarker>;
+}
+export function memoryCalendarMarkerTable(
+  seed: readonly CalendarMarker[] = [],
+): MemoryCalendarMarkerTable {
+  return { held: new Map(seed.map((marker) => [marker.id, structuredClone(marker)])) };
+}
+
+export function inMemoryCalendarMarkers(
+  seed: readonly CalendarMarker[] = [],
+  table: MemoryCalendarMarkerTable = memoryCalendarMarkerTable(seed),
+): CalendarMarkerStore {
+  const { held } = table;
   const one = (projectId: string, id: string): CalendarMarker | undefined => {
     const found = held.get(id);
     return found?.projectId === projectId ? found : undefined;
@@ -77,23 +79,4 @@ export function inMemoryCalendarMarkers(seed: readonly CalendarMarker[] = []): C
       return Promise.resolve({ ok: true, marker: { ...found } });
     },
   };
-}
-
-/**
- * A CalendarMarkerService over the in-memory stores, for tests that only need
- * `buildApp` to construct.
- *
- * Required rather than optional in `AppOptions` for the reason every other
- * service there is: a process built without it answers 404 on every marker
- * route, which a client cannot tell from a project that has no markers — and
- * "none" is the answer for every project the day the table ships, so the
- * mistake would be invisible for a week.
- */
-export function testCalendarMarkerService(
-  projects: ProjectStore = inMemoryProjects(),
-  markers: CalendarMarkerStore = inMemoryCalendarMarkers(),
-  clock: Clock = testClock,
-  broadcast?: Broadcaster,
-): CalendarMarkerService {
-  return new CalendarMarkerService({ projects, markers, clock, broadcast });
 }

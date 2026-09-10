@@ -1,17 +1,7 @@
+import type { Project, ProjectStore, ProjectWithAccess, Step, UserStore } from '@wbs/core';
 import { DEFAULT_ESTIMATE_RULE } from '@wbs/domain';
 
-import type {
-  Project,
-  ProjectStore,
-  ProjectWithAccess,
-  Step,
-  UserStore,
-  WriteStamp,
-} from '../index';
-import { ProjectService } from '../service/project.service';
 import { inMemoryUsers } from './auth-fixture';
-import { recordingBroadcaster } from './broadcast-fixture';
-import { testClock } from './clock-fixture';
 
 /**
  * A `Project` row carrying every field the schema requires.
@@ -66,23 +56,29 @@ export function projectRow(overrides: Partial<Project> = {}): Project {
  * production's behaviour for an owner id naming no account and not an accident
  * to work around.
  */
+export interface MemoryProjectTables {
+  readonly projects: Map<string, Project>;
+  readonly steps: Map<string, Step[]>;
+  readonly opened: Map<string, number>;
+}
+
+export function memoryProjectTables(): MemoryProjectTables {
+  return { projects: new Map(), steps: new Map(), opened: new Map() };
+}
+
 export function inMemoryProjects(
   owners: UserStore = inMemoryUsers(),
-): ProjectStore & { stampsSeen: WriteStamp[] } {
-  const projects = new Map<string, Project>();
-  const steps = new Map<string, Step[]>();
+  tables: MemoryProjectTables = memoryProjectTables(),
+): ProjectStore {
+  const { projects, steps, opened } = tables;
   /** One moment per `userId::projectId`, exactly as the primary key holds it. */
-  const opened = new Map<string, number>();
   /**
    * Every stamp this store was handed, in call order, so a service test can
    * assert who wrote and when without a database to read audit columns from.
    */
-  const stampsSeen: WriteStamp[] = [];
 
   return {
-    stampsSeen,
-    create(project, starting, stamp) {
-      stampsSeen.push(stamp);
+    create(project, starting, _stamp) {
       const names = new Set(starting.map((r) => r.name));
       if (names.size !== starting.length) {
         return Promise.reject(new Error(`duplicate step name in ${project.id}`));
@@ -101,7 +97,8 @@ export function inMemoryProjects(
       return Promise.resolve(written);
     },
     findById(id) {
-      return Promise.resolve(projects.get(id) ?? null);
+      const found = projects.get(id);
+      return Promise.resolve(found === undefined ? null : structuredClone(found));
     },
     findBySolutionSlug(slug) {
       for (const project of projects.values()) {
@@ -110,7 +107,11 @@ export function inMemoryProjects(
       return Promise.resolve(null);
     },
     list() {
-      return Promise.resolve([...projects.values()].sort((a, b) => b.createdAt - a.createdAt));
+      return Promise.resolve(
+        [...projects.values()]
+          .map((project) => structuredClone(project))
+          .sort((a, b) => b.createdAt - a.createdAt),
+      );
     },
     async listFor(userId) {
       // Sorted the way SQLite's `ORDER BY last_opened_at DESC, created_at DESC`
@@ -141,14 +142,12 @@ export function inMemoryProjects(
       });
     },
     recordOpen(projectId, stamp) {
-      stampsSeen.push(stamp);
       // Both halves of the key come off the stamp: the account that opened the
       // project is the acting user, and the instant it opened is the act's.
       opened.set(`${stamp.by}::${projectId}`, stamp.at);
       return Promise.resolve();
     },
-    update(id, patch, stamp) {
-      stampsSeen.push(stamp);
+    update(id, patch, _stamp) {
       const existing = projects.get(id);
       if (existing === undefined) return Promise.resolve(null);
       const updated: Project = {
@@ -172,15 +171,10 @@ export function inMemoryProjects(
       // In step order, as production reads them — see `inMemorySteps` for what
       // an unordered read would let a test believe.
       return Promise.resolve(
-        [...(steps.get(projectId) ?? [])].sort(
-          (a, b) => a.position - b.position || (a.id < b.id ? -1 : 1),
-        ),
+        [...(steps.get(projectId) ?? [])]
+          .map((step) => structuredClone(step))
+          .sort((a, b) => a.position - b.position || (a.id < b.id ? -1 : 1)),
       );
     },
   };
-}
-
-/** A ProjectService over the in-memory store, for tests that only need `buildApp` to construct. */
-export function testProjectService(projects: ProjectStore = inMemoryProjects()): ProjectService {
-  return new ProjectService({ clock: testClock, projects, broadcast: recordingBroadcaster() });
 }

@@ -1,5 +1,5 @@
 import { buildOidcVerifier, type OidcIdentityOptions, type TokenVerifier } from '@wbs/auth';
-import { inMemoryUsers } from '@wbs/core/testing/auth-fixture';
+import { inMemoryUsers } from '@wbs/store-memory/auth-fixture';
 
 import type { OidcIdentityStore, UserStore } from '../repository';
 import { bunPasswordHasher, joseTokenCodec } from '../runtime/bun-runtime';
@@ -30,4 +30,4 @@ export function testAuthService(
   });
 }
 
-export { inMemoryUsers } from '@wbs/core/testing/auth-fixture';
+export { inMemoryUsers } from '@wbs/store-memory/auth-fixture';

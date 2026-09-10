@@ -49,6 +49,8 @@
       "@wbs/runtime-portable": ["./libs/runtime-portable/src/index.ts"],
       "@wbs/store-sqlite": ["./libs/store-sqlite/src/index.ts"],
       "@wbs/store-sqlite/*": ["./libs/store-sqlite/src/*"],
+      "@wbs/store-memory": ["./libs/store-memory/src/index.ts"],
+      "@wbs/store-memory/*": ["./libs/store-memory/src/*"],
       "@wbs/realtime": ["./libs/realtime/src/index.ts"],
       "@wbs/contracts/ws-frames": ["./libs/contracts/src/ws-frames.ts"],
       "@wbs/contracts/solver/optimized-result": [
