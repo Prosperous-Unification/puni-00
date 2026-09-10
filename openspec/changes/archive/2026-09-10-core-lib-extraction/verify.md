@@ -852,8 +852,11 @@ the proof named in the old comment also found that it had become vacuous: puttin
 the reading sentence inside the already fixed-width pill passed. The proof above
 breaks the production width boundary itself and fails at the assertion it names.
 
-Task 5.2 remains open only for the final committed SHA's complete h2puni gate.
-The last local changes after `1212c159` are the browser pin/proof, synced specs,
-ADR statuses and queue reconciliation; the browser, OpenSpec and pre-commit
-checks above cover those changes. Task 5.3 remains open until that exact-SHA
-result is recorded and the two completed changes are archived.
+The final frozen h2puni gate ran from a new detached worktree at exact pushed
+revision `c779ff9f432cd0e779071c3c77ffa27e8ac40ab1`. All 101 workspace lint,
+typecheck, test and build tasks passed uncached across 30 projects in 10m30s;
+`fe-01:test` was the 9m01s critical path. The subsequent real Docker
+`be-01:solver-image-smoke` passed 3 cases, 0 failed and 15 assertions in 1m32s.
+Together with the complete Chromium and exact-revision OpenSpec results above,
+this closes task 5.2. The accepted ADR statuses, synced main specs, queue entry,
+moved-test counts and explicit source-capability limit close task 5.3.
