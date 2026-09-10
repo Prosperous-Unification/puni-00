@@ -913,6 +913,128 @@ test.describe('the Name cell answers from its marker alone', () => {
     }
   });
 
+  test('is still there after a flick of the hand towards it', async ({ page }) => {
+    // Dany, 2026-09-10: _"make it available to switch cursor and hover over the
+    // md preview if moving cursor fast"_.
+    //
+    // The card hangs diagonally off its cell — past the column so the column
+    // can be run down, past the row so the row stays readable — so the hand
+    // reaching for it leaves the cell's subtree on the way, and the
+    // `mouseleave` that closes the card fires before the pointer lands.
+    //
+    // **In steps, and that is the whole test.** A single `mouse.move` lands
+    // straight on the card, which is a DOM child of the cell's wrapper, so no
+    // `mouseleave` ever fires and the card was never at risk — the teleport
+    // that R5 #23 is about, passing over the fault it is meant to catch. Every
+    // sample of a stepped move between the marker and the card lands outside
+    // the wrapper, which is the hand this is written for.
+    //
+    // Proof: {@link REACH_FOR_THE_CARD_MS} set to 0 in `cell-card-store.ts` —
+    // this failed on `the preview did not survive the reach · Expected: 1 ·
+    // Received: 0`. Watched in Chromium, 2026-09-10.
+    const name = page.getByLabel('Name of 010');
+    await name.fill('Row 010\n\nNotes long enough to be worth reaching for, twice over.');
+    await name.blur();
+    await page.mouse.move(0, 0);
+
+    await page.getByLabel('Notes on 010').hover();
+    const card = await boxOf(
+      page.getByRole('tooltip', { name: 'Notes for 010, rendered' }),
+      'the preview',
+    );
+    await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2, { steps: 12 });
+
+    // Read once, at the instant it is about: `toBeVisible` would wait for a
+    // card that is on its way out and pass on the frame before it goes (R5's
+    // auto-waiting matcher, `tool-hints-wait`).
+    expect(
+      await page.getByRole('tooltip', { name: 'Notes for 010, rendered' }).count(),
+      'the preview did not survive the reach',
+    ).toBe(1);
+
+    // And it is the pointer being **on** it that keeps it: away from both, it
+    // goes.
+    await page.mouse.move(2, 2);
+    await expect(page.getByRole('tooltip', { name: 'Notes for 010, rendered' })).toHaveCount(0);
+  });
+
+  test('goes when the pointer leaves the marker for anywhere but the card', async ({ page }) => {
+    // Dany, 2026-09-10, on the first cut of the reach: _"i need it to go away
+    // when i move my mouse away from the preview icon and not directly into the
+    // preview — rn preview just does not go away"_.
+    //
+    // The hold that lets a hand reach the card is cancelled by **arriving on
+    // the card** and by nothing else. The first cut cancelled it on entering
+    // anywhere in the cell — and the cell is the widest column in the table, so
+    // moving off the glyph into the name box beside it kept the card up with
+    // nothing left to close it.
+    //
+    // Proof: the marker's own `onMouseLeave` removed, which is the state this
+    // fixes — the cell's leave was then the only dismissal — and this failed on
+    // `the preview outstayed the pointer · Expected: 0 · Received: 1`. Watched
+    // in Chromium, 2026-09-10.
+    const name = page.getByLabel('Name of 010');
+    await name.fill('Row 010\n\nNotes long enough to be worth a card of their own.');
+    await name.blur();
+    await page.mouse.move(0, 0);
+
+    const marker = await boxOf(page.getByLabel('Notes on 010'), 'the notes marker');
+    await page.getByLabel('Notes on 010').hover();
+    expect(await cardsOpen(page), 'the marker opened no card').toBe(1);
+
+    // Left along the row, into the name box of the very same cell — which is
+    // not the card, and is where a reader's hand goes next more often than not.
+    await page.mouse.move(marker.x - 120, marker.y + 2, { steps: 6 });
+    await expect(page.locator('[role="tooltip"]'), 'the preview outstayed the pointer').toHaveCount(
+      0,
+    );
+  });
+
+  test('the open editor shows the same rendering beside it', async ({ page }) => {
+    // Dany, 2026-09-10: _"when you click on title cell and note field expands -
+    // the right half of the row is a md preview which is same as in the on-hover
+    // md preview"_. Same means the same component — {@link RenderedNotes} — so
+    // that a mapping added to one is in both.
+    //
+    // Proof: the panel's `focus`/`input` listeners never attached — this failed
+    // on `expect(locator).toBeVisible() · waiting for getByLabel('Notes for 010,
+    // rendered while writing')`. Watched in Chromium, 2026-09-10.
+    //
+    // The words are the **panel's** state and not the cell's, which is not a
+    // detail: held one level up they re-render the cell on every keystroke, and
+    // `a chord waits for the blur's patch that is still out` went red on a
+    // re-render inside the blur putting the old text back in the box.
+    const name = page.getByLabel('Name of 010');
+    await name.fill('Row 010\n\nNotes with **bold** and a list:\n\n- one\n- two\n- three');
+    await name.blur();
+    await page.mouse.move(0, 0);
+
+    await name.click();
+    const panel = page.getByLabel('Notes for 010, rendered while writing');
+    await expect(panel).toBeVisible();
+    // The rendering, not the source: the box beside it holds the markdown.
+    await expect(panel.locator('strong')).toHaveText('bold');
+    await expect(panel.locator('li')).toHaveCount(3);
+
+    // Beside the box and taking the row's right half — the same diagonal the
+    // hover preview takes, minus the row offset, because this one explains the
+    // box that is open rather than the row it belongs to.
+    const cell = await boxOf(
+      page.locator('tbody tr').filter({ has: name }).locator('td[data-column="name"]'),
+      'the Name cell',
+    );
+    const box = await boxOf(panel, 'the writing panel');
+    expect(box.x, 'the panel covers the cell it explains').toBeGreaterThanOrEqual(
+      cell.x + cell.width - 5,
+    );
+    expect(box.width, 'the panel is not the row’s right half').toBeGreaterThan(400);
+
+    // And it goes when the box is left, which is what says it belongs to the
+    // writing rather than to the row.
+    await name.blur();
+    await expect(panel).toHaveCount(0);
+  });
+
   test('a link in the notes is followable, and drawn like the name’s', async ({ page }) => {
     // Dany, 2026-08-30: _"can you make the links in markdown of the workitem
     // clickable - both the title and body links"_. The title's were already
@@ -1113,10 +1235,12 @@ test.describe('the Name cell’s preview takes the room around its cell', () => 
     // screen, which is exactly what raising the height cap would have caused
     // and why `roomForCard` picks a side at all.
     //
-    // Proof: the side forced to `'below'` in `roomForCard` — failed on `the
-    // card opened downward from a row with no room below it: Expected: <= 459,
-    // Received: 936`, a card whose bottom edge is 36px past a 900px window's.
-    // Watched 2026-08-11.
+    // Proof: the side forced to `'top'` in {@link sidewaysPlacement} — that is,
+    // hanging from the row's bottom edge whatever the room — this failed on
+    // `the card opened downward from a row with no room below it · Expected: <=
+    // 465.25 · Received: 722.625`. Watched 2026-09-10; and on `roomForCard`'s
+    // own side, which this placement replaced, on `Expected: <= 459 · Received:
+    // 936` — a card 36px past a 900px window's bottom edge (2026-08-11).
     const addRow = page.getByRole('button', { name: 'Add work item' });
     const height = page.viewportSize()?.height ?? 0;
 

@@ -406,6 +406,24 @@ test.describe('every cell card leaves its own column clear', () => {
         `${lane.what}: the card stands over ${second}'s own cell`,
       ).not.toBe('the card');
 
+      // **And past the row as well as past the cell**, which is the other half
+      // of the diagonal. Dany, 2026-09-10: _"all display diagonally? like to
+      // make both the on-hover element available for vertical scroll of mouse &
+      // the whole row seen for context on all columns of the row"_.
+      //
+      // Proof: the row offset dropped — `top: 0` instead of the measured
+      // `pastTheRow.below`, which is where these cards hung before — and this
+      // failed on `Start: the card covers its own row · Expected: >= 174.1875 ·
+      // Received: 150`. Watched in Chromium, 2026-09-10.
+      const rowBox = await boxOf(rowOf(page, first), `${lane.what}'s row`);
+      const open = await boxOf(
+        lane.cellOf(page, first).locator('[role="tooltip"]'),
+        `${lane.what}'s open card`,
+      );
+      expect(open.y, `${lane.what}: the card covers its own row`).toBeGreaterThanOrEqual(
+        rowBox.y + rowBox.height - 1,
+      );
+
       // And it is inside the frame it opens in, which is what choosing the side
       // by the room is for: the Start column stands within a card's width of
       // the right edge, so its card opens **left**.
@@ -421,6 +439,40 @@ test.describe('every cell card leaves its own column clear', () => {
         card.x + card.width,
         `${lane.what}: the card runs off the right of the frame`,
       ).toBeLessThanOrEqual(frame.x + frame.width + 1);
+    }
+  });
+
+  test('every card goes when the pointer moves off its cell', async ({ page }) => {
+    // Dany, 2026-09-10: _"same goes for other cells - make sure that it goes
+    // away at the right time"_. A card held for the length of a reach must
+    // still be gone the moment the reader has plainly moved on, or the plan is
+    // read through somebody else's card.
+    //
+    // Every lane, because the hold lives in the store and the cancel is the
+    // card's own: a column whose card forgot to report its arrivals would keep
+    // the last one up, and a column that never held would lose it under a hand.
+    //
+    // Proof: `holdHovered`'s timer emptied — the hold started and nothing
+    // cleared when it ran out — and this failed on `the notes preview: the card
+    // outstayed the pointer · expect(locator).toHaveCount(0)`. Watched in
+    // Chromium, 2026-09-10.
+    for (const lane of LANES) {
+      const [first] = lane.rows;
+      await page.mouse.move(0, 0);
+      await expect(page.locator('[role="tooltip"]')).toHaveCount(0);
+
+      const from = middleOf(await boxOf(lane.triggerOf(page, first), `${lane.what} ${first}`));
+      await pointDownTheColumn(page, from);
+      expect(await cardIn(lane, page, first), `${lane.what}: ${first} opened no card`).toBe(1);
+
+      // The top-left corner of the window: not the cell, not the card, and not
+      // another cardable cell either — so nothing but the dismissal can close
+      // it.
+      await page.mouse.move(4, 4, { steps: 10 });
+      await expect(
+        page.locator('[role="tooltip"]'),
+        `${lane.what}: the card outstayed the pointer`,
+      ).toHaveCount(0);
     }
   });
 
