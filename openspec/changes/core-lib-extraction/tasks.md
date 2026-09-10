@@ -242,7 +242,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
       Compile an accountless graph fixture and assert its `auth` access fails; first
       compile the valid fixture so an absent declaration cannot satisfy the negative.
 
-- [ ] 4.2a **Execute the portable composition in a browser.** Add
+- [x] 4.2a **Execute the portable composition in a browser.** Add
       `libs/core/testing/portable-composition.ts` (no test-runner imports),
       `portable-composition.spec.ts`, `libs/core/playwright.config.ts` and Nx build/test
       targets. Scope Bun `test`/`test:unit` to `src`, so Bun never collects this Playwright

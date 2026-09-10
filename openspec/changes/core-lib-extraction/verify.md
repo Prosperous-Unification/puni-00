@@ -684,6 +684,44 @@ same boot-dependent composition case passed in the permitted focused rerun above
 | HTTP consumes the composed public graph    | Give `buildApp` a second `LoginThrottle`            | `boot.db.test.ts:258` expected 429 and received 401; 0 pass, 1 fail, 13 filtered, 2 assertions                           |
 | Source closes after runtime services stop  | Close the source before stopping either service     | The close boundary observed `{optimizerRunning: true, retentionRunning: true}`; 0 pass, 1 fail, 14 filtered, 1 assertion |
 
+## Slice 4.2a — portable composition in Chromium
+
+Verified 2026-09-10. Bun bundles the pure portable probe as browser ESM, then
+Playwright injects it into a fresh Chromium page whose only fulfilled request is
+`https://core-probe.invalid/`. The page is a secure context with Web Crypto. It
+opens the staged memory source and composes the graph with a fixed clock,
+controllable timers, Web Crypto SHA-256, and an in-page push recorder. The probe
+records completion only after mixed-store commit and rollback, denied admission,
+saved-plan denial plus persisted read-back, buffered replay after durable pruning,
+and retention waiting for a held batch to release before pruning six seeded rows
+to the exact four-row limit observed through the public event-log port.
+
+| Command                                                    | Observed                                                                                                                            |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `nx run core:test:portable --skip-nx-cache`                | build dependency bundled 363 modules in 22ms; Chromium 1 pass, 0 fail in 1.6s                                                       |
+| portable bundle identity                                   | `dist/libs/core/portable-composition.js`, 893,095 bytes, SHA-256 `01bb37e989b16bda6d72f9f495947e62d181991950b2a0b44d099cf3cda40214` |
+| `nx run core:test --skip-nx-cache`                         | 398 pass, 0 fail, 1,408 assertions, 42 files; Bun collected only `src`                                                              |
+| `nx run core:typecheck --skip-nx-cache`                    | core library, Bun specs, portable probe/spec and Playwright config compile clean                                                    |
+| `nx run core:lint --skip-nx-cache`                         | core `src`, portable `testing`, and root Playwright config clean                                                                    |
+| Prettier check over the six changed core code/config files | clean                                                                                                                               |
+
+The first restricted browser launch failed before a test ran because the sandbox
+denied Chromium's Mach rendezvous port. The permitted isolated reruns used no
+server and no actual network. An injected image request initially exposed a race:
+the ledger assertion ran before Playwright's route callback. A bounded 50ms
+observer-settlement window now precedes that assertion; the same fire-and-forget
+request then failed on the exact unexpected URL.
+
+| Check                                      | Injected fault                                                   | Observed                                                                     |
+| ------------------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Browser runtime has no Bun global          | Read production `Bun.version` and allow the bundle to execute    | `page.evaluate: ReferenceError: Bun is not defined` at the bundled access    |
+| Completion is independent of probe control | Omit `completed.add('retention')`                                | Playwright's exact record diff received `retention: false` instead of `true` |
+| Save is proved by stored state             | Return `written` without storing in `memorySavedPlans.write`     | `page.evaluate: Error: saved browser plan was not readable`                  |
+| Retention changes stored state             | Make memory `pruneBeyond` return zero without removing rows      | `page.evaluate: Error: retention kept` all six rows with sequences 0–5       |
+| Every non-bootstrap request fails the test | Inject an image request for `https://unexpected.invalid/fault`   | The final ledger received that URL as its sole member instead of `[]`        |
+| Portable TypeScript is discovered          | Assign `'portable type fault'` to a number in the portable probe | `core:typecheck` failed at `portable-composition.ts:12` with TS2322          |
+| Root Playwright config is linted           | Add an unused declaration to `libs/core/playwright.config.ts`    | `core:lint` failed at line 3 with `@typescript-eslint/no-unused-vars`        |
+
 ## Gate
 
 | Command | When | Result |
