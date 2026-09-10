@@ -1,6 +1,7 @@
 # Planned refactoring execution
 
-**Implementation ledger last reconciled at `main` @ `14cc7367`, 2026-09-08.**
+**Implementation ledger last reconciled at `refactor/core-lib-extraction` @ `1212c159`,
+2026-09-10.**
 R10's completed PR #353 packet is preserved unchanged during integration.
 Design preparation completed 2026-09-08, inspecting `339708fa` through `aca7a5c9`;
 see [execution readiness](execution-readiness.md) for scope, assumptions and evidence limits.
@@ -70,20 +71,19 @@ Nothing below has an owning task in the external queue (`backlog/tasks/task-NNN 
       `openspec/changes/store-port-and-unit-of-work`; its `verify.md` carries the failure-proof
       table and the three checks-that-could-not-fail this wave caught. Nothing moved into
       `libs/` — that is Wave 3, and this wave's non-goal.
-- [ ] **Ports Wave 3 [core-lib-extraction](../../openspec/changes/core-lib-extraction/tasks.md)** — started: its tasks 1.1–1.4 and 2.1–2.2a
-      are checked, and `libs/core/src/ports/{clock,runtime,write-stamp}.ts` exists at
-      `339708fa`. `conformance`, `store-sqlite` and `store-memory` have not been extracted.
-      Plan §3.3, §3.5. Wave 2 left it more moveable than it found it:
-      the ports are declared (`repository/index.ts`, `service/{unit-of-work,runtime-ports}.ts`),
-      the composition is two functions (`buildStores`, `servicesOver`), and the kits are already
-      a file of their own under `testing/kits/`. Next is recursive project discovery 2.0,
-      then neutral contracts/runtime and admitted-scope composition. Pause after
-      2.2b–2.2b.4 for the scheduler packet before moving its consumers in 2.2c onward.
-- [ ] **[scheduler-runtime-port](../../openspec/changes/scheduler-runtime-port/tasks.md)** —
-      the explicit Wave 2 tail, after core's neutral contracts/runtime prerequisites and
-      active optimizer interfaces settle; before core consumer moves/boundary closeout
-      and JSON import. Includes D23 typed unavailable live reads/publication and faithful
-      detached capture; not a new scheduler algorithm or version bump.
+- [x] **Ports Wave 3 [core-lib-extraction](../../openspec/changes/core-lib-extraction/tasks.md)** —
+      completed 2026-09-10. `libs/core`, `store-sqlite`, `store-memory` and `conformance`
+      now carry the application, adapter and certification boundaries; `be-01` retains its
+      runtime binders, composition root and stable migration entrypoints. The fast-tier count
+      moved with the code: 238 cases left `be-01` for `core`, and all 693 SQLite test nodes
+      survived their 57-file relocation. The staged memory source certifies only its declared
+      families and keeps one explicit estimate-capability skip; the remaining source families
+      still belong to `source-conformance-completion`. ADR 0014 and ADR 0015 are accepted.
+- [x] **[scheduler-runtime-port](../../openspec/changes/scheduler-runtime-port/tasks.md)** —
+      completed on the same branch before the core consumer moves. Missing selected engines
+      produce typed 409 reads and `plan_unavailable` publication; detached capture preserves
+      the selected schedule or named absence without admitting a solve; the SQLite adapter
+      retains the existing hash bytes and scheduler contract version.
 - [ ] **[source-conformance-completion](../../openspec/changes/source-conformance-completion/tasks.md)** —
       after core's source composition/staged memory. Complete the named 17 transactional
       plus two independent-history families, typed broken-source controls and honest
