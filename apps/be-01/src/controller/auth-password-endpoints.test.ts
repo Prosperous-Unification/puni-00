@@ -14,6 +14,11 @@ const request = (path: string, method = 'POST') => ({
   headers: new Headers({ origin: 'https://app.example', 'x-forwarded-for': '192.0.2.1' }),
 });
 
+const sessionHeaders = [
+  ['cache-control', 'no-store'],
+  ['vary', 'Cookie, Authorization, X-WBS-Token'],
+] as const;
+
 test('direct password bindings preserve service refusals and local bearer sessions', async () => {
   const auth = testAuthService();
   const endpoints = authPasswordEndpoints(
@@ -81,6 +86,7 @@ test('direct me binding distinguishes signed out, invalid credentials and store 
   expect(await endpoints[2].handle(input)).toEqual({
     ok: true,
     status: 200,
+    headers: sessionHeaders,
     body: {
       user: { id: registered.value.user.id, username: 'ada', scopes: ['read', 'write', 'editor'] },
     },
@@ -90,13 +96,18 @@ test('direct me binding distinguishes signed out, invalid credentials and store 
       ...input,
       request: { ...input.request, headers: new Headers({ authorization: 'Bearer invalid' }) },
     }),
-  ).toEqual({ ok: false, status: 401, body: { error: 'invalid_token' } });
+  ).toEqual({
+    ok: false,
+    status: 401,
+    body: { error: 'invalid_token' },
+    headers: sessionHeaders,
+  });
   expect(
     await endpoints[2].handle({
       ...input,
       request: { ...input.request, headers: new Headers() },
     }),
-  ).toEqual({ ok: true, status: 200, body: { user: null } });
+  ).toEqual({ ok: true, status: 200, body: { user: null }, headers: sessionHeaders });
 
   const failure = new Error('account lookup unavailable');
   const lookup = spyOn(users, 'findById').mockRejectedValue(failure);
