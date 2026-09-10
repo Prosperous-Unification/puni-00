@@ -524,6 +524,41 @@ throw`, `Received value: []`. Converting an unreadable `down.sql` to an empty
   failure resolving rather than rejecting. Each fault was restored before the
   full target run.
 
+## Slice 3.2 — stable deploy entrypoints
+
+Verified 2026-09-10. The three migration CLI files and `apps/be-01/drizzle/`
+remain at their deployed paths. The CLIs now import the SQLite source's runner
+modules directly. The swap's migrate command joins its existing status and down
+commands as a fixture-backed command builder. `apps/be-01/Dockerfile` is
+unchanged and still copies the complete application, including `drizzle/`, then
+runs from `/app/apps/be-01` where the CLIs resolve `./drizzle`.
+
+| Command                                                                                | Observed                                                                                                   |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `bun test src/migration-cli.db.test.ts` from `apps/be-01`                              | 2 pass, 0 fail, 11 assertions; real up, status, down, and status CLIs used one isolated temporary database |
+| `bun test src/migrate.db.test.ts src/migrate-down.db.test.ts` from `libs/store-sqlite` | 87 pass, 0 fail, 381 assertions                                                                            |
+| focused `tools/tool-remote-scripts/src/lib/docker.test.ts` migration command cases     | 5 pass, 0 fail, 5 assertions                                                                               |
+| `bunx nx run be-01:typecheck --skip-nx-cache`                                          | clean                                                                                                      |
+| `bunx nx run tool-remote-scripts:lint --skip-nx-cache` and `:typecheck`                | clean                                                                                                      |
+| direct ESLint over the four changed backend files                                      | clean after correcting import order                                                                        |
+| Prettier check over all changed code                                                   | clean                                                                                                      |
+
+Changing the production CLI's runner import to
+`@wbs/store-sqlite/migrate-missing` made the real isolated `migrate-cli.ts`
+invocation exit 1. The test's first production-path assertion received empty
+stdout and `Cannot find module '@wbs/store-sqlite/migrate-missing'` instead of
+exit 0 and `migrations applied`. A separate working-directory fault changed the
+migration folder from `./drizzle` to `../drizzle`; the same invocation exited 1
+with `ENOENT: no such file or directory, scandir '../drizzle'`. Both faults were
+restored before the green run, and the adjacent `Proof:` comment records the
+observed outputs.
+
+The restricted full `tool-remote-scripts:test` run reported 275 pass, 3
+intentional Docker/Linux skips, and 2 failures because the sandbox denied the
+Unix listener sockets (`EADDRINUSE`). Those two environment-sensitive listener
+cases do not exercise the migration commands. A permitted rerun and the final
+whole-workspace gate remain outstanding.
+
 ## Gate
 
 | Command | When | Result |

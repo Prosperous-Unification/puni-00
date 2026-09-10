@@ -193,7 +193,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
       require the actual library lint target to report the ban. Missing/unreadable
       migration folders still throw. Run `store-sqlite:test`, lint and source/spec typecheck.
 
-- [ ] 3.2 **Keep deploy entrypoints stable.** `apps/be-01/drizzle/` and
+- [x] 3.2 **Keep deploy entrypoints stable.** `apps/be-01/drizzle/` and
       `migrate-cli.ts`, `migrate-down-cli.ts`, `migrate-status-cli.ts` remain in place and
       import the moved runners. Existing Dockerfiles retain their SQL copy paths. Tests:
       migration CLI and deployment command fixtures; inject a wrong runner import/path
