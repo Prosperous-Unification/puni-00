@@ -860,3 +860,21 @@ typecheck, test and build tasks passed uncached across 30 projects in 10m30s;
 Together with the complete Chromium and exact-revision OpenSpec results above,
 this closes task 5.2. The accepted ADR statuses, synced main specs, queue entry,
 moved-test counts and explicit source-capability limit close task 5.3.
+
+## Final integrated head
+
+After `origin/main` advanced to `a42fbf4e`, merge revision
+`3d67da8ec717642c4c9ae13ad14ff38e13a81835` was pushed and verified as the
+combined landing candidate.
+
+| Command                                                                                             | Observed                                                                                                                                 |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `CI=1 E2E_PORT_SHIFT=1900 bun run e2e` on the merged tree, with 5000/5100/6100 free                 | **328 pass / 37 intentional rendering-baseline skips / 0 fail** in 17m57s                                                                |
+| `bin/h2puni-gate.sh 3d67da8ec717642c4c9ae13ad14ff38e13a81835` from a clean isolated h2puni worktree | all **101** lint, typecheck, test and build tasks passed uncached across 30 projects in 10m13s; `fe-01:test` was the 8m47s critical path |
+| the gate's real Docker `be-01:solver-image-smoke`                                                   | **3 pass / 0 fail / 15 assertions** in 1m32s                                                                                             |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`                        | **70 passed / 0 failed**: 59 active changes and 11 main specs                                                                            |
+
+The first attempt to use h2puni's shared checkout was refused before testing
+because another lane's files prevented the pinned checkout. The successful run
+above used a newly created isolated worktree, printed the full requested SHA
+after acquiring the host-wide heavy lock, and then ran every gate step.
