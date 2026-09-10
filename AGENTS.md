@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — twenty-seven times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — twenty-eight times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -659,6 +659,17 @@ against `TEXTAREA`, watched both ways. There was never a defect.
 easy to write rather than for being able to distinguish the two states. When a check is replaced
 because it could not fail, the replacement needs its own watched negative **before** its answer is
 believed — not after it has been written down as a finding in three files.
+
+One more on 2026-09-10 while syncing upstream `87bf2931`, and it **shipped upstream** —
+the twenty-eighth. The new shared `tools/test/scratch` helpers had no TypeScript project,
+and the relevant tool lint targets named only their own `src`, so upstream CI was green while the
+commit hook refused both helpers as "not found by the project service". Giving them a
+project and adding their directory to `tool-git-hooks:lint` exposed a real numeric-template
+lint error. The preload was outside the compiler too: a deliberate string assigned to a
+number passed until its directory joined the hooks spec project's include, then failed
+with TS2322. The lint regression runs the configured CI command and reads its reported
+paths; deleting the helper argument fails that assertion even though the command exits 0.
+**A shared helper needs an owner in every gate that claims to cover it.**
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
