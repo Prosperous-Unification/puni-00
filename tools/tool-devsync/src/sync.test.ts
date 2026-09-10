@@ -244,9 +244,9 @@ describe('dev supervisor', () => {
     const compatibilitySha = (await $`git -C ${sourceRepository} rev-parse HEAD`.text()).trim();
     const dependencies = solverTargetDependencies({ sourceRepository, runtimeRoot: exportedRuntime });
 
-    expect(await rejection($`git -C ${exportedRuntime} rev-parse --git-dir`.quiet())).toContain(
-      'not a git repository',
-    );
+    const exportedQuery = await $`git -C ${exportedRuntime} rev-parse --git-dir`.nothrow().quiet();
+    expect(exportedQuery.exitCode).toBe(128);
+    expect(exportedQuery.stderr.toString()).toContain('not a git repository');
     const identity = await dependencies.compatibilityIdentity(compatibilitySha);
     expect(identity).toMatch(/^[0-9a-f]{64}$/);
 
