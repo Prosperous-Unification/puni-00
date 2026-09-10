@@ -34,13 +34,40 @@ export type EventLogTransaction = Parameters<Parameters<SQLiteBunDatabase['trans
  * same history. Replay and retention read and prune through the public, gated
  * copy.
  */
-export interface EventLogStore {
+/**
+ * Writing an event **inside a transaction the caller already holds** — the one
+ * method of this store that names drizzle's own type, and therefore the one
+ * that cannot live in a ring that may not import drizzle.
+ *
+ * Its only caller is the optimizer's `storeOptimizedOutcomeAndRecord`, which
+ * writes a solver result and its durable replay record as one act on its own
+ * transaction. What replaces it is that write moving onto `UnitOfWork.run`,
+ * which is `dual-optimized-scheduler`'s slice by the Wave 0 gate — so it is
+ * split off here rather than deleted, and the port beside it is clean.
+ */
+export interface EventLogTransactionalWrite {
   recordEventIn(
     tx: EventLogTransaction,
     subscription: string,
     message: unknown,
     createdAt: number,
   ): RecordedEvent;
+}
+
+/**
+ * The durable record of what has been announced on a subscription — a store
+ * port of the source like the rest, and a **transactional** one (ADR 0015).
+ *
+ * On `Scope` it is the batch's own: the events a batch records live or die with
+ * its writes, which is what makes a replaying client and a live one see the
+ * same history. Replay and retention read and prune through the public, gated
+ * copy.
+ *
+ * Nothing here names a driver's type. {@link EventLogTransactionalWrite} is
+ * where the one method that did went, and it is the adapter's rather than the
+ * source's.
+ */
+export interface EventLogStore {
   recordEvent(subscription: string, message: unknown, createdAt: number): Promise<RecordedEvent>;
   rangeSince(subscription: string, sinceSeq: number): Promise<RecordedEvent[]>;
   oldestSeq(subscription: string): Promise<number | null>;
@@ -57,7 +84,7 @@ export interface EventLogStore {
   pruneBeyond(maxPerSubscription: number): Promise<number>;
 }
 
-export class DrizzleEventLogStore implements EventLogStore {
+export class DrizzleEventLogStore implements EventLogStore, EventLogTransactionalWrite {
   constructor(
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,

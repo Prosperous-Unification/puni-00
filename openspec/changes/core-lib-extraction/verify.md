@@ -50,6 +50,31 @@ may import what is exactly the kind that passes project by project and fails as 
 | `bun test` in `apps/be-01`                           | 2026-09-08 | 2,035 pass / 2 skip / 0 fail, same count as before the move |
 | `bun run test:unit`                                  | 2026-09-08 | 7 tasks green                                               |
 
+## Slice 2b — the signatures that blocked the store ports
+
+| Command                                              | When       | Result                                   |
+| ---------------------------------------------------- | ---------- | ---------------------------------------- |
+| `bunx nx run-many -t lint typecheck --skip-nx-cache` | 2026-09-08 | 25 projects, clean                       |
+| `bun test` in `apps/be-01`                           | 2026-09-08 | 2,035 pass / 2 skip / 0 fail, same count |
+| `bun run test:unit`                                  | 2026-09-08 | 7 tasks green                            |
+
+What the slice is checked by is the compiler and the import list: `repository/index.ts` now
+imports `@wbs/core`, `@wbs/domain` and one `import type` from `event-log.ts`, and nothing from
+`./schema` or `./db`. There is no fault to inject for "this file imports nothing from the
+adapter" beyond adding one back, which the ring rule then refuses — negative already watched in
+slice 2a.
+
+**A fourth leak was found doing this and is not fixed here**: `SavedPlanRow` is
+`typeof savedPlan.$inferSelect`, drizzle's own inference, in the saved-plan port. `HistoryStores`
+and `Stores` moved beside those ports so the **transactional** half — the half `Scope` carries —
+is clean now; declaring that row explicitly is 2.2c's.
+
+**`.nxignore` gained `.worktrees`.** Two `git worktree` checkouts appeared under this one
+mid-slice (another session's), and Nx read them as duplicate projects:
+`MultipleProjectsWithSameNameError: be-01 is defined in multiple locations`, which fails
+`run-many` before a single target runs. Excluded by directory, since the convention is
+`.worktrees/<name>`.
+
 ## Gate
 
 | Command | When | Result |

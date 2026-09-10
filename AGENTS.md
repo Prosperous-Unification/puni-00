@@ -123,7 +123,7 @@ Checks that cannot fail have shipped here six times. This is the rule that stops
 
 ## Checks that cannot fail
 
-R5 exists because this failure keeps recurring — twenty-four times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — twenty-eight times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -611,14 +611,91 @@ which is how a second load-bearing line got a proof of its own. **A geometry pro
 big enough to commit the fault** — `estimate-triple-visible`'s "assert in the window the fault
 lives in", now with a horizontal axis.
 
+One more on 2026-09-09 in `every-cell-card-clears-its-lane`, and it is the previous entry's own
+fix half a day later: **a cap only binds while the box is above its minimum.** The notes preview
+was pulled `left: -24px` with `max-width: min(640px, 100%, 100vw)`, and both halves were watched
+failing — on a **555px** Name cell. `HoverCard` also carries `min-width: 260px`, so the moment the
+column is narrower than that the minimum wins, the cap is decoration, and the pull just moves a
+260px card 24px left of a 192px cell: 44px back over the lane. That is the Name column with the
+four reference columns on screen, which is one checkbox away from the layout every proof was taken
+in. The card is anchored by its **right** edge now — the edge that carries the promise — and the
+cap is deleted, because a promise about one edge should be made about that edge rather than
+inferred from a width. `min`/`max` pairs are not the same box at every size; test the size where
+the other constraint wins.
+
+Two more in the same change, both about the **oracle for a walk**. The first cut of
+`e2e/card-lanes.spec.ts` walked the Depends on column at `box.x + 2` — the passive 2px strip the
+existing helper uses to open that card without hitting a chip — and the negative (the card put back
+under its cell) **passed**: the card starts at the cell's `<td>` padding, so those two pixels are
+the one lane in that column the card never covers. And once the walk moved to the column's middle,
+the negative passed **again**, because `mouse.move(..., { steps: 12 })` samples the row boundary,
+the enter fires there, the next row's card opens, and the pointer's final position on the card's
+line is never the state the assertion reads. A walk is an end-to-end fact and a poor geometric
+oracle; the geometry is now asserted separately, with `elementFromPoint` at the point the reader
+aims for, and **that** injection failed on `Received: "the open card (DIV)"`. Both claims are kept:
+the hit test sees a card in the way, the walk sees a guard that swallows the arrival.
+
+One more from that change, and it is a **shipped** check that could not fail — the
+twenty-sixth. `e2e/hover-cards.spec.ts`'s `paints over the pinned cell of the row below it`
+compared two screenshots of the overlap between an open card and the pinned Name cell under it:
+one with the card open, one with the pointer moved away. Moving the pointer away also **unlights
+the row**, so the two shots differ whether the card was painted or hidden — watched green with
+`zIndex: 20` deleted.
+
+**And its first replacement was wrong in the other direction, which is the twenty-seventh and the
+more useful half.** `elementFromPoint` at the middle of the overlap answered the pinned
+`<textarea>` **with the z-index in place**, and that was read as "the card is painted underneath"
+— a defect was written into `LLM_README.md`, a memory and a change's verify.md on the strength of
+it. A hover card is `pointer-events: none`: the hit test reports whatever is beneath it _however_
+the paint came out, so it cannot answer a paint question at all. The **third** oracle, one _pixel_ of the overlap screenshotted open against
+closed, passed on a Mac and failed on CI: `--popover` and `--cell-bg` are both white, so whether
+the two reads differ depends on whether that pixel lands on the card's own text — a fact about the
+font, not about the paint order. What settles it is asking the browser: the card's
+`pointer-events` is set to `auto` for the length of one `elementFromPoint` and restored, which
+changes what the hit test can **see** and nothing about which box is on **top**. `the card`
+against `TEXTAREA`, watched both ways. There was never a defect.
+
+**Three wrong oracles for one claim**, and the shape they share is that each was chosen for being
+easy to write rather than for being able to distinguish the two states. When a check is replaced
+because it could not fail, the replacement needs its own watched negative **before** its answer is
+believed — not after it has been written down as a finding in three files.
+
+One more on 2026-09-10 while syncing upstream `87bf2931`, and it **shipped upstream** —
+the twenty-eighth. The new shared `tools/test/scratch` helpers had no TypeScript project,
+and the relevant tool lint targets named only their own `src`, so upstream CI was green while the
+commit hook refused both helpers as "not found by the project service". Giving them a
+project and adding their directory to `tool-git-hooks:lint` exposed a real numeric-template
+lint error. The preload was outside the compiler too: a deliberate string assigned to a
+number passed until its directory joined the hooks spec project's include, then failed
+with TS2322. The lint regression runs the configured CI command and reads its reported
+paths; deleting the helper argument fails that assertion even though the command exits 0.
+**A shared helper needs an owner in every gate that claims to cover it.**
+
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
 
 ## Gate
 
-- Before claiming done on h2puni, run `bin/h2puni-gate.sh`. It acquires the
-  canonical host-wide heavy-work lock before running CI's format, test, lint,
-  typecheck, and build commands. Do not run the raw full Nx gate on h2puni.
+- Before claiming done on h2puni, run `bin/h2puni-gate.sh <sha>`. It acquires the
+  canonical host-wide heavy-work lock, checks `<sha>` out under that lock, and
+  only then runs CI's format, test, lint, typecheck, and build commands. Do not
+  run the raw full Nx gate on h2puni.
+- **Pass the sha; do not check it out yourself first.** Lanes share one gate
+  checkout, so a `git checkout` of your own before the call happens outside the
+  mutex and another lane can move the head between it and the steps — that is
+  how one lane's gate came to report about another lane's head, silently, on
+  2026-09-07. The argument exists to close that window. Without it the gate
+  pins the head it finds at invocation, which is safe only if nothing else is
+  gating. The gate prints `h2puni gate: running on <sha>`; that line, not your
+  intention, is what the verdict is about.
+- Exit **65** means the gate tree was dirty after the checkout — a tracked edit
+  or an untracked file the commit does not contain, which Nx would have read and
+  attributed to that sha. The gate refuses instead of cleaning, because these
+  trees are shared and `git clean` unattended deletes somebody's work. Move or
+  commit the named files and re-run.
+- A gate that finds the lock held **queues** (30 minutes by default) rather than
+  refusing with exit 75, because a refused gate costs a worker its whole
+  75-minute run box. `HEAVY_LOCK_WAIT_SECONDS=0` restores refuse-now.
   `--all` is not decoration: without it the scope is `git diff main HEAD`, which is
   EMPTY on main — a format check that checks nothing and passes.
 - OpenSpec changes also run `openspec validate --all --json`.

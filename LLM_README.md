@@ -1,6 +1,6 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-508 milestone-wire and Fast trailing-zero fixes merged in [upstream PR #384](https://github.com/Prosperous-Unification/wbs-tool-v1/pull/384).
+The integrated upstream PR set merged in [upstream PR #391](https://github.com/Prosperous-Unification/wbs-tool-v1/pull/391).
 
 **puni-00** — company monorepo ([wiki](docs/wiki/README.md)). [Twilight Structure](docs/twilight-structure/README.md): SDLC pilot and delivery plan.
 WBS: `be-01` (Elysia+Drizzle+bun:sqlite, :3100), `gw-01` (WS, :3200),
@@ -23,15 +23,15 @@ Three facts explain most decisions:
 ```sh
 bun install                                     # first, on a fresh clone
 bun run dev:setup                               # writes the .env files dev needs
-bin/h2puni-gate.sh                              # full h2puni gate + canonical lock
+bin/h2puni-gate.sh <sha>                        # full h2puni gate; checks <sha> out under the lock
 bun run dev                                     # be + gw + fe locally; `bun run e2e` for the browser gate
 bun run test:unit                               # the fast tier: be-01 + every lib, ~17s
 bunx nx run <project>:lint:fast                 # editing only, ~4s; `lint` is uncached and is the gate
 ```
 
 `bun test` at the repo root is **not** the gate: it collects fe-01's files, which fail on the DOM
-`bun:test` has no jsdom for. On h2puni, use `bin/h2puni-gate.sh`; raw full Nx
-gates bypass the host-wide release lock. `build` needs `shellcheck`.
+`bun:test` has no jsdom for. On h2puni, use `bin/h2puni-gate.sh <sha>` and do NOT check that sha
+out first: lanes share the gate tree, and a checkout outside the lock is how one lane's gate came to report about another's head (TASK-328). Raw full Nx gates bypass the lock; `build` needs `shellcheck`.
 
 **Rules: `AGENTS.md`** (symlinked to CLAUDE.md/GEMINI.md) — read it, it governs every change.
 
@@ -121,14 +121,14 @@ contract: `docs/runbook-prod-deploy.md`.**
 
 ## Open findings
 
-Both open findings are **prod-phase** (Dany, 2026-08-06): recorded, not pending. Work stops at dev.
+Both are **prod-phase** (Dany, 2026-08-06): recorded, not pending. Work stops at dev.
 
 1. Rollback unimplemented — `--version` is _refused_, so an older commit means a rebuild.
 2. `configure.sh`'s root phase never run on a fresh host; only the plan is tested.
 
-Findings 3–5 closed. Lower priority: fe/smoke health takes any non-empty body; the WS ping passes on
-any first message _containing_ `"pong"`; drain reads a malformed metrics body as zero live sockets;
-`tool-secrets` only prints. Checks that cannot fail: **24** (R5).
+3–5 closed, and so is 2026-09-09's "folded card under a pinned cell": a misread hit test, not a
+fault. Lower: fe/smoke health takes any body; the WS ping any message with `"pong"`; drain reads
+a bad metrics body as zero sockets; `tool-secrets` only prints. Cannot-fail: **28** (R5).
 
 ## More
 

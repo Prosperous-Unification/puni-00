@@ -61,6 +61,10 @@ root-level `.ts` file to its explicit lint target in the same slice.
       import them from `@wbs/core` now; `repository/index.ts` re-exports `WriteStamp` for the
       ninety that name it there, which is an adapter naming its application's type and the
       right direction either way.
+- [x] 2.2a.1 **The three signatures that blocked the store ports, dealt with**, which is
+      what 2.2b builds the ports on.
+      Each turned out to be a different answer, which is why they were worth naming rather than moving. `EventLogStore.recordEventIn(tx)` **splits off** as `EventLogTransactionalWrite`, an adapter-only interface: its one caller is the optimizer's atomic result-plus-event write, and what replaces it is that write moving onto `UnitOfWork.run` — `dual-optimized-scheduler`'s slice by the Wave 0 gate. `SavedPlanStore.holdingOf(db)`/`bodyOf(db)` are **deleted from the port** and were never port methods: their only callers are the adapter itself and its own database tests, and they were written in from the class's public surface rather than from what a caller needs. The four stored vocabularies — `SCHEDULE_ENGINES`, `MEASURE_METRICS`, `PERSON_KINDS`, `SOLVER_OBJECTIVES` — **move to `@wbs/domain`**, because a person's kind and a measure's unit are facts about the domain and the `CHECK` that enforces one is the adapter's way of storing a fact it did not invent; `schema.ts` re-exports all four so the column and the vocabulary cannot drift apart. `repository/index.ts` now imports `@wbs/core`, `@wbs/domain` and one `import type` from `event-log.ts`; `HistoryStores` and `Stores` moved beside the saved-plan ports, because `SavedPlanRow` is `typeof savedPlan.$inferSelect` and a **fourth** leak — declaring that row explicitly is 2.2c's, and it blocks only the history half.
+
 - [ ] 2.2b **Separate transaction-only methods from the ports (C1).** Create
       `libs/core/src/ports/{event-log-store,saved-plan-store,saved-plan-capture-store}.ts`.
       Keep `recordEventIn`, `holdingOf` and `bodyOf` on the SQLite classes; retarget the

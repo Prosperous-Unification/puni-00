@@ -37,103 +37,50 @@ const containsPoint = (point: { x: number; y: number }, box: PointerRect): boole
   point.x >= box.left && point.x <= box.right && point.y >= box.top && point.y <= box.bottom;
 
 /**
- * Read one pointer position against the owner, live row targets and the
- * straight rectangle joining them. The corridor changes state only: it is not
- * an element and therefore cannot intercept a click through passive padding.
+ * Read one pointer position against the owner cell, the card's live row targets
+ * and the card's own rectangle. The corridor changes state only: it is not an
+ * element and therefore cannot intercept a click through passive padding.
+ *
+ * The corridor is **the card's own box**, and was the bounding box of the owner
+ * and its lines until 2026-09-09. That shape belonged to a card standing under
+ * its cell: the pointer had to cross a gap the card did not fill, so the region
+ * that held the card had to be the rectangle spanning both. Since
+ * the card opens **beside** its cell ({@link HoverCardProps.opensSideways})
+ * there is no gap — the card's left edge is inside its `<td>` (measured 419
+ * against a cell ending at 423, Chromium 2026-09-09) — and a bounding box is
+ * now actively wrong: it fills the whole rectangle *below* the owner as well,
+ * which is the Depends on cell of the next row down. That held the enter which
+ * crosses the row boundary, so walking the pointer down the column left 020's
+ * card open over 030's cell and 030 never answered for itself. Dany, that day:
+ * _"i want to be able to move cursor up and down and see other hover-ons"_.
+ *
+ * `card` is `null` for the frame before the card has a box, which is `outside`
+ * for every point that is not the owner's or a line's — the card is not on
+ * screen yet, so there is nothing to hold.
  */
 export function dependencyPointerRegion(
   point: { x: number; y: number },
   owner: PointerRect,
   rows: readonly { id: string; rect: PointerRect }[],
+  card: PointerRect | null,
 ): DependencyPointerRegion {
   if (containsPoint(point, owner)) return { kind: 'owner' };
   const row = rows.find(({ rect }) => containsPoint(point, rect));
   if (row !== undefined) return { kind: 'row', id: row.id };
-  if (rows.length === 0) return { kind: 'outside' };
-
-  const first = rows[0];
-  const union = rows.slice(1).reduce<PointerRect>(
-    (box, current) => ({
-      left: Math.min(box.left, current.rect.left),
-      top: Math.min(box.top, current.rect.top),
-      right: Math.max(box.right, current.rect.right),
-      bottom: Math.max(box.bottom, current.rect.bottom),
-    }),
-    {
-      left: first.rect.left,
-      top: first.rect.top,
-      right: first.rect.right,
-      bottom: first.rect.bottom,
-    },
-  );
-  const corridor = {
-    left: Math.min(owner.left, union.left),
-    top: Math.min(owner.top, union.top),
-    right: Math.max(owner.right, union.right),
-    bottom: Math.max(owner.bottom, union.bottom),
-  };
-  return containsPoint(point, corridor) ? { kind: 'corridor' } : { kind: 'outside' };
+  if (card !== null && containsPoint(point, card)) return { kind: 'corridor' };
+  return { kind: 'outside' };
 }
 
 /**
- * Whether a `mouseenter` on `entered` at `point` arrived **through** the open
- * dependency card — landing where the card's bridge holds the card (the
- * passive corridor between the owner cell and the card's lines) on an element
- * that is not the owner's own — or false while no card is open.
+ * The open card's own rectangle, read from one of the lines inside it.
  *
- * For the hover handlers of whatever the card stands over. The card's padding
- * is passive by design (a click through it reaches the row beneath), so a
- * pointer crossing that padding on its way to a card line is, to the browser,
- * a pointer **entering the row beneath** — and when that row's own Depends on
- * cell has something to say, its `onMouseEnter` took the card over: 020's list
- * became 030's on the way to it. Found in Chrome, 2026-08-29; it read as "the
- * card closes for rows with fewer than three dependencies", which was the
- * height at which the card happened to stop covering such a row. The bridge is
- * the one thing that decides whether the card stays, so an enter that lands
- * where the bridge holds it is the padding being crossed, not a cell being
- * pointed at, and the handler that receives it writes nothing.
- *
- * The owner's own subtree is exempt, and not as a nicety: a pointer moving from
- * the owner cell onto one of its pills enters that pill at a point inside the
- * owner — the bridge's `owner` region — and holding that enter would stop the
- * owner's pills narrowing at all. Proof: without the exemption, `narrows to the
- * pill’s row, and widens again when the pill is left` and two more in
- * `wbs-table.test.tsx` failed on `expected ['010', '020'] to deeply equal
- * ['010']` — the whole set standing where the pill's one row should be.
- * Watched, 2026-08-29.
- *
- * `outside` is deliberately not held: from the card's right-hand padding the
- * bridge clears the card on the same pointer move, and an enter swallowed there
- * would leave the cell beneath un-hovered until the pointer left it and came
- * back.
- *
- * Read from the document rather than from the card's own refs because the
- * caller is the table, which does not hold the card: the lines carry
- * `data-depends-card-target`, the owner is the `<td>` they hang from, and one
- * card is open at a time ({@link DependsCard} renders under a single
- * `openCard`). The same inputs the bridge reads, through the same
- * {@link dependencyPointerRegion}, so the two cannot disagree about a point.
- *
- * Proof: the guard this feeds removed from the cell's `onMouseEnter`,
- * `e2e/deps-cell.spec.ts`'s `holds the card while the pointer crosses its
- * padding over the row beneath` failed on `the row beneath took the hover:
- * Expected ["030", …, "090"], Received ["040", "050"]`, and
- * `wbs-table.test.tsx`'s `leaves the open card alone when the row beneath it
- * is entered through its padding` on `expected 'What 030 waits for' to be
- * 'What 020 waits for'`. Watched, 2026-08-29.
+ * Through the line rather than by querying for a card: the lines are the handle
+ * {@link DependsCard}'s own bridge already holds, and a card found any other way
+ * could be another cell's.
  */
-export function entersThroughDependsCard(
-  point: { x: number; y: number },
-  entered: Element,
-): boolean {
-  const lines = [...document.querySelectorAll<HTMLElement>('[data-depends-card-target]')];
-  const owner = lines[0]?.closest('td');
-  if (!(owner instanceof HTMLElement) || owner.contains(entered)) return false;
-  const rows = lines.map((line) => ({
-    id: line.dataset['dependsCardTarget'] ?? '',
-    rect: line.getBoundingClientRect(),
-  }));
-  return dependencyPointerRegion(point, owner.getBoundingClientRect(), rows).kind !== 'outside';
+export function cardRectOf(line: Element | undefined): PointerRect | null {
+  const card = line?.closest('[role="tooltip"]') ?? null;
+  return card === null ? null : card.getBoundingClientRect();
 }
 
 export interface DependsCardProps {
@@ -262,6 +209,7 @@ export function DependsCard({
         { x: event.clientX, y: event.clientY },
         owner.getBoundingClientRect(),
         rows,
+        cardRectOf(first),
       );
       if (region.kind === 'owner') onPointEntry(null);
       else if (region.kind === 'row') onPointEntry(region.id);
@@ -280,7 +228,23 @@ export function DependsCard({
   }, [entries, onPointEntry, onPointerOutside]);
 
   return (
-    <HoverCard label={`What ${number} waits for`}>
+    // **Beside its cell, not under it**, which is the links card's scheme and
+    // for the same reason one column over. Dany, 2026-09-09: _"i want to be
+    // able to move cursor up and down and see other hover-ons"_. Every line of
+    // this card takes the pointer — that is how the light narrows to one row —
+    // so a card standing under its cell put a pointer-taking surface over the
+    // Depends on cells of the rows below: measured in Chromium on 2026-09-09,
+    // walking from 020's cell down to 030's, `elementFromPoint` at 030's own
+    // cell answered a `DIV` inside the card and the open card was still `What
+    // 020 waits for`. Opened sideways the column below is clear and each row
+    // answers for itself.
+    //
+    // Two guards written for the old placement went with it, both dead rather
+    // than merely quiet: `entersThroughDependsCard`, which swallowed a cell's
+    // or a chip's `mouseenter` that landed inside the card's passive padding
+    // (no Depends on cell but this card's own is under it now), and the
+    // corridor's bounding box (see {@link dependencyPointerRegion}).
+    <HoverCard label={`What ${number} waits for`} opensSideways>
       {entries.map((entry) => (
         <div
           key={entry.id}

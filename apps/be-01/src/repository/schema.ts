@@ -1,3 +1,32 @@
+/**
+ * The four stored vocabularies, from the ring they belong to.
+ *
+ * Re-exported because fifty callers in this app name them through this module
+ * and the columns below are validated against them: one import site keeps the
+ * `CHECK` and the type from drifting apart. See {@link stored-vocabularies}.
+ */
+import {
+  MEASURE_METRICS,
+  type MeasureMetric,
+  PERSON_KINDS,
+  type PersonKind,
+  SCHEDULE_ENGINES,
+  type ScheduleEngine,
+  SOLVER_OBJECTIVES,
+  type SolverObjectiveName,
+} from '@wbs/domain/stored-vocabularies';
+
+export {
+  MEASURE_METRICS,
+  type MeasureMetric,
+  PERSON_KINDS,
+  type PersonKind,
+  SCHEDULE_ENGINES,
+  type ScheduleEngine,
+  SOLVER_OBJECTIVES,
+  type SolverObjectiveName,
+};
+
 import { sql } from 'drizzle-orm';
 import {
   type AnySQLiteColumn,
@@ -289,24 +318,6 @@ export const project = sqliteTable(
 );
 
 export type ProjectRow = typeof project.$inferSelect;
-
-/**
- * The two engines {@link project.scheduleEngine} may name (tasks.md 3b.8).
- *
- * Declared here rather than beside {@link SOLVER_OBJECTIVES} because it is a
- * project vocabulary and not an optimizer-table one: no row in the four
- * optimizer tables stores an engine. The objective deliberately has no twin —
- * `project.schedule_objective` stores the same `'pri' | 'time'`
- * {@link SOLVER_OBJECTIVES} already names, so it is a fourth validated column
- * rather than a second vocabulary, and {@link isSolverObjective} reads it.
- *
- * The order matters to nothing and the membership matters to everything: it is
- * the list the migration's `CHECK (schedule_engine IN ('fast','optimized'))`
- * enumerates, and a value in one and not the other is a row the database
- * accepts and the read refuses, or the reverse.
- */
-export const SCHEDULE_ENGINES = ['fast', 'optimized'] as const;
-export type ScheduleEngine = (typeof SCHEDULE_ENGINES)[number];
 
 /**
  * When one account last opened one project, and nothing else.
@@ -891,17 +902,6 @@ export const stepProgress = sqliteTable(
     check('role_progress_state', sql`${t.state} IN ('in_progress', 'done')`),
   ],
 );
-
-/**
- * The closed set of units a {@link stepMeasure} can be in.
- *
- * Exported because every read and write path takes one of these as a parameter
- * rather than defaulting it — the cost of a discriminated table, paid on
- * purpose. `openspec/changes/token-tracking/design.md` D1.
- */
-export const MEASURE_METRICS = ['token_estimate', 'token_actual', 'hours_actual'] as const;
-
-export type MeasureMetric = (typeof MEASURE_METRICS)[number];
 
 /**
  * What one step's work on one work item cost, in a unit that is not days.
@@ -1654,18 +1654,6 @@ export const projectPriorityBand = sqliteTable(
 export type ProjectPriorityBandRow = typeof projectPriorityBand.$inferSelect;
 
 /**
- * The closed set of things a {@link person} row can be.
- *
- * Exported for the same reason {@link MEASURE_METRICS} is: the directory route
- * and the card take one of these as a value rather than a boolean, so the day a
- * third kind arrives it is a value added here and not a schema change.
- * `openspec/changes/token-tracking/design.md` D6.
- */
-export const PERSON_KINDS = ['person', 'agent'] as const;
-
-export type PersonKind = (typeof PERSON_KINDS)[number];
-
-/**
  * Somebody who does work. Global, like the teams, and for the same reason.
  *
  * Not a `users` row: the people a plan assigns work to are mostly not accounts
@@ -1993,14 +1981,6 @@ export type PlanEventRow = typeof planEvent.$inferSelect;
  * `libs/contracts/solver` has no path alias, so agreement is asserted by test
  * rather than by the type system.
  * ------------------------------------------------------------------------- */
-
-/**
- * `#/$defs/request.properties.objective` — the two independently solved runs,
- * and a key column of three of the four tables below.
- */
-export const SOLVER_OBJECTIVES = ['pri', 'time'] as const;
-
-export type SolverObjectiveName = (typeof SOLVER_OBJECTIVES)[number];
 
 /**
  * What a stored outcome row is: a schedule, a recorded failure, or a proof that
