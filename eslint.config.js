@@ -209,7 +209,7 @@ export default [
   },
 
   {
-    files: ['apps/be-01/src/repository/**/*.ts'],
+    files: ['libs/store-sqlite/src/**/*.ts'],
     plugins: { drizzle },
     rules: {
       'drizzle/enforce-delete-with-where': 'error',
@@ -227,7 +227,7 @@ export default [
           patterns: [
             {
               group: ['drizzle-orm', 'drizzle-orm/*'],
-              message: 'Import Drizzle only from the repository adapter.',
+              message: 'Import Drizzle only from the store-sqlite adapter.',
             },
             {
               group: ['@sinclair/typebox', '@sinclair/typebox/*'],
@@ -247,14 +247,17 @@ export default [
   // and blue/green means two be-01 processes share one SQLite file, which is
   // exactly the situation those pragmas exist for.
   //
-  // Nothing structural prevented that bypass: `openDatabase` is currently
-  // called from `repository/migrate.ts` alone, so whoever first wires the
+  // Nothing structural prevented that bypass: `openDatabase` is called from
+  // `store-sqlite/migrate.ts`, so whoever first wires the
   // server to SQLite has to know to route through it. This makes the
   // compiler-adjacent tooling enforce it instead of a comment. Type-only
   // imports stay allowed — they cannot open a connection.
+  // Proof: a production `direct-open-probe.ts` importing `Database` from
+  // `bun:sqlite` failed `store-sqlite:lint` at 1:1 with this rule's
+  // "Open connections through openDatabase() in store-sqlite/db.ts" diagnostic.
   {
-    files: ['apps/be-01/src/**/*.ts'],
-    ignores: ['apps/be-01/src/repository/db.ts'],
+    files: ['apps/be-01/src/**/*.ts', 'libs/store-sqlite/src/**/*.ts'],
+    ignores: ['libs/store-sqlite/src/db.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -264,7 +267,7 @@ export default [
               name: 'bun:sqlite',
               allowTypeImports: true,
               message:
-                'Open connections through openDatabase() in repository/db.ts — it sets and ' +
+                'Open connections through openDatabase() in store-sqlite/db.ts — it sets and ' +
                 'asserts WAL, busy_timeout and foreign_keys, and busy_timeout/foreign_keys ' +
                 'are per-connection, so a direct `new Database()` silently loses them.',
             },
@@ -308,7 +311,7 @@ export default [
               name: 'bun:sqlite',
               allowTypeImports: true,
               message:
-                'Open connections through openDatabase() in repository/db.ts — it sets and ' +
+                'Open connections through openDatabase() in store-sqlite/db.ts — it sets and ' +
                 'asserts WAL, busy_timeout and foreign_keys, and busy_timeout/foreign_keys ' +
                 'are per-connection, so a direct `new Database()` silently loses them.',
             },
@@ -366,7 +369,7 @@ export default [
   // These three are exempt from **this block**, which means they are also exempt
   // from the `bun:sqlite` path it repeats. They are not unrestricted: the
   // `src/**` block above at `:147` still supplies them that same restriction,
-  // measured by probe. Only `repository/db.ts` is exempt from `bun:sqlite`
+  // measured by probe. Only `store-sqlite/src/db.ts` is exempt from `bun:sqlite`
   // outright, and that is by name in both blocks.
   // - `controller/**` is ignored *here* only because the block above already
   //   fences it with a message written for route authors. Flat config replaces
@@ -408,7 +411,7 @@ export default [
               name: 'bun:sqlite',
               allowTypeImports: true,
               message:
-                'Open connections through openDatabase() in repository/db.ts — it sets and ' +
+                'Open connections through openDatabase() in store-sqlite/db.ts — it sets and ' +
                 'asserts WAL, busy_timeout and foreign_keys, and busy_timeout/foreign_keys ' +
                 'are per-connection, so a direct `new Database()` silently loses them.',
             },
@@ -428,7 +431,7 @@ export default [
       ],
     },
   },
-  // `repository/db.ts` is the one module the `bun:sqlite` message above points
+  // `store-sqlite/src/db.ts` is the one module the `bun:sqlite` message above points
   // *at*: `openDatabase()` lives there and it is what sets and asserts WAL,
   // busy_timeout and foreign_keys. Widening the fence to `src/**` above swept it
   // in for the first time — it sits under neither `controller/` nor `http/` — and
@@ -441,7 +444,7 @@ export default [
   // which is what makes that separation expressible at all — and it is why this
   // block must stay after the one above.
   {
-    files: ['apps/be-01/src/repository/db.ts'],
+    files: ['libs/store-sqlite/src/db.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',

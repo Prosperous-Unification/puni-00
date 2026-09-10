@@ -183,7 +183,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
 
 ## 3. `libs/store-sqlite` and `libs/store-memory`
 
-- [ ] 3.1 **Move SQLite as one source (C1/C3/C4).** Create `libs/store-sqlite` with
+- [x] 3.1 **Move SQLite as one source (C1/C3/C4).** Create `libs/store-sqlite` with
       `ring:adapter`, `runtime:bun`; move adapters, schema, connection/migration runners,
       coordinator, `buildStores` and their database tests. Expose `openSqliteSource` with
       C3's opened-source interface and independent history. Re-aim connection/Drizzle

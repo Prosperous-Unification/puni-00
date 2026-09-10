@@ -15,7 +15,7 @@ import type {
   SavedPlanTouchResult,
 } from '../service/saved-plan.service';
 import { UnknownSavedPlanBodyVersionError } from '../service/saved-plan-integrity';
-import { savePlan } from '../use-cases/save-plan';
+import { SavedPlanWriteError, savePlan } from '../use-cases/save-plan';
 import { bind, EMPTY, type HttpReply, type RequestFailure } from './endpoint';
 
 /**
@@ -113,14 +113,16 @@ export function savedPlanRoutes(
     bind(
       savePlanShape,
       async ({ params, body, principal }): Promise<HttpReply<typeof savePlanShape>> => {
-        const called = await callSavedPlan(() =>
-          savePlan(
+        let outcome;
+        try {
+          outcome = await savePlan(
             { plans, projects, announcements },
             { projectId: params.id, actor: principal, name: body.name },
-          ),
-        );
-        if (!called.ok) return called;
-        const outcome = called.value;
+          );
+        } catch (error) {
+          if (!(error instanceof SavedPlanWriteError)) throw error;
+          return versionRefusal(error.writeCause);
+        }
         switch (outcome.outcome) {
           case 'saved':
             return { ok: true, status: 201, body: { savedPlan: outcome.record } };

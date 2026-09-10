@@ -18,22 +18,22 @@ Re-run 2026-09-08 against `main` @ `5bb095a5`, over the file set this change dec
 
 ## Failure-proof table
 
-| Check                                      | Fault injected                                                             | Test that observed it        | Observed                                            |
-| ------------------------------------------ | -------------------------------------------------------------------------- | ---------------------------- | --------------------------------------------------- |
-| Every project declares one ring            | a project's `ring:` tag removed                                            |                              |                                                     |
-| A project cannot declare two               | a second `ring:` tag added                                                 |                              |                                                     |
-| The application ring imports no adapter    | `@wbs/store-sqlite` imported from a `libs/core` production file            |                              |                                                     |
-| The exemption stops at the production file | the same import moved out of `compose.test.ts` and into the file beside it |                              |                                                     |
-| Core reaches for no driver                 | `drizzle-orm` imported, and `Bun` referenced, in a core production file    |                              |                                                     |
-| Domain reaches for no node built-in        | `node:crypto` imported in `libs/domain`                                    |                              |                                                     |
-| The relocated `bun:sqlite` ban still bites | `new Database()` outside `store-sqlite/db.ts`                              |                              |                                                     |
-| The typecheck target compiles something    | `const deliberatelyWrong: number = 'not a number'` in each new lib         |                              |                                                     |
-| The composition runs without an adapter    | (the proof itself: core over the memory source, no HTTP, SQLite or Bun)    |                              |                                                     |
-| Project discovery reaches nested projects  | recursive descent replaced with `continue`                                 | `workspace-projects.test.ts` | expected outer/protocol; received `[]`              |
-| Manifest axes and targets are required     | axis loop and nonempty-target guard removed                                | `workspace-projects.test.ts` | `readProjects unexpectedly succeeded`               |
-| Duplicate project names are refused        | duplicate-name branch removed                                              | `workspace-projects.test.ts` | `readProjects unexpectedly succeeded`               |
-| Unreadable state is not absence            | unreadable directory and manifest treated as empty/absent                  | `workspace-projects.test.ts` | both reported `readProjects unexpectedly succeeded` |
-| Project symlinks are refused               | symlink rejection skipped                                                  | `workspace-projects.test.ts` | `readProjects unexpectedly succeeded`               |
+| Check                                      | Fault injected                                                             | Test that observed it        | Observed                                                                         |
+| ------------------------------------------ | -------------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------- |
+| Every project declares one ring            | a project's `ring:` tag removed                                            |                              |                                                                                  |
+| A project cannot declare two               | a second `ring:` tag added                                                 |                              |                                                                                  |
+| The application ring imports no adapter    | `@wbs/store-sqlite` imported from a `libs/core` production file            |                              |                                                                                  |
+| The exemption stops at the production file | the same import moved out of `compose.test.ts` and into the file beside it |                              |                                                                                  |
+| Core reaches for no driver                 | `drizzle-orm` imported, and `Bun` referenced, in a core production file    |                              |                                                                                  |
+| Domain reaches for no node built-in        | `node:crypto` imported in `libs/domain`                                    |                              |                                                                                  |
+| The relocated `bun:sqlite` ban still bites | `new Database()` outside `store-sqlite/db.ts`                              | `store-sqlite:lint`          | `direct-open-probe.ts:1:1`: restricted import; open through `store-sqlite/db.ts` |
+| The typecheck target compiles something    | `const deliberatelyWrong: number = 'not a number'` in each new lib         |                              |                                                                                  |
+| The composition runs without an adapter    | (the proof itself: core over the memory source, no HTTP, SQLite or Bun)    |                              |                                                                                  |
+| Project discovery reaches nested projects  | recursive descent replaced with `continue`                                 | `workspace-projects.test.ts` | expected outer/protocol; received `[]`                                           |
+| Manifest axes and targets are required     | axis loop and nonempty-target guard removed                                | `workspace-projects.test.ts` | `readProjects unexpectedly succeeded`                                            |
+| Duplicate project names are refused        | duplicate-name branch removed                                              | `workspace-projects.test.ts` | `readProjects unexpectedly succeeded`                                            |
+| Unreadable state is not absence            | unreadable directory and manifest treated as empty/absent                  | `workspace-projects.test.ts` | both reported `readProjects unexpectedly succeeded`                              |
+| Project symlinks are refused               | symlink rejection skipped                                                  | `workspace-projects.test.ts` | `readProjects unexpectedly succeeded`                                            |
 
 ## Slice 1 — the rings
 
@@ -458,6 +458,71 @@ slice; the changed boundary and totality suites are green.
 Ports-plan cases 5 and 13 remain deferred to task 4.3, when the store projects exist.
 Product/layout cases 10 and 11 and the product half of case 16 remain with
 repo-namespacing. The complete database, browser and landing gates remain task 5.2.
+
+## Slice 3.1 — SQLite as one source
+
+Verified 2026-09-10. `libs/store-sqlite` is discovered by Nx with
+`ring:adapter`, `runtime:bun` and complete `lint`, `lint:fast`, `test`, and
+`typecheck` targets. Adapter production, database tests, source conformance kits,
+the write coordinator, store builder, and the optimized-outcome transaction now
+have one authority there. Compatibility exports keep the application paths live.
+The deploy migration directory and three migration CLIs remain in `apps/be-01`
+for slice 3.2.
+
+| Command                                                           | Observed                                                                                      |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `bunx nx run store-sqlite:test --skip-nx-cache`                   | 651 pass, 0 fail, 2,005 assertions, 59 files                                                  |
+| `bunx nx run store-sqlite:lint`                                   | clean; direct `bun:sqlite` fault below was removed before this rerun                          |
+| `bunx nx run store-sqlite:typecheck`                              | source and spec projects clean                                                                |
+| `bunx nx run core:typecheck` and `bunx nx run be-01:typecheck`    | both clean                                                                                    |
+| `bunx nx run core:lint`; `bunx nx run be-01:lint --skip-nx-cache` | both clean; backend rerun bypassed Nx cache                                                   |
+| `bunx nx run core:test`                                           | 390 pass, 0 fail, 1,382 assertions, 41 files                                                  |
+| `bun run test:unit` with permitted localhost sockets              | be-01: 495 pass, 1 intentional source-capability skip, 0 fail; all seven library targets pass |
+| focused saved-plan classification cases                           | 2 pass, 0 fail after the extracted authority made the previously duplicated error class exact |
+
+The first restricted root-unit run failed only when `Bun.serve({ port: 0 })`
+could not bind (`EADDRINUSE`); the permitted rerun above passed. An AST comparison
+over 57 moved test files found all 693 prior `describe`/`it`/`test` nodes in the
+same order; the destination has 695 after the two migration failure cases. The
+three optimized-outcome transaction cases retained their order after being split
+from the application's process-orchestration suite.
+
+The application-wide `bun test --coverage --coverage-reporter=lcov` is task 5.2,
+not this slice's acceptance target. It reported 1,042 pass, 2 intentional skips,
+0 assertion failures and 2 between-test errors across the branch's 89 application
+files. Clean `main` reproduced the same two errors while running its 180 pre-move
+application files: 2,058 pass, 2 intentional skips, 0 assertion failures and 2
+between-test errors. Both are late coordinator work against a removed temporary
+database (`solver_slot` and `solver_queue`, `SQLITE_IOERR_VNODE`). The two
+parameterized Retry cases wait for a spawn recorder rather than coordinator drain;
+coordinator lifecycle and that test remain unchanged for task 5.2.
+
+The extraction did expose one application delta: the single authority made
+`UnknownSavedPlanBodyVersionError` identity exact, revealing that the save route
+caught project and announcement errors around the whole use case. Before the fix,
+both focused cases expected 500 and received 501 with
+`unsupported_body_version`. `SavedPlanWriteError` now marks only the saved-plan
+write boundary; the same two cases pass and the full application run has no
+assertion failure.
+
+- Importing `bun:sqlite` from a temporary production
+  `store-sqlite/src/direct-open-probe.ts` failed the actual library lint target at
+  `1:1` with `@typescript-eslint/no-restricted-imports` and the instruction to
+  open through `openDatabase()` in `store-sqlite/db.ts`.
+- Making a missing migration directory return `[]` failed because the function
+  did not throw and returned `[]`. Catching an unreadable root directory and
+  returning `[]` failed the same way. Restoring the prior `existsSync` filter for
+  a readable root with an unreadable migration child failed the focused test on
+  `Expected pattern: /EACCES|permission denied/i`, `Received function did not
+throw`, `Received value: []`. Converting an unreadable `down.sql` to an empty
+  script failed because the received message was the modeled empty-script error
+  rather than `/EACCES|permission denied/`.
+- The five source guarantees were broken one at a time. The tests observed a
+  created `__drizzle_migrations` table on open; two process connections instead
+  of one; one history connection instead of two; corrupt health resolving rather
+  than rejecting; a second close surfacing `close failed`; and a swallowed close
+  failure resolving rather than rejecting. Each fault was restored before the
+  full target run.
 
 ## Gate
 

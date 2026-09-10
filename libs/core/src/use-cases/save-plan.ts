@@ -22,6 +22,14 @@ export interface SavePlanInput {
 export type SavedPlanUseCaseOutcome =
   SavedPlanSaveOutcome | { readonly outcome: 'not_found' | 'forbidden' | 'insufficient_scope' };
 
+/** Identifies a failure from the saved-plan write so transports classify only that boundary. */
+export class SavedPlanWriteError extends Error {
+  constructor(readonly writeCause: unknown) {
+    super('Saved-plan write failed', { cause: writeCause });
+    this.name = 'SavedPlanWriteError';
+  }
+}
+
 /** Saves and announces a plan after transport-independent admission succeeds. */
 export async function savePlan(
   graph: SavePlanGraph,
@@ -37,7 +45,12 @@ export async function savePlan(
     createdBy: input.actor.username,
     createdById: input.actor.id,
   };
-  const outcome = await graph.plans.save(request);
+  let outcome: SavedPlanSaveOutcome;
+  try {
+    outcome = await graph.plans.save(request);
+  } catch (error) {
+    throw new SavedPlanWriteError(error);
+  }
   if (outcome.outcome === 'saved') {
     await graph.announcements.publish(input.projectId, { type: 'saved_plans_changed' });
   }

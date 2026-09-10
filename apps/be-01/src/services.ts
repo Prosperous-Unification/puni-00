@@ -14,28 +14,13 @@ import {
 import { contractVersionOf } from '@wbs/domain';
 import type { Logger } from '@wbs/observability';
 import { type FetchLike, PushClient, systemTimers } from '@wbs/runtime-portable';
+import { buildStores } from '@wbs/store-sqlite/build-stores';
 
 import { PLAN_EVENT_RETENTION_DAYS } from './repository';
-import { ActualRepository } from './repository/actual';
-import { CalendarMarkerRepository } from './repository/calendar-marker';
-import { CapacityRepository } from './repository/capacity';
 import { capturedOptimizationReaderOf } from './repository/captured-optimization-reader';
-import { CommandJournalRepository } from './repository/command-journal';
 import type { Drizzle } from './repository/db';
-import { DependencyRepository } from './repository/dependency';
-import { DirectoryRepository } from './repository/directory';
-import { EstimateRepository } from './repository/estimate';
-import { DrizzleEventLogStore } from './repository/event-log';
-import { type Gate, OPEN, type WriteCoordinator } from './repository/gate';
-import { PlanEventRepository } from './repository/plan-event';
-import { PriorityBandRepository } from './repository/priority-band';
-import { ProjectRepository } from './repository/project';
+import { OPEN, type WriteCoordinator } from './repository/gate';
 import { sqliteUnitOfWork } from './repository/sqlite-unit-of-work';
-import { StepRepository } from './repository/step';
-import { StepMeasureRepository } from './repository/step-measure';
-import { StepProgressRepository } from './repository/step-progress';
-import { UserRepository } from './repository/user';
-import { SubtreeRepository, WorkItemRepository } from './repository/work-item';
 import { bunPasswordHasher, joseTokenCodec, systemInterval } from './runtime/bun-runtime';
 import { AuthService, type AuthServiceOptions } from './service/auth.service';
 import { CalendarMarkerService } from './service/calendar-marker.service';
@@ -143,57 +128,8 @@ export interface BeServices extends WritingServices {
   scheduler: Scheduler;
 }
 
-/**
- * Every transactional store of the SQLite source, built over one gate.
- *
- * Built **twice** in this process and that is the whole point (D20): once over
- * the {@link WriteCoordinator}, which is what a route write goes through and
- * what makes it wait for an open batch's turn, and once over {@link OPEN} for
- * the batch itself, whose services already hold that turn. A batch built over
- * the coordinator would wait for the turn it is holding — a deadlock, not a
- * slow write.
- *
- * The saved-plan stores are **not** here: they open their own connection per
- * call, take no turn, and are independent of any batch (ADR 0015, D12/D27).
- */
-export function buildStores(db: Drizzle, gate: Gate) {
-  return {
-    projects: new ProjectRepository(db, gate),
-    users: new UserRepository(db, gate),
-    directory: new DirectoryRepository(db, gate),
-    capacity: new CapacityRepository(db, gate),
-    priorityBands: new PriorityBandRepository(db, gate),
-    calendarMarkers: new CalendarMarkerRepository(db, gate),
-    eventLog: new DrizzleEventLogStore(db, gate),
-    planEvents: new PlanEventRepository(db, gate),
-    steps: new StepRepository(db, gate),
-    workItems: new WorkItemRepository(db, gate),
-    estimates: new EstimateRepository(db, gate),
-    // Its own store beside the estimates rather than more methods on that one:
-    // the two tables answer different questions, and the day one of them grows
-    // a rule the other must not have is the day a shared class becomes a
-    // conditional. See `actual` in `schema.ts`.
-    actuals: new ActualRepository(db, gate),
-    measures: new StepMeasureRepository(db, gate),
-    // And its own store again, for the same reason once more: a state is a
-    // sentence about work and an actual is a number about it, and the table
-    // that holds one must not grow a rule the other has to carry. See
-    // `step_progress` in `schema.ts`.
-    progress: new StepProgressRepository(db, gate),
-    dependencies: new DependencyRepository(db, gate),
-    // The one store that writes across all four of the tables above, because
-    // a duplicated subtree is one act — see {@link SubtreeRepository}.
-    subtrees: new SubtreeRepository(db, gate),
-    // The undo stack, on the server so it survives a reload — one per account
-    // per project. See `command_journal` in `schema.ts`. It is also what writes
-    // the plan's history, in the same transaction, because a journalled command
-    // and a recorded one are the same act.
-    journal: new CommandJournalRepository(db, gate),
-  };
-}
-
-/** The transactional stores of one source, over one gate. */
-export type Stores = ReturnType<typeof buildStores>;
+/** Compatibility export while callers move to the SQLite adapter package. */
+export { buildStores } from '@wbs/store-sqlite/build-stores';
 
 /** What a service graph needs that is not a store, and is shared across graphs. */
 export interface SharedRuntime {

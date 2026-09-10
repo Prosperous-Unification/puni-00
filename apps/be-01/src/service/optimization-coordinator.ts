@@ -6,6 +6,10 @@ import {
 import type { RecordedEvent } from '@wbs/core';
 import type { Schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
+import {
+  type OptimizationOutcomeEvent,
+  storeOptimizedOutcomeAndRecord,
+} from '@wbs/store-sqlite/optimized-outcome';
 
 import type { Drizzle } from '../repository/db';
 import type { DrizzleEventLogStore } from '../repository/event-log';
@@ -34,11 +38,10 @@ import {
   readOptimizedPair,
   readOptimizedPairAndSpawn,
   type SpawnRequest,
-  storeOptimizedOutcomeIn,
 } from '../repository/optimized-schedule-cache';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import type { SolverObjectiveName } from '../repository/schema';
-import { type ProjectEvent, subscriptionFor } from './broadcast';
+import type { ProjectEvent } from './broadcast';
 import {
   type OptimizationVariantState,
   optimizationVariantState,
@@ -100,48 +103,10 @@ export type ScheduleOptimizationInfeasibleEvent = Extract<
   ProjectEvent,
   { type: 'schedule_optimization_infeasible' }
 >;
-export type OptimizationOutcomeEvent =
-  ScheduleOptimizedEvent | ScheduleOptimizationFailedEvent | ScheduleOptimizationInfeasibleEvent;
-
-export interface RecordedOptimizedOutcome {
-  readonly result: OutcomeWriteResult;
-  readonly subscription?: string;
-  readonly recorded?: RecordedEvent;
-  readonly event?: OptimizationOutcomeEvent;
-}
-
-/** Atomically store one validated result and its durable replay record. */
-export function storeOptimizedOutcomeAndRecord(
-  db: Drizzle,
-  eventLog: Pick<DrizzleEventLogStore, 'recordEventIn'>,
-  write: OutcomeWrite,
-): RecordedOptimizedOutcome {
-  return db.transaction((tx) => {
-    const result = storeOptimizedOutcomeIn(tx, write);
-    if (result !== 'stored') return { result };
-    const identity = {
-      projectId: write.claim.projectId,
-      generation: write.claim.generation,
-      inputHash: write.inputHash,
-      objective: write.claim.objective,
-      contractVersion: write.claim.contractVersion,
-      budgetMs: write.claim.budgetMs,
-    };
-    const event: OptimizationOutcomeEvent =
-      write.outcome.kind === 'ok'
-        ? { type: 'schedule_optimized', ...identity }
-        : write.outcome.kind === 'failed'
-          ? {
-              type: 'schedule_optimization_failed',
-              ...identity,
-              failureReason: write.outcome.reason,
-            }
-          : { type: 'schedule_optimization_infeasible', ...identity };
-    const subscription = subscriptionFor(write.claim.projectId);
-    const recorded = eventLog.recordEventIn(tx, subscription, event, write.now);
-    return { result, subscription, recorded, event };
-  });
-}
+export {
+  type OptimizationOutcomeEvent,
+  storeOptimizedOutcomeAndRecord,
+} from '@wbs/store-sqlite/optimized-outcome';
 
 /** Everything the launcher needs from the read and its successful reservation. */
 export interface ReservedSpawnRequest extends SpawnRequest {
