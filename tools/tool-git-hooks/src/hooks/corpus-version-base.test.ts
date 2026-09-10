@@ -1,8 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'bun:test';
+
+import { scratchSync } from '../../../test/scratch';
 
 const SCRIPT = join(import.meta.dir, 'corpus-version-base.ts');
 const roots: string[] = [];
@@ -28,7 +29,7 @@ function commit(root: string, contents: string): string {
 }
 
 function history(): { root: string; first: string; base: string; head: string } {
-  const root = mkdtempSync(join(tmpdir(), 'wbs-corpus-base-'));
+  const root = scratchSync('wbs-corpus-base-');
   roots.push(root);
   git(root, 'init');
   git(root, 'config', 'user.name', 'Corpus Base Test');
