@@ -11,6 +11,7 @@ import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
+import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { testProjectService } from '../testing/project-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -24,6 +25,7 @@ const TEST_SECRET = 'x'.repeat(32);
 
 function app(auth = testAuthService(), maxConcurrentLogins?: number) {
   return buildApp({
+    loginThrottle: testLoginThrottle(maxConcurrentLogins),
     appOrigin: 'http://localhost',
     clock: testClock,
     directory: testDirectoryService(),
@@ -31,7 +33,6 @@ function app(auth = testAuthService(), maxConcurrentLogins?: number) {
     priorityBands: testPriorityBandService(),
     history: testHistoryService(),
     auth,
-    maxConcurrentLogins,
     calendarMarkers: testCalendarMarkerService(),
     projects: testProjectService(),
     workItems: testWorkItemService(),
@@ -138,6 +139,7 @@ describe('GET /api/auth/me', () => {
       },
     });
     const res = await buildApp({
+      loginThrottle: testLoginThrottle(),
       appOrigin: 'http://localhost',
       clock: testClock,
       directory: testDirectoryService(),

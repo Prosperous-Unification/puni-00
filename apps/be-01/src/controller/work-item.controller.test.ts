@@ -17,6 +17,7 @@ import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { inMemoryServices } from '../testing/harness';
 import { testHistoryService } from '../testing/history-fixture';
+import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
@@ -65,6 +66,7 @@ function buildHarness(optimized?: OptimizedScheduleReader) {
     calendarMarkers,
   });
   const app = buildApp({
+    loginThrottle: testLoginThrottle(),
     clock: testClock,
     appOrigin: 'http://localhost',
     // **One** directory, shared with the work item service below. Two would

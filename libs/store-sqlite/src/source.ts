@@ -8,6 +8,12 @@ import { SavedPlanRepository } from './saved-plan';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
 
+/** The adapter-owned details needed by be-01's optimizer runtime. */
+export interface SqliteSource extends Source<TransactionalStores> {
+  readonly db: Connection['db'];
+  readonly gate: WriteCoordinator;
+}
+
 /** Options that own every connection in one SQLite source lifetime. */
 export interface OpenSqliteSourceOptions {
   readonly dbPath: string;
@@ -15,7 +21,7 @@ export interface OpenSqliteSourceOptions {
 }
 
 /** Opens SQLite persistence without changing its schema. */
-export function openSqliteSource(options: OpenSqliteSourceOptions): Source<TransactionalStores> {
+export function openSqliteSource(options: OpenSqliteSourceOptions): SqliteSource {
   const connect = options.openConnection ?? openDatabaseConnection;
   const process = connect(options.dbPath);
   const coordinator = new WriteCoordinator();
@@ -24,6 +30,8 @@ export function openSqliteSource(options: OpenSqliteSourceOptions): Source<Trans
   let closed = false;
 
   return {
+    db: process.db,
+    gate: coordinator,
     stores,
     history: {
       savedPlans: new SavedPlanRepository({

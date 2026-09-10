@@ -648,6 +648,42 @@ by this catalog.
 | Expected cases are independent of kit registration | Delete the step-family registration from the real shared `sourceConformance` composition, then run the memory source test                            | The report failed on `in-memory certification missing cases: steps.add, steps.rename, steps.rename:unknown` while every remaining body passed |
 | The source target hashes its shared production kit | Warm `store-memory:test` to a confirmed local-cache hit, add a top-level throw to the imported conformance source, then repeat the identical command | Nx reran and failed on `injected conformance dependency cache fault` instead of replaying the cached green result                             |
 
+## Slice 4.2 — one public composition and fresh admitted graphs
+
+Verified 2026-09-10. `core/compose.ts` now accepts an opened source plus explicit
+runtime/shared ports, builds the public buffer, broadcaster, throttle, saved-plan
+history and retention service once, and builds every command graph from its admitted
+scope. Its overloads expose auth only when both account stores and account runtime
+ports are supplied. be-01 opens the SQLite source at boot, calls the core composition
+once, mounts the composed services (including the login throttle), and closes the
+source after retention and optimizer shutdown.
+
+| Command                                                        | Observed                                            |
+| -------------------------------------------------------------- | --------------------------------------------------- |
+| `bun test` in `libs/core`                                      | 398 pass, 0 fail, 1,406 assertions across 42 files  |
+| `bun test src/compose.test.ts` in `libs/core`                  | 8 pass, 0 fail, 26 assertions                       |
+| focused be-01 services and authentication files                | 43 pass, 0 fail; service graph 10/10 and auth 33/33 |
+| focused elevated boot identity case                            | 1 pass, 13 filtered, 0 fail, 2 assertions           |
+| focused elevated boot shutdown-order case                      | 1 pass, 14 filtered, 0 fail, 1 assertion            |
+| `bun test src/source.test.ts` in `libs/store-sqlite`           | 5 pass, 0 fail, 9 assertions                        |
+| source/spec TypeScript builds for core, be-01 and store-sqlite | all compile clean                                   |
+| `nx run core:typecheck --skip-nx-cache`                        | clean; cache skipped                                |
+| ESLint over core, be-01 and store-sqlite source trees          | all clean                                           |
+
+The broader four-file be-01 run reached 50 passes and 609 assertions; its only
+failure was the sandbox refusing `Bun.serve({ port: 0 })` with `EADDRINUSE`. The
+same boot-dependent composition case passed in the permitted focused rerun above.
+
+| Check                                      | Injected fault                                      | Observed                                                                                                                 |
+| ------------------------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Accountless source rejects account runtime | Allow account keys on the accountless overload      | `core:typecheck` failed with TS2578 at `compose.test.ts:158`; the mismatch compiled                                      |
+| Account source requires account runtime    | Remove `users?: never` from `AccountlessSource`     | `core:typecheck` failed with TS2578 at `compose.test.ts:163`; the reverse mismatch compiled                              |
+| Two batches use the public replay buffer   | Construct a second buffer for `ReplayOrchestrator`  | The two-event committed replay returned `{status: "denied", reason: "out_of_range"}` instead of both buffered sequences  |
+| Every batch owns its collector             | Reuse one constructor-owned `AnnouncementCollector` | The two-batch identity assertion received the same collector for both batches                                            |
+| Stale undo repairs through the fresh scope | Discard through the rolled-back scope               | The composition case threw `no journal entry id-5` instead of consuming the committed stale entry                        |
+| HTTP consumes the composed public graph    | Give `buildApp` a second `LoginThrottle`            | `boot.db.test.ts:258` expected 429 and received 401; 0 pass, 1 fail, 13 filtered, 2 assertions                           |
+| Source closes after runtime services stop  | Close the source before stopping either service     | The close boundary observed `{optimizerRunning: true, retentionRunning: true}`; 0 pass, 1 fail, 14 filtered, 1 assertion |
+
 ## Gate
 
 | Command | When | Result |

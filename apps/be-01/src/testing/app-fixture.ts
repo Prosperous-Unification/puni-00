@@ -5,6 +5,7 @@ import { testCapacityService } from './capacity-fixture';
 import { testClock } from './clock-fixture';
 import { testDirectoryService } from './directory-fixture';
 import { testHistoryService } from './history-fixture';
+import { testLoginThrottle } from './login-throttle-fixture';
 import { testPriorityBandService } from './priority-band-fixture';
 import { testProjectService } from './project-fixture';
 import { testReplay } from './replay-fixture';
@@ -38,6 +39,7 @@ export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof 
   const calendarMarkers = testCalendarMarkerService();
   return buildApp({
     appOrigin: 'http://localhost',
+    loginThrottle: testLoginThrottle(),
     auth: testAuthService(),
     projects,
     workItems,

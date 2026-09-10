@@ -3,12 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { createLogger } from '@wbs/observability';
+import { openSqliteSource } from '@wbs/store-sqlite';
 import { afterEach, describe, expect, it } from 'bun:test';
 
-import { openConnection, openDrizzle } from './repository/db';
+import { openConnection, type openDrizzle } from './repository/db';
 import { DrizzleEventLogStore } from './repository/event-log';
 import { OPEN } from './repository/gate';
-import { WriteCoordinator } from './repository/gate';
 import { runMigrations } from './repository/migrate';
 import { allocateGeneration } from './repository/optimization-generation';
 import { ProjectRepository } from './repository/project';
@@ -60,10 +60,10 @@ function bootstrap(optimizer?: {
   dirs.push(dir);
   const path = join(dir, 'test.db');
   runMigrations(path, FOLDER);
-  const db = openDrizzle(path);
+  const source = openSqliteSource({ dbPath: path });
+  const db = source.db;
   const services = buildServices({
-    db,
-    gate: new WriteCoordinator(),
+    source,
     logger: createLogger({ service: 'be-01' }),
     jwtKey: 'k'.repeat(32),
     gwUrl: 'http://gw.invalid',

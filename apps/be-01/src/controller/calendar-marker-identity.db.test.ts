@@ -35,6 +35,7 @@ import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixtu
 import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
+import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
@@ -177,6 +178,7 @@ describe('the schedule identity guarantee', () => {
       }),
     };
     app = buildApp({
+      loginThrottle: testLoginThrottle(),
       clock: testClock,
       ...writing,
       appOrigin: 'http://localhost',

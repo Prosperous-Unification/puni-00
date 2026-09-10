@@ -25,6 +25,7 @@ import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import { testHistoryService } from '../testing/history-fixture';
+import { testLoginThrottle } from '../testing/login-throttle-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
 import { testReplay } from '../testing/replay-fixture';
 import { testSavedPlanService } from '../testing/saved-plan-fixture';
@@ -160,6 +161,7 @@ describe('the calendar-marker routes', () => {
       passwords: bunPasswordHasher,
     });
     app = buildApp({
+      loginThrottle: testLoginThrottle(),
       clock: testClock,
       appOrigin: 'http://localhost',
       auth,

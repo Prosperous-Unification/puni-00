@@ -230,7 +230,7 @@ root-level `.ts` file to its explicit lint target in the same slice.
       coverage test to report that source/case missing. The remaining thirteen kits are
       specified by source-conformance-completion, not claimed by moving these four.
 
-- [ ] 4.2 **Compose public and admitted services exactly once per lifetime.** Implement
+- [x] 4.2 **Compose public and admitted services exactly once per lifetime.** Implement
       `core/compose.ts` C2/C3 and its accountful/accountless overloads; boot passes opened
       source and runtime ports, saved plans included. Tests: `core/src/compose.test.ts`
       runs a mixed-store batch commit/refusal, denied and permitted save, replay after

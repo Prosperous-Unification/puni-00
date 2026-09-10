@@ -31,7 +31,7 @@ import type { AuthService } from './service/auth.service';
 import type { CalendarMarkerService } from './service/calendar-marker.service';
 import type { CapacityService } from './service/capacity.service';
 import type { DirectoryService } from './service/directory.service';
-import { LoginThrottle } from './service/login-throttle';
+import type { LoginThrottle } from './service/login-throttle';
 import type { OptimizationCoordinator } from './service/optimization-coordinator';
 import { PlanCommandRunner } from './service/plan-commands';
 import type { PriorityBandService } from './service/priority-band.service';
@@ -52,8 +52,8 @@ export interface AppOptions {
    * absent, answering 404 — indistinguishable from a routing fault at the edge.
    */
   auth: AuthService;
-  /** Per-process active password logins; defaults to eight and must be a positive integer. */
-  maxConcurrentLogins?: number;
+  /** The composition's one password-attempt throttle. */
+  loginThrottle: LoginThrottle;
   oidc?: OidcRouteOptions;
   /**
    * Required for the same reason as `auth`: an absent project service would
@@ -190,12 +190,7 @@ export function mountedEndpoints(
     scrapeMetrics: opts.metricsScrape ?? (() => scrapeMetrics('be-01')),
   },
 ) {
-  const passwordThrottle = new LoginThrottle({
-    // Proof: omitting this production clock made `be-01:typecheck` fail here
-    // with TS2741: property `now` is missing in `LoginThrottleOptions`.
-    now: () => opts.clock.now(),
-    maxConcurrent: opts.maxConcurrentLogins ?? 8,
-  });
+  const passwordThrottle = opts.loginThrottle;
   const commands = new PlanCommandRunner({
     batchServices: opts.writes.batch,
     publicServices: {

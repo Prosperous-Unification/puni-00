@@ -14,6 +14,7 @@
  * `SavedPlanStore.holdingOf(db)` — which is `tasks.md` 2.2's first job rather
  * than a move.
  */
+export * from './compose';
 export * from './ports/actual-store';
 export * from './ports/calendar-marker-store';
 export * from './ports/capacity-store';

@@ -191,6 +191,11 @@ export class OptimizationCoordinator {
     this.requestPump();
   }
 
+  /** Whether restart reconciliation is scheduled for this process. */
+  isRunning(): boolean {
+    return this.reconcileHandle !== null;
+  }
+
   /** Stop periodic reconciliation, then await attempts already owned by this process. */
   async stop(): Promise<void> {
     if (this.reconcileHandle !== null) {

@@ -230,6 +230,8 @@ export class PlanCommandRunner {
   ): Promise<BatchOutcome> {
     // This batch's own collector and its own graph over it. Two batches never
     // share either, and no route's graph is built over this one.
+    // Proof: reusing a constructor-owned collector made compose.test.ts receive
+    // the same AnnouncementCollector for two batches at its identity assertion.
     const collector = new AnnouncementCollector(this.opts.announcements);
     type Applied = BatchOutcome | Collected<AppliedCommand[]>;
     const done = await this.opts.uow.run<Applied>(async (scope): Promise<Decision<Applied>> => {
@@ -330,8 +332,9 @@ export class PlanCommandRunner {
             entryId === undefined
               ? undefined
               : async (repairScope) => {
-                  // Proof: discarding through the rolled-back graph left the
-                  // repair-start assertion false (2026-09-09).
+                  // Proof: discarding through the rolled-back graph made the
+                  // memory composition throw `no journal entry id-5` instead
+                  // of consuming the committed stale entry (compose.test.ts).
                   await this.opts
                     .batchServices(repairScope, collector)
                     .workItems.discardEntry(entryId);
