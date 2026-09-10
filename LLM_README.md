@@ -1,7 +1,7 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-304 session-response hardening is on `fix/task304-anonymous-session-hardening`: remote-gate the auth, client, and packaged-document proofs, then open the dev PR.
-TASK-496's project-settings route teardown fix is on `fix/task496-project-settings-route-teardown`; next: green CI, merge, dev verification.
+`integration/open-prs` (PR #391) carries every open PR merged onto main — #334, #340, #347,
+#350, #361, #369 — gated as one branch before it merges.
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),
 `mcp-01` (MCP server over be-01, stdio, spawned by its client). Nx monorepo, Bun — never npm.
@@ -23,15 +23,15 @@ Three facts explain most decisions:
 ```sh
 bun install                                     # first, on a fresh clone
 bun run dev:setup                               # writes the .env files dev needs
-bin/h2puni-gate.sh                              # full h2puni gate + canonical lock
+bin/h2puni-gate.sh <sha>                        # full h2puni gate; checks <sha> out under the lock
 bun run dev                                     # be + gw + fe locally; `bun run e2e` for the browser gate
 bun run test:unit                               # the fast tier: be-01 + every lib, ~17s
 bunx nx run <project>:lint:fast                 # editing only, ~4s; `lint` is uncached and is the gate
 ```
 
 `bun test` at the repo root is **not** the gate: it collects fe-01's files, which fail on the DOM
-`bun:test` has no jsdom for. On h2puni, use `bin/h2puni-gate.sh`; raw full Nx
-gates bypass the host-wide release lock. `build` needs `shellcheck`.
+`bun:test` has no jsdom for. On h2puni, use `bin/h2puni-gate.sh <sha>` and do NOT check that sha
+out first: lanes share the gate tree, and a checkout outside the lock is how one lane's gate came to report about another's head (TASK-328). Raw full Nx gates bypass the lock; `build` needs `shellcheck`.
 
 **Rules: `AGENTS.md`** (symlinked to CLAUDE.md/GEMINI.md) — read it, it governs every change.
 

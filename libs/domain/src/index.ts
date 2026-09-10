@@ -61,7 +61,6 @@ export * from './saved-plan';
 // and answer a question about a plan's shape — which is what everything else in
 // here is. It reads four of its neighbours and no repository.
 export * from './schedule';
-export * from './store-values';
 // The canonical schedule string stays on its explicit subpath rather than the
 // browser-facing barrel. Backend cache addressing wraps that one canonicalizer
 // beside SQLite; domain contains no production crypto adapter.
@@ -101,4 +100,5 @@ export * from './slice-groups';
 export * from './solver-quantum';
 export * from './solver-quantum-golden-corpus';
 export * from './step';
+export * from './stored-vocabularies';
 export * from './workday';

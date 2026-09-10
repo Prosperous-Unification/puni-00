@@ -12,7 +12,7 @@ import {
 } from '@wbs/store-sqlite/optimized-outcome';
 
 import type { Drizzle } from '../repository/db';
-import type { DrizzleEventLogStore } from '../repository/event-log';
+import type { EventLogTransactionalWrite } from '../repository/event-log';
 import {
   bindSolverSlot,
   reserveSolverSlot,
@@ -79,7 +79,7 @@ export interface OptimizationCoordinatorOptions {
   readonly runChild?: (options: SolverChildLifecycleOptions) => Promise<SolverChildLifecycleResult>;
   readonly onChildError: (error: unknown) => void;
   /** Durable half of a newly stored result's project event. */
-  readonly eventLog: Pick<DrizzleEventLogStore, 'recordEventIn'>;
+  readonly eventLog: EventLogTransactionalWrite;
   /** Best-effort live half, invoked only after the outcome transaction commits. */
   readonly pushRecorded: (
     subscription: string,

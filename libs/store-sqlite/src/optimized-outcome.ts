@@ -1,7 +1,7 @@
 import { type ProjectEvent, type RecordedEvent, subscriptionFor } from '@wbs/core';
 
 import type { Drizzle } from './db';
-import type { DrizzleEventLogStore } from './event-log';
+import type { EventLogTransactionalWrite } from './event-log';
 import {
   type OutcomeWrite,
   type OutcomeWriteResult,
@@ -30,7 +30,7 @@ export interface RecordedOptimizedOutcome {
 /** Atomically store one validated result and its durable replay record. */
 export function storeOptimizedOutcomeAndRecord(
   db: Drizzle,
-  eventLog: Pick<DrizzleEventLogStore, 'recordEventIn'>,
+  eventLog: EventLogTransactionalWrite,
   write: OutcomeWrite,
 ): RecordedOptimizedOutcome {
   return db.transaction((tx) => {

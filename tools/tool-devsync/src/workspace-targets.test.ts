@@ -409,7 +409,9 @@ describe('every project says which ring, scope and runtime it is', () => {
     // project failed this assertion with its manifest path and `found 0`; adding
     // `ring:domain` beside it failed with the same path and `found 2`. Removing
     // the ring from `tools/dev/project.json` likewise failed here with its path.
-    // Watched 2026-09-10.
+    // Proof: after the focused Nx target returned a 1/1 cache hit, removing the
+    // nested ring forced the target to execute and fail here with that path,
+    // proving the recursive manifest input invalidates its cache. Watched 2026-09-10.
     expect(wrong).toEqual([]);
   });
 

@@ -19,6 +19,16 @@ import type { Gate } from './gate';
  */
 export type EventLogTransaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
 
+/** The optimizer's adapter-only event write inside its existing transaction. */
+export interface EventLogTransactionalWrite {
+  recordEventIn(
+    tx: EventLogTransaction,
+    subscription: string,
+    message: unknown,
+    createdAt: number,
+  ): RecordedEvent;
+}
+
 /**
  * The durable record of what has been announced on a subscription — a store
  * port of the source like the rest, and a **transactional** one (ADR 0015).
@@ -30,7 +40,7 @@ export type EventLogTransaction = Parameters<Parameters<SQLiteBunDatabase['trans
  */
 export type { EventLogStore, RecordedEvent } from '@wbs/core';
 
-export class DrizzleEventLogStore implements EventLogStore {
+export class DrizzleEventLogStore implements EventLogStore, EventLogTransactionalWrite {
   constructor(
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,

@@ -32,6 +32,7 @@
       "@wbs/conformance": ["./libs/conformance/src/index.ts"],
       "@wbs/conformance/*": ["./libs/conformance/src/*"],
       "@wbs/domain": ["./libs/domain/src/index.ts"],
+      "@wbs/domain/stored-vocabularies": ["./libs/domain/src/stored-vocabularies.ts"],
       "@wbs/domain/workday": ["./libs/domain/src/workday.ts"],
       "@wbs/domain/deadline-offsets": ["./libs/domain/src/deadline-offsets.ts"],
       "@wbs/domain/assumed-duration": ["./libs/domain/src/assumed-duration.ts"],
@@ -84,6 +85,7 @@
       ],
       "@wbs/deploy-contract": ["./tools/tool-remote-scripts/src/lib/deploy-contract.ts"],
       "@wbs/tool-compose": ["./tools/tool-compose/src/index.ts"],
+      "@wbs/tool-test-scratch": ["./tools/test/scratch/index.ts"],
       "@wbs/tool-env": ["./tools/tool-remote-scripts/src/lib/env.ts"],
       "@wbs/validation": ["./libs/validation/src/index.ts"],
       "@wbs/validation/fixtures": ["./libs/validation/src/fixtures/index.ts"]

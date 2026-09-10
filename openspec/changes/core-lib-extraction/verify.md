@@ -61,6 +61,26 @@ may import what is exactly the kind that passes project by project and fails as 
 | `bun test` in `apps/be-01`                           | 2026-09-08 | 2,035 pass / 2 skip / 0 fail, same count as before the move |
 | `bun run test:unit`                                  | 2026-09-08 | 7 tasks green                                               |
 
+## Slice 2.2a.1 — signatures that blocked the store ports
+
+| Command                                              | When       | Result                                   |
+| ---------------------------------------------------- | ---------- | ---------------------------------------- |
+| `bunx nx run-many -t lint typecheck --skip-nx-cache` | 2026-09-08 | 25 projects, clean                       |
+| `bun test` in `apps/be-01`                           | 2026-09-08 | 2,035 pass / 2 skip / 0 fail, same count |
+| `bun run test:unit`                                  | 2026-09-08 | 7 tasks green                            |
+
+At this checkpoint, `repository/index.ts` imported `@wbs/core`, `@wbs/domain` and one
+adapter-only event-log type, with no import from `./schema` or `./db`. Adding an adapter
+import back was already watched failing through the ring rule in slice 2a.
+
+`SavedPlanRow` was still `typeof savedPlan.$inferSelect` in the saved-plan port at this
+checkpoint. Slice 2.2b.1 below subsequently declared it explicitly and moved the remaining
+history contracts into core.
+
+`.nxignore` also gained `.worktrees`. Two worktree checkouts appeared below this checkout
+mid-slice, and Nx read them as duplicate projects, failing `run-many` before a target ran.
+The repository convention is `.worktrees/<name>`, so Nx excludes that directory.
+
 ## Slice 2.0 — recursive workspace project discovery
 
 | Command                                                                               | When       | Result                                                                                                                                |
@@ -788,6 +808,33 @@ substitute for the injected proof: the captured output separately named
 targets along with the other twelve.
 
 ## Gate
+
+## 2026-09-10 current-main merge checkpoint
+
+Merged `origin/main` at `87bf2931` onto the pushed extraction checkpoint
+`deb31876`. The merge preserves the extracted app compatibility shims, ports
+main's transactional event-log contract into `store-sqlite`, and consolidates
+the stored vocabulary in `libs/domain/src/stored-vocabularies.ts`.
+
+Main's shared scratch helper is now the nested `tool-test-scratch` Nx project.
+Its 17 tool consumers import `@wbs/tool-test-scratch`; the relative imports
+failed the production lint boundary with “External resources cannot be imported
+using a relative or absolute path.” Devsync restart inputs and Nx input globs
+now discover nested `core`, `domain`, `store-memory`, and `store-sqlite` changes.
+
+| Check                                                 | Result                                                                                                          |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| affected lint and typecheck for nine changed projects | passed                                                                                                          |
+| `tools/tool-devsync/src/sync.test.ts`                 | 30 pass, 0 fail, 89 assertions                                                                                  |
+| store-sqlite event-log and optimized-outcome tests    | 11 pass, 0 fail, 48 assertions                                                                                  |
+| warm-cache devsync target, then nested ring removal   | cache hit on the unchanged run; removal re-executed and failed with `must carry exactly one ring: tag; found 0` |
+| remove each added devsync restart path in sequence    | each restored fault failed on its missing `core`, `domain`, `store-memory`, or `store-sqlite` path              |
+
+The full local tool test gate is not a valid completion result in the restricted
+sandbox: Unix-listener cases fail with `EPERM`/address ownership errors. Task 5.2
+therefore remains open for the exact committed SHA on `h2puni`, including the
+frozen landing gate, OpenSpec validation, and browser gate. Task 5.3 remains open
+for the final documentation reconciliation after those results exist.
 
 | Command | When | Result |
 | ------- | ---- | ------ |
