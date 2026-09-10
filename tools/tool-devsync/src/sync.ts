@@ -102,12 +102,20 @@ export interface SolverPreflightDependencies {
   requireHost(image: string): Promise<void>;
 }
 
-async function changedSolverPaths(from: string, to: string): Promise<readonly string[]> {
+async function changedSolverPathsIn(
+  repository: string,
+  from: string,
+  to: string,
+): Promise<readonly string[]> {
   return (
-    await $`git -C ${SRC} diff --name-only ${from} ${to} -- ${SOLVER_COMPATIBILITY_PATHS}`.text()
+    await $`git -C ${repository} diff --name-only ${from} ${to} -- ${SOLVER_COMPATIBILITY_PATHS}`.text()
   )
     .split('\n')
     .filter((path) => path !== '');
+}
+
+async function changedSolverPaths(from: string, to: string): Promise<readonly string[]> {
+  return changedSolverPathsIn(SRC, from, to);
 }
 
 const SOLVER_PREFLIGHT_DEPENDENCIES: SolverPreflightDependencies = {
@@ -153,6 +161,21 @@ export async function preflightSolver(
   await dependencies.requireHost(mapping.image);
 }
 
+async function solverCompatibilityObjectIdAt(
+  repository: string,
+  sourceSha: string,
+  path: string,
+): Promise<string> {
+  try {
+    return (await $`git -C ${repository} rev-parse ${`${sourceSha}:${path}`}`.text()).trim();
+  } catch (error) {
+    throw new Error(
+      `cannot read solver compatibility object ${sourceSha}:${path} from git repository ${repository}: ${String(error)}`,
+      { cause: error },
+    );
+  }
+}
+
 export interface SolverTargetDependencies {
   currentSha(): Promise<string>;
   changedPaths(from: string, to: string): Promise<readonly string[]>;
@@ -182,20 +205,30 @@ export async function deploySolverTarget(
   await dependencies.prepare(target, await dependencies.readState(target));
 }
 
-function solverTargetDependencies(): SolverTargetDependencies {
+export interface SolverTargetDependencyOptions {
+  /** The git repository containing the target source SHA and compatibility paths. */
+  sourceRepository?: string;
+  /** The exported deployer tree used only to resolve preparation runtime files. */
+  runtimeRoot?: string;
+}
+
+export function solverTargetDependencies(
+  options: SolverTargetDependencyOptions = {},
+): SolverTargetDependencies {
+  const sourceRepository = options.sourceRepository ?? SRC;
+  const runtimeRoot = options.runtimeRoot ?? TARGET_ROOT;
   const runtimeFor = (target: SolverBindingTarget) =>
     createTargetSolverBindingRuntime({
-      root: TARGET_ROOT,
+      root: runtimeRoot,
       bunPath: process.execPath,
       ...target,
     });
   return {
-    currentSha: async () => (await $`git -C ${SRC} rev-parse HEAD`.text()).trim(),
-    changedPaths: changedSolverPaths,
+    currentSha: async () => (await $`git -C ${sourceRepository} rev-parse HEAD`.text()).trim(),
+    changedPaths: (from, to) => changedSolverPathsIn(sourceRepository, from, to),
     compatibilityIdentity: (sourceSha) =>
       solverCompatibilityIdentityAt(sourceSha, {
-        objectIdAt: async (sha, path) =>
-          (await $`git -C ${TARGET_ROOT} rev-parse ${`${sha}:${path}`}`.text()).trim(),
+        objectIdAt: (sha, path) => solverCompatibilityObjectIdAt(sourceRepository, sha, path),
       }),
     readState: async (target) => {
       const file = Bun.file(runtimeFor(target).statePath);
@@ -208,7 +241,7 @@ function solverTargetDependencies(): SolverTargetDependencies {
     },
     preflight: preflightSolver,
     reset: async (sha) => {
-      await $`git -C ${SRC} reset --hard --quiet ${sha}`;
+      await $`git -C ${sourceRepository} reset --hard --quiet ${sha}`;
     },
   };
 }
