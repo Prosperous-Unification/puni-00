@@ -242,7 +242,10 @@ describe('dev supervisor', () => {
     await $`git -C ${sourceRepository} add libs/solver-py apps/be-01/Dockerfile`;
     await $`git -C ${sourceRepository} -c user.name=devsync-test -c user.email=devsync@example.invalid commit --quiet -m compatibility`;
     const compatibilitySha = (await $`git -C ${sourceRepository} rev-parse HEAD`.text()).trim();
-    const dependencies = solverTargetDependencies({ sourceRepository, runtimeRoot: exportedRuntime });
+    const dependencies = solverTargetDependencies({
+      sourceRepository,
+      runtimeRoot: exportedRuntime,
+    });
 
     const exportedQuery = await $`git -C ${exportedRuntime} rev-parse --git-dir`.nothrow().quiet();
     expect(exportedQuery.exitCode).toBe(128);
