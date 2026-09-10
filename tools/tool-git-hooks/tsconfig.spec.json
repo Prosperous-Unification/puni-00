@@ -4,5 +4,5 @@
     "outDir": "../../dist/out-tsc",
     "types": ["bun-types"]
   },
-  "include": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+  "include": ["src/**/*.test.ts", "src/**/*.spec.ts", "../test/scratch/**/*.ts"]
 }

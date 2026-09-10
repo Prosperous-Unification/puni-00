@@ -305,9 +305,8 @@ jobs:
           bunx nx run-many -t test lint typecheck build --parallel=2 --output-style=stream \
             > nx-gate.log 2>&1
           gate_status=$?
-          tail -n 200 nx-gate.log
           annotation_status=0
-          bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log || annotation_status=$?
+          bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?
           if [ "$gate_status" -ne 0 ]; then
             exit "$gate_status"
           fi
@@ -331,6 +330,13 @@ jobs:
       # bypassed serialisation entirely. Untested locking is not locking.
       - name: Heavy-work lock
         run: bash bin/heavy-lock.test.sh
+
+      # The other half of that mutex: the gate steps were serialised, the
+      # checkout they read was not, and a lane sharing the tree could move the
+      # head mid-run (TASK-328). Same reason as above — the hole was invisible
+      # because nothing failed loudly when it opened.
+      - name: Gate head pinning
+        run: bash bin/h2puni-gate.test.sh
 
       # The two lefthook hooks, re-run here over every tracked file rather than
       # only the staged ones. A `--no-verify` commit reaches this.

@@ -97,6 +97,37 @@ describe('shape-derived session requests', () => {
 });
 
 describe('current session', () => {
+  it('returns both signed-in and anonymous users from the successful 200 contract', async () => {
+    const user = { id: 'u', username: 'ada', scopes: ['read', 'write', 'editor'] };
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(response(200, { user }))
+        .mockResolvedValueOnce(response(200, { user: null })),
+    );
+
+    await expect(me()).resolves.toMatchObject({ kind: 'success', body: { user } });
+    await expect(me()).resolves.toMatchObject({ kind: 'success', body: { user: null } });
+  });
+
+  it('keeps missing or malformed successful user payloads outside the session union', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(response(200, {}))
+        .mockResolvedValueOnce(response(200, { user: { id: 'u' } })),
+    );
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await expect(me()).resolves.toMatchObject({
+        kind: 'failure',
+        failure: { code: 'invalid_response', reason: 'schema' },
+      });
+    }
+  });
+
   it('validates scopes and distinguishes rejected credentials from an outage', async () => {
     vi.stubGlobal(
       'fetch',

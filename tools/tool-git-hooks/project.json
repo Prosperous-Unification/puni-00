@@ -14,21 +14,22 @@
     },
     "test": {
       "executor": "nx:run-commands",
+      "inputs": ["default", "^production", "{workspaceRoot}/tools/test/scratch/**/*"],
       "options": {
-        "command": "bun test",
+        "command": "bun test --preload ../test/scratch/preload.ts",
         "cwd": "tools/tool-git-hooks"
       }
     },
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint tools/tool-git-hooks/src"
+        "command": "bunx eslint tools/tool-git-hooks/src tools/test/scratch"
       }
     },
     "lint:fast": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint tools/tool-git-hooks/src --cache --cache-location .nx/eslintcache-tool-git-hooks"
+        "command": "bunx eslint tools/tool-git-hooks/src tools/test/scratch --cache --cache-location .nx/eslintcache-tool-git-hooks"
       }
     },
     "typecheck": {

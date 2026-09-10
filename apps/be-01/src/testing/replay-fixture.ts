@@ -1,4 +1,8 @@
-import type { EventLogStore, RecordedEvent } from '../repository/event-log';
+import type {
+  EventLogStore,
+  EventLogTransactionalWrite,
+  RecordedEvent,
+} from '../repository/event-log';
 import { ReplayBuffer } from '../service/replay-buffer';
 import { ReplayOrchestrator } from '../service/replay-orchestrator';
 
@@ -23,8 +27,8 @@ export function inMemoryEventLog(): EventLogStore & {
     return event;
   };
 
-  const repo: EventLogStore = {
-    recordEventIn(_tx, subscription, message, createdAt) {
+  const repo: EventLogStore & EventLogTransactionalWrite = {
+    recordEventIn(_tx: unknown, subscription: string, message: unknown, createdAt: number) {
       return record(subscription, message, createdAt);
     },
     recordEvent(subscription, message, createdAt) {

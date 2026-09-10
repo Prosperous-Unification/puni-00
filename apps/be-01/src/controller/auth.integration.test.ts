@@ -242,12 +242,50 @@ describe('GET /api/auth/me', () => {
     expect(res.status).toBe(401);
   });
 
+  it('rejects an invalid hardened access cookie instead of reporting an anonymous session', async () => {
+    // Proof: treating every unauthenticated result as anonymous changes this
+    // production cookie path from the required 401 to 200.
+    const res = await app().handle(
+      new Request('http://localhost/api/auth/me', {
+        headers: { cookie: '__Host-wbs_access=invalid' },
+      }),
+    );
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'invalid_token' });
+  });
+
   it('returns an explicit signed-out state when no token is sent', async () => {
     // Proof: restoring a 401 here makes Chromium emit a failed-resource console
     // error on every signed-out page; TASK-299 observed it twice under StrictMode.
     const res = await app().handle(new Request('http://localhost/api/auth/me'));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ user: null });
+  });
+
+  it('keeps every session response out of stores and varies intermediaries by credential', async () => {
+    const application = app();
+    const registered = await application.handle(
+      json('/api/auth/register', { username: 'ada', password: 'lovelace99' }),
+    );
+    const { token } = (await registered.json()) as { token: string };
+    const responses = await Promise.all([
+      application.handle(new Request('http://localhost/api/auth/me')),
+      application.handle(
+        new Request('http://localhost/api/auth/me', {
+          headers: { authorization: `Bearer ${token}` },
+        }),
+      ),
+      application.handle(
+        new Request('http://localhost/api/auth/me', {
+          headers: { cookie: '__Host-wbs_access=invalid' },
+        }),
+      ),
+    ]);
+
+    for (const response of responses) {
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(response.headers.get('vary')).toBe('Cookie, Authorization, X-WBS-Token');
+    }
   });
 });
 

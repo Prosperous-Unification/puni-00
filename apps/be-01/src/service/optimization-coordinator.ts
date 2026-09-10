@@ -8,7 +8,7 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { scheduleInputHash } from '@wbs/domain/canonical-schedule-input';
 
 import type { Drizzle } from '../repository/db';
-import type { EventLogStore, RecordedEvent } from '../repository/event-log';
+import type { EventLogTransactionalWrite, RecordedEvent } from '../repository/event-log';
 import {
   bindSolverSlot,
   reserveSolverSlot,
@@ -75,7 +75,7 @@ export interface OptimizationCoordinatorOptions {
   readonly runChild?: (options: SolverChildLifecycleOptions) => Promise<SolverChildLifecycleResult>;
   readonly onChildError: (error: unknown) => void;
   /** Durable half of a newly stored result's project event. */
-  readonly eventLog: Pick<EventLogStore, 'recordEventIn'>;
+  readonly eventLog: EventLogTransactionalWrite;
   /** Best-effort live half, invoked only after the outcome transaction commits. */
   readonly pushRecorded: (
     subscription: string,
@@ -112,7 +112,7 @@ export interface RecordedOptimizedOutcome {
 /** Atomically store one validated result and its durable replay record. */
 export function storeOptimizedOutcomeAndRecord(
   db: Drizzle,
-  eventLog: Pick<EventLogStore, 'recordEventIn'>,
+  eventLog: EventLogTransactionalWrite,
   write: OutcomeWrite,
 ): RecordedOptimizedOutcome {
   return db.transaction((tx) => {

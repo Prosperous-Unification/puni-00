@@ -1,8 +1,9 @@
-import { chmod, mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { chmod, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'bun:test';
+
+import { scratchAsync } from '../../test/scratch';
 
 const PREFLIGHT = join(import.meta.dir, '../../../bin/dev-mcp-preflight.sh');
 const VALID_ENV = [
@@ -16,7 +17,7 @@ async function runPreflight(
   envContents: string | undefined,
   exposureContents?: string,
 ): Promise<{ exitCode: number; output: string }> {
-  const directory = await mkdtemp(join(tmpdir(), 'wbs-mcp-preflight-'));
+  const directory = await scratchAsync('wbs-mcp-preflight-');
   const envPath = join(directory, '.env');
   const exposurePath = join(directory, 'exposure');
   if (envContents !== undefined) {
@@ -53,7 +54,7 @@ describe('dev MCP preflight', () => {
   });
 
   it('refuses an MCP environment whose permissions expose deployment settings', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'wbs-mcp-mode-'));
+    const directory = await scratchAsync('wbs-mcp-mode-');
     const envPath = join(directory, '.env');
     const exposurePath = join(directory, 'exposure');
     await writeFile(envPath, VALID_ENV);

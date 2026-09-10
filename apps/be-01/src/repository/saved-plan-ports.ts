@@ -1,4 +1,6 @@
-import type { Drizzle } from './db';
+import type { WriteStamp } from '@wbs/core';
+
+import type { TransactionalStores } from './index';
 import type {
   SavedPlanHoldingRow,
   SavedPlanPrincipals,
@@ -24,6 +26,13 @@ import type { SavedPlanRow } from './schema';
  * What that costs is contention rather than correctness: a save that meets the
  * database's own write lock answers `snapshot_busy` instead of waiting behind
  * an editing session (`refuseToWaitForWriteLock`).
+ *
+ * **`holdingOf` and `bodyOf` are deliberately absent**, and were never port
+ * methods: they take a `Drizzle` because the quota has to be read inside the
+ * write's own transaction, and their only callers are the adapter itself and
+ * its own database tests. A port naming a driver's handle is a port only that
+ * driver can implement, and it was this file's own mistake — written from the
+ * class's public surface rather than from what a caller needs.
  */
 export interface SavedPlanStore {
   /**
@@ -35,10 +44,7 @@ export interface SavedPlanStore {
     plan: SavedPlanWrite,
     check: (holding: SavedPlanHoldingRow, incomingBytes: number) => Promise<Refusal | null>,
   ): Promise<SavedPlanWriteOutcome<Refusal>>;
-  /** The count and byte total a quota is read against, inside the caller's transaction. */
-  holdingOf(db: Drizzle, projectId: string): Promise<SavedPlanHoldingRow>;
   readOf(savedPlanId: string): Promise<StoredSavedPlan | null>;
-  bodyOf(db: Drizzle, savedPlanId: string, kind: 'input' | 'schedule'): Promise<string | null>;
   listOf(projectId: string): Promise<SavedPlanRow[]>;
   /** Who may rename or delete one plan, as one row: the project's owner and the author. */
   principalsOf(savedPlanId: string): Promise<SavedPlanPrincipals | null>;
@@ -59,3 +65,44 @@ export interface SavedPlanStore {
 export interface SavedPlanCaptureStore {
   readPlanInput(projectId: string): Promise<PlanInputReads | null>;
 }
+
+/**
+ * The stores a source offers that are **not** part of any batch (D27).
+ *
+ * Saved plans are the whole of it today. They open their own connection per
+ * call, check their quota inside their own write, take **no turn** at the write
+ * coordinator, and survive a batch's outcome either way — a save that succeeded
+ * while a batch was open is still there whether that batch committed or rolled
+ * back. That is a property of the feature rather than an accident of the
+ * wiring: a plan is immutable once written, so there is nothing for a rollback
+ * to be consistent with.
+ *
+ * Separate from {@link TransactionalStores} rather than a section of it,
+ * because the type is what stops a command enlisting one: `Scope` carries the
+ * transactional composition alone, so `scope.stores.savedPlans` does not
+ * compile.
+ */
+export interface HistoryStores {
+  savedPlans: SavedPlanStore;
+  savedPlanCapture: SavedPlanCaptureStore;
+}
+
+/**
+ * Everything a source offers, as one composition (D22).
+ *
+ * A composition rather than one interface: a source implements the ports it
+ * has, and the type of what it composes says which services can then be built
+ * over it. A browser source with no accounts is certified for what it has and
+ * is not asked about the rest.
+ */
+export type Stores = TransactionalStores & HistoryStores;
+
+/**
+ * The audit stamp, from the ring it belongs to.
+ *
+ * Re-exported rather than moved-and-forgotten: ninety files in this app import
+ * it from this module and the direction is right either way — this is the
+ * adapter, `@wbs/core` is the application ring, and naming its application's
+ * types is what an adapter does.
+ */
+export type { WriteStamp };
