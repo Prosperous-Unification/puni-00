@@ -81,8 +81,11 @@ test.describe('the built site, asked for an address it holds no file for', () =>
     );
     // Proof: deleting the icon declaration from the built index.html makes
     // this packaged response return no match, while the source DOM test stays green.
-    expect(body, 'the built document lost its intentional empty favicon').toMatch(
-      /<link[^>]+rel="icon"[^>]+href="data:,"/,
+    const icon = body
+      .match(/<link\b[^>]*>/gi)
+      ?.find((tag) => /\brel=(['"])[^'"]*\bicon\b[^'"]*\1/i.test(tag));
+    expect(icon, 'the built document lost its intentional empty favicon').toMatch(
+      /\bhref=(['"])data:,\1/i,
     );
   });
 

@@ -603,7 +603,7 @@ Neither route is touched, because neither uses `callerGuard` and neither gets a 
 - `GET /api/auth/me` resolves its own token and distinguishes an anonymous caller (`{ user: null }`)
   from a rejected credential (`{ error: 'invalid_token' }`). The anonymous response is read by
   `bin/dev-be-probe.sh` and `tools/tool-devsync/src/be-probe.test.ts`; every identity-dependent
-  response is `no-store` and varies on Cookie, Authorization, and the retired X-WBS-Token carrier.
+  session response is `no-store` and varies on Cookie, Authorization, and the retired X-WBS-Token carrier.
 - `/internal/forward` and `/internal/resume` check a pre-shared secret inline
   (`internal.routes.ts:51`, `:68`).
 

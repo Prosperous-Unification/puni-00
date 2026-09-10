@@ -1,7 +1,7 @@
 # LLM_README — read this, then only the doc your task needs
 
 `integration/open-prs` (PR #391) carries every open PR merged onto main — #334, #340, #347,
-#350, #361, #369, #373, #395 — gated as one branch before it merges.
+#350, #361, #369 — gated as one branch before it merges.
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
 `gw-01` (WS gateway, :3200), `fe-01` (Vite+React, :80 in the image, :4200 under `vite dev`),
 `mcp-01` (MCP server over be-01, stdio, spawned by its client). Nx monorepo, Bun — never npm.
@@ -121,14 +121,14 @@ contract: `docs/runbook-prod-deploy.md`.**
 
 ## Open findings
 
-1 and 2 are **prod-phase** (Dany, 2026-08-06): recorded, not pending — work stops at dev. 3 is live.
+Both are **prod-phase** (Dany, 2026-08-06): recorded, not pending. Work stops at dev.
 
 1. Rollback unimplemented — `--version` is _refused_, so an older commit means a rebuild.
 2. `configure.sh`'s root phase never run on a fresh host; only the plan is tested.
-3. A folded step card paints **under a pinned Name cell** once scrolled under the pin (2026-09-09).
 
-3–5 closed. Lower: fe/smoke health takes any body; the WS ping any message with `"pong"`; drain
-reads a bad metrics body as zero sockets; `tool-secrets` only prints. Cannot-fail: **26** (R5).
+3–5 closed, and so is 2026-09-09's "folded card under a pinned cell": a misread hit test, not a
+fault. Lower: fe/smoke health takes any body; the WS ping any message with `"pong"`; drain reads
+a bad metrics body as zero sockets; `tool-secrets` only prints. Cannot-fail: **27** (R5).
 
 ## More
 
