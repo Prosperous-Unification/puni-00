@@ -1,9 +1,9 @@
 import { chmodSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { scratchSync } from '@wbs/tool-test-scratch';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { scratchSync } from '../../test/scratch';
 import { installedDaggerSdkVersion } from './main';
 import {
   applyRunnerHostAlias,

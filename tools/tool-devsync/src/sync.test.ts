@@ -2,9 +2,10 @@ import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { $ } from 'bun';
+import { scratchAsync } from '@wbs/tool-test-scratch';
 import { describe, expect, it } from 'bun:test';
 
-import { scratchAsync } from '../../test/scratch';
+import { readProjects } from '../workspace-projects.mjs';
 import { SOLVER_COMPATIBILITY_PATHS as PREPARATION_PATHS } from './solver-preparation';
 import {
   assertDevSolverSourceCompatible,
@@ -24,6 +25,7 @@ import {
 } from './sync';
 
 const DEV_IMAGE = `registry.example/wbs-be@sha256:${'a'.repeat(64)}`;
+const WORKSPACE = new URL('../../../', import.meta.url);
 
 function solverConfigBytes(sourceSha: string): Uint8Array {
   return new TextEncoder().encode(
@@ -98,10 +100,9 @@ describe('RESTART_PATHS coverage', () => {
   // instead of trusting the list: a library added without an entry fails here
   // rather than on dev, silently, as a stale project graph.
   it('names every library project.json that exists on disk', async () => {
-    const { readdir } = await import('node:fs/promises');
-    const libs = (await readdir(new URL('../../../libs', import.meta.url), { withFileTypes: true }))
-      .filter((e) => e.isDirectory())
-      .map((e) => `libs/${e.name}/project.json`);
+    const libs = (await readProjects(WORKSPACE))
+      .filter((project) => project.root.startsWith('libs/'))
+      .map((project) => `${project.root}/project.json`);
     expect(libs.length).toBeGreaterThan(0);
     for (const lib of libs) {
       expect(RESTART_PATHS).toContain(lib);
@@ -116,10 +117,9 @@ describe('RESTART_PATHS coverage', () => {
   });
 
   it('names every app project.json, whose serve target the supervisor reads once', async () => {
-    const { readdir } = await import('node:fs/promises');
-    const apps = (await readdir(new URL('../../../apps', import.meta.url), { withFileTypes: true }))
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name);
+    const apps = (await readProjects(WORKSPACE))
+      .filter((project) => project.root.startsWith('apps/'))
+      .map((project) => project.name);
     expect(apps).toContain('mcp-01');
     for (const app of apps) {
       expect(RESTART_PATHS).toContain(`apps/${app}/project.json`);
