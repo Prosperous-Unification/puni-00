@@ -454,11 +454,14 @@ export function requireRegistryPassword(env: NodeJS.ProcessEnv): string {
 }
 
 /**
- * Refuses to publish from a dirty working tree.
+ * Refuses to publish while the repository backing the source snapshot is dirty.
  *
- * `publishAll` snapshots `client.host().directory('.')` — the WORKING TREE —
- * while `publish-all` labels the result `WBS_SHA=$(git rev-parse HEAD)`. Those
- * are the same thing only when the tree is clean, and the gap is not cosmetic:
+ * `publishAll` snapshots `client.host().directory('.')` while `publish-all`
+ * labels the result with `WBS_SHA`. Ordinary callers build from the repository
+ * itself, so the default `.` preserves the original clean-tree guard. The dev
+ * deployer builds from an immutable archive extracted for that SHA; it supplies
+ * the real source repository explicitly because the archive has no `.git`.
+ * A dirty backing repository is not acceptable, and the gap is not cosmetic:
  * `tool-deploy`'s migration gate (tools/tool-deploy/src/migrations.ts) reads
  * the migration set *from git* at that sha, so an uncommitted migration is
  * baked into the image and simultaneously invisible to the gate.
@@ -479,10 +482,12 @@ export function requireRegistryPassword(env: NodeJS.ProcessEnv): string {
  * the gate this exists to close is fully closed; image hygiene generally is a
  * separate concern.
  */
-export function assertCleanTree(): void {
-  const p = Bun.spawnSync(['git', 'status', '--porcelain']);
+export function assertCleanTree(repository = '.'): void {
+  const p = Bun.spawnSync(['git', '-C', repository, 'status', '--porcelain']);
   if (p.exitCode !== 0) {
-    throw new Error(`git status --porcelain failed: ${p.stderr.toString('utf8').trim()}`);
+    throw new Error(
+      `git -C ${repository} status --porcelain failed: ${p.stderr.toString('utf8').trim()}`,
+    );
   }
   const dirty = p.stdout.toString('utf8').trim();
   if (dirty !== '') {
@@ -511,9 +516,9 @@ export async function publishAll(tiers: Tier[], sha: string): Promise<ReleaseRec
       // up in an error message.
       const registrySecret = client.setSecret('registry-password', registryPassword);
       // A single host directory snapshot is reused as the build context for
-      // every tier so each Dockerfile sees the same source tree. This is the
-      // WORKING tree, not `sha` — `assertCleanTree()` (called by main, before
-      // any of this) is what makes those the same thing.
+      // every tier so each Dockerfile sees the same source tree. Ordinary
+      // callers publish a clean checkout; devsync publishes its immutable
+      // archive candidate and names the backing repository for the guard.
       const src = client
         .host()
         .directory('.', { exclude: ['node_modules', 'dist', '.git', '.nx'] });
@@ -546,7 +551,7 @@ async function main(): Promise<void> {
   if (sha === undefined || sha === '') throw new Error('WBS_SHA must be set');
   // Before any engine connection or push: the label must actually describe
   // what is about to be built.
-  assertCleanTree();
+  assertCleanTree(process.env['WBS_CLEAN_TREE_REPOSITORY'] ?? '.');
   const arg = process.argv[2] ?? 'be,gw,fe';
   const tiers = arg.split(',').filter((t): t is Tier => t === 'be' || t === 'gw' || t === 'fe');
   const capacity = readBuildCapacity();

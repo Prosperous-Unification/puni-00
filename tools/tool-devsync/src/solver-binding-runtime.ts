@@ -205,7 +205,10 @@ export function createTargetSolverBindingRuntime(
             join(target.root, 'tools/tool-dagger/src/main.ts'),
             'be',
           ],
-          { REGISTRY_PASS: registryPassword },
+          {
+            REGISTRY_PASS: registryPassword,
+            WBS_CLEAN_TREE_REPOSITORY: sourceRepository,
+          },
         );
         return io.read(releasePath);
       },

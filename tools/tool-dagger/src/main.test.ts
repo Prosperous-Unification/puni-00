@@ -561,6 +561,19 @@ describe('assertCleanTree', () => {
     }).not.toThrow();
   });
 
+  it('checks an explicit repository while publishing from an exported non-repository tree', () => {
+    const exportedTree = scratchSync('wbs-exported-tree-');
+    process.chdir(exportedTree);
+    try {
+      expect(() => {
+        assertCleanTree(repo);
+      }).not.toThrow();
+    } finally {
+      process.chdir(repo);
+      rmSync(exportedTree, { recursive: true, force: true });
+    }
+  });
+
   it('refuses when a tracked file is modified, naming the file', () => {
     writeFileSync(join(repo, 'tracked.txt'), 'uncommitted edit\n');
     expect(() => {

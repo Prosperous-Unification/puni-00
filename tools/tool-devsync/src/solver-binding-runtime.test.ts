@@ -108,7 +108,10 @@ describe('the production solver binding runtime', () => {
       `${ROOT}/tools/tool-dagger/src/main.ts`,
       'be',
     ]);
-    expect(invocations[0]?.env).toEqual({ REGISTRY_PASS: 'protected-value' });
+    expect(invocations[0]?.env).toEqual({
+      REGISTRY_PASS: 'protected-value',
+      WBS_CLEAN_TREE_REPOSITORY: SOURCE_REPOSITORY,
+    });
     expect(invocations.flatMap(({ argv }) => argv)).not.toContain('protected-value');
     expect(invocations[1]?.argv).toContain(`--blue-image=${BLUE}`);
     expect(invocations[1]?.argv).toContain(`--green-image=${GREEN}`);
