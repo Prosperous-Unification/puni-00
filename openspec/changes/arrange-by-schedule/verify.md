@@ -18,6 +18,7 @@ measurements below are this machine's (macOS, Chromium via Playwright); CI is th
 | `E2E_PORT_SHIFT=1900` … both toolbar budgets                                     | 2 passed                                 |
 | `E2E_PORT_SHIFT=1900 bunx nx run fe-01:e2e` (whole gate, run 1)                  | 334 passed / 2 failed → both re-measured |
 | `…` (whole gate, run 2)                                                          | 335 passed / 1 failed — a flake, below   |
+| `…` (whole gate, run 3)                                                          | **336 passed / 0 failed**                |
 | `OPENSPEC_TELEMETRY=0 openspec validate arrange-by-schedule --json`              | `"valid": true`                          |
 
 ### The two results that are not green, and why they are not this change's
@@ -171,7 +172,8 @@ become the next free natural. **This must be measured and announced before a dep
 
 ## Decision
 
-⚠️ **PASS WITH WARNINGS** — the feature is implemented, proved in a browser and green on
-every project it touches. Three things are outstanding and none blocks review: the numbering
+⚠️ **PASS WITH WARNINGS** — the feature is implemented, proved in a browser, and the whole
+browser gate is green: **336 passed, 0 failed**, third run. Every project it touches is
+green by name, including `mcp-01`. Three things are outstanding and none blocks review: the numbering
 drift measurement (before deploy, not before merge), three unwritten browser cases, and the
 whole-workspace gate, which is CI's job and is not bypassable.
