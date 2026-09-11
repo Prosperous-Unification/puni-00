@@ -102,6 +102,7 @@ export interface SolverPreflightDependencies {
   requireHost(image: string): Promise<void>;
 }
 
+/** Lists compatibility inputs changed between two revisions in their owning repository. */
 async function changedSolverPathsIn(
   repository: string,
   from: string,
@@ -114,24 +115,27 @@ async function changedSolverPathsIn(
     .filter((path) => path !== '');
 }
 
-async function changedSolverPaths(from: string, to: string): Promise<readonly string[]> {
-  return changedSolverPathsIn(SRC, from, to);
+function solverPreflightDependencies(
+  repository: string,
+  configPath: string,
+): SolverPreflightDependencies {
+  return {
+    currentSha: async () => (await $`git -C ${repository} rev-parse HEAD`.text()).trim(),
+    changedPaths: (from, to) => changedSolverPathsIn(repository, from, to),
+    readConfig: async () => {
+      const file = Bun.file(configPath);
+      if (!(await file.exists())) return undefined;
+      return new Uint8Array(await file.slice(0, CONFIG_MAX_BYTES + 1).arrayBuffer());
+    },
+    requireHost: async (image) => {
+      await $`systemctl --user is-active --quiet ${SOLVER_SUPERVISOR_SERVICE}`;
+      await $`test -S ${SOLVER_SUPERVISOR_SOCKET}`;
+      await $`${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --preflight=dev --config=${SOLVER_SUPERVISOR_CONFIG} --solver-image=${image}`;
+    },
+  };
 }
 
-const SOLVER_PREFLIGHT_DEPENDENCIES: SolverPreflightDependencies = {
-  currentSha: async () => (await $`git -C ${SRC} rev-parse HEAD`.text()).trim(),
-  changedPaths: changedSolverPaths,
-  readConfig: async () => {
-    const file = Bun.file(SOLVER_SUPERVISOR_CONFIG);
-    if (!(await file.exists())) return undefined;
-    return new Uint8Array(await file.slice(0, CONFIG_MAX_BYTES + 1).arrayBuffer());
-  },
-  requireHost: async (image) => {
-    await $`systemctl --user is-active --quiet ${SOLVER_SUPERVISOR_SERVICE}`;
-    await $`test -S ${SOLVER_SUPERVISOR_SOCKET}`;
-    await $`${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --preflight=dev --config=${SOLVER_SUPERVISOR_CONFIG} --solver-image=${image}`;
-  },
-};
+const SOLVER_PREFLIGHT_DEPENDENCIES = solverPreflightDependencies(SRC, SOLVER_SUPERVISOR_CONFIG);
 
 /** Solver host state is a deploy prerequisite only when its compatibility inputs move. */
 export async function preflightSolver(
@@ -161,6 +165,7 @@ export async function preflightSolver(
   await dependencies.requireHost(mapping.image);
 }
 
+/** Reads one compatibility object id and names its repository on lookup failure. */
 async function solverCompatibilityObjectIdAt(
   repository: string,
   sourceSha: string,
@@ -169,6 +174,8 @@ async function solverCompatibilityObjectIdAt(
   try {
     return (await $`git -C ${repository} rev-parse ${`${sourceSha}:${path}`}`.text()).trim();
   } catch (error) {
+    // Proof: sync.test.ts points this production wiring at a missing repository
+    // and observes both the repository and compatibility object in the rejection.
     throw new Error(
       `cannot read solver compatibility object ${sourceSha}:${path} from git repository ${repository}: ${String(error)}`,
       { cause: error },
@@ -210,17 +217,22 @@ export interface SolverTargetDependencyOptions {
   sourceRepository?: string;
   /** The exported deployer tree used only to resolve preparation runtime files. */
   runtimeRoot?: string;
+  /** Solver mapping path; injectable so repository wiring can be tested without host state. */
+  solverConfigPath?: string;
 }
 
+/** Wires deploy decisions to the repository that owns every target revision. */
 export function solverTargetDependencies(
   options: SolverTargetDependencyOptions = {},
 ): SolverTargetDependencies {
   const sourceRepository = options.sourceRepository ?? SRC;
   const runtimeRoot = options.runtimeRoot ?? TARGET_ROOT;
+  const solverConfigPath = options.solverConfigPath ?? SOLVER_SUPERVISOR_CONFIG;
   const runtimeFor = (target: SolverBindingTarget) =>
     createTargetSolverBindingRuntime({
       root: runtimeRoot,
       bunPath: process.execPath,
+      sourceRepository,
       ...target,
     });
   return {
@@ -239,7 +251,8 @@ export function solverTargetDependencies(
       const runtime = runtimeFor(target);
       return prepareTargetSolverBinding(target, stateBytes, runtime.dependencies);
     },
-    preflight: preflightSolver,
+    preflight: (sha) =>
+      preflightSolver(sha, solverPreflightDependencies(sourceRepository, solverConfigPath)),
     reset: async (sha) => {
       await $`git -C ${sourceRepository} reset --hard --quiet ${sha}`;
     },

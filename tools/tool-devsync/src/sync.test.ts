@@ -186,6 +186,7 @@ describe('dev supervisor', () => {
     expect(fetchAt).toBeGreaterThan(-1);
     expect(targetAt).toBeGreaterThan(fetchAt);
     expect(proofAt).toBeGreaterThan(targetAt);
+    expect(source).toContain('const sourceRepository = options.sourceRepository ?? SRC;');
   });
 
   it('prepares a changed solver target and keeps unchanged targets on the existing preflight', async () => {
@@ -245,6 +246,7 @@ describe('dev supervisor', () => {
     const dependencies = solverTargetDependencies({
       sourceRepository,
       runtimeRoot: exportedRuntime,
+      solverConfigPath: join(directory, 'missing-solver-config.json'),
     });
 
     const exportedQuery = await $`git -C ${exportedRuntime} rev-parse --git-dir`.nothrow().quiet();
@@ -258,6 +260,18 @@ describe('dev supervisor', () => {
     await $`git -C ${sourceRepository} -c user.name=devsync-test -c user.email=devsync@example.invalid commit --quiet -m unrelated`;
     const unrelatedSha = (await $`git -C ${sourceRepository} rev-parse HEAD`.text()).trim();
     expect(await dependencies.compatibilityIdentity(unrelatedSha)).toBe(identity);
+
+    await $`git -C ${sourceRepository} reset --hard --quiet ${compatibilitySha}`;
+    let preparations = 0;
+    await deploySolverTarget(unrelatedSha, {
+      ...dependencies,
+      prepare: () => {
+        preparations += 1;
+        return Promise.reject(new Error('unrelated target must not prepare the solver'));
+      },
+    });
+    expect(preparations).toBe(0);
+    expect((await $`git -C ${sourceRepository} rev-parse HEAD`.text()).trim()).toBe(unrelatedSha);
   });
 
   it('names the source repository and compatibility path when git cannot answer the query', async () => {
