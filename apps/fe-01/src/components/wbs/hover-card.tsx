@@ -11,11 +11,13 @@ import { createPortal } from 'react-dom';
 export interface AnchorRect {
   left: number;
   /**
-   * Its right edge, which is where a card opens **beside** the mark.
+   * Its right edge, which is where a card standing **past** the mark opens.
    *
-   * Added on 2026-09-10 with {@link asidePlacement}: Dany asked for every
-   * column's pop-up to stand left or right of the thing it explains rather than
-   * under it, and the marks the hint layer reads are in those columns too.
+   * Added on 2026-09-10: Dany asked for every column's pop-up to stand left or
+   * right of the thing it explains rather than under it, and the marks the hint
+   * layer reads are in those columns too. Read by {@link diagonalPlacement},
+   * which is the whole of that promise a day later — past the column *and* past
+   * the row.
    */
   right: number;
   top: number;
@@ -45,6 +47,86 @@ const CARD_MAX_WIDTH_PX = 420;
 const CARD_MIN_WIDTH_PX = 260;
 
 /**
+ * Where a **diagonal** card is drawn: past the cross of its cell's column and
+ * its own row, clamped so its own rectangle stays inside the frame.
+ *
+ * Dany, 2026-09-11: _"implement 'diagonal' pop-up for ALL columns including
+ * PRIO, not before, deadline, end, slack; ALL of them, must have same look and
+ * feel"_. Every card that opens from a **cell** has been diagonal since
+ * `cards-open-diagonally`; the hint layer's card was the one that was not, and
+ * the hint layer is what most of those columns' pop-up is — `data-hint` and
+ * `data-fact` marks on the drag grip, the row number, Prio, Not before,
+ * Deadline, End, Slack, In parallel, Service, Team, Tag and the estimate cells.
+ * It stood **beside** its mark with the tops aligned, which left the column
+ * clear and the row covered.
+ *
+ * Two promises, one per axis, and they are the two an in-cell card already makes
+ * (see {@link HoverCard}): past the **column**, so the lane the pointer is
+ * running down stays under the pointer, and past the **row**, so the work item's
+ * own dates, estimates and dependencies stay readable beside the words that
+ * explain one of them. Which side and which edge are measured rather than fixed
+ * — the roomier one — so a column at the right edge of the frame answers to its
+ * left, and a row at the bottom of it answers above itself.
+ *
+ * **No gap on either axis**, which is the half of _"same look and feel"_ that
+ * lives in the arithmetic: an in-cell card hangs from `left: 100%` and from its
+ * row's own bottom edge, so it touches the cross it clears, and a hint card
+ * standing 6px off it would be a second look for the same pop-up.
+ *
+ * **Clamped rather than refused**, which is where this differs from
+ * {@link besidePlacement}: a picker's card that would cover the list it explains
+ * is better not shown, but a hint is a sentence about the thing under the
+ * pointer and a reader who gets nothing has no way to ask again. So a frame with
+ * room on neither side gets the card on the roomier side, pushed inside the
+ * edge.
+ *
+ * Pure, for {@link surfacePlacement}'s reason: jsdom measures every box as zero.
+ *
+ * @param clear The cross to clear: the **cell's** horizontal band and the **row's** vertical one, in viewport coordinates.
+ * @param clear.left The column's left edge — a card standing left of it ends here.
+ * @param clear.right The column's right edge — a card standing right of it starts here.
+ * @param clear.top The row's top edge — a card above the row ends here.
+ * @param clear.bottom The row's bottom edge — a card below the row starts here.
+ * @param card The card's own box.
+ * @param card.width How wide it is.
+ * @param card.height How tall it is.
+ * @param frame The box it stays inside: the plan's scrolling frame ∩ the window.
+ * @param frame.left Its left edge.
+ * @param frame.right Its right edge.
+ * @param frame.top Its top edge.
+ * @param frame.bottom Its bottom edge.
+ */
+export function diagonalPlacement(
+  clear: AnchorRect,
+  card: { width: number; height: number },
+  frame: { left: number; right: number; top: number; bottom: number },
+): Placement {
+  const toTheRight = frame.right - clear.right;
+  const toTheLeft = clear.left - frame.left;
+  const below = frame.bottom - clear.bottom;
+  const above = clear.top - frame.top;
+  // The **roomier** side on each axis rather than "does it fit", which is
+  // {@link sidewaysPlacement}'s rule for an in-cell card and is this one's for
+  // the same reason: a card that fits in 30px of room is a card 30px wide. `>=`
+  // on both counts, so a tie stands right of the column and below the row —
+  // where an in-cell card stands when it has the choice.
+  const onTheRight = toTheRight >= card.width || toTheRight >= toTheLeft;
+  const underneath = below >= card.height || below >= above;
+  return {
+    // Inside both edges on each axis: the `max` for a card pushed off the near
+    // edge of the frame, the `min` for one that would run off the far one.
+    left: Math.max(
+      frame.left,
+      Math.min(onTheRight ? clear.right : clear.left - card.width, frame.right - card.width),
+    ),
+    top: Math.max(
+      frame.top,
+      Math.min(underneath ? clear.bottom : clear.top - card.height, frame.bottom - card.height),
+    ),
+  };
+}
+
+/**
  * Where an anchored card is drawn: under its mark, flipped above it when there
  * is no room, and clamped so its **own** rectangle stays inside the viewport.
  *
@@ -59,58 +141,6 @@ const CARD_MIN_WIDTH_PX = 260;
  * than the viewport (see {@link HoverCard}), so a left at or past 0 with the
  * width subtracted from the right edge puts both edges inside.
  */
-/**
- * Where an anchored card opens **beside** its mark: clear of the mark's right
- * edge, tops aligned, flipped to its left where the viewport has no room, and
- * clamped so its own rectangle stays inside the viewport.
- *
- * Dany, 2026-09-10: _"i want to have most useful on-hover pop-up for ALL
- * cells/columns as i asked previously - include ALL columns in the scheme"_. The
- * hint layer is what most columns' pop-up is — `data-hint` and `data-fact` marks
- * on the drag grip, the row number, Deadline, Finish, Float, In parallel, Not
- * before, Service and the estimate cells — and until this it opened under its
- * mark, over the rows below.
- *
- * **Clamped rather than refused**, which is where this differs from
- * {@link besidePlacement}: a picker's card that would cover the list it explains
- * is better not shown, but a hint is a sentence about the thing under the
- * pointer and a reader who gets nothing has no way to ask again. So a viewport
- * with room on neither side gets the card on the roomier side, pushed inside the
- * edge.
- *
- * Pure, for {@link surfacePlacement}'s reason: jsdom measures every box as zero.
- *
- * @param anchor The mark's rectangle, in viewport coordinates.
- * @param anchor.left Its left edge — a card flipped left ends here.
- * @param anchor.right Its right edge — a card opening right starts here.
- * @param anchor.top Its top edge, which the card's top is aligned with.
- * @param anchor.bottom Its bottom edge, unused here and read by the surface placement.
- * @param card The card's own box.
- * @param card.width How wide it is.
- * @param card.height How tall it is.
- * @param viewport The window.
- * @param viewport.width Its width.
- * @param viewport.height Its height.
- */
-export function asidePlacement(
-  anchor: AnchorRect,
-  card: { width: number; height: number },
-  viewport: { width: number; height: number },
-): Placement {
-  const toTheRight = viewport.width - (anchor.right + ANCHOR_GAP_PX);
-  const toTheLeft = anchor.left - ANCHOR_GAP_PX;
-  const onTheRight = toTheRight >= card.width || toTheRight >= toTheLeft;
-  const left = onTheRight ? anchor.right + ANCHOR_GAP_PX : anchor.left - ANCHOR_GAP_PX - card.width;
-  return {
-    // Inside both edges: `max(0, …)` for a card pushed off the left, and the
-    // `min` for one that would run off the right.
-    left: Math.max(0, Math.min(left, viewport.width - card.width)),
-    // Tops aligned, and never below the window: a mark low in a tall list gets
-    // its card lifted rather than cut off.
-    top: Math.max(0, Math.min(anchor.top, viewport.height - card.height)),
-  };
-}
-
 export function surfacePlacement(
   anchor: AnchorRect,
   card: { width: number; height: number },
@@ -183,10 +213,31 @@ export function besidePlacement(
   return beforeLeft >= 0 ? { left: beforeLeft, top } : null;
 }
 
+/**
+ * What a {@link diagonalPlacement} card is placed from: the cross it stands past
+ * and the box it stays inside.
+ *
+ * One object rather than two props because neither half is meaningful alone — a
+ * cross with no frame has nothing to be clamped into, and a frame with no cross
+ * has nothing to clear — and because the owner measures both in the one pass,
+ * from the one mark. See {@link HoverCardProps.diagonal}.
+ */
+export interface DiagonalAnchor {
+  /**
+   * The cell's horizontal band and the row's vertical one, in viewport
+   * coordinates: `left`/`right` from the mark's `<td>`, `top`/`bottom` from its
+   * `<tr>`.
+   */
+  clear: AnchorRect;
+  /** The plan's scrolling frame ∩ the window, which the card is clamped inside. */
+  frame: { left: number; right: number; top: number; bottom: number };
+}
+
 export interface HoverCardProps {
   /**
-   * The mark this card is placed against, in viewport coordinates — and the
-   * whole of what makes it a **fixed** card rather than an absolute one.
+   * The mark this card opens **under**, in viewport coordinates — one of the
+   * three things that make it a **fixed**, portalled card rather than an
+   * absolute one.
    *
    * Left off by every card that opens from a cell: those are absolutely
    * positioned children of the cell's own wrapper and the cell's box is their
@@ -194,6 +245,10 @@ export interface HoverCardProps {
    * space is scaled non-uniformly and holds no HTML at all — so its card is
    * portalled to the document and placed from the rectangle the browser
    * measured. See {@link surfacePlacement}.
+   *
+   * A mark in a **cell** whose card is portalled all the same — the hint
+   * layer's — takes {@link HoverCardProps.diagonal} instead: it has a column
+   * and a row to clear, and this one has neither.
    */
   anchor?: AnchorRect;
   /**
@@ -276,20 +331,31 @@ export interface HoverCardProps {
    */
   takesPointer?: boolean;
   /**
-   * Whether an **anchored** card opens beside its mark rather than under it —
-   * see {@link asidePlacement}.
+   * The cross this card stands past, and the box it stays inside — a **fixed**,
+   * portalled card like {@link HoverCardProps.anchor}, placed by
+   * {@link diagonalPlacement} instead.
    *
-   * The hint layer's card, which is what most columns' pop-up is: `data-hint`
-   * and `data-fact` marks live on the drag grip, the row number, Deadline,
-   * Finish, Float, In parallel, Not before, Service and the estimate cells, and
-   * a card under one of those covers the rows below it. Dany, 2026-09-10:
-   * _"include ALL columns in the scheme"_.
+   * The hint layer's card for a mark inside the plan's frame, which is what most
+   * columns' pop-up is: `data-hint` and `data-fact` marks live on the drag grip,
+   * the row number, Prio, Not before, Deadline, End, Slack, In parallel,
+   * Service, Team, Tag and the estimate cells. Dany, 2026-09-11: _"implement
+   * 'diagonal' pop-up for ALL columns ... ALL of them, must have same look and
+   * feel"_.
    *
-   * Not the Gantt's own anchored cards: a bar is as wide as the work it draws,
-   * and a card beside a bar that fills the chart has nowhere to stand. They keep
-   * {@link surfacePlacement}, and the chart's hovers are their own question.
+   * **Two rectangles, because the two axes clear two different things**: the
+   * column is the mark's own `<td>` and the row is its `<tr>`, and a hint mark is
+   * often a 20px glyph inside a 100px cell — placed against the glyph, the card
+   * stands in the middle of the lane it was supposed to leave alone. The owner
+   * measures both and hands over the cross; see `HintLayer`.
+   *
+   * Never passed together with `anchor` or `beside`: they are placements of one
+   * card. A mark **outside** the frame — the toolbar's controls — keeps
+   * `anchor`: its card covers nothing but the header, and a row of small buttons
+   * whose cards jumped sideways would be worse for it. Nor the Gantt's own
+   * anchored cards: a bar is as wide as the work it draws, and a card beside a
+   * bar that fills the chart has nowhere to stand.
    */
-  opensAside?: boolean;
+  diagonal?: DiagonalAnchor;
   /**
    * Told when the pointer arrives on the card, and when it leaves again.
    *
@@ -365,14 +431,14 @@ export interface SidewaysPlacement {
  * 100px from the edge is not a card anybody can read. Right where the room is
  * there, otherwise the roomier side.
  *
- * `align` is the same question vertically, and it is not the flip
- * {@link roomForCard} makes: a card *beside* its cell hangs from the cell's own
- * top edge, so the only failure is a card taller than the room below that top —
- * a row low in the frame. Hanging it from the cell's **bottom** edge instead
- * keeps it inside, and either way it never covers its own cell.
+ * `align` is the same question vertically: a card *beside* its cell hangs from
+ * the cell's own top edge, so the only failure is a card taller than the room
+ * below that top — a row low in the frame. Hanging it from the cell's
+ * **bottom** edge instead keeps it inside, and either way it never covers its
+ * own cell.
  *
- * Pure, and separated from the component for {@link roomForCard}'s reason: the
- * rectangles come from `getBoundingClientRect`, which jsdom answers with
+ * Pure, and separated from the component for {@link surfacePlacement}'s reason:
+ * the rectangles come from `getBoundingClientRect`, which jsdom answers with
  * zeroes. That a real cell is measured and really placed by this is a browser
  * fact, in `e2e/card-lanes.spec.ts`.
  *
@@ -445,30 +511,40 @@ export function sidewaysPlacement(
  * reaching for it.
  *
  * No delay and no follow-cursor anywhere: the state that renders one is set on
- * `mouseenter` and cleared on `mouseleave`. A fixed-size card opening from a
- * **cell** is not flipped — it opens from the wrapper's bottom edge and that is
- * the whole of its placement. Two exceptions, for two different reasons:
+ * `mouseenter` and cleared on `mouseleave`. **Every card in the plan is
+ * diagonal** — past the thing it explains horizontally and past that thing's
+ * row vertically — and there are two ways of being so, which is a fact about
+ * where the card can be rendered rather than about how it looks:
  *
- * - {@link HoverCardProps.scrolls} — a card holding a document is as tall as
- *   the room it has, and below the cell is not where the room is for a row in
- *   the lower half of the table. It measures its wrapper and opens on the side
- *   {@link roomForCard} gives it, still inside the wrapper's own subtree,
- *   because the pointer has to be able to walk from the notes marker onto the
- *   card without leaving the cell that owns the `mouseleave`.
- * - {@link HoverCardProps.anchor} — a Gantt bar has no wrapper to open from, so
- *   such a card is portalled, fixed, flipped and clamped by {@link
- *   surfacePlacement}, and the delay before it opens belongs to the panel that
- *   opens it rather than to this.
+ * - A card that opens from a **cell** is an absolutely positioned child of that
+ *   cell's own wrapper. It has to be: the pointer must be able to walk from the
+ *   marker onto the card without leaving the cell that owns the `mouseleave`.
+ *   The side and the edge come from {@link sidewaysPlacement} and the offsets
+ *   are CSS — `left: 100%`, and the measured distance past the row.
+ * - A card the owner **measures for it** is fixed and portalled, placed by
+ *   {@link diagonalPlacement} from {@link HoverCardProps.diagonal}. The hint
+ *   layer's card is this: its mark is any of ninety-odd elements across the app,
+ *   so there is no wrapper for it to be a child of.
+ *
+ * Two placements are not diagonal, and both are outside the plan's frame:
+ * {@link HoverCardProps.anchor} opens under its mark — a Gantt bar is as wide
+ * as the work it draws, and a toolbar control's card covers nothing but the
+ * header — and {@link HoverCardProps.beside} stands clear of a **list**.
+ *
+ * One more thing is measured rather than fixed: {@link HoverCardProps.scrolls}
+ * — a card holding a document is as tall as the room its side of the cell has
+ * ({@link SidewaysPlacement.maxHeight}), because below the cell is not where the
+ * room is for a row in the lower half of the table.
  */
 export function HoverCard({
   label,
   id,
   scrolls = false,
   takesPointer = false,
-  opensAside = false,
   compact = false,
   onPointerArrives,
   anchor,
+  diagonal,
   beside,
   children,
 }: HoverCardProps) {
@@ -493,13 +569,23 @@ export function HoverCard({
    * effect below moves it into place — in `useLayoutEffect`, so the correction
    * lands before the browser paints and no card is ever seen at the left edge.
    */
-  const [placed, setPlaced] = useState<Placement>(() => ({ left: 0, top: anchor?.bottom ?? 0 }));
+  const [placed, setPlaced] = useState<Placement>(() => ({
+    left: 0,
+    top: anchor?.bottom ?? diagonal?.clear.bottom ?? 0,
+  }));
   useLayoutEffect(() => {
     const node = card.current;
-    if (anchor === undefined || node === null) return;
+    if (node === null) return;
     const box = node.getBoundingClientRect();
+    if (diagonal !== undefined) {
+      setPlaced(
+        diagonalPlacement(diagonal.clear, { width: box.width, height: box.height }, diagonal.frame),
+      );
+      return;
+    }
+    if (anchor === undefined) return;
     setPlaced(
-      (opensAside ? asidePlacement : surfacePlacement)(
+      surfacePlacement(
         anchor,
         { width: box.width, height: box.height },
         { width: window.innerWidth, height: window.innerHeight },
@@ -508,7 +594,7 @@ export function HoverCard({
     // Most owners measure once per opening. A portalled card inside a
     // scrollbox may hand over a fresh rectangle while it stays open, so each
     // anchor identity places the card again.
-  }, [anchor, opensAside]);
+  }, [anchor, diagonal]);
 
   /**
    * This card's own box, or null before it has ever been measured.
@@ -554,7 +640,7 @@ export function HoverCard({
   const [roomBeside, setRoomBeside] = useState<number | null>(null);
   const [pastTheRow, setPastTheRow] = useState<{ below: number; above: number } | null>(null);
   useLayoutEffect(() => {
-    if (anchor !== undefined || beside !== undefined) return;
+    if (anchor !== undefined || beside !== undefined || diagonal !== undefined) return;
     // Narrowing, not a guard, and deliberately not a throw: a layout effect runs
     // on a mounted node, and a mounted node has a parent. No injected fault can
     // make either null, so a throw here would be a check whose failure can never
@@ -594,7 +680,7 @@ export function HoverCard({
     );
     // Once per opening: the cell cannot move while the card is open, because
     // the pointer leaving the cell is what closes it.
-  }, [anchor, beside]);
+  }, [anchor, beside, diagonal]);
 
   // A window with room on neither side of the list shows no card at all. After
   // every hook, because this is a render that draws nothing rather than a
@@ -620,7 +706,7 @@ export function HoverCard({
           // placed against a width it does not have.
           maxWidth: `min(${String(CARD_MAX_WIDTH_PX)}px, 100vw)`,
         }
-      : anchor === undefined
+      : anchor === undefined && diagonal === undefined
         ? {
             position: 'absolute',
             // **Diagonally: past the cell, and past the row.** Dany,
@@ -675,8 +761,8 @@ export function HoverCard({
       onMouseEnter={onPointerArrives}
       style={{
         ...anchored,
-        // The height ceiling {@link roomForCard} computes is room in the
-        // window, so it has to mean the whole box. Left at `content-box`, the
+        // The height ceiling {@link sidewaysPlacement} computes is room in the
+        // frame, so it has to mean the whole box. Left at `content-box`, the
         // card's own 6px padding and 1px border are added to it and the card
         // ends 14px past the edge it was sized to stay inside.
         //
@@ -721,5 +807,7 @@ export function HoverCard({
   // portalled out: its mark is inside an `<svg>`, which can hold no HTML at
   // all, and every ancestor of it clips. A card placed beside a list is
   // portalled for the second of those reasons — the listbox scrolls and clips.
-  return anchor === undefined && beside === undefined ? body : createPortal(body, document.body);
+  return anchor === undefined && beside === undefined && diagonal === undefined
+    ? body
+    : createPortal(body, document.body);
 }

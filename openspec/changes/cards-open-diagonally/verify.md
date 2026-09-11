@@ -11,6 +11,36 @@
 | jsdom (`vitest --shard=1..3/3`)                                | 889 + 704 + 1023 |
 | `playwright test` (whole gate, 4 shards, `E2E_PORT_SHIFT=500`) | PENDING          |
 
+Re-run for the 2026-09-11 slice, on this branch, on a Mac:
+
+| Command                                                   | Result                                                       |
+| --------------------------------------------------------- | ------------------------------------------------------------ |
+| `nx format:check --all`                                   | exit 0                                                       |
+| `nx run-many -t test lint typecheck build` (26 projects)  | fe-01 green on all four; three local failures, none in fe-01 |
+| fe-01's own jsdom, inside that run                        | 102 files, **2617 passed**, + 2/3 in the zoned realm         |
+| `openspec validate --all --json`                          | exit 0, 74/74                                                |
+| `bun run e2e` (whole browser gate, `E2E_PORT_SHIFT=1900`) | **332 passed**, 1 failed — `header.spec.ts`, below           |
+
+**The three failures are this Mac, not this branch**, and each was re-run alone to say so:
+
+| Task                | Alone                                              | Why                                                                       |
+| ------------------- | -------------------------------------------------- | ------------------------------------------------------------------------- |
+| `solver-py:test`    | `ModuleNotFoundError: No module named 'ortools'`   | the Python deps are installed from `requirements.lock` in CI, not here    |
+| `be-01:test`        | **2058 pass, 0 fail**, 2 errors between tests      | `SQLiteError: disk I/O error · SQLITE_IOERR_VNODE` tearing a temp DB down |
+| `tool-devsync:test` | 92 pass, 8 fail, every one in `durable dev poller` | the known macOS poller failures (`project_devsync_poller_fails_on_macos`) |
+
+None of the three reads a file this change touches: the diff is `apps/fe-01` and `openspec/`.
+
+The browser gate's one failure is the same kind: `header.spec.ts`'s `grows page links to phone
+touch targets only below the card breakpoint`, on `the larger phone targets make the page scroll
+sideways · Expected: 0 · Received: 25`. Three things say it is not this change. The screenshot
+has **no card on screen** — the test hovers nothing, and every line this change adds is about an
+open card, `[role='tooltip']` included. The 25px is the header's own first row: the screenshot
+shows `New project`'s label clipped at 390px, which is a text-width fact and therefore a font
+fact. And CI is **green on this exact base** (run for `b6d59a95`, `pixels` included), which runs
+Linux. A measurement that comes out 0 on Linux and 25 on a Mac is R5's platform lesson, already
+written down for `press('End')`.
+
 ## Where the cards land now, measured in Chromium
 
 The row ends at y 175 in each case, so every card starts at its row's own bottom edge:
@@ -32,6 +62,50 @@ and 770px of the row's right half.
 | `hover-cards` — the reach              | `REACH_FOR_THE_CARD_MS` set to 0              | `the preview did not survive the reach · Expected: 1 · Received: 0`          |
 | `external-refs` — the reach, for links | the same                                      | `the card closed on the way over to it`                                      |
 | `hover-cards` — the writing panel      | the panel's `focus`/`input` listeners dropped | `waiting for getByLabel('Notes for 010, rendered while writing')`            |
+
+## Every other column, 2026-09-11
+
+Dany: _"implement 'diagonal' pop-up for ALL columns including PRIO, not before, deadline, end,
+slack; ALL of them, must have same look and feel"_.
+
+None of those columns has a card of its own. The **hint layer** is their pop-up — one card for
+ninety-odd marks — and it had been given yesterday's placement: beside the mark, tops aligned.
+So the same two promises, arithmetic this time rather than CSS, because that card is portalled
+and has no cell to be a child of: `diagonalPlacement` is handed the **cross** to clear (the
+mark's `<td>` horizontally, its `<tr>` vertically) and the frame to stay inside.
+
+**The cell and the row, not the mark.** Slack's mark is the word `critical` in a 56px column and
+End's is a date in an 80px one; placed against the mark, a card stands in the middle of the lane
+it was meant to leave alone — 12px of it, measured.
+
+### Failure proofs
+
+| Check                                      | Injected fault                                 | Watched failure                                                                                          |
+| ------------------------------------------ | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `hover-card` — the side                    | the side fixed at right                        | `expected { left: 740, top: 226 } to deeply equal { left: 600, top: 226 }`                               |
+| `hover-card` — the edge                    | `underneath` fixed at true                     | `expected { left: 240, top: 740 } to deeply equal { left: 240, top: 710 }`                               |
+| `hover-card` — clamped into the frame      | both clamps taken back to the window           | `expected { left: 160, top: 90 } to deeply equal { left: 300, top: 100 }`                                |
+| `hover-card` — clamped rather than refused | a refusal in front of the clamp                | `expected null to deeply equal { left: +0, top: 40 }`                                                    |
+| `hints` — every column clears its row      | the aside placement back (`top` = `clear.top`) | `Reorder: the card covers its own row · Expected: >= -0.5 · Received: -26.1875`                          |
+| `hints` — every column clears its column   | `{ anchor }` for an in-frame mark              | `Reorder: the card stands over its own column · Expected: >= -0.5 · Received: -12`                       |
+| `hints` — one type for every card          | `[role='tooltip']` deleted from `styles.css`   | `the portalled card's type · Expected: "sans-serif / 13px / 18.2px" · Received: "Times / 16px / normal"` |
+
+### The look, which no placement could see
+
+`same look and feel` turned out to be two claims, and the second was found by taking a screenshot
+and looking at it (R5's own lesson, 2026-09-01). Measured in Chromium: the Slack cell's fact came
+out **`Times / 16px / normal`** beside the notes preview's **`sans-serif / 13px / 18.2px`**. A
+portalled card is a child of `<body>`, which is outside the `font-sans` on `<main>` and outside
+`[data-grid]` both — so every hint card in the app, every Gantt card and the project picker's
+card have been drawn in the user agent's serif at the size of a paragraph since each was written.
+`[role='tooltip']` in `styles.css` now carries `@apply font-sans` and the grid's own 13px over
+1.4, and the browser case asserts each card against **its own cell's** computed type, with the
+card's parent asserted first so the claim is about the card it names.
+
+`--font-sans` cannot be read at runtime — `@theme inline` inlines it into utilities rather than
+emitting a custom property, measured as `""` at `document.body` — so `var(--font-sans)` there
+would have been a reference that resolves to nothing and a fallback that looks load-bearing.
+`@apply` is what keeps one place choosing the face.
 
 ## The teleport, a third time
 

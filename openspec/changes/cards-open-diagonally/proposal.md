@@ -17,6 +17,13 @@ The cards stood beside their cell — the column was clear, the row was not — 
 preview, which had already been moved below its row. One rule for all of them is what (1) asks
 for, and it is the rule the preview was given: past the cell **and** past the row.
 
+Then, 2026-09-11: **"implement 'diagonal' pop-up for ALL columns including PRIO, not before,
+deadline, end, slack; ALL of them, must have same look and feel"**. Those columns have no card
+of their own — the **hint layer** is their pop-up, and it had been given the placement of the day
+before: beside the mark, tops aligned. Column clear, row covered, one day later. And "same look
+and feel" turned out to be two claims: the hint layer's card is **portalled**, so it was drawn
+in the user agent's `Times / 16px` beside every in-cell card's `sans-serif / 13px`.
+
 ## What Changes
 
 - **Every in-cell card is placed diagonally.** `opensSideways` and `leavesItsRowClear` are gone:
@@ -32,6 +39,12 @@ max-content` against the measured room beside the cell is what lets a card be as
   hold.
 - **The open Name editor renders its notes beside itself**, in the row's right half, through the
   same `RenderedNotes` the hover preview uses.
+- **The hint layer's card is diagonal too**, which is every remaining column: `diagonalPlacement`
+  replaces `asidePlacement` and is given the cross to clear — the mark's `<td>` horizontally, its
+  `<tr>` vertically — plus the frame it is clamped inside. This supersedes
+  `every-column-answers-aside`'s _"A cell's hint stands beside its mark"_, one day old.
+- **One type for every card**, in `styles.css`: a portalled card is a child of `<body>`, outside
+  the `font-sans` on `<main>` and outside `[data-grid]` both.
 
 ## Non-goals
 

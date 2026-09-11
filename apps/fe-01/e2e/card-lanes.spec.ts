@@ -15,16 +15,16 @@ import { createProject } from './create-project';
  * browser's question three times over. jsdom lays nothing out, performs no hit
  * test, and has no pointer to walk.
  *
- * The answer is one of two schemes, and which one a column takes follows from
- * its card:
+ * The answer since `cards-open-diagonally` is one rule for all of them — a card
+ * stands past its cell and past its row — and what still differs per column is
+ * what a card does with the pointer:
  *
- * - A card nothing can be clicked in is **pointer-transparent** and can stand
- *   where it likes: the hit test goes straight through it to the trigger below.
- *   Start, Types, Tags and the folded step columns are these.
+ * - A card nothing can be clicked in is **pointer-transparent**, so even where
+ *   it hangs over a row the hit test goes straight through it to the trigger
+ *   below. Start, Types, Tags and the folded step columns are these.
  * - A card that takes the pointer — the links card's whole surface, every line
- *   of the dependency card, the notes preview because it scrolls — has to be
- *   **out of its column**: beside the cell (`opensSideways`), or pulled clear of
- *   the lane its triggers stand in (`clearsMarkerLane`).
+ *   of the dependency card, the notes preview because it scrolls — is reachable
+ *   only because it is out of its own column, and swallows whatever it covers.
  *
  * Measured here per column rather than argued once, because the property is a
  * conjunction of a card's placement, its `pointer-events` and the shape of its

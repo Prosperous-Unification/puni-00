@@ -51,6 +51,35 @@ padding`. The lights still go at once; only the card waits.
       Negative: the panel's `focus`/`input` listeners dropped; watched failing on `waiting for
 getByLabel('Notes for 010, rendered while writing')`.
 
-## 4. Gate
+## 4. Every other column, which is the hint layer
 
-- [x] 4.1 jsdom in three shards, then the whole browser gate in four.
+- [x] 4.1 `diagonalPlacement` replaces `asidePlacement`: past the cross of a cell's column and a
+      row's band, the roomier side and edge, clamped into the **frame** rather than the window,
+      and no gap on either axis — an in-cell card touches the cross it clears, so a hint card 6px
+      off it would be a second look for one pop-up.
+      Test: `hover-card.test.tsx` — five cases.
+      Negatives, all watched 2026-09-11: the side fixed right (`expected { left: 740, top: 226 }
+to deeply equal { left: 600, top: 226 }`); `underneath` fixed true (`{ left: 240, top: 740 }` for
+      `{ left: 240, top: 710 }`); both clamps taken back to the window (`{ left: 160, top: 90 }`
+      for `{ left: 300, top: 100 }`); a refusal in front of the clamp (`expected null to deeply
+equal { left: +0, top: 40 }`).
+- [x] 4.2 `HintLayer` measures the cross itself — the mark's `<td>` and `<tr>`, not the mark,
+      because a fact's mark is often a word inside a much wider cell — and hands it over as
+      `OpenHint.placement`, a union of one key that **is** the card's prop.
+      Test: `e2e/hints.spec.ts` — `every column's pop-up stands diagonally`, sweeping Reorder,
+      Prio, Not before, Deadline, People at once, End and Slack, both axes and the frame per
+      column.
+      Negatives: the aside placement back (`Reorder: the card covers its own row · Expected: >=
+-0.5 · Received: -26.1875`) and `{ anchor }` for an in-frame mark (`Reorder: the card stands over
+its own column · Expected: >= -0.5 · Received: -12`). Both in Chromium, 2026-09-11.
+- [x] 4.3 One type for every card, `[role='tooltip']` in `styles.css`: `@apply font-sans` and the
+      grid's 13px over 1.4, because a portalled card is a child of `<body>`.
+      Test: `e2e/hints.spec.ts` — `a card reads in the table's own type, wherever it is drawn`,
+      which asserts the portalled card **and** the in-cell one against the cell's own computed
+      type, and asserts each card's parent first so the claim is about the card it names.
+      Negative: the block deleted; watched on `the portalled card's type · Expected: "sans-serif /
+13px / 18.2px" · Received: "Times / 16px / normal"`.
+
+## 5. Gate
+
+- [x] 5.1 jsdom in three shards, then the whole browser gate in four.
