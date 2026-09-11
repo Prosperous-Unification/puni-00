@@ -1,9 +1,8 @@
 import { chmod, mkdir, readdir, readFile, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { scratchAsync } from '@wbs/tool-test-scratch';
 import { describe, expect, it } from 'bun:test';
-
-import { scratchAsync } from '../../test/scratch';
 
 interface CommandResult {
   code: number;

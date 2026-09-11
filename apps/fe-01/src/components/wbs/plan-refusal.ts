@@ -93,6 +93,7 @@ function treeReadCode(refusal: RefusalOf<'getApiProjectsByIdWork-items'>): strin
     case 'invalid_json':
     case 'unauthenticated':
     case 'not_found':
+    case 'engine_unavailable':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -324,6 +325,8 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'unknown_system':
     case 'cycle':
     case 'frozen':
+    case 'schedule_not_ready':
+    case 'engine_unavailable':
     case 'rolled_up':
     case 'ancestor':
     case 'too_large':
@@ -493,6 +496,7 @@ export const INVALID_REFUSAL =
  */
 export const PLAN_REFUSALS: RefusalWords = {
   sentences: {
+    engine_unavailable: 'Optimized scheduling is unavailable in this runtime.',
     not_found:
       'That change could not be completed: its target is no longer here — someone may have deleted it.',
     forbidden: 'That change could not be completed: this plan is not yours to change.',
