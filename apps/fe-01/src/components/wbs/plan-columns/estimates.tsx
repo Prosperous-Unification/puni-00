@@ -200,7 +200,7 @@ export function createEstimatesColumns({
                 // cell's own enter for why passing an empty cell must not
                 // close the card open somewhere else.
                 if (!cardable) return;
-                live.current.cellCards.updateHovered(() => finalCell);
+                live.current.cellCards.arriveOn(finalCell);
               }}
               onMouseLeave={() => {
                 // The same-cell guard the Name cell's marker gives its
