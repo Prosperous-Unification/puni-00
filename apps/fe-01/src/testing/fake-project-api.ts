@@ -1,5 +1,6 @@
+import { arrangeBySchedule as arrangeSiblings } from '@wbs/domain/arrange-siblings';
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
-import { deriveNumbers } from '@wbs/domain/derive-numbers';
+import { deriveNumbers, type WorkItemPlacement } from '@wbs/domain/derive-numbers';
 import { automaticColor } from '@wbs/domain/marker-color';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { byTreeOrder, treeOrder } from '@wbs/domain/tree-order';
@@ -304,12 +305,17 @@ export function fakeProjectApi(): ProjectApi & {
    * that order and handed to {@link deriveNumbers} and {@link treeOrder}, and
    * the fake answers what the server would.
    */
-  function renumber(): void {
-    seq += 1;
-    // Built beside the rows rather than written onto them: `WorkItemView` is
-    // the wire shape and carries no position, because be-01 never sends one.
+  /**
+   * The rows as placements, positions read off the array's own order.
+   *
+   * Built beside the rows rather than written onto them: `WorkItemView` is the
+   * wire shape and carries no position, because be-01 never sends one. The
+   * array order inside one parent's group *is* the sibling order here, which is
+   * what the splices in `moveWorkItem` and `createWorkItem` maintain.
+   */
+  function placementsOf(): WorkItemPlacement[] {
     const filled = new Map<string | null, number>();
-    const placements = rows.map((row) => {
+    return rows.map((row) => {
       const at = (filled.get(row.parentId) ?? 0) + 1;
       filled.set(row.parentId, at);
       return {
@@ -319,6 +325,11 @@ export function fakeProjectApi(): ProjectApi & {
         frozenNumber: row.frozenNumber,
       };
     });
+  }
+
+  function renumber(): void {
+    seq += 1;
+    const placements = placementsOf();
     const numbers = deriveNumbers(placements);
     for (const row of rows) {
       const number = numbers.get(row.id);
@@ -954,6 +965,29 @@ export function fakeProjectApi(): ProjectApi & {
           Object.entries(row.estimates).filter(([key]) => key !== stepId),
         );
       }
+      return Promise.resolve();
+    },
+    /**
+     * be-01's own arrangement, through the domain's function rather than a
+     * second ordering: this fake already computes a schedule in `scheduleOf`,
+     * and what a press does with one is exactly what `arrangeBySchedule` says.
+     */
+    arrangeBySchedule() {
+      const placements = placementsOf();
+      const starts = new Map(
+        rows.map((row) => [row.id, { earliestStart: scheduleOf(row).earliestStart }]),
+      );
+      const arranged = arrangeSiblings(placements, starts);
+      if (arranged.placements.length === 0) return Promise.resolve();
+      const at = new Map(arranged.placements.map((placed) => [placed.id, placed.position]));
+      // A group the arrangement left out is already in order, so its rows keep
+      // the positions `placementsOf` just read off the array.
+      const next = placements.map((placed) => ({
+        ...placed,
+        position: at.get(placed.id) ?? placed.position,
+      }));
+      rows.sort(byTreeOrder(treeOrder(next)));
+      renumber();
       return Promise.resolve();
     },
     freezeProject() {

@@ -142,6 +142,10 @@ export default defineConfig(({ command, mode }) => ({
       // grouping it shares with the numbering. The fake answers the server's
       // own numbers and row order through these rather than a second copy.
       '@wbs/domain/tree-order': resolve(__dirname, '../../libs/domain/src/tree-order.ts'),
+      '@wbs/domain/arrange-siblings': resolve(
+        __dirname,
+        '../../libs/domain/src/arrange-siblings.ts',
+      ),
       '@wbs/contracts/ws-frames': resolve(__dirname, '../../libs/contracts/src/ws-frames.ts'),
       // Proof: removing either shared alias from both configs failed its explicit
       // required-alias assertion in vite-config.test.ts, despite map parity.

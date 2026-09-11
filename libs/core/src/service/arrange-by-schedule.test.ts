@@ -186,6 +186,9 @@ describe('arrangeBySchedule', () => {
     const undone = await service.undo(projectId, OWNER);
 
     expect(undone.ok).toBe(true);
+    // The sentence the undo toast shows, which is the entry's own label: a
+    // plan-wide act rather than one row's, exactly as `set_frozen`'s is.
+    expect(undone.ok ? undone.value.done : '').toBe('arrange the plan by schedule');
     expect(await positions()).toEqual(was);
     expect(await inOrder()).toEqual([
       ['First', '010'],

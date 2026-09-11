@@ -143,9 +143,9 @@ tree_replaced`; negative: a second `announceTree` added, watched failing on `2`.
 
 ## 5. fe-01: the control
 
-- [ ] 5.1 `wbs-api.ts`: `arrangeBySchedule(projectId)` → `command(projectId, { kind:
+- [x] 5.1 `wbs-api.ts`: `arrangeBySchedule(projectId)` → `command(projectId, { kind:
 'arrangeBySchedule' })` — test: the api spec's command round-trip.
-- [ ] 5.2 `plan-toolbar.tsx`: icon button after `Expand all`, `aria-label="Arrange by
+- [x] 5.2 `plan-toolbar.tsx`: icon button after `Expand all`, `aria-label="Arrange by
 schedule"`, glyph drawn, `data-hint` / `data-fact` swap on `scheduleError === 'cycle'`
       and on `optimization.engine === 'optimized' && optimization.displayed === 'fast'`,
       `disabled` in both, `disabled={busy}` with `busyAffordance(busy)` otherwise; on
@@ -154,11 +154,11 @@ schedule"`, glyph drawn, `data-hint` / `data-fact` swap on `scheduleError === 'c
       `arranges the plan through the one write path`; `a cycle disables it with a fact`; `an
 unsettled variant disables it with a fact`; the hints sweep `never both`; negative:
       `data-hint` left on in the cycle case, watched failing on the both-attributes sweep.
-- [ ] 5.3 The phone sheet: the control is inside `toolbarControls` and a click closes the
+- [x] 5.3 The phone sheet: the control is inside `toolbarControls` and a click closes the
       sheet **after** the write is issued — test: `plan-cards.test.tsx` › toolbar-sheet
       describe gains `Arrange by schedule closes the sheet and issues the command`; negative:
       R5 #15's fault, close on capture, watched with the command missing from the fake's log.
-- [ ] 5.4 Undo label and history words read `arrange by schedule` — test: the undo label spec.
+- [x] 5.4 Undo label and history words read `arrange by schedule` — test: the undo label spec.
 
 ## 6. In a browser
 
