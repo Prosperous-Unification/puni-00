@@ -1148,6 +1148,40 @@ describe('the toolbar sheet', () => {
     expect(screen.getByRole('button', { name: 'Compare' })).toBeInTheDocument();
   });
 
+  /**
+   * `Arrange by schedule` reaches the phone by construction — it is a member of
+   * `toolbarControls` — and a plain `<button>` there closes the sheet on the
+   * click that takes it. What this asserts is the order of those two: the
+   * command is issued, **and then** the sheet goes.
+   *
+   * That order is R5 #15's fault class, and this control has exactly its shape:
+   * a close fired from `onClickCapture` unmounts the control between React's
+   * capture and bubble passes, so the bubble pass finds no handler, and every
+   * control on the sheet does nothing at all while looking like it worked.
+   */
+  itDom('issues the arrangement and then closes itself', async () => {
+    const api = fakeApi();
+    const asked: string[] = [];
+    api.arrangeBySchedule = (projectId: string) => {
+      asked.push(projectId);
+      return Promise.resolve();
+    };
+    widthIs(PHONE);
+    render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Plan actions' })).toBeInTheDocument();
+    });
+    openTheSheet();
+    const sheet = await screen.findByRole('dialog', { name: 'Plan actions' });
+
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Arrange by schedule' }));
+
+    await waitFor(() => {
+      expect(asked).toEqual(['p1']);
+    });
+    expect(screen.queryByRole('dialog', { name: 'Plan actions' })).toBeNull();
+  });
+
   itDom('holds the toolbar, which is nowhere on the page until it is opened', async () => {
     const api = fakeApi();
     widthIs(PHONE);

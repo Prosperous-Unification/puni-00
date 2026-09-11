@@ -610,6 +610,10 @@ export class PlanCommandRunner {
           );
           results.push({ ...plain(), kind: command.kind });
           break;
+        case 'arrangeBySchedule':
+          reasonOf(await workItems.arrangeBySchedule(projectId, actorId));
+          results.push({ ...plain(), kind: command.kind });
+          break;
         case 'freezeProject':
           reasonOf(await workItems.freeze(projectId, actorId));
           results.push({ ...plain(), kind: command.kind });
