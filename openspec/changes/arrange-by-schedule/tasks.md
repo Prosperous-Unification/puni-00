@@ -8,17 +8,17 @@ PR onto `main`.
 
 ## 0. Words first
 
-- [ ] 0.1 `CONTEXT.md`: **Arrange by schedule** and **Tree order** added under `### WBS`
+- [x] 0.1 `CONTEXT.md`: **Arrange by schedule** and **Tree order** added under `### WBS`
       after **Repadding**; **Work item number** and **Frozen number** rewritten, all in the
       D11 wording — test: none; a glossary entry is prose. The `_Avoid_` lists do not collide
       with **Position**'s or **Step order**'s.
-- [ ] 0.2 `docs/adr/0023-a-frozen-number-is-a-name-not-a-place.md` in the D12 wording,
+- [x] 0.2 `docs/adr/0023-a-frozen-number-is-a-name-not-a-place.md` in the D12 wording,
       `status: accepted` (Dany confirmed 2026-09-10) — test: none. Linked from
       `deriveNumbers`' and the service method's JSDoc.
 
 ## 1. The arrangement, pure
 
-- [ ] 1.1 `libs/domain/src/arrange-siblings.ts`: `arrangeBySchedule(rows, startOf)` →
+- [x] 1.1 `libs/domain/src/arrange-siblings.ts`: `arrangeBySchedule(rows, startOf)` →
       `{ placements: { id, parentId, position }[], moved: string[] }` over
       `WorkItemPlacement`s and a `startOf(id): number` that throws on a missing id. Groups
       siblings by parent, orders them by start with a **stable** sort over tree order,
@@ -29,16 +29,16 @@ write nothing`, `a frozen row is arranged like any other`, `an unchanged group h
 placements`, `a changed group is respaced from ten`; negative for the stable sort: the
       comparator given `|| a.id.localeCompare(b.id)` — `equal starts keep their order` watched
       failing on the reversed ids. `Proof:` from the output.
-- [ ] 1.2 `moved` is exactly the ids whose place changed — test: `moved names the rows whose
+- [x] 1.2 `moved` is exactly the ids whose place changed — test: `moved names the rows whose
 place changed, not the respaced ones`; negative: `moved` set to every placement id,
       watched failing on the unchanged row's id present.
-- [ ] 1.3 `startOf` throwing on an unknown id propagates — test: `an unscheduled row is an
+- [x] 1.3 `startOf` throwing on an unknown id propagates — test: `an unscheduled row is an
 invariant break`; negative: a `?? Infinity` default put in, watched passing the row to
       the end instead of throwing (R5 "never convert to a default").
 
 ## 2. A frozen number is a name, not a place (D4) — its own PR
 
-- [ ] 2.1 `libs/domain/src/tree-order.ts`: `orderByTree(placements): Map<id, index>` —
+- [x] 2.1 `libs/domain/src/tree-order.ts`: `orderByTree(placements): Map<id, index>` —
       depth-first, siblings by position then id; throws on an unreachable row as
       `deriveNumbers` does — test: `tree-order.test.ts` › `walks depth-first by position`,
       `a tied position falls to id`, `an orphan throws`; negative: the id tie-break dropped,
@@ -72,14 +72,16 @@ row moves and keeps its number` in `work-item.service.test.ts`, `drag-drop.test.
       bytes must not change) — test: `the read orders by tree order, not by number` with a
       frozen `030` sitting first; negative: the number sort put back, watched failing on the
       frozen row drawn third.
-- [ ] 2.5 `goesFirst` (`schedule.ts:2475-2483`) compares `orderByTree` indices — test:
+- [x] 2.5 `goesFirst` (`schedule.ts:2475-2483`) compares `orderByTree` indices — test:
       `schedule-priority.test.ts` › `a contention tie follows tree order, not the number
 string` (frozen `030` first, unfrozen `010` second, tied on every key); negative: the
       number comparison left in, watched failing on the `010` slice placed first.
-- [ ] 2.6 **Byte identity.** `fast-golden-corpus.test.ts` and every derive-numbers fixture
-      with ascending anchors and no fitted label pass unchanged — test: the corpus itself;
-      negative: `orderByTree` deliberately reversed, watched failing across the corpus, which
-      proves the corpus can see the order at all.
+- [x] 2.6 **Byte identity.** The corpus and every derive-numbers fixture with ascending
+      anchors pass unchanged — **631 pass / 0 fail**, 2026-09-11. The negative this slice
+      planned (tree order reversed) was watched **passing** over the whole domain suite and
+      is vacuous; its replacement witnesses are 2.5's pair and the recategorised
+      `canonicalScheduleInput` case, watched on `629 pass / 2 fail`. Why, in `verify.md`
+      § "The corpus cannot see the tie-break".
 
 ## 3. The contract
 
