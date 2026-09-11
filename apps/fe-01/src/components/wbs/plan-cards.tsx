@@ -1292,9 +1292,7 @@ function CardDeadlineField({
           disabled={!hasCalendar}
           // The table cell's own label, so one plan read on two faces answers to
           // one name — a screen reader and a test both find this by it.
-          aria-label={
-            shortDay === null ? deadlineName : `${deadlineName}: due ${shortDay}`
-          }
+          aria-label={shortDay === null ? deadlineName : `${deadlineName}: due ${shortDay}`}
           // What the cell's own `aria-describedby` does one face over: the mark
           // is drawn beside the date, and on a card the two are one control, so
           // the sentence goes on the control a reader reaches rather than on a

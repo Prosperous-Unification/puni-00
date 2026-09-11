@@ -3340,9 +3340,7 @@ describe('setting a card’s work item deadline', () => {
     ).not.toBeNull();
 
     await openTheDeadlineSheet();
-    const reason = document.querySelector<HTMLElement>(
-      '[data-card-deadline-impossible-reason]',
-    );
+    const reason = document.querySelector<HTMLElement>('[data-card-deadline-impossible-reason]');
     const box = screen.getByLabelText('Work item deadline for 010', {
       selector: 'input[type=date]',
     });
