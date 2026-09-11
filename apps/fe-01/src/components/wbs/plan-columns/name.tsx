@@ -273,7 +273,7 @@ export function createNameColumn({ live }: { live: PlanLive }) {
               // got there. Leaving it is the cell's own `mouseleave`, which
               // holds and then closes.
               onPointerArrives={() => {
-                live.current.cellCards.cancelHold();
+                live.current.cellCards.arriveOnCard();
               }}
             />
           )}

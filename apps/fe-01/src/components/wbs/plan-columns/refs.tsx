@@ -180,7 +180,7 @@ export function createRefsColumn({ live }: { live: PlanLive }) {
               // The hand got to the card: keep it. Off it again, the cell's
               // own `mouseleave` holds and then closes.
               onPointerArrives={() => {
-                live.current.cellCards.cancelHold();
+                live.current.cellCards.arriveOnCard();
               }}
             />
           )}
