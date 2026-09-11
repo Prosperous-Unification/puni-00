@@ -100,7 +100,7 @@ export function createPlanCellProps({
         // the state directly, because this is outside the column definitions.
         const cardable = dependenciesOf(row.dependsOn).length > 0 && depPicker?.rowId !== row.id;
         if (!cardable) return;
-        cellCards.updateHovered(() => dependsCell);
+        cellCards.arriveOn(dependsCell);
       },
       onMouseLeave: () => {
         // The open dependency card owns dismissal through its document
@@ -187,11 +187,11 @@ export function createPlanCellProps({
       'data-start-said': said,
       tabIndex: 0,
       onMouseEnter: () => {
-        cellCards.updateHovered(() => startCell);
+        cellCards.arriveOn(startCell);
       },
       onMouseLeave: close,
       onFocus: () => {
-        cellCards.updateHovered(() => startCell);
+        cellCards.arriveOn(startCell);
       },
       onBlur: close,
     };

@@ -97,7 +97,7 @@ export function createRefsColumn({ live }: { live: PlanLive }) {
             // announced about a cell that says nothing.
             aria-describedby={marks.length === 0 ? undefined : sentenceId}
             onMouseEnter={() => {
-              live.current.cellCards.updateHovered(() => refsCell);
+              live.current.cellCards.arriveOn(refsCell);
             }}
             onClick={() => {
               live.current.setRefsEditing(row.original.id);

@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
 
+import { REACH_FOR_THE_CARD_MS } from '../src/components/wbs/cell-card-store';
 import { cardIsOnTopAt } from './card-paint';
 import { createProject } from './create-project';
 
@@ -988,6 +989,68 @@ test.describe('the Name cell answers from its marker alone', () => {
     await expect(page.locator('[role="tooltip"]'), 'the preview outstayed the pointer').toHaveCount(
       0,
     );
+  });
+
+  test('goes when the hand leaves the marker through the cell beside it', async ({ page }) => {
+    // Dany, 2026-09-11: _"notes md preview pop-up does not go away if i move
+    // cursor away, but then move it up or down to other table elements"_ — and
+    // the rule he asked for: _"cursor away from notes icon & the preview
+    // pop-up for N ms => remove the preview"_.
+    //
+    // The marker is the right edge of the Name cell, so "away" is through the
+    // **Depends cell** beside it more often than not. On a row with no
+    // dependencies that cell has no card of its own, and its `mouseleave` still
+    // writes the store a same-cell clear — a departure that changes nothing.
+    // The store read every write as an arrival and cancelled the hold the
+    // marker's leave had started, so the card stayed for as long as the hand
+    // kept off anything that opens a card of its own: whole columns of Depends
+    // cells included, which is the "up or down" in the report.
+    //
+    // The test above walks **left**, into the name box, and crosses no such
+    // cell; this one walks right. In steps, back to back, so the crossing
+    // lands inside the reach — a teleport straight past the cell fires the
+    // enter and the leave in one frame and is still inside it, but a hand is
+    // steps.
+    //
+    // Proof: on the code before the fix, and again with `stopHolding()` put
+    // back at the top of the store's `updateHovered`, this failed at the first
+    // read on `the preview stayed after the hand left · Expected: 0 · Received:
+    // 1`. Watched in Chromium, 2026-09-11.
+    const name = page.getByLabel('Name of 010');
+    await name.fill('Row 010\n\nNotes the hand is about to leave behind.');
+    await name.blur();
+    await page.mouse.move(0, 0);
+
+    // The preview by name, because the walk below ends on a Prio cell whose
+    // own hint may open while the pointer rests there: a second card that says
+    // nothing about this one.
+    const preview = page.getByRole('tooltip', { name: 'Notes for 010, rendered' });
+    const marker = await boxOf(page.getByLabel('Notes on 010'), 'the notes marker');
+    await page.getByLabel('Notes on 010').hover();
+    expect(await preview.count(), 'the marker opened no preview').toBe(1);
+
+    // Right along the row, through the Depends cell and out the far side of it.
+    const depends = await boxOf(
+      rowOf(page, '010').locator('td[data-column="depends"]'),
+      'the Depends cell of 010',
+    );
+    await page.mouse.move(depends.x + depends.width + 30, marker.y + 2, { steps: 8 });
+
+    // Read once, three reaches after the hand left: the rule is "N ms after",
+    // and an auto-waiting matcher would wait thirty seconds for a card that
+    // never goes and then report the same figure, later.
+    await page.waitForTimeout(REACH_FOR_THE_CARD_MS * 3);
+    expect(await preview.count(), 'the preview stayed after the hand left').toBe(0);
+
+    // And nothing the hand does next brings it back: down the Depends column,
+    // which is where the report says it used to stay.
+    const below = await boxOf(
+      rowOf(page, '020').locator('td[data-column="depends"]'),
+      'the Depends cell of 020',
+    );
+    await page.mouse.move(below.x + below.width / 2, below.y + below.height / 2, { steps: 8 });
+    await page.waitForTimeout(REACH_FOR_THE_CARD_MS * 3);
+    expect(await preview.count(), 'the preview came back on the way down').toBe(0);
   });
 
   test('the open editor shows the same rendering beside it', async ({ page }) => {
