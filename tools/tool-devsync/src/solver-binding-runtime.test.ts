@@ -61,6 +61,7 @@ describe('the production solver binding runtime', () => {
       },
       {
         exists: (path) => Promise.resolve(path !== `${ROOT}/.git`),
+        isDirectory: () => Promise.resolve(false),
         read: (path) => {
           const contents = files.get(path);
           if (contents === undefined) throw new Error(`fixture has no ${path}`);
@@ -164,6 +165,7 @@ describe('the production solver binding runtime', () => {
       { root: ROOT, bunPath: BUN, sourceSha: SHA, compatibilityIdentity: IDENTITY },
       {
         exists: () => Promise.resolve(false),
+        isDirectory: () => Promise.resolve(false),
         read: () => Promise.reject(new Error('missing config must not be read')),
         command: () => Promise.resolve({ exitCode: 0, stderr: '' }),
         withLock: (_path, action) => action(),
@@ -187,6 +189,7 @@ describe('the production solver binding runtime', () => {
       { root: ROOT, bunPath: BUN, sourceSha: SHA, compatibilityIdentity: IDENTITY },
       {
         exists: () => Promise.resolve(true),
+        isDirectory: () => Promise.resolve(false),
         read: () => Promise.reject(new Error('EACCES installed config')),
         command: () => Promise.resolve({ exitCode: 0, stderr: '' }),
         withLock: (_path, action) => action(),
@@ -217,7 +220,8 @@ describe('the production solver binding runtime', () => {
         compatibilityIdentity: IDENTITY,
       },
       {
-        exists: (path) => Promise.resolve(path === `${ROOT}/.git`),
+        exists: () => Promise.resolve(true),
+        isDirectory: (path) => Promise.resolve(path === `${ROOT}/.git`),
         read: () => Promise.resolve(bytes('{}')),
         command: (invocation) => {
           invocations.push(invocation);
