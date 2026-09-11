@@ -13,6 +13,7 @@ const BLUE = `registry.example/wbs-be@sha256:${'c'.repeat(64)}`;
 const GREEN = `registry.example/wbs-be@sha256:${'d'.repeat(64)}`;
 const DEV = `registry.example/wbs-be@sha256:${'e'.repeat(64)}`;
 const ROOT = '/home/puni1/wbs-dev/bin/sync.target';
+const SOURCE_REPOSITORY = '/home/puni1/wbs-dev/src';
 const BUN = '/home/puni1/wbs-dev/bin/bun';
 const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
 
@@ -51,7 +52,13 @@ describe('the production solver binding runtime', () => {
     const checkpoints: { path: string; contents: string }[] = [];
     const locks: string[] = [];
     const runtime = createTargetSolverBindingRuntime(
-      { root: ROOT, bunPath: BUN, sourceSha: SHA, compatibilityIdentity: IDENTITY },
+      {
+        root: ROOT,
+        bunPath: BUN,
+        sourceRepository: SOURCE_REPOSITORY,
+        sourceSha: SHA,
+        compatibilityIdentity: IDENTITY,
+      },
       {
         exists: () => Promise.resolve(true),
         read: (path) => {
@@ -82,7 +89,7 @@ describe('the production solver binding runtime', () => {
     );
 
     expect(invocations.map(({ argv }) => argv[0])).toEqual([
-      `${ROOT}/bin/with-heavy-lock.sh`,
+      `${SOURCE_REPOSITORY}/bin/with-heavy-lock.sh`,
       BUN,
       BUN,
       BUN,
@@ -92,7 +99,7 @@ describe('the production solver binding runtime', () => {
       'git',
     ]);
     expect(invocations[0]?.argv).toEqual([
-      `${ROOT}/bin/with-heavy-lock.sh`,
+      `${SOURCE_REPOSITORY}/bin/with-heavy-lock.sh`,
       '--',
       'env',
       `WBS_SHA=${SHA}`,
@@ -124,7 +131,7 @@ describe('the production solver binding runtime', () => {
     expect(invocations[7]?.argv).toEqual([
       'git',
       '-C',
-      '/home/puni1/wbs-dev/src',
+      SOURCE_REPOSITORY,
       'reset',
       '--hard',
       '--quiet',

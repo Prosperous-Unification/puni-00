@@ -193,7 +193,10 @@ export function createTargetSolverBindingRuntime(
         await run(
           'solver image publish',
           [
-            join(target.root, 'bin/with-heavy-lock.sh'),
+            // The target is an exported, install-free candidate tree. The
+            // durable lock wrapper belongs to the live checkout; the build
+            // entrypoint below remains pinned to the target candidate.
+            join(sourceRepository, 'bin/with-heavy-lock.sh'),
             '--',
             'env',
             `WBS_SHA=${sourceSha}`,
