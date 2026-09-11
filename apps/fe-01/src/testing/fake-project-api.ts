@@ -1,6 +1,8 @@
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
+import { deriveNumbers } from '@wbs/domain/derive-numbers';
 import { automaticColor } from '@wbs/domain/marker-color';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
+import { byTreeOrder, treeOrder } from '@wbs/domain/tree-order';
 
 import type {
   AssumedAssigneeFlipView,
@@ -286,20 +288,46 @@ export function fakeProjectApi(): ProjectApi & {
     return summed;
   }
 
+  /**
+   * The numbers and the row order, through **be-01's own rules** rather than a
+   * second copy of them.
+   *
+   * This used to derive labels with a private walk and then sort by the string,
+   * which had two consequences worth naming. It ignored `frozenNumber`
+   * entirely — a frozen row was renumbered like any other, so no jsdom test
+   * could see the rule that a frozen number leaves the tool and stays put. And
+   * the sort was by label, which stopped being the row order at ADR 0023.
+   *
+   * `rows` is this fake's whole model of the tree: the array order inside one
+   * parent's group *is* the sibling order, which is what the splices in
+   * `moveWorkItem` and `createWorkItem` maintain. So the positions are read off
+   * that order and handed to {@link deriveNumbers} and {@link treeOrder}, and
+   * the fake answers what the server would.
+   */
   function renumber(): void {
     seq += 1;
-    const numberOf = new Map<string | null, string>([[null, '']]);
-    const assign = (parentId: string | null, prefix: string): void => {
-      const group = rows.filter((r) => r.parentId === parentId);
-      group.forEach((row, i) => {
-        row.number =
-          prefix === '' ? String((i + 1) * 10).padStart(3, '0') : `${prefix}.${String(i + 1)}`;
-        numberOf.set(row.id, row.number);
-        assign(row.id, row.number);
-      });
-    };
-    assign(null, '');
-    rows.sort((a, b) => (a.number < b.number ? -1 : 1));
+    // Built beside the rows rather than written onto them: `WorkItemView` is
+    // the wire shape and carries no position, because be-01 never sends one.
+    const filled = new Map<string | null, number>();
+    const placements = rows.map((row) => {
+      const at = (filled.get(row.parentId) ?? 0) + 1;
+      filled.set(row.parentId, at);
+      return {
+        id: row.id,
+        parentId: row.parentId,
+        position: at * 10,
+        frozenNumber: row.frozenNumber,
+      };
+    });
+    const numbers = deriveNumbers(placements);
+    for (const row of rows) {
+      const number = numbers.get(row.id);
+      // `deriveNumbers` answers for every row it is given or throws, so this is
+      // a fixture that built a tree with no root rather than a missing default.
+      if (number === undefined) throw new Error(`the fake left ${row.id} unnumbered`);
+      row.number = number;
+    }
+    rows.sort(byTreeOrder(treeOrder(placements)));
     for (const row of rows) row.rolledUp = rows.some((r) => r.parentId === row.id);
   }
 

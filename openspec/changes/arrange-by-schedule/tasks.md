@@ -43,7 +43,7 @@ invariant break`; negative: a `?? Infinity` default put in, watched passing the 
       `deriveNumbers` does — test: `tree-order.test.ts` › `walks depth-first by position`,
       `a tied position falls to id`, `an orphan throws`; negative: the id tie-break dropped,
       watched failing on the tied pair's order.
-- [ ] 2.2 `deriveNumbers`: unfrozen siblings claim the next natural label no frozen sibling
+- [x] 2.2 `deriveNumbers`: unfrozen siblings claim the next natural label no frozen sibling
       holds; `below`, `between`, `stepLastDigit` and the ceiling walk deleted — test:
       `derive-numbers.test.ts` rewritten: `an unfrozen row skips the label a frozen sibling
 holds`, `two frozen rows out of order keep their labels`, `a frozen label wider than the
@@ -55,7 +55,7 @@ group is reported verbatim`, `no two siblings share a label` (property, seeded);
       allowed) run against dev's database lists every work item whose number changes under
       the new rule; the list goes into `verify.md` and is announced before the deploy, as ADR
       0016 did for the tie order.
-- [ ] 2.3 The `frozen` move refusal deleted at every site: `work-item.service.ts:2254`,
+- [x] 2.3 The `frozen` move refusal deleted at every site: `work-item.service.ts:2254`,
       `applyMove`'s `frozen since` guard, `drag-drop.ts:80`, `use-plan-keyboard.ts:452` and
       `:552`, `FROZEN_REFUSAL`; `'frozen'` removed from `WorkItemRefusal`, `refusal-status.ts`,
       `work-item.routes.ts:973`, `plan-refusal.ts:326`, `DropRefusal`, and the wire union in
@@ -65,7 +65,7 @@ row moves and keeps its number` in `work-item.service.test.ts`, `drag-drop.test.
       "refuses a frozen move" case is **inverted**, not deleted, so the suite still names
       the behaviour. Negative: with the be-01 guard left in, the service test watched
       refusing `frozen`.
-- [ ] 2.4 Every reader orders by tree order: `work-item.service.ts:1893`,
+- [x] 2.4 Every reader orders by tree order: `work-item.service.ts:1893`,
       `directory-usage.ts:149`, `fake-project-api.ts:302`, and a sweep for
       `.number <`, `localeCompare(…number`, `sort(…number` across `apps/` and `libs/`
       (`canonical-plan-input.ts:351`'s `sorted` checked for what it sorts by; saved-plan
@@ -85,26 +85,26 @@ string` (frozen `030` first, unfrozen `010` second, tied on every key); negative
 
 ## 3. The contract
 
-- [ ] 3.1 `libs/contracts/src/http/plan-command-shapes.ts`: `.or(type({ kind:
+- [x] 3.1 `libs/contracts/src/http/plan-command-shapes.ts`: `.or(type({ kind:
 "'arrangeBySchedule'" }).describe('Put every sibling group in the order its bars
 start.'))` beside `freezeProject`; `PlanCommand` in `plan-command.ts` follows;
       `schedule_not_ready` added to the refusal unions with a 409 — test: the union's
       round-trip accepts `{ kind: 'arrangeBySchedule' }` and refuses an unknown key as
       `invalid_body` (the shape guards keys, not values — `AGENTS.md`).
-- [ ] 3.2 The generated OpenAPI document and every wire fixture under `libs/contracts` that
+- [x] 3.2 The generated OpenAPI document and every wire fixture under `libs/contracts` that
       enumerates command kinds or refusal reasons — test: `bunx nx run contracts:test` by
       name first (`AGENTS.md`, the CI-only `contracts:test` failure); `apps/mcp-01/README.md`
       tool count unchanged, the batch tool's description re-emitted.
 
 ## 4. be-01: the command, the step, the undo
 
-- [ ] 4.1 Extract the read's engine selection (`work-item.service.ts` ~1755-1776) into
+- [x] 4.1 Extract the read's engine selection (`work-item.service.ts` ~1755-1776) into
       `selectedScheduleOf(project, rows, optimizationRead)` answering `{ schedule } |
 { refused: 'schedule_not_ready' }`; the read keeps drawing Fast under a pending variant
       exactly as today, so it maps the refusal back to Fast **with the mark it already
       carries** — test: the existing read tests stay green; `each project is scheduled by its
 own reach` re-run against its recorded negative, since the code moved.
-- [ ] 4.2 `WorkItemService.arrangeBySchedule(projectId, actorId)`: `not_found` /
+- [x] 4.2 `WorkItemService.arrangeBySchedule(projectId, actorId)`: `not_found` /
       `forbidden` / `cycle` / `schedule_not_ready`, 4.1's schedule, 1.1's arrangement over
       `orderByTree`, repository write (4.3), one `announceTree`, one `record` with
       `set_positions` forward and inverse (4.4), `touched = moved`; nothing written,
@@ -116,11 +116,11 @@ arranged` (repository spy: no `setPositions`, no `append`, no broadcast); negati
       the `placements.length === 0` return deleted — watched producing a journal entry with an
       empty forward and a `tree_replaced` for nothing; the pending refusal replaced by Fast —
       watched arranging by Fast's order.
-- [ ] 4.3 `WorkItemRepository.setPositions(placements, moved, stamp)`: one transaction,
+- [x] 4.3 `WorkItemRepository.setPositions(placements, moved, stamp)`: one transaction,
       position on every placement, `revision: bumpedWorkItem` only on `moved` — test:
       `work-item.repository.test.ts` › `bumps the revision of moved rows only`; negative: the
       bump applied to every placement, watched failing on the unmoved row's revision.
-- [ ] 4.4 `compensating.ts`: `{ do: 'set_positions'; placements }` with `subjectOf → {
+- [x] 4.4 `compensating.ts`: `{ do: 'set_positions'; placements }` with `subjectOf → {
 workItemId: null, stepId: null }`, `touchedBy → placements' ids`, and
       `applySetPositions` refusing a missing id (`the work item is no longer there.`) and a
       row no longer under the parent the step names (sentence taken from the output) — test:
@@ -128,12 +128,12 @@ workItemId: null, stepId: null }`, `touchedBy → placements' ids`, and
 applies on a row frozen since` (D4), `redo re-applies the stored positions`; negatives:
       each guard deleted in turn, each watched applying over the changed world. Plan history:
       the entry reads `arranged the plan by schedule`.
-- [ ] 4.5 `plan-commands.ts` dispatch arm and the controller test through `buildApp`:
+- [x] 4.5 `plan-commands.ts` dispatch arm and the controller test through `buildApp`:
       `[{ kind: 'arrangeBySchedule' }]` → 200, rows re-read in start order, `undoable: true`;
       a cycle → 409 `cycle`; pending variant → 409 `schedule_not_ready`; read-only member →
       403 — test: `work-item.controller.test.ts`; negative: the arm's `reasonOf` dropped,
       watched answering 200 on the cycle.
-- [ ] 4.6 One broadcast, one journal entry, one event per press — test: `a press is one
+- [x] 4.6 One broadcast, one journal entry, one event per press — test: `a press is one
 tree_replaced`; negative: a second `announceTree` added, watched failing on `2`.
 - [ ] 4.7 **Fixed point** (D10): seeded property over the golden-corpus plans — arrange,
       reschedule with Fast, arrange again → `placements.length === 0` — test:
