@@ -1,8 +1,8 @@
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { $ } from 'bun';
 import { scratchAsync } from '@wbs/tool-test-scratch';
+import { $ } from 'bun';
 import { describe, expect, it } from 'bun:test';
 
 import { readProjects } from '../workspace-projects.mjs';
