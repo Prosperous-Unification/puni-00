@@ -1,6 +1,5 @@
 # LLM_README — read this, then only the doc your task needs
 
-TASK-520's mobile card deadline accessibility fix is on `fix/task520-card-deadline-a11y`; next: green CI and exact-head reviews, then merge and dev verification.
 `integration/open-prs` (PR #391) carries every open PR merged onto main — #334, #340, #347,
 #350, #361, #369 — gated as one branch before it merges.
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
