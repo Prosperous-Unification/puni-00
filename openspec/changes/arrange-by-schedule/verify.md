@@ -16,7 +16,8 @@ measurements below are this machine's (macOS, Chromium via Playwright); CI is th
 | `bunx nx run be-01:test`                                                         | 1035 pass / 0 fail, exit 1 — **as main** |
 | `E2E_PORT_SHIFT=1900 bunx nx run fe-01:e2e` (new spec)                           | 4 passed                                 |
 | `E2E_PORT_SHIFT=1900` … both toolbar budgets                                     | 2 passed                                 |
-| `E2E_PORT_SHIFT=1900 bunx nx run fe-01:e2e` (whole gate)                         | 334 passed / 2 failed → both re-measured |
+| `E2E_PORT_SHIFT=1900 bunx nx run fe-01:e2e` (whole gate, run 1)                  | 334 passed / 2 failed → both re-measured |
+| `…` (whole gate, run 2)                                                          | 335 passed / 1 failed — a flake, below   |
 | `OPENSPEC_TELEMETRY=0 openspec validate arrange-by-schedule --json`              | `"valid": true`                          |
 
 ### The two results that are not green, and why they are not this change's
@@ -86,6 +87,26 @@ Every row was watched failing with the fault in and green with it out.
 - [x] Every check in this change has a row
 - [x] Each negative test reaches the production call path
 - [x] No row relies on an exit code
+
+## One flake, characterised rather than assumed
+
+`header.spec.ts` › `grows page links to phone touch targets only below the card breakpoint`
+failed once, on `the larger phone targets make the page scroll sideways · Expected: 0 ·
+Received: 25`, and once more in isolation. It is **not** this change:
+
+| Run                                      | Result               |
+| ---------------------------------------- | -------------------- |
+| whole gate, run 1 (this branch)          | pass                 |
+| whole gate, run 2 (this branch)          | **fail**, 25px       |
+| isolated, this branch                    | fail once, then pass |
+| isolated, this branch, `--repeat-each=5` | 5 / 5 pass           |
+| isolated, `origin/main`                  | pass                 |
+
+A probe that listed every element whose right edge passes the viewport, run at the moment of
+the assertion, found **none** and reported `overflow=0`. The measurement is taken directly
+after `setViewportSize`, so the likely mechanism is a resize the layout has not settled
+after. Left alone rather than patched: it is a pre-existing race in a file this change does
+not touch, and 25px with nothing overflowing is not a claim about the plan toolbar.
 
 ## The pin that caught what a by-name gate missed
 
