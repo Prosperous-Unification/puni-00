@@ -1056,8 +1056,6 @@ function CardNotBeforeField({
     neither: nothing is sent until Save, so no refetch can land under the caret.
   */
   const [draftDay, setDraftDay] = useState(day ?? '');
-  const shortDay = day === null ? null : shortIsoDate(day, new Date());
-  const sheetImpossibleReasonId = `card-deadline-sheet-impossible-${row.id}`;
   const [draftReason, setDraftReason] = useState(reason ?? '');
   const title = hasCalendar
     ? [
@@ -1260,6 +1258,9 @@ function CardDeadlineField({
   const hasCalendar = projectStart !== null;
   const impossible = deadlineBeforeProjectStart(projectStart, day);
   const [draftDay, setDraftDay] = useState(day ?? '');
+  const deadlineName = `Work item deadline for ${row.number}`;
+  const shortDay = day === null ? null : shortIsoDate(day, new Date());
+  const sheetImpossibleReasonId = `card-deadline-sheet-impossible-${row.id}`;
   const title = hasCalendar
     ? [
         day === null ? null : `${day}.`,
@@ -1292,9 +1293,7 @@ function CardDeadlineField({
           // The table cell's own label, so one plan read on two faces answers to
           // one name — a screen reader and a test both find this by it.
           aria-label={
-            shortDay === null
-              ? `Work item deadline for ${row.number}`
-              : `Work item deadline for ${row.number}: due ${shortDay}`
+            shortDay === null ? deadlineName : `${deadlineName}: due ${shortDay}`
           }
           // What the cell's own `aria-describedby` does one face over: the mark
           // is drawn beside the date, and on a card the two are one control, so
