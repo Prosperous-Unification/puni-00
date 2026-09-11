@@ -27,6 +27,39 @@ SHALL cancel that hold.
 - **WHEN** the pointer settles somewhere that is neither the cell nor the card
 - **THEN** the card SHALL close
 
+### Requirement: Every column's pop-up opens diagonally, in the table's own type
+
+A hint or fact card opened from a mark **inside the plan's scrolling frame** SHALL stand past
+that mark's own cell horizontally and past that mark's own row vertically, on the roomier side
+and the roomier edge, and SHALL be clamped inside that frame rather than inside the window. This
+supersedes the beside-the-mark placement of `every-column-answers-aside`.
+
+A card opened from a mark **outside** that frame — the toolbar's controls, a Gantt bar — SHALL
+keep opening under its mark.
+
+Every hover card SHALL be drawn in the type of the table it explains, whether it is rendered
+inside its cell or portalled to the document.
+
+#### Scenario: each named column clears its own column and its own row
+
+- **GIVEN** a work item row, with the Deadline column shown
+- **WHEN** the pointer rests on the mark in its Reorder, Prio, Not before, Deadline, People at
+  once, End or Slack cell until the card opens
+- **THEN** the card SHALL be clear of that cell's horizontal span
+- **AND** the card SHALL be clear of that row's vertical span
+- **AND** the whole card SHALL be inside the plan's scrolling frame
+
+#### Scenario: a portalled card reads like the table
+
+- **GIVEN** a cell's fact card, which is portalled to the document
+- **THEN** its font family, size and line height SHALL be the cell's own
+
+#### Scenario: a toolbar control's hint opens under it
+
+- **GIVEN** a toolbar control that carries a hint
+- **WHEN** it is hovered until its card opens
+- **THEN** the card SHALL be under the control, overlapping it horizontally
+
 ### Requirement: The open Name editor shows its notes rendered beside it
 
 While a work item's Name box has the keyboard, the notes written in it SHALL be rendered beside

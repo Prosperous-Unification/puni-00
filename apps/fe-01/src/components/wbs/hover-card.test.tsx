@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { asidePlacement, HoverCard, sidewaysPlacement, surfacePlacement } from './hover-card';
+import { diagonalPlacement, HoverCard, sidewaysPlacement, surfacePlacement } from './hover-card';
 import { HoverPreview } from './hover-preview';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -238,54 +238,88 @@ describe('a card beside its cell picks the side with the room', () => {
   });
 });
 
-describe('an anchored card beside its mark', () => {
+describe('a hint card past its cell and past its row', () => {
   const CARD = { width: 260, height: 60 };
-  const SCREEN = { width: 1000, height: 800 };
+  /** A plan's frame: the whole window, so the plain cases read as coordinates. */
+  const FRAME = { left: 0, right: 1000, top: 0, bottom: 800 };
 
-  it('opens to the right of the mark, tops aligned', () => {
-    expect(asidePlacement({ left: 100, right: 140, top: 200, bottom: 228 }, CARD, SCREEN)).toEqual({
-      left: 146,
-      top: 200,
-    });
+  it('stands right of the column and below the row', () => {
+    // A 140px cell in a 26px row, with the rest of the plan to its right: the
+    // card's left edge is the **cell's** right edge and its top is the
+    // **row's** bottom, which is the whole of what "diagonal" is. No gap on
+    // either axis, so it is the same corner an in-cell card hangs in.
+    expect(
+      diagonalPlacement({ left: 100, right: 240, top: 200, bottom: 226 }, CARD, FRAME),
+    ).toEqual({ left: 240, top: 226 });
   });
 
-  it('flips to the left of a mark with no room on its right', () => {
-    // A mark 40px from the right edge: a card opening right would start at 966
-    // and end 226px past the screen.
+  it('flips to the left of a column with no room on its right', () => {
+    // The Slack column, 20px from the frame's right edge: a card opening right
+    // would start at 980 and end 240px past the plan.
     //
     // Proof: the side fixed at right, this failed on `expected { left: 740, top:
-    // 200 } to deeply equal { left: 654, top: 200 }`. Watched 2026-09-10.
-    expect(asidePlacement({ left: 920, right: 960, top: 200, bottom: 228 }, CARD, SCREEN)).toEqual({
-      left: 654,
-      top: 200,
-    });
+    // 226 } to deeply equal { left: 600, top: 226 }` — the clamped card standing
+    // over its own column and three more. Watched 2026-09-11.
+    expect(
+      diagonalPlacement({ left: 860, right: 980, top: 200, bottom: 226 }, CARD, FRAME),
+    ).toEqual({ left: 600, top: 226 });
+  });
+
+  it('hangs above the row for a row too low to hold the card', () => {
+    // 60px of card from a row whose bottom is 4px off the frame's: hung below
+    // it, the card would be 56px past the plan.
+    //
+    // Proof: `underneath` fixed at true, this failed on `expected { left: 240,
+    // top: 740 } to deeply equal { left: 240, top: 710 }` — the card clamped up
+    // the screen and over the row it explains. Watched 2026-09-11.
+    expect(
+      diagonalPlacement({ left: 100, right: 240, top: 770, bottom: 796 }, CARD, FRAME),
+    ).toEqual({ left: 240, top: 710 });
+  });
+
+  it('is clamped into the frame rather than into the window', () => {
+    // The frame is the plan's own scrolling box and it starts 300px in — a
+    // narrow plan beside a wide chart. A card pushed off the roomier side is
+    // pushed back to the **frame's** left edge, not to the window's, because
+    // the promise is that the card stays inside the plan.
+    //
+    // A 120px-wide, 100px-tall frame, and a card that fits in neither
+    // direction: both clamps bind, which is what lets one case prove both.
+    //
+    // Proof: both clamps taken back to the window (`Math.max(0, …)`, which is
+    // what the placement this replaced did), this failed on `expected { left:
+    // 160, top: 90 } to deeply equal { left: 300, top: 100 }` — 140px of card
+    // hanging left of the plan, over the chart, and 10px of it above the frame.
+    // Watched 2026-09-11.
+    expect(
+      diagonalPlacement({ left: 310, right: 330, top: 150, bottom: 176 }, CARD, {
+        left: 300,
+        right: 420,
+        top: 100,
+        bottom: 200,
+      }),
+    ).toEqual({ left: 300, top: 100 });
   });
 
   it('clamps rather than refuses where neither side has the room', () => {
-    // 260px of card and 200px of screen. `besidePlacement` answers `null` for
+    // 260px of card and 200px of frame. `besidePlacement` answers `null` for
     // this and is right to: a picker's card that must cover the list it explains
     // has no claim on the space. A hint is a sentence about the thing under the
     // pointer, and a reader who is shown nothing cannot ask again.
     //
-    // Proof: the clamp replaced by the `null` that {@link besidePlacement}
-    // returns, this failed to compile — the placement's return type is not
-    // nullable — and with the type widened, on `expected null to deeply equal {
-    // left: -60, top: 30 }`. Watched 2026-09-10.
+    // Proof: a refusal put in front of the clamp — `if (toTheRight < card.width
+    // && toTheLeft < card.width) return null;`, which is what {@link
+    // besidePlacement} does — this failed on `expected null to deeply equal {
+    // left: +0, top: 40 }`. Watched 2026-09-11. (The refusal is not typeable
+    // here: the placement's return type is not nullable, and the fault runs
+    // because vitest transpiles rather than checks.)
     expect(
-      asidePlacement({ left: 10, right: 30, top: 30, bottom: 58 }, CARD, {
-        width: 200,
-        height: 100,
+      diagonalPlacement({ left: 10, right: 30, top: 30, bottom: 58 }, CARD, {
+        left: 0,
+        right: 200,
+        top: 0,
+        bottom: 100,
       }),
-    ).toEqual({
-      left: 0,
-      top: 30,
-    });
-  });
-
-  it('lifts a card whose mark is too low for it', () => {
-    expect(asidePlacement({ left: 100, right: 140, top: 780, bottom: 800 }, CARD, SCREEN)).toEqual({
-      left: 146,
-      top: 740,
-    });
+    ).toEqual({ left: 0, top: 40 });
   });
 });
