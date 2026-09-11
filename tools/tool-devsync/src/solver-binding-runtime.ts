@@ -42,6 +42,7 @@ export interface SolverBindingRuntimeIo {
 export interface SolverBindingRuntimeTarget {
   root: string;
   bunPath: string;
+  sourceRepository?: string;
   sourceSha: string;
   compatibilityIdentity: string;
 }
@@ -135,6 +136,10 @@ export function createTargetSolverBindingRuntime(
   }
   if (!isAbsolute(target.bunPath)) {
     throw new Error('solver binding runtime Bun path must be absolute');
+  }
+  const sourceRepository = target.sourceRepository ?? LIVE_SOURCE_ROOT;
+  if (!isAbsolute(sourceRepository) || resolve(sourceRepository) !== sourceRepository) {
+    throw new Error('solver binding source repository must be an absolute normalized path');
   }
   if (!/^[0-9a-f]{40}$/.test(target.sourceSha)) {
     throw new Error('solver binding runtime source SHA is invalid');
@@ -251,7 +256,7 @@ export function createTargetSolverBindingRuntime(
         run('dev checkout reset', [
           'git',
           '-C',
-          LIVE_SOURCE_ROOT,
+          sourceRepository,
           'reset',
           '--hard',
           '--quiet',
