@@ -135,7 +135,7 @@ applies on a row frozen since` (D4), `redo re-applies the stored positions`; neg
       watched answering 200 on the cycle.
 - [x] 4.6 One broadcast, one journal entry, one event per press — test: `a press is one
 tree_replaced`; negative: a second `announceTree` added, watched failing on `2`.
-- [ ] 4.7 **Fixed point** (D10): seeded property over the golden-corpus plans — arrange,
+- [x] 4.7 **Fixed point** (D10): seeded property over the golden-corpus plans — arrange,
       reschedule with Fast, arrange again → `placements.length === 0` — test:
       `arrange-siblings.property.test.ts`, 400 seeds; a counterexample is recorded in
       `verify.md` with its seed and brought to Dany, not fixed here. Negative: the key changed
@@ -162,13 +162,13 @@ unsettled variant disables it with a fact`; the hints sweep `never both`; negati
 
 ## 6. In a browser
 
-- [ ] 6.1 **Measure first.** `layout.spec.ts` `the folded toolbar fits its budget` and
+- [x] 6.1 **Measure first.** `layout.spec.ts` `the folded toolbar fits its budget` and
       `project-settings.spec.ts` `the toolbar keeps its 1280 budget` run **with** the control;
       both figures recorded in `verify.md`. If 1600 fails, the pin moves to the shipped bar's
       own budget with the measured figure, JSDoc updated, and the named fault (a labelled
       control instead of an icon) watched exceeding it — never "narrower than before". If 1265
       fails, stop and show Dany the bar.
-- [ ] 6.2 `e2e/arrange-by-schedule.spec.ts`: three roots, the third made to start first by a
+- [x] 6.2 `e2e/arrange-by-schedule.spec.ts`: three roots, the third made to start first by a
       dependency on it from the first; press; the third row is first, reads `010`, and its
       bar's `x` is the least of the three, read from the bar of **its own row** (R5 #16) —
       negative: the `run` prop wired to `freezeProject`, watched failing on the row order.
@@ -187,7 +187,7 @@ ring.count()).toBe(0)` at 200ms (`toHaveCount(0)` retries — `AGENTS.md`).
 
 ## 7. Docs
 
-- [ ] 7.1 JSDoc on `arrangeBySchedule` (service and domain), `orderByTree`,
+- [x] 7.1 JSDoc on `arrangeBySchedule` (service and domain), `orderByTree`,
       `deriveNumbers`' rewritten header, `set_positions`, `setPositions`; the toolbar
       control's own comment beside `Freeze #`'s; `LLM_README.md`'s product line ("a Cmd+Z
       that refuses out loud when a row has moved") unchanged, its landmine list gaining the
@@ -202,5 +202,5 @@ test lint typecheck build`), `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3
 validate --all --json`, and `bun run e2e` on shifted ports (1900), the **whole** suite
       — a change that edits the toolbar and the number rule has no business believing a
       filtered run.
-- [ ] 8.2 `verify.md` filled from the output: commands, the number-drift list from 2.2, both
+- [x] 8.2 `verify.md` filled from the output: commands, the number-drift list from 2.2, both
       toolbar figures, every failure-proof row, the fixed-point result with its seed count.

@@ -2619,9 +2619,31 @@ test.describe('the chart edge the reader drags', () => {
   test('re-measures the room when the toolbar wraps under a new control', async ({ page }) => {
     // Narrow enough that the toolbar takes a second row once `Reset layout`
     // joins it, and wide enough to stay on the table face: the cards renderer
-    // takes over below this and has a different column entirely. Measured
-    // 2026-08-30: 780 and 770 wrap as well, 790 and up do not.
-    await page.setViewportSize({ width: 768, height: 900 });
+    // takes over below this and has a different column entirely.
+    //
+    // **780, moved from 768 on 2026-09-11 and re-measured there.**
+    // `arrange-by-schedule` put one more icon on the bar, and at 768 the
+    // toolbar now takes its second row *before* the drag — so the premise this
+    // case is built on was gone and its own guard said so: `the toolbar did not
+    // take a second row, so this is the 1400px case at a narrower window ·
+    // Expected: > 104 · Received: 104`. That guard is the reason this is a
+    // re-measurement rather than a silent pass.
+    //
+    // The window, measured in this file's Chromium on 2026-09-11 — toolbar
+    // height without `Reset layout`, then with it:
+    //
+    // | width | folded | with the control |
+    // | ----- | ------ | ---------------- |
+    // | 770   | 104    | 104              |
+    // | 775   | 68     | 104              |
+    // | 780   | 68     | 104              |
+    // | 785   | 68     | 104              |
+    // | 790   | 68     | 68               |
+    //
+    // So the band is 775–785 and this sits in the middle of it. It is ten
+    // pixels wide: one more control on this bar closes it, and the next change
+    // to add one has to re-measure here as well as at the two width pins.
+    await page.setViewportSize({ width: 780, height: 900 });
     await seedPlan(page, nextAccount());
     await openTheChart(page);
 
