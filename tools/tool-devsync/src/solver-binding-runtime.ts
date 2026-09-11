@@ -1,3 +1,4 @@
+import { stat } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 
 import {
@@ -28,6 +29,7 @@ export interface SolverBindingRuntimeInvocation {
 
 export interface SolverBindingRuntimeIo {
   exists(path: string): Promise<boolean>;
+  isDirectory(path: string): Promise<boolean>;
   read(path: string): Promise<Uint8Array>;
   command(
     invocation: SolverBindingRuntimeInvocation,
@@ -85,6 +87,13 @@ async function query(
 
 const DEFAULT_IO: SolverBindingRuntimeIo = {
   exists: (path) => Bun.file(path).exists(),
+  isDirectory: async (path) => {
+    try {
+      return (await stat(path)).isDirectory();
+    } catch {
+      return false;
+    }
+  },
   read: async (path) =>
     new Uint8Array(
       await Bun.file(path)
@@ -190,6 +199,11 @@ export function createTargetSolverBindingRuntime(
           io,
         ),
       publish: async (sourceSha, registryPassword) => {
+        const cleanTreeEnvironment: Readonly<Record<string, string>> = (await io.isDirectory(
+          join(target.root, '.git'),
+        ))
+          ? {}
+          : { WBS_CLEAN_TREE_REPOSITORY: sourceRepository };
         await run(
           'solver image publish',
           [
@@ -205,7 +219,10 @@ export function createTargetSolverBindingRuntime(
             join(target.root, 'tools/tool-dagger/src/main.ts'),
             'be',
           ],
-          { REGISTRY_PASS: registryPassword },
+          {
+            REGISTRY_PASS: registryPassword,
+            ...cleanTreeEnvironment,
+          },
         );
         return io.read(releasePath);
       },

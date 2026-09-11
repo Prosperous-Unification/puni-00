@@ -60,7 +60,8 @@ describe('the production solver binding runtime', () => {
         compatibilityIdentity: IDENTITY,
       },
       {
-        exists: () => Promise.resolve(true),
+        exists: (path) => Promise.resolve(path !== `${ROOT}/.git`),
+        isDirectory: () => Promise.resolve(false),
         read: (path) => {
           const contents = files.get(path);
           if (contents === undefined) throw new Error(`fixture has no ${path}`);
@@ -108,7 +109,10 @@ describe('the production solver binding runtime', () => {
       `${ROOT}/tools/tool-dagger/src/main.ts`,
       'be',
     ]);
-    expect(invocations[0]?.env).toEqual({ REGISTRY_PASS: 'protected-value' });
+    expect(invocations[0]?.env).toEqual({
+      REGISTRY_PASS: 'protected-value',
+      WBS_CLEAN_TREE_REPOSITORY: SOURCE_REPOSITORY,
+    });
     expect(invocations.flatMap(({ argv }) => argv)).not.toContain('protected-value');
     expect(invocations[1]?.argv).toContain(`--blue-image=${BLUE}`);
     expect(invocations[1]?.argv).toContain(`--green-image=${GREEN}`);
@@ -161,6 +165,7 @@ describe('the production solver binding runtime', () => {
       { root: ROOT, bunPath: BUN, sourceSha: SHA, compatibilityIdentity: IDENTITY },
       {
         exists: () => Promise.resolve(false),
+        isDirectory: () => Promise.resolve(false),
         read: () => Promise.reject(new Error('missing config must not be read')),
         command: () => Promise.resolve({ exitCode: 0, stderr: '' }),
         withLock: (_path, action) => action(),
@@ -184,6 +189,7 @@ describe('the production solver binding runtime', () => {
       { root: ROOT, bunPath: BUN, sourceSha: SHA, compatibilityIdentity: IDENTITY },
       {
         exists: () => Promise.resolve(true),
+        isDirectory: () => Promise.resolve(false),
         read: () => Promise.reject(new Error('EACCES installed config')),
         command: () => Promise.resolve({ exitCode: 0, stderr: '' }),
         withLock: (_path, action) => action(),
@@ -199,5 +205,35 @@ describe('the production solver binding runtime', () => {
     }
     expect(rejection).toBeInstanceOf(Error);
     expect(String(rejection)).toMatch(/EACCES/);
+  });
+
+  // Proof: forcing the repository override for this `.git`-backed candidate
+  // makes this assertion fail and weakens the candidate's own clean-tree gate.
+  it('keeps a git-backed candidate on its own clean-tree guard', async () => {
+    const invocations: SolverBindingRuntimeInvocation[] = [];
+    const runtime = createTargetSolverBindingRuntime(
+      {
+        root: ROOT,
+        bunPath: BUN,
+        sourceRepository: SOURCE_REPOSITORY,
+        sourceSha: SHA,
+        compatibilityIdentity: IDENTITY,
+      },
+      {
+        exists: () => Promise.resolve(true),
+        isDirectory: (path) => Promise.resolve(path === `${ROOT}/.git`),
+        read: () => Promise.resolve(bytes('{}')),
+        command: (invocation) => {
+          invocations.push(invocation);
+          return Promise.resolve({ exitCode: 0, stderr: '' });
+        },
+        query: () => Promise.reject(new Error('publish must not query')),
+        writeAtomic: () => Promise.resolve(),
+        withLock: (_path, action) => action(),
+      },
+    );
+
+    await runtime.dependencies.publish(SHA, 'protected-value');
+    expect(invocations[0]?.env).toEqual({ REGISTRY_PASS: 'protected-value' });
   });
 });
