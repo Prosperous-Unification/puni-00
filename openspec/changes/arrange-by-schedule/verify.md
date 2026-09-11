@@ -11,6 +11,7 @@ measurements below are this machine's (macOS, Chromium via Playwright); CI is th
 | `bunx nx run-many -t test lint typecheck -p core`                                | pass — 410 tests                         |
 | `bunx nx run-many -t test lint typecheck -p contracts store-sqlite store-memory` | pass — contracts 378, store-sqlite 653   |
 | `bunx nx run-many -t lint typecheck -p fe-01`                                    | pass                                     |
+| `bunx nx run-many -t test lint typecheck -p mcp-01`                              | pass — after the arity pin below         |
 | `bunx vitest run --root apps/fe-01`                                              | 2606 pass / 11 fail — **equal to main**  |
 | `bunx nx run be-01:test`                                                         | 1035 pass / 0 fail, exit 1 — **as main** |
 | `E2E_PORT_SHIFT=1900 bunx nx run fe-01:e2e` (new spec)                           | 4 passed                                 |
@@ -85,6 +86,18 @@ Every row was watched failing with the fault in and green with it out.
 - [x] Every check in this change has a row
 - [x] Each negative test reaches the production call path
 - [x] No row relies on an exit code
+
+## The pin that caught what a by-name gate missed
+
+`mcp-01:test` pins the number of command kinds the batch tool describes, "so a command kind
+cannot arrive in be-01 without a model being told about it". It did exactly that here: the
+change was run by name against `domain`, `core`, `contracts`, `store-sqlite`, `store-memory`
+and `be-01`, all green, and `mcp-01` — which was not on that list — went red on `Expected
+length: 36 · Received length: 37`. Bumped to 37, with `arrangeBySchedule`'s own
+`describe` text as the thing the loop beneath it checks is readable.
+
+This is `dual-optimized-scheduler`'s lesson repeating: run the projects you changed **by
+name**, and remember that a generated surface is a project you changed.
 
 ## Three checks that could not fail, found and replaced
 
