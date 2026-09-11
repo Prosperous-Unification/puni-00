@@ -644,8 +644,16 @@ _Avoid_: notes icon, badge, indicator, button
 **Hover card**:
 The instant answer a cell gives to the mouse resting on it: the whole of what its at-rest
 face folds away — a folded step's three points and assignee, a depends chip's names. Opens
-on enter with no delay, one at a time; the Name cell's hover preview is one.
+on enter with no delay while nothing is open, one at a time; an open one gives way by
+Takeover. The Name cell's hover preview is one.
 _Avoid_: tooltip, title attribute, hint
+
+**Takeover**:
+How an open hover card gives way to another cell's: only once the pointer has rested on the
+other trigger for a moment (100ms), so a hand crossing that trigger on its way to the open
+card keeps what it was reaching for. Arriving on the open card, or leaving the trigger, drops
+a pending takeover; with nothing open a trigger opens at once. One rule for every card.
+_Avoid_: hover intent, switch delay, debounce, grace period
 
 **Project fact**:
 Words a mark carries that say something about **this project** — who a tag was inherited

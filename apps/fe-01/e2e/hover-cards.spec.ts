@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
 
+import { REACH_FOR_THE_CARD_MS, TAKEOVER_MS } from '../src/components/wbs/cell-card-store';
 import { cardIsOnTopAt } from './card-paint';
 import { createProject } from './create-project';
 
@@ -988,6 +989,152 @@ test.describe('the Name cell answers from its marker alone', () => {
     await expect(page.locator('[role="tooltip"]'), 'the preview outstayed the pointer').toHaveCount(
       0,
     );
+  });
+
+  test('goes when the hand leaves the marker through the cell beside it', async ({ page }) => {
+    // Dany, 2026-09-11: _"notes md preview pop-up does not go away if i move
+    // cursor away, but then move it up or down to other table elements"_ — and
+    // the rule he asked for: _"cursor away from notes icon & the preview
+    // pop-up for N ms => remove the preview"_.
+    //
+    // The marker is the right edge of the Name cell, so "away" is through the
+    // **Depends cell** beside it more often than not. On a row with no
+    // dependencies that cell has no card of its own, and its `mouseleave` still
+    // writes the store a same-cell clear — a departure that changes nothing.
+    // The store read every write as an arrival and cancelled the hold the
+    // marker's leave had started, so the card stayed for as long as the hand
+    // kept off anything that opens a card of its own: whole columns of Depends
+    // cells included, which is the "up or down" in the report.
+    //
+    // The test above walks **left**, into the name box, and crosses no such
+    // cell; this one walks right. In steps, back to back, so the crossing
+    // lands inside the reach — a teleport straight past the cell fires the
+    // enter and the leave in one frame and is still inside it, but a hand is
+    // steps.
+    //
+    // Proof: on the code before the fix, and again with `stopHolding()` put
+    // back at the top of the store's `updateHovered`, this failed at the first
+    // read on `the preview stayed after the hand left · Expected: 0 · Received:
+    // 1`. Watched in Chromium, 2026-09-11.
+    const name = page.getByLabel('Name of 010');
+    await name.fill('Row 010\n\nNotes the hand is about to leave behind.');
+    await name.blur();
+    await page.mouse.move(0, 0);
+
+    // The preview by name, because the walk below ends on a Prio cell whose
+    // own hint may open while the pointer rests there: a second card that says
+    // nothing about this one.
+    const preview = page.getByRole('tooltip', { name: 'Notes for 010, rendered' });
+    const marker = await boxOf(page.getByLabel('Notes on 010'), 'the notes marker');
+    await page.getByLabel('Notes on 010').hover();
+    expect(await preview.count(), 'the marker opened no preview').toBe(1);
+
+    // Right along the row, through the Depends cell and out the far side of it.
+    const depends = await boxOf(
+      rowOf(page, '010').locator('td[data-column="depends"]'),
+      'the Depends cell of 010',
+    );
+    await page.mouse.move(depends.x + depends.width + 30, marker.y + 2, { steps: 8 });
+
+    // Read once, three reaches after the hand left: the rule is "N ms after",
+    // and an auto-waiting matcher would wait thirty seconds for a card that
+    // never goes and then report the same figure, later.
+    await page.waitForTimeout(REACH_FOR_THE_CARD_MS * 3);
+    expect(await preview.count(), 'the preview stayed after the hand left').toBe(0);
+
+    // And nothing the hand does next brings it back: down the Depends column,
+    // which is where the report says it used to stay.
+    const below = await boxOf(
+      rowOf(page, '020').locator('td[data-column="depends"]'),
+      'the Depends cell of 020',
+    );
+    await page.mouse.move(below.x + below.width / 2, below.y + below.height / 2, { steps: 8 });
+    await page.waitForTimeout(REACH_FOR_THE_CARD_MS * 3);
+    expect(await preview.count(), 'the preview came back on the way down').toBe(0);
+  });
+
+  /**
+   * Row 010 with notes, waiting on 020 — so the Depends cell beside its marker
+   * is a live trigger with a card of its own.
+   */
+  async function seed010WithNotesWaitingFor020(page: Page): Promise<void> {
+    const name = page.getByLabel('Name of 010');
+    await name.fill('Row 010\n\nNotes worth reaching for across a live cell.');
+    await name.blur();
+    const depends = page.getByLabel('Add a dependency to 010');
+    await depends.click();
+    await depends.fill('020');
+    await depends.press('Enter');
+    await expect(page.getByRole('button', { name: /^Stop 010 waiting for / })).toHaveCount(1);
+    // At rest: the picker owns the cell while the box has the focus.
+    await name.click();
+    await name.blur();
+    await page.mouse.move(0, 0);
+  }
+
+  test('keeps the preview while the hand crosses a live trigger on its way to it', async ({
+    page,
+  }) => {
+    // Dany, 2026-09-11: _"i want to move cursor over to the pop-up - it can
+    // move over the dependency cell (which triggers it's own pop-up) or over
+    // the neighbouring notes preview icon (which triggers another notes
+    // pop-up); i need for cursor in flight while the notes pop-up is open - to
+    // have a small delay"_.
+    //
+    // The preview's corner is the Depends cell's left edge one row down, so the
+    // diagonal from the `≡` to it crosses the same row's Depends cell. With a
+    // dependency in that cell it is a live trigger, and until this change its
+    // enter took the card over at once. Two legs, in steps: into the Depends
+    // cell's passive padding at the marker's height, then on to the card near
+    // the corner nearest that cell — the second leg is what has to land inside
+    // {@link TAKEOVER_MS}.
+    //
+    // Proof: {@link TAKEOVER_MS} set to 0 — this failed on `the preview was
+    // taken over on the way · Expected: 1 · Received: 0`. Watched in Chromium,
+    // 2026-09-11.
+    await seed010WithNotesWaitingFor020(page);
+    const preview = page.getByRole('tooltip', { name: 'Notes for 010, rendered' });
+    const dependsCard = page.getByRole('tooltip', { name: 'What 010 waits for' });
+
+    const marker = await boxOf(page.getByLabel('Notes on 010'), 'the notes marker');
+    await page.getByLabel('Notes on 010').hover();
+    expect(await preview.count(), 'the marker opened no preview').toBe(1);
+    const card = await boxOf(preview, 'the preview');
+    const cell = await boxOf(
+      rowOf(page, '010').locator('td[data-column="depends"]'),
+      'the Depends cell of 010',
+    );
+
+    await page.mouse.move(cell.x + 2, marker.y + marker.height / 2, { steps: 4 });
+    await page.mouse.move(card.x + 40, card.y + 20, { steps: 4 });
+    expect(await preview.count(), 'the preview was taken over on the way').toBe(1);
+    expect(await dependsCard.count(), 'the Depends cell opened its card on a passing hand').toBe(0);
+
+    // And the pointer being on the card keeps it past every delay there is.
+    await page.waitForTimeout(TAKEOVER_MS * 3);
+    expect(await preview.count(), 'the preview did not outlast the takeover delay').toBe(1);
+  });
+
+  test('lets a pointer that rests on another trigger take over', async ({ page }) => {
+    // The other half of the rule: a hand that stops on the Depends cell wanted
+    // that card, and gets it once the delay has run.
+    //
+    // Proof: the takeover timer's `land()` removed — this failed on `the
+    // rested-on cell opened no card · Expected: 1 · Received: 0`. The preview
+    // had gone anyway, to the reach the marker's leave started, which is why
+    // the card and not the preview is the line that sees this fault. Watched in
+    // Chromium, 2026-09-11.
+    await seed010WithNotesWaitingFor020(page);
+    const preview = page.getByRole('tooltip', { name: 'Notes for 010, rendered' });
+    const dependsCard = page.getByRole('tooltip', { name: 'What 010 waits for' });
+
+    await page.getByLabel('Notes on 010').hover();
+    expect(await preview.count(), 'the marker opened no preview').toBe(1);
+
+    await hoverPassiveDependsCell(page, '010');
+    await page.waitForTimeout(TAKEOVER_MS * 3);
+    expect(await preview.count(), 'the preview outstayed a pointer that rested elsewhere').toBe(0);
+    expect(await dependsCard.count(), 'the rested-on cell opened no card').toBe(1);
   });
 
   test('the open editor shows the same rendering beside it', async ({ page }) => {
