@@ -1,12 +1,16 @@
-import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { scratchAsync } from '@wbs/tool-test-scratch';
+import { $ } from 'bun';
 import { describe, expect, it } from 'bun:test';
 
+import { readProjects } from '../workspace-projects.mjs';
+import { SOLVER_COMPATIBILITY_PATHS as PREPARATION_PATHS } from './solver-preparation';
 import {
   assertDevSolverSourceCompatible,
   assertMcpEnv,
+  deploySolverTarget,
   devSolverMappingOf,
   devSyncFailureMessage,
   LOCK_BUSY_EXIT_CODE,
@@ -16,10 +20,12 @@ import {
   RESTART_PATHS,
   runDevSyncLock,
   SOLVER_COMPATIBILITY_PATHS,
+  solverTargetDependencies,
   sync,
 } from './sync';
 
 const DEV_IMAGE = `registry.example/wbs-be@sha256:${'a'.repeat(64)}`;
+const WORKSPACE = new URL('../../../', import.meta.url);
 
 function solverConfigBytes(sourceSha: string): Uint8Array {
   return new TextEncoder().encode(
@@ -31,6 +37,10 @@ function solverConfigBytes(sourceSha: string): Uint8Array {
 }
 
 describe('needsRestart', () => {
+  it('uses the same solver path identity for detection and preparation', () => {
+    expect(SOLVER_COMPATIBILITY_PATHS).toBe(PREPARATION_PATHS);
+  });
+
   it('does not restart when nothing in the manifest changed', () => {
     expect(needsRestart({ 'bun.lock': 'a' }, { 'bun.lock': 'a' })).toBe(false);
   });
@@ -90,10 +100,9 @@ describe('RESTART_PATHS coverage', () => {
   // instead of trusting the list: a library added without an entry fails here
   // rather than on dev, silently, as a stale project graph.
   it('names every library project.json that exists on disk', async () => {
-    const { readdir } = await import('node:fs/promises');
-    const libs = (await readdir(new URL('../../../libs', import.meta.url), { withFileTypes: true }))
-      .filter((e) => e.isDirectory())
-      .map((e) => `libs/${e.name}/project.json`);
+    const libs = (await readProjects(WORKSPACE))
+      .filter((project) => project.root.startsWith('libs/'))
+      .map((project) => `${project.root}/project.json`);
     expect(libs.length).toBeGreaterThan(0);
     for (const lib of libs) {
       expect(RESTART_PATHS).toContain(lib);
@@ -108,10 +117,9 @@ describe('RESTART_PATHS coverage', () => {
   });
 
   it('names every app project.json, whose serve target the supervisor reads once', async () => {
-    const { readdir } = await import('node:fs/promises');
-    const apps = (await readdir(new URL('../../../apps', import.meta.url), { withFileTypes: true }))
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name);
+    const apps = (await readProjects(WORKSPACE))
+      .filter((project) => project.root.startsWith('apps/'))
+      .map((project) => project.name);
     expect(apps).toContain('mcp-01');
     for (const app of apps) {
       expect(RESTART_PATHS).toContain(`apps/${app}/project.json`);
@@ -169,15 +177,117 @@ describe('dev supervisor', () => {
     }).toThrow(/mapping is stale.*publish the backend image/);
   });
 
-  it('runs the solver preflight after fetch and before reset can deploy source', async () => {
+  it('routes the solver target after fetch and before deployed HEAD is believed', async () => {
     const source = await readFile(new URL('./sync.ts', import.meta.url), 'utf8');
     const fetchAt = source.indexOf('git -C ${SRC} fetch --quiet origin');
-    const preflightAt = source.indexOf('await preflightSolver(sha);');
-    const resetAt = source.indexOf('git -C ${SRC} reset --hard --quiet ${sha}');
+    const targetAt = source.indexOf('await deploySolverTarget(sha, solverTargetDependencies());');
+    const proofAt = source.indexOf('git -C ${SRC} rev-parse HEAD', targetAt);
 
     expect(fetchAt).toBeGreaterThan(-1);
-    expect(preflightAt).toBeGreaterThan(fetchAt);
-    expect(resetAt).toBeGreaterThan(preflightAt);
+    expect(targetAt).toBeGreaterThan(fetchAt);
+    expect(proofAt).toBeGreaterThan(targetAt);
+    expect(source).toContain('const sourceRepository = options.sourceRepository ?? SRC;');
+  });
+
+  it('prepares a changed solver target and keeps unchanged targets on the existing preflight', async () => {
+    const changedEvents: string[] = [];
+    await deploySolverTarget('c'.repeat(40), {
+      currentSha: () => Promise.resolve('b'.repeat(40)),
+      changedPaths: () => Promise.resolve(['libs/solver-py/src/wbs_solver/solve.py']),
+      compatibilityIdentity: () => Promise.resolve('d'.repeat(64)),
+      readState: () => Promise.resolve(undefined),
+      prepare: (target, state) => {
+        expect(target).toEqual({
+          sourceSha: 'c'.repeat(40),
+          compatibilityIdentity: 'd'.repeat(64),
+        });
+        expect(state).toBeUndefined();
+        changedEvents.push('prepare');
+        return Promise.resolve();
+      },
+      preflight: () => Promise.reject(new Error('changed target uses automatic preparation')),
+      reset: () => Promise.reject(new Error('preparation owns changed-target reset')),
+    });
+    expect(changedEvents).toEqual(['prepare']);
+
+    const unchangedEvents: string[] = [];
+    await deploySolverTarget('c'.repeat(40), {
+      currentSha: () => Promise.resolve('b'.repeat(40)),
+      changedPaths: () => Promise.resolve([]),
+      compatibilityIdentity: () =>
+        Promise.reject(new Error('unchanged target has no new identity')),
+      readState: () => Promise.reject(new Error('unchanged target has no preparation state')),
+      prepare: () => Promise.reject(new Error('unchanged target does not prepare')),
+      preflight: () => {
+        unchangedEvents.push('preflight');
+        return Promise.resolve();
+      },
+      reset: () => {
+        unchangedEvents.push('reset');
+        return Promise.resolve();
+      },
+    });
+    expect(unchangedEvents).toEqual(['preflight', 'reset']);
+  });
+
+  it('reads target compatibility from the source repository, not the exported deployer tree', async () => {
+    const directory = await scratchAsync('wbs-devsync-source-repository-');
+    const sourceRepository = join(directory, 'source');
+    const exportedRuntime = join(directory, 'bin', 'sync.target');
+    await mkdir(join(sourceRepository, 'libs', 'solver-py'), { recursive: true });
+    await mkdir(join(sourceRepository, 'apps', 'be-01'), { recursive: true });
+    await mkdir(exportedRuntime, { recursive: true });
+    await writeFile(join(sourceRepository, 'libs', 'solver-py', 'solver.py'), 'version = 1\n');
+    await writeFile(join(sourceRepository, 'apps', 'be-01', 'Dockerfile'), 'FROM scratch\n');
+    await $`git -C ${sourceRepository} init --quiet`;
+    await $`git -C ${sourceRepository} add libs/solver-py apps/be-01/Dockerfile`;
+    await $`git -C ${sourceRepository} -c user.name=devsync-test -c user.email=devsync@example.invalid commit --quiet -m compatibility`;
+    const compatibilitySha = (await $`git -C ${sourceRepository} rev-parse HEAD`.text()).trim();
+    const dependencies = solverTargetDependencies({
+      sourceRepository,
+      runtimeRoot: exportedRuntime,
+      solverConfigPath: join(directory, 'missing-solver-config.json'),
+    });
+
+    const exportedQuery = await $`git -C ${exportedRuntime} rev-parse --git-dir`.nothrow().quiet();
+    expect(exportedQuery.exitCode).toBe(128);
+    expect(exportedQuery.stderr.toString()).toContain('not a git repository');
+    const identity = await dependencies.compatibilityIdentity(compatibilitySha);
+    expect(identity).toMatch(/^[0-9a-f]{64}$/);
+
+    await writeFile(join(sourceRepository, 'README.md'), 'unrelated change\n');
+    await $`git -C ${sourceRepository} add README.md`;
+    await $`git -C ${sourceRepository} -c user.name=devsync-test -c user.email=devsync@example.invalid commit --quiet -m unrelated`;
+    const unrelatedSha = (await $`git -C ${sourceRepository} rev-parse HEAD`.text()).trim();
+    expect(await dependencies.compatibilityIdentity(unrelatedSha)).toBe(identity);
+
+    await $`git -C ${sourceRepository} reset --hard --quiet ${compatibilitySha}`;
+    let preparations = 0;
+    await deploySolverTarget(unrelatedSha, {
+      ...dependencies,
+      prepare: () => {
+        preparations += 1;
+        return Promise.reject(new Error('unrelated target must not prepare the solver'));
+      },
+    });
+    expect(preparations).toBe(0);
+    expect((await $`git -C ${sourceRepository} rev-parse HEAD`.text()).trim()).toBe(unrelatedSha);
+  });
+
+  it('names the source repository and compatibility path when git cannot answer the query', async () => {
+    const directory = await scratchAsync('wbs-devsync-missing-source-repository-');
+    const missingRepository = join(directory, 'missing-source');
+    const exportedRuntime = join(directory, 'bin', 'sync.target');
+    await mkdir(exportedRuntime, { recursive: true });
+
+    const message = await rejection(
+      solverTargetDependencies({
+        sourceRepository: missingRepository,
+        runtimeRoot: exportedRuntime,
+      }).compatibilityIdentity('a'.repeat(40)),
+    );
+    expect(message).toContain(`git repository ${missingRepository}`);
+    expect(message).toContain(`${'a'.repeat(40)}:libs/solver-py`);
   });
 
   it('does not require supervisor host state for source-unrelated deploys', async () => {
@@ -315,7 +425,7 @@ describe('dev supervisor', () => {
 
 describe('dev-sync lock diagnostics', () => {
   it('passes the dedicated contention exit code to the production flock invocation', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'wbs-devsync-flock-'));
+    const directory = await scratchAsync('wbs-devsync-flock-');
     const argumentsPath = join(directory, 'arguments');
     const flockPath = join(directory, 'flock');
     const lockPath = join(directory, 'devsync.lock');
@@ -355,7 +465,7 @@ describe('dev-sync lock diagnostics', () => {
   // Asserted through the recorded argv rather than the source text, because
   // the shape this file used to grep for no longer exists.
   it('defaults the locked child to this process interpreter, never PATH', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'wbs-devsync-interpreter-'));
+    const directory = await scratchAsync('wbs-devsync-interpreter-');
     const argumentsPath = join(directory, 'arguments');
     const flockPath = join(directory, 'flock');
     const lockPath = join(directory, 'devsync.lock');
@@ -411,7 +521,7 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
 
 describe('MCP environment prerequisite', () => {
   it('fails clearly before restarting a supervisor that cannot start mcp-01', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'wbs-mcp-env-'));
+    const directory = await scratchAsync('wbs-mcp-env-');
     const missing = join(directory, '.env');
 
     expect(await rejection(assertMcpEnv(missing))).toContain(
@@ -420,7 +530,7 @@ describe('MCP environment prerequisite', () => {
   });
 
   it('checks the gitignored environment before fetch or reset can move the tree', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'wbs-mcp-env-order-'));
+    const directory = await scratchAsync('wbs-mcp-env-order-');
     const missing = join(directory, '.env');
 
     expect(await rejection(sync('unreachable-sha', { mcpEnvPath: missing }))).toContain(
