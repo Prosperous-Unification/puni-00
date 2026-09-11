@@ -3,6 +3,7 @@ import { type Type, type } from 'arktype';
 import { defineEndpointShape } from './endpoint-shape';
 import { planCommandsBody } from './plan-command-shapes';
 import type { ParserRefusalCode, PlanCommandKind } from './refusal';
+import { engineUnavailableRefusal } from './scheduler-shapes';
 import { requestSchema, responseSchema } from './schema-shape';
 import { workItemTree } from './work-item-response';
 
@@ -23,6 +24,7 @@ const commandKinds = {
   setAssignee: true,
   addDependency: true,
   removeDependency: true,
+  arrangeBySchedule: true,
   freezeProject: true,
   unfreezeProject: true,
   unfreezeWorkItem: true,
@@ -518,7 +520,15 @@ const batchRefusals = [
     schema: responseSchema(
       type.or(
         type({ ...context, error: "'cycle'" }),
+        // Retired at ADR 0023 and deliberately kept: no release since refuses a
+        // move for a frozen number, but an outgoing be-01 can answer a browser
+        // holding the incoming fe-01 for the length of a swap, and an arm this
+        // union lacks is a 409 the client cannot parse at all.
         type({ ...context, error: "'frozen'" }),
+        // `arrangeBySchedule` while the project's selected optimized variant is
+        // still solving, and on a deployment with no optimizer installed.
+        type({ ...context, error: "'schedule_not_ready'" }),
+        type({ ...context, error: "'engine_unavailable'" }),
         type({ ...context, error: "'rolled_up'" }),
         type({ ...context, error: "'ancestor'" }),
         type({ ...context, error: "'too_large'" }),
@@ -557,6 +567,7 @@ export const getWorkItems = defineEndpointShape({
   refusals: [
     ...genericRefusals,
     { status: 404, schema: responseSchema(type({ error: "'not_found'" })) },
+    engineUnavailableRefusal,
   ],
   document: { summary: 'Read the project work-item tree.' },
 });

@@ -3215,6 +3215,7 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
     duplicateWorkItem: () => notImplemented('duplicateWorkItem'),
     removeWorkItem: () => notImplemented('removeWorkItem'),
     clearEstimate: () => notImplemented('clearEstimate'),
+    arrangeBySchedule: () => notImplemented('arrangeBySchedule'),
     freezeProject: () => notImplemented('freezeProject'),
     unfreezeProject: () => notImplemented('unfreezeProject'),
     unfreezeWorkItem: () => notImplemented('unfreezeWorkItem'),

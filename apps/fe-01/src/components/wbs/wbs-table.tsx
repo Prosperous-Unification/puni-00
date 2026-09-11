@@ -542,6 +542,8 @@ export function WbsTable({
     setSteps,
     treeMayBeStale,
     setTreeMayBeStale,
+    treeFailureText,
+    setTreeFailureText,
     markers,
     setMarkers,
     busy,
@@ -821,6 +823,7 @@ export function WbsTable({
     activeProject,
     api,
     setTreeMayBeStale,
+    setTreeFailureText,
     setMarkers,
     setTeams,
     setTags,
@@ -956,6 +959,19 @@ export function WbsTable({
     workItemTypes,
     services,
   });
+  /**
+   * `Arrange by schedule`, built here because the toast stack lives here.
+   *
+   * One sentence on the way out and nothing else: `run` already turns a refusal
+   * into its own toast and rereads the plan, and the whole tree comes back in
+   * schedule order because be-01 wrote the positions.
+   */
+  const arrangeBySchedule = useCallback(() => {
+    void run(() => api.arrangeBySchedule(projectId)).then((landed) => {
+      if (landed === 'landed') pushToast({ kind: 'info', text: 'Arranged by schedule.' });
+    });
+  }, [api, projectId, pushToast, run]);
+
   const { siblingsOf, addWorkItem } = useAddWorkItem({
     flat,
     projectId,
@@ -1723,6 +1739,8 @@ export function WbsTable({
       run={run}
       api={api}
       projectId={projectId}
+      scheduleError={scheduleError}
+      arrangeBySchedule={arrangeBySchedule}
       addWorkItem={addWorkItem}
       filtering={filtering}
       setExpanded={setExpanded}
@@ -1765,6 +1783,7 @@ export function WbsTable({
       stack={stack}
       stepStack={stepStack}
       setCheatSheetOpen={setCheatSheetOpen}
+      exportAvailable={hasSuccessfulTreeRead}
       copyAsMarkdown={copyAsMarkdown}
       copyAsMermaid={copyAsMermaid}
       downloadCsv={downloadCsv}
@@ -1948,7 +1967,11 @@ export function WbsTable({
           data-stale-tree
           className="border-destructive/40 bg-destructive/10 mb-3 flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
         >
-          This plan may be out of date — the last refresh failed.{' '}
+          {/* Proof: suppressing `treeFailureText` failed the Chromium stale-plan window on
+          `Expected: Optimized scheduling is unavailable in this runtime. · Received: This
+          plan may be out of date — the last refresh failed. Retry`, while its dated row
+          remained installed. */}
+          {treeFailureText ?? 'This plan may be out of date — the last refresh failed.'}{' '}
           <Button
             variant="outline"
             size="sm"
