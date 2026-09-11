@@ -190,6 +190,11 @@ export function createTargetSolverBindingRuntime(
           io,
         ),
       publish: async (sourceSha, registryPassword) => {
+        const cleanTreeEnvironment: Readonly<Record<string, string>> = (await io.exists(
+          join(target.root, '.git'),
+        ))
+          ? {}
+          : { WBS_CLEAN_TREE_REPOSITORY: sourceRepository };
         await run(
           'solver image publish',
           [
@@ -207,7 +212,7 @@ export function createTargetSolverBindingRuntime(
           ],
           {
             REGISTRY_PASS: registryPassword,
-            WBS_CLEAN_TREE_REPOSITORY: sourceRepository,
+            ...cleanTreeEnvironment,
           },
         );
         return io.read(releasePath);

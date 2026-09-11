@@ -458,9 +458,10 @@ export function requireRegistryPassword(env: NodeJS.ProcessEnv): string {
  *
  * `publishAll` snapshots `client.host().directory('.')` while `publish-all`
  * labels the result with `WBS_SHA`. Ordinary callers build from the repository
- * itself, so the default `.` preserves the original clean-tree guard. The dev
- * deployer builds from an immutable archive extracted for that SHA; it supplies
- * the real source repository explicitly because the archive has no `.git`.
+ * itself, so the default `.` preserves the original clean-tree guard. The
+ * legacy dev recovery loader builds from an immutable archive extracted for
+ * that SHA; only that compatibility path supplies the real source repository
+ * explicitly because its archive has no `.git`.
  * A dirty backing repository is not acceptable, and the gap is not cosmetic:
  * `tool-deploy`'s migration gate (tools/tool-deploy/src/migrations.ts) reads
  * the migration set *from git* at that sha, so an uncommitted migration is
