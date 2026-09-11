@@ -117,8 +117,9 @@ export function createPlanCellProps({
         // after the next cell's enter.
         depLights.updateHover((current) => (current?.rowId === row.id ? null : current));
         // The same-cell guard, for the reason the Name cell's marker gives: a
-        // leave lands after the next cell's enter.
-        cellCards.updateHovered((current) => (current === dependsCell ? null : current));
+        // leave lands after the next cell's enter — and a takeover aimed at
+        // this cell goes with the pointer.
+        cellCards.leave(dependsCell);
       },
     };
   };
@@ -164,11 +165,6 @@ export function createPlanCellProps({
   > & { 'data-start-said'?: string } => {
     if (said === null) return {};
     const startCell = cellKey(row.id, 'start');
-    // The same-cell guard every surface here clears with: a leave fires after
-    // the enter of whatever the pointer moved on to.
-    const close = () => {
-      cellCards.updateHovered((current) => (current === startCell ? null : current));
-    };
     return {
       /*
         The sentence, at rest, for anything that is not a reader.
@@ -189,11 +185,22 @@ export function createPlanCellProps({
       onMouseEnter: () => {
         cellCards.arriveOn(startCell);
       },
-      onMouseLeave: close,
-      onFocus: () => {
-        cellCards.arriveOn(startCell);
+      // The same-cell guard every surface here clears with: a leave fires
+      // after the enter of whatever the pointer moved on to.
+      onMouseLeave: () => {
+        cellCards.leave(startCell);
       },
-      onBlur: close,
+      // The keyboard's own channel, as the folded estimate's focus already
+      // is: a focus is not a hand in flight, so it must not wait behind the
+      // takeover an `arriveOn` under an open card would start. Guarded on the
+      // way out like every clear — a blur can land after the next cell has
+      // taken the focus.
+      onFocus: () => {
+        cellCards.updateFocused(() => startCell);
+      },
+      onBlur: () => {
+        cellCards.updateFocused((current) => (current === startCell ? null : current));
+      },
     };
   };
   return { dependsCellHoverProps, startCellProps };

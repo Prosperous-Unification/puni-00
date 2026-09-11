@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createCellCards, REACH_FOR_THE_CARD_MS } from './cell-card-store';
+import { createCellCards, REACH_FOR_THE_CARD_MS, TAKEOVER_MS } from './cell-card-store';
 
 /**
  * The reach, as the store keeps it: a card is held for
@@ -61,10 +61,13 @@ describe('the cell-card store’s reach', () => {
   });
 
   it('keeps the card the pointer arrived on, not the one it left', () => {
+    // The arrival elsewhere is a takeover, so it lands after {@link TAKEOVER_MS};
+    // the reach the first card's leave started must not then close the second.
     const cards = createCellCards();
     cards.arriveOn('a:name');
     cards.holdHovered('a:name');
     cards.arriveOn('b:start');
+    vi.advanceTimersByTime(TAKEOVER_MS);
     expect(cards.openCard()).toBe('b:start');
     vi.advanceTimersByTime(REACH_FOR_THE_CARD_MS);
     expect(cards.openCard()).toBe('b:start');
@@ -74,7 +77,7 @@ describe('the cell-card store’s reach', () => {
     const cards = createCellCards();
     cards.arriveOn('a:name');
     cards.holdHovered('a:name');
-    cards.cancelHold();
+    cards.arriveOnCard();
     vi.advanceTimersByTime(REACH_FOR_THE_CARD_MS);
     expect(cards.openCard()).toBe('a:name');
   });
@@ -103,6 +106,129 @@ describe('the cell-card store’s reach', () => {
     cards.updateHovered((current) => (current === 'a:depends' ? null : current));
     expect(told).not.toHaveBeenCalled();
     vi.advanceTimersByTime(REACH_FOR_THE_CARD_MS);
+    expect(told).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The takeover: an open card gives way to another cell's trigger only once
+ * the pointer has **rested** there for {@link TAKEOVER_MS}. Dany, 2026-09-11:
+ * _"i need for cursor in flight while the notes pop-up is open - to have a
+ * small delay between when cursor is away from the cell and over another
+ * pop-up triggering place and moment when current pop-up disappears"_.
+ */
+describe('the cell-card store’s takeover', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('opens at once when nothing is open', () => {
+    // Proof: every arrival made to wait — this failed on `expected null to be
+    // 'a:name'`, with eight more. Watched, 2026-09-11.
+    const cards = createCellCards();
+    cards.arriveOn('a:name');
+    expect(cards.openCard()).toBe('a:name');
+  });
+
+  it('gives an open card to another trigger only after the pointer has rested there', () => {
+    // Proof: the takeover branch in `arriveOn` made to land at once — this
+    // failed on `expected 'a:depends' to be 'a:name'`. Watched, 2026-09-11.
+    const cards = createCellCards();
+    cards.arriveOn('a:name');
+    cards.arriveOn('a:depends');
+    expect(cards.openCard()).toBe('a:name');
+    vi.advanceTimersByTime(TAKEOVER_MS - 1);
+    expect(cards.openCard()).toBe('a:name');
+    vi.advanceTimersByTime(1);
+    expect(cards.openCard()).toBe('a:depends');
+  });
+
+  it('keeps the card the hand reaches, whatever trigger it crossed on the way', () => {
+    // Proof: `arriveOnCard` no longer dropping the takeover — this failed on
+    // `expected 'a:depends' to be 'a:name'`. Watched, 2026-09-11.
+    const cards = createCellCards();
+    cards.arriveOn('a:name');
+    // Off the marker, across the Depends cell beside it, onto the preview.
+    cards.holdHovered('a:name');
+    cards.arriveOn('a:depends');
+    cards.arriveOnCard();
+    vi.advanceTimersByTime(TAKEOVER_MS + REACH_FOR_THE_CARD_MS);
+    expect(cards.openCard()).toBe('a:name');
+  });
+
+  it('drops a takeover the pointer leaves behind, and the reach still closes the first card', () => {
+    // Proof: `leave` no longer dropping the takeover — this failed on `expected
+    // 'a:depends' to be 'a:name'`. Watched, 2026-09-11.
+    const cards = createCellCards();
+    cards.arriveOn('a:name');
+    cards.holdHovered('a:name');
+    cards.arriveOn('a:depends');
+    cards.leave('a:depends');
+    vi.advanceTimersByTime(TAKEOVER_MS);
+    expect(cards.openCard()).toBe('a:name');
+    vi.advanceTimersByTime(REACH_FOR_THE_CARD_MS - TAKEOVER_MS);
+    expect(cards.openCard()).toBeNull();
+  });
+
+  it('drops a takeover when the trigger is left with a hold of its own, and keeps the first card’s hold', () => {
+    // The marker and the links cell hold rather than clear on leave — and a
+    // hold named for a cell that is not the open one must not replace the hold
+    // that is going to close the open one.
+    // Proof: `holdHovered` no longer dropping the takeover — `expected 'b:name'
+    // to be 'a:name'`; its same-cell guard removed instead — `expected 'a:name'
+    // to be null`. Watched, 2026-09-11.
+    const cards = createCellCards();
+    cards.arriveOn('a:name');
+    cards.holdHovered('a:name');
+    cards.arriveOn('b:name');
+    cards.holdHovered('b:name');
+    vi.advanceTimersByTime(TAKEOVER_MS);
+    expect(cards.openCard()).toBe('a:name');
+    vi.advanceTimersByTime(REACH_FOR_THE_CARD_MS - TAKEOVER_MS);
+    expect(cards.openCard()).toBeNull();
+  });
+
+  it('coming back to its own trigger keeps the card', () => {
+    // Proof: `land` no longer cancelling the hold — this failed on `expected
+    // null to be 'a:name'`. Watched, 2026-09-11.
+    const cards = createCellCards();
+    cards.arriveOn('a:name');
+    cards.holdHovered('a:name');
+    cards.arriveOn('a:depends');
+    cards.arriveOn('a:name');
+    vi.advanceTimersByTime(TAKEOVER_MS + REACH_FOR_THE_CARD_MS);
+    expect(cards.openCard()).toBe('a:name');
+  });
+
+  it('restarts the delay for a second trigger reached inside it', () => {
+    // Proof: the takeover branch made to land at once — this failed on
+    // `expected 'b:name' to be 'a:name'`. Watched, 2026-09-11.
+    const cards = createCellCards();
+    cards.arriveOn('a:name');
+    cards.arriveOn('a:depends');
+    vi.advanceTimersByTime(TAKEOVER_MS - 10);
+    // On to the next row's marker before the Depends cell's delay ran out.
+    cards.arriveOn('b:name');
+    vi.advanceTimersByTime(10);
+    expect(cards.openCard()).toBe('a:name');
+    vi.advanceTimersByTime(TAKEOVER_MS - 10);
+    expect(cards.openCard()).toBe('b:name');
+  });
+
+  it('tells its subscribers once, when the takeover lands', () => {
+    // Proof: the takeover branch made to land at once — this failed on
+    // `expected "vi.fn()" to not be called at all, but actually been called 1
+    // times`. Watched, 2026-09-11.
+    const cards = createCellCards();
+    cards.arriveOn('a:name');
+    const told = vi.fn();
+    cards.subscribe(told);
+    cards.arriveOn('a:depends');
+    expect(told).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(TAKEOVER_MS);
     expect(told).toHaveBeenCalledTimes(1);
   });
 });
