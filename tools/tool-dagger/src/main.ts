@@ -482,6 +482,10 @@ export function requireRegistryPassword(env: NodeJS.ProcessEnv): string {
  * the gate this exists to close is fully closed; image hygiene generally is a
  * separate concern.
  */
+export function cleanTreeRepository(env: NodeJS.ProcessEnv = process.env): string {
+  return env['WBS_CLEAN_TREE_REPOSITORY'] ?? '.';
+}
+
 export function assertCleanTree(repository = '.'): void {
   const p = Bun.spawnSync(['git', '-C', repository, 'status', '--porcelain']);
   if (p.exitCode !== 0) {
@@ -492,8 +496,8 @@ export function assertCleanTree(repository = '.'): void {
   const dirty = p.stdout.toString('utf8').trim();
   if (dirty !== '') {
     throw new Error(
-      'refusing to publish from a dirty working tree.\n' +
-        '  The build context is the working tree, but the release is labelled with HEAD,\n' +
+      `refusing to publish from a dirty working tree; repository ${repository} is dirty.\n` +
+        '  The source context is labelled with HEAD,\n' +
         "  and tool-deploy's migration gate reads migrations from git at that sha — so an\n" +
         '  uncommitted migration would ship inside the image and be invisible to the gate.\n' +
         '  Commit or stash first. Uncommitted changes:\n' +
@@ -551,7 +555,7 @@ async function main(): Promise<void> {
   if (sha === undefined || sha === '') throw new Error('WBS_SHA must be set');
   // Before any engine connection or push: the label must actually describe
   // what is about to be built.
-  assertCleanTree(process.env['WBS_CLEAN_TREE_REPOSITORY'] ?? '.');
+  assertCleanTree(cleanTreeRepository());
   const arg = process.argv[2] ?? 'be,gw,fe';
   const tiers = arg.split(',').filter((t): t is Tier => t === 'be' || t === 'gw' || t === 'fe');
   const capacity = readBuildCapacity();
