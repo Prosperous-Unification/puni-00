@@ -1,5 +1,6 @@
 # LLM_README — read this, then only the doc your task needs
 
+TASK-520's mobile card deadline accessibility fix is on `fix/task520-card-deadline-a11y`; next: green CI and exact-head reviews, then merge and dev verification.
 TASK-304 session-response hardening is on `fix/task304-anonymous-session-hardening`: remote-gate the auth, client, and packaged-document proofs, then open the dev PR.
 TASK-496's project-settings route teardown fix is on `fix/task496-project-settings-route-teardown`; next: green CI, merge, dev verification.
 **wbs-tool-v1** — collaborative real-time WBS tool. `be-01` (API, Elysia+Drizzle+bun:sqlite, :3100),
