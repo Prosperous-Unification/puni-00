@@ -3287,6 +3287,19 @@ describe('setting a card’s work item deadline', () => {
     });
   });
 
+  itDom('names the deadline control with the date printed on the card', async () => {
+    const deadline = DATED_PLAN.endsOn;
+    await aDatedPhonePlan((rows) => {
+      rows[0].deadline = deadline;
+    });
+
+    expect(
+      screen.getByRole('button', {
+        name: `Work item deadline for 010: due ${shortIsoDate(deadline, new Date())}`,
+      }),
+    ).not.toBeNull();
+  });
+
   itDom('clears the day, because a finger cannot empty a native date box', async () => {
     // The floor's own reason for a separate control: Chrome draws a clear
     // affordance on a desktop date field and none a thumb can find, and "no
@@ -3315,7 +3328,7 @@ describe('setting a card’s work item deadline', () => {
     // table's own mark: `!` is announced as punctuation or as nothing, and the
     // whole point of the mark is that it can be read.
     const impossible = `${String(new Date().getFullYear())}-05-29`;
-    await aDatedPhonePlan((rows) => {
+    const api = await aDatedPhonePlan((rows) => {
       rows[0].deadline = impossible;
     });
 
@@ -3325,6 +3338,15 @@ describe('setting a card’s work item deadline', () => {
         name: "Work item deadline for 010 falls before the project's first working day",
       }),
     ).not.toBeNull();
+
+    await openTheDeadlineSheet();
+    const reason = document.querySelector<HTMLElement>('[data-card-deadline-impossible-reason]');
+    const box = screen.getByLabelText('Work item deadline for 010', {
+      selector: 'input[type=date]',
+    });
+    expect(reason?.id).toBe(`card-deadline-sheet-impossible-${api.rows[0]?.id ?? ''}`);
+    expect(box).toHaveAttribute('aria-describedby', reason?.id);
+    expect(box).toHaveAttribute('aria-invalid', 'true');
   });
 
   itDom('marks nothing on a work item deadline the plan can still meet', async () => {
@@ -3337,6 +3359,13 @@ describe('setting a card’s work item deadline', () => {
 
     expect(dueOnCard()?.textContent).toBe(`due ${shortIsoDate(DATED_PLAN.endsOn, new Date())}`);
     expect(document.querySelector('[data-card-deadline-impossible]')).toBeNull();
+
+    await openTheDeadlineSheet();
+    const box = screen.getByLabelText('Work item deadline for 010', {
+      selector: 'input[type=date]',
+    });
+    expect(box).not.toHaveAttribute('aria-describedby');
+    expect(box).not.toHaveAttribute('aria-invalid');
   });
 
   itDom('refuses to open on a plan with no start date, exactly as the floor does', async () => {
@@ -3353,6 +3382,7 @@ describe('setting a card’s work item deadline', () => {
     const field = deadlineFields()[0];
     expect(field).not.toBeUndefined();
     expect((field as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Work item deadline for 010' })).toBe(field);
   });
 });
 
