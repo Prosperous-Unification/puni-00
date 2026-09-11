@@ -90,6 +90,24 @@ it was meant to leave alone — 12px of it, measured.
 | `hints` — every column clears its column   | `{ anchor }` for an in-frame mark              | `Reorder: the card stands over its own column · Expected: >= -0.5 · Received: -12`                       |
 | `hints` — one type for every card          | `[role='tooltip']` deleted from `styles.css`   | `the portalled card's type · Expected: "sans-serif / 13px / 18.2px" · Received: "Times / 16px / normal"` |
 
+### Where each column's card lands now, measured in Chromium
+
+Row `020` at `[16, 175.19, 1368, 26.19]`, so its bottom edge is **201.38** — and every card's top
+is 201, on the roomier side of its own cell, abutting both:
+
+| Column         | card                  | its cell's column | side  |
+| -------------- | --------------------- | ----------------- | ----- |
+| Reorder        | `[32, 201, 148, 32]`  | 16–32             | right |
+| Prio           | `[556, 201, 420, 50]` | 508–556           | right |
+| People at once | `[708, 201, 420, 50]` | 676–708           | right |
+| Not before     | `[532, 201, 420, 50]` | 952–1008          | left  |
+| Deadline       | `[588, 201, 420, 87]` | 1008–1092         | left  |
+| End            | `[991, 201, 199, 32]` | 1190–1288         | left  |
+| Slack          | `[889, 201, 399, 32]` | 1288–1344         | left  |
+
+The four columns at the right of a 1400px plan answer to their **left**, which is what measuring
+the side is for: a card standing right of Slack would run 363px past the frame.
+
 ### The look, which no placement could see
 
 `same look and feel` turned out to be two claims, and the second was found by taking a screenshot
