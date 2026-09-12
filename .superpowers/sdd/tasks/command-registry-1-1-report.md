@@ -106,3 +106,16 @@ Observed production-path negatives:
 - Adding a be-01 repository import to the new production binding file made the core service-boundary test report `@nx/enforce-module-boundaries`; the restored focused boundary test passed.
 
 Restored evidence: the three ordering cases passed with nine expectations; the real-SQLite runner plus core scope/composition/boundary set passed 34 tests and 152 expectations; direct core build typecheck exited 0. The final formatted-tree contracts/core/be-01 test/lint/typecheck gate passed all nine targets uncached in 1m30s. OpenSpec validation passed all 75 items and apply instructions reported 6 of 10 tasks complete.
+
+## Task 2.4 continuation
+
+Task 2.4 retains the binding contract as executable compiler fixtures. Valid `setEstimate` and `createPerson` handlers establish the plain/entity positive cases. The negative cases independently reject an omitted key, `clearEstimate` input under `setEstimate`, `clearEstimate` output from `setEstimate`, and `createTeam` output from `createPerson`. `applyCommand` needs no cast: its generic discriminator selects the correlated handler and returns `AppliedFor<K>` directly.
+
+Observed negatives:
+
+- Making mapped binding keys optional produced TS2578 at the omitted-`setEstimate` fixture and a possibly-undefined diagnostic at the real dispatch.
+- Correlating the production `setEstimate` key to `clearEstimate` input produced TS2578 at the wrong-input fixture.
+- Widening every binding output to `Promise<AppliedCommand>` produced TS2578 at both wrong-response fixtures, exactly distinguishing plain and entity response drift.
+- Routing the `setEstimate` binding to the `clearEstimate` store operation and invoking the actual SQLite-backed runner made the exact persisted estimate assertion receive `[]`. Restored, it passed with the expected named-row id, step and three-point estimate.
+
+Restored evidence: direct core typecheck and focused fixture lint passed; the store-backed runner oracle passed once restored. The final contracts/core/be-01 test/lint/typecheck gate passed all nine targets uncached in 1m27s. Focused format and diff checks passed, and OpenSpec validation passed all 75 items. The first sandboxed broad attempt is not green evidence: it exposed two misplaced expected-error directives and 17 unrelated local-listener EPERM failures; both were resolved before the complete permitted rerun.

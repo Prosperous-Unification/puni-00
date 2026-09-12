@@ -1,8 +1,8 @@
 # Verification Report
 
 **Change**: `plan-command-registry`
-**Scope**: Tasks 1.1–2.3; Tasks 2.4–3.2 and the final change gate remain pending
-**Verified at**: 2026-09-12 16:42 EEST
+**Scope**: Tasks 1.1–2.4; Tasks 2.5–3.2 and the final change gate remain pending
+**Verified at**: 2026-09-12 16:57 EEST
 **Baseline**: `6a47a7220109484bae8f86fe03c35dc570fa1845`
 
 ## Current path map
@@ -46,6 +46,10 @@ The design was written against `339708fa` with 36 kinds. Commit `521ef54f` added
 | Registry-derived project admission (`plan-commands.db.test.ts`)                                                     | Removed the definition-scope check from `CommandContext`                                           | Directory batch returned `ok: true`, committed its tag and unfreeze, instead of `project_required` at index 1/kind `unfreezeWorkItem`                                     | Focused ordering run: 3 pass, 0 fail                                         |
 | Duplicate-ref-before-write ordering (`plan-commands.db.test.ts`)                                                    | Deferred `createWorkItem` duplicate detection until after its service write                        | The deliberately invalid parent reached the service first and returned `not_found` instead of `duplicate_ref` at index 1                                                  | Focused ordering run: 3 pass, 0 fail                                         |
 | Extracted bindings remain inside the core boundary (`service-boundaries.test.ts`)                                   | Imported be-01's repository from production `command-bindings.ts`                                  | Boundary assertion received `@nx/enforce-module-boundaries`: projects cannot be imported by relative path                                                                 | Focused boundary run: 1 pass, 0 fail                                         |
+| Complete binding record (`command-bindings.test.ts`)                                                                | Made every production binding key optional                                                         | Fixture failed with TS2578 at the omitted-`setEstimate` expected error; dispatch also reported its possibly-undefined binding                                             | Restored core typecheck: exit 0                                              |
+| Binding input correlation (`command-bindings.test.ts`)                                                              | Correlated production `setEstimate` to `clearEstimate` input                                       | Wrong-input fixture failed with TS2578                                                                                                                                    | Restored core typecheck: exit 0                                              |
+| Binding output correlation (`command-bindings.test.ts`)                                                             | Widened production binding output from `Promise<AppliedFor<K>>` to `Promise<AppliedCommand>`       | Both wrong-response fixtures failed with TS2578 (`setEstimate` returning `clearEstimate`; `createPerson` returning `createTeam`)                                          | Restored core typecheck: exit 0                                              |
+| Discriminator-indexed runtime dispatch (`plan-commands.db.test.ts`)                                                 | Bound `setEstimate` to the `clearEstimate` store operation                                         | Actual runner committed but the independently selected named row had no estimate: expected one exact persisted estimate, received `[]`                                    | Focused store-backed run: 1 pass, 0 fail                                     |
 
 The pre-existing mounted malformed nested-extra and semantic-invalid-value controls remain in the same test file and passed in both the targeted run and the project baseline.
 
@@ -136,6 +140,23 @@ The store-backed test creates an earlier row, then sends `setEstimate` with both
 | focused eight-file `nx format:check` and `git diff --check`                                                                                                                                | exit 0                                        |
 | `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`                                                                                                               | 75 items, 75 passed, 0 failed                 |
 | `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 instructions apply --change plan-command-registry --json`                                                                            | state `ready`; 6 of 10 tasks complete         |
+
+## Task 2.4 verification
+
+`command-bindings.test.ts` compiles valid plain (`setEstimate`) and entity (`createPerson`) bindings, then retains four independent failures: a missing `setEstimate` key, `clearEstimate` input under `setEstimate`, `clearEstimate` output from `setEstimate`, and `createTeam` output from `createPerson`. The production mapped type remains required and kind-indexed in both directions. The generic dispatch compiles without a cast, so no indexed-dispatch boundary comment was needed.
+
+The required runtime mutation replaced `setEstimate`'s service call with `clearEstimate` while retaining the keyed binding and returned discriminator. The actual SQLite-backed runner committed successfully, but the exact persisted estimate assertion for the independently named row received `[]`; restored production wrote the expected step and three-point estimate.
+
+| Command                                                                                                  | Result                                        |
+| -------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `bunx tsc --build --force libs/core/tsconfig.json`                                                       | exit 0; all compile-negative directives used  |
+| focused store-backed wrong-kind dispatch oracle                                                          | 1 pass, 0 fail, 1 expectation                 |
+| `bunx nx run-many -t test lint typecheck -p contracts core be-01 --skip-nx-cache`                        | all 9 targets successful, 0 cache hits, 1m27s |
+| focused two-file `nx format:check` and `git diff --check`                                                | exit 0                                        |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`                             | 75 items, 75 passed, 0 failed                 |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 instructions apply --change plan-command-registry` | state `ready`; 6 of 10 before checkbox update |
+
+The first broad sandboxed attempt found the fixture directives on wrapped assignment lines and then could not open local listener sockets in 17 unrelated be-01 boot tests. After moving the directives to the actual rejected expressions, direct typecheck and lint passed. The complete uncached gate was rerun with local socket permission and all nine targets passed.
 
 ## Pending change verification
 

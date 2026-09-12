@@ -310,6 +310,7 @@ describe('a command batch', () => {
 
     // Proof: resolving setEstimate from its previous raw id instead of the competing ref made
     // this receive that earlier row's id rather than the independently found named row's id.
+    // Proof: binding setEstimate to clearEstimate made this receive an empty estimate list.
     expect(await estimateStore.listByProject(projectId)).toEqual([
       { workItemId: named.id, stepId: dev(), ...days },
     ]);
