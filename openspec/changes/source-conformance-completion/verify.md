@@ -85,3 +85,46 @@ legal `Promise.reject(undefined)` cannot collide with the absence sentinel.
 - `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`: 75/75 artifacts valid.
 
 The Task 1.1 scope skips recorded above remain unchanged for this correction.
+
+## 2026-09-12 — task 1.2 named broken-source proof infrastructure
+
+`brokenSource` retains the source factory's parameter and result types, and
+`replaceMethod` uses a Proxy that binds both the replacement and every
+untouched method to the real class instance. Each fault owns a per-run control;
+the proof recorder verifies setup, arms the fault, requires entry into its
+named phase and only then records a named assertion failure. Memory and SQLite
+controls expose separate staged-write and transaction-write reach methods for
+later adapter-owned late-failure seams; neither is ambient production state.
+
+### Task 1.2 failure-proof table
+
+| Check                                               | Fault injected                                     | Test that observed it                                   | Observed failure                                                                                       |
+| --------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Fault is inert through verified setup               | Removed the shared control's pre-arm guard         | `an armed fault reaches its named assertion`            | Expected `observed`; received `setup-failed` with `baseline counter was not one`.                      |
+| Recorder arms before the exercise                   | Removed `fault.control.arm()`                      | `an armed fault reaches its named assertion`            | Expected `observed`; received `phase-failed` with `fault did not reach counter-read`.                  |
+| Forwarded class methods keep their receiver         | Returned the raw prototype function from the Proxy | `a class port keeps unmodified prototype methods`       | `TypeError: Cannot access invalid private field` at `this.#count`.                                     |
+| Setup errors are not assertion proofs               | Classified the setup catch as observed             | `a pre-setup failure does not prove an atomicity check` | Expected `setup-failed`; received `observed` with the fixture error as `observedFailure`.              |
+| Pre-phase operation errors are not assertion proofs | Classified the exercise catch as observed          | `a pre-setup failure does not prove an atomicity check` | Expected `phase-failed`; received `observed` with the operation error as `observedFailure`.            |
+| An unrelated assertion cannot replace phase reach   | Removed the `control.reached()` check              | `a pre-setup failure does not prove an atomicity check` | Expected `phase-failed`; received `observed` with `an unrelated assertion failed`.                     |
+| Memory late-write control is inert before arm       | Removed its pre-arm guard                          | `arms a named staged-state write point per run`         | Expected `false`; received `true`.                                                                     |
+| SQLite late-write control is inert before arm       | Removed its pre-arm guard                          | `arms a named transaction write point per run`          | Expected `false`; received `true`.                                                                     |
+| Factory and fault registry remain closed            | Removed all three expected-error guards            | `conformance:typecheck`                                 | TS2554 for the missing factory argument; TS2322 for the arbitrary fault ID and mismatched owning case. |
+
+### Task 1.2 verification
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run conformance:test --skip-nx-cache`: 23 pass, 0 fail across 7 files.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run conformance:lint --skip-nx-cache`: success.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run conformance:typecheck --skip-nx-cache`: success after restoring all compile guards.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint,typecheck -p store-memory,store-sqlite --parallel=4 --skip-nx-cache`: all four targets succeeded.
+- `bun test src/testing/faults.test.ts` in each source: 1 pass, 0 fail per source.
+- `bun test src/source-conformance.test.ts` in memory: 20 pass, 1 declared legacy gap skip, 0 fail.
+- `bun test src/sqlite-source.db.test.ts` in SQLite: 14 pass, 0 fail.
+- Prettier checks for every changed source/evidence file and `git diff --check`: clean.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate source-conformance-completion --strict`: valid.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`: 75/75 artifacts valid.
+
+The complete memory/SQLite test targets, full workspace gate and build/browser
+targets were not run: Task 1.2 adds test-only infrastructure and changes no
+adapter operation. Later case mutations and installation into actual adapter
+transaction/staged-state operations remain owned by their ordered store-family
+tasks.

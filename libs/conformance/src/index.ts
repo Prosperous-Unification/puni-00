@@ -3,4 +3,6 @@ export * from './case-runner';
 export * from './certification';
 export * from './source-conformance';
 export * from './source-declaration';
+export * from './testing/broken-source';
+export * from './testing/faults';
 export * from './unit-of-work-conformance';

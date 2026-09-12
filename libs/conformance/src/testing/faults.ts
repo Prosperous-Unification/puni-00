@@ -1,0 +1,169 @@
+import type { CaseId } from '../case-manifest';
+
+export type FaultId = `break:${CaseId}`;
+
+type CaseOf<Id extends FaultId> = Id extends `break:${infer FaultCase extends CaseId}`
+  ? FaultCase
+  : never;
+
+export interface FaultControl<Phase extends string> {
+  readonly phase: Phase;
+  arm(): void;
+  isArmed(): boolean;
+  reach(phase: Phase): boolean;
+  reached(): boolean;
+}
+
+interface RegisteredFault<
+  Subject,
+  Id extends FaultId,
+  Phase extends string = string,
+  Control extends FaultControl<Phase> = FaultControl<Phase>,
+> {
+  readonly id: Id;
+  readonly caseId: CaseOf<Id>;
+  readonly control: Control;
+  mutate(subject: Subject, control: Control): Subject;
+}
+
+/** The closed fault registry, discriminated by manifest-derived fault ID. */
+export type Fault<
+  Subject,
+  Phase extends string = string,
+  Control extends FaultControl<Phase> = FaultControl<Phase>,
+> = {
+  [Id in FaultId]: RegisteredFault<Subject, Id, Phase, Control>;
+}[FaultId];
+
+/** Creates one activation state owned by one broken-source proof run. */
+export function createFaultControl<const Phase extends string>(phase: Phase): FaultControl<Phase> {
+  let isArmed = false;
+  let hasReached = false;
+  return {
+    phase,
+    arm() {
+      isArmed = true;
+    },
+    isArmed: () => isArmed,
+    reach() {
+      if (!isArmed) return false;
+      hasReached = true;
+      return true;
+    },
+    reached: () => hasReached,
+  };
+}
+
+/** Keeps the fault ID and its owning manifest case coupled at compilation. */
+export function defineFault<
+  Subject,
+  const Id extends FaultId,
+  const Phase extends string,
+  Control extends FaultControl<Phase>,
+>(
+  fault: RegisteredFault<Subject, Id, Phase, Control>,
+): RegisteredFault<Subject, Id, Phase, Control> {
+  return fault;
+}
+
+export type FaultProof =
+  | {
+      readonly kind: 'observed';
+      readonly faultId: FaultId;
+      readonly caseId: CaseId;
+      readonly phase: string;
+      readonly assertion: string;
+      readonly observedFailure: string;
+    }
+  | {
+      readonly kind: 'setup-failed';
+      readonly faultId: FaultId;
+      readonly caseId: CaseId;
+      readonly failure: string;
+    }
+  | {
+      readonly kind: 'phase-failed';
+      readonly faultId: FaultId;
+      readonly caseId: CaseId;
+      readonly phase: string;
+      readonly failure: string;
+    }
+  | {
+      readonly kind: 'assertion-passed';
+      readonly faultId: FaultId;
+      readonly caseId: CaseId;
+      readonly phase: string;
+      readonly assertion: string;
+    };
+
+export interface FaultProofPlan<Context> {
+  readonly assertion: string;
+  setup(): Promise<Context>;
+  exercise(context: Context): Promise<void>;
+  assert(context: Context): Promise<void>;
+}
+
+function messageOf(failure: unknown): string {
+  return failure instanceof Error ? failure.message : String(failure);
+}
+
+/** Accepts a broken assertion only after verified setup and its named phase. */
+export async function recordFaultProof<
+  Context,
+  Subject,
+  Phase extends string,
+  Control extends FaultControl<Phase>,
+>(fault: Fault<Subject, Phase, Control>, plan: FaultProofPlan<Context>): Promise<FaultProof> {
+  let context: Context;
+  try {
+    context = await plan.setup();
+  } catch (failure) {
+    return {
+      kind: 'setup-failed',
+      faultId: fault.id,
+      caseId: fault.caseId,
+      failure: messageOf(failure),
+    };
+  }
+
+  fault.control.arm();
+  try {
+    await plan.exercise(context);
+  } catch (failure) {
+    return {
+      kind: 'phase-failed',
+      faultId: fault.id,
+      caseId: fault.caseId,
+      phase: fault.control.phase,
+      failure: messageOf(failure),
+    };
+  }
+  if (!fault.control.reached()) {
+    return {
+      kind: 'phase-failed',
+      faultId: fault.id,
+      caseId: fault.caseId,
+      phase: fault.control.phase,
+      failure: `fault did not reach ${fault.control.phase}`,
+    };
+  }
+  try {
+    await plan.assert(context);
+    return {
+      kind: 'assertion-passed',
+      faultId: fault.id,
+      caseId: fault.caseId,
+      phase: fault.control.phase,
+      assertion: plan.assertion,
+    };
+  } catch (failure) {
+    return {
+      kind: 'observed',
+      faultId: fault.id,
+      caseId: fault.caseId,
+      phase: fault.control.phase,
+      assertion: plan.assertion,
+      observedFailure: messageOf(failure),
+    };
+  }
+}
