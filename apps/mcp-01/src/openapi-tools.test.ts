@@ -313,9 +313,24 @@ describe('toolsFromDocument, on the generated document', () => {
       'deleteWorkItemType',
     ];
     const emittedKinds = list.items.anyOf.map((variant) => variant.properties.kind.const);
+    const emittedCounts = Object.fromEntries(
+      expectedKinds.map((kind) => [
+        kind,
+        emittedKinds.filter((emitted) => emitted === kind).length,
+      ]),
+    );
+    const expectedCounts = Object.fromEntries(expectedKinds.map((kind) => [kind, 1]));
+    // Proof: substituting createTeam for the production clearMeasure discriminator kept 37 arms but failed with clearMeasure 0 and createTeam 2.
+    expect(emittedCounts).toEqual(expectedCounts);
     // Proof: removing the production clearMeasure definition failed this generated-input assertion with clearMeasure omitted.
     expect(new Set(emittedKinds)).toEqual(new Set(expectedKinds));
     expect(emittedKinds).toHaveLength(expectedKinds.length);
+    const createWorkItem = list.items.anyOf.find(
+      (variant) => variant.properties.kind.const === 'createWorkItem',
+    );
+    if (createWorkItem === undefined) throw new Error('createWorkItem tool input missing');
+    // Proof: emptying createWorkItem's production description failed here with received length 0.
+    expect(createWorkItem.description.length).toBeGreaterThan(10);
     for (const variant of list.items.anyOf) {
       expect(variant.description.length).toBeGreaterThan(10);
       expect(typeof variant.properties.kind.const).toBe('string');

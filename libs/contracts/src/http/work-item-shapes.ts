@@ -575,7 +575,7 @@ export const getWorkItems = defineEndpointShape({
   document: { summary: 'Read the project work-item tree.' },
 });
 
-/** Applies all 36 command kinds atomically; semantic parsing precedes the 200-command cap. */
+/** Applies every command kind atomically; semantic parsing precedes the 200-command cap. */
 export const applyProjectCommands = defineEndpointShape({
   method: 'POST',
   path: '/api/projects/:id/commands',
