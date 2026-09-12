@@ -1,55 +1,14 @@
 import { type Type, type } from 'arktype';
 
+import { PLAN_COMMAND_KINDS } from '../commands/definitions';
 import { defineEndpointShape } from './endpoint-shape';
 import { planCommandsBody } from './plan-command-shapes';
-import type { ParserRefusalCode, PlanCommandKind } from './refusal';
+import type { ParserRefusalCode } from './refusal';
 import { engineUnavailableRefusal } from './scheduler-shapes';
 import { requestSchema, responseSchema } from './schema-shape';
 import { workItemTree } from './work-item-response';
 
-const commandKinds = {
-  createWorkItem: true,
-  patchWorkItem: true,
-  moveWorkItem: true,
-  duplicateWorkItem: true,
-  deleteWorkItem: true,
-  setEstimate: true,
-  clearEstimate: true,
-  setActual: true,
-  clearActual: true,
-  setProgress: true,
-  clearProgress: true,
-  setMeasure: true,
-  clearMeasure: true,
-  setAssignee: true,
-  addDependency: true,
-  removeDependency: true,
-  arrangeBySchedule: true,
-  freezeProject: true,
-  unfreezeProject: true,
-  unfreezeWorkItem: true,
-  setCapacity: true,
-  setPriorityBands: true,
-  createTeam: true,
-  patchTeam: true,
-  deleteTeam: true,
-  createPerson: true,
-  patchPerson: true,
-  deletePerson: true,
-  createTag: true,
-  patchTag: true,
-  deleteTag: true,
-  createWorkItemType: true,
-  patchWorkItemType: true,
-  deleteWorkItemType: true,
-  createService: true,
-  patchService: true,
-  deleteService: true,
-} satisfies Record<PlanCommandKind, true>;
-// Object.keys is bounded by this owned exhaustive literal vocabulary.
-const commandKindsType = type.enumerated(
-  ...(Object.keys(commandKinds) as (keyof typeof commandKinds)[]),
-);
+const commandKindsType = type.enumerated(...PLAN_COMMAND_KINDS);
 const parserArms = {
   expected_object: type({ error: "'expected_object'", at: 'number', kind: commandKindsType }),
   number_is_derived: type({ error: "'number_is_derived'", at: 'number', kind: commandKindsType }),

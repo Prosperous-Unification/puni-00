@@ -1,6 +1,7 @@
+import type { PlanCommandKind } from '@wbs/contracts';
 import { commandDefinitions } from '@wbs/contracts';
 
-import type { PlanCommand, PlanCommandKind } from './plan-command';
+import type { PlanCommand } from './plan-command';
 import type {
   AppliedBase,
   AppliedCommand,

@@ -1,20 +1,20 @@
-import { responseSchema, type SchemaShape, validateSchema } from '@wbs/contracts';
 import {
   applyDirectoryCommands,
   applyProjectCommands,
   commandParserRefusal,
   getWorkItems,
+  PLAN_COMMAND_KINDS,
+  type PlanCommandKind,
   redoProject,
+  responseSchema,
+  type SchemaShape,
   undoProject,
+  validateSchema,
 } from '@wbs/contracts';
 import { type, ValidationError } from '@wbs/validation';
 
 import { CommandNormalizationError, normalizeCommand } from '../service/command-normalizers';
-import {
-  PLAN_COMMAND_KINDS,
-  type PlanCommand,
-  type PlanCommandKind,
-} from '../service/plan-command';
+import type { PlanCommand } from '../service/plan-command';
 import type { AppliedCommand, BatchRefusal, PlanCommandRunner } from '../service/plan-commands';
 import type { UndoOutcome, WorkItemService } from '../service/work-item.service';
 import { runCommandBatch } from '../use-cases/run-command-batch';

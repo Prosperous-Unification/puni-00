@@ -14,7 +14,7 @@
 
 ## 3. Handoff and gates
 
-- [ ] 3.1 Remove obsolete EVERY_KIND, DIRECTORY_KINDS and duplicate kind unions only after callers use definitions; check no service/storage runtime import enters contracts with the existing ring gate. Negative: inject a core import into definitions and watch lint reject that path.
+- [x] 3.1 Remove obsolete EVERY_KIND, DIRECTORY_KINDS and duplicate kind unions only after callers use definitions; check no service/storage runtime import enters contracts with the existing ring gate. Negative: inject a core import into definitions and watch lint reject that path.
 - [ ] 3.2 Run `bunx nx run-many -t test lint typecheck -p contracts core be-01 fe-01 mcp-01`; run the full workspace gate on the final tree (`bin/h2puni-gate.sh` on h2puni), plus `OPENSPEC_TELEMETRY=0 openspec validate --all --json`. Re-run generated tools and existing API/browser command coverage at that tree. Write verify.md only with actual commands/results, per-fault failures and restored greens; report skipped checks explicitly.
 
 All tests and faults above are planned. None is evidence from this design pass.

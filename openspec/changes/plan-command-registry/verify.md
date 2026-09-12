@@ -1,22 +1,22 @@
 # Verification Report
 
 **Change**: `plan-command-registry`
-**Scope**: Tasks 1.1–2.4; Tasks 2.5–3.2 and the final change gate remain pending
-**Verified at**: 2026-09-12 16:57 EEST
+**Scope**: Tasks 1.1–2.4 and 3.1; Tasks 2.5 and 3.2 remain pending
+**Verified at**: 2026-09-12 17:13 EEST
 **Baseline**: `6a47a7220109484bae8f86fe03c35dc570fa1845`
 
 ## Current path map
 
-| Design responsibility          | Current production path                                                                                                                                                                     |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Structural command declaration | `libs/contracts/src/commands/definitions.ts` (`commandDefinitions`); `libs/contracts/src/http/plan-command-shapes.ts` composes `planCommandSchema` and `planCommandsBody`                   |
-| HTTP endpoint declaration      | `libs/contracts/src/http/work-item-shapes.ts` (`applyProjectCommands`, `applyDirectoryCommands`)                                                                                            |
-| Backend binder                 | `libs/core/src/http/work-item.routes.ts` (`workItemRoutes` binds both command endpoint shapes); `apps/be-01/src/app.ts` mounts those bindings through `apps/be-01/src/http/elysia/mount.ts` |
-| Semantic parser                | `libs/core/src/http/work-item.routes.ts` (`parseBatch` → `parseCommand`) delegates pure command semantics to `libs/core/src/service/command-normalizers.ts`                                 |
-| Normalized command vocabulary  | `libs/core/src/service/command-normalizers.ts` (`commandNormalizers`, inferred `PlanCommand` and `PlanCommandKind`); `plan-command.ts` retains compatibility exports and the kind list      |
-| Route-to-runner use case       | `libs/core/src/use-cases/run-command-batch.ts`                                                                                                                                              |
-| Bindings and runner            | `libs/core/src/service/command-bindings.ts` owns handlers/context/refs/scope admission; `plan-commands.ts` owns cap, ordered iteration, transaction, collection and publication             |
-| Historical be-01 paths         | `apps/be-01/src/controller/work-item.routes.ts`, `apps/be-01/src/service/plan-command.ts` and `apps/be-01/src/service/plan-commands.ts` are compatibility re-exports from core              |
+| Design responsibility          | Current production path                                                                                                                                                                                                          |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Structural command declaration | `libs/contracts/src/commands/definitions.ts` (`commandDefinitions`); `libs/contracts/src/http/plan-command-shapes.ts` composes `planCommandSchema` and `planCommandsBody`                                                        |
+| HTTP endpoint declaration      | `libs/contracts/src/http/work-item-shapes.ts` (`applyProjectCommands`, `applyDirectoryCommands`)                                                                                                                                 |
+| Backend binder                 | `libs/core/src/http/work-item.routes.ts` (`workItemRoutes` binds both command endpoint shapes); `apps/be-01/src/app.ts` mounts those bindings through `apps/be-01/src/http/elysia/mount.ts`                                      |
+| Semantic parser                | `libs/core/src/http/work-item.routes.ts` (`parseBatch` → `parseCommand`) delegates pure command semantics to `libs/core/src/service/command-normalizers.ts`                                                                      |
+| Normalized command vocabulary  | `libs/core/src/service/command-normalizers.ts` (`commandNormalizers`, inferred `PlanCommand`) consumes the contracts-owned `PlanCommandKind`; `plan-command.ts` retains only that application type and the independent batch cap |
+| Route-to-runner use case       | `libs/core/src/use-cases/run-command-batch.ts`                                                                                                                                                                                   |
+| Bindings and runner            | `libs/core/src/service/command-bindings.ts` owns handlers/context/refs/scope admission; `plan-commands.ts` owns cap, ordered iteration, transaction, collection and publication                                                  |
+| Historical be-01 paths         | `apps/be-01/src/controller/work-item.routes.ts`, `apps/be-01/src/service/plan-command.ts` and `apps/be-01/src/service/plan-commands.ts` are compatibility re-exports from core                                                   |
 
 ## Baseline correction
 
@@ -50,6 +50,7 @@ The design was written against `339708fa` with 36 kinds. Commit `521ef54f` added
 | Binding input correlation (`command-bindings.test.ts`)                                                              | Correlated production `setEstimate` to `clearEstimate` input                                       | Wrong-input fixture failed with TS2578                                                                                                                                    | Restored core typecheck: exit 0                                              |
 | Binding output correlation (`command-bindings.test.ts`)                                                             | Widened production binding output from `Promise<AppliedFor<K>>` to `Promise<AppliedCommand>`       | Both wrong-response fixtures failed with TS2578 (`setEstimate` returning `clearEstimate`; `createPerson` returning `createTeam`)                                          | Restored core typecheck: exit 0                                              |
 | Discriminator-indexed runtime dispatch (`plan-commands.db.test.ts`)                                                 | Bound `setEstimate` to the `clearEstimate` store operation                                         | Actual runner committed but the independently selected named row had no estimate: expected one exact persisted estimate, received `[]`                                    | Focused store-backed run: 1 pass, 0 fail                                     |
+| Contracts remain inside the domain ring (`contracts:lint`)                                                          | Added runtime `import '@wbs/core'` to production `commands/definitions.ts`                         | ESLint reported `@nx/enforce-module-boundaries`: circular `contracts -> core -> contracts`; the direct file run also named the full production chain                      | Restored uncached `contracts:lint`: exit 0                                   |
 
 The pre-existing mounted malformed nested-extra and semantic-invalid-value controls remain in the same test file and passed in both the targeted run and the project baseline.
 
@@ -158,7 +159,20 @@ The required runtime mutation replaced `setEstimate`'s service call with `clearE
 
 The first broad sandboxed attempt found the fixture directives on wrapped assignment lines and then could not open local listener sockets in 17 unrelated be-01 boot tests. After moving the directives to the actual rejected expressions, direct typecheck and lint passed. The complete uncached gate was rerun with local socket permission and all nine targets passed.
 
+## Task 3.1 verification
+
+`commandDefinitions` is now the only assembly of the full kind vocabulary. Contracts' derived `PlanCommandKind` and `PLAN_COMMAND_KINDS` feed the parser-refusal schema and core command parser directly. The exhaustive normalizer record consumes that shared key type while continuing to derive normalized `PlanCommand` from its return values. The obsolete core `EVERY_KIND` and contracts HTTP `commandKinds` copies are deleted; `DIRECTORY_KINDS` was already removed by Task 2.3's definition-scope admission.
+
+The required production mutation added a runtime core import to `commands/definitions.ts`. The actual contracts lint target failed, and the direct ESLint diagnostic identified `@nx/enforce-module-boundaries` plus the circular `contracts -> core -> contracts` production chain. Restoring the import boundary made the uncached lint target and complete proportional gate green.
+
+| Command                                                                                                                                                                                                                                                                                                     | Result                                        |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `bun test libs/contracts/src/commands/definitions.test.ts libs/contracts/src/http/plan-command-shapes.test.ts apps/be-01/src/http/elysia/work-item.test.ts apps/be-01/src/service/plan-commands.db.test.ts libs/core/src/service/plan-command-scope.test.ts libs/core/src/service/command-bindings.test.ts` | 45 pass, 0 fail, 279 expectations             |
+| `bunx tsc --build --force libs/contracts/tsconfig.json libs/core/tsconfig.json`                                                                                                                                                                                                                             | exit 0                                        |
+| `bunx nx run-many -t test lint typecheck -p contracts core be-01 --skip-nx-cache`                                                                                                                                                                                                                           | all 9 targets successful, 0 cache hits, 1m31s |
+
 ## Pending change verification
 
+- Task 2.5 remains unchecked and unchanged under the assigned Task 3.1-only scope.
 - The full h2puni gate, fe-01 gate, final tree cleanliness and push state belong to Task 3.2 and have not been claimed here.
 - The optional OpenSpec telemetry flush could not reach `edge.openspec.dev`; status and apply instructions themselves completed successfully via the pinned CLI.

@@ -1,4 +1,4 @@
-import type { commandDefinitions } from '@wbs/contracts';
+import type { commandDefinitions, PlanCommandKind } from '@wbs/contracts';
 import {
   isIsoDate,
   type IsoDate,
@@ -713,9 +713,6 @@ export const commandNormalizers = {
       cascade: asOptionalFlag(raw['cascade'], 'cascade'),
     }),
 } as const satisfies CommandNormalizerRecord<typeof commandDefinitions>;
-
-/** A normalized command discriminator, derived from {@link commandNormalizers}. */
-export type PlanCommandKind = keyof typeof commandNormalizers;
 
 /** The normalized command union, inferred from every normalizer's return type. */
 export type PlanCommand = ReturnType<(typeof commandNormalizers)[PlanCommandKind]>;

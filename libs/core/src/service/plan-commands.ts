@@ -1,3 +1,5 @@
+import type { PlanCommandKind } from '@wbs/contracts';
+
 import type {
   Person,
   PersonWithTeams,
@@ -16,7 +18,7 @@ import type {
 } from './directory.service';
 import type { DirectoryService } from './directory.service';
 import type { DirectoryUsage } from './directory-usage';
-import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand, type PlanCommandKind } from './plan-command';
+import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from './plan-command';
 import type { PriorityBandService } from './priority-band.service';
 import type { WorkItemRefusal } from './work-item.service';
 import type { Collected, UndoOutcome, WorkItemService } from './work-item.service';
