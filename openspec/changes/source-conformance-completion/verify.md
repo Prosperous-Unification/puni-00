@@ -742,3 +742,15 @@ received 101 on work-a-one/dev; missing-step pins both outcome and escaped row.
 Formatting, diff and pinned OpenSpec validation evidence is retained in the
 Task 3.2 report. The same proportional skips apply. Independent review remains
 pending; Task 3.2 remains unchecked and Task 3.3 has not started.
+
+Astra xhigh accepted fix round 1 at `3110f637` on 2026-09-13. Its focused
+re-review confirmed that the missing-step case completes both public reads
+before comparing outcome and state, the first removal is observed before the
+idempotent second call, and every Task 3.2 diagnostic distinguishes the exact
+composite rows, timestamps and expected/received direction it claims. The two
+removal controls share the closed case-derived fault ID but have distinct
+required phases and opposite complete-row diagnostics on fresh sources. No
+Critical, Important or Minor issue remains. Task 3.2 is complete; the source
+change is now 9/24 tasks, and Task 3.3 is next. Reviews:
+`/tmp/source-conformance-3-2-astra-review.md` and
+`/tmp/source-conformance-3-2-astra-rereview.md`.
