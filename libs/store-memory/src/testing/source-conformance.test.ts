@@ -1,11 +1,19 @@
 import {
+  brokenSource,
   type Capabilities,
   type CaseFixture,
   type CaseId,
+  createFaultControl,
+  defineFault,
   DETERMINISTIC_SEED,
   type ExecutionReport,
   type ExistingStoreOpeners,
   existingStoreRegistrations,
+  type Fault,
+  type FaultProof,
+  type FaultRun,
+  recordFaultProof,
+  replaceMethod,
   runCases,
   SOURCE_CONFORMANCE_CASES,
   type SourceDeclaration,
@@ -19,6 +27,8 @@ import { projectRow } from '../project-fixture';
 import { openMemorySource } from '../source';
 
 type ExistingFamily = keyof ExistingStoreOpeners;
+type MemorySource = ReturnType<typeof openMemorySource>;
+type OpenSource = () => MemorySource;
 
 function readersOf(source: ReturnType<typeof openMemorySource>): SourceReaders {
   return {
@@ -37,19 +47,20 @@ function readersOf(source: ReturnType<typeof openMemorySource>): SourceReaders {
   };
 }
 
-async function seedMemorySource(): Promise<ReturnType<typeof openMemorySource>> {
-  const source = openMemorySource();
+async function seedMemorySource(openSource: OpenSource = openMemorySource): Promise<MemorySource> {
+  const source = openSource();
   const { stores } = source;
   const seed = DETERMINISTIC_SEED;
   for (const [index, ownerId] of seed.ownerIds.entries()) {
+    const stamp = seed.stamps[index] ?? seed.stamps[0];
     await stores.users.create(
       {
         id: ownerId,
         username: `owner-${String(index + 1)}`,
         passwordHash: 'x',
-        createdAt: seed.stamps[index]?.at ?? 0,
+        createdAt: stamp.at,
       },
-      seed.stamps[index] ?? seed.stamps[0],
+      stamp,
     );
     const projectId = seed.projectIds[index] ?? seed.projectIds[0];
     const stepIds = seed.stepIds[index] ?? seed.stepIds[0];
@@ -60,17 +71,22 @@ async function seedMemorySource(): Promise<ReturnType<typeof openMemorySource>> 
       position: (stepIndex + 1) * 10,
     }));
     await stores.projects.create(
-      projectRow({ id: projectId, ownerId, name: `Project ${String(index + 1)}` }),
+      projectRow({
+        id: projectId,
+        ownerId,
+        name: `Project ${String(index + 1)}`,
+        createdAt: stamp.at,
+      }),
       starting,
-      seed.stamps[index] ?? seed.stamps[0],
+      stamp,
     );
-    for (const step of starting) await stores.steps.add(step, seed.stamps[index] ?? seed.stamps[0]);
+    for (const step of starting) await stores.steps.add(step, stamp);
     const workItemIds = seed.workItemIds[index] ?? seed.workItemIds[0];
     for (const [rowIndex, id] of workItemIds.entries()) {
       await stores.workItems.insert(
         workItemRow({ id, projectId, name: `Work ${String(rowIndex + 1)}` }),
         [],
-        seed.stamps[index] ?? seed.stamps[0],
+        stamp,
       );
     }
   }
@@ -90,11 +106,11 @@ async function seedMemorySource(): Promise<ReturnType<typeof openMemorySource>> 
   return source;
 }
 
-async function openMemoryCase<Family extends ExistingFamily>(
+function memoryFixture<Family extends ExistingFamily>(
+  source: MemorySource,
   family: Family,
   caseId: CaseId,
-): Promise<CaseFixture<TransactionalStores[Family]>> {
-  const source = await seedMemorySource();
+): CaseFixture<TransactionalStores[Family]> {
   return {
     fixtureId: `memory:${caseId}`,
     port: source.stores[family],
@@ -105,7 +121,16 @@ async function openMemoryCase<Family extends ExistingFamily>(
   };
 }
 
+async function openMemoryCase<Family extends ExistingFamily>(
+  family: Family,
+  caseId: CaseId,
+  openSource: OpenSource = openMemorySource,
+): Promise<CaseFixture<TransactionalStores[Family]>> {
+  return memoryFixture(await seedMemorySource(openSource), family, caseId);
+}
+
 const openers: ExistingStoreOpeners = {
+  projects: (caseId) => openMemoryCase('projects', caseId),
   steps: (caseId) => openMemoryCase('steps', caseId),
   estimates: (caseId) => openMemoryCase('estimates', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
@@ -129,12 +154,124 @@ const declaration: SourceDeclaration = {
   // This slice executes four families; Task 7.1 replaces this test boundary
   // with the complete source declaration before terminal certification.
   capabilities: {
+    projects: { kind: 'offered', gaps: [], open: openers.projects },
     steps: { kind: 'offered', gaps: [], open: openers.steps },
     estimates: { kind: 'offered', gaps: [unknownStepGap], open: openers.estimates },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
     eventLog: { kind: 'offered', gaps: [], open: openers.eventLog },
   } as unknown as Capabilities,
 };
+
+function withStores(source: MemorySource, stores: Partial<TransactionalStores>): MemorySource {
+  return { ...source, stores: { ...source.stores, ...stores } };
+}
+
+const createProjectStepsFault = defineFault({
+  id: 'break:projects.create:steps',
+  caseId: 'projects.create:steps',
+  createControl: () => createFaultControl('projects.create:steps'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      projects: replaceMethod(
+        source.stores.projects,
+        'create',
+        (create) => (project, steps, stamp) =>
+          create(project, control.reach('projects.create:steps') ? [] : steps, stamp),
+      ),
+    });
+  },
+});
+
+const updateProjectScopeFault = defineFault({
+  id: 'break:projects.update:scope',
+  caseId: 'projects.update:scope',
+  createControl: () => createFaultControl('projects.update:scope'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      projects: replaceMethod(
+        source.stores.projects,
+        'update',
+        (update) => async (id, patch, stamp) => {
+          const updated = await update(id, patch, stamp);
+          if (id === DETERMINISTIC_SEED.projectIds[0] && control.reach('projects.update:scope')) {
+            await update(DETERMINISTIC_SEED.projectIds[1], patch, stamp);
+          }
+          return updated;
+        },
+      ),
+    });
+  },
+});
+
+const projectReaderOrderFault = defineFault({
+  id: 'break:projects.recordOpen:reader-order',
+  caseId: 'projects.recordOpen:reader-order',
+  createControl: () => createFaultControl('projects.recordOpen:reader-order'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      projects: replaceMethod(
+        source.stores.projects,
+        'listFor',
+        (listFor) => (userId) =>
+          listFor(
+            control.reach('projects.recordOpen:reader-order')
+              ? DETERMINISTIC_SEED.ownerIds[0]
+              : userId,
+          ),
+      ),
+    });
+  },
+});
+
+interface FaultContext {
+  readonly registration: ReturnType<typeof existingStoreRegistrations>[number];
+  assertionFailure: string | null;
+  report: ExecutionReport | null;
+}
+
+async function proveFault(fault: Fault<MemorySource>): Promise<FaultProof> {
+  return recordFaultProof(fault, {
+    assertion: `${fault.caseId} reports passed`,
+    async setup(run: FaultRun<MemorySource>) {
+      const source = await seedMemorySource(brokenSource(openMemorySource, run));
+      let wasOpened = false;
+      const takeFixture = <Family extends ExistingFamily>(
+        family: Family,
+        caseId: CaseId,
+      ): Promise<CaseFixture<TransactionalStores[Family]>> => {
+        if (wasOpened) return Promise.reject(new Error(`${fault.caseId} fixture opened twice`));
+        wasOpened = true;
+        return Promise.resolve(memoryFixture(source, family, caseId));
+      };
+      const registrations = existingStoreRegistrations({
+        projects: (caseId) => takeFixture('projects', caseId),
+        steps: (caseId) => takeFixture('steps', caseId),
+        estimates: (caseId) => takeFixture('estimates', caseId),
+        directory: (caseId) => takeFixture('directory', caseId),
+        eventLog: (caseId) => takeFixture('eventLog', caseId),
+      });
+      const registration = registrations.find(({ caseId }) => caseId === fault.caseId);
+      if (registration === undefined) throw new Error(`missing registration for ${fault.caseId}`);
+      return { registration, assertionFailure: null, report: null };
+    },
+    async exercise(context: FaultContext) {
+      context.report = await runCases([context.registration], { focus: [fault.caseId] });
+      const execution = context.report.cases[0];
+      if (execution.status === 'failed' && execution.assertionPhase !== 'assertion') {
+        throw new Error(execution.failure);
+      }
+      if (execution.status !== 'failed' && execution.status !== 'passed') {
+        throw new Error(`${fault.caseId} finished ${execution.status} without an assertion`);
+      }
+      context.assertionFailure = execution.status === 'failed' ? execution.failure : null;
+    },
+    assert(context: FaultContext) {
+      if (context.assertionFailure !== null) throw new Error(context.assertionFailure);
+      expect(context.report?.cases[0]?.status).toBe('passed');
+      return Promise.resolve();
+    },
+  });
+}
 
 function failedCase(report: ExecutionReport, caseId: CaseId) {
   return report.cases.find((execution) => execution.caseId === caseId);
@@ -173,5 +310,26 @@ describe('memory existing source conformance', () => {
     // Proof: bypassing the declaration gap ran this shared case through
     // `openMemorySource`; Bun failed on `Expected: "unknown_step" · Received: "written"`.
     expect(observedFailure).toContain(unknownStepGap.evidence.observedFailure);
+  });
+
+  it('reinjects project step, scope, and reader-order faults', async () => {
+    const faults = [createProjectStepsFault, updateProjectScopeFault, projectReaderOrderFault];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(['observed', 'observed', 'observed']);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    expect(failures[0]).toContain('project-created-dev');
+    expect(failures[1]).toContain('"name": "Renamed project"');
+    expect(failures[2]).toContain('"Project 2"');
+    expect(failures[2]).toContain('"Project 1"');
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      faults.map(({ caseId }) => ({ caseId, status: 'passed' })),
+    );
   });
 });

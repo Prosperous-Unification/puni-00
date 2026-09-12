@@ -233,6 +233,7 @@ async function openSqliteCase<Family extends ExistingFamily>(
 }
 
 const openers: ExistingStoreOpeners = {
+  projects: (caseId) => openSqliteCase('projects', caseId),
   steps: (caseId) => openSqliteCase('steps', caseId),
   estimates: (caseId) => openSqliteCase('estimates', caseId),
   directory: (caseId) => openSqliteCase('directory', caseId),
@@ -242,6 +243,63 @@ const openers: ExistingStoreOpeners = {
 function withStores(source: SqliteSource, stores: Partial<TransactionalStores>): SqliteSource {
   return { ...source, stores: { ...source.stores, ...stores } };
 }
+
+const createProjectStepsFault = defineFault({
+  id: 'break:projects.create:steps',
+  caseId: 'projects.create:steps',
+  createControl: () => createFaultControl('projects.create:steps'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      projects: replaceMethod(
+        source.stores.projects,
+        'create',
+        (create) => (project, steps, stamp) =>
+          create(project, control.reach('projects.create:steps') ? [] : steps, stamp),
+      ),
+    });
+  },
+});
+
+const updateProjectScopeFault = defineFault({
+  id: 'break:projects.update:scope',
+  caseId: 'projects.update:scope',
+  createControl: () => createFaultControl('projects.update:scope'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      projects: replaceMethod(
+        source.stores.projects,
+        'update',
+        (update) => async (id, patch, stamp) => {
+          const updated = await update(id, patch, stamp);
+          if (id === DETERMINISTIC_SEED.projectIds[0] && control.reach('projects.update:scope')) {
+            await update(DETERMINISTIC_SEED.projectIds[1], patch, stamp);
+          }
+          return updated;
+        },
+      ),
+    });
+  },
+});
+
+const projectReaderOrderFault = defineFault({
+  id: 'break:projects.recordOpen:reader-order',
+  caseId: 'projects.recordOpen:reader-order',
+  createControl: () => createFaultControl('projects.recordOpen:reader-order'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      projects: replaceMethod(
+        source.stores.projects,
+        'listFor',
+        (listFor) => (userId) =>
+          listFor(
+            control.reach('projects.recordOpen:reader-order')
+              ? DETERMINISTIC_SEED.ownerIds[0]
+              : userId,
+          ),
+      ),
+    });
+  },
+});
 
 const addFault = defineFault({
   id: 'break:steps.add',
@@ -371,6 +429,7 @@ async function proveFault(
         return Promise.resolve(sqliteFixture(source, directory, family, caseId));
       };
       const registrations = existingStoreRegistrations({
+        projects: (caseId) => takeFixture('projects', caseId),
         steps: (caseId) => takeFixture('steps', caseId),
         estimates: (caseId) => takeFixture('estimates', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
@@ -680,6 +739,27 @@ describe('SQLite existing source conformance', () => {
       report.cases.map(({ caseId, status, executed }) => ({ caseId, status, executed })),
     ).toEqual(
       SOURCE_CONFORMANCE_CASES.map((caseId) => ({ caseId, status: 'passed', executed: true })),
+    );
+  });
+
+  it('reinjects project step, scope, and reader-order faults', async () => {
+    const faults = [createProjectStepsFault, updateProjectScopeFault, projectReaderOrderFault];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(['observed', 'observed', 'observed']);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    expect(failures[0]).toContain('project-created-dev');
+    expect(failures[1]).toContain('"name": "Renamed project"');
+    expect(failures[2]).toContain('"Project 2"');
+    expect(failures[2]).toContain('"Project 1"');
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      faults.map(({ caseId }) => ({ caseId, status: 'passed' })),
     );
   });
 

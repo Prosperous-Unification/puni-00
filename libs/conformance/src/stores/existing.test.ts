@@ -1,18 +1,34 @@
 import { describe, expect, it } from 'bun:test';
 
-import { SOURCE_CONFORMANCE_CASES } from '../certification';
 import { existingStoreRegistrations } from '../source-conformance';
 
 describe('the migrated existing store kits', () => {
-  it('preserves the original offered-case IDs', () => {
+  it('preserves the original IDs and adds the project cases', () => {
     const unopened = () => Promise.reject(new Error('ID inventory must not open a fixture'));
     const registrations = existingStoreRegistrations({
+      projects: unopened,
       steps: unopened,
       estimates: unopened,
       directory: unopened,
       eventLog: unopened,
     });
 
-    expect(registrations.map(({ caseId }) => caseId)).toEqual([...SOURCE_CONFORMANCE_CASES]);
+    expect(registrations.map(({ caseId }) => caseId)).toEqual([
+      'projects.create:steps',
+      'projects.update:scope',
+      'projects.recordOpen:reader-order',
+      'steps.add',
+      'steps.rename',
+      'steps.rename:unknown',
+      'estimates.set',
+      'estimates.set:replace',
+      'estimates.set:unknown_step',
+      'estimates.remove',
+      'directory.addTag',
+      'directory.assign:unknown_person',
+      'eventLog.recordEvent',
+      'eventLog.rangeSince',
+      'eventLog.pruneBeyond',
+    ]);
   });
 });

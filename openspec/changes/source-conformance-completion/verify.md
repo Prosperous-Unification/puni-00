@@ -321,3 +321,43 @@ temporary directory is absent.
 No later source family was implemented. Full workspace, build, deploy and
 browser gates remain skipped because this correction changes only shared
 conformance diagnostic rendering and its real SQLite probes.
+
+## 2026-09-12 — task 2.1 project-family cases
+
+The shared runner now registers all three project cases before the preserved
+twelve existing cases. Both real source factories open independently seeded
+two-project fixtures with distinct owners and explicit stamps. Creation checks
+the complete project and ordered starting steps; update pre-asserts both
+project sentinels, renames only A and refuses an unknown ID; access history
+gives the two actors deliberately different orders and timestamps.
+
+### Task 2.1 failure-proof table
+
+| Check                                    | Fault injected                                                                           | Production-path test                                                    | Observed failure                                                          |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Registration cannot omit the project kit | Loaded the independent 15-ID inventory before registering `projectRegistrations`         | `preserves the original IDs and adds the project cases`                 | The received list omitted all three `projects.*` IDs.                     |
+| Create persists both starting steps      | Both source decorators passed an empty starting-step list into the real project `create` | `reinjects project step, scope, and reader-order faults` in each source | Expected the two `project-created-*` rows; received `[]`.                 |
+| Update is scoped to project A            | Both source decorators repeated the real update against project B                        | Same source-specific fault tests                                        | Project B expected `Project 2`; received `Renamed project`.               |
+| Access order is caller-specific          | Both source decorators ignored the requested user and read owner A's access rows         | Same source-specific fault tests                                        | Owner B expected `Project 1, Project 2`; received `Project 2, Project 1`. |
+
+Each fault proof seeded while inert, reached its named method only after arm,
+failed the shared assertion, and was followed by a restored run of those same
+three registrations. Memory required no project gap; its existing exact
+`estimates.set:unknown_step` gap is unchanged.
+
+### Task 2.1 verification
+
+- Focused shared inventory: 1 pass, 0 fail.
+- Focused memory source: 3 pass, 0 fail, 72 assertions.
+- Focused SQLite source: 9 pass, 0 fail, 398 assertions.
+- Existing SQLite project repository and settings suites: 35 pass, 0 fail, 87 assertions.
+- Conformance target: 29 pass, 0 fail, 47 assertions.
+- Memory target: 24 pass, 0 fail, 270 assertions.
+- SQLite target: 654 pass, 0 fail, 2,407 assertions across 60 files.
+- All six conformance/memory/SQLite lint and typecheck targets succeeded; the
+  missing-family compile fixture remains active.
+- OpenSpec strict validation succeeded and all 75 artifacts passed.
+
+The full workspace, build, browser and deploy gates were not run: Task 2.1
+adds one store-family conformance kit and test-only source decorators, with no
+transport, UI, migration or deploy behavior.

@@ -9,8 +9,11 @@ import {
 import type { CaseExecution, ExecutionReport, TerminalCaseStatus } from './case-runner';
 import type { SourceDeclaration } from './source-declaration';
 
-/** The four source-family kits owned by core extraction, independently enumerated. */
+/** The implemented source-family cases, independently enumerated from the manifest. */
 export const SOURCE_CONFORMANCE_CASES = [
+  'projects.create:steps',
+  'projects.update:scope',
+  'projects.recordOpen:reader-order',
   'steps.add',
   'steps.rename',
   'steps.rename:unknown',
