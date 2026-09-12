@@ -939,6 +939,7 @@ export class SubtreeRepository implements SubtreeStore {
     await this.gate.enter(async () => {
       await Promise.resolve();
       this.db.transaction((tx) => {
+        const satelliteKeys: string[] = [];
         for (const moved of copy.respaced) {
           tx.update(workItem)
             .set({ position: moved.position, ...auditOnUpdate(stamp) })
@@ -985,10 +986,14 @@ export class SubtreeRepository implements SubtreeStore {
             .where(eq(workItem.id, child.id))
             .run();
         }
-        if (copy.estimates.length > 0)
+        if (copy.estimates.length > 0) {
           tx.insert(estimate)
             .values(copy.estimates.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
             .run();
+          satelliteKeys.push(
+            ...copy.estimates.map(({ workItemId, stepId }) => `${workItemId}:${stepId}`),
+          );
+        }
         // Beside the estimates and written the same way. Empty for a duplication
         // — a copy is work nobody has done — and non-empty for the restore an
         // undo of a delete runs, which has to put back the days the delete took
@@ -1085,7 +1090,7 @@ export class SubtreeRepository implements SubtreeStore {
           ],
           stamp,
         );
-        this.lateWrite.reach('subtree-final-satellite');
+        this.lateWrite.reach('subtree-final-satellite', { satelliteKeys });
       });
     });
   }

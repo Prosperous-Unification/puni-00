@@ -1,4 +1,5 @@
 import type {
+  PlanEvent,
   PlanInputReads,
   SavedPlanRow,
   SavedPlanStore,
@@ -233,8 +234,8 @@ function bindStores(
     calendarMarkers: inMemoryCalendarMarkers([], state.tables.calendarMarkers),
     planEvents: inMemoryPlanEvents([], state.tables.planEvents),
     eventLog: inMemoryEventLog(state.tables.eventLog),
-    journal: inMemoryCommandJournal(state.tables.journal, () => {
-      lateWrite.reach('journal-history-insert');
+    journal: inMemoryCommandJournal(state.tables.journal, (journalEventIds) => {
+      lateWrite.reach('journal-history-insert', { journalEventIds });
     }),
     subtrees: inMemorySubtrees(
       {
@@ -246,8 +247,8 @@ function bindStores(
         dependencies,
         directory,
       },
-      () => {
-        lateWrite.reach('subtree-final-satellite');
+      (satelliteKeys) => {
+        lateWrite.reach('subtree-final-satellite', { satelliteKeys });
       },
     ),
   };
@@ -357,13 +358,23 @@ function coordinatedStores(
 
 /** Opens a staged in-memory source with no ambient runtime dependencies. */
 export function openMemorySource(): Source<TransactionalStores> {
-  return openMemorySourceWithLateWriteSeam(inertMemoryLateWriteSeam);
+  return openMemorySourceWithLateWriteSeam(inertMemoryLateWriteSeam).source;
+}
+
+/**
+ * Conformance-only source fixture with a reader for the journal's own history table.
+ *
+ * @internal
+ */
+export interface MemorySourceFixture {
+  readonly source: Source<TransactionalStores>;
+  journalHistoryFor(projectId: string): Promise<PlanEvent[]>;
 }
 
 /** @internal */
 export function openMemorySourceWithLateWriteSeam(
   lateWrite: MemoryLateWriteSeam,
-): Source<TransactionalStores> {
+): MemorySourceFixture {
   const committed = new MemoryState();
   const coordinator = new MemoryCoordinator();
   const historyCoordinator = new MemoryCoordinator();
@@ -378,22 +389,31 @@ export function openMemorySourceWithLateWriteSeam(
   const stores = coordinatedStores(bindStores(committed, lateWrite), coordinator);
 
   return {
-    stores,
-    history,
-    uow: {
-      run: (act) =>
-        coordinator.run(async () => {
-          const staged = committed.clone();
-          const decision = await act({ stores: bindStores(staged, lateWrite) });
-          if (decision.commit) committed.replaceWith(staged);
-          else if (decision.afterRollback !== undefined) {
-            await decision.afterRollback({ stores: bindStores(committed, lateWrite) });
-          }
-          return decision.value;
-        }),
+    journalHistoryFor(projectId) {
+      return Promise.resolve(
+        committed.tables.journal.events
+          .filter((event) => event.projectId === projectId)
+          .map((event) => structuredClone(event)),
+      );
     },
-    health: () => Promise.resolve({ ok: true }),
-    close: () => Promise.resolve(),
+    source: {
+      stores,
+      history,
+      uow: {
+        run: (act) =>
+          coordinator.run(async () => {
+            const staged = committed.clone();
+            const decision = await act({ stores: bindStores(staged, lateWrite) });
+            if (decision.commit) committed.replaceWith(staged);
+            else if (decision.afterRollback !== undefined) {
+              await decision.afterRollback({ stores: bindStores(committed, lateWrite) });
+            }
+            return decision.value;
+          }),
+      },
+      health: () => Promise.resolve({ ok: true }),
+      close: () => Promise.resolve(),
+    },
   };
 }
 

@@ -60,3 +60,27 @@ The eight new negatives run through `runCases` and `certifyExecution`. Their
 restored-fault output and final commands are recorded in `verify.md`. Later
 store bodies, source declarations and source-specific fault machinery remain
 outside this correction.
+
+## Task 1.2 Astra re-review correction
+
+The memory journal proof now reads the command-journal fixture's own history
+table through the internal `journalHistoryFor` source reader. It observes the
+successful sentinel, the same sentinel after the injected rejection, and a
+fresh restored write. The control records the faulted event ID from the actual
+history array only after its push; moving the barrier before that push was
+observed returning no event ID. This deliberately does not claim that the separate
+public `planEvents` fixture is coupled to journal history; that integration
+remains Task 5.1 work.
+
+Both subtree fixtures now write an estimate satellite on a real step and read
+its exact state through the public estimate store before arming, after the
+late fault, and after restoration. The late-write controls record a satellite
+key only after the actual estimate write has returned. Moving either adapter's
+barrier before that write was observed failing on `Expected:
+["faulted:step-1"]; Received: []`, so root rollback can no longer stand in for
+proof of final-satellite timing.
+
+The correction keeps the exact-phase and per-run control semantics from the
+previous review. Full memory and SQLite adapter suites, all three affected
+projects' lint/typecheck targets, focused fault tests, formatting, and OpenSpec
+validation were rerun; exact results and remaining skips are in `verify.md`.

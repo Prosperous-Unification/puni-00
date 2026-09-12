@@ -33,10 +33,11 @@ export function inMemorySubtrees(
     dependencies: DependencyStore;
     directory: DirectoryStore;
   },
-  afterFinalSatellite: () => void = () => undefined,
+  afterFinalSatellite: (satelliteKeys: readonly string[]) => void = () => undefined,
 ): SubtreeStore {
   return {
     async insertSubtree(copy, stamp) {
+      const satelliteKeys: string[] = [];
       // The respacing rides with the first row, which is how `WorkItemStore.insert`
       // takes it — one call applies both, as the one transaction does.
       for (const [index, row] of copy.rows.entries()) {
@@ -48,7 +49,10 @@ export function inMemorySubtrees(
       for (const child of copy.reparented) {
         await stores.workItems.move(child.id, child.parentId, child.position, [], stamp);
       }
-      for (const estimate of copy.estimates) await stores.estimates.set(estimate, stamp);
+      for (const estimate of copy.estimates) {
+        await stores.estimates.set(estimate, stamp);
+        satelliteKeys.push(`${estimate.workItemId}:${estimate.stepId}`);
+      }
       for (const recorded of copy.actuals) await stores.actuals.set(recorded, stamp);
       for (const said of copy.progress) await stores.progress.set(said, stamp);
       for (const measured of copy.measures) await stores.measures.set(measured, stamp);
@@ -73,7 +77,7 @@ export function inMemorySubtrees(
       for (const taken of copy.removedMeasures) {
         await stores.measures.remove(taken.workItemId, taken.stepId, taken.metric, stamp);
       }
-      afterFinalSatellite();
+      afterFinalSatellite(satelliteKeys);
     },
   };
 }

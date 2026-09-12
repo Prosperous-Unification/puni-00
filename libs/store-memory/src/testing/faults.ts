@@ -1,9 +1,13 @@
-import type { Source, TransactionalStores } from '@wbs/core';
+import type { PlanEvent, Source, TransactionalStores } from '@wbs/core';
 
-import type { MemoryLateWritePoint } from '../late-write-seam';
+import type { MemoryLateWriteEvidence, MemoryLateWritePoint } from '../late-write-seam';
 import { openMemorySourceWithLateWriteSeam } from '../source';
 
 export type { MemoryLateWritePoint } from '../late-write-seam';
+
+export interface MemoryFaultSource extends Source<TransactionalStores> {
+  journalHistoryFor(projectId: string): Promise<PlanEvent[]>;
+}
 
 export interface MemoryLateWriteControl<Phase extends MemoryLateWritePoint> {
   readonly adapter: 'memory';
@@ -13,7 +17,9 @@ export interface MemoryLateWriteControl<Phase extends MemoryLateWritePoint> {
   isArmed(): boolean;
   reach(phase: MemoryLateWritePoint): boolean;
   reached(): boolean;
-  reachStagedWrite(phase: MemoryLateWritePoint): boolean;
+  observedJournalEventIds(): readonly string[];
+  observedSatelliteKeys(): readonly string[];
+  reachStagedWrite(phase: MemoryLateWritePoint, evidence?: MemoryLateWriteEvidence): boolean;
 }
 
 /** Creates a per-source hook to be called inside the staged write it names. */
@@ -23,9 +29,14 @@ export function memoryLateWriteControl<const Phase extends MemoryLateWritePoint>
   let isArmed = false;
   let hasReached = false;
   let isClaimed = false;
-  const reach = (reachedPhase: MemoryLateWritePoint): boolean => {
+  let evidence: MemoryLateWriteEvidence = {};
+  const reach = (
+    reachedPhase: MemoryLateWritePoint,
+    reachedEvidence: MemoryLateWriteEvidence = {},
+  ): boolean => {
     if (!isArmed || reachedPhase !== phase) return false;
     hasReached = true;
+    evidence = reachedEvidence;
     return true;
   };
   return {
@@ -44,6 +55,8 @@ export function memoryLateWriteControl<const Phase extends MemoryLateWritePoint>
     isArmed: () => isArmed,
     reach,
     reached: () => hasReached,
+    observedJournalEventIds: () => evidence.journalEventIds ?? [],
+    observedSatelliteKeys: () => evidence.satelliteKeys ?? [],
     reachStagedWrite: reach,
   };
 }
@@ -51,10 +64,15 @@ export function memoryLateWriteControl<const Phase extends MemoryLateWritePoint>
 /** Opens the real staged source with this run's late-write barrier attached. */
 export function openMemorySourceWithFault(
   control: MemoryLateWriteControl<MemoryLateWritePoint>,
-): Source<TransactionalStores> {
-  return openMemorySourceWithLateWriteSeam({
-    reach(phase) {
-      if (control.reachStagedWrite(phase)) throw new Error(`injected memory fault at ${phase}`);
+): MemoryFaultSource {
+  const fixture = openMemorySourceWithLateWriteSeam({
+    reach(phase, evidence) {
+      if (control.reachStagedWrite(phase, evidence))
+        throw new Error(`injected memory fault at ${phase}`);
     },
   });
+  return {
+    ...fixture.source,
+    journalHistoryFor: (projectId) => fixture.journalHistoryFor(projectId),
+  };
 }

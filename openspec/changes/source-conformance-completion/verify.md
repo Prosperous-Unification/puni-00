@@ -166,3 +166,39 @@ is still staged; SQLite reaches them before its transaction commits.
 The full workspace gate and build/browser targets remain skipped: Task 1.2 has
 no UI, browser or deploy surface. Both complete changed-adapter test targets
 were run after installing the real seams.
+
+## 2026-09-12 — task 1.2 Astra re-review proof correction
+
+The memory journal source now exposes an internal, conformance-only reader for
+the journal fixture's own event array. The proof reads that backing seam rather
+than the independently bound public `planEvents` fixture, so it certifies only
+the named journal-history mutation and staged rollback. Public journal/history
+integration remains explicitly uncertified until Task 5.1.
+
+Memory and SQLite subtree proof copies now contain one estimate satellite on a
+real starting step. Each proof establishes its public-reader baseline, records
+the completed satellite key at the actual adapter seam, verifies exact root and
+estimate restoration after rejection, and performs a successful restored
+write.
+
+### Additional failure-proof table
+
+| Check                                                       | Fault injected                                                | Test that observed it                                                | Observed failure                              |
+| ----------------------------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------- |
+| Memory proof reads the actual journal-history backing seam  | Disconnected `journalHistoryFor` from the journal event array | `reaches a journal late write inside the real staged source`         | Expected `["event-sentinel"]`; received `[]`. |
+| Memory history phase follows the actual history mutation    | Moved the staged barrier before the journal event push        | `reaches a journal late write inside the real staged source`         | Expected `["event-faulted"]`; received `[]`.  |
+| Memory final-satellite phase follows a real satellite write | Moved the staged barrier before the estimate write            | `reaches the final subtree write inside the real staged source`      | Expected `["faulted:step-1"]`; received `[]`. |
+| SQLite final-satellite phase follows a real satellite write | Moved the transaction barrier before the estimate insert      | `reaches the final subtree write inside the real SQLite transaction` | Expected `["faulted:step-1"]`; received `[]`. |
+
+### Passing correction commands
+
+- Focused four-file fault suite: 21 pass, 0 fail, 67 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run conformance:test --skip-nx-cache`: 29 pass, 0 fail, 47 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run store-memory:test --skip-nx-cache`: 35 pass, 1 declared legacy gap skip, 0 fail, 223 assertions.
+- `bun test --coverage --coverage-reporter=lcov` in `libs/store-sqlite`: 659 pass, 0 fail, 2,033 assertions across 60 files.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint,typecheck -p conformance,store-memory,store-sqlite --skip-nx-cache`: all six targets succeeded.
+
+The full workspace gate and build/browser targets remain skipped because this
+correction is confined to internal source conformance seams and tests. The one
+memory `estimates.set:unknown_step` skip is the pre-existing declared legacy
+gap owned by Task 1.3.

@@ -54,7 +54,7 @@ const subtree = (id: string): SubtreeCopy => ({
   rows: [workItemRow({ id, projectId: 'p1' })],
   respaced: [],
   reparented: [],
-  estimates: [],
+  estimates: [{ workItemId: id, stepId: 'step-1', optimistic: 1, realistic: 2, pessimistic: 3 }],
   actuals: [],
   progress: [],
   measures: [],
@@ -129,7 +129,11 @@ describe('SQLite conformance fault controls', () => {
         { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
         stamp,
       );
-      await source.stores.projects.create(projectRow({ id: 'p1', ownerId: 'owner' }), [], stamp);
+      await source.stores.projects.create(
+        projectRow({ id: 'p1', ownerId: 'owner' }),
+        [{ id: 'step-1', projectId: 'p1', name: 'Dev', position: 10 }],
+        stamp,
+      );
       await source.stores.journal.append(entry('sentinel'), event('sentinel'));
       control.arm();
 
@@ -172,8 +176,15 @@ describe('SQLite conformance fault controls', () => {
         { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
         stamp,
       );
-      await source.stores.projects.create(projectRow({ id: 'p1', ownerId: 'owner' }), [], stamp);
+      await source.stores.projects.create(
+        projectRow({ id: 'p1', ownerId: 'owner' }),
+        [{ id: 'step-1', projectId: 'p1', name: 'Dev', position: 10 }],
+        stamp,
+      );
       await source.stores.subtrees.insertSubtree(subtree('sentinel'), stamp);
+      expect(await source.stores.estimates.listByProject('p1')).toEqual([
+        ...subtree('sentinel').estimates,
+      ]);
       control.arm();
 
       const write = source.stores.subtrees.insertSubtree(subtree('faulted'), stamp);
@@ -182,9 +193,14 @@ describe('SQLite conformance fault controls', () => {
       await write.catch(() => undefined);
 
       expect(control.reached()).toBe(true);
+      // Proof: moving the barrier before the estimate write returned [] here.
+      expect(control.observedSatelliteKeys()).toEqual(['faulted:step-1']);
       // Proof: moving the barrier after the transaction added `faulted` here.
       expect((await source.stores.workItems.listByProject('p1')).map(({ id }) => id)).toEqual([
         'sentinel',
+      ]);
+      expect(await source.stores.estimates.listByProject('p1')).toEqual([
+        ...subtree('sentinel').estimates,
       ]);
       const restored = openSqliteSourceWithFault(
         { dbPath },
@@ -194,6 +210,10 @@ describe('SQLite conformance fault controls', () => {
       expect((await restored.stores.workItems.listByProject('p1')).map(({ id }) => id)).toEqual([
         'restored',
         'sentinel',
+      ]);
+      expect(await restored.stores.estimates.listByProject('p1')).toEqual([
+        ...subtree('restored').estimates,
+        ...subtree('sentinel').estimates,
       ]);
       await restored.close();
     } finally {

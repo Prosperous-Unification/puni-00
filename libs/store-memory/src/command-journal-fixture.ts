@@ -43,7 +43,7 @@ export function memoryCommandJournalTables(): MemoryCommandJournalTables {
 
 export function inMemoryCommandJournal(
   tables: MemoryCommandJournalTables = memoryCommandJournalTables(),
-  afterHistoryInsert: () => void = () => undefined,
+  afterHistoryInsert: (eventIds: readonly string[]) => void = () => undefined,
 ): CommandJournalStore & {
   readonly entries: JournalEntry[];
   readonly events: PlanEvent[];
@@ -68,7 +68,7 @@ export function inMemoryCommandJournal(
         entries.splice(entries.indexOf(old), 1);
       }
       events.push(event);
-      afterHistoryInsert();
+      afterHistoryInsert(events.filter(({ id }) => id === event.id).map(({ id }) => id));
       return Promise.resolve();
     },
     entriesFor(projectId, userId) {
