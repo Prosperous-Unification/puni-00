@@ -24,7 +24,7 @@ import type { TransactionalStores, User } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { DEFAULT_ESTIMATE_RULE } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import { runMigrations } from '../migrate';
 import { users as userTable } from '../schema';
@@ -237,6 +237,8 @@ async function openSqliteCase<Family extends ExistingFamily>(
 const openers: ExistingStoreOpeners = {
   projects: (caseId) => openSqliteCase('projects', caseId),
   users: (caseId) => openSqliteCase('users', caseId),
+  capacity: (caseId) => openSqliteCase('capacity', caseId),
+  priorityBands: (caseId) => openSqliteCase('priorityBands', caseId),
   steps: (caseId) => openSqliteCase('steps', caseId),
   estimates: (caseId) => openSqliteCase('estimates', caseId),
   directory: (caseId) => openSqliteCase('directory', caseId),
@@ -246,6 +248,134 @@ const openers: ExistingStoreOpeners = {
 function withStores(source: SqliteSource, stores: Partial<TransactionalStores>): SqliteSource {
   return { ...source, stores: { ...source.stores, ...stores } };
 }
+
+const capacityProjectTeamFault = defineFault({
+  id: 'break:capacity.set:project-team-key',
+  caseId: 'capacity.set:project-team-key',
+  createControl: () => createFaultControl('capacity.set:project-team-key'),
+  mutate(source: SqliteSource, control) {
+    const projectByTeam = new Map<string, string>();
+    return withStores(source, {
+      capacity: replaceMethod(source.stores.capacity, 'set', (set) => {
+        return (projectId, teamId, size, stamp) => {
+          const firstProjectId = projectByTeam.get(teamId);
+          projectByTeam.set(teamId, firstProjectId ?? projectId);
+          return set(
+            firstProjectId !== undefined &&
+              firstProjectId !== projectId &&
+              control.reach('capacity.set:project-team-key')
+              ? firstProjectId
+              : projectId,
+            teamId,
+            size,
+            stamp,
+          );
+        };
+      }),
+    });
+  },
+});
+
+const capacityClearFault = defineFault({
+  id: 'break:capacity.set:clear',
+  caseId: 'capacity.set:clear',
+  createControl: () => createFaultControl('capacity.set:clear'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      capacity: replaceMethod(source.stores.capacity, 'set', (set) => {
+        return async (projectId, teamId, size, stamp) => {
+          if (size !== null || !control.reach('capacity.set:clear')) {
+            return set(projectId, teamId, size, stamp);
+          }
+          source.db.run(sql.raw('PRAGMA ignore_check_constraints = ON'));
+          try {
+            return await set(projectId, teamId, 0, stamp);
+          } finally {
+            source.db.run(sql.raw('PRAGMA ignore_check_constraints = OFF'));
+          }
+        };
+      }),
+    });
+  },
+});
+
+const capacityMissingReferenceFault = defineFault({
+  id: 'break:capacity.set:missing-reference',
+  caseId: 'capacity.set:missing-reference',
+  createControl: () => createFaultControl('capacity.set:missing-reference'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      capacity: replaceMethod(source.stores.capacity, 'set', (set) => {
+        return (projectId, teamId, size, stamp) =>
+          control.reach('capacity.set:missing-reference')
+            ? set(
+                projectId === 'project-missing' ? 'project-a' : projectId,
+                teamId === 'team-missing' ? 'team-a' : teamId,
+                size,
+                stamp,
+              )
+            : set(projectId, teamId, size, stamp);
+      }),
+    });
+  },
+});
+
+const priorityDefaultsFault = defineFault({
+  id: 'break:priorityBands.listFor:defaults',
+  caseId: 'priorityBands.listFor:defaults',
+  createControl: () => createFaultControl('priorityBands.listFor:defaults'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      priorityBands: replaceMethod(source.stores.priorityBands, 'listFor', (listFor) => {
+        return async (projectId) => {
+          const bands = await listFor(projectId);
+          return control.reach('priorityBands.listFor:defaults') ? [] : bands;
+        };
+      }),
+    });
+  },
+});
+
+const priorityWholeProjectFault = defineFault({
+  id: 'break:priorityBands.replace:whole-project',
+  caseId: 'priorityBands.replace:whole-project',
+  createControl: () => createFaultControl('priorityBands.replace:whole-project'),
+  mutate(source: SqliteSource, control) {
+    let replaceCount = 0;
+    return withStores(source, {
+      priorityBands: replaceMethod(source.stores.priorityBands, 'replace', (replace) => {
+        return async (projectId, bands, stamp) => {
+          replaceCount += 1;
+          if (replaceCount !== 2 || !control.reach('priorityBands.replace:whole-project')) {
+            return replace(projectId, bands, stamp);
+          }
+          const replacement = bands.at(0);
+          if (replacement === undefined) throw new Error('replacement ladder has no first band');
+          const existing = await source.stores.priorityBands.listFor(projectId);
+          return replace(projectId, [replacement, ...existing.slice(1)], stamp);
+        };
+      }),
+    });
+  },
+});
+
+const priorityMissingProjectFault = defineFault({
+  id: 'break:priorityBands.replace:missing-project',
+  caseId: 'priorityBands.replace:missing-project',
+  createControl: () => createFaultControl('priorityBands.replace:missing-project'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      priorityBands: replaceMethod(source.stores.priorityBands, 'replace', (replace) => {
+        return (projectId, bands, stamp) =>
+          replace(
+            control.reach('priorityBands.replace:missing-project') ? 'project-a' : projectId,
+            bands,
+            stamp,
+          );
+      }),
+    });
+  },
+});
 
 const createUniqueNameFault = defineFault({
   id: 'break:users.create:unique-name',
@@ -535,6 +665,8 @@ async function proveFault(
       const registrations = existingStoreRegistrations({
         projects: (caseId) => takeFixture('projects', caseId),
         users: (caseId) => takeFixture('users', caseId),
+        capacity: (caseId) => takeFixture('capacity', caseId),
+        priorityBands: (caseId) => takeFixture('priorityBands', caseId),
         steps: (caseId) => takeFixture('steps', caseId),
         estimates: (caseId) => takeFixture('estimates', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
@@ -887,6 +1019,40 @@ describe('SQLite existing source conformance', () => {
     expect(failures[1]).toContain('"passwordHash": null');
     expect(failures[2]).toContain('"otherStored": null');
     expect(failures[3]).toContain('"id": "oidc-conflict"');
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      faults.map(({ caseId }) => ({ caseId, status: 'passed' })),
+    );
+  });
+
+  it('reinjects capacity and priority-band configuration faults', async () => {
+    const faults = [
+      capacityProjectTeamFault,
+      capacityClearFault,
+      capacityMissingReferenceFault,
+      priorityDefaultsFault,
+      priorityWholeProjectFault,
+      priorityMissingProjectFault,
+    ];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(
+      Array.from({ length: faults.length }, () => 'observed'),
+    );
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    expect(failures[0]).toContain('"team-a" => 5');
+    expect(failures[1]).toContain('"size": 0');
+    expect(failures[2]).toContain('"missingProject"');
+    expect(failures[2]).toContain('"ok": true');
+    expect(failures[3]).toContain('"Critical"');
+    expect(failures[3]).toContain('"projectA": []');
+    expect(failures[4]).toContain('"label": "Soon"');
+    expect(failures[5]).toContain('"ok": true');
 
     const restored = await runCases(existingStoreRegistrations(openers), {
       focus: faults.map(({ caseId }) => caseId),

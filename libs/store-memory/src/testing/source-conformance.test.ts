@@ -132,6 +132,8 @@ async function openMemoryCase<Family extends ExistingFamily>(
 const openers: ExistingStoreOpeners = {
   projects: (caseId) => openMemoryCase('projects', caseId),
   users: (caseId) => openMemoryCase('users', caseId),
+  capacity: (caseId) => openMemoryCase('capacity', caseId),
+  priorityBands: (caseId) => openMemoryCase('priorityBands', caseId),
   steps: (caseId) => openMemoryCase('steps', caseId),
   estimates: (caseId) => openMemoryCase('estimates', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
@@ -148,6 +150,28 @@ const unknownStepGap = {
   },
 };
 
+const capacityMissingReferenceGap = {
+  caseId: 'capacity.set:missing-reference' as const,
+  reason: 'the memory capacity fixture does not hold project or team reference sets',
+  evidence: {
+    sourceRevision: '52f961b5',
+    assertion: 'capacity set refuses missing project and team references',
+    observedFailure: 'Expected  - 6\n+ Received  + 14',
+  },
+};
+
+const priorityMissingProjectGap = {
+  caseId: 'priorityBands.replace:missing-project' as const,
+  reason: 'the memory priority-band fixture does not hold a project reference set',
+  evidence: {
+    sourceRevision: '52f961b5',
+    assertion: 'priority-band replacement refuses a missing project',
+    observedFailure: 'Expected  - 16\n+ Received  + 15',
+  },
+};
+
+const knownGaps = [unknownStepGap, capacityMissingReferenceGap, priorityMissingProjectGap];
+
 const declaration: SourceDeclaration = {
   name: 'memory',
   revision: '3161e5fc',
@@ -157,6 +181,16 @@ const declaration: SourceDeclaration = {
   capabilities: {
     projects: { kind: 'offered', gaps: [], open: openers.projects },
     users: { kind: 'offered', gaps: [], open: openers.users },
+    capacity: {
+      kind: 'offered',
+      gaps: [capacityMissingReferenceGap],
+      open: openers.capacity,
+    },
+    priorityBands: {
+      kind: 'offered',
+      gaps: [priorityMissingProjectGap],
+      open: openers.priorityBands,
+    },
     steps: { kind: 'offered', gaps: [], open: openers.steps },
     estimates: { kind: 'offered', gaps: [unknownStepGap], open: openers.estimates },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
@@ -167,6 +201,91 @@ const declaration: SourceDeclaration = {
 function withStores(source: MemorySource, stores: Partial<TransactionalStores>): MemorySource {
   return { ...source, stores: { ...source.stores, ...stores } };
 }
+
+const capacityProjectTeamFault = defineFault({
+  id: 'break:capacity.set:project-team-key',
+  caseId: 'capacity.set:project-team-key',
+  createControl: () => createFaultControl('capacity.set:project-team-key'),
+  mutate(source: MemorySource, control) {
+    const projectByTeam = new Map<string, string>();
+    return withStores(source, {
+      capacity: replaceMethod(source.stores.capacity, 'set', (set) => {
+        return (projectId, teamId, size, stamp) => {
+          const firstProjectId = projectByTeam.get(teamId);
+          projectByTeam.set(teamId, firstProjectId ?? projectId);
+          return set(
+            firstProjectId !== undefined &&
+              firstProjectId !== projectId &&
+              control.reach('capacity.set:project-team-key')
+              ? firstProjectId
+              : projectId,
+            teamId,
+            size,
+            stamp,
+          );
+        };
+      }),
+    });
+  },
+});
+
+const capacityClearFault = defineFault({
+  id: 'break:capacity.set:clear',
+  caseId: 'capacity.set:clear',
+  createControl: () => createFaultControl('capacity.set:clear'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      capacity: replaceMethod(source.stores.capacity, 'set', (set) => {
+        return (projectId, teamId, size, stamp) =>
+          set(
+            projectId,
+            teamId,
+            size === null && control.reach('capacity.set:clear') ? 0 : size,
+            stamp,
+          );
+      }),
+    });
+  },
+});
+
+const priorityDefaultsFault = defineFault({
+  id: 'break:priorityBands.listFor:defaults',
+  caseId: 'priorityBands.listFor:defaults',
+  createControl: () => createFaultControl('priorityBands.listFor:defaults'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      priorityBands: replaceMethod(source.stores.priorityBands, 'listFor', (listFor) => {
+        return async (projectId) => {
+          const bands = await listFor(projectId);
+          return control.reach('priorityBands.listFor:defaults') ? [] : bands;
+        };
+      }),
+    });
+  },
+});
+
+const priorityWholeProjectFault = defineFault({
+  id: 'break:priorityBands.replace:whole-project',
+  caseId: 'priorityBands.replace:whole-project',
+  createControl: () => createFaultControl('priorityBands.replace:whole-project'),
+  mutate(source: MemorySource, control) {
+    let replaceCount = 0;
+    return withStores(source, {
+      priorityBands: replaceMethod(source.stores.priorityBands, 'replace', (replace) => {
+        return async (projectId, bands, stamp) => {
+          replaceCount += 1;
+          if (replaceCount !== 2 || !control.reach('priorityBands.replace:whole-project')) {
+            return replace(projectId, bands, stamp);
+          }
+          const replacement = bands.at(0);
+          if (replacement === undefined) throw new Error('replacement ladder has no first band');
+          const existing = await source.stores.priorityBands.listFor(projectId);
+          return replace(projectId, [replacement, ...existing.slice(1)], stamp);
+        };
+      }),
+    });
+  },
+});
 
 const createUniqueNameFault = defineFault({
   id: 'break:users.create:unique-name',
@@ -350,6 +469,8 @@ async function proveFault(fault: Fault<MemorySource>): Promise<FaultProof> {
       const registrations = existingStoreRegistrations({
         projects: (caseId) => takeFixture('projects', caseId),
         users: (caseId) => takeFixture('users', caseId),
+        capacity: (caseId) => takeFixture('capacity', caseId),
+        priorityBands: (caseId) => takeFixture('priorityBands', caseId),
         steps: (caseId) => takeFixture('steps', caseId),
         estimates: (caseId) => takeFixture('estimates', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
@@ -383,7 +504,33 @@ function failedCase(report: ExecutionReport, caseId: CaseId) {
 }
 
 describe('memory existing source conformance', () => {
-  it('runs every offered existing case and reports the exact known gap', async () => {
+  it('names the observed configuration-reference refusal gaps', async () => {
+    const report = await runCases(existingStoreRegistrations(openers), {
+      focus: ['capacity.set:missing-reference', 'priorityBands.replace:missing-project'],
+    });
+    const capacity = failedCase(report, capacityMissingReferenceGap.caseId);
+    const priorityBands = failedCase(report, priorityMissingProjectGap.caseId);
+
+    expect(capacity?.status).toBe('failed');
+    expect(priorityBands?.status).toBe('failed');
+    if (capacity?.status !== 'failed' || priorityBands?.status !== 'failed') {
+      throw new Error('configuration gap bypass did not fail');
+    }
+    expect(capacity.assertionPhase).toBe('assertion');
+    expect(priorityBands.assertionPhase).toBe('assertion');
+    // Proof: bypassing both declaration gaps through `openMemorySource` failed
+    // with capacity's two true outcomes plus its two escaped rows
+    // (`Expected - 6 / Received + 14`); priority returned true and exposed its
+    // stored missing-project ladder (`Expected - 16 / Received + 15`).
+    expect(Bun.stripANSI(capacity.failure)).toContain(
+      capacityMissingReferenceGap.evidence.observedFailure,
+    );
+    expect(Bun.stripANSI(priorityBands.failure)).toContain(
+      priorityMissingProjectGap.evidence.observedFailure,
+    );
+  });
+
+  it('runs every offered existing case and reports the exact known gaps', async () => {
     const registrations = existingStoreRegistrations(openers);
     const report = await runCases(registrations, {
       declaration,
@@ -393,13 +540,41 @@ describe('memory existing source conformance', () => {
     expect(report.kind).toBe('partial');
     expect(
       report.cases.filter(({ status }) => status === 'passed').map(({ caseId }) => caseId),
-    ).toEqual(SOURCE_CONFORMANCE_CASES.filter((caseId) => caseId !== unknownStepGap.caseId));
-    expect(failedCase(report, unknownStepGap.caseId)).toEqual({
-      family: 'estimates',
-      caseId: unknownStepGap.caseId,
-      status: 'not-offered',
-      executed: false,
-    });
+    ).toEqual(
+      SOURCE_CONFORMANCE_CASES.filter((caseId) => !knownGaps.some((gap) => gap.caseId === caseId)),
+    );
+    expect(
+      knownGaps.map((gap) => {
+        const execution = failedCase(report, gap.caseId);
+        return execution === undefined
+          ? undefined
+          : {
+              family: execution.family,
+              caseId: execution.caseId,
+              status: execution.status,
+              executed: execution.executed,
+            };
+      }),
+    ).toEqual([
+      {
+        family: 'estimates',
+        caseId: unknownStepGap.caseId,
+        status: 'not-offered',
+        executed: false,
+      },
+      {
+        family: 'capacity',
+        caseId: capacityMissingReferenceGap.caseId,
+        status: 'not-offered',
+        executed: false,
+      },
+      {
+        family: 'priorityBands',
+        caseId: priorityMissingProjectGap.caseId,
+        status: 'not-offered',
+        executed: false,
+      },
+    ]);
   });
 
   it("memory's unknown-step gap names an observed refusal mismatch", async () => {
@@ -457,6 +632,35 @@ describe('memory existing source conformance', () => {
     expect(failures[1]).toContain('"passwordHash": null');
     expect(failures[2]).toContain('"otherStored": null');
     expect(failures[3]).toContain('"id": "oidc-conflict"');
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      faults.map(({ caseId }) => ({ caseId, status: 'passed' })),
+    );
+  });
+
+  it('reinjects capacity-key, clearing, default, and whole-ladder faults', async () => {
+    const faults = [
+      capacityProjectTeamFault,
+      capacityClearFault,
+      priorityDefaultsFault,
+      priorityWholeProjectFault,
+    ];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(
+      Array.from({ length: faults.length }, () => 'observed'),
+    );
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    expect(failures[0]).toContain('"team-a" => 5');
+    expect(failures[1]).toContain('"size": 0');
+    expect(failures[2]).toContain('"Critical"');
+    expect(failures[2]).toContain('"projectA": []');
+    expect(failures[3]).toContain('"label": "Soon"');
 
     const restored = await runCases(existingStoreRegistrations(openers), {
       focus: faults.map(({ caseId }) => caseId),
