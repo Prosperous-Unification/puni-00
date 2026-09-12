@@ -19,7 +19,7 @@ import {
   type SourceDeclaration,
   type SourceReaders,
 } from '@wbs/conformance';
-import type { TransactionalStores } from '@wbs/core';
+import type { TransactionalStores, User } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { describe, expect, it } from 'bun:test';
 
@@ -131,6 +131,7 @@ async function openMemoryCase<Family extends ExistingFamily>(
 
 const openers: ExistingStoreOpeners = {
   projects: (caseId) => openMemoryCase('projects', caseId),
+  users: (caseId) => openMemoryCase('users', caseId),
   steps: (caseId) => openMemoryCase('steps', caseId),
   estimates: (caseId) => openMemoryCase('estimates', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
@@ -155,6 +156,7 @@ const declaration: SourceDeclaration = {
   // with the complete source declaration before terminal certification.
   capabilities: {
     projects: { kind: 'offered', gaps: [], open: openers.projects },
+    users: { kind: 'offered', gaps: [], open: openers.users },
     steps: { kind: 'offered', gaps: [], open: openers.steps },
     estimates: { kind: 'offered', gaps: [unknownStepGap], open: openers.estimates },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
@@ -165,6 +167,108 @@ const declaration: SourceDeclaration = {
 function withStores(source: MemorySource, stores: Partial<TransactionalStores>): MemorySource {
   return { ...source, stores: { ...source.stores, ...stores } };
 }
+
+const createUniqueNameFault = defineFault({
+  id: 'break:users.create:unique-name',
+  caseId: 'users.create:unique-name',
+  createControl: () => createFaultControl('users.create:unique-name'),
+  mutate(source: MemorySource, control) {
+    const accounts = new Map<string, User>();
+    return withStores(source, {
+      users: replaceMethod(source.stores.users, 'create', (create) => async (user, stamp) => {
+        const existing = accounts.get(user.username);
+        if (existing !== undefined && control.reach('users.create:unique-name')) {
+          Object.assign(existing, user);
+          return user;
+        }
+        const created = await create(user, stamp);
+        if (created !== null) accounts.set(user.username, user);
+        return created;
+      }),
+    });
+  },
+});
+
+function withoutPassword(user: User | null): User | null {
+  if (user === null) return null;
+  const { passwordHash: _passwordHash, ...incomplete } = user;
+  return incomplete as User;
+}
+
+const findIdentityFault = defineFault({
+  id: 'break:users.find:identity',
+  caseId: 'users.find:identity',
+  createControl: () => createFaultControl('users.find:identity'),
+  mutate(source: MemorySource, control) {
+    const users = replaceMethod(source.stores.users, 'findById', (findById) => async (id) => {
+      const user = await findById(id);
+      return control.reach('users.find:identity') ? withoutPassword(user) : user;
+    });
+    return withStores(source, {
+      users: replaceMethod(users, 'findByUsername', (findByUsername) => async (username) => {
+        const user = await findByUsername(username);
+        return control.reach('users.find:identity') ? withoutPassword(user) : user;
+      }),
+    });
+  },
+});
+
+const issuerSubjectFault = defineFault({
+  id: 'break:users.resolveOidcIdentity:issuer-subject',
+  caseId: 'users.resolveOidcIdentity:issuer-subject',
+  createControl: () => createFaultControl('users.resolveOidcIdentity:issuer-subject'),
+  mutate(source: MemorySource, control) {
+    const issuers = new Map<string, string>();
+    return withStores(source, {
+      users: replaceMethod(
+        source.stores.users,
+        'resolveOidcIdentity',
+        (resolve) => (identity, create, stamp) => {
+          const issuer = issuers.get(identity.subject);
+          issuers.set(identity.subject, issuer ?? identity.issuer);
+          return resolve(
+            issuer !== undefined &&
+              issuer !== identity.issuer &&
+              control.reach('users.resolveOidcIdentity:issuer-subject')
+              ? { ...identity, issuer }
+              : identity,
+            create,
+            stamp,
+          );
+        },
+      ),
+    });
+  },
+});
+
+const verifiedConflictFault = defineFault({
+  id: 'break:users.resolveOidcIdentity:verified-conflict',
+  caseId: 'users.resolveOidcIdentity:verified-conflict',
+  createControl: () => createFaultControl('users.resolveOidcIdentity:verified-conflict'),
+  mutate(source: MemorySource, control) {
+    const issuers = new Map<string, string>();
+    return withStores(source, {
+      users: replaceMethod(
+        source.stores.users,
+        'resolveOidcIdentity',
+        (resolve) => (identity, create, stamp) => {
+          const email = identity.email?.toLowerCase() ?? null;
+          const issuer = email === null ? undefined : issuers.get(email);
+          if (email !== null) issuers.set(email, issuer ?? identity.issuer);
+          return resolve(
+            issuer !== undefined &&
+              issuer !== identity.issuer &&
+              control.reach('users.resolveOidcIdentity:verified-conflict')
+              ? { ...identity, emailVerified: false }
+              : identity,
+            create,
+            stamp,
+          );
+        },
+      ),
+    });
+  },
+});
 
 const createProjectStepsFault = defineFault({
   id: 'break:projects.create:steps',
@@ -245,6 +349,7 @@ async function proveFault(fault: Fault<MemorySource>): Promise<FaultProof> {
       };
       const registrations = existingStoreRegistrations({
         projects: (caseId) => takeFixture('projects', caseId),
+        users: (caseId) => takeFixture('users', caseId),
         steps: (caseId) => takeFixture('steps', caseId),
         estimates: (caseId) => takeFixture('estimates', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
@@ -324,6 +429,34 @@ describe('memory existing source conformance', () => {
     expect(failures[1]).toContain('"name": "Renamed project"');
     expect(failures[2]).toContain('"Project 2"');
     expect(failures[2]).toContain('"Project 1"');
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      faults.map(({ caseId }) => ({ caseId, status: 'passed' })),
+    );
+  });
+
+  it('reinjects account uniqueness, read-shape, issuer, and verified-email faults', async () => {
+    const faults = [
+      createUniqueNameFault,
+      findIdentityFault,
+      issuerSubjectFault,
+      verifiedConflictFault,
+    ];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(
+      Array.from({ length: faults.length }, () => 'observed'),
+    );
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    expect(failures[0]).toContain('"duplicate": {');
+    expect(failures[1]).toContain('"passwordHash": null');
+    expect(failures[2]).toContain('"otherStored": null');
+    expect(failures[3]).toContain('"id": "oidc-conflict"');
 
     const restored = await runCases(existingStoreRegistrations(openers), {
       focus: faults.map(({ caseId }) => caseId),

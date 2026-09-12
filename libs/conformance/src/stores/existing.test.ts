@@ -3,10 +3,11 @@ import { describe, expect, it } from 'bun:test';
 import { existingStoreRegistrations } from '../source-conformance';
 
 describe('the migrated existing store kits', () => {
-  it('preserves the original IDs and adds the project cases', () => {
+  it('preserves the original IDs and adds the project and user cases', () => {
     const unopened = () => Promise.reject(new Error('ID inventory must not open a fixture'));
     const registrations = existingStoreRegistrations({
       projects: unopened,
+      users: unopened,
       steps: unopened,
       estimates: unopened,
       directory: unopened,
@@ -17,6 +18,10 @@ describe('the migrated existing store kits', () => {
       'projects.create:steps',
       'projects.update:scope',
       'projects.recordOpen:reader-order',
+      'users.create:unique-name',
+      'users.find:identity',
+      'users.resolveOidcIdentity:issuer-subject',
+      'users.resolveOidcIdentity:verified-conflict',
       'steps.add',
       'steps.rename',
       'steps.rename:unknown',

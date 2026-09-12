@@ -361,3 +361,43 @@ three registrations. Memory required no project gap; its existing exact
 The full workspace, build, browser and deploy gates were not run: Task 2.1
 adds one store-family conformance kit and test-only source decorators, with no
 transport, UI, migration or deploy behavior.
+
+## 2026-09-12 — task 2.2 user-family cases
+
+The shared runner now registers the four user cases after projects. Both real
+source factories offer the users family without a gap. The cases assert a
+duplicate username's original and attempted replacement IDs after settlement,
+the complete nullable account read through both keys, issuer-plus-subject
+identity, and a verified-email collision with the claiming account unchanged.
+
+### Task 2.2 failure-proof table
+
+| Check                                     | Fault injected                                                                                  | Production-path test                                                          | Observed failure                                                                |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Registration cannot omit the user kit     | Loaded the independent 19-ID inventory before registering `userRegistrations`                   | `preserves the original IDs and adds the project and user cases`              | The received list omitted all four `users.*` IDs.                               |
+| Duplicate username cannot create a new ID | Both decorators overwrote the existing account at the source's real backing seam                | `reinjects account uniqueness, read-shape, issuer, and verified-email faults` | `duplicate` received `user-duplicate`; the original no longer matched.          |
+| Nullable password survives both reads     | Both decorators removed `passwordHash` from actual `findById` and `findByUsername` results      | Same source-specific fault test                                               | Both expected `passwordHash: null` fields were absent.                          |
+| OIDC identity includes issuer and subject | Both decorators substituted the first issuer when the same subject arrived under another issuer | Same source-specific fault test                                               | `otherIssuer` received `oidc-primary`; `otherStored` was null.                  |
+| Verified-email collision refuses creation | Both decorators changed only the conflicting request to unverified before the actual resolution | Same source-specific fault test                                               | `conflict` and `conflicting` received the newly stored `oidc-conflict` account. |
+
+Every fault seeded while inert, reached only its named assertion phase, and was
+followed by the unchanged four registrations passing on a fresh source. Memory
+required no user gap; its existing exact `estimates.set:unknown_step` gap is
+unchanged.
+
+### Task 2.2 verification
+
+- Focused shared inventory: 1 pass, 0 fail.
+- Focused memory source: 4 pass, 0 fail, 93 assertions.
+- Focused SQLite source: 10 pass, 0 fail, 515 assertions.
+- Existing SQLite OIDC repository suite: 5 pass, 0 fail, 12 assertions.
+- Conformance target: 29 pass, 0 fail, 47 assertions.
+- Memory target: 25 pass, 0 fail, 291 assertions.
+- SQLite target: 655 pass, 0 fail, 2,524 assertions across 60 files.
+- All six relevant lint/typecheck targets succeeded; the missing-family compile
+  fixture remains active.
+- Formatting and OpenSpec validation passed in the final verification run.
+
+The full workspace, build, browser and deploy gates were not run: Task 2.2
+adds account-store conformance cases and test-only source decorators, without
+changing transport-token verification, UI, migration or deploy behavior.
