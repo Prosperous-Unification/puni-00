@@ -257,3 +257,34 @@ duplicates, which cannot resolve workspace aliases or migration paths from
 that location. The official project-scoped Nx targets above run from each
 project's configured working directory and replaced that command; all three
 passed.
+
+## 2026-09-12 — task 1.3 Astra lifecycle correction
+
+SQLite fixture setup now owns its source and temporary directory from creation
+through verified seeding. Every setup failure closes the real source and then
+removes the directory; if cleanup also fails, the original and cleanup failures
+are retained together. Fault proof setup opens, seeds and verifies the source
+while the control is inert. Only the selected shared case runs after arming,
+and runner failures outside its assertion phase are classified as phase
+failures rather than assertion observations.
+
+### Lifecycle failure-proof table
+
+| Check                                             | Fault injected                                                                  | Production-path test                                                          | Observed RED                                                                                                     |
+| ------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Failed setup releases both resources              | Rejected the first real `users.create` during seed                              | `failed SQLite setup closes its source and removes its temporary directory`   | Close count was `0` rather than `1`; the temporary directory still existed.                                      |
+| Setup and cleanup failures are both retained      | Rejected seed and then rejected the real source close                           | `failed SQLite setup preserves its original and cleanup failures`             | `Expected: true`, `Received: false` after replacing the aggregate with cleanup alone.                            |
+| Seed reach cannot certify the shared assertion    | Called the decorated real `steps.add` from project seed and then rejected setup | `a seed failure cannot become an observed shared-case assertion`              | Proof was `observed` with `reachedDuringSeed === true` although the shared assertion never ran.                  |
+| Cleanup reach cannot certify the shared assertion | Rejected close after the decorated real `steps.add` reached its fault           | `a cleanup failure after fault reach is a phase failure, not assertion proof` | Proof was `observed`; its text also contained `cleanup failed: injected cleanup failure after actual steps.add`. |
+
+### Lifecycle correction verification
+
+- Focused SQLite source-conformance file: 6 pass, 0 fail, 273 assertions.
+- Full SQLite adapter target: 651 pass, 0 fail, 2,282 assertions across 60 files.
+- Direct SQLite TypeScript build and focused ESLint check passed.
+- The final proportional multi-project and OpenSpec commands are recorded in
+  the Task 1.3 report.
+
+No later source family was implemented. The full workspace, build, deploy and
+browser gates remain skipped because this correction changes only test fixture
+ownership and certification classification.

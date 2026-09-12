@@ -54,3 +54,30 @@ An attempted root-scoped `bun test libs/...` is not counted: direct TypeScript
 build output under `dist/out-tsc` was also collected and failed from unresolved
 workspace aliases/migration paths. The official project-scoped Nx targets
 listed above replaced it and passed.
+
+## Astra lifecycle correction
+
+The review found two ways the proof harness could certify the wrong lifecycle
+window. SQLite seed/setup now owns cleanup from temporary-directory creation,
+verifies the exact public seed before returning a fixture, always attempts
+directory removal after close, and aggregates original and cleanup failures.
+Fault proofs now perform that setup before arming, run only the selected shared
+registration, and accept only an assertion-phase failure as an observed proof.
+
+Four production-path negatives were watched RED and restored: failed seed left
+close count `0` and its directory present; throwing only the cleanup failure
+made the aggregate check receive `false`; a real decorated `steps.add` reached
+during seed produced a false `observed`; and a close rejection after real fault
+reach also produced `observed` with the cleanup failure attached. Adjacent
+Proof comments record those actual outputs. The six required fault cases also
+run restored through the same shared runner after their injections.
+
+Correction verification: the focused SQLite source-conformance file passed 6
+tests with 273 assertions; the complete SQLite target passed 651 tests with
+2,282 assertions across 60 files; the direct SQLite TypeScript build and
+focused ESLint check passed. The conformance target passed 29 tests with 47
+assertions, and the memory target passed 23 tests with 226 assertions. All six
+relevant lint/typecheck targets passed, including the missing-family compile
+fixture. OpenSpec strict validation and all 75 artifacts passed. No later
+family or adapter behavior was added; full workspace, build, browser and deploy
+checks remain skipped as outside this correction's surface.
