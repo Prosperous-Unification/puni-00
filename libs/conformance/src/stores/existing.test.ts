@@ -16,12 +16,13 @@ describe('the migrated existing store kits', () => {
       estimates: unopened,
       actuals: unopened,
       measures: unopened,
+      progress: unopened,
       directory: unopened,
       eventLog: unopened,
     });
 
-    // Proof: before measureRegistrations joined the production catalog, this
-    // failed with all four measure IDs absent (`Expected - 4 / Received + 0`).
+    // Proof: before progressRegistrations joined the production catalog, this
+    // failed with all four progress IDs absent (`Expected - 4 / Received + 0`).
     expect(registrations.map(({ caseId }) => caseId)).toEqual([
       'projects.create:steps',
       'projects.update:scope',
@@ -59,6 +60,10 @@ describe('the migrated existing store kits', () => {
       'measures.remove:metric-key',
       'measures.moveAll:all-metrics',
       'measures.set:unknown_step',
+      'progress.set:replace',
+      'progress.remove:absence',
+      'progress.moveAll:ownership',
+      'progress.set:unknown_step',
       'directory.addTag',
       'directory.assign:unknown_person',
       'eventLog.recordEvent',

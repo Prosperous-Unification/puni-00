@@ -14,6 +14,7 @@ import {
   type Fault,
   type FaultProof,
   type FaultRun,
+  PROGRESS_SENTINEL_STEP_ID,
   recordFaultProof,
   replaceMethod,
   runCases,
@@ -31,6 +32,7 @@ import {
   actual as actualTable,
   calendarMarker as markerTable,
   stepMeasure as measureTable,
+  stepProgress as progressTable,
   users as userTable,
 } from '../schema';
 import { openSqliteSource, type OpenSqliteSourceOptions, type SqliteSource } from '../source';
@@ -255,7 +257,19 @@ async function openSqliteCase<Family extends ExistingFamily>(
   openSource: OpenSource = openSqliteSource,
 ): Promise<CaseFixture<TransactionalStores[Family]>> {
   const { source, directory } = await seedSqliteSource(openSource);
+  if (family === 'progress') await seedProgressStep(source);
   return sqliteFixture(source, directory, family, caseId);
+}
+
+async function seedProgressStep(source: SqliteSource): Promise<void> {
+  await source.stores.steps.add(
+    {
+      id: PROGRESS_SENTINEL_STEP_ID,
+      projectId: DETERMINISTIC_SEED.projectIds[0],
+      name: 'Review',
+    },
+    DETERMINISTIC_SEED.stamps[0],
+  );
 }
 
 const openers: ExistingStoreOpeners = {
@@ -269,6 +283,7 @@ const openers: ExistingStoreOpeners = {
   estimates: (caseId) => openSqliteCase('estimates', caseId),
   actuals: (caseId) => openSqliteCase('actuals', caseId),
   measures: (caseId) => openSqliteCase('measures', caseId),
+  progress: (caseId) => openSqliteCase('progress', caseId),
   directory: (caseId) => openSqliteCase('directory', caseId),
   eventLog: (caseId) => openSqliteCase('eventLog', caseId),
 };
@@ -1068,6 +1083,112 @@ const measureUnknownStepFault = defineFault({
   },
 });
 
+const progressReplaceFault = defineFault({
+  id: 'break:progress.set:replace',
+  caseId: 'progress.set:replace',
+  createControl: () => createFaultControl('progress.set:replace'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      progress: replaceMethod(source.stores.progress, 'set', (set) => {
+        return (progress, stamp) =>
+          set(
+            progress.statedAt === 201 && control.reach('progress.set:replace')
+              ? { ...progress, state: 'in_progress', statedAt: 101 }
+              : progress,
+            stamp,
+          );
+      }),
+    });
+  },
+});
+
+const progressNotStartedSurrogateFault = defineFault({
+  id: 'break:progress.remove:absence',
+  caseId: 'progress.remove:absence',
+  createControl: () => createFaultControl('progress.remove:absence'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      progress: replaceMethod(source.stores.progress, 'remove', (remove) => {
+        return async (workItemId, stepId, stamp) => {
+          await remove(workItemId, stepId, stamp);
+          if (!control.reach('progress.remove:absence')) return;
+          source.db.run(sql.raw('PRAGMA ignore_check_constraints = ON'));
+          try {
+            source.db.run(
+              sql`INSERT INTO step_progress
+                    (work_item_id, step_id, state, stated_at, created_at, created_by, updated_at)
+                  VALUES (${workItemId}, ${stepId}, 'not_started', 201, ${stamp.at}, ${stamp.by}, ${stamp.at})`,
+            );
+          } finally {
+            source.db.run(sql.raw('PRAGMA ignore_check_constraints = OFF'));
+          }
+        };
+      }),
+    });
+  },
+});
+
+const progressMoveOwnershipFault = defineFault({
+  id: 'break:progress.moveAll:ownership',
+  caseId: 'progress.moveAll:ownership',
+  createControl: () => createFaultControl('progress.moveAll:ownership'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      progress: replaceMethod(source.stores.progress, 'moveAll', (moveAll) => {
+        return async (fromWorkItemId, toWorkItemId, stamp) => {
+          if (!control.reach('progress.moveAll:ownership')) {
+            return moveAll(fromWorkItemId, toWorkItemId, stamp);
+          }
+          const rows = await source.stores.progress.listByProject(DETERMINISTIC_SEED.projectIds[0]);
+          for (const progress of rows.filter(({ workItemId }) => workItemId === fromWorkItemId)) {
+            await source.stores.progress.set({ ...progress, workItemId: toWorkItemId }, stamp);
+          }
+        };
+      }),
+    });
+  },
+});
+
+const progressUnknownStepFault = defineFault({
+  id: 'break:progress.set:unknown_step',
+  caseId: 'progress.set:unknown_step',
+  createControl: () => createFaultControl('progress.set:unknown_step'),
+  mutate(source: SqliteSource, control) {
+    const acceptingProgress = replaceMethod(source.stores.progress, 'set', (set) => {
+      return (progress, stamp) => {
+        if (progress.stepId !== 'no-such-step' || !control.reach('progress.set:unknown_step')) {
+          return set(progress, stamp);
+        }
+        source.db.run(sql.raw('PRAGMA foreign_keys = OFF'));
+        try {
+          source.db.insert(progressTable).values(progress).run();
+        } finally {
+          source.db.run(sql.raw('PRAGMA foreign_keys = ON'));
+        }
+        return Promise.resolve('written');
+      };
+    });
+    return withStores(source, {
+      progress: replaceMethod(acceptingProgress, 'listByProject', (listByProject) => {
+        return async (projectId) => {
+          const rows = await listByProject(projectId);
+          if (projectId !== DETERMINISTIC_SEED.projectIds[0]) return rows;
+          const escaped = await source.db
+            .select({
+              workItemId: progressTable.workItemId,
+              stepId: progressTable.stepId,
+              state: progressTable.state,
+              statedAt: progressTable.statedAt,
+            })
+            .from(progressTable)
+            .where(eq(progressTable.stepId, 'no-such-step'));
+          return [...escaped, ...rows];
+        };
+      }),
+    });
+  },
+});
+
 const addFault = defineFault({
   id: 'break:steps.add',
   caseId: 'steps.add',
@@ -1186,6 +1307,7 @@ async function proveFault(
     async setup(run: FaultRun<SqliteSource>) {
       const openSource = brokenSource(openBase, run);
       const { source, directory } = await seedSqliteSource(openSource);
+      if (fault.caseId.startsWith('progress.')) await seedProgressStep(source);
       let wasOpened = false;
       const takeFixture = <Family extends ExistingFamily>(
         family: Family,
@@ -1206,6 +1328,7 @@ async function proveFault(
         estimates: (caseId) => takeFixture('estimates', caseId),
         actuals: (caseId) => takeFixture('actuals', caseId),
         measures: (caseId) => takeFixture('measures', caseId),
+        progress: (caseId) => takeFixture('progress', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
       });
@@ -1948,6 +2071,97 @@ describe('SQLite existing source conformance', () => {
 +       "recordedAt": 201,
 +       "stepId": "no-such-step",
 +       "value": 21,
++       "workItemId": "work-a-one",
++     },`);
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      Array.from(new Set(faults.map(({ caseId }) => caseId)), (caseId) => ({
+        caseId,
+        status: 'passed',
+      })),
+    );
+  });
+
+  it('reinjects progress replacement, absence, ownership, and refusal faults', async () => {
+    const faults = [
+      progressReplaceFault,
+      progressNotStartedSurrogateFault,
+      progressMoveOwnershipFault,
+      progressUnknownStepFault,
+    ];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(faults.map(() => 'observed'));
+    expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual([
+      'progress.set:replace',
+      'progress.remove:absence',
+      'progress.moveAll:ownership',
+      'progress.set:unknown_step',
+    ]);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    // Proof: retaining the first statement left the complete work-a-one/dev row
+    // at in_progress@101 instead of replacing it with done@201.
+    expect(failures[0]).toContain(`    {
+-     "state": "done",
+-     "statedAt": 201,
++     "state": "in_progress",
++     "statedAt": 101,
+      "stepId": "step-a-dev",
+      "workItemId": "work-a-one",
+    },`);
+    // Proof: storing the third state as a surrogate exposed the complete
+    // not_started@201 row on the removed work-a-one/dev pair.
+    expect(failures[1]).toContain(`    {
++     "state": "not_started",
++     "statedAt": 201,
++     "stepId": "step-a-dev",
++     "workItemId": "work-a-one",
++   },`);
+    // Proof: copying both source statements exposed the complete done@101 and
+    // in_progress@102 source rows beside their complete destination rows.
+    expect(failures[2]).toContain(`      "state": "done",
+      "statedAt": 101,
+      "stepId": "step-a-dev",
++     "workItemId": "work-a-one",
++   },
++   {
++     "state": "in_progress",
++     "statedAt": 102,
++     "stepId": "step-a-qa",
++     "workItemId": "work-a-one",
++   },
++   {
++     "state": "done",
++     "statedAt": 101,
++     "stepId": "step-a-dev",
+      "workItemId": "work-a-two",
+    },`);
+    expect(failures[2]).toContain(`    {
+      "state": "in_progress",
+      "statedAt": 102,
+      "stepId": "step-a-qa",
+      "workItemId": "work-a-two",
+    },
+    {
+      "state": "done",
+      "statedAt": 103,
+      "stepId": "step-a-review",
+      "workItemId": "work-a-two",
+    },`);
+    // Proof: accepting the missing step produced received written and the
+    // complete escaped work-a-one/no-such-step/done@201 public row.
+    expect(failures[3]).toContain(`-   "outcome": "unknown_step",
++   "outcome": "written",
+    "projectA": [
++     {
++       "state": "done",
++       "statedAt": 201,
++       "stepId": "no-such-step",
 +       "workItemId": "work-a-one",
 +     },`);
 

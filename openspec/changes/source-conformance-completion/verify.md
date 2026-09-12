@@ -816,3 +816,68 @@ evidence above to distinguish when the harness arms its control from when an
 operation-specific fault can activate; it did not affect proof validity. Task
 3.3 is complete; the source change is now 10/24 tasks, and Task 3.4 is next.
 Review: `/tmp/source-conformance-3-3-astra-review.md`.
+
+## 2026-09-13 — task 3.4 progress state and ownership evidence
+
+The shared runner now registers `progress.set:replace`,
+`progress.remove:absence`, `progress.moveAll:ownership`, and
+`progress.set:unknown_step`. Every case compares complete, sorted public lists
+for projects A and B, including other-item, other-step, target, and
+other-project sentinels with exact state and `statedAt`. Stored progress is
+limited to `in_progress` and `done`; removal proves `not_started` by absence
+after its first settlement and again after an idempotent second call.
+
+Move seeds two distinct source-step statements (`done` at 101 and
+`in_progress` at 102), a separate target-step sentinel, and a project-B
+sentinel. Its settled result requires both source rows to disappear and both
+destination rows to retain their state and timestamp. The missing-step case
+retains its outcome, completes both public project reads, and then makes one
+combined outcome/state assertion.
+
+Memory's real, unexcluded `progress.set:unknown_step` run failed in the shared
+assertion with expected `unknown_step`, received `written`, and the complete
+escaped `work-a-one/no-such-step/done` row at `statedAt: 201`. The exact
+case-specific gap was declared only after that run. The three supported memory
+cases still execute; SQLite executes all four with zero gaps.
+
+### Task 3.4 failure-proof table
+
+| Check                                   | Fault injected through the real source                                                            | Production-path test                                                  | Observed failure                                                                                                                                  |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Registration includes all four IDs      | Loaded the independent inventory before progress registration existed                             | `preserves the original IDs and adds each completed family inventory` | All four progress IDs were absent (`Expected - 4 / Received + 0`).                                                                                |
+| Set replaces state and timestamp        | Replaced the incoming `done` at 201 with the stale `in_progress` at 101 through real `set`        | Source-specific progress fault test                                   | The complete `work-a-one/step-a-dev` row showed expected `done`/201 and received `in_progress`/101.                                               |
+| Remove means storage absence            | Ran real `remove`, then crossed the test-only port boundary with a `not_started` surrogate at 201 | Same source-specific fault test                                       | The complete surrogate row was received in project A's public list where no row was expected.                                                     |
+| Move transfers every source statement   | Copied both source rows through real `list` and `set` calls without removing either source row    | Same source-specific fault test                                       | Both complete source remnants were received: dev `done`/101 and qa `in_progress`/102, beside their complete destination rows and target sentinel. |
+| Missing step is refused without a write | Accepted and durably wrote the absent-step request                                                | Same source-specific fault test                                       | Received `written` plus the complete escaped `work-a-one/no-such-step/done` row at 201 after both public project reads completed.                 |
+
+The SQLite surrogate uses its test-only SQL boundary to insert the invalid
+stored state and then exposes it through the real public progress reader. The
+memory surrogate uses an adjacent justified test-only cast because the precise
+port excludes the invalid state. The harness arms each control after
+base-source seeding and before the shared case; operation-specific guards keep
+its injected mutation inactive through the complete progress setup snapshots,
+then activate it at the named target operation. Each fault reaches that exact
+phase and fails a signed, structured, complete-row diagnostic taken from
+observed output. Restorations use fresh real sources.
+
+### Task 3.4 verification
+
+- Inventory RED: 0/1/1 with four absent IDs; restored 1/0/1.
+- Focused final gap/proof runs: memory 3/0/548; SQLite 2/0/766.
+- Existing progress/memory suites: domain progress 8/0/77; SQLite progress
+  10/0/20; memory source 9/0/153.
+- Uncached targets: conformance 29/0/47; memory 37/0/1,661. SQLite's exact
+  uncached target command completed directly with coverage at 663/0/4,176
+  across 60 files.
+- All six uncached lint/typecheck targets, formatting, diff, and pinned
+  OpenSpec validation are recorded in the Task 3.4 report after their terminal
+  rerun.
+
+The first SQLite Nx stream completed without a retained exit result, and an
+immediate retry hit Nx's recursive-invocation guard; neither run is counted as
+evidence. The direct target command is the retained SQLite evidence. The
+source-specific `test:conformance` targets remain deferred to Task 7.2 and are
+absent from the current project files. Full workspace, build, browser, and
+deploy gates were skipped as outside this shared conformance and test-decorator
+slice. Task 3.4 remains unchecked pending independent review; Task 4.1 was not
+started.

@@ -12,6 +12,7 @@ import {
   type Fault,
   type FaultProof,
   type FaultRun,
+  PROGRESS_SENTINEL_STEP_ID,
   recordFaultProof,
   replaceMethod,
   runCases,
@@ -19,7 +20,7 @@ import {
   type SourceDeclaration,
   type SourceReaders,
 } from '@wbs/conformance';
-import type { TransactionalStores, User } from '@wbs/core';
+import type { StoredProgress, TransactionalStores, User } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
@@ -155,7 +156,20 @@ async function openMemoryCase<Family extends ExistingFamily>(
   caseId: CaseId,
   openSource: OpenSource = openMemorySource,
 ): Promise<CaseFixture<TransactionalStores[Family]>> {
-  return memoryFixture(await seedMemorySource(openSource), family, caseId);
+  const source = await seedMemorySource(openSource);
+  if (family === 'progress') await seedProgressStep(source);
+  return memoryFixture(source, family, caseId);
+}
+
+async function seedProgressStep(source: MemorySource): Promise<void> {
+  await source.stores.steps.add(
+    {
+      id: PROGRESS_SENTINEL_STEP_ID,
+      projectId: DETERMINISTIC_SEED.projectIds[0],
+      name: 'Review',
+    },
+    DETERMINISTIC_SEED.stamps[0],
+  );
 }
 
 const openers: ExistingStoreOpeners = {
@@ -169,6 +183,7 @@ const openers: ExistingStoreOpeners = {
   estimates: (caseId) => openMemoryCase('estimates', caseId),
   actuals: (caseId) => openMemoryCase('actuals', caseId),
   measures: (caseId) => openMemoryCase('measures', caseId),
+  progress: (caseId) => openMemoryCase('progress', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
   eventLog: (caseId) => openMemoryCase('eventLog', caseId),
 };
@@ -220,6 +235,24 @@ const measureUnknownStepGap = {
   },
 };
 
+const progressUnknownStepGap = {
+  caseId: 'progress.set:unknown_step' as const,
+  reason: 'the memory progress fixture does not validate step references',
+  evidence: {
+    sourceRevision: 'dca55563',
+    assertion: 'progress set refuses an absent step without changing either project',
+    observedFailure: `-   "outcome": "unknown_step",
++   "outcome": "written",
+    "projectA": [
++     {
++       "state": "done",
++       "statedAt": 201,
++       "stepId": "no-such-step",
++       "workItemId": "work-a-one",
++     },`,
+  },
+};
+
 const capacityMissingReferenceGap = {
   caseId: 'capacity.set:missing-reference' as const,
   reason: 'the memory capacity fixture does not hold project or team reference sets',
@@ -244,6 +277,7 @@ const knownGaps = [
   unknownStepGap,
   actualUnknownStepGap,
   measureUnknownStepGap,
+  progressUnknownStepGap,
   capacityMissingReferenceGap,
   priorityMissingProjectGap,
 ];
@@ -273,6 +307,7 @@ const declaration: SourceDeclaration = {
     estimates: { kind: 'offered', gaps: [unknownStepGap], open: openers.estimates },
     actuals: { kind: 'offered', gaps: [actualUnknownStepGap], open: openers.actuals },
     measures: { kind: 'offered', gaps: [measureUnknownStepGap], open: openers.measures },
+    progress: { kind: 'offered', gaps: [progressUnknownStepGap], open: openers.progress },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
     eventLog: { kind: 'offered', gaps: [], open: openers.eventLog },
   } as unknown as Capabilities,
@@ -980,6 +1015,87 @@ const measureUnknownStepFault = defineFault({
   },
 });
 
+const progressReplaceFault = defineFault({
+  id: 'break:progress.set:replace',
+  caseId: 'progress.set:replace',
+  createControl: () => createFaultControl('progress.set:replace'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      progress: replaceMethod(source.stores.progress, 'set', (set) => {
+        return (progress, stamp) =>
+          set(
+            progress.statedAt === 201 && control.reach('progress.set:replace')
+              ? { ...progress, state: 'in_progress', statedAt: 101 }
+              : progress,
+            stamp,
+          );
+      }),
+    });
+  },
+});
+
+const progressNotStartedSurrogateFault = defineFault({
+  id: 'break:progress.remove:absence',
+  caseId: 'progress.remove:absence',
+  createControl: () => createFaultControl('progress.remove:absence'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      progress: replaceMethod(source.stores.progress, 'remove', (remove) => {
+        return async (workItemId, stepId, stamp) => {
+          await remove(workItemId, stepId, stamp);
+          if (!control.reach('progress.remove:absence')) return;
+          // Test boundary: the fault must cross the precise port with the
+          // invalid stored value that production types deliberately exclude.
+          const surrogate = {
+            workItemId,
+            stepId,
+            state: 'not_started',
+            statedAt: 201,
+          } as unknown as StoredProgress;
+          await source.stores.progress.set(surrogate, stamp);
+        };
+      }),
+    });
+  },
+});
+
+const progressMoveOwnershipFault = defineFault({
+  id: 'break:progress.moveAll:ownership',
+  caseId: 'progress.moveAll:ownership',
+  createControl: () => createFaultControl('progress.moveAll:ownership'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      progress: replaceMethod(source.stores.progress, 'moveAll', (moveAll) => {
+        return async (fromWorkItemId, toWorkItemId, stamp) => {
+          if (!control.reach('progress.moveAll:ownership')) {
+            return moveAll(fromWorkItemId, toWorkItemId, stamp);
+          }
+          const rows = await source.stores.progress.listByProject(DETERMINISTIC_SEED.projectIds[0]);
+          for (const progress of rows.filter(({ workItemId }) => workItemId === fromWorkItemId)) {
+            await source.stores.progress.set({ ...progress, workItemId: toWorkItemId }, stamp);
+          }
+        };
+      }),
+    });
+  },
+});
+
+const progressUnknownStepFault = defineFault({
+  id: 'break:progress.set:unknown_step',
+  caseId: 'progress.set:unknown_step',
+  createControl: () => createFaultControl('progress.set:unknown_step'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      progress: replaceMethod(source.stores.progress, 'set', (set) => {
+        return (progress, stamp) => {
+          if (progress.stepId === 'no-such-step') control.reach('progress.set:unknown_step');
+          return set(progress, stamp);
+        };
+      }),
+    });
+  },
+});
+
 interface FaultContext {
   readonly registration: ReturnType<typeof existingStoreRegistrations>[number];
   assertionFailure: string | null;
@@ -991,6 +1107,7 @@ async function proveFault(fault: Fault<MemorySource>): Promise<FaultProof> {
     assertion: `${fault.caseId} reports passed`,
     async setup(run: FaultRun<MemorySource>) {
       const source = await seedMemorySource(brokenSource(openMemorySource, run));
+      if (fault.caseId.startsWith('progress.')) await seedProgressStep(source);
       let wasOpened = false;
       const takeFixture = <Family extends ExistingFamily>(
         family: Family,
@@ -1011,6 +1128,7 @@ async function proveFault(fault: Fault<MemorySource>): Promise<FaultProof> {
         estimates: (caseId) => takeFixture('estimates', caseId),
         actuals: (caseId) => takeFixture('actuals', caseId),
         measures: (caseId) => takeFixture('measures', caseId),
+        progress: (caseId) => takeFixture('progress', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
       });
@@ -1042,6 +1160,33 @@ function failedCase(report: ExecutionReport, caseId: CaseId) {
 }
 
 describe('memory existing source conformance', () => {
+  it("memory's progress unknown-step gap names an observed refusal mismatch", async () => {
+    const caseIds = [
+      'progress.set:replace',
+      'progress.remove:absence',
+      'progress.moveAll:ownership',
+      'progress.set:unknown_step',
+    ] as const;
+    const report = await runCases(existingStoreRegistrations(openers), { focus: caseIds });
+
+    expect(report.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
+      { caseId: 'progress.set:replace', status: 'passed' },
+      { caseId: 'progress.remove:absence', status: 'passed' },
+      { caseId: 'progress.moveAll:ownership', status: 'passed' },
+      { caseId: 'progress.set:unknown_step', status: 'failed' },
+    ]);
+    const unknownStep = failedCase(report, 'progress.set:unknown_step');
+    expect(unknownStep?.status).toBe('failed');
+    if (unknownStep?.status !== 'failed') throw new Error('progress gap bypass did not fail');
+    expect(unknownStep.assertionPhase).toBe('assertion');
+    // Proof: before this exact gap was declared, the real unexcluded memory
+    // case returned `written` and exposed the complete escaped done statement,
+    // stated at 201, in project A's public list.
+    expect(Bun.stripANSI(unknownStep.failure)).toContain(
+      progressUnknownStepGap.evidence.observedFailure,
+    );
+  });
+
   it('runs every work-item case through the real memory source', async () => {
     const caseIds = [
       'workItems.insert:respace',
@@ -1124,6 +1269,12 @@ describe('memory existing source conformance', () => {
       {
         family: 'measures',
         caseId: measureUnknownStepGap.caseId,
+        status: 'not-offered',
+        executed: false,
+      },
+      {
+        family: 'progress',
+        caseId: progressUnknownStepGap.caseId,
         status: 'not-offered',
         executed: false,
       },
@@ -1573,6 +1724,98 @@ describe('memory existing source conformance', () => {
       { caseId: 'measures.remove:metric-key', status: 'passed' },
       { caseId: 'measures.moveAll:all-metrics', status: 'passed' },
       { caseId: 'measures.set:unknown_step', status: 'not-offered' },
+    ]);
+  });
+
+  it('reinjects progress replacement, absence, ownership, and refusal faults', async () => {
+    const faults = [
+      progressReplaceFault,
+      progressNotStartedSurrogateFault,
+      progressMoveOwnershipFault,
+      progressUnknownStepFault,
+    ];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(faults.map(() => 'observed'));
+    expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual([
+      'progress.set:replace',
+      'progress.remove:absence',
+      'progress.moveAll:ownership',
+      'progress.set:unknown_step',
+    ]);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    // Proof: retaining the first statement left the complete work-a-one/dev row
+    // at in_progress@101 instead of replacing it with done@201.
+    expect(failures[0]).toContain(`    {
+-     "state": "done",
+-     "statedAt": 201,
++     "state": "in_progress",
++     "statedAt": 101,
+      "stepId": "step-a-dev",
+      "workItemId": "work-a-one",
+    },`);
+    // Proof: storing the third state as a surrogate exposed the complete
+    // not_started@201 row on the removed work-a-one/dev pair.
+    expect(failures[1]).toContain(`    {
++     "state": "not_started",
++     "statedAt": 201,
++     "stepId": "step-a-dev",
++     "workItemId": "work-a-one",
++   },`);
+    // Proof: copying both source statements exposed the complete done@101 and
+    // in_progress@102 source rows beside their complete destination rows.
+    expect(failures[2]).toContain(`      "state": "done",
+      "statedAt": 101,
+      "stepId": "step-a-dev",
++     "workItemId": "work-a-one",
++   },
++   {
++     "state": "in_progress",
++     "statedAt": 102,
++     "stepId": "step-a-qa",
++     "workItemId": "work-a-one",
++   },
++   {
++     "state": "done",
++     "statedAt": 101,
++     "stepId": "step-a-dev",
+      "workItemId": "work-a-two",
+    },`);
+    expect(failures[2]).toContain(`    {
+      "state": "in_progress",
+      "statedAt": 102,
+      "stepId": "step-a-qa",
+      "workItemId": "work-a-two",
+    },
+    {
+      "state": "done",
+      "statedAt": 103,
+      "stepId": "step-a-review",
+      "workItemId": "work-a-two",
+    },`);
+    // Proof: accepting the missing step produced received written and the
+    // complete escaped work-a-one/no-such-step/done@201 public row.
+    expect(failures[3]).toContain(`-   "outcome": "unknown_step",
++   "outcome": "written",
+    "projectA": [
++     {
++       "state": "done",
++       "statedAt": 201,
++       "stepId": "no-such-step",
++       "workItemId": "work-a-one",
++     },`);
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      declaration,
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
+      { caseId: 'progress.set:replace', status: 'passed' },
+      { caseId: 'progress.remove:absence', status: 'passed' },
+      { caseId: 'progress.moveAll:ownership', status: 'passed' },
+      { caseId: 'progress.set:unknown_step', status: 'not-offered' },
     ]);
   });
 });
