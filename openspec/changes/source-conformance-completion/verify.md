@@ -1247,3 +1247,16 @@ The remaining Minor documentation note was repaired by recording the fifth
 work-item fault, the missing initial freeze, in `design.md`. Reviews:
 `/tmp/source-conformance-epic-3-astra-review.md` and
 `/tmp/source-conformance-epic-3-astra-rereview.md`.
+
+### Task 4.2 Astra acceptance
+
+Astra xhigh accepted Task 4.2 at `8f62a7d2` on 2026-09-13 with no Critical,
+Important or Minor findings. Its exact-head probes verified that pre-write
+team failures remain `phase-failed` with unchanged public state and one close,
+the canonical fault reaches only after the early rename is durably visible,
+and both real adapters expose an exact extra assignment when the strict-subset
+reader is broadened. The independent inventory includes both directory IDs.
+Twenty-eight focused tests passed with 842 assertions, and both adversarial
+reversions failed for their named reasons. Task 4.2 is checked complete and
+Task 4.3 is next. Reviews: `/tmp/source-conformance-4-2-astra-review.md` and
+`/tmp/source-conformance-4-2-astra-rereview.md`.
