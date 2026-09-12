@@ -783,10 +783,13 @@ cases still execute in memory; SQLite executes all four and retains zero gaps.
 | Move preserves `recordedAt`             | Ran real move, then rewrote the destination token-actual row with time 999       | Same source-specific fault test                                       | On the complete destination row, expected 102 and received 999.                                           |
 | Missing step is refused without a write | Accepted and durably wrote the absent-step request                               | Same source-specific fault test                                       | Received `written` plus the complete escaped token-estimate row in project A's public read.               |
 
-Every source control was inert through verified setup, armed afterward, reached
-its exact named phase, and failed the settled shared assertion. Restored cases
-ran against fresh sources. The permanent diagnostics pin full composite rows,
-values, timestamps, and expected/received direction.
+Every source control's injected mutation stayed inert through the complete
+measure setup snapshots, then activated at its named target operation, reached
+that exact phase, and failed the settled shared assertion. The harness arms the
+control after base-source seeding and before the shared case begins; the
+operation-specific guards keep setup unaffected. Restored cases ran against
+fresh sources. The permanent diagnostics pin full composite rows, values,
+timestamps, and expected/received direction.
 
 ### Task 3.3 verification
 
@@ -804,3 +807,12 @@ The source-specific conformance targets remain deferred to Task 7.2. The full
 workspace, build, browser, and deploy gates were skipped as outside this shared
 case and test-decorator slice. Task 3.3 remains unchecked pending independent
 review; Task 3.4 was not started.
+
+Astra xhigh approved `b2e37575` on 2026-09-13 with no Critical or Important
+issue. Fresh focused review runs passed the memory gap/proof/restoration paths
+with 2 tests and 130 assertions, and SQLite's six proofs plus all four restored
+cases with 1 test and 167 assertions. The one Minor finding corrected the
+evidence above to distinguish when the harness arms its control from when an
+operation-specific fault can activate; it did not affect proof validity. Task
+3.3 is complete; the source change is now 10/24 tasks, and Task 3.4 is next.
+Review: `/tmp/source-conformance-3-3-astra-review.md`.
