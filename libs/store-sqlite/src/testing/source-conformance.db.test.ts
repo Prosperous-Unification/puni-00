@@ -336,23 +336,63 @@ const priorityDefaultsFault = defineFault({
   },
 });
 
-const priorityWholeProjectFault = defineFault({
+const priorityFirstRungFault = defineFault({
   id: 'break:priorityBands.replace:whole-project',
   caseId: 'priorityBands.replace:whole-project',
-  createControl: () => createFaultControl('priorityBands.replace:whole-project'),
+  createControl: () => createFaultControl('priorityBands.replace:whole-project:first-rung'),
   mutate(source: SqliteSource, control) {
-    let replaceCount = 0;
+    const replaceCountByProject = new Map<string, number>();
     return withStores(source, {
       priorityBands: replaceMethod(source.stores.priorityBands, 'replace', (replace) => {
         return async (projectId, bands, stamp) => {
-          replaceCount += 1;
-          if (replaceCount !== 2 || !control.reach('priorityBands.replace:whole-project')) {
+          const replaceCount = (replaceCountByProject.get(projectId) ?? 0) + 1;
+          replaceCountByProject.set(projectId, replaceCount);
+          if (
+            replaceCount !== 2 ||
+            !control.reach('priorityBands.replace:whole-project:first-rung')
+          ) {
             return replace(projectId, bands, stamp);
           }
           const replacement = bands.at(0);
           if (replacement === undefined) throw new Error('replacement ladder has no first band');
           const existing = await source.stores.priorityBands.listFor(projectId);
           return replace(projectId, [replacement, ...existing.slice(1)], stamp);
+        };
+      }),
+    });
+  },
+});
+
+const priorityProjectScopeFault = defineFault({
+  id: 'break:priorityBands.replace:whole-project',
+  caseId: 'priorityBands.replace:whole-project',
+  createControl: () => createFaultControl('priorityBands.replace:whole-project:project-scope'),
+  mutate(source: SqliteSource, control) {
+    const replaceCountByProject = new Map<string, number>();
+    return withStores(source, {
+      priorityBands: replaceMethod(source.stores.priorityBands, 'replace', (replace) => {
+        return async (projectId, bands, stamp) => {
+          const replaceCount = (replaceCountByProject.get(projectId) ?? 0) + 1;
+          replaceCountByProject.set(projectId, replaceCount);
+          if (
+            replaceCount !== 2 ||
+            !control.reach('priorityBands.replace:whole-project:project-scope')
+          ) {
+            return replace(projectId, bands, stamp);
+          }
+          source.db.run(
+            sql.raw(`CREATE TEMP TRIGGER conformance_priority_band_unscoped_delete
+              AFTER DELETE ON project_priority_band
+              WHEN OLD.project_id = '${DETERMINISTIC_SEED.projectIds[0]}'
+              BEGIN
+                DELETE FROM project_priority_band WHERE project_id <> OLD.project_id;
+              END`),
+          );
+          try {
+            return await replace(projectId, bands, stamp);
+          } finally {
+            source.db.run(sql.raw('DROP TRIGGER conformance_priority_band_unscoped_delete'));
+          }
         };
       }),
     });
@@ -1034,7 +1074,7 @@ describe('SQLite existing source conformance', () => {
       capacityClearFault,
       capacityMissingReferenceFault,
       priorityDefaultsFault,
-      priorityWholeProjectFault,
+      priorityFirstRungFault,
       priorityMissingProjectFault,
     ];
     const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
@@ -1060,6 +1100,24 @@ describe('SQLite existing source conformance', () => {
     expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
       faults.map(({ caseId }) => ({ caseId, status: 'passed' })),
     );
+  });
+
+  it('reinjects project-scope destruction inside the priority-band transaction', async () => {
+    const proof = await proveFault(priorityProjectScopeFault);
+
+    expect(proof.kind).toBe('observed');
+    if (proof.kind !== 'observed') throw new Error('project-scope destruction was not observed');
+    // Proof: the trigger broadened the real transaction's A-row deletion to B;
+    // this failed on `"label": "Now"` becoming `"label": "Critical"`.
+    expect(Bun.stripANSI(proof.observedFailure)).toContain('"label": "Now"');
+    expect(Bun.stripANSI(proof.observedFailure)).toContain('"label": "Critical"');
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: [priorityProjectScopeFault.caseId],
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
+      { caseId: priorityProjectScopeFault.caseId, status: 'passed' },
+    ]);
   });
 
   it('reinjects the existing add, rename, estimate, remove, range, and prune faults', async () => {

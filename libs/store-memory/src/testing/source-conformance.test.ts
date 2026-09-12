@@ -21,6 +21,7 @@ import {
 } from '@wbs/conformance';
 import type { TransactionalStores, User } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
+import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { projectRow } from '../project-fixture';
@@ -264,23 +265,52 @@ const priorityDefaultsFault = defineFault({
   },
 });
 
-const priorityWholeProjectFault = defineFault({
+const priorityFirstRungFault = defineFault({
   id: 'break:priorityBands.replace:whole-project',
   caseId: 'priorityBands.replace:whole-project',
-  createControl: () => createFaultControl('priorityBands.replace:whole-project'),
+  createControl: () => createFaultControl('priorityBands.replace:whole-project:first-rung'),
   mutate(source: MemorySource, control) {
-    let replaceCount = 0;
+    const replaceCountByProject = new Map<string, number>();
     return withStores(source, {
       priorityBands: replaceMethod(source.stores.priorityBands, 'replace', (replace) => {
         return async (projectId, bands, stamp) => {
-          replaceCount += 1;
-          if (replaceCount !== 2 || !control.reach('priorityBands.replace:whole-project')) {
+          const replaceCount = (replaceCountByProject.get(projectId) ?? 0) + 1;
+          replaceCountByProject.set(projectId, replaceCount);
+          if (
+            replaceCount !== 2 ||
+            !control.reach('priorityBands.replace:whole-project:first-rung')
+          ) {
             return replace(projectId, bands, stamp);
           }
           const replacement = bands.at(0);
           if (replacement === undefined) throw new Error('replacement ladder has no first band');
           const existing = await source.stores.priorityBands.listFor(projectId);
           return replace(projectId, [replacement, ...existing.slice(1)], stamp);
+        };
+      }),
+    });
+  },
+});
+
+const priorityProjectScopeFault = defineFault({
+  id: 'break:priorityBands.replace:whole-project',
+  caseId: 'priorityBands.replace:whole-project',
+  createControl: () => createFaultControl('priorityBands.replace:whole-project:project-scope'),
+  mutate(source: MemorySource, control) {
+    const replaceCountByProject = new Map<string, number>();
+    return withStores(source, {
+      priorityBands: replaceMethod(source.stores.priorityBands, 'replace', (replace) => {
+        return async (projectId, bands, stamp) => {
+          const replaceCount = (replaceCountByProject.get(projectId) ?? 0) + 1;
+          replaceCountByProject.set(projectId, replaceCount);
+          if (
+            replaceCount !== 2 ||
+            !control.reach('priorityBands.replace:whole-project:project-scope')
+          ) {
+            return replace(projectId, bands, stamp);
+          }
+          await replace(DETERMINISTIC_SEED.projectIds[1], DEFAULT_PRIORITY_BANDS, stamp);
+          return replace(projectId, bands, stamp);
         };
       }),
     });
@@ -646,7 +676,7 @@ describe('memory existing source conformance', () => {
       capacityProjectTeamFault,
       capacityClearFault,
       priorityDefaultsFault,
-      priorityWholeProjectFault,
+      priorityFirstRungFault,
     ];
     const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
 
@@ -668,5 +698,23 @@ describe('memory existing source conformance', () => {
     expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
       faults.map(({ caseId }) => ({ caseId, status: 'passed' })),
     );
+  });
+
+  it('reinjects whole-ladder project-scope destruction', async () => {
+    const proof = await proveFault(priorityProjectScopeFault);
+
+    expect(proof.kind).toBe('observed');
+    if (proof.kind !== 'observed') throw new Error('project-scope destruction was not observed');
+    // Proof: resetting B through the staged source before replacing A failed
+    // here on `"label": "Now"` becoming `"label": "Critical"`.
+    expect(Bun.stripANSI(proof.observedFailure)).toContain('"label": "Now"');
+    expect(Bun.stripANSI(proof.observedFailure)).toContain('"label": "Critical"');
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: [priorityProjectScopeFault.caseId],
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
+      { caseId: priorityProjectScopeFault.caseId, status: 'passed' },
+    ]);
   });
 });

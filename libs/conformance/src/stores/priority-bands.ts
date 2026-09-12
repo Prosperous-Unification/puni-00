@@ -20,6 +20,14 @@ const REPLACEMENT_LADDER: readonly PriorityBand[] = [
   { startsAt: 200, label: 'Never', defaultValue: 900 },
 ];
 
+const PROJECT_B_LADDER: readonly PriorityBand[] = [
+  { startsAt: 1, label: 'Now', defaultValue: 3 },
+  { startsAt: 8, label: 'Next', defaultValue: 12 },
+  { startsAt: 25, label: 'Queued', defaultValue: 35 },
+  { startsAt: 60, label: 'Deferred', defaultValue: 70 },
+  { startsAt: 150, label: 'Backlog', defaultValue: 500 },
+];
+
 /** The shared priority-ladder cases for defaults, whole replacement and refusal. */
 export function priorityBandRegistrations(
   open: OpenCase<'priorityBands'>,
@@ -74,6 +82,17 @@ export function priorityBandRegistrations(
         expect(await port.replace(seed.projectIds[0], INITIAL_LADDER, seed.stamps[0])).toEqual({
           ok: true,
         });
+        expect(await port.listFor(seed.projectIds[1])).toEqual([...DEFAULT_PRIORITY_BANDS]);
+        expect(await port.replace(seed.projectIds[1], PROJECT_B_LADDER, seed.stamps[0])).toEqual({
+          ok: true,
+        });
+        expect({
+          projectA: await port.listFor(seed.projectIds[0]),
+          projectB: await port.listFor(seed.projectIds[1]),
+        }).toEqual({
+          projectA: [...INITIAL_LADDER],
+          projectB: [...PROJECT_B_LADDER],
+        });
         expect(await port.replace(seed.projectIds[0], REPLACEMENT_LADDER, seed.stamps[1])).toEqual({
           ok: true,
         });
@@ -82,11 +101,16 @@ export function priorityBandRegistrations(
           projectA: await port.listFor(seed.projectIds[0]),
           projectB: await port.listFor(seed.projectIds[1]),
         };
-        // Proof: both source faults replaced only the first rung; the complete
-        // observation retained Soon/Planned/Later/Parked in A while B stayed default.
+        // Proof: the source-specific first-rung faults preserved A's Soon,
+        // Planned, Later and Parked rungs; this comparison failed with
+        // Expected -10 / Received +10 while B's configured ladder stayed exact.
+        // Proof: the source-specific project-scope faults destroyed B's stored
+        // ladder during A's second replacement; this comparison received the
+        // Critical/High/Medium/Low/Lowest defaults instead of B's
+        // Now/Next/Queued/Deferred/Backlog ladder (Expected -13 / Received +13).
         expect(observed).toEqual({
           projectA: [...REPLACEMENT_LADDER],
-          projectB: [...DEFAULT_PRIORITY_BANDS],
+          projectB: [...PROJECT_B_LADDER],
         });
         expect(
           await Promise.all(

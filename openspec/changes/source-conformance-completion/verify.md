@@ -406,21 +406,23 @@ changing transport-token verification, UI, migration or deploy behavior.
 
 The shared runner now registers all three capacity and all three priority-band
 cases. Each case observes a complete public map/list or ladder snapshot beside
-unchanged project and team sentinels. The ladder fixture writes two independent
-valid five-band ladders; validation remains solely at its existing controller
-boundary.
+unchanged project and team sentinels. The ladder replacement case first observes
+unconfigured B's default, then writes and pre-asserts independent valid five-band
+ladders for A and B before replacing A again. It compares both configured ladders
+afterward. Validation remains solely at its existing controller boundary.
 
 ### Task 2.3 failure-proof table
 
-| Check                                                | Fault injected                                                                                                                         | Production-path test                                                          | Observed failure                                                                                                                                                |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Registration cannot omit either configuration kit    | Loaded the independent inventory before registering either six-case kit                                                                | `preserves the original IDs and adds project, user, and configuration cases`  | Received inventory omitted all six `capacity.*` / `priorityBands.*` IDs.                                                                                        |
-| Capacity identity includes project and team          | Both decorators redirected the second same-team write to the first project through the real store                                      | Source-specific configuration fault test                                      | A's complete map/list held `team-a: 5` instead of 2 and B was empty.                                                                                            |
-| Clear means absent rather than zero                  | Memory passed zero into its real store; SQLite enabled its connection-local constraint bypass and passed zero into the real repository | Source-specific configuration fault test                                      | `hasClearedKey` received true and both public reads exposed `team-a: 0`.                                                                                        |
-| Capacity refuses missing references without rows     | SQLite redirected both requests to held references; memory ran the exact unexcluded case before its gap was recorded                   | SQLite fault test / `names the observed configuration-reference refusal gaps` | SQLite returned both true and exposed A's row; memory returned both true and exposed rows under the missing project/team keys (`Expected - 6 / Received + 14`). |
-| Unconfigured projects receive the default ladder     | Both decorators completed the real reads, then returned empty ladders                                                                  | Source-specific configuration fault test                                      | Both projects received `[]` instead of all five default bands (`Expected - 54 / Received + 2`).                                                                 |
-| Replacement writes the whole five-band ladder        | Both decorators sent the first replacement rung plus four existing rungs through the real replacement                                  | Source-specific configuration fault test                                      | A retained `Soon`, `Planned`, `Later`, and `Parked` instead of the replacement ladder.                                                                          |
-| Missing-project replacement refuses without a ladder | SQLite redirected the real replacement to A; memory ran the exact unexcluded case before its gap was recorded                          | SQLite fault test / memory gap-bypass test                                    | SQLite returned true and changed A; memory returned true and exposed the missing project's stored ladder (`Expected - 16 / Received + 15`).                     |
+| Check                                                | Fault injected                                                                                                                                                                                         | Production-path test                                                          | Observed failure                                                                                                                                                |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Registration cannot omit either configuration kit    | Loaded the independent inventory before registering either six-case kit                                                                                                                                | `preserves the original IDs and adds project, user, and configuration cases`  | Received inventory omitted all six `capacity.*` / `priorityBands.*` IDs.                                                                                        |
+| Capacity identity includes project and team          | Both decorators redirected the second same-team write to the first project through the real store                                                                                                      | Source-specific configuration fault test                                      | A's complete map/list held `team-a: 5` instead of 2 and B was empty.                                                                                            |
+| Clear means absent rather than zero                  | Memory passed zero into its real store; SQLite enabled its connection-local constraint bypass and passed zero into the real repository                                                                 | Source-specific configuration fault test                                      | `hasClearedKey` received true and both public reads exposed `team-a: 0`.                                                                                        |
+| Capacity refuses missing references without rows     | SQLite redirected both requests to held references; memory ran the exact unexcluded case before its gap was recorded                                                                                   | SQLite fault test / `names the observed configuration-reference refusal gaps` | SQLite returned both true and exposed A's row; memory returned both true and exposed rows under the missing project/team keys (`Expected - 6 / Received + 14`). |
+| Unconfigured projects receive the default ladder     | Both decorators completed the real reads, then returned empty ladders                                                                                                                                  | Source-specific configuration fault test                                      | Both projects received `[]` instead of all five default bands (`Expected - 54 / Received + 2`).                                                                 |
+| Replacement writes the whole five-band ladder        | Both decorators sent the first replacement rung plus four existing A rungs through the real replacement                                                                                                | Source-specific configuration fault test                                      | A retained `Soon`, `Planned`, `Later`, and `Parked`; the complete comparison failed with Expected -10 / Received +10 while B stayed exact.                      |
+| Replacement remains scoped to its project            | SQLite installed a connection-local trigger immediately before A's second replacement, broadening that real transaction's delete to B; memory reset B through the staged source before the same A call | Separate source-specific project-scope fault tests                            | Both received B's `Critical/High/Medium/Low/Lowest` defaults instead of its configured `Now/Next/Queued/Deferred/Backlog` ladder (Expected -13 / Received +13). |
+| Missing-project replacement refuses without a ladder | SQLite redirected the real replacement to A; memory ran the exact unexcluded case before its gap was recorded                                                                                          | SQLite fault test / memory gap-bypass test                                    | SQLite returned true and changed A; memory returned true and exposed the missing project's stored ladder (`Expected - 16 / Received + 15`).                     |
 
 All injected faults seeded while inert, reached only their named case after arm,
 and were followed by the unchanged supported registrations passing against fresh
@@ -445,3 +447,51 @@ SQLite executes all six with no gap. Memory's earlier exact
 The full workspace, build, browser and deploy gates were not run: Task 2.3 adds
 configuration-store conformance cases and test-only source decorators, with no
 transport, UI, migration or deployment behavior.
+
+### Task 2.3 review repair and acceptance
+
+Astra's first review observed that an unconfigured B read could not distinguish
+preservation from broad deletion because both states returned the default ladder.
+The shared case now establishes the configured sentinel described above. The
+first-rung proof remains separate and targets A's second replacement by its own
+per-project call count, so B's added setup cannot consume its fault window.
+
+Focused repair evidence on 2026-09-12:
+
+- Combined offered-case, first-rung and project-scope proof runs: memory 3 pass,
+  0 fail, 150 assertions; SQLite 3 pass, 0 fail, 492 assertions.
+- Isolated observed project-scope proof runs before restoration: memory 1 pass,
+  0 fail, 22 assertions; SQLite 1 pass, 0 fail, 38 assertions. These test
+  results mean the proof harness observed the named shared-case failure and its
+  following unchanged-source case passed; the injected source did not pass
+  conformance.
+- Uncached normal targets after restoration: conformance 29 pass, 0 fail, 47
+  assertions; memory 28 pass, 0 fail, 411 assertions; SQLite 657 pass, 0 fail,
+  2,821 assertions across 60 files.
+- Uncached lint and typecheck targets passed for conformance, store-memory and
+  store-sqlite.
+- Pinned OpenSpec 1.3.0 strict validation passed for this change; all-artifact
+  validation reported 75 passed, 0 failed. Both commands exited 0 after
+  non-fatal telemetry DNS warnings from the sandbox.
+
+The six changed files passed focused Prettier checking and `git diff --check`.
+The workspace, build, browser and deploy gates remain outside this bounded
+repair; the parallel browser owner reported its own result separately.
+
+Astra xhigh accepted the repair on 2026-09-12, with no new Critical or Important
+findings. It independently removed the project predicate from a temporary copy
+of the actual SQLite replacement adapter and activated that mutation only on
+the second A replacement, after both complete stored ladders were pre-asserted.
+The intended final comparison failed with A exact and B's configured ladder
+replaced by defaults (Expected -13 / Received +13); the restored shared case
+passed. A separate all-writes activation failed earlier when B's setup erased A;
+that earlier collision is not the acceptance evidence for the final comparison.
+The two probe tests passed with 74 assertions in 389 ms. Reports and full output:
+`/tmp/source-conformance-2-3-astra-rereview.md` and
+`/tmp/source-conformance-2-3-astra-rereview-probes/output.txt`.
+
+Task 2.3 is complete again, bringing this local change to 6/24 tasks. The minor
+gap-diagnostic note remains open: two memory gap strings pin diff sizes rather
+than observed values; no current false exclusion was demonstrated, and this
+repair did not change those cases. The eighteen remaining slices, current-main
+integration and final whole-change certification/gates remain pending.
