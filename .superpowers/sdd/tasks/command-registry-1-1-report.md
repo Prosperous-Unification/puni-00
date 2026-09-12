@@ -137,3 +137,15 @@ Observed production-path negative: the mounted real-SQLite test sends `createWor
 Restored evidence: the five focused mounted directory and real-SQLite rollback/atomicity cases passed with 18 expectations. The broader five-file command runner/controller set passed 137 tests with 580 expectations, and direct core typecheck passed. The contracts/core/be-01 test/lint/typecheck gate passed all nine targets uncached in 1m28s. Focused format and diff checks passed, OpenSpec validation passed all 75 items, and apply instructions report 9 of 10 tasks complete.
 
 The first sandboxed Nx attempt exited 0 after socket-denial warnings without listing or running targets, so it is excluded from evidence. The permitted rerun produced the nine-target output recorded above. Task 3.2's full workspace/h2puni gate remains pending; no behavior mismatch was found in this slice.
+
+## Task 3.2 integration attempt
+
+Astra's Task 2.5 minor is corrected: the verify header no longer says Task 2.5 is pending, and the central failure-proof table now includes Task 2.5's observed wrong-vocabulary mutation.
+
+The exact `bunx nx run-many -t test lint typecheck -p contracts core be-01 fe-01 mcp-01` command completed all 15 targets successfully in 6m33s. Its sole cache hit was `mcp-01:lint`; a separate uncached invocation executed that target successfully in 7.3s. Fresh generated-tool tests passed 36 cases/235 expectations, fresh mounted and SQLite command coverage passed 149 cases/634 expectations, and fe-01's command client passed 52 cases.
+
+The real browser gate used `CI=1 E2E_PORT_SHIFT=1900`, started this checkout's stack on ports 5000/5100/6100, and completed in 17m54s with 340 passed, two failed and 37 skipped. Both failures are existing 1280px toolbar budget pins: optimization cue received 1603.875 against a 1603 ceiling; project settings received 1306.46875 against a 1305.5 ceiling. A focused two-test rerun reproduced both exact figures. This branch has no changes from baseline under fe-01, `package.json`, `bun.lock`, or `nx.json`, so the unrelated browser assertions were not modified and the gate is recorded red.
+
+The h2puni checkout does not know unpushed commit `d0301d6076a86ade8ca9a65dc63dce1f2764c7fa`; its read-only object check failed. The task forbids publishing the branch, and policy denied transferring the private repository history by bundle without explicit approval. No alternate transfer was attempted, so the required h2puni gate is unavailable.
+
+Whole-workspace format checking and OpenSpec validation passed, the latter for 75/75 items. Verification maps all three delta requirements and seven scenarios to passing focused evidence, and the implementation remains coherent with the design. Completeness is 9/10: Task 3.2 stays unchecked, and archive readiness is blocked on an available exact-SHA h2puni gate plus a green or explicitly adjudicated browser gate. The full workspace build/test/lint/typecheck targets and solver image smoke were not run locally because repository guidance requires the locked h2puni wrapper; no archive command was run. No production code changed in this final attempt.

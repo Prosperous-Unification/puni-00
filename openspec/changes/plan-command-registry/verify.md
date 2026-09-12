@@ -1,8 +1,8 @@
 # Verification Report
 
 **Change**: `plan-command-registry`
-**Scope**: Tasks 1.1–2.4 and 3.1; Tasks 2.5 and 3.2 remain pending
-**Verified at**: 2026-09-12 17:13 EEST
+**Scope**: Tasks 1.1–3.1 complete; Task 3.2 integration verification is blocked below
+**Verified at**: 2026-09-12 18:13 EEST
 **Baseline**: `6a47a7220109484bae8f86fe03c35dc570fa1845`
 
 ## Current path map
@@ -50,6 +50,7 @@ The design was written against `339708fa` with 36 kinds. Commit `521ef54f` added
 | Binding input correlation (`command-bindings.test.ts`)                                                              | Correlated production `setEstimate` to `clearEstimate` input                                       | Wrong-input fixture failed with TS2578                                                                                                                                    | Restored core typecheck: exit 0                                              |
 | Binding output correlation (`command-bindings.test.ts`)                                                             | Widened production binding output from `Promise<AppliedFor<K>>` to `Promise<AppliedCommand>`       | Both wrong-response fixtures failed with TS2578 (`setEstimate` returning `clearEstimate`; `createPerson` returning `createTeam`)                                          | Restored core typecheck: exit 0                                              |
 | Discriminator-indexed runtime dispatch (`plan-commands.db.test.ts`)                                                 | Bound `setEstimate` to the `clearEstimate` store operation                                         | Actual runner committed but the independently selected named row had no estimate: expected one exact persisted estimate, received `[]`                                    | Focused store-backed run: 1 pass, 0 fail                                     |
+| Named-directory binding routes to its own vocabulary (`directory.controller.db.test.ts`)                            | Routed `createWorkItemType` through `DirectoryService.addTag`                                      | Mounted endpoint returned 200, but the real work-item-type store expected `["Incident"]` and received `[]`                                                                | Focused mounted directory run: 1 pass, 0 fail                                |
 | Contracts remain inside the domain ring (`contracts:lint`)                                                          | Added runtime `import '@wbs/core'` to production `commands/definitions.ts`                         | ESLint reported `@nx/enforce-module-boundaries`: circular `contracts -> core -> contracts`; the direct file run also named the full production chain                      | Restored uncached `contracts:lint`: exit 0                                   |
 
 The pre-existing mounted malformed nested-extra and semantic-invalid-value controls remain in the same test file and passed in both the targeted run and the project baseline.
@@ -187,7 +188,41 @@ The mounted real-SQLite negative sends `createWorkItemType` through `/api/direct
 | `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`                                                                                                                                                                                                | 75 items, 75 passed, 0 failed                 |
 | `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 instructions apply --change plan-command-registry --json`                                                                                                                                                             | state `ready`; 9 of 10 tasks complete         |
 
+## Task 3.2 integration attempt
+
+The exact five-project test/lint/typecheck command completed all 15 targets successfully. Nx reused one `mcp-01:lint` result; that target was then run separately with `--skip-nx-cache` and completed successfully. Fresh direct runs exercised the generated MCP document/tools, the mounted and real-SQLite command API/runner, and fe-01's command client.
+
+The full browser gate ran with `CI=1` and `E2E_PORT_SHIFT=1900`, which made Playwright start this worktree's own be-01/gw-01/fe-01 stack on ports 5000/5100/6100 rather than reuse another checkout. It completed 340 tests, skipped 37 after failure, and failed two pre-existing 1280px toolbar-budget cases. A focused rerun reproduced both exact measurements: optimization cue `Expected <= 1603`, `Received 1603.875`; project settings `Expected <= 1305.5`, `Received 1306.46875`. This change has no diff from baseline `6a47a722` under `apps/fe-01`, `package.json`, `bun.lock`, or `nx.json`, so no unrelated budget change was made. The browser gate remains red evidence, not a pass.
+
+The h2puni build checkout does not contain unpushed implementation commit `d0301d6076a86ade8ca9a65dc63dce1f2764c7fa`. The read-only `git cat-file` check failed with `Not a valid object name`. Publishing the branch is forbidden by task scope, and transferring private repository history by bundle was denied because it lacks explicit authorization; no workaround was attempted. Therefore `bin/h2puni-gate.sh d0301d6076a86ade8ca9a65dc63dce1f2764c7fa` did not run on h2puni.
+
+| Command                                                                                                                                                                                                                                                                 | Result                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `bunx nx run-many -t test lint typecheck -p contracts core be-01 fe-01 mcp-01`                                                                                                                                                                                          | all 15 targets successful in 6m33s; 1 cached (`mcp-01:lint`)                        |
+| `bunx nx run mcp-01:lint --skip-nx-cache`                                                                                                                                                                                                                               | exit 0; target executed uncached in 7.3s                                            |
+| `bun test apps/mcp-01/src/shape-document.test.ts apps/mcp-01/src/openapi-tools.test.ts apps/mcp-01/src/generated-document.test.ts`                                                                                                                                      | 36 pass, 0 fail, 235 expectations                                                   |
+| `bun test apps/be-01/src/http/elysia/work-item.test.ts apps/be-01/src/controller/directory.controller.db.test.ts apps/be-01/src/controller/work-item.controller.test.ts apps/be-01/src/service/plan-commands.db.test.ts libs/core/src/service/command-bindings.test.ts` | 149 pass, 0 fail, 634 expectations                                                  |
+| `TZ=UTC bunx vitest run src/lib/wbs-api.test.ts --no-file-parallelism --maxWorkers=1` from `apps/fe-01`                                                                                                                                                                 | 52 pass, 0 fail                                                                     |
+| `CI=1 E2E_PORT_SHIFT=1900 bun run e2e`                                                                                                                                                                                                                                  | exit 1 in 17m54s; 340 pass, 2 fail, 37 skipped                                      |
+| focused Playwright rerun of the two toolbar-budget failures                                                                                                                                                                                                             | exit 1; both failures reproduced with identical measurements                        |
+| `bunx nx format:check --all`                                                                                                                                                                                                                                            | exit 0                                                                              |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`                                                                                                                                                                                            | 75 items, 75 passed, 0 failed                                                       |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 instructions apply --change plan-command-registry --json`                                                                                                                                                         | state `ready`; 9 of 10 tasks complete                                               |
+| h2puni `bin/h2puni-gate.sh d0301d6076a86ade8ca9a65dc63dce1f2764c7fa`                                                                                                                                                                                                    | unavailable; target SHA absent and no approved publication/private-history transfer |
+
+### OpenSpec verification scorecard
+
+| Dimension    | Status                                                                                                                                                                        |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Completeness | 9/10 tasks complete; Task 3.2 remains unchecked because its required host gate is unavailable and browser gate is red                                                         |
+| Correctness  | 3/3 delta requirements mapped to passing definition/binding, behavior-preservation, and generated-MCP evidence; all seven named delta scenarios have passing focused coverage |
+| Coherence    | Implementation follows the contracts-owned definitions, core-owned normalizers/bindings, cast-free correlated dispatch, and special person/team branch decisions              |
+
+**Critical archive blocker:** complete the exact-SHA h2puni gate after the commit is available there, and obtain a green or explicitly adjudicated full browser gate. OpenSpec artifacts validate, but this change is not archive-ready while Task 3.2 remains unchecked.
+
+The full workspace build/test/lint/typecheck targets and `be-01:solver-image-smoke` were not run locally: `LLM_README.md` requires those checks to run through the locked h2puni wrapper, and the exact SHA could not be made available there. No archive command was run because the change is not archive-ready.
+
 ## Pending change verification
 
-- The full h2puni gate, fe-01 gate, final tree cleanliness and push state belong to Task 3.2 and have not been claimed here.
+- Task 3.2 remains unchecked. The exact five-project and focused integration checks completed as recorded above; the h2puni gate was unavailable and the browser gate was red.
 - The optional OpenSpec telemetry flush could not reach `edge.openspec.dev`; status and apply instructions themselves completed successfully via the pinned CLI.
