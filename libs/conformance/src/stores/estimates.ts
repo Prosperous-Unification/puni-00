@@ -51,5 +51,57 @@ export function estimateRegistrations(open: OpenCase<'estimates'>): readonly Cas
       // the extra `work-a-two`.
       expect(held.map((estimate) => estimate.workItemId)).toEqual([kept]);
     }),
+    storeCase('estimates', 'estimates.moveAll:ownership', open, async ({ port, readers, seed }) => {
+      const [sourceId, targetId] = seed.workItemIds[0];
+      const [devId, qaId] = seed.stepIds[0];
+      await port.set(
+        { workItemId: sourceId, stepId: devId, optimistic: 1, realistic: 2, pessimistic: 4 },
+        seed.stamps[0],
+      );
+      await port.set(
+        { workItemId: sourceId, stepId: qaId, optimistic: 3, realistic: 5, pessimistic: 8 },
+        seed.stamps[0],
+      );
+      await port.set(
+        {
+          workItemId: seed.workItemIds[1][0],
+          stepId: seed.stepIds[1][0],
+          optimistic: 13,
+          realistic: 21,
+          pessimistic: 34,
+        },
+        seed.stamps[1],
+      );
+
+      expect(await readers.estimates.listByProject(seed.projectIds[0])).toEqual([
+        { workItemId: sourceId, stepId: devId, optimistic: 1, realistic: 2, pessimistic: 4 },
+        { workItemId: sourceId, stepId: qaId, optimistic: 3, realistic: 5, pessimistic: 8 },
+      ]);
+      expect(await readers.estimates.listByProject(seed.projectIds[1])).toEqual([
+        {
+          workItemId: seed.workItemIds[1][0],
+          stepId: seed.stepIds[1][0],
+          optimistic: 13,
+          realistic: 21,
+          pessimistic: 34,
+        },
+      ]);
+
+      await port.moveAll(sourceId, targetId, seed.stamps[1]);
+
+      expect(await readers.estimates.listByProject(seed.projectIds[0])).toEqual([
+        { workItemId: targetId, stepId: devId, optimistic: 1, realistic: 2, pessimistic: 4 },
+        { workItemId: targetId, stepId: qaId, optimistic: 3, realistic: 5, pessimistic: 8 },
+      ]);
+      expect(await readers.estimates.listByProject(seed.projectIds[1])).toEqual([
+        {
+          workItemId: seed.workItemIds[1][0],
+          stepId: seed.stepIds[1][0],
+          optimistic: 13,
+          realistic: 21,
+          pessimistic: 34,
+        },
+      ]);
+    }),
   ];
 }

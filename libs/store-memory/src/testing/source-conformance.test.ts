@@ -167,6 +167,7 @@ const openers: ExistingStoreOpeners = {
   workItems: (caseId) => openMemoryCase('workItems', caseId),
   steps: (caseId) => openMemoryCase('steps', caseId),
   estimates: (caseId) => openMemoryCase('estimates', caseId),
+  actuals: (caseId) => openMemoryCase('actuals', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
   eventLog: (caseId) => openMemoryCase('eventLog', caseId),
 };
@@ -177,6 +178,16 @@ const unknownStepGap = {
   evidence: {
     sourceRevision: '3161e5fc',
     assertion: 'estimate set returns unknown_step for an absent step',
+    observedFailure: 'Expected: "unknown_step"\nReceived: "written"',
+  },
+};
+
+const actualUnknownStepGap = {
+  caseId: 'actuals.set:unknown_step' as const,
+  reason: 'the memory actual fixture does not validate step references',
+  evidence: {
+    sourceRevision: '038078cf',
+    assertion: 'actual set returns unknown_step for an absent step',
     observedFailure: 'Expected: "unknown_step"\nReceived: "written"',
   },
 };
@@ -201,7 +212,12 @@ const priorityMissingProjectGap = {
   },
 };
 
-const knownGaps = [unknownStepGap, capacityMissingReferenceGap, priorityMissingProjectGap];
+const knownGaps = [
+  unknownStepGap,
+  actualUnknownStepGap,
+  capacityMissingReferenceGap,
+  priorityMissingProjectGap,
+];
 
 const declaration: SourceDeclaration = {
   name: 'memory',
@@ -226,6 +242,7 @@ const declaration: SourceDeclaration = {
     workItems: { kind: 'offered', gaps: [], open: openers.workItems },
     steps: { kind: 'offered', gaps: [], open: openers.steps },
     estimates: { kind: 'offered', gaps: [unknownStepGap], open: openers.estimates },
+    actuals: { kind: 'offered', gaps: [actualUnknownStepGap], open: openers.actuals },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
     eventLog: { kind: 'offered', gaps: [], open: openers.eventLog },
   } as unknown as Capabilities,
@@ -672,6 +689,110 @@ const frozenClearFault = defineFault({
   },
 });
 
+const estimateMoveOwnershipFault = defineFault({
+  id: 'break:estimates.moveAll:ownership',
+  caseId: 'estimates.moveAll:ownership',
+  createControl: () => createFaultControl('estimates.moveAll:ownership'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      estimates: replaceMethod(source.stores.estimates, 'moveAll', (moveAll) => {
+        return async (fromWorkItemId, toWorkItemId, stamp) => {
+          if (!control.reach('estimates.moveAll:ownership')) {
+            return moveAll(fromWorkItemId, toWorkItemId, stamp);
+          }
+          const estimates = await source.stores.estimates.listByProject(
+            DETERMINISTIC_SEED.projectIds[0],
+          );
+          for (const estimate of estimates.filter(
+            ({ workItemId }) => workItemId === fromWorkItemId,
+          )) {
+            await source.stores.estimates.set({ ...estimate, workItemId: toWorkItemId }, stamp);
+          }
+        };
+      }),
+    });
+  },
+});
+
+const actualReplaceRecordedAtFault = defineFault({
+  id: 'break:actuals.set:replace',
+  caseId: 'actuals.set:replace',
+  createControl: () => createFaultControl('actuals.set:replace'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      actuals: replaceMethod(source.stores.actuals, 'set', (set) => {
+        return (actual, stamp) =>
+          set(
+            actual.recordedAt === 201 && control.reach('actuals.set:replace')
+              ? { ...actual, recordedAt: 101 }
+              : actual,
+            stamp,
+          );
+      }),
+    });
+  },
+});
+
+const actualRemovePairFault = defineFault({
+  id: 'break:actuals.remove:pair',
+  caseId: 'actuals.remove:pair',
+  createControl: () => createFaultControl('actuals.remove:pair'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      actuals: replaceMethod(source.stores.actuals, 'remove', (remove) => {
+        return async (workItemId, stepId, stamp) => {
+          await remove(workItemId, stepId, stamp);
+          if (control.reach('actuals.remove:pair')) {
+            await remove(DETERMINISTIC_SEED.workItemIds[0][1], stepId, stamp);
+          }
+        };
+      }),
+    });
+  },
+});
+
+const actualMoveOwnershipFault = defineFault({
+  id: 'break:actuals.moveAll:ownership',
+  caseId: 'actuals.moveAll:ownership',
+  createControl: () => createFaultControl('actuals.moveAll:ownership'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      actuals: replaceMethod(source.stores.actuals, 'moveAll', (moveAll) => {
+        return async (fromWorkItemId, toWorkItemId, stamp) => {
+          if (!control.reach('actuals.moveAll:ownership')) {
+            return moveAll(fromWorkItemId, toWorkItemId, stamp);
+          }
+          const actuals = await source.stores.actuals.listByProject(
+            DETERMINISTIC_SEED.projectIds[0],
+          );
+          for (const actual of actuals.filter(({ workItemId }) => workItemId === fromWorkItemId)) {
+            await source.stores.actuals.set({ ...actual, workItemId: toWorkItemId }, stamp);
+          }
+        };
+      }),
+    });
+  },
+});
+
+const actualUnknownStepFault = defineFault({
+  id: 'break:actuals.set:unknown_step',
+  caseId: 'actuals.set:unknown_step',
+  createControl: () => createFaultControl('actuals.set:unknown_step'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      actuals: replaceMethod(source.stores.actuals, 'set', (set) => {
+        return (actual, stamp) =>
+          set(
+            actual.stepId === 'no-such-step' && control.reach('actuals.set:unknown_step')
+              ? { ...actual, stepId: DETERMINISTIC_SEED.stepIds[0][0] }
+              : actual,
+            stamp,
+          );
+      }),
+    });
+  },
+});
+
 interface FaultContext {
   readonly registration: ReturnType<typeof existingStoreRegistrations>[number];
   assertionFailure: string | null;
@@ -701,6 +822,7 @@ async function proveFault(fault: Fault<MemorySource>): Promise<FaultProof> {
         workItems: (caseId) => takeFixture('workItems', caseId),
         steps: (caseId) => takeFixture('steps', caseId),
         estimates: (caseId) => takeFixture('estimates', caseId),
+        actuals: (caseId) => takeFixture('actuals', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
       });
@@ -806,6 +928,12 @@ describe('memory existing source conformance', () => {
         executed: false,
       },
       {
+        family: 'actuals',
+        caseId: actualUnknownStepGap.caseId,
+        status: 'not-offered',
+        executed: false,
+      },
+      {
         family: 'capacity',
         caseId: capacityMissingReferenceGap.caseId,
         status: 'not-offered',
@@ -833,6 +961,20 @@ describe('memory existing source conformance', () => {
     // Proof: bypassing the declaration gap ran this shared case through
     // `openMemorySource`; Bun failed on `Expected: "unknown_step" · Received: "written"`.
     expect(observedFailure).toContain(unknownStepGap.evidence.observedFailure);
+  });
+
+  it("memory's actual unknown-step gap names an observed refusal mismatch", async () => {
+    const report = await runCases(existingStoreRegistrations(openers), {
+      focus: ['actuals.set:unknown_step'],
+    });
+    const execution = failedCase(report, 'actuals.set:unknown_step');
+    expect(execution?.status).toBe('failed');
+    if (execution?.status !== 'failed') throw new Error('actual unknown-step bypass did not fail');
+    expect(execution.assertionPhase).toBe('assertion');
+    const observedFailure = Bun.stripANSI(execution.failure);
+    // Proof: bypassing the actual gap through the real memory source failed on
+    // `Expected: "unknown_step" · Received: "written"`.
+    expect(observedFailure).toContain(actualUnknownStepGap.evidence.observedFailure);
   });
 
   it('reinjects project step, scope, and reader-order faults', async () => {
@@ -979,5 +1121,51 @@ describe('memory existing source conformance', () => {
     expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
       faults.map(({ caseId }) => ({ caseId, status: 'passed' })),
     );
+  });
+
+  it('reinjects estimate and actual ownership, pair, timestamp, and refusal faults', async () => {
+    const faults = [
+      estimateMoveOwnershipFault,
+      actualReplaceRecordedAtFault,
+      actualRemovePairFault,
+      actualMoveOwnershipFault,
+      actualUnknownStepFault,
+    ];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(faults.map(() => 'observed'));
+    expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual(
+      faults.map(({ caseId }) => caseId),
+    );
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    // Proof: copying estimates through the real set path without removing the
+    // source failed the ownership snapshot with 14 extra received diff lines.
+    expect(failures[0]).toContain('Received  + 14');
+    // Proof: retaining the first recording time on replacement failed with
+    // expected `recordedAt: 201` and received `recordedAt: 101`.
+    expect(failures[1]).toContain('"recordedAt": 101');
+    // Proof: broadening removal to the same step on `work-a-two` failed with
+    // that complete six-line survivor absent from the received array.
+    expect(failures[2]).toContain('"workItemId": "work-a-two"');
+    // Proof: copying actuals through the real set path without removing the
+    // source failed the ownership snapshot with 12 extra received diff lines.
+    expect(failures[3]).toContain('Received  + 12');
+    // Proof: writing the missing-step actual under a real step failed with
+    // expected `unknown_step` and received `written`.
+    expect(failures[4]).toContain('Received: "written"');
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      declaration,
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
+      { caseId: 'estimates.moveAll:ownership', status: 'passed' },
+      { caseId: 'actuals.set:replace', status: 'passed' },
+      { caseId: 'actuals.remove:pair', status: 'passed' },
+      { caseId: 'actuals.moveAll:ownership', status: 'passed' },
+      { caseId: 'actuals.set:unknown_step', status: 'not-offered' },
+    ]);
   });
 });

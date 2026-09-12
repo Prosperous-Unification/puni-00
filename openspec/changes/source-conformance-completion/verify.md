@@ -659,3 +659,54 @@ cannot be mixed. The four permanent faults still fail inside those complete
 snapshots. No Critical or Important finding remains. Task 3.1 is complete; the
 source change is now 8/24 tasks, and Task 3.2 is next. Review:
 `/tmp/source-conformance-3-1-astra-rereview.md`.
+
+## 2026-09-13 — task 3.2 estimate ownership and actuals implementation evidence
+
+The shared runner now registers `estimates.moveAll:ownership` and all four
+actual cases. Every case uses two seeded projects with two work items and two
+steps, distinct estimate values or actual timestamps, complete pre-operation
+public snapshots and an unchanged project-B sentinel. Settled assertions keep
+the complete composite keys, estimate trios, actual days and `recordedAt`.
+
+Memory's real unexcluded `actuals.set:unknown_step` run failed at the shared
+assertion with expected `unknown_step` and received `written`. That exact new
+gap is declared only after the observed run. The existing estimate unknown-step
+gap was bypassed again and remains open with the same mismatch. SQLite executed
+all five new cases and retains zero gaps.
+
+### Task 3.2 failure-proof table
+
+| Check                               | Fault injected through the real source                                                      | Production-path test                                                  | Observed failure                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Registration includes all five IDs  | Loaded the independent inventory before estimate ownership and actual registrations existed | `preserves the original IDs and adds each completed family inventory` | All five IDs were absent (Expected -5 / Received +0).                               |
+| Estimate move transfers ownership   | Copied both source trios through real `set` calls and omitted source removal                | Source-specific estimate/actual fault test                            | Both `work-a-one` trios remained beside the target trios (Received +14 diff lines). |
+| Actual replacement restamps the row | Replaced the days through real `set` while retaining the first `recordedAt`                 | Same source-specific fault test                                       | Expected `recordedAt: 201`; received 101.                                           |
+| Actual removal is pair-specific     | Invoked real removal for the requested pair and the same step on `work-a-two`               | Same source-specific fault test                                       | The complete `work-a-two`/`step-a-dev` survivor was absent.                         |
+| Actual move transfers ownership     | Copied both source rows through real `set` calls and omitted source removal                 | Same source-specific fault test                                       | Both `work-a-one` rows remained beside the target rows (Received +12 diff lines).   |
+| Actual set refuses a missing step   | Redirected the missing-step write through a real known-step `set` call                      | Same source-specific fault test                                       | Expected `unknown_step`; received `written`.                                        |
+
+All controls were inert during verified seed, armed afterward, reached their
+named phase and failed a settled shared assertion. Restored registrations ran
+against fresh sources: memory passed the four offered cases and reported its
+actual unknown-step gap as `not-offered`; SQLite passed all five.
+
+### Task 3.2 verification
+
+- Registration RED: 0 pass / 1 fail / 1 assertion, five IDs absent. Restored:
+  1/0/1.
+- Focused final runs: memory 4/0/464; SQLite 2/0/667. The memory run includes
+  both estimate and actual unknown-step bypass evidence.
+- Existing adapter coverage: SQLite estimate/actual suites 15/0/26; complete
+  memory-source suite 9/0/153.
+- Uncached normal targets: conformance 29/0/47; memory 33/0/1,294; SQLite
+  661/0/3,728 across 60 files.
+- All six uncached lint/typecheck targets for conformance, store-memory and
+  store-sqlite passed. Pinned OpenSpec strict validation passed; all-artifact
+  validation reported 75 passed and 0 failed. Formatting and diff results are
+  in the Task 3.2 report.
+
+The source-specific `test:conformance` targets remain deferred to Task 7.2 and
+are absent from the current project files. The full workspace, build, browser
+and deploy gates were not run because this slice adds shared conformance cases
+and test-only source decorators only. Task 3.2 remains unchecked pending
+independent review; Task 3.3 was not started.

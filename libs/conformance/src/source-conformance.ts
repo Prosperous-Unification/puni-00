@@ -2,6 +2,7 @@ import type { TransactionalStores } from '@wbs/core';
 
 import type { CaseId, CaseRegistration } from './case-manifest';
 import type { CaseFixture } from './source-declaration';
+import { actualRegistrations } from './stores/actuals';
 import { calendarMarkerRegistrations } from './stores/calendar-markers';
 import { capacityRegistrations } from './stores/capacity';
 import { directoryRegistrations } from './stores/directory';
@@ -26,6 +27,7 @@ export interface ExistingStoreOpeners {
   readonly workItems: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['workItems']>>;
   readonly steps: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['steps']>>;
   readonly estimates: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['estimates']>>;
+  readonly actuals: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['actuals']>>;
   readonly directory: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['directory']>>;
   readonly eventLog: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['eventLog']>>;
 }
@@ -43,6 +45,7 @@ export function existingStoreRegistrations(
     ...workItemRegistrations(openers.workItems),
     ...stepRegistrations(openers.steps),
     ...estimateRegistrations(openers.estimates),
+    ...actualRegistrations(openers.actuals),
     ...directoryRegistrations(openers.directory),
     ...eventLogRegistrations(openers.eventLog),
   ];

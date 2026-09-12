@@ -262,6 +262,7 @@ const openers: ExistingStoreOpeners = {
   workItems: (caseId) => openSqliteCase('workItems', caseId),
   steps: (caseId) => openSqliteCase('steps', caseId),
   estimates: (caseId) => openSqliteCase('estimates', caseId),
+  actuals: (caseId) => openSqliteCase('actuals', caseId),
   directory: (caseId) => openSqliteCase('directory', caseId),
   eventLog: (caseId) => openSqliteCase('eventLog', caseId),
 };
@@ -751,6 +752,110 @@ const frozenClearFault = defineFault({
   },
 });
 
+const estimateMoveOwnershipFault = defineFault({
+  id: 'break:estimates.moveAll:ownership',
+  caseId: 'estimates.moveAll:ownership',
+  createControl: () => createFaultControl('estimates.moveAll:ownership'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      estimates: replaceMethod(source.stores.estimates, 'moveAll', (moveAll) => {
+        return async (fromWorkItemId, toWorkItemId, stamp) => {
+          if (!control.reach('estimates.moveAll:ownership')) {
+            return moveAll(fromWorkItemId, toWorkItemId, stamp);
+          }
+          const estimates = await source.stores.estimates.listByProject(
+            DETERMINISTIC_SEED.projectIds[0],
+          );
+          for (const estimate of estimates.filter(
+            ({ workItemId }) => workItemId === fromWorkItemId,
+          )) {
+            await source.stores.estimates.set({ ...estimate, workItemId: toWorkItemId }, stamp);
+          }
+        };
+      }),
+    });
+  },
+});
+
+const actualReplaceRecordedAtFault = defineFault({
+  id: 'break:actuals.set:replace',
+  caseId: 'actuals.set:replace',
+  createControl: () => createFaultControl('actuals.set:replace'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      actuals: replaceMethod(source.stores.actuals, 'set', (set) => {
+        return (actual, stamp) =>
+          set(
+            actual.recordedAt === 201 && control.reach('actuals.set:replace')
+              ? { ...actual, recordedAt: 101 }
+              : actual,
+            stamp,
+          );
+      }),
+    });
+  },
+});
+
+const actualRemovePairFault = defineFault({
+  id: 'break:actuals.remove:pair',
+  caseId: 'actuals.remove:pair',
+  createControl: () => createFaultControl('actuals.remove:pair'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      actuals: replaceMethod(source.stores.actuals, 'remove', (remove) => {
+        return async (workItemId, stepId, stamp) => {
+          await remove(workItemId, stepId, stamp);
+          if (control.reach('actuals.remove:pair')) {
+            await remove(DETERMINISTIC_SEED.workItemIds[0][1], stepId, stamp);
+          }
+        };
+      }),
+    });
+  },
+});
+
+const actualMoveOwnershipFault = defineFault({
+  id: 'break:actuals.moveAll:ownership',
+  caseId: 'actuals.moveAll:ownership',
+  createControl: () => createFaultControl('actuals.moveAll:ownership'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      actuals: replaceMethod(source.stores.actuals, 'moveAll', (moveAll) => {
+        return async (fromWorkItemId, toWorkItemId, stamp) => {
+          if (!control.reach('actuals.moveAll:ownership')) {
+            return moveAll(fromWorkItemId, toWorkItemId, stamp);
+          }
+          const actuals = await source.stores.actuals.listByProject(
+            DETERMINISTIC_SEED.projectIds[0],
+          );
+          for (const actual of actuals.filter(({ workItemId }) => workItemId === fromWorkItemId)) {
+            await source.stores.actuals.set({ ...actual, workItemId: toWorkItemId }, stamp);
+          }
+        };
+      }),
+    });
+  },
+});
+
+const actualUnknownStepFault = defineFault({
+  id: 'break:actuals.set:unknown_step',
+  caseId: 'actuals.set:unknown_step',
+  createControl: () => createFaultControl('actuals.set:unknown_step'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      actuals: replaceMethod(source.stores.actuals, 'set', (set) => {
+        return (actual, stamp) =>
+          set(
+            actual.stepId === 'no-such-step' && control.reach('actuals.set:unknown_step')
+              ? { ...actual, stepId: DETERMINISTIC_SEED.stepIds[0][0] }
+              : actual,
+            stamp,
+          );
+      }),
+    });
+  },
+});
+
 const addFault = defineFault({
   id: 'break:steps.add',
   caseId: 'steps.add',
@@ -887,6 +992,7 @@ async function proveFault(
         workItems: (caseId) => takeFixture('workItems', caseId),
         steps: (caseId) => takeFixture('steps', caseId),
         estimates: (caseId) => takeFixture('estimates', caseId),
+        actuals: (caseId) => takeFixture('actuals', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
       });
@@ -1394,6 +1500,47 @@ describe('SQLite existing source conformance', () => {
     expect(failures[1]).toContain('"name": "Escaped rename"');
     expect(failures[2]).toContain('didRefuse: true');
     expect(failures[3]).toContain('frozenNumber: null');
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      faults.map(({ caseId }) => ({ caseId, status: 'passed' })),
+    );
+  });
+
+  it('reinjects estimate and actual ownership, pair, timestamp, and refusal faults', async () => {
+    const faults = [
+      estimateMoveOwnershipFault,
+      actualReplaceRecordedAtFault,
+      actualRemovePairFault,
+      actualMoveOwnershipFault,
+      actualUnknownStepFault,
+    ];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(faults.map(() => 'observed'));
+    expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual(
+      faults.map(({ caseId }) => caseId),
+    );
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    // Proof: copying estimates through the real set path without removing the
+    // source failed the ownership snapshot with 14 extra received diff lines.
+    expect(failures[0]).toContain('Received  + 14');
+    // Proof: retaining the first recording time on replacement failed with
+    // expected `recordedAt: 201` and received `recordedAt: 101`.
+    expect(failures[1]).toContain('"recordedAt": 101');
+    // Proof: broadening removal to the same step on `work-a-two` failed with
+    // that complete six-line survivor absent from the received array.
+    expect(failures[2]).toContain('"workItemId": "work-a-two"');
+    // Proof: copying actuals through the real set path without removing the
+    // source failed the ownership snapshot with 12 extra received diff lines.
+    expect(failures[3]).toContain('Received  + 12');
+    // Proof: accepting the missing step by writing under a real one failed
+    // with expected `unknown_step` and received `written`.
+    expect(failures[4]).toContain('Received: "written"');
 
     const restored = await runCases(existingStoreRegistrations(openers), {
       focus: faults.map(({ caseId }) => caseId),

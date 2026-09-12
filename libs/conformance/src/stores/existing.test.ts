@@ -14,12 +14,14 @@ describe('the migrated existing store kits', () => {
       workItems: unopened,
       steps: unopened,
       estimates: unopened,
+      actuals: unopened,
       directory: unopened,
       eventLog: unopened,
     });
 
-    // Proof: before workItemRegistrations joined the production catalog, this
-    // failed with all five workItems IDs absent (Expected -5 / Received +0).
+    // Proof: before estimate ownership and actualRegistrations joined the
+    // production catalog, this failed with their five IDs absent
+    // (`Expected - 5 / Received + 0`).
     expect(registrations.map(({ caseId }) => caseId)).toEqual([
       'projects.create:steps',
       'projects.update:scope',
@@ -48,6 +50,11 @@ describe('the migrated existing store kits', () => {
       'estimates.set:replace',
       'estimates.set:unknown_step',
       'estimates.remove',
+      'estimates.moveAll:ownership',
+      'actuals.set:replace',
+      'actuals.remove:pair',
+      'actuals.moveAll:ownership',
+      'actuals.set:unknown_step',
       'directory.addTag',
       'directory.assign:unknown_person',
       'eventLog.recordEvent',
