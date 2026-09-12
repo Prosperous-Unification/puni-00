@@ -1187,3 +1187,48 @@ workspace, build, browser, deploy, and h2puni SHA gate were skipped because
 the repair is confined to shared cases, inventory, and test-only fault and
 lifecycle seams and no commit was authorized. Completed task checkboxes and
 the pending Task 4.2 checkbox were unchanged; Task 4.3 was not started.
+
+### Task 4.2 Astra repair — late team phase and assignment subset
+
+The team atomicity decorator now performs the real name-only patch and verifies
+the complete escaped team plus both ownership sets through `listTeams` before
+marking `directory.patchTeam:atomic-refusal:early-rename` reached. It reaches
+immediately before the real combined rename/unknown-service patch. A permanent
+pre-write failure source on each adapter throws from the attempted name-only
+patch, records the complete unchanged two-team state, and counts one cleanup.
+Its proof is `phase-failed` with `fault did not reach
+directory.patchTeam:atomic-refusal:early-rename`.
+
+Moving `reach` back before the write made both permanent negatives fail: each
+proof became `observed` with `observedFailure: injected failure before early
+directory rename`. After restoration, the canonical proof still reaches the
+late phase and reports the precise complete-team name change from
+`Directory original` to `Directory escaped`.
+
+The assignment state now retains its existing all-item `assignmentsOf` read
+and adds a strict two-item project-A subset read at every initial, replacement,
+and clear settlement. The project-B assignment remains stored and visible
+through the other complete readers, but is absent from `ofSubset`. Permanent
+memory and SQLite faults ignore the subset by calling the real adapter reader
+with the omitted project-B item added; the shared assertion reports that
+complete row as received-extra. Forwarding the requested subset unchanged
+made the first proof `assertion-passed` on both sources.
+
+The current implemented inventory equality remains passing and includes both
+directory IDs. Fresh restored evidence:
+
+- Focused pre-write and canonical directory proofs: memory 2/0/96; SQLite
+  2/0/120.
+- Complete relevant runs: memory source files 34/0/2,025; SQLite source plus
+  directory/assignment adapters 41/0/2,853. The adapter-only directory and
+  assignment suites remain 15/0/56 within that run.
+- Uncached targets: conformance 29/0/48; store-memory 49/0/2,205;
+  store-sqlite 671/0/4,806 across 60 files.
+- All six lint/typecheck commands passed. Pinned OpenSpec 1.3.0 strict
+  validation passed, and all-artifact JSON validation reported 75/75.
+
+Nx used its in-process plugin fallback because sandbox policy denied its
+plugin-worker socket. Full workspace, build, browser, deploy, and h2puni SHA
+gate were skipped because this repair changes only shared observations and
+test fault/proof seams and no commit was authorized. Task 4.2 remains
+unchecked pending rereview; Task 4.3 was not started.

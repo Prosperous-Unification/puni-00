@@ -33,14 +33,17 @@ async function assignmentState(
 ) {
   const [firstItemId, secondItemId, otherProjectItemId] = workItemIds;
   const [firstProjectId, otherProjectId] = projectIds;
-  const [first, second, otherProject, selected, firstProject, projectB] = await Promise.all([
-    directory.assignmentsFor(firstItemId),
-    directory.assignmentsFor(secondItemId),
-    directory.assignmentsFor(otherProjectItemId),
-    directory.assignmentsOf(workItemIds),
-    directory.assignmentsInProject(firstProjectId),
-    directory.assignmentsInProject(otherProjectId),
-  ]);
+  const [first, second, otherProject, selected, subset, firstProject, projectB] = await Promise.all(
+    [
+      directory.assignmentsFor(firstItemId),
+      directory.assignmentsFor(secondItemId),
+      directory.assignmentsFor(otherProjectItemId),
+      directory.assignmentsOf(workItemIds),
+      directory.assignmentsOf([firstItemId, secondItemId]),
+      directory.assignmentsInProject(firstProjectId),
+      directory.assignmentsInProject(otherProjectId),
+    ],
+  );
   return {
     forItems: [
       { workItemId: firstItemId, assignments: byAssignment(first) },
@@ -48,6 +51,7 @@ async function assignmentState(
       { workItemId: otherProjectItemId, assignments: byAssignment(otherProject) },
     ],
     ofItems: byAssignment(selected),
+    ofSubset: byAssignment(subset),
     inProjects: [
       {
         projectId: firstProjectId,
@@ -104,6 +108,9 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
             { workItemId: otherProjectItemId, assignments: [otherProject] },
           ],
           ofItems: byAssignment([...projectA, otherProject]),
+          // Proof: ignored-subset faults return the complete project-B row as
+          // an extra record here while every seeded assignment remains stored.
+          ofSubset: byAssignment(projectA),
           inProjects: [
             {
               projectId: seed.projectIds[0],

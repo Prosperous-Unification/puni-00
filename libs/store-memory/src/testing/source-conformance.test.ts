@@ -21,7 +21,13 @@ import {
   type SourceDeclaration,
   type SourceReaders,
 } from '@wbs/conformance';
-import type { StoredDependency, StoredProgress, TransactionalStores, User } from '@wbs/core';
+import type {
+  StoredDependency,
+  StoredProgress,
+  TeamWithServices,
+  TransactionalStores,
+  User,
+} from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
@@ -1248,6 +1254,31 @@ const dependencyInputMutationFault = defineFault({
   },
 });
 
+const directoryAssignmentsOfSubsetFault = defineFault({
+  id: 'break:directory.assign:scope-replace-clear',
+  caseId: 'directory.assign:scope-replace-clear',
+  createControl: () => createFaultControl('directory.assign:scope-replace-clear:subset'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      directory: replaceMethod(source.stores.directory, 'assignmentsOf', (assignmentsOf) => {
+        return (workItemIds) => {
+          const requested = DETERMINISTIC_SEED.workItemIds[0];
+          if (
+            workItemIds.length !== requested.length ||
+            !requested.every((id, index) => workItemIds[index] === id)
+          ) {
+            return assignmentsOf(workItemIds);
+          }
+          control.reach('directory.assign:scope-replace-clear:subset');
+          // Proof: forwarding only workItemIds made this focused fault
+          // assertion-passed; this real reader call ignores the strict subset.
+          return assignmentsOf([...workItemIds, DETERMINISTIC_SEED.workItemIds[1][0]]);
+        };
+      }),
+    });
+  },
+});
+
 const directoryAssignmentScopeFault = defineFault({
   id: 'break:directory.assign:scope-replace-clear',
   caseId: 'directory.assign:scope-replace-clear',
@@ -1294,7 +1325,6 @@ const directoryTeamAtomicityFault = defineFault({
           ) {
             return patchTeam(teamId, patch, stamp);
           }
-          control.reach('directory.patchTeam:atomic-refusal:early-rename');
           expect(await patchTeam(teamId, { name: patch.name }, stamp)).toEqual({
             ok: true,
             team: {
@@ -1322,6 +1352,7 @@ const directoryTeamAtomicityFault = defineFault({
               serviceIds: ['directory-service-sentinel'],
             },
           ]);
+          control.reach('directory.patchTeam:atomic-refusal:early-rename');
           return patchTeam(teamId, patch, stamp);
         };
       }),
@@ -1506,6 +1537,38 @@ function failedCase(report: ExecutionReport, caseId: CaseId) {
 
 interface MemoryLifecycleProbe {
   closeCalls: number;
+}
+
+interface DirectoryPrewriteProbe extends MemoryLifecycleProbe {
+  attempts: number;
+  teams: TeamWithServices[] | null;
+}
+
+function openDirectoryPrewriteFailureSource(probe: DirectoryPrewriteProbe): MemorySource {
+  const source = openConformanceMemorySource();
+  return withStores(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    },
+    {
+      directory: replaceMethod(source.stores.directory, 'patchTeam', (patchTeam) => {
+        return async (teamId, patch, stamp) => {
+          if (patch.name === 'Directory escaped' && patch.serviceIds === undefined) {
+            probe.attempts += 1;
+            probe.teams = (await source.stores.directory.listTeams())
+              .map((team) => ({ ...team, serviceIds: team.serviceIds.toSorted() }))
+              .toSorted((left, right) => left.id.localeCompare(right.id));
+            throw new Error('injected failure before early directory rename');
+          }
+          return patchTeam(teamId, patch, stamp);
+        };
+      }),
+    },
+  );
 }
 
 function openDependencySeedFailureSource(
@@ -2470,28 +2533,76 @@ describe('memory existing source conformance', () => {
     ]);
   });
 
+  it('rejects a pre-write team fault before the atomicity phase', async () => {
+    const probe: DirectoryPrewriteProbe = {
+      attempts: 0,
+      closeCalls: 0,
+      teams: null,
+    };
+    const proof = await proveFault(directoryTeamAtomicityFault, () =>
+      openDirectoryPrewriteFailureSource(probe),
+    );
+
+    // Proof: reaching before the name-only write returned `observed`; moving
+    // reach after its complete public verification returns phase-failed.
+    expect(proof).toEqual({
+      kind: 'phase-failed',
+      faultId: 'break:directory.patchTeam:atomic-refusal',
+      caseId: 'directory.patchTeam:atomic-refusal',
+      phase: 'directory.patchTeam:atomic-refusal:early-rename',
+      failure: 'fault did not reach directory.patchTeam:atomic-refusal:early-rename',
+    });
+    expect(probe).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      teams: [
+        {
+          id: 'team-a',
+          name: 'Directory original',
+          serviceIds: ['service-a'],
+        },
+        {
+          id: 'team-b',
+          name: 'Team 2',
+          serviceIds: ['directory-service-sentinel'],
+        },
+      ],
+    });
+  });
+
   it('reinjects directory assignment scope and team atomicity faults', async () => {
-    const faults = [directoryAssignmentScopeFault, directoryTeamAtomicityFault];
+    const faults = [
+      directoryAssignmentsOfSubsetFault,
+      directoryAssignmentScopeFault,
+      directoryTeamAtomicityFault,
+    ];
     const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
 
-    expect(proofs.map(({ kind }) => kind)).toEqual(['observed', 'observed']);
+    expect(proofs.map(({ kind }) => kind)).toEqual(['observed', 'observed', 'observed']);
     expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual([
+      'directory.assign:scope-replace-clear:subset',
       'directory.assign:scope-replace-clear:pair-scope',
       'directory.patchTeam:atomic-refusal:early-rename',
     ]);
     const failures = proofs.map((proof) =>
       proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
     );
+    // Proof: ignoring the strict subset adds this complete project-B row.
+    expect(failures[0]).toContain(`+     {
++       "personId": "person-b",
++       "stepId": "step-b-dev",
++       "workItemId": "work-b-one",
++     },`);
     // Proof: broad replacement removes this complete expected same-step
     // survivor from the coherent assignment snapshots.
-    expect(failures[0]).toContain(`-         {
+    expect(failures[1]).toContain(`-         {
 -           "personId": "person-a",
 -           "stepId": "step-a-dev",
 -           "workItemId": "work-a-two",
 -         },`);
     // Proof: the early real rename preserves ownership but changes the
     // complete received target team name after the refusal settles.
-    expect(failures[1]).toContain(`    {
+    expect(failures[2]).toContain(`    {
       "id": "team-a",
 -     "name": "Directory original",
 +     "name": "Directory escaped",
