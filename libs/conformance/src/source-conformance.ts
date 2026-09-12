@@ -28,7 +28,7 @@ export interface SourceUnderTest {
  * opened anything — the first version read the fixture here and threw
  * `the source was read before it was opened` on every case.
  */
-export interface SourceDeclaration {
+export interface LegacySourceDeclaration {
   /** What the report calls it — `SQLite`, `in-memory`. */
   name: string;
   /**
@@ -261,7 +261,7 @@ async function aWorkItem(source: SourceUnderTest): Promise<string> {
  * `bun:test` and carried out in the report; nothing is quietly not run.
  */
 export function sourceConformance(
-  source: SourceDeclaration,
+  source: LegacySourceDeclaration,
   open: () => SourceUnderTest,
 ): ConformanceReport {
   const declared = source.notOffered ?? [];
