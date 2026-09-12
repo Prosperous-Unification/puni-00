@@ -1,4 +1,5 @@
 import type { CaseId } from '../case-manifest';
+import { failureMessage } from '../failure-message';
 
 export type FaultId = `break:${CaseId}`;
 
@@ -129,10 +130,6 @@ export interface FaultProofPlan<
   assert(context: Context): Promise<void>;
 }
 
-function messageOf(failure: unknown): string {
-  return failure instanceof Error ? failure.message : String(failure);
-}
-
 /** Accepts a broken assertion only after verified setup and its named phase. */
 export async function recordFaultProof<
   Context,
@@ -166,7 +163,7 @@ export async function recordFaultProof<
       kind: 'setup-failed',
       faultId: fault.id,
       caseId: fault.caseId,
-      failure: messageOf(failure),
+      failure: failureMessage(failure),
     };
   }
 
@@ -179,7 +176,7 @@ export async function recordFaultProof<
       faultId: fault.id,
       caseId: fault.caseId,
       phase: control.phase,
-      failure: messageOf(failure),
+      failure: failureMessage(failure),
     };
   }
   if (!control.reached()) {
@@ -207,7 +204,7 @@ export async function recordFaultProof<
       caseId: fault.caseId,
       phase: control.phase,
       assertion: plan.assertion,
-      observedFailure: messageOf(failure),
+      observedFailure: failureMessage(failure),
     };
   }
 }

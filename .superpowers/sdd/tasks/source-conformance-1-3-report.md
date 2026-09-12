@@ -81,3 +81,27 @@ relevant lint/typecheck targets passed, including the missing-family compile
 fixture. OpenSpec strict validation and all 75 artifacts passed. No later
 family or adapter behavior was added; full workspace, build, browser and deploy
 checks remain skipped as outside this correction's surface.
+
+## Astra diagnostic rereview correction
+
+The remaining defect was at both report boundaries: `runCases` and
+`recordFaultProof` reduced every `Error` to `.message`, so the aggregate created
+by correct SQLite cleanup ownership lost all of its members. A shared internal
+renderer now retains aggregate context and recursively renders ordered members,
+including nested cleanup aggregates. The public report shapes remain closed and
+unchanged.
+
+Two tests use the real SQLite source, seed path, close and temporary directory.
+Before the renderer, the returned `ExecutionReport` failed on `Expected to
+contain: "original report setup sentinel"; Received: "SQLite conformance setup
+and cleanup failed"`; the returned `FaultProof` failed equivalently for
+`original proof setup sentinel`. Restored tests assert the full stable strings,
+correct setup classifications, one close and removed directories. Existing
+seed-time and cleanup-time false-proof tests remain green.
+
+Verification: focused SQLite conformance passed 8 tests/282 assertions;
+conformance passed 29/47; memory passed 23/226; and the complete SQLite target
+passed 653 tests with 2,291 assertions across 60 files. Relevant lint,
+typecheck, formatting and OpenSpec results are recorded in `verify.md`. No
+later family was added; workspace, build, browser and deploy gates remain
+skipped as outside this diagnostic-only correction.

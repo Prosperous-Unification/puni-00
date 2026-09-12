@@ -484,6 +484,114 @@ describe('SQLite existing source conformance', () => {
     expect(existsSync(directory)).toBe(false);
   });
 
+  it('the execution report surfaces nested SQLite setup and cleanup failures', async () => {
+    let closeCalls = 0;
+    let directory = '';
+    const report = await runCases(
+      [
+        {
+          family: 'steps',
+          caseId: 'steps.add',
+          async openAndRun() {
+            const fixture = await openSqliteCase('steps', 'steps.add', (options) => {
+              directory = dirname(options.dbPath);
+              const source = openSqliteSource(options);
+              return {
+                ...source,
+                stores: {
+                  ...source.stores,
+                  users: replaceMethod(
+                    source.stores.users,
+                    'create',
+                    () => () => Promise.reject(new Error('original report setup sentinel')),
+                  ),
+                },
+                async close() {
+                  closeCalls += 1;
+                  await source.close();
+                  throw new AggregateError(
+                    [
+                      new Error('report cleanup sentinel'),
+                      new AggregateError(
+                        [new Error('report nested cleanup sentinel')],
+                        'nested report cleanup',
+                      ),
+                    ],
+                    'report cleanup',
+                  );
+                },
+              };
+            });
+            return {
+              fixtureId: fixture.fixtureId,
+              assert: () => Promise.resolve(),
+              close: () => fixture.close(),
+            };
+          },
+        },
+      ],
+      { focus: ['steps.add'] },
+    );
+
+    const execution = report.cases[0];
+    expect(execution.status).toBe('failed');
+    if (execution.status !== 'failed') throw new Error('expected failed report evidence');
+    expect(execution.assertionPhase).toBe('setup');
+    // Proof: flattening the real setup AggregateError to `.message` failed on
+    // `Expected to contain: "original report setup sentinel"; Received:
+    // "SQLite conformance setup and cleanup failed"`.
+    expect(execution.failure).toBe(
+      'SQLite conformance setup and cleanup failed: [original report setup sentinel; report cleanup: [report cleanup sentinel; nested report cleanup: [report nested cleanup sentinel]]]',
+    );
+    expect(closeCalls).toBe(1);
+    expect(existsSync(directory)).toBe(false);
+  });
+
+  it('the fault proof surfaces nested SQLite setup and cleanup failures', async () => {
+    let closeCalls = 0;
+    let directory = '';
+    const proof = await proveFault(addFault, (options) => {
+      directory = dirname(options.dbPath);
+      const source = openSqliteSource(options);
+      return {
+        ...source,
+        stores: {
+          ...source.stores,
+          users: replaceMethod(
+            source.stores.users,
+            'create',
+            () => () => Promise.reject(new Error('original proof setup sentinel')),
+          ),
+        },
+        async close() {
+          closeCalls += 1;
+          await source.close();
+          throw new AggregateError(
+            [
+              new Error('proof cleanup sentinel'),
+              new AggregateError(
+                [new Error('proof nested cleanup sentinel')],
+                'nested proof cleanup',
+              ),
+            ],
+            'proof cleanup',
+          );
+        },
+      };
+    });
+
+    expect(proof.kind).toBe('setup-failed');
+    if (proof.kind !== 'setup-failed') throw new Error('expected failed proof setup');
+    // Proof: flattening the proof AggregateError to `.message` failed on
+    // `Expected to contain: "original proof setup sentinel"; Received:
+    // "SQLite conformance setup and cleanup failed"`.
+    expect(proof.failure).toBe(
+      'SQLite conformance setup and cleanup failed: [original proof setup sentinel; proof cleanup: [proof cleanup sentinel; nested proof cleanup: [proof nested cleanup sentinel]]]',
+    );
+    expect(closeCalls).toBe(1);
+    expect(existsSync(directory)).toBe(false);
+  });
+
   it('a seed failure cannot become an observed shared-case assertion', async () => {
     let reachedDuringSeed = false;
     const seedFault = defineFault({

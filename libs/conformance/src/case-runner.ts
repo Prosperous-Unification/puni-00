@@ -1,4 +1,5 @@
 import type { CaseId, CaseRegistration } from './case-manifest';
+import { failureMessage } from './failure-message';
 import type { SourceDeclaration } from './source-declaration';
 
 export type TerminalCaseStatus = 'passed' | 'failed' | 'not-offered' | 'incomplete';
@@ -52,10 +53,6 @@ export interface RunCasesOptions {
   readonly declaration?: SourceDeclaration;
 }
 
-function messageOf(failure: unknown): string {
-  return failure instanceof Error ? failure.message : String(failure);
-}
-
 async function runCase(registration: CaseRegistration): Promise<CaseExecution> {
   const executionStartedAt = Date.now();
   if (registration.openAndRun === undefined) {
@@ -79,7 +76,7 @@ async function runCase(registration: CaseRegistration): Promise<CaseExecution> {
       executionStartedAt,
       executionEndedAt: Date.now(),
       assertionPhase: 'setup',
-      failure: messageOf(failure),
+      failure: failureMessage(failure),
     };
   }
 
@@ -95,7 +92,7 @@ async function runCase(registration: CaseRegistration): Promise<CaseExecution> {
   try {
     await lifecycle.close();
   } catch (failure) {
-    const cleanupFailure = messageOf(failure);
+    const cleanupFailure = failureMessage(failure);
     return {
       family: registration.family,
       caseId: registration.caseId,
@@ -107,7 +104,7 @@ async function runCase(registration: CaseRegistration): Promise<CaseExecution> {
       assertionPhase: 'cleanup',
       failure: !didAssertionFail
         ? cleanupFailure
-        : `${messageOf(assertionFailure)}; cleanup failed: ${cleanupFailure}`,
+        : `${failureMessage(assertionFailure)}; cleanup failed: ${cleanupFailure}`,
     };
   }
 
@@ -121,7 +118,7 @@ async function runCase(registration: CaseRegistration): Promise<CaseExecution> {
       executionStartedAt,
       executionEndedAt: Date.now(),
       assertionPhase: 'assertion',
-      failure: messageOf(assertionFailure),
+      failure: failureMessage(assertionFailure),
     };
   }
 

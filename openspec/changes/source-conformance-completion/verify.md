@@ -288,3 +288,36 @@ failures rather than assertion observations.
 No later source family was implemented. The full workspace, build, deploy and
 browser gates remain skipped because this correction changes only test fixture
 ownership and certification classification.
+
+## 2026-09-12 — task 1.3 Astra diagnostic correction
+
+The execution runner and fault-proof recorder now use one internal failure
+renderer. It retains an aggregate's own context and recursively renders its
+members in insertion order, so setup, cleanup and nested cleanup failures
+survive both returned certification-report boundaries.
+
+### Diagnostic failure-proof table
+
+| Check                                              | Fault injected                                                                                                  | Production-path test                                                     | Observed RED                                                                                            |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `ExecutionReport` retains all setup/cleanup causes | The real SQLite seed rejected, then actual source close threw a cleanup aggregate containing a nested aggregate | `the execution report surfaces nested SQLite setup and cleanup failures` | Expected `original report setup sentinel`; received only `SQLite conformance setup and cleanup failed`. |
+| `FaultProof` retains all setup/cleanup causes      | The same real SQLite setup/cleanup shape ran through `recordFaultProof`                                         | `the fault proof surfaces nested SQLite setup and cleanup failures`      | Expected `original proof setup sentinel`; received only `SQLite conformance setup and cleanup failed`.  |
+
+Both restored tests assert the complete surfaced string, including the outer
+context, original setup sentinel, cleanup sentinel and nested cleanup sentinel.
+They also retain setup classification, require one real close and verify the
+temporary directory is absent.
+
+### Diagnostic correction verification
+
+- Focused SQLite source-conformance file: 8 pass, 0 fail, 282 assertions.
+- Conformance target: 29 pass, 0 fail, 47 assertions.
+- Memory target: 23 pass, 0 fail, 226 assertions.
+- Full SQLite target: 653 pass, 0 fail, 2,291 assertions across 60 files.
+- All six conformance/memory/SQLite lint and typecheck targets succeeded; the
+  missing-family compile fixture remains active.
+- OpenSpec strict validation succeeded and all 75 artifacts passed.
+
+No later source family was implemented. Full workspace, build, deploy and
+browser gates remain skipped because this correction changes only shared
+conformance diagnostic rendering and its real SQLite probes.
