@@ -984,3 +984,56 @@ full workspace, build, browser, deploy and h2puni SHA gate were skipped as
 outside this shared conformance/test-decorator slice and because no commit was
 authorized. Task 4.1 remains unchecked pending independent review; Task 4.2 was
 not started.
+
+### Task 4.1 Astra repair — independent oracles, durable sequence fault and memory ownership
+
+Dependency cases now pass a structured clone to every `add`, leaving each
+complete expected edge independent from the source input. Permanent mutation
+faults change the original input ID in place on both real source paths and the
+setup-list assertion reports the signed complete-edge replacement from
+`dependency-idempotent-original` to `dependency-idempotent-mutated`. Removing
+the clone made both source proof suites report `assertion-passed` for that
+fault; restoring it returned both suites to passing proof observations.
+
+The ID-keyed fault forwards the first three adds unchanged and checks after
+each that its target phase has not been reached. It arms only for the second ID
+on the established ordered pair, then removes the original pair and inserts
+the second ID through the real dependency port. Both source-owned public lists
+therefore report the exact signed original-to-second-ID replacement. Injecting
+premature reach on either source failed with `dependency ID fault reached
+during setup`; restoration passed both focused suites.
+
+The retained-MAX fault now changes actual allocation state before the real
+append: memory resets its adapter-owned `nextSeq` map from retained rows, and
+SQLite updates `event_sequencer.next_seq`. Each decorator verifies through the
+public range and `latestSeq` APIs that the stored record and returned record
+both carry sequence 0, then the shared case's first next-record assertion
+reports the exact sequence 2 to 0 change. Disabling either persistence seam
+made its proof `assertion-passed`; restoration returned both focused proofs to
+passing observations.
+
+Memory base seeding and family companion seeding now share one cleanup owner
+for ordinary and proof entry paths. Permanent negatives reject the second
+dependency survivor insert. Bypassing that owner produced `closeCalls = 0` in
+both paths and replaced the expected aggregate with the lone setup error.
+Restored tests close once in both failure paths, retain both setup and cleanup
+errors in one `AggregateError`, and leave a successful fixture open until its
+single normal teardown.
+
+Fresh terminal evidence after restoration:
+
+- Focused repair proofs: memory dependency 1/0/111 and event 1/0/45; SQLite
+  dependency 1/0/143 and event 1/0/53. Memory lifecycle 4/0/43.
+- Full uncached targets: conformance 29/0/47; memory 43/0/1,927; SQLite
+  669/0/4,514 across 60 files.
+- Existing adapter suites: memory source 9/0/153; SQLite dependency/event-log
+  16/0/27.
+- All six uncached lint/typecheck targets passed for conformance, store-memory
+  and store-sqlite.
+- Pinned OpenSpec 1.3.0 strict validation reported the change valid; all
+  artifacts reported 75 passed and 0 failed.
+
+Task 4.1 stays unchecked for review. The absent source-specific conformance
+targets remain owned by Task 7.2. The full workspace, build, browser, deploy
+and h2puni SHA gates were skipped; this repair is confined to source
+conformance/test seams, and no commit was authorized.

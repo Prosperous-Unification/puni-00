@@ -21,19 +21,31 @@ import {
   type SourceDeclaration,
   type SourceReaders,
 } from '@wbs/conformance';
-import type { StoredDependency, StoredProgress, TransactionalStores, User } from '@wbs/core';
+import type { StoredProgress, TransactionalStores, User } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { projectRow } from '../project-fixture';
-import { openMemorySource } from '../source';
+import { openMemorySourceFixture } from '../source';
 
 type ExistingFamily = keyof ExistingStoreOpeners;
-type MemorySource = ReturnType<typeof openMemorySource>;
+type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
+  deriveNextEventSeqFromRetained(subscription: string): void;
+};
 type OpenSource = () => MemorySource;
 
-function readersOf(source: ReturnType<typeof openMemorySource>): SourceReaders {
+function openConformanceMemorySource(): MemorySource {
+  const fixture = openMemorySourceFixture();
+  return {
+    ...fixture.source,
+    deriveNextEventSeqFromRetained: (subscription) => {
+      fixture.deriveNextEventSeqFromRetained(subscription);
+    },
+  };
+}
+
+function readersOf(source: MemorySource): SourceReaders {
   return {
     projects: source.stores.projects,
     workItems: source.stores.workItems,
@@ -50,67 +62,91 @@ function readersOf(source: ReturnType<typeof openMemorySource>): SourceReaders {
   };
 }
 
-async function seedMemorySource(openSource: OpenSource = openMemorySource): Promise<MemorySource> {
+async function throwAfterMemoryCleanup(failure: unknown, source: MemorySource): Promise<never> {
+  try {
+    await source.close();
+  } catch (cleanupFailure) {
+    throw new AggregateError(
+      [failure, cleanupFailure],
+      'memory source setup and cleanup both failed',
+      { cause: cleanupFailure },
+    );
+  }
+  throw failure;
+}
+
+async function seedMemorySource(
+  openSource: OpenSource = openConformanceMemorySource,
+  finishSeed?: (source: MemorySource) => Promise<void>,
+): Promise<MemorySource> {
   const source = openSource();
-  const { stores } = source;
-  const seed = DETERMINISTIC_SEED;
-  for (const [index, ownerId] of seed.ownerIds.entries()) {
-    const stamp = seed.stamps[index] ?? seed.stamps[0];
-    await stores.users.create(
-      {
-        id: ownerId,
-        username: `owner-${String(index + 1)}`,
-        passwordHash: 'x',
-        createdAt: stamp.at,
-      },
-      stamp,
-    );
-    const projectId = seed.projectIds[index] ?? seed.projectIds[0];
-    const stepIds = seed.stepIds[index] ?? seed.stepIds[0];
-    const starting = stepIds.map((id, stepIndex) => ({
-      id,
-      projectId,
-      name: stepIndex === 0 ? 'Dev' : 'QA',
-      position: (stepIndex + 1) * 10,
-    }));
-    await stores.projects.create(
-      projectRow({
-        id: projectId,
-        ownerId,
-        name: `Project ${String(index + 1)}`,
-        createdAt: stamp.at,
-      }),
-      starting,
-      stamp,
-    );
-    for (const step of starting) await stores.steps.add(step, stamp);
-    const workItemIds = seed.workItemIds[index] ?? seed.workItemIds[0];
-    for (const [rowIndex, id] of workItemIds.entries()) {
-      await stores.workItems.insert(
-        workItemRow({ id, projectId, name: `Work ${String(rowIndex + 1)}` }),
-        [],
+  try {
+    const { stores } = source;
+    const seed = DETERMINISTIC_SEED;
+    for (const [index, ownerId] of seed.ownerIds.entries()) {
+      const stamp = seed.stamps[index] ?? seed.stamps[0];
+      await stores.users.create(
+        {
+          id: ownerId,
+          username: `owner-${String(index + 1)}`,
+          passwordHash: 'x',
+          createdAt: stamp.at,
+        },
         stamp,
       );
+      const projectId = seed.projectIds[index] ?? seed.projectIds[0];
+      const stepIds = seed.stepIds[index] ?? seed.stepIds[0];
+      const starting = stepIds.map((id, stepIndex) => ({
+        id,
+        projectId,
+        name: stepIndex === 0 ? 'Dev' : 'QA',
+        position: (stepIndex + 1) * 10,
+      }));
+      await stores.projects.create(
+        projectRow({
+          id: projectId,
+          ownerId,
+          name: `Project ${String(index + 1)}`,
+          createdAt: stamp.at,
+        }),
+        starting,
+        stamp,
+      );
+      for (const step of starting) await stores.steps.add(step, stamp);
+      const workItemIds = seed.workItemIds[index] ?? seed.workItemIds[0];
+      for (const [rowIndex, id] of workItemIds.entries()) {
+        await stores.workItems.insert(
+          workItemRow({ id, projectId, name: `Work ${String(rowIndex + 1)}` }),
+          [],
+          stamp,
+        );
+      }
     }
-  }
-  for (const [index, teamId] of seed.teamIds.entries()) {
-    await stores.directory.addTeam(
-      { id: teamId, name: `Team ${String(index + 1)}` },
+    for (const [index, teamId] of seed.teamIds.entries()) {
+      await stores.directory.addTeam(
+        { id: teamId, name: `Team ${String(index + 1)}` },
+        seed.stamps[0],
+      );
+    }
+    await stores.directory.addTag({ id: seed.tagIds[0], name: 'Tag 1' }, seed.stamps[0]);
+    await stores.directory.addService(
+      { id: seed.serviceIds[0], name: 'Service 1' },
       seed.stamps[0],
     );
+    await stores.directory.addWorkItemType({ id: seed.typeIds[0], name: 'Type 1' }, seed.stamps[0]);
+    for (const [index, personId] of seed.personIds.entries()) {
+      await stores.directory.addPerson(
+        { id: personId, name: `Person ${String(index + 1)}` },
+        [seed.teamIds[index] ?? seed.teamIds[0]],
+        seed.stamps[0],
+      );
+    }
+    await verifyMemorySeed(source);
+    await finishSeed?.(source);
+    return source;
+  } catch (failure) {
+    return await throwAfterMemoryCleanup(failure, source);
   }
-  await stores.directory.addTag({ id: seed.tagIds[0], name: 'Tag 1' }, seed.stamps[0]);
-  await stores.directory.addService({ id: seed.serviceIds[0], name: 'Service 1' }, seed.stamps[0]);
-  await stores.directory.addWorkItemType({ id: seed.typeIds[0], name: 'Type 1' }, seed.stamps[0]);
-  for (const [index, personId] of seed.personIds.entries()) {
-    await stores.directory.addPerson(
-      { id: personId, name: `Person ${String(index + 1)}` },
-      [seed.teamIds[index] ?? seed.teamIds[0]],
-      seed.stamps[0],
-    );
-  }
-  await verifyMemorySeed(source);
-  return source;
 }
 
 async function verifyMemorySeed(source: MemorySource): Promise<void> {
@@ -155,11 +191,12 @@ function memoryFixture<Family extends ExistingFamily>(
 async function openMemoryCase<Family extends ExistingFamily>(
   family: Family,
   caseId: CaseId,
-  openSource: OpenSource = openMemorySource,
+  openSource: OpenSource = openConformanceMemorySource,
 ): Promise<CaseFixture<TransactionalStores[Family]>> {
-  const source = await seedMemorySource(openSource);
-  if (family === 'progress') await seedProgressStep(source);
-  if (family === 'dependencies') await seedDependencyWorkItems(source);
+  const source = await seedMemorySource(openSource, async (seeded) => {
+    if (family === 'progress') await seedProgressStep(seeded);
+    if (family === 'dependencies') await seedDependencyWorkItems(seeded);
+  });
   return memoryFixture(source, family, caseId);
 }
 
@@ -1125,27 +1162,43 @@ const dependencyIdFault = defineFault({
   caseId: 'dependencies.add:idempotent-pair',
   createControl: () => createFaultControl('dependencies.add:idempotent-pair:edge-id'),
   mutate(source: MemorySource, control) {
-    const requested = new Map<string, StoredDependency>();
-    const dependencies = replaceMethod(source.stores.dependencies, 'add', (add) => {
-      return async (dependency, stamp) => {
-        if (!control.reach('dependencies.add:idempotent-pair:edge-id')) {
-          return add(dependency, stamp);
-        }
-        if (requested.has(dependency.id)) return;
-        requested.set(dependency.id, structuredClone(dependency));
-        await add(dependency, stamp);
-      };
-    });
+    let setupAdds = 0;
     return withStores(source, {
-      dependencies: replaceMethod(dependencies, 'listByProject', (listByProject) => {
-        return async (projectId) => {
-          const stored = await listByProject(projectId);
-          if (!control.isArmed()) return stored;
-          const byId = new Map(stored.map((dependency) => [dependency.id, dependency]));
-          for (const dependency of requested.values()) {
-            if (dependency.projectId === projectId) byId.set(dependency.id, dependency);
+      dependencies: replaceMethod(source.stores.dependencies, 'add', (add) => {
+        return async (dependency, stamp) => {
+          if (dependency.id !== 'dependency-idempotent-second-id') {
+            setupAdds += 1;
+            if (control.reached()) throw new Error('dependency ID fault reached during setup');
+            return add(dependency, stamp);
           }
-          return [...byId.values()];
+          if (setupAdds !== 3)
+            throw new Error(`dependency ID fault saw ${String(setupAdds)} setup adds`);
+          control.reach('dependencies.add:idempotent-pair:edge-id');
+          await source.stores.dependencies.remove(
+            dependency.predecessorId,
+            dependency.successorId,
+            stamp,
+          );
+          await add(dependency, stamp);
+        };
+      }),
+    });
+  },
+});
+
+const dependencyInputMutationFault = defineFault({
+  id: 'break:dependencies.add:idempotent-pair',
+  caseId: 'dependencies.add:idempotent-pair',
+  createControl: () => createFaultControl('dependencies.add:idempotent-pair:input-id'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      dependencies: replaceMethod(source.stores.dependencies, 'add', (add) => {
+        return (dependency, stamp) => {
+          if (dependency.id === 'dependency-idempotent-original') {
+            control.reach('dependencies.add:idempotent-pair:input-id');
+            dependency.id = 'dependency-idempotent-mutated';
+          }
+          return add(dependency, stamp);
         };
       }),
     });
@@ -1239,11 +1292,19 @@ const eventRetainedMaximumFault = defineFault({
       eventLog: replaceMethod(eventLog, 'recordEvent', (recordEvent) => {
         return async (subscription, message, createdAt) => {
           if (!didPruneToEmpty) return recordEvent(subscription, message, createdAt);
-          const retained = await source.stores.eventLog.rangeSince(subscription, -1);
-          const retainedMaximum = retained.at(-1)?.seq ?? -1;
+          source.deriveNextEventSeqFromRetained(subscription);
           const recorded = await recordEvent(subscription, message, createdAt);
           control.reach('eventLog.pruneBeyond:empty-sequence:next-record');
-          return { ...recorded, seq: retainedMaximum + 1 };
+          const retained = await source.stores.eventLog.rangeSince(subscription, -1);
+          const latest = await source.stores.eventLog.latestSeq(subscription);
+          if (
+            retained.length !== 1 ||
+            retained[0]?.seq !== recorded.seq ||
+            latest !== recorded.seq
+          ) {
+            throw new Error('retained-MAX fault did not persist its returned sequence');
+          }
+          return recorded;
         };
       }),
     });
@@ -1256,13 +1317,17 @@ interface FaultContext {
   report: ExecutionReport | null;
 }
 
-async function proveFault(fault: Fault<MemorySource>): Promise<FaultProof> {
+async function proveFault(
+  fault: Fault<MemorySource>,
+  openSource: OpenSource = openConformanceMemorySource,
+): Promise<FaultProof> {
   return recordFaultProof(fault, {
     assertion: `${fault.caseId} reports passed`,
     async setup(run: FaultRun<MemorySource>) {
-      const source = await seedMemorySource(brokenSource(openMemorySource, run));
-      if (fault.caseId.startsWith('progress.')) await seedProgressStep(source);
-      if (fault.caseId.startsWith('dependencies.')) await seedDependencyWorkItems(source);
+      const source = await seedMemorySource(brokenSource(openSource, run), async (seeded) => {
+        if (fault.caseId.startsWith('progress.')) await seedProgressStep(seeded);
+        if (fault.caseId.startsWith('dependencies.')) await seedDependencyWorkItems(seeded);
+      });
       let wasOpened = false;
       const takeFixture = <Family extends ExistingFamily>(
         family: Family,
@@ -1315,7 +1380,110 @@ function failedCase(report: ExecutionReport, caseId: CaseId) {
   return report.cases.find((execution) => execution.caseId === caseId);
 }
 
+interface MemoryLifecycleProbe {
+  closeCalls: number;
+}
+
+function openDependencySeedFailureSource(
+  probe: MemoryLifecycleProbe,
+  cleanupFailure?: string,
+): MemorySource {
+  const source = openConformanceMemorySource();
+  return withStores(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+        if (cleanupFailure !== undefined) throw new Error(cleanupFailure);
+      },
+    },
+    {
+      workItems: replaceMethod(source.stores.workItems, 'insert', (insert) => {
+        return (workItem, children, stamp) => {
+          if (workItem.id === DEPENDENCY_SURVIVOR_IDS[1]) {
+            throw new Error('injected second dependency survivor seed failure');
+          }
+          return insert(workItem, children, stamp);
+        };
+      }),
+    },
+  );
+}
+
 describe('memory existing source conformance', () => {
+  it('closes once when ordinary dependency companion seeding fails', async () => {
+    const probe: MemoryLifecycleProbe = { closeCalls: 0 };
+    let failure: unknown;
+    try {
+      await openMemoryCase('dependencies', 'dependencies.add:idempotent-pair', () =>
+        openDependencySeedFailureSource(probe),
+      );
+    } catch (caught) {
+      failure = caught;
+    }
+    expect(failure).toHaveProperty('message', 'injected second dependency survivor seed failure');
+    // Proof: when dependency survivor seeding lived outside the setup owner,
+    // this late failure left closeCalls at zero.
+    expect(probe.closeCalls).toBe(1);
+  });
+
+  it('closes once when proof dependency companion seeding fails', async () => {
+    const probe: MemoryLifecycleProbe = { closeCalls: 0 };
+    const proof = await proveFault(dependencyPairPredicateFault, () =>
+      openDependencySeedFailureSource(probe),
+    );
+
+    expect(proof).toEqual({
+      kind: 'setup-failed',
+      faultId: 'break:dependencies.remove:pair',
+      caseId: 'dependencies.remove:pair',
+      failure: 'injected second dependency survivor seed failure',
+    });
+    // Proof: the old proof setup seeded survivors after its cleanup owner and
+    // reported setup-failed while leaving closeCalls at zero.
+    expect(probe.closeCalls).toBe(1);
+  });
+
+  it('preserves both memory setup and cleanup failures', async () => {
+    const probe: MemoryLifecycleProbe = { closeCalls: 0 };
+    let failure: unknown;
+    try {
+      await openMemoryCase('dependencies', 'dependencies.add:idempotent-pair', () =>
+        openDependencySeedFailureSource(probe, 'injected memory cleanup failure'),
+      );
+    } catch (caught) {
+      failure = caught;
+    }
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure).toHaveProperty('message', 'memory source setup and cleanup both failed');
+    expect((failure as AggregateError).errors.map((member) => String(member))).toEqual([
+      'Error: injected second dependency survivor seed failure',
+      'Error: injected memory cleanup failure',
+    ]);
+    expect(probe.closeCalls).toBe(1);
+  });
+
+  it('does not close a successful memory fixture during setup', async () => {
+    const probe: MemoryLifecycleProbe = { closeCalls: 0 };
+    const source = openConformanceMemorySource();
+    const fixture = await openMemoryCase(
+      'dependencies',
+      'dependencies.add:idempotent-pair',
+      () => ({
+        ...source,
+        async close() {
+          probe.closeCalls += 1;
+          await source.close();
+        },
+      }),
+    );
+    expect(probe.closeCalls).toBe(0);
+    await fixture.close();
+    expect(probe.closeCalls).toBe(1);
+  });
+
   it("memory's progress unknown-step gap names an observed refusal mismatch", async () => {
     const caseIds = [
       'progress.set:replace',
@@ -1978,6 +2146,7 @@ describe('memory existing source conformance', () => {
   it('reinjects dependency identity, pair, direction, and full-set faults', async () => {
     const faults = [
       dependencyIdFault,
+      dependencyInputMutationFault,
       dependencyPairPredicateFault,
       dependencyOutgoingOnlyFault,
       dependencyIncompleteSetFault,
@@ -1987,6 +2156,7 @@ describe('memory existing source conformance', () => {
     expect(proofs.map(({ kind }) => kind)).toEqual(faults.map(() => 'observed'));
     expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual([
       'dependencies.add:idempotent-pair:edge-id',
+      'dependencies.add:idempotent-pair:input-id',
       'dependencies.remove:pair:successor-predicate',
       'dependencies.removeAllFor:touching-set:outgoing-only',
       'dependencies.removeAllFor:touching-set:first-only',
@@ -1994,18 +2164,27 @@ describe('memory existing source conformance', () => {
     const failures = proofs.map((proof) =>
       proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
     );
-    // Proof: deduplicating by ID exposes the complete second-ID edge as an
-    // unexpected received record after the first add has settled.
+    // Proof: ID-keyed replacement changes the complete source-owned edge from
+    // the original ID to the second ID after verified inert setup.
     expect(failures[0]).toContain(`    {
+-     "id": "dependency-idempotent-original",
 +     "id": "dependency-idempotent-second-id",
-+     "predecessorId": "work-a-one",
-+     "projectId": "project-a",
-+     "successorId": "work-a-two",
-+   },
-+   {`);
+      "predecessorId": "work-a-one",
+      "projectId": "project-a",
+      "successorId": "work-a-two",
+    },`);
+    // Proof: mutating the write argument in place exposes the complete
+    // corrupted-ID edge without altering the independent expected record.
+    expect(failures[1]).toContain(`    {
+-     "id": "dependency-idempotent-original",
++     "id": "dependency-idempotent-mutated",
+      "predecessorId": "work-a-one",
+      "projectId": "project-a",
+      "successorId": "work-a-two",
+    },`);
     // Proof: omitting the successor predicate removes this complete expected
     // same-predecessor edge along with the selected pair.
-    expect(failures[1]).toContain(`    {
+    expect(failures[2]).toContain(`    {
 -     "id": "dependency-remove-same-predecessor",
 -     "predecessorId": "work-a-one",
 -     "projectId": "project-a",
@@ -2014,7 +2193,7 @@ describe('memory existing source conformance', () => {
 -   {`);
     // Proof: removing outgoing edges only leaves this complete incoming edge
     // in the received project-A list.
-    expect(failures[2]).toContain(`    {
+    expect(failures[3]).toContain(`    {
 +     "id": "dependency-remove-all-incoming",
 +     "predecessorId": "dependency-survivor-one",
 +     "projectId": "project-a",
@@ -2023,7 +2202,7 @@ describe('memory existing source conformance', () => {
 +   {`);
     // Proof: passing only the first doomed ID leaves this complete outgoing
     // edge for the second doomed row in the received project-A list.
-    expect(failures[3]).toContain(`    {
+    expect(failures[4]).toContain(`    {
 +     "id": "dependency-remove-all-outgoing",
 +     "predecessorId": "work-a-two",
 +     "projectId": "project-a",

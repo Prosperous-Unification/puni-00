@@ -1,4 +1,4 @@
-import type { StoredDependency } from '@wbs/core';
+import type { DependencyStore, StoredDependency, WriteStamp } from '@wbs/core';
 import { expect } from 'bun:test';
 
 import type { CaseRegistration } from '../case-manifest';
@@ -20,6 +20,14 @@ function edge(
   successorId: string,
 ): StoredDependency {
   return { id, projectId, predecessorId, successorId };
+}
+
+async function addEdge(
+  port: DependencyStore,
+  dependency: StoredDependency,
+  stamp: WriteStamp,
+): Promise<void> {
+  await port.add(structuredClone(dependency), stamp);
 }
 
 /** Shared dependency cases observed through complete public project lists. */
@@ -59,9 +67,11 @@ export function dependencyRegistrations(
           seed.workItemIds[1][1],
         );
 
-        await port.add(original, seed.stamps[0]);
-        await port.add(surviving, seed.stamps[0]);
-        await port.add(otherProject, seed.stamps[1]);
+        await addEdge(port, original, seed.stamps[0]);
+        await addEdge(port, surviving, seed.stamps[0]);
+        await addEdge(port, otherProject, seed.stamps[1]);
+        // Proof: in-place input-ID faults on both real sources store the
+        // complete mutated edge while this independent original remains fixed.
         expect(byId(await readers.dependencies.listByProject(seed.projectIds[0]))).toEqual(
           byId([original, surviving]),
         );
@@ -69,9 +79,9 @@ export function dependencyRegistrations(
           otherProject,
         ]);
 
-        await port.add(samePair, seed.stamps[1]);
-        // Proof: both source proofs deduplicate by edge ID after this complete
-        // setup; the received project-A list contains both exact pair IDs.
+        await addEdge(port, samePair, seed.stamps[1]);
+        // Proof: both ID-keyed source faults replace the original through real
+        // storage; the complete received edge has the second ID at this point.
         expect(byId(await readers.dependencies.listByProject(seed.projectIds[0]))).toEqual(
           byId([original, surviving]),
         );
@@ -79,7 +89,7 @@ export function dependencyRegistrations(
           otherProject,
         ]);
 
-        await port.add(samePair, seed.stamps[1]);
+        await addEdge(port, samePair, seed.stamps[1]);
         expect(byId(await readers.dependencies.listByProject(seed.projectIds[0]))).toEqual(
           byId([original, surviving]),
         );
@@ -122,8 +132,8 @@ export function dependencyRegistrations(
         seed.workItemIds[1][1],
       );
       const projectA = [selected, samePredecessor, sameSuccessor, surviving];
-      for (const seeded of projectA) await port.add(seeded, seed.stamps[0]);
-      await port.add(otherProject, seed.stamps[1]);
+      for (const seeded of projectA) await addEdge(port, seeded, seed.stamps[0]);
+      await addEdge(port, otherProject, seed.stamps[1]);
       expect(byId(await readers.dependencies.listByProject(seed.projectIds[0]))).toEqual(
         byId(projectA),
       );
@@ -187,8 +197,8 @@ export function dependencyRegistrations(
           seed.workItemIds[1][1],
         );
         const projectA = [incoming, outgoing, doomed, surviving];
-        for (const seeded of projectA) await port.add(seeded, seed.stamps[0]);
-        await port.add(otherProject, seed.stamps[1]);
+        for (const seeded of projectA) await addEdge(port, seeded, seed.stamps[0]);
+        await addEdge(port, otherProject, seed.stamps[1]);
         expect(byId(await readers.dependencies.listByProject(seed.projectIds[0]))).toEqual(
           byId(projectA),
         );

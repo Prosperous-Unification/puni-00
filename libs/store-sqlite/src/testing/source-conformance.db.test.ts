@@ -22,7 +22,7 @@ import {
   SOURCE_CONFORMANCE_CASES,
   type SourceReaders,
 } from '@wbs/conformance';
-import type { StoredDependency, TransactionalStores, User } from '@wbs/core';
+import type { TransactionalStores, User } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { DEFAULT_ESTIMATE_RULE } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
@@ -32,6 +32,7 @@ import { runMigrations } from '../migrate';
 import {
   actual as actualTable,
   calendarMarker as markerTable,
+  eventSequencer,
   stepMeasure as measureTable,
   stepProgress as progressTable,
   users as userTable,
@@ -1232,27 +1233,43 @@ const dependencyIdFault = defineFault({
   caseId: 'dependencies.add:idempotent-pair',
   createControl: () => createFaultControl('dependencies.add:idempotent-pair:edge-id'),
   mutate(source: SqliteSource, control) {
-    const requested = new Map<string, StoredDependency>();
-    const dependencies = replaceMethod(source.stores.dependencies, 'add', (add) => {
-      return async (dependency, stamp) => {
-        if (!control.reach('dependencies.add:idempotent-pair:edge-id')) {
-          return add(dependency, stamp);
-        }
-        if (requested.has(dependency.id)) return;
-        requested.set(dependency.id, structuredClone(dependency));
-        await add(dependency, stamp);
-      };
-    });
+    let setupAdds = 0;
     return withStores(source, {
-      dependencies: replaceMethod(dependencies, 'listByProject', (listByProject) => {
-        return async (projectId) => {
-          const stored = await listByProject(projectId);
-          if (!control.isArmed()) return stored;
-          const byId = new Map(stored.map((dependency) => [dependency.id, dependency]));
-          for (const dependency of requested.values()) {
-            if (dependency.projectId === projectId) byId.set(dependency.id, dependency);
+      dependencies: replaceMethod(source.stores.dependencies, 'add', (add) => {
+        return async (dependency, stamp) => {
+          if (dependency.id !== 'dependency-idempotent-second-id') {
+            setupAdds += 1;
+            if (control.reached()) throw new Error('dependency ID fault reached during setup');
+            return add(dependency, stamp);
           }
-          return [...byId.values()];
+          if (setupAdds !== 3)
+            throw new Error(`dependency ID fault saw ${String(setupAdds)} setup adds`);
+          control.reach('dependencies.add:idempotent-pair:edge-id');
+          await source.stores.dependencies.remove(
+            dependency.predecessorId,
+            dependency.successorId,
+            stamp,
+          );
+          await add(dependency, stamp);
+        };
+      }),
+    });
+  },
+});
+
+const dependencyInputMutationFault = defineFault({
+  id: 'break:dependencies.add:idempotent-pair',
+  caseId: 'dependencies.add:idempotent-pair',
+  createControl: () => createFaultControl('dependencies.add:idempotent-pair:input-id'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      dependencies: replaceMethod(source.stores.dependencies, 'add', (add) => {
+        return (dependency, stamp) => {
+          if (dependency.id === 'dependency-idempotent-original') {
+            control.reach('dependencies.add:idempotent-pair:input-id');
+            dependency.id = 'dependency-idempotent-mutated';
+          }
+          return add(dependency, stamp);
         };
       }),
     });
@@ -1348,9 +1365,23 @@ const eventRetainedMaximumFault = defineFault({
           if (!didPruneToEmpty) return recordEvent(subscription, message, createdAt);
           const retained = await source.stores.eventLog.rangeSince(subscription, -1);
           const retainedMaximum = retained.at(-1)?.seq ?? -1;
+          source.db
+            .update(eventSequencer)
+            .set({ nextSeq: retainedMaximum + 1 })
+            .where(eq(eventSequencer.subscription, subscription))
+            .run();
           const recorded = await recordEvent(subscription, message, createdAt);
           control.reach('eventLog.pruneBeyond:empty-sequence:next-record');
-          return { ...recorded, seq: retainedMaximum + 1 };
+          const persisted = await source.stores.eventLog.rangeSince(subscription, -1);
+          const latest = await source.stores.eventLog.latestSeq(subscription);
+          if (
+            persisted.length !== 1 ||
+            persisted[0]?.seq !== recorded.seq ||
+            latest !== recorded.seq
+          ) {
+            throw new Error('retained-MAX fault did not persist its returned sequence');
+          }
+          return recorded;
         };
       }),
     });
@@ -2541,6 +2572,7 @@ describe('SQLite existing source conformance', () => {
   it('reinjects dependency identity, pair, direction, and full-set faults', async () => {
     const faults = [
       dependencyIdFault,
+      dependencyInputMutationFault,
       dependencyPairPredicateFault,
       dependencyOutgoingOnlyFault,
       dependencyIncompleteSetFault,
@@ -2550,6 +2582,7 @@ describe('SQLite existing source conformance', () => {
     expect(proofs.map(({ kind }) => kind)).toEqual(faults.map(() => 'observed'));
     expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual([
       'dependencies.add:idempotent-pair:edge-id',
+      'dependencies.add:idempotent-pair:input-id',
       'dependencies.remove:pair:successor-predicate',
       'dependencies.removeAllFor:touching-set:outgoing-only',
       'dependencies.removeAllFor:touching-set:first-only',
@@ -2557,18 +2590,27 @@ describe('SQLite existing source conformance', () => {
     const failures = proofs.map((proof) =>
       proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
     );
-    // Proof: deduplicating by ID exposes the complete second-ID edge as an
-    // unexpected received record after the first add has settled.
+    // Proof: ID-keyed replacement changes the complete source-owned edge from
+    // the original ID to the second ID after verified inert setup.
     expect(failures[0]).toContain(`    {
+-     "id": "dependency-idempotent-original",
 +     "id": "dependency-idempotent-second-id",
-+     "predecessorId": "work-a-one",
-+     "projectId": "project-a",
-+     "successorId": "work-a-two",
-+   },
-+   {`);
+      "predecessorId": "work-a-one",
+      "projectId": "project-a",
+      "successorId": "work-a-two",
+    },`);
+    // Proof: mutating the write argument in place exposes the complete
+    // corrupted-ID edge without altering the independent expected record.
+    expect(failures[1]).toContain(`    {
+-     "id": "dependency-idempotent-original",
++     "id": "dependency-idempotent-mutated",
+      "predecessorId": "work-a-one",
+      "projectId": "project-a",
+      "successorId": "work-a-two",
+    },`);
     // Proof: omitting the successor predicate removes this complete expected
     // same-predecessor edge along with the selected pair.
-    expect(failures[1]).toContain(`    {
+    expect(failures[2]).toContain(`    {
 -     "id": "dependency-remove-same-predecessor",
 -     "predecessorId": "work-a-one",
 -     "projectId": "project-a",
@@ -2577,7 +2619,7 @@ describe('SQLite existing source conformance', () => {
 -   {`);
     // Proof: removing outgoing edges only leaves this complete incoming edge
     // in the received project-A list.
-    expect(failures[2]).toContain(`    {
+    expect(failures[3]).toContain(`    {
 +     "id": "dependency-remove-all-incoming",
 +     "predecessorId": "dependency-survivor-one",
 +     "projectId": "project-a",
@@ -2586,7 +2628,7 @@ describe('SQLite existing source conformance', () => {
 +   {`);
     // Proof: passing only the first doomed ID leaves this complete outgoing
     // edge for the second doomed row in the received project-A list.
-    expect(failures[3]).toContain(`    {
+    expect(failures[4]).toContain(`    {
 +     "id": "dependency-remove-all-outgoing",
 +     "predecessorId": "work-a-two",
 +     "projectId": "project-a",

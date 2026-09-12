@@ -368,7 +368,14 @@ export function openMemorySource(): Source<TransactionalStores> {
  */
 export interface MemorySourceFixture {
   readonly source: Source<TransactionalStores>;
+  /** Reproduces the forbidden retained-row sequence derivation in source-owned state. */
+  deriveNextEventSeqFromRetained(subscription: string): void;
   journalHistoryFor(projectId: string): Promise<PlanEvent[]>;
+}
+
+/** Opens the conformance fixture with access to adapter-owned persistence seams. @internal */
+export function openMemorySourceFixture(): MemorySourceFixture {
+  return openMemorySourceWithLateWriteSeam(inertMemoryLateWriteSeam);
 }
 
 /** @internal */
@@ -389,6 +396,10 @@ export function openMemorySourceWithLateWriteSeam(
   const stores = coordinatedStores(bindStores(committed, lateWrite), coordinator);
 
   return {
+    deriveNextEventSeqFromRetained(subscription) {
+      const retained = committed.tables.eventLog.rows.get(subscription) ?? [];
+      committed.tables.eventLog.nextSeq.set(subscription, (retained.at(-1)?.seq ?? -1) + 1);
+    },
     journalHistoryFor(projectId) {
       return Promise.resolve(
         committed.tables.journal.events
