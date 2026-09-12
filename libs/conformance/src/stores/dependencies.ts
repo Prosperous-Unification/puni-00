@@ -80,8 +80,8 @@ export function dependencyRegistrations(
         ]);
 
         await addEdge(port, samePair, seed.stamps[1]);
-        // Proof: both ID-keyed source faults replace the original through real
-        // storage; the complete received edge has the second ID at this point.
+        // Proof: both ID-keyed source faults retain the original and add this
+        // complete second-ID edge through adapter-owned storage.
         expect(byId(await readers.dependencies.listByProject(seed.projectIds[0]))).toEqual(
           byId([original, surviving]),
         );

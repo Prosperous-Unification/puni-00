@@ -1234,6 +1234,7 @@ const dependencyIdFault = defineFault({
   createControl: () => createFaultControl('dependencies.add:idempotent-pair:edge-id'),
   mutate(source: SqliteSource, control) {
     let setupAdds = 0;
+    let usesIdUniqueness = false;
     return withStores(source, {
       dependencies: replaceMethod(source.stores.dependencies, 'add', (add) => {
         return async (dependency, stamp) => {
@@ -1245,12 +1246,25 @@ const dependencyIdFault = defineFault({
           if (setupAdds !== 3)
             throw new Error(`dependency ID fault saw ${String(setupAdds)} setup adds`);
           control.reach('dependencies.add:idempotent-pair:edge-id');
-          await source.stores.dependencies.remove(
-            dependency.predecessorId,
-            dependency.successorId,
-            stamp,
-          );
+          if (!usesIdUniqueness) {
+            source.db.run(sql`DROP INDEX dependency_pair`);
+            usesIdUniqueness = true;
+          }
           await add(dependency, stamp);
+          const storedPair = (await source.stores.dependencies.listByProject(dependency.projectId))
+            .filter(
+              (edge) =>
+                edge.predecessorId === dependency.predecessorId &&
+                edge.successorId === dependency.successorId,
+            )
+            .toSorted((left, right) => left.id.localeCompare(right.id));
+          // Proof: disabling the isolated index removal left only the complete
+          // original edge here; the focused proof then rejected the missing
+          // second-ID record before it could claim the shared extra-edge diff.
+          expect(storedPair).toEqual([
+            { ...dependency, id: 'dependency-idempotent-original' },
+            dependency,
+          ]);
         };
       }),
     });
@@ -2590,15 +2604,15 @@ describe('SQLite existing source conformance', () => {
     const failures = proofs.map((proof) =>
       proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
     );
-    // Proof: ID-keyed replacement changes the complete source-owned edge from
-    // the original ID to the second ID after verified inert setup.
+    // Proof: ID-keyed deduplication retains the original source-owned edge and
+    // adds this complete second-ID edge after verified inert setup.
     expect(failures[0]).toContain(`    {
--     "id": "dependency-idempotent-original",
 +     "id": "dependency-idempotent-second-id",
-      "predecessorId": "work-a-one",
-      "projectId": "project-a",
-      "successorId": "work-a-two",
-    },`);
++     "predecessorId": "work-a-one",
++     "projectId": "project-a",
++     "successorId": "work-a-two",
++   },
++   {`);
     // Proof: mutating the write argument in place exposes the complete
     // corrupted-ID edge without altering the independent expected record.
     expect(failures[1]).toContain(`    {

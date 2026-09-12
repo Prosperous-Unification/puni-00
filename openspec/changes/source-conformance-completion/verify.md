@@ -1037,3 +1037,35 @@ Task 4.1 stays unchecked for review. The absent source-specific conformance
 targets remain owned by Task 7.2. The full workspace, build, browser, deploy
 and h2puni SHA gates were skipped; this repair is confined to source
 conformance/test seams, and no commit was authorized.
+
+### Task 4.1 Astra repair round 2 — canonical ID-keyed duplicate
+
+The dependency identity fault now models the binding-matrix regression
+directly. It forwards the three setup adds unchanged and checks that its phase
+has not been reached. At the second-ID operation, memory inserts by ID into its
+adapter-owned committed dependency table. SQLite removes the isolated
+fixture's pair-unique index and calls the real repository `add`. Neither fault
+removes the original edge or overlays the reader.
+
+Before the shared assertion runs, each decorator reads the real public project
+list and requires the pair to contain exactly the complete original and
+second-ID records. The shared complete-list assertion then reports only the
+extra second-ID edge, with all four fields and received `+` direction.
+
+Disabling memory's source-owned ID insertion produced the exact public-state
+failure with the complete second-ID edge absent. Disabling SQLite's isolated
+index removal produced the same failure after its real add settled as a no-op.
+In both focused proof tests, the signed extra-edge diagnostic could no longer
+match. Restoring the seams passed memory at 1/0/112 and SQLite at 1/0/144.
+
+Fresh restored verification:
+
+- Complete source-conformance files: memory 22/0/1,730; SQLite 24/0/2,506.
+- Existing SQLite dependency repository: 8/0/13.
+- Uncached `test` targets for conformance, store-memory and store-sqlite all
+  passed; all six uncached lint/typecheck targets also passed.
+- Formatting, diff and pinned OpenSpec evidence is recorded in the Task 4.1
+  report after the final terminal run.
+
+Task 4.1 remains unchecked for independent review. Task 4.2 is untouched. No
+commit or push was performed.

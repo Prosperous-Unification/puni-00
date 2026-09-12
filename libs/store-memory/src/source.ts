@@ -5,6 +5,7 @@ import type {
   SavedPlanStore,
   SavedPlanWrite,
   Source,
+  StoredDependency,
   StoredSavedPlan,
   TransactionalStores,
 } from '@wbs/core';
@@ -368,6 +369,8 @@ export function openMemorySource(): Source<TransactionalStores> {
  */
 export interface MemorySourceFixture {
   readonly source: Source<TransactionalStores>;
+  /** Reproduces forbidden ID-keyed dependency uniqueness in source-owned state. */
+  storeDependencyById(dependency: StoredDependency): void;
   /** Reproduces the forbidden retained-row sequence derivation in source-owned state. */
   deriveNextEventSeqFromRetained(subscription: string): void;
   journalHistoryFor(projectId: string): Promise<PlanEvent[]>;
@@ -396,6 +399,10 @@ export function openMemorySourceWithLateWriteSeam(
   const stores = coordinatedStores(bindStores(committed, lateWrite), coordinator);
 
   return {
+    storeDependencyById(toAdd) {
+      if (committed.tables.dependencies.rows.some(({ id }) => id === toAdd.id)) return;
+      committed.tables.dependencies.rows.push(structuredClone(toAdd));
+    },
     deriveNextEventSeqFromRetained(subscription) {
       const retained = committed.tables.eventLog.rows.get(subscription) ?? [];
       committed.tables.eventLog.nextSeq.set(subscription, (retained.at(-1)?.seq ?? -1) + 1);

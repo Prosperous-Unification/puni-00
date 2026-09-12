@@ -21,7 +21,7 @@ import {
   type SourceDeclaration,
   type SourceReaders,
 } from '@wbs/conformance';
-import type { StoredProgress, TransactionalStores, User } from '@wbs/core';
+import type { StoredDependency, StoredProgress, TransactionalStores, User } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
@@ -32,6 +32,7 @@ import { openMemorySourceFixture } from '../source';
 type ExistingFamily = keyof ExistingStoreOpeners;
 type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   deriveNextEventSeqFromRetained(subscription: string): void;
+  storeDependencyById(dependency: StoredDependency): void;
 };
 type OpenSource = () => MemorySource;
 
@@ -41,6 +42,9 @@ function openConformanceMemorySource(): MemorySource {
     ...fixture.source,
     deriveNextEventSeqFromRetained: (subscription) => {
       fixture.deriveNextEventSeqFromRetained(subscription);
+    },
+    storeDependencyById: (dependency) => {
+      fixture.storeDependencyById(dependency);
     },
   };
 }
@@ -1174,12 +1178,21 @@ const dependencyIdFault = defineFault({
           if (setupAdds !== 3)
             throw new Error(`dependency ID fault saw ${String(setupAdds)} setup adds`);
           control.reach('dependencies.add:idempotent-pair:edge-id');
-          await source.stores.dependencies.remove(
-            dependency.predecessorId,
-            dependency.successorId,
-            stamp,
-          );
-          await add(dependency, stamp);
+          source.storeDependencyById(dependency);
+          const storedPair = (await source.stores.dependencies.listByProject(dependency.projectId))
+            .filter(
+              (edge) =>
+                edge.predecessorId === dependency.predecessorId &&
+                edge.successorId === dependency.successorId,
+            )
+            .toSorted((left, right) => left.id.localeCompare(right.id));
+          // Proof: disabling the source-owned ID insert left only the complete
+          // original edge here; the focused proof then rejected the missing
+          // second-ID record before it could claim the shared extra-edge diff.
+          expect(storedPair).toEqual([
+            { ...dependency, id: 'dependency-idempotent-original' },
+            dependency,
+          ]);
         };
       }),
     });
@@ -2164,15 +2177,15 @@ describe('memory existing source conformance', () => {
     const failures = proofs.map((proof) =>
       proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
     );
-    // Proof: ID-keyed replacement changes the complete source-owned edge from
-    // the original ID to the second ID after verified inert setup.
+    // Proof: ID-keyed deduplication retains the original source-owned edge and
+    // adds this complete second-ID edge after verified inert setup.
     expect(failures[0]).toContain(`    {
--     "id": "dependency-idempotent-original",
 +     "id": "dependency-idempotent-second-id",
-      "predecessorId": "work-a-one",
-      "projectId": "project-a",
-      "successorId": "work-a-two",
-    },`);
++     "predecessorId": "work-a-one",
++     "projectId": "project-a",
++     "successorId": "work-a-two",
++   },
++   {`);
     // Proof: mutating the write argument in place exposes the complete
     // corrupted-ID edge without altering the independent expected record.
     expect(failures[1]).toContain(`    {
