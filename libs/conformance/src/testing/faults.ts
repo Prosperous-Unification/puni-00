@@ -8,6 +8,7 @@ type CaseOf<Id extends FaultId> = Id extends `break:${infer FaultCase extends Ca
 
 export interface FaultControl<Phase extends string> {
   readonly phase: Phase;
+  claim(): boolean;
   arm(): void;
   isArmed(): boolean;
   reach(phase: Phase): boolean;
@@ -17,6 +18,18 @@ export interface FaultControl<Phase extends string> {
 interface RegisteredFault<
   Subject,
   Id extends FaultId,
+  Phase extends string = string,
+  Control extends FaultControl<Phase> = FaultControl<Phase>,
+> {
+  readonly id: Id;
+  readonly caseId: CaseOf<Id>;
+  createControl(): Control;
+  mutate(subject: Subject, control: Control): Subject;
+}
+
+export interface FaultRun<
+  Subject,
+  Id extends FaultId = FaultId,
   Phase extends string = string,
   Control extends FaultControl<Phase> = FaultControl<Phase>,
 > {
@@ -39,14 +52,22 @@ export type Fault<
 export function createFaultControl<const Phase extends string>(phase: Phase): FaultControl<Phase> {
   let isArmed = false;
   let hasReached = false;
+  let isClaimed = false;
   return {
     phase,
+    claim() {
+      if (isClaimed) return false;
+      isClaimed = true;
+      return true;
+    },
     arm() {
+      isClaimed = true;
+      if (isArmed) throw new Error(`fault control for ${phase} was already armed`);
       isArmed = true;
     },
     isArmed: () => isArmed,
-    reach() {
-      if (!isArmed) return false;
+    reach(reachedPhase) {
+      if (!isArmed || reachedPhase !== phase) return false;
       hasReached = true;
       return true;
     },
@@ -96,9 +117,14 @@ export type FaultProof =
       readonly assertion: string;
     };
 
-export interface FaultProofPlan<Context> {
+export interface FaultProofPlan<
+  Context,
+  Subject,
+  Phase extends string,
+  Control extends FaultControl<Phase>,
+> {
   readonly assertion: string;
-  setup(): Promise<Context>;
+  setup(run: FaultRun<Subject, FaultId, Phase, Control>): Promise<Context>;
   exercise(context: Context): Promise<void>;
   assert(context: Context): Promise<void>;
 }
@@ -113,10 +139,28 @@ export async function recordFaultProof<
   Subject,
   Phase extends string,
   Control extends FaultControl<Phase>,
->(fault: Fault<Subject, Phase, Control>, plan: FaultProofPlan<Context>): Promise<FaultProof> {
+>(
+  fault: Fault<Subject, Phase, Control>,
+  plan: FaultProofPlan<Context, Subject, Phase, Control>,
+): Promise<FaultProof> {
+  const control = fault.createControl();
+  if (!control.claim()) {
+    return {
+      kind: 'setup-failed',
+      faultId: fault.id,
+      caseId: fault.caseId,
+      failure: `fault control for ${control.phase} was reused across proof runs`,
+    };
+  }
+  const run: FaultRun<Subject, typeof fault.id, Phase, Control> = {
+    id: fault.id,
+    caseId: fault.caseId,
+    control,
+    mutate: (subject, runControl) => fault.mutate(subject, runControl),
+  };
   let context: Context;
   try {
-    context = await plan.setup();
+    context = await plan.setup(run);
   } catch (failure) {
     return {
       kind: 'setup-failed',
@@ -126,7 +170,7 @@ export async function recordFaultProof<
     };
   }
 
-  fault.control.arm();
+  control.arm();
   try {
     await plan.exercise(context);
   } catch (failure) {
@@ -134,17 +178,17 @@ export async function recordFaultProof<
       kind: 'phase-failed',
       faultId: fault.id,
       caseId: fault.caseId,
-      phase: fault.control.phase,
+      phase: control.phase,
       failure: messageOf(failure),
     };
   }
-  if (!fault.control.reached()) {
+  if (!control.reached()) {
     return {
       kind: 'phase-failed',
       faultId: fault.id,
       caseId: fault.caseId,
-      phase: fault.control.phase,
-      failure: `fault did not reach ${fault.control.phase}`,
+      phase: control.phase,
+      failure: `fault did not reach ${control.phase}`,
     };
   }
   try {
@@ -153,7 +197,7 @@ export async function recordFaultProof<
       kind: 'assertion-passed',
       faultId: fault.id,
       caseId: fault.caseId,
-      phase: fault.control.phase,
+      phase: control.phase,
       assertion: plan.assertion,
     };
   } catch (failure) {
@@ -161,7 +205,7 @@ export async function recordFaultProof<
       kind: 'observed',
       faultId: fault.id,
       caseId: fault.caseId,
-      phase: fault.control.phase,
+      phase: control.phase,
       assertion: plan.assertion,
       observedFailure: messageOf(failure),
     };

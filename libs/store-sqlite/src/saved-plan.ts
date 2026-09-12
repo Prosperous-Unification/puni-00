@@ -4,6 +4,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import { isWriteLockBusy } from './constraint';
 import type { Connection, Drizzle } from './db';
 import { drizzleOuterTransaction, drizzleReadTransaction, refuseToWaitForWriteLock } from './db';
+import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
 import { project, savedPlan, savedPlanBody } from './schema';
 
 export { bodyByteLength } from '@wbs/core';
@@ -181,7 +182,10 @@ export interface SavedPlanPrincipals {
  * touches the header's `name` alone.
  */
 export class SavedPlanRepository implements SavedPlanStore {
-  constructor(private readonly opts: SavedPlanWriteOptions) {}
+  constructor(
+    private readonly opts: SavedPlanWriteOptions,
+    private readonly lateWrite: SqliteLateWriteSeam = inertSqliteLateWriteSeam,
+  ) {}
 
   /**
    * The count and the byte total, as one read.
@@ -304,6 +308,7 @@ export class SavedPlanRepository implements SavedPlanStore {
           await db
             .insert(savedPlanBody)
             .values({ savedPlanId: plan.id, kind: 'schedule', bytes: plan.schedule.body.bytes });
+          this.lateWrite.reach('saved-plan-schedule-body');
         }
         tx.commit();
         return { outcome: 'written' };

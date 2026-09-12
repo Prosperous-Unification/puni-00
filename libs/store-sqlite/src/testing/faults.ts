@@ -1,14 +1,18 @@
-export type SqliteLateWritePoint =
-  'subtree-final-satellite' | 'journal-history-insert' | 'saved-plan-schedule-body';
+import type { SqliteLateWritePoint } from '../late-write-seam';
+import type { OpenSqliteSourceOptions, SqliteSource } from '../source';
+import { openSqliteSourceWithLateWriteSeam } from '../source';
+
+export type { SqliteLateWritePoint } from '../late-write-seam';
 
 export interface SqliteLateWriteControl<Phase extends SqliteLateWritePoint> {
   readonly adapter: 'sqlite';
   readonly phase: Phase;
+  claim(): boolean;
   arm(): void;
   isArmed(): boolean;
-  reach(phase: Phase): boolean;
+  reach(phase: SqliteLateWritePoint): boolean;
   reached(): boolean;
-  reachTransactionWrite(phase: Phase): boolean;
+  reachTransactionWrite(phase: SqliteLateWritePoint): boolean;
 }
 
 /** Creates a per-source hook to be called inside the transaction write it names. */
@@ -17,15 +21,23 @@ export function sqliteLateWriteControl<const Phase extends SqliteLateWritePoint>
 ): SqliteLateWriteControl<Phase> {
   let isArmed = false;
   let hasReached = false;
-  const reach = (): boolean => {
-    if (!isArmed) return false;
+  let isClaimed = false;
+  const reach = (reachedPhase: SqliteLateWritePoint): boolean => {
+    if (!isArmed || reachedPhase !== phase) return false;
     hasReached = true;
     return true;
   };
   return {
     adapter: 'sqlite',
     phase,
+    claim() {
+      if (isClaimed) return false;
+      isClaimed = true;
+      return true;
+    },
     arm: () => {
+      isClaimed = true;
+      if (isArmed) throw new Error(`SQLite fault control for ${phase} was already armed`);
       isArmed = true;
     },
     isArmed: () => isArmed,
@@ -33,4 +45,17 @@ export function sqliteLateWriteControl<const Phase extends SqliteLateWritePoint>
     reached: () => hasReached,
     reachTransactionWrite: reach,
   };
+}
+
+/** Opens the real SQLite source with this run's transaction barrier attached. */
+export function openSqliteSourceWithFault(
+  options: OpenSqliteSourceOptions,
+  control: SqliteLateWriteControl<SqliteLateWritePoint>,
+): SqliteSource {
+  return openSqliteSourceWithLateWriteSeam(options, {
+    reach(phase) {
+      if (control.reachTransactionWrite(phase))
+        throw new Error(`injected SQLite fault at ${phase}`);
+    },
+  });
 }

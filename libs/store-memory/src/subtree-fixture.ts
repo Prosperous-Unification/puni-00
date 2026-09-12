@@ -23,15 +23,18 @@ import type {
  * work item fixture throws on a reposition it cannot find, and every store
  * here would accept the writes in any order the real database refuses.
  */
-export function inMemorySubtrees(stores: {
-  workItems: WorkItemStore;
-  estimates: EstimateStore;
-  actuals: ActualStore;
-  progress: StepProgressStore;
-  measures: MeasureStore;
-  dependencies: DependencyStore;
-  directory: DirectoryStore;
-}): SubtreeStore {
+export function inMemorySubtrees(
+  stores: {
+    workItems: WorkItemStore;
+    estimates: EstimateStore;
+    actuals: ActualStore;
+    progress: StepProgressStore;
+    measures: MeasureStore;
+    dependencies: DependencyStore;
+    directory: DirectoryStore;
+  },
+  afterFinalSatellite: () => void = () => undefined,
+): SubtreeStore {
   return {
     async insertSubtree(copy, stamp) {
       // The respacing rides with the first row, which is how `WorkItemStore.insert`
@@ -70,6 +73,7 @@ export function inMemorySubtrees(stores: {
       for (const taken of copy.removedMeasures) {
         await stores.measures.remove(taken.workItemId, taken.stepId, taken.metric, stamp);
       }
+      afterFinalSatellite();
     },
   };
 }

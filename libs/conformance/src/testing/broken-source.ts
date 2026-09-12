@@ -1,4 +1,4 @@
-import type { Fault, FaultControl } from './faults';
+import type { FaultControl, FaultId, FaultRun } from './faults';
 
 type MethodKey<Subject> = {
   [Key in keyof Subject]-?: Subject[Key] extends (...arguments_: never[]) => unknown ? Key : never;
@@ -40,7 +40,12 @@ export function brokenSource<
   Control extends FaultControl<Phase>,
 >(
   open: (...arguments_: Arguments) => Opened,
-  fault: Fault<Opened, Phase, Control>,
+  fault: FaultRun<Opened, FaultId, Phase, Control>,
 ): (...arguments_: Arguments) => Opened {
-  return (...arguments_) => fault.mutate(open(...arguments_), fault.control);
+  let hasOpened = false;
+  return (...arguments_) => {
+    if (hasOpened) throw new Error(`fault run ${fault.id} opened more than one source`);
+    hasOpened = true;
+    return fault.mutate(open(...arguments_), fault.control);
+  };
 }

@@ -36,3 +36,28 @@ write belongs to that family task. Task 1.3 remains the next open slice.
 - Formatting and OpenSpec strict/all validation passed.
 - Full source, workspace, build and browser gates were skipped proportionally
   because this slice changes test-only infrastructure, not adapter behavior.
+
+## Astra correction
+
+The controller rejected the deferred adapter installation. The correction:
+
+- matches the reached phase exactly through the shared proof recorder and both
+  source-specific controls;
+- creates lifecycle state per proof, refuses repeat arm/open use and proves
+  overlapping proof setup remains inert;
+- installs source-local late-write seams at the actual memory staged-state and
+  SQLite transaction points for subtree satellites, journal history and saved
+  plan schedule bodies;
+- proves each real operation reaches its named barrier, preserves the sentinel
+  after rejection and succeeds again with a restored, unarmed source.
+
+All shared, memory and SQLite phase/reuse negatives were observed on their
+production recorder/source paths. Moving the six barriers outside rollback (or
+publishing memory's staged state on rejection) made the public reads include
+`faulted`; disconnecting each barrier made the expected rejection resolve.
+
+The corrected full-source verification is 29/29 conformance tests, 35/35
+memory tests with one pre-existing declared gap skipped, and 659/659 SQLite
+tests. Lint and typecheck passed for all three changed projects. The workspace,
+build and browser gates remain explicitly skipped because this task has no UI,
+browser or deployment surface.

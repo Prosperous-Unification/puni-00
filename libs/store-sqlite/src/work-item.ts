@@ -18,6 +18,7 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Gate } from './gate';
+import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
 import { bumpedWorkItem, bumpedWorkItemOnReparent, bumpWorkItems } from './revision';
 import {
   actual,
@@ -908,6 +909,7 @@ export class SubtreeRepository implements SubtreeStore {
   constructor(
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
+    private readonly lateWrite: SqliteLateWriteSeam = inertSqliteLateWriteSeam,
   ) {}
 
   /**
@@ -1083,6 +1085,7 @@ export class SubtreeRepository implements SubtreeStore {
           ],
           stamp,
         );
+        this.lateWrite.reach('subtree-final-satellite');
       });
     });
   }

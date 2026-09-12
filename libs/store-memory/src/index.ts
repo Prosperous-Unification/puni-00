@@ -1,2 +1,2 @@
 export * from './in-memory-source';
-export * from './source';
+export { MemoryState, openMemorySource } from './source';

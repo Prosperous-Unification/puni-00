@@ -43,6 +43,7 @@ export function memoryCommandJournalTables(): MemoryCommandJournalTables {
 
 export function inMemoryCommandJournal(
   tables: MemoryCommandJournalTables = memoryCommandJournalTables(),
+  afterHistoryInsert: () => void = () => undefined,
 ): CommandJournalStore & {
   readonly entries: JournalEntry[];
   readonly events: PlanEvent[];
@@ -55,7 +56,6 @@ export function inMemoryCommandJournal(
     entries,
     events,
     append(entry: NewJournalEntry, event: PlanEvent) {
-      events.push(event);
       for (const undone of mine(entry.projectId, entry.userId).filter((each) => each.undone)) {
         entries.splice(entries.indexOf(undone), 1);
       }
@@ -67,6 +67,8 @@ export function inMemoryCommandJournal(
       )) {
         entries.splice(entries.indexOf(old), 1);
       }
+      events.push(event);
+      afterHistoryInsert();
       return Promise.resolve();
     },
     entriesFor(projectId, userId) {

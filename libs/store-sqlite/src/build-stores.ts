@@ -8,6 +8,7 @@ import { DirectoryRepository } from './directory';
 import { EstimateRepository } from './estimate';
 import { DrizzleEventLogStore } from './event-log';
 import type { Gate } from './gate';
+import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
 import { PlanEventRepository } from './plan-event';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
@@ -18,7 +19,11 @@ import { UserRepository } from './user';
 import { SubtreeRepository, WorkItemRepository } from './work-item';
 
 /** Builds the complete transactional SQLite catalog over one write gate. */
-export function buildStores(db: Drizzle, gate: Gate) {
+export function buildStores(
+  db: Drizzle,
+  gate: Gate,
+  lateWrite: SqliteLateWriteSeam = inertSqliteLateWriteSeam,
+) {
   return {
     projects: new ProjectRepository(db, gate),
     users: new UserRepository(db, gate),
@@ -35,7 +40,7 @@ export function buildStores(db: Drizzle, gate: Gate) {
     measures: new StepMeasureRepository(db, gate),
     progress: new StepProgressRepository(db, gate),
     dependencies: new DependencyRepository(db, gate),
-    subtrees: new SubtreeRepository(db, gate),
-    journal: new CommandJournalRepository(db, gate),
+    subtrees: new SubtreeRepository(db, gate, lateWrite),
+    journal: new CommandJournalRepository(db, gate, lateWrite),
   };
 }

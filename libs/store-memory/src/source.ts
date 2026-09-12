@@ -45,6 +45,7 @@ import {
   type MemoryPlanEventTable,
   memoryPlanEventTable,
 } from './history-fixture';
+import { inertMemoryLateWriteSeam, type MemoryLateWriteSeam } from './late-write-seam';
 import { inMemoryMeasures, type MemoryMeasureTable, memoryMeasureTable } from './measure-fixture';
 import {
   inMemoryWorkItems,
@@ -200,7 +201,10 @@ export class MemoryState {
   }
 }
 
-function bindStores(state: MemoryState): TransactionalStores {
+function bindStores(
+  state: MemoryState,
+  lateWrite: MemoryLateWriteSeam = inertMemoryLateWriteSeam,
+): TransactionalStores {
   const users = inMemoryUsers(state.tables.users);
   let workItems: TransactionalStores['workItems'] | null = null;
   const directory = inMemoryDirectory((projectId) => {
@@ -229,16 +233,23 @@ function bindStores(state: MemoryState): TransactionalStores {
     calendarMarkers: inMemoryCalendarMarkers([], state.tables.calendarMarkers),
     planEvents: inMemoryPlanEvents([], state.tables.planEvents),
     eventLog: inMemoryEventLog(state.tables.eventLog),
-    journal: inMemoryCommandJournal(state.tables.journal),
-    subtrees: inMemorySubtrees({
-      workItems,
-      estimates,
-      actuals,
-      progress,
-      measures,
-      dependencies,
-      directory,
+    journal: inMemoryCommandJournal(state.tables.journal, () => {
+      lateWrite.reach('journal-history-insert');
     }),
+    subtrees: inMemorySubtrees(
+      {
+        workItems,
+        estimates,
+        actuals,
+        progress,
+        measures,
+        dependencies,
+        directory,
+      },
+      () => {
+        lateWrite.reach('subtree-final-satellite');
+      },
+    ),
   };
   return detachedStores(stores);
 }
@@ -346,16 +357,25 @@ function coordinatedStores(
 
 /** Opens a staged in-memory source with no ambient runtime dependencies. */
 export function openMemorySource(): Source<TransactionalStores> {
+  return openMemorySourceWithLateWriteSeam(inertMemoryLateWriteSeam);
+}
+
+/** @internal */
+export function openMemorySourceWithLateWriteSeam(
+  lateWrite: MemoryLateWriteSeam,
+): Source<TransactionalStores> {
   const committed = new MemoryState();
   const coordinator = new MemoryCoordinator();
   const historyCoordinator = new MemoryCoordinator();
   const historyState: HistoryState = { plans: new Map() };
   const history = memoryHistory(
     historyState,
-    () => bindStores(committed.clone()),
+    () => bindStores(committed.clone(), lateWrite),
     async (act) => await historyCoordinator.run(act),
+    undefined,
+    lateWrite,
   );
-  const stores = coordinatedStores(bindStores(committed), coordinator);
+  const stores = coordinatedStores(bindStores(committed, lateWrite), coordinator);
 
   return {
     stores,
@@ -364,10 +384,10 @@ export function openMemorySource(): Source<TransactionalStores> {
       run: (act) =>
         coordinator.run(async () => {
           const staged = committed.clone();
-          const decision = await act({ stores: bindStores(staged) });
+          const decision = await act({ stores: bindStores(staged, lateWrite) });
           if (decision.commit) committed.replaceWith(staged);
           else if (decision.afterRollback !== undefined) {
-            await decision.afterRollback({ stores: bindStores(committed) });
+            await decision.afterRollback({ stores: bindStores(committed, lateWrite) });
           }
           return decision.value;
         }),
@@ -407,6 +427,7 @@ function memorySavedPlans(
   state: HistoryState,
   stores: () => TransactionalStores,
   writeTurn: <T>(act: () => Promise<T>) => Promise<T>,
+  lateWrite: MemoryLateWriteSeam,
 ): SavedPlanStore {
   return {
     write: (plan, check) =>
@@ -428,13 +449,16 @@ function memorySavedPlans(
             : 0);
         const refusal = await check(holding, incoming);
         if (refusal !== null) return { outcome: 'refused', refusal };
-        state.plans.set(plan.id, {
+        const staged = structuredClone(state.plans);
+        staged.set(plan.id, {
           header: savedPlanRow(plan),
           bodies: {
             input: plan.input.bytes,
             schedule: plan.schedule.present ? plan.schedule.body.bytes : null,
           },
         });
+        if (plan.schedule.present) lateWrite.reach('saved-plan-schedule-body');
+        replaceMap(state.plans, staged);
         return { outcome: 'written' };
       }),
     readOf(savedPlanId) {
@@ -542,9 +566,10 @@ function memoryHistory(
   stores: () => TransactionalStores,
   writeTurn: <T>(act: () => Promise<T>) => Promise<T>,
   captureTurn: <T>(act: () => Promise<T>) => Promise<T> = async (act) => await act(),
+  lateWrite: MemoryLateWriteSeam = inertMemoryLateWriteSeam,
 ): Source<TransactionalStores>['history'] {
   return {
-    savedPlans: memorySavedPlans(state, stores, writeTurn),
+    savedPlans: memorySavedPlans(state, stores, writeTurn, lateWrite),
     savedPlanCapture: {
       readPlanInput(projectId) {
         // Capture gets a detached committed graph before its first awaited read.
