@@ -169,6 +169,36 @@ test('mounted command admission rejects structural extras and unknown kind befor
   expect(run).not.toHaveBeenCalled();
 });
 
+test('mounted parsing preserves priority absence and null while defaulting assignee absence', async () => {
+  const f = fixture();
+  const run = spyOn(f.runner, 'run');
+  run.mockResolvedValueOnce({
+    ok: true,
+    results: [],
+    undoable: false,
+    redoable: false,
+  });
+
+  const response = await f.call({
+    commands: [
+      { kind: 'createWorkItem' },
+      { kind: 'createWorkItem', priority: null },
+      { kind: 'setAssignee', stepId: 's' },
+      { kind: 'setAssignee', stepId: 's', personId: null },
+    ],
+  });
+
+  expect(response.status).toBe(200);
+  // Proof: defaulting an absent create priority to null in the production parser failed this
+  // assertion with the first received create command gaining `"priority": null`.
+  expect(run).toHaveBeenCalledWith('p', 'owner', [
+    { kind: 'createWorkItem', parentId: null, afterId: null },
+    { kind: 'createWorkItem', parentId: null, afterId: null, priority: null },
+    { kind: 'setAssignee', stepId: 's', personId: null },
+    { kind: 'setAssignee', stepId: 's', personId: null },
+  ]);
+});
+
 test('mounted command policies precede body parsing and bodyless undo refuses bytes', async () => {
   const f = fixture();
   const response = await f.app.handle(
@@ -200,10 +230,12 @@ test('mounted batches parse all commands before the cap and retain directory pro
     kind: 'freezeProject',
   });
   const invalid = await f.call({
-    commands: [...commands, { kind: 'setActual', stepId: 's', days: -1 }],
+    commands: [...commands.slice(0, -1), { kind: 'setActual', stepId: 's', days: -1 }],
   });
   expect(invalid.status).toBe(400);
-  expect(await invalid.json()).toEqual({ error: 'invalid_actual', at: 201, kind: 'setActual' });
+  // Proof: moving the cap ahead of semantic parsing at the mounted handler failed here with
+  // `error: "too_many_commands"` instead of `error: "invalid_actual"` at index 200.
+  expect(await invalid.json()).toEqual({ error: 'invalid_actual', at: 200, kind: 'setActual' });
   const directory = await f.call(
     { commands: [{ kind: 'freezeProject' }] },
     '/api/directory/commands',
