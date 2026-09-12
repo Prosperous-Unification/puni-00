@@ -1,8 +1,8 @@
 # Verification Report
 
 **Change**: `plan-command-registry`
-**Scope**: Tasks 1.1–1.3; Tasks 2.1–3.2 and the final change gate remain pending
-**Verified at**: 2026-09-12 15:22 EEST
+**Scope**: Tasks 1.1–2.1; Tasks 2.2–3.2 and the final change gate remain pending
+**Verified at**: 2026-09-12 15:46 EEST
 **Baseline**: `6a47a7220109484bae8f86fe03c35dc570fa1845`
 
 ## Current path map
@@ -12,8 +12,8 @@
 | Structural command declaration | `libs/contracts/src/commands/definitions.ts` (`commandDefinitions`); `libs/contracts/src/http/plan-command-shapes.ts` composes `planCommandSchema` and `planCommandsBody`                   |
 | HTTP endpoint declaration      | `libs/contracts/src/http/work-item-shapes.ts` (`applyProjectCommands`, `applyDirectoryCommands`)                                                                                            |
 | Backend binder                 | `libs/core/src/http/work-item.routes.ts` (`workItemRoutes` binds both command endpoint shapes); `apps/be-01/src/app.ts` mounts those bindings through `apps/be-01/src/http/elysia/mount.ts` |
-| Semantic parser                | `libs/core/src/http/work-item.routes.ts` (`parseBatch` → `parseCommand` → `parseKind`)                                                                                                      |
-| Normalized command vocabulary  | `libs/core/src/service/plan-command.ts` (`PlanCommand`, `PlanCommandKind`, `PLAN_COMMAND_KINDS`)                                                                                            |
+| Semantic parser                | `libs/core/src/http/work-item.routes.ts` (`parseBatch` → `parseCommand`) delegates pure command semantics to `libs/core/src/service/command-normalizers.ts`                                 |
+| Normalized command vocabulary  | `libs/core/src/service/command-normalizers.ts` (`commandNormalizers`, inferred `PlanCommand` and `PlanCommandKind`); `plan-command.ts` retains compatibility exports and the kind list      |
 | Route-to-runner use case       | `libs/core/src/use-cases/run-command-batch.ts`                                                                                                                                              |
 | Runner and dispatch            | `libs/core/src/service/plan-commands.ts` (`PlanCommandRunner.execute` owns cap/transaction/publication; `applyAll` owns refs, scope admission and the command switch)                       |
 | Historical be-01 paths         | `apps/be-01/src/controller/work-item.routes.ts`, `apps/be-01/src/service/plan-command.ts` and `apps/be-01/src/service/plan-commands.ts` are compatibility re-exports from core              |
@@ -38,6 +38,8 @@ The design was written against `339708fa` with 36 kinds. Commit `521ef54f` added
 | Generated MCP input owns the independent kind oracle                                                                | Removed the production `clearMeasure` definition                                                   | Generated commands tool set equality failed with `clearMeasure` omitted                                         | Focused generated-tool run: 1 pass, 0 fail                                   |
 | Generated MCP kind multiplicity                                                                                     | Replaced `clearMeasure`'s production discriminator with `createTeam`, retaining 37 structural arms | Per-kind counts failed with `clearMeasure: 0` and `createTeam: 2`                                               | Focused generator run: 2 pass, 0 fail                                        |
 | `createWorkItem` descriptor prose before and after MCP conversion                                                   | Emptied only the production `createWorkItem` description                                           | Direct descriptor expected the prior prose but received `""`; generated tool expected length >10 but received 0 | Direct shape: 5 pass; focused generator: 2 pass                              |
+| Mounted absent-priority middle-band behavior (`work-item.test.ts`)                                                  | Defaulted absent priority to `null` in the production `createWorkItem` normalizer                  | Persisted row assertion failed with `Expected: 47`, `Received: null`                                            | Focused Task 2.1 run: 3 pass, 0 fail                                         |
+| Extracted normalizer remains inside the core boundary (`service-boundaries.test.ts`)                                | Imported be-01's repository by relative path from production `command-normalizers.ts`              | Boundary assertion received `@nx/enforce-module-boundaries`: projects cannot be imported by relative path       | Focused boundary and mounted run: 15 pass, 0 fail                            |
 
 The pre-existing mounted malformed nested-extra and semantic-invalid-value controls remain in the same test file and passed in both the targeted run and the project baseline.
 
@@ -76,6 +78,20 @@ The first broad Task 1.2 gate found import/export ordering in the new fixture an
 | `bun test libs/contracts/src/http/plan-command-shapes.test.ts`                                                                                                                     | 5 pass, 0 fail, 75 expectations                             |
 | `bun test apps/mcp-01/src/shape-document.test.ts apps/mcp-01/src/openapi-tools.test.ts --test-name-pattern 'carries production command descriptors\|describes every command kind'` | 2 pass, 0 fail, 79 expectations                             |
 | `bunx nx run-many -t test lint typecheck -p contracts mcp-01`                                                                                                                      | all 6 targets successful, 0 cache hits, 10.8s critical path |
+
+## Task 2.1 verification
+
+Pure command semantics now live in `libs/core/src/service/command-normalizers.ts`. The literal `commandNormalizers` record preserves all 37 current branches, and `PlanCommand` is the union of its return types rather than a handwritten second declaration. The HTTP boundary translates normalizer errors into the existing indexed refusal envelope; the old route-local command switch is gone. `plan-command.ts` remains a compatibility re-export plus the temporary exhaustive kind enumeration for the later registry-convergence slice.
+
+The focused normalizer cases distinguish an omitted create priority from explicit `null` and a number, and retain the intentional missing-assignee default to `null`. The mounted negative configures the project's middle priority band to 47, executes the real command endpoint, and reads the persisted work item rather than inspecting only a parser call.
+
+| Command                                                                                                                                                                                                                                                            | Result                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| `bun test libs/core/src/service/command-normalizers.test.ts apps/be-01/src/http/elysia/work-item.test.ts -t 'preserves priority absence null and number\|defaults missing assignee to null\|mounted create without priority uses the project middle-band default'` | 3 pass, 0 fail, 7 expectations                |
+| `bun test libs/core/src/service/command-normalizers.test.ts apps/be-01/src/http/elysia/work-item.test.ts libs/core/src/service/service-boundaries.test.ts`                                                                                                         | 15 pass, 0 fail, 111 expectations             |
+| `bunx nx run-many -t test lint typecheck -p core be-01 --skip-nx-cache`                                                                                                                                                                                            | all 6 targets successful, 0 cache hits, 1m23s |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`                                                                                                                                                                                       | 75 items, 75 passed, 0 failed                 |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 instructions apply --change plan-command-registry --json`                                                                                                                                                    | state `ready`; 4 of 10 tasks complete         |
 
 ## Pending change verification
 

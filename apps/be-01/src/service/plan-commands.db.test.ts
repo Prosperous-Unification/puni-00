@@ -227,8 +227,22 @@ const journal = () => journalStore.entriesFor(projectId, ownerId);
 
 const DRAFT: PlanCommand[] = [
   { kind: 'createWorkItem', ref: 'strip', parentId: null, afterId: null, name: 'Strip' },
-  { kind: 'createWorkItem', ref: 'sand', parentId: null, afterRef: 'strip', name: 'Sand' },
-  { kind: 'createWorkItem', ref: 'paint', parentId: null, afterRef: 'sand', name: 'Paint' },
+  {
+    kind: 'createWorkItem',
+    ref: 'sand',
+    parentId: null,
+    afterId: null,
+    afterRef: 'strip',
+    name: 'Sand',
+  },
+  {
+    kind: 'createWorkItem',
+    ref: 'paint',
+    parentId: null,
+    afterId: null,
+    afterRef: 'sand',
+    name: 'Paint',
+  },
   { kind: 'setEstimate', workItemRef: 'strip', stepId: 'STEP', days: DAYS },
   { kind: 'setEstimate', workItemRef: 'sand', stepId: 'STEP', days: DAYS },
   { kind: 'addDependency', workItemRef: 'sand', predecessorRef: 'strip' },
@@ -377,7 +391,15 @@ describe('a command batch', () => {
     // the create went through with the literal word as its parent id and was
     // refused as `not_found` instead. Watched, 2026-08-29.
     expect(
-      await run([{ kind: 'createWorkItem', parentRef: 'nope', afterId: null, name: 'Orphan' }]),
+      await run([
+        {
+          kind: 'createWorkItem',
+          parentId: null,
+          parentRef: 'nope',
+          afterId: null,
+          name: 'Orphan',
+        },
+      ]),
     ).toEqual({ ok: false, at: 0, kind: 'createWorkItem', reason: 'unknown_ref' });
     expect(
       await run([
@@ -438,7 +460,7 @@ describe('a command batch', () => {
     expect(
       await runner.runDirectory(ownerId, [
         { kind: 'createTag', name: 'x' },
-        { kind: 'createWorkItem', name: 'Orphan' },
+        { kind: 'createWorkItem', parentId: null, afterId: null, name: 'Orphan' },
       ]),
     ).toEqual({ ok: false, at: 1, kind: 'createWorkItem', reason: 'project_required' });
     // All or none here too: the tag went with the refusal.

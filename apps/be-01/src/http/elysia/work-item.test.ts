@@ -199,6 +199,33 @@ test('mounted parsing preserves priority absence and null while defaulting assig
   ]);
 });
 
+test('mounted create without priority uses the project middle-band default', async () => {
+  const f = fixture();
+  await f.plan.stores.projects.create(projectRow({ id: 'p', ownerId: 'owner' }), [], {
+    at: 1,
+    by: 'owner',
+  });
+  await f.plan.stores.priorityBands.replace(
+    'p',
+    [
+      { startsAt: 1, defaultValue: 3, label: 'Now' },
+      { startsAt: 6, defaultValue: 8, label: 'Soon' },
+      { startsAt: 20, defaultValue: 47, label: 'Ordinary' },
+      { startsAt: 60, defaultValue: 70, label: 'Later' },
+      { startsAt: 90, defaultValue: 99, label: 'Eventually' },
+    ],
+    { at: 2, by: 'owner' },
+  );
+
+  const response = await f.call({ commands: [{ kind: 'createWorkItem', name: 'Unstated' }] });
+
+  expect(response.status).toBe(200);
+  const rows = await f.plan.stores.workItems.listByProject('p');
+  expect(rows).toHaveLength(1);
+  // Proof: defaulting the normalizer's absent priority to null failed here with Received: null.
+  expect(rows[0]?.priority).toBe(47);
+});
+
 test('mounted command policies precede body parsing and bodyless undo refuses bytes', async () => {
   const f = fixture();
   const response = await f.app.handle(

@@ -12,6 +12,7 @@ const services = [
   'calendar-marker.service',
   'capacity.service',
   'clean-name',
+  'command-normalizers',
   'compensating',
   'dependency',
   'directory-usage',
@@ -45,6 +46,8 @@ const services = [
 // gateway-broadcaster.ts failed core:lint at that production import with
 // @nx/enforce-module-boundaries: "Projects cannot be imported by a relative or
 // absolute path, and must begin with a npm scope" (2026-09-09).
+// Proof: importing be-01's repository from command-normalizers.ts failed this
+// assertion with the same @nx/enforce-module-boundaries message (2026-09-12).
 it('keeps extracted production services inside the core boundary', async () => {
   const files = services.map((name) => `${root}/libs/core/src/service/${name}.ts`);
   for (const file of files) expect(existsSync(file), file).toBe(true);
