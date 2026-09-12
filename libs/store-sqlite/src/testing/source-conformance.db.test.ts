@@ -110,7 +110,10 @@ function readersOf(source: SqliteSource): SourceReaders {
   };
 }
 
-async function seedSqliteSource(openSource: OpenSource = openSqliteSource): Promise<{
+async function seedSqliteSource(
+  openSource: OpenSource = openSqliteSource,
+  finishSeed?: (source: SqliteSource) => Promise<void>,
+): Promise<{
   readonly source: SqliteSource;
   readonly directory: string;
 }> {
@@ -192,6 +195,7 @@ async function seedSqliteSource(openSource: OpenSource = openSqliteSource): Prom
       );
     }
     await verifySqliteSeed(source);
+    await finishSeed?.(source);
     return { source, directory };
   } catch (failure) {
     return throwAfterCleanup(failure, source, directory);
@@ -256,8 +260,10 @@ async function openSqliteCase<Family extends ExistingFamily>(
   caseId: CaseId,
   openSource: OpenSource = openSqliteSource,
 ): Promise<CaseFixture<TransactionalStores[Family]>> {
-  const { source, directory } = await seedSqliteSource(openSource);
-  if (family === 'progress') await seedProgressStep(source);
+  const { source, directory } = await seedSqliteSource(
+    openSource,
+    family === 'progress' ? seedProgressStep : undefined,
+  );
   return sqliteFixture(source, directory, family, caseId);
 }
 
@@ -1112,6 +1118,8 @@ const progressNotStartedSurrogateFault = defineFault({
         return async (workItemId, stepId, stamp) => {
           await remove(workItemId, stepId, stamp);
           if (!control.reach('progress.remove:absence')) return;
+          // This isolated test database crosses SQLite's CHECK boundary to store
+          // the forbidden `not_started` row; `finally` restores enforcement.
           source.db.run(sql.raw('PRAGMA ignore_check_constraints = ON'));
           try {
             source.db.run(
@@ -1159,6 +1167,8 @@ const progressUnknownStepFault = defineFault({
         if (progress.stepId !== 'no-such-step' || !control.reach('progress.set:unknown_step')) {
           return set(progress, stamp);
         }
+        // This isolated test database crosses SQLite's FK boundary to store the
+        // forbidden missing-step row; `finally` restores enforcement.
         source.db.run(sql.raw('PRAGMA foreign_keys = OFF'));
         try {
           source.db.insert(progressTable).values(progress).run();
@@ -1173,6 +1183,8 @@ const progressUnknownStepFault = defineFault({
         return async (projectId) => {
           const rows = await listByProject(projectId);
           if (projectId !== DETERMINISTIC_SEED.projectIds[0]) return rows;
+          // The public reader's inner step join hides the stored orphan, so this
+          // proof reads `step_progress` directly rather than fabricating a row.
           const escaped = await source.db
             .select({
               workItemId: progressTable.workItemId,
@@ -1306,8 +1318,10 @@ async function proveFault(
     assertion: `${fault.caseId} reports passed`,
     async setup(run: FaultRun<SqliteSource>) {
       const openSource = brokenSource(openBase, run);
-      const { source, directory } = await seedSqliteSource(openSource);
-      if (fault.caseId.startsWith('progress.')) await seedProgressStep(source);
+      const { source, directory } = await seedSqliteSource(
+        openSource,
+        fault.caseId.startsWith('progress.') ? seedProgressStep : undefined,
+      );
       let wasOpened = false;
       const takeFixture = <Family extends ExistingFamily>(
         family: Family,
@@ -1453,6 +1467,193 @@ describe('SQLite existing source conformance', () => {
       expect.objectContaining({ message: 'injected setup cleanup failure' }),
     ]);
     expect(existsSync(directory)).toBe(false);
+  });
+
+  it('a progress-only case seed failure closes its source and removes its directory', async () => {
+    let closeCalls = 0;
+    let directory = '';
+    let rawSource: SqliteSource | undefined;
+    let setupFailure: unknown;
+    try {
+      await openSqliteCase('progress', 'progress.set:replace', (options) => {
+        directory = dirname(options.dbPath);
+        const source = openSqliteSource(options);
+        rawSource = source;
+        return withStores(
+          {
+            ...source,
+            async close() {
+              closeCalls += 1;
+              await source.close();
+            },
+          },
+          {
+            steps: replaceMethod(
+              source.stores.steps,
+              'add',
+              (add) => (step, stamp) =>
+                step.id === PROGRESS_SENTINEL_STEP_ID
+                  ? Promise.reject(new Error('injected progress case seed failure'))
+                  : add(step, stamp),
+            ),
+          },
+        );
+      });
+    } catch (failure) {
+      setupFailure = failure;
+    }
+
+    try {
+      expect(setupFailure).toBeInstanceOf(Error);
+      expect((setupFailure as Error).message).toBe('injected progress case seed failure');
+      // Proof: with the progress seed outside the setup owner, this failed with
+      // expected `{ closeCalls: 1, directoryExists: false }` and received
+      // `{ closeCalls: 0, directoryExists: true }`.
+      expect({ closeCalls, directoryExists: existsSync(directory) }).toEqual({
+        closeCalls: 1,
+        directoryExists: false,
+      });
+    } finally {
+      if (existsSync(directory)) {
+        await rawSource?.close();
+        rmSync(directory, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it('a progress-only proof seed failure closes its source and removes its directory', async () => {
+    let closeCalls = 0;
+    let directory = '';
+    let rawSource: SqliteSource | undefined;
+    const proof = await proveFault(progressReplaceFault, (options) => {
+      directory = dirname(options.dbPath);
+      const source = openSqliteSource(options);
+      rawSource = source;
+      return withStores(
+        {
+          ...source,
+          async close() {
+            closeCalls += 1;
+            await source.close();
+          },
+        },
+        {
+          steps: replaceMethod(
+            source.stores.steps,
+            'add',
+            (add) => (step, stamp) =>
+              step.id === PROGRESS_SENTINEL_STEP_ID
+                ? Promise.reject(new Error('injected progress proof seed failure'))
+                : add(step, stamp),
+          ),
+        },
+      );
+    });
+
+    try {
+      expect(proof).toEqual({
+        kind: 'setup-failed',
+        faultId: 'break:progress.set:replace',
+        caseId: 'progress.set:replace',
+        failure: 'injected progress proof seed failure',
+      });
+      // Proof: with the proof's progress seed outside the setup owner, this
+      // failed with expected `{ closeCalls: 1, directoryExists: false }` and
+      // received `{ closeCalls: 0, directoryExists: true }`.
+      expect({ closeCalls, directoryExists: existsSync(directory) }).toEqual({
+        closeCalls: 1,
+        directoryExists: false,
+      });
+    } finally {
+      if (existsSync(directory)) {
+        await rawSource?.close();
+        rmSync(directory, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it('a progress-only seed retains its original and cleanup failures', async () => {
+    let closeCalls = 0;
+    let directory = '';
+    let rawSource: SqliteSource | undefined;
+    let combinedFailure: unknown;
+    try {
+      await openSqliteCase('progress', 'progress.set:replace', (options) => {
+        directory = dirname(options.dbPath);
+        const source = openSqliteSource(options);
+        rawSource = source;
+        return withStores(
+          {
+            ...source,
+            async close() {
+              closeCalls += 1;
+              await source.close();
+              throw new Error('injected progress seed cleanup failure');
+            },
+          },
+          {
+            steps: replaceMethod(
+              source.stores.steps,
+              'add',
+              (add) => (step, stamp) =>
+                step.id === PROGRESS_SENTINEL_STEP_ID
+                  ? Promise.reject(new Error('injected progress original seed failure'))
+                  : add(step, stamp),
+            ),
+          },
+        );
+      });
+    } catch (failure) {
+      combinedFailure = failure;
+    }
+
+    try {
+      // Proof: bypassing the shared cleanup owner failed on
+      // `Expected: true · Received: false`, leaving only the original failure.
+      expect(combinedFailure instanceof AggregateError).toBe(true);
+      if (!(combinedFailure instanceof AggregateError)) {
+        throw new Error('progress seed and cleanup failures were not aggregated');
+      }
+      expect(combinedFailure.errors).toEqual([
+        expect.objectContaining({ message: 'injected progress original seed failure' }),
+        expect.objectContaining({ message: 'injected progress seed cleanup failure' }),
+      ]);
+      expect(closeCalls).toBe(1);
+      expect(existsSync(directory)).toBe(false);
+    } finally {
+      if (existsSync(directory)) {
+        await rawSource?.close();
+        rmSync(directory, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it('a successful progress-only seed leaves normal teardown owning one close', async () => {
+    let closeCalls = 0;
+    let directory = '';
+    const fixture = await openSqliteCase('progress', 'progress.set:replace', (options) => {
+      directory = dirname(options.dbPath);
+      const source = openSqliteSource(options);
+      return {
+        ...source,
+        async close() {
+          closeCalls += 1;
+          await source.close();
+        },
+      };
+    });
+
+    expect({ closeCalls, directoryExists: existsSync(directory) }).toEqual({
+      closeCalls: 0,
+      directoryExists: true,
+    });
+    await fixture.close();
+    // Proof: calling the fixture's resource cleanup twice failed with expected
+    // `closeCalls: 1` and received `closeCalls: 2`.
+    expect({ closeCalls, directoryExists: existsSync(directory) }).toEqual({
+      closeCalls: 1,
+      directoryExists: false,
+    });
   });
 
   it('the execution report surfaces nested SQLite setup and cleanup failures', async () => {

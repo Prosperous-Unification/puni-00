@@ -881,3 +881,33 @@ absent from the current project files. Full workspace, build, browser, and
 deploy gates were skipped as outside this shared conformance and test-decorator
 slice. Task 3.4 remains unchecked pending independent review; Task 4.1 was not
 started.
+
+### Task 3.4 Astra fix round 1 — progress-only SQLite setup ownership
+
+The progress-only third-step seed now runs as `seedSqliteSource`'s final seed
+operation, after the verified base seed but inside the same resource owner. A
+rejection therefore closes the source and removes its temporary directory for
+both the ordinary case opener and `proveFault`; `throwAfterCleanup` retains the
+original and cleanup failures without a second cleanup implementation. A
+successful seed still hands ownership to the normal fixture teardown, which
+closes exactly once.
+
+Permanent negatives reject only the add of `PROGRESS_SENTINEL_STEP_ID`, after
+the base seed succeeds. With the late seed moved back outside the owner, both
+entry paths failed on expected `{ closeCalls: 1, directoryExists: false }` and
+received `{ closeCalls: 0, directoryExists: true }`; the aggregation case
+failed on `Expected: true · Received: false`. A separate double-cleanup
+injection failed with expected `closeCalls: 1` and received `closeCalls: 2`.
+Restored cleanup coverage passed 4/0/59, progress proof/restoration remained
+2/0/766, and the complete SQLite source-conformance file passed 22/0/2,226.
+
+Adjacent comments now identify the isolated SQLite test database at the CHECK
+and FK overrides, the forbidden `not_started` and missing-step rows, restoration
+in `finally`, and the direct `step_progress` read required because the public
+reader's normal inner step join hides the stored orphan.
+
+Fresh uncached targets passed: conformance 29/0/47, memory 37/0/1,661, and
+SQLite 667/0/4,235 across 60 files. All six uncached lint/typecheck targets
+passed. Formatting, diff, and pinned OpenSpec evidence is retained in the
+updated Task 3.4 report. Independent re-review remains pending; Task 3.4 stays
+unchecked and Task 4.1 remains untouched.
