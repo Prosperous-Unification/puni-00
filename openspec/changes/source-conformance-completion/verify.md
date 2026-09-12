@@ -1232,3 +1232,18 @@ plugin-worker socket. Full workspace, build, browser, deploy, and h2puni SHA
 gate were skipped because this repair changes only shared observations and
 test fault/proof seams and no commit was authorized. Task 4.2 remains
 unchecked pending rereview; Task 4.3 was not started.
+
+### Epic 3 Astra wave acceptance
+
+Astra xhigh accepted the integrated Epic 3 repairs at `3da5a113` on
+2026-09-13 with no Critical or Important findings. Its exact-head rereview
+confirmed that the intermediate frozen-number snapshots fail before the clear
+on both real adapters, the current shared memory owner covers both progress
+setup entry paths without double cleanup, and all 51 implemented case IDs
+equal the independent registrations. Nine focused tests passed with 570
+assertions, and every targeted negative failed for its named reason.
+
+The remaining Minor documentation note was repaired by recording the fifth
+work-item fault, the missing initial freeze, in `design.md`. Reviews:
+`/tmp/source-conformance-epic-3-astra-review.md` and
+`/tmp/source-conformance-epic-3-astra-rereview.md`.
