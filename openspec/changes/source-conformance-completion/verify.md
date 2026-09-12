@@ -561,5 +561,12 @@ After restoration, the complete memory source-conformance file passed 8 tests
 with 263 assertions and the complete SQLite file passed 13 tests with 918
 assertions. All six uncached lint/typecheck targets for conformance,
 store-memory and store-sqlite succeeded. Focused formatting and diff checks are
-recorded in the task report. Task 2.4 remains unchecked; Task 3.1 remains
-untouched.
+recorded in the task report.
+
+Astra xhigh accepted fix round 1 on 2026-09-12. The shared case passes independent
+clones at both create calls while the expected marker objects remain untouched, and
+both permanent source faults retain the demonstrated in-place `Object.assign`
+mutation. The re-review found no new Critical or Important breakage and needed no
+additional probe. Task 2.4 is complete; the source change is now 7/24 tasks. Task
+3.1 remains untouched. Reports: `/tmp/source-conformance-2-4-astra-review.md` and
+`/tmp/source-conformance-2-4-astra-rereview.md`.
