@@ -622,3 +622,30 @@ were not run: this slice adds a shared store conformance kit and test-only
 source decorators, without application, transport, migration or deployment
 behavior. Task 3.1 remains unchecked pending independent review; Task 3.2 was
 not started.
+
+### Task 3.1 Astra fix round 1 — complete public snapshots
+
+Astra's review found the insert, move, promotion and freeze assertions projected
+away most of each `LabelledWorkItem`. The cases now compare independently
+constructed complete project-A lists and unchanged complete project-B lists.
+Affected survivors carry nonempty team, service, type and external-reference
+witnesses before fault activation; SQLite also carries the seeded tag witness.
+Literal placement, frozen-number and removal-settlement assertions remain.
+
+The complete expected lists retain revision. They allow only the two precise
+public outcomes the sources expose: no structural bookkeeping bump, or exact
+increments of moved +1; reparented children +1 with the position-only sibling
+unchanged; and frozen rows +2/+1 across the two batches. The expected rows are
+cloned before the operation, including source-minted external-reference IDs, so
+neither mutable request input nor the settled source answer can rewrite the
+oracle.
+
+- Exact five-case runs: memory 1 pass / 83 assertions; SQLite 1 pass / 103
+  assertions. No new memory gap; SQLite remains at zero gaps.
+- The unchanged four permanent faults failed inside the complete snapshot
+  assertions, and their restored proof tests passed: memory 1/0/129; SQLite
+  1/0/161.
+- Complete source files passed: memory 10/0/923; SQLite 15/0/1,474. The existing
+  SQLite work-item suite passed 38/0/87.
+- All six uncached lint/typecheck targets for conformance, store-memory and
+  store-sqlite passed after the fix.

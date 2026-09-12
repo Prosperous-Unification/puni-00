@@ -52,6 +52,10 @@ export interface SeededPlan {
   readonly stepIds: readonly [readonly [string, string], readonly [string, string]];
   readonly workItemIds: readonly [readonly [string, string], readonly [string, string]];
   readonly teamIds: readonly [string, string];
+  readonly tagIds: readonly [string];
+  readonly serviceIds: readonly [string];
+  readonly typeIds: readonly [string];
+  readonly externalSystemIds: readonly [string];
   readonly personIds: readonly [string, string];
   readonly stamps: readonly [WriteStamp, WriteStamp];
 }
@@ -69,6 +73,10 @@ export const DETERMINISTIC_SEED: SeededPlan = {
     ['work-b-one', 'work-b-two'],
   ],
   teamIds: ['team-a', 'team-b'],
+  tagIds: ['tag-a'],
+  serviceIds: ['service-a'],
+  typeIds: ['type-a'],
+  externalSystemIds: ['sys-jira-issue'],
   personIds: ['person-a', 'person-b'],
   stamps: [
     { at: 100, by: 'owner-a' },

@@ -137,6 +137,17 @@ state. The patch fault reaches its phase only after a separate scalar patch has
 returned success and `findById` observes that write, before the original
 unknown-team refusal is invoked.
 
+The four successful work-item cases compare the complete public project-A list
+against an independently cloned expected list, with only the specified row
+changes applied, and compare project B unchanged. Their setup gives affected
+survivors nonempty team, service, type and external-reference junctions; SQLite
+also retains the seeded tag witness. Revision remains in every comparison. The
+shared postcondition admits only the two exact revision policies exposed by the
+public sources: unchanged structural bookkeeping, or the durable source's exact
+increments (one directly reparented row for move, each reparented child for
+promotion, and one increment per frozen-number batch member). It admits neither
+mixed nor arbitrary revision changes.
+
 Literal StepState values are in_progress/done; MeasureMetric values are token_estimate/token_actual/hours_actual. Import their final declarations rather than creating another union. Kit authors do not add validations the port assigns to services/controllers. Unknown reference behavior is asserted only where the existing port models it.
 
 The issuer/subject distinction fixture uses different unclaimed verified email addresses for its two issuers, so it does not accidentally enter the separate verified-email-conflict case. Plan-event ordering is `(createdAt descending, id descending)`; use tied IDs a/b/c and assert c/b/a independently of insertion order. The capture completeness fixture populates and asserts these exact seventeen fields: project, steps, workItems, estimates, actuals, progress, measures, dependencies, assignments, capacity, priorityBands, people, teams, services, tags, workItemTypes and externalSystems. Capacity is a ReadonlyMap and its expected entries are compared independently; an array/count-only check does not cover it.

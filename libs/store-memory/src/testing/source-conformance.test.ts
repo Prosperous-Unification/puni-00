@@ -97,6 +97,9 @@ async function seedMemorySource(openSource: OpenSource = openMemorySource): Prom
       seed.stamps[0],
     );
   }
+  await stores.directory.addTag({ id: seed.tagIds[0], name: 'Tag 1' }, seed.stamps[0]);
+  await stores.directory.addService({ id: seed.serviceIds[0], name: 'Service 1' }, seed.stamps[0]);
+  await stores.directory.addWorkItemType({ id: seed.typeIds[0], name: 'Type 1' }, seed.stamps[0]);
   for (const [index, personId] of seed.personIds.entries()) {
     await stores.directory.addPerson(
       { id: personId, name: `Person ${String(index + 1)}` },
@@ -120,6 +123,16 @@ async function verifyMemorySeed(source: MemorySource): Promise<void> {
       ...seed.workItemIds[index],
     ]);
   }
+  expect((await source.stores.directory.listTags()).map(({ id }) => id)).toContain(seed.tagIds[0]);
+  expect((await source.stores.directory.listServices()).map(({ id }) => id)).toContain(
+    seed.serviceIds[0],
+  );
+  expect((await source.stores.directory.listWorkItemTypes()).map(({ id }) => id)).toContain(
+    seed.typeIds[0],
+  );
+  expect((await source.stores.directory.listExternalSystems()).map(({ id }) => id)).toContain(
+    seed.externalSystemIds[0],
+  );
 }
 
 function memoryFixture<Family extends ExistingFamily>(
@@ -957,8 +970,8 @@ describe('memory existing source conformance', () => {
     // `work-a-one`, and the retained number received as null.
     expect(failures[0]).toContain('"position": 11');
     expect(failures[1]).toContain('"name": "Escaped rename"');
-    expect(failures[2]).toContain('"parentId": "work-a-one"');
-    expect(failures[3]).toContain('"frozenNumber": null');
+    expect(failures[2]).toContain('parentId: "work-a-one"');
+    expect(failures[3]).toContain('frozenNumber: null');
 
     const restored = await runCases(existingStoreRegistrations(openers), {
       focus: faults.map(({ caseId }) => caseId),
