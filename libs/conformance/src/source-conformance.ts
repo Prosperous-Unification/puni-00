@@ -11,6 +11,7 @@ import { priorityBandRegistrations } from './stores/priority-bands';
 import { projectRegistrations } from './stores/projects';
 import { stepRegistrations } from './stores/steps';
 import { userRegistrations } from './stores/users';
+import { workItemRegistrations } from './stores/work-items';
 
 export interface ExistingStoreOpeners {
   readonly projects: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['projects']>>;
@@ -22,6 +23,7 @@ export interface ExistingStoreOpeners {
   readonly calendarMarkers: (
     caseId: CaseId,
   ) => Promise<CaseFixture<TransactionalStores['calendarMarkers']>>;
+  readonly workItems: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['workItems']>>;
   readonly steps: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['steps']>>;
   readonly estimates: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['estimates']>>;
   readonly directory: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['directory']>>;
@@ -38,6 +40,7 @@ export function existingStoreRegistrations(
     ...capacityRegistrations(openers.capacity),
     ...priorityBandRegistrations(openers.priorityBands),
     ...calendarMarkerRegistrations(openers.calendarMarkers),
+    ...workItemRegistrations(openers.workItems),
     ...stepRegistrations(openers.steps),
     ...estimateRegistrations(openers.estimates),
     ...directoryRegistrations(openers.directory),

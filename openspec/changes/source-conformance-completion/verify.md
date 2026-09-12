@@ -570,3 +570,55 @@ mutation. The re-review found no new Critical or Important breakage and needed n
 additional probe. Task 2.4 is complete; the source change is now 7/24 tasks. Task
 3.1 remains untouched. Reports: `/tmp/source-conformance-2-4-astra-review.md` and
 `/tmp/source-conformance-2-4-astra-rereview.md`.
+
+## 2026-09-13 — task 3.1 work-item family
+
+The shared runner now registers all five work-item cases. Each source opens the
+real public `WorkItemStore`, verifies both deterministic projects and their row
+IDs before fault activation, and observes state only through
+`listByProject`/`findById`. Memory ran every case without a new gap; SQLite ran
+all five and retains zero gaps.
+
+### Task 3.1 failure-proof table
+
+| Check                                        | Fault injected                                                                                                                 | Production-path test                                                  | Observed failure                                                                                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Registration includes all five work-item IDs | Loaded the independent inventory before registering `workItemRegistrations`                                                    | `preserves the original IDs and adds each completed family inventory` | All five `workItems.*` IDs were absent (Expected -5 / Received +0).                                                                     |
+| Insert applies declared respacing            | Both decorators passed an empty `respaced` list into the real insert                                                           | Source-specific work-item fault test                                  | The second sibling remained at position 11 instead of 30.                                                                               |
+| Unknown-team refusal is atomic               | Both decorators first completed and publicly verified the scalar rename, then invoked the real patch carrying the unknown team | Source-specific work-item fault test                                  | The refusal was modeled, but the complete settled row changed from `Work 1` to `Escaped rename` (SQLite also advanced revision 1 to 2). |
+| Every surviving child is promoted            | Both decorators omitted `work-a-child-two` from the real promotion list                                                        | Source-specific work-item fault test                                  | Memory retained its old `work-a-one` parent link; SQLite refused and rolled back, so `didRefuse` was true and the parent remained.      |
+| Clearing one frozen number is key-specific   | Both decorators appended a null update for the other frozen row to the real batch                                              | Source-specific work-item fault test                                  | `work-a-two` received null instead of retaining `020`.                                                                                  |
+
+`workItems.move:parent-position` deliberately has no fifth mutation. Its normal
+case moves one row beneath a different parent, respaces the existing child and
+compares the exact project/parent/position set while project B remains an exact
+public-read sentinel. All four faults were first run as inert controls and
+failed the proof test as `phase-failed`; after implementation they were observed
+at the named assertion and the unchanged registrations passed on fresh sources.
+
+### Task 3.1 verification
+
+- Registration RED: 0 pass, 1 fail; five expected IDs missing. Restored: 1 pass,
+  0 fail, 1 assertion.
+- Exact unexcluded five-case runs before faults: memory 1 pass, 0 fail, 43
+  assertions; SQLite 1 pass, 0 fail, 63 assertions.
+- Focused normal plus four proof/restoration runs: memory 2 pass, 0 fail, 113
+  assertions; SQLite 2 pass, 0 fail, 165 assertions.
+- Complete source files: memory 10 pass, 0 fail, 600 assertions; SQLite 15 pass,
+  0 fail, 1,083 assertions.
+- Existing SQLite work-item suite: 38 pass, 0 fail, 87 assertions.
+- Uncached normal targets: conformance 29 pass / 47 assertions; memory 31 pass /
+  798 assertions; SQLite 660 pass / 3,092 assertions across 60 files.
+- All six uncached lint/typecheck targets for conformance, store-memory and
+  store-sqlite succeeded.
+- Focused Prettier and `git diff --check` passed after the evidence update.
+- Pinned OpenSpec 1.3.0 strict validation passed; all-artifact validation
+  reported 75 passed and 0 failed.
+
+The source-specific `test:conformance` targets remain a planned Task 7.2
+integration and do not exist in the three current project files, so no such
+command is claimed here. The full workspace, build, browser and deploy gates
+were not run: this slice adds a shared store conformance kit and test-only
+source decorators, without application, transport, migration or deployment
+behavior. Task 3.1 remains unchecked pending independent review; Task 3.2 was
+not started.

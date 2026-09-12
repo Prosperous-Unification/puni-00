@@ -240,6 +240,7 @@ const openers: ExistingStoreOpeners = {
   capacity: (caseId) => openSqliteCase('capacity', caseId),
   priorityBands: (caseId) => openSqliteCase('priorityBands', caseId),
   calendarMarkers: (caseId) => openSqliteCase('calendarMarkers', caseId),
+  workItems: (caseId) => openSqliteCase('workItems', caseId),
   steps: (caseId) => openSqliteCase('steps', caseId),
   estimates: (caseId) => openSqliteCase('estimates', caseId),
   directory: (caseId) => openSqliteCase('directory', caseId),
@@ -644,6 +645,93 @@ const markerLiteralDateFault = defineFault({
   },
 });
 
+const insertRespaceFault = defineFault({
+  id: 'break:workItems.insert:respace',
+  caseId: 'workItems.insert:respace',
+  createControl: () => createFaultControl('workItems.insert:respace'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      workItems: replaceMethod(source.stores.workItems, 'insert', (insert) => {
+        return (row, respaced, stamp) =>
+          insert(
+            row,
+            row.id === 'work-a-inserted' && control.reach('workItems.insert:respace')
+              ? []
+              : respaced,
+            stamp,
+          );
+      }),
+    });
+  },
+});
+
+const patchRefusalAtomicFault = defineFault({
+  id: 'break:workItems.patch:refusal-atomic',
+  caseId: 'workItems.patch:refusal-atomic',
+  createControl: () => createFaultControl('workItems.patch:refusal-atomic'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      workItems: replaceMethod(source.stores.workItems, 'patch', (patch) => {
+        return async (id, changes, stamp) => {
+          if (changes.name === 'Escaped rename' && changes.teamIds?.includes('team-missing')) {
+            const scalar = await patch(id, { name: changes.name }, stamp);
+            if (!scalar.ok) throw new Error('partial-write setup scalar patch was refused');
+            const written = await source.stores.workItems.findById(id);
+            if (written?.name !== changes.name) {
+              throw new Error('partial-write setup scalar patch was not observable');
+            }
+            control.reach('workItems.patch:refusal-atomic');
+          }
+          return patch(id, changes, stamp);
+        };
+      }),
+    });
+  },
+});
+
+const removePromotionFault = defineFault({
+  id: 'break:workItems.remove:promotion',
+  caseId: 'workItems.remove:promotion',
+  createControl: () => createFaultControl('workItems.remove:promotion'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      workItems: replaceMethod(source.stores.workItems, 'remove', (remove) => {
+        return (ids, promoted, stamp) =>
+          remove(
+            ids,
+            control.reach('workItems.remove:promotion')
+              ? promoted.filter(({ id }) => id !== 'work-a-child-two')
+              : promoted,
+            stamp,
+          );
+      }),
+    });
+  },
+});
+
+const frozenClearFault = defineFault({
+  id: 'break:workItems.setFrozenNumbers:clear',
+  caseId: 'workItems.setFrozenNumbers:clear',
+  createControl: () => createFaultControl('workItems.setFrozenNumbers:clear'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      workItems: replaceMethod(
+        source.stores.workItems,
+        'setFrozenNumbers',
+        (setFrozenNumbers) => (updates, stamp) => {
+          const isClear = updates.some(({ frozenNumber }) => frozenNumber === null);
+          return setFrozenNumbers(
+            isClear && control.reach('workItems.setFrozenNumbers:clear')
+              ? [...updates, { id: DETERMINISTIC_SEED.workItemIds[0][1], frozenNumber: null }]
+              : updates,
+            stamp,
+          );
+        },
+      ),
+    });
+  },
+});
+
 const addFault = defineFault({
   id: 'break:steps.add',
   caseId: 'steps.add',
@@ -777,6 +865,7 @@ async function proveFault(
         capacity: (caseId) => takeFixture('capacity', caseId),
         priorityBands: (caseId) => takeFixture('priorityBands', caseId),
         calendarMarkers: (caseId) => takeFixture('calendarMarkers', caseId),
+        workItems: (caseId) => takeFixture('workItems', caseId),
         steps: (caseId) => takeFixture('steps', caseId),
         estimates: (caseId) => takeFixture('estimates', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
@@ -814,6 +903,21 @@ async function proveFault(
 }
 
 describe('SQLite existing source conformance', () => {
+  it('runs every work-item case through the real SQLite source', async () => {
+    const caseIds = [
+      'workItems.insert:respace',
+      'workItems.patch:refusal-atomic',
+      'workItems.move:parent-position',
+      'workItems.remove:promotion',
+      'workItems.setFrozenNumbers:clear',
+    ] as const;
+    const report = await runCases(existingStoreRegistrations(openers), { focus: caseIds });
+
+    expect(report.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      caseIds.map((caseId) => ({ caseId, status: 'passed' })),
+    );
+  });
+
   it('failed SQLite setup closes its source and removes its temporary directory', async () => {
     let closeCalls = 0;
     let directory = '';
@@ -1248,6 +1352,35 @@ describe('SQLite existing source conformance', () => {
       [addFault, renameFault, estimateFault, removeFault, rangeFault, pruneFault].map(
         ({ caseId }) => ({ caseId, status: 'passed' }),
       ),
+    );
+  });
+
+  it('reinjects the four work-item matrix faults in their named windows', async () => {
+    const faults = [
+      insertRespaceFault,
+      patchRefusalAtomicFault,
+      removePromotionFault,
+      frozenClearFault,
+    ];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(Array.from({ length: 4 }, () => 'observed'));
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    // Proof: the four real SQLite mutations failed respectively with the tight
+    // sibling still at position 11, `Escaped rename`, a settled refusal with the
+    // parent retained, and the retained number received as null.
+    expect(failures[0]).toContain('"position": 11');
+    expect(failures[1]).toContain('"name": "Escaped rename"');
+    expect(failures[2]).toContain('"didRefuse": true');
+    expect(failures[3]).toContain('"frozenNumber": null');
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      faults.map(({ caseId }) => ({ caseId, status: 'passed' })),
     );
   });
 });

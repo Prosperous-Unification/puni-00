@@ -104,7 +104,22 @@ async function seedMemorySource(openSource: OpenSource = openMemorySource): Prom
       seed.stamps[0],
     );
   }
+  await verifyMemorySeed(source);
   return source;
+}
+
+async function verifyMemorySeed(source: MemorySource): Promise<void> {
+  const seed = DETERMINISTIC_SEED;
+  for (const [index, projectId] of seed.projectIds.entries()) {
+    expect(await source.stores.projects.findById(projectId)).toMatchObject({
+      id: projectId,
+      ownerId: seed.ownerIds[index],
+      name: `Project ${String(index + 1)}`,
+    });
+    expect((await source.stores.workItems.listByProject(projectId)).map(({ id }) => id)).toEqual([
+      ...seed.workItemIds[index],
+    ]);
+  }
 }
 
 function memoryFixture<Family extends ExistingFamily>(
@@ -136,6 +151,7 @@ const openers: ExistingStoreOpeners = {
   capacity: (caseId) => openMemoryCase('capacity', caseId),
   priorityBands: (caseId) => openMemoryCase('priorityBands', caseId),
   calendarMarkers: (caseId) => openMemoryCase('calendarMarkers', caseId),
+  workItems: (caseId) => openMemoryCase('workItems', caseId),
   steps: (caseId) => openMemoryCase('steps', caseId),
   estimates: (caseId) => openMemoryCase('estimates', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
@@ -194,6 +210,7 @@ const declaration: SourceDeclaration = {
       open: openers.priorityBands,
     },
     calendarMarkers: { kind: 'offered', gaps: [], open: openers.calendarMarkers },
+    workItems: { kind: 'offered', gaps: [], open: openers.workItems },
     steps: { kind: 'offered', gaps: [], open: openers.steps },
     estimates: { kind: 'offered', gaps: [unknownStepGap], open: openers.estimates },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
@@ -555,6 +572,93 @@ const projectReaderOrderFault = defineFault({
   },
 });
 
+const insertRespaceFault = defineFault({
+  id: 'break:workItems.insert:respace',
+  caseId: 'workItems.insert:respace',
+  createControl: () => createFaultControl('workItems.insert:respace'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      workItems: replaceMethod(source.stores.workItems, 'insert', (insert) => {
+        return (row, respaced, stamp) =>
+          insert(
+            row,
+            row.id === 'work-a-inserted' && control.reach('workItems.insert:respace')
+              ? []
+              : respaced,
+            stamp,
+          );
+      }),
+    });
+  },
+});
+
+const patchRefusalAtomicFault = defineFault({
+  id: 'break:workItems.patch:refusal-atomic',
+  caseId: 'workItems.patch:refusal-atomic',
+  createControl: () => createFaultControl('workItems.patch:refusal-atomic'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      workItems: replaceMethod(source.stores.workItems, 'patch', (patch) => {
+        return async (id, changes, stamp) => {
+          if (changes.name === 'Escaped rename' && changes.teamIds?.includes('team-missing')) {
+            const scalar = await patch(id, { name: changes.name }, stamp);
+            if (!scalar.ok) throw new Error('partial-write setup scalar patch was refused');
+            const written = await source.stores.workItems.findById(id);
+            if (written?.name !== changes.name) {
+              throw new Error('partial-write setup scalar patch was not observable');
+            }
+            control.reach('workItems.patch:refusal-atomic');
+          }
+          return patch(id, changes, stamp);
+        };
+      }),
+    });
+  },
+});
+
+const removePromotionFault = defineFault({
+  id: 'break:workItems.remove:promotion',
+  caseId: 'workItems.remove:promotion',
+  createControl: () => createFaultControl('workItems.remove:promotion'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      workItems: replaceMethod(source.stores.workItems, 'remove', (remove) => {
+        return (ids, promoted, stamp) =>
+          remove(
+            ids,
+            control.reach('workItems.remove:promotion')
+              ? promoted.filter(({ id }) => id !== 'work-a-child-two')
+              : promoted,
+            stamp,
+          );
+      }),
+    });
+  },
+});
+
+const frozenClearFault = defineFault({
+  id: 'break:workItems.setFrozenNumbers:clear',
+  caseId: 'workItems.setFrozenNumbers:clear',
+  createControl: () => createFaultControl('workItems.setFrozenNumbers:clear'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      workItems: replaceMethod(
+        source.stores.workItems,
+        'setFrozenNumbers',
+        (setFrozenNumbers) => (updates, stamp) => {
+          const isClear = updates.some(({ frozenNumber }) => frozenNumber === null);
+          return setFrozenNumbers(
+            isClear && control.reach('workItems.setFrozenNumbers:clear')
+              ? [...updates, { id: DETERMINISTIC_SEED.workItemIds[0][1], frozenNumber: null }]
+              : updates,
+            stamp,
+          );
+        },
+      ),
+    });
+  },
+});
+
 interface FaultContext {
   readonly registration: ReturnType<typeof existingStoreRegistrations>[number];
   assertionFailure: string | null;
@@ -581,6 +685,7 @@ async function proveFault(fault: Fault<MemorySource>): Promise<FaultProof> {
         capacity: (caseId) => takeFixture('capacity', caseId),
         priorityBands: (caseId) => takeFixture('priorityBands', caseId),
         calendarMarkers: (caseId) => takeFixture('calendarMarkers', caseId),
+        workItems: (caseId) => takeFixture('workItems', caseId),
         steps: (caseId) => takeFixture('steps', caseId),
         estimates: (caseId) => takeFixture('estimates', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
@@ -614,6 +719,21 @@ function failedCase(report: ExecutionReport, caseId: CaseId) {
 }
 
 describe('memory existing source conformance', () => {
+  it('runs every work-item case through the real memory source', async () => {
+    const caseIds = [
+      'workItems.insert:respace',
+      'workItems.patch:refusal-atomic',
+      'workItems.move:parent-position',
+      'workItems.remove:promotion',
+      'workItems.setFrozenNumbers:clear',
+    ] as const;
+    const report = await runCases(existingStoreRegistrations(openers), { focus: caseIds });
+
+    expect(report.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      caseIds.map((caseId) => ({ caseId, status: 'passed' })),
+    );
+  });
+
   it('names the observed configuration-reference refusal gaps', async () => {
     const report = await runCases(existingStoreRegistrations(openers), {
       focus: ['capacity.set:missing-reference', 'priorityBands.replace:missing-project'],
@@ -817,5 +937,34 @@ describe('memory existing source conformance', () => {
       { caseId: markerOrderFault.caseId, status: 'passed' },
       { caseId: markerProjectScopeFault.caseId, status: 'passed' },
     ]);
+  });
+
+  it('reinjects the four work-item matrix faults in their named windows', async () => {
+    const faults = [
+      insertRespaceFault,
+      patchRefusalAtomicFault,
+      removePromotionFault,
+      frozenClearFault,
+    ];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(Array.from({ length: 4 }, () => 'observed'));
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    // Proof: the four real memory mutations failed respectively with the tight
+    // sibling still at position 11, `Escaped rename`, the child's old parent
+    // `work-a-one`, and the retained number received as null.
+    expect(failures[0]).toContain('"position": 11');
+    expect(failures[1]).toContain('"name": "Escaped rename"');
+    expect(failures[2]).toContain('"parentId": "work-a-one"');
+    expect(failures[3]).toContain('"frozenNumber": null');
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      faults.map(({ caseId }) => ({ caseId, status: 'passed' })),
+    );
   });
 });
