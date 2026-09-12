@@ -1,3 +1,4 @@
+import type { commandDefinitions } from '@wbs/contracts';
 import {
   isIsoDate,
   type IsoDate,
@@ -10,6 +11,19 @@ import { parseOrThrow } from '@wbs/validation';
 
 import { capacityOf } from '../http/capacity-body';
 import { ladderOf } from '../http/priority-ladder-body';
+
+interface StructuralCommandDefinition {
+  readonly schema: { readonly infer: { readonly kind: string } };
+}
+
+/** One discriminator-preserving semantic normalizer for every structural definition. */
+export type CommandNormalizerRecord<
+  Definitions extends Record<string, StructuralCommandDefinition>,
+> = {
+  readonly [Kind in keyof Definitions & string]: (raw: Definitions[Kind]['schema']['infer']) => {
+    readonly kind: Kind;
+  };
+};
 
 /** A semantic command refusal for the HTTP boundary to contextualize with its index and kind. */
 export class CommandNormalizationError extends Error {
@@ -454,6 +468,8 @@ function normalizeNamed<const Kind extends string>(kind: Kind, raw: Record<strin
 /**
  * Pure semantic normalization for every structural command kind. Each return
  * retains its literal discriminator so {@link PlanCommand} can be inferred from this record.
+ * Proof: adding `temporaryCommand` to the structural definitions without an entry here failed
+ * core typecheck with TS2741 at this record.
  */
 export const commandNormalizers = {
   createWorkItem(raw: Record<string, unknown>) {
@@ -696,7 +712,7 @@ export const commandNormalizers = {
       typeRef: asOptionalId(raw['typeRef'], 'typeRef'),
       cascade: asOptionalFlag(raw['cascade'], 'cascade'),
     }),
-} as const;
+} as const satisfies CommandNormalizerRecord<typeof commandDefinitions>;
 
 /** A normalized command discriminator, derived from {@link commandNormalizers}. */
 export type PlanCommandKind = keyof typeof commandNormalizers;

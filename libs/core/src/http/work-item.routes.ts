@@ -193,7 +193,11 @@ async function classifyCommand(
   return { ok: false, status: 400, body: { error: failure.code } };
 }
 
-/** Parsing stays before runner admission, so a later invalid command outranks the batch cap. */
+/**
+ * Parsing stays before runner admission, so a later invalid command outranks the batch cap.
+ * Proof: checking the cap in the mounted handler first made the index-200 case receive
+ * `too_many_commands` instead of `invalid_actual`.
+ */
 async function parsedBatch(body: unknown) {
   try {
     return { ok: true, commands: parseBatch(body) } as const;

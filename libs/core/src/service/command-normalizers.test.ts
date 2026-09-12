@@ -1,6 +1,26 @@
+import { commandDefinitions, defineCommand } from '@wbs/contracts';
+import { type } from 'arktype';
 import { expect, test } from 'bun:test';
 
-import { commandNormalizers } from './command-normalizers';
+import { type CommandNormalizerRecord, commandNormalizers } from './command-normalizers';
+
+export function normalizerTypeCases() {
+  const _definitionsWithTemporary = {
+    ...commandDefinitions,
+    temporaryCommand: defineCommand('temporaryCommand', {
+      schema: type({ kind: "'temporaryCommand'" }),
+      scope: 'project',
+      description: 'Temporary compile-negative command.',
+    }),
+  } as const;
+
+  // Proof: removing this expected error failed typecheck with TS2741 because
+  // `temporaryCommand` was missing from this normalizer record.
+  // @ts-expect-error A structural definition without a normalizer makes the record incomplete.
+  const incompleteNormalizers: CommandNormalizerRecord<typeof _definitionsWithTemporary> =
+    commandNormalizers;
+  return incompleteNormalizers;
+}
 
 test('preserves priority absence null and number', () => {
   expect(commandNormalizers.createWorkItem({ kind: 'createWorkItem' })).toEqual({

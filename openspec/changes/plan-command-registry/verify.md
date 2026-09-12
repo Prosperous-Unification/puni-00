@@ -1,8 +1,8 @@
 # Verification Report
 
 **Change**: `plan-command-registry`
-**Scope**: Tasks 1.1–2.1; Tasks 2.2–3.2 and the final change gate remain pending
-**Verified at**: 2026-09-12 16:07 EEST
+**Scope**: Tasks 1.1–2.2; Tasks 2.3–3.2 and the final change gate remain pending
+**Verified at**: 2026-09-12 16:19 EEST
 **Baseline**: `6a47a7220109484bae8f86fe03c35dc570fa1845`
 
 ## Current path map
@@ -41,6 +41,7 @@ The design was written against `339708fa` with 36 kinds. Commit `521ef54f` added
 | Mounted absent-priority middle-band behavior (`work-item.test.ts`)                                                  | Defaulted absent priority to `null` in the production `createWorkItem` normalizer                  | Persisted row assertion failed with `Expected: 47`, `Received: null`                                                                                                      | Focused Task 2.1 run: 3 pass, 0 fail                                         |
 | Extracted normalizer remains inside the core boundary (`service-boundaries.test.ts`)                                | Imported be-01's repository by relative path from production `command-normalizers.ts`              | Boundary assertion received `@nx/enforce-module-boundaries`: projects cannot be imported by relative path                                                                 | Focused boundary and mounted run: 15 pass, 0 fail                            |
 | Mounted within-command semantic refusal precedence (`work-item.test.ts`)                                            | Used the extracted branch-local evaluation order without the old eager target/ref validation       | Five-case aggregate received `parentRef_must_be_an_id` twice, `expected_object`, `parentRef_must_be_an_id`, and bare `invalid_body` instead of the prior indexed refusals | Focused mounted case: 1 pass, 0 fail                                         |
+| Structural-definition/normalizer completeness (`command-normalizers.ts`)                                            | Added production `temporaryCommand` definition without a normalizer entry                          | Core typecheck failed with TS2741 at the normalizer record: property `temporaryCommand` was missing                                                                       | Restored core typecheck: exit 0                                              |
 
 The pre-existing mounted malformed nested-extra and semantic-invalid-value controls remain in the same test file and passed in both the targeted run and the project baseline.
 
@@ -98,8 +99,25 @@ Review found that extraction had changed within-command refusal precedence. `nor
 | all-37 pre-extraction/current normalization differential (read-only Bun probe)                                                                                                                                                                                     | 74 values matched across 37 independent kinds; every returned discriminator matched |
 | review-correction `bunx nx run-many -t test lint typecheck -p core be-01 --skip-nx-cache`                                                                                                                                                                          | all 6 targets successful, 0 cache hits, 1m23s on the corrected tree                 |
 
+## Task 2.2 verification
+
+`CommandNormalizerRecord` maps every structural definition to a function accepting that definition's inferred wire value and returning the same literal discriminator. The production `commandNormalizers` literal now satisfies that record while retaining its broad runtime parameters, so semantic-invalid mounted inputs still reach the existing field parsers and refusal translation. `PlanCommand` remains inferred from the concrete normalizer returns.
+
+The compile fixture extends the real definitions with `temporaryCommand` but intentionally leaves the normalizer record unchanged. Its first TDD run failed because `CommandNormalizerRecord` did not exist; after implementation, removing the expected-error directive exposed TS2741 at the fixture record. The stronger production mutation added the same definition to `commandDefinitions` and independently produced TS2741 at the production normalizer record. The mounted cap mutation was observed before its production `Proof:` comment: returning admission from the handler before `parsedBatch` changed the last command's exact `{ error: 'invalid_actual', at: 200, kind: 'setActual' }` refusal to `too_many_commands` at the same index and kind.
+
+| Command                                                                                                         | Result                                                        |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `bunx tsc --build --force libs/core/tsconfig.json`                                                              | exit 0; compile-negative fixture consumed its expected TS2741 |
+| focused mounted index-200 test                                                                                  | 1 pass, 0 fail, 6 expectations                                |
+| `bun test libs/core/src/service/command-normalizers.test.ts apps/be-01/src/http/elysia/work-item.test.ts`       | 15 pass, 0 fail, 78 expectations                              |
+| `bunx nx run-many -t test lint typecheck -p contracts core be-01 --skip-nx-cache`                               | all 9 targets successful, 0 cache hits, 1m27s                 |
+| focused six-file `nx format:check` and `git diff --check`                                                       | exit 0                                                        |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`                                    | 75 items, 75 passed, 0 failed                                 |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 instructions apply --change plan-command-registry --json` | state `ready`; 5 of 10 tasks complete                         |
+
+The first broad gate completed eight targets successfully and found only the compile fixture's type-only local lacking the repository's `_` prefix. Renaming it made focused core lint green; the complete nine-target command was then rerun uncached and passed.
+
 ## Pending change verification
 
 - The full h2puni gate, fe-01 gate, final tree cleanliness and push state belong to Task 3.2 and have not been claimed here.
 - The optional OpenSpec telemetry flush could not reach `edge.openspec.dev`; status and apply instructions themselves completed successfully via the pinned CLI.
-- The TDD skill references `writing-good-tests.md`, but that file is absent from the installed skill directory.

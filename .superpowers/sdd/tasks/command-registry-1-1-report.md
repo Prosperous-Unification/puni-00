@@ -81,3 +81,15 @@ Astra reproduced an externally visible refusal-order regression in the extracted
 `normalizeCommand` now restores the common eager order for all 37 kinds, and create/move stage their values in the prior branch order. The restored mounted case passes with exact error/index/kind envelopes. A read-only differential loaded the real pre-extraction `parseKind` from `e8ccef3d^` and compared two successful variants per independently listed kind against the production normalizer: `NORMALIZED VALUES 74 matched; independent kinds 37; every returned discriminator matches`.
 
 The final review-correction core + be-01 test/lint/typecheck gate passed all 6 targets uncached in 1m23s. Its first run had five successful targets and one test-only `no-unsafe-assignment` lint finding at the collected `Response.json()` boundary; typing that boundary as `unknown` made the focused lint and complete rerun green without production changes.
+
+## Task 2.2 continuation
+
+Task 2.2 makes structural-to-semantic completeness a compile-time property. `CommandNormalizerRecord` indexes a definitions object, gives each entry its own inferred structural wire input, and requires the returned discriminator to match that definition's key. The concrete 37-entry `commandNormalizers` literal satisfies the mapped record without narrowing its runtime `Record<string, unknown>` parameters, preserving semantic classification of structurally rejected mounted bodies and every existing field parser/refusal translation.
+
+Observed negatives:
+
+- The TDD fixture initially failed with TS2724 because the requested exhaustive type did not exist. With it implemented, removing the fixture's expected-error directive failed with TS2741 because `temporaryCommand` was absent from the normalizer record.
+- Adding `temporaryCommand` to the real production structural definitions without a normalizer failed core typecheck with TS2741 at `command-normalizers.ts`'s production record. The existing structural scope map also failed, independently confirming the fault reached the real definition graph.
+- Moving the 201-command cap into the mounted project handler before `parsedBatch` failed the existing production-path case with received `too_many_commands` instead of `invalid_actual`, both at index 200 and kind `setActual`. Only after observing that output was the production `Proof:` comment added.
+
+Restored evidence: direct core build typecheck exited 0; the mounted cap case passed alone with six expectations; the complete normalizer plus mounted file run passed 15 tests and 78 expectations. The uncached contracts/core/be-01 test/lint/typecheck gate passed all nine targets in 1m27s. Its first run correctly found one fixture-only unused-name lint issue after eight targets passed; the repository's `_` convention fixed that issue and the entire uncached gate was rerun green.
