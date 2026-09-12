@@ -911,3 +911,14 @@ SQLite 667/0/4,235 across 60 files. All six uncached lint/typecheck targets
 passed. Formatting, diff, and pinned OpenSpec evidence is retained in the
 updated Task 3.4 report. Independent re-review remains pending; Task 3.4 stays
 unchecked and Task 4.1 remains untouched.
+
+Astra xhigh accepted fix round 1 at `986d966d` on 2026-09-13. Fresh focused
+baseline ran nine tests with 208 assertions, including the four cleanup cases,
+the inherited setup/aggregation paths, and progress proofs/restoration. Moving
+the progress seed outside the owner again made all three permanent late-seed
+negatives fail with the recorded leaks and lost aggregation; injecting double
+cleanup failed on two closes instead of one. Restored cleanup coverage passed
+4/0/59. Both I1 and M1 are closed, and no new Critical, Important or Minor
+finding remains. Task 3.4 is complete; the source change is now 11/24 tasks,
+and Task 4.1 is next. Reviews: `/tmp/source-conformance-3-4-astra-review.md` and
+`/tmp/source-conformance-3-4-astra-rereview.md`.
