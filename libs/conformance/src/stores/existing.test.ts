@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
+import type { CaseId } from '../case-manifest';
+import { SOURCE_CONFORMANCE_CASES } from '../certification';
 import { existingStoreRegistrations } from '../source-conformance';
 
 describe('the migrated existing store kits', () => {
@@ -77,5 +79,9 @@ describe('the migrated existing store kits', () => {
       'eventLog.pruneBeyond',
       'eventLog.pruneBeyond:empty-sequence',
     ]);
+    // Proof: before the independent implemented inventory was repaired, this
+    // complete equality failed with the five work-item and two directory IDs absent.
+    const implementedCaseIds: CaseId[] = [...SOURCE_CONFORMANCE_CASES];
+    expect(implementedCaseIds).toEqual(registrations.map(({ caseId }) => caseId));
   });
 });

@@ -783,6 +783,36 @@ const removePromotionFault = defineFault({
   },
 });
 
+const frozenAcquireFault = defineFault({
+  id: 'break:workItems.setFrozenNumbers:clear',
+  caseId: 'workItems.setFrozenNumbers:clear',
+  createControl: () => createFaultControl('workItems.setFrozenNumbers:clear:first-freeze'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      workItems: replaceMethod(
+        source.stores.workItems,
+        'setFrozenNumbers',
+        (setFrozenNumbers) => (updates, stamp) => {
+          const firstId = DETERMINISTIC_SEED.workItemIds[0][0];
+          const preventsFirstFreeze = updates.some(
+            ({ id, frozenNumber }) => id === firstId && frozenNumber === '010',
+          );
+          if (!preventsFirstFreeze) return setFrozenNumbers(updates, stamp);
+          control.reach('workItems.setFrozenNumbers:clear:first-freeze');
+          // Proof: retaining `010` here restored the focused fault to
+          // assertion-passed; null reaches the real source and its bookkeeping.
+          return setFrozenNumbers(
+            updates.map((update) =>
+              update.id === firstId ? { ...update, frozenNumber: null } : update,
+            ),
+            stamp,
+          );
+        },
+      ),
+    });
+  },
+});
+
 const frozenClearFault = defineFault({
   id: 'break:workItems.setFrozenNumbers:clear',
   caseId: 'workItems.setFrozenNumbers:clear',
@@ -2304,32 +2334,65 @@ describe('SQLite existing source conformance', () => {
     );
   });
 
-  it('reinjects the four work-item matrix faults in their named windows', async () => {
+  it('reinjects the five work-item matrix faults in their named windows', async () => {
     const faults = [
       insertRespaceFault,
       patchRefusalAtomicFault,
       removePromotionFault,
+      frozenAcquireFault,
       frozenClearFault,
     ];
     const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
 
-    expect(proofs.map(({ kind }) => kind)).toEqual(Array.from({ length: 4 }, () => 'observed'));
+    expect(proofs.map(({ kind }) => kind)).toEqual(faults.map(() => 'observed'));
+    expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual([
+      'workItems.insert:respace',
+      'workItems.patch:refusal-atomic',
+      'workItems.remove:promotion',
+      'workItems.setFrozenNumbers:clear:first-freeze',
+      'workItems.setFrozenNumbers:clear',
+    ]);
     const failures = proofs.map((proof) =>
       proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
     );
-    // Proof: the four real SQLite mutations failed respectively with the tight
+    // Proof: the five real SQLite mutations failed respectively with the tight
     // sibling still at position 11, `Escaped rename`, a settled refusal with the
-    // parent retained, and the retained number received as null.
+    // parent retained, the first number received as null, and the retained
+    // number received as null.
     expect(failures[0]).toContain('"position": 11');
     expect(failures[1]).toContain('"name": "Escaped rename"');
     expect(failures[2]).toContain('didRefuse: true');
-    expect(failures[3]).toContain('frozenNumber: null');
+    expect(failures[3]).toContain(`Expected to contain: [
+  {
+    id: "work-a-one",
+    projectId: "project-a",
+    parentId: null,
+    position: 10,
+    name: "Work 1",
+    notes: "",
+    frozenNumber: null,
+    startNoEarlierThan: null,
+    startNoEarlierThanReason: null,
+    deadline: null,
+    priority: null,
+    serviceTeamId: "team-a",
+    serviceId: null,
+    maxParallel: 1,
+    revision: 2,
+    teamIds: [ "team-a" ],
+    tagIds: [ "tag-a" ],
+    serviceIds: [ "service-a" ],
+    typeIds: [ "type-a" ],`);
+    expect(failures[4]).toContain('frozenNumber: null');
 
     const restored = await runCases(existingStoreRegistrations(openers), {
       focus: faults.map(({ caseId }) => caseId),
     });
     expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
-      faults.map(({ caseId }) => ({ caseId, status: 'passed' })),
+      Array.from(new Set(faults.map(({ caseId }) => caseId)), (caseId) => ({
+        caseId,
+        status: 'passed',
+      })),
     );
   });
 

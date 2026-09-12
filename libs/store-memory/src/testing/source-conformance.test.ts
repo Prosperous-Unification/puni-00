@@ -796,6 +796,36 @@ const removePromotionFault = defineFault({
   },
 });
 
+const frozenAcquireFault = defineFault({
+  id: 'break:workItems.setFrozenNumbers:clear',
+  caseId: 'workItems.setFrozenNumbers:clear',
+  createControl: () => createFaultControl('workItems.setFrozenNumbers:clear:first-freeze'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      workItems: replaceMethod(
+        source.stores.workItems,
+        'setFrozenNumbers',
+        (setFrozenNumbers) => (updates, stamp) => {
+          const firstId = DETERMINISTIC_SEED.workItemIds[0][0];
+          const preventsFirstFreeze = updates.some(
+            ({ id, frozenNumber }) => id === firstId && frozenNumber === '010',
+          );
+          if (!preventsFirstFreeze) return setFrozenNumbers(updates, stamp);
+          control.reach('workItems.setFrozenNumbers:clear:first-freeze');
+          // Proof: retaining `010` here restored the focused fault to
+          // assertion-passed; null reaches the real source and its bookkeeping.
+          return setFrozenNumbers(
+            updates.map((update) =>
+              update.id === firstId ? { ...update, frozenNumber: null } : update,
+            ),
+            stamp,
+          );
+        },
+      ),
+    });
+  },
+});
+
 const frozenClearFault = defineFault({
   id: 'break:workItems.setFrozenNumbers:clear',
   caseId: 'workItems.setFrozenNumbers:clear',
@@ -1505,7 +1535,100 @@ function openDependencySeedFailureSource(
   );
 }
 
+function openProgressSeedFailureSource(
+  probe: MemoryLifecycleProbe,
+  cleanupFailure?: string,
+): MemorySource {
+  const source = openConformanceMemorySource();
+  return withStores(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+        if (cleanupFailure !== undefined) throw new Error(cleanupFailure);
+      },
+    },
+    {
+      steps: replaceMethod(source.stores.steps, 'add', (add) => {
+        return (step, stamp) => {
+          if (step.id === PROGRESS_SENTINEL_STEP_ID) {
+            throw new Error('injected progress companion seed failure');
+          }
+          return add(step, stamp);
+        };
+      }),
+    },
+  );
+}
+
 describe('memory existing source conformance', () => {
+  it('closes once when ordinary progress companion seeding fails', async () => {
+    const probe: MemoryLifecycleProbe = { closeCalls: 0 };
+    let failure: unknown;
+    try {
+      await openMemoryCase('progress', 'progress.set:replace', () =>
+        openProgressSeedFailureSource(probe),
+      );
+    } catch (caught) {
+      failure = caught;
+    }
+    expect(failure).toHaveProperty('message', 'injected progress companion seed failure');
+    // Proof: the shared setup owner closes once when the final progress-only
+    // seed rejects after the complete base seed has settled.
+    expect(probe.closeCalls).toBe(1);
+  });
+
+  it('closes once when proof progress companion seeding fails', async () => {
+    const probe: MemoryLifecycleProbe = { closeCalls: 0 };
+    const proof = await proveFault(progressReplaceFault, () =>
+      openProgressSeedFailureSource(probe),
+    );
+
+    expect(proof).toEqual({
+      kind: 'setup-failed',
+      faultId: 'break:progress.set:replace',
+      caseId: 'progress.set:replace',
+      failure: 'injected progress companion seed failure',
+    });
+    expect(probe.closeCalls).toBe(1);
+  });
+
+  it('preserves progress companion setup and cleanup failures', async () => {
+    const probe: MemoryLifecycleProbe = { closeCalls: 0 };
+    let failure: unknown;
+    try {
+      await openMemoryCase('progress', 'progress.set:replace', () =>
+        openProgressSeedFailureSource(probe, 'injected progress cleanup failure'),
+      );
+    } catch (caught) {
+      failure = caught;
+    }
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure).toHaveProperty('message', 'memory source setup and cleanup both failed');
+    expect((failure as AggregateError).errors.map((member) => String(member))).toEqual([
+      'Error: injected progress companion seed failure',
+      'Error: injected progress cleanup failure',
+    ]);
+    expect(probe.closeCalls).toBe(1);
+  });
+
+  it('leaves successful progress fixture cleanup to its single teardown', async () => {
+    const probe: MemoryLifecycleProbe = { closeCalls: 0 };
+    const source = openConformanceMemorySource();
+    const fixture = await openMemoryCase('progress', 'progress.set:replace', () => ({
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    }));
+    expect(probe.closeCalls).toBe(0);
+    await fixture.close();
+    expect(probe.closeCalls).toBe(1);
+  });
+
   it('closes once when ordinary dependency companion seeding fails', async () => {
     const probe: MemoryLifecycleProbe = { closeCalls: 0 };
     let failure: unknown;
@@ -1873,32 +1996,65 @@ describe('memory existing source conformance', () => {
     ]);
   });
 
-  it('reinjects the four work-item matrix faults in their named windows', async () => {
+  it('reinjects the five work-item matrix faults in their named windows', async () => {
     const faults = [
       insertRespaceFault,
       patchRefusalAtomicFault,
       removePromotionFault,
+      frozenAcquireFault,
       frozenClearFault,
     ];
     const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
 
-    expect(proofs.map(({ kind }) => kind)).toEqual(Array.from({ length: 4 }, () => 'observed'));
+    expect(proofs.map(({ kind }) => kind)).toEqual(faults.map(() => 'observed'));
+    expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual([
+      'workItems.insert:respace',
+      'workItems.patch:refusal-atomic',
+      'workItems.remove:promotion',
+      'workItems.setFrozenNumbers:clear:first-freeze',
+      'workItems.setFrozenNumbers:clear',
+    ]);
     const failures = proofs.map((proof) =>
       proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
     );
-    // Proof: the four real memory mutations failed respectively with the tight
+    // Proof: the five real memory mutations failed respectively with the tight
     // sibling still at position 11, `Escaped rename`, the child's old parent
-    // `work-a-one`, and the retained number received as null.
+    // `work-a-one`, the first number received as null, and the retained number
+    // received as null.
     expect(failures[0]).toContain('"position": 11');
     expect(failures[1]).toContain('"name": "Escaped rename"');
     expect(failures[2]).toContain('parentId: "work-a-one"');
-    expect(failures[3]).toContain('frozenNumber: null');
+    expect(failures[3]).toContain(`Expected to contain: [
+  {
+    id: "work-a-one",
+    projectId: "project-a",
+    parentId: null,
+    position: 10,
+    name: "Work 1",
+    notes: "",
+    frozenNumber: null,
+    startNoEarlierThan: null,
+    startNoEarlierThanReason: null,
+    deadline: null,
+    priority: null,
+    serviceTeamId: "team-a",
+    serviceId: null,
+    maxParallel: 1,
+    revision: 0,
+    teamIds: [ "team-a" ],
+    tagIds: [],
+    serviceIds: [ "service-a" ],
+    typeIds: [ "type-a" ],`);
+    expect(failures[4]).toContain('frozenNumber: null');
 
     const restored = await runCases(existingStoreRegistrations(openers), {
       focus: faults.map(({ caseId }) => caseId),
     });
     expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
-      faults.map(({ caseId }) => ({ caseId, status: 'passed' })),
+      Array.from(new Set(faults.map(({ caseId }) => caseId)), (caseId) => ({
+        caseId,
+        status: 'passed',
+      })),
     );
   });
 

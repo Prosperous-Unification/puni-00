@@ -377,6 +377,17 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
           ],
           seed.stamps[0],
         );
+        const frozenA = changed(beforeA, {
+          [firstId]: { frozenNumber: '010' },
+          [secondId]: { frozenNumber: '020' },
+        });
+        const frozenAndBumpedA = bumped(frozenA, { [firstId]: 1, [secondId]: 1 });
+
+        // Proof: faults which let the real batch/bookkeeping run but prevent
+        // work-a-one acquiring `010` fail this first complete project snapshot.
+        expect([frozenA, frozenAndBumpedA]).toContainEqual(await seededRows(readers, projectA));
+        expect(await seededRows(readers, projectB)).toEqual(beforeB);
+
         await port.setFrozenNumbers([{ id: firstId, frozenNumber: null }], seed.stamps[1]);
 
         const afterA = await seededRows(readers, projectA);

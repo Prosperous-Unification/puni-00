@@ -1136,3 +1136,54 @@ not exist. Full workspace, build, browser, deploy, and the h2puni SHA gate were
 skipped because this slice changes shared cases and test-only fault seams and
 no commit was authorized. Task 4.2 remains unchecked pending independent
 review; Task 4.3 was not started.
+
+### Epic 3 wave repair — frozen prerequisite, implemented inventory, and memory ownership
+
+`workItems.setFrozenNumbers:clear` now reads both projects immediately after
+the initial `010`/`020` batch and before clearing the first row. Project A is
+compared as complete independently held work-item rows, including every
+junction collection, against the exact whole-array alternatives for unchanged
+memory revisions or one SQLite revision bump per row. Project B must equal its
+complete pre-operation snapshot at both the intermediate and final reads.
+
+Permanent memory and SQLite faults replace only the first row's initial `010`
+with null while forwarding the full batch through the real adapter. They reach
+`workItems.setFrozenNumbers:clear:first-freeze`; the first intermediate
+snapshot prints the complete faulty `work-a-one` row (revision 0 in memory,
+revision 2 in SQLite) with null where `010` was required. Removing that
+substitution changed the fourth proof result from `observed` to
+`assertion-passed` on both sources. The pre-existing broad-clear fault remains
+the fifth proof and still observes the second row losing `020`.
+
+The independent inventory equality test first failed with the five Epic 3
+work-item IDs and the two currently registered directory IDs absent
+(`Expected - 7 / Received + 0`). `SOURCE_CONFORMANCE_CASES` now explicitly
+lists all seven in implementation order and equals the independently composed
+registration kit. Dedicated five-case work-item runs remain in both sources.
+
+The Task 4.1 shared memory setup owner already covers the final progress-only
+seed, so production fixture setup was unchanged. Four progress-specific
+lifecycle tests now demonstrate the integrated state: ordinary and proof late
+seed rejection each close once, setup plus cleanup rejection remains one
+ordered `AggregateError`, and successful setup closes zero times before
+handoff and once at normal teardown.
+
+Fresh restored evidence:
+
+- Inventory equality: 1/0/2 assertions.
+- Frozen fault proofs/restoration: memory 1/0/150; SQLite 1/0/186.
+- Memory progress lifecycle: 4/0/42.
+- Relevant source and adapter files: memory 42/0/2,150 across three files;
+  SQLite 63/0/2,848 across the conformance and work-item files.
+- Uncached targets: conformance 29/0/48; store-memory 48/0/2,177;
+  store-sqlite 670/0/4,770 across 60 files.
+- All six lint/typecheck commands passed after the final type repair.
+- Pinned OpenSpec 1.3.0 strict validation passed; all-artifact JSON validation
+  reported 75 passed and 0 failed.
+
+Nx used its in-process plugin fallback because sandbox policy denied its
+plugin-worker socket; all retained targets completed successfully. Full
+workspace, build, browser, deploy, and h2puni SHA gate were skipped because
+the repair is confined to shared cases, inventory, and test-only fault and
+lifecycle seams and no commit was authorized. Completed task checkboxes and
+the pending Task 4.2 checkbox were unchanged; Task 4.3 was not started.
