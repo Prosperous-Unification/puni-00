@@ -1,8 +1,8 @@
 # Verification Report
 
 **Change**: `plan-command-registry`
-**Scope**: Tasks 1.1–2.2; Tasks 2.3–3.2 and the final change gate remain pending
-**Verified at**: 2026-09-12 16:19 EEST
+**Scope**: Tasks 1.1–2.3; Tasks 2.4–3.2 and the final change gate remain pending
+**Verified at**: 2026-09-12 16:42 EEST
 **Baseline**: `6a47a7220109484bae8f86fe03c35dc570fa1845`
 
 ## Current path map
@@ -15,7 +15,7 @@
 | Semantic parser                | `libs/core/src/http/work-item.routes.ts` (`parseBatch` → `parseCommand`) delegates pure command semantics to `libs/core/src/service/command-normalizers.ts`                                 |
 | Normalized command vocabulary  | `libs/core/src/service/command-normalizers.ts` (`commandNormalizers`, inferred `PlanCommand` and `PlanCommandKind`); `plan-command.ts` retains compatibility exports and the kind list      |
 | Route-to-runner use case       | `libs/core/src/use-cases/run-command-batch.ts`                                                                                                                                              |
-| Runner and dispatch            | `libs/core/src/service/plan-commands.ts` (`PlanCommandRunner.execute` owns cap/transaction/publication; `applyAll` owns refs, scope admission and the command switch)                       |
+| Bindings and runner            | `libs/core/src/service/command-bindings.ts` owns handlers/context/refs/scope admission; `plan-commands.ts` owns cap, ordered iteration, transaction, collection and publication             |
 | Historical be-01 paths         | `apps/be-01/src/controller/work-item.routes.ts`, `apps/be-01/src/service/plan-command.ts` and `apps/be-01/src/service/plan-commands.ts` are compatibility re-exports from core              |
 
 ## Baseline correction
@@ -42,6 +42,10 @@ The design was written against `339708fa` with 36 kinds. Commit `521ef54f` added
 | Extracted normalizer remains inside the core boundary (`service-boundaries.test.ts`)                                | Imported be-01's repository by relative path from production `command-normalizers.ts`              | Boundary assertion received `@nx/enforce-module-boundaries`: projects cannot be imported by relative path                                                                 | Focused boundary and mounted run: 15 pass, 0 fail                            |
 | Mounted within-command semantic refusal precedence (`work-item.test.ts`)                                            | Used the extracted branch-local evaluation order without the old eager target/ref validation       | Five-case aggregate received `parentRef_must_be_an_id` twice, `expected_object`, `parentRef_must_be_an_id`, and bare `invalid_body` instead of the prior indexed refusals | Focused mounted case: 1 pass, 0 fail                                         |
 | Structural-definition/normalizer completeness (`command-normalizers.ts`)                                            | Added production `temporaryCommand` definition without a normalizer entry                          | Core typecheck failed with TS2741 at the normalizer record: property `temporaryCommand` was missing                                                                       | Restored core typecheck: exit 0                                              |
+| Created-ref target resolution (`plan-commands.db.test.ts`)                                                          | Made `setEstimate` use a valid previous raw ID instead of its competing minted ref                 | Stored estimate carried the previous row's ID instead of the independently found `Named by the store` row's ID                                                            | Focused binding case: 1 pass, 0 fail                                         |
+| Registry-derived project admission (`plan-commands.db.test.ts`)                                                     | Removed the definition-scope check from `CommandContext`                                           | Directory batch returned `ok: true`, committed its tag and unfreeze, instead of `project_required` at index 1/kind `unfreezeWorkItem`                                     | Focused ordering run: 3 pass, 0 fail                                         |
+| Duplicate-ref-before-write ordering (`plan-commands.db.test.ts`)                                                    | Deferred `createWorkItem` duplicate detection until after its service write                        | The deliberately invalid parent reached the service first and returned `not_found` instead of `duplicate_ref` at index 1                                                  | Focused ordering run: 3 pass, 0 fail                                         |
+| Extracted bindings remain inside the core boundary (`service-boundaries.test.ts`)                                   | Imported be-01's repository from production `command-bindings.ts`                                  | Boundary assertion received `@nx/enforce-module-boundaries`: projects cannot be imported by relative path                                                                 | Focused boundary run: 1 pass, 0 fail                                         |
 
 The pre-existing mounted malformed nested-extra and semantic-invalid-value controls remain in the same test file and passed in both the targeted run and the project baseline.
 
@@ -116,6 +120,22 @@ The compile fixture extends the real definitions with `temporaryCommand` but int
 | `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 instructions apply --change plan-command-registry --json` | state `ready`; 5 of 10 tasks complete                         |
 
 The first broad gate completed eight targets successfully and found only the compile fixture's type-only local lacking the repository's `_` prefix. Renaming it made focused core lint green; the complete nine-target command was then rerun uncached and passed.
+
+## Task 2.3 verification
+
+`command-bindings.ts` now owns `CommandFor<K>`, `AppliedFor<K>`, the kind-indexed `CommandBindings` map and all 37 service handlers. `CommandContext` owns actor/project/index, definition-scope admission, shared batch refs, minting and service-refusal translation. `bindCommands(graph)` closes each handler over the admitted batch graph; the runner retains the command cap, iteration, collector, calendar preflight, unit of work, journal recording and post-commit publication. Its dispatch is a generic discriminator-indexed call with no cast.
+
+The store-backed test creates an earlier row, then sends `setEstimate` with both that raw ID and the ref minted by the immediately preceding create. The row under test is found independently by its stored name, and its exact stored step/three-point estimate is asserted. Under the named fault the batch still committed, but the estimate row carried the earlier ID, so the assertion failed in the persistence window rather than at a mock or handler count. The sharpened scope and duplicate cases likewise force their ordering collisions: a real plan row can be unfrozen from a directory batch if registry admission is absent, and an invalid parent outranks a duplicate ref if the duplicate check moves after the write.
+
+| Command                                                                                                                                                                                    | Result                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| focused create-ref-estimate, directory `project_required`, duplicate-ref ordering run                                                                                                      | 3 pass, 0 fail, 9 expectations                |
+| `bun test apps/be-01/src/service/plan-commands.db.test.ts libs/core/src/service/plan-command-scope.test.ts libs/core/src/compose.test.ts libs/core/src/service/service-boundaries.test.ts` | 34 pass, 0 fail, 152 expectations             |
+| `bunx tsc --build --force libs/core/tsconfig.json`                                                                                                                                         | exit 0                                        |
+| `bunx nx run-many -t test lint typecheck -p contracts core be-01 --skip-nx-cache`                                                                                                          | all 9 targets successful, 0 cache hits, 1m30s |
+| focused eight-file `nx format:check` and `git diff --check`                                                                                                                                | exit 0                                        |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`                                                                                                               | 75 items, 75 passed, 0 failed                 |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 instructions apply --change plan-command-registry --json`                                                                            | state `ready`; 6 of 10 tasks complete         |
 
 ## Pending change verification
 

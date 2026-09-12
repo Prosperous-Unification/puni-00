@@ -93,3 +93,16 @@ Observed negatives:
 - Moving the 201-command cap into the mounted project handler before `parsedBatch` failed the existing production-path case with received `too_many_commands` instead of `invalid_actual`, both at index 200 and kind `setActual`. Only after observing that output was the production `Proof:` comment added.
 
 Restored evidence: direct core build typecheck exited 0; the mounted cap case passed alone with six expectations; the complete normalizer plus mounted file run passed 15 tests and 78 expectations. The uncached contracts/core/be-01 test/lint/typecheck gate passed all nine targets in 1m27s. Its first run correctly found one fixture-only unused-name lint issue after eight targets passed; the repository's `_` convention fixed that issue and the entire uncached gate was rerun green.
+
+## Task 2.3 continuation
+
+Task 2.3 moves all 37 service handlers from `PlanCommandRunner.applyAll` into the kind-indexed `bindCommands(graph)` record. `CommandFor<K>` and `AppliedFor<K>` use the design's intersections, and the generic `applyCommand` dispatch preserves that correlation without a cast. `CommandContext` carries actor ID, nullable project ID, index, the batch's shared ref map, mint/lookup rules and service-refusal translation. Project admission reads each structural definition's `scope`. The runner now retains only batch orchestration: cap, ordered iteration, collection, calendar preflight, unit-of-work decision, journal recording and post-commit publication.
+
+Observed production-path negatives:
+
+- The persisted targeting fixture supplies `setEstimate` both a valid earlier raw ID and the ref minted by the preceding create. Making the binding ignore the ref kept the batch successful but wrote the estimate against the earlier row; the exact store assertion received that prior ID instead of the row independently found by name.
+- Removing the definition-scope admission from `CommandContext` let a directory batch commit both a tag and an `unfreezeWorkItem` against a real plan row; the sharpened test received `ok: true` instead of `project_required` at index 1.
+- Deferring create's duplicate-ref check until minting let its deliberately invalid parent reach the service and returned `not_found` instead of `duplicate_ref` at index 1.
+- Adding a be-01 repository import to the new production binding file made the core service-boundary test report `@nx/enforce-module-boundaries`; the restored focused boundary test passed.
+
+Restored evidence: the three ordering cases passed with nine expectations; the real-SQLite runner plus core scope/composition/boundary set passed 34 tests and 152 expectations; direct core build typecheck exited 0. The final formatted-tree contracts/core/be-01 test/lint/typecheck gate passed all nine targets uncached in 1m30s. OpenSpec validation passed all 75 items and apply instructions reported 6 of 10 tasks complete.
