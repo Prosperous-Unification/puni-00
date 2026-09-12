@@ -1,9 +1,10 @@
 # Verification Report
 
 **Change**: `plan-command-registry`
-**Scope**: Tasks 1.1–3.1 complete; Task 3.2 integration verification is blocked below
-**Verified at**: 2026-09-12 18:13 EEST
-**Baseline**: `6a47a7220109484bae8f86fe03c35dc570fa1845`
+**Scope**: Tasks 1.1–3.1 complete; Task 3.2 still requires its exact-SHA h2puni gate
+**Latest local verification**: 2026-09-12; see the final local integration section below
+**Original baseline**: `6a47a7220109484bae8f86fe03c35dc570fa1845`
+**Integrated runtime tree**: `822c843c57be7b536750392f1016fe253a2df13b`, including main `a5088fdf98ed23d0d8b79dd26c6def1ba8e9615f`
 
 ## Current path map
 
@@ -308,5 +309,58 @@ Report: `/tmp/command-registry-browser-report.md`.
 | Settings toolbar budget                        | Added one labelled `Squad` button                                               | Expected <=1308.5; received 1371.171875                                 | Both focused browser cases passed after restoration                                |
 | Cue toolbar budget                             | Widened the production cue from 11.5rem to 44rem                                | Expected <=1606; received 2123.875                                      | Both focused browser cases passed after restoration                                |
 
-Full local gates and Astra's scoped follow-up review of these repairs remain pending.
-Task 3.2 additionally still requires the unavailable exact-SHA h2puni gate.
+The following final local integration section supersedes the pending local-gate
+status above; the exact-SHA h2puni gate remains unrun.
+
+## Final local integration — 2026-09-12
+
+The implementation and repair tree was committed with hooks enabled as
+`822c843c57be7b536750392f1016fe253a2df13b`. It remained clean and unchanged
+through both complete local runs below. These results apply to that runtime tree.
+The subsequent handoff changes move the existing ladder parser JSDoc onto its
+overload and update these artifacts; they introduce no runtime behavior change.
+
+| Command / review                                                                                                                                                | Observed result                                                                                                          | Retained output                                                                         |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `NX_DAEMON=false bunx nx run-many -t test lint typecheck -p contracts core be-01 fe-01 mcp-01 --skip-nx-cache --output-style=stream` with local sockets allowed | Exit 0; all 15 targets passed uncached in 6m47s                                                                          | `/tmp/command-registry-822c843c-project-gate.log`                                       |
+| `CI=1 E2E_PORT_SHIFT=1900 bun run e2e`                                                                                                                          | Exit 0; 345 passed, 37 skipped, 0 failed in 18.0m; one Chromium worker, zero retries, no Nx cache hit                    | `/tmp/command-registry-browser-full.log`                                                |
+| `NX_DAEMON=false bunx nx format:check --all`                                                                                                                    | Exit 0                                                                                                                   | `/tmp/command-registry-822c843c-format.log`                                             |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`                                                                                    | Exit 0; 79/79 entries passed (68 changes, 11 specs)                                                                      | `/tmp/command-registry-822c843c-openspec.json`                                          |
+| Astra scoped repair review and final xhigh epic review of `a5088fdf..822c843c`                                                                                  | Original P2 addressed; no Critical or Important findings. The minor ladder JSDoc attachment is corrected in this handoff | `/tmp/command-registry-astra-rereview.md`, `/tmp/command-registry-astra-epic-review.md` |
+
+The five-project test targets passed contracts 380, core 412, MCP 114, backend
+1048, and frontend 2652 plus three Auckland cases. The backend's one explicit
+supervisor orphan-process skip remains unverified by this local run; the required
+host solver-image gate has not run.
+
+The browser stack used its own ports 5000/5100/6100 under CI mode, with server
+reuse disabled. Both repaired toolbar cases passed in full context. Its 37 skips
+are 36 opt-in rendering-baseline experiment cases and the existing Gantt
+`test.fixme('dragging up moves the boundary up')` at `gantt.spec.ts:2720`.
+That fixme's current behavior was not established by this run. Vite continued
+logging WebSocket proxy EPIPE and ECONNRESET warnings during cases; their cause remains unverified.
+Report: `/tmp/command-registry-browser-full-report.md`.
+
+Astra's fresh bounded probes found no differences in 1776 dispatcher comparisons
+and 3392 parser comparisons across the 37 kinds. The dispatcher probe uses stub
+services, so it does not replace the persisted transaction tests. The parser probe
+uses the current capacity/ladder helpers, which were also reviewed directly.
+The focused type probe produced no diagnostics, and actual MCP generation retained
+33 tools with both 37-branch batches and baseline-equal inputs. These are bounded
+checks, not a claim of exhaustive behavioral equivalence.
+
+Task 2.2 is accepted again; the change is 9/10 complete. Task 3.2 remains unchecked:
+the exact-SHA locked h2puni workspace/build gate, including
+`be-01:solver-image-smoke`, is still required. No host run, remote CI pass, PR,
+merge or archive is claimed.
+
+The host is prepared for that gate in an owned checkout at
+`/home/puni1/gates/codex-command-registry-20260912`. It was cloned from public
+main `a5088fdf`; `bun install --frozen-lockfile` passed and left tracked files
+clean. Its login shell reports Bun 1.4.2 and Node 24.18.1; shellcheck and Docker
+commands are present. The unrelated dirty `/home/puni1/wbs-build` checkout was
+preserved. No unpublished candidate content was transferred. Once direct publication
+approval is provided, fetch the candidate into the owned checkout and pass its
+final SHA to `bin/h2puni-gate.sh`; the wrapper must perform the checkout under
+the canonical heavy lock. Publication remains blocked by the two automatic-review
+rejections described above.

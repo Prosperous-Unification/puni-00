@@ -12,6 +12,18 @@ export class BadLadder extends Error {
   }
 }
 
+interface PriorityLadderBody {
+  readonly bands: readonly {
+    readonly startsAt: unknown;
+    readonly defaultValue: unknown;
+    readonly label: unknown;
+  }[];
+}
+
+function isUnknownArray(value: unknown): value is unknown[] {
+  return Array.isArray(value);
+}
+
 /**
  * The five bands a request is asking this project's ladder to become.
  *
@@ -44,18 +56,6 @@ export class BadLadder extends Error {
  * would have produced a line later. R5 #7 is the proof that the ladder check
  * itself can fail.
  */
-interface PriorityLadderBody {
-  readonly bands: readonly {
-    readonly startsAt: unknown;
-    readonly defaultValue: unknown;
-    readonly label: unknown;
-  }[];
-}
-
-function isUnknownArray(value: unknown): value is unknown[] {
-  return Array.isArray(value);
-}
-
 export function ladderOf(body: PriorityLadderBody): PriorityBand[];
 export function ladderOf(body: unknown): PriorityBand[] {
   if (typeof body !== 'object' || body === null) throw new BadLadder('expected_object');
