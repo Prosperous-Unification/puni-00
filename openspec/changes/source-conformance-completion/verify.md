@@ -649,3 +649,13 @@ oracle.
   SQLite work-item suite passed 38/0/87.
 - All six uncached lint/typecheck targets for conformance, store-memory and
   store-sqlite passed after the fix.
+
+Astra xhigh accepted fix round 1 at `6a8481a7` on 2026-09-12. The re-review
+confirmed that every affected case now compares complete, independently built
+public project-A arrays alongside an unchanged project-B sentinel. Revision
+variance is restricted to whole-array alternatives for the exact durable
+outcomes exposed by the two sources, so rows from incompatible alternatives
+cannot be mixed. The four permanent faults still fail inside those complete
+snapshots. No Critical or Important finding remains. Task 3.1 is complete; the
+source change is now 8/24 tasks, and Task 3.2 is next. Review:
+`/tmp/source-conformance-3-1-astra-rereview.md`.
