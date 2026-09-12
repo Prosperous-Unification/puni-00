@@ -1069,3 +1069,14 @@ Fresh restored verification:
 
 Task 4.1 remains unchecked for independent review. Task 4.2 is untouched. No
 commit or push was performed.
+
+Astra xhigh accepted Task 4.1 at `a192c886` on 2026-09-13 with no Critical,
+Important or Minor findings. Its final independent probes confirmed that both
+real adapters retain the original and second IDs in source-owned state, expose
+both through public reads and fail first at the shared complete-edge assertion.
+The reviewer also reran the setup-timing, input-mutation, durable-sequence and
+memory-cleanup proofs; 26 focused tests passed with 564 assertions. Task 4.1 is
+checked complete and Task 4.2 is next. Reviews:
+`/tmp/source-conformance-4-1-astra-review.md`,
+`/tmp/source-conformance-4-1-astra-rereview.md` and
+`/tmp/source-conformance-4-1-astra-final-review.md`.
