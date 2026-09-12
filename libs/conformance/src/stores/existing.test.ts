@@ -70,6 +70,8 @@ describe('the migrated existing store kits', () => {
       'dependencies.removeAllFor:touching-set',
       'directory.addTag',
       'directory.assign:unknown_person',
+      'directory.assign:scope-replace-clear',
+      'directory.patchTeam:atomic-refusal',
       'eventLog.recordEvent',
       'eventLog.rangeSince',
       'eventLog.pruneBeyond',

@@ -1218,6 +1218,87 @@ const dependencyInputMutationFault = defineFault({
   },
 });
 
+const directoryAssignmentScopeFault = defineFault({
+  id: 'break:directory.assign:scope-replace-clear',
+  caseId: 'directory.assign:scope-replace-clear',
+  createControl: () => createFaultControl('directory.assign:scope-replace-clear:pair-scope'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      directory: replaceMethod(source.stores.directory, 'assign', (assign) => {
+        return async (workItemId, stepId, personId, stamp) => {
+          if (
+            workItemId !== DETERMINISTIC_SEED.workItemIds[0][0] ||
+            stepId !== DETERMINISTIC_SEED.stepIds[0][0] ||
+            personId !== DETERMINISTIC_SEED.personIds[1]
+          ) {
+            return assign(workItemId, stepId, personId, stamp);
+          }
+          control.reach('directory.assign:scope-replace-clear:pair-scope');
+          // Proof: omitting this real collateral clear changed the fault result
+          // from observed to assertion-passed in the focused proof.
+          await source.stores.directory.assign(
+            DETERMINISTIC_SEED.workItemIds[0][1],
+            stepId,
+            null,
+            stamp,
+          );
+          return assign(workItemId, stepId, personId, stamp);
+        };
+      }),
+    });
+  },
+});
+
+const directoryTeamAtomicityFault = defineFault({
+  id: 'break:directory.patchTeam:atomic-refusal',
+  caseId: 'directory.patchTeam:atomic-refusal',
+  createControl: () => createFaultControl('directory.patchTeam:atomic-refusal:early-rename'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      directory: replaceMethod(source.stores.directory, 'patchTeam', (patchTeam) => {
+        return async (teamId, patch, stamp) => {
+          if (
+            teamId !== DETERMINISTIC_SEED.teamIds[0] ||
+            patch.name !== 'Directory escaped' ||
+            patch.serviceIds?.[0] !== 'directory-unknown-service'
+          ) {
+            return patchTeam(teamId, patch, stamp);
+          }
+          control.reach('directory.patchTeam:atomic-refusal:early-rename');
+          expect(await patchTeam(teamId, { name: patch.name }, stamp)).toEqual({
+            ok: true,
+            team: {
+              id: teamId,
+              name: 'Directory escaped',
+              serviceIds: [DETERMINISTIC_SEED.serviceIds[0]],
+            },
+            projectIds: [],
+          });
+          // Proof: omitting this real early rename made this public snapshot
+          // receive Directory original where Directory escaped was expected.
+          expect(
+            (await source.stores.directory.listTeams())
+              .map((team) => ({ ...team, serviceIds: team.serviceIds.toSorted() }))
+              .toSorted((left, right) => left.id.localeCompare(right.id)),
+          ).toEqual([
+            {
+              id: DETERMINISTIC_SEED.teamIds[0],
+              name: 'Directory escaped',
+              serviceIds: [DETERMINISTIC_SEED.serviceIds[0]],
+            },
+            {
+              id: DETERMINISTIC_SEED.teamIds[1],
+              name: 'Team 2',
+              serviceIds: ['directory-service-sentinel'],
+            },
+          ]);
+          return patchTeam(teamId, patch, stamp);
+        };
+      }),
+    });
+  },
+});
+
 const dependencyPairPredicateFault = defineFault({
   id: 'break:dependencies.remove:pair',
   caseId: 'dependencies.remove:pair',
@@ -2230,6 +2311,45 @@ describe('memory existing source conformance', () => {
       { caseId: 'dependencies.add:idempotent-pair', status: 'passed' },
       { caseId: 'dependencies.remove:pair', status: 'passed' },
       { caseId: 'dependencies.removeAllFor:touching-set', status: 'passed' },
+    ]);
+  });
+
+  it('reinjects directory assignment scope and team atomicity faults', async () => {
+    const faults = [directoryAssignmentScopeFault, directoryTeamAtomicityFault];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(['observed', 'observed']);
+    expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual([
+      'directory.assign:scope-replace-clear:pair-scope',
+      'directory.patchTeam:atomic-refusal:early-rename',
+    ]);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    // Proof: broad replacement removes this complete expected same-step
+    // survivor from the coherent assignment snapshots.
+    expect(failures[0]).toContain(`-         {
+-           "personId": "person-a",
+-           "stepId": "step-a-dev",
+-           "workItemId": "work-a-two",
+-         },`);
+    // Proof: the early real rename preserves ownership but changes the
+    // complete received target team name after the refusal settles.
+    expect(failures[1]).toContain(`    {
+      "id": "team-a",
+-     "name": "Directory original",
++     "name": "Directory escaped",
+      "serviceIds": [
+        "service-a",
+      ],
+    },`);
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
+      { caseId: 'directory.assign:scope-replace-clear', status: 'passed' },
+      { caseId: 'directory.patchTeam:atomic-refusal', status: 'passed' },
     ]);
   });
 

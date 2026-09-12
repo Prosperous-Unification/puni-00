@@ -1080,3 +1080,59 @@ checked complete and Task 4.2 is next. Reviews:
 `/tmp/source-conformance-4-1-astra-review.md`,
 `/tmp/source-conformance-4-1-astra-rereview.md` and
 `/tmp/source-conformance-4-1-astra-final-review.md`.
+
+### Task 4.2 directory assignment scope and team refusal atomicity
+
+`directory.assign:scope-replace-clear` now establishes three survivor
+assignments around one target pair: another item on the same step, another
+step on the same item, and another project. After initial assignment,
+replacement, and clearing, it compares complete assignment records through
+`assignmentsFor`, `assignmentsOf`, and both `assignmentsInProject` results.
+Those project results also compare the exact named people implied by the same
+assignment state.
+
+`directory.patchTeam:atomic-refusal` establishes two complete teams and two
+services. A patch combining `Directory escaped` with an unknown service must
+return `unknown_service`; complete team and service lists must still contain
+the original target name, ownership, and the second team/service sentinel.
+
+The inventory test was run before registration and failed 0/1/1 with both
+case IDs absent (`Expected - 2 / Received + 0`). After registration it passed
+1/0/1. Permanent memory and SQLite decorators remain inert through setup and
+reach only these named phases:
+
+- `directory.assign:scope-replace-clear:pair-scope` performs a real
+  collateral clear of the same-step survivor before the real target
+  replacement. The shared complete-state assertion reports the missing
+  `work-a-two` / `step-a-dev` / `person-a` assignment.
+- `directory.patchTeam:atomic-refusal:early-rename` performs and publicly
+  verifies a real name-only patch, then invokes the real combined patch and
+  refusal. The shared complete-team assertion reports expected
+  `Directory original` and received `Directory escaped` while service
+  ownership stays complete.
+
+Removing the collateral clear changed each focused proof from `observed` to
+`assertion-passed`. Removing the early rename made each decorator's exact
+public-state guard receive `Directory original` where `Directory escaped` was
+expected. After restoration the focused memory proof passed 1/0/68 assertions
+and SQLite passed 1/0/84.
+
+Fresh restored verification:
+
+- Existing SQLite directory and assignment suites: 15/0/56.
+- Complete source-conformance files: memory 29/0/1,816 across two files;
+  SQLite 25/0/2,590.
+- Uncached targets: conformance 29/0/47, memory 44/0/1,996, SQLite
+  670/0/4,599 across 60 files.
+- All six lint/typecheck commands passed for conformance, store-memory, and
+  store-sqlite.
+- Pinned OpenSpec 1.3.0 strict validation reported the change valid; the
+  all-artifact JSON run reported 75 passed and 0 failed.
+
+Nx could not create sandboxed plugin-worker sockets and ran plugins in the
+main process; the retained target commands completed successfully. The
+source-specific `test:conformance` targets remain deferred to Task 7.2 and do
+not exist. Full workspace, build, browser, deploy, and the h2puni SHA gate were
+skipped because this slice changes shared cases and test-only fault seams and
+no commit was authorized. Task 4.2 remains unchecked pending independent
+review; Task 4.3 was not started.
