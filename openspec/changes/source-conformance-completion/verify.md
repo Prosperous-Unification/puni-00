@@ -495,3 +495,48 @@ gap-diagnostic note remains open: two memory gap strings pin diff sizes rather
 than observed values; no current false exclusion was demonstrated, and this
 repair did not change those cases. The eighteen remaining slices, current-main
 integration and final whole-change certification/gates remain pending.
+
+## 2026-09-13 — task 2.4 calendar-marker family
+
+The shared runner now registers both calendar-marker cases. The order case
+creates marker-c/marker-a/marker-b with identical date and createdAt, proves the
+tie from settled write answers, then asserts marker-a/marker-b/marker-c through
+the public list. The write case creates exact A/B sentinels on literal
+2026-09-10 with null automatic color, renames and recolors A, clears it to null,
+refuses B's three mutations against A, removes A and observes B unchanged.
+
+### Task 2.4 failure-proof table
+
+| Check                                 | Fault injected                                                                                            | Production-path test                                                                 | Observed failure                                                                                      |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Registration includes both marker IDs | Loaded the independent inventory before registering `calendarMarkerRegistrations`                         | `preserves the original IDs and adds project, user, configuration, and marker cases` | Both `calendarMarkers.*` IDs were absent (Expected -2 / Received +0).                                 |
+| Tied lists use ID as the third key    | Memory restored insertion order after the real read; SQLite queried the real table by date/createdAt only | Source-specific marker fault test                                                    | Both read c/a/b instead of a/b/c (Expected -1 / Received +1).                                         |
+| Writes remain in project scope        | Both decorators routed B's rename of A through A's real rename path                                       | Source-specific marker fault test                                                    | Rename returned true and A read `Mine now` instead of refusal/unchanged (Expected -3 / Received +10). |
+| ISO day remains literal               | Both decorators changed only A's create argument from 2026-09-10 to 2026-09-11                            | Source-specific marker fault test                                                    | Settled create answer held 2026-09-11 (Expected -1 / Received +1).                                    |
+
+All three faults were armed after verified two-project seed, reached only after
+their case-specific preconditions, failed the shared assertion and were followed
+by the unchanged two registrations passing against fresh sources. Neither
+source needs a calendar-marker gap. Existing marker adapters were unchanged.
+
+### Task 2.4 verification
+
+- Focused shared inventory: 1 pass, 0 fail, 1 assertion.
+- Focused memory source: 8 pass, 0 fail, 263 assertions.
+- Focused SQLite source: 13 pass, 0 fail, 918 assertions.
+- Existing SQLite marker repository/table/migration suites: 19 pass, 0 fail,
+  40 assertions.
+- Auckland zoned marker runner: 2 files, 3 tests passed; it emitted the existing
+  Vite native-config warning.
+- Uncached normal targets: conformance 29 pass, 0 fail, 47 assertions; memory
+  29 pass, 0 fail, 461 assertions; SQLite 658 pass, 0 fail, 2,927 assertions
+  across 60 files.
+- All six uncached lint/typecheck targets for conformance, store-memory and
+  store-sqlite succeeded.
+- Pinned OpenSpec 1.3.0 strict validation passed; all-artifact validation
+  reported 75 passed, 0 failed.
+
+The full workspace, build, browser and deploy gates were not run: Task 2.4 adds
+one shared store-family kit and test-only source faults, with no application,
+transport, migration or deployment behavior. Task 3.1 remains untouched and
+Task 2.4 stays unchecked until independent review.

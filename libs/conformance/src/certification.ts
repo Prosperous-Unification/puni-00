@@ -24,6 +24,8 @@ export const SOURCE_CONFORMANCE_CASES = [
   'priorityBands.listFor:defaults',
   'priorityBands.replace:whole-project',
   'priorityBands.replace:missing-project',
+  'calendarMarkers.listFor:total-order',
+  'calendarMarkers.write:project-scope',
   'steps.add',
   'steps.rename',
   'steps.rename:unknown',

@@ -135,6 +135,7 @@ const openers: ExistingStoreOpeners = {
   users: (caseId) => openMemoryCase('users', caseId),
   capacity: (caseId) => openMemoryCase('capacity', caseId),
   priorityBands: (caseId) => openMemoryCase('priorityBands', caseId),
+  calendarMarkers: (caseId) => openMemoryCase('calendarMarkers', caseId),
   steps: (caseId) => openMemoryCase('steps', caseId),
   estimates: (caseId) => openMemoryCase('estimates', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
@@ -192,6 +193,7 @@ const declaration: SourceDeclaration = {
       gaps: [priorityMissingProjectGap],
       open: openers.priorityBands,
     },
+    calendarMarkers: { kind: 'offered', gaps: [], open: openers.calendarMarkers },
     steps: { kind: 'offered', gaps: [], open: openers.steps },
     estimates: { kind: 'offered', gaps: [unknownStepGap], open: openers.estimates },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
@@ -312,6 +314,83 @@ const priorityProjectScopeFault = defineFault({
           await replace(DETERMINISTIC_SEED.projectIds[1], DEFAULT_PRIORITY_BANDS, stamp);
           return replace(projectId, bands, stamp);
         };
+      }),
+    });
+  },
+});
+
+const markerOrderFault = defineFault({
+  id: 'break:calendarMarkers.listFor:total-order',
+  caseId: 'calendarMarkers.listFor:total-order',
+  createControl: () => createFaultControl('calendarMarkers.listFor:total-order'),
+  mutate(source: MemorySource, control) {
+    const insertion = new Map<string, number>();
+    let next = 0;
+    const calendarMarkers = replaceMethod(
+      source.stores.calendarMarkers,
+      'create',
+      (create) => async (marker) => {
+        const written = await create(marker);
+        if (written.ok) {
+          insertion.set(marker.id, next);
+          next += 1;
+        }
+        return written;
+      },
+    );
+    return withStores(source, {
+      calendarMarkers: replaceMethod(calendarMarkers, 'listFor', (listFor) => {
+        return async (projectId) => {
+          const markers = await listFor(projectId);
+          if (!control.reach('calendarMarkers.listFor:total-order')) return markers;
+          return markers.toSorted(
+            (left, right) =>
+              left.date.localeCompare(right.date) ||
+              left.createdAt - right.createdAt ||
+              (insertion.get(left.id) ?? -1) - (insertion.get(right.id) ?? -1),
+          );
+        };
+      }),
+    });
+  },
+});
+
+const markerProjectScopeFault = defineFault({
+  id: 'break:calendarMarkers.write:project-scope',
+  caseId: 'calendarMarkers.write:project-scope',
+  createControl: () => createFaultControl('calendarMarkers.write:project-scope:project-predicate'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      calendarMarkers: replaceMethod(source.stores.calendarMarkers, 'rename', (rename) => {
+        return (projectId, id, name) =>
+          rename(
+            id === 'marker-owned-a' &&
+              projectId === DETERMINISTIC_SEED.projectIds[1] &&
+              control.reach('calendarMarkers.write:project-scope:project-predicate')
+              ? DETERMINISTIC_SEED.projectIds[0]
+              : projectId,
+            id,
+            name,
+          );
+      }),
+    });
+  },
+});
+
+const markerLiteralDateFault = defineFault({
+  id: 'break:calendarMarkers.write:project-scope',
+  caseId: 'calendarMarkers.write:project-scope',
+  createControl: () => createFaultControl('calendarMarkers.write:project-scope:literal-date'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      calendarMarkers: replaceMethod(source.stores.calendarMarkers, 'create', (create) => {
+        return (marker) =>
+          create(
+            marker.id === 'marker-owned-a' &&
+              control.reach('calendarMarkers.write:project-scope:literal-date')
+              ? { ...marker, date: '2026-09-11' }
+              : marker,
+          );
       }),
     });
   },
@@ -501,6 +580,7 @@ async function proveFault(fault: Fault<MemorySource>): Promise<FaultProof> {
         users: (caseId) => takeFixture('users', caseId),
         capacity: (caseId) => takeFixture('capacity', caseId),
         priorityBands: (caseId) => takeFixture('priorityBands', caseId),
+        calendarMarkers: (caseId) => takeFixture('calendarMarkers', caseId),
         steps: (caseId) => takeFixture('steps', caseId),
         estimates: (caseId) => takeFixture('estimates', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
@@ -715,6 +795,27 @@ describe('memory existing source conformance', () => {
     });
     expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
       { caseId: priorityProjectScopeFault.caseId, status: 'passed' },
+    ]);
+  });
+
+  it('reinjects marker order, project-scope, and literal-date faults', async () => {
+    const faults = [markerOrderFault, markerProjectScopeFault, markerLiteralDateFault];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(['observed', 'observed', 'observed']);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    expect(failures[0]).toContain('"marker-c"');
+    expect(failures[1]).toContain('"name": "Mine now"');
+    expect(failures[2]).toContain('"date": "2026-09-11"');
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
+      { caseId: markerOrderFault.caseId, status: 'passed' },
+      { caseId: markerProjectScopeFault.caseId, status: 'passed' },
     ]);
   });
 });

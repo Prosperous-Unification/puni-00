@@ -24,10 +24,10 @@ import type { TransactionalStores, User } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { DEFAULT_ESTIMATE_RULE } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
-import { eq, sql } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 
 import { runMigrations } from '../migrate';
-import { users as userTable } from '../schema';
+import { calendarMarker as markerTable, users as userTable } from '../schema';
 import { openSqliteSource, type OpenSqliteSourceOptions, type SqliteSource } from '../source';
 
 const MIGRATIONS = new URL('../../../../apps/be-01/drizzle', import.meta.url).pathname;
@@ -239,6 +239,7 @@ const openers: ExistingStoreOpeners = {
   users: (caseId) => openSqliteCase('users', caseId),
   capacity: (caseId) => openSqliteCase('capacity', caseId),
   priorityBands: (caseId) => openSqliteCase('priorityBands', caseId),
+  calendarMarkers: (caseId) => openSqliteCase('calendarMarkers', caseId),
   steps: (caseId) => openSqliteCase('steps', caseId),
   estimates: (caseId) => openSqliteCase('estimates', caseId),
   directory: (caseId) => openSqliteCase('directory', caseId),
@@ -575,6 +576,74 @@ const projectReaderOrderFault = defineFault({
   },
 });
 
+const markerOrderFault = defineFault({
+  id: 'break:calendarMarkers.listFor:total-order',
+  caseId: 'calendarMarkers.listFor:total-order',
+  createControl: () => createFaultControl('calendarMarkers.listFor:total-order'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      calendarMarkers: replaceMethod(source.stores.calendarMarkers, 'listFor', (listFor) => {
+        return async (projectId) => {
+          if (!control.reach('calendarMarkers.listFor:total-order')) return listFor(projectId);
+          return await source.db
+            .select({
+              id: markerTable.id,
+              projectId: markerTable.projectId,
+              date: markerTable.date,
+              name: markerTable.name,
+              color: markerTable.color,
+              createdAt: markerTable.createdAt,
+            })
+            .from(markerTable)
+            .where(eq(markerTable.projectId, projectId))
+            .orderBy(asc(markerTable.date), asc(markerTable.createdAt));
+        };
+      }),
+    });
+  },
+});
+
+const markerProjectScopeFault = defineFault({
+  id: 'break:calendarMarkers.write:project-scope',
+  caseId: 'calendarMarkers.write:project-scope',
+  createControl: () => createFaultControl('calendarMarkers.write:project-scope:project-predicate'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      calendarMarkers: replaceMethod(source.stores.calendarMarkers, 'rename', (rename) => {
+        return (projectId, id, name) =>
+          rename(
+            id === 'marker-owned-a' &&
+              projectId === DETERMINISTIC_SEED.projectIds[1] &&
+              control.reach('calendarMarkers.write:project-scope:project-predicate')
+              ? DETERMINISTIC_SEED.projectIds[0]
+              : projectId,
+            id,
+            name,
+          );
+      }),
+    });
+  },
+});
+
+const markerLiteralDateFault = defineFault({
+  id: 'break:calendarMarkers.write:project-scope',
+  caseId: 'calendarMarkers.write:project-scope',
+  createControl: () => createFaultControl('calendarMarkers.write:project-scope:literal-date'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      calendarMarkers: replaceMethod(source.stores.calendarMarkers, 'create', (create) => {
+        return (marker) =>
+          create(
+            marker.id === 'marker-owned-a' &&
+              control.reach('calendarMarkers.write:project-scope:literal-date')
+              ? { ...marker, date: '2026-09-11' }
+              : marker,
+          );
+      }),
+    });
+  },
+});
+
 const addFault = defineFault({
   id: 'break:steps.add',
   caseId: 'steps.add',
@@ -707,6 +776,7 @@ async function proveFault(
         users: (caseId) => takeFixture('users', caseId),
         capacity: (caseId) => takeFixture('capacity', caseId),
         priorityBands: (caseId) => takeFixture('priorityBands', caseId),
+        calendarMarkers: (caseId) => takeFixture('calendarMarkers', caseId),
         steps: (caseId) => takeFixture('steps', caseId),
         estimates: (caseId) => takeFixture('estimates', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
@@ -1117,6 +1187,27 @@ describe('SQLite existing source conformance', () => {
     });
     expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
       { caseId: priorityProjectScopeFault.caseId, status: 'passed' },
+    ]);
+  });
+
+  it('reinjects marker order, project-scope, and literal-date faults', async () => {
+    const faults = [markerOrderFault, markerProjectScopeFault, markerLiteralDateFault];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(['observed', 'observed', 'observed']);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    expect(failures[0]).toContain('"marker-c"');
+    expect(failures[1]).toContain('"name": "Mine now"');
+    expect(failures[2]).toContain('"date": "2026-09-11"');
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
+      { caseId: markerOrderFault.caseId, status: 'passed' },
+      { caseId: markerProjectScopeFault.caseId, status: 'passed' },
     ]);
   });
 
