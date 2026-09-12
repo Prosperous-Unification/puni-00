@@ -126,4 +126,14 @@ Task 3.1 leaves `commandDefinitions` as the single command-kind assembly. Contra
 
 Observed negative: a runtime `import '@wbs/core'` injected into production `libs/contracts/src/commands/definitions.ts` made `contracts:lint` fail. The direct ESLint output named both `@nx/enforce-module-boundaries` and the real circular chain `contracts -> core -> contracts`, including `command-bindings.ts`, `command-normalizers.ts` and `work-item.routes.ts`. Restored production contains no service or storage dependency.
 
-Restored evidence: the six-file definitions/descriptor/mounted/SQLite runner set passed 45 tests with 279 expectations. Direct contracts + core build typecheck passed. The final contracts/core/be-01 test/lint/typecheck gate passed all nine targets uncached in 1m31s. Task 2.5 remains intentionally unchecked and unchanged per the assigned Task 3.1-only scope.
+Restored evidence: the six-file definitions/descriptor/mounted/SQLite runner set passed 45 tests with 279 expectations. Direct contracts + core build typecheck passed. The final contracts/core/be-01 test/lint/typecheck gate passed all nine targets uncached in 1m31s. Task 2.5 was intentionally left for its separately assigned slice below.
+
+## Task 2.5 continuation
+
+Task 2.5 collapses only the compatible tag, work-item-type and service create/patch/delete mechanics. Three generic helpers preserve duplicate-ref admission, minted IDs, ID/ref lookup, refusal translation, cascade defaults and entity response shapes; each of the nine bindings still supplies its own typed directory service operation and literal command kind. The team and person branches remain explicit because their ownership and membership contracts are not compatible with the named-vocabulary triple.
+
+Observed production-path negative: the mounted real-SQLite test sends `createWorkItemType` through `/api/directory/commands` and reads the work-item-type and tag stores independently. Routing that binding to `DirectoryService.addTag` retained an HTTP 200 but failed the work-item-type store assertion with `Expected: ["Incident"] · Received: []`. Restored production writes the name only to the work-item-type vocabulary.
+
+Restored evidence: the five focused mounted directory and real-SQLite rollback/atomicity cases passed with 18 expectations. The broader five-file command runner/controller set passed 137 tests with 580 expectations, and direct core typecheck passed. The contracts/core/be-01 test/lint/typecheck gate passed all nine targets uncached in 1m28s. Focused format and diff checks passed, OpenSpec validation passed all 75 items, and apply instructions report 9 of 10 tasks complete.
+
+The first sandboxed Nx attempt exited 0 after socket-denial warnings without listing or running targets, so it is excluded from evidence. The permitted rerun produced the nine-target output recorded above. Task 3.2's full workspace/h2puni gate remains pending; no behavior mismatch was found in this slice.

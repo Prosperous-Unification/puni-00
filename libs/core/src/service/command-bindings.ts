@@ -128,6 +128,55 @@ export class CommandContext {
   }
 }
 
+type NamedDirectoryCreateKind = 'createTag' | 'createWorkItemType' | 'createService';
+type NamedDirectoryPatchKind = 'patchTag' | 'patchWorkItemType' | 'patchService';
+type NamedDirectoryDeleteKind = 'deleteTag' | 'deleteWorkItemType' | 'deleteService';
+
+async function createDirectoryEntry<
+  Kind extends NamedDirectoryCreateKind,
+  Entity extends { id: string },
+>(
+  context: CommandContext,
+  command: { kind: Kind; ref?: string; name: string },
+  create: (actorId: string, name: string) => Promise<Entity | null>,
+): Promise<MintedBase & { kind: Kind; entity: Entity }> {
+  context.assertRefAvailable(command.ref);
+  const entity = context.requireValue(await create(context.actorId, command.name), {
+    reason: 'name_required',
+  });
+  return { ...context.mint(command.ref, entity.id), kind: command.kind, entity };
+}
+
+async function patchDirectoryEntry<Kind extends NamedDirectoryPatchKind, Entity>(
+  context: CommandContext,
+  command: { kind: Kind; name: string },
+  id: string | undefined,
+  ref: string | undefined,
+  patch: (
+    id: string,
+    actorId: string,
+    name: string,
+  ) => Promise<{ ok: true; value: Entity } | ServiceRefusal>,
+): Promise<AppliedBase & { kind: Kind; entity: Entity }> {
+  const entity = context.value(
+    await patch(context.required(id, ref), context.actorId, command.name),
+  );
+  return { ...context.plain(), kind: command.kind, entity };
+}
+
+async function deleteDirectoryEntry<Kind extends NamedDirectoryDeleteKind>(
+  context: CommandContext,
+  command: { kind: Kind; cascade?: boolean },
+  id: string | undefined,
+  ref: string | undefined,
+  remove: (id: string, actorId: string, cascade: boolean) => Promise<{ ok: true } | ServiceRefusal>,
+): Promise<AppliedBase & { kind: Kind }> {
+  context.accept(
+    await remove(context.required(id, ref), context.actorId, command.cascade ?? false),
+  );
+  return { ...context.plain(), kind: command.kind };
+}
+
 /** Builds one command handler per registry kind over the batch's admitted service graph. */
 export function bindCommands(graph: PlanCommandServices): CommandBindings {
   const { workItems, directory, capacity, priorityBands } = graph;
@@ -421,97 +470,56 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       );
       return { ...context.plain(), kind: command.kind };
     },
-    createTag: async (command, context) => {
-      context.assertRefAvailable(command.ref);
-      const tag = context.requireValue(await directory.addTag(context.actorId, command.name), {
-        reason: 'name_required',
-      });
-      return { ...context.mint(command.ref, tag.id), kind: command.kind, entity: tag };
-    },
-    patchTag: async (command, context) => {
-      const tag = context.value(
-        await directory.renameTag(
-          context.required(command.tagId, command.tagRef),
-          context.actorId,
-          command.name,
-        ),
-      );
-      return { ...context.plain(), kind: command.kind, entity: tag };
-    },
-    deleteTag: async (command, context) => {
-      context.accept(
-        await directory.removeTag(
-          context.required(command.tagId, command.tagRef),
-          context.actorId,
-          command.cascade ?? false,
-        ),
-      );
-      return { ...context.plain(), kind: command.kind };
-    },
-    createWorkItemType: async (command, context) => {
-      context.assertRefAvailable(command.ref);
-      const workItemType = context.requireValue(
-        await directory.addWorkItemType(context.actorId, command.name),
-        { reason: 'name_required' },
-      );
-      return {
-        ...context.mint(command.ref, workItemType.id),
-        kind: command.kind,
-        entity: workItemType,
-      };
-    },
-    patchWorkItemType: async (command, context) => {
-      const workItemType = context.value(
-        await directory.renameWorkItemType(
-          context.required(command.typeId, command.typeRef),
-          context.actorId,
-          command.name,
-        ),
-      );
-      return { ...context.plain(), kind: command.kind, entity: workItemType };
-    },
-    deleteWorkItemType: async (command, context) => {
-      context.accept(
-        await directory.removeWorkItemType(
-          context.required(command.typeId, command.typeRef),
-          context.actorId,
-          command.cascade ?? false,
-        ),
-      );
-      return { ...context.plain(), kind: command.kind };
-    },
-    createService: async (command, context) => {
-      context.assertRefAvailable(command.ref);
-      const service = context.requireValue(
-        await directory.addService(context.actorId, command.name),
-        { reason: 'name_required' },
-      );
-      return {
-        ...context.mint(command.ref, service.id),
-        kind: command.kind,
-        entity: service,
-      };
-    },
-    patchService: async (command, context) => {
-      const service = context.value(
-        await directory.renameService(
-          context.required(command.serviceId, command.serviceRef),
-          context.actorId,
-          command.name,
-        ),
-      );
-      return { ...context.plain(), kind: command.kind, entity: service };
-    },
-    deleteService: async (command, context) => {
-      context.accept(
-        await directory.removeService(
-          context.required(command.serviceId, command.serviceRef),
-          context.actorId,
-          command.cascade ?? false,
-        ),
-      );
-      return { ...context.plain(), kind: command.kind };
-    },
+    createTag: (command, context) =>
+      createDirectoryEntry(context, command, (actorId, name) => directory.addTag(actorId, name)),
+    patchTag: (command, context) =>
+      patchDirectoryEntry(context, command, command.tagId, command.tagRef, (id, actorId, name) =>
+        directory.renameTag(id, actorId, name),
+      ),
+    deleteTag: (command, context) =>
+      deleteDirectoryEntry(
+        context,
+        command,
+        command.tagId,
+        command.tagRef,
+        (id, actorId, cascade) => directory.removeTag(id, actorId, cascade),
+      ),
+    createWorkItemType: (command, context) =>
+      createDirectoryEntry(context, command, (actorId, name) =>
+        directory.addWorkItemType(actorId, name),
+      ),
+    patchWorkItemType: (command, context) =>
+      patchDirectoryEntry(context, command, command.typeId, command.typeRef, (id, actorId, name) =>
+        directory.renameWorkItemType(id, actorId, name),
+      ),
+    deleteWorkItemType: (command, context) =>
+      deleteDirectoryEntry(
+        context,
+        command,
+        command.typeId,
+        command.typeRef,
+        (id, actorId, cascade) => directory.removeWorkItemType(id, actorId, cascade),
+      ),
+    createService: (command, context) =>
+      createDirectoryEntry(context, command, (actorId, name) =>
+        directory.addService(actorId, name),
+      ),
+    patchService: (command, context) =>
+      patchDirectoryEntry(
+        context,
+        command,
+        command.serviceId,
+        command.serviceRef,
+        (id, actorId, name) => directory.renameService(id, actorId, name),
+      ),
+    deleteService: (command, context) =>
+      deleteDirectoryEntry(
+        context,
+        command,
+        command.serviceId,
+        command.serviceRef,
+        (id, actorId, cascade) => directory.removeService(id, actorId, cascade),
+      ),
   };
 }
 
