@@ -192,7 +192,7 @@ The mounted real-SQLite negative sends `createWorkItemType` through `/api/direct
 
 The exact five-project test/lint/typecheck command completed all 15 targets successfully. Nx reused one `mcp-01:lint` result; that target was then run separately with `--skip-nx-cache` and completed successfully. Fresh direct runs exercised the generated MCP document/tools, the mounted and real-SQLite command API/runner, and fe-01's command client.
 
-The full browser gate ran with `CI=1` and `E2E_PORT_SHIFT=1900`, which made Playwright start this worktree's own be-01/gw-01/fe-01 stack on ports 5000/5100/6100 rather than reuse another checkout. It completed 340 tests, skipped 37 after failure, and failed two pre-existing 1280px toolbar-budget cases. A focused rerun reproduced both exact measurements: optimization cue `Expected <= 1603`, `Received 1603.875`; project settings `Expected <= 1305.5`, `Received 1306.46875`. This change has no diff from baseline `6a47a722` under `apps/fe-01`, `package.json`, `bun.lock`, or `nx.json`, so no unrelated budget change was made. The browser gate remains red evidence, not a pass.
+The full browser gate ran with `CI=1` and `E2E_PORT_SHIFT=1900`, which made Playwright start this worktree's own be-01/gw-01/fe-01 stack on ports 5000/5100/6100 rather than reuse another checkout. Its recorded totals were 340 passed, 37 skipped and two failed 1280px toolbar-budget cases. The skips were not all caused by those failures: the rendering-baseline suite declares 36 opt-in experimental cases. The prior raw log is unavailable, so the remaining skip is not classified here. A focused rerun recorded both exact measurements: optimization cue `Expected <= 1603`, `Received 1603.875`; project settings `Expected <= 1305.5`, `Received 1306.46875`. This change has no diff from baseline `6a47a722` under `apps/fe-01`, `package.json`, `bun.lock`, or `nx.json`, but that alone does not establish a passing or failing same-environment baseline. The browser gate remains red evidence, not a pass.
 
 The h2puni build checkout does not contain unpushed implementation commit `d0301d6076a86ade8ca9a65dc63dce1f2764c7fa`. The read-only `git cat-file` check failed with `Not a valid object name`. Publishing the branch is forbidden by task scope, and transferring private repository history by bundle was denied because it lacks explicit authorization; no workaround was attempted. Therefore `bin/h2puni-gate.sh d0301d6076a86ade8ca9a65dc63dce1f2764c7fa` did not run on h2puni.
 
@@ -212,11 +212,11 @@ The h2puni build checkout does not contain unpushed implementation commit `d0301
 
 ### OpenSpec verification scorecard
 
-| Dimension    | Status                                                                                                                                                                        |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Completeness | 9/10 tasks complete; Task 3.2 remains unchecked because its required host gate is unavailable and browser gate is red                                                         |
-| Correctness  | 3/3 delta requirements mapped to passing definition/binding, behavior-preservation, and generated-MCP evidence; all seven named delta scenarios have passing focused coverage |
-| Coherence    | Implementation follows the contracts-owned definitions, core-owned normalizers/bindings, cast-free correlated dispatch, and special person/team branch decisions              |
+| Dimension    | Status                                                                                                                                                                      |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Completeness | 9/10 tasks complete; Task 3.2 remains unchecked because its required host gate is unavailable and browser gate is red                                                       |
+| Correctness  | 3/3 delta requirements mapped to passing definition/binding, behavior-preservation, and generated-MCP evidence; all six named delta scenarios have passing focused coverage |
+| Coherence    | Implementation follows the contracts-owned definitions, core-owned normalizers/bindings, cast-free correlated dispatch, and special person/team branch decisions            |
 
 **Critical archive blocker:** complete the exact-SHA h2puni gate after the commit is available there, and obtain a green or explicitly adjudicated full browser gate. OpenSpec artifacts validate, but this change is not archive-ready while Task 3.2 remains unchecked.
 
@@ -226,3 +226,87 @@ The full workspace build/test/lint/typecheck targets and `be-01:solver-image-smo
 
 - Task 3.2 remains unchecked. The exact five-project and focused integration checks completed as recorded above; the h2puni gate was unavailable and the browser gate was red.
 - The optional OpenSpec telemetry flush could not reach `edge.openspec.dev`; status and apply instructions themselves completed successfully via the pinned CLI.
+
+## Resumed integration — 2026-09-12
+
+The branch resumed from `1a61d13c` and merged current origin/main
+`a5088fdf98ed23d0d8b79dd26c6def1ba8e9615f` without textual conflicts as
+`46dfa705de0ffe2e73b828cc23e61b909a697579`. All commit hooks passed. This is
+an integration baseline, not a completed final gate.
+
+The first uncached five-project command passed 13 targets. Backend tests failed on
+sandbox-denied `Bun.serve` socket calls; rerunning that target with sockets allowed
+passed 1048 tests, skipped the explicitly optional supervisor orphan-process case,
+and failed none. The frontend target also failed; its separate streamed rerun
+identified one directory keyboard-focus assertion failure among 2652 tests. That
+failure is being diagnosed before the final gate is repeated.
+
+| Command at integrated baseline                                                                                 | Observed result                                                              | Retained raw output                                |
+| -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------- |
+| `NX_DAEMON=false bunx nx run-many -t test lint typecheck -p contracts core be-01 fe-01 mcp-01 --skip-nx-cache` | Exit 1: 13 targets passed; backend and frontend tests failed                 | `/tmp/command-registry-46dfa705-project-gate.log`  |
+| `NX_DAEMON=false bunx nx run be-01:test --skip-nx-cache` with local sockets allowed                            | Exit 0: 1048 pass, 1 explicit skip, 0 fail                                   | `/tmp/command-registry-46dfa705-backend-gate.log`  |
+| `NX_DAEMON=false bunx nx run fe-01:test --skip-nx-cache --output-style=stream` with local sockets allowed      | Exit 1: 2651 pass, 1 directory-focus failure; Auckland follow-on did not run | `/tmp/command-registry-46dfa705-frontend-gate.log` |
+| `NX_DAEMON=false bunx nx format:check --all`                                                                   | Exit 0                                                                       | `/tmp/command-registry-46dfa705-format.log`        |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`                                   | Exit 0: 79 entries passed (68 changes, 11 specs)                             | `/tmp/command-registry-46dfa705-openspec.json`     |
+
+Astra's final review requested a P2 repair to correlate normalizer input fields
+and kinds with their structural definitions. Task 2.2 is reopened for that
+requirement; a complete normalizer record alone did not enforce field correlation.
+The review's bounded comparison found no behavioral differences in 3392 parser
+probes across all 37 kinds, and both generated batch schemas matched the baseline.
+Report: `/tmp/command-registry-astra-review.md`.
+
+Both toolbar-budget failures also reproduced at this integrated baseline. The
+browser diagnosis measured Arrange by schedule at 32px plus a 6px gap, whereas
+the earlier pin update charged 35px. Excluding that measured control and its gap from the same page
+recovered the prior totals: 1268.46875px without the cue and 1565.875px with it.
+The corrected pins still require watched negatives and a complete restored gate.
+
+Publication remains unavailable. GitHub's fresh repository metadata identifies
+origin as the public `Prosperous-Unification/wbs-tool-v1` repository and the current
+account as ADMIN. The complete branch diff passed the plaintext-secrets scanner.
+Automatic approval review nevertheless rejected the same branch push twice,
+requiring a direct trusted user message approving publication of this exact branch
+to that public destination. No push, PR, merge, archive, bundle or alternate
+transfer was performed. The exact-SHA h2puni gate remains unrun. Its shared build
+checkout had an unrelated tracked edit and must be preserved; an owned gate
+checkout will be needed when the branch can be published.
+
+### Integration repairs and focused verification
+
+The normalizers now take each definition's inferred input. Shared and nested readers
+retain named-field correlation, and the raw rejected-body classifier still crosses
+one documented dispatch boundary before running the existing value checks. The
+Astra finding's wrong-kind call and required-field-rename fixtures both produced
+TS2578 with the broad inputs; both are consumed after the repair. The core, contracts
+and backend `tsc --build --force` commands passed. The focused core suite passed
+3 tests, the mounted command suite passed 13, and the 3392 differential parser
+comparisons remained identical. Scoped ESLint, Prettier and diff checks passed.
+The attempted sandboxed Nx wrappers emitted socket warnings without visible target
+execution; their exit codes are not used as typecheck evidence. Report:
+`/tmp/command-registry-normalizer-fix-report.md`.
+
+The directory failure was reproduced over 50 repetitions. Its assertion read focus
+between the removal redraw and the effect that runs after the controls become live.
+The test now waits for both removal and focus handoff; production behavior is unchanged.
+Fifty restored repetitions and all 47 directory tests passed. Dropping only `busy`
+from the dependency list did not fail the focused run, so that experiment is not a
+proof; removing the actual production focus call failed at the intended assertion.
+Report: `/tmp/command-registry-directory-focus-report.md`.
+
+The toolbar pins now charge the measured 38px control-plus-gap cost: 1306.5px for
+settings and 1604px with the cue. The 2px tolerance, control counts and two-row
+assertions are unchanged. Both focused cases passed after removing the injected
+faults. Vite logged WebSocket proxy EPIPE warnings during these cases; this focused
+geometry run does not establish their cause or certify the full transport behavior.
+Report: `/tmp/command-registry-browser-report.md`.
+
+| Repaired check                                 | Fault / original failure                                                        | Observed failure                                                        | Restored evidence                                                                  |
+| ---------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Normalizer kind and required field correlation | Broad `Record<string, unknown>` inputs with the two new expected-error fixtures | Core spec compile reported TS2578 at both fixtures                      | Contracts/core/backend direct typechecks passed; 3392 parser comparisons unchanged |
+| Directory keyboard focus handoff               | Removed production `node.focus()`                                               | Retrying focus assertion timed out with BODY instead of the Design chip | 50 repetitions and all 47 directory tests passed; production source restored       |
+| Settings toolbar budget                        | Added one labelled `Squad` button                                               | Expected <=1308.5; received 1371.171875                                 | Both focused browser cases passed after restoration                                |
+| Cue toolbar budget                             | Widened the production cue from 11.5rem to 44rem                                | Expected <=1606; received 2123.875                                      | Both focused browser cases passed after restoration                                |
+
+Full local gates and Astra's scoped follow-up review of these repairs remain pending.
+Task 3.2 additionally still requires the unavailable exact-SHA h2puni gate.

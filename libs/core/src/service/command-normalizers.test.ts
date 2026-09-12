@@ -19,7 +19,27 @@ export function normalizerTypeCases() {
   // @ts-expect-error A structural definition without a normalizer makes the record incomplete.
   const incompleteNormalizers: CommandNormalizerRecord<typeof _definitionsWithTemporary> =
     commandNormalizers;
-  return incompleteNormalizers;
+
+  // Proof: leaving setActual's input as Record<string, unknown> failed core:typecheck here with
+  // TS2578 because a clearActual discriminator still satisfied the call.
+  // @ts-expect-error A normalizer accepts only the structural command with its own kind.
+  commandNormalizers.setActual({ kind: 'clearActual', stepId: 'build', days: 1 });
+
+  const _definitionsWithRenamedStep = {
+    ...commandDefinitions,
+    setActual: defineCommand('setActual', {
+      schema: type({ kind: "'setActual'", stepName: 'string', days: 'number' }),
+      scope: 'project',
+      description: 'Temporary compile-negative structural field rename.',
+    }),
+  } as const;
+
+  // Proof: leaving every normalizer input as Record<string, unknown> failed core:typecheck here
+  // with TS2578 because replacing required stepId with stepName did not invalidate the record.
+  // @ts-expect-error A structural field rename requires its semantic normalizer to change too.
+  const staleNormalizers: CommandNormalizerRecord<typeof _definitionsWithRenamedStep> =
+    commandNormalizers;
+  return { incompleteNormalizers, staleNormalizers };
 }
 
 test('preserves priority absence null and number', () => {

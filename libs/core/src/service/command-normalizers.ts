@@ -16,6 +16,15 @@ interface StructuralCommandDefinition {
   readonly schema: { readonly infer: { readonly kind: string } };
 }
 
+type CommandInput<Kind extends PlanCommandKind> =
+  (typeof commandDefinitions)[Kind]['schema']['infer'];
+
+type InputWith<Fields extends PropertyKey> = {
+  [Kind in PlanCommandKind]: [Fields] extends [keyof CommandInput<Kind>]
+    ? CommandInput<Kind>
+    : never;
+}[PlanCommandKind];
+
 /** One discriminator-preserving semantic normalizer for every structural definition. */
 export type CommandNormalizerRecord<
   Definitions extends Record<string, StructuralCommandDefinition>,
@@ -32,15 +41,14 @@ export class CommandNormalizationError extends Error {
   }
 }
 
-/** Reads named fields only from a non-null, non-array JSON object. */
-function asRecord(body: unknown): Record<string, unknown> {
+/** Refuses a value that cannot safely supply the schema-named fields its caller reads. */
+function assertRecord(body: unknown): void {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     throw new CommandNormalizationError('expected_object');
   }
-  return body as Record<string, unknown>;
 }
 
-function refuseDerivedFields(body: Record<string, unknown>): void {
+function refuseDerivedFields(body: object): void {
   if ('number' in body || 'frozenNumber' in body) {
     throw new CommandNormalizationError('number_is_derived');
   }
@@ -122,7 +130,7 @@ export const MOST_CHARACTERS_IN_A_REF_NAME = 300;
  * {@link MOST_CHARACTERS_IN_A_REF_NAME} — a malformed request, never a 500.
  */
 function asOptionalExternalRefs(
-  value: unknown,
+  value: CommandInput<'patchWorkItem'>['patch']['externalRefs'],
 ): readonly { systemId: string; url: string; name: string }[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value)) {
@@ -132,10 +140,10 @@ function asOptionalExternalRefs(
     throw new CommandNormalizationError('too_many_externalRefs');
   }
   return value.map((entry) => {
-    const record = asRecord(entry);
-    const systemId = record['systemId'];
-    const url = record['url'];
-    const name = record['name'];
+    assertRecord(entry);
+    const systemId = entry.systemId;
+    const url = entry.url;
+    const name = entry.name;
     if (typeof systemId !== 'string' || systemId === '') {
       throw new CommandNormalizationError('externalRefs_entry_needs_a_systemId');
     }
@@ -208,8 +216,8 @@ function asOptionalText(value: unknown, field: string): string | undefined {
  * A non-finite one is refused because `NaN` stored as a real comes back as a
  * number that fails every comparison it is in, including its own.
  */
-function parseActual(body: unknown): number {
-  const days = asRecord(body)['days'];
+function parseActual(body: CommandInput<'setActual'>): number {
+  const days = body.days;
   if (typeof days !== 'number' || !Number.isFinite(days) || days < 0) {
     throw new CommandNormalizationError('invalid_actual');
   }
@@ -236,8 +244,8 @@ function parseActual(body: unknown): number {
  * has three routes it could have come from, and the one it names is the one it
  * came from.
  */
-function parseMeasure(body: unknown): number {
-  const value = asRecord(body)['value'];
+function parseMeasure(body: CommandInput<'setMeasure'>): number {
+  const value = body.value;
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     throw new CommandNormalizationError('invalid_measure');
   }
@@ -260,8 +268,8 @@ function parseMeasure(body: unknown): number {
  * database, so a body this function ever came to let through does not become a
  * row nothing folds.
  */
-function parseProgress(body: unknown) {
-  const state = asRecord(body)['state'];
+function parseProgress(body: CommandInput<'setProgress'>) {
+  const state = body.state;
   if (!isStepState(state)) throw new CommandNormalizationError('invalid_progress');
   return state;
 }
@@ -376,30 +384,30 @@ function asOptionalParallelism(value: unknown, field: string): number | null | u
   return value;
 }
 
-function parsePatch(body: unknown) {
-  const raw = asRecord(body);
-  refuseDerivedFields(raw);
-  if ('teamIds' in raw && 'serviceTeamId' in raw) {
+function parsePatch(body: CommandInput<'patchWorkItem'>['patch']) {
+  assertRecord(body);
+  refuseDerivedFields(body);
+  if ('teamIds' in body && 'serviceTeamId' in body) {
     throw new CommandNormalizationError('cannot_send_both_teamIds_and_serviceTeamId');
   }
   return present({
-    name: asOptionalText(raw['name'], 'name'),
-    notes: asOptionalText(raw['notes'], 'notes'),
-    startNoEarlierThan: asOptionalDate(raw['startNoEarlierThan'], 'startNoEarlierThan'),
+    name: asOptionalText(body.name, 'name'),
+    notes: asOptionalText(body.notes, 'notes'),
+    startNoEarlierThan: asOptionalDate(body.startNoEarlierThan, 'startNoEarlierThan'),
     startNoEarlierThanReason: asOptionalReason(
-      raw['startNoEarlierThanReason'],
+      body.startNoEarlierThanReason,
       'startNoEarlierThanReason',
     ),
-    deadline: asOptionalDate(raw['deadline'], 'deadline'),
-    priority: asOptionalPriority(raw['priority'], 'priority'),
+    deadline: asOptionalDate(body.deadline, 'deadline'),
+    priority: asOptionalPriority(body.priority, 'priority'),
     serviceTeamId:
-      'serviceTeamId' in raw ? asIdOrNull(raw['serviceTeamId'], 'serviceTeamId') : undefined,
-    teamIds: asOptionalIds(raw['teamIds'], 'teamIds', MOST_TEAMS_ON_ONE_ITEM),
-    serviceIds: asOptionalIds(raw['serviceIds'], 'serviceIds', MOST_SERVICES_ON_ONE_ITEM),
-    maxParallel: asOptionalParallelism(raw['maxParallel'], 'maxParallel'),
-    tagIds: asOptionalIds(raw['tagIds'], 'tagIds', MOST_TAGS_ON_ONE_ITEM),
-    typeIds: asOptionalIds(raw['typeIds'], 'typeIds', MOST_TYPES_ON_ONE_ITEM),
-    externalRefs: asOptionalExternalRefs(raw['externalRefs']),
+      'serviceTeamId' in body ? asIdOrNull(body.serviceTeamId, 'serviceTeamId') : undefined,
+    teamIds: asOptionalIds(body.teamIds, 'teamIds', MOST_TEAMS_ON_ONE_ITEM),
+    serviceIds: asOptionalIds(body.serviceIds, 'serviceIds', MOST_SERVICES_ON_ONE_ITEM),
+    maxParallel: asOptionalParallelism(body.maxParallel, 'maxParallel'),
+    tagIds: asOptionalIds(body.tagIds, 'tagIds', MOST_TAGS_ON_ONE_ITEM),
+    typeIds: asOptionalIds(body.typeIds, 'typeIds', MOST_TYPES_ON_ONE_ITEM),
+    externalRefs: asOptionalExternalRefs(body.externalRefs),
   });
 }
 
@@ -446,23 +454,36 @@ function present<Fields extends Record<string, unknown>>(fields: Fields): Presen
   ) as Present<Fields>;
 }
 
-function target(raw: Record<string, unknown>) {
+function normalizedTarget(workItemId: unknown, workItemRef: unknown) {
   return present({
-    workItemId: asOptionalId(raw['workItemId'], 'workItemId'),
-    workItemRef: asOptionalId(raw['workItemRef'], 'workItemRef'),
+    workItemId: asOptionalId(workItemId, 'workItemId'),
+    workItemRef: asOptionalId(workItemRef, 'workItemRef'),
   });
 }
 
-function step(raw: Record<string, unknown>) {
-  return { stepId: asText(raw['stepId'], 'stepId') };
+function target(raw: InputWith<'workItemId' | 'workItemRef'>) {
+  return normalizedTarget(raw.workItemId, raw.workItemRef);
 }
 
-function ref(raw: Record<string, unknown>) {
-  return present({ ref: asOptionalId(raw['ref'], 'ref') });
+function step(raw: InputWith<'stepId'>) {
+  return { stepId: asText(raw.stepId, 'stepId') };
 }
 
-function normalizeNamed<const Kind extends string>(kind: Kind, raw: Record<string, unknown>) {
-  return { kind, ...ref(raw), name: asText(raw['name'], 'name') };
+function normalizedRef(value: unknown) {
+  return present({ ref: asOptionalId(value, 'ref') });
+}
+
+function ref(raw: InputWith<'ref'>) {
+  return normalizedRef(raw.ref);
+}
+
+type NamedInput = InputWith<'ref' | 'name'>;
+
+function normalizeNamed<Kind extends NamedInput['kind']>(
+  kind: Kind,
+  raw: Extract<NamedInput, { kind: NoInfer<Kind> }>,
+) {
+  return { kind, ...ref(raw), name: asText(raw.name, 'name') };
 }
 
 /**
@@ -472,245 +493,249 @@ function normalizeNamed<const Kind extends string>(kind: Kind, raw: Record<strin
  * core typecheck with TS2741 at this record.
  */
 export const commandNormalizers = {
-  createWorkItem(raw: Record<string, unknown>) {
+  createWorkItem(raw: CommandInput<'createWorkItem'>) {
     refuseDerivedFields(raw);
-    const parentId = asIdOrNull(raw['parentId'], 'parentId');
-    const afterId = asIdOrNull(raw['afterId'], 'afterId');
-    const name = asOptionalText(raw['name'], 'name');
-    const notes = asOptionalText(raw['notes'], 'notes');
-    const priority = asOptionalPriority(raw['priority'], 'priority');
+    const parentId = asIdOrNull(raw.parentId, 'parentId');
+    const afterId = asIdOrNull(raw.afterId, 'afterId');
+    const name = asOptionalText(raw.name, 'name');
+    const notes = asOptionalText(raw.notes, 'notes');
+    const priority = asOptionalPriority(raw.priority, 'priority');
     return present({
       kind: 'createWorkItem' as const,
       ...ref(raw),
       parentId,
-      parentRef: asOptionalId(raw['parentRef'], 'parentRef'),
+      parentRef: asOptionalId(raw.parentRef, 'parentRef'),
       afterId,
-      afterRef: asOptionalId(raw['afterRef'], 'afterRef'),
+      afterRef: asOptionalId(raw.afterRef, 'afterRef'),
       name,
       notes,
       // Absent stays absent for the service's middle rung; explicit null stays unprioritised.
       priority,
     });
   },
-  patchWorkItem(raw: Record<string, unknown>) {
-    const patchRaw = asRecord(raw['patch']);
+  patchWorkItem(raw: CommandInput<'patchWorkItem'>) {
+    const patchRaw = raw.patch;
+    assertRecord(patchRaw);
     return {
       kind: 'patchWorkItem' as const,
       ...target(raw),
       patch: present({
         ...parsePatch(patchRaw),
-        serviceRefs: asOptionalIds(
-          patchRaw['serviceRefs'],
-          'serviceRefs',
-          MOST_SERVICES_ON_ONE_ITEM,
-        ),
-        tagRefs: asOptionalIds(patchRaw['tagRefs'], 'tagRefs', MOST_TAGS_ON_ONE_ITEM),
-        typeRefs: asOptionalIds(patchRaw['typeRefs'], 'typeRefs', MOST_TYPES_ON_ONE_ITEM),
-        teamRefs: asOptionalIds(patchRaw['teamRefs'], 'teamRefs', MOST_TEAMS_ON_ONE_ITEM),
+        serviceRefs: asOptionalIds(patchRaw.serviceRefs, 'serviceRefs', MOST_SERVICES_ON_ONE_ITEM),
+        tagRefs: asOptionalIds(patchRaw.tagRefs, 'tagRefs', MOST_TAGS_ON_ONE_ITEM),
+        typeRefs: asOptionalIds(patchRaw.typeRefs, 'typeRefs', MOST_TYPES_ON_ONE_ITEM),
+        teamRefs: asOptionalIds(patchRaw.teamRefs, 'teamRefs', MOST_TEAMS_ON_ONE_ITEM),
       }),
     };
   },
-  moveWorkItem(raw: Record<string, unknown>) {
-    const parentId = asIdOrNull(raw['parentId'], 'parentId');
-    const afterId = asIdOrNull(raw['afterId'], 'afterId');
+  moveWorkItem(raw: CommandInput<'moveWorkItem'>) {
+    const parentId = asIdOrNull(raw.parentId, 'parentId');
+    const afterId = asIdOrNull(raw.afterId, 'afterId');
     return present({
       kind: 'moveWorkItem' as const,
       ...target(raw),
       parentId,
-      parentRef: asOptionalId(raw['parentRef'], 'parentRef'),
+      parentRef: asOptionalId(raw.parentRef, 'parentRef'),
       afterId,
-      afterRef: asOptionalId(raw['afterRef'], 'afterRef'),
+      afterRef: asOptionalId(raw.afterRef, 'afterRef'),
     });
   },
-  duplicateWorkItem: (raw: Record<string, unknown>) => ({
+  duplicateWorkItem: (raw: CommandInput<'duplicateWorkItem'>) => ({
     kind: 'duplicateWorkItem' as const,
     ...target(raw),
     ...ref(raw),
   }),
-  deleteWorkItem(raw: Record<string, unknown>) {
-    const candidate = raw['strategy'];
+  deleteWorkItem(raw: CommandInput<'deleteWorkItem'>) {
+    const candidate: unknown = raw.strategy;
     if (candidate !== undefined && candidate !== 'cascade' && candidate !== 'promote') {
       throw new CommandNormalizationError('unknown_strategy');
     }
     const strategy: 'cascade' | 'promote' | undefined = candidate;
     return present({ kind: 'deleteWorkItem' as const, ...target(raw), strategy });
   },
-  setEstimate: (raw: Record<string, unknown>) => ({
+  setEstimate: (raw: CommandInput<'setEstimate'>) => ({
     kind: 'setEstimate' as const,
     ...target(raw),
     ...step(raw),
-    days: parseOrThrow(ThreePointEstimate, raw['days']),
+    days: parseOrThrow(ThreePointEstimate, raw.days),
   }),
-  clearEstimate: (raw: Record<string, unknown>) => ({
+  clearEstimate: (raw: CommandInput<'clearEstimate'>) => ({
     kind: 'clearEstimate' as const,
     ...target(raw),
     ...step(raw),
   }),
-  setActual: (raw: Record<string, unknown>) => ({
+  setActual: (raw: CommandInput<'setActual'>) => ({
     kind: 'setActual' as const,
     ...target(raw),
     ...step(raw),
     days: parseActual(raw),
   }),
-  clearActual: (raw: Record<string, unknown>) => ({
+  clearActual: (raw: CommandInput<'clearActual'>) => ({
     kind: 'clearActual' as const,
     ...target(raw),
     ...step(raw),
   }),
-  setProgress: (raw: Record<string, unknown>) => ({
+  setProgress: (raw: CommandInput<'setProgress'>) => ({
     kind: 'setProgress' as const,
     ...target(raw),
     ...step(raw),
     state: parseProgress(raw),
   }),
-  clearProgress: (raw: Record<string, unknown>) => ({
+  clearProgress: (raw: CommandInput<'clearProgress'>) => ({
     kind: 'clearProgress' as const,
     ...target(raw),
     ...step(raw),
   }),
-  setMeasure: (raw: Record<string, unknown>) => ({
+  setMeasure: (raw: CommandInput<'setMeasure'>) => ({
     kind: 'setMeasure' as const,
     ...target(raw),
     ...step(raw),
-    metric: asText(raw['metric'], 'metric'),
+    metric: asText(raw.metric, 'metric'),
     value: parseMeasure(raw),
   }),
-  clearMeasure: (raw: Record<string, unknown>) => ({
+  clearMeasure: (raw: CommandInput<'clearMeasure'>) => ({
     kind: 'clearMeasure' as const,
     ...target(raw),
     ...step(raw),
-    metric: asText(raw['metric'], 'metric'),
+    metric: asText(raw.metric, 'metric'),
   }),
-  setAssignee: (raw: Record<string, unknown>) =>
+  setAssignee: (raw: CommandInput<'setAssignee'>) =>
     present({
       kind: 'setAssignee' as const,
       ...target(raw),
       ...step(raw),
-      personId: asIdOrNull(raw['personId'], 'personId'),
-      personRef: asOptionalId(raw['personRef'], 'personRef'),
+      personId: asIdOrNull(raw.personId, 'personId'),
+      personRef: asOptionalId(raw.personRef, 'personRef'),
     }),
-  addDependency: (raw: Record<string, unknown>) =>
+  addDependency: (raw: CommandInput<'addDependency'>) =>
     present({
       kind: 'addDependency' as const,
       ...target(raw),
-      predecessorId: asOptionalId(raw['predecessorId'], 'predecessorId'),
-      predecessorRef: asOptionalId(raw['predecessorRef'], 'predecessorRef'),
+      predecessorId: asOptionalId(raw.predecessorId, 'predecessorId'),
+      predecessorRef: asOptionalId(raw.predecessorRef, 'predecessorRef'),
     }),
-  removeDependency: (raw: Record<string, unknown>) =>
+  removeDependency: (raw: CommandInput<'removeDependency'>) =>
     present({
       kind: 'removeDependency' as const,
       ...target(raw),
-      predecessorId: asOptionalId(raw['predecessorId'], 'predecessorId'),
-      predecessorRef: asOptionalId(raw['predecessorRef'], 'predecessorRef'),
+      predecessorId: asOptionalId(raw.predecessorId, 'predecessorId'),
+      predecessorRef: asOptionalId(raw.predecessorRef, 'predecessorRef'),
     }),
-  arrangeBySchedule: () => ({ kind: 'arrangeBySchedule' as const }),
-  freezeProject: () => ({ kind: 'freezeProject' as const }),
-  unfreezeProject: () => ({ kind: 'unfreezeProject' as const }),
-  unfreezeWorkItem: (raw: Record<string, unknown>) => ({
+  arrangeBySchedule: (_raw: CommandInput<'arrangeBySchedule'>) => ({
+    kind: 'arrangeBySchedule' as const,
+  }),
+  freezeProject: (_raw: CommandInput<'freezeProject'>) => ({ kind: 'freezeProject' as const }),
+  unfreezeProject: (_raw: CommandInput<'unfreezeProject'>) => ({
+    kind: 'unfreezeProject' as const,
+  }),
+  unfreezeWorkItem: (raw: CommandInput<'unfreezeWorkItem'>) => ({
     kind: 'unfreezeWorkItem' as const,
     ...target(raw),
   }),
-  setCapacity: (raw: Record<string, unknown>) =>
+  setCapacity: (raw: CommandInput<'setCapacity'>) =>
     present({
       kind: 'setCapacity' as const,
-      teamId: asOptionalId(raw['teamId'], 'teamId'),
-      teamRef: asOptionalId(raw['teamRef'], 'teamRef'),
+      teamId: asOptionalId(raw.teamId, 'teamId'),
+      teamRef: asOptionalId(raw.teamRef, 'teamRef'),
       size: capacityOf(raw),
     }),
-  setPriorityBands: (raw: Record<string, unknown>) => ({
+  setPriorityBands: (raw: CommandInput<'setPriorityBands'>) => ({
     kind: 'setPriorityBands' as const,
     bands: ladderOf(raw),
   }),
-  createTeam: (raw: Record<string, unknown>) => normalizeNamed('createTeam', raw),
-  patchTeam(raw: Record<string, unknown>) {
-    const patch = asRecord(raw['patch']);
+  createTeam: (raw: CommandInput<'createTeam'>) => normalizeNamed('createTeam', raw),
+  patchTeam(raw: CommandInput<'patchTeam'>) {
+    const patch = raw.patch;
+    assertRecord(patch);
     return present({
       kind: 'patchTeam' as const,
-      teamId: asOptionalId(raw['teamId'], 'teamId'),
-      teamRef: asOptionalId(raw['teamRef'], 'teamRef'),
+      teamId: asOptionalId(raw.teamId, 'teamId'),
+      teamRef: asOptionalId(raw.teamRef, 'teamRef'),
       patch: present({
-        name: asOptionalText(patch['name'], 'name'),
-        serviceIds: asOptionalIds(patch['serviceIds'], 'serviceIds', MOST_SERVICES_ON_ONE_ITEM),
+        name: asOptionalText(patch.name, 'name'),
+        serviceIds: asOptionalIds(patch.serviceIds, 'serviceIds', MOST_SERVICES_ON_ONE_ITEM),
       }),
     });
   },
-  deleteTeam: (raw: Record<string, unknown>) =>
+  deleteTeam: (raw: CommandInput<'deleteTeam'>) =>
     present({
       kind: 'deleteTeam' as const,
-      teamId: asOptionalId(raw['teamId'], 'teamId'),
-      teamRef: asOptionalId(raw['teamRef'], 'teamRef'),
-      cascade: asOptionalFlag(raw['cascade'], 'cascade'),
+      teamId: asOptionalId(raw.teamId, 'teamId'),
+      teamRef: asOptionalId(raw.teamRef, 'teamRef'),
+      cascade: asOptionalFlag(raw.cascade, 'cascade'),
     }),
-  createPerson: (raw: Record<string, unknown>) =>
+  createPerson: (raw: CommandInput<'createPerson'>) =>
     present({
       ...normalizeNamed('createPerson', raw),
-      teamIds: asOptionalIds(raw['teamIds'], 'teamIds', MOST_TEAMS_ON_ONE_ITEM),
-      teamRefs: asOptionalIds(raw['teamRefs'], 'teamRefs', MOST_TEAMS_ON_ONE_ITEM),
+      teamIds: asOptionalIds(raw.teamIds, 'teamIds', MOST_TEAMS_ON_ONE_ITEM),
+      teamRefs: asOptionalIds(raw.teamRefs, 'teamRefs', MOST_TEAMS_ON_ONE_ITEM),
     }),
-  patchPerson(raw: Record<string, unknown>) {
-    const patch = asRecord(raw['patch']);
+  patchPerson(raw: CommandInput<'patchPerson'>) {
+    const patch = raw.patch;
+    assertRecord(patch);
     return present({
       kind: 'patchPerson' as const,
-      personId: asOptionalId(raw['personId'], 'personId'),
-      personRef: asOptionalId(raw['personRef'], 'personRef'),
+      personId: asOptionalId(raw.personId, 'personId'),
+      personRef: asOptionalId(raw.personRef, 'personRef'),
       patch: present({
-        name: asOptionalText(patch['name'], 'name'),
-        teamIds: asOptionalIds(patch['teamIds'], 'teamIds', MOST_TEAMS_ON_ONE_ITEM),
-        kind: asOptionalText(patch['kind'], 'kind'),
+        name: asOptionalText(patch.name, 'name'),
+        teamIds: asOptionalIds(patch.teamIds, 'teamIds', MOST_TEAMS_ON_ONE_ITEM),
+        kind: asOptionalText(patch.kind, 'kind'),
       }),
     });
   },
-  deletePerson: (raw: Record<string, unknown>) =>
+  deletePerson: (raw: CommandInput<'deletePerson'>) =>
     present({
       kind: 'deletePerson' as const,
-      personId: asOptionalId(raw['personId'], 'personId'),
-      personRef: asOptionalId(raw['personRef'], 'personRef'),
-      cascade: asOptionalFlag(raw['cascade'], 'cascade'),
+      personId: asOptionalId(raw.personId, 'personId'),
+      personRef: asOptionalId(raw.personRef, 'personRef'),
+      cascade: asOptionalFlag(raw.cascade, 'cascade'),
     }),
-  createTag: (raw: Record<string, unknown>) => normalizeNamed('createTag', raw),
-  patchTag: (raw: Record<string, unknown>) =>
+  createTag: (raw: CommandInput<'createTag'>) => normalizeNamed('createTag', raw),
+  patchTag: (raw: CommandInput<'patchTag'>) =>
     present({
       kind: 'patchTag' as const,
-      tagId: asOptionalId(raw['tagId'], 'tagId'),
-      tagRef: asOptionalId(raw['tagRef'], 'tagRef'),
-      name: asText(raw['name'], 'name'),
+      tagId: asOptionalId(raw.tagId, 'tagId'),
+      tagRef: asOptionalId(raw.tagRef, 'tagRef'),
+      name: asText(raw.name, 'name'),
     }),
-  deleteTag: (raw: Record<string, unknown>) =>
+  deleteTag: (raw: CommandInput<'deleteTag'>) =>
     present({
       kind: 'deleteTag' as const,
-      tagId: asOptionalId(raw['tagId'], 'tagId'),
-      tagRef: asOptionalId(raw['tagRef'], 'tagRef'),
-      cascade: asOptionalFlag(raw['cascade'], 'cascade'),
+      tagId: asOptionalId(raw.tagId, 'tagId'),
+      tagRef: asOptionalId(raw.tagRef, 'tagRef'),
+      cascade: asOptionalFlag(raw.cascade, 'cascade'),
     }),
-  createService: (raw: Record<string, unknown>) => normalizeNamed('createService', raw),
-  patchService: (raw: Record<string, unknown>) =>
+  createService: (raw: CommandInput<'createService'>) => normalizeNamed('createService', raw),
+  patchService: (raw: CommandInput<'patchService'>) =>
     present({
       kind: 'patchService' as const,
-      serviceId: asOptionalId(raw['serviceId'], 'serviceId'),
-      serviceRef: asOptionalId(raw['serviceRef'], 'serviceRef'),
-      name: asText(raw['name'], 'name'),
+      serviceId: asOptionalId(raw.serviceId, 'serviceId'),
+      serviceRef: asOptionalId(raw.serviceRef, 'serviceRef'),
+      name: asText(raw.name, 'name'),
     }),
-  deleteService: (raw: Record<string, unknown>) =>
+  deleteService: (raw: CommandInput<'deleteService'>) =>
     present({
       kind: 'deleteService' as const,
-      serviceId: asOptionalId(raw['serviceId'], 'serviceId'),
-      serviceRef: asOptionalId(raw['serviceRef'], 'serviceRef'),
-      cascade: asOptionalFlag(raw['cascade'], 'cascade'),
+      serviceId: asOptionalId(raw.serviceId, 'serviceId'),
+      serviceRef: asOptionalId(raw.serviceRef, 'serviceRef'),
+      cascade: asOptionalFlag(raw.cascade, 'cascade'),
     }),
-  createWorkItemType: (raw: Record<string, unknown>) => normalizeNamed('createWorkItemType', raw),
-  patchWorkItemType: (raw: Record<string, unknown>) =>
+  createWorkItemType: (raw: CommandInput<'createWorkItemType'>) =>
+    normalizeNamed('createWorkItemType', raw),
+  patchWorkItemType: (raw: CommandInput<'patchWorkItemType'>) =>
     present({
       kind: 'patchWorkItemType' as const,
-      typeId: asOptionalId(raw['typeId'], 'typeId'),
-      typeRef: asOptionalId(raw['typeRef'], 'typeRef'),
-      name: asText(raw['name'], 'name'),
+      typeId: asOptionalId(raw.typeId, 'typeId'),
+      typeRef: asOptionalId(raw.typeRef, 'typeRef'),
+      name: asText(raw.name, 'name'),
     }),
-  deleteWorkItemType: (raw: Record<string, unknown>) =>
+  deleteWorkItemType: (raw: CommandInput<'deleteWorkItemType'>) =>
     present({
       kind: 'deleteWorkItemType' as const,
-      typeId: asOptionalId(raw['typeId'], 'typeId'),
-      typeRef: asOptionalId(raw['typeRef'], 'typeRef'),
-      cascade: asOptionalFlag(raw['cascade'], 'cascade'),
+      typeId: asOptionalId(raw.typeId, 'typeId'),
+      typeRef: asOptionalId(raw.typeRef, 'typeRef'),
+      cascade: asOptionalFlag(raw.cascade, 'cascade'),
     }),
 } as const satisfies CommandNormalizerRecord<typeof commandDefinitions>;
 
@@ -723,7 +748,12 @@ export type PlanCommand = ReturnType<(typeof commandNormalizers)[PlanCommandKind
  * mismatch means the mounted boundary is choosing the legacy semantic refusal.
  */
 export function normalizeCommand(kind: PlanCommandKind, raw: Record<string, unknown>): PlanCommand {
-  target(raw);
-  ref(raw);
-  return commandNormalizers[kind](raw);
+  normalizedTarget(raw['workItemId'], raw['workItemRef']);
+  normalizedRef(raw['ref']);
+  // A known discriminator selects this function, but rejected structural bodies deliberately
+  // remain raw here so their values receive the legacy semantic refusal before invalid_body.
+  const rawNormalizers = commandNormalizers as unknown as Readonly<
+    Record<PlanCommandKind, (command: Record<string, unknown>) => PlanCommand>
+  >;
+  return rawNormalizers[kind](raw);
 }
