@@ -388,7 +388,7 @@ const markerLiteralDateFault = defineFault({
           create(
             marker.id === 'marker-owned-a' &&
               control.reach('calendarMarkers.write:project-scope:literal-date')
-              ? { ...marker, date: '2026-09-11' }
+              ? Object.assign(marker, { date: '2026-09-11' })
               : marker,
           );
       }),

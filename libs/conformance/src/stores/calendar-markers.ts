@@ -93,10 +93,17 @@ export function calendarMarkerRegistrations(
         const otherMarker = marker('marker-owned-b', seed.projectIds[1], {
           name: 'Scaffolding up',
         });
-        // Proof: both sources' literal-date faults passed 2026-09-11 through the
-        // actual create path; this exact returned marker failed against 2026-09-10.
-        expect(await port.create(projectMarker)).toEqual({ ok: true, marker: projectMarker });
-        expect(await port.create(otherMarker)).toEqual({ ok: true, marker: otherMarker });
+        // Proof: both sources' literal-date faults mutated an independent input
+        // clone in place to 2026-09-11; this settled answer still failed against
+        // the untouched 2026-09-10 expectation (Expected -1 / Received +1).
+        expect(await port.create(structuredClone(projectMarker))).toEqual({
+          ok: true,
+          marker: projectMarker,
+        });
+        expect(await port.create(structuredClone(otherMarker))).toEqual({
+          ok: true,
+          marker: otherMarker,
+        });
 
         const renamed = { ...projectMarker, name: 'Council inspection, rescheduled' };
         expect(await port.rename(seed.projectIds[0], projectMarker.id, renamed.name)).toEqual({

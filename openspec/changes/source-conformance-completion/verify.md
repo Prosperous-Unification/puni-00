@@ -540,3 +540,26 @@ The full workspace, build, browser and deploy gates were not run: Task 2.4 adds
 one shared store-family kit and test-only source faults, with no application,
 transport, migration or deployment behavior. Task 3.1 remains untouched and
 Task 2.4 stays unchecked until independent review.
+
+### Task 2.4 review fix round 1 — mutable-input oracle
+
+Astra's review mutated the exact object passed to `create` in place. The first
+oracle reused that object after `await`, so both source proof tests received
+`assertion-passed` for the literal-date fault instead of `observed`: memory
+0 pass / 1 fail / 23 assertions; SQLite 0 pass / 1 fail / 47 assertions.
+
+The case now passes an independent clone into each real source and retains its
+untouched expected marker. Both permanent source faults use
+`Object.assign(marker, { date: '2026-09-11' })`. A temporary capture assertion
+exposed the intended settled create-answer diff in both sources: expected
+2026-09-10, received 2026-09-11 (Expected -1 / Received +1). The capture runs
+failed with memory 0 pass / 1 fail / 18 assertions and SQLite 0 pass / 1 fail /
+42 assertions. With the capture removed, the focused proof/restoration tests
+passed with memory 1/0/34 and SQLite 1/0/74.
+
+After restoration, the complete memory source-conformance file passed 8 tests
+with 263 assertions and the complete SQLite file passed 13 tests with 918
+assertions. All six uncached lint/typecheck targets for conformance,
+store-memory and store-sqlite succeeded. Focused formatting and diff checks are
+recorded in the task report. Task 2.4 remains unchecked; Task 3.1 remains
+untouched.
