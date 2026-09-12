@@ -34,5 +34,67 @@ export function eventLogRegistrations(open: OpenCase<'eventLog'>): readonly Case
       expect(await port.latestSeq(subscription)).toBe(3);
       expect((await port.rangeSince(subscription, -1)).map(({ seq }) => seq)).toEqual([2, 3]);
     }),
+    storeCase('eventLog', 'eventLog.pruneBeyond:empty-sequence', open, async ({ port, seed }) => {
+      const subscription = `project:${seed.projectIds[0]}`;
+      const otherSubscription = `project:${seed.projectIds[1]}`;
+      const first = await port.recordEvent(subscription, { type: 'empty-first' }, 101);
+      const second = await port.recordEvent(subscription, { type: 'empty-second' }, 102);
+      const other = await port.recordEvent(otherSubscription, { type: 'scope-sentinel' }, 103);
+      expect({ first, second, other }).toEqual({
+        first: {
+          subscription,
+          seq: 0,
+          message: { type: 'empty-first' },
+          createdAt: 101,
+        },
+        second: {
+          subscription,
+          seq: 1,
+          message: { type: 'empty-second' },
+          createdAt: 102,
+        },
+        other: {
+          subscription: otherSubscription,
+          seq: 0,
+          message: { type: 'scope-sentinel' },
+          createdAt: 103,
+        },
+      });
+      expect(await port.rangeSince(subscription, -1)).toEqual([
+        { subscription, seq: 0, message: { type: 'empty-first' }, createdAt: 101 },
+        { subscription, seq: 1, message: { type: 'empty-second' }, createdAt: 102 },
+      ]);
+      expect(await port.rangeSince(otherSubscription, -1)).toEqual([
+        {
+          subscription: otherSubscription,
+          seq: 0,
+          message: { type: 'scope-sentinel' },
+          createdAt: 103,
+        },
+      ]);
+
+      expect(await port.pruneBeyond(0)).toBe(3);
+      expect(await port.rangeSince(subscription, -1)).toEqual([]);
+      expect(await port.oldestSeq(subscription)).toBeNull();
+      expect(await port.latestSeq(subscription)).toBe(1);
+      expect(await port.rangeSince(otherSubscription, -1)).toEqual([]);
+      expect(await port.oldestSeq(otherSubscription)).toBeNull();
+      expect(await port.latestSeq(otherSubscription)).toBe(0);
+
+      const next = await port.recordEvent(subscription, { type: 'empty-next' }, 201);
+      // Proof: both source proofs derive this return from the empty retained
+      // range; the received exact record reports sequence 0 instead of 2.
+      expect(next).toEqual({
+        subscription,
+        seq: 2,
+        message: { type: 'empty-next' },
+        createdAt: 201,
+      });
+      expect(await port.rangeSince(subscription, -1)).toEqual([
+        { subscription, seq: 2, message: { type: 'empty-next' }, createdAt: 201 },
+      ]);
+      expect(await port.rangeSince(otherSubscription, -1)).toEqual([]);
+      expect(await port.latestSeq(otherSubscription)).toBe(0);
+    }),
   ];
 }

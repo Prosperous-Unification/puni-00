@@ -17,6 +17,7 @@ describe('the migrated existing store kits', () => {
       actuals: unopened,
       measures: unopened,
       progress: unopened,
+      dependencies: unopened,
       directory: unopened,
       eventLog: unopened,
     });
@@ -64,11 +65,15 @@ describe('the migrated existing store kits', () => {
       'progress.remove:absence',
       'progress.moveAll:ownership',
       'progress.set:unknown_step',
+      'dependencies.add:idempotent-pair',
+      'dependencies.remove:pair',
+      'dependencies.removeAllFor:touching-set',
       'directory.addTag',
       'directory.assign:unknown_person',
       'eventLog.recordEvent',
       'eventLog.rangeSince',
       'eventLog.pruneBeyond',
+      'eventLog.pruneBeyond:empty-sequence',
     ]);
   });
 });

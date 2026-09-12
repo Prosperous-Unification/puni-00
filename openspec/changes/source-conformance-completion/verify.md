@@ -922,3 +922,65 @@ cleanup failed on two closes instead of one. Restored cleanup coverage passed
 finding remains. Task 3.4 is complete; the source change is now 11/24 tasks,
 and Task 4.1 is next. Reviews: `/tmp/source-conformance-3-4-astra-review.md` and
 `/tmp/source-conformance-3-4-astra-rereview.md`.
+
+## 2026-09-13 — task 4.1 dependency and empty-retention evidence
+
+The shared runner now registers `dependencies.add:idempotent-pair`,
+`dependencies.remove:pair`, `dependencies.removeAllFor:touching-set`, and
+`eventLog.pruneBeyond:empty-sequence`. Both memory and SQLite offer all four
+cases with zero new gaps.
+
+Dependency fixtures add two project-A survivor rows inside the source-owned
+seed lifecycle. Each case then seeds literal complete edges in projects A and B
+and compares the complete public lists, including ID, project, predecessor and
+successor, after setup and after every settled operation. Adding the same pair
+under a second ID retains the original edge only. Exact pair removal preserves
+edges sharing either endpoint. Full-set removal takes incoming, outgoing and
+doomed-to-doomed edges while retaining the survivor and other-project edges.
+The repeated add, remove and removeAllFor calls are observed in separate
+post-settlement snapshots.
+
+The event-log case records exact sequence-0/1 records and a second-subscription
+sentinel, prunes every retained row with `pruneBeyond(0)`, and observes empty
+ranges, null oldest sequences and unchanged latest sequence positions. Its next
+real `recordEvent` return is compared as a complete record with sequence 2;
+the public range independently confirms that literal record.
+
+### Task 4.1 failure-proof table
+
+| Check                                     | Fault injected through the real source                                                     | Production-path test                                                  | Observed failure                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Registration includes all four IDs        | Loaded the independent inventory before dependency and empty-sequence registration existed | `preserves the original IDs and adds each completed family inventory` | All four IDs were absent (`Expected - 4 / Received + 0`).                    |
+| Add identity is the ordered pair          | Decorated add/list with an ID-keyed view after real adds                                   | Source-specific dependency fault test                                 | The complete received second-ID edge duplicated `work-a-one -> work-a-two`.  |
+| Remove uses both pair predicates          | Omitted the successor predicate and ran real removes for every matching predecessor        | Same source-specific test                                             | The complete expected same-predecessor edge was absent.                      |
+| Full-set removal includes incoming edges  | Ran real removes for outgoing edges only                                                   | Same source-specific test                                             | The complete incoming survivor-to-doomed edge remained received.             |
+| Full-set removal uses every doomed ID     | Passed only the first doomed ID to the real removeAllFor                                   | Same source-specific test                                             | The complete outgoing edge from the second doomed row remained received.     |
+| Empty retention does not reset allocation | Derived the next returned sequence from retained MAX after the real prune and append       | Source-specific event-log fault test                                  | The complete next record showed expected sequence 2 and received sequence 0. |
+
+Every control is created per fresh source and remains inert through verified
+base seeding. The shared case completes and checks its public setup snapshot
+before the targeted operation. Each permanent source decorator then reaches
+its distinct named phase and fails the intended signed complete-edge or
+complete-record assertion. Restorations open fresh real sources.
+
+### Task 4.1 verification
+
+- Inventory RED: 0/1/1 with four absent registrations; restored 1/0/1.
+- Focused real cases plus proofs/restoration: memory 3/0/617 assertions; SQLite
+  3/0/897.
+- Existing SQLite dependency/event-log suites: 16/0/27; staged memory source:
+  9/0/153.
+- Full uncached targets: conformance 29/0/47; memory 39/0/1,873; SQLite
+  669/0/4,499 across 60 files.
+- All six uncached lint/typecheck targets passed for conformance, store-memory
+  and store-sqlite.
+- Pinned OpenSpec 1.3.0 strict validation reported the change valid; the
+  all-artifact JSON run reported 75 passed and 0 failed.
+
+Nx could not use its sandboxed plugin sockets and ran plugins in-process; every
+retained target command still completed with exit 0. The source-specific
+`test:conformance` targets remain deferred to Task 7.2 and do not exist. The
+full workspace, build, browser, deploy and h2puni SHA gate were skipped as
+outside this shared conformance/test-decorator slice and because no commit was
+authorized. Task 4.1 remains unchecked pending independent review; Task 4.2 was
+not started.

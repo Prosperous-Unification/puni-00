@@ -46,11 +46,15 @@ export const SOURCE_CONFORMANCE_CASES = [
   'progress.remove:absence',
   'progress.moveAll:ownership',
   'progress.set:unknown_step',
+  'dependencies.add:idempotent-pair',
+  'dependencies.remove:pair',
+  'dependencies.removeAllFor:touching-set',
   'directory.addTag',
   'directory.assign:unknown_person',
   'eventLog.recordEvent',
   'eventLog.rangeSince',
   'eventLog.pruneBeyond',
+  'eventLog.pruneBeyond:empty-sequence',
 ] as const;
 
 export interface CertificationInput {

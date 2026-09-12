@@ -1,0 +1,219 @@
+import type { StoredDependency } from '@wbs/core';
+import { expect } from 'bun:test';
+
+import type { CaseRegistration } from '../case-manifest';
+import { type OpenCase, storeCase } from './store-case';
+
+export const DEPENDENCY_SURVIVOR_IDS = [
+  'dependency-survivor-one',
+  'dependency-survivor-two',
+] as const;
+
+function byId(edges: StoredDependency[]): StoredDependency[] {
+  return edges.toSorted((left, right) => left.id.localeCompare(right.id));
+}
+
+function edge(
+  id: string,
+  projectId: string,
+  predecessorId: string,
+  successorId: string,
+): StoredDependency {
+  return { id, projectId, predecessorId, successorId };
+}
+
+/** Shared dependency cases observed through complete public project lists. */
+export function dependencyRegistrations(
+  open: OpenCase<'dependencies'>,
+): readonly CaseRegistration[] {
+  return [
+    storeCase(
+      'dependencies',
+      'dependencies.add:idempotent-pair',
+      open,
+      async ({ port, readers, seed }) => {
+        const [predecessorId, successorId] = seed.workItemIds[0];
+        const [survivorOneId, survivorTwoId] = DEPENDENCY_SURVIVOR_IDS;
+        const original = edge(
+          'dependency-idempotent-original',
+          seed.projectIds[0],
+          predecessorId,
+          successorId,
+        );
+        const samePair = edge(
+          'dependency-idempotent-second-id',
+          seed.projectIds[0],
+          predecessorId,
+          successorId,
+        );
+        const surviving = edge(
+          'dependency-idempotent-surviving',
+          seed.projectIds[0],
+          survivorOneId,
+          survivorTwoId,
+        );
+        const otherProject = edge(
+          'dependency-idempotent-other-project',
+          seed.projectIds[1],
+          seed.workItemIds[1][0],
+          seed.workItemIds[1][1],
+        );
+
+        await port.add(original, seed.stamps[0]);
+        await port.add(surviving, seed.stamps[0]);
+        await port.add(otherProject, seed.stamps[1]);
+        expect(byId(await readers.dependencies.listByProject(seed.projectIds[0]))).toEqual(
+          byId([original, surviving]),
+        );
+        expect(byId(await readers.dependencies.listByProject(seed.projectIds[1]))).toEqual([
+          otherProject,
+        ]);
+
+        await port.add(samePair, seed.stamps[1]);
+        // Proof: both source proofs deduplicate by edge ID after this complete
+        // setup; the received project-A list contains both exact pair IDs.
+        expect(byId(await readers.dependencies.listByProject(seed.projectIds[0]))).toEqual(
+          byId([original, surviving]),
+        );
+        expect(byId(await readers.dependencies.listByProject(seed.projectIds[1]))).toEqual([
+          otherProject,
+        ]);
+
+        await port.add(samePair, seed.stamps[1]);
+        expect(byId(await readers.dependencies.listByProject(seed.projectIds[0]))).toEqual(
+          byId([original, surviving]),
+        );
+        expect(byId(await readers.dependencies.listByProject(seed.projectIds[1]))).toEqual([
+          otherProject,
+        ]);
+      },
+    ),
+    storeCase('dependencies', 'dependencies.remove:pair', open, async ({ port, readers, seed }) => {
+      const [predecessorId, successorId] = seed.workItemIds[0];
+      const [survivorOneId, survivorTwoId] = DEPENDENCY_SURVIVOR_IDS;
+      const selected = edge(
+        'dependency-remove-selected',
+        seed.projectIds[0],
+        predecessorId,
+        successorId,
+      );
+      const samePredecessor = edge(
+        'dependency-remove-same-predecessor',
+        seed.projectIds[0],
+        predecessorId,
+        survivorOneId,
+      );
+      const sameSuccessor = edge(
+        'dependency-remove-same-successor',
+        seed.projectIds[0],
+        survivorTwoId,
+        successorId,
+      );
+      const surviving = edge(
+        'dependency-remove-surviving',
+        seed.projectIds[0],
+        survivorOneId,
+        survivorTwoId,
+      );
+      const otherProject = edge(
+        'dependency-remove-other-project',
+        seed.projectIds[1],
+        seed.workItemIds[1][0],
+        seed.workItemIds[1][1],
+      );
+      const projectA = [selected, samePredecessor, sameSuccessor, surviving];
+      for (const seeded of projectA) await port.add(seeded, seed.stamps[0]);
+      await port.add(otherProject, seed.stamps[1]);
+      expect(byId(await readers.dependencies.listByProject(seed.projectIds[0]))).toEqual(
+        byId(projectA),
+      );
+      expect(byId(await readers.dependencies.listByProject(seed.projectIds[1]))).toEqual([
+        otherProject,
+      ]);
+
+      await port.remove(predecessorId, successorId, seed.stamps[1]);
+      // Proof: both source proofs omit the successor half of the pair
+      // predicate; the received list loses the exact same-predecessor edge.
+      expect(byId(await readers.dependencies.listByProject(seed.projectIds[0]))).toEqual(
+        byId([samePredecessor, sameSuccessor, surviving]),
+      );
+      expect(byId(await readers.dependencies.listByProject(seed.projectIds[1]))).toEqual([
+        otherProject,
+      ]);
+
+      await port.remove(predecessorId, successorId, seed.stamps[1]);
+      expect(byId(await readers.dependencies.listByProject(seed.projectIds[0]))).toEqual(
+        byId([samePredecessor, sameSuccessor, surviving]),
+      );
+      expect(byId(await readers.dependencies.listByProject(seed.projectIds[1]))).toEqual([
+        otherProject,
+      ]);
+    }),
+    storeCase(
+      'dependencies',
+      'dependencies.removeAllFor:touching-set',
+      open,
+      async ({ port, readers, seed }) => {
+        const [doomedOneId, doomedTwoId] = seed.workItemIds[0];
+        const [survivorOneId, survivorTwoId] = DEPENDENCY_SURVIVOR_IDS;
+        const incoming = edge(
+          'dependency-remove-all-incoming',
+          seed.projectIds[0],
+          survivorOneId,
+          doomedOneId,
+        );
+        const outgoing = edge(
+          'dependency-remove-all-outgoing',
+          seed.projectIds[0],
+          doomedTwoId,
+          survivorTwoId,
+        );
+        const doomed = edge(
+          'dependency-remove-all-doomed',
+          seed.projectIds[0],
+          doomedOneId,
+          doomedTwoId,
+        );
+        const surviving = edge(
+          'dependency-remove-all-surviving',
+          seed.projectIds[0],
+          survivorOneId,
+          survivorTwoId,
+        );
+        const otherProject = edge(
+          'dependency-remove-all-other-project',
+          seed.projectIds[1],
+          seed.workItemIds[1][0],
+          seed.workItemIds[1][1],
+        );
+        const projectA = [incoming, outgoing, doomed, surviving];
+        for (const seeded of projectA) await port.add(seeded, seed.stamps[0]);
+        await port.add(otherProject, seed.stamps[1]);
+        expect(byId(await readers.dependencies.listByProject(seed.projectIds[0]))).toEqual(
+          byId(projectA),
+        );
+        expect(byId(await readers.dependencies.listByProject(seed.projectIds[1]))).toEqual([
+          otherProject,
+        ]);
+
+        await port.removeAllFor([doomedOneId, doomedTwoId], seed.stamps[1]);
+        // Proof: the outgoing-only source faults leave the exact incoming edge;
+        // the incomplete-set faults leave the exact outgoing edge for doomed two.
+        expect(byId(await readers.dependencies.listByProject(seed.projectIds[0]))).toEqual([
+          surviving,
+        ]);
+        expect(byId(await readers.dependencies.listByProject(seed.projectIds[1]))).toEqual([
+          otherProject,
+        ]);
+
+        await port.removeAllFor([doomedOneId, doomedTwoId], seed.stamps[1]);
+        expect(byId(await readers.dependencies.listByProject(seed.projectIds[0]))).toEqual([
+          surviving,
+        ]);
+        expect(byId(await readers.dependencies.listByProject(seed.projectIds[1]))).toEqual([
+          otherProject,
+        ]);
+      },
+    ),
+  ];
+}

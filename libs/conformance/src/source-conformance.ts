@@ -5,10 +5,12 @@ import type { CaseFixture } from './source-declaration';
 import { actualRegistrations } from './stores/actuals';
 import { calendarMarkerRegistrations } from './stores/calendar-markers';
 import { capacityRegistrations } from './stores/capacity';
+import { dependencyRegistrations } from './stores/dependencies';
 import { directoryRegistrations } from './stores/directory';
 import { estimateRegistrations } from './stores/estimates';
 import { eventLogRegistrations } from './stores/event-log';
 import { measureRegistrations } from './stores/measures';
+export { DEPENDENCY_SURVIVOR_IDS } from './stores/dependencies';
 import { progressRegistrations } from './stores/progress';
 export { PROGRESS_SENTINEL_STEP_ID } from './stores/progress';
 import { priorityBandRegistrations } from './stores/priority-bands';
@@ -33,6 +35,9 @@ export interface ExistingStoreOpeners {
   readonly actuals: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['actuals']>>;
   readonly measures: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['measures']>>;
   readonly progress: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['progress']>>;
+  readonly dependencies: (
+    caseId: CaseId,
+  ) => Promise<CaseFixture<TransactionalStores['dependencies']>>;
   readonly directory: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['directory']>>;
   readonly eventLog: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['eventLog']>>;
 }
@@ -53,6 +58,7 @@ export function existingStoreRegistrations(
     ...actualRegistrations(openers.actuals),
     ...measureRegistrations(openers.measures),
     ...progressRegistrations(openers.progress),
+    ...dependencyRegistrations(openers.dependencies),
     ...directoryRegistrations(openers.directory),
     ...eventLogRegistrations(openers.eventLog),
   ];

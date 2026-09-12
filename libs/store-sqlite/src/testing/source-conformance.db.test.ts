@@ -8,6 +8,7 @@ import {
   type CaseId,
   createFaultControl,
   defineFault,
+  DEPENDENCY_SURVIVOR_IDS,
   DETERMINISTIC_SEED,
   type ExistingStoreOpeners,
   existingStoreRegistrations,
@@ -21,7 +22,7 @@ import {
   SOURCE_CONFORMANCE_CASES,
   type SourceReaders,
 } from '@wbs/conformance';
-import type { TransactionalStores, User } from '@wbs/core';
+import type { StoredDependency, TransactionalStores, User } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { DEFAULT_ESTIMATE_RULE } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
@@ -262,7 +263,11 @@ async function openSqliteCase<Family extends ExistingFamily>(
 ): Promise<CaseFixture<TransactionalStores[Family]>> {
   const { source, directory } = await seedSqliteSource(
     openSource,
-    family === 'progress' ? seedProgressStep : undefined,
+    family === 'progress'
+      ? seedProgressStep
+      : family === 'dependencies'
+        ? seedDependencyWorkItems
+        : undefined,
   );
   return sqliteFixture(source, directory, family, caseId);
 }
@@ -278,6 +283,26 @@ async function seedProgressStep(source: SqliteSource): Promise<void> {
   );
 }
 
+async function seedDependencyWorkItems(source: SqliteSource): Promise<void> {
+  for (const [index, id] of DEPENDENCY_SURVIVOR_IDS.entries()) {
+    await source.stores.workItems.insert(
+      workItemRow({
+        id,
+        projectId: DETERMINISTIC_SEED.projectIds[0],
+        name: `Dependency survivor ${String(index + 1)}`,
+        position: (index + 3) * 10,
+      }),
+      [],
+      DETERMINISTIC_SEED.stamps[0],
+    );
+  }
+  expect(
+    (await source.stores.workItems.listByProject(DETERMINISTIC_SEED.projectIds[0]))
+      .map(({ id }) => id)
+      .toSorted(),
+  ).toEqual([...DETERMINISTIC_SEED.workItemIds[0], ...DEPENDENCY_SURVIVOR_IDS].toSorted());
+}
+
 const openers: ExistingStoreOpeners = {
   projects: (caseId) => openSqliteCase('projects', caseId),
   users: (caseId) => openSqliteCase('users', caseId),
@@ -290,6 +315,7 @@ const openers: ExistingStoreOpeners = {
   actuals: (caseId) => openSqliteCase('actuals', caseId),
   measures: (caseId) => openSqliteCase('measures', caseId),
   progress: (caseId) => openSqliteCase('progress', caseId),
+  dependencies: (caseId) => openSqliteCase('dependencies', caseId),
   directory: (caseId) => openSqliteCase('directory', caseId),
   eventLog: (caseId) => openSqliteCase('eventLog', caseId),
 };
@@ -1201,6 +1227,136 @@ const progressUnknownStepFault = defineFault({
   },
 });
 
+const dependencyIdFault = defineFault({
+  id: 'break:dependencies.add:idempotent-pair',
+  caseId: 'dependencies.add:idempotent-pair',
+  createControl: () => createFaultControl('dependencies.add:idempotent-pair:edge-id'),
+  mutate(source: SqliteSource, control) {
+    const requested = new Map<string, StoredDependency>();
+    const dependencies = replaceMethod(source.stores.dependencies, 'add', (add) => {
+      return async (dependency, stamp) => {
+        if (!control.reach('dependencies.add:idempotent-pair:edge-id')) {
+          return add(dependency, stamp);
+        }
+        if (requested.has(dependency.id)) return;
+        requested.set(dependency.id, structuredClone(dependency));
+        await add(dependency, stamp);
+      };
+    });
+    return withStores(source, {
+      dependencies: replaceMethod(dependencies, 'listByProject', (listByProject) => {
+        return async (projectId) => {
+          const stored = await listByProject(projectId);
+          if (!control.isArmed()) return stored;
+          const byId = new Map(stored.map((dependency) => [dependency.id, dependency]));
+          for (const dependency of requested.values()) {
+            if (dependency.projectId === projectId) byId.set(dependency.id, dependency);
+          }
+          return [...byId.values()];
+        };
+      }),
+    });
+  },
+});
+
+const dependencyPairPredicateFault = defineFault({
+  id: 'break:dependencies.remove:pair',
+  caseId: 'dependencies.remove:pair',
+  createControl: () => createFaultControl('dependencies.remove:pair:successor-predicate'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      dependencies: replaceMethod(source.stores.dependencies, 'remove', (remove) => {
+        return async (predecessorId, successorId, stamp) => {
+          if (!control.reach('dependencies.remove:pair:successor-predicate')) {
+            return remove(predecessorId, successorId, stamp);
+          }
+          const edges = (
+            await Promise.all(
+              DETERMINISTIC_SEED.projectIds.map((projectId) =>
+                source.stores.dependencies.listByProject(projectId),
+              ),
+            )
+          ).flat();
+          for (const edge of edges.filter((edge) => edge.predecessorId === predecessorId)) {
+            await remove(edge.predecessorId, edge.successorId, stamp);
+          }
+        };
+      }),
+    });
+  },
+});
+
+const dependencyOutgoingOnlyFault = defineFault({
+  id: 'break:dependencies.removeAllFor:touching-set',
+  caseId: 'dependencies.removeAllFor:touching-set',
+  createControl: () => createFaultControl('dependencies.removeAllFor:touching-set:outgoing-only'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      dependencies: replaceMethod(source.stores.dependencies, 'removeAllFor', (removeAllFor) => {
+        return async (workItemIds, stamp) => {
+          if (!control.reach('dependencies.removeAllFor:touching-set:outgoing-only')) {
+            return removeAllFor(workItemIds, stamp);
+          }
+          const doomed = new Set(workItemIds);
+          const edges = await source.stores.dependencies.listByProject(
+            DETERMINISTIC_SEED.projectIds[0],
+          );
+          for (const edge of edges.filter((edge) => doomed.has(edge.predecessorId))) {
+            await source.stores.dependencies.remove(edge.predecessorId, edge.successorId, stamp);
+          }
+        };
+      }),
+    });
+  },
+});
+
+const dependencyIncompleteSetFault = defineFault({
+  id: 'break:dependencies.removeAllFor:touching-set',
+  caseId: 'dependencies.removeAllFor:touching-set',
+  createControl: () => createFaultControl('dependencies.removeAllFor:touching-set:first-only'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      dependencies: replaceMethod(source.stores.dependencies, 'removeAllFor', (removeAllFor) => {
+        return (workItemIds, stamp) =>
+          removeAllFor(
+            control.reach('dependencies.removeAllFor:touching-set:first-only')
+              ? workItemIds.slice(0, 1)
+              : workItemIds,
+            stamp,
+          );
+      }),
+    });
+  },
+});
+
+const eventRetainedMaximumFault = defineFault({
+  id: 'break:eventLog.pruneBeyond:empty-sequence',
+  caseId: 'eventLog.pruneBeyond:empty-sequence',
+  createControl: () => createFaultControl('eventLog.pruneBeyond:empty-sequence:next-record'),
+  mutate(source: SqliteSource, control) {
+    let didPruneToEmpty = false;
+    const eventLog = replaceMethod(source.stores.eventLog, 'pruneBeyond', (pruneBeyond) => {
+      return async (maximum) => {
+        const removed = await pruneBeyond(maximum);
+        if (control.isArmed() && maximum === 0) didPruneToEmpty = true;
+        return removed;
+      };
+    });
+    return withStores(source, {
+      eventLog: replaceMethod(eventLog, 'recordEvent', (recordEvent) => {
+        return async (subscription, message, createdAt) => {
+          if (!didPruneToEmpty) return recordEvent(subscription, message, createdAt);
+          const retained = await source.stores.eventLog.rangeSince(subscription, -1);
+          const retainedMaximum = retained.at(-1)?.seq ?? -1;
+          const recorded = await recordEvent(subscription, message, createdAt);
+          control.reach('eventLog.pruneBeyond:empty-sequence:next-record');
+          return { ...recorded, seq: retainedMaximum + 1 };
+        };
+      }),
+    });
+  },
+});
+
 const addFault = defineFault({
   id: 'break:steps.add',
   caseId: 'steps.add',
@@ -1320,7 +1476,11 @@ async function proveFault(
       const openSource = brokenSource(openBase, run);
       const { source, directory } = await seedSqliteSource(
         openSource,
-        fault.caseId.startsWith('progress.') ? seedProgressStep : undefined,
+        fault.caseId.startsWith('progress.')
+          ? seedProgressStep
+          : fault.caseId.startsWith('dependencies.')
+            ? seedDependencyWorkItems
+            : undefined,
       );
       let wasOpened = false;
       const takeFixture = <Family extends ExistingFamily>(
@@ -1343,6 +1503,7 @@ async function proveFault(
         actuals: (caseId) => takeFixture('actuals', caseId),
         measures: (caseId) => takeFixture('measures', caseId),
         progress: (caseId) => takeFixture('progress', caseId),
+        dependencies: (caseId) => takeFixture('dependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
       });
@@ -2375,5 +2536,97 @@ describe('SQLite existing source conformance', () => {
         status: 'passed',
       })),
     );
+  });
+
+  it('reinjects dependency identity, pair, direction, and full-set faults', async () => {
+    const faults = [
+      dependencyIdFault,
+      dependencyPairPredicateFault,
+      dependencyOutgoingOnlyFault,
+      dependencyIncompleteSetFault,
+    ];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(faults.map(() => 'observed'));
+    expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual([
+      'dependencies.add:idempotent-pair:edge-id',
+      'dependencies.remove:pair:successor-predicate',
+      'dependencies.removeAllFor:touching-set:outgoing-only',
+      'dependencies.removeAllFor:touching-set:first-only',
+    ]);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    // Proof: deduplicating by ID exposes the complete second-ID edge as an
+    // unexpected received record after the first add has settled.
+    expect(failures[0]).toContain(`    {
++     "id": "dependency-idempotent-second-id",
++     "predecessorId": "work-a-one",
++     "projectId": "project-a",
++     "successorId": "work-a-two",
++   },
++   {`);
+    // Proof: omitting the successor predicate removes this complete expected
+    // same-predecessor edge along with the selected pair.
+    expect(failures[1]).toContain(`    {
+-     "id": "dependency-remove-same-predecessor",
+-     "predecessorId": "work-a-one",
+-     "projectId": "project-a",
+-     "successorId": "dependency-survivor-one",
+-   },
+-   {`);
+    // Proof: removing outgoing edges only leaves this complete incoming edge
+    // in the received project-A list.
+    expect(failures[2]).toContain(`    {
++     "id": "dependency-remove-all-incoming",
++     "predecessorId": "dependency-survivor-one",
++     "projectId": "project-a",
++     "successorId": "work-a-one",
++   },
++   {`);
+    // Proof: passing only the first doomed ID leaves this complete outgoing
+    // edge for the second doomed row in the received project-A list.
+    expect(failures[3]).toContain(`    {
++     "id": "dependency-remove-all-outgoing",
++     "predecessorId": "work-a-two",
++     "projectId": "project-a",
++     "successorId": "dependency-survivor-two",
++   },
++   {`);
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
+      { caseId: 'dependencies.add:idempotent-pair', status: 'passed' },
+      { caseId: 'dependencies.remove:pair', status: 'passed' },
+      { caseId: 'dependencies.removeAllFor:touching-set', status: 'passed' },
+    ]);
+  });
+
+  it('reinjects retained-maximum event sequence allocation', async () => {
+    const proof = await proveFault(eventRetainedMaximumFault);
+
+    expect(proof.kind).toBe('observed');
+    if (proof.kind !== 'observed') throw new Error('retained-maximum fault was not observed');
+    expect(proof.phase).toBe('eventLog.pruneBeyond:empty-sequence:next-record');
+    // Proof: deriving from retained MAX after prune-to-empty changes the next
+    // returned complete record itself from sequence 2 to sequence 0.
+    expect(Bun.stripANSI(proof.observedFailure)).toContain(`  {
+    "createdAt": 201,
+    "message": {
+      "type": "empty-next",
+    },
+-   "seq": 2,
++   "seq": 0,
+    "subscription": "project:project-a",
+  }`);
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: [eventRetainedMaximumFault.caseId],
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
+      { caseId: 'eventLog.pruneBeyond:empty-sequence', status: 'passed' },
+    ]);
   });
 });
