@@ -74,6 +74,43 @@ test('mounted command classification preserves derived numbering and legacy sema
   expect(run).not.toHaveBeenCalled();
 });
 
+test('mounted semantic classification preserves eager common and branch field precedence', async () => {
+  const f = fixture();
+  const run = spyOn(f.runner, 'run');
+  const cases = [
+    [
+      { kind: 'createWorkItem', priority: 0, parentRef: 7 },
+      { error: 'priority_must_be_a_whole_number_from_1', at: 0, kind: 'createWorkItem' },
+    ],
+    [
+      { kind: 'createWorkItem', name: 7, parentRef: 7 },
+      { error: 'name_must_be_text', at: 0, kind: 'createWorkItem' },
+    ],
+    [
+      { kind: 'patchWorkItem', workItemId: 7, patch: null },
+      { error: 'workItemId_must_be_an_id', at: 0, kind: 'patchWorkItem' },
+    ],
+    [
+      { kind: 'moveWorkItem', parentRef: 7, afterId: 7 },
+      { error: 'afterId_must_be_id_or_null', at: 0, kind: 'moveWorkItem' },
+    ],
+    [
+      { kind: 'freezeProject', workItemId: 7 },
+      { error: 'workItemId_must_be_an_id', at: 0, kind: 'freezeProject' },
+    ],
+  ] as const;
+  const outcomes = [];
+  for (const [command] of cases) {
+    const response = await f.call({ commands: [command] });
+    const body: unknown = await response.json();
+    outcomes.push({ status: response.status, body });
+  }
+  // Proof: without eager common validation and the old create/move field order, this received
+  // parentRef_must_be_an_id twice, expected_object, parentRef_must_be_an_id and bare invalid_body.
+  expect(outcomes).toEqual(cases.map(([, body]) => ({ status: 400, body })));
+  expect(run).not.toHaveBeenCalled();
+});
+
 test('mounted command results erase internal kind after validating producer-specific requirements', async () => {
   const f = fixture();
   const run = spyOn(f.runner, 'run');

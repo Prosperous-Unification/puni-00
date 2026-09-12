@@ -458,17 +458,22 @@ function normalizeNamed<const Kind extends string>(kind: Kind, raw: Record<strin
 export const commandNormalizers = {
   createWorkItem(raw: Record<string, unknown>) {
     refuseDerivedFields(raw);
+    const parentId = asIdOrNull(raw['parentId'], 'parentId');
+    const afterId = asIdOrNull(raw['afterId'], 'afterId');
+    const name = asOptionalText(raw['name'], 'name');
+    const notes = asOptionalText(raw['notes'], 'notes');
+    const priority = asOptionalPriority(raw['priority'], 'priority');
     return present({
       kind: 'createWorkItem' as const,
       ...ref(raw),
-      parentId: asIdOrNull(raw['parentId'], 'parentId'),
+      parentId,
       parentRef: asOptionalId(raw['parentRef'], 'parentRef'),
-      afterId: asIdOrNull(raw['afterId'], 'afterId'),
+      afterId,
       afterRef: asOptionalId(raw['afterRef'], 'afterRef'),
-      name: asOptionalText(raw['name'], 'name'),
-      notes: asOptionalText(raw['notes'], 'notes'),
+      name,
+      notes,
       // Absent stays absent for the service's middle rung; explicit null stays unprioritised.
-      priority: asOptionalPriority(raw['priority'], 'priority'),
+      priority,
     });
   },
   patchWorkItem(raw: Record<string, unknown>) {
@@ -490,12 +495,14 @@ export const commandNormalizers = {
     };
   },
   moveWorkItem(raw: Record<string, unknown>) {
+    const parentId = asIdOrNull(raw['parentId'], 'parentId');
+    const afterId = asIdOrNull(raw['afterId'], 'afterId');
     return present({
       kind: 'moveWorkItem' as const,
       ...target(raw),
-      parentId: asIdOrNull(raw['parentId'], 'parentId'),
+      parentId,
       parentRef: asOptionalId(raw['parentRef'], 'parentRef'),
-      afterId: asIdOrNull(raw['afterId'], 'afterId'),
+      afterId,
       afterRef: asOptionalId(raw['afterRef'], 'afterRef'),
     });
   },
@@ -697,7 +704,13 @@ export type PlanCommandKind = keyof typeof commandNormalizers;
 /** The normalized command union, inferred from every normalizer's return type. */
 export type PlanCommand = ReturnType<(typeof commandNormalizers)[PlanCommandKind]>;
 
-/** Applies the semantic normalizer selected by a structurally admitted command kind. */
+/**
+ * Applies the semantic normalizer selected by a structurally admitted command kind.
+ * Common target and create-ref fields stay eager, including when a structural
+ * mismatch means the mounted boundary is choosing the legacy semantic refusal.
+ */
 export function normalizeCommand(kind: PlanCommandKind, raw: Record<string, unknown>): PlanCommand {
+  target(raw);
+  ref(raw);
   return commandNormalizers[kind](raw);
 }
