@@ -30,6 +30,7 @@ import { runMigrations } from '../migrate';
 import {
   actual as actualTable,
   calendarMarker as markerTable,
+  stepMeasure as measureTable,
   users as userTable,
 } from '../schema';
 import { openSqliteSource, type OpenSqliteSourceOptions, type SqliteSource } from '../source';
@@ -267,6 +268,7 @@ const openers: ExistingStoreOpeners = {
   steps: (caseId) => openSqliteCase('steps', caseId),
   estimates: (caseId) => openSqliteCase('estimates', caseId),
   actuals: (caseId) => openSqliteCase('actuals', caseId),
+  measures: (caseId) => openSqliteCase('measures', caseId),
   directory: (caseId) => openSqliteCase('directory', caseId),
   eventLog: (caseId) => openSqliteCase('eventLog', caseId),
 };
@@ -901,6 +903,171 @@ const actualUnknownStepFault = defineFault({
   },
 });
 
+const measureSetPairIdentityFault = defineFault({
+  id: 'break:measures.set:metric-key',
+  caseId: 'measures.set:metric-key',
+  createControl: () => createFaultControl('measures.set:metric-key'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      measures: replaceMethod(source.stores.measures, 'set', (set) => {
+        return async (measure, stamp) => {
+          if (measure.value === 21 && control.reach('measures.set:metric-key')) {
+            await source.stores.measures.remove(
+              measure.workItemId,
+              measure.stepId,
+              'hours_actual',
+              stamp,
+            );
+            await source.stores.measures.remove(
+              measure.workItemId,
+              measure.stepId,
+              'token_estimate',
+              stamp,
+            );
+          }
+          return set(measure, stamp);
+        };
+      }),
+    });
+  },
+});
+
+const measureSetRecordedAtFault = defineFault({
+  id: 'break:measures.set:metric-key',
+  caseId: 'measures.set:metric-key',
+  createControl: () => createFaultControl('measures.set:metric-key:recorded-at'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      measures: replaceMethod(source.stores.measures, 'set', (set) => {
+        return (measure, stamp) =>
+          set(
+            measure.value === 21 && control.reach('measures.set:metric-key:recorded-at')
+              ? { ...measure, recordedAt: 102 }
+              : measure,
+            stamp,
+          );
+      }),
+    });
+  },
+});
+
+const measureRemovePairIdentityFault = defineFault({
+  id: 'break:measures.remove:metric-key',
+  caseId: 'measures.remove:metric-key',
+  createControl: () => createFaultControl('measures.remove:metric-key'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      measures: replaceMethod(source.stores.measures, 'remove', (remove) => {
+        return async (workItemId, stepId, metric, stamp) => {
+          await remove(workItemId, stepId, metric, stamp);
+          if (!control.reach('measures.remove:metric-key')) return;
+          await remove(workItemId, stepId, 'hours_actual', stamp);
+          await remove(workItemId, stepId, 'token_estimate', stamp);
+        };
+      }),
+    });
+  },
+});
+
+const measureMoveOneMetricFault = defineFault({
+  id: 'break:measures.moveAll:all-metrics',
+  caseId: 'measures.moveAll:all-metrics',
+  createControl: () => createFaultControl('measures.moveAll:all-metrics'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      measures: replaceMethod(source.stores.measures, 'moveAll', (moveAll) => {
+        return async (fromWorkItemId, toWorkItemId, stamp) => {
+          if (!control.reach('measures.moveAll:all-metrics')) {
+            return moveAll(fromWorkItemId, toWorkItemId, stamp);
+          }
+          const measures = await source.stores.measures.listByProject(
+            DETERMINISTIC_SEED.projectIds[0],
+          );
+          for (const measure of measures.filter(
+            ({ workItemId, metric }) =>
+              workItemId === fromWorkItemId && metric === 'token_estimate',
+          )) {
+            await source.stores.measures.set({ ...measure, workItemId: toWorkItemId }, stamp);
+            await source.stores.measures.remove(
+              fromWorkItemId,
+              measure.stepId,
+              measure.metric,
+              stamp,
+            );
+          }
+        };
+      }),
+    });
+  },
+});
+
+const measureMoveRecordedAtFault = defineFault({
+  id: 'break:measures.moveAll:all-metrics',
+  caseId: 'measures.moveAll:all-metrics',
+  createControl: () => createFaultControl('measures.moveAll:all-metrics:recorded-at'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      measures: replaceMethod(source.stores.measures, 'moveAll', (moveAll) => {
+        return async (fromWorkItemId, toWorkItemId, stamp) => {
+          await moveAll(fromWorkItemId, toWorkItemId, stamp);
+          if (!control.reach('measures.moveAll:all-metrics:recorded-at')) return;
+          await source.stores.measures.set(
+            {
+              workItemId: toWorkItemId,
+              stepId: DETERMINISTIC_SEED.stepIds[0][0],
+              metric: 'token_actual',
+              value: 11,
+              recordedAt: 999,
+            },
+            stamp,
+          );
+        };
+      }),
+    });
+  },
+});
+
+const measureUnknownStepFault = defineFault({
+  id: 'break:measures.set:unknown_step',
+  caseId: 'measures.set:unknown_step',
+  createControl: () => createFaultControl('measures.set:unknown_step'),
+  mutate(source: SqliteSource, control) {
+    const acceptingMeasures = replaceMethod(source.stores.measures, 'set', (set) => {
+      return (measure, stamp) => {
+        if (measure.stepId !== 'no-such-step' || !control.reach('measures.set:unknown_step')) {
+          return set(measure, stamp);
+        }
+        source.db.run(sql.raw('PRAGMA foreign_keys = OFF'));
+        try {
+          source.db.insert(measureTable).values(measure).run();
+        } finally {
+          source.db.run(sql.raw('PRAGMA foreign_keys = ON'));
+        }
+        return Promise.resolve('written');
+      };
+    });
+    return withStores(source, {
+      measures: replaceMethod(acceptingMeasures, 'listByProject', (listByProject) => {
+        return async (projectId) => {
+          const rows = await listByProject(projectId);
+          if (projectId !== DETERMINISTIC_SEED.projectIds[0]) return rows;
+          const escaped = await source.db
+            .select({
+              workItemId: measureTable.workItemId,
+              stepId: measureTable.stepId,
+              metric: measureTable.metric,
+              value: measureTable.value,
+              recordedAt: measureTable.recordedAt,
+            })
+            .from(measureTable)
+            .where(eq(measureTable.stepId, 'no-such-step'));
+          return [...escaped, ...rows];
+        };
+      }),
+    });
+  },
+});
+
 const addFault = defineFault({
   id: 'break:steps.add',
   caseId: 'steps.add',
@@ -1038,6 +1205,7 @@ async function proveFault(
         steps: (caseId) => takeFixture('steps', caseId),
         estimates: (caseId) => takeFixture('estimates', caseId),
         actuals: (caseId) => takeFixture('actuals', caseId),
+        measures: (caseId) => takeFixture('measures', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
       });
@@ -1663,6 +1831,123 @@ describe('SQLite existing source conformance', () => {
 +       "days": 13,
 +       "recordedAt": 201,
 +       "stepId": "no-such-step",
++       "workItemId": "work-a-one",
++     },`);
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      Array.from(new Set(faults.map(({ caseId }) => caseId)), (caseId) => ({
+        caseId,
+        status: 'passed',
+      })),
+    );
+  });
+
+  it('reinjects measure identity, timestamp, ownership, and refusal faults', async () => {
+    const faults = [
+      measureSetPairIdentityFault,
+      measureSetRecordedAtFault,
+      measureRemovePairIdentityFault,
+      measureMoveOneMetricFault,
+      measureMoveRecordedAtFault,
+      measureUnknownStepFault,
+    ];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(faults.map(() => 'observed'));
+    expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual([
+      'measures.set:metric-key',
+      'measures.set:metric-key:recorded-at',
+      'measures.remove:metric-key',
+      'measures.moveAll:all-metrics',
+      'measures.moveAll:all-metrics:recorded-at',
+      'measures.set:unknown_step',
+    ]);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    // Proof: omitting metric from set identity deleted the complete hours and
+    // token-estimate survivors from the requested pair after its complete setup.
+    expect(failures[0]).toContain(`    {
+-     "metric": "hours_actual",
+-     "recordedAt": 103,
+-     "stepId": "step-a-dev",
+-     "value": 12,
+-     "workItemId": "work-a-one",
+-   },`);
+    expect(failures[0]).toContain(`-   {
+-     "metric": "token_estimate",
+-     "recordedAt": 101,
+-     "stepId": "step-a-dev",
+-     "value": 10,
+      "workItemId": "work-a-one",
+    },`);
+    // Proof: retaining the first timestamp on token_actual value 21 produced
+    // expected recordedAt 201 and received 102 on the complete triple key.
+    expect(failures[1]).toContain(`    {
+      "metric": "token_actual",
+-     "recordedAt": 201,
++     "recordedAt": 102,
+      "stepId": "step-a-dev",
+      "value": 21,
+      "workItemId": "work-a-one",
+    },`);
+    // Proof: omitting metric from remove identity deleted both complete
+    // non-target metric survivors from the requested pair's first settlement.
+    expect(failures[2]).toContain(`    {
+-     "metric": "hours_actual",
+-     "recordedAt": 103,
+-     "stepId": "step-a-dev",
+-     "value": 12,
+-     "workItemId": "work-a-one",
+-   },`);
+    expect(failures[2]).toContain(`-   {
+-     "metric": "token_estimate",
+-     "recordedAt": 101,
+-     "stepId": "step-a-dev",
+-     "value": 10,
+-     "workItemId": "work-a-one",
+-   },`);
+    // Proof: moving only token_estimate left the complete hours_actual and
+    // token_actual rows received on work-a-one instead of expected work-a-two.
+    expect(failures[3]).toContain(`    {
+      "metric": "hours_actual",
+      "recordedAt": 103,
+      "stepId": "step-a-dev",
+      "value": 12,
+-     "workItemId": "work-a-two",
++     "workItemId": "work-a-one",
+    },`);
+    expect(failures[3]).toContain(`    {
+      "metric": "token_actual",
+      "recordedAt": 102,
+      "stepId": "step-a-dev",
+      "value": 11,
+-     "workItemId": "work-a-two",
++     "workItemId": "work-a-one",
+    },`);
+    // Proof: losing the moved token_actual timestamp produced expected 102 and
+    // received 999 on its complete destination triple and value.
+    expect(failures[4]).toContain(`    {
+      "metric": "token_actual",
+-     "recordedAt": 102,
++     "recordedAt": 999,
+      "stepId": "step-a-dev",
+      "value": 11,
+      "workItemId": "work-a-two",
+    },`);
+    // Proof: accepting the missing step produced received written and the
+    // complete escaped token_estimate row in project A's settled public read.
+    expect(failures[5]).toContain(`-   "outcome": "unknown_step",
++   "outcome": "written",
+    "projectA": [
++     {
++       "metric": "token_estimate",
++       "recordedAt": 201,
++       "stepId": "no-such-step",
++       "value": 21,
 +       "workItemId": "work-a-one",
 +     },`);
 

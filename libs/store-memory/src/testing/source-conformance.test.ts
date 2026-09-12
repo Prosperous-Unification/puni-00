@@ -168,6 +168,7 @@ const openers: ExistingStoreOpeners = {
   steps: (caseId) => openMemoryCase('steps', caseId),
   estimates: (caseId) => openMemoryCase('estimates', caseId),
   actuals: (caseId) => openMemoryCase('actuals', caseId),
+  measures: (caseId) => openMemoryCase('measures', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
   eventLog: (caseId) => openMemoryCase('eventLog', caseId),
 };
@@ -200,6 +201,25 @@ const actualUnknownStepGap = {
   },
 };
 
+const measureUnknownStepGap = {
+  caseId: 'measures.set:unknown_step' as const,
+  reason: 'the memory measure fixture does not validate step references',
+  evidence: {
+    sourceRevision: '00a1a609',
+    assertion: 'measure set refuses an absent step without changing either project',
+    observedFailure: `-   "outcome": "unknown_step",
++   "outcome": "written",
+    "projectA": [
++     {
++       "metric": "token_estimate",
++       "recordedAt": 201,
++       "stepId": "no-such-step",
++       "value": 21,
++       "workItemId": "work-a-one",
++     },`,
+  },
+};
+
 const capacityMissingReferenceGap = {
   caseId: 'capacity.set:missing-reference' as const,
   reason: 'the memory capacity fixture does not hold project or team reference sets',
@@ -223,6 +243,7 @@ const priorityMissingProjectGap = {
 const knownGaps = [
   unknownStepGap,
   actualUnknownStepGap,
+  measureUnknownStepGap,
   capacityMissingReferenceGap,
   priorityMissingProjectGap,
 ];
@@ -251,6 +272,7 @@ const declaration: SourceDeclaration = {
     steps: { kind: 'offered', gaps: [], open: openers.steps },
     estimates: { kind: 'offered', gaps: [unknownStepGap], open: openers.estimates },
     actuals: { kind: 'offered', gaps: [actualUnknownStepGap], open: openers.actuals },
+    measures: { kind: 'offered', gaps: [measureUnknownStepGap], open: openers.measures },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
     eventLog: { kind: 'offered', gaps: [], open: openers.eventLog },
   } as unknown as Capabilities,
@@ -818,6 +840,146 @@ const actualUnknownStepFault = defineFault({
   },
 });
 
+const measureSetPairIdentityFault = defineFault({
+  id: 'break:measures.set:metric-key',
+  caseId: 'measures.set:metric-key',
+  createControl: () => createFaultControl('measures.set:metric-key'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      measures: replaceMethod(source.stores.measures, 'set', (set) => {
+        return async (measure, stamp) => {
+          if (measure.value === 21 && control.reach('measures.set:metric-key')) {
+            await source.stores.measures.remove(
+              measure.workItemId,
+              measure.stepId,
+              'hours_actual',
+              stamp,
+            );
+            await source.stores.measures.remove(
+              measure.workItemId,
+              measure.stepId,
+              'token_estimate',
+              stamp,
+            );
+          }
+          return set(measure, stamp);
+        };
+      }),
+    });
+  },
+});
+
+const measureSetRecordedAtFault = defineFault({
+  id: 'break:measures.set:metric-key',
+  caseId: 'measures.set:metric-key',
+  createControl: () => createFaultControl('measures.set:metric-key:recorded-at'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      measures: replaceMethod(source.stores.measures, 'set', (set) => {
+        return (measure, stamp) =>
+          set(
+            measure.value === 21 && control.reach('measures.set:metric-key:recorded-at')
+              ? { ...measure, recordedAt: 102 }
+              : measure,
+            stamp,
+          );
+      }),
+    });
+  },
+});
+
+const measureRemovePairIdentityFault = defineFault({
+  id: 'break:measures.remove:metric-key',
+  caseId: 'measures.remove:metric-key',
+  createControl: () => createFaultControl('measures.remove:metric-key'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      measures: replaceMethod(source.stores.measures, 'remove', (remove) => {
+        return async (workItemId, stepId, metric, stamp) => {
+          await remove(workItemId, stepId, metric, stamp);
+          if (!control.reach('measures.remove:metric-key')) return;
+          await remove(workItemId, stepId, 'hours_actual', stamp);
+          await remove(workItemId, stepId, 'token_estimate', stamp);
+        };
+      }),
+    });
+  },
+});
+
+const measureMoveOneMetricFault = defineFault({
+  id: 'break:measures.moveAll:all-metrics',
+  caseId: 'measures.moveAll:all-metrics',
+  createControl: () => createFaultControl('measures.moveAll:all-metrics'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      measures: replaceMethod(source.stores.measures, 'moveAll', (moveAll) => {
+        return async (fromWorkItemId, toWorkItemId, stamp) => {
+          if (!control.reach('measures.moveAll:all-metrics')) {
+            return moveAll(fromWorkItemId, toWorkItemId, stamp);
+          }
+          const measures = await source.stores.measures.listByProject(
+            DETERMINISTIC_SEED.projectIds[0],
+          );
+          for (const measure of measures.filter(
+            ({ workItemId, metric }) =>
+              workItemId === fromWorkItemId && metric === 'token_estimate',
+          )) {
+            await source.stores.measures.set({ ...measure, workItemId: toWorkItemId }, stamp);
+            await source.stores.measures.remove(
+              fromWorkItemId,
+              measure.stepId,
+              measure.metric,
+              stamp,
+            );
+          }
+        };
+      }),
+    });
+  },
+});
+
+const measureMoveRecordedAtFault = defineFault({
+  id: 'break:measures.moveAll:all-metrics',
+  caseId: 'measures.moveAll:all-metrics',
+  createControl: () => createFaultControl('measures.moveAll:all-metrics:recorded-at'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      measures: replaceMethod(source.stores.measures, 'moveAll', (moveAll) => {
+        return async (fromWorkItemId, toWorkItemId, stamp) => {
+          await moveAll(fromWorkItemId, toWorkItemId, stamp);
+          if (!control.reach('measures.moveAll:all-metrics:recorded-at')) return;
+          await source.stores.measures.set(
+            {
+              workItemId: toWorkItemId,
+              stepId: DETERMINISTIC_SEED.stepIds[0][0],
+              metric: 'token_actual',
+              value: 11,
+              recordedAt: 999,
+            },
+            stamp,
+          );
+        };
+      }),
+    });
+  },
+});
+
+const measureUnknownStepFault = defineFault({
+  id: 'break:measures.set:unknown_step',
+  caseId: 'measures.set:unknown_step',
+  createControl: () => createFaultControl('measures.set:unknown_step'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      measures: replaceMethod(source.stores.measures, 'set', (set) => {
+        return (measure, stamp) => {
+          if (measure.stepId === 'no-such-step') control.reach('measures.set:unknown_step');
+          return set(measure, stamp);
+        };
+      }),
+    });
+  },
+});
+
 interface FaultContext {
   readonly registration: ReturnType<typeof existingStoreRegistrations>[number];
   assertionFailure: string | null;
@@ -848,6 +1010,7 @@ async function proveFault(fault: Fault<MemorySource>): Promise<FaultProof> {
         steps: (caseId) => takeFixture('steps', caseId),
         estimates: (caseId) => takeFixture('estimates', caseId),
         actuals: (caseId) => takeFixture('actuals', caseId),
+        measures: (caseId) => takeFixture('measures', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
       });
@@ -959,6 +1122,12 @@ describe('memory existing source conformance', () => {
         executed: false,
       },
       {
+        family: 'measures',
+        caseId: measureUnknownStepGap.caseId,
+        status: 'not-offered',
+        executed: false,
+      },
+      {
         family: 'capacity',
         caseId: capacityMissingReferenceGap.caseId,
         status: 'not-offered',
@@ -1001,6 +1170,21 @@ describe('memory existing source conformance', () => {
     // received `written` and the escaped work-a-one/no-such-step row with days
     // 13 at recordedAt 201 in project A's complete public list.
     expect(observedFailure).toContain(actualUnknownStepGap.evidence.observedFailure);
+  });
+
+  it("memory's measure unknown-step gap names an observed refusal mismatch", async () => {
+    const report = await runCases(existingStoreRegistrations(openers), {
+      focus: ['measures.set:unknown_step'],
+    });
+    const execution = failedCase(report, 'measures.set:unknown_step');
+    expect(execution?.status).toBe('failed');
+    if (execution?.status !== 'failed') throw new Error('measure unknown-step bypass did not fail');
+    expect(execution.assertionPhase).toBe('assertion');
+    const observedFailure = Bun.stripANSI(execution.failure);
+    // Proof: bypassing the measure gap through the real memory source produced
+    // received `written` and the escaped work-a-one/no-such-step token estimate,
+    // value 21 at recordedAt 201, in project A's complete public list.
+    expect(observedFailure).toContain(measureUnknownStepGap.evidence.observedFailure);
   });
 
   it('reinjects project step, scope, and reader-order faults', async () => {
@@ -1271,6 +1455,124 @@ describe('memory existing source conformance', () => {
       { caseId: 'actuals.remove:pair', status: 'passed' },
       { caseId: 'actuals.moveAll:ownership', status: 'passed' },
       { caseId: 'actuals.set:unknown_step', status: 'not-offered' },
+    ]);
+  });
+
+  it('reinjects measure identity, timestamp, ownership, and refusal faults', async () => {
+    const faults = [
+      measureSetPairIdentityFault,
+      measureSetRecordedAtFault,
+      measureRemovePairIdentityFault,
+      measureMoveOneMetricFault,
+      measureMoveRecordedAtFault,
+      measureUnknownStepFault,
+    ];
+    const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(faults.map(() => 'observed'));
+    expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual([
+      'measures.set:metric-key',
+      'measures.set:metric-key:recorded-at',
+      'measures.remove:metric-key',
+      'measures.moveAll:all-metrics',
+      'measures.moveAll:all-metrics:recorded-at',
+      'measures.set:unknown_step',
+    ]);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    // Proof: omitting metric from set identity deleted the complete hours and
+    // token-estimate survivors from the requested pair after its complete setup.
+    expect(failures[0]).toContain(`    {
+-     "metric": "hours_actual",
+-     "recordedAt": 103,
+-     "stepId": "step-a-dev",
+-     "value": 12,
+-     "workItemId": "work-a-one",
+-   },`);
+    expect(failures[0]).toContain(`-   {
+-     "metric": "token_estimate",
+-     "recordedAt": 101,
+-     "stepId": "step-a-dev",
+-     "value": 10,
+      "workItemId": "work-a-one",
+    },`);
+    // Proof: retaining the first timestamp on token_actual value 21 produced
+    // expected recordedAt 201 and received 102 on the complete triple key.
+    expect(failures[1]).toContain(`    {
+      "metric": "token_actual",
+-     "recordedAt": 201,
++     "recordedAt": 102,
+      "stepId": "step-a-dev",
+      "value": 21,
+      "workItemId": "work-a-one",
+    },`);
+    // Proof: omitting metric from remove identity deleted both complete
+    // non-target metric survivors from the requested pair's first settlement.
+    expect(failures[2]).toContain(`    {
+-     "metric": "hours_actual",
+-     "recordedAt": 103,
+-     "stepId": "step-a-dev",
+-     "value": 12,
+-     "workItemId": "work-a-one",
+-   },`);
+    expect(failures[2]).toContain(`-   {
+-     "metric": "token_estimate",
+-     "recordedAt": 101,
+-     "stepId": "step-a-dev",
+-     "value": 10,
+-     "workItemId": "work-a-one",
+-   },`);
+    // Proof: moving only token_estimate left the complete hours_actual and
+    // token_actual rows received on work-a-one instead of expected work-a-two.
+    expect(failures[3]).toContain(`    {
+      "metric": "hours_actual",
+      "recordedAt": 103,
+      "stepId": "step-a-dev",
+      "value": 12,
+-     "workItemId": "work-a-two",
++     "workItemId": "work-a-one",
+    },`);
+    expect(failures[3]).toContain(`    {
+      "metric": "token_actual",
+      "recordedAt": 102,
+      "stepId": "step-a-dev",
+      "value": 11,
+-     "workItemId": "work-a-two",
++     "workItemId": "work-a-one",
+    },`);
+    // Proof: losing the moved token_actual timestamp produced expected 102 and
+    // received 999 on its complete destination triple and value.
+    expect(failures[4]).toContain(`    {
+      "metric": "token_actual",
+-     "recordedAt": 102,
++     "recordedAt": 999,
+      "stepId": "step-a-dev",
+      "value": 11,
+      "workItemId": "work-a-two",
+    },`);
+    // Proof: accepting the missing step produced received written and the
+    // complete escaped token_estimate row in project A's settled public read.
+    expect(failures[5]).toContain(`-   "outcome": "unknown_step",
++   "outcome": "written",
+    "projectA": [
++     {
++       "metric": "token_estimate",
++       "recordedAt": 201,
++       "stepId": "no-such-step",
++       "value": 21,
++       "workItemId": "work-a-one",
++     },`);
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      declaration,
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
+      { caseId: 'measures.set:metric-key', status: 'passed' },
+      { caseId: 'measures.remove:metric-key', status: 'passed' },
+      { caseId: 'measures.moveAll:all-metrics', status: 'passed' },
+      { caseId: 'measures.set:unknown_step', status: 'not-offered' },
     ]);
   });
 });

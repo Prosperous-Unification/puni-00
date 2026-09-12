@@ -754,3 +754,53 @@ Critical, Important or Minor issue remains. Task 3.2 is complete; the source
 change is now 9/24 tasks, and Task 3.3 is next. Reviews:
 `/tmp/source-conformance-3-2-astra-review.md` and
 `/tmp/source-conformance-3-2-astra-rereview.md`.
+
+## 2026-09-13 — task 3.3 measure metric identity and ownership evidence
+
+The shared runner now registers all four measure cases. Set and remove place
+`token_estimate`, `token_actual`, and `hours_actual` together on one pair and
+retain complete other-item, other-step, and other-project sentinels. Set replaces
+one metric's value and `recordedAt`; remove observes its first settlement before
+the idempotent second call; move transfers every source metric and timestamp,
+leaves no source rows, and preserves target and project sentinels. Missing-step
+settlement retains its outcome and completes both public project reads before
+one combined comparison.
+
+Memory's real unexcluded `measures.set:unknown_step` run failed in the shared
+assertion with expected `unknown_step`, received `written`, and the complete
+escaped `work-a-one/no-such-step/token_estimate` row, value 21 at `recordedAt` 201. That exact gap was declared only after the run. All three supported measure
+cases still execute in memory; SQLite executes all four and retains zero gaps.
+
+### Task 3.3 failure-proof table
+
+| Check                                   | Fault injected through the real source                                           | Production-path test                                                  | Observed failure                                                                                          |
+| --------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Registration includes all four IDs      | Loaded the independent inventory before measure registration existed             | `preserves the original IDs and adds each completed family inventory` | All four measure IDs were absent (`Expected - 4 / Received + 0`).                                         |
+| Set identity includes metric            | Removed both non-target metrics through real remove calls before the replacement | Source-specific measure fault test                                    | Complete hours value 12/time 103 and token estimate value 10/time 101 survivors were expected but absent. |
+| Replacement preserves the supplied time | Passed the replacement through real set with stale `recordedAt`                  | Same source-specific fault test                                       | On the complete token-actual row, expected 201 and received 102.                                          |
+| Remove identity includes metric         | Ran real remove for the requested metric and both pair survivors                 | Same source-specific fault test                                       | The same complete hours and token-estimate survivors were absent in the first settlement window.          |
+| Move transfers every metric             | Moved only token-estimate rows through real set/remove calls                     | Same source-specific fault test                                       | Complete hours and token-actual rows remained received on work-a-one instead of expected work-a-two.      |
+| Move preserves `recordedAt`             | Ran real move, then rewrote the destination token-actual row with time 999       | Same source-specific fault test                                       | On the complete destination row, expected 102 and received 999.                                           |
+| Missing step is refused without a write | Accepted and durably wrote the absent-step request                               | Same source-specific fault test                                       | Received `written` plus the complete escaped token-estimate row in project A's public read.               |
+
+Every source control was inert through verified setup, armed afterward, reached
+its exact named phase, and failed the settled shared assertion. Restored cases
+ran against fresh sources. The permanent diagnostics pin full composite rows,
+values, timestamps, and expected/received direction.
+
+### Task 3.3 verification
+
+- Inventory RED: 0/1/1 with four absent IDs; restored 1/0/1.
+- Focused final proof/gap runs: memory 2/0/130; SQLite 1/0/167.
+- Complete source files: memory 14/0/1,282; SQLite 17/0/1,969.
+- Existing measure/memory suites: SQLite 11/0/22; memory 9/0/153.
+- Uncached targets: conformance 29/0/47; memory 35/0/1,480; SQLite
+  662/0/3,978 across 60 files.
+- All six uncached lint/typecheck targets passed.
+- Formatting, diff, and pinned OpenSpec validation evidence is in the Task 3.3
+  report after the terminal rerun.
+
+The source-specific conformance targets remain deferred to Task 7.2. The full
+workspace, build, browser, and deploy gates were skipped as outside this shared
+case and test-decorator slice. Task 3.3 remains unchecked pending independent
+review; Task 3.4 was not started.

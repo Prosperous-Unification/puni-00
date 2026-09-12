@@ -8,6 +8,7 @@ import { capacityRegistrations } from './stores/capacity';
 import { directoryRegistrations } from './stores/directory';
 import { estimateRegistrations } from './stores/estimates';
 import { eventLogRegistrations } from './stores/event-log';
+import { measureRegistrations } from './stores/measures';
 import { priorityBandRegistrations } from './stores/priority-bands';
 import { projectRegistrations } from './stores/projects';
 import { stepRegistrations } from './stores/steps';
@@ -28,6 +29,7 @@ export interface ExistingStoreOpeners {
   readonly steps: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['steps']>>;
   readonly estimates: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['estimates']>>;
   readonly actuals: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['actuals']>>;
+  readonly measures: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['measures']>>;
   readonly directory: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['directory']>>;
   readonly eventLog: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['eventLog']>>;
 }
@@ -46,6 +48,7 @@ export function existingStoreRegistrations(
     ...stepRegistrations(openers.steps),
     ...estimateRegistrations(openers.estimates),
     ...actualRegistrations(openers.actuals),
+    ...measureRegistrations(openers.measures),
     ...directoryRegistrations(openers.directory),
     ...eventLogRegistrations(openers.eventLog),
   ];
