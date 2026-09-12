@@ -43,3 +43,20 @@ The full command and fault table are in
   the generic runner never erases a family port type.
 - Source factories must pass their declaration into `runCases`; otherwise an
   exact gap would execute instead of receiving `not-offered`.
+
+## Round-one review correction
+
+The review reproduced two false-certification paths in the Task 1.1 boundary.
+Both are closed in the follow-up:
+
+- assertion rejection now tracks whether `catch` ran independently of the
+  rejection value, retaining `undefined` through both assertion-only and
+  combined assertion/cleanup failures;
+- `CaseExecution` is a discriminated terminal-state union, and certification
+  rejects a pass without an invoked registration body, execution flag, fixture
+  identity, finite ordered timing or completed cleanup.
+
+The eight new negatives run through `runCases` and `certifyExecution`. Their
+restored-fault output and final commands are recorded in `verify.md`. Later
+store bodies, source declarations and source-specific fault machinery remain
+outside this correction.

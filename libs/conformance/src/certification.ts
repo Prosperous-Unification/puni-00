@@ -6,7 +6,7 @@ import {
   expectedCasesFor,
   PORT_NAMES,
 } from './case-manifest';
-import type { ExecutionReport } from './case-runner';
+import type { CaseExecution, ExecutionReport, TerminalCaseStatus } from './case-runner';
 import type { SourceDeclaration } from './source-declaration';
 
 /** The four source-family kits owned by core extraction, independently enumerated. */
@@ -91,6 +91,65 @@ function validateGaps(declaration: SourceDeclaration): void {
   }
 }
 
+interface ReportedCaseEvidence {
+  readonly family: CaseRegistration['family'];
+  readonly caseId: CaseId;
+  readonly status: TerminalCaseStatus;
+  readonly executed: boolean;
+  readonly fixtureId?: unknown;
+  readonly executionStartedAt?: unknown;
+  readonly executionEndedAt?: unknown;
+  readonly assertionPhase?: unknown;
+  readonly failure?: unknown;
+}
+
+function hasLifecycleTiming(execution: ReportedCaseEvidence): boolean {
+  const { executionStartedAt, executionEndedAt } = execution;
+  return (
+    typeof executionStartedAt === 'number' &&
+    Number.isFinite(executionStartedAt) &&
+    typeof executionEndedAt === 'number' &&
+    Number.isFinite(executionEndedAt) &&
+    executionEndedAt >= executionStartedAt
+  );
+}
+
+function hasFixtureIdentity(execution: ReportedCaseEvidence): boolean {
+  return typeof execution.fixtureId === 'string';
+}
+
+function invalidExecutionEvidence(
+  execution: ReportedCaseEvidence,
+  registration: CaseRegistration | undefined,
+): boolean {
+  if (execution.status === 'passed') {
+    return (
+      !execution.executed ||
+      registration?.openAndRun === undefined ||
+      !hasFixtureIdentity(execution) ||
+      !hasLifecycleTiming(execution) ||
+      execution.assertionPhase !== 'cleanup' ||
+      'failure' in execution
+    );
+  }
+  if (execution.status === 'failed') {
+    return (
+      !execution.executed ||
+      !hasLifecycleTiming(execution) ||
+      typeof execution.failure !== 'string' ||
+      (execution.assertionPhase !== 'setup' && !hasFixtureIdentity(execution))
+    );
+  }
+  return (
+    execution.executed ||
+    'fixtureId' in execution ||
+    'executionStartedAt' in execution ||
+    'executionEndedAt' in execution ||
+    'assertionPhase' in execution ||
+    'failure' in execution
+  );
+}
+
 /** Validates exact registration and terminal execution, never declaration counts. */
 export function certifyExecution(input: CertificationInput): void {
   const { declaration, registrations, report } = input;
@@ -156,16 +215,33 @@ export function certifyExecution(input: CertificationInput): void {
     );
   }
 
+  const registrationsByKey = new Map(
+    registrations.map((registration) => [keyOf(registration), registration]),
+  );
+  const invalidEvidence = report.cases.filter((execution) =>
+    invalidExecutionEvidence(execution, registrationsByKey.get(keyOf(execution))),
+  );
+  if (invalidEvidence.length > 0) {
+    // Proof: removing this block left each contradictory passed record certified;
+    // the execution, lifecycle and cleanup negatives received no throw.
+    throw new Error(
+      `${declaration.name} certification invalid execution evidence: ${invalidEvidence.map(({ family, caseId, status }) => `${family}: ${caseId} (${status})`).join(', ')}`,
+    );
+  }
+
   const incomplete = report.cases.filter(({ status }) => status === 'incomplete');
   if (incomplete.length > 0) {
     throw new Error(
       `${declaration.name} certification incomplete cases: ${incomplete.map(({ family, caseId }) => `${family}: ${caseId}`).join(', ')}`,
     );
   }
-  const failed = report.cases.filter(({ status }) => status === 'failed');
+  const failed = report.cases.filter(
+    (execution): execution is Extract<CaseExecution, { status: 'failed' }> =>
+      execution.status === 'failed',
+  );
   if (failed.length > 0) {
     throw new Error(
-      `${declaration.name} certification failed cases: ${failed.map(({ family, caseId, assertionPhase, failure }) => `${family}: ${caseId} (${assertionPhase ?? 'unknown'}: ${failure ?? 'unknown failure'})`).join(', ')}`,
+      `${declaration.name} certification failed cases: ${failed.map(({ family, caseId, assertionPhase, failure }) => `${family}: ${caseId} (${assertionPhase}: ${failure})`).join(', ')}`,
     );
   }
 }

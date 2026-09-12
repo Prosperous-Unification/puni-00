@@ -4,17 +4,43 @@ import type { SourceDeclaration } from './source-declaration';
 export type TerminalCaseStatus = 'passed' | 'failed' | 'not-offered' | 'incomplete';
 export type AssertionPhase = 'setup' | 'assertion' | 'cleanup';
 
-export interface CaseExecution {
+interface CaseIdentity {
   readonly family: CaseRegistration['family'];
   readonly caseId: CaseId;
-  readonly status: TerminalCaseStatus;
-  readonly executed: boolean;
-  readonly fixtureId?: string;
-  readonly executionStartedAt?: number;
-  readonly executionEndedAt?: number;
-  readonly assertionPhase?: AssertionPhase;
-  readonly failure?: string;
 }
+
+interface UnexecutedCase extends CaseIdentity {
+  readonly status: 'not-offered' | 'incomplete';
+  readonly executed: false;
+}
+
+interface StartedCase extends CaseIdentity {
+  readonly executed: true;
+  readonly executionStartedAt: number;
+  readonly executionEndedAt: number;
+}
+
+interface SetupFailure extends StartedCase {
+  readonly status: 'failed';
+  readonly assertionPhase: 'setup';
+  readonly failure: string;
+}
+
+interface LifecycleFailure extends StartedCase {
+  readonly status: 'failed';
+  readonly fixtureId: string;
+  readonly assertionPhase: 'assertion' | 'cleanup';
+  readonly failure: string;
+}
+
+interface PassedCase extends StartedCase {
+  readonly status: 'passed';
+  readonly fixtureId: string;
+  readonly assertionPhase: 'cleanup';
+}
+
+/** A status whose required evidence is encoded by its discriminants. */
+export type CaseExecution = UnexecutedCase | SetupFailure | LifecycleFailure | PassedCase;
 
 export interface ExecutionReport {
   readonly kind: 'full' | 'partial';
@@ -57,10 +83,12 @@ async function runCase(registration: CaseRegistration): Promise<CaseExecution> {
     };
   }
 
+  let didAssertionFail = false;
   let assertionFailure: unknown;
   try {
     await lifecycle.assert();
   } catch (failure) {
+    didAssertionFail = true;
     assertionFailure = failure;
   }
 
@@ -77,14 +105,13 @@ async function runCase(registration: CaseRegistration): Promise<CaseExecution> {
       executionStartedAt,
       executionEndedAt: Date.now(),
       assertionPhase: 'cleanup',
-      failure:
-        assertionFailure === undefined
-          ? cleanupFailure
-          : `${messageOf(assertionFailure)}; cleanup failed: ${cleanupFailure}`,
+      failure: !didAssertionFail
+        ? cleanupFailure
+        : `${messageOf(assertionFailure)}; cleanup failed: ${cleanupFailure}`,
     };
   }
 
-  if (assertionFailure !== undefined) {
+  if (didAssertionFail) {
     return {
       family: registration.family,
       caseId: registration.caseId,
