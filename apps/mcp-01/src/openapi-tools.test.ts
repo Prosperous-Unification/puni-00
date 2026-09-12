@@ -273,7 +273,49 @@ describe('toolsFromDocument, on the generated document', () => {
     // and `be-01`, and `mcp-01` was the project that noticed. Its `describe`
     // reads "Put every sibling group in the order its bars start.", which is
     // what the loop below is checking is there to read.
-    expect(list.items.anyOf).toHaveLength(37);
+    const expectedKinds = [
+      'createWorkItem',
+      'patchWorkItem',
+      'moveWorkItem',
+      'duplicateWorkItem',
+      'deleteWorkItem',
+      'setEstimate',
+      'clearEstimate',
+      'setActual',
+      'clearActual',
+      'setProgress',
+      'clearProgress',
+      'setMeasure',
+      'clearMeasure',
+      'setAssignee',
+      'addDependency',
+      'removeDependency',
+      'arrangeBySchedule',
+      'freezeProject',
+      'unfreezeProject',
+      'unfreezeWorkItem',
+      'setCapacity',
+      'setPriorityBands',
+      'createTeam',
+      'patchTeam',
+      'deleteTeam',
+      'createPerson',
+      'patchPerson',
+      'deletePerson',
+      'createTag',
+      'patchTag',
+      'deleteTag',
+      'createService',
+      'patchService',
+      'deleteService',
+      'createWorkItemType',
+      'patchWorkItemType',
+      'deleteWorkItemType',
+    ];
+    const emittedKinds = list.items.anyOf.map((variant) => variant.properties.kind.const);
+    // Proof: removing the production clearMeasure definition failed this generated-input assertion with clearMeasure omitted.
+    expect(new Set(emittedKinds)).toEqual(new Set(expectedKinds));
+    expect(emittedKinds).toHaveLength(expectedKinds.length);
     for (const variant of list.items.anyOf) {
       expect(variant.description.length).toBeGreaterThan(10);
       expect(typeof variant.properties.kind.const).toBe('string');
