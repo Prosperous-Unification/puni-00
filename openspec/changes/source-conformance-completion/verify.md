@@ -202,3 +202,58 @@ The full workspace gate and build/browser targets remain skipped because this
 correction is confined to internal source conformance seams and tests. The one
 memory `estimates.set:unknown_step` skip is the pre-existing declared legacy
 gap owned by Task 1.3.
+
+## 2026-09-12 — task 1.3 existing-family migration
+
+The steps, estimates, directory and eventLog cases now live in their named
+family files and execute through `runCases`. Their twelve IDs remain an
+independent exact list in certification. Both source tests open the actual
+source factory per case and seed the same explicit two-project fixture. SQLite
+runs all twelve cases. Memory runs eleven; bypassing its declaration proves
+that `estimates.set:unknown_step` still answers `written`, so the gap remains
+with the observed assertion and source revision.
+
+### Task 1.3 failure-proof table
+
+| Check                                                          | Fault injected                                                            | Test that observed it                                                           | Observed failure                                                                          |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Existing IDs survive the migration                             | Loaded the inventory test before `existingStoreRegistrations` existed     | `preserves the original offered-case IDs`                                       | `SyntaxError: Export named 'existingStoreRegistrations' not found`.                       |
+| SQLite executes the real seeded cases                          | Opened the real source with project rows missing required estimate fields | `SQLite runs every offered existing case`                                       | All case setups failed on `undefined is not an object (evaluating 'weights.optimistic')`. |
+| Memory gap is an observed failure, not an exclusion assumption | Bypassed the declaration and ran `estimates.set:unknown_step`             | `memory's unknown-step gap names an observed refusal mismatch`                  | `Expected: "unknown_step"`; `Received: "written"`.                                        |
+| Added step is observable                                       | `break:steps.add` changed the written name                                | `reinjects the existing add, rename, estimate, remove, range, and prune faults` | `Expected to contain: "Wiring"`; received `"faulted add"`.                                |
+| Renamed step is observable                                     | `break:steps.rename` changed the requested name                           | Same shared-runner fault test                                                   | `Expected: "Renamed"`; `Received: "faulted rename"`.                                      |
+| Estimate value is observable                                   | `break:estimates.set` incremented realistic days                          | Same shared-runner fault test                                                   | `Expected: 2`; `Received: 3`.                                                             |
+| Removed estimate is absent                                     | `break:estimates.remove` omitted the removal                              | Same shared-runner fault test                                                   | Received the extra `"work-a-two"`.                                                        |
+| Event range is observed                                        | `break:eventLog.rangeSince` returned no rows                              | Same shared-runner fault test                                                   | `Expected: [1]`; `Received: []`.                                                          |
+| Prune count is observed                                        | `break:eventLog.pruneBeyond` returned zero without pruning                | Same shared-runner fault test                                                   | `Expected: 2`; `Received: 0`.                                                             |
+
+### Task 1.3 passing commands
+
+- Focused three-file suite: 5 pass, 0 fail, 71 assertions.
+- Coverage-mode source-conformance files: memory 2 pass/0 fail and SQLite 2
+  pass/0 fail; evidence matching is stable with Bun's ANSI presentation
+  removed before comparing the recorded text.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run conformance:test --skip-nx-cache`:
+  29 pass, 0 fail, 47 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run store-memory:test --skip-nx-cache`:
+  23 pass, 0 fail, 226 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run store-sqlite:test --skip-nx-cache`:
+  647 pass, 0 fail, 2,051 assertions across 60 files.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p conformance store-memory store-sqlite --skip-nx-cache`:
+  all three targets succeeded; the missing-family compile fixture remains active.
+- The matching three-project lint run succeeded; OpenSpec strict validation and
+  all 75 artifacts passed.
+- Prettier checks for every changed source/evidence file and `git diff --check`
+  passed.
+
+The full workspace, build, deploy and browser gates were not run: this slice
+moves the four existing adapter contract cases and changes no browser,
+transport or deployment behavior.
+
+One earlier command is explicitly invalid evidence: `bun test libs/conformance
+libs/store-memory libs/store-sqlite` was invoked from the repository root after
+direct TypeScript builds. Bun also collected generated `dist/out-tsc` test
+duplicates, which cannot resolve workspace aliases or migration paths from
+that location. The official project-scoped Nx targets above run from each
+project's configured working directory and replaced that command; all three
+passed.

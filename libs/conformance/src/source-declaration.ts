@@ -56,6 +56,26 @@ export interface SeededPlan {
   readonly stamps: readonly [WriteStamp, WriteStamp];
 }
 
+/** Stable cross-source identities used by every independently opened case. */
+export const DETERMINISTIC_SEED: SeededPlan = {
+  projectIds: ['project-a', 'project-b'],
+  ownerIds: ['owner-a', 'owner-b'],
+  stepIds: [
+    ['step-a-dev', 'step-a-qa'],
+    ['step-b-dev', 'step-b-qa'],
+  ],
+  workItemIds: [
+    ['work-a-one', 'work-a-two'],
+    ['work-b-one', 'work-b-two'],
+  ],
+  teamIds: ['team-a', 'team-b'],
+  personIds: ['person-a', 'person-b'],
+  stamps: [
+    { at: 100, by: 'owner-a' },
+    { at: 200, by: 'owner-b' },
+  ],
+};
+
 export interface PhaseBarrier {
   readonly entered: Promise<void>;
   release(): void;
