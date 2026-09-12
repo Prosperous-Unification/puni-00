@@ -113,6 +113,20 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
       ]);
 
       await port.remove(firstId, devId, seed.stamps[1]);
+
+      expect(byKey(await readers.actuals.listByProject(seed.projectIds[0]))).toEqual([
+        { workItemId: firstId, stepId: qaId, days: 3, recordedAt: 102 },
+        { workItemId: secondId, stepId: devId, days: 5, recordedAt: 103 },
+      ]);
+      expect(byKey(await readers.actuals.listByProject(seed.projectIds[1]))).toEqual([
+        {
+          workItemId: seed.workItemIds[1][0],
+          stepId: seed.stepIds[1][0],
+          days: 8,
+          recordedAt: 104,
+        },
+      ]);
+
       await port.remove(firstId, devId, seed.stamps[1]);
 
       expect(byKey(await readers.actuals.listByProject(seed.projectIds[0]))).toEqual([
@@ -214,33 +228,37 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
         },
       ]);
 
-      expect(
-        await port.set(
+      const outcome = await port.set(
+        {
+          workItemId: seed.workItemIds[0][0],
+          stepId: 'no-such-step',
+          days: 13,
+          recordedAt: 201,
+        },
+        seed.stamps[1],
+      );
+      const projectA = byKey(await readers.actuals.listByProject(seed.projectIds[0]));
+      const projectB = byKey(await readers.actuals.listByProject(seed.projectIds[1]));
+
+      expect({ outcome, projectA, projectB }).toEqual({
+        outcome: 'unknown_step',
+        projectA: [
           {
-            workItemId: seed.workItemIds[0][0],
-            stepId: 'no-such-step',
-            days: 13,
-            recordedAt: 201,
+            workItemId: seed.workItemIds[0][1],
+            stepId: seed.stepIds[0][1],
+            days: 3,
+            recordedAt: 102,
           },
-          seed.stamps[1],
-        ),
-      ).toBe('unknown_step');
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[0]))).toEqual([
-        {
-          workItemId: seed.workItemIds[0][1],
-          stepId: seed.stepIds[0][1],
-          days: 3,
-          recordedAt: 102,
-        },
-      ]);
-      expect(byKey(await readers.actuals.listByProject(seed.projectIds[1]))).toEqual([
-        {
-          workItemId: seed.workItemIds[1][0],
-          stepId: seed.stepIds[1][0],
-          days: 8,
-          recordedAt: 104,
-        },
-      ]);
+        ],
+        projectB: [
+          {
+            workItemId: seed.workItemIds[1][0],
+            stepId: seed.stepIds[1][0],
+            days: 8,
+            recordedAt: 104,
+          },
+        ],
+      });
     }),
   ];
 }

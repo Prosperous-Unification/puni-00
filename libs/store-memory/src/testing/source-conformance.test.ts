@@ -186,9 +186,17 @@ const actualUnknownStepGap = {
   caseId: 'actuals.set:unknown_step' as const,
   reason: 'the memory actual fixture does not validate step references',
   evidence: {
-    sourceRevision: '038078cf',
-    assertion: 'actual set returns unknown_step for an absent step',
-    observedFailure: 'Expected: "unknown_step"\nReceived: "written"',
+    sourceRevision: '686ea2bb',
+    assertion: 'actual set refuses an absent step without changing either project',
+    observedFailure: `-   "outcome": "unknown_step",
++   "outcome": "written",
+    "projectA": [
++     {
++       "days": 13,
++       "recordedAt": 201,
++       "stepId": "no-such-step",
++       "workItemId": "work-a-one",
++     },`,
   },
 };
 
@@ -751,6 +759,26 @@ const actualRemovePairFault = defineFault({
   },
 });
 
+const actualRemoveFirstCallFault = defineFault({
+  id: 'break:actuals.remove:pair',
+  caseId: 'actuals.remove:pair',
+  createControl: () => createFaultControl('actuals.remove:pair:first-settlement'),
+  mutate(source: MemorySource, control) {
+    let removeCount = 0;
+    return withStores(source, {
+      actuals: replaceMethod(source.stores.actuals, 'remove', (remove) => {
+        return (workItemId, stepId, stamp) => {
+          removeCount += 1;
+          if (removeCount === 1 && control.reach('actuals.remove:pair:first-settlement')) {
+            return Promise.resolve();
+          }
+          return remove(workItemId, stepId, stamp);
+        };
+      }),
+    });
+  },
+});
+
 const actualMoveOwnershipFault = defineFault({
   id: 'break:actuals.moveAll:ownership',
   caseId: 'actuals.moveAll:ownership',
@@ -781,13 +809,10 @@ const actualUnknownStepFault = defineFault({
   mutate(source: MemorySource, control) {
     return withStores(source, {
       actuals: replaceMethod(source.stores.actuals, 'set', (set) => {
-        return (actual, stamp) =>
-          set(
-            actual.stepId === 'no-such-step' && control.reach('actuals.set:unknown_step')
-              ? { ...actual, stepId: DETERMINISTIC_SEED.stepIds[0][0] }
-              : actual,
-            stamp,
-          );
+        return (actual, stamp) => {
+          if (actual.stepId === 'no-such-step') control.reach('actuals.set:unknown_step');
+          return set(actual, stamp);
+        };
       }),
     });
   },
@@ -972,8 +997,9 @@ describe('memory existing source conformance', () => {
     if (execution?.status !== 'failed') throw new Error('actual unknown-step bypass did not fail');
     expect(execution.assertionPhase).toBe('assertion');
     const observedFailure = Bun.stripANSI(execution.failure);
-    // Proof: bypassing the actual gap through the real memory source failed on
-    // `Expected: "unknown_step" · Received: "written"`.
+    // Proof: bypassing the actual gap through the real memory source produced
+    // received `written` and the escaped work-a-one/no-such-step row with days
+    // 13 at recordedAt 201 in project A's complete public list.
     expect(observedFailure).toContain(actualUnknownStepGap.evidence.observedFailure);
   });
 
@@ -1127,6 +1153,7 @@ describe('memory existing source conformance', () => {
     const faults = [
       estimateMoveOwnershipFault,
       actualReplaceRecordedAtFault,
+      actualRemoveFirstCallFault,
       actualRemovePairFault,
       actualMoveOwnershipFault,
       actualUnknownStepFault,
@@ -1134,27 +1161,105 @@ describe('memory existing source conformance', () => {
     const proofs = await Promise.all(faults.map((fault) => proveFault(fault)));
 
     expect(proofs.map(({ kind }) => kind)).toEqual(faults.map(() => 'observed'));
-    expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual(
-      faults.map(({ caseId }) => caseId),
-    );
+    expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual([
+      'estimates.moveAll:ownership',
+      'actuals.set:replace',
+      'actuals.remove:pair:first-settlement',
+      'actuals.remove:pair',
+      'actuals.moveAll:ownership',
+      'actuals.set:unknown_step',
+    ]);
     const failures = proofs.map((proof) =>
       proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
     );
-    // Proof: copying estimates through the real set path without removing the
-    // source failed the ownership snapshot with 14 extra received diff lines.
-    expect(failures[0]).toContain('Received  + 14');
-    // Proof: retaining the first recording time on replacement failed with
-    // expected `recordedAt: 201` and received `recordedAt: 101`.
-    expect(failures[1]).toContain('"recordedAt": 101');
-    // Proof: broadening removal to the same step on `work-a-two` failed with
-    // that complete six-line survivor absent from the received array.
-    expect(failures[2]).toContain('"workItemId": "work-a-two"');
-    // Proof: copying actuals through the real set path without removing the
-    // source failed the ownership snapshot with 12 extra received diff lines.
-    expect(failures[3]).toContain('Received  + 12');
-    // Proof: writing the missing-step actual under a real step failed with
-    // expected `unknown_step` and received `written`.
-    expect(failures[4]).toContain('Received: "written"');
+    // Proof: copying through the real estimate set path exposed both complete
+    // source trios as additions beside the two unchanged destination trios.
+    expect(failures[0]).toContain(`      "optimistic": 1,
+      "pessimistic": 4,
+      "realistic": 2,
+      "stepId": "step-a-dev",
++     "workItemId": "work-a-one",
++   },
++   {
++     "optimistic": 3,
++     "pessimistic": 8,
++     "realistic": 5,
++     "stepId": "step-a-qa",
++     "workItemId": "work-a-one",
++   },
++   {
++     "optimistic": 1,
++     "pessimistic": 4,
++     "realistic": 2,
++     "stepId": "step-a-dev",
+      "workItemId": "work-a-two",`);
+    expect(failures[0]).toContain(`    {
+      "optimistic": 3,
+      "pessimistic": 8,
+      "realistic": 5,
+      "stepId": "step-a-qa",
+      "workItemId": "work-a-two",
+    },`);
+    // Proof: retaining the first recording time produced the complete target
+    // pair with days 13, expected timestamp 201 and received timestamp 101.
+    expect(failures[1]).toContain(`    {
+      "days": 13,
+-     "recordedAt": 201,
++     "recordedAt": 101,
+      "stepId": "step-a-dev",
+      "workItemId": "work-a-one",
+    },`);
+    // Proof: suppressing the first removal exposed the complete targeted
+    // work-a-one/dev row as an addition in the first settlement window.
+    expect(failures[2]).toContain(`    {
++     "days": 2,
++     "recordedAt": 101,
++     "stepId": "step-a-dev",
++     "workItemId": "work-a-one",
++   },`);
+    // Proof: broadening removal exposed the complete work-a-two/dev survivor,
+    // days 5 at recordedAt 103, as absent from the received first settlement.
+    expect(failures[3]).toContain(`-   {
+-     "days": 5,
+-     "recordedAt": 103,
+-     "stepId": "step-a-dev",
+-     "workItemId": "work-a-two",
+-   },`);
+    // Proof: copying through the real actual set path exposed both complete
+    // source rows as additions beside the two unchanged destination rows.
+    expect(failures[4]).toContain(`      "days": 2,
+      "recordedAt": 101,
+      "stepId": "step-a-dev",
++     "workItemId": "work-a-one",
++   },
++   {
++     "days": 3,
++     "recordedAt": 102,
++     "stepId": "step-a-qa",
++     "workItemId": "work-a-one",
++   },
++   {
++     "days": 2,
++     "recordedAt": 101,
++     "stepId": "step-a-dev",
+      "workItemId": "work-a-two",`);
+    expect(failures[4]).toContain(`    {
+      "days": 3,
+      "recordedAt": 102,
+      "stepId": "step-a-qa",
+      "workItemId": "work-a-two",
+    },`);
+    // Proof: accepting the missing step produced both received `written` and
+    // the complete escaped work-a-one/no-such-step/days-13/recordedAt-201 row.
+    expect(failures[5]).toContain(`-   "outcome": "unknown_step",
++   "outcome": "written",
+    "projectA": [
++     {
++       "days": 13,
++       "recordedAt": 201,
++       "stepId": "no-such-step",
++       "workItemId": "work-a-one",
++     },`);
 
     const restored = await runCases(existingStoreRegistrations(openers), {
       declaration,

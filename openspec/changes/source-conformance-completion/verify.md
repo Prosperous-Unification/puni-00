@@ -710,3 +710,35 @@ are absent from the current project files. The full workspace, build, browser
 and deploy gates were not run because this slice adds shared conformance cases
 and test-only source decorators only. Task 3.2 remains unchecked pending
 independent review; Task 3.3 was not started.
+
+### Task 3.2 Astra fix round 1 — complete settlement observations
+
+The missing-step case now retains its outcome and reads both complete project
+lists before one combined assertion. The real memory bypass and both source
+faults expose received `written` together with the escaped
+`work-a-one`/`no-such-step` row, days 13 at `recordedAt: 201`. The observed
+memory gap remains exact; SQLite retains zero gaps.
+
+Removal now asserts both complete project lists after call one, then repeats
+them after the idempotent second call. A new permanent fault suppresses only
+the first call and was observed failing in that first settlement window with
+the complete targeted row still present. The retained broad-deletion fault was
+re-observed there with the complete `work-a-two`/`step-a-dev`/days-5/
+`recordedAt`-103 survivor absent.
+
+All Task 3.2 permanent diagnostics now require exact signed multi-line evidence
+for the intended composite rows and values. Ownership pins both extra source
+rows alongside complete destination rows; replacement pins expected 201 and
+received 101 on work-a-one/dev; missing-step pins both outcome and escaped row.
+
+- Focused memory bypass/fault/restoration: 3/0/153; focused SQLite
+  fault/restoration: 1/0/182.
+- Complete source files: memory 12/0/1,114; SQLite 16/0/1,737.
+- Existing adapters: SQLite estimate/actual 15/0/26; memory source 9/0/153.
+- Uncached targets: conformance 29/0/47; memory 33/0/1,312; SQLite
+  661/0/3,746 across 60 files.
+- All six uncached lint/typecheck targets passed.
+
+Formatting, diff and pinned OpenSpec validation evidence is retained in the
+Task 3.2 report. The same proportional skips apply. Independent review remains
+pending; Task 3.2 remains unchecked and Task 3.3 has not started.
