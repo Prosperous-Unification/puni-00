@@ -362,6 +362,26 @@ describe('moving between cells with the arrow keys', () => {
   });
 });
 
+describe('the arrows and the Status button', () => {
+  beforeEach(showEveryColumn);
+
+  itDom('leave the box at once: it has no text for a caret to cross', async () => {
+    // The Status box is a button since Dany asked for no caret in it
+    // (2026-09-13), and a button has no selection: `selectionStart` is null.
+    // Read as "not at either end" — the reading that leaves a date input its
+    // own arrows — that null would keep every Right in the box for good. A
+    // button has nothing for the arrows to do, so Right leaves it for the
+    // Name beside it.
+    await threeRoots();
+    const status = screen.getByLabelText<HTMLInputElement>('Status of 010');
+    status.focus();
+    expect(status.selectionStart).toBeNull();
+
+    fireEvent.keyDown(status, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getByLabelText('Name of 010'));
+  });
+});
+
 describe('arrow keys — cross-review findings', () => {
   const focus = (label: string, at: 'start' | 'end') => {
     const input = screen.getByLabelText(label);
@@ -510,6 +530,10 @@ describe('Tab moves between the fields, from every cell', () => {
     // wraps, and both carry the selection fields the keyboard code reads.
     if (!isCell(input)) throw new Error(`${label} is not an editable cell`);
     input.focus();
+    // The Status box is a button and has no caret to place: `setSelectionRange`
+    // throws `InvalidStateError` on it, as on a date input. Focused is all it
+    // can be, which is all the walks below need of it.
+    if (input.type === 'button') return input;
     const pos =
       at === 'start' ? 0 : at === 'end' ? input.value.length : Math.floor(input.value.length / 2);
     input.setSelectionRange(pos, pos);

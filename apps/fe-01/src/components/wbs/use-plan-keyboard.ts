@@ -2,7 +2,14 @@ import type { ExpandedState } from '@tanstack/react-table';
 import type * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { type Caret, type CellRef, commandMove, type Direction, nextCell } from './cell-navigation';
+import {
+  type Caret,
+  type CellRef,
+  commandMove,
+  type Direction,
+  nextCell,
+  NO_TEXT_IN_THE_WAY,
+} from './cell-navigation';
 import {
   type CellAttacher,
   type CellElement,
@@ -691,9 +698,12 @@ export const ARMED_TINT = 'var(--grid-armed)';
 /**
  * What the caret in an input is doing, for `nextCell` to decide on.
  *
- * `selectionStart`/`selectionEnd` are `null` on inputs that do not support them;
- * treated as "not at either end", which leaves the key to the browser rather
- * than guessing a jump nobody asked for.
+ * `selectionStart`/`selectionEnd` are `null` on inputs that do not support them.
+ * A date input's null is treated as "not at either end", which leaves the key
+ * to the browser rather than guessing a jump nobody asked for — the browser
+ * walks the date's own segments with it. A button's null — the Status box,
+ * a glyph with nothing for a caret to cross — is {@link NO_TEXT_IN_THE_WAY}:
+ * the arrows have nothing to do inside it, so every one of them leaves.
  */
 export function caretOf(input: CellElement): Caret {
   // The one place the two element types are told apart for the keyboard: a
@@ -706,6 +716,11 @@ export function caretOf(input: CellElement): Caret {
   // filled downwards from mid-number. Hard-coded `false`: `keeps ↑ and ↓ in
   // the name until the caret has run out of text` failed on the reverse.
   const multiline = input instanceof HTMLTextAreaElement;
+  // Proof: this line removed, `the arrows and the Status button › leave the
+  // box at once` failed with the focus still on `Status of 010` — Right read
+  // the button's null selection as a caret mid-text and left the key to a
+  // browser that has nothing to do with it there. Watched 2026-09-13.
+  if (!multiline && input.type === 'button') return NO_TEXT_IN_THE_WAY;
   const start = input.selectionStart;
   const end = input.selectionEnd;
   if (start === null || end === null) {

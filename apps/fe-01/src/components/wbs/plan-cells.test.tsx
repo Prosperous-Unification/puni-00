@@ -3497,6 +3497,30 @@ describe('the status cell and the two fact cells', () => {
     expect(offeredStatuses('010')).toEqual(['Unknown', 'Done']);
   });
 
+  itDom('is a button with no caret: neither a click nor the grid selects the glyph', async () => {
+    // Dany, 2026-09-13: "interacting with status column puts a cursor in it as
+    // if it is editable text field - i just want the drop-down, it must not add
+    // cursor". A text box draws a caret on a click and has its value selected
+    // by `focusCellAt` on a Tab arrival. A button has no selection to draw —
+    // `selectionStart` is null on a control that supports none — so neither
+    // the click nor the walk can leave one.
+    await planWithStatusColumns();
+    click('Add work item');
+    await screen.findByLabelText('Name of 020');
+
+    expect(statusCell('020').type).toBe('button');
+    fireEvent.click(statusCell('020'));
+    expect(statusCell('020').selectionStart).toBeNull();
+
+    // The grid's own arrival, which selects every text box it lands in: out of
+    // the first row's last fact and onto the second row's Status.
+    const factEnd = screen.getByLabelText('Fact end of 010');
+    factEnd.focus();
+    fireEvent.keyDown(factEnd, { key: 'Tab' });
+    expect(document.activeElement).toBe(statusCell('020'));
+    expect(statusCell('020').selectionStart).toBeNull();
+  });
+
   itDom('every row says its status, and a done row still says done', async () => {
     await planWithStatusColumns();
     const row = (): HTMLElement | null => screen.getByLabelText('Name of 010').closest('tr');
