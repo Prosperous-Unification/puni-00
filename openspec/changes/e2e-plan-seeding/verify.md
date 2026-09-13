@@ -89,3 +89,44 @@ same rendered list. After exact-id scoping,
 passed 4/4. The remaining count assertions are scoped to a current plan,
 dialog, listbox or rendered surface; the positional project options used only
 as geometry anchors do not claim global membership or count.
+
+## Section 3 measured concurrency
+
+All six planned attempts used the frozen checkout
+`de2293a9bc6288b80db5539b0bd74fa44df6565b`, zero retries, a fresh database
+from the normal E2E startup, and three checked, run-owned ports. The timing is
+`/usr/bin/time -p` wall time. A refusal count covers backend or POST refusal;
+the lock count covers `SQLITE_BUSY` and `database is locked`.
+
+| Planned sample | Shift (ports)            | Outcome                                                                                                                  | Wall time | Locks | Refusals | Vite `write EPIPE` |
+| -------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------ | --------: | ----: | -------: | -----------------: |
+| one worker 1   | 5500 (8600/8700/9700)    | 356 passed, 37 skipped                                                                                                   |  1144.60s |     0 |        0 |                644 |
+| one worker 2   | 6100 (9200/9300/10300)   | failed: case 42 did not arm project rename within 30s; stopped at Playwright's configured failure boundary after case 45 |   209.17s |     0 |        0 |                 62 |
+| one worker 3   | 6700 (9800/9900/10900)   | 356 passed, 37 skipped                                                                                                   |  1189.73s |     0 |        0 |                734 |
+| four workers 1 | 7300 (10400/10500/11500) | 356 passed, 37 skipped                                                                                                   |   453.41s |     0 |        0 |                668 |
+| four workers 2 | 7900 (11000/11100/12100) | 356 passed, 37 skipped                                                                                                   |   445.62s |     0 |        0 |                642 |
+| four workers 3 | 8500 (11600/11700/12700) | 356 passed, 37 skipped                                                                                                   |   430.96s |     0 |        0 |                654 |
+
+The three four-worker runs have a 445.62s median. There is no valid
+three-run one-worker median because planned sample 2 failed; the two completed
+one-worker observations were 1144.60s and 1189.73s. The `write EPIPE` lines
+were Vite websocket proxy noise observed without a Playwright failure in five
+completed runs; they are retained rather than counted as lock or backend
+refusals.
+
+The acceptance rule refuses the four-worker configuration because all six
+planned runs were not green. `playwright.config.ts` therefore remains unchanged
+at `workers: 1`, even though the valid four-worker median is much faster than
+the two completed one-worker observations.
+
+Two full one-worker diagnostics are excluded from the planned matrix because
+they overlapped other host work. The first passed 356 with 37 skipped in
+1202.10s. The post-failure diagnostic also passed 356 with 37 skipped in
+1178.68s, with zero locks/refusals and 700 Vite `write EPIPE` lines. Neither
+replaces failed planned sample 2.
+
+- `bunx vitest run playwright-config.test.ts --no-file-parallelism --maxWorkers=1`
+  from `apps/fe-01` — 9 passed, confirming the retained configuration. The
+  sandboxed attempt reached 8 passes and failed only because its authentication
+  probe could not spawn Bun (`spawnSync bun EPERM`); the same command passed
+  outside that process sandbox.
