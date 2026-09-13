@@ -21,7 +21,7 @@ import { recordCalls } from '@/testing/record-calls';
 
 import { MONDAY_START, planOf, pointedAtRow, rowAt, sliceAt } from './gantt-fixtures';
 import type { GanttPlan } from './gantt-geometry';
-import { DONE_BAR_COLOR, DONE_BAR_STROKE } from './gantt-geometry';
+import { DONE_BAR_STROKE } from './gantt-geometry';
 import { PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR } from './gantt-geometry';
 import {
   appliedGanttHeight,
@@ -9074,7 +9074,11 @@ describe('a done bar', () => {
     // The engine's numbers on the bar are the **drawn** ones: it stops where
     // the fact end stops, three workdays before the estimate would have.
     expect([bar.getAttribute('data-start'), bar.getAttribute('data-finish')]).toEqual(['5', '8']);
-    expect(bar.getAttribute('fill')).toBe(DONE_BAR_COLOR);
+    // The person's colour, as an ordinary bar's: this slice has nobody on it.
+    // Proof: `doneBarOf` given a flat colour again, and this fails on
+    // `expected '#d1fae5' to be '#94a3b8'` (the unassigned grey); watched
+    // 2026-09-13.
+    expect(bar.getAttribute('fill')).toBe(UNASSIGNED_BAR_COLOR);
     // The green outline, and the tick in the same green (Dany, 2026-09-13:
     // "add smth like a green outline to the gantt chart slices … make [the
     // checkmark] green same as in table"). Proof: the `bar.done ?
@@ -9086,15 +9090,18 @@ describe('a done bar', () => {
     const mark = document.querySelector('[data-done-mark="strip-dev"]');
     if (mark === null) throw new Error('the done bar has no tick');
     expect(mark.getAttribute('stroke')).toBe(DONE_BAR_STROKE);
-    // No badge under the tick: the bar's own fill is the pale green the tick
-    // reads on (Dany, 2026-09-13, after a white pill looked bolted on).
-    expect(document.querySelector('[data-done-badge]')).toBeNull();
-    expect(DONE_BAR_COLOR).toBe('#d1fae5');
+    // On a white badge, because the bar keeps its person's colour and a green
+    // tick reads on none of the eight reliably. Badge and tick share one
+    // transform, so they move as one.
+    const badge = document.querySelector('[data-done-badge="strip-dev"]');
+    if (badge === null) throw new Error('the tick has no badge');
+    expect(badge.getAttribute('fill')).toBe('white');
+    expect(badge.getAttribute('transform')).toBe(mark.getAttribute('transform'));
     // The label leaves the tick's width free at its right end, so the
     // ellipsis lands before the mark rather than under it.
     const label = document.querySelector<HTMLElement>('[data-gantt-bar-label="strip-dev"]');
     if (label === null) throw new Error('the done bar has no label');
-    expect(label.style.paddingRight).toBe(`${String(3 + 12 + 3)}px`);
+    expect(label.style.paddingRight).toBe(`${String(3 + 12 + 6)}px`);
     expect(bar.getAttribute('aria-label') ?? '').toContain(
       'Done — drawn over what happened, not over the estimate',
     );

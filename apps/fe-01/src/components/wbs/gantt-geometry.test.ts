@@ -7,7 +7,6 @@ import {
   type BarColor,
   type BindingFloor,
   calendarScale,
-  DONE_BAR_COLOR,
   droppedLinkWords,
   type FloorCalendar,
   GanttDataError,
@@ -3245,7 +3244,8 @@ describe('a done leaf draws one bar over its facts', () => {
     ]);
     expect(bar.sliceId).toBe('strip-dev');
     expect(bar.stepName).toBe('Dev + QA');
-    expect(bar.personColor).toBe(DONE_BAR_COLOR);
+    // The first slice's person colour, kept: who did the work is information.
+    expect(bar.personColor).toBe(UNASSIGNED_BAR_COLOR);
     expect(chart.horizon).toBe(12);
   });
 
