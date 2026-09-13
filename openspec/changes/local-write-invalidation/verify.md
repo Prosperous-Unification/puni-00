@@ -216,3 +216,34 @@ completed successfully.
 
 Task 3.3 remains unchecked pending the publication-dependent exact-SHA h2puni
 gate.
+
+## Main closeout integration
+
+Verified on 2026-09-14 after fast-forwarding to actual `origin/main`
+`e82e6c0cea410abc8c29eff43468082709a12a58`. The fast-forward had no content
+conflicts. Main's live-plan merge `c6db7193` changes backend, core and store
+code only. The frontend integration retains immutable `PlanRowReadings` and
+`PlanRenderRow` inputs, event-only `PlanLiveValues.run`, and the existing
+`cellCards`, `attachCell`, `RunPlanWrite` and `LocalWrite.perform` signatures.
+
+| Check                                                                                                                                               | Result                                                |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Local-write, production-page, cell and keyboard focus suites                                                                                        | 4 files, 296 passed                                   |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run contracts:test --skip-nx-cache --output-style=static`                                         | 41 files, 392 passed                                  |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:test --skip-nx-cache --output-style=static`                                             | 108 UTC files / 2745 passed; 2 zoned files / 3 passed |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p fe-01 contracts --parallel=2 --skip-nx-cache --output-style=static` | 4 targets succeeded                                   |
+| Serialized `CI=1 E2E_PORT_SHIFT=7800 bun run e2e` on ports 10900/11000/12000                                                                        | 366 passed, 37 skipped, 0 failed; 18m55s              |
+| Strict change and all-packet OpenSpec validation                                                                                                    | 1/1 and 83/83 passed                                  |
+
+The sandboxed full frontend run was not usable evidence because three tests
+that spawn Bun received `EPERM`; the complete Nx target above passed when rerun
+with process permission. The full browser gate used the production heavy-lock
+library's explicit-path seam with `/tmp/wbs-heavy-work.lock`: this Pop!_OS host
+does not have the canonical Linux wrapper directory `/home/puni1/.cache`, so
+`bin/with-heavy-lock.sh` refused before starting. Transient Vite websocket
+`EPIPE` and `ECONNRESET` messages appeared as browser contexts closed; the Nx
+target completed successfully.
+
+Task 3.3 remains unchecked. `bin/h2puni-gate.sh <final-sha>` still requires the
+final committed SHA to be reachable on the h2puni host; this branch has not
+been pushed.
