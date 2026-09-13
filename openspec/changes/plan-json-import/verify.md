@@ -161,4 +161,45 @@ After the E2E timing lane released the host, fresh final evidence passed:
 - `bunx prettier --check libs/core/src/service/import.service.ts libs/core/src/testing/import-service-source-contract.ts openspec/changes/plan-json-import/verify.md openspec/changes/plan-json-import/tasks.md` — all named files matched.
 - `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
 
-Tasks 3.3–5.2 remain unimplemented and unchecked.
+At the Task 3.2 checkpoint, Tasks 3.3–5.2 remained unimplemented and unchecked.
+
+## Section 3.3 — complete imported tree
+
+Task 3.3 allocates the new row identities before building the tree, orders the
+prepared rows with parents before children, and writes the rows, leaf facts,
+assignments and edges as one `SubtreeCopy`. Each row's own tag, service and type
+sets and its ordered external references are then written through the admitted
+work-item store. File ids remain references: new directory entries, project,
+steps, rows, external references, dependency and marker all receive fresh
+store-owned ids.
+The original project used by the contract deliberately owns rows under the
+file's row ids, making accidental reuse observable as corruption of existing
+work rather than only as an equality assertion over an empty source.
+
+The first valid memory run was red with `imported hierarchy is incomplete`:
+preparation and project creation succeeded, but the import had not written a
+tree. The completed focused contract reads a parent and two leaves, including
+notes, freeze, floor/reason, deadline, fact dates, priority, parallelism, own
+labels, ordered external refs, leaf estimates/actuals/progress/measures, an
+explicit assignment and a sibling dependency. Deliberately invalid aggregate
+maps on the parent remain absent from every satellite read.
+
+| Check                  | Fault injected                                  | Test that observed it                                                                  | Observed failure                                                                  |
+| ---------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Exact authored notes   | Wrote `''` instead of each prepared row's notes | `stores a fresh complete tree without changing rows that own the file ids`             | exact parent notes expected `Exact parent notes`, received `''`                   |
+| Fresh imported row ids | Mapped each row to its file id                  | same memory source contract, with three snapshotted rows already owning those file ids | original project expected its three exact rows, reread returned `[]` after import |
+
+Both faults were observed separately, restored, and recorded beside the
+production fields they protect.
+
+Final green evidence:
+
+- `bun test libs/store-memory/src/import.service.test.ts` — 6 passed, 0 failed, 39 assertions.
+- `bun test libs/store-sqlite/src/import.service.db.test.ts` — 6 passed, 0 failed, 39 assertions.
+- `bun test libs/store-memory/src/import.service.test.ts libs/store-memory/src/memory-source.test.ts` — 17 passed, 0 failed, 208 assertions.
+- `bun test libs/store-sqlite/src/import.service.db.test.ts libs/store-sqlite/src/work-item.db.test.ts libs/store-sqlite/src/external-ref.db.test.ts libs/store-sqlite/src/estimate.db.test.ts libs/store-sqlite/src/actual.db.test.ts libs/store-sqlite/src/step-progress.db.test.ts libs/store-sqlite/src/step-measure.db.test.ts libs/store-sqlite/src/dependency.db.test.ts libs/store-sqlite/src/assignment-scope.db.test.ts libs/store-sqlite/src/work-item-type.db.test.ts` — 122 passed, 0 failed, 277 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p core store-memory store-sqlite --skip-nx-cache --parallel=3 --output-style=static` — all six targets passed.
+- `bunx prettier --check libs/core/src/service/import.service.ts libs/core/src/testing/import-service-source-contract.ts openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
+
+At the Task 3.3 checkpoint, Tasks 3.4–5.2 remain unimplemented and unchecked.

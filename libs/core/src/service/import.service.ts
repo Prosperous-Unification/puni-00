@@ -2,10 +2,16 @@ import type { PlanDocumentRequest } from '@wbs/contracts';
 
 import type { Clock } from '../ports/clock';
 import type { Scheduler } from '../ports/scheduler';
+import type { SubtreeCopy } from '../ports/subtree-store';
 import type { Scope, UnitOfWork } from '../ports/unit-of-work';
 import { AnnouncementCollector, type Broadcaster } from './broadcast';
 import type { DirectoryService } from './directory.service';
-import { type ImportPreparation, type PreparedNamedEntry, prepareImport } from './prepare-import';
+import {
+  type ImportPreparation,
+  type PreparedNamedEntry,
+  type PreparedWorkItem,
+  prepareImport,
+} from './prepare-import';
 
 interface ImportServices {
   directory: DirectoryService;
@@ -29,6 +35,39 @@ export type ImportOutcome = ImportAdmission | Extract<ImportPreparation, { ok: f
 
 function existingIds(rows: readonly { id: string; name: string }[]): Map<string, string> {
   return new Map(rows.map(({ id, name }) => [name, id]));
+}
+
+function resolvedId(
+  idsByFileId: ReadonlyMap<string, string>,
+  fileId: string,
+  kind: string,
+): string {
+  const id = idsByFileId.get(fileId);
+  if (id === undefined) throw new Error(`prepared ${kind} mapping disappeared: ${fileId}`);
+  return id;
+}
+
+/**
+ * Orders prepared rows for {@link SubtreeCopy.rows}' parent foreign key.
+ *
+ * `prepareImport` guarantees every non-null parent is in this collection and
+ * the hierarchy is acyclic. Failure to make progress therefore means that
+ * preparation's admitted invariant disappeared and is an internal error.
+ */
+function parentsFirst(rows: readonly PreparedWorkItem[]): PreparedWorkItem[] {
+  const remaining = new Map(rows.map((row) => [row.fileId, row] as const));
+  const ordered: PreparedWorkItem[] = [];
+  while (remaining.size > 0) {
+    let admittedParent = false;
+    for (const [fileId, row] of remaining) {
+      if (row.parentFileId !== null && remaining.has(row.parentFileId)) continue;
+      ordered.push(row);
+      remaining.delete(fileId);
+      admittedParent = true;
+    }
+    if (!admittedParent) throw new Error('prepared hierarchy lost its parents-first order');
+  }
+  return ordered;
 }
 
 async function resolveNamed(
@@ -102,11 +141,13 @@ export class ImportService {
         teamsByFileId.set(team.fileId, created.id);
       }
       const heldPeople = existingIds(people);
+      const peopleByFileId = new Map<string, string>();
       for (const person of prepared.personByFileId.values()) {
         const held = heldPeople.get(person.name);
         if (held !== undefined) {
           // Proof: patching this row with the file's kind and team ids made both source
           // contract runs replace `person/held-team` with `agent/imported-2` byte-for-byte.
+          peopleByFileId.set(person.fileId, held);
           continue;
         }
         const teamIds = person.teamFileIds.map((fileId) => {
@@ -116,18 +157,19 @@ export class ImportService {
         });
         const created = await directory.addPerson(actorId, person.name, teamIds, person.kind);
         if (!created.ok) throw new Error(`created person metadata was refused: ${created.reason}`);
+        peopleByFileId.set(person.fileId, created.value.id);
       }
-      await resolveNamed(
+      const tagsByFileId = await resolveNamed(
         prepared.tagByFileId,
         existingIds(tags),
         async (name) => await directory.addTag(actorId, name),
       );
-      await resolveNamed(
+      const typesByFileId = await resolveNamed(
         prepared.typeByFileId,
         existingIds(types),
         async (name) => await directory.addWorkItemType(actorId, name),
       );
-      await resolveNamed(
+      const systemsByFileId = await resolveNamed(
         prepared.externalSystemByFileId,
         existingIds(systems),
         async (name) => await directory.addExternalSystem(actorId, name),
@@ -150,6 +192,13 @@ export class ImportService {
         name: step.name,
         position: step.position,
       }));
+      const stepsByFileId = new Map(
+        prepared.steps.map((step, at) => {
+          const written = steps.at(at);
+          if (written === undefined) throw new Error('prepared steps changed length during import');
+          return [step.fileId, written.id] as const;
+        }),
+      );
       // Proof: routing this through ProjectService.create made the source contract
       // read `[Dev@10, QA@20]` instead of `[Discover@10, Build@30, Verify@70]`.
       await scope.stores.projects.create(
@@ -197,6 +246,123 @@ export class ImportService {
         });
         if (!written.ok)
           throw new Error(`created project refused its calendar marker: ${written.reason}`);
+      }
+      // Proof: mapping each row to its file id made the in-memory source replace
+      // the original project's three snapshotted rows; its reread became `[]`.
+      const rowsByFileId = new Map(
+        prepared.workItems.map((row) => [row.fileId, this.opts.clock.newId()] as const),
+      );
+      const subtree: SubtreeCopy = {
+        rows: parentsFirst(prepared.workItems).map((row) => ({
+          id: resolvedId(rowsByFileId, row.fileId, 'work item'),
+          projectId,
+          parentId:
+            row.parentFileId === null
+              ? null
+              : resolvedId(rowsByFileId, row.parentFileId, 'parent work item'),
+          position: row.position,
+          name: row.name,
+          // Proof: omitting this field made the source contract read `''` instead
+          // of `Exact parent notes` and `Exact leaf notes` from the stored tree.
+          notes: row.notes,
+          frozenNumber: row.frozenNumber,
+          startNoEarlierThan: row.startNoEarlierThan,
+          startNoEarlierThanReason: row.startNoEarlierThanReason,
+          deadline: row.deadline,
+          factStart: row.factStart,
+          factEnd: row.factEnd,
+          priority: row.priority,
+          serviceTeamId:
+            row.serviceTeamFileId === null
+              ? null
+              : resolvedId(teamsByFileId, row.serviceTeamFileId, 'service team'),
+          serviceId:
+            row.serviceFileId === null
+              ? null
+              : resolvedId(servicesByFileId, row.serviceFileId, 'service'),
+          maxParallel: row.maxParallel,
+          revision: 0,
+          teamIds: row.teamFileIds.map((fileId) => resolvedId(teamsByFileId, fileId, 'team label')),
+        })),
+        respaced: [],
+        reparented: [],
+        estimates: prepared.workItems.flatMap((row) =>
+          row.estimates.map((estimate) => ({
+            workItemId: resolvedId(rowsByFileId, row.fileId, 'estimated work item'),
+            stepId: resolvedId(stepsByFileId, estimate.stepFileId, 'estimate step'),
+            optimistic: estimate.optimistic,
+            realistic: estimate.realistic,
+            pessimistic: estimate.pessimistic,
+          })),
+        ),
+        actuals: prepared.workItems.flatMap((row) =>
+          row.actuals.map((actual) => ({
+            workItemId: resolvedId(rowsByFileId, row.fileId, 'actual work item'),
+            stepId: resolvedId(stepsByFileId, actual.stepFileId, 'actual step'),
+            days: actual.days,
+            recordedAt: stamp.at,
+          })),
+        ),
+        progress: prepared.workItems.flatMap((row) =>
+          row.progress.map((progress) => ({
+            workItemId: resolvedId(rowsByFileId, row.fileId, 'progress work item'),
+            stepId: resolvedId(stepsByFileId, progress.stepFileId, 'progress step'),
+            state: progress.state,
+            statedAt: stamp.at,
+          })),
+        ),
+        measures: prepared.workItems.flatMap((row) =>
+          row.measures.map((measure) => ({
+            workItemId: resolvedId(rowsByFileId, row.fileId, 'measured work item'),
+            stepId: resolvedId(stepsByFileId, measure.stepFileId, 'measure step'),
+            metric: measure.metric,
+            value: measure.value,
+            recordedAt: stamp.at,
+          })),
+        ),
+        assignments: prepared.workItems.flatMap((row) =>
+          row.assignments.map((assignment) => ({
+            workItemId: resolvedId(rowsByFileId, row.fileId, 'assigned work item'),
+            stepId: resolvedId(stepsByFileId, assignment.stepFileId, 'assignment step'),
+            personId: resolvedId(peopleByFileId, assignment.personFileId, 'assigned person'),
+          })),
+        ),
+        dependencies: prepared.dependencies.map((dependency) => ({
+          id: this.opts.clock.newId(),
+          projectId,
+          predecessorId: resolvedId(
+            rowsByFileId,
+            dependency.predecessorFileId,
+            'dependency predecessor',
+          ),
+          successorId: resolvedId(rowsByFileId, dependency.successorFileId, 'dependency successor'),
+        })),
+        removedEstimates: [],
+        removedActuals: [],
+        removedProgress: [],
+        removedMeasures: [],
+      };
+      await scope.stores.subtrees.insertSubtree(subtree, stamp);
+      for (const row of prepared.workItems) {
+        const written = await scope.stores.workItems.patch(
+          resolvedId(rowsByFileId, row.fileId, 'labelled work item'),
+          {
+            tagIds: row.tagFileIds.map((fileId) => resolvedId(tagsByFileId, fileId, 'tag label')),
+            serviceIds: row.serviceFileIds.map((fileId) =>
+              resolvedId(servicesByFileId, fileId, 'service label'),
+            ),
+            typeIds: row.typeFileIds.map((fileId) =>
+              resolvedId(typesByFileId, fileId, 'type label'),
+            ),
+            externalRefs: row.externalRefs.map((reference) => ({
+              systemId: resolvedId(systemsByFileId, reference.systemFileId, 'external system'),
+              url: reference.url,
+              name: reference.name,
+            })),
+          },
+          stamp,
+        );
+        if (!written.ok) throw new Error(`created work item refused its labels: ${written.reason}`);
       }
       return {
         commit: true,
