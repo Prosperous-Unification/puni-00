@@ -130,6 +130,8 @@ export async function requireSolverImageInHost(
   image: string,
   dependencies: SolverImageHostDependencies = SOLVER_IMAGE_HOST_DEPENDENCIES,
 ): Promise<void> {
+  // Proof: sync.test.ts injects a mutable tag and observes refusal before
+  // either Docker inspection or pull can begin.
   if (!DIGEST_PINNED_IMAGE.test(image)) {
     throw new Error('solver host image must be digest-pinned');
   }
@@ -196,7 +198,7 @@ export function solverPreflightDependencies(
 
 const SOLVER_PREFLIGHT_DEPENDENCIES = solverPreflightDependencies(SRC, SOLVER_SUPERVISOR_CONFIG);
 
-/** Solver host state is a deploy prerequisite only when its compatibility inputs move. */
+/** Skips an unconfigured steady-state host; once configured, verifies host state on every deploy. */
 export async function preflightSolver(
   sha: string,
   dependencies: SolverPreflightDependencies = SOLVER_PREFLIGHT_DEPENDENCIES,

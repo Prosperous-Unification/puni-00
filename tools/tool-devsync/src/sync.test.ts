@@ -130,6 +130,25 @@ describe('RESTART_PATHS coverage', () => {
 });
 
 describe('dev supervisor', () => {
+  it('refuses a mutable solver image before touching the host daemon', async () => {
+    const events: string[] = [];
+    expect(
+      await rejection(
+        requireSolverImageInHost('registry.example/wbs-be:latest', {
+          inspect: () => {
+            events.push('inspect');
+            return Promise.resolve(true);
+          },
+          pull: () => {
+            events.push('pull');
+            return Promise.resolve();
+          },
+        }),
+      ),
+    ).toContain('solver host image must be digest-pinned');
+    expect(events).toEqual([]);
+  });
+
   it('skips the registry when the exact solver digest is already in the host daemon', async () => {
     let inspections = 0;
     let pulls = 0;
@@ -178,6 +197,22 @@ describe('dev supervisor', () => {
       ),
     ).toContain(`solver host image is unavailable after pull: ${DEV_IMAGE}`);
     expect(pulls).toBe(1);
+  });
+
+  it('propagates a solver image pull refusal without a second inspection', async () => {
+    let inspections = 0;
+    expect(
+      await rejection(
+        requireSolverImageInHost(DEV_IMAGE, {
+          inspect: () => {
+            inspections += 1;
+            return Promise.resolve(false);
+          },
+          pull: () => Promise.reject(new Error('registry unavailable')),
+        }),
+      ),
+    ).toContain('registry unavailable');
+    expect(inspections).toBe(1);
   });
 
   // Proof: a missing-image refusal at the production command boundary leaves
