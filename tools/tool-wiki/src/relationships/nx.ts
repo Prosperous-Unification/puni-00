@@ -86,11 +86,19 @@ function textArray(parent: UnknownRecord, field: string, context: string): strin
   return texts.sort(compareText);
 }
 
-function installedNx(): { cli: string; extractor: ExtractorIdentity } {
-  let cli: string;
+interface TrustedNx {
+  invocationPrefix: string[];
+  extractor: ExtractorIdentity;
+}
+
+/**
+ * Resolves the trusted Nx command module relative to this validator, never relative to the
+ * candidate workspace. `WBS_WIKI_NX_CLI` is a trusted fault-injection boundary used by production
+ * path negatives; the preserved launcher clears it before running the immutable validator.
+ */
+function installedNx(): TrustedNx {
   let packagePath: string;
   try {
-    cli = process.env['WBS_WIKI_NX_CLI'] ?? Bun.resolveSync('nx/bin/nx.js', import.meta.dir);
     packagePath = Bun.resolveSync('nx/package.json', import.meta.dir);
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : String(cause);
@@ -106,8 +114,20 @@ function installedNx(): { cli: string; extractor: ExtractorIdentity } {
     throw new Error(`Nx tool identity unreadable: ${detail}`, { cause });
   }
   const version = textField(record(input, 'Nx package'), 'version', 'Nx package');
+  const injectedCli = process.env['WBS_WIKI_NX_CLI'];
+  const invocationPrefix =
+    injectedCli === undefined
+      ? [
+          process.execPath,
+          '-e',
+          // Proof: launching the package's public Nx CLI let candidate root package self-reference
+          // replace its eventual executable; direct and preserved-launcher sentinels were written.
+          'require(process.argv[1]).commandsObject.argv;',
+          join(packagePath, '..', 'dist', 'src', 'command-line', 'nx-commands.js'),
+        ]
+      : [process.execPath, injectedCli];
   return {
-    cli,
+    invocationPrefix,
     extractor: {
       extractorId: 'nx.project-graph',
       version: `v${version}`,
@@ -149,7 +169,7 @@ function assertStaticNxConfiguration(workspace: string): void {
   }
 }
 
-function readGraph(workspace: string, cli: string): UnknownRecord {
+function readGraph(workspace: string, invocationPrefix: string[]): UnknownRecord {
   const outputDirectory = mkdtempSync(join(tmpdir(), 'tool-wiki-nx-'));
   const outputPath = join(outputDirectory, 'graph.json');
   try {
@@ -175,15 +195,9 @@ function readGraph(workspace: string, cli: string): UnknownRecord {
       Object.entries(process.env).filter(([name]) => !nxTaskEnvironmentNames.has(name)),
     );
     environment['NX_DAEMON'] = 'false';
+    environment['NX_ISOLATE_PLUGINS'] = 'false';
     const invocation = Bun.spawnSync(
-      [
-        process.execPath,
-        cli,
-        'graph',
-        '--view=projects',
-        '--groupByFolder',
-        `--file=${outputPath}`,
-      ],
+      [...invocationPrefix, 'graph', '--view=projects', '--groupByFolder', `--file=${outputPath}`],
       {
         cwd: workspace,
         env: environment,
@@ -232,8 +246,8 @@ export function extractNxRelationships(workspace: string): {
   relationships: NxRelationships;
 } {
   assertStaticNxConfiguration(workspace);
-  const { cli, extractor } = installedNx();
-  const graph = readGraph(workspace, cli);
+  const { invocationPrefix, extractor } = installedNx();
+  const graph = readGraph(workspace, invocationPrefix);
   const nodes = record(graph['nodes'], 'graph.nodes');
   const dependencies = record(graph['dependencies'], 'graph.dependencies');
   const projectNames = Object.keys(nodes).sort(compareText);

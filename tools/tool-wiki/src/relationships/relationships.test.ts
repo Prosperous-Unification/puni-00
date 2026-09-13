@@ -315,6 +315,43 @@ describe('relationship extraction production CLI', () => {
     expect(output(invocation)).toContain('candidate-local Nx installation is unsupported');
   });
 
+  test('uses trusted Nx when candidate root package metadata claims its package name', () => {
+    const repository = createRepository();
+    const requestPath = writeRequest(repository);
+    report(invoke(repository, commitAll(repository, 'declarative Nx baseline'), requestPath));
+    const sentinel = join(repository, '..', `${basename(repository)}.self-reference-executed`);
+    pathsToRemove.push(sentinel);
+    write(
+      repository,
+      'package.json',
+      `${JSON.stringify({
+        name: 'nx',
+        version: '23.2.0',
+        private: true,
+        type: 'commonjs',
+        exports: {
+          './bin/nx.js': './candidate-nx.js',
+          './package.json': './package.json',
+        },
+      })}\n`,
+    );
+    write(
+      repository,
+      'candidate-nx.js',
+      `require('node:fs').writeFileSync(${JSON.stringify(sentinel)}, 'executed');\n`,
+    );
+    const revision = commitAll(repository, 'candidate package self-reference');
+
+    const invocation = invoke(repository, revision, requestPath);
+    expect(existsSync(sentinel)).toBe(false);
+    const extracted = report(invocation);
+    expect(extracted.nx.projects.map(({ name }) => name)).toEqual([
+      'consumer',
+      'minimal',
+      'provider',
+    ]);
+  }, 30_000);
+
   test('strictly versions relationship requests and rejects ambiguous selector sets', () => {
     const repository = createRepository();
     const revision = commitAll(repository, 'strict request boundary');
