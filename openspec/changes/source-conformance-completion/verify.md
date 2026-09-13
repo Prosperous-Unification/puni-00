@@ -1741,3 +1741,15 @@ denied. Full workspace/build/browser/deploy checks, a repeated portable-browser
 composition, and the h2puni committed-SHA gate remain skipped for this
 uncommitted review repair. Task 5.2 remains unchecked; Task 6 is untouched. No
 commit, push, merge, archive, or deploy was performed.
+
+#### Task 5.2 acceptance
+
+Astra accepted Task 5.2 at `2cebf9cf` with zero Critical, Important, or
+Minor findings. The acceptance review reran the repaired focus (`11/0/394`)
+and affected regressions (`136/0/6,619`), including the missing-project,
+empty-journal, empty-kinds, restamp, partial-list, tie-order, alias, cutoff,
+project-scope, and payload reversals. All six uncached lint/typecheck targets
+also passed.
+
+Task 5.2 is checked complete and Epic 5 is closed. Task 6.1 is next. Review:
+`/tmp/source-conformance-5-2-astra-rereview.md`.
