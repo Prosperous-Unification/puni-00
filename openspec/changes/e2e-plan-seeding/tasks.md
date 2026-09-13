@@ -7,9 +7,9 @@
 
 ## 2. Selected adoption
 
-- [ ] 2.1 Migrate `rendering-fixture.ts` to the shared helper, preserving off-table bulk writes, final state verification and timing boundaries. Run `rendering-fixture.spec.ts` and rerun its documented malformed-id and zero-geometry mutations. Fault sensitivity must remain at the same setup/layout stage.
-- [ ] 2.2 Convert only static prerequisites in `plan-surface.spec.ts`. Keep actual UI create/typing where a case tests armed focus or focus after a write. Test existing short/tall-plan geometry and keyboard-navigation cases. Negative: re-inject each converted scenario's own production fault; if a case no longer fails, restore that case's UI seed rather than counting the conversion as complete.
-- [ ] 2.3 Test two simultaneous recipes with identical logical labels but unique run/worker/test prefixes. Assert returned ids, selected project and directory refs for each. Negative: remove test/worker identity from generated names and deliberately overlap saves; assert the two fixtures share neither ids nor names. Assert exact fixture identities, not global directory counts.
+- [x] 2.1 Migrate `rendering-fixture.ts` to the shared helper, preserving off-table bulk writes, final state verification and timing boundaries. Run `rendering-fixture.spec.ts` and rerun its documented malformed-id and zero-geometry mutations. Fault sensitivity must remain at the same setup/layout stage.
+- [x] 2.2 Convert only static prerequisites in `plan-surface.spec.ts`. Keep actual UI create/typing where a case tests armed focus or focus after a write. Test existing short/tall-plan geometry and keyboard-navigation cases. Negative: re-inject each converted scenario's own production fault; if a case no longer fails, restore that case's UI seed rather than counting the conversion as complete.
+- [x] 2.3 Test two simultaneous recipes with identical logical labels but unique run/worker/test prefixes. Assert returned ids, selected project and directory refs for each. Negative: remove test/worker identity from generated names and deliberately overlap saves; assert the two fixtures share neither ids nor names. Assert exact fixture identities, not global directory counts.
 
 ## 3. Measured concurrency and final evidence
 

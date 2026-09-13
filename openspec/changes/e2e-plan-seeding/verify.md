@@ -50,3 +50,21 @@ Fresh checks:
 
 - `CI=1 E2E_PORT_SHIFT=2500 bunx playwright test --config apps/fe-01/playwright.config.ts apps/fe-01/e2e/plan-fixture.spec.ts apps/fe-01/e2e/rendering-fixture.spec.ts --workers=1` — 10 passed, 0 failed.
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p fe-01,contracts --parallel=2 --skip-nx-cache --output-style=static` — both passed.
+
+## Section 2 selected adoption
+
+The rendering fixture now shares the generated-shape Page client while keeping
+the table unmounted during bulk writes and retaining its independent final-tree
+checks. The six plan-surface scenarios now create their static rows and initial
+estimate through the fixture, select the exact project through the real picker,
+then perform the same chart, wheel, keyboard, and geometry gestures as before.
+No nonallowlisted E2E seed changed.
+
+Two browser contexts concurrently seeded recipes with the same logical project,
+row, and tag labels. Their run/worker/test-qualified project names and every
+returned project, row, and tag id differed; each exact project was then selected
+through its own picker. Removing worker/test identity made the real directory
+writes collide on the shared tag, so the isolation proof is non-vacuous.
+
+- `CI=1 E2E_PORT_SHIFT=4900 bunx playwright test --config apps/fe-01/playwright.config.ts apps/fe-01/e2e/plan-fixture.spec.ts apps/fe-01/e2e/plan-surface.spec.ts --workers=1` — 14 passed, 0 failed in 39.1s.
+- The first attempt at shift 2500 was refused because port 5700 remained owned by an earlier interrupted process; no server was reused. Two picker-path defects were observed and fixed before the green run: an unescaped bracketed name threw a regular-expression error, then a word boundary after the closing bracket could never match.

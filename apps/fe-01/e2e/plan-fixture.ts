@@ -47,6 +47,10 @@ function fixtureName(name: string, identity: PlanFixtureIdentity): string {
   return `${name} [${identity.run}/w${String(identity.worker)}/${identity.test}]`;
 }
 
+function escaped(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function validateRecipe(recipe: PlanRecipe): void {
   const rowRefs = new Set<string>();
   for (const row of recipe.rows) {
@@ -277,7 +281,7 @@ export async function openSeededPlan(page: Page, seeded: SeededPlan): Promise<vo
   await picker.click();
   await expect(page.getByRole('listbox', { name: 'Projects' })).toBeVisible();
   await picker.fill(seeded.projectName);
-  await page.getByRole('option', { name: new RegExp(`^${seeded.projectName}`) }).click();
+  await page.getByRole('option', { name: new RegExp(`^${escaped(seeded.projectName)}`) }).click();
   await expect(picker).toHaveValue(seeded.projectName);
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem('wbs.project')))

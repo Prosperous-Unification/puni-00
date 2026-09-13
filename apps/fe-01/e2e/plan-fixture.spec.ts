@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { seedPlan } from './plan-fixture';
+import { openSeededPlan, seedPlan } from './plan-fixture';
 
 const identity = (testName: string, worker: number) => ({
   run: 'section-1',
@@ -199,4 +199,33 @@ test('verification catches one successfully dropped directory link', async ({ pa
     ),
   ).rejects.toThrow(/stored tag ids for row/);
   expect(omittedLinks).toBe(1);
+});
+
+test('simultaneous recipes keep identical logical labels disjoint', async ({
+  browser,
+}, testInfo) => {
+  // Proof: removing worker/test identity from fixtureName made the concurrent
+  // real directory writes collide on Shared logical tag instead of both seeding.
+  const leftContext = await browser.newContext();
+  const rightContext = await browser.newContext();
+  try {
+    const leftPage = await leftContext.newPage();
+    const rightPage = await rightContext.newPage();
+    const recipe = {
+      name: 'Concurrent fixture',
+      tags: [{ ref: 'tag', name: 'Shared logical tag' }],
+      rows: [{ ref: 'row', name: 'Shared logical row', tagRefs: ['tag'] }],
+    } as const;
+    const [left, right] = await Promise.all([
+      seedPlan(leftPage, recipe, identity('concurrent-left', testInfo.workerIndex)),
+      seedPlan(rightPage, recipe, identity('concurrent-right', testInfo.workerIndex)),
+    ]);
+    expect(left.projectName).not.toBe(right.projectName);
+    expect(left.projectId).not.toBe(right.projectId);
+    expect(left.rowIds['row']).not.toBe(right.rowIds['row']);
+    expect(left.tagIds['tag']).not.toBe(right.tagIds['tag']);
+    await Promise.all([openSeededPlan(leftPage, left), openSeededPlan(rightPage, right)]);
+  } finally {
+    await Promise.all([leftContext.close(), rightContext.close()]);
+  }
 });
