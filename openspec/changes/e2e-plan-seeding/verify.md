@@ -68,3 +68,24 @@ writes collide on the shared tag, so the isolation proof is non-vacuous.
 
 - `CI=1 E2E_PORT_SHIFT=4900 bunx playwright test --config apps/fe-01/playwright.config.ts apps/fe-01/e2e/plan-fixture.spec.ts apps/fe-01/e2e/plan-surface.spec.ts --workers=1` — 14 passed, 0 failed in 39.1s.
 - The first attempt at shift 2500 was refused because port 5700 remained owned by an earlier interrupted process; no server was reused. Two picker-path defects were observed and fixed before the green run: an unescaped bracketed name threw a regular-expression error, then a word boundary after the closing bracket could never match.
+
+## Section 3 concurrency audit
+
+The all-E2E listing audit found one account-wide project read in the mobile
+long-dependency setup and first-entry measurements in the header picker. The
+mobile setup now reads the page's exact selected project id. Its case creates
+and promotes a rival project first, proving that the global first project is
+different; substituting that global id failed the real case at
+`no 020 in the seeded plan`. Header measurements now locate the selected
+project option by its exact project id.
+
+The first exploratory four-worker run made the header fault concrete:
+`CI=1 E2E_PORT_SHIFT=5500 bun run e2e --workers=4` ran with zero retries and a
+fresh database, then finished 354 passed, 37 skipped and 2 failed in 8m54s.
+Both failures measured another worker's first `New project` option and reported
+`entryOverflow 0`, while the exact long-name option was present later in the
+same rendered list. After exact-id scoping,
+`CI=1 E2E_PORT_SHIFT=6100 bunx playwright test --config apps/fe-01/playwright.config.ts apps/fe-01/e2e/header.spec.ts apps/fe-01/e2e/mobile.spec.ts --grep 'widest entry|entry is clipped|short entry|dependency search' --workers=2`
+passed 4/4. The remaining count assertions are scoped to a current plan,
+dialog, listbox or rendered surface; the positional project options used only
+as geometry anchors do not claim global membership or count.
