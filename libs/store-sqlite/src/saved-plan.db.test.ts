@@ -7,12 +7,17 @@ import { projectRow } from '@wbs/store-memory/project-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import type { Connection } from './db';
-import { openConnection } from './db';
+import { drizzleOuterTransaction, openConnection } from './db';
 import { OPEN } from './gate';
+import { SavedPlanRepository as PublicSavedPlanRepository } from './index';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
 import type { SavedPlanWrite } from './saved-plan';
 import { bodyByteLength, SavedPlanRepository } from './saved-plan';
+import {
+  openSqliteSourceWithNonAtomicSavedPlanFault,
+  sqliteLateWriteControl,
+} from './testing/faults';
 import { UserRepository } from './user';
 
 const FOLDER = new URL('../../../apps/be-01/drizzle', import.meta.url).pathname;
@@ -83,6 +88,115 @@ describe('SavedPlanRepository', () => {
     );
     expect(await plans.bodyOf(reader.db, 'sp-1', 'input')).toBe('{"input":true}');
     expect(await plans.bodyOf(reader.db, 'sp-1', 'schedule')).toBe('{"schedule":true}');
+  });
+
+  it('keeps the public constructor atomic when an extra runtime argument asks for a split', async () => {
+    const publicPlans = Reflect.construct(PublicSavedPlanRepository, [
+      { openConnection: () => openConnection(path) },
+      {
+        isActive: (phase: string) => phase === 'saved-plan-schedule-body',
+        reach: (phase: string) => {
+          if (phase === 'saved-plan-schedule-body')
+            throw new Error('public constructor late schedule failure');
+        },
+      },
+      'split',
+    ]) as SavedPlanRepository;
+
+    let publicFailure: unknown;
+    try {
+      await publicPlans.write(bothSides(), admit);
+    } catch (failure) {
+      publicFailure = failure;
+    }
+    expect(publicFailure).toHaveProperty('message', 'public constructor late schedule failure');
+    // Proof: while the constructor accepted the third argument, this ordinary barrel call
+    // left the real header and input committed after the injected schedule failure.
+    expect(await publicPlans.readOf('sp-1')).toBeNull();
+    expect(await plans.listOf('p1')).toEqual([]);
+  });
+
+  it('scopes the internal split mutant to its armed saved-plan target', async () => {
+    const control = sqliteLateWriteControl('saved-plan-schedule-body');
+    control.arm();
+    const source = openSqliteSourceWithNonAtomicSavedPlanFault(
+      { dbPath: path },
+      control,
+      () => undefined,
+    );
+    let failure: unknown;
+    try {
+      await source.history.savedPlans.write(bothSides({ id: 'ordinary-target' }), admit);
+    } catch (cause) {
+      failure = cause;
+    } finally {
+      await source.close();
+    }
+
+    expect(failure).toHaveProperty('message', 'injected SQLite fault at saved-plan-schedule-body');
+    // Proof: applying split mode to every schedule-present plan left this non-armed
+    // target's real header/input committed; target scoping keeps public state empty.
+    expect(await plans.readOf('ordinary-target')).toBeNull();
+  });
+
+  it('preserves a failed split restart and writer close beside the committed partial save', async () => {
+    const blocker = openConnection(path);
+    const blockerTx = drizzleOuterTransaction(blocker.db);
+    const control = sqliteLateWriteControl('saved-plan-schedule-body');
+    control.arm();
+    const blockerState = { isBlocking: false };
+    let connections = 0;
+    const source = Reflect.apply(openSqliteSourceWithNonAtomicSavedPlanFault, undefined, [
+      {
+        dbPath: path,
+        openConnection: (dbPath: string) => {
+          const connection = openConnection(dbPath);
+          connections += 1;
+          return connections === 2
+            ? {
+                ...connection,
+                close() {
+                  connection.close();
+                  throw new Error('split writer close failed');
+                },
+              }
+            : connection;
+        },
+      },
+      control,
+      () => undefined,
+      () => {
+        blockerTx.begin();
+        blockerState.isBlocking = true;
+      },
+    ]);
+    let failure: unknown;
+    try {
+      await source.history.savedPlans.write(bothSides({ id: 'late-target' }), () =>
+        Promise.resolve(null),
+      );
+    } catch (cause) {
+      failure = cause;
+    } finally {
+      try {
+        if (blockerState.isBlocking) blockerTx.rollback();
+      } finally {
+        blocker.close();
+        await source.close();
+      }
+    }
+
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure).toHaveProperty(
+      'errors.0.message',
+      expect.stringContaining('Failed query: BEGIN IMMEDIATE'),
+    );
+    expect(failure).toHaveProperty('errors.0.cause.code', 'SQLITE_BUSY');
+    expect(failure).toHaveProperty('errors.1.message', 'split writer close failed');
+    if (!(failure instanceof AggregateError)) throw new Error('split failures were not combined');
+    const partial = await plans.readOf('late-target');
+    expect(partial?.header).toMatchObject({ id: 'late-target', inputSha256: 'in-hash' });
+    expect(partial?.bodies).toEqual({ input: '{"input":true}', schedule: null });
   });
 
   /**

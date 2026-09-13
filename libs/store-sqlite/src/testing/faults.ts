@@ -1,14 +1,14 @@
+import { openConnection } from '../db';
 import type {
   SqliteLateWriteEvidence,
   SqliteLateWritePoint,
   SqliteLateWriteSeam,
 } from '../late-write-seam';
+import type { StoredSavedPlan } from '../saved-plan';
+import { SavedPlanRepository } from '../saved-plan';
+import { armSavedPlanWriteFault, type SavedPlanWriteFault } from '../saved-plan-write-fault';
 import type { OpenSqliteSourceOptions, SqliteSource } from '../source';
-import {
-  openSqliteSourceWithLateWriteSeam,
-  openSqliteSourceWithMissingSavedPlanInputFault,
-  openSqliteSourceWithSplitSavedPlanFault,
-} from '../source';
+import { openSqliteSourceWithLateWriteSeam } from '../source';
 import { createNonAtomicSubtreeMutantForTesting } from '../work-item';
 
 export type { SqliteLateWritePoint } from '../late-write-seam';
@@ -22,10 +22,7 @@ export interface SqliteLateWriteControl<Phase extends SqliteLateWritePoint> {
   reach(phase: SqliteLateWritePoint): boolean;
   reached(): boolean;
   observedSatelliteKeys(): readonly string[];
-  observedSavedPlan(): Pick<
-    SqliteLateWriteEvidence,
-    'savedPlanId' | 'savedPlanHeaderPresent' | 'savedPlanBodyKinds'
-  >;
+  observedSavedPlan(): Pick<SqliteLateWriteEvidence, 'savedPlan'>;
   reachTransactionWrite(phase: SqliteLateWritePoint, evidence?: SqliteLateWriteEvidence): boolean;
 }
 
@@ -64,9 +61,7 @@ export function sqliteLateWriteControl<const Phase extends SqliteLateWritePoint>
     reached: () => hasReached,
     observedSatelliteKeys: () => evidence.satelliteKeys ?? [],
     observedSavedPlan: () => ({
-      savedPlanId: evidence.savedPlanId,
-      savedPlanHeaderPresent: evidence.savedPlanHeaderPresent,
-      savedPlanBodyKinds: evidence.savedPlanBodyKinds,
+      savedPlan: evidence.savedPlan,
     }),
     reachTransactionWrite: reach,
   };
@@ -119,8 +114,22 @@ export function openSqliteSourceWithNonAtomicSavedPlanFault(
   options: OpenSqliteSourceOptions,
   control: SqliteLateWriteControl<'saved-plan-schedule-body'>,
   reachProof: () => void,
+  beforeRestart?: () => void,
 ): SqliteSource {
-  return openSqliteSourceWithSplitSavedPlanFault(options, {
+  return openSqliteSourceWithSavedPlanFault(options, control, reachProof, {
+    kind: 'split',
+    targetId: 'late-target',
+    beforeRestart,
+  });
+}
+
+function openSqliteSourceWithSavedPlanFault(
+  options: OpenSqliteSourceOptions,
+  control: SqliteLateWriteControl<'saved-plan-schedule-body'>,
+  reachProof: () => void,
+  fault: SavedPlanWriteFault,
+): SqliteSource {
+  const lateWrite: SqliteLateWriteSeam = {
     isActive: (phase) => control.isArmed() && phase === control.phase,
     reach(phase, evidence) {
       if (control.reachTransactionWrite(phase, evidence)) {
@@ -128,7 +137,15 @@ export function openSqliteSourceWithNonAtomicSavedPlanFault(
         throw new Error(`injected SQLite fault at ${phase}`);
       }
     },
-  });
+  };
+  const source = openSqliteSourceWithLateWriteSeam(options, lateWrite);
+  const connect = options.openConnection ?? openConnection;
+  const savedPlans = new SavedPlanRepository(
+    { openConnection: () => connect(options.dbPath) },
+    lateWrite,
+  );
+  armSavedPlanWriteFault(savedPlans, fault);
+  return { ...source, history: { ...source.history, savedPlans } };
 }
 
 /** Opens the real repository with its input insert omitted before the late barrier. */
@@ -136,14 +153,11 @@ export function openSqliteSourceWithMissingSavedPlanInput(
   options: OpenSqliteSourceOptions,
   control: SqliteLateWriteControl<'saved-plan-schedule-body'>,
   reachProof: () => void,
+  observeBoundary?: (stored: StoredSavedPlan) => void,
 ): SqliteSource {
-  return openSqliteSourceWithMissingSavedPlanInputFault(options, {
-    isActive: (phase) => control.isArmed() && phase === control.phase,
-    reach(phase, evidence) {
-      if (control.reachTransactionWrite(phase, evidence)) {
-        reachProof();
-        throw new Error(`injected SQLite fault at ${phase}`);
-      }
-    },
+  return openSqliteSourceWithSavedPlanFault(options, control, reachProof, {
+    kind: 'omit-input',
+    targetId: 'late-target',
+    observeBoundary,
   });
 }

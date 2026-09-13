@@ -5,6 +5,7 @@ import { isWriteLockBusy } from './constraint';
 import type { Connection, Drizzle } from './db';
 import { drizzleOuterTransaction, drizzleReadTransaction, refuseToWaitForWriteLock } from './db';
 import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
+import { savedPlanWriteFaultOf } from './saved-plan-write-fault';
 import { project, savedPlan, savedPlanBody } from './schema';
 
 export { bodyByteLength } from '@wbs/core';
@@ -134,6 +135,30 @@ export interface SavedPlanHoldingRow {
   readonly bytes: number;
 }
 
+function savedPlanHeader(
+  plan: SavedPlanWrite,
+  inputBytes: number,
+  scheduleBytes: number | null,
+): SavedPlanRow {
+  return {
+    id: plan.id,
+    projectId: plan.projectId,
+    name: plan.name,
+    createdBy: plan.createdBy,
+    createdById: plan.createdById,
+    createdAt: plan.createdAt,
+    inputSchemaVersion: plan.input.schemaVersion,
+    inputBytes,
+    inputSha256: plan.input.sha256,
+    scheduleSchemaVersion: plan.schedule.present ? plan.schedule.body.schemaVersion : null,
+    scheduleBytes,
+    scheduleSha256: plan.schedule.present ? plan.schedule.body.sha256 : null,
+    scheduleInputSha256: plan.schedule.present ? plan.schedule.inputSha256 : null,
+    schedulerAlgorithmId: plan.schedule.present ? plan.schedule.algorithmId : null,
+    scheduleAbsentReason: plan.schedule.present ? null : plan.schedule.absentReason,
+  };
+}
+
 /**
  * What a rename or a delete found, said as an outcome rather than a boolean.
  *
@@ -185,7 +210,6 @@ export class SavedPlanRepository implements SavedPlanStore {
   constructor(
     private readonly opts: SavedPlanWriteOptions,
     private readonly lateWrite: SqliteLateWriteSeam = inertSqliteLateWriteSeam,
-    private readonly testingWriteMode: 'atomic' | 'split' | 'omit-input' = 'atomic',
   ) {}
 
   /**
@@ -257,95 +281,127 @@ export class SavedPlanRepository implements SavedPlanStore {
     plan: SavedPlanWrite,
     check: (holding: SavedPlanHoldingRow, incomingBytes: number) => Promise<Refusal | null>,
   ): Promise<SavedPlanWriteOutcome<Refusal>> {
+    const expectedPlan = structuredClone(plan);
+    const writeFault = savedPlanWriteFaultOf(this);
     const inputBytes = bodyByteLength(plan.input.bytes);
     const scheduleBytes = plan.schedule.present ? bodyByteLength(plan.schedule.body.bytes) : null;
     const connection = this.opts.openConnection();
+    let outcome: SavedPlanWriteOutcome<Refusal> | undefined;
+    let didWriteFail = false;
+    let writeFailure: unknown;
     try {
-      const db = connection.db;
-      refuseToWaitForWriteLock(db);
-      const tx = drizzleOuterTransaction(db);
-      try {
-        tx.begin();
-      } catch (failure) {
-        if (!isWriteLockBusy(failure)) throw failure;
-        // Nothing was written and no transaction is open, so there is nothing
-        // to roll back — `BEGIN` is the statement that failed.
-        return { outcome: 'snapshot_busy' };
-      }
-      try {
-        const refusal = await check(
-          await this.holdingOf(db, plan.projectId),
-          inputBytes + (scheduleBytes ?? 0),
-        );
-        if (refusal !== null) {
-          // Nothing has been written, so this releases the write lock rather
-          // than undoing anything. `ROLLBACK` and not `COMMIT` all the same:
-          // committing a transaction opened to write and then refused would
-          // read, in a log, as a save that happened.
-          tx.rollback();
-          return { outcome: 'refused', refusal };
+      outcome = await (async () => {
+        const db = connection.db;
+        refuseToWaitForWriteLock(db);
+        const tx = drizzleOuterTransaction(db);
+        try {
+          tx.begin();
+        } catch (failure) {
+          if (!isWriteLockBusy(failure)) throw failure;
+          return { outcome: 'snapshot_busy' } as const;
         }
-        const header = {
-          id: plan.id,
-          projectId: plan.projectId,
-          name: plan.name,
-          createdBy: plan.createdBy,
-          createdById: plan.createdById,
-          createdAt: plan.createdAt,
-          inputSchemaVersion: plan.input.schemaVersion,
-          inputBytes,
-          inputSha256: plan.input.sha256,
-          scheduleSchemaVersion: plan.schedule.present ? plan.schedule.body.schemaVersion : null,
-          scheduleBytes,
-          scheduleSha256: plan.schedule.present ? plan.schedule.body.sha256 : null,
-          scheduleInputSha256: plan.schedule.present ? plan.schedule.inputSha256 : null,
-          schedulerAlgorithmId: plan.schedule.present ? plan.schedule.algorithmId : null,
-          scheduleAbsentReason: plan.schedule.present ? null : plan.schedule.absentReason,
-        };
-        await db.insert(savedPlan).values(header);
-        if (this.testingWriteMode !== 'omit-input' || plan.id !== 'late-target')
-          await db
-            .insert(savedPlanBody)
-            .values({ savedPlanId: plan.id, kind: 'input', bytes: plan.input.bytes });
-        if (plan.schedule.present) {
-          if (this.testingWriteMode === 'split') {
-            tx.commit();
-            tx.begin();
+        let isTransactionActive = true;
+        try {
+          const refusal = await check(
+            await this.holdingOf(db, plan.projectId),
+            inputBytes + (scheduleBytes ?? 0),
+          );
+          if (refusal !== null) {
+            // Nothing has been written, so this releases the write lock rather
+            // than undoing anything. `ROLLBACK` and not `COMMIT` all the same:
+            // committing a transaction opened to write and then refused would
+            // read, in a log, as a save that happened.
+            tx.rollback();
+            isTransactionActive = false;
+            return { outcome: 'refused', refusal };
           }
-          if (this.lateWrite.isActive?.('saved-plan-schedule-body') === true) {
-            const persistedHeaders = await db
-              .select()
-              .from(savedPlan)
-              .where(eq(savedPlan.id, plan.id));
-            const persistedInput = await this.bodyOf(db, plan.id, 'input');
-            const persistedSchedule = await this.bodyOf(db, plan.id, 'schedule');
-            // Proof: removing this guard changed the adapter-owned missing-input proof
-            // from `phase-failed` to `observed` after the invalid boundary reached.
-            if (
-              JSON.stringify(persistedHeaders) !== JSON.stringify([header]) ||
-              persistedInput !== plan.input.bytes ||
-              persistedSchedule !== null
-            )
-              throw new Error('saved-plan schedule boundary lacks complete header and input');
-            this.lateWrite.reach('saved-plan-schedule-body', {
-              savedPlanId: plan.id,
-              savedPlanHeaderPresent: JSON.stringify(persistedHeaders) === JSON.stringify([header]),
-              savedPlanBodyKinds: persistedInput === plan.input.bytes ? ['input'] : [],
-            });
-          } else this.lateWrite.reach('saved-plan-schedule-body');
-          await db
-            .insert(savedPlanBody)
-            .values({ savedPlanId: plan.id, kind: 'schedule', bytes: plan.schedule.body.bytes });
+          const header = savedPlanHeader(plan, inputBytes, scheduleBytes);
+          await db.insert(savedPlan).values(header);
+          if (writeFault?.kind !== 'omit-input' || writeFault.targetId !== plan.id)
+            await db
+              .insert(savedPlanBody)
+              .values({ savedPlanId: plan.id, kind: 'input', bytes: plan.input.bytes });
+          if (plan.schedule.present) {
+            if (writeFault?.kind === 'split' && writeFault.targetId === plan.id) {
+              tx.commit();
+              isTransactionActive = false;
+              writeFault.beforeRestart?.();
+              tx.begin();
+              isTransactionActive = true;
+            }
+            if (this.lateWrite.isActive?.('saved-plan-schedule-body') === true) {
+              const persistedHeaders = await db
+                .select()
+                .from(savedPlan)
+                .where(eq(savedPlan.id, plan.id));
+              const persistedInput = await this.bodyOf(db, plan.id, 'input');
+              const persistedSchedule = await this.bodyOf(db, plan.id, 'schedule');
+              // Proof: removing this guard changed the adapter-owned missing-input proof
+              // from `phase-failed` to `observed` after the invalid boundary reached.
+              const boundary = {
+                header: persistedHeaders[0],
+                bodies: { input: persistedInput, schedule: persistedSchedule },
+              };
+              const expectedBoundary = {
+                header: savedPlanHeader(expectedPlan, inputBytes, scheduleBytes),
+                bodies: { input: expectedPlan.input.bytes, schedule: null },
+              };
+              if (writeFault?.targetId === plan.id)
+                writeFault.observeBoundary?.(structuredClone(boundary));
+              if (
+                persistedHeaders.length !== 1 ||
+                JSON.stringify(boundary) !== JSON.stringify(expectedBoundary)
+              )
+                // Proof: mutating the real request's complete target after its callback
+                // made both adapters reach and certify corrupted content without this check.
+                throw new Error('saved-plan schedule boundary lacks complete header and input');
+              this.lateWrite.reach('saved-plan-schedule-body', {
+                savedPlan: boundary,
+              });
+            } else this.lateWrite.reach('saved-plan-schedule-body');
+            await db
+              .insert(savedPlanBody)
+              .values({ savedPlanId: plan.id, kind: 'schedule', bytes: plan.schedule.body.bytes });
+          }
+          tx.commit();
+          isTransactionActive = false;
+          return { outcome: 'written' };
+        } catch (failure) {
+          // Proof: failing the split mutant's second real BEGIN left no transaction to
+          // roll back; an unconditional rollback replaced the SQLITE_BUSY diagnostic.
+          if (!isTransactionActive) throw failure;
+          try {
+            tx.rollback();
+          } catch (rollbackFailure) {
+            throw new AggregateError(
+              [failure, rollbackFailure],
+              'saved-plan write and rollback failed',
+              { cause: rollbackFailure },
+            );
+          }
+          throw failure;
         }
-        tx.commit();
-        return { outcome: 'written' };
-      } catch (failure) {
-        tx.rollback();
-        throw failure;
-      }
-    } finally {
-      connection.close();
+      })();
+    } catch (failure) {
+      didWriteFail = true;
+      writeFailure = failure;
     }
+    try {
+      connection.close();
+    } catch (closeFailure) {
+      // Proof: failing that same restart and the writer close used to surface only close;
+      // the database test requires both causes in deterministic operation/cleanup order.
+      if (didWriteFail)
+        throw new AggregateError(
+          [writeFailure, closeFailure],
+          'saved-plan write and connection close failed',
+          { cause: closeFailure },
+        );
+      throw closeFailure;
+    }
+    if (didWriteFail) throw writeFailure;
+    if (outcome === undefined) throw new Error('saved-plan write completed without an outcome');
+    return outcome;
   }
 
   /** One saved plan's stored body, or `null` when it has none of that kind. */

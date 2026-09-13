@@ -9,7 +9,6 @@ import type {
 import { expect } from 'bun:test';
 
 import type { CaseRegistration } from '../case-manifest';
-import { failureMessage } from '../failure-message';
 import type { CaseFixture, SeededPlan } from '../source-declaration';
 import { type OpenCase, storeCase } from './store-case';
 
@@ -17,6 +16,19 @@ interface SavedPlanState {
   readonly plans: readonly (StoredSavedPlan | null)[];
   readonly lists: readonly (readonly SavedPlanRow[])[];
   readonly principals: readonly (SavedPlanPrincipals | null)[];
+}
+
+type Settlement<Value> =
+  | { readonly status: 'fulfilled'; readonly value: Value }
+  | { readonly status: 'rejected'; readonly reason: unknown };
+
+function ownSettlement<Value>(promise: Promise<Value>): Promise<Settlement<Value>> {
+  // Proof: delaying the real primary while the issued SQLite rival rejected made Bun
+  // report that rival as unhandled before this ownership was attached.
+  return promise.then(
+    (value) => ({ status: 'fulfilled', value }),
+    (reason: unknown) => ({ status: 'rejected', reason }),
+  );
 }
 
 function quotaPlan(
@@ -266,60 +278,56 @@ async function assertQuotaWindow(fixture: CaseFixture<SavedPlanStore>) {
   );
   const primaryObservations: { holding: SavedPlanHoldingRow; incomingBytes: number }[] = [];
   const rivalObservations: { holding: SavedPlanHoldingRow; incomingBytes: number }[] = [];
-  const rivalAttempt: { promise?: Promise<unknown> } = {};
-  let primaryOutcome: unknown;
-  let primaryFailure: unknown;
+  const rivalAttempt: { settlement?: Promise<Settlement<unknown>> } = {};
+  let primarySettlement: Settlement<unknown>;
   try {
-    primaryOutcome = await fixture.port.write(structuredClone(last), (holding, incomingBytes) => {
-      primaryObservations.push({
-        holding: { plans: holding.plans, bytes: holding.bytes },
-        incomingBytes,
-      });
-      rivalAttempt.promise =
-        fixture.scenario.kind === 'competing-history-write'
-          ? fixture.scenario.rivalWriter.write(
-              structuredClone(rival),
-              (rivalHolding, rivalIncomingBytes) => {
-                rivalObservations.push({
-                  holding: { plans: rivalHolding.plans, bytes: rivalHolding.bytes },
-                  incomingBytes: rivalIncomingBytes,
-                });
-                return Promise.resolve(
-                  rivalHolding.plans + 1 > 2
-                    ? ({ limit: 'plan_count', asked: 3, allowed: 2 } as const)
-                    : null,
-                );
-              },
-            )
-          : undefined;
-      return Promise.resolve(null);
-    });
-  } catch (failure) {
-    primaryFailure = failure;
-  }
-  let rivalOutcome: unknown;
-  let rivalFailure: unknown;
-  if (rivalAttempt.promise !== undefined) {
-    try {
-      rivalOutcome = await rivalAttempt.promise;
-    } catch (failure) {
-      rivalFailure = failure;
-    }
-  }
-  if (primaryFailure !== undefined && rivalFailure !== undefined)
-    throw new AggregateError(
-      [primaryFailure, rivalFailure],
-      'quota primary and rival both failed',
-      { cause: primaryFailure },
+    const primaryOutcome = await fixture.port.write(
+      structuredClone(last),
+      (holding, incomingBytes) => {
+        primaryObservations.push({
+          holding: { plans: holding.plans, bytes: holding.bytes },
+          incomingBytes,
+        });
+        const rivalPromise =
+          fixture.scenario.kind === 'competing-history-write'
+            ? fixture.scenario.rivalWriter.write(
+                structuredClone(rival),
+                (rivalHolding, rivalIncomingBytes) => {
+                  rivalObservations.push({
+                    holding: { plans: rivalHolding.plans, bytes: rivalHolding.bytes },
+                    incomingBytes: rivalIncomingBytes,
+                  });
+                  return Promise.resolve(
+                    rivalHolding.plans + 1 > 2
+                      ? ({ limit: 'plan_count', asked: 3, allowed: 2 } as const)
+                      : null,
+                  );
+                },
+              )
+            : undefined;
+        rivalAttempt.settlement =
+          rivalPromise === undefined ? undefined : ownSettlement(rivalPromise);
+        return Promise.resolve(null);
+      },
     );
-  if (primaryFailure !== undefined)
-    throw primaryFailure instanceof Error
-      ? primaryFailure
-      : new Error(failureMessage(primaryFailure));
-  if (rivalFailure !== undefined)
-    throw rivalFailure instanceof Error ? rivalFailure : new Error(failureMessage(rivalFailure));
-  if (rivalAttempt.promise === undefined)
+    primarySettlement = { status: 'fulfilled', value: primaryOutcome };
+  } catch (failure) {
+    primarySettlement = { status: 'rejected', reason: failure };
+  }
+  const rivalSettlement =
+    rivalAttempt.settlement === undefined ? undefined : await rivalAttempt.settlement;
+  if (primarySettlement.status === 'rejected' && rivalSettlement?.status === 'rejected')
+    throw new AggregateError(
+      [primarySettlement.reason, rivalSettlement.reason],
+      'quota primary and rival both failed',
+      { cause: primarySettlement.reason },
+    );
+  if (primarySettlement.status === 'rejected') throw primarySettlement.reason;
+  if (rivalSettlement?.status === 'rejected') throw rivalSettlement.reason;
+  if (rivalSettlement === undefined)
     throw new Error('quota rival was not issued inside the check callback');
+  const primaryOutcome = primarySettlement.value;
+  const rivalOutcome = rivalSettlement.value;
   const expectedMechanism =
     fixture.scenario.expectedRival === 'quota-refused'
       ? {
@@ -388,6 +396,16 @@ async function assertLateBodyFailure(fixture: CaseFixture<SavedPlanStore>) {
     { bytes: 'late-input-🔧', sha256: LATE_INPUT_HASH },
     { bytes: 'late-schedule-📆', sha256: LATE_SCHEDULE_HASH },
   );
+  const expectedTarget = expectedQuotaPlan(
+    'late-target',
+    'project-a',
+    'Late target',
+    522,
+    'late-input-🔧',
+    15,
+    LATE_INPUT_HASH,
+    { bytes: 'late-schedule-📆', byteCount: 18, sha256: LATE_SCHEDULE_HASH },
+  );
   const observations: { holding: SavedPlanHoldingRow; incomingBytes: number }[] = [];
   fixture.scenario.arm();
   let rejected = false;
@@ -415,9 +433,10 @@ async function assertLateBodyFailure(fixture: CaseFixture<SavedPlanStore>) {
     rejected: true,
     reached: true,
     evidence: {
-      savedPlanId: 'late-target',
-      savedPlanHeaderPresent: true,
-      savedPlanBodyKinds: ['input'],
+      savedPlan: {
+        header: expectedTarget.header,
+        bodies: { input: 'late-input-🔧', schedule: null },
+      },
     },
     state: expectedQuotaState(
       fixture,

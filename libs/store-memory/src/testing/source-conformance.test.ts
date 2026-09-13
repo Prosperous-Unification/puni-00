@@ -114,7 +114,8 @@ function openConformanceMemorySource(): MemorySource {
       plan: SavedPlanWrite,
       check: SavedPlanCheck<Refusal>,
       includeInput: boolean,
-    ) => fixture.writeSavedPlanSplit(plan, check, includeInput),
+      observeBoundary?: (stored: StoredSavedPlan) => void,
+    ) => fixture.writeSavedPlanSplit(plan, check, includeInput, observeBoundary),
   };
   return { ...source, journal: transactionalJournal(source as MemorySource) };
 }
@@ -485,7 +486,8 @@ function memoryLateSource(
       plan: SavedPlanWrite,
       check: SavedPlanCheck<Refusal>,
       includeInput: boolean,
-    ) => fixture.writeSavedPlanSplit(plan, check, includeInput),
+      observeBoundary?: (stored: StoredSavedPlan) => void,
+    ) => fixture.writeSavedPlanSplit(plan, check, includeInput, observeBoundary),
     journal: transactionalJournal(fixture.source as MemorySource),
   };
 }
@@ -2766,6 +2768,85 @@ async function assertTask62FaultState(source: MemorySource, plans: readonly Stor
   });
 }
 
+function expectedTask62PublicState(
+  ids: readonly string[],
+  plans: readonly StoredSavedPlan[],
+): SavedPlanPublicState {
+  return {
+    reads: ids.map((id) => plans.find(({ header }) => header.id === id) ?? null),
+    lists: ['project-a', 'project-b'].map((projectId) =>
+      plans
+        .filter(({ header }) => header.projectId === projectId)
+        .map(({ header }) => header)
+        .toSorted((a, b) => b.createdAt - a.createdAt),
+    ),
+    principals: ids.map((id) => {
+      const plan = plans.find(({ header }) => header.id === id);
+      return plan === undefined
+        ? null
+        : {
+            savedPlanId: id,
+            projectId: plan.header.projectId,
+            projectOwnerId: plan.header.projectId === 'project-a' ? 'owner-a' : 'owner-b',
+            createdById: plan.header.createdById,
+          };
+    }),
+  };
+}
+
+function expectedPrematureTask62States(): SavedPlanPublicState[] {
+  const other = task62OtherPlan();
+  return [
+    expectedTask62PublicState(
+      ['quota-refused', 'quota-held', 'saved-other-project'],
+      [
+        expectedTask62Plan(
+          'quota-held',
+          'Quota held',
+          501,
+          'held-🔒',
+          9,
+          'bf34514df96c59c2de5d80148fbe17a5b9242635ca3ecc7aa38e23842f478355',
+          {
+            body: 'é',
+            bytes: 2,
+            sha256: '4a99557e4033c3539de2eb65472017cad5f9557f7a0625a09f1c3f6e2ba69c4c',
+          },
+        ),
+        other,
+      ],
+    ),
+    expectedTask62PublicState(
+      ['quota-window-last', 'quota-window-held', 'quota-window-rival', 'saved-other-project'],
+      [
+        expectedTask62Plan(
+          'quota-window-held',
+          'Quota window held',
+          511,
+          'held-🔒',
+          9,
+          'bf34514df96c59c2de5d80148fbe17a5b9242635ca3ecc7aa38e23842f478355',
+        ),
+        other,
+      ],
+    ),
+    expectedTask62PublicState(
+      ['late-target', 'late-sentinel', 'saved-other-project'],
+      [
+        expectedTask62Plan(
+          'late-sentinel',
+          'Late sentinel',
+          521,
+          'held-🔒',
+          9,
+          'bf34514df96c59c2de5d80148fbe17a5b9242635ca3ecc7aa38e23842f478355',
+        ),
+        other,
+      ],
+    ),
+  ];
+}
+
 const savedPlanPersistedRefusalFault = defineFault({
   id: 'break:savedPlans.write:quota-refusal',
   caseId: 'savedPlans.write:quota-refusal',
@@ -2941,15 +3022,22 @@ const savedPlanMissingInputFault = defineFault({
   caseId: 'savedPlans.write:late-body-failure',
   createControl: () => createFaultControl('saved-plan:late-body:missing-input'),
   mutate(source: MemorySource) {
-    return withSavedPlans(
-      source,
-      replaceSavedPlanWrite(
-        source.history.savedPlans,
-        (write) => (plan, check) =>
-          plan.id === 'late-target'
-            ? source.writeSavedPlanSplit(plan, check, false)
-            : write(plan, check),
+    return observeTask62Write(
+      withSavedPlans(
+        source,
+        replaceSavedPlanWrite(
+          source.history.savedPlans,
+          (write) => (plan, check) =>
+            plan.id === 'late-target'
+              ? source.writeSavedPlanSplit(plan, check, false, (stored) => {
+                  memoryMissingInputProbe.boundary = stored;
+                })
+              : write(plan, check),
+        ),
       ),
+      memoryMissingInputProbe,
+      'late-target',
+      ['late-target', 'late-sentinel', 'saved-other-project'],
     );
   },
 });
@@ -2999,6 +3087,7 @@ function prematureTask62Source(source: MemorySource, probe: SavedPlanPhaseProbe,
   const owned = {
     ...source,
     async close() {
+      probe.state = await readSavedPlanPublicState(source, task62ProbeIds(targetId));
       probe.closeCalls += 1;
       await source.close();
     },
@@ -3009,6 +3098,46 @@ function prematureTask62Source(source: MemorySource, probe: SavedPlanPhaseProbe,
       if (plan.id !== targetId) return write(plan, check);
       probe.attempts += 1;
       throw new Error(`injected failure before ${targetId} phase`);
+    }),
+  );
+}
+
+function task62ProbeIds(targetId: string): readonly string[] {
+  if (targetId === 'quota-refused') return [targetId, 'quota-held', 'saved-other-project'];
+  if (targetId === 'quota-window-last')
+    return [targetId, 'quota-window-held', 'quota-window-rival', 'saved-other-project'];
+  return [targetId, 'late-sentinel', 'saved-other-project'];
+}
+
+function observeTask62Write(
+  source: MemorySource,
+  probe: SavedPlanPhaseProbe,
+  targetId: string,
+  ids: readonly string[],
+): MemorySource {
+  const owned = {
+    ...source,
+    async close() {
+      probe.state = await readSavedPlanPublicState(source, ids);
+      probe.closeCalls += 1;
+      await source.close();
+    },
+  };
+  return withSavedPlans(
+    owned,
+    replaceSavedPlanWrite(source.history.savedPlans, (write) => (plan, check) => {
+      if (plan.id !== targetId) return write(plan, check);
+      probe.attempts += 1;
+      return write(plan, async (holding, incomingBytes) => {
+        probe.observations?.push({
+          holding: { plans: holding.plans, bytes: holding.bytes },
+          incomingBytes,
+        });
+        return check(holding, incomingBytes);
+      }).catch((failure: unknown) => {
+        probe.failure = failure;
+        throw failure;
+      });
     }),
   );
 }
@@ -3042,6 +3171,7 @@ const memoryPrematureProbes: SavedPlanPhaseProbe[] = Array.from({ length: 3 }, (
   closeCalls: 0,
   state: null,
 }));
+const memoryMissingInputProbe: SavedPlanPhaseProbe = { attempts: 0, closeCalls: 0, state: null };
 
 const savedPlanRefusalNoReachFault = defineFault({
   id: 'break:savedPlans.write:quota-refusal',
@@ -3079,6 +3209,9 @@ interface SavedPlanPhaseProbe {
   attempts: number;
   closeCalls: number;
   state: SavedPlanPublicState | null;
+  boundary?: StoredSavedPlan | null;
+  observations?: { readonly holding: SavedPlanHoldingRow; readonly incomingBytes: number }[];
+  failure?: unknown;
 }
 
 interface SavedPlanPublicState {
@@ -4450,6 +4583,8 @@ describe('memory existing source conformance', () => {
     // snapshot with the escaped `subtree-copy-root` record after the terminal throw.
     expect(Bun.stripANSI(proof.observedFailure)).toContain(`+         "deadline": "2026-09-30",
 +         "externalRefs": [],
++         "factEnd": null,
++         "factStart": null,
 +         "frozenNumber": "030",
 +         "id": "subtree-copy-root",
 +         "maxParallel": 2,
@@ -4945,6 +5080,8 @@ describe('memory existing source conformance', () => {
     startNoEarlierThan: null,
     startNoEarlierThanReason: null,
     deadline: null,
+    factStart: null,
+    factEnd: null,
     priority: null,
     serviceTeamId: "team-a",
     serviceId: null,
@@ -5580,18 +5717,93 @@ describe('memory existing source conformance', () => {
       proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
     );
     expect(failures[0]).toContain('+           "id": "quota-refused",');
-    expect(failures[1]).toContain('"outcome": "written"');
-    expect(failures[1]).toContain('"id": "quota-window-rival"');
+    expect(failures[1]).toContain(`    "rivalOutcome": {
+-     "outcome": "refused",
+-     "refusal": {
+-       "allowed": 2,
+-       "asked": 3,
+-       "limit": "plan_count",
+-     },
++     "outcome": "written",
+    },`);
+    expect(failures[1]).toContain(`+       {
++         "bodies": {
++           "input": "rival-🚫",
++           "schedule": null,
++         },
++         "header": {
++           "createdAt": 513,
++           "createdBy": "Quota Writer",
++           "createdById": "owner-b",
++           "id": "quota-window-rival",
++           "inputBytes": 10,
++           "inputSchemaVersion": 11,
++           "inputSha256": "a2587844f6a3f32d7fa53ae64c1109cf97b7dfa12912a794afca9d56ad317b70",
++           "name": "Quota window rival",
++           "projectId": "project-a",
++           "scheduleAbsentReason": "pending",
++           "scheduleBytes": null,
++           "scheduleInputSha256": null,
++           "scheduleSchemaVersion": null,
++           "scheduleSha256": null,
++           "schedulerAlgorithmId": null,
++         },
++       },`);
     expect(failures[2]).toContain('+           "input": "late-input-🔧",');
     expect(failures[2]).toContain('+           "schedule": null,');
   });
 
   it('rejects missing real memory input persistence before the late boundary', async () => {
+    Object.assign(memoryMissingInputProbe, {
+      attempts: 0,
+      closeCalls: 0,
+      state: null,
+      boundary: null,
+      observations: [],
+      failure: null,
+    });
     const proof = await proveFault(savedPlanMissingInputFault);
     expect(proof.kind).toBe('phase-failed');
     if (proof.kind !== 'phase-failed') throw new Error('missing-input late fault reached');
     // Proof: omitting the real input slot stops before the adapter phase can reach.
     expect(proof.failure).toContain('fault did not reach saved-plan:late-body:missing-input');
+    const target = expectedTask62Plan(
+      'late-target',
+      'Late target',
+      522,
+      'late-input-🔧',
+      15,
+      '9dffefcc444c719ff14991008d275645a34f081c07aa54fd1fb39f51488b4df4',
+      {
+        body: 'late-schedule-📆',
+        bytes: 18,
+        sha256: '67f1fdbc1d60444b0f4a7e14af440a54c9be6cb9004c37a71db3a6c70745d160',
+      },
+    );
+    expect(memoryMissingInputProbe).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      boundary: { ...target, bodies: { input: null, schedule: null } },
+      observations: [{ holding: { plans: 1, bytes: 9 }, incomingBytes: 33 }],
+      failure: expect.objectContaining({
+        message: 'saved-plan schedule boundary lacks complete header and input',
+      }),
+      state: expectedTask62PublicState(
+        ['late-target', 'late-sentinel', 'saved-other-project'],
+        [
+          { ...target, bodies: { input: null, schedule: null } },
+          expectedTask62Plan(
+            'late-sentinel',
+            'Late sentinel',
+            521,
+            'held-🔒',
+            9,
+            'bf34514df96c59c2de5d80148fbe17a5b9242635ca3ecc7aa38e23842f478355',
+          ),
+          task62OtherPlan(),
+        ],
+      ),
+    });
   });
 
   it('rejects Task 6.2 memory proofs when each mutation is removed', async () => {
@@ -5635,6 +5847,11 @@ describe('memory existing source conformance', () => {
       { attempts: 1, closeCalls: 1 },
       { attempts: 1, closeCalls: 1 },
     ]);
+    // Proof: replacing any target with a prewrite throw now records the complete
+    // independently read A/B state and cannot masquerade as the intended phase.
+    expect(memoryPrematureProbes.map(({ state }) => state)).toEqual(
+      expectedPrematureTask62States(),
+    );
   });
 
   it('rejects Task 6.2 memory mutations when their proof reach is removed', async () => {
@@ -5691,6 +5908,58 @@ describe('memory existing source conformance', () => {
     // Proof: the real callback received -777 and repaired the same object afterward;
     // the shared snapshot retained -777 and failed beside complete settled state.
     expect(Bun.stripANSI(failure.failure)).toContain('+         "bytes": -777,');
+    expect(closeCalls).toBe(1);
+  });
+
+  it('rejects an in-place late target mutation against the detached memory request', async () => {
+    let closeCalls = 0;
+    let finalReads: readonly (StoredSavedPlan | null)[] = [];
+    const report = await runCases(
+      existingStoreRegistrations({
+        ...openers,
+        savedPlans: async (caseId) => {
+          const fixture = await openMemorySavedPlanCase(caseId);
+          const port = replaceSavedPlanWrite(
+            fixture.port,
+            (write) => (plan, check) =>
+              write(plan, async (holding, incomingBytes) => {
+                const refusal = await check(holding, incomingBytes);
+                if (plan.id === 'late-target') {
+                  Object.assign(plan, { name: 'CORRUPTED TARGET', createdBy: 'CORRUPTED DISPLAY' });
+                  Object.assign(plan.input, { bytes: 'WRONG INPUT', sha256: 'WRONG HASH' });
+                }
+                return refusal;
+              }),
+          );
+          return {
+            ...fixture,
+            port,
+            async close() {
+              finalReads = await Promise.all(
+                ['late-target', 'late-sentinel', 'saved-other-project'].map((id) =>
+                  fixture.readers.savedPlans.readOf(id),
+                ),
+              );
+              closeCalls += 1;
+              await fixture.close();
+            },
+          };
+        },
+      }),
+      { focus: ['savedPlans.write:late-body-failure'] },
+    );
+
+    const execution = report.cases[0];
+    expect(execution.status).toBe('failed');
+    if (execution.status !== 'failed') throw new Error('mutated late memory request passed');
+    // Proof: mutating the real request after its callback used to reach and certify the
+    // corrupted record; the detached boundary now refuses it and rolls the target back.
+    expect(Bun.stripANSI(execution.failure)).toContain('+   "reached": false,');
+    expect(finalReads[0]).toBeNull();
+    expect(finalReads.slice(1).map((stored) => stored?.header.id)).toEqual([
+      'late-sentinel',
+      'saved-other-project',
+    ]);
     expect(closeCalls).toBe(1);
   });
 

@@ -388,6 +388,7 @@ export interface MemorySourceFixture {
     plan: SavedPlanWrite,
     check: (holding: SavedPlanHoldingRow, incomingBytes: number) => Promise<Refusal | null>,
     includeInput: boolean,
+    observeBoundary?: (stored: StoredSavedPlan) => void,
   ): Promise<never>;
 }
 
@@ -415,8 +416,9 @@ export function openMemorySourceWithLateWriteSeam(
   const stores = coordinatedStores(bindStores(committed, lateWrite), coordinator);
 
   return {
-    writeSavedPlanSplit: (plan, check, includeInput) =>
-      historyCoordinator.run(async () => {
+    writeSavedPlanSplit: (plan, check, includeInput, observeBoundary) => {
+      const expectedPlan = structuredClone(plan);
+      return historyCoordinator.run(async () => {
         const rows = [...historyState.plans.values()].filter(
           (stored) => stored.header.projectId === plan.projectId,
         );
@@ -439,16 +441,16 @@ export function openMemorySourceWithLateWriteSeam(
           bodies: { input: includeInput ? plan.input.bytes : null, schedule: null },
         });
         const partial = historyState.plans.get(plan.id);
-        assertSavedPlanScheduleBoundary(plan, partial);
+        if (partial !== undefined) observeBoundary?.(structuredClone(partial));
+        assertSavedPlanScheduleBoundary(expectedPlan, partial);
         if (partial.bodies.schedule !== null)
           throw new Error('split saved-plan fault persisted schedule too early');
         lateWrite.reach('saved-plan-schedule-body', {
-          savedPlanId: plan.id,
-          savedPlanHeaderPresent: partial.header.id === plan.id,
-          savedPlanBodyKinds: partial.bodies.input === plan.input.bytes ? ['input'] : [],
+          savedPlan: structuredClone(partial),
         });
         throw new Error('split saved-plan fault control did not reject');
-      }),
+      });
+    },
     setSavedPlanByteCounts(savedPlanId, inputBytes, scheduleBytes) {
       const stored = historyState.plans.get(savedPlanId);
       // Proof: removing this guard made the regression fail later with
@@ -598,8 +600,9 @@ function memorySavedPlans(
   lateWrite: MemoryLateWriteSeam,
 ): SavedPlanStore {
   return {
-    write: (plan, check) =>
-      writeTurn(async () => {
+    write: (plan, check) => {
+      const expectedPlan = structuredClone(plan);
+      return writeTurn(async () => {
         const rows = [...state.plans.values()].filter(
           (stored) => stored.header.projectId === plan.projectId,
         );
@@ -628,12 +631,9 @@ function memorySavedPlans(
         staged.set(plan.id, pending);
         if (plan.schedule.present) {
           if (lateWrite.isActive?.('saved-plan-schedule-body') === true) {
-            assertSavedPlanScheduleBoundary(plan, pending);
+            assertSavedPlanScheduleBoundary(expectedPlan, pending);
             lateWrite.reach('saved-plan-schedule-body', {
-              savedPlanId: plan.id,
-              savedPlanHeaderPresent:
-                JSON.stringify(pending.header) === JSON.stringify(savedPlanRow(plan)),
-              savedPlanBodyKinds: pending.bodies.input === plan.input.bytes ? ['input'] : [],
+              savedPlan: structuredClone(pending),
             });
           } else lateWrite.reach('saved-plan-schedule-body');
           staged.set(plan.id, {
@@ -643,7 +643,8 @@ function memorySavedPlans(
         }
         replaceMap(state.plans, staged);
         return { outcome: 'written' };
-      }),
+      });
+    },
     readOf(savedPlanId) {
       const found = state.plans.get(savedPlanId);
       return Promise.resolve(found === undefined ? null : structuredClone(found));

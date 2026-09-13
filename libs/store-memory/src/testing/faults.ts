@@ -19,10 +19,7 @@ export interface MemoryLateWriteControl<Phase extends MemoryLateWritePoint> {
   reached(): boolean;
   observedJournalEventIds(): readonly string[];
   observedSatelliteKeys(): readonly string[];
-  observedSavedPlan(): Pick<
-    MemoryLateWriteEvidence,
-    'savedPlanId' | 'savedPlanHeaderPresent' | 'savedPlanBodyKinds'
-  >;
+  observedSavedPlan(): Pick<MemoryLateWriteEvidence, 'savedPlan'>;
   reachStagedWrite(phase: MemoryLateWritePoint, evidence?: MemoryLateWriteEvidence): boolean;
 }
 
@@ -62,9 +59,7 @@ export function memoryLateWriteControl<const Phase extends MemoryLateWritePoint>
     observedJournalEventIds: () => evidence.journalEventIds ?? [],
     observedSatelliteKeys: () => evidence.satelliteKeys ?? [],
     observedSavedPlan: () => ({
-      savedPlanId: evidence.savedPlanId,
-      savedPlanHeaderPresent: evidence.savedPlanHeaderPresent,
-      savedPlanBodyKinds: evidence.savedPlanBodyKinds,
+      savedPlan: evidence.savedPlan,
     }),
     reachStagedWrite: reach,
   };

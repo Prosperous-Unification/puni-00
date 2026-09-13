@@ -1,6 +1,7 @@
 import type {
   HistoryStores,
   SavedPlanStore,
+  StoredSavedPlan,
   Stores,
   TransactionalStores,
   WriteStamp,
@@ -91,9 +92,7 @@ export interface PhaseBarrier {
 }
 
 export interface LateWriteEvidence {
-  readonly savedPlanId?: string;
-  readonly savedPlanHeaderPresent?: boolean;
-  readonly savedPlanBodyKinds?: readonly ('input' | 'schedule')[];
+  readonly savedPlan?: StoredSavedPlan;
 }
 
 export type ScenarioControl =
