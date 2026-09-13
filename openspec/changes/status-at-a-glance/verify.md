@@ -16,9 +16,10 @@ browser's UTC day and the host's day differed); CI is the gate — `bin/h2puni-g
   fill-and-overwrite variant of `setStatus`.
 - **Only the Status cell's act clears the fact end.** A per-step statement that drops a row
   from done to in progress leaves the facts alone; only a done row draws its fact end.
-- **The word is the cell's `title`, not part of its accessible name.** `jsx-a11y` refuses
-  `aria-description` on a combobox, and `Status of 010` is the handle every walk, hint and
-  browser proof finds the cell by.
+- **The word is in the cell's fact card, not in its accessible name and not a `title`.**
+  `jsx-a11y` refuses `aria-description` on a combobox, a `title` drew the browser's grey
+  tooltip beside the fact card (removed 2026-09-13 on Dany's screenshot), and `Status of 010`
+  is the handle every walk, hint and browser proof finds the cell by.
 - **A deleted row under an open prompt** is the `refsEditing` pattern (`?? null` → no
   surface) and is not separately tested.
 
@@ -70,3 +71,19 @@ Two false negatives on the way, recorded so the next proof does not repeat them:
 hidden the same scene passed with the write deleted (the Name cell did not cover the line), and
 with Links shown but only the **last** line sampled it passed again (that line hangs below the
 final row with nothing under it). `E2E_PORT_SHIFT=1900 … status.spec.ts`: 2 passed after the fix.
+
+## Follow-up, 2026-09-13: the hint and the list
+
+Dany: "(1) when i click the status to select new value i want dropdown to remove the hint pop-up
+(2) hint pop-up must show the full name of the status or even write status: unknown". The fact
+words now begin `Status: <word>.`; the hint layer re-reads the attended mark after a `click` or
+`keyup` (in a microtask, after React committed) and closes its card when the mark reads
+`aria-expanded="true"`. The press path is untouched — a fact's card still survives a press that
+opens nothing.
+
+| Check                                     | Fault injected                                             | Test that observed it                                                                                        | Observed                                                 |
+| ----------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| an opened list takes the mark's card down | the `click`/`keyup` listeners for `reconsidered` not added | hint › `closes the fact card the moment the list opens…`, `closes it for a keyboard that opens the list too` | `expected <div role="tooltip" …> to be null`, both cases |
+
+`bunx vitest run hint.test.tsx plan-cells.test.tsx plan-cards.test.tsx`: 278 passed. fe-01 lint
+and typecheck green; `bunx nx format:check --all` exit 0.

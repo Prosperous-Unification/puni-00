@@ -17,8 +17,10 @@ export const STATUS_LABEL: Readonly<Record<WorkItemStatus, string>> = {
  * An empty ring, a half ring and a tick: the first two are one shape filling
  * up, the third is the one mark every reader takes for finished. Glyphs and
  * not an icon set because the table draws with text everywhere else (`⠿`, `✕`)
- * and 28px holds one character. The word stays in the cell's `title` and on
- * the picker's lines.
+ * and 28px holds one character. The word is said by the fact card and on the
+ * picker's lines. No `title`: the browser drew its grey tooltip beside the
+ * fact card, two boxes for one word (Dany, 2026-09-13: "remove the system grey
+ * hint"), and a combobox takes no `aria-description` per `jsx-a11y`.
  */
 export const STATUS_GLYPH: Readonly<Record<WorkItemStatus, string>> = {
   unknown: '○',
@@ -33,12 +35,18 @@ const STATUS_COLOR: Readonly<Record<WorkItemStatus, string>> = {
   done: 'var(--status-done)',
 };
 
-/** What each status says about the row, for the cell's project fact. */
+/**
+ * What each status says about the row, for the cell's project fact.
+ *
+ * The status word comes first, because the cell itself is a glyph: `○ ◐ ✓`
+ * is legible once learnt, and the card is where a reader learns it. Dany,
+ * 2026-09-13: "hint pop-up must show the full name of the status or even write
+ * status: unknown".
+ */
 const STATUS_WORDS: Readonly<Record<WorkItemStatus, string>> = {
-  unknown: 'Nobody has said where this work has got to.',
-  in_progress:
-    'Its steps disagree — one has finished, or one has said nothing — so the row is part-way through. Set it per step, or choose Done for all of it.',
-  done: 'Every step of this work item says finished. The chart draws it over its fact span, the row is tinted, and its name is struck through.',
+  unknown: `Status: ${STATUS_LABEL.unknown}. Nobody has said where this work has got to.`,
+  in_progress: `Status: ${STATUS_LABEL.in_progress}. Its steps disagree — one has finished, or one has said nothing — so the row is part-way through. Set it per step, or choose Done for all of it.`,
+  done: `Status: ${STATUS_LABEL.done}. Every step of this work item says finished. The chart draws it over its fact span, the row is tinted, and its name is struck through.`,
 };
 
 export interface StatusCellProps {
@@ -59,9 +67,8 @@ export interface StatusCellProps {
 /**
  * The Status cell: the row's status as one glyph, and a two-line list to set it.
  *
- * The glyph is the box's `value`; the word is its `title` (a combobox takes no
- * `aria-description`, per `jsx-a11y`), and the row is its `aria-label`
- * (`Status of 010`) — the
+ * The glyph is the box's `value`; the word is said by its fact card —
+ * `Status: Unknown. …` — and the row is its `aria-label` (`Status of 010`) — the
  * handle every keyboard walk, browser proof and hint already finds the cell by,
  * kept stable when the cell stopped reading a word (`status-at-a-glance` D4).
  * `data-status-value` carries the status itself for anything that has to
@@ -116,7 +123,6 @@ export function StatusCell({
     >
       <input
         aria-label={`Status of ${rowNumber}`}
-        title={STATUS_LABEL[status]}
         role="combobox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}

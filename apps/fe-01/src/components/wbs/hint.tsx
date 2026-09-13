@@ -563,6 +563,38 @@ export function HintLayer(): React.JSX.Element {
     const escaped = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') clear();
     };
+    /**
+     * The mark being attended has just opened a list of its own: its card
+     * comes down.
+     *
+     * The Status cell's glyph carries a fact — `Status: Unknown. …` — and is a
+     * combobox whose list opens on a click or Enter; left alone, the list and
+     * the card stood one over the other, the card saying the word the list was
+     * offering. Dany, 2026-09-13: _"when i click the status to select new value
+     * i want dropdown to remove the hint pop-up"_. The press path above cannot
+     * do it — it deliberately leaves a fact's card alone, because a press on
+     * most facts opens nothing — so this reads the **outcome** instead: after
+     * the click or the key has been handled, is the mark expanded? Read on
+     * `click` and `keyup` rather than on the press, and in a microtask, so
+     * React has committed the `aria-expanded` the handler set. Any combobox
+     * mark gets this, the priority cell's included, and a mark that opens
+     * nothing is untouched — `aria-expanded` is the one signal, and a control
+     * that lacks it or leaves it `false` keeps its card.
+     *
+     * `clear()` rather than `stopWaiting()`: this is a card to close, and the
+     * mark is forgotten with it, so the list's own lines — outside the mark —
+     * open nothing as the hand moves down them. {@link pressedAt} stands, so
+     * the redraw the opening causes under a still cursor is not read as the
+     * reader moving.
+     */
+    const reconsidered = (): void => {
+      queueMicrotask(() => {
+        const mark = attending;
+        if (mark === null) return;
+        if (mark.closest('[aria-expanded]')?.getAttribute('aria-expanded') !== 'true') return;
+        clear();
+      });
+    };
 
     document.addEventListener('pointerover', pointed);
     document.addEventListener('pointerdown', pressed);
@@ -570,6 +602,8 @@ export function HintLayer(): React.JSX.Element {
     document.addEventListener('focusin', focused);
     document.addEventListener('focusout', blurred);
     document.addEventListener('keydown', escaped);
+    document.addEventListener('click', reconsidered);
+    document.addEventListener('keyup', reconsidered);
     // Capture, because the scroll that matters is the table frame's and a
     // scroll event does not bubble. See {@link settled} for why this is not
     // `left`.
@@ -582,6 +616,8 @@ export function HintLayer(): React.JSX.Element {
       document.removeEventListener('focusin', focused);
       document.removeEventListener('focusout', blurred);
       document.removeEventListener('keydown', escaped);
+      document.removeEventListener('click', reconsidered);
+      document.removeEventListener('keyup', reconsidered);
       document.removeEventListener('scroll', settled, true);
       window.removeEventListener('resize', settled);
       // The wait outlives the listeners otherwise: a timer already scheduled
