@@ -3502,6 +3502,31 @@ describe('the status cell and the two fact cells', () => {
     expect(row()?.getAttribute('data-row-done')).toBe('true');
   });
 
+  itDom('lifts the pinned Status cell over the rows below while its list is open', async () => {
+    await planWithStatusColumns();
+    const cell = (): HTMLTableCellElement => {
+      const found = statusCell('010').closest('td');
+      if (found === null) throw new Error('the Status cell is not in a <td>');
+      return found;
+    };
+    // Pinned since `status-at-a-glance`: sticky with a z-index, so a stacking
+    // context — and a list inside one is painted over by the next row's
+    // pinned cells unless the cell is lifted while the list is open. Dany,
+    // 2026-09-13: "i cannot see the status dropdown". The seeded browser proof
+    // had one row and nothing below to cover it.
+    expect(cell().style.zIndex).toBe('1');
+
+    fireEvent.click(statusCell('010'));
+    expect(statusList('010')).toBeInTheDocument();
+    // Proof: the `onOpenChange` write into the card store dropped, and this
+    // fails on `expected 1 to be 2`; watched 2026-09-13.
+    expect(Number(cell().style.zIndex)).toBe(POPOVER_ROW_LAYER);
+
+    fireEvent.keyDown(statusCell('010'), { key: 'Escape' });
+    expect(screen.queryByRole('listbox', { name: 'Status for 010' })).toBeNull();
+    expect(cell().style.zIndex).toBe('1');
+  });
+
   itDom(
     'choosing Done opens the completion prompt and sends nothing until it is confirmed',
     async () => {

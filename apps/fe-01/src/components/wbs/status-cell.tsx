@@ -1,5 +1,5 @@
 import { SETTABLE_STATUSES, type SettableStatus, type WorkItemStatus } from '@wbs/domain/progress';
-import { type KeyboardEvent, useState } from 'react';
+import { type KeyboardEvent, useEffect, useState } from 'react';
 
 import { STATUS_HINT } from './column-hints';
 import { PickerList } from './creatable-picker';
@@ -48,6 +48,12 @@ export interface StatusCellProps {
   status: WorkItemStatus;
   choose: (status: SettableStatus) => void;
   onGridKey: (event: KeyboardEvent<HTMLInputElement>) => void;
+  /**
+   * The list opened or closed. The column writes this into the cell-card
+   * store so {@link PlanCell} lifts the pinned `<td>` while the list is on
+   * screen — see the class note.
+   */
+  onOpenChange: (open: boolean) => void;
 }
 
 /**
@@ -60,6 +66,21 @@ export interface StatusCellProps {
  * kept stable when the cell stopped reading a word (`status-at-a-glance` D4).
  * `data-status-value` carries the status itself for anything that has to
  * assert on it rather than read a glyph.
+ *
+ * **The list has to be lifted out of the pinned layer.** This cell is pinned
+ * since `status-at-a-glance`, and a pinned cell is sticky *with a z-index*,
+ * which makes it a stacking context: the list's own `zIndex: 15` counts only
+ * inside the cell, and the next row's pinned cells — later in the DOM, at the
+ * same layer — paint over it. The Name and Links cards have the same problem
+ * and the same answer: the cell says its card is open through the cell-card
+ * store and `PlanCell` raises the `<td>` to `POPOVER_ROW_LAYER`. This list is
+ * opened by a click rather than a hover, so it reports through
+ * {@link StatusCellProps.onOpenChange} and the column writes the store's
+ * **keyboard** reading — the list is only ever open while the box holds the
+ * focus (the wrapper's `onBlur` closes it), so that is the truthful one.
+ * Dany, 2026-09-13: "i cannot see the status dropdown when i try to change
+ * the status" — the browser proof that passed had one row, so nothing sat
+ * below the list to cover it.
  *
  * The priority cell's shape without its typing: there is nothing to type here,
  * so the box is a closed combobox that opens its list on a click or a plain
@@ -79,8 +100,12 @@ export function StatusCell({
   status,
   choose,
   onGridKey,
+  onOpenChange,
 }: StatusCellProps) {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    onOpenChange(open);
+  }, [onOpenChange, open]);
   const listId = `status-options-${rowId}`;
   return (
     <span

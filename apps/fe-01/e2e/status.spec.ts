@@ -99,6 +99,53 @@ async function boxOf(mark: Locator, name: string): Promise<{ left: number; right
   return { left: box.x, right: box.x + box.width };
 }
 
+test.describe('the Status list, in a browser', () => {
+  test('opens over the rows below it, not under them', async ({ page }) => {
+    // The Status cell is pinned since `status-at-a-glance`, so it is a
+    // stacking context, and the next row's pinned cells paint over anything
+    // hanging off it unless the cell is lifted while its list is open. The
+    // proof above has one row and could not see this; Dany could
+    // (2026-09-13: "i cannot see the status dropdown"). Two rows, and the
+    // browser is asked what is really under the pointer at the list's lines.
+    await seedALongRow(page);
+    await page.getByRole('button', { name: 'Add work item' }).click();
+    await expect(page.getByLabel('Name of 020')).toBeVisible();
+    await showColumn(page, 'Status', 'status');
+    // Links shown, as on Dany's plan: the Links cell fills its `<td>` with a
+    // button, and that button — one row down, one pin to the right — is what
+    // the list's lines were found under (`Unknown → <BUTTON Links for 030>`,
+    // read off the real plan in Chromium, 2026-09-13). With Links hidden the
+    // same scene passed with the lift deleted, so this line is what makes the
+    // negative below a check that can fail.
+    await showColumn(page, 'Links', 'refs');
+
+    await page.getByRole('combobox', { name: 'Status of 010' }).click();
+    const lines = page.getByRole('listbox', { name: 'Status for 010' }).getByRole('option');
+    await expect(lines).toHaveCount(2);
+    // Every line, and the first one is the check: it is the line that lies
+    // over the next row, where the Links button would cover it — the last line
+    // hangs below the table's final row with nothing under it, and sampled
+    // alone it passed with the lift deleted (probed 2026-09-13:
+    // `Unknown→BUTTON[Links for 020], Done→LI`).
+    for (const name of ['Unknown', 'Done']) {
+      const line = lines.filter({ hasText: name });
+      const box = await line.boundingBox();
+      if (box === null) throw new Error(`the ${name} line has no browser box`);
+      // The hand goes to the line, as a reader's does.
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      // Proof: the `onOpenChange` write into the card store dropped from
+      // `plan-columns/status.tsx`, and this fails on `Expected: "Unknown" ·
+      // Received: ""` — the element under the pointer is `Links for 020`, the
+      // next row's pinned Links button; watched in Chromium 2026-09-13.
+      const underPointer = await page.evaluate(
+        ([x, y]) => document.elementFromPoint(x, y)?.textContent ?? null,
+        [box.x + box.width / 2, box.y + box.height / 2],
+      );
+      expect(underPointer, `the ${name} line is painted over`).toBe(name);
+    }
+  });
+});
+
 test.describe('marking a row done, in a browser', () => {
   test('asks for the day, then strikes and tints the row, fills the fact end and stops the bar', async ({
     page,
