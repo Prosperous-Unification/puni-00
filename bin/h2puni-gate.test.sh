@@ -66,6 +66,18 @@ run_gate() {
     bash -c "$inner" h2puni-gate-test "$gate_lib" "$repo" "$lock" "$sha" -- "$@"
 }
 
+run_launcher_resolution() {
+  local activation_root=$1 candidate_root=$2
+  bash -c 'source "$1"; resolve_tool_wiki_launcher "$2" "$3"' \
+    h2puni-launcher-resolution "$gate_lib" "$activation_root" "$candidate_root"
+}
+
+run_modules_resolution() {
+  local activation_root=$1 candidate_root=$2 modules_input=${3:-}
+  bash -c 'source "$1"; resolve_tool_wiki_modules "$2" "$3" "$4"' \
+    h2puni-modules-resolution "$gate_lib" "$activation_root" "$candidate_root" "$modules_input"
+}
+
 scratch="${TMPDIR:-/tmp}/wbs-h2puni-gate-test.$$"
 rm -rf "$scratch"
 mkdir -p "$scratch"
@@ -243,6 +255,167 @@ if grep -q 'failed to restore pre-gate checkout' "$scratch/restore-failure"; the
   pass 'restore failure names the lost safety recovery'
 else
   fail 'restore failure did not name the lost safety recovery'
+fi
+
+# 11. Activation-package descriptors are relative to their activation root. The transport root
+# holds a preserved bootstrap launcher beside its descriptor, so resolution must not depend on the
+# candidate checkout or the caller's current directory.
+activation_root="$scratch/activation"
+candidate_root="$scratch/candidate"
+mkdir -p "$activation_root" "$candidate_root"
+printf 'tool-wiki-active-v1\n' >"$activation_root/active-v1"
+printf 'bootstrap-launcher.sh\n' >"$activation_root/launcher-path"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$activation_root/bootstrap-launcher.sh"
+chmod 0555 "$activation_root/bootstrap-launcher.sh"
+status=0
+resolved=$(cd "$candidate_root" && run_launcher_resolution "$activation_root" "$candidate_root") || status=$?
+expect_status 0 "$status" 'a relative launcher descriptor resolves from its activation root'
+expect_equal "$(realpath "$activation_root/bootstrap-launcher.sh")" "$resolved" 'launcher resolution is independent of caller cwd'
+
+# 12. Prefixing relative descriptors must retain the existing external-trust boundary: a symlink
+# back into the candidate is refused before any candidate launcher can run.
+printf '#!/usr/bin/env bash\nexit 0\n' >"$candidate_root/candidate-launcher.sh"
+ln -s "$candidate_root/candidate-launcher.sh" "$activation_root/candidate-link.sh"
+printf 'candidate-link.sh\n' >"$activation_root/launcher-path"
+status=0
+run_launcher_resolution "$activation_root" "$candidate_root" >/dev/null 2>"$scratch/launcher-refusal" || status=$?
+expect_status 78 "$status" 'a relative launcher symlink into the candidate is refused'
+if grep -q 'launcher must be outside the candidate checkout' "$scratch/launcher-refusal"; then
+  pass 'candidate-contained launcher refusal names the trust boundary'
+else
+  fail 'candidate-contained launcher refusal did not name the trust boundary'
+fi
+
+# 13. A marker is an exact activation decision, not an existence flag. A malformed marker must
+# fail before any descriptor or launcher is considered.
+printf 'not-active\n' >"$activation_root/active-v1"
+status=0
+run_launcher_resolution "$activation_root" "$candidate_root" >/dev/null 2>"$scratch/marker-refusal" || status=$?
+expect_status 78 "$status" 'a malformed activation marker is refused'
+if grep -q 'marker is missing, unreadable, or malformed' "$scratch/marker-refusal"; then
+  pass 'malformed marker refusal names the invalid activation decision'
+else
+  fail 'malformed marker refusal did not name the invalid activation decision'
+fi
+
+# 14. An unreadable descriptor cannot silently select a default launcher.
+printf 'tool-wiki-active-v1\n' >"$activation_root/active-v1"
+chmod 000 "$activation_root/launcher-path"
+status=0
+run_launcher_resolution "$activation_root" "$candidate_root" >/dev/null 2>"$scratch/descriptor-refusal" || status=$?
+expect_status 78 "$status" 'an unreadable launcher descriptor is refused'
+if grep -q 'no readable launcher descriptor' "$scratch/descriptor-refusal"; then
+  pass 'unreadable descriptor refusal names the missing authority'
+else
+  fail 'unreadable descriptor refusal did not name the missing authority'
+fi
+chmod 0644 "$activation_root/launcher-path"
+
+# 15. A descriptor naming a directory is not an executable authority artifact.
+printf '.\n' >"$activation_root/launcher-path"
+status=0
+run_launcher_resolution "$activation_root" "$candidate_root" >/dev/null 2>"$scratch/file-refusal" || status=$?
+expect_status 78 "$status" 'a launcher descriptor naming a directory is refused'
+if grep -q 'launcher is not a readable regular file' "$scratch/file-refusal"; then
+  pass 'non-file launcher refusal names the invalid artifact shape'
+else
+  fail 'non-file launcher refusal did not name the invalid artifact shape'
+fi
+
+# 16. Trust roots are external state. Even an outward-pointing launcher cannot make a root inside
+# the candidate checkout authoritative.
+candidate_activation="$candidate_root/activation"
+mkdir -p "$candidate_activation"
+printf 'tool-wiki-active-v1\n' >"$candidate_activation/active-v1"
+printf '%s\n' "$activation_root/bootstrap-launcher.sh" >"$candidate_activation/launcher-path"
+status=0
+run_launcher_resolution "$candidate_activation" "$candidate_root" >/dev/null 2>"$scratch/root-refusal" || status=$?
+expect_status 78 "$status" 'an activation root inside the candidate is refused'
+if grep -q 'activation root must be outside the candidate checkout' "$scratch/root-refusal"; then
+  pass 'candidate-contained activation root refusal names the trust boundary'
+else
+  fail 'candidate-contained activation root refusal did not name the trust boundary'
+fi
+
+# 17. The production host entrypoint must propagate resolver refusal before it takes the heavy
+# lock. A candidate-contained launcher is selected through a real external descriptor.
+host_activation="$scratch/host-activation"
+mkdir -p "$host_activation"
+printf 'tool-wiki-active-v1\n' >"$host_activation/active-v1"
+ln -s "$repo_root/bin/h2puni-gate.sh" "$host_activation/candidate-link.sh"
+printf 'candidate-link.sh\n' >"$host_activation/launcher-path"
+status=0
+TOOL_WIKI_ACTIVATION_ROOT="$host_activation" \
+  bash "$repo_root/bin/h2puni-gate.sh" HEAD >"$scratch/host-entrypoint-stdout" \
+  2>"$scratch/host-entrypoint-stderr" || status=$?
+expect_status 78 "$status" 'the host entrypoint propagates a candidate-launcher refusal'
+if grep -q 'launcher must be outside the candidate checkout' "$scratch/host-entrypoint-stderr"; then
+  pass 'the host entrypoint names the external launcher boundary'
+else
+  fail 'the host entrypoint did not name the external launcher boundary'
+fi
+if grep -q 'h2puni gate: running on' "$scratch/host-entrypoint-stderr"; then
+  fail 'the host entrypoint took the heavy gate after resolver refusal'
+else
+  pass 'the host entrypoint refuses before taking the heavy gate'
+fi
+
+# 18. Once an activation root is configured, losing its marker is a provisioning failure rather
+# than permission to silently fall back to an uncertified candidate-only gate.
+missing_marker_activation="$scratch/missing-marker-activation"
+mkdir -p "$missing_marker_activation"
+status=0
+TOOL_WIKI_ACTIVATION_ROOT="$missing_marker_activation" \
+  bash "$repo_root/bin/h2puni-gate.sh" HEAD >"$scratch/missing-marker-stdout" \
+  2>"$scratch/missing-marker-stderr" || status=$?
+expect_status 78 "$status" 'a configured host activation with no marker is refused'
+if grep -q 'configured activation has no external marker' "$scratch/missing-marker-stderr"; then
+  pass 'the missing host marker names the lost provisioning state'
+else
+  fail 'the missing host marker was treated as an inactive rollout'
+fi
+if grep -q 'h2puni gate: running on' "$scratch/missing-marker-stderr"; then
+  fail 'the host entrypoint took the heavy gate after losing its activation marker'
+else
+  pass 'the missing host marker is refused before taking the heavy gate'
+fi
+
+# 19. A relocated archive carries its external TypeScript runtime below the activation root, so
+# the active host gate has a usable default without trusting the candidate checkout's install.
+runtime_root="$scratch/runtime-activation"
+mkdir -p "$runtime_root/trusted-node-modules/typescript"
+printf '{}\n' >"$runtime_root/trusted-node-modules/typescript/package.json"
+status=0
+resolved=$(run_modules_resolution "$runtime_root" "$candidate_root") || status=$?
+expect_status 0 "$status" 'the host runtime defaults below the external activation root'
+expect_equal "$(realpath "$runtime_root/trusted-node-modules")" "$resolved" 'the default runtime is relocatable and external'
+
+# 20. An archive that loses its runtime is incomplete activation state, not permission to fall
+# back to the candidate's node_modules.
+missing_runtime_root="$scratch/missing-runtime-activation"
+mkdir -p "$missing_runtime_root"
+status=0
+run_modules_resolution "$missing_runtime_root" "$candidate_root" >/dev/null \
+  2>"$scratch/missing-runtime-stderr" || status=$?
+expect_status 78 "$status" 'a missing external TypeScript runtime is refused'
+if grep -q 'trusted TypeScript runtime modules are not provisioned' "$scratch/missing-runtime-stderr"; then
+  pass 'the missing runtime refusal names the lost provisioning state'
+else
+  fail 'the missing runtime refusal did not name the lost provisioning state'
+fi
+
+# 21. An explicit override remains external authority; configuration cannot select modules from
+# the candidate checkout and thereby make reviewed relationship extraction execute candidate bytes.
+mkdir -p "$candidate_root/node_modules/typescript"
+printf '{}\n' >"$candidate_root/node_modules/typescript/package.json"
+status=0
+run_modules_resolution "$runtime_root" "$candidate_root" "$candidate_root/node_modules" \
+  >/dev/null 2>"$scratch/candidate-runtime-stderr" || status=$?
+expect_status 78 "$status" 'candidate-owned TypeScript runtime modules are refused'
+if grep -q 'runtime modules must be outside the candidate checkout' "$scratch/candidate-runtime-stderr"; then
+  pass 'the candidate runtime refusal names the trust boundary'
+else
+  fail 'the candidate runtime refusal did not name the trust boundary'
 fi
 
 if ((failures)); then

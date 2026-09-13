@@ -23,6 +23,7 @@ import { resolveValidatorArtifactPaths } from './trust';
 const workspace = join(import.meta.dir, '..', '..', '..', '..');
 const adapterPath = join(workspace, 'bin', 'tool-wiki-lint.sh');
 const gateLibraryPath = join(workspace, 'bin', 'h2puni-gate-lib.sh');
+const pushAuditPath = join(workspace, 'bin', 'tool-wiki-push-audit.sh');
 const trustedCliPath = join(workspace, 'tools', 'tool-wiki', 'src', 'cli.ts');
 const scratchPaths: string[] = [];
 
@@ -358,6 +359,7 @@ function runRealAdapter(
       env: {
         ...process.env,
         TOOL_WIKI_ACTIVATION_ROOT: fixturePaths.activationRoot,
+        TOOL_WIKI_TRUSTED_NODE_MODULES: join(workspace, 'node_modules'),
         ...environment,
       },
       cwd: fixturePaths.repository,
@@ -422,15 +424,18 @@ function runAdapter(
   selection: 'working' | 'staged' | 'committed',
   paths: ReturnType<typeof fixture>,
   overrides: Record<string, string> = {},
+  cwd?: string,
 ): ReturnType<typeof Bun.spawnSync> {
   const environment = Object.fromEntries(
     Object.entries({
       PATH: process.env['PATH'] ?? '',
       TOOL_WIKI_ACTIVATION_ROOT: paths.activationRoot,
+      TOOL_WIKI_TRUSTED_NODE_MODULES: join(workspace, 'node_modules'),
       ...overrides,
     }),
   );
   return Bun.spawnSync(['bash', adapterPath, selection, paths.repository, 'abc123'], {
+    cwd,
     env: environment,
     stderr: 'pipe',
     stdout: 'pipe',
@@ -583,8 +588,23 @@ describe('tool-wiki production entrypoint adapter', () => {
     });
     selectActivation(paths.activationRoot, prepared.directory, prepared.identity);
 
-    const invocation = runAdapter('committed', paths, { TOOL_WIKI_REQUIRE_CERTIFIED: '1' });
+    const preloadMarker = join(paths.directory, 'candidate-preload-ran');
+    write(join(paths.repository, 'bunfig.toml'), 'preload = ["./preload.ts"]\n');
+    write(
+      join(paths.repository, 'preload.ts'),
+      `await Bun.write(${JSON.stringify(preloadMarker)}, 'candidate ran\\n');\nprocess.exit(71);\n`,
+    );
+
+    const invocation = runAdapter(
+      'committed',
+      paths,
+      { TOOL_WIKI_REQUIRE_CERTIFIED: '1' },
+      paths.repository,
+    );
     expect(invocation.exitCode, streamText(invocation.stderr, 'adapter stderr')).toBe(0);
+    // Proof: required selected-package admission ran both inline trust checks from the candidate
+    // cwd and executed its bunfig preload until each inline Bun invocation pinned trusted ground.
+    expect(existsSync(preloadMarker)).toBe(false);
     expect(JSON.parse(streamText(invocation.stdout, 'adapter stdout'))).toMatchObject({
       accepted: true,
       certified: true,
@@ -740,6 +760,21 @@ describe('tool-wiki production entrypoint adapter', () => {
     expect(invocation.exitCode).not.toBe(0);
     expect(streamText(invocation.stderr, 'adapter stderr')).toContain('validator must be outside');
     expect(existsSync(marker)).toBe(false);
+  });
+
+  test('candidate-contained runtime modules are refused before validator execution', () => {
+    const paths = fixture();
+    const candidateModules = join(paths.repository, 'node_modules');
+    write(join(candidateModules, 'typescript', 'package.json'), '{"name":"typescript"}\n');
+
+    const invocation = runAdapter('committed', paths, {
+      TOOL_WIKI_TRUSTED_NODE_MODULES: candidateModules,
+    });
+
+    expect(invocation.exitCode).not.toBe(0);
+    expect(streamText(invocation.stderr, 'adapter stderr')).toContain(
+      'trusted TypeScript runtime modules must be outside the candidate',
+    );
   });
 
   test('a candidate child whose name begins with two dots is refused before validator execution', () => {
@@ -948,15 +983,50 @@ await import(${JSON.stringify(productionSnapshotter)});
       'bunx eslint tools/tool-wiki/src',
     );
     expect(hostGate).not.toContain('cp "$repo_root/bin/tool-wiki-lint.sh"');
-    expect(hostGate).toContain('launcher_descriptor="$activation_root/launcher-path"');
+    expect(hostGate).toContain(
+      'launcher_source=$(resolve_tool_wiki_launcher "$activation_root" "$repo_root")',
+    );
     expect(hostGate).toContain('if [[ -n "$1" ]]; then bash "$1" committed');
     expect(ci).toContain('bash bin/tool-wiki-lint.sh committed . "$GITHUB_SHA"');
     expect(ci).toContain("github.event_name == 'push'");
     expect(ci).toContain('diagnostic/non-certifying');
-    expect(ci).toContain('bash "$launcher" committed . "$GITHUB_SHA"');
+    expect(ci).toContain('bash bin/tool-wiki-push-audit.sh . "$GITHUB_SHA"');
+    expect(ci).not.toContain('Stage trusted runtime modules outside the push candidate');
+    expect(ci).not.toContain('${{ runner.temp }}/tool-wiki-trusted-node-modules');
+    const pushProvision = ci.indexOf(
+      'name: Provision immutable external activation for push audit',
+    );
+    const pushAudit = ci.indexOf('bash bin/tool-wiki-push-audit.sh . "$GITHUB_SHA"');
+    expect(pushProvision).toBeGreaterThan(-1);
+    expect(pushProvision).toBeLessThan(pushAudit);
+    expect(ci).toContain('ACTIVATION_ARCHIVE_URL: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_URL }}');
+    expect(ci).toContain(
+      'ACTIVATION_ARCHIVE_SHA256: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256 }}',
+    );
+    expect(ci).toContain('ACTIVATION_VERSION: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}');
+    expect(ci.indexOf('sha256sum --check --strict')).toBeLessThan(ci.indexOf('tar --extract'));
     expect(trustedCi).toContain('pull_request_target:');
     expect(trustedCi).toContain('permissions:\n  contents: read');
+    // Proof: the public admission workflow resolved mutable action tags until terminal review
+    // showed those actions could replace the digest-pinned trust decision without a repo change.
+    const trustedActionRefs = [...trustedCi.matchAll(/uses:\s+[^\s@]+@([^\s#]+)/g)].map(
+      (match) => match[1],
+    );
+    expect(trustedActionRefs.length).toBeGreaterThan(0);
+    expect(trustedActionRefs.every((ref) => /^[0-9a-f]{40}$/.test(ref))).toBe(true);
+    const ciActionRefs = [...ci.matchAll(/uses:\s+[^\s@]+@([^\s#]+)/g)].map((match) => match[1]);
+    expect(ciActionRefs.length).toBeGreaterThan(0);
+    expect(ciActionRefs.every((ref) => /^[0-9a-f]{40}$/.test(ref))).toBe(true);
+    expect(trustedCi).not.toContain('if: ${{ vars.TOOL_WIKI_ACTIVATION_');
+    expect(trustedCi.indexOf('name: Require immutable activation configuration')).toBeLessThan(
+      trustedCi.indexOf('name: Check out trusted launcher'),
+    );
     expect(trustedCi.match(/persist-credentials: false/g)).toHaveLength(2);
+    expect(trustedCi).toContain('ref: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}');
+    expect(trustedCi).toContain('bun install --frozen-lockfile --ignore-scripts');
+    expect(trustedCi).toContain(
+      'TOOL_WIKI_TRUSTED_NODE_MODULES: ${{ github.workspace }}/trusted/node_modules',
+    );
     expect(trustedCi).toContain('ref: ${{ github.event.pull_request.head.sha }}');
     expect(trustedCi).toContain('$RUNNER_TEMP/tool-wiki-lint.sh');
     // Proof: removing the selected-package check and required-certification environment from the
@@ -968,6 +1038,9 @@ await import(${JSON.stringify(productionSnapshotter)});
     );
     expect(trustedCi).not.toContain('candidate/bin/');
     expect(trustedCi).not.toContain('h2puni-gate-steps.sh');
+    expect(trustedCi).toContain('CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}');
+    expect(trustedCi).toContain('committed "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"');
+    expect(trustedCi).not.toContain('"${{ github.event.pull_request.head.sha }}"');
     expect(lefthook).toContain('run: bash bin/tool-wiki-lint.sh staged . HEAD');
     expect(hostSteps).toContain('--exclude=tool-wiki');
     expect(hostSteps).toContain('bunx nx run tool-wiki:lint:source --skip-nx-cache');
@@ -975,6 +1048,192 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(ci).toContain('bunx nx run tool-wiki:lint:source --skip-nx-cache');
     expect(workspacePackage.scripts['lint']).toBe(
       'nx run-many -t lint --exclude=tool-wiki && nx run tool-wiki:lint:source',
+    );
+  });
+
+  test('push audit reports inactive external activation without certifying', () => {
+    const candidate = mkdtempSync(join(tmpdir(), 'tool-wiki-push-candidate-'));
+    scratchPaths.push(candidate);
+    const invocation = Bun.spawnSync(['bash', pushAuditPath, candidate, 'abc123'], {
+      cwd: candidate,
+      env: { PATH: process.env['PATH'] ?? '' },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+
+    expect(invocation.exitCode, streamText(invocation.stderr, 'push audit stderr')).toBe(0);
+    expect(JSON.parse(streamText(invocation.stdout, 'push audit stdout'))).toMatchObject({
+      schemaVersion: 1,
+      status: 'inactive',
+      certified: false,
+    });
+  });
+
+  test('push audit refuses a configured root whose activation marker is absent', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tool-wiki-push-missing-marker-'));
+    scratchPaths.push(directory);
+    const candidate = join(directory, 'candidate');
+    const activation = join(directory, 'activation');
+    mkdirSync(candidate);
+    mkdirSync(activation);
+    const invocation = Bun.spawnSync(['bash', pushAuditPath, candidate, 'abc123'], {
+      cwd: candidate,
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        TOOL_WIKI_ACTIVATION_ROOT: activation,
+      },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+
+    expect(invocation.exitCode).toBe(78);
+    expect(streamText(invocation.stderr, 'push audit stderr')).toContain(
+      'configured activation root has no marker',
+    );
+  });
+
+  test('push audit resolves a relative external launcher from its activation root', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tool-wiki-push-audit-'));
+    scratchPaths.push(directory);
+    const candidate = join(directory, 'candidate');
+    const activation = join(directory, 'activation');
+    mkdirSync(candidate);
+    mkdirSync(activation);
+    write(join(activation, 'active-v1'), 'tool-wiki-active-v1\n');
+    write(join(activation, 'launcher-path'), 'launcher.sh\n');
+    write(join(activation, 'trusted-node-modules/typescript/package.json'), '{}\n');
+    write(
+      join(activation, 'launcher.sh'),
+      '#!/usr/bin/env bash\nprintf \'%s|%s|%s|%s|%s\\n\' "$1" "$2" "$3" "$TOOL_WIKI_TRUSTED_NODE_MODULES" "$TOOL_WIKI_REQUIRE_CERTIFIED"\n',
+    );
+    chmodSync(join(activation, 'launcher.sh'), 0o555);
+
+    const invocation = Bun.spawnSync(['bash', pushAuditPath, candidate, 'abc123'], {
+      cwd: candidate,
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        TOOL_WIKI_ACTIVATION_ROOT: activation,
+      },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+
+    expect(invocation.exitCode, streamText(invocation.stderr, 'push audit stderr')).toBe(0);
+    expect(streamText(invocation.stdout, 'push audit stdout')).toBe(
+      `committed|${realpathSync(candidate)}|abc123|${realpathSync(join(activation, 'trusted-node-modules'))}|1\n`,
+    );
+  });
+
+  test('push audit refuses an activation archive without trusted runtime modules', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tool-wiki-push-runtime-missing-'));
+    scratchPaths.push(directory);
+    const candidate = join(directory, 'candidate');
+    const activation = join(directory, 'activation');
+    mkdirSync(candidate);
+    mkdirSync(activation);
+    write(join(activation, 'active-v1'), 'tool-wiki-active-v1\n');
+    write(join(activation, 'launcher-path'), 'launcher.sh\n');
+    write(join(activation, 'launcher.sh'), '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(join(activation, 'launcher.sh'), 0o555);
+
+    const invocation = Bun.spawnSync(['bash', pushAuditPath, candidate, 'abc123'], {
+      cwd: candidate,
+      env: { PATH: process.env['PATH'] ?? '', TOOL_WIKI_ACTIVATION_ROOT: activation },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+
+    expect(invocation.exitCode).toBe(78);
+    expect(streamText(invocation.stderr, 'push audit stderr')).toContain(
+      'no trusted TypeScript runtime modules',
+    );
+  });
+
+  test('push audit refuses a candidate-contained trusted runtime override', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tool-wiki-push-runtime-boundary-'));
+    scratchPaths.push(directory);
+    const candidate = join(directory, 'candidate');
+    const activation = join(directory, 'activation');
+    write(join(candidate, 'node_modules/typescript/package.json'), '{}\n');
+    mkdirSync(activation);
+    write(join(activation, 'active-v1'), 'tool-wiki-active-v1\n');
+    write(join(activation, 'launcher-path'), 'launcher.sh\n');
+    write(join(activation, 'launcher.sh'), '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(join(activation, 'launcher.sh'), 0o555);
+
+    const invocation = Bun.spawnSync(['bash', pushAuditPath, candidate, 'abc123'], {
+      cwd: candidate,
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        TOOL_WIKI_ACTIVATION_ROOT: activation,
+        TOOL_WIKI_TRUSTED_NODE_MODULES: join(candidate, 'node_modules'),
+      },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+
+    expect(invocation.exitCode).toBe(78);
+    expect(streamText(invocation.stderr, 'push audit stderr')).toContain(
+      'runtime modules resolved inside candidate checkout',
+    );
+  });
+
+  test('push audit refuses a launcher resolving into a symlinked candidate workspace', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tool-wiki-push-boundary-'));
+    scratchPaths.push(directory);
+    const candidate = join(directory, 'candidate');
+    const candidateAlias = join(directory, 'candidate-alias');
+    const activation = join(directory, 'activation');
+    mkdirSync(candidate);
+    mkdirSync(activation);
+    symlinkSync(candidate, candidateAlias, 'dir');
+    write(join(candidate, 'candidate-launcher.sh'), '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(join(candidate, 'candidate-launcher.sh'), 0o555);
+    write(join(activation, 'active-v1'), 'tool-wiki-active-v1\n');
+    write(join(activation, 'launcher-path'), 'candidate-link.sh\n');
+    symlinkSync(join(candidate, 'candidate-launcher.sh'), join(activation, 'candidate-link.sh'));
+
+    const invocation = Bun.spawnSync(['bash', pushAuditPath, candidateAlias, 'abc123'], {
+      cwd: candidateAlias,
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        TOOL_WIKI_ACTIVATION_ROOT: activation,
+      },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+
+    expect(invocation.exitCode).toBe(78);
+    expect(streamText(invocation.stderr, 'push audit stderr')).toContain(
+      'external launcher resolved inside candidate checkout',
+    );
+  });
+
+  test('push audit refuses an activation root inside the candidate workspace', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tool-wiki-push-root-boundary-'));
+    scratchPaths.push(directory);
+    const candidate = join(directory, 'candidate');
+    const activation = join(candidate, 'activation');
+    const launcher = join(directory, 'external-launcher.sh');
+    mkdirSync(activation, { recursive: true });
+    write(launcher, '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(launcher, 0o555);
+    write(join(activation, 'active-v1'), 'tool-wiki-active-v1\n');
+    write(join(activation, 'launcher-path'), `${launcher}\n`);
+
+    const invocation = Bun.spawnSync(['bash', pushAuditPath, candidate, 'abc123'], {
+      cwd: candidate,
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        TOOL_WIKI_ACTIVATION_ROOT: activation,
+      },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+
+    expect(invocation.exitCode).toBe(78);
+    expect(streamText(invocation.stderr, 'push audit stderr')).toContain(
+      'external activation root resolved inside candidate checkout',
     );
   });
 
@@ -1132,7 +1391,9 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(secondInvocation.exitCode).toBe(1);
     expect(git(paths.repository, 'rev-parse', 'HEAD')).toBe(trustedCheckout);
     expect(existsSync(suppressedMarker)).toBe(false);
-  });
+    // Two real validator launches take 4.2s on an idle h2puni and 5.3s under concurrent gates.
+    // Keep the test bounded without letting Bun's 5s default kill the second refusal as SIGPIPE.
+  }, 15_000);
 
   test('the real Nx target reruns an omitted-input mutation and a controlled cache fault does not', () => {
     const paths = realFixture();

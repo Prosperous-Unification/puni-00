@@ -216,7 +216,7 @@ jobs:
       # Full history: with the default depth of 1 the `main` ref is absent, and
       # nx falls back to a different file scope rather than failing. Depth 0
       # also keeps `nx affected` usable if this ever moves off run-many.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
@@ -226,11 +226,11 @@ jobs:
       # verdict with no commit to attribute it to, and the next person debugging
       # a red main has no version to bisect against. The pin is `.bun-version`,
       # the same file the Dockerfiles are held to by `toolchain-pins.test.ts`.
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: .bun-version
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.14.4'
           cache: pip
@@ -257,24 +257,35 @@ jobs:
           TOOL_WIKI_ACTIVATION_ROOT: ${{ vars.TOOL_WIKI_ACTIVATION_ROOT }}
         run: bash bin/tool-wiki-lint.sh committed . "$GITHUB_SHA"
 
-      # A protected-default push is already admitted. Its audit still refuses to execute the
-      # repository adapter: active rollout selects the launcher from external host state.
-      - name: Tool wiki — externally activated push audit
-        if: github.event_name == 'push'
+      # A repository with no archive variables remains visibly inactive. Once any variable is set,
+      # partial or broken provisioning fails here instead of collapsing back into a green no-op.
+      # Proof: gate-entrypoints.test.ts pins this step ahead of the audit, the three guarded
+      # variables, digest verification before extraction, and the selected-package check.
+      - name: Provision immutable external activation for push audit
+        if: ${{ github.event_name == 'push' && (vars.TOOL_WIKI_ACTIVATION_ARCHIVE_URL != '' || vars.TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256 != '' || vars.TOOL_WIKI_ACTIVATION_VERSION != '') }}
         env:
-          TOOL_WIKI_ACTIVATION_ROOT: ${{ vars.TOOL_WIKI_ACTIVATION_ROOT }}
+          ACTIVATION_ARCHIVE_SHA256: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256 }}
+          ACTIVATION_ARCHIVE_URL: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_URL }}
+          ACTIVATION_VERSION: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}
         run: |
           set -euo pipefail
-          if [[ -z "$TOOL_WIKI_ACTIVATION_ROOT" || ! -e "$TOOL_WIKI_ACTIVATION_ROOT/active-v1" ]]; then
-            echo '{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation marker is not provisioned"}'
-            exit 0
-          fi
-          launcher="$(realpath "$(<"$TOOL_WIKI_ACTIVATION_ROOT/launcher-path")")"
-          [[ -f "$launcher" && -r "$launcher" ]]
-          case "$launcher" in
-            "$GITHUB_WORKSPACE"/*) echo 'external launcher resolved inside candidate checkout' >&2; exit 78 ;;
-          esac
-          bash "$launcher" committed . "$GITHUB_SHA"
+          : "${ACTIVATION_ARCHIVE_SHA256:?trusted activation archive digest is not configured}"
+          : "${ACTIVATION_ARCHIVE_URL:?trusted activation archive URL is not configured}"
+          : "${ACTIVATION_VERSION:?trusted activation version is not configured}"
+          archive="$RUNNER_TEMP/tool-wiki-activation.tar"
+          curl --fail --location --proto '=https' --tlsv1.2 --output "$archive" "$ACTIVATION_ARCHIVE_URL"
+          printf '%s  %s\n' "$ACTIVATION_ARCHIVE_SHA256" "$archive" | sha256sum --check --strict
+          activation_root="$RUNNER_TEMP/tool-wiki-activation/$ACTIVATION_VERSION"
+          mkdir -m 0700 -p "$activation_root"
+          tar --extract --file "$archive" --directory "$activation_root" --no-same-owner --no-same-permissions
+          test -s "$activation_root/selected.json"
+          printf 'TOOL_WIKI_ACTIVATION_ROOT=%s\n' "$activation_root" >> "$GITHUB_ENV"
+
+      # A protected-default push is already admitted. Its audit still refuses candidate authority:
+      # both launcher and runtime modules come from the downloaded, digest-pinned activation.
+      - name: Tool wiki — externally activated push audit
+        if: github.event_name == 'push'
+        run: bash bin/tool-wiki-push-audit.sh . "$GITHUB_SHA"
 
       # --all, not the default base..HEAD comparison. Without it the scope is
       # whatever `git diff main HEAD` returns, which is EMPTY on a push to main
@@ -352,7 +363,7 @@ jobs:
 
       - name: Upload gate log
         if: ${{ always() && steps.nx_gate.outcome != 'skipped' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nx-gate-log-${{ github.run_attempt }}
           path: nx-gate.log
@@ -582,12 +593,12 @@ jobs:
         shard: [1, 2, 3, 4]
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # The same pin as `gate` above, read from the same file, for the same
       # reason: bun is part of what is being tested here — it runs be-01 and
       # gw-01 — and `latest` changes the verdict with no commit to blame.
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: .bun-version
 
@@ -608,7 +619,7 @@ jobs:
       - name: Layout gate
         run: bun run e2e -- --shard=${{ matrix.shard }}/4
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: wbs-table-screenshot-${{ matrix.shard }}-${{ github.run_attempt }}
