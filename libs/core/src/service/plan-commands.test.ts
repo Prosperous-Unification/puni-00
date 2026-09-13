@@ -49,6 +49,7 @@ describe('working plan command before-images', () => {
       });
       if (!seeded.ok) throw new Error('before-image fixture labelling refused');
 
+      const observedTagSets: string[][] = [];
       const runner = new PlanCommandRunner({
         uow: source.uow,
         announcements: direct,
@@ -70,6 +71,20 @@ describe('working plan command before-images', () => {
               }
               return workingPlan.stores.workItems.listByProject(requestedProjectId);
             },
+            patch: async (
+              ...parameters: Parameters<PlanTransactionalStores['workItems']['patch']>
+            ) => {
+              const written = await workingPlan.stores.workItems.patch(...parameters);
+              if (written.ok) {
+                const refreshed = await workingPlan.stores.workItems.listByIds(projectId, [
+                  parameters[0],
+                ]);
+                const row = refreshed.at(0);
+                if (row === undefined) throw new Error('targeted refresh omitted the patched row');
+                observedTagSets.push([...row.tagIds]);
+              }
+              return written;
+            },
           };
           const stores: PlanTransactionalStores = { ...workingPlan.stores, workItems };
           return compose(stores, broadcast);
@@ -89,6 +104,9 @@ describe('working plan command before-images', () => {
         },
       ]);
       expect(patched.ok).toBe(true);
+      // Proof: omitting the label joins from the authoritative targeted reader
+      // made this production batch observe [] after each patch, before the next command.
+      expect(observedTagSets).toEqual([[firstTag.id], [secondTag.id]]);
       expect(await source.stores.workItems.listByIds(projectId, [created.value.id])).toMatchObject([
         { name: 'Second patch', tagIds: [secondTag.id] },
       ]);

@@ -291,3 +291,268 @@ describe('the uncached admitted batch baseline', () => {
     }
   });
 });
+
+describe('targeted working-plan refreshes', () => {
+  it('refreshes a labelled row and rejects an unrequested satellite row', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = servicesOver(source.stores, {
+      clock: testClock,
+      broadcast: direct,
+      scheduler: fastScheduler,
+    });
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const createdProject = await publicGraph.projects.create('Targeted label refresh', OWNER);
+      const projectId = createdProject.project.id;
+      const created = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Labelled row',
+      });
+      if (!created.ok) throw new Error('targeted label fixture creation refused');
+      const firstTag = await publicGraph.directory.addTag(OWNER, 'First targeted tag');
+      const secondTag = await publicGraph.directory.addTag(OWNER, 'Second targeted tag');
+      if (firstTag === null || secondTag === null) {
+        throw new Error('targeted label fixture tag creation refused');
+      }
+      const seeded = await source.stores.workItems.patch(
+        created.value.id,
+        { tagIds: [firstTag.id] },
+        { at: 2, by: OWNER },
+      );
+      if (!seeded.ok) throw new Error('targeted label fixture seeding refused');
+      const workingPlan = createWorkingPlan({ stores: source.stores }, projectId);
+      await workingPlan.stores.workItems.listByProject(projectId);
+
+      const patched = await workingPlan.stores.workItems.patch(
+        created.value.id,
+        { tagIds: [secondTag.id] },
+        { at: 3, by: OWNER },
+      );
+      expect(patched.ok).toBe(true);
+      expect(
+        await workingPlan.stores.workItems.listByIds(projectId, [created.value.id]),
+      ).toMatchObject([{ id: created.value.id, tagIds: [secondTag.id] }]);
+      workingPlan.close();
+
+      const sibling = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Unrequested estimate owner',
+      });
+      if (!sibling.ok) throw new Error('targeted estimate fixture creation refused');
+      await source.stores.estimates.set(
+        { workItemId: sibling.value.id, stepId: createdProject.steps[0].id, ...DAYS },
+        { at: 4, by: OWNER },
+      );
+      const estimateStores: PlanTransactionalStores = {
+        ...source.stores,
+        estimates: {
+          ...source.stores.estimates,
+          // Inject the production fault: the targeted query ignores its IDs.
+          listByWorkItems: (requestedProjectId) =>
+            source.stores.estimates.listByProject(requestedProjectId),
+        },
+      };
+      const estimatePlan = createWorkingPlan({ stores: estimateStores }, projectId);
+      await estimatePlan.stores.estimates.listByProject(projectId);
+      // Proof: without the shared satellite identity check, this resolved and
+      // retained the sibling's estimate under a refresh for another row.
+      expect(
+        estimatePlan.stores.workItems.patch(
+          created.value.id,
+          { name: 'Trigger estimate refresh' },
+          { at: 5, by: OWNER },
+        ),
+      ).rejects.toThrow(/targeted estimate.*unrequested work item/i);
+      estimatePlan.close();
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('rejects dependencies outside the requested incident project set', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = servicesOver(source.stores, {
+      clock: testClock,
+      broadcast: direct,
+      scheduler: fastScheduler,
+    });
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Targeted edge refusal', OWNER)).project
+        .id;
+      const target = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Refresh target',
+      });
+      const predecessor = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Unrelated predecessor',
+      });
+      const successor = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Unrelated successor',
+      });
+      if (!target.ok || !predecessor.ok || !successor.ok) {
+        throw new Error('targeted edge fixture creation refused');
+      }
+      await source.stores.dependencies.add(
+        {
+          id: 'unrelated-targeted-edge',
+          projectId,
+          predecessorId: predecessor.value.id,
+          successorId: successor.value.id,
+        },
+        { at: 2, by: OWNER },
+      );
+      const stores: PlanTransactionalStores = {
+        ...source.stores,
+        dependencies: {
+          ...source.stores.dependencies,
+          // Inject the production fault: the targeted query lost its endpoint predicate.
+          listByWorkItems: (requestedProjectId) =>
+            source.stores.dependencies.listByProject(requestedProjectId),
+        },
+      };
+      const workingPlan = createWorkingPlan({ stores }, projectId);
+      await workingPlan.stores.dependencies.listByProject(projectId);
+
+      // Proof: without validating the targeted edge set, this patch resolved and
+      // retained an edge that touched neither refreshed endpoint.
+      expect(
+        workingPlan.stores.workItems.patch(
+          target.value.id,
+          { name: 'Trigger edge refresh' },
+          { at: 3, by: OWNER },
+        ),
+      ).rejects.toThrow(/targeted dependency.*refreshed work item/i);
+      workingPlan.close();
+
+      const crossProjectStores: PlanTransactionalStores = {
+        ...source.stores,
+        dependencies: {
+          ...source.stores.dependencies,
+          // Inject the production fault: the targeted query returns another project.
+          listByWorkItems: (_requestedProjectId, ids) =>
+            Promise.resolve([
+              {
+                id: 'cross-project-targeted-edge',
+                projectId: 'another-project',
+                predecessorId: ids[0] ?? target.value.id,
+                successorId: successor.value.id,
+              },
+            ]),
+        },
+      };
+      const crossProjectPlan = createWorkingPlan({ stores: crossProjectStores }, projectId);
+      await crossProjectPlan.stores.dependencies.listByProject(projectId);
+      // Proof: without the edge project check, this resolved and retained the
+      // other project's edge in this project's working collection.
+      expect(
+        crossProjectPlan.stores.workItems.patch(
+          target.value.id,
+          { name: 'Trigger cross-project edge refresh' },
+          { at: 4, by: OWNER },
+        ),
+      ).rejects.toThrow(/targeted dependency.*outside project/i);
+      crossProjectPlan.close();
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('rejects work items outside the requested project and identity set', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = servicesOver(source.stores, {
+      clock: testClock,
+      broadcast: direct,
+      scheduler: fastScheduler,
+    });
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectA = (await publicGraph.projects.create('Targeted project A', OWNER)).project.id;
+      const projectB = (await publicGraph.projects.create('Targeted project B', OWNER)).project.id;
+      const rowA = await publicGraph.workItems.create(projectA, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Project A row',
+      });
+      const rowB = await publicGraph.workItems.create(projectB, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Project B row',
+      });
+      if (!rowA.ok || !rowB.ok) throw new Error('targeted project fixture creation refused');
+      const stores: PlanTransactionalStores = {
+        ...source.stores,
+        workItems: {
+          ...source.stores.workItems,
+          // Inject the production fault: the targeted query uses project B's constraint.
+          listByIds: (_requestedProjectId, ids) => source.stores.workItems.listByIds(projectB, ids),
+        },
+      };
+      const workingPlan = createWorkingPlan({ stores }, projectA);
+      await workingPlan.stores.workItems.listByProject(projectA);
+
+      // Proof: without the project check on refreshed rows, this resolved and
+      // inserted project B's row into project A's retained collection.
+      expect(
+        workingPlan.stores.workItems.patch(
+          rowB.value.id,
+          { name: 'Cross-project targeted row' },
+          { at: 2, by: OWNER },
+        ),
+      ).rejects.toThrow(/targeted work item.*outside project/i);
+      expect(await workingPlan.stores.workItems.listByProject(projectA)).toMatchObject([
+        { id: rowA.value.id, projectId: projectA },
+      ]);
+      workingPlan.close();
+
+      const unrequestedStores: PlanTransactionalStores = {
+        ...source.stores,
+        workItems: {
+          ...source.stores.workItems,
+          // Inject the production fault: the targeted query returns a different ID.
+          listByIds: async () =>
+            (await source.stores.workItems.listByIds(projectB, [rowB.value.id])).map((row) => ({
+              ...row,
+              projectId: projectA,
+            })),
+        },
+      };
+      const unrequestedPlan = createWorkingPlan({ stores: unrequestedStores }, projectA);
+      await unrequestedPlan.stores.workItems.listByProject(projectA);
+      // Proof: without the requested-ID check, this resolved and inserted an
+      // unrequested row into the retained collection.
+      expect(
+        unrequestedPlan.stores.workItems.patch(
+          rowA.value.id,
+          { name: 'Trigger unrequested targeted row' },
+          { at: 3, by: OWNER },
+        ),
+      ).rejects.toThrow(/targeted work item.*not requested/i);
+      unrequestedPlan.close();
+    } finally {
+      await source.close();
+    }
+  });
+});
