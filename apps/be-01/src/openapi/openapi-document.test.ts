@@ -16,8 +16,8 @@ describe('the generated shared OpenAPI document', () => {
     }
     // Proof: publishing the full registry in this local-mode app produced 45
     // operations and advertised an OIDC callback whose request returned 404.
-    // Adding Retry without updating this inventory produced 41 against the prior 40.
-    expect(operationCount).toBe(41);
+    // Omitting the importRoutes mount produced 41 against the required 42.
+    expect(operationCount).toBe(42);
     expect(paths).not.toHaveProperty('/api/auth/okta/callback');
   });
   it('preserves operation names and omits operational routes until they have bindings', async () => {
