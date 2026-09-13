@@ -19,3 +19,34 @@ Retained measurement artifacts remain historical observations of their recorded 
 - `bunx @fission-ai/openspec@latest validate e2e-plan-seeding --strict --json` — valid, 1 passed and 0 failed.
 
 The remaining Section 1 tasks are intentionally unmarked and unimplemented at this checkpoint.
+
+## Section 1 implementation
+
+`plan-fixture.ts` now validates recipes before writes, names project and
+directory records with run/worker/test identity, resolves references across
+real 200-command batches, validates every public response through the shared
+contract client, and independently rereads row order, estimates and tag links.
+`rendering-fixture.ts` uses the same generated-shape Page transport; its former
+unconstrained generic response cast is gone.
+
+The first browser run reached the isolated three-server stack but Playwright's
+Node loader could not resolve Ajv's ESM subpath `ajv/dist/2020`. Naming the
+existing module as `ajv/dist/2020.js` exposed the same validator without
+changing any schema or acceptance rule. The next focused boundary run passed
+5/5; the expanded final fixture and rendering-boundary run passed 10/10.
+
+R5 reversals exercised the public routes: the second 201-row creation batch was
+changed from its resolved `afterId` back to the earlier batch's local
+`afterRef`, and be-01 refused command zero as
+`createWorkItem/unknown_ref` before the fixture tree read. A duplicate row ref
+failed before the observed project POST. A real missing-project command
+refusal surfaced at setup. Removing the first result id from an intercepted
+HTTP 200 failed at response identity validation. Removing exactly one
+`setEstimate` while the tag write succeeded failed on stored `row/Dev`; removing
+exactly one tag patch through a successful empty real batch failed on the
+stored tag ids for `row`.
+
+Fresh checks:
+
+- `CI=1 E2E_PORT_SHIFT=2500 bunx playwright test --config apps/fe-01/playwright.config.ts apps/fe-01/e2e/plan-fixture.spec.ts apps/fe-01/e2e/rendering-fixture.spec.ts --workers=1` — 10 passed, 0 failed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p fe-01,contracts --parallel=2 --skip-nx-cache --output-style=static` — both passed.

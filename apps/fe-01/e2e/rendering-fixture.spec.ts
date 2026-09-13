@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test';
 
 import { createProject } from './create-project';
-import { renderingGeometry, renderingRequest, seedRenderingPlan } from './rendering-fixture';
+import { fixtureClient, fixtureSuccess } from './plan-fixture';
+import { renderingGeometry, seedRenderingPlan } from './rendering-fixture';
 
 test.afterEach(async ({ page }) => {
   // Wait for route.fetch() and response.json() before Playwright tears down
@@ -13,10 +14,13 @@ test('rendering setup reports an actual backend refusal', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
   await expect(
-    renderingRequest(page, '/api/projects/missing-rendering-project/commands', {
-      commands: [{ kind: 'createWorkItem', name: 'Refused' }],
-    }),
-  ).rejects.toThrow(/rendering fixture .*: 404/);
+    fixtureClient(page)
+      .postApiProjectsByIdCommands({
+        params: { id: 'missing-rendering-project' },
+        body: { commands: [{ kind: 'createWorkItem', name: 'Refused' }] },
+      })
+      .then((reply) => fixtureSuccess('postApiProjectsByIdCommands', reply)),
+  ).rejects.toThrow(/postApiProjectsByIdCommands refused.*not_found/);
 });
 
 test('rendering setup refuses a successful batch without its row identity', async ({ page }) => {
