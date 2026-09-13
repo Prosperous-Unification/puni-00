@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 
 import { hashCanonical } from '../evidence/content-manifest';
