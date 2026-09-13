@@ -1,47 +1,13 @@
 import { expect, type Page } from '@playwright/test';
+import type { PlanCommandWire } from '@wbs/contracts';
 
-import type { PlanRead, StepView } from '../src/lib/wbs-api';
 import { createProject } from './create-project';
+import { assertCommandResults, fixtureClient, fixtureSuccess } from './plan-fixture';
 
 export interface RenderingSize {
   rows: number;
   steps: number;
   density: 'sparse' | 'dense';
-}
-
-interface Command {
-  kind: string;
-  [field: string]: unknown;
-}
-
-interface BatchAnswer {
-  results: { index: number; ref?: string; id?: string }[];
-}
-
-/** Real same-origin HTTP, with setup refusal kept outside all timing samples. */
-export async function renderingRequest<T>(page: Page, path: string, body?: unknown): Promise<T> {
-  return page.evaluate(
-    async ({ path, body }) => {
-      const response = await fetch(
-        path,
-        body === undefined
-          ? undefined
-          : {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify(body),
-            },
-      );
-      // Proof: removing this guard made `rendering setup reports an actual backend
-      // refusal` fail: the promise resolved to the real API's not_found answer.
-      if (!response.ok)
-        throw new Error(
-          `rendering fixture ${path}: ${String(response.status)} ${await response.text()}`,
-        );
-      return response.json() as Promise<unknown>;
-    },
-    { path, body },
-  ) as Promise<T>;
 }
 
 /** A flat DAG with a declared, independently verified edge count. */
@@ -67,20 +33,26 @@ export async function seedRenderingPlan(page: Page, size: RenderingSize) {
   const projectId = await page.evaluate(() => localStorage.getItem('wbs.project'));
   if (projectId === null) throw new Error('rendering fixture has no selected project');
   await page.goto('/directory');
-  const project = await renderingRequest<{ steps: StepView[] }>(page, `/api/projects/${projectId}`);
+  const client = fixtureClient(page);
+  const project = fixtureSuccess(
+    'getApiProjectsById',
+    await client.getApiProjectsById({ params: { id: projectId } }),
+  ).body;
   expect(project.steps).toHaveLength(2);
   for (let index = 2; index < size.steps; index += 1) {
-    const answer = await renderingRequest<{ step: StepView }>(
-      page,
-      `/api/projects/${projectId}/steps`,
-      { name: `Step ${String(index + 1)}` },
+    const answer = fixtureSuccess(
+      'postApiProjectsByIdSteps',
+      await client.postApiProjectsByIdSteps({
+        params: { id: projectId },
+        body: { name: `Step ${String(index + 1)}` },
+      }),
     );
-    project.steps.push(answer.step);
+    project.steps.push(answer.body.step);
   }
   const ids: string[] = [];
   for (let start = 0; start < size.rows; start += 200) {
     const count = Math.min(200, size.rows - start);
-    const commands: Command[] = Array.from({ length: count }, (_, offset) => ({
+    const commands: PlanCommandWire[] = Array.from({ length: count }, (_, offset) => ({
       kind: 'createWorkItem',
       ref: `row${String(offset)}`,
       parentId: null,
@@ -89,23 +61,17 @@ export async function seedRenderingPlan(page: Page, size: RenderingSize) {
         : { afterRef: `row${String(offset - 1)}` }),
       name: `Row ${String(start + offset).padStart(4, '0')}${start + offset === size.rows - 1 ? ' z' : ''}`,
     }));
-    const answer = await renderingRequest<BatchAnswer>(
-      page,
-      `/api/projects/${projectId}/commands`,
-      { commands },
-    );
-    expect(answer.results).toHaveLength(count);
-    for (let index = 0; index < count; index += 1) {
-      const row = answer.results[index];
-      // Proof: removing this guard made `rendering setup refuses a successful batch
-      // without its row identity` receive the later setEstimate400 missing_id
-      // instead of the expected missing row identity0. Watched in Chromium.
-      if (row.index !== index || row.ref !== `row${String(index)}` || typeof row.id !== 'string')
-        throw new Error(`rendering fixture missing row identity ${String(start + index)}`);
-      ids.push(row.id);
-    }
+    const answer = fixtureSuccess(
+      'postApiProjectsByIdCommands',
+      await client.postApiProjectsByIdCommands({
+        params: { id: projectId },
+        body: { commands },
+      }),
+    ).body;
+    const created = assertCommandResults('rendering create rows', commands, answer.results);
+    for (let index = 0; index < count; index += 1) ids.push(created[`row${String(index)}`]);
   }
-  const estimates: Command[] = ids.flatMap((id) =>
+  const estimates: PlanCommandWire[] = ids.flatMap((id) =>
     project.steps.map((step) => ({
       kind: 'setEstimate',
       workItemId: id,
@@ -114,7 +80,7 @@ export async function seedRenderingPlan(page: Page, size: RenderingSize) {
     })),
   );
   const edges = renderingEdges(size.rows, size.density);
-  const dependencies: Command[] = edges.map(([successor, predecessor]) => ({
+  const dependencies: PlanCommandWire[] = edges.map(([successor, predecessor]) => ({
     kind: 'addDependency',
     workItemId: ids[successor],
     predecessorId: ids[predecessor],
@@ -122,21 +88,42 @@ export async function seedRenderingPlan(page: Page, size: RenderingSize) {
   for (const commands of [estimates, dependencies]) {
     for (let start = 0; start < commands.length; start += 200) {
       const batch = commands.slice(start, start + 200);
-      const answer = await renderingRequest<BatchAnswer>(
-        page,
-        `/api/projects/${projectId}/commands`,
-        { commands: batch },
-      );
-      expect(answer.results).toHaveLength(batch.length);
+      const answer = fixtureSuccess(
+        'postApiProjectsByIdCommands',
+        await client.postApiProjectsByIdCommands({
+          params: { id: projectId },
+          body: { commands: batch },
+        }),
+      ).body;
+      assertCommandResults('rendering authored commands', batch, answer.results);
     }
   }
-  const tree = await renderingRequest<PlanRead>(page, `/api/projects/${projectId}/work-items`);
+  const tree = fixtureSuccess(
+    'getApiProjectsByIdWork-items',
+    await client['getApiProjectsByIdWork-items']({ params: { id: projectId } }),
+  ).body;
   expect(tree.workItems.map((row) => row.id)).toEqual(ids);
-  expect(tree.steps).toHaveLength(size.steps);
-  expect(tree.workItems.reduce((count, row) => count + Object.keys(row.estimates).length, 0)).toBe(
-    size.rows * size.steps,
+  expect(tree.steps.map(({ id, name }) => ({ id, name }))).toEqual(
+    project.steps.map(({ id, name }) => ({ id, name })),
   );
-  expect(tree.workItems.reduce((count, row) => count + row.dependsOn.length, 0)).toBe(edges.length);
+  const expectedDays = { optimistic: 1, realistic: 2, pessimistic: 3 };
+  for (const [index, row] of tree.workItems.entries()) {
+    // Proof: changing one real outgoing estimate to 8/9/10 made the named
+    // rendering estimate assertion refuse before geometry was sampled.
+    for (const step of project.steps)
+      expect(row.estimates[step.id], `rendering estimate ${String(index)}/${step.name}`).toEqual(
+        expectedDays,
+      );
+    const predecessors = edges
+      .filter(([successor]) => successor === index)
+      .map(([, predecessor]) => ids[predecessor])
+      .sort();
+    // Proof: redirecting the real sparse edge 10→9 to 10→0 preserved the
+    // edge count and made this endpoint assertion refuse before geometry.
+    expect([...row.dependsOn].sort(), `rendering dependencies for row ${String(index)}`).toEqual(
+      predecessors,
+    );
+  }
   return { ...size, projectId, ids, edges: edges.length, setupMs: Date.now() - started };
 }
 

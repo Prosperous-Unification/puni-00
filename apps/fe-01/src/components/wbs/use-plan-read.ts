@@ -2,11 +2,13 @@ import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import type * as React from 'react';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 
+import { createLocalWrite, type RunPlanWrite } from '@/lib/local-write';
 import {
   ALL_RESOURCES,
   createPlanRefresh,
   type PlanRefresh,
   type PlanRefreshSnapshot,
+  type RefreshResource,
   resourcesFor,
 } from '@/lib/plan-refresh';
 import type { ProjectStream } from '@/lib/project-stream';
@@ -40,6 +42,7 @@ import {
   failureText,
   GONE,
   INVALID_REQUEST,
+  isAmbiguousWriteFailure,
   NOTHING_TO_REDO,
   NOTHING_TO_UNDO,
   refusalSentence,
@@ -716,24 +719,29 @@ export function usePlanRead({
   }, [activeProject, api, projectId, applySnapshot, pushToast, setConnected, subscribe]);
 
   /** Awaits this invalidation's covering outcome; failures remain in the owner snapshot. */
-  const refreshOrMarkStale = useCallback(
-    async (scope: PlanReadScope = 'all'): Promise<void> => {
+  const refreshResourcesOrMarkStale = useCallback(
+    async (resources: readonly RefreshResource[]): Promise<void> => {
       const owner = ownerRef.current;
       if (owner === null || activeProject.current !== projectId || activeApi.current !== api)
         return;
       if (owner.getSnapshot().baseline === null && owner.getSnapshot().staleResources.length > 0)
         await owner.initialize();
-      else
-        await owner.invalidate({
-          resources:
-            scope === 'tree'
-              ? ['tree']
-              : scope === 'tree-and-steps'
-                ? ['tree', 'steps']
-                : ALL_RESOURCES,
-        });
+      else await owner.invalidate({ resources });
     },
     [activeProject, api, projectId],
+  );
+
+  /** Awaits this invalidation's covering outcome; failures remain in the owner snapshot. */
+  const refreshOrMarkStale = useCallback(
+    (scope: PlanReadScope = 'all'): Promise<void> =>
+      refreshResourcesOrMarkStale(
+        scope === 'tree'
+          ? ['tree']
+          : scope === 'tree-and-steps'
+            ? ['tree', 'steps']
+            : ALL_RESOURCES,
+      ),
+    [refreshResourcesOrMarkStale],
   );
 
   /** A refused marker write also invalidates its list: the target may have disappeared. */
@@ -759,7 +767,7 @@ export function usePlanRead({
   );
 
   /**
-   * One edit: send it, then reread the tree.
+   * One gesture: send its requests, then reread the resources each completed.
    *
    * The two halves fail differently and are reported differently, which is the
    * whole of this change's rule. A refused request is an **event** — somebody
@@ -774,12 +782,15 @@ export function usePlanRead({
    * screen when the next action succeeds` failed with the toast gone. Watched,
    * 2026-08-06.
    *
-   * A refused action skips the reread deliberately: be-01 changed nothing, so
-   * there is nothing new to read. **One refusal is the exception.**
-   * {@link GONE} says the row this client acted on is not there any more, which
-   * is a fact about the tree on screen rather than about the request — without
-   * the reread the toast says a row is gone while the row stays on screen,
-   * which is the worst of both.
+   * A refused request contributes no new obligation: be-01 changed nothing in
+   * that request. Requests already completed in the same gesture keep theirs,
+   * so a create that landed before an attachment refusal remains visible.
+   * {@link GONE} is the no-prefix exception: it says the row this client acted
+   * on is not there any more, which is a fact about the tree on screen rather
+   * than about the request. Without the reread the toast says a row is gone
+   * while the row stays on screen, which is the worst of both.
+   * A typed transport or response failure has an ambiguous commit outcome, so
+   * it conservatively obligates every resource.
    *
    * The verdict is returned as well as toasted, because a toast is a sentence
    * and some callers need the fact. `CellInput` is the one: a refused edit
@@ -788,8 +799,8 @@ export function usePlanRead({
    * is still `landed` — the write happened, and the banner is what says the
    * screen may be behind.
    */
-  const run = useCallback(
-    async (action: () => Promise<void>): Promise<CommitOutcome> => {
+  const run = useCallback<RunPlanWrite>(
+    async (action): Promise<CommitOutcome> => {
       // Proof: guarding only projectId leaked one refusal toast into the new API
       // owner in `does not toast an old API mutation refusal into its replacement`.
       const owner = ownerRef.current;
@@ -804,9 +815,10 @@ export function usePlanRead({
       // the reader may have gone somewhere else.
       focusIntent.current.commandIssued();
       setBusy(true);
+      const write = createLocalWrite();
       try {
         try {
-          await action();
+          await action(write);
         } catch (thrown: unknown) {
           // A refusal from a project the reader has left is not a refusal of
           // anything on the screen now. The old burst stops without putting
@@ -825,10 +837,37 @@ export function usePlanRead({
           // the plan was read again, and a sentence that says so without doing
           // it is the worst of both.
           const refusal = failureText(thrown, '');
-          if (refusal === GONE || INVALID_REQUEST.has(refusal)) await refreshOrMarkStale();
+          // Proof: forcing this typed boundary false left the ambiguous
+          // transport case with zero recovery reads instead of all resources.
+          // Watched in `ambiguous transport failure has its exact recovery
+          // scope`, 2026-09-13.
+          const ambiguous = isAmbiguousWriteFailure(thrown);
+          const completed = write.completedResources();
+          // Proof: replacing the completed prefix below with `[]` made
+          // `refreshes a created tag after its attachment refuses` time out
+          // with one tag read instead of two. Watched, 2026-09-13.
+          const resources =
+            ambiguous || refusal === GONE || INVALID_REQUEST.has(refusal)
+              ? ALL_RESOURCES
+              : completed;
+          if (resources.length > 0) await refreshResourcesOrMarkStale(resources);
           return 'refused';
         }
-        if (isCurrent()) await refreshOrMarkStale();
+        const completed = write.completedResources();
+        // Proof: returning `landed` without checking the captured owner made
+        // an old Arrange completion toast into its busy replacement. Watched
+        // in `does not announce an old arrangement in its busy replacement`,
+        // 2026-09-13.
+        if (!isCurrent()) return 'refused';
+        if (completed.length > 0) await refreshResourcesOrMarkStale(completed);
+        // A covering read may renew the coordinator for the same reader, so
+        // its identity cannot decide this outcome. The project/API pair can:
+        // Proof: removing this pair check let an old Arrange success toast
+        // into the API that replaced it while its tree read was held; replacing
+        // it with `isCurrent()` suppressed the valid toast after a same-reader
+        // subscription renewal. Watched in the two covering-read Arrange cases,
+        // 2026-09-13.
+        if (activeProject.current !== projectId || activeApi.current !== api) return 'refused';
         return 'landed';
       } finally {
         // The next project's write owns its busy state. An older completion
@@ -836,7 +875,7 @@ export function usePlanRead({
         if (isCurrent()) setBusy(false);
       }
     },
-    [activeProject, api, focusIntent, projectId, pushToast, refreshOrMarkStale, setBusy],
+    [activeProject, api, focusIntent, projectId, pushToast, refreshResourcesOrMarkStale, setBusy],
   );
 
   /**

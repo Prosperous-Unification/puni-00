@@ -28,6 +28,19 @@ fi
 
 candidate_root=$(cd -- "$repository" && pwd -P)
 trusted_root=$(cd -- "$activation_root" && pwd -P)
+trusted_modules_input=${TOOL_WIKI_TRUSTED_NODE_MODULES:-}
+if [[ -z "$trusted_modules_input" ]] ||
+  ! trusted_modules=$(realpath -- "$trusted_modules_input") ||
+  [[ ! -d "$trusted_modules" ]] || [[ ! -f "$trusted_modules/typescript/package.json" ]]; then
+  printf 'tool-wiki lint: trusted TypeScript runtime modules are not provisioned\n' >&2
+  exit 78
+fi
+case "$trusted_modules/" in
+  "$candidate_root/"*)
+    printf 'tool-wiki lint: trusted TypeScript runtime modules must be outside the candidate\n' >&2
+    exit 78
+    ;;
+esac
 bun_path=$(command -v bun)
 trusted_path=$(dirname -- "$bun_path"):/usr/bin:/bin
 case "$trusted_root/" in
@@ -40,7 +53,8 @@ esac
 selection_descriptor="$trusted_root/selected.json"
 if [[ -e "$selection_descriptor" ]]; then
   if ! selected=$(
-    env -i PATH="$trusted_path" SELECTION_DESCRIPTOR="$selection_descriptor" "$bun_path" -e '
+    env -i PATH="$trusted_path" SELECTION_DESCRIPTOR="$selection_descriptor" \
+      "$bun_path" --cwd "$trusted_root" --no-env-file -e '
       const bytes = await Bun.file(Bun.env.SELECTION_DESCRIPTOR).text();
       const value = JSON.parse(bytes);
       const keys = Object.keys(value).sort();
@@ -168,6 +182,7 @@ env -i PATH="$trusted_path" "$bun_path" run --cwd "$(dirname -- "$snapshotter")"
 # snapshot command returns; this immutable bundle retains the reviewed output and writes no marker.
 report_path="$snapshot_dir/report.json"
 if env -i PATH="$trusted_path" TOOL_WIKI_CI_TRUSTED_BINDING="$binding" \
+  TOOL_WIKI_TRUSTED_NODE_MODULES="$trusted_modules" \
   "$bun_path" run --cwd "$snapshot_dir" --no-env-file "$snapshot_cli" "${route[@]}" >"$report_path"; then
   status=0
 else
@@ -177,7 +192,8 @@ cat -- "$report_path"
 if [[ "$status" == 0 && "$required" == 1 ]]; then
   # Proof: the workflow-equivalent test returned exit 0 with output lacking a certified enforce
   # decision until required admission decoded and checked the trusted validator's actual report.
-  if ! env -i PATH="$trusted_path" REPORT_PATH="$report_path" "$bun_path" -e '
+  if ! env -i PATH="$trusted_path" REPORT_PATH="$report_path" \
+    "$bun_path" --cwd "$trusted_root" --no-env-file -e '
     const report = JSON.parse(await Bun.file(Bun.env.REPORT_PATH).text());
     if (report?.schemaVersion !== 1 || report?.mode !== "enforce" ||
         report?.trustProvenance !== "ci-preselected" || report?.accepted !== true ||

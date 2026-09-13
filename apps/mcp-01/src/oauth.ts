@@ -12,6 +12,7 @@ import { type JWTPayload, jwtVerify, SignJWT } from 'jose';
 
 import type { McpConfig } from './config';
 import type { McpOAuthHandler } from './http';
+import { PendingAuthorizations } from './pending-authorizations';
 
 const SCOPES = new Set(['wbs:read', 'wbs:write', 'wbs:editor']);
 const COOKIE = '__Host-wbs_mcp_oauth';
@@ -30,19 +31,6 @@ interface ClientRecord {
   source: string;
   expiresAt: number;
   unprovenExpiresAt: number;
-}
-
-interface Transaction {
-  browserBinding: string;
-  clientId: string;
-  codeChallenge: string;
-  expiresAt: number;
-  nonce: string;
-  redirectUri: string;
-  scope: string;
-  state?: string;
-  upstreamState: string;
-  verifier: string;
 }
 
 export interface McpAuthorizationGrant {
@@ -86,7 +74,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private readonly clients = new Map<string, ClientRecord>();
   private readonly grants = new Map<string, McpAuthorizationGrant>();
   private readonly sessions = new Map<string, McpSession>();
-  private readonly transactions = new Map<string, Transaction>();
+  private readonly pendingAuthorizations: PendingAuthorizations;
   private readonly now: () => number;
   private readonly random: () => string;
   private readonly issuer: string;
@@ -105,8 +93,6 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private readonly activeClientTtlMs: number;
   private readonly grantLimit: number;
   private readonly sessionLimit: number;
-  private readonly transactionLimit: number;
-  private readonly transactionLimitPerClient: number;
   constructor(
     config: Pick<McpConfig, 'MCP_PUBLIC_URL'>,
     private readonly upstream: UpstreamClient,
@@ -132,8 +118,12 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     this.activeClientTtlMs = Math.max(1, options.activeClientTtlMs ?? ACTIVE_CLIENT_TTL_MS);
     this.grantLimit = Math.max(1, options.grantLimit ?? 1_000);
     this.sessionLimit = Math.max(1, options.sessionLimit ?? 1_000);
-    this.transactionLimit = Math.max(1, options.transactionLimit ?? 1_000);
-    this.transactionLimitPerClient = Math.max(1, options.transactionLimitPerClient ?? 5);
+    this.pendingAuthorizations = new PendingAuthorizations({
+      globalLimit: Math.max(1, options.transactionLimit ?? 1_000),
+      now: this.now,
+      perClientLimit: Math.max(1, options.transactionLimitPerClient ?? 5),
+      ttlMs: TTL_MS,
+    });
   }
 
   async response(request: Request): Promise<Response | undefined> {
@@ -300,31 +290,20 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const upstreamState = this.random();
     const nonce = this.random();
     const verifier = this.random();
-    const clientTransactions = [...this.transactions.values()].filter(
-      (transaction) => transaction.clientId === clientId,
-    );
-    if (
-      this.transactions.size >= this.transactionLimit ||
-      clientTransactions.length >= this.transactionLimitPerClient
-    ) {
+    const saved = this.pendingAuthorizations.save(browserBinding, upstreamState, nonce, verifier, {
+      clientId,
+      codeChallenge: challenge,
+      redirectUri,
+      scope,
+      state: state ?? undefined,
+    });
+    if (saved === 'capacity') {
       return oauthError('temporarily_unavailable', undefined, 429);
     }
     const activeFlowExpiry = Math.max(client.expiresAt, this.now() + TTL_MS * 2);
     client.expiresAt = client.proven
       ? activeFlowExpiry
       : Math.min(activeFlowExpiry, client.unprovenExpiresAt);
-    this.transactions.set(browserBinding, {
-      browserBinding,
-      clientId,
-      codeChallenge: challenge,
-      expiresAt: this.now() + TTL_MS,
-      nonce,
-      redirectUri,
-      scope,
-      state: state ?? undefined,
-      upstreamState,
-      verifier,
-    });
     const location = await this.upstream.authorizationUrl({
       nonce,
       redirectUri: this.callbackUrl,
@@ -337,13 +316,10 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private async callback(request: Request, url: URL): Promise<Response> {
     const binding = cookieOf(request, COOKIE);
     const state = url.searchParams.get('state');
-    const transaction = binding === undefined ? undefined : this.transactions.get(binding);
-    if (binding !== undefined) this.transactions.delete(binding);
-    if (
-      transaction === undefined ||
-      transaction.expiresAt <= this.now() ||
-      state !== transaction.upstreamState
-    ) {
+    if (binding === undefined) return oauthError('invalid_request', clearCookie());
+    const pending = this.pendingAuthorizations.consume(binding, state ?? '');
+    if (pending.outcome === 'state_mismatch') return oauthError('invalid_request');
+    if (pending.outcome === 'missing' || pending.outcome === 'expired') {
       return oauthError('invalid_request', clearCookie());
     }
 
@@ -352,9 +328,9 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     const tokens = await this.upstream.exchange(
       new Request(callback, { headers: request.headers }),
       {
-        nonce: transaction.nonce,
-        state: transaction.upstreamState,
-        verifier: transaction.verifier,
+        nonce: pending.nonce,
+        state: state ?? '',
+        verifier: pending.verifier,
       },
     );
     const upstreamClaims = await this.verifyUpstream(tokens.accessToken);
@@ -362,7 +338,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       groupPrefix: this.groupPrefix,
       groupsClaim: this.groupsClaim,
     });
-    const requested = new Set(transaction.scope.split(' ').filter(Boolean));
+    const requested = new Set(pending.authorization.scope.split(' ').filter(Boolean));
     const scopes = [...identity.scopes]
       .map((scope) => `wbs:${scope}`)
       .filter((scope) => requested.has(scope));
@@ -373,18 +349,20 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     }
     const code = this.random();
     this.grants.set(code, {
-      clientId: transaction.clientId,
-      codeChallenge: transaction.codeChallenge,
+      clientId: pending.authorization.clientId,
+      codeChallenge: pending.authorization.codeChallenge,
       expiresAt: this.now() + TTL_MS,
-      redirectUri: transaction.redirectUri,
+      redirectUri: pending.authorization.redirectUri,
       scope: scopes.join(' '),
       scopes,
       subject: identity.subject,
       upstreamAccessToken: tokens.accessToken,
     });
-    const target = new URL(transaction.redirectUri);
+    const target = new URL(pending.authorization.redirectUri);
     target.searchParams.set('code', code);
-    if (transaction.state !== undefined) target.searchParams.set('state', transaction.state);
+    if (pending.authorization.state !== undefined) {
+      target.searchParams.set('state', pending.authorization.state);
+    }
     return redirect(target.href, clearCookie());
   }
 
@@ -500,9 +478,7 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
 
   private cleanup(): void {
     const now = this.now();
-    for (const [binding, transaction] of this.transactions) {
-      if (transaction.expiresAt <= now) this.transactions.delete(binding);
-    }
+    this.pendingAuthorizations.cleanupExpired();
     for (const [clientId, client] of this.clients) {
       if (client.expiresAt <= now) this.clients.delete(clientId);
     }

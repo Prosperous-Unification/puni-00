@@ -20,7 +20,7 @@ bunx nx run tool-wiki:lint:source --skip-nx-cache
 bunx nx run tool-wiki:typecheck --skip-nx-cache
 ```
 
-Build a closure containing the launcher, snapshotter, a reviewed standalone validator bundle,
+Build a closure containing the launcher, snapshotter, a reviewed single-file validator bundle,
 policy, mapping, separate local/CI bindings, lint evidence, trusted authority, and review receipt.
 Pass those ten explicit roles to `prepareActivation`; it copies them into a new versioned directory,
 joins both bindings' policy, authority, validator, and optional mapping references to those exact
@@ -32,12 +32,40 @@ authority snapshot.
 
 ## Transport and admission
 
+The transport archive root contains `selected.json`, its selected version directory, a bootstrap
+copy of the reviewed launcher with root-level `active-v1` and `launcher-path` descriptors, and the
+minimal `trusted-node-modules` TypeScript package closure copied from the exact lockfile-pinned
+reviewed checkout (`typescript` and its declared dependency directories). The bootstrap launcher
+resolves the selected package and verifies its manifest,
+checksum-list identity, and artifact checksums before reading any selected role. Root descriptors
+are relative to the archive root so the same bytes relocate between GitHub runner temporary storage
+and h2puni; every consumer resolves a relative descriptor from that root, never from its current
+working directory.
+
+The protected-default push audit downloads, verifies, and extracts that same pinned archive before
+running its launcher and archive-carried TypeScript runtime closure with required certification.
+It never relocates candidate-installed modules into the trust path. With no archive variables it
+reports inactive; partial configuration or a configured activation root that loses its marker
+fails rather than silently auditing nothing.
+
+Set `TOOL_WIKI_ACTIVATION_VERSION` to the exact reviewed source commit, not a display label. The
+target-context workflow checks out that immutable revision, installs its lockfile-pinned runtime
+modules with lifecycle scripts disabled, and passes their external path to the validator. The
+validator refuses runtime modules inside the candidate. Nx relationships are read statically from
+`nx.json` and `project.json`; candidate plugins and inferred plugin targets are never executed or
+admitted by this bootstrap boundary.
+
+The h2puni host gate defaults `TOOL_WIKI_TRUSTED_NODE_MODULES` to the archive's external
+`trusted-node-modules` directory. It refuses a missing TypeScript package and any explicit override
+that resolves inside the candidate checkout. The archive transport SHA-256 authenticates these
+runtime bytes alongside the root descriptors; do not construct or install the host archive without
+that directory.
+
 Copy the same digest-pinned archive to a versioned directory on h2puni. The base-owned
 `trusted-wiki` workflow downloads its operator-configured HTTPS archive into runner temporary
 storage, verifies the configured SHA-256 before extraction, and refuses missing URL, digest, or
-version configuration. While **none** of the three repository variables is set the job is
-skipped rather than failed: skipped is not certified, admission stays pending, and setting any
-one of them makes the job run and refuse the rest that are missing. The archive root contains
+version configuration. The job always runs: with none or only some of the three repository
+variables set, its required configuration guards fail and admission stays red. The archive root contains
 `selected.json` beside its selected version directory; paths in both the selector and the package
 role descriptors are relative so the same archive can be extracted under a host version directory
 or runner temporary storage. The preserved

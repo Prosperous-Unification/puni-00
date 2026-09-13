@@ -1,5 +1,5 @@
 import type { StandardSchemaV1 } from '@ark/schema';
-import { Ajv2020, type ErrorObject } from 'ajv/dist/2020';
+import { Ajv2020, type ErrorObject } from 'ajv/dist/2020.js';
 import type { JsonSchema, Type } from 'arktype';
 
 /**
