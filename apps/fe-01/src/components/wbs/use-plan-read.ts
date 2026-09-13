@@ -837,6 +837,10 @@ export function usePlanRead({
           // the plan was read again, and a sentence that says so without doing
           // it is the worst of both.
           const refusal = failureText(thrown, '');
+          // Proof: forcing this typed boundary false left the ambiguous
+          // transport case with zero recovery reads instead of all resources.
+          // Watched in `ambiguous transport failure has its exact recovery
+          // scope`, 2026-09-13.
           const ambiguous = thrown instanceof WbsRequestError && thrown.problem.kind === 'failure';
           const completed = write.completedResources();
           // Proof: replacing the completed prefix below with `[]` made

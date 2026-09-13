@@ -1564,6 +1564,77 @@ describe('a step changing, and what the table does about it', () => {
 });
 
 describe('overlapping resource invalidations', () => {
+  itDom('starts a trailing tree read after the pre-write answer settles', async () => {
+    // Proof: making `ResourceControl.invalidate` reuse the generation of a read
+    // already in flight left `treeReads` at 1 instead of 2. Watched,
+    // 2026-09-13.
+    localStorage.setItem('wbs.hiddenColumns.p1', '[]');
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Before write' });
+    let notify: SubscriptionHandlers['onChange'] | undefined;
+    render(
+      <WbsTable
+        projectId="p1"
+        api={api}
+        subscribe={(_project, handlers) => {
+          notify = handlers.onChange;
+          return { seen: () => undefined, unsubscribe: () => undefined };
+        }}
+      />,
+    );
+    await screen.findByLabelText('Name of 010');
+    if (notify === undefined) throw new Error('the table did not subscribe');
+
+    const before = await api.tree('p1');
+    const realTree = api.tree.bind(api);
+    let releaseOld!: (answer: typeof before) => void;
+    let treeReads = 0;
+    api.tree = (projectId) => {
+      treeReads += 1;
+      return treeReads === 1
+        ? new Promise((resolve) => {
+            releaseOld = resolve;
+          })
+        : realTree(projectId);
+    };
+    let releaseTeams!: (teams: Awaited<ReturnType<typeof api.listTeams>>) => void;
+    api.listTeams = () =>
+      new Promise((resolve) => {
+        releaseTeams = resolve;
+      });
+
+    act(() => notify?.('directory_changed'));
+    await waitFor(() => {
+      expect(treeReads).toBe(1);
+      expect(releaseTeams).toBeTypeOf('function');
+    });
+
+    typeName('010', 'After write');
+    fireEvent.blur(screen.getByLabelText('Name of 010'));
+    await waitFor(() => {
+      expect(api.rows[0]?.name).toBe('After write');
+    });
+    expect(treeReads).toBe(1);
+
+    await act(async () => {
+      releaseTeams([{ id: 'team-concurrent', name: 'Concurrent team', serviceIds: [] }]);
+      await Promise.resolve();
+    });
+    const picker = screen.getByLabelText('Service or team for 010');
+    fireEvent.focus(picker);
+    fireEvent.change(picker, { target: { value: 'Concurrent' } });
+    expect(await screen.findByRole('option', { name: 'Concurrent team' })).toBeInTheDocument();
+
+    await act(async () => {
+      releaseOld(before);
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(treeReads).toBe(2);
+      expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'After write');
+    });
+  });
+
   it.each([false, true])(
     'installs a held renamed step with competing tree=%s',
     async (competing) => {
@@ -1723,6 +1794,136 @@ describe('refresh owner lifetimes', () => {
       await Promise.resolve();
     });
     expect(toastTexts()).toEqual([]);
+  });
+
+  it('does not spend an old API success against its busy replacement', async () => {
+    // Proof: sending the completed resources through `ownerRef.current`
+    // instead of the captured owner's identity made the replacement record a
+    // tree read here, expected none. Watched, 2026-09-13.
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Old mutation' });
+    let finishOld!: () => void;
+    api.patchWorkItem = () =>
+      new Promise((resolve) => {
+        finishOld = resolve;
+      });
+    const view = render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    typeName('010', 'Departed write');
+    fireEvent.blur(screen.getByLabelText('Name of 010'));
+    await waitFor(() => {
+      expect(finishOld).toBeTypeOf('function');
+    });
+
+    const replacement = fakeApi();
+    await replacement.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Replacement owner',
+    });
+    const replacementReads: string[] = [];
+    for (const method of [
+      'tree',
+      'steps',
+      'listTeams',
+      'listTags',
+      'listServices',
+      'listWorkItemTypes',
+      'listExternalSystems',
+      'listPeople',
+      'listCalendarMarkers',
+    ] as const) {
+      recordCalls(replacement, method, () => replacementReads.push(method));
+    }
+    let finishReplacement!: () => void;
+    const realReplacementPatch = replacement.patchWorkItem.bind(replacement);
+    replacement.patchWorkItem = (...args) =>
+      new Promise((resolve) => {
+        finishReplacement = () => {
+          void realReplacementPatch(...args).then(resolve);
+        };
+      });
+    view.rerender(<WbsTable projectId="p1" api={replacement} />);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Replacement owner');
+      expect(replacementReads).toContain('listCalendarMarkers');
+    });
+    replacementReads.length = 0;
+
+    typeName('010', 'Replacement pending');
+    fireEvent.blur(screen.getByLabelText('Name of 010'));
+    await waitFor(() => {
+      expect(finishReplacement).toBeTypeOf('function');
+      expect(document.querySelector('[data-toolbar]')?.getAttribute('aria-busy')).toBe('true');
+    });
+    await act(async () => {
+      finishOld();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(document.querySelector('[data-toolbar]')?.getAttribute('aria-busy')).toBe('true');
+    expect(replacementReads).toEqual([]);
+    expect(toastTexts()).toEqual([]);
+
+    await act(async () => {
+      finishReplacement();
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Replacement pending');
+    });
+    expect(replacementReads).toEqual(['tree']);
+  });
+});
+
+describe('write failure recovery scopes', () => {
+  const allReads = [
+    'tree',
+    'steps',
+    'listTeams',
+    'listTags',
+    'listServices',
+    'listWorkItemTypes',
+    'listExternalSystems',
+    'listPeople',
+    'listCalendarMarkers',
+  ] as const;
+
+  it.each([
+    { name: 'modeled refusal', cause: () => new Error('forbidden'), recovers: false },
+    { name: 'missing target', cause: () => new Error('not_found'), recovers: true },
+    { name: 'invalid body', cause: () => new Error('invalid_body'), recovers: true },
+    {
+      name: 'ambiguous transport failure',
+      // Proof: forcing the typed-failure branch false left zero reads instead
+      // of the required full nine-operation recovery. Watched, 2026-09-13.
+      cause: () =>
+        new WbsRequestError({
+          kind: 'failure',
+          operation: 'patchApiProjectsById',
+          failure: { code: 'transport', cause: new Error('connection lost') },
+        }),
+      recovers: true,
+    },
+  ])('$name has its exact recovery scope', async ({ cause, recovers }) => {
+    const api = await threeRoots();
+    const reads: string[] = [];
+    for (const method of allReads) recordCalls(api, method, () => reads.push(method));
+    api.removeWorkItem = () => Promise.reject(cause());
+
+    takeRowAction('010', 'Delete');
+    await waitFor(() => {
+      expect(toastTexts()).toHaveLength(1);
+    });
+    if (recovers) {
+      await waitFor(() => {
+        expect(reads).toHaveLength(allReads.length);
+      });
+      expect([...reads].sort()).toEqual([...allReads].sort());
+    } else {
+      await Promise.resolve();
+      expect(reads).toEqual([]);
+    }
   });
 });
 

@@ -61,5 +61,34 @@ the page's initial directory response, matching the narrow-scope contract.
 | Five `keeps ... in the directory when attachment refuses` cases | Declare each create request tree-only            | All five received `['tree']`, expected `['tree', 'directory']`                         |
 | `rereads a marker refused because a peer already deleted it`    | Return before refused-marker invalidation        | `chip('launch')` remained a marker span instead of becoming null                       |
 
-The Section 3 race, transport/ownership, browser and host-gate work remains
-unverified and unchecked.
+At the Section 2 boundary, the Section 3 race, transport/ownership, browser and
+host-gate work remained unverified and unchecked.
+
+## Section 3 — cross-operation races and local gates
+
+Pre-integration evidence was gathered on 2026-09-13 at `fbfc8792` plus the
+Section 3 working tree, before `origin/main` advanced from `0451b821` to
+`454edb99` with overlapping frontend compact-column work.
+
+| Check                                                                | Result                                                |
+| -------------------------------------------------------------------- | ----------------------------------------------------- |
+| Section 3 race/refusal/owner cases                                   | 1 file, 6 passed, 58 skipped                          |
+| Full `plan-read-and-write.test.tsx`                                  | 1 file, 64 passed                                     |
+| `bunx nx run fe-01:test`                                             | 107 UTC files / 2712 passed; 2 zoned files / 3 passed |
+| `CI=1 E2E_PORT_SHIFT=2600 bun run e2e` on owned ports 5700/5800/6800 | 348 passed, 37 skipped, 0 failed; 20m35s              |
+| `bunx nx run fe-01:typecheck`                                        | succeeded                                             |
+| `bunx nx run fe-01:lint`                                             | succeeded                                             |
+| Changed-file format and strict change OpenSpec validation            | succeeded; 1 change passed, 0 failed                  |
+
+### R5 proofs
+
+| Check                                                            | Injected fault                                         | Watched failure                                                                       |
+| ---------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `starts a trailing tree read after the pre-write answer settles` | Reuse the generation of a tree read already in flight  | Exact tree-read count remained 1, expected 2; the later server row could not install  |
+| `ambiguous transport failure has its exact recovery scope`       | Force the typed `WbsRequestError` failure branch false | Zero recovery reads, expected all nine API reads                                      |
+| `does not spend an old API success against its busy replacement` | Send completed resources through `ownerRef.current`    | Replacement reads were `['tree']`, expected none while its own write remained pending |
+
+Task 3.3 remains unchecked. The frontend and browser gates must be rerun after
+rebasing onto `454edb99`, and `bin/h2puni-gate.sh <final-sha>` cannot run on
+this `pop-os` host. The h2puni lane also needs a final committed SHA reachable
+to its repository; this branch has not been pushed.
