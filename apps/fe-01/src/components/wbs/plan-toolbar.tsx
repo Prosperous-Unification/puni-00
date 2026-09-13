@@ -14,17 +14,18 @@ import {
 
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import type { RunPlanWrite } from '@/lib/local-write';
 import type { PersonView, PriorityBandView, TeamCapacityView, TeamView } from '@/lib/wbs-api';
 import { isEstimateMethod, type ProjectApi, type StepView } from '@/lib/wbs-api';
 
 import { MenuControl } from './actions-menu';
 import { useClosedByPointerOutside } from './close-on-outside-pointer';
 import { DateField } from './date-field';
-import { type CommitOutcome } from './live-editing';
 import type { PlanTableFeatures } from './plan-columns/column';
 import type { EstimateGaps } from './plan-completeness';
 import { describeGaps } from './plan-completeness';
 import { isSectionMode, SECTION_MODES } from './plan-mermaid';
+import { isAmbiguousWriteFailure } from './plan-refusal';
 import { type PlanRenderRow } from './plan-render-rows';
 import type { PlanRenderer } from './plan-renderer';
 import { TAKES_THE_FOCUS } from './plan-toolbar-sheet';
@@ -598,7 +599,7 @@ export function PlanToolbar({
   freezeMenuOpen: boolean;
   setFreezeMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   busy: boolean;
-  run: (action: () => Promise<void>) => Promise<CommitOutcome>;
+  run: RunPlanWrite;
   api: ProjectApi;
   projectId: string;
   addWorkItem: () => void;
@@ -712,12 +713,14 @@ export function PlanToolbar({
           {
             id: 'freeze',
             label: 'Freeze numbering',
-            run: () => void run(() => api.freezeProject(projectId)),
+            run: () =>
+              void run((write) => write.perform(['tree'], () => api.freezeProject(projectId))),
           },
           {
             id: 'unfreeze-all',
             label: 'Unfreeze all',
-            run: () => void run(() => api.unfreezeProject(projectId)),
+            run: () =>
+              void run((write) => write.perform(['tree'], () => api.unfreezeProject(projectId))),
           },
         ]}
         trigger={{
@@ -912,12 +915,19 @@ export function PlanToolbar({
             flat.flatMap((row) => effectiveTeams.get(row.id)?.teamIds ?? []),
           ),
           setCapacity: (teamId, size) => api.setTeamCapacity(projectId, teamId, size),
-          onChanged: refreshOrMarkStale,
+          onChanged: () => refreshOrMarkStale('tree'),
+          onRefused: async (thrown) => {
+            // Proof: dropping this typed boundary left both transport and
+            // malformed capacity outcomes at zero reads instead of the full
+            // nine-operation recovery. Watched in the two ambiguous capacity
+            // cases, 2026-09-13.
+            if (isAmbiguousWriteFailure(thrown)) await refreshOrMarkStale();
+          },
         }}
         priorities={{
           bands: priorityBands,
           setBands: (bands) => api.setPriorityBands(projectId, bands),
-          onChanged: refreshOrMarkStale,
+          onChanged: () => refreshOrMarkStale('tree'),
         }}
         steps={{
           steps,
@@ -938,7 +948,12 @@ export function PlanToolbar({
           // The same reread every other change on this page makes, which is
           // what puts the new columns on the table and the new list in the
           // section.
-          onChanged: refreshOrMarkStale,
+          onChanged: () => refreshOrMarkStale('tree-and-steps'),
+          onReachChanged: () => refreshOrMarkStale('tree'),
+          // Proof: dropping this recovery left `Remove QA` visible after the
+          // fake peer had deleted it in `fully recovers when a peer already
+          // removed the refused step`. Watched, 2026-09-13.
+          onRefused: () => refreshOrMarkStale(),
         }}
         estimating={{
           // The method is reported, not set: `Plan with` on the bar is the one
@@ -949,7 +964,7 @@ export function PlanToolbar({
           pertWeights: chartRead.pertWeights,
           estimateRounding: chartRead.estimateRounding,
           setArithmetic: (arithmetic) => api.setEstimateArithmetic(projectId, arithmetic),
-          onChanged: refreshOrMarkStale,
+          onChanged: () => refreshOrMarkStale('tree'),
         }}
         {...(chartRead.optimization === undefined
           ? {}
@@ -957,7 +972,7 @@ export function PlanToolbar({
               optimization: {
                 value: chartRead.optimization,
                 setSettings: (patch) => api.setOptimizationSettings(projectId, patch),
-                onChanged: refreshOrMarkStale,
+                onChanged: () => refreshOrMarkStale('tree'),
               },
             })}
       />
@@ -1344,7 +1359,11 @@ export function PlanToolbar({
           {...busyAffordance(busy)}
           value={startDate ?? ''}
           commit={(typed) => {
-            void run(() => api.setStartDate(projectId, typed === '' ? null : typed));
+            void run((write) =>
+              write.perform(['tree'], () =>
+                api.setStartDate(projectId, typed === '' ? null : typed),
+              ),
+            );
           }}
         />
       </label>

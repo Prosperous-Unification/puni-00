@@ -459,8 +459,10 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   live.current.depLights.updateFocus((current) =>
                     current?.rowId === row.original.id && current.pillId === id ? null : current,
                   );
-                  void live.current.run(() =>
-                    live.current.api.removeDependency(row.original.id, id),
+                  void live.current.run((write) =>
+                    write.perform(['tree'], () =>
+                      live.current.api.removeDependency(row.original.id, id),
+                    ),
                   );
                 }}
               >

@@ -115,6 +115,10 @@ export interface StepsPanelProps extends SettingsSectionReport {
   setDepReach: (reach: DependencyReach) => Promise<void>;
   /** Re-reads the project, which is what puts the new columns on the table. */
   onChanged: () => Promise<void>;
+  /** Re-reads the tree after changing dependency reach. */
+  onReachChanged?: () => Promise<void>;
+  /** Fully resynchronizes after a refused write whose step may have disappeared. */
+  onRefused?: () => Promise<void>;
 }
 
 /**
@@ -185,6 +189,8 @@ export function StepsPanel({
   depReach,
   setDepReach,
   onChanged,
+  onReachChanged,
+  onRefused,
   onDirtyChange,
 }: StepsPanelProps) {
   const [newName, setNewName] = useState('');
@@ -213,6 +219,7 @@ export function StepsPanel({
     dirty: newName.trim() !== '' || Object.keys(renamed).length > 0 || confirming !== null,
     onDirtyChange,
     onChanged,
+    ...(onRefused === undefined ? {} : { onRefused }),
   });
 
   const nameShown = (step: StepView): string => renamed[step.id] ?? step.name;
@@ -230,8 +237,11 @@ export function StepsPanel({
    * be-01's code straight into a toast, which is the raw-code path this change
    * exists to close.
    */
-  async function attempt(change: () => Promise<void>): Promise<void> {
-    await section.attempt(change);
+  async function attempt(
+    change: () => Promise<void>,
+    onLanded?: () => Promise<void>,
+  ): Promise<void> {
+    await section.attempt(change, onLanded);
   }
 
   function submitNew(event: SubmitEvent<HTMLFormElement>): void {
@@ -431,7 +441,7 @@ export function StepsPanel({
                   className="mt-1"
                   checked={depReach === reach}
                   onChange={() => {
-                    void attempt(() => setDepReach(reach));
+                    void attempt(() => setDepReach(reach), onReachChanged ?? onChanged);
                   }}
                 />
                 <span className="flex flex-col gap-0.5">
