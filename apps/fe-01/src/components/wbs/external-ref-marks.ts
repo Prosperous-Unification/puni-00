@@ -75,12 +75,17 @@ export const FAMILY_PAINT: Record<SystemFamily, { paint: string; filled: boolean
 /**
  * How many marks the cell draws before the surplus collapses into one.
  *
- * Four, which is what 32px of mark room holds at 6px a mark with 2px between
- * them. A fifth *family* — not a fifth ref — takes the overflow mark instead,
+ * Three, which is what 24px of mark room holds at 6px a mark with 2px between
+ * them. A fourth *family* — not a fourth ref — takes the overflow mark instead,
  * because the column's width is the one thing that may not depend on its
  * contents (design D2).
+ *
+ * Four until 2026-09-13, in 32px of room; the `refs` column went 40 → 32 when
+ * Dany asked for every column narrower ("links … a bit smaller"), and a mark
+ * came off with the 8px. A row wired to four systems now reads three marks,
+ * the last of them the `+`, and names all four in the cell's sentence.
  */
-export const MOST_MARKS = 4;
+export const MOST_MARKS = 3;
 
 /** One mark on a row's ref cell: what it stands for, and how it is drawn. */
 export interface RefMark {

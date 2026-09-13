@@ -261,15 +261,16 @@ describe('the frame the table scrolls inside', () => {
 
     const cells = [...rowFor('020').querySelectorAll('td')];
 
-    // Each offset is the sum of the widths in front of it — 16, then 16+105,
-    // then 121+40 since `external-refs` put the ref column between `#` and
-    // Name. Four pinned columns now, and the fourth is pinned because it had to
-    // be: an unpinned column between two pinned ones scrolls under the second.
+    // Each offset is the sum of the widths in front of it — 16, then 16+98,
+    // then 114+32 since `external-refs` put the ref column between `#` and
+    // Name (105 and 40 until 2026-09-13's compaction). Four pinned columns
+    // now, and the fourth is pinned because it had to be: an unpinned column
+    // between two pinned ones scrolls under the second.
     expect(cells.slice(0, 4).map((td) => [td.style.position, td.style.left])).toEqual([
       ['sticky', '0px'],
       ['sticky', '16px'],
-      ['sticky', '121px'],
-      ['sticky', '161px'],
+      ['sticky', '114px'],
+      ['sticky', '146px'],
     ]);
     // Pinned and still flexible: the pin places the Name cell and the colgroup
     // sizes it, and a `width` here would be the second opinion that put a
@@ -277,8 +278,8 @@ describe('the frame the table scrolls inside', () => {
     // Proof: `pinnedCellStyle` made to declare `width: pinned.width ?? 360`
     // again, this failed on `expected '360px' to be ''`. Watched, 2026-08-08.
     expect(cells[3]?.style.width).toBe('');
-    expect(cells[1]?.style.width).toBe('105px');
-    expect(cells[2]?.style.width).toBe('40px');
+    expect(cells[1]?.style.width).toBe('98px');
+    expect(cells[2]?.style.width).toBe('32px');
     // And the floor that keeps it readable while the frame is scrolling.
     expect(cells[3]?.style.minWidth).toBe('200px');
     // Opaque, or the row scrolling behind a pinned cell shows through it.
@@ -332,7 +333,7 @@ describe('the widths the table is laid out by', () => {
     // Proof: the colgroup made to declare `360` for a flexible column, this
     // failed on `expected ['24px','93px','360px'] to deeply equal
     // ['24px','93px','']`. Watched, 2026-08-08, when this column was 169px.
-    expect(cols.slice(0, 4).map((col) => col.style.width)).toEqual(['16px', '105px', '40px', '']);
+    expect(cols.slice(0, 4).map((col) => col.style.width)).toEqual(['16px', '98px', '32px', '']);
     for (const [at, col] of cols.entries()) {
       expect(col.style.width === '').toBe(at === 3);
     }
@@ -389,9 +390,11 @@ describe('the widths the table is laid out by', () => {
     // the closed one and Name's 200. Folded it is 1239, and both open 1743 —
     // the difference is what `unfolding-may-scroll` decided to spend
     // the frame's scrollbar on.
-    expect(table.style.minWidth).toBe('1491px');
+    // 1491 → 1440 and 1239 → 1188 on 2026-09-13: 67px off the fixed columns,
+    // 8px onto each of the two steps' folded columns.
+    expect(table.style.minWidth).toBe('1440px');
     fireEvent.click(screen.getByRole('button', { name: 'Fold Dev estimates' }));
-    expect(screen.getByRole('table').style.minWidth).toBe('1239px');
+    expect(screen.getByRole('table').style.minWidth).toBe('1188px');
   });
 
   itDom('says nothing in a number cell that is showing the whole number', async () => {
@@ -955,8 +958,8 @@ describe('the widths this browser has dragged', () => {
       // 200 floor, plus the 300 override
       // — as its width and its minimum alike, so the frame keeps the slack
       // above it and scrolls below it.
-      expect(screen.getByRole('table').style.width).toBe('1591px');
-      expect(screen.getByRole('table').style.minWidth).toBe('1591px');
+      expect(screen.getByRole('table').style.width).toBe('1540px');
+      expect(screen.getByRole('table').style.minWidth).toBe('1540px');
     },
   );
 
@@ -1033,7 +1036,7 @@ describe('the widths this browser has dragged', () => {
     const header = document.querySelector<HTMLElement>('thead th[data-column="name"]');
     expect(header?.style.width).toBe('');
     expect(header?.style.minWidth).toBe('200px');
-    expect(laidOut()['number']).toBe('105px');
+    expect(laidOut()['number']).toBe('98px');
     expect(screen.getByRole('table').style.width).toMatch(/^min\(100%, \d+px\)$/);
     expect(stored()).toBe(null);
   });
@@ -1090,7 +1093,7 @@ describe('the widths this browser has dragged', () => {
       storedWidths(junk);
       await threeRoots();
 
-      expect(laidOut()['number']).toBe('105px');
+      expect(laidOut()['number']).toBe('98px');
       expect(stored()).toBe(null);
     },
   );
@@ -1149,8 +1152,8 @@ describe('the widths this browser has dragged', () => {
       storedWidths({ number: 1e9, depends: 4, tag: 240 });
       await threeRoots();
 
-      expect(laidOut()['number']).toBe('105px');
-      expect(laidOut()['depends']).toBe('86px');
+      expect(laidOut()['number']).toBe('98px');
+      expect(laidOut()['depends']).toBe('78px');
       expect(laidOut()['tag']).toBe('240px');
     },
   );
@@ -1249,7 +1252,7 @@ describe('the widths this browser has dragged', () => {
 
     click('Reset layout');
 
-    expect(laidOut()['number']).toBe('105px');
+    expect(laidOut()['number']).toBe('98px');
     expect(document.activeElement).toBe(screen.getByLabelText('Name of 010'));
     expect(screen.getByLabelText('Name of 010')).toHaveProperty('value', 'Strip the old wir');
   });

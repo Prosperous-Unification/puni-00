@@ -277,31 +277,40 @@ export function DependsCard({
             const owner = event.currentTarget.closest('td');
             if (owner?.contains(event.relatedTarget as Node)) onPointEntry(null);
           }}
-          style={
-            entry.id === emphasisedId
-              ? // The row tint on *this* surface — see
-                // {@link DependsCardProps.emphasisedId}. The token rather than a
-                // literal, for `MATCH_TINT`'s reason: `.dark` re-points the
-                // palette and a literal would not follow.
-                //
-                // Inset, and the inset given straight back as negative margin:
-                // a swatch with no padding is a box the exact shape of the
-                // glyphs, whose rounded corners cut into the first and last
-                // letter and read as a rendering fault rather than as a
-                // highlight. The margin is what keeps the emphasis from
-                // *moving* the line it emphasises — padding alone would shift
-                // this line's text 4px right of every other line's and reflow
-                // the card as the pointer walked the pills.
-                {
-                  pointerEvents: 'auto',
-                  background: 'var(--card-dep-lit)',
-                  borderRadius: 4,
-                  padding: '1px 4px',
-                  margin: '-1px -4px',
-                  ...statusStripStyle(entry.status),
-                }
-              : { pointerEvents: 'auto', ...statusStripStyle(entry.status) }
-          }
+          style={{
+            pointerEvents: 'auto',
+            // The inset box, on **every** line and not on the lit one alone.
+            //
+            // Inset, and the inset given straight back as negative margin: a
+            // swatch with no padding is a box the exact shape of the glyphs,
+            // whose rounded corners cut into the first and last letter and
+            // read as a rendering fault rather than as a highlight. The margin
+            // is what keeps the emphasis from *moving* the line it emphasises
+            // — padding alone would shift this line's text 4px right of every
+            // other line's and reflow the card as the pointer walked the pills.
+            //
+            // Until 2026-09-13 only the lit line wore this box, and the status
+            // strip ({@link statusStripStyle}) is drawn on the box's own left
+            // edge — so a done predecessor's strip stood 4px further left
+            // while its pill was under the pointer and jumped back when the
+            // pointer returned to the cell (Dany: "the status badge flickers
+            // when focus on tag vs when focus on the cell"). One box for
+            // every line is what holds the strip still; the background is the
+            // only thing that follows the pointer now.
+            // Proof: the box moved back into the lit arm alone — `keeps the
+            // strip where it stands when the pointer lights one line` failed
+            // on `expected { margin: '-1px -4px', … } to deeply equal { margin:
+            // '', padding: '', … }`. Watched 2026-09-13.
+            borderRadius: 4,
+            padding: '1px 4px',
+            margin: '-1px -4px',
+            ...statusStripStyle(entry.status),
+            // The row tint on *this* surface — see
+            // {@link DependsCardProps.emphasisedId}. The token rather than a
+            // literal, for `MATCH_TINT`'s reason: `.dark` re-points the
+            // palette and a literal would not follow.
+            ...(entry.id === emphasisedId ? { background: 'var(--card-dep-lit)' } : {}),
+          }}
         >
           {dependsLine(entry)}
         </div>

@@ -198,20 +198,24 @@ test.describe('the steps surface, in a browser', () => {
     // The arithmetic the surface prints, while it is still open to print it.
     // 1343 → 1303 with contextual Links: a fresh plan has no references, so
     // its base layout no longer pays the Links column's 40px folded width. The
-    // narrower drag column then takes the current 8px, 1303 → 1295.
-    await expect(page.getByText('3 steps need ≥1295px of width to sit side by side')).toBeVisible();
+    // narrower drag column then takes the current 8px, 1303 → 1295. **1295 →
+    // 1260 on 2026-09-13**: the day's compaction took 59px off the fixed set
+    // this fixture shows (67 less the hidden Links column's 8) and the folded
+    // step column grew 96 → 104, three times over.
+    await expect(page.getByText('3 steps need ≥1260px of width to sit side by side')).toBeVisible();
     await page.keyboard.press('Escape');
 
     const threeSteps = await columnsOnScreen(page);
     expect(threeSteps.filter((id) => id.endsWith('-final'))).toHaveLength(3);
     await expect(page.getByRole('button', { name: 'Unfold Design estimates' })).toBeVisible();
-    // One folded step is 96px. Compare the rendered before/after widths so
-    // globally-created optional Tag/Service columns may be present without
-    // turning this step-layout test into a cross-test directory-state test.
+    // One folded step is 104px (96 until 2026-09-13). Compare the rendered
+    // before/after widths so globally-created optional Tag/Service columns may
+    // be present without turning this step-layout test into a cross-test
+    // directory-state test.
     const minWidthAfter = await page.evaluate(() =>
       Number.parseInt(document.querySelector('table')?.style.minWidth ?? '', 10),
     );
-    expect(minWidthAfter - minWidthBefore).toBe(96);
+    expect(minWidthAfter - minWidthBefore).toBe(104);
   });
 
   test('a removal names what it would take, and takes nothing until the box is ticked', async ({
