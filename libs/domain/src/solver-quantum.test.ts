@@ -15,13 +15,15 @@ describe('SOLVER_QUANTUM', () => {
   });
 });
 
-describe('durationUnits', () => {
+describe('workItemIdsWithPositiveDuration', () => {
   it('requires one supplied duration per slice', () => {
     expect(() => workItemIdsWithPositiveDuration([slice(1, 1)], [])).toThrow(
       'positive-duration classification requires one duration per slice',
     );
   });
+});
 
+describe('durationUnits', () => {
   it('divides an estimate by width, and never divides the assumption', () => {
     // The two arms of `durationOf`, asserted end to end through the quantum
     // because the plan restated them and got both wrong: it divided the

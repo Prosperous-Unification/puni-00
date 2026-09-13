@@ -41,10 +41,12 @@ import { SOLVER_REQUEST_KEYS, SOLVER_SLICE_KEYS, type SolverRequest } from './wi
  * side's validator is the Python entrypoint's `jsonschema` pass (§5), and
  * asserting anything about them here would be a check that cannot fail.
  *
- * ## Why only one of the two valid request fixtures is built here
+ * ## Why the builder comparison covers one request fixture
  *
- * `valid-quantised-baseline.json` is 2.11's own fixture and the manifest says
- * so. `valid-two-slices.json` is a **schema** fixture, and no plan this builder
+ * `valid-quantised-baseline.json` is 2.11's own builder fixture and the manifest
+ * says so. The other `valid-*` files are schema and cross-field oracles rather
+ * than builder outputs. In particular, `valid-two-slices.json` is a **schema**
+ * fixture, and no plan this builder
  * can be handed produces it — measured from `priorityWeights`, not assumed. It
  * carries `priorityWeight` 2 on one slice and 0 on the other. The rank is dense
  * over the distinct priorities of the **whole** canonical input, so a weight of

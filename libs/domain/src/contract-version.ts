@@ -54,7 +54,7 @@
  * rounding puts an arbitrary double in: `days: 1.0000000005` over `width: 1`
  * gave `durationUnits` `49` before this change and `48` after.
  *
- * The number is also not free at this point: every valid request fixture in
+ * The number is also not free at this point: every request fixture in
  * the golden corpus is checked in carrying `"10+0.1.3"`, and
  * `wire-contract-version.test.ts` in `libs/contracts` pins the constant to that
  * prefix — so a change here without a change there is a red test rather than a

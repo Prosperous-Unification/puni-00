@@ -2613,10 +2613,10 @@ export function schedule(
     // a fresh point. Leading, interior and trailing zero steps of a positive
     // item therefore read the item's final finish. Only a genuinely all-zero
     // work item uses the point's own start so the day on which it stands counts.
-    // Proof: forcing every slice to use `placed.start` made
-    // `reads every zero step from the positive work-item projection but all-zero
-    // items as points` report the trailing step late by 1; watched on h2puni
-    // 2026-09-09.
+    // Proof: replacing a positive item's final finish with each zero step's own
+    // `placed.finish` made `reads every zero step from the positive work-item
+    // projection but all-zero items as points` report the leading step on time
+    // instead of late by 1; watched on h2puni 2026-09-13.
     const hasPositiveDuration = workItemsWithDuration.has(slice.workItemId);
     const deadlineStart = hasPositiveDuration ? WORK_ITEM_PROJECTION_START : placed.start;
     const deadlineFinish =
