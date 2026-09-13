@@ -1,4 +1,12 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
@@ -256,6 +264,31 @@ afterEach(() => {
 });
 
 describe('relationship extraction production CLI', () => {
+  test('refuses candidate Nx plugins before their module can execute', () => {
+    const repository = createRepository();
+    const sentinel = join(repository, '..', `${basename(repository)}.plugin-executed`);
+    pathsToRemove.push(sentinel);
+    write(
+      repository,
+      'tools/candidate-plugin.cjs',
+      "require('node:fs').writeFileSync(process.env.WBS_WIKI_PLUGIN_SENTINEL, 'executed');\nmodule.exports = { name: 'candidate-plugin', createNodesV2: ['project.json', () => []] };\n",
+    );
+    write(
+      repository,
+      'nx.json',
+      `${JSON.stringify({ plugins: ['./tools/candidate-plugin.cjs'], useInferencePlugins: false })}\n`,
+    );
+    const revision = commitAll(repository, 'candidate Nx plugin');
+
+    const invocation = invoke(repository, revision, writeRequest(repository), {
+      WBS_WIKI_PLUGIN_SENTINEL: sentinel,
+    });
+
+    expect(existsSync(sentinel)).toBe(false);
+    expect(invocation.exitCode).toBe(1);
+    expect(output(invocation)).toContain('candidate Nx plugins are unsupported');
+  });
+
   test('strictly versions relationship requests and rejects ambiguous selector sets', () => {
     const repository = createRepository();
     const revision = commitAll(repository, 'strict request boundary');
@@ -997,3 +1030,62 @@ describe('relationship extraction production CLI', () => {
     expect(output(escaped)).not.toContain('TypeScript');
   }, 15_000);
 });
+
+test('stales an implicit ambient declaration used by the public surface', () => {
+  const repository = createRepository();
+  write(
+    repository,
+    'packages/provider/src/public.ts',
+    "export interface PublicThing { value: string; nested: import('./hidden').Hidden; ambient: ImplicitAmbient }\n",
+  );
+  write(
+    repository,
+    'packages/provider/src/ambient.d.ts',
+    'interface ImplicitAmbient { value: string }\n',
+  );
+  const requestPath = writeRequest(repository);
+  const initial = report(invoke(repository, commitAll(repository, 'ambient string'), requestPath));
+
+  write(
+    repository,
+    'packages/provider/src/ambient.d.ts',
+    'interface ImplicitAmbient { value: number }\n',
+  );
+  const changed = report(invoke(repository, commitAll(repository, 'ambient number'), requestPath));
+
+  expect(
+    changed.typescript.publicDeclarations[0].declarations.map(({ sourcePath }) => sourcePath),
+  ).toContain('packages/provider/src/ambient.d.ts');
+  expect(changed.typescript.publicDeclarations[0].identity).not.toBe(
+    initial.typescript.publicDeclarations[0].identity,
+  );
+}, 15_000);
+
+test('stales an applicable module augmentation of a public type', () => {
+  const repository = createRepository();
+  write(
+    repository,
+    'packages/provider/src/augmentation.d.ts',
+    "import './hidden';\ndeclare module './hidden' { interface Hidden { augmented: string } }\n",
+  );
+  const requestPath = writeRequest(repository);
+  const initial = report(
+    invoke(repository, commitAll(repository, 'string augmentation'), requestPath),
+  );
+
+  write(
+    repository,
+    'packages/provider/src/augmentation.d.ts',
+    "import './hidden';\ndeclare module './hidden' { interface Hidden { augmented: number } }\n",
+  );
+  const changed = report(
+    invoke(repository, commitAll(repository, 'number augmentation'), requestPath),
+  );
+
+  expect(
+    changed.typescript.publicDeclarations[0].declarations.map(({ sourcePath }) => sourcePath),
+  ).toContain('packages/provider/src/augmentation.d.ts');
+  expect(changed.typescript.publicDeclarations[0].identity).not.toBe(
+    initial.typescript.publicDeclarations[0].identity,
+  );
+}, 15_000);

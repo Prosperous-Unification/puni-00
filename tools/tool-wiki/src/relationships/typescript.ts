@@ -420,6 +420,80 @@ function declarationDependencies(
   );
 }
 
+function semanticDeclarationDependencies(
+  workspace: string,
+  project: ParsedProject,
+  entrypoint: string,
+): string[] {
+  const sourceFile = project.program.getSourceFile(resolve(workspace, entrypoint));
+  if (sourceFile === undefined) {
+    throw new Error(`TypeScript compiler lost public entrypoint ${entrypoint}`);
+  }
+  const checker = project.program.getTypeChecker();
+  const moduleSymbol = checker.getSymbolAtLocation(sourceFile);
+  if (moduleSymbol === undefined) {
+    throw new Error(`TypeScript compiler lost public module symbol ${entrypoint}`);
+  }
+  const paths = new Set<string>();
+  const seenSymbols = new Set<ts.Symbol>();
+  const seenTypes = new Set<ts.Type>();
+
+  const visitSymbol = (symbol: ts.Symbol): void => {
+    if (seenSymbols.has(symbol)) return;
+    seenSymbols.add(symbol);
+    if ((symbol.flags & ts.SymbolFlags.Alias) !== 0) {
+      visitSymbol(checker.getAliasedSymbol(symbol));
+    }
+    const declarations = symbol.declarations ?? [];
+    let hasLocalDeclaration = false;
+    for (const declaration of declarations) {
+      const path = workspacePath(workspace, declaration.getSourceFile().fileName);
+      if (path === undefined || !project.declarations.has(path)) continue;
+      hasLocalDeclaration = true;
+      paths.add(path);
+    }
+    if (!hasLocalDeclaration) return;
+    const location = symbol.valueDeclaration ?? declarations[0];
+    visitType(checker.getTypeOfSymbolAtLocation(symbol, location));
+    if ((symbol.flags & ts.SymbolFlags.Type) !== 0) {
+      visitType(checker.getDeclaredTypeOfSymbol(symbol));
+    }
+  };
+
+  const visitType = (type: ts.Type): void => {
+    if (seenTypes.has(type)) return;
+    seenTypes.add(type);
+    if (type.aliasSymbol !== undefined) visitSymbol(type.aliasSymbol);
+    const typeSymbol = type.getSymbol();
+    if (typeSymbol !== undefined) visitSymbol(typeSymbol);
+    if (type.isUnionOrIntersection()) {
+      for (const member of type.types) visitType(member);
+    }
+    if ((type.flags & ts.TypeFlags.Object) !== 0) {
+      const objectType = type as ts.ObjectType;
+      if ((objectType.objectFlags & ts.ObjectFlags.Reference) !== 0) {
+        for (const argument of checker.getTypeArguments(objectType as ts.TypeReference)) {
+          visitType(argument);
+        }
+      }
+    }
+    for (const property of checker.getPropertiesOfType(type)) visitSymbol(property);
+    for (const signature of [
+      ...checker.getSignaturesOfType(type, ts.SignatureKind.Call),
+      ...checker.getSignaturesOfType(type, ts.SignatureKind.Construct),
+    ]) {
+      for (const parameter of signature.getParameters()) visitSymbol(parameter);
+      visitType(signature.getReturnType());
+    }
+    for (const index of checker.getIndexInfosOfType(type)) visitType(index.type);
+    const baseTypes = type.getBaseTypes();
+    if (baseTypes !== undefined) for (const baseType of baseTypes) visitType(baseType);
+  };
+
+  for (const exported of checker.getExportsOfModule(moduleSymbol)) visitSymbol(exported);
+  return [...paths].sort(compareText);
+}
+
 function publicDeclaration(
   workspace: string,
   entrypoint: string,
@@ -432,7 +506,10 @@ function publicDeclaration(
     );
   }
   const visited = new Set<string>();
-  const pending = [entrypoint];
+  // Proof: omitting semantic dependencies kept both an implicitly available ambient interface
+  // and an applicable module augmentation outside the public closure; changing either declaration
+  // left the committed extractor's structural identity unchanged.
+  const pending = [entrypoint, ...semanticDeclarationDependencies(workspace, project, entrypoint)];
   while (pending.length > 0) {
     const sourcePath = pending.pop();
     if (sourcePath === undefined || visited.has(sourcePath)) continue;

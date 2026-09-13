@@ -116,6 +116,32 @@ function installedNx(): { cli: string; extractor: ExtractorIdentity } {
   };
 }
 
+/** Refuses Nx configuration forms that can load candidate-owned modules during graph discovery. */
+function assertStaticNxConfiguration(workspace: string): void {
+  const configurationPath = join(workspace, 'nx.json');
+  if (!existsSync(configurationPath)) return;
+  let input: unknown;
+  try {
+    const bytes = readFileSync(configurationPath);
+    input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(`Nx configuration unreadable: ${detail}`, { cause });
+  }
+  const configuration = record(input, 'nx.json');
+  // Nx resolves `extends` before exposing the merged plugin list, so inspecting only the local
+  // `plugins` field would let an extended candidate configuration load executable modules.
+  if (configuration['extends'] !== undefined) {
+    throw new Error('candidate Nx configuration extends are unsupported');
+  }
+  const plugins = configuration['plugins'];
+  // Proof: accepting a non-empty candidate plugin list made both the committed extractor and the
+  // trusted lint write their sentinel before either path could refuse the candidate.
+  if (plugins !== undefined && (!Array.isArray(plugins) || plugins.length > 0)) {
+    throw new Error('candidate Nx plugins are unsupported');
+  }
+}
+
 function readGraph(workspace: string, cli: string): UnknownRecord {
   const outputDirectory = mkdtempSync(join(tmpdir(), 'tool-wiki-nx-'));
   const outputPath = join(outputDirectory, 'graph.json');
@@ -198,6 +224,7 @@ export function extractNxRelationships(workspace: string): {
   extractor: ExtractorIdentity;
   relationships: NxRelationships;
 } {
+  assertStaticNxConfiguration(workspace);
   const { cli, extractor } = installedNx();
   const graph = readGraph(workspace, cli);
   const nodes = record(graph['nodes'], 'graph.nodes');

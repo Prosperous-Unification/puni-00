@@ -1288,6 +1288,74 @@ describe('trusted policy production CLI', () => {
     expect(output).toContain('unknown relationship selector in README.md: selector.does-not-exist');
   });
 
+  test('CI trusted lint refuses candidate Nx plugins without executing them', () => {
+    const fixture = createFixture('enforce');
+    const sentinel = join(
+      fixture.repository,
+      '..',
+      `${fixture.repository.slice(fixture.repository.lastIndexOf('/') + 1)}.plugin-executed`,
+    );
+    scratchPaths.push(sentinel);
+    write(
+      join(fixture.repository, 'tsconfig.json'),
+      `${JSON.stringify({ compilerOptions: { module: 'ESNext' }, include: ['src/**/*.ts'] })}\n`,
+    );
+    write(
+      join(fixture.repository, 'tools/candidate-plugin.ts'),
+      "import { writeFileSync } from 'node:fs';\nwriteFileSync(process.env['WBS_WIKI_PLUGIN_SENTINEL'] ?? '', 'executed');\nexport const createNodesV2 = ['project.json', () => []] as const;\n",
+    );
+    write(
+      join(fixture.repository, 'nx.json'),
+      `${JSON.stringify({ plugins: ['./tools/candidate-plugin.ts'], useInferencePlugins: false })}\n`,
+    );
+    write(
+      join(fixture.repository, 'README.md'),
+      indexSource(
+        [
+          'exemptions.json',
+          'nx.json',
+          'policy.json',
+          'src/app.ts',
+          'tools/candidate-plugin.ts',
+          'tsconfig.json',
+          'validator.ts',
+        ],
+        ['nx.projects'],
+      ),
+    );
+    fixture.revision = commit(fixture.repository, 'candidate Nx plugin');
+    fixture.baselineRevision = fixture.revision;
+    writeEvidence(fixture, 'enforce', [
+      'obligation.application',
+      'obligation.exemptions',
+      'obligation.policy',
+      'obligation.validator',
+    ]);
+    writeAuthority(fixture);
+    writeTrust(fixture, 'enforce');
+    const policy = JSON.parse(readFileSync(fixture.policyPath, 'utf8')) as Record<string, unknown>;
+    policy['relationshipRequest'] = {
+      schemaVersion: 1,
+      typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/app.ts'] },
+    };
+    write(fixture.policyPath, `${JSON.stringify(policy)}\n`);
+    const binding = JSON.parse(readFileSync(fixture.bindingPath, 'utf8')) as {
+      policy: { sha256: string };
+    };
+    binding.policy.sha256 = sha256(readFileSync(fixture.policyPath));
+    write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
+
+    const environmentSentinel = process.env['WBS_WIKI_PLUGIN_SENTINEL'];
+    process.env['WBS_WIKI_PLUGIN_SENTINEL'] = sentinel;
+    const invocation = runCi(fixture);
+    if (environmentSentinel === undefined) delete process.env['WBS_WIKI_PLUGIN_SENTINEL'];
+    else process.env['WBS_WIKI_PLUGIN_SENTINEL'] = environmentSentinel;
+    const output = outputOf(invocation);
+    expect(existsSync(sentinel)).toBe(false);
+    expect(invocation.exitCode, output).toBe(1);
+    expect(output).toContain('candidate Nx plugins are unsupported');
+  }, 15_000);
+
   test('production lint refuses absent external consumers and unresolved applicable checks', () => {
     const mutations = [
       {
