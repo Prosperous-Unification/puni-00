@@ -48,7 +48,7 @@ export interface SettingsSectionOptions {
   /** Re-reads the plan after a write landed. */
   onChanged: () => Promise<void>;
   /** Optional recovery read after a refusal whose target may have changed. */
-  onRefused?: () => Promise<void>;
+  onRefused?: (thrown: unknown) => Promise<void>;
 }
 
 /**
@@ -113,7 +113,7 @@ export function useSettingsSection(options: SettingsSectionOptions): SettingsSec
         return true;
       } catch (thrown: unknown) {
         setProblem(sentenceForRefusal(words, failureText(thrown, 'request_failed')));
-        if (onRefused !== undefined) await onRefused();
+        if (onRefused !== undefined) await onRefused(thrown);
         return false;
       } finally {
         setBusy(false);

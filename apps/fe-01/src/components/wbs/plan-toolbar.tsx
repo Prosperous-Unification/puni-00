@@ -25,6 +25,7 @@ import type { PlanTableFeatures } from './plan-columns/column';
 import type { EstimateGaps } from './plan-completeness';
 import { describeGaps } from './plan-completeness';
 import { isSectionMode, SECTION_MODES } from './plan-mermaid';
+import { isAmbiguousWriteFailure } from './plan-refusal';
 import { type PlanRenderRow } from './plan-render-rows';
 import type { PlanRenderer } from './plan-renderer';
 import { TAKES_THE_FOCUS } from './plan-toolbar-sheet';
@@ -915,6 +916,13 @@ export function PlanToolbar({
           ),
           setCapacity: (teamId, size) => api.setTeamCapacity(projectId, teamId, size),
           onChanged: () => refreshOrMarkStale('tree'),
+          onRefused: async (thrown) => {
+            // Proof: dropping this typed boundary left both transport and
+            // malformed capacity outcomes at zero reads instead of the full
+            // nine-operation recovery. Watched in the two ambiguous capacity
+            // cases, 2026-09-13.
+            if (isAmbiguousWriteFailure(thrown)) await refreshOrMarkStale();
+          },
         }}
         priorities={{
           bands: priorityBands,

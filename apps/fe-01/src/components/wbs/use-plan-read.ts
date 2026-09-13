@@ -34,7 +34,6 @@ import {
   type SliceView,
   type StepView,
 } from '@/lib/wbs-api';
-import { WbsRequestError } from '@/lib/wbs-api';
 
 import { type CellCards } from './cell-card-store';
 import type { FocusIntent } from './live-editing';
@@ -43,6 +42,7 @@ import {
   failureText,
   GONE,
   INVALID_REQUEST,
+  isAmbiguousWriteFailure,
   NOTHING_TO_REDO,
   NOTHING_TO_UNDO,
   refusalSentence,
@@ -841,7 +841,7 @@ export function usePlanRead({
           // transport case with zero recovery reads instead of all resources.
           // Watched in `ambiguous transport failure has its exact recovery
           // scope`, 2026-09-13.
-          const ambiguous = thrown instanceof WbsRequestError && thrown.problem.kind === 'failure';
+          const ambiguous = isAmbiguousWriteFailure(thrown);
           const completed = write.completedResources();
           // Proof: replacing the completed prefix below with `[]` made
           // `refreshes a created tag after its attachment refuses` time out
@@ -854,7 +854,12 @@ export function usePlanRead({
           return 'refused';
         }
         const completed = write.completedResources();
-        if (isCurrent() && completed.length > 0) await refreshResourcesOrMarkStale(completed);
+        // Proof: returning `landed` without checking the captured owner made
+        // an old Arrange completion toast into its busy replacement. Watched
+        // in `does not announce an old arrangement in its busy replacement`,
+        // 2026-09-13.
+        if (!isCurrent()) return 'refused';
+        if (completed.length > 0) await refreshResourcesOrMarkStale(completed);
         return 'landed';
       } finally {
         // The next project's write owns its busy state. An older completion

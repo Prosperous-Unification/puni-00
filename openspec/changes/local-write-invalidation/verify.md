@@ -110,3 +110,49 @@ run as flaky.
 Task 3.3 remains unchecked because `bin/h2puni-gate.sh <final-sha>` cannot run
 on this `pop-os` host. The h2puni lane also needs a final committed SHA
 reachable to its repository; this branch has not been pushed.
+
+## Astra repair — complete recovery and owner-safe success
+
+Verified on 2026-09-13 at the working tree based on `0e6a01bb`.
+
+| Check                                                                                  | Result                                  |
+| -------------------------------------------------------------------------------------- | --------------------------------------- |
+| Corrected RED selection for the three review findings                                  | 8 selected: 6 failed, 2 controls passed |
+| Corrected GREEN selection                                                              | 8 passed, 63 skipped                    |
+| `plan-read-and-write.test.tsx`                                                         | 71 passed                               |
+| Owning write tests plus the complete `plan-table.test.tsx`                             | 2 files, 117 passed                     |
+| Settings, team-picker, modal and dependency neighbours                                 | 4 files, 111 passed                     |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:typecheck --skip-nx-cache` | succeeded                               |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:lint --skip-nx-cache`      | succeeded                               |
+| Changed-file format, `git diff --check`, strict change OpenSpec                        | succeeded; 1 change passed, 0 failed    |
+| Strict all-packet OpenSpec                                                             | 82 passed, 0 failed                     |
+
+The final uncontaminated `bunx nx run fe-01:test` exited 1 after 7m13s. Nx
+captured no Vitest body or named failure, so the result supplies neither test
+counts nor a reviewable counterexample. The complete owning file and the
+previously affected `plan-table.test.tsx` pass together above. No further broad
+rerun was made while the coordinator reassigned the shared E2E lane.
+
+The integrated browser result at `3493b059` remains the browser evidence. This
+repair changes coordinator result classification and recovery scopes without
+changing DOM structure, layout, browser transport or an E2E-visible workflow;
+the production-page tests exercise its requests, toasts, focus and retained
+drafts directly.
+
+### Repair R5 proofs
+
+| Check                                                                    | Injected fault                                          | Watched failure                                                |
+| ------------------------------------------------------------------------ | ------------------------------------------------------- | -------------------------------------------------------------- |
+| Capacity transport and malformed-response recovery                       | Force the shared ambiguous-failure classifier false     | Recovery reads were 0 instead of all 9                         |
+| Multi-dependency transport, malformed response and mixed prefix recovery | Force the dependency ambiguous-failure classifier false | Recovery reads were 1 instead of all 9                         |
+| Old Arrange completion stays out of its replacement                      | Remove the captured-owner success guard                 | The replacement received `Arranged by schedule.`               |
+| Capacity success issues the real request before refresh                  | Replace the capacity setter with a no-op                | Recorded requests were `[]` instead of `[['p1', 'team-1', 3]]` |
+
+The capacity negatives also assert the exact request, no read before its held
+response settles, all-nine recovery after both typed failure shapes, retained
+draft and visible error. Dependency negatives assert both ordered requests,
+one toast, all-nine recovery for ambiguous failures, the successful prefix
+remaining visible, and tree-only recovery for a modeled refusal. The owner
+negative holds the old Arrange response across a same-project replacement and
+its pending rename, then proves no old toast, read, focus or busy-state change;
+a following same-owner Arrange remains the success control.

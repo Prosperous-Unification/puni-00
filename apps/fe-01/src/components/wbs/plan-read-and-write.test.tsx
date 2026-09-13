@@ -1874,6 +1874,93 @@ describe('refresh owner lifetimes', () => {
     });
     expect(replacementReads).toEqual(['tree']);
   });
+
+  it('does not announce an old arrangement in its busy replacement', async () => {
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Old arrangement' });
+    let finishOld!: () => void;
+    api.arrangeBySchedule = () =>
+      new Promise((resolve) => {
+        finishOld = resolve;
+      });
+    const view = render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    click('Arrange by schedule');
+    await waitFor(() => {
+      expect(finishOld).toBeTypeOf('function');
+    });
+
+    const replacement = fakeApi();
+    await replacement.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Replacement arrangement',
+    });
+    const replacementReads: string[] = [];
+    for (const method of [
+      'tree',
+      'steps',
+      'listTeams',
+      'listTags',
+      'listServices',
+      'listWorkItemTypes',
+      'listExternalSystems',
+      'listPeople',
+      'listCalendarMarkers',
+    ] as const) {
+      recordCalls(replacement, method, () => replacementReads.push(method));
+    }
+    const patchReplacement = replacement.patchWorkItem.bind(replacement);
+    let finishReplacement!: () => void;
+    replacement.patchWorkItem = (...args) =>
+      new Promise((resolve) => {
+        finishReplacement = () => {
+          void patchReplacement(...args).then(resolve);
+        };
+      });
+    view.rerender(<WbsTable projectId="p1" api={replacement} />);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name of 010')).toHaveProperty(
+        'value',
+        'Replacement arrangement',
+      );
+      expect(replacementReads).toContain('listCalendarMarkers');
+    });
+    replacementReads.length = 0;
+
+    typeName('010', 'Replacement pending');
+    const replacementName = screen.getByLabelText('Name of 010');
+    fireEvent.blur(replacementName);
+    replacementName.focus();
+    await waitFor(() => {
+      expect(finishReplacement).toBeTypeOf('function');
+      expect(document.querySelector('[data-toolbar]')?.getAttribute('aria-busy')).toBe('true');
+    });
+    await act(async () => {
+      finishOld();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(document.activeElement).toBe(replacementName);
+    expect(document.querySelector('[data-toolbar]')?.getAttribute('aria-busy')).toBe('true');
+    expect(replacementReads).toEqual([]);
+    expect(toastTexts()).toEqual([]);
+
+    await act(async () => {
+      finishReplacement();
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(replacementReads).toEqual(['tree']);
+      expect(document.querySelector('[data-toolbar]')?.getAttribute('aria-busy')).toBe('false');
+    });
+    replacementReads.length = 0;
+    click('Arrange by schedule');
+    await waitFor(() => {
+      expect(replacementReads).toEqual(['tree']);
+      expect(toastTexts()).toEqual(['Arranged by schedule.']);
+    });
+  });
 });
 
 describe('write failure recovery scopes', () => {
@@ -1924,6 +2011,208 @@ describe('write failure recovery scopes', () => {
       await Promise.resolve();
       expect(reads).toEqual([]);
     }
+  });
+
+  it.each([
+    {
+      name: 'transport failure',
+      cause: () =>
+        new WbsRequestError({
+          kind: 'failure',
+          operation: 'postApiProjectsByIdCommands',
+          failure: { code: 'transport', cause: new Error('connection lost after capacity') },
+        }),
+    },
+    {
+      name: 'malformed response',
+      cause: () =>
+        new WbsRequestError({
+          kind: 'failure',
+          operation: 'postApiProjectsByIdCommands',
+          failure: {
+            code: 'invalid_response',
+            reason: 'schema',
+            status: 200,
+            headers: new Headers(),
+          },
+        }),
+    },
+  ])('an ambiguous capacity $name fully recovers and keeps its draft', async ({ cause }) => {
+    const api = fakeApi();
+    const row = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Capacity failure',
+    });
+    const team = await api.addTeam('Platform');
+    await api.patchWorkItem(row.id, { teamIds: [team.id] });
+    const reads: string[] = [];
+    for (const method of allReads) recordCalls(api, method, () => reads.push(method));
+    const requests: [string, string, number | null][] = [];
+    let rejectCapacity!: (failure: unknown) => void;
+    api.setTeamCapacity = (...args) => {
+      requests.push(args);
+      return new Promise((_resolve, reject) => {
+        rejectCapacity = reject;
+      });
+    };
+
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    await waitFor(() => {
+      expect(reads).toHaveLength(allReads.length);
+    });
+    reads.length = 0;
+    click('Project settings');
+    const capacity = screen.getByLabelText<HTMLInputElement>('How many of Platform at once');
+    fireEvent.change(capacity, { target: { value: '3' } });
+    fireEvent.keyDown(capacity, { key: 'Enter' });
+    await waitFor(() => {
+      expect(requests).toEqual([['p1', team.id, 3]]);
+    });
+    expect(reads).toEqual([]);
+    await act(async () => {
+      rejectCapacity(cause());
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(reads).toHaveLength(allReads.length);
+    });
+    expect([...reads].sort()).toEqual([...allReads].sort());
+    expect(capacity.value).toBe('3');
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      name: 'transport failure',
+      cause: () =>
+        new WbsRequestError({
+          kind: 'failure',
+          operation: 'postApiProjectsByIdCommands',
+          failure: { code: 'transport', cause: new Error('connection lost after dependency') },
+        }),
+    },
+    {
+      name: 'malformed response',
+      cause: () =>
+        new WbsRequestError({
+          kind: 'failure',
+          operation: 'postApiProjectsByIdCommands',
+          failure: {
+            code: 'invalid_response',
+            reason: 'schema',
+            status: 200,
+            headers: new Headers(),
+          },
+        }),
+    },
+  ])('an ambiguous dependency-list $name fully recovers', async ({ cause }) => {
+    const api = fakeApi();
+    const first = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'First',
+    });
+    const second = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Second',
+    });
+    const successor = await api.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Successor',
+    });
+    const reads: string[] = [];
+    for (const method of allReads) recordCalls(api, method, () => reads.push(method));
+    const requests: [string, string][] = [];
+    api.addDependency = (...args) => {
+      requests.push(args);
+      return Promise.reject(cause());
+    };
+
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 030');
+    await waitFor(() => {
+      expect(reads).toHaveLength(allReads.length);
+    });
+    reads.length = 0;
+    const input = screen.getByLabelText<HTMLInputElement>('Add a dependency to 030');
+    fireEvent.change(input, { target: { value: '010, 020' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => {
+      expect(toastTexts()).toHaveLength(1);
+      expect(reads).toHaveLength(allReads.length);
+    });
+    expect(requests).toEqual([
+      [successor.id, first.id],
+      [successor.id, second.id],
+    ]);
+    expect([...reads].sort()).toEqual([...allReads].sort());
+    expect(input.value).toBe('');
+  });
+
+  it('keeps a dependency success before an ambiguous later failure', async () => {
+    const api = fakeApi();
+    for (const name of ['First', 'Second', 'Successor']) {
+      await api.createWorkItem('p1', { parentId: null, afterId: null, name });
+    }
+    const reads: string[] = [];
+    for (const method of allReads) recordCalls(api, method, () => reads.push(method));
+    const addDependency = api.addDependency.bind(api);
+    let request = 0;
+    api.addDependency = (...args) => {
+      request += 1;
+      return request === 1
+        ? addDependency(...args)
+        : Promise.reject(
+            new WbsRequestError({
+              kind: 'failure',
+              operation: 'postApiProjectsByIdCommands',
+              failure: { code: 'transport', cause: new Error('second outcome unknown') },
+            }),
+          );
+    };
+
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 030');
+    await waitFor(() => {
+      expect(reads).toHaveLength(allReads.length);
+    });
+    reads.length = 0;
+    const input = screen.getByLabelText('Add a dependency to 030');
+    fireEvent.change(input, { target: { value: '010, 020' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => {
+      expect(reads).toHaveLength(allReads.length);
+      expect(screen.getByRole('button', { name: 'Stop 030 waiting for 010' })).toBeInTheDocument();
+    });
+    expect(request).toBe(2);
+    expect(toastTexts()).toHaveLength(1);
+  });
+
+  it('keeps tree-only recovery for a modeled dependency-list refusal', async () => {
+    const api = fakeApi();
+    for (const name of ['First', 'Second', 'Successor']) {
+      await api.createWorkItem('p1', { parentId: null, afterId: null, name });
+    }
+    const reads: string[] = [];
+    for (const method of allReads) recordCalls(api, method, () => reads.push(method));
+    api.addDependency = () => Promise.reject(new Error('cycle'));
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 030');
+    await waitFor(() => {
+      expect(reads).toHaveLength(allReads.length);
+    });
+    reads.length = 0;
+    const input = screen.getByLabelText('Add a dependency to 030');
+    fireEvent.change(input, { target: { value: '010, 020' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => {
+      expect(toastTexts()).toHaveLength(1);
+      expect(reads).toEqual(['tree']);
+    });
   });
 });
 
@@ -2108,6 +2397,25 @@ itDom('capacity setting refreshes only tree without a socket', async () => {
   });
   const team = await api.addTeam('Platform');
   await api.patchWorkItem(row.id, { teamIds: [team.id] });
+  const requests: [string, string, number | null][] = [];
+  let finishCapacity!: () => void;
+  api.setTeamCapacity = (...args) => {
+    requests.push(args);
+    return new Promise((resolve) => {
+      finishCapacity = () => {
+        resolve();
+      };
+    });
+  };
+  const tree = api.tree.bind(api);
+  let capacityLanded = false;
+  api.tree = async (projectId) => {
+    const read = await tree(projectId);
+    return {
+      ...read,
+      teamCapacities: capacityLanded ? [{ serviceTeamId: team.id, size: 3 }] : [],
+    };
+  };
   const reads: string[] = [];
   for (const method of [
     'tree',
@@ -2135,7 +2443,19 @@ itDom('capacity setting refreshes only tree without a socket', async () => {
   fireEvent.change(capacity, { target: { value: '3' } });
   fireEvent.keyDown(capacity, { key: 'Enter' });
   await waitFor(() => {
+    // Proof: replacing the production setter with a resolved no-op left this
+    // request list empty instead of carrying `p1`, Platform and 3. Watched,
+    // 2026-09-13.
+    expect(requests).toEqual([['p1', team.id, 3]]);
+  });
+  expect(reads).toEqual([]);
+  act(() => {
+    capacityLanded = true;
+    finishCapacity();
+  });
+  await waitFor(() => {
     expect(reads).toContain('tree');
+    expect(capacity).toHaveProperty('value', '3');
   });
   expect(reads).toEqual(['tree']);
 });

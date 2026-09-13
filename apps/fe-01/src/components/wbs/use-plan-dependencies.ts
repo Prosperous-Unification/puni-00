@@ -8,7 +8,7 @@ import { pickerEntries } from './dep-picker';
 import { parseDependencies, unknownMessage } from './depends-input';
 import { type CommitOutcome } from './live-editing';
 import { indexRowsById } from './plan-indexes';
-import { failureText } from './plan-refusal';
+import { failureText, isAmbiguousWriteFailure } from './plan-refusal';
 import type { Toast } from './toasts';
 import type { PlanReadScope } from './use-plan-read';
 import { type TreeRow } from './wbs-rows';
@@ -111,14 +111,14 @@ export function usePlanDependencies({
         return;
       }
 
-      // Not routed through `run`, deliberately. `run` models all-or-nothing:
-      // one request, and a throw abandons the reread. Here a partial success is
-      // a real outcome — some edges land, some are refused, and both the new
-      // chips and the reasons have to survive. Through `run` a refusal skipped
-      // the refresh that would have shown the edges that did land.
+      // Not routed through `run`, deliberately. Here a partial success is a
+      // real outcome — some edges land, some are refused, and both the new
+      // chips and the reasons have to survive. This loop therefore collects
+      // every answer before choosing its aggregate recovery scope.
       void (async () => {
         setBusy(true);
         const refused: string[] = [];
+        let ambiguous = false;
         try {
           for (const predecessor of found) {
             try {
@@ -134,12 +134,18 @@ export function usePlanDependencies({
               // sixth is not a sentence. A single entry taken from the picker
               // goes through `run` and does get {@link refusalSentence}.
               refused.push(`${predecessor.number} (${failureText(thrown, 'refused')})`);
+              // Proof: forcing this classifier false left both typed boundary
+              // failures at one tree read instead of all nine, and hid the
+              // successful prefix's chip after a later ambiguous failure.
+              // Watched in the three dependency-list recovery cases,
+              // 2026-09-13.
+              if (isAmbiguousWriteFailure(thrown)) ambiguous = true;
             }
           }
           // Never rejects: a failed reread raises the banner and returns, so
           // the refusals below are still reported. The two are different facts
           // and a reader who saw only one of them would be misled either way.
-          await refreshOrMarkStale('tree');
+          await refreshOrMarkStale(ambiguous ? undefined : 'tree');
         } finally {
           setBusy(false);
         }
