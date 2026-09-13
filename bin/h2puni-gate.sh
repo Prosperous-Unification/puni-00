@@ -48,22 +48,7 @@ trusted_launcher="$trusted_launcher_dir/tool-wiki-lint.sh"
 trap 'rm -rf -- "$trusted_launcher_dir"' EXIT
 activation_root=${TOOL_WIKI_ACTIVATION_ROOT:-}
 if [[ -n "$activation_root" && -e "$activation_root/active-v1" ]]; then
-  launcher_descriptor="$activation_root/launcher-path"
-  if [[ ! -r "$launcher_descriptor" ]]; then
-    printf 'h2puni gate: active tool-wiki rollout has no readable launcher descriptor\n' >&2
-    exit 78
-  fi
-  launcher_source=$(<"$launcher_descriptor")
-  if ! launcher_source=$(realpath -- "$launcher_source") || [[ ! -f "$launcher_source" ]] || [[ ! -r "$launcher_source" ]]; then
-    printf 'h2puni gate: active tool-wiki launcher is not a readable regular file\n' >&2
-    exit 78
-  fi
-  case "$launcher_source" in
-    "$repo_root"/*)
-      printf 'h2puni gate: active tool-wiki launcher must be outside the candidate checkout\n' >&2
-      exit 78
-      ;;
-  esac
+  launcher_source=$(resolve_tool_wiki_launcher "$activation_root" "$repo_root")
   cp "$launcher_source" "$trusted_launcher"
   chmod 0555 "$trusted_launcher"
 else

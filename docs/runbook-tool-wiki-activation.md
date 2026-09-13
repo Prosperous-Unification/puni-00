@@ -32,6 +32,14 @@ authority snapshot.
 
 ## Transport and admission
 
+The transport archive root contains `selected.json`, its selected version directory, and a
+bootstrap copy of the reviewed launcher with root-level `active-v1` and `launcher-path`
+descriptors. The bootstrap launcher resolves the selected package and verifies its manifest,
+checksum-list identity, and artifact checksums before reading any selected role. Root descriptors
+are relative to the archive root so the same bytes relocate between GitHub runner temporary storage
+and h2puni; every consumer resolves a relative descriptor from that root, never from its current
+working directory.
+
 Copy the same digest-pinned archive to a versioned directory on h2puni. The base-owned
 `trusted-wiki` workflow downloads its operator-configured HTTPS archive into runner temporary
 storage, verifies the configured SHA-256 before extraction, and refuses missing URL, digest, or

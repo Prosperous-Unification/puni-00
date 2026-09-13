@@ -948,12 +948,15 @@ await import(${JSON.stringify(productionSnapshotter)});
       'bunx eslint tools/tool-wiki/src',
     );
     expect(hostGate).not.toContain('cp "$repo_root/bin/tool-wiki-lint.sh"');
-    expect(hostGate).toContain('launcher_descriptor="$activation_root/launcher-path"');
+    expect(hostGate).toContain(
+      'launcher_source=$(resolve_tool_wiki_launcher "$activation_root" "$repo_root")',
+    );
     expect(hostGate).toContain('if [[ -n "$1" ]]; then bash "$1" committed');
     expect(ci).toContain('bash bin/tool-wiki-lint.sh committed . "$GITHUB_SHA"');
     expect(ci).toContain("github.event_name == 'push'");
     expect(ci).toContain('diagnostic/non-certifying');
     expect(ci).toContain('bash "$launcher" committed . "$GITHUB_SHA"');
+    expect(ci).toContain('launcher_ref="$TOOL_WIKI_ACTIVATION_ROOT/$launcher_ref"');
     expect(trustedCi).toContain('pull_request_target:');
     expect(trustedCi).toContain('permissions:\n  contents: read');
     expect(trustedCi.match(/persist-credentials: false/g)).toHaveLength(2);

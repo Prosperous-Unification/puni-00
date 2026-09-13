@@ -66,6 +66,12 @@ run_gate() {
     bash -c "$inner" h2puni-gate-test "$gate_lib" "$repo" "$lock" "$sha" -- "$@"
 }
 
+run_launcher_resolution() {
+  local activation_root=$1 candidate_root=$2
+  bash -c 'source "$1"; resolve_tool_wiki_launcher "$2" "$3"' \
+    h2puni-launcher-resolution "$gate_lib" "$activation_root" "$candidate_root"
+}
+
 scratch="${TMPDIR:-/tmp}/wbs-h2puni-gate-test.$$"
 rm -rf "$scratch"
 mkdir -p "$scratch"
@@ -243,6 +249,35 @@ if grep -q 'failed to restore pre-gate checkout' "$scratch/restore-failure"; the
   pass 'restore failure names the lost safety recovery'
 else
   fail 'restore failure did not name the lost safety recovery'
+fi
+
+# 11. Activation-package descriptors are relative to their activation root. The transport root
+# holds a preserved bootstrap launcher beside its descriptor, so resolution must not depend on the
+# candidate checkout or the caller's current directory.
+activation_root="$scratch/activation"
+candidate_root="$scratch/candidate"
+mkdir -p "$activation_root" "$candidate_root"
+printf 'tool-wiki-active-v1\n' >"$activation_root/active-v1"
+printf 'bootstrap-launcher.sh\n' >"$activation_root/launcher-path"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$activation_root/bootstrap-launcher.sh"
+chmod 0555 "$activation_root/bootstrap-launcher.sh"
+status=0
+resolved=$(cd "$candidate_root" && run_launcher_resolution "$activation_root" "$candidate_root") || status=$?
+expect_status 0 "$status" 'a relative launcher descriptor resolves from its activation root'
+expect_equal "$(realpath "$activation_root/bootstrap-launcher.sh")" "$resolved" 'launcher resolution is independent of caller cwd'
+
+# 12. Prefixing relative descriptors must retain the existing external-trust boundary: a symlink
+# back into the candidate is refused before any candidate launcher can run.
+printf '#!/usr/bin/env bash\nexit 0\n' >"$candidate_root/candidate-launcher.sh"
+ln -s "$candidate_root/candidate-launcher.sh" "$activation_root/candidate-link.sh"
+printf 'candidate-link.sh\n' >"$activation_root/launcher-path"
+status=0
+run_launcher_resolution "$activation_root" "$candidate_root" >/dev/null 2>"$scratch/launcher-refusal" || status=$?
+expect_status 78 "$status" 'a relative launcher symlink into the candidate is refused'
+if grep -q 'launcher must be outside the candidate checkout' "$scratch/launcher-refusal"; then
+  pass 'candidate-contained launcher refusal names the trust boundary'
+else
+  fail 'candidate-contained launcher refusal did not name the trust boundary'
 fi
 
 if ((failures)); then

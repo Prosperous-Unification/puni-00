@@ -20,6 +20,48 @@ gate_lib_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=bin/heavy-lock-lib.sh
 source "$gate_lib_dir/heavy-lock-lib.sh"
 
+# Resolves the preserved launcher named by an externally provisioned activation root. Activation
+# descriptors are relocatable and therefore relative to their root; interpreting one against the
+# caller cwd makes the same archive behave differently depending on where the gate was launched.
+resolve_tool_wiki_launcher() {
+  local activation_root=${1:?activation root is required}
+  local candidate_root=${2:?candidate root is required}
+  local trusted_root
+  local candidate
+  if ! trusted_root=$(realpath -- "$activation_root") || [[ ! -d $trusted_root ]]; then
+    printf 'h2puni gate: active tool-wiki root is not a readable directory\n' >&2
+    return 78
+  fi
+  if ! candidate=$(realpath -- "$candidate_root") || [[ ! -d $candidate ]]; then
+    printf 'h2puni gate: candidate checkout is not a readable directory\n' >&2
+    return 78
+  fi
+  local marker="$trusted_root/active-v1"
+  if [[ ! -f $marker ]] || [[ ! -r $marker ]] || [[ $(<"$marker") != tool-wiki-active-v1 ]]; then
+    printf 'h2puni gate: active tool-wiki marker is missing, unreadable, or malformed\n' >&2
+    return 78
+  fi
+  local launcher_descriptor="$trusted_root/launcher-path"
+  if [[ ! -r $launcher_descriptor ]]; then
+    printf 'h2puni gate: active tool-wiki rollout has no readable launcher descriptor\n' >&2
+    return 78
+  fi
+  local launcher_source
+  launcher_source=$(<"$launcher_descriptor")
+  if [[ $launcher_source != /* ]]; then launcher_source="$trusted_root/$launcher_source"; fi
+  if ! launcher_source=$(realpath -- "$launcher_source") || [[ ! -f $launcher_source ]] || [[ ! -r $launcher_source ]]; then
+    printf 'h2puni gate: active tool-wiki launcher is not a readable regular file\n' >&2
+    return 78
+  fi
+  case "$launcher_source" in
+    "$candidate"/*)
+      printf 'h2puni gate: active tool-wiki launcher must be outside the candidate checkout\n' >&2
+      return 78
+      ;;
+  esac
+  printf '%s\n' "$launcher_source"
+}
+
 # Check `$sha` out in `$repo` under the heavy lock at `$lock_path`, then run
 # `command [arg ...]` there with that head pinned for the whole run.
 #
