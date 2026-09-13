@@ -1,3 +1,5 @@
+import type { PlanCommandKind } from '../commands/definitions';
+
 /**
  * Modeled HTTP failures; status/code pairing is narrowed by each endpoint shape.
  * A classified OIDC defect is the one modeled 500; thrown failures still bypass
@@ -6,45 +8,7 @@
 export type RefusalStatus = 400 | 401 | 403 | 404 | 405 | 409 | 422 | 429 | 500 | 501 | 503;
 
 /** Portable command discriminants, shared with runtime command refusal context. */
-export type PlanCommandKind =
-  | 'createWorkItem'
-  | 'patchWorkItem'
-  | 'moveWorkItem'
-  | 'duplicateWorkItem'
-  | 'deleteWorkItem'
-  | 'setEstimate'
-  | 'clearEstimate'
-  | 'setActual'
-  | 'clearActual'
-  | 'setProgress'
-  | 'clearProgress'
-  | 'setStatus'
-  | 'setMeasure'
-  | 'clearMeasure'
-  | 'setAssignee'
-  | 'addDependency'
-  | 'removeDependency'
-  | 'arrangeBySchedule'
-  | 'freezeProject'
-  | 'unfreezeProject'
-  | 'unfreezeWorkItem'
-  | 'setCapacity'
-  | 'setPriorityBands'
-  | 'createTeam'
-  | 'patchTeam'
-  | 'deleteTeam'
-  | 'createPerson'
-  | 'patchPerson'
-  | 'deletePerson'
-  | 'createTag'
-  | 'patchTag'
-  | 'deleteTag'
-  | 'createWorkItemType'
-  | 'patchWorkItemType'
-  | 'deleteWorkItemType'
-  | 'createService'
-  | 'patchService'
-  | 'deleteService';
+export type { PlanCommandKind } from '../commands/definitions';
 
 /**
  * Existing parser messages enumerate their field callers, never arbitrary templates.
