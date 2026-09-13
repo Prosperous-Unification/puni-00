@@ -156,3 +156,23 @@ checkout. On h2puni, `/home/puni1/.cache` must exist and be writable so the cano
 on the script printing `h2puni gate: running on <final Section 3 SHA>` and exiting zero. This local
 host lacks `/home/puni1/.cache`; the exact command exited **70** with `heavy lock:
 /home/puni1/.cache does not exist` before checkout or any gate step.
+
+### Final review repair: independent retained-key oracle
+
+The final review replaced `digestOidcBinding` with identity and showed that both
+retention tests still passed because they derived expected keys through that same
+production helper. Both tests now compare their real retained map keys with fixed,
+independently computed lowercase SHA-256 literals and separately assert that the
+raw binding is absent from the key sets and serialized values.
+
+With identity reintroduced, the MCP production-path test received `random-2`
+instead of `a2d6d4faf36f2e1df73e7f326651ba0507442dc4b47698f700157c8460b4584d`;
+the auth store test received `unguessable-browser-binding` instead of
+`3bb40d614eda46d5ac33fae80c699a08385a0b4c35ab0d8651f8b33096115f8e`.
+Both failed in one focused run (`0 passed / 2 failed`) and passed after restoration
+(`2 passed / 0 failed / 9 assertions`). Task 3.2 remains unchecked until the
+repaired immutable commit receives independent rereview and its required gate.
+
+The full uncached owning matrix passed auth `96/0/254` and MCP `125/0/512`, with
+both lint and typecheck targets clean. Changed-file Prettier, `git diff --check`,
+and strict `mcp-oidc-store` OpenSpec validation also passed.

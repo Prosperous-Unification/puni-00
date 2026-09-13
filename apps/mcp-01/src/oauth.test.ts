@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { type BrowserOidcClient, digestOidcBinding } from '@wbs/auth';
+import type { BrowserOidcClient } from '@wbs/auth';
 import { describe, expect, it } from 'bun:test';
 
 import type { McpConfig } from './config';
@@ -621,8 +621,9 @@ describe('InMemoryMcpOAuth', () => {
     expect(await rejected?.json()).toEqual({ error: 'invalid_request' });
   });
 
-  // Proof: raw-key mutation exposes `random-2` in the shared map's key, while
-  // spreading browserBinding exposes it in the shared record's serialized value.
+  // Proof: replacing digestOidcBinding with identity made both retained keys
+  // equal `random-2` instead of this independently fixed SHA-256 value.
+  // Spreading browserBinding exposes it in the shared record's serialized value.
   it('retains no raw browser binding in pending authorization keys or values', async () => {
     const { oauth } = fixture();
     const clientId = await register(oauth);
@@ -632,8 +633,10 @@ describe('InMemoryMcpOAuth', () => {
     const maps = pendingMaps(oauth);
 
     expect(browserBinding).toBe('random-2');
-    expect([...maps.contexts.keys()]).toEqual([digestOidcBinding(browserBinding)]);
-    expect([...maps.records.keys()]).toEqual([digestOidcBinding(browserBinding)]);
+    const expectedDigest = 'a2d6d4faf36f2e1df73e7f326651ba0507442dc4b47698f700157c8460b4584d';
+    expect([...maps.contexts.keys()]).toEqual([expectedDigest]);
+    expect([...maps.records.keys()]).toEqual([expectedDigest]);
+    expect([...maps.contexts.keys(), ...maps.records.keys()]).not.toContain(browserBinding);
     expect(JSON.stringify([...maps.contexts.values(), ...maps.records.values()])).not.toContain(
       browserBinding,
     );
