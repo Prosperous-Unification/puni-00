@@ -984,8 +984,9 @@ describe('the plan on a calendar', () => {
     typeIntoDate('Project start date', `${String(today.getFullYear() + 1)}-06-01`);
 
     await waitFor(() => {
+      // Two digits behind an apostrophe since 2026-09-13 (`shortIsoDate`'s `offYear`).
       expect(rowFor('010').querySelector('[data-start]')?.textContent).toBe(
-        `1 Jun ${String(today.getFullYear() + 1)}`,
+        `1 Jun '${String((today.getFullYear() + 1) % 100).padStart(2, '0')}`,
       );
     });
   });

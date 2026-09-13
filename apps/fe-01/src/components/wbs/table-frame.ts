@@ -21,6 +21,16 @@ export interface FrameLayoutState {
   /** Whether any row in the project sets an earliest start. */
   hasAnyNotBefore: boolean;
   /**
+   * How many levels below a root the deepest row of the **project** sits: 0
+   * for a plan of roots alone, 1 where `170.1` is as deep as it goes, 2 at
+   * `170.1.1`. Read off the numbers' dotted segments in `use-plan-layout.tsx`,
+   * over every row and not the rows on screen, so a collapsed branch still
+   * counts — the Number column is sized by it ({@link NUMBER_SHALLOW_WIDTH}).
+   */
+  deepestDepth: number;
+  /** Whether any row's number is frozen, and so wears the lock the Number column has to hold. */
+  numberingFrozen: boolean;
+  /**
    * The widths this browser was told by a drag, by the column's **own** id —
    * `<stepId>-final` for a folded step — or absent where nothing has been
    * dragged.
@@ -136,10 +146,15 @@ export interface FrameLayout {
  * month names and every real day of a year were measured in a Start cell, and
  * this came back joint widest. **Joint**, and the test says so rather than
  * pinning this exact string: several days measure identically in this font —
- * `10 May 2027 ?` is the same width to the pixel — so what is asserted is that
+ * `10 May '27 ?` is the same width to the pixel — so what is asserted is that
  * no day the formatter prints is wider than this one.
+ *
+ * `'27` and not `2027` since 2026-09-13: the off-year is two digits behind an
+ * apostrophe (`shortIsoDate`'s `offYear`), which is the whole of what took
+ * {@link DATE_COLUMN_WIDTH} from 98 to 84 when Dany asked for narrower Start
+ * and End columns. Nothing else in this string could be spared.
  */
-export const DAY_ENVELOPE = '20 May 2027 ?';
+export const DAY_ENVELOPE = "20 May '27 ?";
 
 /**
  * How wide the Start and End columns are laid out, in px.
@@ -165,8 +180,14 @@ export const DAY_ENVELOPE = '20 May 2027 ?';
  * 40px of measured slack across these two rather than out of a column that has
  * none. `is as wide as the widest day the formatter can print` is the browser
  * that judges it, and it clears the envelope by 3.98px.
+ *
+ * **98 → 84 on 2026-09-13**, and the envelope shrank first: Dany asked for
+ * Start and End "a bit smaller" and the year is the only part of a date this
+ * column could give up, so the off-year is `'27` now ({@link DAY_ENVELOPE}).
+ * 84 is what `not-before` and `deadline` already hold a dated day at; the
+ * browser test above is what says it clears the two-digit envelope.
  */
-const DATE_COLUMN_WIDTH = 98;
+const DATE_COLUMN_WIDTH = 84;
 
 /**
  * Every column whose width is the same on every plan, by fixed id, in px.
@@ -191,45 +212,6 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // The handle and nothing else. 28 was room for a handle and a hover target;
   // the glyph is the hover target.
   ['drag', 16],
-  // {@link NUMBER_ENVELOPE} says what this number is sized to hold, and
-  // `e2e/layout.spec.ts`'s `the Number column fits its envelope` is the
-  // browser that picked it. It is not a guess at the longest number — there is
-  // no longest number.
-  //
-  // 169 → 93 in `column-rebalance`, because the envelope itself shrank: it was
-  // eleven characters at the deepest indent, which is a row almost no plan
-  // has, and it is two levels of number at a two-level row's indent now.
-  // Chromium measures 92.5625px of that — 12px of indent, a 12.5px expander, a
-  // 20px lock, five characters of number and the cell's 8px of padding.
-  //
-  // **93 → 105 in `number-column-widen`.** The envelope's *contract* did not
-  // move — still `NUMBER_ENVELOPE_LEVELS`' two levels — but `table-width-budget`
-  // (#62) found what the contract's own slack was hiding: read character by
-  // character, `010.1.1.1.1` and `010.1.1.1.1.1` both draw `010.1.1.1.`, so a
-  // row and its own child read as the same number at depth 5. One
-  // `INDENT_STEP` (12px) buys the column back to depth 6/7 — Dany's call,
-  // 2026-08-16, the reversible one of the two design.md D4 offered: eliding
-  // from the head holds at every depth but changes how every clipped number
-  // in the product reads, so it stays available as a later change rather than
-  // being smuggled into this one. Affordable: two folded steps at 1280 go
-  // 1219 → 1231 against a 1248px frame, 12 of the 29px of measured slack.
-  //
-  // **105 → 102 and back to 105, on 2026-08-31.** The `refs` column's 40px was
-  // taken from here first, and this is where it must not come from: at 102 the
-  // column still holds `number-column-widen`'s depth-5 guarantee, but every
-  // pixel taken here is a pixel off the Name column — Name at 1280 with two
-  // steps folded is what the frame leaves — and 102 put Name exactly on its
-  // floor. At 85 and 96 this column broke the guarantee outright: a row and its
-  // own child both drew `030.1.1.`, the 2026-08-12 fault two levels shallower
-  // than `number-column-widen` left it.
-  //
-  // Measured width by width in Chromium, the two ends do not meet: the depth-5
-  // requirement needs **≥ 98** here and the Name column's own assertions need
-  // **≤ 96**. There is no width of this column that is green, so the 40px is
-  // not raised here at all — it comes off `depends`, whose entry below carries
-  // the measurement. Neither this width nor {@link FLEXIBLE_FLOOR} moved in the
-  // end, which is why the depth cases and the Name cases are all green.
-  ['number', 105],
   // The external-ref marks, and the narrowest column in the table that is not a
   // control. 40px is 32px of mark room plus the 8px of padding the declared
   // width includes — four 6px marks with 2px between them is 30, so the fourth
@@ -250,7 +232,11 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // the table on `number`. The budget is whole again and this column is on
   // screen by default, which is what D5 asked for and what hiding it would have
   // quietly undone.
-  ['refs', 40],
+  //
+  // **40 → 32 on 2026-09-13** ("links … a bit smaller"): 24px of mark room, so
+  // three 6px marks with 2px between them (22) and the fourth family is the
+  // overflow mark — `MOST_MARKS` in `external-ref-marks.ts` moved with it.
+  ['refs', 32],
   // The dependency chips (`030 ✕`) and the box that adds another.
   //
   // **110 → 86 on 2026-08-31, and this is where the `refs` column's 40px comes
@@ -287,7 +273,18 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // Both margins are **one pixel**. The next column added to the default set
   // has nowhere to come from; `tag` and `team` (120 each) are the next
   // candidates, and both are hideable.
-  ['depends', 86],
+  //
+  // **86 → 78 on 2026-09-13.** 68 was tried first, two pixels above the 66
+  // measured floor, and a browser refused it: with one chip on the strip the
+  // empty add box's own chrome — 4px of padding and 3.6px of border, which the
+  // 66 never counted because a crowded box leaves the cell by design — ran 7px
+  // past the cell, and `e2e/layout.spec.ts`'s `keeps every control inside the
+  // cell it belongs to` named it. 78 seats the add affordance, one chip and
+  // that chrome (67.2 of 70) with room to spare; the second chip clips as it
+  // clipped at 86. Part of the day's compaction ("you can make all columns
+  // smaller"), which took 67px off the fixed set and gave every one of them to
+  // the Name column — the one-pixel margins above are history now.
+  ['depends', 78],
   // A priority, and priorities are short: 48px holds four digits and the 8px of padding
   // the declared width includes, which is a scale running past a thousand. The
   // header is `Prio` for the same reason `Not bef.` is abbreviated — a
@@ -300,7 +297,12 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // glyph asked for 10px instead of 8. Anything else this column is asked to
   // hold has to come out of the glyph or out of a wider column, and
   // `e2e/priority-ramp.spec.ts` measures the budget rather than trusting it.
-  ['priority', 48],
+  //
+  // **48 → 40 on 2026-09-13, and three digits is the whole of it now.** Dany
+  // asked for the column smaller ("prio - a bit smaller") knowing the scale is
+  // unbounded; `999` beside the glyph is what 32px of room holds, `9999` clips,
+  // and the browser test probes with three digits since.
+  ['priority', 40],
   ['team', 120],
   // The tag cell. 120 like the team's, because it holds the same kind of thing
   // — a name somebody typed, or several — and a narrower one would clip
@@ -369,7 +371,10 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // with two steps folded and C0 measured a 48px column overflowing it by
   // 19px. See `openspec/changes/capacity-ui/design.md`.
   ['in-parallel', 32],
-  ['final-total', 52],
+  // The days a row takes, as one figure: `12.5` at most in practice, and 44 is
+  // five characters of the grid's 13px type plus the 8px of padding the
+  // declared width includes. 52 until 2026-09-13 ("Days can be smaller").
+  ['final-total', 44],
   // Both date columns at one width; see {@link DAY_ENVELOPE} for what that
   // width holds and which browser picked it.
   ['start', DATE_COLUMN_WIDTH],
@@ -404,6 +409,81 @@ const COLUMN_WIDTHS = new Map<string, number>([
   // cell rather than living in it.
   ['actions', 40],
 ]);
+
+/**
+ * The Number column's width for a plan with no row deeper than `170.1` and no
+ * frozen number, in px — the state every fresh plan is in, and the one Dany
+ * photographed on 2026-09-13 ("why # column is still so wide by default … it
+ * does not need to be").
+ *
+ * The widest number such a plan draws is a depth-1 leaf with a two-digit
+ * child index, `170.10`: the cell's 4px of padding, {@link numberIndentFor}'s
+ * 12px indent, the {@link CARET_GUTTER_PX} gutter every row carries, six
+ * characters of the number at the grid's 13px — Chromium drew `170.1`'s five
+ * at 27.5px on 2026-09-13, so six are 33 — and 4px of padding: 65. 68 leaves
+ * three pixels, and is 30 narrower than {@link NUMBER_DEEP_WIDTH}, which the
+ * column falls back to the moment the plan grows a third level or a lock.
+ *
+ * A width that is a fact about the plan, like `not-before`'s, and the doc on
+ * {@link NUMBER_ENVELOPE} says why this column resisted being one: sized to the
+ * longest **number** it would move every row the moment one deep row was
+ * inserted. Depth is coarser — two states, and the second is today's width —
+ * and the shift happens on the two gestures that visibly change what the
+ * column holds: adding a third level, or pressing `Freeze #`.
+ */
+const NUMBER_SHALLOW_WIDTH = 68;
+
+/**
+ * The Number column's width once the plan has a third level or a frozen number,
+ * in px — {@link COLUMN_WIDTHS}' `number` figure until 2026-09-13, with the
+ * history that picked it:
+ *
+ * {@link NUMBER_ENVELOPE} says what this number is sized to hold, and
+ * `e2e/layout.spec.ts`'s `the Number column fits its envelope` is the
+ * browser that picked it. It is not a guess at the longest number — there is
+ * no longest number.
+ *
+ * 169 → 93 in `column-rebalance`, because the envelope itself shrank: it was
+ * eleven characters at the deepest indent, which is a row almost no plan
+ * has, and it is two levels of number at a two-level row's indent now.
+ * Chromium measures 92.5625px of that — 12px of indent, a 12.5px expander, a
+ * 20px lock, five characters of number and the cell's 8px of padding.
+ *
+ * **93 → 105 in `number-column-widen`.** The envelope's *contract* did not
+ * move — still `NUMBER_ENVELOPE_LEVELS`' two levels — but `table-width-budget`
+ * (#62) found what the contract's own slack was hiding: read character by
+ * character, `010.1.1.1.1` and `010.1.1.1.1.1` both draw `010.1.1.1.`, so a
+ * row and its own child read as the same number at depth 5. One
+ * `INDENT_STEP` (12px) buys the column back to depth 6/7 — Dany's call,
+ * 2026-08-16, the reversible one of the two design.md D4 offered: eliding
+ * from the head holds at every depth but changes how every clipped number
+ * in the product reads, so it stays available as a later change rather than
+ * being smuggled into this one. Affordable: two folded steps at 1280 go
+ * 1219 → 1231 against a 1248px frame, 12 of the 29px of measured slack.
+ *
+ * **105 → 102 and back to 105, on 2026-08-31.** The `refs` column's 40px was
+ * taken from here first, and this is where it must not come from: at 102 the
+ * column still holds `number-column-widen`'s depth-5 guarantee, but every
+ * pixel taken here is a pixel off the Name column — Name at 1280 with two
+ * steps folded is what the frame leaves — and 102 put Name exactly on its
+ * floor. At 85 and 96 this column broke the guarantee outright: a row and its
+ * own child both drew `030.1.1.`, the 2026-08-12 fault two levels shallower
+ * than `number-column-widen` left it.
+ *
+ * Measured width by width in Chromium, the two ends do not meet: the depth-5
+ * requirement needs **≥ 98** here and the Name column's own assertions need
+ * **≤ 96**. There is no width of this column that is green, so the 40px is
+ * not raised here at all — it comes off `depends`, whose entry below carries
+ * the measurement. Neither this width nor {@link FLEXIBLE_FLOOR} moved in the
+ * end, which is why the depth cases and the Name cases are all green.
+ *
+ * **105 → 98 on 2026-09-13**, the whole of what the depth-5 guarantee above
+ * leaves: Dany asked for every column narrower ("especially - number"), and
+ * 98 is the floor that guarantee was measured at. The Name column no longer
+ * needs the ≤ 96 — every other cut of the same day gave it 60px of room — so
+ * the two ends meet at last, on the one number that was always the floor.
+ */
+const NUMBER_DEEP_WIDTH = 98;
 
 /**
  * The earliest-start column's width where at least one row in the project sets
@@ -443,12 +523,25 @@ export const DATE_EDITOR_WIDTH = 138;
  * Every column whose width is a fact about the plan, by fixed id.
  *
  * A function of {@link FrameLayoutState} rather than a number, so what a width
- * may depend on is stated in one place and read in one place. The
- * earliest-start column is the only one of them; the reader's own overrides are
- * the other half of the same state, and they outrank whatever this resolves —
- * see {@link widthFor}.
+ * may depend on is stated in one place and read in one place. Two of them
+ * since 2026-09-13 — the Number column joined the earliest-start column; the
+ * reader's own overrides are the other half of the same state, and they
+ * outrank whatever this resolves — see {@link widthFor}.
  */
 const PLAN_WIDTHS = new Map<string, (state: FrameLayoutState) => number>([
+  // Deep or frozen, the width the depth-5 guarantee and the lock were measured
+  // at; otherwise the shallow one. See {@link NUMBER_SHALLOW_WIDTH}.
+  // Proof: this arm made to answer the shallow width whatever the plan says —
+  // `is 68px until the plan has a third level or a frozen number, and 98px
+  // from then on` failed on `expected { number: 68 } to deeply equal { number:
+  // 98 }` and `moves the whole table and every pin behind it by exactly that
+  // difference` on `expected +0 to be 30`; 2 failed | 49 passed. Watched
+  // 2026-09-13.
+  [
+    'number',
+    (state) =>
+      state.numberingFrozen || state.deepestDepth >= 2 ? NUMBER_DEEP_WIDTH : NUMBER_SHALLOW_WIDTH,
+  ],
   ['not-before', (state) => (state.hasAnyNotBefore ? NOT_BEFORE_WITH_DAYS : NOT_BEFORE_EMPTY)],
 ]);
 
@@ -658,8 +751,14 @@ export const FLEXIBLE_CAP = 420;
  * five characters of the grid's 13px type, which is a number of days with a
  * decimal in it. The word itself is still in the heading's `title` and in its
  * accessible name.
+ *
+ * **96 → 104 for the folded column on 2026-09-13.** At 96 a two-digit
+ * pessimistic clipped its own trio — Dany's screenshot reads `5/7/1(` beside
+ * `· 8 · KH` — and asked whether to fold the trio away he kept it: "keep 96,
+ * maybe even make a lil bit bigger". The 8px is what `5/7/10 · 8 · KH` needs
+ * to stand whole, paid for many times over by the day's other cuts.
  */
-const STEP_FINAL_WIDTH = 96;
+const STEP_FINAL_WIDTH = 104;
 const STEP_POINT_WIDTH = 44;
 const STEP_ASSIGNEE_WIDTH = 120;
 

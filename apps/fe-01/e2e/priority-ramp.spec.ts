@@ -205,17 +205,18 @@ test.describe('the rung glyph, in a browser', () => {
     ).toBeVisible();
   });
 
-  test('shares the 48px column with the widest priority anybody can type', async ({ page }) => {
+  test('shares the 40px column with the widest priority anybody can type', async ({ page }) => {
     await seedPlan(page);
-    // Four digits, which is what `table-frame.ts` says the column holds — "48px
-    // holds four digits and the 8px of padding" — and the glyph has just taken
-    // 10 of those pixels. A three-digit probe would be the easy fault to inject
-    // rather than the one this is about (`estimate-triple-visible`: inject the
-    // fault the check is about).
+    // Three digits, which is what `table-frame.ts` says the column holds since
+    // 2026-09-13 — "`999` beside the glyph is what 32px of room holds, `9999`
+    // clips" — and the glyph takes 8 of those pixels. It was four digits in
+    // 48px until Dany asked for the column smaller. A two-digit probe would be
+    // the easy fault to inject rather than the one this is about
+    // (`estimate-triple-visible`: inject the fault the check is about).
     const cell = page.getByLabel(`Priority for ${ROWS[0]}`);
-    await cell.fill('9999');
+    await cell.fill('999');
     await cell.press('Enter');
-    await expect(cell).toHaveValue('9999');
+    await expect(cell).toHaveValue('999');
     await settled(page);
 
     // The column did not grow to pay for the glyph. Dany's compaction of
@@ -226,7 +227,7 @@ test.describe('the rung glyph, in a browser', () => {
       .locator('td[data-column="priority"]');
     const cellBox = await column.boundingBox();
     if (cellBox === null) throw new Error('the Prio cell has no box to measure');
-    expect(cellBox.width, 'the Prio column grew').toBe(48);
+    expect(cellBox.width, 'the Prio column grew').toBe(40);
 
     // And the digits are not clipped inside it. `scrollWidth` against
     // `clientWidth` is what an over-full input answers with — the box's own

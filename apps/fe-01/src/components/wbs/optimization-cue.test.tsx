@@ -747,7 +747,7 @@ describe('the schedule cue', () => {
       />,
     );
     expect(pill().getAttribute('data-fact')).toContain(
-      'Migration · Work item deadline (effective workday) 1 Jan 2027',
+      "Migration · Work item deadline (effective workday) 1 Jan '27",
     );
   });
 

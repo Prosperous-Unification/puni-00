@@ -62,8 +62,8 @@ function monthNamed(oneBased: number, given: string): string {
 }
 
 /**
- * A calendar day as somebody reads one: `1 Jun`, or `1 Jun 2027` when the year
- * is not `today`'s.
+ * A calendar day as somebody reads one: `1 Jun`, or `1 Jun '27` when the year
+ * is not `today`'s ({@link offYear}).
  *
  * **The components are read out of the string and the string is never parsed
  * into a moment.** `new Date('2026-06-01')` is midnight **UTC**, and
@@ -93,7 +93,28 @@ export function shortIsoDate(iso: string, today: Date): string {
   if (day < 1 || day > 31) throw new MalformedDayError(iso);
   return year === today.getFullYear()
     ? `${String(day)} ${month}`
-    : `${String(day)} ${month} ${String(year)}`;
+    : `${String(day)} ${month} ${offYear(year)}`;
+}
+
+/**
+ * A year that is not the reader's own, as a short date carries it: `'27`, the
+ * apostrophe and the last two digits.
+ *
+ * Two digits and not four since 2026-09-13, because the year is what the Start
+ * and End columns are sized by — {@link DAY_ENVELOPE} is the widest day this
+ * prints, with the year on — and Dany asked for both columns narrower ("start
+ * end can also be smaller"). The two digits it drops buy the 14px that took
+ * `DATE_COLUMN_WIDTH` from 98 to 84; nothing else in the envelope could be
+ * spared. Unambiguous all the same: a plan does not run a century, and the
+ * apostrophe is what keeps `1 Jun '27` from reading as the 27th of anything.
+ * The full `YYYY-MM-DD` stays where it was, in the cell's `title` and in
+ * {@link DayReading.fullDate}.
+ *
+ * Padded, so a year ending in a single digit still reads as a year: `'05` and
+ * not `'5`.
+ */
+function offYear(year: number): string {
+  return `'${String(year % 100).padStart(2, '0')}`;
 }
 
 /**
@@ -120,7 +141,7 @@ export function shortInstant(epochMs: number, now: Date): string {
   const day = at.getDate();
   return year === now.getFullYear()
     ? `${String(day)} ${month}`
-    : `${String(day)} ${month} ${String(year)}`;
+    : `${String(day)} ${month} ${offYear(year)}`;
 }
 
 /**
@@ -128,7 +149,7 @@ export function shortInstant(epochMs: number, now: Date): string {
  * behind what is printed.
  *
  * Two fields rather than one string, because the short date is a **shortening**
- * — `1 Jun`, or `1 Jun 2027` off the current year — and nothing that was
+ * — `1 Jun`, or `1 Jun '27` off the current year — and nothing that was
  * readable may become unreadable: the cell carries the whole `YYYY-MM-DD` in
  * its `title`. A workday offset and an em-dash have no fuller form, and say so
  * with a null rather than by repeating themselves.

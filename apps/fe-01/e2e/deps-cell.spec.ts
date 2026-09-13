@@ -664,25 +664,34 @@ test.describe('the cell answers the pointer that is in it', () => {
     const crowded = await cell.evaluate((node) => {
       const strip = node.querySelector('[data-depends-strip]');
       const input = node.querySelector('[data-depends-input]');
-      if (strip === null || input === null) throw new Error('no strip or box in the cell');
-      const midline = node.getBoundingClientRect().top + node.getBoundingClientRect().height / 2;
-      const hit = document.elementFromPoint(
-        node.getBoundingClientRect().left + node.getBoundingClientRect().width / 2,
-        midline,
-      );
+      const pill = node.querySelector('button[aria-label^="Stop 030 waiting for "]');
+      if (strip === null || input === null || pill === null) {
+        throw new Error('no strip, box or pill in the cell');
+      }
+      // The first pill's own centre, and not the cell's midpoint: where the
+      // midpoint lands is a fact about this fixture's geometry — at the 68px
+      // tried on 2026-09-13 it landed on the count chip beside the pills — and
+      // not about whether a pill covers the place the handlers answer from.
+      // The point has to lie inside the cell for the answer to mean that; the
+      // pill itself may run past the cell's edge, clipped, as crowded pills do.
+      const pillBox = pill.getBoundingClientRect();
+      const cellBox = node.getBoundingClientRect();
+      const point = { x: pillBox.left + pillBox.width / 2, y: pillBox.top + pillBox.height / 2 };
+      const hit = document.elementFromPoint(point.x, point.y);
       return {
         boxLeft: input.getBoundingClientRect().left,
-        cellRight: node.getBoundingClientRect().right,
+        cellRight: cellBox.right,
+        pointInsideCell: point.x >= cellBox.left && point.x <= cellBox.right,
         stripOverruns: strip.scrollWidth > strip.clientWidth,
-        midpointAnswers:
-          hit === null ? '(nothing)' : (hit.getAttribute('aria-label') ?? hit.tagName),
+        pillAnswers: hit === null ? '(nothing)' : (hit.getAttribute('aria-label') ?? hit.tagName),
       };
     });
     expect(crowded.boxLeft, 'the box is still inside its own cell').toBeGreaterThan(
       crowded.cellRight,
     );
     expect(crowded.stripOverruns, 'the strip is not crowded, so this proves nothing').toBe(true);
-    expect(crowded.midpointAnswers).toMatch(/^Stop 030 waiting for /);
+    expect(crowded.pointInsideCell, 'the probed point is outside the cell').toBe(true);
+    expect(crowded.pillAnswers).toMatch(/^Stop 030 waiting for /);
 
     // The claim. The cell's own padding — 4px in from its left edge, which is
     // outside the wrapper the handlers used to sit on and inside the cell every
