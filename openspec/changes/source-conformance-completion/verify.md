@@ -1433,3 +1433,26 @@ Nx used its in-process plugin mode because the sandbox denied daemon sockets.
 Full workspace, build, browser, deploy, and the h2puni SHA gate remain skipped
 because this is the assigned three-project repair and no commit was authorized.
 Task 4.3 remains unchecked pending final Astra review; Task 5.1 is untouched.
+
+### Task 4.3 and Epic 4 Astra acceptance
+
+Task-level and completed-wave Astra xhigh reviews accepted `7a66f180` on
+2026-09-13 with no Critical, Important or Minor findings. The final rereviews
+independently confirmed that successful incomplete dependency and measure
+inserts stop as `phase-failed` before proof reach on both adapters, while
+removing their guards changes all four outcomes to `observed` and breaks the
+permanent negatives. Triple-key measure survivors, pre-write classification,
+copied-team rollback, the internal-only SQLite mutant boundary, complete
+satellite snapshots, multiplicity, and once-only cleanup also remained sound.
+
+The task review ran 16 focused tests with 484 assertions and SQLite typecheck.
+The wave review reran the integrated source/fault suite at 75/0/5,380,
+conformance infrastructure at 29/0/48, and existing adapter regressions at
+84/0/350, plus every array-omission and multiplicity adversary. Task 4.3 is
+checked complete and Epic 4 is closed; Task 5.1 is next. Reviews:
+`/tmp/source-conformance-4-3-astra-review.md`,
+`/tmp/source-conformance-4-3-astra-rereview.md`,
+`/tmp/source-conformance-4-3-astra-final-review.md`,
+`/tmp/source-conformance-epic-4-astra-review.md`,
+`/tmp/source-conformance-epic-4-astra-rereview.md` and
+`/tmp/source-conformance-epic-4-astra-final-review.md`.
