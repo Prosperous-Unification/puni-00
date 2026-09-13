@@ -2,6 +2,7 @@ import { type ComponentProps } from 'react';
 
 import { type CellCards } from './cell-card-store';
 import { type DepLights } from './dep-light-store';
+import type { DependsEntry } from './depends-card';
 import { cellKey } from './editable-grid';
 import { REFERENCE_SET_EDGE_FADE } from './reference-set-field';
 import type { PrintedDay } from './short-date';
@@ -21,7 +22,7 @@ export function createPlanCellProps({
   depPicker,
   cellCards,
 }: {
-  dependenciesOf: (ids: readonly string[]) => { id: string; number: string; name: string }[];
+  dependenciesOf: (ids: readonly string[]) => DependsEntry[];
   depLights: DepLights;
   depPicker: { rowId: string; typed: string; highlightId: string | null } | null;
   cellCards: CellCards;

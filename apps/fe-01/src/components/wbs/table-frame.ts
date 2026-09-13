@@ -542,6 +542,11 @@ export function hideableColumnIds(stepIds: readonly string[]): readonly string[]
     // where this list has to put it — the Columns control lists these in the
     // order the table renders them.
     'refs',
+    // Third pin, between Links and Name since `status-at-a-glance`; listed
+    // here where it renders, which is the whole rule of this list (Dany,
+    // 2026-09-13: "fix the order of columns in the columns selector drop down
+    // to the real order of columns").
+    'status',
     'depends',
     'priority',
     'team',
@@ -556,10 +561,10 @@ export function hideableColumnIds(stepIds: readonly string[]): readonly string[]
     // it: the two days a planner states about a row sit together, and the days
     // be-01 worked out follow them.
     'deadline',
-    // The three `work-item-status-and-facts` adds, after the two constraints and
-    // before the computed dates: what a planner **records** about a row sits
-    // beside what a planner **asks** of it, and the engine's answer follows both.
-    'status',
+    // The two facts `work-item-status-and-facts` added, after the two
+    // constraints and before the computed dates: what a planner **records**
+    // about a row sits beside what a planner **asks** of it, and the engine's
+    // answer follows both. Status sat here too until it moved to the pins.
     'fact-start',
     'fact-end',
     'start',

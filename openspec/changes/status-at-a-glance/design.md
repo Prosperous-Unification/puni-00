@@ -64,8 +64,8 @@ walk follows.
 
 `STATUS_GLYPH: Record<WorkItemStatus, string>` = `○ ◐ ✓`; the `<input>` combobox stays (the
 grid walks inputs), its `value` is the glyph, its `aria-label` stays `Status of ${number}` —
-the handle every walk, proof and hint finds it by — and the word is its `title` (a combobox
-takes no `aria-description`, per `jsx-a11y`); its colour is `var(--status-…)` for the two
+the handle every walk, proof and hint finds it by — and the word is said by its fact card, `Status: <word>. …` (no `title`: the browser's grey
+tooltip stood beside the fact card; a combobox takes no `aria-description`, per `jsx-a11y`); its colour is `var(--status-…)` for the two
 coloured statuses and `--muted-foreground` for unknown. The heading is `<span role="img" aria-label="Status">○</span>`.
 `STATUS_HINT`, the fact-end hint and `STATUS_WORDS.done` say "asks for the day" instead of
 "fills with today".

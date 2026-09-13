@@ -273,11 +273,12 @@
    * The done row's tint, mixed toward `transparent` and not toward the page:
    * it is painted as a layer **over** `--cell-bg` (see `--row-tint` below), so
    * the band, the hover and the lights under it stay what they were and the
-   * green is the same dose on each. 12% is faint on purpose — a whole row of
+   * green is the same dose on each. 7% is faint on purpose — a whole row of
    * it, on every finished row of a finished plan, has to stay a page you can
-   * read.
+   * read; 12% was the first cut and Dany asked for it "a little bit fader"
+   * (2026-09-13).
    */
-  --grid-done-tint: color-mix(in oklab, var(--status-done) 12%, transparent);
+  --grid-done-tint: color-mix(in oklab, var(--status-done) 7%, transparent);
 }
 
 /*
@@ -863,10 +864,12 @@
   }
 
   [data-grid] td[data-column='number'],
+  [data-grid] td[data-column='status'],
   [data-grid] td[data-column='refs'],
   [data-grid] td[data-column='name'],
   [data-grid] td[data-column='depends'],
   [data-grid] th[data-column='number'],
+  [data-grid] th[data-column='status'],
   [data-grid] th[data-column='refs'],
   [data-grid] th[data-column='name'],
   [data-grid] th[data-column='depends'] {

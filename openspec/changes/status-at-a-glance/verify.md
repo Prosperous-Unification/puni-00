@@ -16,9 +16,10 @@ browser's UTC day and the host's day differed); CI is the gate — `bin/h2puni-g
   fill-and-overwrite variant of `setStatus`.
 - **Only the Status cell's act clears the fact end.** A per-step statement that drops a row
   from done to in progress leaves the facts alone; only a done row draws its fact end.
-- **The word is the cell's `title`, not part of its accessible name.** `jsx-a11y` refuses
-  `aria-description` on a combobox, and `Status of 010` is the handle every walk, hint and
-  browser proof finds the cell by.
+- **The word is in the cell's fact card, not in its accessible name and not a `title`.**
+  `jsx-a11y` refuses `aria-description` on a combobox, a `title` drew the browser's grey
+  tooltip beside the fact card (removed 2026-09-13 on Dany's screenshot), and `Status of 010`
+  is the handle every walk, hint and browser proof finds the cell by.
 - **A deleted row under an open prompt** is the `refsEditing` pattern (`?? null` → no
   surface) and is not separately tested.
 
@@ -48,3 +49,41 @@ browser's UTC day and the host's day differed); CI is the gate — `bin/h2puni-g
 | focus returns to the Status cell     | found, not injected: Radix's default return target               | e2e status › `toBeFocused()` on the Status cell                                                  | `Expected: focused · Received: inactive` before `onClosed`; green after                                                                                                       |
 
 Every fault was restored and the named suite watched green again before the next.
+
+## Follow-up, 2026-09-13: the list under the pinned layer
+
+Dany, on the merged build: "i cannot see the status dropdown when i try to change the status".
+Reproduced in Chromium on his plan (41 rows, Links shown): the Status `<td>` is pinned since this
+change — sticky with `z-index: 1`, a stacking context — and its click-opened list was never
+reported as an open card, so `PlanCell` never lifted it and the list's lines lay under the next
+rows' pinned Links buttons (`Unknown → <BUTTON Links for 030>`, `Done → <BUTTON Links for 040>`,
+read with `elementFromPoint` after forcing the cell back to layer 1). The one-row browser proof
+had nothing below the list to cover it. Fix: `StatusCell` reports `onOpenChange`, and the column
+writes the store's keyboard reading (`cellCards.updateFocused`) — the list is only open while
+the box holds the focus — so the `<td>` rises to `POPOVER_ROW_LAYER` while the list is on screen.
+
+| Check                                               | Fault injected                                      | Test that observed it                                                                                   | Observed                                                                       |
+| --------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| the pinned Status cell lifts while its list is open | the `updateFocused` write dropped from `status.tsx` | plan-cells › `lifts the pinned Status cell over the rows below while its list is open`                  | `expected 1 to be 2`                                                           |
+| the list's lines are what the pointer reaches       | the same write dropped                              | e2e status › `opens over the rows below it, not under them` (two rows, Links shown, every line sampled) | `Error: the Unknown line is painted over · Expected: "Unknown" · Received: ""` |
+
+Two false negatives on the way, recorded so the next proof does not repeat them: with Links
+hidden the same scene passed with the write deleted (the Name cell did not cover the line), and
+with Links shown but only the **last** line sampled it passed again (that line hangs below the
+final row with nothing under it). `E2E_PORT_SHIFT=1900 … status.spec.ts`: 2 passed after the fix.
+
+## Follow-up, 2026-09-13: the hint and the list
+
+Dany: "(1) when i click the status to select new value i want dropdown to remove the hint pop-up
+(2) hint pop-up must show the full name of the status or even write status: unknown". The fact
+words now begin `Status: <word>.`; the hint layer re-reads the attended mark after a `click` or
+`keyup` (in a microtask, after React committed) and closes its card when the mark reads
+`aria-expanded="true"`. The press path is untouched — a fact's card still survives a press that
+opens nothing.
+
+| Check                                     | Fault injected                                             | Test that observed it                                                                                        | Observed                                                 |
+| ----------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| an opened list takes the mark's card down | the `click`/`keyup` listeners for `reconsidered` not added | hint › `closes the fact card the moment the list opens…`, `closes it for a keyboard that opens the list too` | `expected <div role="tooltip" …> to be null`, both cases |
+
+`bunx vitest run hint.test.tsx plan-cells.test.tsx plan-cards.test.tsx`: 278 passed. fe-01 lint
+and typecheck green; `bunx nx format:check --all` exit 0.

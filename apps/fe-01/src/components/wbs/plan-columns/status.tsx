@@ -41,6 +41,17 @@ export function createStatusColumn({ live }: { live: PlanLive }) {
           }
           void live.current.setStatus(row.original.id, status, isoToday(new Date()));
         }}
+        onOpenChange={(open) => {
+          // The lift for a pinned cell's popover (`StatusCell`'s class note):
+          // the open list is the cell's card, said through the store's keyboard
+          // reading. Guarded on the way out like every other clear — a close
+          // can land after another cell has taken the reading.
+          const statusCell = cellKey(row.original.id, 'status');
+          live.current.cellCards.updateFocused((current) => {
+            if (open) return statusCell;
+            return current === statusCell ? null : current;
+          });
+        }}
         onGridKey={(event) => {
           live.current.onAltMove(event, row.original, 'status');
           live.current.onCommandKey(event, row.original, 'status');

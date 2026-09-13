@@ -75,3 +75,15 @@ shown`: five measured lefts equal five declared — test: the spec.
 
 - [x] 6.1 `verify.md` with the command table and the failure-proof table; `LLM_README.md`
       untouched (no orientation changed) — test: `openspec validate status-at-a-glance --json`.
+
+## 7. Follow-up (2026-09-13)
+
+- [x] 7.1 The pinned Status cell lifts to `POPOVER_ROW_LAYER` while its list is open —
+      `StatusCell.onOpenChange` → `cellCards.updateFocused` — test: plan-cells › `lifts the
+pinned Status cell over the rows below while its list is open`; e2e status › `opens over the
+rows below it, not under them`; negatives in verify.md.
+- [x] 7.2 The Status fact begins `Status: <word>.`, and `HintLayer` closes the attended mark's
+      card once the mark reads `aria-expanded="true"` after a click or key — tests: hint ›
+      `closes the fact card the moment the list opens, and leaves it up for a click that opens
+nothing`, `closes it for a keyboard that opens the list too`; plan-cells › the `data-fact`
+      prefix in `reads Unknown at rest…` and `every row says its status…`; negative in verify.md.

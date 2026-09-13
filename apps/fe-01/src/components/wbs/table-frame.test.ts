@@ -907,6 +907,7 @@ describe('how wide the steps make the table', () => {
     // columns do.
     expect(hideableColumnIds(['step-dev', 'step-qa'])).toEqual([
       'refs',
+      'status',
       'depends',
       'priority',
       'team',
@@ -919,7 +920,6 @@ describe('how wide the steps make the table', () => {
       'final-total',
       'not-before',
       'deadline',
-      'status',
       'fact-start',
       'fact-end',
       'start',

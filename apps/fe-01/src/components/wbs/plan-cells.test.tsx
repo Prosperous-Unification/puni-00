@@ -3474,7 +3474,19 @@ describe('the status cell and the two fact cells', () => {
 
     expect(statusCell('010').value).toBe('○');
     expect(statusCell('010')).toHaveAttribute('data-status-value', 'unknown');
-    expect(statusCell('010')).toHaveAttribute('title', 'Unknown');
+    // No browser `title`: it drew a grey tooltip beside the fact card, two boxes
+    // for one word (Dany, 2026-09-13).
+    expect(statusCell('010')).not.toHaveAttribute('title');
+    // The fact card names the status first — the glyph alone does not say the
+    // word (Dany, 2026-09-13: "hint pop-up must show the full name of the
+    // status or even write status: unknown").
+    expect(statusCell('010')).toHaveAttribute(
+      'data-fact',
+      expect.stringMatching(/^Status: Unknown\. /),
+    );
+    // The word the card draws bold, and no tone for unknown.
+    expect(statusCell('010')).toHaveAttribute('data-fact-lead', 'Unknown');
+    expect(statusCell('010')).not.toHaveAttribute('data-fact-tone');
     expect(statusCell('010')).toHaveAttribute('data-cell', expect.stringMatching(/::status$/));
     // The heading is the glyph with the word as its name: the Columns control
     // and a screen reader still say `Status` over a 28px column.
@@ -3500,6 +3512,37 @@ describe('the status cell and the two fact cells', () => {
       expect(row()?.getAttribute('data-row-status')).toBe('done');
     });
     expect(row()?.getAttribute('data-row-done')).toBe('true');
+    expect(statusCell('010')).toHaveAttribute(
+      'data-fact',
+      expect.stringMatching(/^Status: Done\. /),
+    );
+    expect(statusCell('010')).toHaveAttribute('data-fact-lead', 'Done');
+    expect(statusCell('010')).toHaveAttribute('data-fact-tone', 'done');
+  });
+
+  itDom('lifts the pinned Status cell over the rows below while its list is open', async () => {
+    await planWithStatusColumns();
+    const cell = (): HTMLTableCellElement => {
+      const found = statusCell('010').closest('td');
+      if (found === null) throw new Error('the Status cell is not in a <td>');
+      return found;
+    };
+    // Pinned since `status-at-a-glance`: sticky with a z-index, so a stacking
+    // context — and a list inside one is painted over by the next row's
+    // pinned cells unless the cell is lifted while the list is open. Dany,
+    // 2026-09-13: "i cannot see the status dropdown". The seeded browser proof
+    // had one row and nothing below to cover it.
+    expect(cell().style.zIndex).toBe('1');
+
+    fireEvent.click(statusCell('010'));
+    expect(statusList('010')).toBeInTheDocument();
+    // Proof: the `onOpenChange` write into the card store dropped, and this
+    // fails on `expected 1 to be 2`; watched 2026-09-13.
+    expect(Number(cell().style.zIndex)).toBe(POPOVER_ROW_LAYER);
+
+    fireEvent.keyDown(statusCell('010'), { key: 'Escape' });
+    expect(screen.queryByRole('listbox', { name: 'Status for 010' })).toBeNull();
+    expect(cell().style.zIndex).toBe('1');
   });
 
   itDom(
@@ -3678,7 +3721,10 @@ describe('the status cell and the two fact cells', () => {
     click('Add work item');
     await waitFor(() => {
       expect(statusCell('010').value).toBe('◐');
-      expect(statusCell('010')).toHaveAttribute('title', 'In progress');
+      expect(statusCell('010')).toHaveAttribute(
+        'data-fact',
+        expect.stringMatching(/^Status: In progress\. /),
+      );
     });
 
     fireEvent.click(statusCell('010'));
