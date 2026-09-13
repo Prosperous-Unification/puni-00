@@ -135,25 +135,13 @@ describe('the production solver binding runtime', () => {
     });
     expect(invocations.flatMap(({ argv }) => argv)).not.toContain('protected-value');
     expect(invocations[2]?.argv).toEqual(['docker', 'pull', DEV]);
-    expect(invocations[3]?.argv).toEqual([
-      'docker',
-      'image',
-      'inspect',
-      '--format={{.Id}}',
-      DEV,
-    ]);
+    expect(invocations[3]?.argv).toEqual(['docker', 'image', 'inspect', '--format={{.Id}}', DEV]);
     expect(invocations[4]?.argv).toContain(`--blue-image=${BLUE}`);
     expect(invocations[4]?.argv).toContain(`--green-image=${GREEN}`);
     expect(invocations[4]?.argv).toContain(`--dev-solver-image=${DEV}`);
     expect(invocations[5]?.argv).toEqual([BUN, 'x', 'nx', 'run', 'tool-remote-scripts:build']);
     expect(invocations[6]?.argv).toContain('--execute');
-    expect(invocations[7]?.argv).toEqual([
-      'docker',
-      'image',
-      'inspect',
-      '--format={{.Id}}',
-      DEV,
-    ]);
+    expect(invocations[7]?.argv).toEqual(['docker', 'image', 'inspect', '--format={{.Id}}', DEV]);
     expect(invocations[8]?.argv).toEqual([
       'systemctl',
       '--user',
@@ -283,9 +271,7 @@ describe('the production solver binding runtime', () => {
         ),
       ),
     ).toContain(`solver host image inspection failed (exit 1): No such image: ${DEV}`);
-    expect(
-      invocations.some(({ argv }) => argv[0] === 'git' && argv.includes('reset')),
-    ).toBe(false);
+    expect(invocations.some(({ argv }) => argv[0] === 'git' && argv.includes('reset'))).toBe(false);
     expect(
       checkpoints.map((contents) => {
         const state = JSON.parse(contents) as Record<string, unknown>;
