@@ -189,8 +189,8 @@ export class ImportService {
       const solutionRef =
         requested === null
           ? 'none'
-          : // Proof: skipping this admitted lookup made the source contract receive
-            // `kept` where the held-solution fixture requires `left-off`.
+          : // Proof: skipping this admitted lookup made concurrent memory imports both
+            // answer `kept` and leaked SQLite's `project.solution_slug` uniqueness error.
             (await scope.stores.projects.findBySolutionSlug(requested.slug)) === null
             ? 'kept'
             : 'left-off';

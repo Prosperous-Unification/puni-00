@@ -238,4 +238,37 @@ Final green evidence:
 - `bunx prettier --check libs/core/src/service/import.service.ts libs/core/src/testing/import-service-source-contract.ts openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
 - `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
 
-At the Task 3.4 checkpoint, Tasks 3.5–5.2 remain unimplemented and unchecked.
+At the Task 3.4 checkpoint, Tasks 3.5–5.2 remained unimplemented and unchecked.
+
+## Section 3.5 — concurrent solution reference ownership
+
+The source contract holds the first import at its admitted project creation,
+after that import found the shared solution slug free. It then observes a
+second invocation enter the same `UnitOfWork` and queue behind the first. Once
+released, both requests settle successfully: the first project keeps the exact
+reference, the second reports `left-off` and stores null, and their project ids
+are distinct. This uses one import service and clock so generated-id collisions
+cannot masquerade as solution ownership behavior.
+
+Task 3.5 required no new production branch: Task 3.1's lookup already occurs
+inside the admitted unit of work immediately before project creation. The new
+contract proves that placement under contention.
+
+| Check                    | Fault injected                                         | Test that observed it                                                | Observed failure                                                                               |
+| ------------------------ | ------------------------------------------------------ | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Admitted solution lookup | Replaced the admitted lookup with unconditional `kept` | `serializes concurrent imports competing for one free solution slug` | memory returned `kept`/`kept`; SQLite leaked `UNIQUE constraint failed: project.solution_slug` |
+
+The fault was observed against both sources, restored, and recorded beside the
+admitted lookup.
+
+Final green evidence:
+
+- `bun test libs/store-memory/src/import.service.test.ts` — 9 passed, 0 failed, 58 assertions.
+- `bun test libs/store-sqlite/src/import.service.db.test.ts` — 9 passed, 0 failed, 58 assertions.
+- `bun test libs/store-memory/src/import.service.test.ts libs/store-memory/src/memory-source.test.ts` — 20 passed, 0 failed, 227 assertions.
+- `bun test libs/store-sqlite/src/import.service.db.test.ts libs/store-sqlite/src/sqlite-unit-of-work.db.test.ts libs/store-sqlite/src/project.db.test.ts` — 46 passed, 0 failed, 139 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p core store-memory store-sqlite --skip-nx-cache --parallel=3 --output-style=static` — all six targets passed.
+- `bunx prettier --check libs/core/src/service/import.service.ts libs/core/src/testing/import-service-source-contract.ts openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
+
+At the Task 3.5 checkpoint, Tasks 3.6–5.2 remain unimplemented and unchecked.

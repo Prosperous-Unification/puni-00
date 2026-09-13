@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../compose';
 import { clockOf } from '../ports/clock';
+import type { ProjectStore } from '../ports/project-store';
 import type { Source } from '../ports/source';
 import type { TransactionalStores } from '../ports/stores';
 import type { UnitOfWork } from '../ports/unit-of-work';
@@ -106,6 +107,45 @@ function faultedUnitOfWork(
         };
         return act({ stores: { ...scope.stores, workItems } });
       }),
+  };
+}
+
+function heldSolutionUnitOfWork(
+  source: Source<TransactionalStores>,
+  creationHeld: Deferred<undefined>,
+  secondStarted: Deferred<undefined>,
+  continueCreate: Promise<void>,
+): UnitOfWork<TransactionalStores> {
+  let invocation = 0;
+  return {
+    run: (act) => {
+      invocation += 1;
+      const current = invocation;
+      if (current === 2) secondStarted.resolve(undefined);
+      return source.uow.run(async (scope) => {
+        if (current !== 1) return act(scope);
+        const stored = scope.stores.projects;
+        let held = false;
+        const projects: ProjectStore = {
+          async create(project, steps, stamp) {
+            if (!held) {
+              held = true;
+              creationHeld.resolve(undefined);
+              await continueCreate;
+            }
+            return stored.create(project, steps, stamp);
+          },
+          findById: (id) => stored.findById(id),
+          findBySolutionSlug: (slug) => stored.findBySolutionSlug(slug),
+          list: () => stored.list(),
+          listFor: (userId) => stored.listFor(userId),
+          recordOpen: (projectId, stamp) => stored.recordOpen(projectId, stamp),
+          update: (id, changes, stamp) => stored.update(id, changes, stamp),
+          stepsOf: (projectId) => stored.stepsOf(projectId),
+        };
+        return act({ stores: { ...scope.stores, projects } });
+      });
+    },
   };
 }
 
@@ -696,5 +736,55 @@ export function importServiceSourceContract(
         }
       });
     }
+
+    it('serializes concurrent imports competing for one free solution slug', async () => {
+      const source = await ownedSource();
+      try {
+        const creationHeld = deferred<undefined>();
+        const secondStarted = deferred<undefined>();
+        const release = deferred<undefined>();
+        const service = importService(source, {
+          uow: heldSolutionUnitOfWork(source, creationHeld, secondStarted, release.promise),
+        });
+        const firstDocument = planDocumentFixture();
+        firstDocument.settings.name = 'First concurrent import';
+        firstDocument.settings.solutionRef = {
+          slug: 'shared-free-solution',
+          url: 'https://example.test/solutions/first',
+        };
+        const secondDocument = planDocumentFixture();
+        secondDocument.settings.name = 'Second concurrent import';
+        secondDocument.settings.solutionRef = {
+          slug: 'shared-free-solution',
+          url: 'https://example.test/solutions/second',
+        };
+
+        const first = service.import(firstDocument, ACTOR);
+        await creationHeld.promise;
+        const second = service.import(secondDocument, ACTOR);
+        await secondStarted.promise;
+        release.resolve(undefined);
+        const [firstOutcome, secondOutcome] = await Promise.all([first, second]);
+        if (!firstOutcome.ok || !secondOutcome.ok)
+          throw new Error('valid concurrent import was refused');
+
+        expect(firstOutcome.solutionRef).toBe('kept');
+        expect(secondOutcome.solutionRef).toBe('left-off');
+        expect(firstOutcome.projectId).not.toBe(secondOutcome.projectId);
+        expect(await source.stores.projects.findById(firstOutcome.projectId)).toMatchObject({
+          name: 'First concurrent import',
+          solutionRef: {
+            slug: 'shared-free-solution',
+            url: 'https://example.test/solutions/first',
+          },
+        });
+        expect(await source.stores.projects.findById(secondOutcome.projectId)).toMatchObject({
+          name: 'Second concurrent import',
+          solutionRef: null,
+        });
+      } finally {
+        await source.close();
+      }
+    });
   });
 }
