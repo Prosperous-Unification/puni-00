@@ -5,6 +5,11 @@ import { describe, expect, it } from 'bun:test';
 
 import type { SolverRequest } from './wire-types';
 
+interface ManifestEntry {
+  readonly file: string;
+  readonly branch: string;
+}
+
 /**
  * The pin between `SCHEDULER_CONTRACT_VERSION` and the corpus that already
  * spends it.
@@ -27,7 +32,13 @@ import type { SolverRequest } from './wire-types';
  * corpus re-key, and reading this test as that guard is the mistake worth
  * naming.
  */
-const requestFixtures = ['valid-two-slices.json', 'valid-quantised-baseline.json'];
+const manifest = JSON.parse(
+  readFileSync(new URL('../fixtures/manifest.json', import.meta.url), 'utf8'),
+) as { readonly fixtures: readonly ManifestEntry[] };
+
+const requestFixtures = manifest.fixtures
+  .filter((entry) => entry.branch === 'request')
+  .map((entry) => entry.file.slice('request/'.length));
 
 describe('SCHEDULER_CONTRACT_VERSION and the golden requests', () => {
   it('enumerates fixtures that exist', () => {

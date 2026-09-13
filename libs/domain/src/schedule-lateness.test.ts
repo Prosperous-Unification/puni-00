@@ -166,6 +166,8 @@ describe('a missed deadline is reported in whole workdays', () => {
     // The positive projection occupies days 1..4 and is one day late. Reading
     // any zero step as its own point makes leading/interior/trailing disagree;
     // all three deliberately carry the whole projection's verdict.
+    expect(planned(found, 'work', DEV).lateBy).toBeNull();
+    expect(planned(found, 'work', 'step-finish').lateBy).toBe(1);
     expect(planned(found, 'work', 'step-leading').lateBy).toBe(1);
     expect(planned(found, 'work', 'step-interior').lateBy).toBe(1);
     expect(planned(found, 'work', 'step-trailing').lateBy).toBe(1);

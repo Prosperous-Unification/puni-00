@@ -284,6 +284,8 @@ export const revalidateSolverResult = (
       return refuse('malformed-request', `duplicate slice key ${JSON.stringify(slice.key)}`);
     }
     slices.set(slice.key, slice);
+    // Proof: disabling this guard made `refuses missing and empty workItemKey
+    // values before grouping` accept both cases; watched on h2puni 2026-09-13.
     if (typeof slice.workItemKey !== 'string' || slice.workItemKey.length === 0) {
       return refuse(
         'malformed-request',

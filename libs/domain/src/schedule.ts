@@ -609,6 +609,8 @@ export function workItemIdsWithPositiveDuration(
   slices: readonly Slice[],
   durations: readonly number[],
 ): ReadonlySet<string> {
+  // Proof: removing this precondition made `requires one supplied duration per
+  // slice` accept a truncated duration vector; watched on h2puni 2026-09-13.
   if (slices.length !== durations.length) {
     throw new Error('positive-duration classification requires one duration per slice');
   }
@@ -2612,9 +2614,9 @@ export function schedule(
     // item therefore read the item's final finish. Only a genuinely all-zero
     // work item uses the point's own start so the day on which it stands counts.
     // Proof: forcing every slice to use `placed.start` made
-    // `reads trailing zero steps from the positive work-item span but all-zero
-    // items as points` report the trailing QA step late by 1; watched on
-    // h2puni 2026-09-09.
+    // `reads every zero step from the positive work-item projection but all-zero
+    // items as points` report the trailing step late by 1; watched on h2puni
+    // 2026-09-09.
     const hasPositiveDuration = workItemsWithDuration.has(slice.workItemId);
     const deadlineStart = hasPositiveDuration ? WORK_ITEM_PROJECTION_START : placed.start;
     const deadlineFinish =

@@ -158,8 +158,13 @@ describe('the golden request corpus', () => {
     }
   });
 
-  it('runs every schema-valid request through Bun milestone re-validation', () => {
-    for (const entry of requestFixtures.filter((candidate) => candidate.valid)) {
+  it('runs every end-to-end valid request through Bun milestone re-validation', () => {
+    // `negative-printable-key.json` is schema-valid on purpose, but its
+    // mismatched printable key is an end-to-end negative. The `valid-` prefix
+    // is the corpus convention shared with Python for complete request oracles.
+    for (const entry of requestFixtures.filter(
+      (candidate) => candidate.valid && candidate.file.startsWith('request/valid-'),
+    )) {
       const request = fixture(entry.file);
       const groups = new Map<string, typeof request.slices>();
       for (const slice of request.slices) {

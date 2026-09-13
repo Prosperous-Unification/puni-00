@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { ASSUMED_SLICE_WORKDAYS } from './assumed-duration';
 import { isOnTime } from './on-time';
-import { durationOf, type Slice } from './schedule';
+import { durationOf, type Slice, workItemIdsWithPositiveDuration } from './schedule';
 import { durationRoundedUp, durationUnits, SOLVER_QUANTUM } from './solver-quantum';
 
 function slice(days: number | null, width: number): Slice {
@@ -16,6 +16,12 @@ describe('SOLVER_QUANTUM', () => {
 });
 
 describe('durationUnits', () => {
+  it('requires one supplied duration per slice', () => {
+    expect(() => workItemIdsWithPositiveDuration([slice(1, 1)], [])).toThrow(
+      'positive-duration classification requires one duration per slice',
+    );
+  });
+
   it('divides an estimate by width, and never divides the assumption', () => {
     // The two arms of `durationOf`, asserted end to end through the quantum
     // because the plan restated them and got both wrong: it divided the
@@ -129,6 +135,7 @@ describe('the drift window across the unit boundary', () => {
     // The model's shipped clause: `end + int(workItemIsMilestone) <= deadlineUnits`.
     const workItemIsMilestone = false;
     expect(0 + durationUnits(s) + Number(workItemIsMilestone)).toBeLessThanOrEqual(48);
+    expect(0 + durationUnits(s) + Number(true)).toBeGreaterThan(48);
   });
 
   it('still refuses a duration that is genuinely past the whole day, by one unit', () => {
