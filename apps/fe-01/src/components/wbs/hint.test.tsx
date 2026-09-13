@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { HintLayer, RING_QUIET_MS, TOOL_HINT_WAIT_MS } from './hint';
@@ -709,6 +710,87 @@ describe('a press says the reader already knows what the control does', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('a mark that opens a list of its own takes its card down', () => {
+  /** A combobox the way the Status and priority cells are one: a click opens its list. */
+  function AListOpener(): React.JSX.Element {
+    const [open, setOpen] = useState(false);
+    return (
+      <div>
+        <HintLayer />
+        <input
+          aria-label="Status of 010"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls="a-list-that-is-not-here"
+          data-fact="Status: Unknown. Nobody has said where this work has got to."
+          readOnly
+          onClick={() => {
+            setOpen((was) => !was);
+          }}
+        />
+        <button type="button">Redo</button>
+      </div>
+    );
+  }
+
+  itDom(
+    'closes the fact card the moment the list opens, and leaves it up for a click that opens nothing',
+    async () => {
+      render(<AListOpener />);
+      const box = screen.getByRole('combobox', { name: 'Status of 010' });
+      const bare = screen.getByRole('button', { name: 'Redo' });
+
+      pointAt(box);
+      expect(screen.queryByRole('tooltip')).not.toBeNull();
+
+      // A press elsewhere that opens nothing: the fact stays, as `leaves a fact’s
+      // card alone` says it must.
+      await act(async () => {
+        fireEvent.click(bare);
+        // The layer re-reads the mark in a microtask; this lets it run.
+        await Promise.resolve();
+      });
+      expect(screen.queryByRole('tooltip')).not.toBeNull();
+
+      // Dany, 2026-09-13: "when i click the status to select new value i want
+      // dropdown to remove the hint pop-up". The list and the card would stand
+      // one over the other, saying the same word twice.
+      // Proof: the `click`/`keyup` listener that re-reads `aria-expanded`
+      // removed, and this fails on `expected not null to be null`; watched
+      // 2026-09-13.
+      pressAt(box);
+      await act(async () => {
+        fireEvent.click(box);
+        // The layer re-reads the mark in a microtask; this lets it run.
+        await Promise.resolve();
+      });
+      expect(box).toHaveAttribute('aria-expanded', 'true');
+      expect(screen.queryByRole('tooltip')).toBeNull();
+    },
+  );
+
+  itDom('closes it for a keyboard that opens the list too', async () => {
+    render(<AListOpener />);
+    const box = screen.getByRole('combobox', { name: 'Status of 010' });
+
+    act(() => {
+      box.focus();
+    });
+    expect(screen.queryByRole('tooltip')).not.toBeNull();
+
+    // The component opens on click; Enter on a real cell does the same, and the
+    // layer reads the outcome — `aria-expanded` — not the key, so a `keyup`
+    // after the list opened is enough.
+    await act(async () => {
+      fireEvent.click(box);
+      fireEvent.keyUp(box, { key: 'Enter' });
+      // The layer re-reads the mark in a microtask; this lets it run.
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('tooltip')).toBeNull();
   });
 });
 

@@ -70,3 +70,19 @@ Two false negatives on the way, recorded so the next proof does not repeat them:
 hidden the same scene passed with the write deleted (the Name cell did not cover the line), and
 with Links shown but only the **last** line sampled it passed again (that line hangs below the
 final row with nothing under it). `E2E_PORT_SHIFT=1900 … status.spec.ts`: 2 passed after the fix.
+
+## Follow-up, 2026-09-13: the hint and the list
+
+Dany: "(1) when i click the status to select new value i want dropdown to remove the hint pop-up
+(2) hint pop-up must show the full name of the status or even write status: unknown". The fact
+words now begin `Status: <word>.`; the hint layer re-reads the attended mark after a `click` or
+`keyup` (in a microtask, after React committed) and closes its card when the mark reads
+`aria-expanded="true"`. The press path is untouched — a fact's card still survives a press that
+opens nothing.
+
+| Check                                     | Fault injected                                             | Test that observed it                                                                                        | Observed                                                 |
+| ----------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| an opened list takes the mark's card down | the `click`/`keyup` listeners for `reconsidered` not added | hint › `closes the fact card the moment the list opens…`, `closes it for a keyboard that opens the list too` | `expected <div role="tooltip" …> to be null`, both cases |
+
+`bunx vitest run hint.test.tsx plan-cells.test.tsx plan-cards.test.tsx`: 278 passed. fe-01 lint
+and typecheck green; `bunx nx format:check --all` exit 0.

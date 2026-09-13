@@ -106,6 +106,26 @@ as before.
 - **THEN** the cell shows `✓`, its title is `Done`, `data-status-value` is `done`, and opening it
   lists `Unknown` and `Done`
 
+### Requirement: The Status cell's fact names the status, and its card leaves when the list opens
+
+The Status cell's fact SHALL begin with `Status: <word>.` — `Status: Unknown.`, `Status: In
+progress.`, `Status: Done.` — before the sentence about the row. When a hinted mark that is a
+combobox expands its list, by click or by keyboard, the hint layer SHALL close that mark's open
+card; a click that leaves the mark collapsed SHALL leave the card where it was.
+
+#### Scenario: the card says the word the glyph does not
+
+- **GIVEN** a leaf reading unknown with the Status column shown
+- **WHEN** its Status cell's fact is read
+- **THEN** it begins `Status: Unknown. `, and `Status: Done. ` once the row is done
+
+#### Scenario: opening the list takes the card down
+
+- **GIVEN** the pointer resting on a Status cell with its fact card open
+- **WHEN** the cell is clicked and its list opens
+- **THEN** the card is gone while the list is on screen, and a click on a control that opens
+  nothing had left the card up
+
 ## MODIFIED Requirements
 
 ### Requirement: Marking done fills an empty fact end with the day of the act

@@ -33,12 +33,18 @@ const STATUS_COLOR: Readonly<Record<WorkItemStatus, string>> = {
   done: 'var(--status-done)',
 };
 
-/** What each status says about the row, for the cell's project fact. */
+/**
+ * What each status says about the row, for the cell's project fact.
+ *
+ * The status word comes first, because the cell itself is a glyph: `○ ◐ ✓`
+ * is legible once learnt, and the card is where a reader learns it. Dany,
+ * 2026-09-13: "hint pop-up must show the full name of the status or even write
+ * status: unknown".
+ */
 const STATUS_WORDS: Readonly<Record<WorkItemStatus, string>> = {
-  unknown: 'Nobody has said where this work has got to.',
-  in_progress:
-    'Its steps disagree — one has finished, or one has said nothing — so the row is part-way through. Set it per step, or choose Done for all of it.',
-  done: 'Every step of this work item says finished. The chart draws it over its fact span, the row is tinted, and its name is struck through.',
+  unknown: `Status: ${STATUS_LABEL.unknown}. Nobody has said where this work has got to.`,
+  in_progress: `Status: ${STATUS_LABEL.in_progress}. Its steps disagree — one has finished, or one has said nothing — so the row is part-way through. Set it per step, or choose Done for all of it.`,
+  done: `Status: ${STATUS_LABEL.done}. Every step of this work item says finished. The chart draws it over its fact span, the row is tinted, and its name is struck through.`,
 };
 
 export interface StatusCellProps {
