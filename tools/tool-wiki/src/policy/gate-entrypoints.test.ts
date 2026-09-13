@@ -1007,6 +1007,16 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(ci.indexOf('sha256sum --check --strict')).toBeLessThan(ci.indexOf('tar --extract'));
     expect(trustedCi).toContain('pull_request_target:');
     expect(trustedCi).toContain('permissions:\n  contents: read');
+    // Proof: the public admission workflow resolved mutable action tags until terminal review
+    // showed those actions could replace the digest-pinned trust decision without a repo change.
+    const trustedActionRefs = [...trustedCi.matchAll(/uses:\s+[^\s@]+@([^\s#]+)/g)].map(
+      (match) => match[1],
+    );
+    expect(trustedActionRefs.length).toBeGreaterThan(0);
+    expect(trustedActionRefs.every((ref) => /^[0-9a-f]{40}$/.test(ref))).toBe(true);
+    const ciActionRefs = [...ci.matchAll(/uses:\s+[^\s@]+@([^\s#]+)/g)].map((match) => match[1]);
+    expect(ciActionRefs.length).toBeGreaterThan(0);
+    expect(ciActionRefs.every((ref) => /^[0-9a-f]{40}$/.test(ref))).toBe(true);
     expect(trustedCi).not.toContain('if: ${{ vars.TOOL_WIKI_ACTIVATION_');
     expect(trustedCi.indexOf('name: Require immutable activation configuration')).toBeLessThan(
       trustedCi.indexOf('name: Check out trusted launcher'),

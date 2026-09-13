@@ -25,7 +25,7 @@ jobs:
           : "${ACTIVATION_VERSION:?trusted activation version is not configured}"
 
       - name: Check out trusted launcher
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # Repository variables are target-context authority. Pin both launcher and runtime
           # modules to the same reviewed source revision that produced the activation archive.
@@ -37,7 +37,7 @@ jobs:
         run: install -m 0555 trusted/bin/tool-wiki-lint.sh "$RUNNER_TEMP/tool-wiki-lint.sh"
 
       - name: Install pinned Bun runtime
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.4.2
 
@@ -65,7 +65,7 @@ jobs:
           printf 'TOOL_WIKI_ACTIVATION_ROOT=%s\n' "$activation_root" >> "$GITHUB_ENV"
 
       - name: Check out exact candidate
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           path: candidate

@@ -216,7 +216,7 @@ jobs:
       # Full history: with the default depth of 1 the `main` ref is absent, and
       # nx falls back to a different file scope rather than failing. Depth 0
       # also keeps `nx affected` usable if this ever moves off run-many.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
@@ -226,11 +226,11 @@ jobs:
       # verdict with no commit to attribute it to, and the next person debugging
       # a red main has no version to bisect against. The pin is `.bun-version`,
       # the same file the Dockerfiles are held to by `toolchain-pins.test.ts`.
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: .bun-version
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.14.4'
           cache: pip
@@ -363,7 +363,7 @@ jobs:
 
       - name: Upload gate log
         if: ${{ always() && steps.nx_gate.outcome != 'skipped' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nx-gate-log-${{ github.run_attempt }}
           path: nx-gate.log
@@ -593,12 +593,12 @@ jobs:
         shard: [1, 2, 3, 4]
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # The same pin as `gate` above, read from the same file, for the same
       # reason: bun is part of what is being tested here — it runs be-01 and
       # gw-01 — and `latest` changes the verdict with no commit to blame.
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: .bun-version
 
@@ -619,7 +619,7 @@ jobs:
       - name: Layout gate
         run: bun run e2e -- --shard=${{ matrix.shard }}/4
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: wbs-table-screenshot-${{ matrix.shard }}-${{ github.run_attempt }}
