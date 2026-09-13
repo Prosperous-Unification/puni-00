@@ -144,6 +144,23 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
     );
   });
 
+  it('refuses missing and empty workItemKey values before grouping', () => {
+    const missing = { ...slice({ key: 'missing' }) } as Partial<SolverSlice>;
+    delete missing.workItemKey;
+    for (const malformedSlice of [slice({ key: 'empty', workItemKey: '' }), missing]) {
+      const key = malformedSlice.key ?? 'missing';
+      const malformed = request({
+        slices: [malformedSlice as SolverSlice],
+        baselineOffsets: { [key]: 0 },
+        fastHint: { [key]: 0 },
+      });
+      rejects(
+        revalidateSolverResult(malformed, { wireVersion: 1, status: 'unknown' }),
+        'malformed-request',
+      );
+    }
+  });
+
   it('a trailing zero slice sharing a positive work item and denying milestone status', () => {
     const legal = request({
       slices: [

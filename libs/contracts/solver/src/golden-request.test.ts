@@ -5,6 +5,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { buildSolverRequest, type SolverRequestPlan } from './build-solver-request';
 import { quantisedFastBaseline } from './quantised-baseline';
+import { revalidateSolverResult } from './revalidate-solver-result';
 import { SOLVER_REQUEST_KEYS, SOLVER_SLICE_KEYS, type SolverRequest } from './wire-types';
 
 /**
@@ -154,6 +155,24 @@ describe('the golden request corpus', () => {
       for (const slice of request.slices) {
         expect(Object.keys(slice).sort()).toEqual([...SOLVER_SLICE_KEYS].sort());
       }
+    }
+  });
+
+  it('runs every schema-valid request through Bun milestone re-validation', () => {
+    for (const entry of requestFixtures.filter((candidate) => candidate.valid)) {
+      const request = fixture(entry.file);
+      const groups = new Map<string, typeof request.slices>();
+      for (const slice of request.slices) {
+        groups.set(slice.workItemKey, [...(groups.get(slice.workItemKey) ?? []), slice]);
+      }
+      for (const peers of groups.values()) {
+        const expected = peers.every((slice) => slice.durationUnits === 0);
+        expect(peers.every((slice) => slice.workItemIsMilestone === expected)).toBe(true);
+      }
+      expect(revalidateSolverResult(request, { wireVersion: 1, status: 'unknown' })).toEqual({
+        ok: true,
+        published: false,
+      });
     }
   });
 });

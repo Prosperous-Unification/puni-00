@@ -126,8 +126,9 @@ describe('the drift window across the unit boundary', () => {
     expect(durationUnits(s)).toBe(48);
     expect(durationRoundedUp(s)).toBe(false);
 
-    // The model's clause verbatim: `startUnits + max(durationUnits, 1) <= deadlineUnits`.
-    expect(0 + Math.max(durationUnits(s), 1)).toBeLessThanOrEqual(48);
+    // The model's shipped clause: `end + int(workItemIsMilestone) <= deadlineUnits`.
+    const workItemIsMilestone = false;
+    expect(0 + durationUnits(s) + Number(workItemIsMilestone)).toBeLessThanOrEqual(48);
   });
 
   it('still refuses a duration that is genuinely past the whole day, by one unit', () => {
@@ -138,7 +139,7 @@ describe('the drift window across the unit boundary', () => {
     expect(isOnTime(0, durationOf(s), 0)).toBe(false);
     expect(durationUnits(s)).toBe(49);
     expect(durationRoundedUp(s)).toBe(true);
-    expect(0 + Math.max(durationUnits(s), 1)).toBeGreaterThan(48);
+    expect(0 + durationUnits(s) + Number(false)).toBeGreaterThan(48);
   });
 
   it('leaves every duration that is not within the window of a whole workday exactly where it was', () => {
