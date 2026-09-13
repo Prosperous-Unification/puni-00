@@ -15,6 +15,7 @@ import {
   decodeIntegrationPolicy,
   type IntegrationEvidence,
   type IntegrationEvidenceVerifier,
+  recomposeIntegrationCandidate,
   type VerifiedIntegrationReceipt,
 } from './integrate';
 import { createAdmissionPacket } from './packet';
@@ -470,6 +471,40 @@ test('reselects gate evidence and refuses standalone or mismatched receipts', ()
   const evidence = receiptsFor(composed);
   const bad = { ...evidence, contentManifestIdentity: hashBytes('standalone') };
   expect(() => certify(composed, bad)).toThrow('evidence candidate binding mismatch');
+  subject.store.close();
+});
+
+test('target-only gate drift reselects its checks and reviews without changing publication paths', () => {
+  const subject = integrationFixture();
+  const producer = subject.submission('producer', 'src/producer.ts', 'export const version = 2;\n');
+  writeFileSync(join(subject.repository, 'gate.ts'), 'export const gate = 2;\n');
+  git(subject.repository, ['add', 'gate.ts']);
+  git(subject.repository, ['commit', '--quiet', '--message', 'advance gate only']);
+  const targetBase = git(subject.repository, ['rev-parse', 'HEAD']);
+
+  const recomposed = recomposeIntegrationCandidate(
+    subject.store,
+    subject.repository,
+    { policy, submissions: [producer] },
+    targetBase,
+  );
+
+  expect(recomposed.changedPaths).toEqual(['src/producer.ts']);
+  expect(recomposed.selectedChecks).toEqual(['check.producer', 'check.trusted-gate']);
+  expect(recomposed.selectedReviews).toEqual(['review.producer', 'review.trusted-gate']);
+  const completeEvidence = receiptsFor(recomposed);
+  const missingGateEvidence = {
+    ...completeEvidence,
+    checks: completeEvidence.checks.filter(({ checkId }) => checkId !== 'check.trusted-gate'),
+  };
+  expect(() =>
+    certifyIntegrationCandidate(
+      recomposed,
+      missingGateEvidence,
+      new FixtureEvidenceVerifier(recomposed, missingGateEvidence),
+    ),
+  ).toThrow('integration check receipt set is incomplete');
+  expect(git(subject.repository, ['rev-parse', 'HEAD'])).toBe(targetBase);
   subject.store.close();
 });
 

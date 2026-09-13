@@ -404,7 +404,7 @@ function isPatchNonApplicability(detail: string): boolean {
   return (
     diagnostics.length > 0 &&
     diagnostics.every((line) =>
-      /^error: (?:patch failed: .+|.+: patch does not apply|.+: does not match index|.+: does not exist in index)$/.test(
+      /^error: (?:patch failed: .+|.+: patch does not apply|.+: does not match index|.+: does not exist in index|.+: already exists in index)$/.test(
         line,
       ),
     )
@@ -447,7 +447,9 @@ function applyPatch(
   // failure inside descendant patch replay stays recoverable` resolve terminal;
   // `fixture promise resolved unexpectedly`. Omitting the target-absence diagnostic made `a target
   // deletion terminalizes the exact immutable submission` throw `src/one.ts: does not exist in
-  // index` instead of returning its permanent incompatible-submission report.
+  // index` instead of returning its permanent incompatible-submission report. Omitting the
+  // target-addition diagnostic left `a target add/add conflict terminalizes the exact immutable
+  // submission` queued at attempt zero after Git reported `already exists in index`.
   if (conflictIsModeled && invocation.exitCode === 1 && isPatchNonApplicability(detail)) {
     throw new IntegrationPatchConflictError(detail || 'git exited 1');
   }
@@ -639,6 +641,10 @@ function compose(
   });
   const entries = readTree(coordinator, candidateTree);
   const combinedDiff = differences(baseEntries, entries);
+  const targetDrift = differences(submittedBaseEntries, baseEntries);
+  const affectedPaths = [
+    ...new Set([...targetDrift.changedPaths, ...combinedDiff.changedPaths]),
+  ].sort(compareCanonicalText);
   const byPath = entryMap(entries);
   for (const submission of ordered) {
     for (const dependency of submission.packet.readDependencies) {
@@ -697,7 +703,9 @@ function compose(
   const checks = new Set(ordered.flatMap(({ packet }) => [...packet.checks]));
   const reviews = new Set(ordered.flatMap(({ packet }) => [...packet.evidenceRequirements]));
   for (const rule of policy.selectorRules) {
-    const affected = combinedDiff.changedPaths.some((path) =>
+    // Proof: selecting from the publication diff alone omitted the trusted gate check and review
+    // when only the descendant target changed `gate.ts` before recomposition.
+    const affected = affectedPaths.some((path) =>
       rule.kind === 'path'
         ? path === rule.path
         : path === rule.path || path.startsWith(`${rule.path}/`),

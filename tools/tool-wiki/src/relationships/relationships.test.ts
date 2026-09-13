@@ -232,7 +232,8 @@ function invoke(
       requestPath,
     ],
     {
-      cwd: repository,
+      // The trusted caller starts outside the candidate so candidate Bun configuration cannot load.
+      cwd: import.meta.dir,
       env: {
         ...process.env,
         TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
@@ -1058,3 +1059,225 @@ describe('relationship extraction production CLI', () => {
     expect(output(escaped)).not.toContain('TypeScript');
   }, 15_000);
 });
+
+test('reads static Nx configuration without executing candidate plugins', () => {
+  const repository = createRepository();
+  const sentinel = join(repository, '..', `${basename(repository)}.plugin-executed`);
+  pathsToRemove.push(sentinel);
+  write(
+    repository,
+    'tools/candidate-plugin.cjs',
+    "require('node:fs').writeFileSync(process.env.WBS_WIKI_PLUGIN_SENTINEL, 'executed');\nmodule.exports = { name: 'candidate-plugin', createNodesV2: ['project.json', () => []] };\n",
+  );
+  write(
+    repository,
+    'nx.json',
+    `${JSON.stringify({ plugins: ['./tools/candidate-plugin.cjs'], useInferencePlugins: false })}\n`,
+  );
+  const revision = commitAll(repository, 'candidate Nx plugin');
+
+  const invocation = invoke(repository, revision, writeRequest(repository), {
+    WBS_WIKI_PLUGIN_SENTINEL: sentinel,
+  });
+
+  // Proof: executing the configured plugin from the production extractor wrote this sentinel and
+  // failed the assertion before static extraction could report the declared projects.
+  expect(existsSync(sentinel)).toBe(false);
+  expect(report(invocation).nx.projects.map(({ name }) => name)).toEqual([
+    'consumer',
+    'minimal',
+    'provider',
+  ]);
+});
+
+test('reads static Nx configuration without executing a candidate-local wrapper', () => {
+  const repository = createRepository();
+  const sentinel = join(repository, '..', `${basename(repository)}.local-nx-executed`);
+  pathsToRemove.push(sentinel);
+  write(
+    repository,
+    '.nx/installation/node_modules/nx/package.json',
+    `${JSON.stringify({ name: 'nx', version: '23.2.0' })}\n`,
+  );
+  write(repository, '.nx/installation/node_modules/nx/bin/nx.js', 'module.exports = {};\n');
+  write(
+    repository,
+    '.nx/nxw.js',
+    "require('node:fs').writeFileSync(process.env.WBS_WIKI_NX_SENTINEL, 'executed');\n",
+  );
+  const revision = commitAll(repository, 'candidate-local Nx wrapper');
+
+  const invocation = invoke(repository, revision, writeRequest(repository), {
+    WBS_WIKI_NX_SENTINEL: sentinel,
+  });
+
+  // Proof: executing the candidate-local wrapper from the production extractor wrote this sentinel
+  // and failed the assertion before static extraction could report the declared projects.
+  expect(existsSync(sentinel)).toBe(false);
+  expect(report(invocation).nx.projects.map(({ name }) => name)).toEqual([
+    'consumer',
+    'minimal',
+    'provider',
+  ]);
+});
+
+test('uses trusted Nx when candidate root package metadata claims its package name', () => {
+  const repository = createRepository();
+  const requestPath = writeRequest(repository);
+  report(invoke(repository, commitAll(repository, 'declarative Nx baseline'), requestPath));
+  const sentinel = join(repository, '..', `${basename(repository)}.self-reference-executed`);
+  pathsToRemove.push(sentinel);
+  write(
+    repository,
+    'package.json',
+    `${JSON.stringify({
+      name: 'nx',
+      version: '23.2.0',
+      private: true,
+      type: 'commonjs',
+      exports: {
+        './bin/nx.js': './candidate-nx.js',
+        './package.json': './package.json',
+      },
+    })}\n`,
+  );
+  write(
+    repository,
+    'candidate-nx.js',
+    `require('node:fs').writeFileSync(${JSON.stringify(sentinel)}, 'executed');\n`,
+  );
+  const revision = commitAll(repository, 'candidate package self-reference');
+
+  const invocation = invoke(repository, revision, requestPath);
+  expect(existsSync(sentinel)).toBe(false);
+  const extracted = report(invocation);
+  expect(extracted.nx.projects.map(({ name }) => name)).toEqual([
+    'consumer',
+    'minimal',
+    'provider',
+  ]);
+}, 30_000);
+
+test('starts the trusted relationship CLI outside a candidate with a Bun preload', () => {
+  const repository = createRepository();
+  const requestPath = writeRequest(repository);
+  report(invoke(repository, commitAll(repository, 'declarative Nx baseline'), requestPath));
+  const sentinel = join(repository, '..', `${basename(repository)}.bun-preload-executed`);
+  pathsToRemove.push(sentinel);
+  write(repository, 'bunfig.toml', 'preload = ["./candidate-preload.ts"]\n');
+  write(
+    repository,
+    'candidate-preload.ts',
+    `await Bun.write(${JSON.stringify(sentinel)}, 'executed');\n`,
+  );
+  const revision = commitAll(repository, 'candidate Bun preload');
+
+  const invocation = invoke(repository, revision, requestPath);
+  // Proof: starting the production CLI with `cwd: repository` loaded candidate-preload.ts, wrote
+  // this sentinel, and failed the assertion before relationship extraction began.
+  expect(existsSync(sentinel)).toBe(false);
+  const extracted = report(invocation);
+  expect(extracted.nx.projects.map(({ name }) => name)).toEqual([
+    'consumer',
+    'minimal',
+    'provider',
+  ]);
+}, 30_000);
+
+test('stales an implicit ambient declaration used by the public surface', () => {
+  const repository = createRepository();
+  write(
+    repository,
+    'packages/provider/src/public.ts',
+    "export interface PublicThing { value: string; nested: import('./hidden').Hidden; ambient: ImplicitAmbient }\n",
+  );
+  write(
+    repository,
+    'packages/provider/src/ambient.d.ts',
+    'interface ImplicitAmbient { value: string }\n',
+  );
+  const requestPath = writeRequest(repository);
+  const initial = report(invoke(repository, commitAll(repository, 'ambient string'), requestPath));
+
+  write(
+    repository,
+    'packages/provider/src/ambient.d.ts',
+    'interface ImplicitAmbient { value: number }\n',
+  );
+  const changed = report(invoke(repository, commitAll(repository, 'ambient number'), requestPath));
+
+  expect(
+    changed.typescript.publicDeclarations[0].declarations.map(({ sourcePath }) => sourcePath),
+  ).toContain('packages/provider/src/ambient.d.ts');
+  expect(changed.typescript.publicDeclarations[0].identity).not.toBe(
+    initial.typescript.publicDeclarations[0].identity,
+  );
+}, 15_000);
+
+test('stales an applicable module augmentation of a public type', () => {
+  const repository = createRepository();
+  write(
+    repository,
+    'packages/provider/src/augmentation.d.ts',
+    "import './hidden';\ndeclare module './hidden' { interface Hidden { augmented: string } }\n",
+  );
+  const requestPath = writeRequest(repository);
+  const initial = report(
+    invoke(repository, commitAll(repository, 'string augmentation'), requestPath),
+  );
+
+  write(
+    repository,
+    'packages/provider/src/augmentation.d.ts',
+    "import './hidden';\ndeclare module './hidden' { interface Hidden { augmented: number } }\n",
+  );
+  const changed = report(
+    invoke(repository, commitAll(repository, 'number augmentation'), requestPath),
+  );
+
+  expect(
+    changed.typescript.publicDeclarations[0].declarations.map(({ sourcePath }) => sourcePath),
+  ).toContain('packages/provider/src/augmentation.d.ts');
+  expect(changed.typescript.publicDeclarations[0].identity).not.toBe(
+    initial.typescript.publicDeclarations[0].identity,
+  );
+}, 15_000);
+
+for (const ambientUse of ['keyof', 'generic default'] as const) {
+  test(`stales an ambient declaration referenced through ${ambientUse}`, () => {
+    const repository = createRepository();
+    const exportedDeclaration =
+      ambientUse === 'keyof'
+        ? 'export type AmbientKeys = keyof ImplicitAmbient;\n'
+        : 'export interface AmbientBox<T = ImplicitAmbient> { value: T }\n';
+    write(
+      repository,
+      'packages/provider/src/index.ts',
+      "export default function publicDefault(): string { return 'public'; }\nexport { type PublicThing } from './public';\nexport { type Declared } from './shapes';\n" +
+        exportedDeclaration,
+    );
+    write(
+      repository,
+      'packages/provider/src/ambient.d.ts',
+      'interface ImplicitAmbient { before: string }\n',
+    );
+    const requestPath = writeRequest(repository);
+    const initial = report(
+      invoke(repository, commitAll(repository, 'ambient before'), requestPath),
+    );
+
+    write(
+      repository,
+      'packages/provider/src/ambient.d.ts',
+      'interface ImplicitAmbient { after: number }\n',
+    );
+    const changed = report(invoke(repository, commitAll(repository, 'ambient after'), requestPath));
+
+    expect(
+      changed.typescript.publicDeclarations[0].declarations.map(({ sourcePath }) => sourcePath),
+    ).toContain('packages/provider/src/ambient.d.ts');
+    expect(changed.typescript.publicDeclarations[0].identity).not.toBe(
+      initial.typescript.publicDeclarations[0].identity,
+    );
+  }, 15_000);
+}
