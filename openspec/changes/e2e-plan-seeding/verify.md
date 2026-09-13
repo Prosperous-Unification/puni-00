@@ -154,3 +154,83 @@ Task 3.4 remains unchecked. The canonical `bin/h2puni-gate.sh <sha>` host-wide
 gate was not run under the coordinator's explicit sequencing instruction, and
 the strict all-change validation remains red on the two unrelated changes
 named above.
+
+## Terminal review repair
+
+Candidate `c30d9547` correlates every successful fixture batch with the exact
+submitted command count, ordered index and ref, requiring an id only for
+identity-producing commands. Plan recipes now compile omitted predecessors as
+ordered appends before the first write, including across a 200-command boundary,
+and directory tags use the same 200-command cap. Rendering verification compares
+every stored estimate value and dependency endpoint with its declared recipe.
+
+The restored focused browser run used fresh owned ports 12700/12800/13800:
+
+- `CI=1 E2E_PORT_SHIFT=9600 bunx playwright test --config apps/fe-01/playwright.config.ts apps/fe-01/e2e/plan-fixture.spec.ts apps/fe-01/e2e/rendering-fixture.spec.ts apps/fe-01/e2e/plan-surface.spec.ts --workers=1`
+  — **27 passed, 0 failed** in 55.3s.
+
+Every temporary fault below was applied separately to `c30d9547`, exercised
+through the real Playwright server stack on fresh databases and owned shifted
+ports, then restored before the next fault:
+
+- Removing the authored-batch correlation and running the four
+  `refuses an authored HTTP200` cases at shift 9000 made all four fail because
+  `seedPlan` resolved; each had reached exactly one authored batch and the
+  faulted response otherwise remained HTTP 200.
+- Defaulting every omitted predecessor to null and running both
+  `implicit recipe order` cases at shift 9100 made the two-row and 201-row
+  exact persisted-id orders fail.
+- Sending all 201 tag commands together and running
+  `chunks 201 directory identities` at shift 9200 reached the real backend
+  refusal `too_many_commands` at command 200. Restored code observes [200, 1].
+- Removing rendering authored-result correlation and running the wrong-index
+  case at shift 9300 made `seedRenderingPlan` resolve after index 999.
+- Removing exact estimate comparison and running the altered-value case at
+  shift 9400 made the stored 8/9/10 estimate resolve successfully.
+- Removing exact dependency comparison and running the redirected-edge case at
+  shift 9500 made stored edge 10→0 resolve where 10→9 was declared.
+- Removing the creation-id guard and running the missing-identity case at shift
+  9600 moved failure from the named creation boundary to a later real
+  `setEstimate/missing_id` refusal, so its exact phase assertion failed.
+- Removing the geometry guard and running the zero-layout case at shift 9700
+  returned a complete snapshot whose widths, heights and mounted counts were
+  zero, so the required setup/layout refusal test failed.
+
+The six API-seeded plan-surface cases each received their own production fault:
+
+- `GANTT_DOCK_SLACK.flex: 0 0 0` made the short-plan assertion report 323px
+  below the chart at shift 9800.
+- `TABLE_FRAME.flex: 0 0 auto` made the tall-plan non-vacuity assertion report
+  zero rows past the frame at shift 9900.
+- Suppressing `onFrameScroll` left table and chart 8.554 rows apart at shift 9000.
+- Suppressing `onPanelScroll` left the table at row zero at shift 9100.
+- Mapping Ctrl+J to no command left the keyboard case at row zero at shift 9200.
+- Copying the follower's horizontal offset into its driver reset the table to
+  scrollLeft zero at shift 9400. An earlier follower-copy experiment stayed
+  green and is excluded as a vacuous mutation; it was replaced rather than
+  claimed as proof.
+
+The six full-suite timing samples were not repeated. These repairs change
+fixture response refusal, recipe normalization and only the >200-tag request
+shape; they do not change Playwright workers, retries, application write
+coordination or any recipe used in the measured full suite. The final focused
+run covers the effective behavior change while the prescribed workers=1
+decision and its original six-sample evidence remain intact.
+
+Fresh owning checks after the repair:
+
+- `bunx vitest run src/test-tiers.test.ts src/testing/plan-fixture-command-results.test.ts --no-file-parallelism --maxWorkers=1`
+  from `apps/fe-01` — 11 passed. The first full frontend run found the new
+  DOM-free suite missing from `NODE_SUITES`: 2 tier-census tests failed while
+  2,702 passed. Adding the suite to the explicit fast tier made this focused
+  proof green.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:test --skip-nx-cache --output-style=static`
+  — 2,704 UTC tests and 3 zoned tests passed after the tier fix.
+- The owning Nx matrix passed contracts' 380 tests and both projects' lint and
+  typecheck. Its first two sandboxed invocations were refused by Nx's recursive
+  task detector while nested targets shared the process sandbox; running it
+  outside that sandbox executed the targets normally.
+- Strict `e2e-plan-seeding` OpenSpec validation passed 1/1. Strict workspace
+  validation remains 82/84 because the unrelated `local-solver-development`
+  and `stale-solver-seat-masks-failure` changes still have no delta or
+  `skip_specs: true`.

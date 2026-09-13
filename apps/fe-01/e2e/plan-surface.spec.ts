@@ -271,8 +271,8 @@ test.describe('the plan and its chart as one surface', () => {
     // `NEARLY`, matching the tall-plan case below — the two now assert one rule
     // at both ends of the fixture range instead of opposite ones.
     //
-    // Proof: `GANTT_DOCK_SLACK` deleted from `table-frame.ts`, watched failing
-    // on `the column stops 528px short of the window`; watched 2026-08-30.
+    // Proof: with the API fixture on 2026-09-13, changing
+    // `GANTT_DOCK_SLACK.flex` to `0 0 0` left 323px below the chart.
     expect(
       measured.belowChart,
       `the column stops ${String(Math.round(measured.belowChart))}px short of the window`,
@@ -305,6 +305,8 @@ test.describe('the plan and its chart as one surface', () => {
 
     // The half the shrink keeps: a plan past the remainder still gets the whole
     // remainder, and the frame is still the thing that scrolls.
+    // Proof: with the API fixture on 2026-09-13, making TABLE_FRAME
+    // non-shrinking left zero rows past the frame.
     expect(
       measured.rowsPastTheFrame,
       'the seeded plan is shorter than the frame, so nothing here is being shrunk',
@@ -343,6 +345,8 @@ test.describe('the plan and its chart as one surface', () => {
     const scrolled = await measureAgreement(page);
 
     expect(scrolled.index, 'the wheel did not scroll the table').toBeGreaterThan(0);
+    // Proof: with the API fixture on 2026-09-13, suppressing the real frame
+    // scroll listener left the faces 8.554 rows apart.
     expect(
       Math.abs(scrolled.cutInChart - scrolled.cutInTable),
       `the table is showing ${scrolled.id} cut by ${scrolled.cutInTable.toFixed(3)} of a row and the chart by ${scrolled.cutInChart.toFixed(3)}`,
@@ -360,6 +364,8 @@ test.describe('the plan and its chart as one surface', () => {
 
     // Neither face is the master: a wheel over the chart is as much a scroll of
     // the plan as a wheel over the table.
+    // Proof: with the API fixture on 2026-09-13, suppressing the real panel
+    // scroll listener left the table at row zero.
     expect(scrolled.index, 'the wheel did not scroll the chart').toBeGreaterThan(0);
     expect(Math.abs(scrolled.cutInChart - scrolled.cutInTable)).toBeLessThanOrEqual(A_ROW_APART);
   });
@@ -385,6 +391,8 @@ test.describe('the plan and its chart as one surface', () => {
 
     // The walk reached a cell the frame had to scroll for, or this says nothing
     // about scrolling.
+    // Proof: with the API fixture on 2026-09-13, mapping Ctrl+J to no command
+    // left the frame at row zero.
     expect(walked.index, 'the keyboard walk never scrolled the frame').toBeGreaterThan(0);
     expect(Math.abs(walked.cutInChart - walked.cutInTable)).toBeLessThanOrEqual(A_ROW_APART);
     // And the cell it walked to still has the focus. A link that scrolled by
@@ -414,6 +422,8 @@ test.describe('the plan and its chart as one surface', () => {
     // sideways range at this width, and a browser clamps. What matters is that
     // it is somewhere sideways and stays there.
     const sideways = await measureAgreement(page);
+    // Proof: with the API fixture on 2026-09-13, copying the follower's
+    // horizontal offset into the driver reset the real frame to zero.
     expect(sideways.frameScrollLeft, 'the frame did not scroll sideways at all').toBeGreaterThan(0);
 
     await wheelOver(page, '[data-table-frame]', 8 * 28);

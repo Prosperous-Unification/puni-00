@@ -76,6 +76,8 @@ function normalizeRecipeRows(recipe: PlanRecipe): readonly NormalizedRecipeRow[]
   return recipe.rows.map((row, index) => ({
     ...row,
     // Recipe array order is authoritative when a caller omits a predecessor.
+    // Proof: defaulting every omission to null reversed the real two-row plan
+    // and the 201-row plan across its batch boundary; both exact-id checks failed.
     afterRef: row.afterRef ?? (index === 0 ? null : recipe.rows[index - 1].ref),
   }));
 }
@@ -212,6 +214,8 @@ export async function seedPlan(
     name: fixtureName(tag.name, identity),
   }));
   const tagIds: Record<string, string> = {};
+  // Proof: sending all 201 real tag commands together reached be-01 and was
+  // refused as too_many_commands at index 200 instead of producing [200, 1].
   for (let start = 0; start < tags.length; start += CHUNK_SIZE) {
     const commands = tags.slice(start, start + CHUNK_SIZE);
     const answer = fixtureSuccess(
