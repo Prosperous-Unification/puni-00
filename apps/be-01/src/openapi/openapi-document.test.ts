@@ -5,19 +5,30 @@ import { documentFromApp, serialiseDocument } from './document-from-app';
 import { OPENAPI_SPEC_PATH } from './openapi-plugin';
 
 describe('the generated shared OpenAPI document', () => {
-  it('serves exactly the shapes mounted by the local authentication mode', async () => {
+  it('serves the mounted import shape and omits local-inapplicable routes', async () => {
     const document = await documentFromApp(testApp());
     const paths = document['paths'];
     if (!isRecord(paths)) throw new Error('generated document has no paths object');
-    let operationCount = 0;
-    for (const path of Object.values(paths)) {
-      if (!isRecord(path)) throw new Error('generated document has a malformed path');
-      operationCount += Object.values(path).filter((operation) => operation !== undefined).length;
-    }
     // Proof: publishing the full registry in this local-mode app produced 45
     // operations and advertised an OIDC callback whose request returned 404.
-    // Omitting the importRoutes mount produced 41 against the required 42.
-    expect(operationCount).toBe(42);
+    // Omitting importRoutes removed this exact operation from the mounted document.
+    expect(paths).toHaveProperty(
+      ['/api/projects/import', 'post', 'operationId'],
+      'postApiProjectsImport',
+    );
+    expect(paths).toHaveProperty(
+      [
+        '/api/projects/import',
+        'post',
+        'requestBody',
+        'content',
+        'application/json',
+        'schema',
+        'type',
+      ],
+      'object',
+    );
+    expect(JSON.stringify(paths['/api/projects/import'])).not.toContain('"$ref"');
     expect(paths).not.toHaveProperty('/api/auth/okta/callback');
   });
   it('preserves operation names and omits operational routes until they have bindings', async () => {

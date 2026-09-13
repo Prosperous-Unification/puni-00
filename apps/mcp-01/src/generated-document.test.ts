@@ -6,9 +6,6 @@ import { readDocument, toolsFromDocument } from './openapi-tools';
 test('default MCP document is generated directly from the shared declarations', () => {
   expect(readDocument()).toEqual(documentFromShapes(httpShapes));
   const tools = toolsFromDocument(readDocument());
-  // Proof: removing importProject from httpShapes failed here on `Expected length:
-  // 34`, `Received length: 33` before the explicit operation inventory ran.
-  expect(tools).toHaveLength(34);
   expect(tools.map((tool) => tool.name)).toContain('postApiProjectsByIdCommands');
   expect(tools.map((tool) => tool.name)).toContain('getApiProjectsByIdSaved-plansCompare');
 });

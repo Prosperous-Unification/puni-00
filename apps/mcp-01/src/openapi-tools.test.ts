@@ -216,13 +216,32 @@ describe('toolsFromDocument, on the generated document', () => {
     expect(tools.map((tool) => tool.name).sort()).toEqual([...expected].sort());
   });
 
-  /**
-   * A new tool requires an explicit surface decision, independently of registry iteration.
-   * Optimizer Retry belongs because it is a project-scoped lifecycle action with no
-   * `commands` equivalent.
-   */
-  it('is 34 tools, so a route that appears must be decided about', () => {
-    expect(tools).toHaveLength(34);
+  it('exposes the import document tool', () => {
+    // Proof: removing importProject from httpShapes made this production-generated
+    // lookup throw `no tool named postApiProjectsImport was derived`.
+    const importDocument = byName(tools, 'postApiProjectsImport');
+    expect(importDocument.method).toBe('post');
+    expect(importDocument.path).toBe('/api/projects/import');
+    expect(importDocument.inputSchema).toMatchObject({
+      type: 'object',
+      properties: {
+        document: { type: 'object' },
+        settings: { type: 'object' },
+        workItems: { type: 'array' },
+      },
+      additionalProperties: false,
+    });
+    expect([...(importDocument.inputSchema.required ?? [])].sort()).toEqual([
+      'calendarMarkers',
+      'capacity',
+      'directory',
+      'document',
+      'priorityBands',
+      'settings',
+      'steps',
+      'workItems',
+    ]);
+    expect(JSON.stringify(importDocument.inputSchema)).not.toContain('"$ref"');
     expect(EXCLUDED_PATHS).toHaveLength(3);
   });
 

@@ -1,8 +1,23 @@
 import { expect, test } from 'bun:test';
 
+import type { ClientReply } from './client-types';
 import { documentFromShapes } from './document-from-shapes';
 import { importProject } from './import-shapes';
 import { validateSchema } from './schema-shape';
+
+type ImportSummary = Extract<ClientReply<typeof importProject>, { kind: 'success' }>['body'];
+
+/** Compile-only fixtures exercise the generated import response at its client boundary. */
+export function importSummaryTypeFixtures(): void {
+  const _incompleteCreatedSummary: ImportSummary = {
+    projectId: 'project-1',
+    rows: 3,
+    // Proof: making createdNames.externalSystems optional produced TS2578 here.
+    // @ts-expect-error Created summaries name every directory kind, including external systems.
+    created: { teams: [], people: [], tags: [], services: [], types: [] },
+    solutionRef: 'none',
+  };
+}
 
 test('declares the plan import shape and complete typed outcomes', async () => {
   expect(importProject).toMatchObject({

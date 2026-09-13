@@ -388,3 +388,32 @@ tests failed on their generated module paths. The explicit source-file suite
 above supersedes that invocation.
 
 At the Task 4.1 checkpoint, Tasks 4.2–5.2 remain unimplemented and unchecked.
+
+## Section 4.2 — generated OpenAPI and MCP import input
+
+Task 4.2 continued from merged `origin/main` at
+`c83219128f840f725ff80c6f49dd6e1a9a67b188`. The mounted OpenAPI document and
+the production-derived MCP tool table now locate `postApiProjectsImport` by its
+operation id instead of accepting an incremented global operation/tool count.
+Both boundaries assert an inline JSON object request; the MCP assertion pins the
+eight top-level document fields and verifies that no `$ref` survives derivation.
+The generated client response type also refuses a `created` summary that omits
+one directory kind.
+
+| Check                           | Fault injected                               | Test that observed it                                                | Observed failure                                                                                       |
+| ------------------------------- | -------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Shared-shape MCP publication    | Removed `importProject` from `httpShapes`    | `exposes the import document tool`                                   | exact production-generated lookup threw `no tool named postApiProjectsImport was derived` (1/1 failed) |
+| Complete created-summary typing | Made `createdNames.externalSystems` optional | compile-only `importSummaryTypeFixtures` under `contracts:typecheck` | TS2578: the incomplete-summary `@ts-expect-error` became unused                                        |
+
+Both production mutations were applied separately, observed red, restored, and
+recorded beside the assertions they protect.
+
+Fresh green evidence:
+
+- `bun test libs/contracts/src/http/import-shapes.test.ts libs/contracts/src/http/document-from-shapes.test.ts apps/mcp-01/src/openapi-tools.test.ts apps/mcp-01/src/generated-document.test.ts apps/mcp-01/src/shape-document.test.ts apps/be-01/src/openapi/openapi-document.test.ts` — 59 passed, 0 failed, 332 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p contracts mcp-01 be-01 --skip-nx-cache --parallel=2 --output-style=static` — all six targets passed.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json` — 83 items passed, 0 failed.
+- `bunx prettier --check apps/be-01/src/openapi/openapi-document.test.ts apps/mcp-01/src/generated-document.test.ts apps/mcp-01/src/openapi-tools.test.ts libs/contracts/src/http/import-shapes.test.ts openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
+
+At the Task 4.2 checkpoint, Tasks 4.3–5.2 remain unimplemented and unchecked.
