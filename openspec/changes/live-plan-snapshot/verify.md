@@ -34,3 +34,26 @@ production-path variants remain acceptance work for their named Section 2 integr
 invoked the main checkout's Prettier as `prettier --list-different -- "."`, which exited 1 without
 naming an unformatted file. The direct changed-file Prettier check above is green. The host gate
 remains future final-section acceptance work under Task 3.3.
+
+## Task 2.1 working-plan lifecycle
+
+The runner creates a lazy WorkingPlan for every project batch and closes it in `finally`. During
+this staged slice, command services still compose over the admitted `scope.stores`: Tasks 2.3–2.7
+must first make every successful mutation advance retained collections, and Task 3.1 owns the
+switch to `workingPlan.stores`. Directory batches, undo/redo, rollback repair, ordinary routes and
+post-commit announcements therefore retain their established nonworking graphs.
+
+| Scope                        | Command                                                                                                                               | Result                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Lifecycle and retained reads | `bun test libs/core/src/service/working-plan.test.ts`                                                                                 | Pass: 3 tests, 18 assertions.                        |
+| Complete core suite          | `NX_DAEMON=false bunx nx run core:test --output-style=static`                                                                         | Pass: 426 tests, 1,493 assertions.                   |
+| SQLite runner/coordinator    | `bun test libs/store-sqlite/src/write-coordinator.db.test.ts`                                                                         | Pass: 2 tests, 9 assertions.                         |
+| Owning lint and typechecks   | `NX_DAEMON=false bunx nx run-many -t lint typecheck -p core store-memory store-sqlite conformance --parallel=2 --output-style=static` | Pass: all 8 targets.                                 |
+| Accountless compile witness  | `libs/core/src/service/working-plan.types.test.ts`, compiled by `core:typecheck`                                                      | Pass: `stores.users` remains an expected type error. |
+| Strict packet                | `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate live-plan-snapshot --strict --json`                                    | Pass: 1 item, 0 failed.                              |
+
+### Task 2.1 R5 fault observation
+
+| Check                       | Injected fault                                                                       | Observed failure                                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Closed batch-owned callback | Disabled the `isClosed` branch in the retained read guard, then invoked the callback | `throws after its batch closes` failed: the promise resolved with the committed row instead of rejecting. |

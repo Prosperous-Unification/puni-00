@@ -7,6 +7,7 @@ import { testClock } from '../testing/clock-fixture';
 import { fastScheduler } from '../testing/scheduler-fixture';
 import type { Broadcaster } from './broadcast';
 import { PlanCommandRunner } from './plan-commands';
+import { createWorkingPlan } from './working-plan';
 
 const OWNER = 'working-plan-owner';
 const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 } as const;
@@ -161,6 +162,92 @@ describe('the uncached admitted batch baseline', () => {
       expect(admitted).toHaveLength(5);
       expect(admitted.every((stores) => stores !== source.stores)).toBe(true);
       expect(new Set(admitted).size).toBe(admitted.length);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('throws after its batch closes', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
+      servicesOver(stores, { clock: testClock, broadcast, scheduler: fastScheduler });
+    const publicGraph = compose(source.stores, direct);
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Working lifecycle', OWNER)).project.id;
+      let retainedRead:
+        (() => ReturnType<PlanTransactionalStores['workItems']['listByProject']>) | undefined;
+      const runner = new PlanCommandRunner({
+        uow: source.uow,
+        announcements: direct,
+        publicServices: publicGraph,
+        batchServices(scope, broadcast, workingPlan) {
+          if (workingPlan === undefined) throw new Error('plan batch has no working plan');
+          retainedRead = () => workingPlan.stores.workItems.listByProject(projectId);
+          return compose(scope.stores, broadcast);
+        },
+      });
+
+      const outcome = await runner.run(projectId, OWNER, [
+        {
+          kind: 'createWorkItem',
+          parentId: null,
+          afterId: null,
+          name: 'Closed with batch',
+        },
+      ]);
+      expect(outcome.ok).toBe(true);
+      if (retainedRead === undefined) throw new Error('batch did not expose its admitted read');
+
+      // Proof: without the WorkingPlan close guard this resolved with the
+      // committed row, permitting a stale batch-owned read after settlement.
+      expect(retainedRead()).rejects.toThrow(/working plan.*closed/i);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('loads on first demand and detaches every retained answer', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = servicesOver(source.stores, {
+      clock: testClock,
+      broadcast: direct,
+      scheduler: fastScheduler,
+    });
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Lazy retained plan', OWNER)).project.id;
+      const created = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Before first demand',
+      });
+      if (!created.ok) throw new Error('working-plan seed creation refused');
+      const workingPlan = createWorkingPlan({ stores: source.stores }, projectId);
+      const renamed = await publicGraph.workItems.patch(created.value.id, OWNER, {
+        name: 'Loaded name',
+      });
+      if (!renamed.ok) throw new Error('working-plan seed rename refused');
+
+      const first = await workingPlan.stores.workItems.listByProject(projectId);
+      expect(first).toMatchObject([{ id: created.value.id, name: 'Loaded name' }]);
+      const borrowed = first[0];
+      borrowed.name = 'Borrower mutation';
+      await source.stores.workItems.remove([created.value.id], [], { at: 2, by: OWNER });
+
+      expect(await workingPlan.stores.workItems.listByProject(projectId)).toMatchObject([
+        { id: created.value.id, name: 'Loaded name' },
+      ]);
+      workingPlan.close();
     } finally {
       await source.close();
     }
