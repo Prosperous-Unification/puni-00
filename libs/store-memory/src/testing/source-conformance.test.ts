@@ -27,6 +27,7 @@ import {
   subtreeSeedRecords,
 } from '@wbs/conformance';
 import type {
+  CommandJournalStore,
   StoredDependency,
   StoredProgress,
   SubtreeCopy,
@@ -40,35 +41,42 @@ import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
+import { inMemoryCommandJournal } from '../command-journal-fixture';
 import { inMemoryDependencies } from '../dependency-fixture';
 import { projectRow } from '../project-fixture';
 import { openMemorySourceFixture, openMemorySourceWithLateWriteSeam } from '../source';
-import { type MemoryLateWriteControl, memoryLateWriteControl } from './faults';
+import {
+  type MemoryLateWriteControl,
+  memoryLateWriteControl,
+  type MemoryLateWritePoint,
+} from './faults';
 
 type ExistingFamily = keyof ExistingStoreOpeners;
 type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   deriveNextEventSeqFromRetained(subscription: string): void;
   storeDependencyById(dependency: StoredDependency): void;
   insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
+  journal: CommandJournalStore;
 };
 type OpenSource = () => MemorySource;
 
 function openConformanceMemorySource(): MemorySource {
   const fixture = openMemorySourceFixture();
-  return {
+  const source = {
     ...fixture.source,
-    deriveNextEventSeqFromRetained: (subscription) => {
+    deriveNextEventSeqFromRetained: (subscription: string) => {
       fixture.deriveNextEventSeqFromRetained(subscription);
     },
-    storeDependencyById: (dependency) => {
+    storeDependencyById: (dependency: StoredDependency) => {
       fixture.storeDependencyById(dependency);
     },
-    insertSubtree: (copy, stamp) =>
+    insertSubtree: (copy: SubtreeCopy, stamp: WriteStamp) =>
       fixture.source.uow.run(async ({ stores }) => {
         await stores.subtrees.insertSubtree(copy, stamp);
         return { commit: true, value: undefined };
       }),
   };
+  return { ...source, journal: transactionalJournal(source as MemorySource) };
 }
 
 function readersOf(source: MemorySource): SourceReaders {
@@ -249,6 +257,26 @@ async function openMemoryCase<Family extends ExistingFamily>(
       close: () => source.close(),
     } as CaseFixture<TransactionalStores[Family]>;
   }
+  if (family === 'journal') {
+    return {
+      fixtureId: `memory:${caseId}`,
+      port: source.journal,
+      seed: DETERMINISTIC_SEED,
+      readers: readersOf(source),
+      scenario:
+        lateControl === null
+          ? { kind: 'ordinary' }
+          : {
+              kind: 'late-write',
+              point: 'journal-history-insert',
+              arm: () => {
+                lateControl.arm();
+              },
+              reached: () => lateControl.reached(),
+            },
+      close: () => source.close(),
+    } as CaseFixture<TransactionalStores[Family]>;
+  }
   return memoryFixture(source, family, caseId);
 }
 
@@ -313,8 +341,25 @@ function transactionalSubtrees(source: MemorySource): SubtreeStore {
   };
 }
 
+function transactionalJournal(source: MemorySource): CommandJournalStore {
+  const commit = (write: (journal: CommandJournalStore) => Promise<void>) =>
+    source.uow.run(async ({ stores }) => {
+      await write(stores.journal);
+      return { commit: true, value: undefined };
+    });
+  return {
+    append: (entry, event) => commit((journal) => journal.append(entry, event)),
+    entriesFor: (projectId, userId) => source.stores.journal.entriesFor(projectId, userId),
+    flip: (id, undone, preconditions) =>
+      commit((journal) => journal.flip(id, undone, preconditions)),
+    restamp: (id, preconditions) => commit((journal) => journal.restamp(id, preconditions)),
+    discard: (id) => commit((journal) => journal.discard(id)),
+    stateOf: (projectId, userId) => source.stores.journal.stateOf(projectId, userId),
+  };
+}
+
 function memoryLateSource(
-  control: MemoryLateWriteControl<'subtree-final-satellite'>,
+  control: MemoryLateWriteControl<MemoryLateWritePoint>,
   reachProof?: () => void,
 ): MemorySource {
   const fixture = openMemorySourceWithLateWriteSeam({
@@ -338,6 +383,7 @@ function memoryLateSource(
         await stores.subtrees.insertSubtree(copy, stamp);
         return { commit: true, value: undefined };
       }),
+    journal: transactionalJournal(fixture.source as MemorySource),
   };
 }
 
@@ -357,6 +403,7 @@ const openers: ExistingStoreOpeners = {
   directory: (caseId) => openMemoryCase('directory', caseId),
   eventLog: (caseId) => openMemoryCase('eventLog', caseId),
   subtrees: (caseId) => openMemoryCase('subtrees', caseId),
+  journal: (caseId) => openMemoryCase('journal', caseId),
 };
 
 const unknownStepGap = {
@@ -483,6 +530,7 @@ const declaration: SourceDeclaration = {
     directory: { kind: 'offered', gaps: [], open: openers.directory },
     eventLog: { kind: 'offered', gaps: [], open: openers.eventLog },
     subtrees: { kind: 'offered', gaps: [], open: openers.subtrees },
+    journal: { kind: 'offered', gaps: [], open: openers.journal },
   } as unknown as Capabilities,
 };
 
@@ -1568,6 +1616,75 @@ const eventRetainedMaximumFault = defineFault({
   },
 });
 
+const journalIndependentHistoryFault = defineFault({
+  id: 'break:journal.append:history-atomic',
+  caseId: 'journal.append:history-atomic',
+  createControl: () => createFaultControl('journal.append:history-atomic:independent-history'),
+  mutate(source: MemorySource, control) {
+    const independent = inMemoryCommandJournal();
+    return {
+      ...source,
+      journal: replaceMethod(source.journal, 'append', (append) => async (entry, event) => {
+        if (!control.isArmed() || entry.id !== 'atomic-target') return append(entry, event);
+        await independent.append(structuredClone(entry), structuredClone(event));
+        await append(entry, { ...event, projectId: DETERMINISTIC_SEED.projectIds[1] });
+        control.reach('journal.append:history-atomic:independent-history');
+      }),
+    };
+  },
+});
+
+const journalLateOutsideFault = defineFault({
+  id: 'break:journal.append:history-atomic',
+  caseId: 'journal.append:history-atomic',
+  createControl: () => createFaultControl('journal.append:history-atomic:outside-owner'),
+  mutate(source: MemorySource, control) {
+    return {
+      ...source,
+      journal: replaceMethod(source.journal, 'append', (append) => async (entry, event) => {
+        await append(entry, event);
+        if (entry.id !== 'atomic-target') return;
+        control.reach('journal.append:history-atomic:outside-owner');
+        throw new Error('injected memory journal-history-insert failure outside staged owner');
+      }),
+    };
+  },
+});
+
+const journalBroadRedoFault = defineFault({
+  id: 'break:journal.append:account-redo-depth',
+  caseId: 'journal.append:account-redo-depth',
+  createControl: () => createFaultControl('journal.append:account-redo-depth:all-redo'),
+  mutate(source: MemorySource, control) {
+    return {
+      ...source,
+      journal: replaceMethod(source.journal, 'append', (append) => async (entry, event) => {
+        await append(entry, event);
+        if (entry.id !== 'redo-a-replacement') return;
+        await source.journal.discard('redo-b');
+        control.reach('journal.append:account-redo-depth:all-redo');
+      }),
+    };
+  },
+});
+
+const journalHistoryPruneFault = defineFault({
+  id: 'break:journal.append:account-redo-depth',
+  caseId: 'journal.append:account-redo-depth',
+  createControl: () => createFaultControl('journal.append:account-redo-depth:history-prune'),
+  mutate(source: MemorySource, control) {
+    return {
+      ...source,
+      journal: replaceMethod(source.journal, 'append', (append) => async (entry, event) => {
+        await append(entry, event);
+        if (entry.id !== 'depth-50') return;
+        await source.stores.planEvents.pruneOlderThan(350);
+        control.reach('journal.append:account-redo-depth:history-prune');
+      }),
+    };
+  },
+});
+
 const subtreeDependencyBackingFault = defineFault({
   id: 'break:subtrees.insertSubtree:complete-copy',
   caseId: 'subtrees.insertSubtree:complete-copy',
@@ -1700,6 +1817,24 @@ async function proveFault(
       ): Promise<CaseFixture<TransactionalStores[Family]>> => {
         if (wasOpened) return Promise.reject(new Error(`${fault.caseId} fixture opened twice`));
         wasOpened = true;
+        if (family === 'journal') {
+          return Promise.resolve({
+            fixtureId: `memory:${caseId}`,
+            port: source.journal,
+            seed: DETERMINISTIC_SEED,
+            readers: readersOf(source),
+            scenario:
+              run.control.phase === 'journal.append:history-atomic:outside-owner'
+                ? {
+                    kind: 'late-write',
+                    point: 'journal-history-insert',
+                    arm: () => undefined,
+                    reached: () => run.control.reached(),
+                  }
+                : { kind: 'ordinary' },
+            close: () => source.close(),
+          } as CaseFixture<TransactionalStores[Family]>);
+        }
         if (family !== 'subtrees') return Promise.resolve(memoryFixture(source, family, caseId));
         return Promise.resolve({
           fixtureId: `memory:${caseId}`,
@@ -1736,6 +1871,7 @@ async function proveFault(
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
         subtrees: (caseId) => takeFixture('subtrees', caseId),
+        journal: (caseId) => takeFixture('journal', caseId),
       });
       const registration = registrations.find(({ caseId }) => caseId === fault.caseId);
       if (registration === undefined) throw new Error(`missing registration for ${fault.caseId}`);
@@ -1766,6 +1902,24 @@ function failedCase(report: ExecutionReport, caseId: CaseId) {
 
 interface MemoryLifecycleProbe {
   closeCalls: number;
+}
+
+function rejectJournalBeforeAppend(
+  source: MemorySource,
+  probe: MemoryLifecycleProbe & { attempts: number },
+): MemorySource {
+  return {
+    ...source,
+    journal: replaceMethod(source.journal, 'append', (append) => async (entry, event) => {
+      if (entry.id !== 'atomic-target') return append(entry, event);
+      probe.attempts += 1;
+      throw new Error('injected journal-history-insert failure before target append');
+    }),
+    async close() {
+      probe.closeCalls += 1;
+      await source.close();
+    },
+  };
 }
 
 interface SubtreePrewriteProbe extends MemoryLifecycleProbe {
@@ -1935,6 +2089,61 @@ function openProgressSeedFailureSource(
 }
 
 describe('memory existing source conformance', () => {
+  it('runs every Task 5.1 journal case through the staged memory source', async () => {
+    const caseIds = ['journal.append:history-atomic', 'journal.append:account-redo-depth'] as const;
+    const report = await runCases(existingStoreRegistrations(openers), { focus: caseIds });
+    const failure = report.cases.find(({ status }) => status === 'failed');
+    if (failure?.status === 'failed') throw new Error(failure.failure);
+    expect(report.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      caseIds.map((caseId) => ({ caseId, status: 'passed' })),
+    );
+  });
+
+  it('reinjects independent history, broad redo clearing and history pruning in memory', async () => {
+    const proofs = await Promise.all([
+      proveFault(journalIndependentHistoryFault),
+      proveFault(journalLateOutsideFault),
+      proveFault(journalBroadRedoFault),
+      proveFault(journalHistoryPruneFault),
+    ]);
+    // Proof: removing only the four production-path phase bridges changed this
+    // exact list to four `phase-failed` outcomes (`Expected - 4 / Received + 4`).
+    expect(proofs.map(({ kind }) => kind)).toEqual([
+      'observed',
+      'observed',
+      'observed',
+      'observed',
+    ]);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    // Proof: the independently routed target history leaves this complete event
+    // absent from project A after its real journal entry commits.
+    expect(failures[0]).toContain(`-     "createdAt": 201,
+-     "id": "event-atomic-target",
+-     "kind": "rename",
+-     "label": "Rename atomic-target",
+-     "projectId": "project-a",`);
+    // Proof: throwing outside the staged owner leaves this complete entry committed.
+    expect(failures[1]).toContain(`+       "id": "atomic-target",
++       "inverse": {`);
+    // Proof: clearing both actors' redo removes B's complete retained entry.
+    expect(failures[2]).toContain(`-     "id": "redo-b",
+-     "inverse": {`);
+    // Proof: pruning history with the journal removes the complete oldest event.
+    expect(failures[3]).toContain(`-     "id": "event-redo-a"`);
+  });
+
+  it('refuses to certify a pre-write memory journal failure', async () => {
+    const probe = { attempts: 0, closeCalls: 0 };
+    const proof = await proveFault(journalLateOutsideFault, openConformanceMemorySource, (source) =>
+      rejectJournalBeforeAppend(source, probe),
+    );
+    // Proof: reaching before the real target append changed this to observed.
+    expect(proof.kind).toBe('phase-failed');
+    expect(probe).toEqual({ attempts: 1, closeCalls: 1 });
+  });
+
   it('runs every subtree case through the staged memory source', async () => {
     const caseIds = [
       'subtrees.insertSubtree:complete-copy',

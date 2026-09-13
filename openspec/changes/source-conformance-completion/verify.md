@@ -1456,3 +1456,42 @@ checked complete and Epic 4 is closed; Task 5.1 is next. Reviews:
 `/tmp/source-conformance-epic-4-astra-review.md`,
 `/tmp/source-conformance-epic-4-astra-rereview.md` and
 `/tmp/source-conformance-epic-4-astra-final-review.md`.
+
+### Task 5.1 journal append source conformance
+
+Implemented the exact shared `journal.append:history-atomic` and
+`journal.append:account-redo-depth` cases for both real sources. Memory's
+public plan-event reader now observes the journal's staged event collection;
+SQLite continues to use its shared transaction/table. The cases assert complete
+journal entries and complete plan events across two actors and two projects.
+The depth case retains the exact newest 50 actor-A entries while preserving all
+corresponding history, actor B's redo branch, and project-B state.
+
+R5 evidence:
+
+- Removing `journalRegistrations(openers.journal)` made the independent
+  inventory equality fail with both exact IDs absent:
+  `Expected - 2 / Received + 0`.
+- Independent-history, outside-owner late failure, broad-redo clearing, and
+  history-pruning faults were each `observed` on memory and SQLite with signed
+  complete record diagnostics. Removing their four phase bridges changed each
+  adapter list to four `phase-failed` outcomes:
+  `Expected - 4 / Received + 4`.
+- Pre-write errors containing `journal-history-insert` remained `phase-failed`
+  on both sources, with one attempted target and one close.
+- Focused source/proof/pre-write runs passed at memory `3/0/98` and SQLite
+  `3/0/127`. Existing SQLite command-journal, plan-event, and UoW tests passed
+  `18/0/48`.
+- Uncached targets passed: conformance `29/0/48`, store-memory `59/0/2,589`,
+  store-sqlite `681/0/5,263` across 60 files.
+- All six lint/typecheck targets passed. `nx format:check --all` passed. Pinned
+  OpenSpec 1.3.0 strict validation passed; all-artifact validation reported
+  `75 passed / 0 failed`.
+
+The requested Task 5.1 brief file is absent. The inventory mutation was
+captured after implementation, so it is recorded as breakability evidence
+without claiming chronological initial RED. Nx used its sandbox fallback for
+denied sockets. OpenSpec's optional telemetry DNS failed after successful
+validation and both commands exited 0. Full workspace/build/browser/deploy and
+the h2puni SHA gate are deferred until the reviewed integration SHA exists.
+Task 5.1 remains unchecked pending Astra review; Task 5.2 is untouched.

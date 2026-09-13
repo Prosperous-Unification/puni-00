@@ -9,6 +9,7 @@ import { dependencyRegistrations } from './stores/dependencies';
 import { directoryRegistrations } from './stores/directory';
 import { estimateRegistrations } from './stores/estimates';
 import { eventLogRegistrations } from './stores/event-log';
+import { journalRegistrations } from './stores/journal';
 import { measureRegistrations } from './stores/measures';
 export { DEPENDENCY_SURVIVOR_IDS } from './stores/dependencies';
 import { progressRegistrations } from './stores/progress';
@@ -42,6 +43,7 @@ export interface ExistingStoreOpeners {
   readonly directory: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['directory']>>;
   readonly eventLog: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['eventLog']>>;
   readonly subtrees: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['subtrees']>>;
+  readonly journal: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['journal']>>;
 }
 
 /** Registers the migrated source-family kits in their implementation order. */
@@ -64,5 +66,6 @@ export function existingStoreRegistrations(
     ...directoryRegistrations(openers.directory),
     ...eventLogRegistrations(openers.eventLog),
     ...subtreeRegistrations(openers.subtrees),
+    ...journalRegistrations(openers.journal),
   ];
 }

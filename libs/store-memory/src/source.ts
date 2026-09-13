@@ -42,11 +42,7 @@ import {
   type MemoryEstimateTable,
   memoryEstimateTable,
 } from './estimate-fixture';
-import {
-  inMemoryPlanEvents,
-  type MemoryPlanEventTable,
-  memoryPlanEventTable,
-} from './history-fixture';
+import { inMemoryPlanEvents } from './history-fixture';
 import { inertMemoryLateWriteSeam, type MemoryLateWriteSeam } from './late-write-seam';
 import { inMemoryMeasures, type MemoryMeasureTable, memoryMeasureTable } from './measure-fixture';
 import {
@@ -87,7 +83,6 @@ interface MemoryTables {
   readonly capacity: MemoryCapacityTable;
   readonly priorityBands: MemoryPriorityBandTable;
   readonly calendarMarkers: MemoryCalendarMarkerTable;
-  readonly planEvents: MemoryPlanEventTable;
   readonly eventLog: MemoryEventLogTables;
   readonly journal: MemoryCommandJournalTables;
 }
@@ -107,7 +102,6 @@ function emptyTables(): MemoryTables {
     capacity: memoryCapacityTable(),
     priorityBands: memoryPriorityBandTable(),
     calendarMarkers: memoryCalendarMarkerTable(),
-    planEvents: memoryPlanEventTable(),
     eventLog: memoryEventLogTables(),
     journal: memoryCommandJournalTables(),
   };
@@ -195,7 +189,6 @@ export class MemoryState {
     replaceMap(this.tables.capacity.held, next.tables.capacity.held);
     replaceMap(this.tables.priorityBands.held, next.tables.priorityBands.held);
     replaceMap(this.tables.calendarMarkers.held, next.tables.calendarMarkers.held);
-    replaceArray(this.tables.planEvents.held, next.tables.planEvents.held);
     replaceMap(this.tables.eventLog.rows, next.tables.eventLog.rows);
     replaceMap(this.tables.eventLog.nextSeq, next.tables.eventLog.nextSeq);
     replaceArray(this.tables.journal.entries, next.tables.journal.entries);
@@ -233,7 +226,7 @@ function bindStores(
     capacity: inMemoryCapacity({}, state.tables.capacity),
     priorityBands: inMemoryPriorityBands({}, state.tables.priorityBands),
     calendarMarkers: inMemoryCalendarMarkers([], state.tables.calendarMarkers),
-    planEvents: inMemoryPlanEvents([], state.tables.planEvents),
+    planEvents: inMemoryPlanEvents([], { held: state.tables.journal.events }),
     eventLog: inMemoryEventLog(state.tables.eventLog),
     journal: inMemoryCommandJournal(state.tables.journal, (journalEventIds) => {
       lateWrite.reach('journal-history-insert', { journalEventIds });

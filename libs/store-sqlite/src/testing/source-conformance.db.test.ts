@@ -27,6 +27,7 @@ import {
   subtreeSeedRecords,
 } from '@wbs/conformance';
 import type {
+  PlanEvent,
   StoredDependency,
   SubtreeCopy,
   TeamWithServices,
@@ -386,6 +387,7 @@ const openers: ExistingStoreOpeners = {
   directory: (caseId) => openSqliteCase('directory', caseId),
   eventLog: (caseId) => openSqliteCase('eventLog', caseId),
   subtrees: (caseId) => openSqliteCase('subtrees', caseId),
+  journal: (caseId) => openSqliteCase('journal', caseId),
 };
 
 function withStores(source: SqliteSource, stores: Partial<TransactionalStores>): SqliteSource {
@@ -1708,6 +1710,80 @@ const pruneFault = defineFault({
   },
 });
 
+const journalIndependentHistoryFault = defineFault({
+  id: 'break:journal.append:history-atomic',
+  caseId: 'journal.append:history-atomic',
+  createControl: () => createFaultControl('journal.append:history-atomic:independent-history'),
+  mutate(source: SqliteSource, control) {
+    const independent: PlanEvent[] = [];
+    return withStores(source, {
+      journal: replaceMethod(source.stores.journal, 'append', (append) => {
+        return async (entry, event) => {
+          if (!control.isArmed() || entry.id !== 'atomic-target') return append(entry, event);
+          independent.push(structuredClone(event));
+          await append(entry, { ...event, projectId: DETERMINISTIC_SEED.projectIds[1] });
+          expect(independent).toEqual([event]);
+          control.reach('journal.append:history-atomic:independent-history');
+        };
+      }),
+    });
+  },
+});
+
+const journalLateOutsideFault = defineFault({
+  id: 'break:journal.append:history-atomic',
+  caseId: 'journal.append:history-atomic',
+  createControl: () => createFaultControl('journal.append:history-atomic:outside-transaction'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      journal: replaceMethod(source.stores.journal, 'append', (append) => {
+        return async (entry, event) => {
+          await append(entry, event);
+          if (entry.id !== 'atomic-target') return;
+          control.reach('journal.append:history-atomic:outside-transaction');
+          throw new Error('injected SQLite journal-history-insert failure outside transaction');
+        };
+      }),
+    });
+  },
+});
+
+const journalBroadRedoFault = defineFault({
+  id: 'break:journal.append:account-redo-depth',
+  caseId: 'journal.append:account-redo-depth',
+  createControl: () => createFaultControl('journal.append:account-redo-depth:all-redo'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      journal: replaceMethod(source.stores.journal, 'append', (append) => {
+        return async (entry, event) => {
+          await append(entry, event);
+          if (entry.id !== 'redo-a-replacement') return;
+          await source.stores.journal.discard('redo-b');
+          control.reach('journal.append:account-redo-depth:all-redo');
+        };
+      }),
+    });
+  },
+});
+
+const journalHistoryPruneFault = defineFault({
+  id: 'break:journal.append:account-redo-depth',
+  caseId: 'journal.append:account-redo-depth',
+  createControl: () => createFaultControl('journal.append:account-redo-depth:history-prune'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      journal: replaceMethod(source.stores.journal, 'append', (append) => {
+        return async (entry, event) => {
+          await append(entry, event);
+          if (entry.id !== 'depth-50') return;
+          await source.stores.planEvents.pruneOlderThan(350);
+          control.reach('journal.append:account-redo-depth:history-prune');
+        };
+      }),
+    });
+  },
+});
+
 const subtreeDependencyBackingFault = defineFault({
   id: 'break:subtrees.insertSubtree:complete-copy',
   caseId: 'subtrees.insertSubtree:complete-copy',
@@ -1820,6 +1896,30 @@ interface SubtreeIncompleteProbe {
   closeCalls: number;
   attempts: number;
   state: Awaited<ReturnType<typeof readSubtreePublicState>> | null;
+}
+
+function rejectJournalBeforeAppend(
+  source: SqliteSource,
+  probe: { attempts: number; closeCalls: number },
+): SqliteSource {
+  return withStores(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    },
+    {
+      journal: replaceMethod(source.stores.journal, 'append', (append) => {
+        return async (entry, event) => {
+          if (entry.id !== 'atomic-target') return append(entry, event);
+          probe.attempts += 1;
+          throw new Error('injected journal-history-insert failure before target append');
+        };
+      }),
+    },
+  );
 }
 
 function omitCopiedProgress(source: SqliteSource, probe: SubtreeIncompleteProbe): SqliteSource {
@@ -1944,7 +2044,20 @@ async function proveFault(
         if (wasOpened) return Promise.reject(new Error(`${fault.caseId} fixture opened twice`));
         wasOpened = true;
         if (family !== 'subtrees')
-          return Promise.resolve(sqliteFixture(source, directory, family, caseId));
+          return Promise.resolve(
+            family === 'journal' &&
+              run.control.phase === 'journal.append:history-atomic:outside-transaction'
+              ? {
+                  ...sqliteFixture(source, directory, family, caseId),
+                  scenario: {
+                    kind: 'late-write',
+                    point: 'journal-history-insert',
+                    arm: () => undefined,
+                    reached: () => run.control.reached(),
+                  },
+                }
+              : sqliteFixture(source, directory, family, caseId),
+          );
         return Promise.resolve({
           ...sqliteFixture(source, directory, family, caseId),
           scenario:
@@ -1976,6 +2089,7 @@ async function proveFault(
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
         subtrees: (caseId) => takeFixture('subtrees', caseId),
+        journal: (caseId) => takeFixture('journal', caseId),
       });
       const registration = registrations.find(({ caseId }) => caseId === fault.caseId);
       if (registration === undefined) {
@@ -2045,6 +2159,61 @@ function openDirectoryPrewriteFailureSource(
 }
 
 describe('SQLite existing source conformance', () => {
+  it('runs every Task 5.1 journal case through the real SQLite source', async () => {
+    const caseIds = ['journal.append:history-atomic', 'journal.append:account-redo-depth'] as const;
+    const report = await runCases(existingStoreRegistrations(openers), { focus: caseIds });
+    const failure = report.cases.find(({ status }) => status === 'failed');
+    if (failure?.status === 'failed') throw new Error(failure.failure);
+    expect(report.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      caseIds.map((caseId) => ({ caseId, status: 'passed' })),
+    );
+  });
+
+  it('reinjects independent history, broad redo clearing and history pruning in SQLite', async () => {
+    const proofs = await Promise.all([
+      proveFault(journalIndependentHistoryFault),
+      proveFault(journalLateOutsideFault),
+      proveFault(journalBroadRedoFault),
+      proveFault(journalHistoryPruneFault),
+    ]);
+    // Proof: removing only the four production-path phase bridges changed this
+    // exact list to four `phase-failed` outcomes (`Expected - 4 / Received + 4`).
+    expect(proofs.map(({ kind }) => kind)).toEqual([
+      'observed',
+      'observed',
+      'observed',
+      'observed',
+    ]);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    // Proof: the independently routed target history leaves this complete event
+    // absent from project A after its real journal entry commits.
+    expect(failures[0]).toContain(`-     "createdAt": 201,
+-     "id": "event-atomic-target",
+-     "kind": "rename",
+-     "label": "Rename atomic-target",
+-     "projectId": "project-a",`);
+    // Proof: throwing outside the transaction leaves this complete entry committed.
+    expect(failures[1]).toContain(`+       "id": "atomic-target",
++       "inverse": {`);
+    // Proof: clearing both actors' redo removes B's complete retained entry.
+    expect(failures[2]).toContain(`-     "id": "redo-b",
+-     "inverse": {`);
+    // Proof: pruning history with the journal removes the complete oldest event.
+    expect(failures[3]).toContain(`-     "id": "event-redo-a"`);
+  });
+
+  it('refuses to certify a pre-write SQLite journal failure', async () => {
+    const probe = { attempts: 0, closeCalls: 0 };
+    const proof = await proveFault(journalLateOutsideFault, openSqliteSource, (source) =>
+      rejectJournalBeforeAppend(source, probe),
+    );
+    // Proof: reaching before the real target append changed this to observed.
+    expect(proof.kind).toBe('phase-failed');
+    expect(probe).toEqual({ attempts: 1, closeCalls: 1 });
+  });
+
   it('runs every subtree case through the real SQLite source', async () => {
     const caseIds = [
       'subtrees.insertSubtree:complete-copy',
