@@ -17,11 +17,14 @@ import {
   type Fault,
   type FaultProof,
   type FaultRun,
+  observePlanInput,
   PROGRESS_SENTINEL_STEP_ID,
   readSubtreePublicState,
   recordFaultProof,
   replaceMethod,
   runCases,
+  savedPlanCaptureExpected,
+  seedSavedPlanCapture,
   SOURCE_CONFORMANCE_CASES,
   type SourceReaders,
   subtreeSeedRecords,
@@ -29,6 +32,8 @@ import {
 import type {
   JournalEntry,
   PlanEvent,
+  PlanInputReads,
+  SavedPlanCaptureStore,
   SavedPlanHoldingRow,
   SavedPlanPrincipals,
   SavedPlanRow,
@@ -68,7 +73,7 @@ import {
 } from './faults';
 
 const MIGRATIONS = new URL('../../../../apps/be-01/drizzle', import.meta.url).pathname;
-type ExistingFamily = Exclude<keyof ExistingStoreOpeners, 'savedPlans'>;
+type ExistingFamily = Exclude<keyof ExistingStoreOpeners, 'savedPlans' | 'savedPlanCapture'>;
 type OpenSource = (options: OpenSqliteSourceOptions) => SqliteSource;
 type Task62SqliteSource = SqliteSource & {
   quotaRivalOwner?: { settlement?: Promise<unknown> };
@@ -396,6 +401,23 @@ async function openSqliteSavedPlanCase(
   };
 }
 
+async function openSqliteSavedPlanCaptureCase(
+  caseId: CaseId,
+): Promise<CaseFixture<SavedPlanCaptureStore>> {
+  const { source, directory } = await seedSqliteSource(openSqliteSource, async (seeded) => {
+    await seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED);
+  });
+  return {
+    fixtureId: `sqlite:${caseId}`,
+    port: source.history.savedPlanCapture,
+    journalAppender: source.stores.journal,
+    seed: DETERMINISTIC_SEED,
+    readers: readersOf(source),
+    scenario: { kind: 'ordinary' },
+    close: () => closeSqliteResources(source, directory),
+  };
+}
+
 async function seedProgressStep(source: SqliteSource): Promise<void> {
   await source.stores.steps.add(
     {
@@ -470,6 +492,7 @@ const openers: ExistingStoreOpeners = {
   subtrees: (caseId) => openSqliteCase('subtrees', caseId),
   journal: (caseId) => openSqliteCase('journal', caseId),
   savedPlans: (caseId) => openSqliteSavedPlanCase(caseId),
+  savedPlanCapture: (caseId) => openSqliteSavedPlanCaptureCase(caseId),
 };
 
 function withStores(source: SqliteSource, stores: Partial<TransactionalStores>): SqliteSource {
@@ -479,6 +502,145 @@ function withStores(source: SqliteSource, stores: Partial<TransactionalStores>):
 function withSavedPlans(source: SqliteSource, savedPlans: SavedPlanStore): SqliteSource {
   return { ...source, history: { ...source.history, savedPlans } };
 }
+
+function withSavedPlanCapture(
+  source: SqliteSource,
+  savedPlanCapture: SavedPlanCaptureStore,
+): SqliteSource {
+  return { ...source, history: { ...source.history, savedPlanCapture } };
+}
+
+function captureMatchesOracle(capture: PlanInputReads, projectIndex: 0 | 1): boolean {
+  const observed = observePlanInput(capture);
+  return (['memory-unbumped', 'sqlite-bumped'] as const).some((revisionPolicy) =>
+    Bun.deepEquals(
+      observed,
+      savedPlanCaptureExpected(DETERMINISTIC_SEED, projectIndex, revisionPolicy),
+    ),
+  );
+}
+
+function emptyMissingCapture(): PlanInputReads {
+  return {
+    project: {
+      id: 'capture-project-missing',
+      name: 'Invented empty capture',
+      ownerId: 'owner-a',
+      restricted: false,
+      estimateMethod: 'pert',
+      depReach: 'whole-item',
+      pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+      estimateRounding: 'ceil',
+      startDate: null,
+      scheduleEngine: 'fast',
+      scheduleObjective: 'pri',
+      optimizationEnabled: false,
+      solutionRef: null,
+    },
+    steps: [],
+    workItems: [],
+    estimates: [],
+    actuals: [],
+    progress: [],
+    measures: [],
+    dependencies: [],
+    assignments: [],
+    capacity: new Map(),
+    priorityBands: [],
+    people: [],
+    teams: [],
+    services: [],
+    tags: [],
+    workItemTypes: [],
+    externalSystems: [],
+  };
+}
+
+function captureFaultSource(
+  source: SqliteSource,
+  control: ReturnType<typeof createFaultControl>,
+  mode: 'complete' | 'missing' | 'detached',
+  mutateResult = true,
+  targetId = mode === 'missing' ? 'capture-project-missing' : 'project-a',
+): SqliteSource {
+  let retainedTags: readonly { readonly id: string; readonly name: string }[] | null = null;
+  let targetReads = 0;
+  return withSavedPlanCapture(source, {
+    async readPlanInput(projectId) {
+      const captured = await source.history.savedPlanCapture.readPlanInput(projectId);
+      if (!control.isArmed()) return captured;
+      if (mode === 'complete' && projectId === targetId) {
+        if (captured === null || !captureMatchesOracle(captured, 0))
+          throw new Error('complete capture prerequisite was not established');
+        if (!control.reach(control.phase)) return captured;
+        return mutateResult ? { ...captured, tags: [] } : captured;
+      }
+      if (mode === 'missing' && projectId === targetId) {
+        if (captured !== null) throw new Error('missing capture prerequisite was not null');
+        if (!control.reach(control.phase)) return captured;
+        return mutateResult ? emptyMissingCapture() : captured;
+      }
+      if (mode === 'detached' && projectId === targetId) {
+        targetReads += 1;
+        if (captured === null || !captureMatchesOracle(captured, 0))
+          throw new Error('detached capture prerequisite was not complete');
+        if (targetReads === 1) {
+          retainedTags = captured.tags;
+          return captured;
+        }
+        if (retainedTags?.length !== 0)
+          throw new Error('detached caller mutation was not observed');
+        if (!control.reach(control.phase)) return captured;
+        return mutateResult ? { ...captured, tags: retainedTags } : captured;
+      }
+      return captured;
+    },
+  });
+}
+
+function rejectCaptureRead(
+  source: SqliteSource,
+  targetId: string,
+  probe: { attempts: number; closeCalls: number },
+): SqliteSource {
+  return withSavedPlanCapture(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    },
+    replaceMethod(source.history.savedPlanCapture, 'readPlanInput', (readPlanInput) => {
+      return (projectId) => {
+        if (projectId !== targetId) return readPlanInput(projectId);
+        probe.attempts += 1;
+        return Promise.reject(new Error('injected capture failure before the real read'));
+      };
+    }),
+  );
+}
+
+const captureCompleteFault = defineFault({
+  id: 'break:savedPlanCapture.readPlanInput:complete',
+  caseId: 'savedPlanCapture.readPlanInput:complete',
+  createControl: () => createFaultControl('saved-plan-capture:complete:omit-tags'),
+  mutate: (source: SqliteSource, control) => captureFaultSource(source, control, 'complete'),
+});
+
+const captureMissingFault = defineFault({
+  id: 'break:savedPlanCapture.readPlanInput:missing-project',
+  caseId: 'savedPlanCapture.readPlanInput:missing-project',
+  createControl: () => createFaultControl('saved-plan-capture:missing:empty-capture'),
+  mutate: (source: SqliteSource, control) => captureFaultSource(source, control, 'missing'),
+});
+
+const captureDetachedFault = defineFault({
+  id: 'break:savedPlanCapture.readPlanInput:detached',
+  caseId: 'savedPlanCapture.readPlanInput:detached',
+  createControl: () => createFaultControl('saved-plan-capture:detached:shared-tags'),
+  mutate: (source: SqliteSource, control) => captureFaultSource(source, control, 'detached'),
+});
 
 function replaceSavedPlanWrite(
   savedPlans: SavedPlanStore,
@@ -3951,7 +4113,9 @@ async function proveFault(
             ? seedDependencyWorkItems
             : fault.caseId.startsWith('subtrees.')
               ? seedSubtreeRecords
-              : undefined,
+              : fault.caseId.startsWith('savedPlanCapture.')
+                ? async (seeded) => seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED)
+                : undefined,
       );
       observeDirectory(directory);
       try {
@@ -4041,6 +4205,21 @@ async function proveFault(
           close: () => closeSqliteResources(source, directory),
         });
       };
+      const takeSavedPlanCaptureFixture = (
+        caseId: CaseId,
+      ): Promise<CaseFixture<SavedPlanCaptureStore>> => {
+        if (wasOpened) return Promise.reject(new Error(`${fault.caseId} fixture opened twice`));
+        wasOpened = true;
+        return Promise.resolve({
+          fixtureId: `sqlite:${caseId}`,
+          port: source.history.savedPlanCapture,
+          journalAppender: source.stores.journal,
+          seed: DETERMINISTIC_SEED,
+          readers: readersOf(source),
+          scenario: { kind: 'ordinary' },
+          close: () => closeSqliteResources(source, directory),
+        });
+      };
       const registrations = existingStoreRegistrations({
         projects: (caseId) => takeFixture('projects', caseId),
         users: (caseId) => takeFixture('users', caseId),
@@ -4060,6 +4239,7 @@ async function proveFault(
         subtrees: (caseId) => takeFixture('subtrees', caseId),
         journal: (caseId) => takeFixture('journal', caseId),
         savedPlans: takeSavedPlanFixture,
+        savedPlanCapture: takeSavedPlanCaptureFixture,
       });
       const registration = registrations.find(({ caseId }) => caseId === fault.caseId);
       if (registration === undefined) {
@@ -5419,6 +5599,298 @@ describe('SQLite existing source conformance', () => {
     ).toEqual(
       SOURCE_CONFORMANCE_CASES.map((caseId) => ({ caseId, status: 'passed', executed: true })),
     );
+  });
+
+  it('Task 6.3 observes each saved-plan capture boundary fault and reversals', async () => {
+    const faults: readonly Fault<SqliteSource>[] = [
+      captureCompleteFault,
+      captureMissingFault,
+      captureDetachedFault,
+    ];
+    const closeCalls = faults.map(() => 0);
+    const proofs = await Promise.all(
+      faults.map((fault, index) =>
+        proveFault(fault, openSqliteSource, (source) => ({
+          ...source,
+          async close() {
+            closeCalls[index] += 1;
+            await source.close();
+          },
+        })),
+      ),
+    );
+    expect(proofs.map(({ kind }) => kind)).toEqual(['observed', 'observed', 'observed']);
+    expect(closeCalls).toEqual([1, 1, 1]);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    expect(failures[0]).toContain('capture-tag-only');
+    expect(failures[0]).toContain('tag-a');
+    expect(failures[1]).toContain('capture-project-missing');
+    expect(failures[1]).toContain('missing: null');
+    expect(failures[1]).toContain('projectB');
+    expect(failures[2]).toContain('capture-tag-only');
+    expect(failures[2]).toContain('projectB');
+    expect(failures[2]).toContain('project-b');
+
+    const neutralFaults: readonly Fault<SqliteSource>[] = [
+      defineFault({
+        ...captureCompleteFault,
+        mutate: (source, control) => captureFaultSource(source, control, 'complete', false),
+      }),
+      defineFault({
+        ...captureMissingFault,
+        mutate: (source, control) => captureFaultSource(source, control, 'missing', false),
+      }),
+      defineFault({
+        ...captureDetachedFault,
+        mutate: (source, control) => captureFaultSource(source, control, 'detached', false),
+      }),
+    ];
+    const neutralProofs = await Promise.all(neutralFaults.map((fault) => proveFault(fault)));
+    // Proof: neutralizing only each mutation while retaining the complete real
+    // read and named reach changes every observed negative to assertion-passed.
+    expect(neutralProofs.map(({ kind }) => kind)).toEqual([
+      'assertion-passed',
+      'assertion-passed',
+      'assertion-passed',
+    ]);
+
+    const noReachFaults: readonly Fault<SqliteSource>[] = [
+      defineFault({
+        id: captureCompleteFault.id,
+        caseId: captureCompleteFault.caseId,
+        createControl: () => createFaultControl('saved-plan-capture:complete:no-reach'),
+        mutate(source: SqliteSource) {
+          const muted = captureCompleteFault.createControl();
+          muted.arm();
+          return captureFaultSource(source, muted, 'complete');
+        },
+      }),
+      defineFault({
+        id: captureMissingFault.id,
+        caseId: captureMissingFault.caseId,
+        createControl: () => createFaultControl('saved-plan-capture:missing:no-reach'),
+        mutate(source: SqliteSource) {
+          const muted = captureMissingFault.createControl();
+          muted.arm();
+          return captureFaultSource(source, muted, 'missing');
+        },
+      }),
+      defineFault({
+        id: captureDetachedFault.id,
+        caseId: captureDetachedFault.caseId,
+        createControl: () => createFaultControl('saved-plan-capture:detached:no-reach'),
+        mutate(source: SqliteSource) {
+          const muted = captureDetachedFault.createControl();
+          muted.arm();
+          return captureFaultSource(source, muted, 'detached');
+        },
+      }),
+    ];
+    const noReachProofs = await Promise.all(noReachFaults.map((fault) => proveFault(fault)));
+    // Proof: retaining each corruption while suppressing only its named reach
+    // classifies all three as phase-failed instead of accepting the assertion.
+    expect(noReachProofs.map(({ kind }) => kind)).toEqual([
+      'phase-failed',
+      'phase-failed',
+      'phase-failed',
+    ]);
+
+    const suppressed = [
+      { fault: captureCompleteFault, targetId: 'project-a', attempts: 0, closeCalls: 0 },
+      {
+        fault: captureMissingFault,
+        targetId: 'capture-project-missing',
+        attempts: 0,
+        closeCalls: 0,
+      },
+      { fault: captureDetachedFault, targetId: 'project-a', attempts: 0, closeCalls: 0 },
+    ];
+    const suppressedProofs = await Promise.all(
+      suppressed.map((probe) =>
+        proveFault(probe.fault, openSqliteSource, (source) =>
+          rejectCaptureRead(source, probe.targetId, probe),
+        ),
+      ),
+    );
+    // Proof: suppressing the real operation cannot certify a value-boundary
+    // mutant; all three fail before reach and still close their source once.
+    expect(suppressedProofs.map(({ kind }) => kind)).toEqual([
+      'phase-failed',
+      'phase-failed',
+      'phase-failed',
+    ]);
+    expect(suppressed.map(({ attempts, closeCalls }) => ({ attempts, closeCalls }))).toEqual([
+      { attempts: 1, closeCalls: 1 },
+      { attempts: 1, closeCalls: 1 },
+      { attempts: 1, closeCalls: 1 },
+    ]);
+
+    const preconditionFault = defineFault({
+      ...captureCompleteFault,
+      mutate(source: SqliteSource, control) {
+        const incomplete = withSavedPlanCapture(source, {
+          async readPlanInput(projectId) {
+            const capture = await source.history.savedPlanCapture.readPlanInput(projectId);
+            return projectId === 'project-a' && capture !== null
+              ? { ...capture, tags: [] }
+              : capture;
+          },
+        });
+        return captureFaultSource(incomplete, control, 'complete');
+      },
+    });
+    const preconditionProof = await proveFault(preconditionFault);
+    // Proof: removing the expected directory before the complete mutant's
+    // prerequisite check classifies the run as phase-failed without reach.
+    expect(preconditionProof).toEqual({
+      kind: 'phase-failed',
+      faultId: captureCompleteFault.id,
+      caseId: captureCompleteFault.caseId,
+      phase: 'saved-plan-capture:complete:omit-tags',
+      failure: 'fault did not reach saved-plan-capture:complete:omit-tags',
+    });
+
+    const wrongTargetFaults: readonly Fault<SqliteSource>[] = [
+      {
+        ...captureCompleteFault,
+        mutate: (source, control) =>
+          captureFaultSource(source, control, 'complete', true, 'project-never-read'),
+      },
+      {
+        ...captureMissingFault,
+        mutate: (source, control) =>
+          captureFaultSource(source, control, 'missing', true, 'project-never-read'),
+      },
+      {
+        ...captureDetachedFault,
+        mutate: (source, control) =>
+          captureFaultSource(source, control, 'detached', true, 'project-never-read'),
+      },
+    ];
+    const wrongTargetCloseCalls = wrongTargetFaults.map(() => 0);
+    const wrongTargetProofs = await Promise.all(
+      wrongTargetFaults.map((fault, index) =>
+        proveFault(fault, openSqliteSource, (source) => ({
+          ...source,
+          async close() {
+            wrongTargetCloseCalls[index] += 1;
+            await source.close();
+          },
+        })),
+      ),
+    );
+    // Proof: targeting an unrelated project leaves the shared cases healthy,
+    // so every fault remains unreached and each owned fixture closes once.
+    expect(wrongTargetProofs.map(({ kind }) => kind)).toEqual([
+      'phase-failed',
+      'phase-failed',
+      'phase-failed',
+    ]);
+    expect(wrongTargetCloseCalls).toEqual([1, 1, 1]);
+
+    const cleanupFault = defineFault({
+      ...captureCompleteFault,
+      mutate(source: SqliteSource, control) {
+        const corrupted = captureFaultSource(source, control, 'complete');
+        return {
+          ...corrupted,
+          async close() {
+            await corrupted.close();
+            throw new Error('injected SQLite capture cleanup failure after assertion');
+          },
+        };
+      },
+    });
+    const cleanupProof = await proveFault(cleanupFault);
+    // Proof: a close rejection after the complete assertion fails preserves
+    // both causes in operation-then-cleanup order and cannot count as observed.
+    expect(cleanupProof.kind).toBe('phase-failed');
+    if (cleanupProof.kind !== 'phase-failed') throw new Error('cleanup was accepted as proof');
+    expect(Bun.stripANSI(cleanupProof.failure)).toContain('capture-tag-only');
+    expect(cleanupProof.failure).toContain(
+      'cleanup failed: injected SQLite capture cleanup failure after assertion',
+    );
+  });
+
+  it('Task 6.3 capture enrichment failures preserve setup and cleanup causes', async () => {
+    let closeCalls = 0;
+    let directory = '';
+    let failure: unknown;
+    try {
+      await seedSqliteSource(
+        (options) => {
+          directory = dirname(options.dbPath);
+          const source = openSqliteSource(options);
+          return {
+            ...source,
+            async close() {
+              closeCalls += 1;
+              await source.close();
+              throw new Error('injected SQLite capture cleanup failure');
+            },
+          };
+        },
+        async (source) => {
+          const capacity = replaceMethod(source.stores.capacity, 'set', (set) => {
+            return (projectId, teamId, size, stamp) =>
+              projectId === 'project-a' && teamId === 'team-b'
+                ? Promise.reject(new Error('injected capture capacity setup failure'))
+                : set(projectId, teamId, size, stamp);
+          });
+          await seedSavedPlanCapture({ ...source.stores, capacity }, DETERMINISTIC_SEED);
+        },
+      );
+    } catch (cause) {
+      failure = cause;
+    }
+    expect(failure).toBeInstanceOf(AggregateError);
+    expect(failure).toHaveProperty('errors', [
+      new Error('injected capture capacity setup failure'),
+      new Error('injected SQLite capture cleanup failure'),
+    ]);
+    expect({ closeCalls, directoryExists: existsSync(directory) }).toEqual({
+      closeCalls: 1,
+      directoryExists: false,
+    });
+  });
+
+  it('Task 6.3 rejects an omitted capture-only directory before fault reach', async () => {
+    let closeCalls = 0;
+    let directoryPath = '';
+    let failure: unknown;
+    try {
+      await seedSqliteSource(
+        (options) => {
+          directoryPath = dirname(options.dbPath);
+          const source = openSqliteSource(options);
+          return {
+            ...source,
+            async close() {
+              closeCalls += 1;
+              await source.close();
+            },
+          };
+        },
+        async (source) => {
+          const directory = replaceMethod(source.stores.directory, 'addTag', (addTag) => {
+            return (tag, stamp) =>
+              tag.id === 'capture-tag-only' ? Promise.resolve(tag) : addTag(tag, stamp);
+          });
+          await seedSavedPlanCapture({ ...source.stores, directory }, DETERMINISTIC_SEED);
+        },
+      );
+    } catch (cause) {
+      failure = cause;
+    }
+    // Proof: omitting only the real capture-only tag write fails the complete
+    // public seed snapshot, closes once, and removes the owned directory.
+    expect(Bun.stripANSI(String(failure))).toContain('capture-tag-only');
+    expect({ closeCalls, directoryExists: existsSync(directoryPath) }).toEqual({
+      closeCalls: 1,
+      directoryExists: false,
+    });
   });
 
   it('reinjects project step, scope, and reader-order faults', async () => {

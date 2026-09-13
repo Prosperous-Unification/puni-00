@@ -26,6 +26,7 @@ describe('the migrated existing store kits', () => {
       subtrees: unopened,
       journal: unopened,
       savedPlans: unopened,
+      savedPlanCapture: unopened,
     });
 
     // Proof: before subtreeRegistrations joined the production catalog, this
@@ -100,6 +101,9 @@ describe('the migrated existing store kits', () => {
       'savedPlans.write:quota-window',
       'savedPlans.touch:principals-scope',
       'savedPlans.write:late-body-failure',
+      'savedPlanCapture.readPlanInput:complete',
+      'savedPlanCapture.readPlanInput:missing-project',
+      'savedPlanCapture.readPlanInput:detached',
     ]);
     // Proof: before the independent implemented inventory was repaired, this
     // complete equality failed with the five work-item and two directory IDs absent.

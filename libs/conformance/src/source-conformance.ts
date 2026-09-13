@@ -17,6 +17,7 @@ import { progressRegistrations } from './stores/progress';
 export { PROGRESS_SENTINEL_STEP_ID } from './stores/progress';
 import { priorityBandRegistrations } from './stores/priority-bands';
 import { projectRegistrations } from './stores/projects';
+import { savedPlanCaptureRegistrations } from './stores/saved-plan-capture';
 import { savedPlanRegistrations } from './stores/saved-plans';
 import { stepRegistrations } from './stores/steps';
 import { subtreeRegistrations } from './stores/subtrees';
@@ -48,6 +49,7 @@ export interface ExistingStoreOpeners {
   readonly subtrees: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['subtrees']>>;
   readonly journal: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['journal']>>;
   readonly savedPlans: (caseId: CaseId) => Promise<CaseFixture<Stores['savedPlans']>>;
+  readonly savedPlanCapture: (caseId: CaseId) => Promise<CaseFixture<Stores['savedPlanCapture']>>;
 }
 
 /** Registers the migrated source-family kits in their implementation order. */
@@ -73,5 +75,6 @@ export function existingStoreRegistrations(
     ...subtreeRegistrations(openers.subtrees),
     ...journalRegistrations(openers.journal),
     ...savedPlanRegistrations(openers.savedPlans),
+    ...savedPlanCaptureRegistrations(openers.savedPlanCapture),
   ];
 }

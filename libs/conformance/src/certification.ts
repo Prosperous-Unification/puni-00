@@ -74,6 +74,9 @@ export const SOURCE_CONFORMANCE_CASES = [
   'savedPlans.write:quota-window',
   'savedPlans.touch:principals-scope',
   'savedPlans.write:late-body-failure',
+  'savedPlanCapture.readPlanInput:complete',
+  'savedPlanCapture.readPlanInput:missing-project',
+  'savedPlanCapture.readPlanInput:detached',
 ] as const;
 
 export interface CertificationInput {
