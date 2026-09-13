@@ -223,6 +223,9 @@ export function inMemoryWorkItems(
       } else if (patch.serviceTeamId !== undefined) {
         teamsOf.set(id, joinFor(updated));
       }
+      // Proof: omitting this write made the mounted plan-document export exclude
+      // the referenced Release tag: expected its exact id/name, received [].
+      if (patch.tagIds !== undefined) tagsOf.set(id, [...new Set(patch.tagIds)]);
       // The service set, whole and deduplicated, only where the patch names the
       // dimension — the real store's write, mirrored. `[]` is written as an
       // empty set rather than a delete so a later read answers the same either

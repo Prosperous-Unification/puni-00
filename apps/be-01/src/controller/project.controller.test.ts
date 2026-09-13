@@ -26,17 +26,11 @@ import { testSavedPlanService } from '../testing/saved-plan-fixture';
 import { testStepService } from '../testing/step-fixture';
 import { testWrites } from '../testing/writes-fixture';
 
-function buildWorkItemService(projectStore: ReturnType<typeof inMemoryProjects>) {
+function buildWorkItemPlan(projectStore: ReturnType<typeof inMemoryProjects>) {
   // The project store is this suite's own — the list route resolves each
   // project's owner name through it, so it has to be the one the harness above
   // seeded. Everything else the harness builds.
-  const plan = inMemoryServices({ projects: projectStore });
-  return new WorkItemService({
-    clock: testClock,
-    ...plan.stores,
-    broadcast: plan.broadcast,
-    scheduler: plan.scheduler,
-  });
+  return inMemoryServices({ projects: projectStore, clock: testClock });
 }
 
 function buildHarness(
@@ -87,14 +81,20 @@ function buildHarness(
       },
     }),
   });
-  const workItems = buildWorkItemService(projectStore);
+  const plan = buildWorkItemPlan(projectStore);
+  const workItems = new WorkItemService({
+    clock: testClock,
+    ...plan.stores,
+    broadcast: plan.broadcast,
+    scheduler: plan.scheduler,
+  });
   // The routes' graph and the batch's are one here: these services hold no
   // turn, and a batch given its own would write where nothing reads.
   const writing = {
-    directory: testDirectoryService(),
-    capacity: testCapacityService(),
+    directory: testDirectoryService(plan.stores.directory),
+    capacity: testCapacityService(projectStore, plan.stores.capacity),
     priorityBands: testPriorityBandService(),
-    calendarMarkers: testCalendarMarkerService(),
+    calendarMarkers: testCalendarMarkerService(projectStore),
     projects,
     workItems,
     steps: testStepService(projectStore),
@@ -140,7 +140,7 @@ function buildHarness(
     );
   }
 
-  return { app, register, send, broadcast, projectStore, projects, workItems, auth };
+  return { app, register, send, broadcast, projectStore, projects, workItems, auth, writing };
 }
 
 const created = (name: string) => ({ method: 'POST', body: JSON.stringify({ name }) });
@@ -203,12 +203,143 @@ describe('projects', () => {
     expect(res.headers.get('content-type')).toContain('application/json');
     const body = (await res.json()) as {
       project: { id: string; name: string };
-      workItems: { name: string }[];
+      document: { format: string; version: number; exportedAt: string };
+      settings: { name: string; estimateRounding: string; scheduleObjective: string };
+      workItems: { name: string; deadline: string | null }[];
       slices: unknown[];
     };
     expect(body.project).toMatchObject({ id: project.id, name: 'Export me' });
-    expect(body.workItems.map((item) => item.name)).toEqual(['Build the thing']);
+    expect(body.document).toMatchObject({ format: 'wbs-plan', version: 1 });
+    expect(Number.isNaN(Date.parse(body.document.exportedAt))).toBe(false);
+    expect(body.settings).toMatchObject({
+      name: 'Export me',
+      estimateRounding: 'ceil',
+      scheduleObjective: 'pri',
+    });
+    expect(body.workItems.map((row) => [row.name, row.deadline])).toEqual([
+      ['Build the thing', null],
+    ]);
     expect(Array.isArray(body.slices)).toBe(true);
+  });
+
+  it('exports the referenced directory closure and authored calendar markers', async () => {
+    const h = buildHarness();
+    const token = await h.register('owner');
+    const principal = await h.auth.authenticate(token);
+    if (principal === null) throw new Error('fixture identity missing');
+    const made = await h.send('/api/projects', token, created('Portable plan'));
+    const createdBody = (await made.json()) as {
+      project: { id: string };
+      steps: { id: string }[];
+    };
+    const step = createdBody.steps.at(0);
+    if (step === undefined) throw new Error('fixture step missing');
+
+    const ownedService = await h.writing.directory.addService(principal.id, 'Billing API');
+    const directTeam = await h.writing.directory.addTeam(principal.id, 'Direct label');
+    const memberTeam = await h.writing.directory.addTeam(principal.id, 'Billing');
+    const capacityTeam = await h.writing.directory.addTeam(principal.id, 'Capacity only');
+    const usedTag = await h.writing.directory.addTag(principal.id, 'Release');
+    await h.writing.directory.addTag(principal.id, 'Unrelated tag');
+    if (
+      ownedService === null ||
+      directTeam === null ||
+      memberTeam === null ||
+      capacityTeam === null ||
+      usedTag === null
+    ) {
+      throw new Error('directory fixture refused a named row');
+    }
+    const ownership = await h.writing.directory.patchTeam(memberTeam.id, principal.id, {
+      serviceIds: [ownedService.id],
+    });
+    if (!ownership.ok) throw new Error(`ownership fixture refused: ${ownership.reason}`);
+    const person = await h.writing.directory.addPerson(principal.id, 'Kat', [memberTeam.id]);
+    if (!person.ok) throw new Error(`person fixture refused: ${person.reason}`);
+    const capacity = await h.writing.capacity.set(
+      createdBody.project.id,
+      principal.id,
+      capacityTeam.id,
+      4,
+    );
+    if (!capacity.ok) throw new Error(`capacity fixture refused: ${capacity.reason}`);
+    const marker = await h.writing.calendarMarkers.create(createdBody.project.id, principal.id, {
+      id: '9e89f455-c87c-4264-9682-ced705e981d1',
+      date: '2026-09-18',
+      name: 'Launch',
+      color: null,
+    });
+    if (!marker.ok) throw new Error(`marker fixture refused: ${marker.reason}`);
+
+    const commands = await h.send(`/api/projects/${createdBody.project.id}/commands`, token, {
+      method: 'POST',
+      body: JSON.stringify({
+        commands: [
+          { kind: 'createWorkItem', ref: 'row', name: 'Ship' },
+          {
+            kind: 'patchWorkItem',
+            workItemRef: 'row',
+            patch: { serviceTeamId: directTeam.id },
+          },
+          {
+            kind: 'setAssignee',
+            workItemRef: 'row',
+            stepId: step.id,
+            personId: person.value.id,
+          },
+        ],
+      }),
+    });
+    expect(commands.status).toBe(200);
+    const commandBody = (await commands.json()) as { results: { id?: string }[] };
+    const rowId = commandBody.results.at(0)?.id;
+    if (rowId === undefined) throw new Error('fixture work item id missing');
+    const labelled = await h.workItems.patch(rowId, principal.id, { tagIds: [usedTag.id] });
+    if (!labelled.ok) throw new Error(`label fixture refused: ${labelled.reason}`);
+
+    const response = await h.send(
+      `/api/projects/${createdBody.project.id}/export?format=json`,
+      token,
+    );
+    expect(response.status).toBe(200);
+    const exported = (await response.json()) as {
+      capacity: { teamId: string; size: number }[];
+      calendarMarkers: { id: string; date: string; name: string; color: string | null }[];
+      directory: {
+        teams: { id: string; name: string; serviceIds: string[] }[];
+        people: { id: string; name: string; kind: string; teamIds: string[] }[];
+        tags: { id: string; name: string }[];
+        services: { id: string; name: string }[];
+      };
+    };
+    expect(exported.capacity).toEqual([{ teamId: capacityTeam.id, size: 4 }]);
+    expect(exported.calendarMarkers).toEqual([
+      {
+        id: '9e89f455-c87c-4264-9682-ced705e981d1',
+        date: '2026-09-18',
+        name: 'Launch',
+        color: null,
+      },
+    ]);
+    expect(exported.directory.teams).toEqual([
+      { id: memberTeam.id, name: 'Billing', serviceIds: [ownedService.id] },
+      { id: capacityTeam.id, name: 'Capacity only', serviceIds: [] },
+      { id: directTeam.id, name: 'Direct label', serviceIds: [] },
+    ]);
+    expect(exported.directory.people).toEqual([
+      { id: person.value.id, name: 'Kat', kind: 'person', teamIds: [memberTeam.id] },
+    ]);
+    expect(exported.directory.tags).toEqual([{ id: usedTag.id, name: 'Release' }]);
+    expect(exported.directory.services).toEqual([{ id: ownedService.id, name: 'Billing API' }]);
+
+    const listTags = spyOn(h.writing.directory, 'listTags').mockResolvedValueOnce([]);
+    try {
+      expect(
+        (await h.send(`/api/projects/${createdBody.project.id}/export?format=json`, token)).status,
+      ).toBe(500);
+    } finally {
+      listTags.mockRestore();
+    }
   });
 
   it('exports a readable Markdown WBS and Gantt table', async () => {

@@ -144,3 +144,6 @@ export const workItemTree = type({
   // boundary test fail on `promise resolved … instead of rejecting` for `failed/unknown`.
   'optimization?': optimization,
 });
+
+/** The existing complete project-tree response, retained unchanged inside a plan document. */
+export type WorkItemTree = (typeof workItemTree)['infer'];

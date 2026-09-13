@@ -1,10 +1,10 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
+import { planDocumentResponse } from './plan-document-shapes';
 import { project, projectWithSteps } from './project-response';
 import { engineUnavailableRefusal } from './scheduler-shapes';
 import { requestSchema, responseSchema } from './schema-shape';
-import { workItemTree } from './work-item-response';
 
 const params = requestSchema(type({ id: 'string' }));
 // Proof: removing identity made the mounted unauthenticated project test receive 500 instead of 401.
@@ -108,7 +108,7 @@ export const exportProject = defineEndpointShape({
   responses: [
     // Proof: omitting the core declaration made the mounted deadline-export test admit
     // a row missing deadline: expected 500, received 200.
-    { kind: 'json', status: 200, schema: responseSchema(workItemTree.and({ project })) },
+    { kind: 'json', status: 200, schema: planDocumentResponse },
     { kind: 'text', status: 200, contentType: 'text/markdown; charset=utf-8' },
   ],
   refusals: [

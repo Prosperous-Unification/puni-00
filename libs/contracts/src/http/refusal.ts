@@ -224,6 +224,7 @@ type BareRefusalCode =
   | 'duplicate_parameter'
   | 'invalid_json'
   | 'invalid_params'
+  | 'unsupported_version'
   | 'invalid_oidc_callback'
   | 'invalid_oidc_session'
   | 'oidc_identity_conflict';

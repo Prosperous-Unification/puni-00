@@ -1,4 +1,6 @@
 import {
+  testCalendarMarkerService,
+  testDirectoryService,
   testProjectService,
   testWorkItemService,
 } from '@wbs/store-memory/testing/service-fixtures';
@@ -17,7 +19,13 @@ const request = {
 
 test('direct project bindings create, read, patch and record opening with admitted actor', async () => {
   const projects = testProjectService();
-  const endpoints = projectRoutes(projects, testWorkItemService());
+  const endpoints = projectRoutes(
+    projects,
+    testWorkItemService(),
+    testDirectoryService(),
+    testCalendarMarkerService(),
+    { now: () => 0 },
+  );
   const made = await endpoints[0].handle({
     params: {},
     query: undefined,
@@ -51,7 +59,13 @@ test('direct project bindings create, read, patch and record opening with admitt
 
 test('direct project and export failures propagate without conversion to not_found', async () => {
   const projects = testProjectService();
-  const endpoints = projectRoutes(projects, testWorkItemService());
+  const endpoints = projectRoutes(
+    projects,
+    testWorkItemService(),
+    testDirectoryService(),
+    testCalendarMarkerService(),
+    { now: () => 0 },
+  );
   const failure = new Error('project store unavailable');
   const read = spyOn(projects, 'read').mockRejectedValue(failure);
   try {
