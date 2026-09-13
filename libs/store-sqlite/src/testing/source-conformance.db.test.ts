@@ -1734,11 +1734,6 @@ const journalIndependentHistoryFault = defineFault({
   caseId: 'journal.append:history-atomic',
   createControl: () => createFaultControl('journal.append:history-atomic:independent-history'),
   mutate(source: SqliteSource, control) {
-    source.db.run(
-      sql.raw(
-        'CREATE TEMP TABLE conformance_independent_journal_history AS SELECT * FROM plan_event WHERE 0',
-      ),
-    );
     return withStores(source, {
       journal: replaceMethod(source.stores.journal, 'append', (append) => {
         return async (entry, event) => {
@@ -1793,6 +1788,15 @@ const journalIndependentHistoryFault = defineFault({
     });
   },
 });
+
+function prepareJournalIndependentHistory(source: SqliteSource): Promise<void> {
+  source.db.run(
+    sql.raw(
+      'CREATE TEMP TABLE conformance_independent_journal_history AS SELECT * FROM plan_event WHERE 0',
+    ),
+  );
+  return Promise.resolve();
+}
 
 const journalLateOutsideFault = defineFault({
   id: 'break:journal.append:history-atomic',
@@ -2265,6 +2269,7 @@ async function proveFault(
   openBase: OpenSource = openSqliteSource,
   decorate: (source: SqliteSource) => SqliteSource = (source) => source,
   prepare: (source: SqliteSource) => Promise<void> = () => Promise.resolve(),
+  observeDirectory: (directory: string) => void = () => undefined,
 ): Promise<FaultProof> {
   return recordFaultProof(fault, {
     assertion: `${fault.caseId} reports passed`,
@@ -2302,6 +2307,7 @@ async function proveFault(
               ? seedSubtreeRecords
               : undefined,
       );
+      observeDirectory(directory);
       try {
         await prepare(source);
       } catch (failure) {
@@ -2447,7 +2453,12 @@ describe('SQLite existing source conformance', () => {
 
   it('reinjects independent history, broad redo clearing and history pruning in SQLite', async () => {
     const proofs = await Promise.all([
-      proveFault(journalIndependentHistoryFault),
+      proveFault(
+        journalIndependentHistoryFault,
+        openSqliteSource,
+        (source) => source,
+        prepareJournalIndependentHistory,
+      ),
       proveFault(journalLateOutsideFault),
       proveFault(journalBroadRedoFault),
       proveFault(journalHistoryPruneFault),
@@ -2478,6 +2489,113 @@ describe('SQLite existing source conformance', () => {
 -       "inverse": {`);
     // Proof: pruning history with the journal removes the complete oldest event.
     expect(failures[3]).toContain(`-     "id": "event-redo-a"`);
+  });
+
+  it('closes independent-history TEMP setup failure without leaking its connection', async () => {
+    let closeCalls = 0;
+    let directory = '';
+    let retainedSource: SqliteSource | undefined;
+    const proof = await proveFault(
+      journalIndependentHistoryFault,
+      openSqliteSource,
+      (source) => {
+        retainedSource = source;
+        source.db.run(
+          sql.raw(
+            'CREATE TEMP TABLE conformance_independent_journal_history AS SELECT * FROM plan_event WHERE 0',
+          ),
+        );
+        return {
+          ...source,
+          async close() {
+            closeCalls += 1;
+            await source.close();
+          },
+        };
+      },
+      prepareJournalIndependentHistory,
+      (openedDirectory) => {
+        directory = openedDirectory;
+      },
+    );
+
+    expect(proof.kind).toBe('setup-failed');
+    if (proof.kind !== 'setup-failed') throw new Error('expected failed TEMP setup proof');
+    expect(proof.failure).toContain(
+      'Failed query: CREATE TEMP TABLE conformance_independent_journal_history AS SELECT * FROM plan_event WHERE 0',
+    );
+    // Proof: creating the TEMP table from fault mutation before fixture ownership
+    // failed here with expected closeCalls 1 and received 0.
+    expect({ closeCalls, directoryExists: existsSync(directory) }).toEqual({
+      closeCalls: 1,
+      directoryExists: false,
+    });
+    const sourceAfterFailure = retainedSource;
+    if (sourceAfterFailure === undefined) throw new Error('expected retained SQLite source probe');
+    expect(() => sourceAfterFailure.db.all(sql`SELECT 42 AS stillOpen`)).toThrow();
+  });
+
+  it('preserves independent-history TEMP setup and cleanup failures', async () => {
+    let closeCalls = 0;
+    let directory = '';
+    const proof = await proveFault(
+      journalIndependentHistoryFault,
+      openSqliteSource,
+      (source) => {
+        source.db.run(
+          sql.raw(
+            'CREATE TEMP TABLE conformance_independent_journal_history AS SELECT * FROM plan_event WHERE 0',
+          ),
+        );
+        return {
+          ...source,
+          async close() {
+            closeCalls += 1;
+            await source.close();
+            throw new Error('injected independent-history setup cleanup failure');
+          },
+        };
+      },
+      prepareJournalIndependentHistory,
+      (openedDirectory) => {
+        directory = openedDirectory;
+      },
+    );
+
+    expect(proof.kind).toBe('setup-failed');
+    if (proof.kind !== 'setup-failed') throw new Error('expected combined TEMP setup failure');
+    expect(proof.failure).toContain(
+      'Failed query: CREATE TEMP TABLE conformance_independent_journal_history AS SELECT * FROM plan_event WHERE 0',
+    );
+    expect(proof.failure).toContain('injected independent-history setup cleanup failure');
+    expect({ closeCalls, directoryExists: existsSync(directory) }).toEqual({
+      closeCalls: 1,
+      directoryExists: false,
+    });
+  });
+
+  it('leaves successful independent-history TEMP setup to one teardown close', async () => {
+    const probe = { closeCalls: 0, closeCallsDuringPrepare: -1 };
+    const proof = await proveFault(
+      journalIndependentHistoryFault,
+      openSqliteSource,
+      (source) => ({
+        ...source,
+        async close() {
+          probe.closeCalls += 1;
+          await source.close();
+        },
+      }),
+      async (source) => {
+        await prepareJournalIndependentHistory(source);
+        probe.closeCallsDuringPrepare = probe.closeCalls;
+      },
+    );
+
+    expect(proof.kind).toBe('observed');
+    // Proof: closing successful setup early changed the proof to `phase-failed`
+    // and produced one close during prepare and two total closes.
+    expect(probe).toEqual({ closeCalls: 1, closeCallsDuringPrepare: 0 });
   });
 
   it('refuses to certify a pre-write SQLite journal failure', async () => {

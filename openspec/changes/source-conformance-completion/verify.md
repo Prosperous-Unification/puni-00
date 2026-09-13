@@ -1571,3 +1571,47 @@ its dedicated Task 5.1 run fail after the successful append with
 (memory: `0/1`, 27 assertions; SQLite: `0/1`, 35 assertions). Restored focused
 runs passed at memory `3/0/104` and SQLite `3/0/133`. Relevant real seam/UoW
 regressions passed at memory `21/0/198` and SQLite `25/0/74`.
+
+#### Task 5.1 rereview lifecycle and guard repair
+
+SQLite's independent-history TEMP table is now created by the proof's owned
+preparation step after seeding returns the source and directory to the fixture
+cleanup owner. The canonical proof still routes the exact real event through
+that table.
+
+Permanent lifecycle tests establish three outcomes:
+
+- duplicate TEMP creation fails as `setup-failed`, closes once, removes the
+  directory, preserves the complete failed CREATE diagnostic, and leaves the
+  retained connection unusable;
+- the same CREATE failure combined with an injected close failure preserves
+  both messages through the established aggregate formatter, closes once, and
+  still removes the directory;
+- successful TEMP setup records zero closes during preparation, its canonical
+  fault is `observed`, and teardown closes exactly once.
+
+Moving CREATE back into fault mutation reproduced the leak: the lifecycle
+negative expected one close and received zero. Closing successful preparation
+early changed that proof to `phase-failed` and recorded one close during
+preparation plus two total closes.
+
+The memory fixture's missing-event guard now has an adjacent R5 proof and a
+real-fixture negative. The test seeds one complete legitimate journal/history
+pair, requests `missing-event`, requires `no journal event missing-event`,
+and verifies the complete public history, empty independent history, and full
+journal row remain unchanged. Removing only the guard failed at the throw
+assertion with `Received function did not throw; Received value: undefined`.
+
+Fresh restored evidence:
+
+- integrated Task 5.1 inventory/source/guard/lifecycle focus: `17/0/468`;
+- focused memory guard: `1/0/4`;
+- focused SQLite canonical and TEMP lifecycle: `5/0/187`;
+- memory source/fault regressions: `16/0/184`;
+- SQLite journal/history/UoW/fault regressions: `25/0/74`.
+
+Both affected adapters' uncached lint/typecheck targets passed. Changed-file
+Prettier, the final diff check, OpenSpec strict validation, and all-artifact
+validation also passed. Task 5.1 remains unchecked and Task 5.2 is untouched.
+No commit, push, merge, archive, or deploy
+was performed.

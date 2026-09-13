@@ -366,7 +366,10 @@ export interface MemorySourceFixture {
   storeDependencyById(dependency: StoredDependency): void;
   /** Reproduces the forbidden retained-row sequence derivation in source-owned state. */
   deriveNextEventSeqFromRetained(subscription: string): void;
-  /** Moves one committed journal event into adapter-owned disconnected storage. */
+  /**
+   * Moves one committed journal event into adapter-owned disconnected storage.
+   * @throws Error when the committed journal has no event with `eventId`.
+   */
   routeJournalEventToIndependent(eventId: string): PlanEvent;
   /** Reads the fixture's disconnected journal-event storage as detached records. */
   independentJournalHistoryFor(): Promise<PlanEvent[]>;
@@ -407,6 +410,8 @@ export function openMemorySourceWithLateWriteSeam(
     },
     routeJournalEventToIndependent(eventId) {
       const index = committed.tables.journal.events.findIndex(({ id }) => id === eventId);
+      // Proof: removing this guard made the real-fixture missing-route test fail
+      // with `Received function did not throw; Received value: undefined`.
       if (index < 0) throw new Error(`no journal event ${eventId}`);
       const found = committed.tables.journal.events[index];
       committed.tables.journal.events.splice(index, 1);

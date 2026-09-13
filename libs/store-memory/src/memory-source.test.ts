@@ -1,10 +1,10 @@
-import type { TransactionalStores } from '@wbs/core';
+import type { NewJournalEntry, PlanEvent, TransactionalStores } from '@wbs/core';
 import { SavedPlanService } from '@wbs/core';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { describe, expect, it } from 'bun:test';
 
-import { openMemorySource } from './source';
+import { openMemorySource, openMemorySourceFixture } from './source';
 
 const stamp = { at: 1, by: 'owner' };
 const STORE_BINDINGS = [
@@ -517,5 +517,68 @@ describe('the staged memory source', () => {
     expect(await source.stores.dependencies.listByProject('p1')).toEqual([
       { id: 'dep-1', projectId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
     ]);
+  });
+
+  it('refuses a missing independent-history route without deleting real history', async () => {
+    const fixture = openMemorySourceFixture();
+    const source = fixture.source;
+    await source.stores.users.create(
+      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
+      stamp,
+    );
+    await source.stores.projects.create(
+      {
+        id: 'p1',
+        name: 'Before',
+        ownerId: 'owner',
+        restricted: false,
+        estimateMethod: 'pert',
+        depReach: 'whole-item',
+        pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+        estimateRounding: 'round',
+        startDate: null,
+        solutionRef: null,
+        revision: 0,
+        createdAt: 1,
+        optimizationEnabled: false,
+        scheduleEngine: 'fast',
+        scheduleObjective: 'pri',
+      },
+      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10 }],
+      stamp,
+    );
+    const entry: NewJournalEntry = {
+      id: 'legitimate-entry',
+      projectId: 'p1',
+      userId: 'owner',
+      kind: 'rename',
+      payload: { type: 'rename', name: 'After' },
+      inverse: { type: 'rename', name: 'Before' },
+      preconditions: { expected: { p1: 1 }, from: { p1: 0 } },
+      createdAt: 2,
+    };
+    const event: PlanEvent = {
+      id: 'legitimate-event',
+      projectId: 'p1',
+      userId: 'owner',
+      kind: 'rename',
+      label: 'Legitimate rename',
+      workItemId: null,
+      stepId: null,
+      before: { type: 'rename', name: 'Before' },
+      after: { type: 'rename', name: 'After' },
+      createdAt: 2,
+    };
+    await source.stores.journal.append(structuredClone(entry), structuredClone(event));
+
+    expect(() => fixture.routeJournalEventToIndependent('missing-event')).toThrow(
+      'no journal event missing-event',
+    );
+    expect(await source.stores.planEvents.listFor('p1', {})).toEqual([event]);
+    expect(await fixture.independentJournalHistoryFor()).toEqual([]);
+    expect(await source.stores.journal.entriesFor('p1', 'owner')).toEqual([
+      { ...entry, seq: 1, undone: false },
+    ]);
+    await source.close();
   });
 });
