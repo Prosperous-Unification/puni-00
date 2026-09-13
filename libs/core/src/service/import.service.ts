@@ -30,6 +30,15 @@ export interface ImportServiceOptions {
 export interface ImportAdmission {
   ok: true;
   projectId: string;
+  rows: number;
+  created: {
+    teams: string[];
+    people: string[];
+    tags: string[];
+    services: string[];
+    types: string[];
+    externalSystems: string[];
+  };
   solutionRef: 'kept' | 'left-off' | 'none';
 }
 
@@ -56,6 +65,14 @@ function importsNewName(
 ): boolean {
   const heldNames = new Set(held.map(({ name }) => name));
   return [...entries.values()].some(({ name }) => !heldNames.has(name));
+}
+
+function createdNames(
+  entries: ReadonlyMap<string, { name: string }>,
+  held: readonly { name: string }[],
+): string[] {
+  const heldNames = new Set(held.map(({ name }) => name));
+  return [...entries.values()].flatMap(({ name }) => (heldNames.has(name) ? [] : [name]));
 }
 
 function resolvedId(
@@ -140,6 +157,14 @@ export class ImportService {
         directory.listExternalSystems(),
       ]);
       const prepared = preparation.value;
+      const created = {
+        services: createdNames(prepared.serviceByFileId, services),
+        teams: createdNames(prepared.teamByFileId, teams),
+        people: createdNames(prepared.personByFileId, people),
+        tags: createdNames(prepared.tagByFileId, tags),
+        types: createdNames(prepared.typeByFileId, types),
+        externalSystems: createdNames(prepared.externalSystemByFileId, systems),
+      };
       const directoryChanged =
         importsNewName(prepared.serviceByFileId, services) ||
         importsNewName(prepared.teamByFileId, teams) ||
@@ -426,6 +451,8 @@ export class ImportService {
         value: {
           ok: true,
           projectId,
+          rows: prepared.workItems.length,
+          created,
           solutionRef,
         },
       };

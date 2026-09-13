@@ -78,6 +78,43 @@ describe('shape-derived client response boundary', () => {
     ).toMatchObject({ kind: 'refusal', representation: 'empty', status: 503 });
   });
 
+  test('validates a contextual import refusal as JSON', async () => {
+    const shape = defineEndpointShape({
+      method: 'POST',
+      path: '/imports',
+      operationId: 'importPlan',
+      policies: [],
+      responses: [{ kind: 'empty', status: 204 }],
+      refusals: [
+        {
+          kind: 'import-refusal',
+          status: 400,
+          schema: responseSchema(
+            type({ error: "'invalid_body'", path: 'string', detail: 'string | null' }),
+          ),
+        },
+      ],
+      document: { summary: 'Import' },
+    });
+    // Proof: treating every tagged refusal as bodyless returned invalid_response
+    // instead of this validated JSON refusal.
+    expect(
+      await clientFromShapes(
+        [shape],
+        returning({
+          kind: 'json',
+          status: 400,
+          body: { error: 'invalid_body', path: 'workItems[0].priority', detail: null },
+        }),
+      ).importPlan({}),
+    ).toMatchObject({
+      kind: 'refusal',
+      representation: 'json',
+      status: 400,
+      body: { error: 'invalid_body', path: 'workItems[0].priority', detail: null },
+    });
+  });
+
   test('validates an in-process response while retaining additive nested fields', async () => {
     const transport = returning({
       kind: 'json',

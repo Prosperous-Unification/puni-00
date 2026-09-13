@@ -16,6 +16,7 @@ import { CapacityService } from './service/capacity.service';
 import { DirectoryService } from './service/directory.service';
 import { GatewayBroadcaster } from './service/gateway-broadcaster';
 import { HistoryService } from './service/history.service';
+import { ImportService } from './service/import.service';
 import { LoginThrottle } from './service/login-throttle';
 import { OptimizerTriggerBroadcaster } from './service/optimizer-trigger-broadcaster';
 import { PriorityBandService } from './service/priority-band.service';
@@ -136,6 +137,7 @@ interface CommonServices extends WritingServices {
   readonly replay: ReplayOrchestrator;
   readonly retention: RetentionTimer;
   readonly loginThrottle: LoginThrottle;
+  readonly imports: ImportService;
 }
 
 export type AccountlessServices = CommonServices;
@@ -193,6 +195,12 @@ export function composeServices(
     broadcast: announcements,
     scheduler: runtime.scheduler,
   });
+  const batch = (scope: Scope, broadcast: Broadcaster) =>
+    servicesOver(scope.stores, {
+      clock: runtime.clock,
+      broadcast,
+      scheduler: runtime.scheduler,
+    });
   const savedPlans = new SavedPlanService({
     digest: runtime.digest,
     capture: source.history.savedPlanCapture,
@@ -209,12 +217,14 @@ export function composeServices(
     gatewayBroadcaster: broadcaster,
     replayBuffer: buffer,
     uow: source.uow,
-    batch: (scope, broadcast) =>
-      servicesOver(scope.stores, {
-        clock: runtime.clock,
-        broadcast,
-        scheduler: runtime.scheduler,
-      }),
+    batch,
+    imports: new ImportService({
+      clock: runtime.clock,
+      scheduler: runtime.scheduler,
+      uow: source.uow,
+      announcements,
+      batchServices: batch,
+    }),
     history: new HistoryService({
       projects: source.stores.projects,
       events: source.stores.planEvents,

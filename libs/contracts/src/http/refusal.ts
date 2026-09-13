@@ -273,6 +273,21 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
 
 export type RefusalCode = keyof RefusalDetail;
 
+/** Archival imports retain the first document path and optional offending reference. */
+export interface ImportRefusal {
+  error:
+    | 'invalid_body'
+    | 'unsupported_version'
+    | 'unknown_ref'
+    | 'cycle'
+    | 'ancestor'
+    | 'deadline_before_project_start'
+    | 'engine_unavailable'
+    | 'source_refused';
+  path: string;
+  detail: string | null;
+}
+
 type UnionKeys<T> = T extends T ? keyof T : never;
 /** Prevents mixing route-specific fields merely because their error codes coincide. */
 type ClosedVariants<T, Whole = T> = T extends T

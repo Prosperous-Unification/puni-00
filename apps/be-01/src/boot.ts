@@ -113,6 +113,7 @@ export function bootBe01(
     replay: services.replay,
     probeDatabase: () => probeSchema(db),
     writes: {
+      imports: services.imports,
       uow: services.uow,
       // The batch's own services, over stores that hold no turn: the runner
       // takes the process's one turn for the whole batch, and a store of its

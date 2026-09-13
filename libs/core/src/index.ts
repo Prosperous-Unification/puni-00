@@ -15,6 +15,7 @@
  * than a move.
  */
 export * from './compose';
+export * from './http/import.routes';
 export * from './ports/actual-store';
 export * from './ports/calendar-marker-store';
 export * from './ports/capacity-store';

@@ -3,6 +3,8 @@ import type {
   EmptyRefusalResponse,
   EmptyResponse,
   EndpointShape,
+  ImportRefusal,
+  ImportRefusalResponse,
   JsonResponse,
   ParamsOf,
   Refusal,
@@ -105,7 +107,7 @@ type SuccessReply<R> = R extends JsonResponse
  */
 type RefusalReply<R> = R extends EmptyRefusalResponse
   ? { ok: false; status: R['status']; body: typeof EMPTY; headers?: readonly Header[] }
-  : R extends RefusalResponse
+  : R extends RefusalResponse | ImportRefusalResponse
     ? {
         ok: false;
         status: R['status'];
@@ -162,6 +164,7 @@ export type EndpointReply =
   | { ok: true; status: 204 | 302; body: typeof EMPTY; headers?: readonly Header[] }
   | { ok: true; status: 200 | 500; text: string; headers?: readonly Header[] }
   | { ok: false; status: RefusalStatus; body: Refusal; headers?: readonly Header[] }
+  | { ok: false; status: RefusalStatus; body: ImportRefusal; headers?: readonly Header[] }
   | { ok: false; status: RefusalStatus; body: typeof EMPTY; headers?: readonly Header[] };
 
 /**

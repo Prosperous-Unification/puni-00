@@ -20,6 +20,7 @@ import {
   listWorkItemTypes,
 } from './directory-shapes';
 import { readHistory } from './history-shapes';
+import { importProject } from './import-shapes';
 import { health, metrics } from './infrastructure-shapes';
 import { forwardInternal, resumeInternal } from './internal-http-shapes';
 import {
@@ -77,6 +78,7 @@ export const httpShapes = [
   listProjects,
   recordProjectOpen,
   exportProject,
+  importProject,
   readProject,
   patchProject,
   retryProjectOptimization,

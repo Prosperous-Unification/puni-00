@@ -379,7 +379,21 @@ export function importServiceSourceContract(
         await source.stores.directory.addTag({ id: 'held-tag', name: 'Release' }, STAMP);
         const document = planDocumentFixture();
 
-        await importService(source).import(document, ACTOR);
+        const imported = await importService(source).import(document, ACTOR);
+
+        expect(imported).toMatchObject({
+          ok: true,
+          rows: 1,
+          created: {
+            teams: ['Billing'],
+            people: ['Kat'],
+            tags: [],
+            services: ['Billing API'],
+            types: ['Milestone'],
+            externalSystems: ['Tracker'],
+          },
+          solutionRef: 'none',
+        });
 
         expect(await source.stores.directory.listTags()).toEqual([
           { id: 'held-tag', name: 'Release' },

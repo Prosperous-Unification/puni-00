@@ -346,3 +346,45 @@ Final green evidence:
 
 At the Task 3.7 checkpoint, Section 3 is complete. Sections 4–5 remain
 unimplemented and unchecked.
+
+## Section 4.1 — mounted import boundary
+
+Before this slice, the branch integrated `origin/main` at
+`9b13f98e62a7cd880977e348421e992e8c4951a3` with merge commit
+`f6246ea60c3cbc5bd337d40e81bfd83db4fe90b0`. The conflict-free integration
+baseline passed 125 tests with 482 assertions across the core plan-document,
+memory import/source and SQLite import/unit-of-work/project suites. Lint and
+typecheck also passed for core, store-memory and store-sqlite.
+
+The shared shape now declares `postApiProjectsImport` at
+`POST /api/projects/import`, with the archival plan request, exact 201 creation
+summary, contextual 400/409 refusals, and the ordinary 401/403 authentication
+refusals. Core binds classification and `ImportService.import`; the production
+app mounts that binding with cookie-origin followed by write-scope admission.
+The successful source outcome now carries the exact row count and newly created
+directory names needed by the public summary.
+
+| Check                         | Fault injected                                                                    | Test that observed it                                                     | Observed failure                                                                                                         |
+| ----------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Production mount reachability | Removed `...importRoutes(opts.writes.imports)` from the production endpoint table | `mounts the production import path and returns the typed 201 summary`     | expected 201 and received the actual fallback 404                                                                        |
+| Write-scope admission         | Weakened the import identity policy from `write-scope` to `signed-in`             | `checks cookie origin and write scope before parsing the import document` | a read-only caller's valid import expected 403 but wrote and returned 201                                                |
+| Policy-before-body precedence | Injected target-specific eager JSON parsing before the production policy loop     | the same mounted precedence test with a malformed read-only request       | the valid read-only control stayed 403, while the malformed request expected 403 and instead returned 400 `invalid_body` |
+
+Each production-path mutation was run separately, observed failing, restored,
+and followed by the green suite. The mounted test also proves that a foreign
+session origin wins over malformed JSON and that neither refusal invokes the
+import service. Shape/endpoint reachability and the complete production policy
+inventory include the new operation.
+
+Fresh final evidence:
+
+- `bun test libs/contracts/src/http/import-shapes.test.ts libs/contracts/src/http/document-from-shapes.test.ts libs/contracts/src/http/client.test.ts libs/contracts/src/http/infrastructure-shapes.test.ts libs/core/src/http/import.routes.test.ts libs/core/src/compose.test.ts apps/be-01/src/controller/import.controller.test.ts apps/be-01/src/app.routes.test.ts apps/be-01/src/app.test.ts apps/be-01/src/http/elysia/mount.test.ts apps/be-01/src/http/elysia/plan-document-boundary.test.ts libs/store-memory/src/import.service.test.ts libs/store-sqlite/src/import.service.db.test.ts` — 165 passed, 0 failed, 1,188 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p contracts core be-01 --skip-nx-cache --parallel=1 --output-style=static` — all six targets passed.
+
+An exploratory directory invocation, `bun test libs/contracts/src/http ...`,
+was invalid for this repository because it also discovered ignored
+`dist/out-tsc` compiler-output copies; source tests passed, while three copied
+tests failed on their generated module paths. The explicit source-file suite
+above supersedes that invocation.
+
+At the Task 4.1 checkpoint, Tasks 4.2–5.2 remain unimplemented and unchecked.

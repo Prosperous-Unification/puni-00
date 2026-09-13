@@ -58,7 +58,8 @@ export function documentFromShapes(shapes: readonly EndpointShape[]): ShapeDocum
       if (response.kind === 'json') assertInlineSchema(response.schema.jsonSchema);
     }
     for (const refusal of shape.refusals)
-      if (!('kind' in refusal)) assertInlineSchema(refusal.schema.jsonSchema);
+      if (!('kind' in refusal) || refusal.kind === 'import-refusal')
+        assertInlineSchema(refusal.schema.jsonSchema);
     // Proof: removing blank-name or duplicate-name refusal made the named emitter
     // tests return documents instead of throwing (document-from-shapes.test.ts).
     if (shape.operationId.trim() === '' || names.has(shape.operationId)) {
@@ -127,14 +128,15 @@ export function documentFromShapes(shapes: readonly EndpointShape[]): ShapeDocum
       });
     }
     for (const refusal of shape.refusals) {
-      if ('kind' in refusal) continue;
+      // Proof: skipping the contextual import arm left its OpenAPI 400 without JSON content.
+      if ('kind' in refusal && refusal.kind === 'empty') continue;
       addResponse(responses, refusal.status, {
         description: 'Refusal',
         content: { 'application/json': { schema: refusal.schema.jsonSchema } },
       });
     }
     for (const refusal of shape.refusals) {
-      if (!('kind' in refusal)) continue;
+      if (!('kind' in refusal) || refusal.kind !== 'empty') continue;
       // OpenAPI has one response slot per status. Keep the JSON schema when
       // this status also has a typed body; the runtime declaration still
       // admits the endpoint's deliberate empty alternative.
