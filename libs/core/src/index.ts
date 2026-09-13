@@ -75,6 +75,7 @@ export * from './service/optimizer-trigger-broadcaster';
 export * from './service/plan-command';
 export * from './service/plan-commands';
 export * from './service/plan-document';
+export * from './service/prepare-import';
 export * from './service/priority-band.service';
 export * from './service/project.service';
 export * from './service/replay-buffer';
