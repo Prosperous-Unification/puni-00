@@ -145,8 +145,8 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
   });
 
   it('refuses missing and empty workItemKey values before grouping', () => {
-    const missing = { ...slice({ key: 'missing' }) } as Partial<SolverSlice>;
-    delete missing.workItemKey;
+    const { workItemKey: omittedWorkItemKey, ...missing } = slice({ key: 'missing' });
+    expect(omittedWorkItemKey).not.toBe('');
     for (const malformedSlice of [slice({ key: 'empty', workItemKey: '' }), missing]) {
       const key = malformedSlice.key ?? 'missing';
       const malformed = request({
