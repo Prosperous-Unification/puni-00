@@ -10,6 +10,7 @@ export interface SqliteLateWriteEvidence {
 
 export interface SqliteLateWriteSeam {
   isActive?(phase: SqliteLateWritePoint): boolean;
+  observeBoundary?(phase: SqliteLateWritePoint, evidence: SqliteLateWriteEvidence): void;
   reach(phase: SqliteLateWritePoint, evidence?: SqliteLateWriteEvidence): void;
 }
 

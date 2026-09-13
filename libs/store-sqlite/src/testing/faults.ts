@@ -72,9 +72,13 @@ export function openSqliteSourceWithFault(
   options: OpenSqliteSourceOptions,
   control: SqliteLateWriteControl<SqliteLateWritePoint>,
   reachProof: () => void = () => undefined,
+  observeBoundary: (evidence: SqliteLateWriteEvidence) => void = () => undefined,
 ): SqliteSource {
   return openSqliteSourceWithLateWriteSeam(options, {
     isActive: (phase) => control.isArmed() && phase === control.phase,
+    observeBoundary: (_phase, evidence) => {
+      observeBoundary(evidence);
+    },
     reach(phase, evidence) {
       if (control.reachTransactionWrite(phase, evidence)) {
         reachProof();
@@ -115,12 +119,56 @@ export function openSqliteSourceWithNonAtomicSavedPlanFault(
   control: SqliteLateWriteControl<'saved-plan-schedule-body'>,
   reachProof: () => void,
   beforeRestart?: () => void,
+  observeBoundary: (stored: StoredSavedPlan | undefined) => void = () => undefined,
 ): SqliteSource {
-  return openSqliteSourceWithSavedPlanFault(options, control, reachProof, {
-    kind: 'split',
-    targetId: 'late-target',
-    beforeRestart,
-  });
+  let didRestartSplit = false;
+  return openSqliteSourceWithSavedPlanFault(
+    options,
+    control,
+    reachProof,
+    {
+      kind: 'split',
+      targetId: 'late-target',
+      beforeRestart,
+      afterRestart: () => {
+        didRestartSplit = true;
+      },
+    },
+    (evidence) => {
+      observeBoundary(evidence.savedPlan);
+      // Proof: routing a wrong target through the ordinary transaction reached the
+      // generic schedule seam until this callback required the scoped split restart.
+      if (!didRestartSplit)
+        throw new Error('saved-plan split target did not cross its transaction boundary');
+      // Proof: changing canonical target content before repository entry used to mark
+      // the split phase from a self-derived request even though the shared assertion failed.
+      if (JSON.stringify(evidence.savedPlan) !== JSON.stringify(expectedLateTargetPartial()))
+        throw new Error('saved-plan split boundary does not match the canonical target');
+    },
+  );
+}
+
+function expectedLateTargetPartial(): StoredSavedPlan {
+  return {
+    header: {
+      id: 'late-target',
+      projectId: 'project-a',
+      name: 'Late target',
+      createdBy: 'Quota Writer',
+      createdById: 'owner-b',
+      createdAt: 522,
+      inputSchemaVersion: 11,
+      inputBytes: 15,
+      inputSha256: '9dffefcc444c719ff14991008d275645a34f081c07aa54fd1fb39f51488b4df4',
+      scheduleSchemaVersion: 12,
+      scheduleBytes: 18,
+      scheduleSha256: '67f1fdbc1d60444b0f4a7e14af440a54c9be6cb9004c37a71db3a6c70745d160',
+      scheduleInputSha256: '9dffefcc444c719ff14991008d275645a34f081c07aa54fd1fb39f51488b4df4',
+      schedulerAlgorithmId: 'conformance-scheduler',
+      scheduleAbsentReason: null,
+    },
+    bodies: { input: 'late-input-🔧', schedule: null },
+  };
 }
 
 function openSqliteSourceWithSavedPlanFault(
@@ -128,10 +176,12 @@ function openSqliteSourceWithSavedPlanFault(
   control: SqliteLateWriteControl<'saved-plan-schedule-body'>,
   reachProof: () => void,
   fault: SavedPlanWriteFault,
+  validateReach: (evidence: SqliteLateWriteEvidence) => void = () => undefined,
 ): SqliteSource {
   const lateWrite: SqliteLateWriteSeam = {
     isActive: (phase) => control.isArmed() && phase === control.phase,
     reach(phase, evidence) {
+      validateReach(evidence ?? {});
       if (control.reachTransactionWrite(phase, evidence)) {
         reachProof();
         throw new Error(`injected SQLite fault at ${phase}`);

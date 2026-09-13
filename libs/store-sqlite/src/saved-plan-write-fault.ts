@@ -1,8 +1,11 @@
+import type { StoredSavedPlan } from './saved-plan';
+
 /** A saved-plan write mutation available only to adapter-owned test factories. */
 export interface SavedPlanWriteFault {
   readonly kind: 'split' | 'omit-input';
   readonly targetId: string;
   readonly beforeRestart?: () => void;
+  readonly afterRestart?: () => void;
   readonly observeBoundary?: (stored: StoredSavedPlan) => void;
 }
 
@@ -21,4 +24,3 @@ export function savedPlanWriteFaultOf(repository: object): SavedPlanWriteFault |
 export function armSavedPlanWriteFault(repository: object, fault: SavedPlanWriteFault): void {
   savedPlanWriteFaults.set(repository, fault);
 }
-import type { StoredSavedPlan } from './saved-plan';

@@ -51,6 +51,7 @@ import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
 import { inMemoryDependencies } from '../dependency-fixture';
+import type { MemoryLateWriteEvidence } from '../late-write-seam';
 import { projectRow } from '../project-fixture';
 import { openMemorySourceFixture, openMemorySourceWithLateWriteSeam } from '../source';
 import {
@@ -328,13 +329,18 @@ async function openMemoryCase<Family extends ExistingFamily>(
   return memoryFixture(source, family, caseId);
 }
 
-async function openMemorySavedPlanCase(caseId: CaseId): Promise<CaseFixture<SavedPlanStore>> {
+async function openMemorySavedPlanCase(
+  caseId: CaseId,
+  observeBoundary: (evidence: MemoryLateWriteEvidence) => void = () => undefined,
+): Promise<CaseFixture<SavedPlanStore>> {
   const lateControl =
     caseId === 'savedPlans.write:late-body-failure'
       ? memoryLateWriteControl('saved-plan-schedule-body')
       : null;
   const source = await seedMemorySource(
-    lateControl === null ? openConformanceMemorySource : () => memoryLateSource(lateControl),
+    lateControl === null
+      ? openConformanceMemorySource
+      : () => memoryLateSource(lateControl, undefined, observeBoundary),
   );
   return {
     fixtureId: `memory:${caseId}`,
@@ -445,9 +451,13 @@ function transactionalJournal(source: MemorySource): CommandJournalStore {
 function memoryLateSource(
   control: MemoryLateWriteControl<MemoryLateWritePoint>,
   reachProof?: () => void,
+  observeBoundary: (evidence: MemoryLateWriteEvidence) => void = () => undefined,
 ): MemorySource {
   const fixture = openMemorySourceWithLateWriteSeam({
     isActive: (phase) => control.isArmed() && phase === control.phase,
+    observeBoundary: (_phase, evidence) => {
+      observeBoundary(evidence);
+    },
     reach(phase, evidence) {
       if (control.reachStagedWrite(phase, evidence)) {
         reachProof?.();
@@ -3004,13 +3014,34 @@ const savedPlanSplitWriteFault = defineFault({
   id: 'break:savedPlans.write:late-body-failure',
   caseId: 'savedPlans.write:late-body-failure',
   createControl: () => createFaultControl('saved-plan:late-body:split-commit'),
-  mutate(source: MemorySource) {
+  mutate(source: MemorySource, control) {
     return withSavedPlans(
       source,
       replaceSavedPlanWrite(source.history.savedPlans, (write) => {
         return (plan, check) =>
           plan.id === 'late-target'
-            ? source.writeSavedPlanSplit(plan, check, true)
+            ? source.writeSavedPlanSplit(plan, check, true, (stored) => {
+                // Proof: changing the split request before adapter entry used to mark
+                // canonical reach from self-derived content and an unrelated assertion.
+                const expected = expectedTask62Plan(
+                  'late-target',
+                  'Late target',
+                  522,
+                  'late-input-🔧',
+                  15,
+                  '9dffefcc444c719ff14991008d275645a34f081c07aa54fd1fb39f51488b4df4',
+                  {
+                    body: 'late-schedule-📆',
+                    bytes: 18,
+                    sha256: '67f1fdbc1d60444b0f4a7e14af440a54c9be6cb9004c37a71db3a6c70745d160',
+                  },
+                );
+                expect(stored).toEqual({
+                  ...expected,
+                  bodies: { ...expected.bodies, schedule: null },
+                });
+                control.reach('saved-plan:late-body:split-commit');
+              })
             : write(plan, check);
       }),
     );
@@ -3087,9 +3118,10 @@ function prematureTask62Source(source: MemorySource, probe: SavedPlanPhaseProbe,
   const owned = {
     ...source,
     async close() {
-      probe.state = await readSavedPlanPublicState(source, task62ProbeIds(targetId));
       probe.closeCalls += 1;
-      await source.close();
+      await closeAfterSavedPlanSnapshot(source, task62ProbeIds(targetId), (state) => {
+        probe.state = state;
+      });
     },
   };
   return withSavedPlans(
@@ -3118,9 +3150,10 @@ function observeTask62Write(
   const owned = {
     ...source,
     async close() {
-      probe.state = await readSavedPlanPublicState(source, ids);
       probe.closeCalls += 1;
-      await source.close();
+      await closeAfterSavedPlanSnapshot(source, ids, (state) => {
+        probe.state = state;
+      });
     },
   };
   return withSavedPlans(
@@ -3140,6 +3173,38 @@ function observeTask62Write(
       });
     }),
   );
+}
+
+async function closeAfterSavedPlanSnapshot(
+  source: SavedPlanSnapshotSource,
+  ids: readonly string[],
+  observe: (state: SavedPlanPublicState) => void,
+): Promise<void> {
+  let didObservationFail = false;
+  let observationFailure: unknown;
+  try {
+    observe(await readSavedPlanPublicState(source, ids));
+  } catch (failure) {
+    didObservationFail = true;
+    observationFailure = failure;
+  }
+  let didCloseFail = false;
+  let closeFailure: unknown;
+  try {
+    await source.close();
+  } catch (failure) {
+    didCloseFail = true;
+    closeFailure = failure;
+  }
+  // Proof: a rejected public read used to bypass the fixture close entirely.
+  if (didObservationFail && didCloseFail)
+    throw new AggregateError(
+      [observationFailure, closeFailure],
+      'saved-plan observation and memory source close both failed',
+      { cause: closeFailure },
+    );
+  if (didObservationFail) throw observationFailure;
+  if (didCloseFail) throw closeFailure;
 }
 
 const savedPlanRefusalPrematureFault = defineFault({
@@ -3220,6 +3285,13 @@ interface SavedPlanPublicState {
   readonly principals: readonly (SavedPlanPrincipals | null)[];
 }
 
+interface SavedPlanSnapshotSource {
+  readonly history: {
+    readonly savedPlans: Pick<SavedPlanStore, 'readOf' | 'listOf' | 'principalsOf'>;
+  };
+  close(): Promise<void>;
+}
+
 const TASK61_TOUCH_IDS = [
   'touch-target',
   'touch-null-creator',
@@ -3229,7 +3301,7 @@ const TASK61_TOUCH_IDS = [
 ] as const;
 
 async function readSavedPlanPublicState(
-  source: MemorySource,
+  source: SavedPlanSnapshotSource,
   ids: readonly string[],
 ): Promise<SavedPlanPublicState> {
   return {
@@ -3493,7 +3565,8 @@ async function proveFault(
           : () =>
               memoryLateSource(
                 lateControl,
-                run.control.phase === 'saved-plan:late-body:no-reach'
+                run.control.phase === 'saved-plan:late-body:no-reach' ||
+                  run.control.phase === 'saved-plan:late-body:split-commit'
                   ? undefined
                   : () => {
                       run.control.reach(run.control.phase);
@@ -5753,6 +5826,149 @@ describe('memory existing source conformance', () => {
     expect(failures[2]).toContain('+           "schedule": null,');
   });
 
+  it('rejects canonical memory split reach for wrong target, content, or phase', async () => {
+    const proofs = [];
+    const probes: SavedPlanPhaseProbe[] = [];
+    for (const corruption of ['wrong-target', 'altered-content', 'wrong-body-phase'] as const) {
+      const probe: SavedPlanPhaseProbe = {
+        attempts: 0,
+        closeCalls: 0,
+        state: null,
+        boundary: null,
+        observations: [],
+      };
+      probes.push(probe);
+      proofs.push(
+        await proveFault(savedPlanSplitWriteFault, openConformanceMemorySource, (source) => {
+          const writeSplit = source.writeSavedPlanSplit;
+          return {
+            ...source,
+            writeSavedPlanSplit(plan, check, includeInput, observeBoundary) {
+              probe.attempts += 1;
+              if (corruption === 'wrong-target') Object.assign(plan, { id: 'wrong-late-target' });
+              else if (corruption === 'altered-content') {
+                Object.assign(plan, {
+                  name: 'ALTERED TARGET',
+                  createdBy: 'ALTERED DISPLAY',
+                });
+                Object.assign(plan.input, { bytes: 'ALTERED BODY', sha256: 'ALTERED HASH' });
+              } else Object.assign(plan, { schedule: { present: false, absentReason: 'pending' } });
+              return writeSplit(
+                plan,
+                async (holding, incomingBytes) => {
+                  probe.observations?.push({
+                    holding: { plans: holding.plans, bytes: holding.bytes },
+                    incomingBytes,
+                  });
+                  return check(holding, incomingBytes);
+                },
+                includeInput,
+                (stored) => {
+                  probe.boundary = stored;
+                  observeBoundary?.(stored);
+                },
+              ).catch((failure: unknown) => {
+                probe.failure = failure;
+                throw failure;
+              });
+            },
+            async close() {
+              probe.closeCalls += 1;
+              await closeAfterSavedPlanSnapshot(
+                source,
+                ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-project'],
+                (state) => {
+                  probe.state = state;
+                },
+              );
+            },
+          };
+        }),
+      );
+    }
+
+    expect(proofs.map(({ kind }) => kind)).toEqual([
+      'phase-failed',
+      'phase-failed',
+      'phase-failed',
+    ]);
+    const sentinels = [
+      expectedTask62Plan(
+        'late-sentinel',
+        'Late sentinel',
+        521,
+        'held-🔒',
+        9,
+        'bf34514df96c59c2de5d80148fbe17a5b9242635ca3ecc7aa38e23842f478355',
+      ),
+      task62OtherPlan(),
+    ];
+    expect(probes[0]).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      state: expectedTask62PublicState(
+        ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-project'],
+        sentinels,
+      ),
+      boundary: null,
+      observations: [],
+      failure: expect.objectContaining({ message: 'saved-plan split target must be late-target' }),
+    });
+    const canonical = expectedTask62Plan(
+      'late-target',
+      'Late target',
+      522,
+      'late-input-🔧',
+      15,
+      '9dffefcc444c719ff14991008d275645a34f081c07aa54fd1fb39f51488b4df4',
+      {
+        body: 'late-schedule-📆',
+        bytes: 18,
+        sha256: '67f1fdbc1d60444b0f4a7e14af440a54c9be6cb9004c37a71db3a6c70745d160',
+      },
+    );
+    const altered = {
+      header: {
+        ...canonical.header,
+        name: 'ALTERED TARGET',
+        createdBy: 'ALTERED DISPLAY',
+        inputBytes: 12,
+        inputSha256: 'ALTERED HASH',
+      },
+      bodies: { input: 'ALTERED BODY', schedule: null },
+    };
+    expect(probes[1]).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      state: expectedTask62PublicState(
+        ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-project'],
+        [altered, ...sentinels],
+      ),
+      boundary: altered,
+      observations: [{ holding: { plans: 1, bytes: 9 }, incomingBytes: 30 }],
+      failure: expect.anything(),
+    });
+    const wrongPhase = expectedTask62Plan(
+      'late-target',
+      'Late target',
+      522,
+      'late-input-🔧',
+      15,
+      '9dffefcc444c719ff14991008d275645a34f081c07aa54fd1fb39f51488b4df4',
+    );
+    expect(probes[2]).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      state: expectedTask62PublicState(
+        ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-project'],
+        [wrongPhase, ...sentinels],
+      ),
+      boundary: wrongPhase,
+      observations: [{ holding: { plans: 1, bytes: 9 }, incomingBytes: 15 }],
+      failure: expect.anything(),
+    });
+  });
+
   it('rejects missing real memory input persistence before the late boundary', async () => {
     Object.assign(memoryMissingInputProbe, {
       attempts: 0,
@@ -5804,6 +6020,49 @@ describe('memory existing source conformance', () => {
         ],
       ),
     });
+  });
+
+  it('closes after a saved-plan snapshot read fails and preserves a concurrent close failure', async () => {
+    for (const closeFails of [false, true]) {
+      const source = await seedMemorySource();
+      const readFailure = new Error('injected saved-plan snapshot read failure');
+      const closeFailure = new Error('injected memory close failure');
+      let closeCalls = 0;
+      const failing = withSavedPlans(
+        {
+          ...source,
+          async close() {
+            closeCalls += 1;
+            await source.close();
+            if (closeFails) throw closeFailure;
+          },
+        },
+        replaceMethod(
+          source.history.savedPlans,
+          'readOf',
+          (readOf) => (savedPlanId) =>
+            savedPlanId === 'late-target' ? Promise.reject(readFailure) : readOf(savedPlanId),
+        ),
+      );
+      let failure: unknown;
+      try {
+        await closeAfterSavedPlanSnapshot(
+          failing,
+          ['late-target', 'late-sentinel', 'saved-other-project'],
+          () => undefined,
+        );
+      } catch (cause) {
+        failure = cause;
+      }
+
+      // Proof: awaiting the failing read before cleanup left the owned source open.
+      expect(closeCalls).toBe(1);
+      if (closeFails) {
+        expect(failure).toBeInstanceOf(AggregateError);
+        expect(failure).toHaveProperty('errors', [readFailure, closeFailure]);
+        expect(failure).toHaveProperty('cause', closeFailure);
+      } else expect(failure).toBe(readFailure);
+    }
   });
 
   it('rejects Task 6.2 memory proofs when each mutation is removed', async () => {
@@ -5913,35 +6172,59 @@ describe('memory existing source conformance', () => {
 
   it('rejects an in-place late target mutation against the detached memory request', async () => {
     let closeCalls = 0;
-    let finalReads: readonly (StoredSavedPlan | null)[] = [];
+    let targetAttempts = 0;
+    let callbackCalls = 0;
+    let mutationCalls = 0;
+    let operationFailure: unknown;
+    let boundary: StoredSavedPlan | undefined;
+    let finalState: SavedPlanPublicState | undefined;
+    const observations: { holding: SavedPlanHoldingRow; incomingBytes: number }[] = [];
     const report = await runCases(
       existingStoreRegistrations({
         ...openers,
         savedPlans: async (caseId) => {
-          const fixture = await openMemorySavedPlanCase(caseId);
-          const port = replaceSavedPlanWrite(
-            fixture.port,
-            (write) => (plan, check) =>
-              write(plan, async (holding, incomingBytes) => {
+          const fixture = await openMemorySavedPlanCase(caseId, (evidence) => {
+            boundary = evidence.savedPlan;
+          });
+          const port = replaceSavedPlanWrite(fixture.port, (write) => async (plan, check) => {
+            if (plan.id === 'late-target') targetAttempts += 1;
+            try {
+              return await write(plan, async (holding, incomingBytes) => {
+                if (plan.id === 'late-target') {
+                  callbackCalls += 1;
+                  observations.push({
+                    holding: { plans: holding.plans, bytes: holding.bytes },
+                    incomingBytes,
+                  });
+                }
                 const refusal = await check(holding, incomingBytes);
                 if (plan.id === 'late-target') {
+                  mutationCalls += 1;
                   Object.assign(plan, { name: 'CORRUPTED TARGET', createdBy: 'CORRUPTED DISPLAY' });
                   Object.assign(plan.input, { bytes: 'WRONG INPUT', sha256: 'WRONG HASH' });
                 }
                 return refusal;
-              }),
-          );
+              });
+            } catch (failure) {
+              if (plan.id === 'late-target') operationFailure = failure;
+              throw failure;
+            }
+          });
           return {
             ...fixture,
             port,
             async close() {
-              finalReads = await Promise.all(
-                ['late-target', 'late-sentinel', 'saved-other-project'].map((id) =>
-                  fixture.readers.savedPlans.readOf(id),
-                ),
-              );
               closeCalls += 1;
-              await fixture.close();
+              await closeAfterSavedPlanSnapshot(
+                {
+                  history: { savedPlans: fixture.readers.savedPlans },
+                  close: () => fixture.close(),
+                },
+                ['late-target', 'late-sentinel', 'saved-other-project'],
+                (state) => {
+                  finalState = state;
+                },
+              );
             },
           };
         },
@@ -5955,11 +6238,55 @@ describe('memory existing source conformance', () => {
     // Proof: mutating the real request after its callback used to reach and certify the
     // corrupted record; the detached boundary now refuses it and rolls the target back.
     expect(Bun.stripANSI(execution.failure)).toContain('+   "reached": false,');
-    expect(finalReads[0]).toBeNull();
-    expect(finalReads.slice(1).map((stored) => stored?.header.id)).toEqual([
-      'late-sentinel',
-      'saved-other-project',
-    ]);
+    expect(operationFailure).toHaveProperty(
+      'message',
+      'saved-plan schedule boundary lacks complete header and input',
+    );
+    expect({ targetAttempts, callbackCalls, mutationCalls, observations }).toEqual({
+      targetAttempts: 1,
+      callbackCalls: 1,
+      mutationCalls: 1,
+      observations: [{ holding: { plans: 1, bytes: 9 }, incomingBytes: 33 }],
+    });
+    const target = expectedTask62Plan(
+      'late-target',
+      'Late target',
+      522,
+      'late-input-🔧',
+      15,
+      '9dffefcc444c719ff14991008d275645a34f081c07aa54fd1fb39f51488b4df4',
+      {
+        body: 'late-schedule-📆',
+        bytes: 18,
+        sha256: '67f1fdbc1d60444b0f4a7e14af440a54c9be6cb9004c37a71db3a6c70745d160',
+      },
+    );
+    expect(boundary).toEqual({
+      header: {
+        ...target.header,
+        name: 'CORRUPTED TARGET',
+        createdBy: 'CORRUPTED DISPLAY',
+        inputBytes: 11,
+        inputSha256: 'WRONG HASH',
+      },
+      bodies: { input: 'WRONG INPUT', schedule: null },
+    });
+    expect(finalState).toEqual(
+      expectedTask62PublicState(
+        ['late-target', 'late-sentinel', 'saved-other-project'],
+        [
+          expectedTask62Plan(
+            'late-sentinel',
+            'Late sentinel',
+            521,
+            'held-🔒',
+            9,
+            'bf34514df96c59c2de5d80148fbe17a5b9242635ca3ecc7aa38e23842f478355',
+          ),
+          task62OtherPlan(),
+        ],
+      ),
+    );
     expect(closeCalls).toBe(1);
   });
 

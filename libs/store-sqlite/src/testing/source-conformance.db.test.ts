@@ -48,6 +48,7 @@ import { DEFAULT_ESTIMATE_RULE } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 import { asc, eq, sql } from 'drizzle-orm';
 
+import type { SqliteLateWriteEvidence } from '../late-write-seam';
 import { runMigrations } from '../migrate';
 import {
   actual as actualTable,
@@ -354,7 +355,10 @@ async function openSqliteCase<Family extends ExistingFamily>(
   return sqliteFixture(source, directory, family, caseId);
 }
 
-async function openSqliteSavedPlanCase(caseId: CaseId): Promise<CaseFixture<SavedPlanStore>> {
+async function openSqliteSavedPlanCase(
+  caseId: CaseId,
+  observeBoundary: (evidence: SqliteLateWriteEvidence) => void = () => undefined,
+): Promise<CaseFixture<SavedPlanStore>> {
   const lateControl =
     caseId === 'savedPlans.write:late-body-failure'
       ? sqliteLateWriteControl('saved-plan-schedule-body')
@@ -362,7 +366,7 @@ async function openSqliteSavedPlanCase(caseId: CaseId): Promise<CaseFixture<Save
   const { source, directory } = await seedSqliteSource(
     lateControl === null
       ? openSqliteSource
-      : (options) => openSqliteSourceWithFault(options, lateControl),
+      : (options) => openSqliteSourceWithFault(options, lateControl, undefined, observeBoundary),
   );
   return {
     fixtureId: `sqlite:${caseId}`,
@@ -3293,9 +3297,10 @@ function prematureTask62Source(source: SqliteSource, probe: SavedPlanPhaseProbe,
   const owned = {
     ...source,
     async close() {
-      probe.state = await readSavedPlanPublicState(source, task62ProbeIds(targetId));
       probe.closeCalls += 1;
-      await source.close();
+      await closeAfterSavedPlanSnapshot(source, task62ProbeIds(targetId), (state) => {
+        probe.state = state;
+      });
     },
   };
   return withSavedPlans(
@@ -3324,9 +3329,10 @@ function observeTask62Write(
   const owned = {
     ...source,
     async close() {
-      probe.state = await readSavedPlanPublicState(source, ids);
       probe.closeCalls += 1;
-      await source.close();
+      await closeAfterSavedPlanSnapshot(source, ids, (state) => {
+        probe.state = state;
+      });
     },
   };
   return withSavedPlans(
@@ -3346,6 +3352,38 @@ function observeTask62Write(
       });
     }),
   );
+}
+
+async function closeAfterSavedPlanSnapshot(
+  source: SavedPlanSnapshotSource,
+  ids: readonly string[],
+  observe: (state: SavedPlanPublicState) => void,
+): Promise<void> {
+  let didObservationFail = false;
+  let observationFailure: unknown;
+  try {
+    observe(await readSavedPlanPublicState(source, ids));
+  } catch (failure) {
+    didObservationFail = true;
+    observationFailure = failure;
+  }
+  let didCloseFail = false;
+  let closeFailure: unknown;
+  try {
+    await source.close();
+  } catch (failure) {
+    didCloseFail = true;
+    closeFailure = failure;
+  }
+  // Proof: a rejected public read used to leave the real SQLite source connection open.
+  if (didObservationFail && didCloseFail)
+    throw new AggregateError(
+      [observationFailure, closeFailure],
+      'saved-plan observation and SQLite source close both failed',
+      { cause: closeFailure },
+    );
+  if (didObservationFail) throw observationFailure;
+  if (didCloseFail) throw closeFailure;
 }
 
 const savedPlanRefusalPrematureFault = defineFault({
@@ -3423,6 +3461,13 @@ interface SavedPlanPublicState {
   readonly principals: readonly (SavedPlanPrincipals | null)[];
 }
 
+interface SavedPlanSnapshotSource {
+  readonly history: {
+    readonly savedPlans: Pick<SavedPlanStore, 'readOf' | 'listOf' | 'principalsOf'>;
+  };
+  close(): Promise<void>;
+}
+
 const TASK61_TOUCH_IDS = [
   'touch-target',
   'touch-null-creator',
@@ -3432,7 +3477,7 @@ const TASK61_TOUCH_IDS = [
 ] as const;
 
 async function readSavedPlanPublicState(
-  source: SqliteSource,
+  source: SavedPlanSnapshotSource,
   ids: readonly string[],
 ): Promise<SavedPlanPublicState> {
   return {
@@ -3841,6 +3886,7 @@ async function proveFault(
   decorate: (source: SqliteSource) => SqliteSource = (source) => source,
   prepare: (source: SqliteSource) => Promise<void> = () => Promise.resolve(),
   observeDirectory: (directory: string) => void = () => undefined,
+  observeLateBoundary: (stored: StoredSavedPlan | undefined) => void = () => undefined,
 ): Promise<FaultProof> {
   return recordFaultProof(fault, {
     assertion: `${fault.caseId} reports passed`,
@@ -3879,10 +3925,16 @@ async function proveFault(
                   (run.control.phase === 'saved-plan:late-body:split-transaction' ||
                     run.control.phase === 'saved-plan:late-body:no-reach')
                 ? (options) =>
-                    openSqliteSourceWithNonAtomicSavedPlanFault(options, lateControl, () => {
-                      if (run.control.phase !== 'saved-plan:late-body:no-reach')
-                        run.control.reach(run.control.phase);
-                    })
+                    openSqliteSourceWithNonAtomicSavedPlanFault(
+                      options,
+                      lateControl,
+                      () => {
+                        if (run.control.phase !== 'saved-plan:late-body:no-reach')
+                          run.control.reach(run.control.phase);
+                      },
+                      undefined,
+                      observeLateBoundary,
+                    )
                 : (options) =>
                     openSqliteSourceWithFault(options, lateControl, () => {
                       run.control.reach(run.control.phase);
@@ -6235,6 +6287,162 @@ describe('SQLite existing source conformance', () => {
     expect(failures[2]).toContain('+           "schedule": null,');
   });
 
+  it('rejects canonical SQLite split reach for wrong target, content, or phase', async () => {
+    const proofs = [];
+    const probes: SavedPlanPhaseProbe[] = [];
+    for (const corruption of ['wrong-target', 'altered-content', 'wrong-body-phase'] as const) {
+      const probe: SavedPlanPhaseProbe = {
+        attempts: 0,
+        closeCalls: 0,
+        state: null,
+        boundary: null,
+        observations: [],
+      };
+      probes.push(probe);
+      proofs.push(
+        await proveFault(
+          savedPlanSplitWriteFault,
+          openSqliteSource,
+          (source) => {
+            const owned = {
+              ...source,
+              async close() {
+                probe.closeCalls += 1;
+                await closeAfterSavedPlanSnapshot(
+                  source,
+                  ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-project'],
+                  (state) => {
+                    probe.state = state;
+                  },
+                );
+              },
+            };
+            return withSavedPlans(
+              owned,
+              replaceSavedPlanWrite(source.history.savedPlans, (write) => async (plan, check) => {
+                if (plan.id !== 'late-target') return write(plan, check);
+                probe.attempts += 1;
+                if (corruption === 'wrong-target') Object.assign(plan, { id: 'wrong-late-target' });
+                else if (corruption === 'altered-content') {
+                  Object.assign(plan, {
+                    name: 'ALTERED TARGET',
+                    createdBy: 'ALTERED DISPLAY',
+                  });
+                  Object.assign(plan.input, { bytes: 'ALTERED BODY', sha256: 'ALTERED HASH' });
+                } else
+                  Object.assign(plan, { schedule: { present: false, absentReason: 'pending' } });
+                try {
+                  return await write(plan, async (holding, incomingBytes) => {
+                    probe.observations?.push({
+                      holding: { plans: holding.plans, bytes: holding.bytes },
+                      incomingBytes,
+                    });
+                    return check(holding, incomingBytes);
+                  });
+                } catch (failure) {
+                  probe.failure = failure;
+                  throw failure;
+                }
+              }),
+            );
+          },
+          () => Promise.resolve(),
+          () => undefined,
+          (stored) => {
+            probe.boundary = stored ?? null;
+          },
+        ),
+      );
+    }
+
+    expect(proofs.map(({ kind }) => kind)).toEqual([
+      'phase-failed',
+      'phase-failed',
+      'phase-failed',
+    ]);
+    const sentinels = [
+      expectedTask62Plan(
+        'late-sentinel',
+        'Late sentinel',
+        521,
+        'held-🔒',
+        9,
+        'bf34514df96c59c2de5d80148fbe17a5b9242635ca3ecc7aa38e23842f478355',
+      ),
+      task62OtherPlan(),
+    ];
+    const canonical = expectedTask62Plan(
+      'late-target',
+      'Late target',
+      522,
+      'late-input-🔧',
+      15,
+      '9dffefcc444c719ff14991008d275645a34f081c07aa54fd1fb39f51488b4df4',
+      {
+        body: 'late-schedule-📆',
+        bytes: 18,
+        sha256: '67f1fdbc1d60444b0f4a7e14af440a54c9be6cb9004c37a71db3a6c70745d160',
+      },
+    );
+    expect(probes[0]).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      state: expectedTask62PublicState(
+        ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-project'],
+        sentinels,
+      ),
+      boundary: {
+        header: { ...canonical.header, id: 'wrong-late-target' },
+        bodies: { input: canonical.bodies.input, schedule: null },
+      },
+      observations: [{ holding: { plans: 1, bytes: 9 }, incomingBytes: 33 }],
+      failure: expect.objectContaining({
+        message: 'saved-plan split target did not cross its transaction boundary',
+      }),
+    });
+    const altered = {
+      header: {
+        ...canonical.header,
+        name: 'ALTERED TARGET',
+        createdBy: 'ALTERED DISPLAY',
+        inputBytes: 12,
+        inputSha256: 'ALTERED HASH',
+      },
+      bodies: { input: 'ALTERED BODY', schedule: null },
+    };
+    expect(probes[1]).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      state: expectedTask62PublicState(
+        ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-project'],
+        [altered, ...sentinels],
+      ),
+      boundary: altered,
+      observations: [{ holding: { plans: 1, bytes: 9 }, incomingBytes: 30 }],
+      failure: expect.objectContaining({
+        message: 'saved-plan split boundary does not match the canonical target',
+      }),
+    });
+    const wrongPhase = expectedTask62Plan(
+      'late-target',
+      'Late target',
+      522,
+      'late-input-🔧',
+      15,
+      '9dffefcc444c719ff14991008d275645a34f081c07aa54fd1fb39f51488b4df4',
+    );
+    expect(probes[2]).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      state: expectedTask62PublicState(
+        ['late-target', 'wrong-late-target', 'late-sentinel', 'saved-other-project'],
+        [wrongPhase, ...sentinels],
+      ),
+      boundary: null,
+      observations: [{ holding: { plans: 1, bytes: 9 }, incomingBytes: 15 }],
+    });
+  });
+
   it('rejects missing real SQLite input persistence before the late boundary', async () => {
     Object.assign(sqliteMissingInputProbe, {
       attempts: 0,
@@ -6284,6 +6492,61 @@ describe('SQLite existing source conformance', () => {
         ],
       ),
     });
+  });
+
+  it('closes and removes SQLite state after a snapshot read fails, preserving close failure', async () => {
+    for (const closeFails of [false, true]) {
+      const { source, directory } = await seedSqliteSource();
+      const readFailure = new Error('injected saved-plan snapshot read failure');
+      const closeFailure = new Error('injected SQLite close failure');
+      let closeCalls = 0;
+      const failing = withSavedPlans(
+        {
+          ...source,
+          async close() {
+            closeCalls += 1;
+            await source.close();
+            if (closeFails) throw closeFailure;
+          },
+        },
+        replaceMethod(
+          source.history.savedPlans,
+          'readOf',
+          (readOf) => (savedPlanId) =>
+            savedPlanId === 'late-target' ? Promise.reject(readFailure) : readOf(savedPlanId),
+        ),
+      );
+      let failure: unknown;
+      try {
+        await closeSqliteResources(
+          {
+            ...failing,
+            close: () =>
+              closeAfterSavedPlanSnapshot(
+                failing,
+                ['late-target', 'late-sentinel', 'saved-other-project'],
+                () => undefined,
+              ),
+          },
+          directory,
+        );
+      } catch (cause) {
+        failure = cause;
+      }
+
+      // Proof: awaiting the rejected reader first left the real connection alive and
+      // skipped directory cleanup; both owners must run even when each reports failure.
+      expect({ closeCalls, directoryExists: existsSync(directory) }).toEqual({
+        closeCalls: 1,
+        directoryExists: false,
+      });
+      expect(() => source.db.all(sql.raw('select 1 as alive'))).toThrow();
+      if (closeFails) {
+        expect(failure).toBeInstanceOf(AggregateError);
+        expect(failure).toHaveProperty('errors', [readFailure, closeFailure]);
+        expect(failure).toHaveProperty('cause', closeFailure);
+      } else expect(failure).toBe(readFailure);
+    }
   });
 
   it('rejects Task 6.2 SQLite proofs when each mutation is removed', async () => {
@@ -6393,35 +6656,59 @@ describe('SQLite existing source conformance', () => {
 
   it('rejects an in-place late target mutation against the detached SQLite request', async () => {
     let closeCalls = 0;
-    let finalReads: readonly (StoredSavedPlan | null)[] = [];
+    let targetAttempts = 0;
+    let callbackCalls = 0;
+    let mutationCalls = 0;
+    let operationFailure: unknown;
+    let boundary: StoredSavedPlan | undefined;
+    let finalState: SavedPlanPublicState | undefined;
+    const observations: { holding: SavedPlanHoldingRow; incomingBytes: number }[] = [];
     const report = await runCases(
       existingStoreRegistrations({
         ...openers,
         savedPlans: async (caseId) => {
-          const fixture = await openSqliteSavedPlanCase(caseId);
-          const port = replaceSavedPlanWrite(
-            fixture.port,
-            (write) => (plan, check) =>
-              write(plan, async (holding, incomingBytes) => {
+          const fixture = await openSqliteSavedPlanCase(caseId, (evidence) => {
+            boundary = evidence.savedPlan;
+          });
+          const port = replaceSavedPlanWrite(fixture.port, (write) => async (plan, check) => {
+            if (plan.id === 'late-target') targetAttempts += 1;
+            try {
+              return await write(plan, async (holding, incomingBytes) => {
+                if (plan.id === 'late-target') {
+                  callbackCalls += 1;
+                  observations.push({
+                    holding: { plans: holding.plans, bytes: holding.bytes },
+                    incomingBytes,
+                  });
+                }
                 const refusal = await check(holding, incomingBytes);
                 if (plan.id === 'late-target') {
+                  mutationCalls += 1;
                   Object.assign(plan, { name: 'CORRUPTED TARGET', createdBy: 'CORRUPTED DISPLAY' });
                   Object.assign(plan.input, { bytes: 'WRONG INPUT', sha256: 'WRONG HASH' });
                 }
                 return refusal;
-              }),
-          );
+              });
+            } catch (failure) {
+              if (plan.id === 'late-target') operationFailure = failure;
+              throw failure;
+            }
+          });
           return {
             ...fixture,
             port,
             async close() {
-              finalReads = await Promise.all(
-                ['late-target', 'late-sentinel', 'saved-other-project'].map((id) =>
-                  fixture.readers.savedPlans.readOf(id),
-                ),
-              );
               closeCalls += 1;
-              await fixture.close();
+              await closeAfterSavedPlanSnapshot(
+                {
+                  history: { savedPlans: fixture.readers.savedPlans },
+                  close: () => fixture.close(),
+                },
+                ['late-target', 'late-sentinel', 'saved-other-project'],
+                (state) => {
+                  finalState = state;
+                },
+              );
             },
           };
         },
@@ -6435,11 +6722,54 @@ describe('SQLite existing source conformance', () => {
     // Proof: mutating the real request after its callback used to reach and certify the
     // corrupted rows; the detached boundary now refuses them and rolls the target back.
     expect(Bun.stripANSI(execution.failure)).toContain('+   "reached": false,');
-    expect(finalReads[0]).toBeNull();
-    expect(finalReads.slice(1).map((stored) => stored?.header.id)).toEqual([
-      'late-sentinel',
-      'saved-other-project',
-    ]);
+    expect(operationFailure).toHaveProperty(
+      'message',
+      'saved-plan schedule boundary lacks complete header and input',
+    );
+    expect({ targetAttempts, callbackCalls, mutationCalls, observations }).toEqual({
+      targetAttempts: 1,
+      callbackCalls: 1,
+      mutationCalls: 1,
+      observations: [{ holding: { plans: 1, bytes: 9 }, incomingBytes: 33 }],
+    });
+    const target = expectedTask62Plan(
+      'late-target',
+      'Late target',
+      522,
+      'late-input-🔧',
+      15,
+      '9dffefcc444c719ff14991008d275645a34f081c07aa54fd1fb39f51488b4df4',
+      {
+        body: 'late-schedule-📆',
+        bytes: 18,
+        sha256: '67f1fdbc1d60444b0f4a7e14af440a54c9be6cb9004c37a71db3a6c70745d160',
+      },
+    );
+    expect(boundary).toEqual({
+      header: {
+        ...target.header,
+        name: 'CORRUPTED TARGET',
+        createdBy: 'CORRUPTED DISPLAY',
+        inputSha256: 'WRONG HASH',
+      },
+      bodies: { input: 'WRONG INPUT', schedule: null },
+    });
+    expect(finalState).toEqual(
+      expectedTask62PublicState(
+        ['late-target', 'late-sentinel', 'saved-other-project'],
+        [
+          expectedTask62Plan(
+            'late-sentinel',
+            'Late sentinel',
+            521,
+            'held-🔒',
+            9,
+            'bf34514df96c59c2de5d80148fbe17a5b9242635ca3ecc7aa38e23842f478355',
+          ),
+          task62OtherPlan(),
+        ],
+      ),
+    );
     expect(closeCalls).toBe(1);
   });
 

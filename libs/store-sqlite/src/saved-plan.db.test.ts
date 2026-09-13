@@ -133,7 +133,10 @@ describe('SavedPlanRepository', () => {
       await source.close();
     }
 
-    expect(failure).toHaveProperty('message', 'injected SQLite fault at saved-plan-schedule-body');
+    expect(failure).toHaveProperty(
+      'message',
+      'saved-plan split target did not cross its transaction boundary',
+    );
     // Proof: applying split mode to every schedule-present plan left this non-armed
     // target's real header/input committed; target scoping keeps public state empty.
     expect(await plans.readOf('ordinary-target')).toBeNull();
@@ -146,21 +149,31 @@ describe('SavedPlanRepository', () => {
     control.arm();
     const blockerState = { isBlocking: false };
     let connections = 0;
+    let writerCloseCalls = 0;
+    let sourceCloseCalls = 0;
     const source = Reflect.apply(openSqliteSourceWithNonAtomicSavedPlanFault, undefined, [
       {
         dbPath: path,
         openConnection: (dbPath: string) => {
           const connection = openConnection(dbPath);
           connections += 1;
-          return connections === 2
+          const connectionNumber = connections;
+          return connectionNumber === 2
             ? {
                 ...connection,
                 close() {
+                  writerCloseCalls += 1;
                   connection.close();
                   throw new Error('split writer close failed');
                 },
               }
-            : connection;
+            : {
+                ...connection,
+                close() {
+                  if (connectionNumber === 1) sourceCloseCalls += 1;
+                  connection.close();
+                },
+              };
         },
       },
       control,
@@ -194,9 +207,121 @@ describe('SavedPlanRepository', () => {
     expect(failure).toHaveProperty('errors.0.cause.code', 'SQLITE_BUSY');
     expect(failure).toHaveProperty('errors.1.message', 'split writer close failed');
     if (!(failure instanceof AggregateError)) throw new Error('split failures were not combined');
+    expect(control.reached()).toBeFalse();
+    expect({ writerCloseCalls, sourceCloseCalls }).toEqual({
+      writerCloseCalls: 1,
+      sourceCloseCalls: 1,
+    });
     const partial = await plans.readOf('late-target');
-    expect(partial?.header).toMatchObject({ id: 'late-target', inputSha256: 'in-hash' });
-    expect(partial?.bodies).toEqual({ input: '{"input":true}', schedule: null });
+    if (partial === null) throw new Error('split partial was not committed');
+    expect(partial).toEqual({
+      header: {
+        id: 'late-target',
+        projectId: 'p1',
+        name: 'before the rewire',
+        createdBy: 'Ada Lovelace',
+        createdById: null,
+        createdAt: 1_756_000_000,
+        inputSchemaVersion: 1,
+        inputBytes: 14,
+        inputSha256: 'in-hash',
+        scheduleSchemaVersion: 1,
+        scheduleBytes: 17,
+        scheduleSha256: 'sc-hash',
+        scheduleInputSha256: 'in-hash',
+        schedulerAlgorithmId: 'alg-1',
+        scheduleAbsentReason: null,
+      },
+      bodies: { input: '{"input":true}', schedule: null },
+    });
+    expect(await plans.listOf('p1')).toEqual([partial.header]);
+    expect(await plans.principalsOf('late-target')).toEqual({
+      savedPlanId: 'late-target',
+      projectId: 'p1',
+      projectOwnerId: 'owner',
+      createdById: null,
+    });
+    expect(await plans.readOf('unrelated-plan')).toBeNull();
+  });
+
+  it('preserves a standalone failed split restart and closes both owned connections', async () => {
+    const blocker = openConnection(path);
+    const blockerTx = drizzleOuterTransaction(blocker.db);
+    const control = sqliteLateWriteControl('saved-plan-schedule-body');
+    control.arm();
+    let connections = 0;
+    let writerCloseCalls = 0;
+    let sourceCloseCalls = 0;
+    const blockerState = { isBlocking: false };
+    const source = openSqliteSourceWithNonAtomicSavedPlanFault(
+      {
+        dbPath: path,
+        openConnection: (dbPath) => {
+          const connection = openConnection(dbPath);
+          connections += 1;
+          const connectionNumber = connections;
+          return {
+            ...connection,
+            close() {
+              if (connectionNumber === 1) sourceCloseCalls += 1;
+              if (connectionNumber === 2) writerCloseCalls += 1;
+              connection.close();
+            },
+          };
+        },
+      },
+      control,
+      () => undefined,
+      () => {
+        blockerTx.begin();
+        blockerState.isBlocking = true;
+      },
+    );
+    let failure: unknown;
+    try {
+      await source.history.savedPlans.write(bothSides({ id: 'late-target' }), admit);
+    } catch (cause) {
+      failure = cause;
+    } finally {
+      try {
+        if (blockerState.isBlocking) blockerTx.rollback();
+      } finally {
+        blocker.close();
+        await source.close();
+      }
+    }
+
+    expect(failure).not.toBeInstanceOf(AggregateError);
+    expect(failure).toHaveProperty(
+      'message',
+      expect.stringContaining('Failed query: BEGIN IMMEDIATE'),
+    );
+    expect(failure).toHaveProperty('cause.code', 'SQLITE_BUSY');
+    expect(control.reached()).toBeFalse();
+    expect({ writerCloseCalls, sourceCloseCalls }).toEqual({
+      writerCloseCalls: 1,
+      sourceCloseCalls: 1,
+    });
+    expect(await plans.readOf('late-target')).toEqual({
+      header: {
+        id: 'late-target',
+        projectId: 'p1',
+        name: 'before the rewire',
+        createdBy: 'Ada Lovelace',
+        createdById: null,
+        createdAt: 1_756_000_000,
+        inputSchemaVersion: 1,
+        inputBytes: 14,
+        inputSha256: 'in-hash',
+        scheduleSchemaVersion: 1,
+        scheduleBytes: 17,
+        scheduleSha256: 'sc-hash',
+        scheduleInputSha256: 'in-hash',
+        schedulerAlgorithmId: 'alg-1',
+        scheduleAbsentReason: null,
+      },
+      bodies: { input: '{"input":true}', schedule: null },
+    });
   });
 
   /**

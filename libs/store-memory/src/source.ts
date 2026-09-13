@@ -417,6 +417,10 @@ export function openMemorySourceWithLateWriteSeam(
 
   return {
     writeSavedPlanSplit: (plan, check, includeInput, observeBoundary) => {
+      // Proof: changing the canonical request ID before this adapter boundary used to
+      // exercise the split writer for an unrelated record and certify its failure.
+      if (plan.id !== 'late-target')
+        return Promise.reject(new Error('saved-plan split target must be late-target'));
       const expectedPlan = structuredClone(plan);
       return historyCoordinator.run(async () => {
         const rows = [...historyState.plans.values()].filter(
@@ -442,6 +446,10 @@ export function openMemorySourceWithLateWriteSeam(
         });
         const partial = historyState.plans.get(plan.id);
         if (partial !== undefined) observeBoundary?.(structuredClone(partial));
+        if (partial !== undefined)
+          lateWrite.observeBoundary?.('saved-plan-schedule-body', {
+            savedPlan: structuredClone(partial),
+          });
         assertSavedPlanScheduleBoundary(expectedPlan, partial);
         if (partial.bodies.schedule !== null)
           throw new Error('split saved-plan fault persisted schedule too early');
@@ -631,6 +639,9 @@ function memorySavedPlans(
         staged.set(plan.id, pending);
         if (plan.schedule.present) {
           if (lateWrite.isActive?.('saved-plan-schedule-body') === true) {
+            lateWrite.observeBoundary?.('saved-plan-schedule-body', {
+              savedPlan: structuredClone(pending),
+            });
             assertSavedPlanScheduleBoundary(expectedPlan, pending);
             lateWrite.reach('saved-plan-schedule-body', {
               savedPlan: structuredClone(pending),

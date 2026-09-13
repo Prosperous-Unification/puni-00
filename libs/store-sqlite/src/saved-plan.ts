@@ -328,6 +328,7 @@ export class SavedPlanRepository implements SavedPlanStore {
               writeFault.beforeRestart?.();
               tx.begin();
               isTransactionActive = true;
+              writeFault.afterRestart?.();
             }
             if (this.lateWrite.isActive?.('saved-plan-schedule-body') === true) {
               const persistedHeaders = await db
@@ -346,6 +347,9 @@ export class SavedPlanRepository implements SavedPlanStore {
                 header: savedPlanHeader(expectedPlan, inputBytes, scheduleBytes),
                 bodies: { input: expectedPlan.input.bytes, schedule: null },
               };
+              this.lateWrite.observeBoundary?.('saved-plan-schedule-body', {
+                savedPlan: structuredClone(boundary),
+              });
               if (writeFault?.targetId === plan.id)
                 writeFault.observeBoundary?.(structuredClone(boundary));
               if (

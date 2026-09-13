@@ -11,6 +11,7 @@ export interface MemoryLateWriteEvidence {
 
 export interface MemoryLateWriteSeam {
   isActive?(phase: MemoryLateWritePoint): boolean;
+  observeBoundary?(phase: MemoryLateWritePoint, evidence: MemoryLateWriteEvidence): void;
   reach(phase: MemoryLateWritePoint, evidence?: MemoryLateWriteEvidence): void;
 }
 
