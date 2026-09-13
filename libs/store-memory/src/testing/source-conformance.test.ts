@@ -17,6 +17,7 @@ import {
   existingStoreRegistrations,
   expectedCasesFor,
   type Fault,
+  type FaultCase,
   type FaultProof,
   type FaultRun,
   type HistoryBatchFixture,
@@ -32,6 +33,7 @@ import {
   sourceConformanceRegistrations,
   type SourceDeclaration,
   type SourceReaders,
+  sourceRevision,
   subtreeSeedRecords,
 } from '@wbs/conformance';
 import type {
@@ -843,7 +845,7 @@ const knownGaps = [
 
 const declaration: SourceDeclaration = {
   name: 'memory',
-  revision: '3161e5fc',
+  revision: sourceRevision(),
   historyAdmission: 'independent-write',
   capabilities: {
     projects: { kind: 'offered', gaps: [], open: openers.projects },
@@ -2784,14 +2786,22 @@ const subtreeRollbackFault = defineFault({
   },
 });
 
-function savedPlanWriteFault(
+type SavedPlanWriteFaultId =
+  | 'break:savedPlans.write:bytes-and-bodies:utf8-length'
+  | 'break:savedPlans.write:bytes-and-bodies:header-only'
+  | 'break:savedPlans.write:bytes-and-bodies:altered-body'
+  | 'break:savedPlans.write:bytes-and-bodies:altered-hash';
+
+function savedPlanWriteFault<const Id extends SavedPlanWriteFaultId>(
+  id: Id,
   phase: string,
   corrupt: (source: MemorySource) => void,
   verify: (source: MemorySource) => Promise<void>,
 ) {
-  return defineFault({
-    id: 'break:savedPlans.write:bytes-and-bodies',
-    caseId: 'savedPlans.write:bytes-and-bodies',
+  return defineFault<MemorySource, Id, string, ReturnType<typeof createFaultControl<string>>>({
+    id,
+    // The closed local ID union maps every member to this one manifest case.
+    caseId: 'savedPlans.write:bytes-and-bodies' as FaultCase<Id>,
     createControl: () => createFaultControl(phase),
     mutate(source: MemorySource, control) {
       return withSavedPlans(
@@ -2974,6 +2984,7 @@ async function assertCompleteTask61UnknownState(source: MemorySource) {
 }
 
 const savedPlanUtf8LengthFault = savedPlanWriteFault(
+  'break:savedPlans.write:bytes-and-bodies:utf8-length',
   'saved-plan:utf8-length',
   (source) => {
     source.setSavedPlanByteCounts('saved-present', 4, 1);
@@ -2990,6 +3001,7 @@ const savedPlanUtf8LengthFault = savedPlanWriteFault(
 );
 
 const savedPlanHeaderOnlyFault = savedPlanWriteFault(
+  'break:savedPlans.write:bytes-and-bodies:header-only',
   'saved-plan:header-only',
   (source) => {
     source.removeSavedPlanBodies('saved-present');
@@ -3006,6 +3018,7 @@ const savedPlanHeaderOnlyFault = savedPlanWriteFault(
 );
 
 const savedPlanAlteredBodyFault = savedPlanWriteFault(
+  'break:savedPlans.write:bytes-and-bodies:altered-body',
   'saved-plan:body-bytes',
   (source) => {
     source.replaceSavedPlanInputBody('saved-present', 'A🔦C');
@@ -3022,6 +3035,7 @@ const savedPlanAlteredBodyFault = savedPlanWriteFault(
 );
 
 const savedPlanAlteredHashFault = savedPlanWriteFault(
+  'break:savedPlans.write:bytes-and-bodies:altered-hash',
   'saved-plan:body-hash',
   (source) => {
     source.replaceSavedPlanScheduleHash('saved-present', 'schedule-hash-altered');
@@ -4632,6 +4646,10 @@ function openProgressSeedFailureSource(
 }
 
 const namedFaultVariants = [
+  savedPlanUtf8LengthFault,
+  savedPlanHeaderOnlyFault,
+  savedPlanAlteredBodyFault,
+  savedPlanAlteredHashFault,
   savedPlanPrincipalFault,
   savedPlanUnknownRenameFault,
   savedPlanUnknownDeleteFault,
@@ -5478,6 +5496,9 @@ describe('memory existing source conformance', () => {
     const expectedKeys = expected.map(({ family, caseId }) => `${family}:${caseId}`).toSorted();
 
     expect(report.kind).toBe('full');
+    // Proof: the retired eight-character source literal failed this full Git
+    // revision assertion before the certificate could print stale metadata.
+    expect(declaration.revision).toMatch(/^[0-9a-f]{40}(?:-dirty)?$/);
     printCertification({ declaration, registrations, report });
     expect(registrations.map(({ family, caseId }) => `${family}:${caseId}`).toSorted()).toEqual(
       expectedKeys,

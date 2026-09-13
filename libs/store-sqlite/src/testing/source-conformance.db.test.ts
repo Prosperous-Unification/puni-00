@@ -19,6 +19,7 @@ import {
   existingStoreRegistrations,
   expectedCasesFor,
   type Fault,
+  type FaultCase,
   type FaultProof,
   type FaultRun,
   type HistoryBatchFixture,
@@ -34,6 +35,7 @@ import {
   sourceConformanceRegistrations,
   type SourceDeclaration,
   type SourceReaders,
+  sourceRevision,
   subtreeSeedRecords,
 } from '@wbs/conformance';
 import type {
@@ -673,7 +675,7 @@ const sourceOpeners = { ...openers, historyBatch: openSqliteHistoryBatchCase };
 
 const declaration: SourceDeclaration = {
   name: 'sqlite',
-  revision: 'c61b370d',
+  revision: sourceRevision(),
   historyAdmission: 'immediate-busy',
   capabilities: {
     projects: { kind: 'offered', gaps: [], open: openers.projects },
@@ -2962,14 +2964,23 @@ const subtreeRollbackFault = defineFault({
   },
 });
 
-function sqliteSavedPlanWriteFault(
+type SqliteSavedPlanWriteFaultId =
+  | 'break:savedPlans.write:bytes-and-bodies:utf8-length'
+  | 'break:savedPlans.write:bytes-and-bodies:header-only'
+  | 'break:savedPlans.write:bytes-and-bodies:altered-body'
+  | 'break:savedPlans.write:bytes-and-bodies:altered-hash'
+  | 'break:savedPlans.write:bytes-and-bodies:affected-row';
+
+function sqliteSavedPlanWriteFault<const Id extends SqliteSavedPlanWriteFaultId>(
+  id: Id,
   phase: string,
   corrupt: (source: SqliteSource) => void | Promise<void>,
   verify: (source: SqliteSource) => Promise<void>,
 ) {
-  return defineFault({
-    id: 'break:savedPlans.write:bytes-and-bodies',
-    caseId: 'savedPlans.write:bytes-and-bodies',
+  return defineFault<SqliteSource, Id, string, ReturnType<typeof createFaultControl<string>>>({
+    id,
+    // The closed local ID union maps every member to this one manifest case.
+    caseId: 'savedPlans.write:bytes-and-bodies' as FaultCase<Id>,
     createControl: () => createFaultControl(phase),
     mutate(source: SqliteSource, control) {
       return withSavedPlans(
@@ -3167,6 +3178,7 @@ async function assertCompleteTask61UnknownState(source: SqliteSource) {
 }
 
 const savedPlanUtf8LengthFault = sqliteSavedPlanWriteFault(
+  'break:savedPlans.write:bytes-and-bodies:utf8-length',
   'saved-plan:utf8-length',
   async (source) => {
     await runTask61Mutation(
@@ -3187,6 +3199,7 @@ const savedPlanUtf8LengthFault = sqliteSavedPlanWriteFault(
 );
 
 const savedPlanHeaderOnlyFault = sqliteSavedPlanWriteFault(
+  'break:savedPlans.write:bytes-and-bodies:header-only',
   'saved-plan:header-only',
   async (source) => {
     await runTask61Mutation(
@@ -3215,6 +3228,7 @@ interface SavedPlanAffectedRowProbe {
 
 function savedPlanAffectedRowFault(probe: SavedPlanAffectedRowProbe) {
   return sqliteSavedPlanWriteFault(
+    'break:savedPlans.write:bytes-and-bodies:affected-row',
     'saved-plan:affected-row',
     async (source) => {
       probe.attempts += 1;
@@ -3250,6 +3264,7 @@ function countSavedPlanClose(source: SqliteSource, probe: SavedPlanAffectedRowPr
 }
 
 const savedPlanAlteredBodyFault = sqliteSavedPlanWriteFault(
+  'break:savedPlans.write:bytes-and-bodies:altered-body',
   'saved-plan:body-bytes',
   async (source) => {
     await runTask61Mutation(
@@ -3270,6 +3285,7 @@ const savedPlanAlteredBodyFault = sqliteSavedPlanWriteFault(
 );
 
 const savedPlanAlteredHashFault = sqliteSavedPlanWriteFault(
+  'break:savedPlans.write:bytes-and-bodies:altered-hash',
   'saved-plan:body-hash',
   async (source) => {
     await runTask61Mutation(
@@ -4889,6 +4905,11 @@ function partiallyFilterTask52LeakedRead(
 }
 
 const namedFaultVariants = [
+  savedPlanUtf8LengthFault,
+  savedPlanHeaderOnlyFault,
+  savedPlanAlteredBodyFault,
+  savedPlanAlteredHashFault,
+  savedPlanAffectedRowFault({ attempts: 0, closeCalls: 0, changes: null, state: null }),
   savedPlanPrincipalFault,
   savedPlanUnknownRenameFault,
   savedPlanUnknownDeleteFault,
@@ -6013,6 +6034,9 @@ describe('SQLite existing source conformance', () => {
     const expectedKeys = expected.map(({ family, caseId }) => `${family}:${caseId}`).toSorted();
 
     expect(report.kind).toBe('full');
+    // Proof: the retired eight-character source literal failed this full Git
+    // revision assertion before the certificate could print stale metadata.
+    expect(declaration.revision).toMatch(/^[0-9a-f]{40}(?:-dirty)?$/);
     printCertification({ declaration, registrations, report });
     expect(registrations.map(({ family, caseId }) => `${family}:${caseId}`).toSorted()).toEqual(
       expectedKeys,

@@ -8,4 +8,5 @@ export * from './stores/saved-plan-capture';
 export * from './stores/subtrees';
 export * from './testing/broken-source';
 export * from './testing/faults';
+export * from './testing/source-revision';
 export * from './unit-of-work-conformance';

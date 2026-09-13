@@ -17,6 +17,26 @@ export const FAULT_VARIANTS = {
     caseId: 'savedPlans.touch:principals-scope',
     sources: ['memory', 'sqlite'],
   },
+  'break:savedPlans.write:bytes-and-bodies:utf8-length': {
+    caseId: 'savedPlans.write:bytes-and-bodies',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:bytes-and-bodies:header-only': {
+    caseId: 'savedPlans.write:bytes-and-bodies',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:bytes-and-bodies:altered-body': {
+    caseId: 'savedPlans.write:bytes-and-bodies',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:bytes-and-bodies:altered-hash': {
+    caseId: 'savedPlans.write:bytes-and-bodies',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:bytes-and-bodies:affected-row': {
+    caseId: 'savedPlans.write:bytes-and-bodies',
+    sources: ['sqlite'],
+  },
   'break:priorityBands.replace:whole-project:priority-first-rung': {
     caseId: 'priorityBands.replace:whole-project',
     sources: ['memory', 'sqlite'],
@@ -189,7 +209,7 @@ type VariantCaseId = (typeof FAULT_VARIANTS)[VariantFaultId]['caseId'];
 type CanonicalFaultId = `break:${Exclude<CaseId, VariantCaseId>}`;
 export type FaultId = CanonicalFaultId | VariantFaultId;
 
-type CaseOf<Id extends FaultId> = Id extends VariantFaultId
+export type FaultCase<Id extends FaultId> = Id extends VariantFaultId
   ? (typeof FAULT_VARIANTS)[Id]['caseId']
   : Id extends `break:${infer FaultCase extends CaseId}`
     ? FaultCase
@@ -211,7 +231,7 @@ interface RegisteredFault<
   Control extends FaultControl<Phase> = FaultControl<Phase>,
 > {
   readonly id: Id;
-  readonly caseId: CaseOf<Id>;
+  readonly caseId: FaultCase<Id>;
   createControl(): Control;
   mutate(subject: Subject, control: Control): Subject;
 }
@@ -223,7 +243,7 @@ export interface FaultRun<
   Control extends FaultControl<Phase> = FaultControl<Phase>,
 > {
   readonly id: Id;
-  readonly caseId: CaseOf<Id>;
+  readonly caseId: FaultCase<Id>;
   readonly control: Control;
   mutate(subject: Subject, control: Control): Subject;
 }

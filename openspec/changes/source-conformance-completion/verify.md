@@ -2164,7 +2164,7 @@ Suppressing the report writer leaves certification otherwise green but makes the
 permanent output-path test receive no line.
 
 The closed fault type now derives case ownership from an explicit literal variant
-registry. Forty-four cross-source variants and three SQLite lifecycle variants
+registry. Forty-eight cross-source variants and four SQLite-only variants
 have distinct IDs and source applicability. Each adapter enumerates its real fault
 objects and checks the exact applicable registry set. Removing the first memory
 fault or duplicating the first SQLite fault throws the named coverage mismatch
@@ -2186,3 +2186,21 @@ Fresh repair evidence:
 
 Task 7.3 remains unchecked until the repaired immutable commit receives the
 requested independent rereview.
+
+The first rereview found two final enumeration/reporting omissions. The four
+saved-plan byte/body mutations now have separate UTF-8-length, header-only,
+altered-body, and altered-hash IDs on both sources and are present in both exact
+inventories. SQLite's separate affected-row proof also has its own registered ID.
+The inventory tests therefore cover 48 cross-source variants and four
+SQLite-only variants.
+
+Source certificates now resolve the full Git revision of the checkout at runtime
+and append `-dirty` when uncommitted changes are present. The permanent terminal
+tests require that full revision form. Restoring the retired eight-character
+memory and SQLite literals failed both terminal tests before their certificates
+could print (`0/2`, with the exact stale values in the diagnostics); the restored
+dirty-checkout run printed `2c088636a1275ce10f3f9802ac9ab2b2e31cafd6-dirty`
+for both sources and passed both terminal cases plus both inventories (`4/0`).
+The final exact filtered target runs passed memory `72/0/4,813` and SQLite
+`72/0/6,180`; shared conformance passed `33/0/58`. All eight uncached lint and
+typecheck targets for conformance, memory, SQLite, and tool-devsync passed.
