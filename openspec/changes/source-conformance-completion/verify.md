@@ -1698,3 +1698,46 @@ h2puni committed-SHA gate remain skipped because Task 5.2 is an uncommitted
 three-project conformance slice. No production adapter behavior changed. Task
 5.2 remains unchecked pending Astra review; no commit, push, merge, archive, or
 deploy was performed.
+
+#### Task 5.2 Astra setup and effect-window repair
+
+The list/filter case now verifies complete project-A and project-B events and
+both complete journals before its first filtered read. The canonical ignored
+item-filter controls independently verify that same complete public setup
+before reaching their named phase. Permanent memory and SQLite negatives
+suppress all three project-B appends or perform every append and then discard
+all journal rows. Both variants remain `phase-failed`, close once, and expose
+their complete invalid public state. Removing the shared prerequisite alone
+left these negatives `phase-failed`; removing the fault-side prerequisite too
+changed both outcomes to `observed` in each adapter (`Expected - 2 / Received +
+2`).
+
+Permanent effect-window negatives now no-op the real restamp flip or return a
+real, partially filtered list. Each attempts its target once, closes once,
+retains a complete public snapshot, and remains `phase-failed`. Removing the
+canonical complete restamp and filtered-result guards changed both outcomes to
+`observed` in each adapter (`Expected - 2 / Received + 2`). The shared case also
+queries `{ workItemId, kinds: [] }`. Temporarily dropping the item predicate
+only for that empty-kinds combination failed in both adapters with the complete
+plan-wide `history-a-101-wide` and other-item `history-a-100-a` records added to
+the result (`Expected - 0 / Received + 36`). Both production mutations were
+restored.
+
+Fresh restored evidence:
+
+- Focused Task 5.2 shared, canonical fault, setup-window, and effect-window
+  runs passed at memory `4/0/109` and SQLite `4/0/145`.
+- The full memory adapter suite passed `67/0/2,893`; the full uncached SQLite
+  target passed `691/0/5,694` across 60 files. SQLite journal, plan-event, and
+  UoW regressions passed `18/0/48`. Core history, retention,
+  compensating-command, and history-route callers passed `19/0/41`.
+- All six uncached conformance, memory, and SQLite lint/typecheck targets
+  passed. `nx format:check --all` and `git diff --check` passed.
+- Pinned OpenSpec 1.3.0 strict validation passed, and all-artifact validation
+  passed `75/0`.
+
+Nx used its in-process plugin fallback because sandbox socket creation was
+denied. Full workspace/build/browser/deploy checks, a repeated portable-browser
+composition, and the h2puni committed-SHA gate remain skipped for this
+uncommitted review repair. Task 5.2 remains unchecked; Task 6 is untouched. No
+commit, push, merge, archive, or deploy was performed.

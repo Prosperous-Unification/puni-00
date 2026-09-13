@@ -1849,6 +1849,8 @@ const journalRestampFlipsFault = defineFault({
           // Proof: delegating to restamp preserved `undone: true` and changed the
           // four-fault reversal to four `assertion-passed` outcomes.
           await flip(id, false, structuredClone(preconditions));
+          // Proof: removing this complete-effect guard changed the no-op
+          // restamp negative from `phase-failed` to `observed`.
           expect(await readTask52FlipState(source)).toEqual({
             entries: [
               [
@@ -1980,9 +1982,19 @@ const planEventsIgnoreItemFilterFault = defineFault({
           ) {
             return listFor(projectId, filter);
           }
+          // Proof: with the shared prerequisite removed, the two incomplete
+          // setup negatives still phase-failed here; removing this guard too
+          // changed both outcomes to `observed`.
+          expect(await readTask52HistoryState(source)).toEqual({
+            projectAEvents: task52PlanEvents()[0],
+            projectBEvents: task52PlanEvents()[1],
+            journals: task52HistoryJournals(),
+          });
           // Proof: forwarding the item filter removed the leaked item-two event
           // and changed the four-fault reversal to `assertion-passed` throughout.
           const leaked = await listFor(projectId, {});
+          // Proof: removing this complete-result guard changed the partial real
+          // listFor negative from `phase-failed` to `observed`.
           expect(leaked).toEqual(task52PlanEvents()[0]);
           control.reach('planEvents.listFor:filters-order:ignore-item');
           return leaked;
@@ -2792,6 +2804,138 @@ function omitTask52Prune(source: SqliteSource, probe: Task52PruneWindowProbe): S
   );
 }
 
+interface Task52HistorySetupProbe {
+  attempts: number;
+  closeCalls: number;
+  state: Awaited<ReturnType<typeof readTask52HistoryState>> | null;
+}
+
+function suppressTask52ProjectBAppends(
+  source: SqliteSource,
+  probe: Task52HistorySetupProbe,
+): SqliteSource {
+  return withStores(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    },
+    {
+      journal: replaceMethod(source.stores.journal, 'append', (append) => {
+        return async (entry, event) => {
+          if (entry.projectId !== 'project-b') return append(entry, event);
+          probe.attempts += 1;
+          if (entry.id === 'journal-b-101-wide') {
+            probe.state = await readTask52HistoryState(source);
+          }
+        };
+      }),
+    },
+  );
+}
+
+function discardTask52JournalsAfterAppend(
+  source: SqliteSource,
+  probe: Task52HistorySetupProbe,
+): SqliteSource {
+  return withStores(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    },
+    {
+      journal: replaceMethod(source.stores.journal, 'append', (append) => {
+        return async (entry, event) => {
+          await append(entry, event);
+          if (entry.id !== 'journal-b-101-wide') return;
+          probe.attempts += 1;
+          for (const journalId of [
+            'journal-a-99',
+            'journal-a-100-z',
+            'journal-a-100-a',
+            'journal-a-100-m',
+            'journal-a-101-wide',
+            'journal-b-99',
+            'journal-b-100',
+            'journal-b-101-wide',
+          ]) {
+            await source.stores.journal.discard(journalId);
+          }
+          probe.state = await readTask52HistoryState(source);
+        };
+      }),
+    },
+  );
+}
+
+function omitTask52RestampEffect(source: SqliteSource, probe: Task52FlipWindowProbe): SqliteSource {
+  return withStores(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    },
+    {
+      journal: replaceMethod(source.stores.journal, 'flip', (flip) => {
+        return async (id, undone, preconditions) => {
+          if (id !== 'flip-target' || undone) return flip(id, undone, preconditions);
+          probe.attempts += 1;
+          probe.state = await readTask52FlipState(source);
+        };
+      }),
+    },
+  );
+}
+
+interface Task52ListWindowProbe {
+  attempts: number;
+  closeCalls: number;
+  returned: PlanEvent[] | null;
+  state: Awaited<ReturnType<typeof readTask52HistoryState>> | null;
+}
+
+function partiallyFilterTask52LeakedRead(
+  source: SqliteSource,
+  probe: Task52ListWindowProbe,
+): SqliteSource {
+  let projectAFullReads = 0;
+  return withStores(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    },
+    {
+      planEvents: replaceMethod(source.stores.planEvents, 'listFor', (listFor) => {
+        return async (projectId, filter) => {
+          if (
+            projectId !== 'project-a' ||
+            filter.workItemId !== undefined ||
+            filter.kinds !== undefined
+          ) {
+            return listFor(projectId, filter);
+          }
+          projectAFullReads += 1;
+          if (projectAFullReads !== 3) return listFor(projectId, filter);
+          probe.attempts += 1;
+          probe.returned = await listFor(projectId, { kinds: ['estimate', 'freeze'] });
+          probe.state = await readTask52HistoryState(source);
+          return probe.returned;
+        };
+      }),
+    },
+  );
+}
+
 describe('SQLite existing source conformance', () => {
   it('runs every Task 5.2 journal and plan-event case through the real SQLite source', async () => {
     const caseIds = [
@@ -2876,6 +3020,100 @@ describe('SQLite existing source conformance', () => {
     expect(pruneProbe).toEqual({
       attempts: 1,
       closeCalls: 1,
+      state: {
+        projectAEvents: task52PlanEvents()[0],
+        projectBEvents: task52PlanEvents()[1],
+        journals: task52HistoryJournals(),
+      },
+    });
+  });
+
+  it('refuses incomplete Task 5.2 SQLite history setup before the item-filter fault reaches', async () => {
+    const missingProjectProbe: Task52HistorySetupProbe = {
+      attempts: 0,
+      closeCalls: 0,
+      state: null,
+    };
+    const missingJournalProbe: Task52HistorySetupProbe = {
+      attempts: 0,
+      closeCalls: 0,
+      state: null,
+    };
+    const [missingProjectProof, missingJournalProof] = await Promise.all([
+      proveFault(planEventsIgnoreItemFilterFault, openSqliteSource, (source) =>
+        suppressTask52ProjectBAppends(source, missingProjectProbe),
+      ),
+      proveFault(planEventsIgnoreItemFilterFault, openSqliteSource, (source) =>
+        discardTask52JournalsAfterAppend(source, missingJournalProbe),
+      ),
+    ]);
+    // Proof: removing both complete setup guards changed these exact outcomes
+    // from two `phase-failed` values to two `observed` values.
+    expect([missingProjectProof.kind, missingJournalProof.kind]).toEqual([
+      'phase-failed',
+      'phase-failed',
+    ]);
+    expect(missingProjectProbe).toEqual({
+      attempts: 3,
+      closeCalls: 1,
+      state: {
+        projectAEvents: task52PlanEvents()[0],
+        projectBEvents: [],
+        journals: [task52HistoryJournals()[0], []],
+      },
+    });
+    expect(missingJournalProbe).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      state: {
+        projectAEvents: task52PlanEvents()[0],
+        projectBEvents: task52PlanEvents()[1],
+        journals: [[], []],
+      },
+    });
+  });
+
+  it('refuses partial Task 5.2 SQLite restamp and filtered-read effects before fault reach', async () => {
+    const restampProbe: Task52FlipWindowProbe = { attempts: 0, closeCalls: 0, state: null };
+    const listProbe: Task52ListWindowProbe = {
+      attempts: 0,
+      closeCalls: 0,
+      returned: null,
+      state: null,
+    };
+    const [restampProof, listProof] = await Promise.all([
+      proveFault(journalRestampFlipsFault, openSqliteSource, (source) =>
+        omitTask52RestampEffect(source, restampProbe),
+      ),
+      proveFault(planEventsIgnoreItemFilterFault, openSqliteSource, (source) =>
+        partiallyFilterTask52LeakedRead(source, listProbe),
+      ),
+    ]);
+    // Proof: removing the restamp and list complete-effect guards changed both
+    // outcomes from `phase-failed` to `observed`.
+    expect([restampProof.kind, listProof.kind]).toEqual(['phase-failed', 'phase-failed']);
+    expect(restampProbe).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      state: {
+        entries: [
+          [
+            task52JournalEntry('flip-target', true, 21, 11),
+            task52JournalEntry('flip-peer', false, 12, 11),
+          ],
+          [task52JournalEntry('flip-other-project', false)],
+        ],
+        states: [
+          { undoable: true, redoable: true },
+          { undoable: true, redoable: false },
+        ],
+        history: task52FlipHistory(),
+      },
+    });
+    expect(listProbe).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      returned: [task52PlanEvents()[0][0], task52PlanEvents()[0][4]],
       state: {
         projectAEvents: task52PlanEvents()[0],
         projectBEvents: task52PlanEvents()[1],

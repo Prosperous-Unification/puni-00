@@ -316,10 +316,29 @@ export function planEventRegistrations(open: OpenCase<'planEvents'>): readonly C
       const { port, seed } = fixture;
       await appendRecords(fixture);
       const [a101, a100z, a100m, a100a, a99, b101, b100, b99] = expectedEvents(seed);
+      const journals = expectedJournals(seed);
 
-      expect(await port.listFor(seed.projectIds[0], {})).toEqual([a101, a100z, a100m, a100a, a99]);
+      // Proof: suppressing all project-B appends or discarding every journal
+      // row makes the adapter setup negatives phase-fail before filtered reads.
+      expect({
+        projectAEvents: await port.listFor(seed.projectIds[0], {}),
+        projectBEvents: await port.listFor(seed.projectIds[1], {}),
+        journals: await readJournals(fixture),
+      }).toEqual({
+        projectAEvents: [a101, a100z, a100m, a100a, a99],
+        projectBEvents: [b101, b100, b99],
+        journals,
+      });
       expect(
         await port.listFor(seed.projectIds[0], { workItemId: seed.workItemIds[0][0] }),
+      ).toEqual([a100z, a100m, a99]);
+      // Proof: dropping the item predicate only for an empty kinds filter
+      // leaked the complete a101 and a100a records in memory and SQLite.
+      expect(
+        await port.listFor(seed.projectIds[0], {
+          workItemId: seed.workItemIds[0][0],
+          kinds: [],
+        }),
       ).toEqual([a100z, a100m, a99]);
       expect(await port.listFor(seed.projectIds[0], { kinds: ['estimate', 'freeze'] })).toEqual([
         a101,
