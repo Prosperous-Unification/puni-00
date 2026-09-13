@@ -216,6 +216,61 @@ describe('controlled experiment runner', () => {
     expect(overlapFailure.message).toContain('8 simultaneous active sessions');
   });
 
+  test('cancels and settles siblings before rejecting invalid session evidence', async () => {
+    const checkpoints: TrialCheckpoint[] = [];
+    const canceled: string[] = [];
+    let completeSibling: (evidence: ExecutionSessionEvidence) => void = (_evidence) => {
+      throw new Error('sibling completion was not initialized');
+    };
+    let siblingPacket: ExecutionPacket | undefined;
+    const invalidEvidenceAdapter: ExecutionAdapter = {
+      start(packet) {
+        const evidence = evidenceFor(packet);
+        if (packet.assignmentOrdinal === 0) {
+          evidence.processId = 'process.substituted';
+          evidence.session.processId = 'process.substituted';
+          return {
+            processId: 'process.0',
+            sessionId: 'session.0',
+            completion: Promise.resolve(evidence),
+            cancel(reason) {
+              canceled.push(reason);
+            },
+          };
+        }
+        siblingPacket = structuredClone(packet);
+        return {
+          processId: 'process.1',
+          sessionId: 'session.1',
+          completion: new Promise<ExecutionSessionEvidence>((resolve) => {
+            completeSibling = resolve;
+          }),
+          cancel(reason) {
+            canceled.push(reason);
+          },
+        };
+      },
+    };
+
+    const evidenceFailure = await rejectionFrom(
+      runTrial(request(), invalidEvidenceAdapter, {
+        save(checkpoint) {
+          checkpoints.push(structuredClone(checkpoint));
+        },
+      }),
+    );
+    const checkpointCountAtFailure = checkpoints.length;
+    if (siblingPacket === undefined) throw new Error('sibling packet was not launched');
+    completeSibling(evidenceFor(siblingPacket));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(evidenceFailure.message).toContain('evidence differs from its launch');
+    expect(checkpoints).toHaveLength(checkpointCountAtFailure);
+    expect(canceled).toEqual(['canceled']);
+    expect(checkpoints.at(-1)?.state).toBe('pending');
+  });
+
   test('refuses silent model substitution and post-observation condition changes', async () => {
     const switched = adapterFor((packet) => evidenceFor(packet, 'gpt-substitute'));
     const switchFailure = await rejectionFrom(

@@ -3339,7 +3339,7 @@ review did not treat that prior evidence as its own.
 Commit `9c120de0` adds the strict structured execution packet, session evidence, run request, and
 durable checkpoint boundaries. The runner deterministically randomizes the frozen outcome set by
 seed and repeat, labels each packet with the pinned cache/resource envelope, launches one distinct
-process/session per assignment, and requires the requested simultaneous interval overlap before
+execution session per assignment, and requires the requested simultaneous interval overlap before
 accounting. It retains completed evidence when another session times out or is canceled, returns an
 explicit pending checkpoint when the adapter or capacity is unavailable, and never emits verified
 zero accounting for incomplete work. The Task 7.1 accounting boundary then validates all retry,
@@ -3370,3 +3370,20 @@ a validation substitute: the sandbox attempt failed with `EROFS`, and the escala
 No live model invocation, one/two/four/eight-session cohort, trusted usage capture, real capacity
 provisioning, scaling result, policy adoption, host gate, browser suite, or CI run was performed.
 Task 7.3 therefore remains open pending inspection and provisioning of its operational inputs.
+
+#### Task 7.2 lifecycle review correction
+
+Astra's initial concern about repeated process IDs was withdrawn after confirming that the contract
+counts distinct execution sessions and permits a process to multiplex them. No process-identity
+restriction was added. The remaining review finding reproduced a terminal lifecycle defect: invalid
+evidence from the first session rejected the trial before its sibling was canceled or settled, so
+that sibling could later append another `running` checkpoint.
+
+The production-path negative first failed with `Expected ["canceled"], Received []`; after moving
+the late-write assertion ahead of cancellation, the same unfixed runner failed with `Expected
+length: 1, Received length: 2`. The runner now gives each launch an owned abort controller, cancels
+all owned siblings on evidence failure, waits for every launch wrapper to settle, emits one terminal
+`pending` checkpoint, and then rethrows the evidence error. Restored focused runner, accounting, and
+export tests passed 21 tests with 88 assertions. Fresh uncached Tool Wiki source lint and forced
+typecheck, repository-wide format check, strict change validation, and `git diff --check` passed.
+Tasks 7.3–7.5 remain unchanged.

@@ -362,32 +362,75 @@ export async function runTrial(
   );
 
   const failures: string[] = [];
-  await Promise.all(
-    launches.map(async ({ packet, launch }) => {
-      let rawEvidence: unknown;
-      let completedNormally = false;
-      try {
-        rawEvidence = await awaitLaunch(launch, packet.timeoutMs, signal);
-        completedNormally = true;
-      } catch (cause) {
-        failures.push(cause instanceof Error ? cause.message : String(cause));
-      }
-      if (completedNormally) sessions.push(assertEvidence(packet, launch, rawEvidence));
-      const completedIds = new Set(sessions.map(({ session }) => session.sessionId));
-      store.save(
-        checkpoint(
-          request,
-          failures.length === 0 ? 'running' : 'pending',
-          launchedSessions,
-          sessions,
-          launchedSessions
-            .map(({ sessionId }) => sessionId)
-            .filter((sessionId) => !completedIds.has(sessionId)),
-          failures.length === 0 ? undefined : failures.sort(compareCanonicalText).join('; '),
-        ),
-      );
-    }),
-  );
+  const launchControllers = launches.map(() => new AbortController());
+  const abortLaunches = () => {
+    launchControllers.forEach((controller) => {
+      controller.abort();
+    });
+  };
+  const terminal = { evidenceFailure: undefined as Error | undefined };
+  signal?.addEventListener('abort', abortLaunches, { once: true });
+  if (signal?.aborted) abortLaunches();
+  try {
+    await Promise.all(
+      launches.map(async ({ packet, launch }, launchIndex) => {
+        let rawEvidence: unknown;
+        let completedNormally = false;
+        try {
+          rawEvidence = await awaitLaunch(
+            launch,
+            packet.timeoutMs,
+            launchControllers[launchIndex].signal,
+          );
+          completedNormally = true;
+        } catch (cause) {
+          failures.push(cause instanceof Error ? cause.message : String(cause));
+        }
+        if (completedNormally) {
+          try {
+            sessions.push(assertEvidence(packet, launch, rawEvidence));
+          } catch (cause) {
+            if (terminal.evidenceFailure === undefined) {
+              terminal.evidenceFailure = cause instanceof Error ? cause : new Error(String(cause));
+              // Proof: substituting the first session's process identity made runner.test.ts
+              // receive no sibling cancellation and a second running checkpoint after rejection.
+              abortLaunches();
+            }
+          }
+        }
+        if (terminal.evidenceFailure !== undefined) return;
+        const completedIds = new Set(sessions.map(({ session }) => session.sessionId));
+        store.save(
+          checkpoint(
+            request,
+            failures.length === 0 ? 'running' : 'pending',
+            launchedSessions,
+            sessions,
+            launchedSessions
+              .map(({ sessionId }) => sessionId)
+              .filter((sessionId) => !completedIds.has(sessionId)),
+            failures.length === 0 ? undefined : failures.sort(compareCanonicalText).join('; '),
+          ),
+        );
+      }),
+    );
+  } finally {
+    signal?.removeEventListener('abort', abortLaunches);
+  }
+  if (terminal.evidenceFailure !== undefined) {
+    const pending = checkpoint(
+      request,
+      'pending',
+      launchedSessions,
+      sessions,
+      launchedSessions
+        .map(({ sessionId }) => sessionId)
+        .filter((sessionId) => !sessions.some(({ session }) => session.sessionId === sessionId)),
+      terminal.evidenceFailure.message,
+    );
+    store.save(pending);
+    throw terminal.evidenceFailure;
+  }
   if (failures.length !== 0) {
     const reason = failures.sort(compareCanonicalText).join('; ');
     const partial = checkpoint(
