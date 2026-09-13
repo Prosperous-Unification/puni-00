@@ -88,7 +88,25 @@ Section 3 working tree, before `origin/main` advanced from `0451b821` to
 | `ambiguous transport failure has its exact recovery scope`       | Force the typed `WbsRequestError` failure branch false | Zero recovery reads, expected all nine API reads                                      |
 | `does not spend an old API success against its busy replacement` | Send completed resources through `ownerRef.current`    | Replacement reads were `['tree']`, expected none while its own write remained pending |
 
-Task 3.3 remains unchecked. The frontend and browser gates must be rerun after
-rebasing onto `454edb99`, and `bin/h2puni-gate.sh <final-sha>` cannot run on
-this `pop-os` host. The h2puni lane also needs a final committed SHA reachable
-to its repository; this branch has not been pushed.
+Post-integration evidence was gathered on 2026-09-13 at `3493b059`, after
+rebasing onto `454edb99`.
+
+| Check                                                          | Result                                                |
+| -------------------------------------------------------------- | ----------------------------------------------------- |
+| Compact-column overlap suite                                   | 4 files, 229 passed                                   |
+| Exact isolated keyboard-timeout control                        | 1 passed, 94 skipped                                  |
+| Decisive rerun of `bunx nx run fe-01:test`                     | 107 UTC files / 2715 passed; 2 zoned files / 3 passed |
+| `CI=1 E2E_PORT_SHIFT=3000 bun run e2e` on ports 6100/6200/7200 | 348 passed, 37 skipped, 0 failed; 18m54s              |
+| `bunx nx run fe-01:typecheck`                                  | succeeded                                             |
+| `bunx nx run fe-01:lint`                                       | succeeded                                             |
+| Branch format check and `git diff --check`                     | succeeded                                             |
+| Strict change and all-packet OpenSpec validation               | 1/1 and 82/82 passed                                  |
+
+The first integrated full frontend run had one five-second timeout in the
+unchanged keyboard chord test. The exact isolated case passed in 4.52 seconds,
+and the complete decisive rerun passed all 2,718 tests. Nx reported the first
+run as flaky.
+
+Task 3.3 remains unchecked because `bin/h2puni-gate.sh <final-sha>` cannot run
+on this `pop-os` host. The h2puni lane also needs a final committed SHA
+reachable to its repository; this branch has not been pushed.
