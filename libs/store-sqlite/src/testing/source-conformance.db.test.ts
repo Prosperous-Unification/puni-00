@@ -30,10 +30,13 @@ import type {
   JournalEntry,
   PlanEvent,
   SavedPlanHoldingRow,
+  SavedPlanPrincipals,
+  SavedPlanRow,
   SavedPlanStore,
   SavedPlanWrite,
   SavedPlanWriteOutcome,
   StoredDependency,
+  StoredSavedPlan,
   SubtreeCopy,
   TeamWithServices,
   TransactionalStores,
@@ -2453,7 +2456,7 @@ const subtreeRollbackFault = defineFault({
 
 function sqliteSavedPlanWriteFault(
   phase: string,
-  corrupt: (source: SqliteSource) => void,
+  corrupt: (source: SqliteSource) => void | Promise<void>,
   verify: (source: SqliteSource) => Promise<void>,
 ) {
   return defineFault({
@@ -2475,7 +2478,7 @@ function sqliteSavedPlanWriteFault(
               expect(await source.history.savedPlans.readOf(plan.id)).toEqual(
                 expectedTask61Present(),
               );
-              corrupt(source);
+              await corrupt(source);
               await verify(source);
               control.reach(phase);
               return outcome;
@@ -2509,11 +2512,19 @@ function expectedTask61Present() {
   };
 }
 
-function runTask61Mutation(source: SqliteSource, statement: string, expectedChanges: number) {
+function runTask61Mutation(
+  source: SqliteSource,
+  statement: string,
+  expectedChanges: number,
+  observeChanges?: (changes: number) => void | Promise<void>,
+) {
   const mutation = source.db.run(sql.raw(statement));
-  // Proof: the canonical header-only no-op probe deleted zero rows after its lower
-  // writer had already removed both bodies; requiring two changes rejected the fault.
-  expect(mutation.changes).toBe(expectedChanges);
+  return Promise.resolve(observeChanges?.(mutation.changes)).then(() => {
+    // Proof: `rejects a zero-row SQLite saved-plan mutation at its affected-row guard`
+    // runs a real zero-row DELETE after the complete write prerequisite. Removing this
+    // assertion changed its proof from phase-failed to assertion-passed.
+    expect(mutation.changes).toBe(expectedChanges);
+  });
 }
 
 function expectedTask61Touch(
@@ -2649,8 +2660,8 @@ async function assertCompleteTask61UnknownState(source: SqliteSource) {
 
 const savedPlanUtf8LengthFault = sqliteSavedPlanWriteFault(
   'saved-plan:utf8-length',
-  (source) => {
-    runTask61Mutation(
+  async (source) => {
+    await runTask61Mutation(
       source,
       "UPDATE saved_plan SET input_bytes = 4, schedule_bytes = 1 WHERE id = 'saved-present'",
       1,
@@ -2669,8 +2680,8 @@ const savedPlanUtf8LengthFault = sqliteSavedPlanWriteFault(
 
 const savedPlanHeaderOnlyFault = sqliteSavedPlanWriteFault(
   'saved-plan:header-only',
-  (source) => {
-    runTask61Mutation(
+  async (source) => {
+    await runTask61Mutation(
       source,
       "DELETE FROM saved_plan_body WHERE saved_plan_id = 'saved-present'",
       2,
@@ -2687,10 +2698,53 @@ const savedPlanHeaderOnlyFault = sqliteSavedPlanWriteFault(
   },
 );
 
+interface SavedPlanAffectedRowProbe {
+  attempts: number;
+  closeCalls: number;
+  changes: number | null;
+  state: SavedPlanPublicState | null;
+}
+
+function savedPlanAffectedRowFault(probe: SavedPlanAffectedRowProbe) {
+  return sqliteSavedPlanWriteFault(
+    'saved-plan:affected-row',
+    async (source) => {
+      probe.attempts += 1;
+      await runTask61Mutation(
+        source,
+        "DELETE FROM saved_plan_body WHERE saved_plan_id = 'missing-affected-row-plan'",
+        2,
+        async (changes) => {
+          probe.changes = changes;
+          probe.state = await readSavedPlanPublicState(source, ['saved-present', 'saved-absent']);
+        },
+      );
+    },
+    async (source) => {
+      expect(await source.history.savedPlans.readOf('saved-present')).toEqual(
+        expectedTask61Present(),
+      );
+    },
+  );
+}
+
+function countSavedPlanClose(source: SqliteSource, probe: SavedPlanAffectedRowProbe): SqliteSource {
+  return withSavedPlans(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    },
+    source.history.savedPlans,
+  );
+}
+
 const savedPlanAlteredBodyFault = sqliteSavedPlanWriteFault(
   'saved-plan:body-bytes',
-  (source) => {
-    runTask61Mutation(
+  async (source) => {
+    await runTask61Mutation(
       source,
       "UPDATE saved_plan_body SET bytes = 'A🔦C' WHERE saved_plan_id = 'saved-present' AND kind = 'input'",
       1,
@@ -2709,8 +2763,8 @@ const savedPlanAlteredBodyFault = sqliteSavedPlanWriteFault(
 
 const savedPlanAlteredHashFault = sqliteSavedPlanWriteFault(
   'saved-plan:body-hash',
-  (source) => {
-    runTask61Mutation(
+  async (source) => {
+    await runTask61Mutation(
       source,
       "UPDATE saved_plan SET schedule_sha256 = 'schedule-hash-altered' WHERE id = 'saved-present'",
       1,
@@ -2846,21 +2900,146 @@ const savedPlanUnknownDeleteFault = sqliteSavedPlanUnknownTouchFault(
 interface SavedPlanPhaseProbe {
   attempts: number;
   closeCalls: number;
-  state: {
-    readonly reads: readonly [null, null];
-    readonly lists: readonly [readonly [], readonly []];
-  } | null;
+  state: SavedPlanPublicState | null;
 }
 
-async function readEmptySavedPlanState(source: SqliteSource) {
+interface SavedPlanPublicState {
+  readonly reads: readonly (StoredSavedPlan | null)[];
+  readonly lists: readonly (readonly SavedPlanRow[])[];
+  readonly principals: readonly (SavedPlanPrincipals | null)[];
+}
+
+const TASK61_TOUCH_IDS = [
+  'touch-target',
+  'touch-null-creator',
+  'touch-peer',
+  'touch-other-project',
+  'missing-touch-plan',
+] as const;
+
+async function readSavedPlanPublicState(
+  source: SqliteSource,
+  ids: readonly string[],
+): Promise<SavedPlanPublicState> {
   return {
-    reads: (await Promise.all([
-      source.history.savedPlans.readOf('saved-present'),
-      source.history.savedPlans.readOf('saved-absent'),
-    ])) as [null, null],
-    lists: (await Promise.all(
+    reads: await Promise.all(ids.map((id) => source.history.savedPlans.readOf(id))),
+    lists: await Promise.all(
       DETERMINISTIC_SEED.projectIds.map((projectId) => source.history.savedPlans.listOf(projectId)),
-    )) as [[], []],
+    ),
+    principals: await Promise.all(ids.map((id) => source.history.savedPlans.principalsOf(id))),
+  };
+}
+
+function expectedTask61PartialBodiesState(): SavedPlanPublicState {
+  const present = expectedTask61Present();
+  return {
+    reads: [{ ...present, bodies: { input: null, schedule: null } }, null],
+    lists: [[present.header], []],
+    principals: [
+      {
+        savedPlanId: 'saved-present',
+        projectId: 'project-a',
+        projectOwnerId: 'owner-a',
+        createdById: 'owner-b',
+      },
+      null,
+    ],
+  };
+}
+
+function expectedTask61PartialCreatorState(): SavedPlanPublicState {
+  const target = expectedTask61Touch(
+    'touch-target',
+    'project-a',
+    'Touch target',
+    'Corrupt display',
+    'owner-a',
+    401,
+    1,
+    'target',
+    6,
+    'hash-target',
+  );
+  return {
+    reads: [target, null, null, null, null],
+    lists: [[target.header], []],
+    principals: [
+      {
+        savedPlanId: 'touch-target',
+        projectId: 'project-a',
+        projectOwnerId: 'owner-a',
+        createdById: 'owner-a',
+      },
+      null,
+      null,
+      null,
+      null,
+    ],
+  };
+}
+
+function expectedTask61CollateralState(): SavedPlanPublicState {
+  const target = expectedTask61Touch(
+    'touch-target',
+    'project-a',
+    'Renamed target',
+    'External author',
+    'owner-b',
+    401,
+    1,
+    'target',
+    6,
+    'hash-target',
+  );
+  const nullable = expectedTask61Touch(
+    'touch-null-creator',
+    'project-a',
+    'Null creator',
+    'Deleted account display',
+    null,
+    402,
+    2,
+    'nullable',
+    8,
+    'hash-nullable',
+  );
+  const other = expectedTask61Touch(
+    'touch-other-project',
+    'project-b',
+    'Other project sentinel',
+    'Owner A cross-project',
+    'owner-a',
+    404,
+    4,
+    'sentinel',
+    8,
+    'hash-sentinel',
+  );
+  return {
+    reads: [target, nullable, null, other, null],
+    lists: [[nullable.header, target.header], [other.header]],
+    principals: [
+      {
+        savedPlanId: 'touch-target',
+        projectId: 'project-a',
+        projectOwnerId: 'owner-a',
+        createdById: 'owner-b',
+      },
+      {
+        savedPlanId: 'touch-null-creator',
+        projectId: 'project-a',
+        projectOwnerId: 'owner-a',
+        createdById: null,
+      },
+      null,
+      {
+        savedPlanId: 'touch-other-project',
+        projectId: 'project-b',
+        projectOwnerId: 'owner-b',
+        createdById: 'owner-a',
+      },
+      null,
+    ],
   };
 }
 
@@ -2885,7 +3064,7 @@ function rejectSavedPlanBeforeWrite(
         ): Promise<SavedPlanWriteOutcome<Refusal>> => {
           if (plan.id !== 'saved-present') return write(plan, check);
           probe.attempts += 1;
-          probe.state = await readEmptySavedPlanState(source);
+          probe.state = await readSavedPlanPublicState(source, ['saved-present', 'saved-absent']);
           throw new Error('injected saved-plan write failure before persisted state');
         },
     ),
@@ -2923,11 +3102,15 @@ function weakenSavedPlanWrite(
           ) {
             probe.attempts += 1;
             if (mode === 'bodies')
-              runTask61Mutation(
+              await runTask61Mutation(
                 source,
                 "DELETE FROM saved_plan_body WHERE saved_plan_id = 'saved-present'",
                 2,
               );
+            probe.state = await readSavedPlanPublicState(
+              source,
+              mode === 'bodies' ? ['saved-present', 'saved-absent'] : TASK61_TOUCH_IDS,
+            );
           }
           return outcome;
         },
@@ -2957,6 +3140,7 @@ function collateralSavedPlanTouch(
             if (savedPlanId === 'missing-touch-plan') {
               probe.attempts += 1;
               expect(await source.history.savedPlans.deleteOf('touch-peer')).toBe('touched');
+              probe.state = await readSavedPlanPublicState(source, TASK61_TOUCH_IDS);
             }
             return outcome;
           },
@@ -2966,6 +3150,7 @@ function collateralSavedPlanTouch(
           if (savedPlanId === 'missing-touch-plan') {
             probe.attempts += 1;
             expect(await source.history.savedPlans.deleteOf('touch-peer')).toBe('touched');
+            probe.state = await readSavedPlanPublicState(source, TASK61_TOUCH_IDS);
           }
           return outcome;
         });
@@ -5465,8 +5650,8 @@ describe('SQLite existing source conformance', () => {
       ),
     ]);
 
-    // Proof: Astra's guard-removal probes changed all five canonical runs from
-    // phase-failed to observed while preserving one target attempt and close.
+    // Proof: the historical unguarded preflight classified these five faults as
+    // observed; the complete prerequisites now keep every lower-path run phase-failed.
     expect(
       [prewrite, utf8Partial, headerNoop, principalPartial, renameCollateral, deleteCollateral].map(
         ({ kind }) => kind,
@@ -5479,17 +5664,73 @@ describe('SQLite existing source conformance', () => {
       'phase-failed',
       'phase-failed',
     ]);
+    expect(
+      [prewrite, utf8Partial, headerNoop, principalPartial, renameCollateral, deleteCollateral].map(
+        (proof) =>
+          proof.kind === 'phase-failed' ? { phase: proof.phase, failure: proof.failure } : null,
+      ),
+    ).toEqual([
+      { phase: 'saved-plan:utf8-length', failure: 'fault did not reach saved-plan:utf8-length' },
+      { phase: 'saved-plan:utf8-length', failure: 'fault did not reach saved-plan:utf8-length' },
+      { phase: 'saved-plan:header-only', failure: 'fault did not reach saved-plan:header-only' },
+      { phase: 'saved-plan:principals', failure: 'fault did not reach saved-plan:principals' },
+      {
+        phase: 'saved-plan:unknown-rename',
+        failure: 'fault did not reach saved-plan:unknown-rename',
+      },
+      {
+        phase: 'saved-plan:unknown-delete',
+        failure: 'fault did not reach saved-plan:unknown-delete',
+      },
+    ]);
     expect(prewriteProbe).toEqual({
       attempts: 1,
       closeCalls: 1,
-      state: { reads: [null, null], lists: [[], []] },
+      state: { reads: [null, null], lists: [[], []], principals: [null, null] },
     });
-    expect(probes.map(({ attempts, closeCalls }) => ({ attempts, closeCalls }))).toEqual([
-      { attempts: 1, closeCalls: 1 },
-      { attempts: 1, closeCalls: 1 },
-      { attempts: 1, closeCalls: 1 },
-      { attempts: 1, closeCalls: 1 },
-      { attempts: 1, closeCalls: 1 },
+    // Proof: suppressing only the lower real writes left the body states null and
+    // creator state empty; this equality failed with Expected - 166 / Received + 5.
+    expect(probes).toEqual([
+      { attempts: 1, closeCalls: 1, state: expectedTask61PartialBodiesState() },
+      { attempts: 1, closeCalls: 1, state: expectedTask61PartialBodiesState() },
+      { attempts: 1, closeCalls: 1, state: expectedTask61PartialCreatorState() },
+      { attempts: 1, closeCalls: 1, state: expectedTask61CollateralState() },
+      { attempts: 1, closeCalls: 1, state: expectedTask61CollateralState() },
     ]);
+  });
+
+  it('rejects a zero-row SQLite saved-plan mutation at its affected-row guard', async () => {
+    const probe: SavedPlanAffectedRowProbe = {
+      attempts: 0,
+      closeCalls: 0,
+      changes: null,
+      state: null,
+    };
+    const proof = await proveFault(savedPlanAffectedRowFault(probe), openSqliteSource, (source) =>
+      countSavedPlanClose(source, probe),
+    );
+
+    expect(proof.kind).toBe('phase-failed');
+    if (proof.kind !== 'phase-failed') throw new Error(`expected phase failure, got ${proof.kind}`);
+    expect(proof.failure).toBe('fault did not reach saved-plan:affected-row');
+    const present = expectedTask61Present();
+    expect(probe).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      changes: 0,
+      state: {
+        reads: [present, null],
+        lists: [[present.header], []],
+        principals: [
+          {
+            savedPlanId: 'saved-present',
+            projectId: 'project-a',
+            projectOwnerId: 'owner-a',
+            createdById: 'owner-b',
+          },
+          null,
+        ],
+      },
+    });
   });
 });

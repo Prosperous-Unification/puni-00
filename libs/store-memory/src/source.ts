@@ -374,13 +374,13 @@ export interface MemorySourceFixture {
   /** Reads the fixture's disconnected journal-event storage as detached records. */
   independentJournalHistoryFor(): Promise<PlanEvent[]>;
   journalHistoryFor(projectId: string): Promise<PlanEvent[]>;
-  /** Reproduces UTF-16 saved-plan counts in adapter-owned history state. */
+  /** Reproduces UTF-16 counts in adapter-owned history state. @throws When the plan is missing. */
   setSavedPlanByteCounts(savedPlanId: string, inputBytes: number, scheduleBytes: number): void;
-  /** Reproduces a committed header whose body slots were lost. */
+  /** Reproduces a header whose bodies were lost. @throws When the plan or either body is missing. */
   removeSavedPlanBodies(savedPlanId: string): void;
-  /** Reproduces a committed input body differing from its immutable header. */
+  /** Reproduces altered input bytes. @throws When the plan or input body is missing. */
   replaceSavedPlanInputBody(savedPlanId: string, bytes: string): void;
-  /** Reproduces a committed schedule hash differing from its body. */
+  /** Reproduces an altered schedule hash. @throws When the plan or schedule hash is missing. */
   replaceSavedPlanScheduleHash(savedPlanId: string, sha256: string): void;
 }
 
@@ -420,11 +420,11 @@ export function openMemorySourceWithLateWriteSeam(
     },
     removeSavedPlanBodies(savedPlanId) {
       const stored = historyState.plans.get(savedPlanId);
-      // Proof: removing this guard made the missing-seam regression return
-      // without throwing `no saved plan missing-plan`.
+      // Proof: removing this guard made the missing-seam regression receive
+      // `undefined is not an object (evaluating 'stored.bodies')`.
       if (stored === undefined) throw new Error(`no saved plan ${savedPlanId}`);
-      // Proof: the canonical header-only no-op probe removed both slots first;
-      // this prerequisite then failed instead of certifying an unchanged mutation.
+      // Proof: removing this guard made `refuses saved-plan persistence mutations
+      // without their exact target state` receive undefined from a call expected to throw.
       if (stored.bodies.input === null || stored.bodies.schedule === null)
         throw new Error(`saved plan ${savedPlanId} does not have both bodies`);
       historyState.plans.set(savedPlanId, {
@@ -434,11 +434,11 @@ export function openMemorySourceWithLateWriteSeam(
     },
     replaceSavedPlanInputBody(savedPlanId, bytes) {
       const stored = historyState.plans.get(savedPlanId);
-      // Proof: removing this guard made the missing-seam regression return
-      // without throwing `no saved plan missing-plan`.
+      // Proof: removing this guard made the missing-seam regression receive
+      // `undefined is not an object (evaluating 'stored.bodies')`.
       if (stored === undefined) throw new Error(`no saved plan ${savedPlanId}`);
-      // Proof: clearing the input slot before this seam made the canonical altered-body
-      // probe fail here instead of accepting a mutation without its target row.
+      // Proof: removing this guard made `refuses saved-plan persistence mutations
+      // without their exact target state` receive undefined from a call expected to throw.
       if (stored.bodies.input === null)
         throw new Error(`saved plan ${savedPlanId} has no input body`);
       historyState.plans.set(savedPlanId, {
@@ -448,11 +448,11 @@ export function openMemorySourceWithLateWriteSeam(
     },
     replaceSavedPlanScheduleHash(savedPlanId, sha256) {
       const stored = historyState.plans.get(savedPlanId);
-      // Proof: removing this guard made the missing-seam regression return
-      // without throwing `no saved plan missing-plan`.
+      // Proof: removing this guard made the missing-seam regression receive
+      // `undefined is not an object (evaluating 'stored.header')`.
       if (stored === undefined) throw new Error(`no saved plan ${savedPlanId}`);
-      // Proof: removing this guard made the absent-schedule regression return
-      // without throwing `saved plan absent-plan has no schedule hash`.
+      // Proof: removing this guard made `refuses saved-plan persistence mutations
+      // without their exact target state` receive undefined from a call expected to throw.
       if (stored.header.scheduleSha256 === null)
         throw new Error(`saved plan ${savedPlanId} has no schedule hash`);
       historyState.plans.set(savedPlanId, {

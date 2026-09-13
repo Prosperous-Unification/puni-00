@@ -31,11 +31,14 @@ import type {
   JournalEntry,
   PlanEvent,
   SavedPlanHoldingRow,
+  SavedPlanPrincipals,
+  SavedPlanRow,
   SavedPlanStore,
   SavedPlanWrite,
   SavedPlanWriteOutcome,
   StoredDependency,
   StoredProgress,
+  StoredSavedPlan,
   SubtreeCopy,
   SubtreeStore,
   TeamWithServices,
@@ -2663,21 +2666,146 @@ const savedPlanUnknownDeleteFault = savedPlanUnknownTouchFault(
 interface SavedPlanPhaseProbe {
   attempts: number;
   closeCalls: number;
-  state: {
-    readonly reads: readonly [null, null];
-    readonly lists: readonly [readonly [], readonly []];
-  } | null;
+  state: SavedPlanPublicState | null;
 }
 
-async function readEmptySavedPlanState(source: MemorySource) {
+interface SavedPlanPublicState {
+  readonly reads: readonly (StoredSavedPlan | null)[];
+  readonly lists: readonly (readonly SavedPlanRow[])[];
+  readonly principals: readonly (SavedPlanPrincipals | null)[];
+}
+
+const TASK61_TOUCH_IDS = [
+  'touch-target',
+  'touch-null-creator',
+  'touch-peer',
+  'touch-other-project',
+  'missing-touch-plan',
+] as const;
+
+async function readSavedPlanPublicState(
+  source: MemorySource,
+  ids: readonly string[],
+): Promise<SavedPlanPublicState> {
   return {
-    reads: (await Promise.all([
-      source.history.savedPlans.readOf('saved-present'),
-      source.history.savedPlans.readOf('saved-absent'),
-    ])) as [null, null],
-    lists: (await Promise.all(
+    reads: await Promise.all(ids.map((id) => source.history.savedPlans.readOf(id))),
+    lists: await Promise.all(
       DETERMINISTIC_SEED.projectIds.map((projectId) => source.history.savedPlans.listOf(projectId)),
-    )) as [[], []],
+    ),
+    principals: await Promise.all(ids.map((id) => source.history.savedPlans.principalsOf(id))),
+  };
+}
+
+function expectedTask61PartialBodiesState(): SavedPlanPublicState {
+  const present = expectedTask61Present();
+  return {
+    reads: [{ ...present, bodies: { input: null, schedule: null } }, null],
+    lists: [[present.header], []],
+    principals: [
+      {
+        savedPlanId: 'saved-present',
+        projectId: 'project-a',
+        projectOwnerId: 'owner-a',
+        createdById: 'owner-b',
+      },
+      null,
+    ],
+  };
+}
+
+function expectedTask61PartialCreatorState(): SavedPlanPublicState {
+  const target = expectedTask61Touch(
+    'touch-target',
+    'project-a',
+    'Touch target',
+    'Corrupt display',
+    'owner-a',
+    401,
+    1,
+    'target',
+    6,
+    'hash-target',
+  );
+  return {
+    reads: [target, null, null, null, null],
+    lists: [[target.header], []],
+    principals: [
+      {
+        savedPlanId: 'touch-target',
+        projectId: 'project-a',
+        projectOwnerId: 'owner-a',
+        createdById: 'owner-a',
+      },
+      null,
+      null,
+      null,
+      null,
+    ],
+  };
+}
+
+function expectedTask61CollateralState(): SavedPlanPublicState {
+  const target = expectedTask61Touch(
+    'touch-target',
+    'project-a',
+    'Renamed target',
+    'External author',
+    'owner-b',
+    401,
+    1,
+    'target',
+    6,
+    'hash-target',
+  );
+  const nullable = expectedTask61Touch(
+    'touch-null-creator',
+    'project-a',
+    'Null creator',
+    'Deleted account display',
+    null,
+    402,
+    2,
+    'nullable',
+    8,
+    'hash-nullable',
+  );
+  const other = expectedTask61Touch(
+    'touch-other-project',
+    'project-b',
+    'Other project sentinel',
+    'Owner A cross-project',
+    'owner-a',
+    404,
+    4,
+    'sentinel',
+    8,
+    'hash-sentinel',
+  );
+  return {
+    reads: [target, nullable, null, other, null],
+    lists: [[nullable.header, target.header], [other.header]],
+    principals: [
+      {
+        savedPlanId: 'touch-target',
+        projectId: 'project-a',
+        projectOwnerId: 'owner-a',
+        createdById: 'owner-b',
+      },
+      {
+        savedPlanId: 'touch-null-creator',
+        projectId: 'project-a',
+        projectOwnerId: 'owner-a',
+        createdById: null,
+      },
+      null,
+      {
+        savedPlanId: 'touch-other-project',
+        projectId: 'project-b',
+        projectOwnerId: 'owner-b',
+        createdById: 'owner-a',
+      },
+      null,
+    ],
   };
 }
 
@@ -2702,7 +2830,7 @@ function rejectSavedPlanBeforeWrite(
         ): Promise<SavedPlanWriteOutcome<Refusal>> => {
           if (plan.id !== 'saved-present') return write(plan, check);
           probe.attempts += 1;
-          probe.state = await readEmptySavedPlanState(source);
+          probe.state = await readSavedPlanPublicState(source, ['saved-present', 'saved-absent']);
           throw new Error('injected saved-plan write failure before persisted state');
         },
     ),
@@ -2740,6 +2868,10 @@ function weakenSavedPlanWrite(
           ) {
             probe.attempts += 1;
             if (mode === 'bodies') source.removeSavedPlanBodies(plan.id);
+            probe.state = await readSavedPlanPublicState(
+              source,
+              mode === 'bodies' ? ['saved-present', 'saved-absent'] : TASK61_TOUCH_IDS,
+            );
           }
           return outcome;
         },
@@ -2769,6 +2901,7 @@ function collateralSavedPlanTouch(
             if (savedPlanId === 'missing-touch-plan') {
               probe.attempts += 1;
               expect(await source.history.savedPlans.deleteOf('touch-peer')).toBe('touched');
+              probe.state = await readSavedPlanPublicState(source, TASK61_TOUCH_IDS);
             }
             return outcome;
           },
@@ -2778,6 +2911,7 @@ function collateralSavedPlanTouch(
           if (savedPlanId === 'missing-touch-plan') {
             probe.attempts += 1;
             expect(await source.history.savedPlans.deleteOf('touch-peer')).toBe('touched');
+            probe.state = await readSavedPlanPublicState(source, TASK61_TOUCH_IDS);
           }
           return outcome;
         });
@@ -5015,8 +5149,8 @@ describe('memory existing source conformance', () => {
       ),
     ]);
 
-    // Proof: Astra's guard-removal probes changed all five canonical runs from
-    // phase-failed to observed while preserving one target attempt and close.
+    // Proof: the historical unguarded preflight classified these five faults as
+    // observed; the complete prerequisites now keep every lower-path run phase-failed.
     expect(
       [prewrite, utf8Partial, headerNoop, principalPartial, renameCollateral, deleteCollateral].map(
         ({ kind }) => kind,
@@ -5029,17 +5163,38 @@ describe('memory existing source conformance', () => {
       'phase-failed',
       'phase-failed',
     ]);
+    expect(
+      [prewrite, utf8Partial, headerNoop, principalPartial, renameCollateral, deleteCollateral].map(
+        (proof) =>
+          proof.kind === 'phase-failed' ? { phase: proof.phase, failure: proof.failure } : null,
+      ),
+    ).toEqual([
+      { phase: 'saved-plan:utf8-length', failure: 'fault did not reach saved-plan:utf8-length' },
+      { phase: 'saved-plan:utf8-length', failure: 'fault did not reach saved-plan:utf8-length' },
+      { phase: 'saved-plan:header-only', failure: 'fault did not reach saved-plan:header-only' },
+      { phase: 'saved-plan:principals', failure: 'fault did not reach saved-plan:principals' },
+      {
+        phase: 'saved-plan:unknown-rename',
+        failure: 'fault did not reach saved-plan:unknown-rename',
+      },
+      {
+        phase: 'saved-plan:unknown-delete',
+        failure: 'fault did not reach saved-plan:unknown-delete',
+      },
+    ]);
     expect(prewriteProbe).toEqual({
       attempts: 1,
       closeCalls: 1,
-      state: { reads: [null, null], lists: [[], []] },
+      state: { reads: [null, null], lists: [[], []], principals: [null, null] },
     });
-    expect(probes.map(({ attempts, closeCalls }) => ({ attempts, closeCalls }))).toEqual([
-      { attempts: 1, closeCalls: 1 },
-      { attempts: 1, closeCalls: 1 },
-      { attempts: 1, closeCalls: 1 },
-      { attempts: 1, closeCalls: 1 },
-      { attempts: 1, closeCalls: 1 },
+    // Proof: suppressing only the lower real writes left the body states null and
+    // creator state empty; this equality failed with Expected - 166 / Received + 5.
+    expect(probes).toEqual([
+      { attempts: 1, closeCalls: 1, state: expectedTask61PartialBodiesState() },
+      { attempts: 1, closeCalls: 1, state: expectedTask61PartialBodiesState() },
+      { attempts: 1, closeCalls: 1, state: expectedTask61PartialCreatorState() },
+      { attempts: 1, closeCalls: 1, state: expectedTask61CollateralState() },
+      { attempts: 1, closeCalls: 1, state: expectedTask61CollateralState() },
     ]);
   });
 });

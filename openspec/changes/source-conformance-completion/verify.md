@@ -1791,8 +1791,8 @@ creator corruption, and all four plans across both projects plus all principals
 before either unknown-touch phase. Permanent lower-path probes remove both
 bodies under UTF-8 and header-only faults, corrupt the creator display, and
 delete the peer during unknown rename/delete. Each canonical run remains
-`phase-failed`, attempts its target once, and closes once; removing its complete
-guard changed it to `observed` in the preflight probes. Prewrite failure also
+`phase-failed`, attempts its target once, and closes once; the historical WIP
+without these prerequisites classified all ten examples as `observed`. Prewrite failure also
 remains `phase-failed` with exact empty two-project state and one close. Existing
 fixture regressions retain combined setup/cleanup diagnostics and single-owner
 teardown for memory and SQLite.
@@ -1816,3 +1816,44 @@ composition or production port. Full workspace/build/browser/deploy checks and
 the committed-SHA h2puni gate remain deferred to Task 7.3. Task 6.1 remains
 unchecked pending Astra review; no commit, push, merge, archive, or deploy was
 performed.
+
+#### Task 6.1 final-review R5 repair
+
+The SQLite affected-row assertion now has its own permanent production-routed
+negative. It writes the complete `saved-present` record through the real port,
+then executes a real body-table DELETE for an absent ID and records zero changed
+rows. With the assertion present the proof is `phase-failed`, with one attempt,
+one close, exact zero-row evidence, and unchanged complete saved-plan state.
+Removing only the affected-row assertion changed the proof to
+`assertion-passed`; the permanent test failed with expected `phase-failed`,
+received `assertion-passed` (`0/1`, 23 assertions). The earlier complete-write
+prerequisite remains intact.
+
+Every permanent successful-incomplete probe now captures reads, both project
+lists, and principals before teardown. Both body modes require the complete
+header with both bodies absent; creator corruption requires its complete record
+and principals; rename/delete collateral probes require the exact surviving
+three-plan, two-project state. Suppressing only the lower real write left both
+body states null and the creator snapshot empty. The complete equality failed
+on both adapters with `Expected - 166 / Received + 5`, while cleanup still ran
+once (memory `0/1`, 92 assertions; SQLite `0/1`, 118 assertions). Restoring the
+writers returned the focused runs to green.
+
+Fresh isolated removal of the four memory fixture guards produced the exact
+documented failures: missing body removal and input replacement reached
+`stored.bodies` TypeErrors; missing hash replacement reached a `stored.header`
+TypeError. Removing the already-missing body, input-body, or absent-hash guards
+made the real fixture test receive `undefined` from calls expected to throw.
+The fixture JSDoc now states every modeled missing-plan/body/hash refusal.
+
+Fresh restored repair evidence:
+
+- Task 6.1 memory focus passed `3/0/338`; the retained memory seam regression
+  passed `1/0/12`.
+- Task 6.1 SQLite focus, including the new affected-row negative, passed
+  `4/0/429`.
+- Memory and SQLite lint/typecheck targets passed uncached. Changed-file
+  formatting and `git diff --check` passed.
+
+The independent review report was not changed. Task 6.1 remains unchecked
+pending rereview; no commit or push was performed.
