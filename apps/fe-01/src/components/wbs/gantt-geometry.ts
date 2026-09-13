@@ -106,7 +106,15 @@ export const UNASSIGNED_BAR_COLOR = '#94a3b8';
  * darker than {@link UNASSIGNED_BAR_COLOR}, so the two greys read apart — and
  * carrying the done mark the panel draws over it.
  */
-export const DONE_BAR_COLOR = '#475569';
+/**
+ * A pale tint of {@link DONE_BAR_STROKE}: the done bar is the green outline's
+ * own colour, lightened, so the green tick and the dark label both read on it.
+ * It was slate (`#475569`) until 2026-09-13, when the green tick "kinda
+ * blend[ed] with the grey" and a white badge under it looked bolted on; Dany:
+ * "changing the tint of a base color of the slice to better contrast with the
+ * green checkmark". The table's done tint is the same idea at a lower dose.
+ */
+export const DONE_BAR_COLOR = '#d1fae5';
 /**
  * The done bar's outline and its tick: the table's `--status-done` green, as a
  * hex because the chart is exported as a standalone SVG where no custom
