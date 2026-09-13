@@ -711,7 +711,8 @@ describe('an entry says who owns it and when it was made', () => {
     await waitFor(() => {
       expect(optionNames().length).toBe(2);
     });
-    const nextYear = String(new Date().getFullYear() + 1);
+    // `'27` and not `2027`: the off-year is two digits since 2026-09-13.
+    const nextYear = `'${String((new Date().getFullYear() + 1) % 100).padStart(2, '0')}`;
     expect(optionNames()).toEqual([
       `This year (kat · ${THIS_JUNE})`,
       `Next year (kat · ${THIS_JUNE} ${nextYear})`,

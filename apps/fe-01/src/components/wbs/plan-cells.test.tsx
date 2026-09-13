@@ -2963,7 +2963,9 @@ describe('the links column', () => {
     ]);
     await drawn(api);
 
-    expect(marksOn('010')).toEqual(['jira', 'confluence', 'github', 'overflow']);
+    // Three marks since 2026-09-13 (`MOST_MARKS`, the 32px column): the third
+    // is the overflow, standing for GitHub, Slack and the unheard-of system.
+    expect(marksOn('010')).toEqual(['jira', 'confluence', 'overflow']);
   });
 
   itDom('the cell says what it links to, without colour', async () => {

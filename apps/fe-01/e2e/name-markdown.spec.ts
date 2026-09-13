@@ -48,9 +48,16 @@ const NAMES = {
    * negative is watched by. The claim was never about that. It is "the row is
    * as tall as its **reading**, not its source", and the way to say it is a
    * reading that cannot wrap beside a source that must: 7 characters drawn,
-   * 62 of source.
+   * 107 of source.
+   *
+   * **62 of source until 2026-09-13**, when the day's column compaction gave
+   * the Name column 51px more and the precondition guard below fired on CI —
+   * `the source of this name fits one line, so there is no fault to fix`. The
+   * URL grew a query string: 107 characters wrap at every width up to the
+   * Name cap (`FLEXIBLE_CAP`, 420px), so the case is no longer a canary for
+   * the other columns' widths, which was never what it was about.
    */
-  link: '**hey** [SJM](https://en.wikipedia.org/wiki/San_Juan_Mountains)',
+  link: '**hey** [SJM](https://en.wikipedia.org/wiki/San_Juan_Mountains?section=Geography_and_geology&oldid=1234567890)',
 } as const;
 
 /** The four rows, in the order they are made. */

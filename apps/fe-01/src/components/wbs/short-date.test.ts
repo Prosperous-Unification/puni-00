@@ -54,16 +54,20 @@ describe('a calendar day, printed as somebody reads one', () => {
     expect(shortIsoDate('2026-11-24', IN_2026)).toBe('24 Nov');
   });
 
-  it('carries the year when it is not', () => {
+  it('carries the year when it is not, as two digits behind an apostrophe', () => {
     // Never ambiguous: a plan that runs into next year prints that year on the
-    // days that are in it, so a bare `1 Jun` always means this year.
-    expect(shortIsoDate('2027-06-01', IN_2026)).toBe('1 Jun 2027');
-    expect(shortIsoDate('2025-06-01', IN_2026)).toBe('1 Jun 2025');
+    // days that are in it, so a bare `1 Jun` always means this year. Two digits
+    // since 2026-09-13, because the year is what the date columns are sized by
+    // and Dany asked for them narrower — see `offYear`.
+    expect(shortIsoDate('2027-06-01', IN_2026)).toBe("1 Jun '27");
+    expect(shortIsoDate('2025-06-01', IN_2026)).toBe("1 Jun '25");
+    // A year ending in one digit is still two: `'05`, never `'5`.
+    expect(shortIsoDate('2105-06-01', IN_2026)).toBe("1 Jun '05");
   });
 
   it('reads either side of a year boundary as the year it is in', () => {
     expect(shortIsoDate('2026-12-31', IN_2026)).toBe('31 Dec');
-    expect(shortIsoDate('2027-01-01', IN_2026)).toBe('1 Jan 2027');
+    expect(shortIsoDate('2027-01-01', IN_2026)).toBe("1 Jan '27");
   });
 
   it('prints the day the string says, for a reader west of UTC', () => {
@@ -111,7 +115,7 @@ describe('an instant, printed in the browser’s own zone', () => {
   });
 
   it('carries the year when it is not', () => {
-    expect(shortInstant(new Date(2027, 5, 1, 9, 30).getTime(), IN_2026)).toBe('1 Jun 2027');
+    expect(shortInstant(new Date(2027, 5, 1, 9, 30).getTime(), IN_2026)).toBe("1 Jun '27");
   });
 
   it('reads a UTC midnight as the day it is in the zone it is read in', () => {
