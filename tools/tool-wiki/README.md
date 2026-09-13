@@ -19,6 +19,17 @@ Candidate changes can propose future validator or policy bytes, but they cannot 
 activation that evaluates the same candidate. Immutable activation packages and final integration
 bindings are created and retained outside the candidate tree.
 
+## Experiment evidence
+
+`experiments/export.ts` emits canonical JSONL observations followed by two RFC 4180-compatible
+tables. JSONL uses one object per trial, outcome, attempt, invocation receipt, elapsed receipt, and
+infrastructure allocation; every object carries `trialId`, `manifestId`, and `corpusId`. The outcome
+CSV columns are `trial_id,outcome_id,title,status,attempt_count,defect_count`. The trial CSV columns
+are `trial_id,manifest_id,corpus_id,concurrency,status,accepted_outcome_count,outcome_count,total_elapsed_ms,aggregate_session_elapsed_ms,currency_charges`;
+charges are sorted `CURRENCY:micros` pairs separated by semicolons. These rows retain enough raw
+observations to recompute accepted outcomes, elapsed phase totals, and verified charges without this
+project's code.
+
 ## Exhaustive census
 
 `freeze-exhaustive` derives file, ancestor-directory, Nx/non-Nx project, and documentation

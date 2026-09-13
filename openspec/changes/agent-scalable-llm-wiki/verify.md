@@ -3212,3 +3212,44 @@ diagnostic Tool Wiki lint, whole-repository format check, strict OpenSpec valida
 external activation root is provisioned. No production semantics, global timeout, retry, skip,
 exit-status handling, workflow budget, external activation, or operational evidence changed. A
 successful full CI run at the repaired head remains pending.
+
+### Slice 7.1 fixed-outcome accounting and portable export
+
+The local implementation packet adds strict trial, outcome, attempt, session, allocation, and
+accounting-report boundaries. Accounting joins every session, attempt, invocation receipt, elapsed
+receipt, and infrastructure allocation to the pinned manifest and frozen outcome corpus. Accepted
+throughput is derived from distinct frozen outcomes, so two attempts and two commits for the same
+accepted outcome still count once. Failed and censored attempts retain raw usage and cost; phase,
+trial-wall-clock, aggregate-session, human-time, and infrastructure totals remain explicit.
+
+Observed production-path REDs before restoring the implementation and guards:
+
+| Injected fault                                            | Observed RED                                                                                   |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| accounting/export modules absent                          | focused run failed both files with module-not-found errors                                     |
+| implementation stubs retained                             | focused run failed all five initial behavior tests with `trial accounting is not implemented`  |
+| accepted count changed from one to two before export      | export emitted a contradictory trial row and the negative failed with `function did not throw` |
+| accepted outcome artifact removed                         | strict production decoder refused the accepted outcome at `acceptanceArtifact`                 |
+| failed attempt removed from a submitted report            | complete-journal comparison refused the report                                                 |
+| waiting receipt removed from a submitted report           | complete-journal comparison refused the report                                                 |
+| failed invocation raw usage emptied                       | production accounting refused missing raw usage telemetry                                      |
+| infrastructure price identity removed                     | strict production decoder refused the allocation receipt                                       |
+| manifest identity, seed, executor, or resource changed    | production accounting named the mismatched pinned condition                                    |
+| session/outcome/receipt ownership link removed or rebound | production accounting refused incomplete or mismatched coverage                                |
+| aggregate charge exceeded the safe-integer range          | production accounting refused the total instead of rounding it                                 |
+
+The portable export documents and emits canonical JSONL observations plus trial and outcome CSV
+tables. A test using only JSON parsing and arithmetic, without the Tool Wiki implementation,
+recomputed one accepted outcome, 150,000 milliseconds of phase time, and 375 USD micros of charge.
+Reversing input trial order retained identical export bytes.
+
+Task 7.1 remains unchecked for independent review and integration. No trial runner, real cohort,
+scaling result, policy activation, external receipt, or host-gate acceptance is claimed by this
+packet.
+
+On the final `bcc862ca` base, the focused accounting/export run passed 9 tests with 36 assertions,
+and the unfiltered Tool Wiki suite passed 542 tests with 4,972 assertions across 29 files in 833.15
+seconds. Fresh uncached Tool Wiki source lint and forced typecheck exited 0. Whole-repository format
+check, strict OpenSpec validation, and `git diff --check` exited 0; OpenSpec printed
+`Change 'agent-scalable-llm-wiki' is valid`. Its optional PostHog flush could not resolve
+`edge.openspec.dev` in the restricted environment after validation had completed.
