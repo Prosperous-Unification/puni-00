@@ -374,6 +374,14 @@ export interface MemorySourceFixture {
   /** Reads the fixture's disconnected journal-event storage as detached records. */
   independentJournalHistoryFor(): Promise<PlanEvent[]>;
   journalHistoryFor(projectId: string): Promise<PlanEvent[]>;
+  /** Reproduces UTF-16 saved-plan counts in adapter-owned history state. */
+  setSavedPlanByteCounts(savedPlanId: string, inputBytes: number, scheduleBytes: number): void;
+  /** Reproduces a committed header whose body slots were lost. */
+  removeSavedPlanBodies(savedPlanId: string): void;
+  /** Reproduces a committed input body differing from its immutable header. */
+  replaceSavedPlanInputBody(savedPlanId: string, bytes: string): void;
+  /** Reproduces a committed schedule hash differing from its body. */
+  replaceSavedPlanScheduleHash(savedPlanId: string, sha256: string): void;
 }
 
 /** Opens the conformance fixture with access to adapter-owned persistence seams. @internal */
@@ -400,6 +408,58 @@ export function openMemorySourceWithLateWriteSeam(
   const stores = coordinatedStores(bindStores(committed, lateWrite), coordinator);
 
   return {
+    setSavedPlanByteCounts(savedPlanId, inputBytes, scheduleBytes) {
+      const stored = historyState.plans.get(savedPlanId);
+      // Proof: removing this guard made the regression fail later with
+      // `undefined is not an object (evaluating 'stored.header')`.
+      if (stored === undefined) throw new Error(`no saved plan ${savedPlanId}`);
+      historyState.plans.set(savedPlanId, {
+        ...stored,
+        header: { ...stored.header, inputBytes, scheduleBytes },
+      });
+    },
+    removeSavedPlanBodies(savedPlanId) {
+      const stored = historyState.plans.get(savedPlanId);
+      // Proof: removing this guard made the missing-seam regression return
+      // without throwing `no saved plan missing-plan`.
+      if (stored === undefined) throw new Error(`no saved plan ${savedPlanId}`);
+      // Proof: the canonical header-only no-op probe removed both slots first;
+      // this prerequisite then failed instead of certifying an unchanged mutation.
+      if (stored.bodies.input === null || stored.bodies.schedule === null)
+        throw new Error(`saved plan ${savedPlanId} does not have both bodies`);
+      historyState.plans.set(savedPlanId, {
+        ...stored,
+        bodies: { input: null, schedule: null },
+      });
+    },
+    replaceSavedPlanInputBody(savedPlanId, bytes) {
+      const stored = historyState.plans.get(savedPlanId);
+      // Proof: removing this guard made the missing-seam regression return
+      // without throwing `no saved plan missing-plan`.
+      if (stored === undefined) throw new Error(`no saved plan ${savedPlanId}`);
+      // Proof: clearing the input slot before this seam made the canonical altered-body
+      // probe fail here instead of accepting a mutation without its target row.
+      if (stored.bodies.input === null)
+        throw new Error(`saved plan ${savedPlanId} has no input body`);
+      historyState.plans.set(savedPlanId, {
+        ...stored,
+        bodies: { ...stored.bodies, input: bytes },
+      });
+    },
+    replaceSavedPlanScheduleHash(savedPlanId, sha256) {
+      const stored = historyState.plans.get(savedPlanId);
+      // Proof: removing this guard made the missing-seam regression return
+      // without throwing `no saved plan missing-plan`.
+      if (stored === undefined) throw new Error(`no saved plan ${savedPlanId}`);
+      // Proof: removing this guard made the absent-schedule regression return
+      // without throwing `saved plan absent-plan has no schedule hash`.
+      if (stored.header.scheduleSha256 === null)
+        throw new Error(`saved plan ${savedPlanId} has no schedule hash`);
+      historyState.plans.set(savedPlanId, {
+        ...stored,
+        header: { ...stored.header, scheduleSha256: sha256 },
+      });
+    },
     storeDependencyById(toAdd) {
       if (committed.tables.dependencies.rows.some(({ id }) => id === toAdd.id)) return;
       committed.tables.dependencies.rows.push(structuredClone(toAdd));

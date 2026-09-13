@@ -1753,3 +1753,66 @@ also passed.
 
 Task 5.2 is checked complete and Epic 5 is closed. Task 6.1 is next. Review:
 `/tmp/source-conformance-5-2-astra-rereview.md`.
+
+#### Epic 5 independent acceptance at the Task 6 boundary
+
+Epic 5 was independently accepted at `65719aeb` with zero Critical, Important,
+or Minor findings. The review recorded fresh regression `149/0/6,672`, focus
+`27/0/860`, framework `29/0/48`, and all six lint/typecheck targets passing.
+Review: `/tmp/source-conformance-epic-5-astra-review.md`.
+
+An exploratory root `bun test` is not a project test contract: it discovers
+Vitest browser files under Bun, where `vi.stubGlobal` is unavailable. Project
+Nx targets and the focused Vitest invocation remain the authoritative routes.
+
+#### Task 6.1 saved-plan source conformance
+
+The inventory-first RED named exactly the two absent IDs:
+`savedPlans.write:bytes-and-bodies` and
+`savedPlans.touch:principals-scope` (`Expected - 2 / Received + 0`). The shared
+kit now uses literal multibyte inputs and independent byte-count oracles
+(`A🔦B` = 6, `é` = 2, `Zürich` = 7), opaque literal hashes, present/absent
+schedule unions, nullable and non-null creators, distinct display/creator/owner
+values, two projects, and complete list/read/principal snapshots around every
+write, rename, unknown touch, and delete.
+
+Both real adapters observed all seven named production-path faults at their
+distinct phases: UTF-16 counts (expected/received 6/4 and 2/1), header without
+either body, altered input bytes (`A🔦B`/`A🔦C`), altered schedule hash, creator
+and owner conflation, and rename/delete returning `touched` instead of
+`no_such_plan`. The unmutated cases passed again after every fault. Memory
+faults mutate adapter-owned history state through guarded fixture seams;
+SQLite faults mutate the isolated real tables and require affected-row counts.
+
+Astra's preflight demonstrated ten false greens in the initial WIP. The final
+faults require an exact complete successful write before corruption, an exact
+complete corrupted record before reach, the full target plus principals for
+creator corruption, and all four plans across both projects plus all principals
+before either unknown-touch phase. Permanent lower-path probes remove both
+bodies under UTF-8 and header-only faults, corrupt the creator display, and
+delete the peer during unknown rename/delete. Each canonical run remains
+`phase-failed`, attempts its target once, and closes once; removing its complete
+guard changed it to `observed` in the preflight probes. Prewrite failure also
+remains `phase-failed` with exact empty two-project state and one close. Existing
+fixture regressions retain combined setup/cleanup diagnostics and single-owner
+teardown for memory and SQLite.
+
+Fresh restored evidence:
+
+- Focused Task 6.1 shared/fault/window runs: memory `3/0/337`; SQLite
+  `3/0/411`. The memory fixture-seam prerequisite regression passed `1/0/12`.
+- Uncached targets: conformance `29/0/48`, store-memory `71/0/3,292`, and
+  store-sqlite `694/0/6,163` across 60 files.
+- Saved-plan core and be-01 caller regressions passed `166/0/570`; the four
+  fe-01 saved-plan Vitest files passed `63/0`.
+- All six uncached conformance/memory/SQLite lint and typecheck targets passed.
+  `nx format:check --all` and `git diff --check` passed.
+- Pinned `@fission-ai/openspec@1.3.0` strict validation passed `1/0`; all
+  artifacts passed `75/0`. Its optional PostHog flush could not resolve
+  `edge.openspec.dev`, after both validation commands had returned success.
+
+Core portable composition was not repeated because Task 6.1 changes no core
+composition or production port. Full workspace/build/browser/deploy checks and
+the committed-SHA h2puni gate remain deferred to Task 7.3. Task 6.1 remains
+unchecked pending Astra review; no commit, push, merge, archive, or deploy was
+performed.

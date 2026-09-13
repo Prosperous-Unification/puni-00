@@ -30,6 +30,10 @@ import type {
   CommandJournalStore,
   JournalEntry,
   PlanEvent,
+  SavedPlanHoldingRow,
+  SavedPlanStore,
+  SavedPlanWrite,
+  SavedPlanWriteOutcome,
   StoredDependency,
   StoredProgress,
   SubtreeCopy,
@@ -52,7 +56,7 @@ import {
   type MemoryLateWritePoint,
 } from './faults';
 
-type ExistingFamily = keyof ExistingStoreOpeners;
+type ExistingFamily = Exclude<keyof ExistingStoreOpeners, 'savedPlans'>;
 type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   deriveNextEventSeqFromRetained(subscription: string): void;
   independentJournalHistoryFor(): Promise<PlanEvent[]>;
@@ -60,8 +64,16 @@ type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   storeDependencyById(dependency: StoredDependency): void;
   insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
   journal: CommandJournalStore;
+  setSavedPlanByteCounts(savedPlanId: string, inputBytes: number, scheduleBytes: number): void;
+  removeSavedPlanBodies(savedPlanId: string): void;
+  replaceSavedPlanInputBody(savedPlanId: string, bytes: string): void;
+  replaceSavedPlanScheduleHash(savedPlanId: string, sha256: string): void;
 };
 type OpenSource = () => MemorySource;
+type SavedPlanCheck<Refusal> = (
+  holding: SavedPlanHoldingRow,
+  incomingBytes: number,
+) => Promise<Refusal | null>;
 
 function openConformanceMemorySource(): MemorySource {
   const fixture = openMemorySourceFixture();
@@ -81,6 +93,18 @@ function openConformanceMemorySource(): MemorySource {
         await stores.subtrees.insertSubtree(copy, stamp);
         return { commit: true, value: undefined };
       }),
+    setSavedPlanByteCounts(savedPlanId: string, inputBytes: number, scheduleBytes: number) {
+      fixture.setSavedPlanByteCounts(savedPlanId, inputBytes, scheduleBytes);
+    },
+    removeSavedPlanBodies(savedPlanId: string) {
+      fixture.removeSavedPlanBodies(savedPlanId);
+    },
+    replaceSavedPlanInputBody(savedPlanId: string, bytes: string) {
+      fixture.replaceSavedPlanInputBody(savedPlanId, bytes);
+    },
+    replaceSavedPlanScheduleHash(savedPlanId: string, sha256: string) {
+      fixture.replaceSavedPlanScheduleHash(savedPlanId, sha256);
+    },
   };
   return { ...source, journal: transactionalJournal(source as MemorySource) };
 }
@@ -291,6 +315,19 @@ async function openMemoryCase<Family extends ExistingFamily>(
   return memoryFixture(source, family, caseId);
 }
 
+async function openMemorySavedPlanCase(caseId: CaseId): Promise<CaseFixture<SavedPlanStore>> {
+  const source = await seedMemorySource();
+  return {
+    fixtureId: `memory:${caseId}`,
+    port: source.history.savedPlans,
+    journalAppender: source.journal,
+    seed: DETERMINISTIC_SEED,
+    readers: readersOf(source),
+    scenario: { kind: 'ordinary' },
+    close: () => source.close(),
+  };
+}
+
 async function seedProgressStep(source: MemorySource): Promise<void> {
   await source.stores.steps.add(
     {
@@ -396,6 +433,18 @@ function memoryLateSource(
         await stores.subtrees.insertSubtree(copy, stamp);
         return { commit: true, value: undefined };
       }),
+    setSavedPlanByteCounts(savedPlanId, inputBytes, scheduleBytes) {
+      fixture.setSavedPlanByteCounts(savedPlanId, inputBytes, scheduleBytes);
+    },
+    removeSavedPlanBodies(savedPlanId) {
+      fixture.removeSavedPlanBodies(savedPlanId);
+    },
+    replaceSavedPlanInputBody(savedPlanId, bytes) {
+      fixture.replaceSavedPlanInputBody(savedPlanId, bytes);
+    },
+    replaceSavedPlanScheduleHash(savedPlanId, sha256) {
+      fixture.replaceSavedPlanScheduleHash(savedPlanId, sha256);
+    },
     journal: transactionalJournal(fixture.source as MemorySource),
   };
 }
@@ -418,6 +467,7 @@ const openers: ExistingStoreOpeners = {
   planEvents: (caseId) => openMemoryCase('planEvents', caseId),
   subtrees: (caseId) => openMemoryCase('subtrees', caseId),
   journal: (caseId) => openMemoryCase('journal', caseId),
+  savedPlans: (caseId) => openMemorySavedPlanCase(caseId),
 };
 
 const unknownStepGap = {
@@ -546,11 +596,30 @@ const declaration: SourceDeclaration = {
     planEvents: { kind: 'offered', gaps: [], open: openers.planEvents },
     subtrees: { kind: 'offered', gaps: [], open: openers.subtrees },
     journal: { kind: 'offered', gaps: [], open: openers.journal },
+    savedPlans: { kind: 'offered', gaps: [], open: openers.savedPlans },
   } as unknown as Capabilities,
 };
 
 function withStores(source: MemorySource, stores: Partial<TransactionalStores>): MemorySource {
   return { ...source, stores: { ...source.stores, ...stores } };
+}
+
+function withSavedPlans(source: MemorySource, savedPlans: SavedPlanStore): MemorySource {
+  return { ...source, history: { ...source.history, savedPlans } };
+}
+
+function replaceSavedPlanWrite(
+  savedPlans: SavedPlanStore,
+  replace: (write: SavedPlanStore['write']) => SavedPlanStore['write'],
+): SavedPlanStore {
+  return {
+    write: replace(savedPlans.write.bind(savedPlans)),
+    readOf: (savedPlanId) => savedPlans.readOf(savedPlanId),
+    listOf: (projectId) => savedPlans.listOf(projectId),
+    principalsOf: (savedPlanId) => savedPlans.principalsOf(savedPlanId),
+    renameTo: (savedPlanId, name) => savedPlans.renameTo(savedPlanId, name),
+    deleteOf: (savedPlanId) => savedPlans.deleteOf(savedPlanId),
+  };
 }
 
 const capacityProjectTeamFault = defineFault({
@@ -2237,6 +2306,484 @@ const subtreeRollbackFault = defineFault({
   },
 });
 
+function savedPlanWriteFault(
+  phase: string,
+  corrupt: (source: MemorySource) => void,
+  verify: (source: MemorySource) => Promise<void>,
+) {
+  return defineFault({
+    id: 'break:savedPlans.write:bytes-and-bodies',
+    caseId: 'savedPlans.write:bytes-and-bodies',
+    createControl: () => createFaultControl(phase),
+    mutate(source: MemorySource, control) {
+      return withSavedPlans(
+        source,
+        replaceSavedPlanWrite(
+          source.history.savedPlans,
+          (write) =>
+            async <Refusal>(
+              plan: SavedPlanWrite,
+              check: SavedPlanCheck<Refusal>,
+            ): Promise<SavedPlanWriteOutcome<Refusal>> => {
+              const outcome = await write(plan, check);
+              if (plan.id !== 'saved-present' || outcome.outcome !== 'written') return outcome;
+              expect(await source.history.savedPlans.readOf(plan.id)).toEqual(
+                expectedTask61Present(),
+              );
+              corrupt(source);
+              await verify(source);
+              control.reach(phase);
+              return outcome;
+            },
+        ),
+      );
+    },
+  });
+}
+
+function expectedTask61Present() {
+  return {
+    header: {
+      id: 'saved-present',
+      projectId: 'project-a',
+      name: 'Present plan',
+      createdBy: 'Ada Display',
+      createdById: 'owner-b',
+      createdAt: 301,
+      inputSchemaVersion: 7,
+      inputBytes: 6,
+      inputSha256: 'input-hash-present',
+      scheduleSchemaVersion: 9,
+      scheduleBytes: 2,
+      scheduleSha256: 'schedule-hash-present',
+      scheduleInputSha256: 'input-hash-present',
+      schedulerAlgorithmId: 'scheduler-present',
+      scheduleAbsentReason: null,
+    },
+    bodies: { input: 'A🔦B', schedule: 'é' },
+  };
+}
+
+function expectedTask61Touch(
+  id: string,
+  projectId: string,
+  name: string,
+  createdBy: string,
+  createdById: string | null,
+  createdAt: number,
+  schema: number,
+  bytes: string,
+  inputBytes: number,
+  hash: string,
+) {
+  return {
+    header: {
+      id,
+      projectId,
+      name,
+      createdBy,
+      createdById,
+      createdAt,
+      inputSchemaVersion: schema,
+      inputBytes,
+      inputSha256: hash,
+      scheduleSchemaVersion: null,
+      scheduleBytes: null,
+      scheduleSha256: null,
+      scheduleInputSha256: null,
+      schedulerAlgorithmId: null,
+      scheduleAbsentReason: 'not-requested',
+    },
+    bodies: { input: bytes, schedule: null },
+  };
+}
+
+async function assertCompleteTask61UnknownState(source: MemorySource) {
+  const target = expectedTask61Touch(
+    'touch-target',
+    'project-a',
+    'Renamed target',
+    'External author',
+    'owner-b',
+    401,
+    1,
+    'target',
+    6,
+    'hash-target',
+  );
+  const nullable = expectedTask61Touch(
+    'touch-null-creator',
+    'project-a',
+    'Null creator',
+    'Deleted account display',
+    null,
+    402,
+    2,
+    'nullable',
+    8,
+    'hash-nullable',
+  );
+  const peer = expectedTask61Touch(
+    'touch-peer',
+    'project-a',
+    'Project peer',
+    'Owner A display',
+    'owner-a',
+    403,
+    3,
+    'peer',
+    4,
+    'hash-peer',
+  );
+  const other = expectedTask61Touch(
+    'touch-other-project',
+    'project-b',
+    'Other project sentinel',
+    'Owner A cross-project',
+    'owner-a',
+    404,
+    4,
+    'sentinel',
+    8,
+    'hash-sentinel',
+  );
+  const ids = [
+    'touch-target',
+    'touch-null-creator',
+    'touch-peer',
+    'touch-other-project',
+    'missing-touch-plan',
+  ];
+  expect(await Promise.all(ids.map((id) => source.history.savedPlans.readOf(id)))).toEqual([
+    target,
+    nullable,
+    peer,
+    other,
+    null,
+  ]);
+  expect(
+    await Promise.all(
+      DETERMINISTIC_SEED.projectIds.map((id) => source.history.savedPlans.listOf(id)),
+    ),
+  ).toEqual([[peer.header, nullable.header, target.header], [other.header]]);
+  expect(await Promise.all(ids.map((id) => source.history.savedPlans.principalsOf(id)))).toEqual([
+    {
+      savedPlanId: 'touch-target',
+      projectId: 'project-a',
+      projectOwnerId: 'owner-a',
+      createdById: 'owner-b',
+    },
+    {
+      savedPlanId: 'touch-null-creator',
+      projectId: 'project-a',
+      projectOwnerId: 'owner-a',
+      createdById: null,
+    },
+    {
+      savedPlanId: 'touch-peer',
+      projectId: 'project-a',
+      projectOwnerId: 'owner-a',
+      createdById: 'owner-a',
+    },
+    {
+      savedPlanId: 'touch-other-project',
+      projectId: 'project-b',
+      projectOwnerId: 'owner-b',
+      createdById: 'owner-a',
+    },
+    null,
+  ]);
+}
+
+const savedPlanUtf8LengthFault = savedPlanWriteFault(
+  'saved-plan:utf8-length',
+  (source) => {
+    source.setSavedPlanByteCounts('saved-present', 4, 1);
+  },
+  async (source) => {
+    // Proof: changing the persisted counts to UTF-16 lengths reached this exact
+    // prerequisite and the shared case failed with input 6/4 and schedule 2/1.
+    const expected = expectedTask61Present();
+    expect(await source.history.savedPlans.readOf('saved-present')).toEqual({
+      ...expected,
+      header: { ...expected.header, inputBytes: 4, scheduleBytes: 1 },
+    });
+  },
+);
+
+const savedPlanHeaderOnlyFault = savedPlanWriteFault(
+  'saved-plan:header-only',
+  (source) => {
+    source.removeSavedPlanBodies('saved-present');
+  },
+  async (source) => {
+    // Proof: deleting both adapter-owned body slots preserved the header and
+    // failed the shared complete read with expected multibyte bodies versus null.
+    const expected = expectedTask61Present();
+    expect(await source.history.savedPlans.readOf('saved-present')).toEqual({
+      ...expected,
+      bodies: { input: null, schedule: null },
+    });
+  },
+);
+
+const savedPlanAlteredBodyFault = savedPlanWriteFault(
+  'saved-plan:body-bytes',
+  (source) => {
+    source.replaceSavedPlanInputBody('saved-present', 'A🔦C');
+  },
+  async (source) => {
+    // Proof: changing only the persisted body reached this prerequisite and
+    // failed the shared exact-body assertion with A🔦B expected and A🔦C received.
+    const expected = expectedTask61Present();
+    expect(await source.history.savedPlans.readOf('saved-present')).toEqual({
+      ...expected,
+      bodies: { input: 'A🔦C', schedule: 'é' },
+    });
+  },
+);
+
+const savedPlanAlteredHashFault = savedPlanWriteFault(
+  'saved-plan:body-hash',
+  (source) => {
+    source.replaceSavedPlanScheduleHash('saved-present', 'schedule-hash-altered');
+  },
+  async (source) => {
+    // Proof: changing only the persisted schedule hash reached this prerequisite
+    // and failed with schedule-hash-present expected and schedule-hash-altered received.
+    const expected = expectedTask61Present();
+    expect(await source.history.savedPlans.readOf('saved-present')).toEqual({
+      ...expected,
+      header: { ...expected.header, scheduleSha256: 'schedule-hash-altered' },
+    });
+  },
+);
+
+const savedPlanPrincipalFault = defineFault({
+  id: 'break:savedPlans.touch:principals-scope',
+  caseId: 'savedPlans.touch:principals-scope',
+  createControl: () => createFaultControl('saved-plan:principals'),
+  mutate(source: MemorySource, control) {
+    return withSavedPlans(
+      source,
+      replaceSavedPlanWrite(
+        source.history.savedPlans,
+        (write) =>
+          async <Refusal>(
+            plan: SavedPlanWrite,
+            check: SavedPlanCheck<Refusal>,
+          ): Promise<SavedPlanWriteOutcome<Refusal>> => {
+            const outcome = await write(
+              plan.id === 'touch-target'
+                ? { ...plan, createdById: DETERMINISTIC_SEED.ownerIds[0] }
+                : plan,
+              check,
+            );
+            if (plan.id !== 'touch-target' || outcome.outcome !== 'written') return outcome;
+            // Proof: conflating the creator with the project owner reached only after
+            // the production writer and principal reader exposed owner-a in both roles.
+            expect(await source.history.savedPlans.principalsOf(plan.id)).toEqual({
+              savedPlanId: 'touch-target',
+              projectId: 'project-a',
+              projectOwnerId: 'owner-a',
+              createdById: 'owner-a',
+            });
+            expect(await source.history.savedPlans.readOf(plan.id)).toEqual(
+              expectedTask61Touch(
+                'touch-target',
+                'project-a',
+                'Touch target',
+                'External author',
+                'owner-a',
+                401,
+                1,
+                'target',
+                6,
+                'hash-target',
+              ),
+            );
+            control.reach('saved-plan:principals');
+            return outcome;
+          },
+      ),
+    );
+  },
+});
+
+function savedPlanUnknownTouchFault(method: 'renameTo' | 'deleteOf', phase: string) {
+  return defineFault({
+    id: 'break:savedPlans.touch:principals-scope',
+    caseId: 'savedPlans.touch:principals-scope',
+    createControl: () => createFaultControl(phase),
+    mutate(source: MemorySource, control) {
+      const savedPlans =
+        method === 'renameTo'
+          ? replaceMethod(
+              source.history.savedPlans,
+              'renameTo',
+              (renameTo) => async (savedPlanId, name) => {
+                const outcome = await renameTo(savedPlanId, name);
+                if (savedPlanId !== 'missing-touch-plan') return outcome;
+                // Proof: returning touched only after these production outcomes and
+                // readback checks failed the shared unknown rename assertion.
+                expect(outcome).toBe('no_such_plan');
+                await assertCompleteTask61UnknownState(source);
+                control.reach(phase);
+                return 'touched';
+              },
+            )
+          : replaceMethod(
+              source.history.savedPlans,
+              'deleteOf',
+              (deleteOf) => async (savedPlanId) => {
+                const outcome = await deleteOf(savedPlanId);
+                if (savedPlanId !== 'missing-touch-plan') return outcome;
+                // Proof: returning touched only after these production outcomes and
+                // readback checks failed the shared unknown delete assertion.
+                expect(outcome).toBe('no_such_plan');
+                await assertCompleteTask61UnknownState(source);
+                control.reach(phase);
+                return 'touched';
+              },
+            );
+      return withSavedPlans(source, savedPlans);
+    },
+  });
+}
+
+const savedPlanUnknownRenameFault = savedPlanUnknownTouchFault(
+  'renameTo',
+  'saved-plan:unknown-rename',
+);
+const savedPlanUnknownDeleteFault = savedPlanUnknownTouchFault(
+  'deleteOf',
+  'saved-plan:unknown-delete',
+);
+
+interface SavedPlanPhaseProbe {
+  attempts: number;
+  closeCalls: number;
+  state: {
+    readonly reads: readonly [null, null];
+    readonly lists: readonly [readonly [], readonly []];
+  } | null;
+}
+
+async function readEmptySavedPlanState(source: MemorySource) {
+  return {
+    reads: (await Promise.all([
+      source.history.savedPlans.readOf('saved-present'),
+      source.history.savedPlans.readOf('saved-absent'),
+    ])) as [null, null],
+    lists: (await Promise.all(
+      DETERMINISTIC_SEED.projectIds.map((projectId) => source.history.savedPlans.listOf(projectId)),
+    )) as [[], []],
+  };
+}
+
+function rejectSavedPlanBeforeWrite(
+  source: MemorySource,
+  probe: SavedPlanPhaseProbe,
+): MemorySource {
+  return withSavedPlans(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    },
+    replaceSavedPlanWrite(
+      source.history.savedPlans,
+      (write) =>
+        async <Refusal>(
+          plan: SavedPlanWrite,
+          check: SavedPlanCheck<Refusal>,
+        ): Promise<SavedPlanWriteOutcome<Refusal>> => {
+          if (plan.id !== 'saved-present') return write(plan, check);
+          probe.attempts += 1;
+          probe.state = await readEmptySavedPlanState(source);
+          throw new Error('injected saved-plan write failure before persisted state');
+        },
+    ),
+  );
+}
+
+function weakenSavedPlanWrite(
+  source: MemorySource,
+  probe: SavedPlanPhaseProbe,
+  mode: 'bodies' | 'creator-display',
+): MemorySource {
+  const owned = {
+    ...source,
+    async close() {
+      probe.closeCalls += 1;
+      await source.close();
+    },
+  };
+  return withSavedPlans(
+    owned,
+    replaceSavedPlanWrite(
+      source.history.savedPlans,
+      (write) =>
+        async <Refusal>(plan: SavedPlanWrite, check: SavedPlanCheck<Refusal>) => {
+          const outcome = await write(
+            mode === 'creator-display' && plan.id === 'touch-target'
+              ? { ...plan, createdBy: 'Corrupt display' }
+              : plan,
+            check,
+          );
+          if (
+            outcome.outcome === 'written' &&
+            ((mode === 'bodies' && plan.id === 'saved-present') ||
+              (mode === 'creator-display' && plan.id === 'touch-target'))
+          ) {
+            probe.attempts += 1;
+            if (mode === 'bodies') source.removeSavedPlanBodies(plan.id);
+          }
+          return outcome;
+        },
+    ),
+  );
+}
+
+function collateralSavedPlanTouch(
+  source: MemorySource,
+  probe: SavedPlanPhaseProbe,
+  method: 'renameTo' | 'deleteOf',
+): MemorySource {
+  const owned = {
+    ...source,
+    async close() {
+      probe.closeCalls += 1;
+      await source.close();
+    },
+  };
+  const savedPlans =
+    method === 'renameTo'
+      ? replaceMethod(
+          source.history.savedPlans,
+          'renameTo',
+          (renameTo) => async (savedPlanId, name) => {
+            const outcome = await renameTo(savedPlanId, name);
+            if (savedPlanId === 'missing-touch-plan') {
+              probe.attempts += 1;
+              expect(await source.history.savedPlans.deleteOf('touch-peer')).toBe('touched');
+            }
+            return outcome;
+          },
+        )
+      : replaceMethod(source.history.savedPlans, 'deleteOf', (deleteOf) => async (savedPlanId) => {
+          const outcome = await deleteOf(savedPlanId);
+          if (savedPlanId === 'missing-touch-plan') {
+            probe.attempts += 1;
+            expect(await source.history.savedPlans.deleteOf('touch-peer')).toBe('touched');
+          }
+          return outcome;
+        });
+  return withSavedPlans(owned, savedPlans);
+}
+
 interface FaultContext {
   readonly registration: ReturnType<typeof existingStoreRegistrations>[number];
   assertionFailure: string | null;
@@ -2331,6 +2878,19 @@ async function proveFault(
           close: () => source.close(),
         } as unknown as CaseFixture<TransactionalStores[Family]>);
       };
+      const takeSavedPlanFixture = (caseId: CaseId): Promise<CaseFixture<SavedPlanStore>> => {
+        if (wasOpened) return Promise.reject(new Error(`${fault.caseId} fixture opened twice`));
+        wasOpened = true;
+        return Promise.resolve({
+          fixtureId: `memory:${caseId}`,
+          port: source.history.savedPlans,
+          journalAppender: source.journal,
+          seed: DETERMINISTIC_SEED,
+          readers: readersOf(source),
+          scenario: { kind: 'ordinary' },
+          close: () => source.close(),
+        });
+      };
       const registrations = existingStoreRegistrations({
         projects: (caseId) => takeFixture('projects', caseId),
         users: (caseId) => takeFixture('users', caseId),
@@ -2349,6 +2909,7 @@ async function proveFault(
         planEvents: (caseId) => takeFixture('planEvents', caseId),
         subtrees: (caseId) => takeFixture('subtrees', caseId),
         journal: (caseId) => takeFixture('journal', caseId),
+        savedPlans: takeSavedPlanFixture,
       });
       const registration = registrations.find(({ caseId }) => caseId === fault.caseId);
       if (registration === undefined) throw new Error(`missing registration for ${fault.caseId}`);
@@ -4349,6 +4910,136 @@ describe('memory existing source conformance', () => {
     });
     expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
       { caseId: 'eventLog.pruneBeyond:empty-sequence', status: 'passed' },
+    ]);
+  });
+
+  it('runs every Task 6.1 saved-plan case through the staged memory source', async () => {
+    const caseIds = [
+      'savedPlans.write:bytes-and-bodies',
+      'savedPlans.touch:principals-scope',
+    ] as const;
+    const report = await runCases(existingStoreRegistrations(openers), { focus: caseIds });
+    const failure = report.cases.find(({ status }) => status === 'failed');
+    if (failure?.status === 'failed') throw new Error(failure.failure);
+    expect(report.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      caseIds.map((caseId) => ({ caseId, status: 'passed' })),
+    );
+  });
+
+  it('reinjects all seven Task 6.1 saved-plan faults through memory state', async () => {
+    const faults = [
+      savedPlanUtf8LengthFault,
+      savedPlanHeaderOnlyFault,
+      savedPlanAlteredBodyFault,
+      savedPlanAlteredHashFault,
+      savedPlanPrincipalFault,
+      savedPlanUnknownRenameFault,
+      savedPlanUnknownDeleteFault,
+    ];
+    const proofs = [];
+    for (const fault of faults) proofs.push(await proveFault(fault));
+
+    expect(proofs.map(({ kind }) => kind)).toEqual(faults.map(() => 'observed'));
+    expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual([
+      'saved-plan:utf8-length',
+      'saved-plan:header-only',
+      'saved-plan:body-bytes',
+      'saved-plan:body-hash',
+      'saved-plan:principals',
+      'saved-plan:unknown-rename',
+      'saved-plan:unknown-delete',
+    ]);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    expect(failures[0]).toContain('-     "inputBytes": 6,');
+    expect(failures[0]).toContain('+     "inputBytes": 4,');
+    expect(failures[0]).toContain('-     "scheduleBytes": 2,');
+    expect(failures[0]).toContain('+     "scheduleBytes": 1,');
+    expect(failures[1]).toContain('-     "input": "A🔦B",');
+    expect(failures[1]).toContain('+     "input": null,');
+    expect(failures[1]).toContain('-     "schedule": "é",');
+    expect(failures[1]).toContain('+     "schedule": null,');
+    expect(failures[2]).toContain('-     "input": "A🔦B",');
+    expect(failures[2]).toContain('+     "input": "A🔦C",');
+    expect(failures[3]).toContain('-     "scheduleSha256": "schedule-hash-present",');
+    expect(failures[3]).toContain('+     "scheduleSha256": "schedule-hash-altered",');
+    expect(failures[4]).toContain('-     "createdById": "owner-b",');
+    expect(failures[4]).toContain('+     "createdById": "owner-a",');
+    expect(failures[5]).toContain('Expected: "no_such_plan"');
+    expect(failures[5]).toContain('Received: "touched"');
+    expect(failures[6]).toContain('Expected: "no_such_plan"');
+    expect(failures[6]).toContain('Received: "touched"');
+
+    const restored = await runCases(existingStoreRegistrations(openers), {
+      focus: faults.map(({ caseId }) => caseId),
+    });
+    expect(restored.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual([
+      { caseId: 'savedPlans.write:bytes-and-bodies', status: 'passed' },
+      { caseId: 'savedPlans.touch:principals-scope', status: 'passed' },
+    ]);
+  });
+
+  it('refuses prewrite and successful-incomplete memory saved-plan proofs', async () => {
+    const prewriteProbe: SavedPlanPhaseProbe = { attempts: 0, closeCalls: 0, state: null };
+    const probes = Array.from({ length: 5 }, (): SavedPlanPhaseProbe => ({
+      attempts: 0,
+      closeCalls: 0,
+      state: null,
+    }));
+    const [
+      prewrite,
+      utf8Partial,
+      headerNoop,
+      principalPartial,
+      renameCollateral,
+      deleteCollateral,
+    ] = await Promise.all([
+      proveFault(savedPlanUtf8LengthFault, openConformanceMemorySource, (source) =>
+        rejectSavedPlanBeforeWrite(source, prewriteProbe),
+      ),
+      proveFault(savedPlanUtf8LengthFault, openConformanceMemorySource, (source) =>
+        weakenSavedPlanWrite(source, probes[0], 'bodies'),
+      ),
+      proveFault(savedPlanHeaderOnlyFault, openConformanceMemorySource, (source) =>
+        weakenSavedPlanWrite(source, probes[1], 'bodies'),
+      ),
+      proveFault(savedPlanPrincipalFault, openConformanceMemorySource, (source) =>
+        weakenSavedPlanWrite(source, probes[2], 'creator-display'),
+      ),
+      proveFault(savedPlanUnknownRenameFault, openConformanceMemorySource, (source) =>
+        collateralSavedPlanTouch(source, probes[3], 'renameTo'),
+      ),
+      proveFault(savedPlanUnknownDeleteFault, openConformanceMemorySource, (source) =>
+        collateralSavedPlanTouch(source, probes[4], 'deleteOf'),
+      ),
+    ]);
+
+    // Proof: Astra's guard-removal probes changed all five canonical runs from
+    // phase-failed to observed while preserving one target attempt and close.
+    expect(
+      [prewrite, utf8Partial, headerNoop, principalPartial, renameCollateral, deleteCollateral].map(
+        ({ kind }) => kind,
+      ),
+    ).toEqual([
+      'phase-failed',
+      'phase-failed',
+      'phase-failed',
+      'phase-failed',
+      'phase-failed',
+      'phase-failed',
+    ]);
+    expect(prewriteProbe).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      state: { reads: [null, null], lists: [[], []] },
+    });
+    expect(probes.map(({ attempts, closeCalls }) => ({ attempts, closeCalls }))).toEqual([
+      { attempts: 1, closeCalls: 1 },
+      { attempts: 1, closeCalls: 1 },
+      { attempts: 1, closeCalls: 1 },
+      { attempts: 1, closeCalls: 1 },
+      { attempts: 1, closeCalls: 1 },
     ]);
   });
 });

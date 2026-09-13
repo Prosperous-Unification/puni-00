@@ -1,4 +1,4 @@
-import type { TransactionalStores } from '@wbs/core';
+import type { Stores, TransactionalStores } from '@wbs/core';
 
 import type { CaseId, CaseRegistration } from './case-manifest';
 import type { CaseFixture } from './source-declaration';
@@ -17,6 +17,7 @@ import { progressRegistrations } from './stores/progress';
 export { PROGRESS_SENTINEL_STEP_ID } from './stores/progress';
 import { priorityBandRegistrations } from './stores/priority-bands';
 import { projectRegistrations } from './stores/projects';
+import { savedPlanRegistrations } from './stores/saved-plans';
 import { stepRegistrations } from './stores/steps';
 import { subtreeRegistrations } from './stores/subtrees';
 import { userRegistrations } from './stores/users';
@@ -46,6 +47,7 @@ export interface ExistingStoreOpeners {
   readonly planEvents: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['planEvents']>>;
   readonly subtrees: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['subtrees']>>;
   readonly journal: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['journal']>>;
+  readonly savedPlans: (caseId: CaseId) => Promise<CaseFixture<Stores['savedPlans']>>;
 }
 
 /** Registers the migrated source-family kits in their implementation order. */
@@ -70,5 +72,6 @@ export function existingStoreRegistrations(
     ...planEventRegistrations(openers.planEvents),
     ...subtreeRegistrations(openers.subtrees),
     ...journalRegistrations(openers.journal),
+    ...savedPlanRegistrations(openers.savedPlans),
   ];
 }

@@ -581,4 +581,75 @@ describe('the staged memory source', () => {
     ]);
     await source.close();
   });
+
+  it('refuses saved-plan persistence mutations without their exact target state', async () => {
+    const fixture = openMemorySourceFixture();
+    expect(() => {
+      fixture.setSavedPlanByteCounts('missing-plan', 1, 1);
+    }).toThrow('no saved plan missing-plan');
+    expect(() => {
+      fixture.removeSavedPlanBodies('missing-plan');
+    }).toThrow('no saved plan missing-plan');
+    expect(() => {
+      fixture.replaceSavedPlanInputBody('missing-plan', 'changed');
+    }).toThrow('no saved plan missing-plan');
+    expect(() => {
+      fixture.replaceSavedPlanScheduleHash('missing-plan', 'changed');
+    }).toThrow('no saved plan missing-plan');
+    expect(await fixture.source.history.savedPlans.listOf('project-a')).toEqual([]);
+
+    expect(
+      await fixture.source.history.savedPlans.write(
+        {
+          id: 'absent-plan',
+          projectId: 'project-a',
+          name: 'Absent schedule',
+          createdBy: 'creator',
+          createdById: null,
+          createdAt: 1,
+          input: { schemaVersion: 1, bytes: 'input', sha256: 'input-hash' },
+          schedule: { present: false, absentReason: 'not-requested' },
+        },
+        () => Promise.resolve(null),
+      ),
+    ).toEqual({ outcome: 'written' });
+    expect(() => {
+      fixture.replaceSavedPlanScheduleHash('absent-plan', 'changed');
+    }).toThrow('saved plan absent-plan has no schedule hash');
+    expect(await fixture.source.history.savedPlans.readOf('absent-plan')).toMatchObject({
+      header: { scheduleSha256: null },
+      bodies: { input: 'input', schedule: null },
+    });
+    expect(
+      await fixture.source.history.savedPlans.write(
+        {
+          id: 'present-plan',
+          projectId: 'project-a',
+          name: 'Present schedule',
+          createdBy: 'creator',
+          createdById: null,
+          createdAt: 2,
+          input: { schemaVersion: 1, bytes: 'input', sha256: 'input-hash' },
+          schedule: {
+            present: true,
+            body: { schemaVersion: 1, bytes: 'schedule', sha256: 'schedule-hash' },
+            inputSha256: 'input-hash',
+            algorithmId: 'scheduler',
+          },
+        },
+        () => Promise.resolve(null),
+      ),
+    ).toEqual({ outcome: 'written' });
+    fixture.removeSavedPlanBodies('present-plan');
+    expect(() => {
+      fixture.removeSavedPlanBodies('present-plan');
+    }).toThrow('saved plan present-plan does not have both bodies');
+    expect(() => {
+      fixture.replaceSavedPlanInputBody('present-plan', 'changed');
+    }).toThrow('saved plan present-plan has no input body');
+    expect(await fixture.source.history.savedPlans.readOf('present-plan')).toMatchObject({
+      bodies: { input: null, schedule: null },
+    });
+    await fixture.source.close();
+  });
 });

@@ -69,6 +69,8 @@ export const SOURCE_CONFORMANCE_CASES = [
   'journal.append:history-atomic',
   'journal.append:account-redo-depth',
   'journal.flip:preconditions',
+  'savedPlans.write:bytes-and-bodies',
+  'savedPlans.touch:principals-scope',
 ] as const;
 
 export interface CertificationInput {
