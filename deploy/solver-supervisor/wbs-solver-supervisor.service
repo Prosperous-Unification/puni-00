@@ -4,6 +4,9 @@ Description=WBS host-owned solver supervisor
 [Service]
 Type=simple
 ExecStart=/home/puni1/.local/lib/wbs-solver/bun /home/puni1/.local/lib/wbs-solver/solver-supervisor.js --config=/home/puni1/.config/wbs-solver/solver-supervisor.json
+# A terminated Bun listener leaves its socket inode behind. Remove it before a
+# restart so readiness checks cannot accept the previous process's dead socket.
+ExecStopPost=/bin/rm -f %t/wbs-solver/supervisor.sock
 Restart=always
 RestartSec=1s
 RuntimeDirectory=wbs-solver
