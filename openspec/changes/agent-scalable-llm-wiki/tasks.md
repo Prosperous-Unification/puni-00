@@ -191,13 +191,19 @@ No `verify.md` exists until implementation produces observations.
 
 ## 7. Controlled experiments and policy adoption
 
-- [ ] 7.1 Implement `experiments/accounting.ts`, strict trial/outcome/receipt schemas and
+- [x] 7.1 Implement `experiments/accounting.ts`, strict trial/outcome/receipt schemas and
       portable JSONL/CSV export in `experiments/export.ts`. Test `accounting.test.ts` and
       `export.test.ts`: one accepted outcome counts once after split/retry/commits; reconcile
       all sessions including failure/censoring with elapsed, raw usage, human and infra cost.
       Negative: split outcome to inflate count, omit failed attempt, lose usage/price identity,
       or exclude waiting/gate time; report validation refuses. Independently recompute from
       exports without importing tool-wiki code.
+      Implementation evidence: commits `69ad8069` and `80ea57f1`; focused and complete Tool Wiki
+      results, production-path reversals, and independent acceptance are recorded in `verify.md`.
+      This slice was dependency-ready before 5.3 and 6.1–6.3 because it consumes the established
+      manifest/receipt contracts without activating policy, freezing the operational exhaustive
+      sweep, adopting final namespacing, or executing reviews. Those earlier-numbered operational
+      tasks remain open and are not satisfied by this accounting/export completion.
 - [ ] 7.2 Implement `experiments/runner.ts` over the structured `ExecutionAdapter`, with
       pinned manifests, seeds, actual model receipts, resource/cache conditions, bounded retries
       and active-session intervals. Test `runner.test.ts`: injected deterministic executor

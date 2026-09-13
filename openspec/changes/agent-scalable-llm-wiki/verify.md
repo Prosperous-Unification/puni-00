@@ -3285,5 +3285,34 @@ The final restored focused suite passed 13 tests with 51 assertions. The unfilte
 passed 546 tests with 4,987 assertions across 29 files in 840.52 seconds. Fresh uncached Tool Wiki
 source lint and forced typecheck exited 0. Whole-repository format check, strict OpenSpec validation,
 and `git diff --check` exited 0; OpenSpec printed `Change 'agent-scalable-llm-wiki' is valid` before
-its optional PostHog flush reported restricted DNS. Task 7.1 remains unchecked pending the second
-independent review; no runner, cohort, scaling, activation, or host acceptance is inferred.
+its optional PostHog flush reported restricted DNS. At that repair checkpoint, Task 7.1 remained
+unchecked pending the second independent review; no runner, cohort, scaling, activation, or host
+acceptance was inferred.
+
+#### Task 7.1 independent acceptance
+
+Astra independently reviewed the clean exact commit
+`80ea57f101e869ca4bcfd53c2ea25d498ae8fa15` from an immutable Git archive and returned **ACCEPT**
+with 0 Critical, 0 Important, and 0 Minor findings outstanding. The review closed all four Important
+and one Minor findings from its first pass. Its final restored focused run passed 13 tests with 51
+assertions. Eight review probes passed 15 tests with 150 assertions, and a separate Python
+standard-library reader checked all 12 trial CSV columns and all 6 outcome CSV columns against the
+JSONL observations. That reader independently derived 1 accepted outcome of 2, 600,000 trial
+milliseconds, 1,200,000 session milliseconds, 150,000 phase milliseconds, and 375 USD micros; it
+also checked canonical manifest hashing, identity propagation, failed/censored status retention,
+and bidirectional session ownership.
+
+The reviewer independently reversed complete-journal reconciliation, standalone total comparison,
+each of the three receipt containment checks, session emission, manifest identity/content emission,
+outcome normalization, and strict submission unknown-key rejection. Every production-path mutation
+failed its intended assertion and was restored byte-for-byte. Restored source SHA-256 values were
+`574adf5ac0141d99a40ac84d250bce6d9207e9ad88d1d101ccc97ac4e732e8e9` for `accounting.ts` and
+`e4ba10881750450fdce2a3a1ade3dc0c089fa9f5611cf9668831cc9419fe0f30` for `export.ts`.
+
+Acceptance is limited to Task 7.1 accounting and portable evidence. The complete journal remains an
+input trust boundary; the review did not authenticate operator journals, raw artifacts, or usage
+provenance. It did not run the full Tool Wiki suite, host gate, full-repository gates, browser suite,
+CI, OpenSpec validation, or operational activation. It does not implement or accept the runner,
+real concurrency, live cohorts, one-factor comparisons, adoption, or scaling claims in Tasks
+7.2–7.5. The coordinator's fresh implementation checks remain recorded immediately above; the
+review did not treat that prior evidence as its own.
