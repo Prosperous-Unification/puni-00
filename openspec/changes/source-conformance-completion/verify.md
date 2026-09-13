@@ -1624,3 +1624,15 @@ Prettier, the final diff check, OpenSpec strict validation, and all-artifact
 validation also passed. Task 5.1 remains unchecked and Task 5.2 is untouched.
 No commit, push, merge, archive, or deploy
 was performed.
+
+#### Task 5.1 acceptance
+
+Astra accepted Task 5.1 at `6cfb3e96` with zero Critical, Important, or
+Minor findings. The final review reran the integrated Task 5.1 focus
+(`17/0/468`) and rechecked the transaction/staging, account settlement,
+fixed-depth, independent-routing, history order/count, alias, missing-event,
+and lifecycle reversals. Both failure decorators contain no database work;
+all fallible TEMP-table setup now runs after the fixture owns cleanup.
+
+Task 5.1 is checked complete. Task 5.2 is next. Review:
+`/tmp/source-conformance-5-1-astra-acceptance.md`.

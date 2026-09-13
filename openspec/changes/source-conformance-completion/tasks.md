@@ -30,7 +30,7 @@ Implement after core-lib-extraction's source composition and staged-memory prere
 
 ## 5. Journal and recorded project history
 
-- [ ] 5.1 Implement `stores/journal.ts` append:history-atomic and append:account-redo-depth, with the source's actual shared plan-event storage. Two actors isolate redo; >50 appends exercise depth while history retains events. Faults: independent history fixture, late history failure outside journal transaction, clear both actors' redo, prune history alongside journal. Assert exact entries/history after settlement and check late-failure entry was attempted before the fault. Run existing command-journal and unit-of-work suites.
+- [x] 5.1 Implement `stores/journal.ts` append:history-atomic and append:account-redo-depth, with the source's actual shared plan-event storage. Two actors isolate redo; >50 appends exercise depth while history retains events. Faults: independent history fixture, late history failure outside journal transaction, clear both actors' redo, prune history alongside journal. Assert exact entries/history after settlement and check late-failure entry was attempted before the fault. Run existing command-journal and unit-of-work suites.
 - [ ] 5.2 Add journal.flip:preconditions (including restamp/discard/stateOf observations) and `stores/plan-events.ts` listFor:filters-order, pruneOlderThan:strict-cutoff. Seed through journal.append, including plan-wide events, distinct kinds/projects and records99/100/101 around cutoff100. Faults: retain preconditions, flip during restamp, ignore item filter, use <= cutoff. Assert direction/state/preconditions and exact event IDs after each operation, plus an untouched journal sentinel after history pruning.
 
 ## 6. Independent saved plans and coherent capture
