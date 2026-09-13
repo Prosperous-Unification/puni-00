@@ -18,6 +18,7 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Gate } from './gate';
+import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
 import { bumpedWorkItem, bumpedWorkItemOnReparent, bumpWorkItems } from './revision';
 import {
   actual,
@@ -902,6 +903,8 @@ export class WorkItemRepository implements WorkItemStore {
   }
 }
 
+const nonAtomicSubtreeMutants = new WeakSet<SubtreeRepository>();
+
 /**
  * Writes a duplicated subtree, across the four tables it lives in, at once.
  *
@@ -919,6 +922,7 @@ export class SubtreeRepository implements SubtreeStore {
   constructor(
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
+    private readonly lateWrite: SqliteLateWriteSeam = inertSqliteLateWriteSeam,
   ) {}
 
   /**
@@ -947,7 +951,8 @@ export class SubtreeRepository implements SubtreeStore {
   async insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void> {
     await this.gate.enter(async () => {
       await Promise.resolve();
-      this.db.transaction((tx) => {
+      const write = (tx: SQLiteBunDatabase): void => {
+        const satelliteKeys: string[] = [];
         for (const moved of copy.respaced) {
           tx.update(workItem)
             .set({ position: moved.position, ...auditOnUpdate(stamp) })
@@ -994,10 +999,14 @@ export class SubtreeRepository implements SubtreeStore {
             .where(eq(workItem.id, child.id))
             .run();
         }
-        if (copy.estimates.length > 0)
+        if (copy.estimates.length > 0) {
           tx.insert(estimate)
             .values(copy.estimates.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
             .run();
+          satelliteKeys.push(
+            ...copy.estimates.map(({ workItemId, stepId }) => `${workItemId}:${stepId}`),
+          );
+        }
         // Beside the estimates and written the same way. Empty for a duplication
         // — a copy is work nobody has done — and non-empty for the restore an
         // undo of a delete runs, which has to put back the days the delete took
@@ -1094,7 +1103,25 @@ export class SubtreeRepository implements SubtreeStore {
           ],
           stamp,
         );
-      });
+        this.lateWrite.reach('subtree-final-satellite', { satelliteKeys });
+      };
+      if (!nonAtomicSubtreeMutants.has(this)) this.db.transaction(write);
+      else write(this.db);
     });
   }
+}
+
+/**
+ * Creates the sole non-atomic subtree mutant for adapter proof fixtures.
+ *
+ * @internal
+ */
+export function createNonAtomicSubtreeMutantForTesting(
+  db: SQLiteBunDatabase,
+  gate: Gate,
+  lateWrite: SqliteLateWriteSeam,
+): SubtreeStore {
+  const repository = new SubtreeRepository(db, gate, lateWrite);
+  nonAtomicSubtreeMutants.add(repository);
+  return repository;
 }

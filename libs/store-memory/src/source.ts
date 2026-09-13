@@ -1,9 +1,13 @@
 import type {
+  PlanEvent,
   PlanInputReads,
+  SavedPlanHoldingRow,
   SavedPlanRow,
   SavedPlanStore,
   SavedPlanWrite,
+  SavedPlanWriteOutcome,
   Source,
+  StoredDependency,
   StoredSavedPlan,
   TransactionalStores,
 } from '@wbs/core';
@@ -20,6 +24,7 @@ import {
   type MemoryCapacityTable,
   memoryCapacityTable,
 } from './capacity-fixture';
+import { type CaptureReadSeam, inertMemoryCaptureReadSeam } from './capture-read-seam';
 import {
   inMemoryCommandJournal,
   type MemoryCommandJournalTables,
@@ -40,11 +45,8 @@ import {
   type MemoryEstimateTable,
   memoryEstimateTable,
 } from './estimate-fixture';
-import {
-  inMemoryPlanEvents,
-  type MemoryPlanEventTable,
-  memoryPlanEventTable,
-} from './history-fixture';
+import { inMemoryPlanEvents } from './history-fixture';
+import { inertMemoryLateWriteSeam, type MemoryLateWriteSeam } from './late-write-seam';
 import { inMemoryMeasures, type MemoryMeasureTable, memoryMeasureTable } from './measure-fixture';
 import {
   inMemoryWorkItems,
@@ -84,7 +86,6 @@ interface MemoryTables {
   readonly capacity: MemoryCapacityTable;
   readonly priorityBands: MemoryPriorityBandTable;
   readonly calendarMarkers: MemoryCalendarMarkerTable;
-  readonly planEvents: MemoryPlanEventTable;
   readonly eventLog: MemoryEventLogTables;
   readonly journal: MemoryCommandJournalTables;
 }
@@ -104,7 +105,6 @@ function emptyTables(): MemoryTables {
     capacity: memoryCapacityTable(),
     priorityBands: memoryPriorityBandTable(),
     calendarMarkers: memoryCalendarMarkerTable(),
-    planEvents: memoryPlanEventTable(),
     eventLog: memoryEventLogTables(),
     journal: memoryCommandJournalTables(),
   };
@@ -192,7 +192,6 @@ export class MemoryState {
     replaceMap(this.tables.capacity.held, next.tables.capacity.held);
     replaceMap(this.tables.priorityBands.held, next.tables.priorityBands.held);
     replaceMap(this.tables.calendarMarkers.held, next.tables.calendarMarkers.held);
-    replaceArray(this.tables.planEvents.held, next.tables.planEvents.held);
     replaceMap(this.tables.eventLog.rows, next.tables.eventLog.rows);
     replaceMap(this.tables.eventLog.nextSeq, next.tables.eventLog.nextSeq);
     replaceArray(this.tables.journal.entries, next.tables.journal.entries);
@@ -200,13 +199,33 @@ export class MemoryState {
   }
 }
 
-function bindStores(state: MemoryState): TransactionalStores {
+function bindStores(
+  state: MemoryState,
+  lateWrite: MemoryLateWriteSeam = inertMemoryLateWriteSeam,
+): TransactionalStores {
   const users = inMemoryUsers(state.tables.users);
   let workItems: TransactionalStores['workItems'] | null = null;
-  const directory = inMemoryDirectory((projectId) => {
+  const fixtureDirectory = inMemoryDirectory((projectId) => {
     if (workItems === null) throw new Error('work-item table was read before it was bound');
     return workItems.listByProject(projectId);
   }, state.tables.directory);
+  const directory: TransactionalStores['directory'] = {
+    ...fixtureDirectory,
+    async renameTag(tagId, name, stamp) {
+      const written = await fixtureDirectory.renameTag(tagId, name, stamp);
+      if (!written.ok) return written;
+      // Proof: the coherent capture RED received projectIds: [] after the real
+      // attached tag rename; source-owned relations must supply its touched project.
+      const projectIds = [
+        ...new Set(
+          [...state.tables.workItems.byId.values()]
+            .filter((row) => state.tables.workItems.tagsOf.get(row.id)?.includes(tagId) === true)
+            .map((row) => row.projectId),
+        ),
+      ].sort();
+      return { ...written, projectIds };
+    },
+  };
   const dependencies = inMemoryDependencies([], state.tables.dependencies);
   workItems = inMemoryWorkItems(directory, state.tables.workItems);
   const estimates = inMemoryEstimates(workItems, state.tables.estimates);
@@ -227,18 +246,25 @@ function bindStores(state: MemoryState): TransactionalStores {
     capacity: inMemoryCapacity({}, state.tables.capacity),
     priorityBands: inMemoryPriorityBands({}, state.tables.priorityBands),
     calendarMarkers: inMemoryCalendarMarkers([], state.tables.calendarMarkers),
-    planEvents: inMemoryPlanEvents([], state.tables.planEvents),
+    planEvents: inMemoryPlanEvents([], { held: state.tables.journal.events }),
     eventLog: inMemoryEventLog(state.tables.eventLog),
-    journal: inMemoryCommandJournal(state.tables.journal),
-    subtrees: inMemorySubtrees({
-      workItems,
-      estimates,
-      actuals,
-      progress,
-      measures,
-      dependencies,
-      directory,
+    journal: inMemoryCommandJournal(state.tables.journal, (journalEventIds) => {
+      lateWrite.reach('journal-history-insert', { journalEventIds });
     }),
+    subtrees: inMemorySubtrees(
+      {
+        workItems,
+        estimates,
+        actuals,
+        progress,
+        measures,
+        dependencies,
+        directory,
+      },
+      (satelliteKeys) => {
+        lateWrite.reach('subtree-final-satellite', { satelliteKeys });
+      },
+    ),
   };
   return detachedStores(stores);
 }
@@ -346,34 +372,326 @@ function coordinatedStores(
 
 /** Opens a staged in-memory source with no ambient runtime dependencies. */
 export function openMemorySource(): Source<TransactionalStores> {
+  return openMemorySourceWithSeams(inertMemoryLateWriteSeam, inertMemoryCaptureReadSeam).source;
+}
+
+/**
+ * Conformance-only source fixture with a reader for the journal's own history table.
+ *
+ * @internal
+ */
+export interface MemorySourceFixture {
+  readonly source: Source<TransactionalStores>;
+  /** Runs capture and directory writes in one forbidden staged owner, then rolls it back. */
+  captureWithStagedDirectoryRollback(
+    projectId: string,
+    stamp: { readonly at: number; readonly by: string },
+    observe: (evidence: {
+      readonly project: PlanInputReads['project'];
+      readonly tag: Awaited<ReturnType<TransactionalStores['directory']['renameTag']>>;
+      readonly person: Awaited<ReturnType<TransactionalStores['directory']['patchPerson']>>;
+      readonly tags: Awaited<ReturnType<TransactionalStores['directory']['listTags']>>;
+      readonly people: Awaited<ReturnType<TransactionalStores['directory']['listPeople']>>;
+    }) => void,
+  ): Promise<never>;
+  /** Reproduces forbidden ID-keyed dependency uniqueness in source-owned state. */
+  storeDependencyById(dependency: StoredDependency): void;
+  /** Reproduces the forbidden retained-row sequence derivation in source-owned state. */
+  deriveNextEventSeqFromRetained(subscription: string): void;
+  /**
+   * Moves one committed journal event into adapter-owned disconnected storage.
+   * @throws Error when the committed journal has no event with `eventId`.
+   */
+  routeJournalEventToIndependent(eventId: string): PlanEvent;
+  /** Reads the fixture's disconnected journal-event storage as detached records. */
+  independentJournalHistoryFor(): Promise<PlanEvent[]>;
+  journalHistoryFor(projectId: string): Promise<PlanEvent[]>;
+  /** Reproduces UTF-16 counts in adapter-owned history state. @throws When the plan is missing. */
+  setSavedPlanByteCounts(savedPlanId: string, inputBytes: number, scheduleBytes: number): void;
+  /** Reproduces a header whose bodies were lost. @throws When the plan or either body is missing. */
+  removeSavedPlanBodies(savedPlanId: string): void;
+  /** Reproduces altered input bytes. @throws When the plan or input body is missing. */
+  replaceSavedPlanInputBody(savedPlanId: string, bytes: string): void;
+  /** Reproduces an altered schedule hash. @throws When the plan or schedule hash is missing. */
+  replaceSavedPlanScheduleHash(savedPlanId: string, sha256: string): void;
+  /** Models split/omitted saved-plan body persistence at the real history owner. */
+  writeSavedPlanSplit<Refusal>(
+    plan: SavedPlanWrite,
+    check: (holding: SavedPlanHoldingRow, incomingBytes: number) => Promise<Refusal | null>,
+    includeInput: boolean,
+    observeBoundary?: (stored: StoredSavedPlan) => void,
+  ): Promise<never>;
+  /** Routes one history write through the forbidden command coordinator. */
+  writeSavedPlanThroughCommandCoordinator<Refusal>(
+    plan: SavedPlanWrite,
+    check: (holding: SavedPlanHoldingRow, incomingBytes: number) => Promise<Refusal | null>,
+  ): Promise<SavedPlanWriteOutcome<Refusal>>;
+  /** Runs the real quota callback but suppresses the target state replacement. */
+  claimSavedPlanWriteWithoutState<Refusal>(
+    plan: SavedPlanWrite,
+    check: (holding: SavedPlanHoldingRow, incomingBytes: number) => Promise<Refusal | null>,
+  ): Promise<SavedPlanWriteOutcome<Refusal>>;
+  /** Activates a history state owned by the current command stage. */
+  activateCommandHistoryStage(): void;
+  /** Discards the forbidden command-owned history state. */
+  discardCommandHistoryStage(): void;
+  /** History port backed by the active command-owned stage. */
+  readonly commandStagedSavedPlans: SavedPlanStore;
+}
+
+/** Opens the conformance fixture with access to adapter-owned persistence seams. @internal */
+export function openMemorySourceFixture(): MemorySourceFixture {
+  return openMemorySourceWithSeams(inertMemoryLateWriteSeam, inertMemoryCaptureReadSeam);
+}
+
+/** @internal */
+export function openMemorySourceWithLateWriteSeam(
+  lateWrite: MemoryLateWriteSeam,
+): MemorySourceFixture {
+  return openMemorySourceWithSeams(lateWrite, inertMemoryCaptureReadSeam);
+}
+
+/** @internal */
+export function openMemorySourceWithCaptureReadSeam(
+  captureRead: CaptureReadSeam,
+): MemorySourceFixture {
+  return openMemorySourceWithSeams(inertMemoryLateWriteSeam, captureRead);
+}
+
+function openMemorySourceWithSeams(
+  lateWrite: MemoryLateWriteSeam,
+  captureRead: CaptureReadSeam,
+): MemorySourceFixture {
   const committed = new MemoryState();
   const coordinator = new MemoryCoordinator();
   const historyCoordinator = new MemoryCoordinator();
   const historyState: HistoryState = { plans: new Map() };
+  let commandHistoryState: HistoryState | null = null;
+  const independentJournalEvents: PlanEvent[] = [];
   const history = memoryHistory(
     historyState,
-    () => bindStores(committed.clone()),
+    () => bindStores(committed.clone(), lateWrite),
     async (act) => await historyCoordinator.run(act),
+    undefined,
+    lateWrite,
+    captureRead,
   );
-  const stores = coordinatedStores(bindStores(committed), coordinator);
+  const stores = coordinatedStores(bindStores(committed, lateWrite), coordinator);
+  const activeCommandHistory = (): SavedPlanStore => {
+    if (commandHistoryState === null) throw new Error('command history stage is not active');
+    return memorySavedPlans(
+      commandHistoryState,
+      () => bindStores(committed.clone(), lateWrite),
+      async (act) => await act(),
+      lateWrite,
+    );
+  };
+  const commandStagedSavedPlans: SavedPlanStore = {
+    write: (plan, check) => activeCommandHistory().write(plan, check),
+    readOf: (id) => activeCommandHistory().readOf(id),
+    listOf: (projectId) => activeCommandHistory().listOf(projectId),
+    principalsOf: (id) => activeCommandHistory().principalsOf(id),
+    renameTo: (id, name) => activeCommandHistory().renameTo(id, name),
+    deleteOf: (id) => activeCommandHistory().deleteOf(id),
+  };
 
   return {
-    stores,
-    history,
-    uow: {
-      run: (act) =>
-        coordinator.run(async () => {
-          const staged = committed.clone();
-          const decision = await act({ stores: bindStores(staged) });
-          if (decision.commit) committed.replaceWith(staged);
-          else if (decision.afterRollback !== undefined) {
-            await decision.afterRollback({ stores: bindStores(committed) });
-          }
-          return decision.value;
-        }),
+    commandStagedSavedPlans,
+    activateCommandHistoryStage() {
+      if (commandHistoryState !== null) throw new Error('command history stage activated twice');
+      commandHistoryState = { plans: structuredClone(historyState.plans) };
     },
-    health: () => Promise.resolve({ ok: true }),
-    close: () => Promise.resolve(),
+    discardCommandHistoryStage() {
+      commandHistoryState = null;
+    },
+    writeSavedPlanThroughCommandCoordinator: (plan, check) =>
+      coordinator.run(async () => await history.savedPlans.write(plan, check)),
+    claimSavedPlanWriteWithoutState: async (plan, check) => {
+      const rows = [...historyState.plans.values()].filter(
+        (stored) => stored.header.projectId === plan.projectId,
+      );
+      const holding = {
+        plans: rows.length,
+        bytes: rows.reduce(
+          (sum, stored) => sum + stored.header.inputBytes + (stored.header.scheduleBytes ?? 0),
+          0,
+        ),
+      };
+      const incomingBytes =
+        new TextEncoder().encode(plan.input.bytes).byteLength +
+        (plan.schedule.present ? new TextEncoder().encode(plan.schedule.body.bytes).byteLength : 0);
+      const refusal = await check(holding, incomingBytes);
+      return refusal === null ? { outcome: 'written' } : { outcome: 'refused', refusal };
+    },
+    captureWithStagedDirectoryRollback(projectId, stamp, observe) {
+      return coordinator.run(async () => {
+        const staged = committed.clone();
+        const stagedStores = bindStores(staged, lateWrite);
+        await capturePlanInput(stagedStores, projectId, {
+          async afterFirstRead({ project }) {
+            const tag = await stagedStores.directory.renameTag(
+              'tag-a',
+              'Tag after interleave',
+              stamp,
+            );
+            const person = await stagedStores.directory.patchPerson(
+              'capture-person-unassigned',
+              { teamIds: ['team-a'] },
+              stamp,
+            );
+            const [tags, people] = await Promise.all([
+              stagedStores.directory.listTags(),
+              stagedStores.directory.listPeople(),
+            ]);
+            observe({ project, tag, person, tags, people });
+            throw new Error('injected staged-owner capture rollback');
+          },
+        });
+        throw new Error('staged-owner capture fault did not reject');
+      });
+    },
+    writeSavedPlanSplit: (plan, check, includeInput, observeBoundary) => {
+      // Proof: changing the canonical request ID before this adapter boundary used to
+      // exercise the split writer for an unrelated record and certify its failure.
+      if (plan.id !== 'late-target')
+        return Promise.reject(new Error('saved-plan split target must be late-target'));
+      const expectedPlan = structuredClone(plan);
+      return historyCoordinator.run(async () => {
+        const rows = [...historyState.plans.values()].filter(
+          (stored) => stored.header.projectId === plan.projectId,
+        );
+        const holding = {
+          plans: rows.length,
+          bytes: rows.reduce(
+            (sum, stored) => sum + stored.header.inputBytes + (stored.header.scheduleBytes ?? 0),
+            0,
+          ),
+        };
+        const incomingBytes =
+          new TextEncoder().encode(plan.input.bytes).byteLength +
+          (plan.schedule.present
+            ? new TextEncoder().encode(plan.schedule.body.bytes).byteLength
+            : 0);
+        const refusal = await check(holding, incomingBytes);
+        if (refusal !== null) throw new Error('split saved-plan fault was unexpectedly refused');
+        historyState.plans.set(plan.id, {
+          header: savedPlanRow(plan),
+          bodies: { input: includeInput ? plan.input.bytes : null, schedule: null },
+        });
+        const partial = historyState.plans.get(plan.id);
+        if (partial !== undefined) observeBoundary?.(structuredClone(partial));
+        if (partial !== undefined)
+          lateWrite.observeBoundary?.('saved-plan-schedule-body', {
+            savedPlan: structuredClone(partial),
+          });
+        assertSavedPlanScheduleBoundary(expectedPlan, partial);
+        if (partial.bodies.schedule !== null)
+          throw new Error('split saved-plan fault persisted schedule too early');
+        lateWrite.reach('saved-plan-schedule-body', {
+          savedPlan: structuredClone(partial),
+        });
+        throw new Error('split saved-plan fault control did not reject');
+      });
+    },
+    setSavedPlanByteCounts(savedPlanId, inputBytes, scheduleBytes) {
+      const stored = historyState.plans.get(savedPlanId);
+      // Proof: removing this guard made the regression fail later with
+      // `undefined is not an object (evaluating 'stored.header')`.
+      if (stored === undefined) throw new Error(`no saved plan ${savedPlanId}`);
+      historyState.plans.set(savedPlanId, {
+        ...stored,
+        header: { ...stored.header, inputBytes, scheduleBytes },
+      });
+    },
+    removeSavedPlanBodies(savedPlanId) {
+      const stored = historyState.plans.get(savedPlanId);
+      // Proof: removing this guard made the missing-seam regression receive
+      // `undefined is not an object (evaluating 'stored.bodies')`.
+      if (stored === undefined) throw new Error(`no saved plan ${savedPlanId}`);
+      // Proof: removing this guard made `refuses saved-plan persistence mutations
+      // without their exact target state` receive undefined from a call expected to throw.
+      if (stored.bodies.input === null || stored.bodies.schedule === null)
+        throw new Error(`saved plan ${savedPlanId} does not have both bodies`);
+      historyState.plans.set(savedPlanId, {
+        ...stored,
+        bodies: { input: null, schedule: null },
+      });
+    },
+    replaceSavedPlanInputBody(savedPlanId, bytes) {
+      const stored = historyState.plans.get(savedPlanId);
+      // Proof: removing this guard made the missing-seam regression receive
+      // `undefined is not an object (evaluating 'stored.bodies')`.
+      if (stored === undefined) throw new Error(`no saved plan ${savedPlanId}`);
+      // Proof: removing this guard made `refuses saved-plan persistence mutations
+      // without their exact target state` receive undefined from a call expected to throw.
+      if (stored.bodies.input === null)
+        throw new Error(`saved plan ${savedPlanId} has no input body`);
+      historyState.plans.set(savedPlanId, {
+        ...stored,
+        bodies: { ...stored.bodies, input: bytes },
+      });
+    },
+    replaceSavedPlanScheduleHash(savedPlanId, sha256) {
+      const stored = historyState.plans.get(savedPlanId);
+      // Proof: removing this guard made the missing-seam regression receive
+      // `undefined is not an object (evaluating 'stored.header')`.
+      if (stored === undefined) throw new Error(`no saved plan ${savedPlanId}`);
+      // Proof: removing this guard made `refuses saved-plan persistence mutations
+      // without their exact target state` receive undefined from a call expected to throw.
+      if (stored.header.scheduleSha256 === null)
+        throw new Error(`saved plan ${savedPlanId} has no schedule hash`);
+      historyState.plans.set(savedPlanId, {
+        ...stored,
+        header: { ...stored.header, scheduleSha256: sha256 },
+      });
+    },
+    storeDependencyById(toAdd) {
+      if (committed.tables.dependencies.rows.some(({ id }) => id === toAdd.id)) return;
+      committed.tables.dependencies.rows.push(structuredClone(toAdd));
+    },
+    deriveNextEventSeqFromRetained(subscription) {
+      const retained = committed.tables.eventLog.rows.get(subscription) ?? [];
+      committed.tables.eventLog.nextSeq.set(subscription, (retained.at(-1)?.seq ?? -1) + 1);
+    },
+    routeJournalEventToIndependent(eventId) {
+      const index = committed.tables.journal.events.findIndex(({ id }) => id === eventId);
+      // Proof: removing this guard made the real-fixture missing-route test fail
+      // with `Received function did not throw; Received value: undefined`.
+      if (index < 0) throw new Error(`no journal event ${eventId}`);
+      const found = committed.tables.journal.events[index];
+      committed.tables.journal.events.splice(index, 1);
+      const moved = structuredClone(found);
+      independentJournalEvents.push(moved);
+      return structuredClone(moved);
+    },
+    independentJournalHistoryFor() {
+      return Promise.resolve(structuredClone(independentJournalEvents));
+    },
+    journalHistoryFor(projectId) {
+      return Promise.resolve(
+        committed.tables.journal.events
+          .filter((event) => event.projectId === projectId)
+          .map((event) => structuredClone(event)),
+      );
+    },
+    source: {
+      stores,
+      history,
+      uow: {
+        run: (act) =>
+          coordinator.run(async () => {
+            const staged = committed.clone();
+            const decision = await act({ stores: bindStores(staged, lateWrite) });
+            if (decision.commit) committed.replaceWith(staged);
+            else if (decision.afterRollback !== undefined) {
+              await decision.afterRollback({ stores: bindStores(committed, lateWrite) });
+            }
+            return decision.value;
+          }),
+      },
+      health: () => Promise.resolve({ ok: true }),
+      close: () => Promise.resolve(),
+    },
   };
 }
 
@@ -403,14 +721,30 @@ function savedPlanRow(plan: SavedPlanWrite): SavedPlanRow {
   };
 }
 
+function assertSavedPlanScheduleBoundary(
+  plan: SavedPlanWrite,
+  stored: StoredSavedPlan | undefined,
+): asserts stored is StoredSavedPlan {
+  // Proof: removing this guard changed the adapter-owned missing-input proof
+  // from `phase-failed` to `observed` after the invalid boundary reached.
+  if (
+    stored === undefined ||
+    JSON.stringify(stored.header) !== JSON.stringify(savedPlanRow(plan)) ||
+    stored.bodies.input !== plan.input.bytes
+  )
+    throw new Error('saved-plan schedule boundary lacks complete header and input');
+}
+
 function memorySavedPlans(
   state: HistoryState,
   stores: () => TransactionalStores,
   writeTurn: <T>(act: () => Promise<T>) => Promise<T>,
+  lateWrite: MemoryLateWriteSeam,
 ): SavedPlanStore {
   return {
-    write: (plan, check) =>
-      writeTurn(async () => {
+    write: (plan, check) => {
+      const expectedPlan = structuredClone(plan);
+      return writeTurn(async () => {
         const rows = [...state.plans.values()].filter(
           (stored) => stored.header.projectId === plan.projectId,
         );
@@ -428,15 +762,34 @@ function memorySavedPlans(
             : 0);
         const refusal = await check(holding, incoming);
         if (refusal !== null) return { outcome: 'refused', refusal };
-        state.plans.set(plan.id, {
+        const staged = structuredClone(state.plans);
+        const pending: StoredSavedPlan = {
           header: savedPlanRow(plan),
           bodies: {
             input: plan.input.bytes,
-            schedule: plan.schedule.present ? plan.schedule.body.bytes : null,
+            schedule: null,
           },
-        });
+        };
+        staged.set(plan.id, pending);
+        if (plan.schedule.present) {
+          if (lateWrite.isActive?.('saved-plan-schedule-body') === true) {
+            lateWrite.observeBoundary?.('saved-plan-schedule-body', {
+              savedPlan: structuredClone(pending),
+            });
+            assertSavedPlanScheduleBoundary(expectedPlan, pending);
+            lateWrite.reach('saved-plan-schedule-body', {
+              savedPlan: structuredClone(pending),
+            });
+          } else lateWrite.reach('saved-plan-schedule-body');
+          staged.set(plan.id, {
+            ...pending,
+            bodies: { ...pending.bodies, schedule: plan.schedule.body.bytes },
+          });
+        }
+        replaceMap(state.plans, staged);
         return { outcome: 'written' };
-      }),
+      });
+    },
     readOf(savedPlanId) {
       const found = state.plans.get(savedPlanId);
       return Promise.resolve(found === undefined ? null : structuredClone(found));
@@ -478,9 +831,11 @@ function memorySavedPlans(
 async function capturePlanInput(
   stores: TransactionalStores,
   projectId: string,
+  captureRead: CaptureReadSeam,
 ): Promise<PlanInputReads | null> {
   const project = await stores.projects.findById(projectId);
   if (project === null) return null;
+  await captureRead.afterFirstRead({ projectId, project });
   const [
     steps,
     workItems,
@@ -542,14 +897,16 @@ function memoryHistory(
   stores: () => TransactionalStores,
   writeTurn: <T>(act: () => Promise<T>) => Promise<T>,
   captureTurn: <T>(act: () => Promise<T>) => Promise<T> = async (act) => await act(),
+  lateWrite: MemoryLateWriteSeam = inertMemoryLateWriteSeam,
+  captureRead: CaptureReadSeam = inertMemoryCaptureReadSeam,
 ): Source<TransactionalStores>['history'] {
   return {
-    savedPlans: memorySavedPlans(state, stores, writeTurn),
+    savedPlans: memorySavedPlans(state, stores, writeTurn, lateWrite),
     savedPlanCapture: {
       readPlanInput(projectId) {
         // Capture gets a detached committed graph before its first awaited read.
         const epoch = stores();
-        return captureTurn(async () => await capturePlanInput(epoch, projectId));
+        return captureTurn(async () => await capturePlanInput(epoch, projectId, captureRead));
       },
     },
   };

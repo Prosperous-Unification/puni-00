@@ -1,10 +1,10 @@
-import type { TransactionalStores } from '@wbs/core';
+import type { NewJournalEntry, PlanEvent, TransactionalStores } from '@wbs/core';
 import { SavedPlanService } from '@wbs/core';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { describe, expect, it } from 'bun:test';
 
-import { openMemorySource } from './source';
+import { openMemorySource, openMemorySourceFixture } from './source';
 
 const stamp = { at: 1, by: 'owner' };
 const STORE_BINDINGS = [
@@ -517,5 +517,139 @@ describe('the staged memory source', () => {
     expect(await source.stores.dependencies.listByProject('p1')).toEqual([
       { id: 'dep-1', projectId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },
     ]);
+  });
+
+  it('refuses a missing independent-history route without deleting real history', async () => {
+    const fixture = openMemorySourceFixture();
+    const source = fixture.source;
+    await source.stores.users.create(
+      { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
+      stamp,
+    );
+    await source.stores.projects.create(
+      {
+        id: 'p1',
+        name: 'Before',
+        ownerId: 'owner',
+        restricted: false,
+        estimateMethod: 'pert',
+        depReach: 'whole-item',
+        pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+        estimateRounding: 'round',
+        startDate: null,
+        solutionRef: null,
+        revision: 0,
+        createdAt: 1,
+        optimizationEnabled: false,
+        scheduleEngine: 'fast',
+        scheduleObjective: 'pri',
+      },
+      [{ id: 'st-1', projectId: 'p1', name: 'Dev', position: 10 }],
+      stamp,
+    );
+    const entry: NewJournalEntry = {
+      id: 'legitimate-entry',
+      projectId: 'p1',
+      userId: 'owner',
+      kind: 'rename',
+      payload: { type: 'rename', name: 'After' },
+      inverse: { type: 'rename', name: 'Before' },
+      preconditions: { expected: { p1: 1 }, from: { p1: 0 } },
+      createdAt: 2,
+    };
+    const event: PlanEvent = {
+      id: 'legitimate-event',
+      projectId: 'p1',
+      userId: 'owner',
+      kind: 'rename',
+      label: 'Legitimate rename',
+      workItemId: null,
+      stepId: null,
+      before: { type: 'rename', name: 'Before' },
+      after: { type: 'rename', name: 'After' },
+      createdAt: 2,
+    };
+    await source.stores.journal.append(structuredClone(entry), structuredClone(event));
+
+    expect(() => fixture.routeJournalEventToIndependent('missing-event')).toThrow(
+      'no journal event missing-event',
+    );
+    expect(await source.stores.planEvents.listFor('p1', {})).toEqual([event]);
+    expect(await fixture.independentJournalHistoryFor()).toEqual([]);
+    expect(await source.stores.journal.entriesFor('p1', 'owner')).toEqual([
+      { ...entry, seq: 1, undone: false },
+    ]);
+    await source.close();
+  });
+
+  it('refuses saved-plan persistence mutations without their exact target state', async () => {
+    const fixture = openMemorySourceFixture();
+    expect(() => {
+      fixture.setSavedPlanByteCounts('missing-plan', 1, 1);
+    }).toThrow('no saved plan missing-plan');
+    expect(() => {
+      fixture.removeSavedPlanBodies('missing-plan');
+    }).toThrow('no saved plan missing-plan');
+    expect(() => {
+      fixture.replaceSavedPlanInputBody('missing-plan', 'changed');
+    }).toThrow('no saved plan missing-plan');
+    expect(() => {
+      fixture.replaceSavedPlanScheduleHash('missing-plan', 'changed');
+    }).toThrow('no saved plan missing-plan');
+    expect(await fixture.source.history.savedPlans.listOf('project-a')).toEqual([]);
+
+    expect(
+      await fixture.source.history.savedPlans.write(
+        {
+          id: 'absent-plan',
+          projectId: 'project-a',
+          name: 'Absent schedule',
+          createdBy: 'creator',
+          createdById: null,
+          createdAt: 1,
+          input: { schemaVersion: 1, bytes: 'input', sha256: 'input-hash' },
+          schedule: { present: false, absentReason: 'not-requested' },
+        },
+        () => Promise.resolve(null),
+      ),
+    ).toEqual({ outcome: 'written' });
+    expect(() => {
+      fixture.replaceSavedPlanScheduleHash('absent-plan', 'changed');
+    }).toThrow('saved plan absent-plan has no schedule hash');
+    expect(await fixture.source.history.savedPlans.readOf('absent-plan')).toMatchObject({
+      header: { scheduleSha256: null },
+      bodies: { input: 'input', schedule: null },
+    });
+    expect(
+      await fixture.source.history.savedPlans.write(
+        {
+          id: 'present-plan',
+          projectId: 'project-a',
+          name: 'Present schedule',
+          createdBy: 'creator',
+          createdById: null,
+          createdAt: 2,
+          input: { schemaVersion: 1, bytes: 'input', sha256: 'input-hash' },
+          schedule: {
+            present: true,
+            body: { schemaVersion: 1, bytes: 'schedule', sha256: 'schedule-hash' },
+            inputSha256: 'input-hash',
+            algorithmId: 'scheduler',
+          },
+        },
+        () => Promise.resolve(null),
+      ),
+    ).toEqual({ outcome: 'written' });
+    fixture.removeSavedPlanBodies('present-plan');
+    expect(() => {
+      fixture.removeSavedPlanBodies('present-plan');
+    }).toThrow('saved plan present-plan does not have both bodies');
+    expect(() => {
+      fixture.replaceSavedPlanInputBody('present-plan', 'changed');
+    }).toThrow('saved plan present-plan has no input body');
+    expect(await fixture.source.history.savedPlans.readOf('present-plan')).toMatchObject({
+      bodies: { input: null, schedule: null },
+    });
+    await fixture.source.close();
   });
 });
