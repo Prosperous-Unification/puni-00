@@ -106,7 +106,6 @@ export const UNASSIGNED_BAR_COLOR = '#94a3b8';
  * darker than {@link UNASSIGNED_BAR_COLOR}, so the two greys read apart — and
  * carrying the done mark the panel draws over it.
  */
-export const DONE_BAR_COLOR = '#475569';
 /**
  * The done bar's outline and its tick: the table's `--status-done` green, as a
  * hex because the chart is exported as a standalone SVG where no custom
@@ -139,8 +138,7 @@ export const CAPACITY_LINK_COLOR = '#b45309';
  * hex without asking what happens when it is not one. Validate at the boundary,
  * keep the internal type precise.
  */
-export type BarColor =
-  (typeof PERSON_BAR_COLORS)[number] | typeof UNASSIGNED_BAR_COLOR | typeof DONE_BAR_COLOR;
+export type BarColor = (typeof PERSON_BAR_COLORS)[number] | typeof UNASSIGNED_BAR_COLOR;
 
 /** The two colours a bar's own label is ever written in. */
 const BAR_LABEL_LIGHT = '#ffffff';
@@ -727,7 +725,7 @@ export interface GanttBar {
   lateBy: number | null;
   /**
    * Whether this is a **done bar**: one bar for a done leaf, drawn over its fact
-   * span in place of its slices (ADR 0024). Painted {@link DONE_BAR_COLOR}
+   * span in place of its slices (ADR 0024). Painted in its first slice's person colour, outlined {@link DONE_BAR_STROKE}
    * with the done mark, never as an assumed span, and registered under every
    * slice id of its leaf so a person or capacity link still finds it.
    */
@@ -1969,7 +1967,7 @@ export function layOutGantt(plan: GanttPlan): GanttGeometry {
       // Registered under every slice id so a link that names any of them
       // lands on this bar.
       const ordered = inStepOrder(own, stepsById);
-      const bar = doneBarOf(row, rowIndex, ordered, plan.personNames);
+      const bar = doneBarOf(row, rowIndex, ordered, plan.personNames, colorFor);
       bars.push(bar);
       for (const { slice } of ordered) barBySliceId.set(slice.id, bar);
       return;
@@ -2812,6 +2810,7 @@ function doneBarOf(
   rowIndex: number,
   ordered: readonly PlacedSlice[],
   personNames: ReadonlyMap<string, string>,
+  colorFor: (personId: string | null) => BarColor,
 ): GanttBar {
   const slices = ordered.map((each) => each.slice);
   const earliest = Math.min(...slices.map((slice) => slice.earliestStart));
@@ -2845,7 +2844,13 @@ function doneBarOf(
     workItemName: row.name,
     stepName: ordered.map((each) => each.stepName ?? 'No step').join(' + '),
     personName: people.length === 0 ? null : people.join(' & '),
-    personColor: DONE_BAR_COLOR,
+    // The first slice's person, as an ordinary bar would be painted: who did
+    // the work is information the chart carries in colour, and a flat "done"
+    // colour threw it away (slate until 2026-09-13, then a pale green for an
+    // hour). Dany: "how do we keep the original coloring scheme of the gantt
+    // chart for the Done slices which is also meaningful". Done is said by the
+    // green outline and the ticked badge instead.
+    personColor: colorFor(first.personId),
     floorWords: 'Done — drawn over what happened, not over the estimate',
     team: row.team,
     tags: row.tags,
