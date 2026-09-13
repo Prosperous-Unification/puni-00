@@ -9086,11 +9086,18 @@ describe('a done bar', () => {
     const mark = document.querySelector('[data-done-mark="strip-dev"]');
     if (mark === null) throw new Error('the done bar has no tick');
     expect(mark.getAttribute('stroke')).toBe(DONE_BAR_STROKE);
+    // On a white badge, so the green reads on the bar's slate as it does on
+    // the table's white (Dany, 2026-09-13: the tick "kinda blends with the
+    // grey"). The badge and the tick share one transform, so they move as one.
+    const badge = document.querySelector('[data-done-badge="strip-dev"]');
+    if (badge === null) throw new Error('the tick has no badge');
+    expect(badge.getAttribute('fill')).toBe('white');
+    expect(badge.getAttribute('transform')).toBe(mark.getAttribute('transform'));
     // The label leaves the tick's width free at its right end, so the
     // ellipsis lands before the mark rather than under it.
     const label = document.querySelector<HTMLElement>('[data-gantt-bar-label="strip-dev"]');
     if (label === null) throw new Error('the done bar has no label');
-    expect(label.style.paddingRight).toBe(`${String(3 + 12 + 3)}px`);
+    expect(label.style.paddingRight).toBe(`${String(3 + 12 + 6)}px`);
     expect(bar.getAttribute('aria-label') ?? '').toContain(
       'Done — drawn over what happened, not over the estimate',
     );

@@ -692,7 +692,7 @@
   }
 
   [data-grid] thead th {
-    box-shadow: inset 0 -1px 0 var(--border);
+    box-shadow: inset -1px -1px 0 var(--border);
     color: var(--muted-foreground);
     font-size: 10px;
     font-weight: 600;
@@ -837,7 +837,7 @@
    * were one undivided field.
    */
   [data-grid] tbody td {
-    box-shadow: inset 0 -1px 0 var(--border);
+    box-shadow: inset -1px -1px 0 var(--border);
   }
 
   /*
@@ -854,27 +854,22 @@
   [data-grid] tbody tr[data-row-status='done'] td[data-column='drag'] {
     box-shadow:
       inset 3px 0 0 var(--status-done),
-      inset 0 -1px 0 var(--border);
+      inset -1px -1px 0 var(--border);
   }
 
   [data-grid] tbody tr[data-row-status='in_progress'] td[data-column='drag'] {
     box-shadow:
       inset 3px 0 0 var(--status-in-progress),
-      inset 0 -1px 0 var(--border);
+      inset -1px -1px 0 var(--border);
   }
 
-  [data-grid] td[data-column='number'],
-  [data-grid] td[data-column='status'],
-  [data-grid] td[data-column='refs'],
-  [data-grid] td[data-column='name'],
-  [data-grid] td[data-column='depends'],
-  [data-grid] th[data-column='number'],
-  [data-grid] th[data-column='status'],
-  [data-grid] th[data-column='refs'],
-  [data-grid] th[data-column='name'],
-  [data-grid] th[data-column='depends'] {
-    box-shadow: inset -1px -1px 0 var(--border);
-  }
+  /*
+   * The right-edge rule is every column's since `column-rules-and-add-buttons`
+   * (Dany, 2026-09-13: "add column delimiters to all columns"): `tbody td` and
+   * `thead th` above draw it, so the list that named the pinned columns and
+   * Depends on as the only ruled ones is gone. The figures to the right of
+   * Depends on used to sit in one undivided field.
+   */
 
   /*
    * Every box a cell is typed into: nothing at rest but the row's own colour,
@@ -1157,7 +1152,18 @@
    * pixel — the chips set the strip's line box, and an affordance taller than
    * one would make every deps row taller than every other row in the table.
    */
-  [data-grid] td[data-column='depends'] button[data-dep-add] {
+  /*
+   * **One `+`, four columns.** Depends on, Tags, Services and Types each open
+   * their picker from a `+` on the strip's leading edge, and until
+   * `column-rules-and-add-buttons` only Depends on's was styled here — the
+   * other three fell back to the platform button: black, square, `1px 6px` of
+   * padding (measured in Chromium, 2026-09-13). Dany: "i want the + btn in the
+   * depends on col and tags col (and types, services) be similar in design,
+   * now they feel different". Every add button carries `data-reference-add`,
+   * so that is the selector, and the Depends on rule that said the same about
+   * `[data-dep-add]` alone is folded in.
+   */
+  [data-grid] button[data-reference-add] {
     border: 0;
     border-radius: var(--radius-sm);
     background: none;
@@ -1165,6 +1171,11 @@
     padding: 0 4px;
     line-height: 1.5;
     cursor: pointer;
+  }
+
+  [data-grid] button[data-reference-add]:hover {
+    background: color-mix(in oklab, var(--foreground) 7%, var(--cell-bg));
+    color: var(--foreground);
   }
 
   /*
@@ -1245,11 +1256,6 @@
     padding: 0 4px;
     line-height: 1.5;
     font-variant-numeric: tabular-nums;
-  }
-
-  [data-grid] td[data-column='depends'] button[data-dep-add]:hover {
-    background: color-mix(in oklab, var(--foreground) 7%, var(--cell-bg));
-    color: var(--foreground);
   }
 
   /* The derived figures. Tabular, so a column of them lines up on the decimal

@@ -4803,12 +4803,34 @@ function GanttChart({
             */}
         {drawnBars.flatMap(({ bar, x, width }) => {
           if (!bar.done || width * dayPx < DONE_MARK_PX + 6) return [];
+          // One transform for the badge and the tick: `DONE_MARK_PX` user units
+          // across are that many pixels, and the 12 units down are the bar's
+          // height, whatever the zoom.
+          const at = `translate(${String(x + width - (DONE_MARK_PX + 3) / dayPx)}, ${String(bar.rowIndex + BAR_INSET)}) scale(${String(1 / dayPx)}, ${String(BAR_HEIGHT / DONE_MARK_PX)})`;
           return [
+            // The white badge under the tick. A green tick on the done bar's
+            // slate read as "kinda blends with the grey" (Dany, 2026-09-13,
+            // from a screenshot), so the tick sits on the page's own white as
+            // it does in the table — a pill three pixels wider than the mark
+            // on each side. Painted in the SVG so the export keeps it, and
+            // with `pointerEvents="none"` so the bar's click is not holed.
+            <rect
+              key={`${bar.sliceId}-done-badge`}
+              data-done-badge={bar.sliceId}
+              x={-1.5}
+              y={1.5}
+              width={DONE_MARK_PX + 3}
+              height={9}
+              rx={3}
+              transform={at}
+              fill="white"
+              pointerEvents="none"
+            />,
             <path
               key={`${bar.sliceId}-done`}
               data-done-mark={bar.sliceId}
               d="M1.5 6 L4.5 9 L10.5 2.5"
-              transform={`translate(${String(x + width - (DONE_MARK_PX + 3) / dayPx)}, ${String(bar.rowIndex + BAR_INSET)}) scale(${String(1 / dayPx)}, ${String(BAR_HEIGHT / DONE_MARK_PX)})`}
+              transform={at}
               fill="none"
               stroke={DONE_BAR_STROKE}
               strokeWidth={2}
@@ -4965,7 +4987,7 @@ function GanttChart({
                 // for a tick keeps the whole width for its words.
                 paddingRight:
                   bar.done && width * dayPx >= DONE_MARK_PX + 6
-                    ? LABEL_PAD_PX + DONE_MARK_PX + 3
+                    ? LABEL_PAD_PX + DONE_MARK_PX + 6
                     : LABEL_PAD_PX,
               }}
             >
