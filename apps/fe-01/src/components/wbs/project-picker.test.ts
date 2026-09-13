@@ -69,7 +69,7 @@ describe('projectCardMeta', () => {
 
   it('prints ownership, the start day and the last open', () => {
     expect(projectCardMeta(entry, reading)).toEqual({
-      ownership: '(kat · 1 Dec 2025)',
+      ownership: "(kat · 1 Dec '25)",
       start: 'Start 12 Mar',
       lastOpened: 'Last opened 10 Jan',
     });
@@ -107,7 +107,7 @@ describe('entryMeta', () => {
     const reading = new Date(2026, 0, 15);
 
     expect(entryMeta({ ownerName: 'kat', createdAt: madeOn.getTime() }, reading)).toBe(
-      '(kat · 1 Jun 2027)',
+      "(kat · 1 Jun '27)",
     );
     expect(entryMeta({ ownerName: 'kat', createdAt: madeOn.getTime() }, madeOn)).toBe(
       '(kat · 1 Jun)',

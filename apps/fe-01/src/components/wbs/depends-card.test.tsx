@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createDepLights } from './dep-light-store';
@@ -93,6 +93,46 @@ describe('the dependency-card pointer bridge', () => {
       expect(going.style.paddingLeft).toBe(done.style.paddingLeft);
     },
   );
+
+  itDom('keeps the strip where it stands when the pointer lights one line', () => {
+    // Dany, 2026-09-13: "the status badge flickers when focus on tag vs when
+    // focus on the cell". The lit line wore an inset box — negative margin
+    // given straight back as padding — that the lines at rest did not, so the
+    // 3px strip stood 4px further left the moment the pointer reached a pill
+    // and jumped back when it left. The box is every line's now; only the
+    // background follows the pointer.
+    const depLights = createDepLights();
+    render(
+      <DependsCard
+        number="030"
+        entries={[
+          { id: 'w1', number: '010', name: 'Strip', status: 'done' },
+          { id: 'w2', number: '020', name: 'Sand', status: 'in_progress' },
+        ]}
+        depLights={depLights}
+        rowId="row"
+        onPointEntry={() => undefined}
+        onPointerOutside={() => undefined}
+      />,
+    );
+    const [done, going] = screen.getAllByTestId('depends-card-target');
+    const boxOf = (line: HTMLElement) => ({
+      margin: line.style.margin,
+      padding: line.style.padding,
+      paddingLeft: line.style.paddingLeft,
+      borderLeft: line.style.borderLeft,
+    });
+    const atRest = boxOf(done);
+    expect(done.style.background).toBe('');
+
+    act(() => {
+      depLights.updateHover(() => ({ rowId: 'row', pillId: 'w1' }));
+    });
+
+    expect(done.style.background).toBe('var(--card-dep-lit)');
+    expect(boxOf(done)).toEqual(atRest);
+    expect(boxOf(going)).toEqual({ ...atRest, borderLeft: '3px solid transparent' });
+  });
 
   itDom('keeps the surface passive and only the unfocusable rows interactive', () => {
     render(

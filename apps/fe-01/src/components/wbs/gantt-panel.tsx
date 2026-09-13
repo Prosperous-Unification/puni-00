@@ -787,13 +787,110 @@ const LABEL_PAD_PX = 3;
  * The label's own left pad, wider than {@link LABEL_PAD_PX}: the words start
  * clear of the bar's rounded corner and its 2px done outline (Dany,
  * 2026-09-13: "a little more padding - from the left edge of a slice to the
- * text"). The right pad stays at {@link LABEL_PAD_PX}, and the fit arithmetic
- * in {@link barText} keeps its symmetric pair — a label that is a few pixels
- * short of fitting is an ellipsis a few pixels sooner, which is what
- * `text-ellipsis` is for.
+ * text"). The right pad stays at {@link LABEL_PAD_PX}, and both are what
+ * {@link labelRoomFor} takes off the bar — the same pixels the label's box is
+ * laid out with, so a fit decided in arithmetic is a fit the browser draws.
  */
 const LABEL_PAD_LEFT_PX = 6;
 const LABEL_CHAR_PX = 5;
+/**
+ * What the crop mark costs, in CSS pixels: the `…` that `text-ellipsis` draws
+ * where the words run out of box, about three quarters of an em at
+ * `text-[9px]`. Reserved whenever words follow something that has to be read
+ * whole, so the mark lands on the words and never on the number in front of
+ * them — see {@link barText}.
+ */
+const ELLIPSIS_PX = 7;
+/** What stands between the assignee and the row words, and between nothing else. */
+const LABEL_SEPARATOR = ' · ';
+
+/**
+ * The right pad of a bar's label box: the plain pad, or the plain pad and the
+ * done tick where the bar is wide enough to draw one. A done bar's label stops
+ * short of its tick, so the ellipsis lands before the mark instead of under it
+ * (Dany, 2026-09-13: "on the small slices the checkmark overlaps with text").
+ * The same threshold the tick is drawn at, so a bar too narrow for a tick
+ * keeps the whole width for its words.
+ */
+function labelPadRightPx(done: boolean, drawnPx: number): number {
+  return done && drawnPx >= DONE_MARK_PX + 6 ? LABEL_PAD_PX + DONE_MARK_PX + 3 : LABEL_PAD_PX;
+}
+
+/**
+ * The box a bar's label is written in, measured once for everything the label
+ * then decides: who is named, whether the row words follow, whether anything is
+ * written at all.
+ *
+ * `px` is the drawn width — weekend cells included, a bar stretched over a
+ * Saturday has those pixels to write in — less both pads and, on a done bar
+ * wide enough for its tick, the tick ({@link labelPadRightPx}). `number` rides
+ * with the room because since 2026-09-13 every label starts from the row's
+ * number or **is** it (Dany: "every title to start from the item number - and
+ * it must always be visible"), so nothing about the label can be decided
+ * without knowing how much of the box the number will take. `estimated` rides
+ * with it for the same reason: an assumed bar leads with `?` in front of the
+ * number ({@link leadOf}), and that is room the number's own fit has to count.
+ */
+export interface LabelRoom {
+  readonly px: number;
+  readonly number: string;
+  readonly estimated: boolean;
+}
+
+/** The two facts about a bar that shape its label's room besides its width. */
+export interface LabelRoomBar {
+  /** Whether the bar wears the done tick the label has to leave room for. */
+  readonly done: boolean;
+  /** Whether the bar's width is an estimate, or {@link ASSUMED_SLICE_WORKDAYS} of guess. */
+  readonly estimated: boolean;
+}
+
+/**
+ * @param number The row's own number, as {@link rowWords} prints it.
+ * @param drawnSpan The bar's drawn span in calendar cells, weekends included.
+ * @param dayPx How wide one cell is drawn.
+ */
+export function labelRoomFor(
+  number: string,
+  drawnSpan: number,
+  dayPx: number,
+  bar: LabelRoomBar,
+): LabelRoom {
+  const drawnPx = drawnSpan * dayPx;
+  return {
+    px: drawnPx - LABEL_PAD_LEFT_PX - labelPadRightPx(bar.done, drawnPx),
+    number,
+    estimated: bar.estimated,
+  };
+}
+
+/**
+ * What every label on this bar opens with: the row's number, or `? · number`
+ * on a bar whose width nobody gave.
+ *
+ * The `?` leads and is not dropped for the name, because this bar's width is
+ * {@link ASSUMED_SLICE_WORKDAYS} and not an estimate, and a bar that says
+ * `010 · KA` and nothing else is a bar claiming two days of Kat's time. It sat
+ * first before the number rule too (Dany, 2026-09-13: "let's just keep it at
+ * the beginning like now"). What it **is** dropped for is the number itself
+ * ({@link barText}): the dashed translucent outline ({@link ASSUMED_BAR_CLASSES})
+ * says "a guess" on its own, and nothing else on the chart says which row.
+ */
+function leadOf(room: LabelRoom): string {
+  return room.estimated ? room.number : `?${LABEL_SEPARATOR}${room.number}`;
+}
+
+/**
+ * Whether `who` fits after the room's lead with the crop mark's width to
+ * spare — so `[? ·] number · who · words` reads whole up to the mark, and the
+ * mark falls on the words. The one measurement every candidate for `who` goes
+ * through, in {@link barLabelFor}, {@link poolLabelFor} and {@link barText}
+ * alike.
+ */
+function headFits(room: LabelRoom, who: string): boolean {
+  const chars = leadOf(room).length + LABEL_SEPARATOR.length + who.length;
+  return room.px >= chars * LABEL_CHAR_PX + ELLIPSIS_PX;
+}
 
 /**
  * A calendar day's month as a person says it: `Aug 2026`, never `2026-08`.
@@ -1054,30 +1151,26 @@ export function todayOffset(axis: readonly AxisDay[], today: IsoDate): number | 
  * that the bar's own hover card does not say in full.
  *
  * The one measurement left is the refusal: a bar without room for the short name
- * writes no assignee, because a label box over a 5px bar is a stray outline and
- * a swallowed click rather than words. A bar with nobody on it writes nothing
- * either — its colour already says so.
+ * **after its number** writes no assignee, because the number is what a reader
+ * finds a row by and the initials are what it gives up first (Dany,
+ * 2026-09-13). A bar with nobody on it writes nothing either — its colour
+ * already says so ("let's just not print anything if no assignee and keep it
+ * grey").
  *
  * Null rather than an empty string, so a caller cannot render a label that is
  * there and blank.
  *
  * @param personName The assignee's name as the directory holds it, or null.
- * @param drawnSpan The bar's drawn span in calendar cells, weekends included.
- * @param dayPx How wide one cell is drawn.
+ * @param room The label's box and the number it has to leave whole — {@link labelRoomFor}.
  * @returns One or two characters, or null where nobody is on it or nothing fits.
  */
-export function barLabelFor(
-  personName: string | null,
-  drawnSpan: number,
-  dayPx: number,
-): string | null {
+export function barLabelFor(personName: string | null, room: LabelRoom): string | null {
   // Before {@link initialsOf}, which **throws** on a name with no non-space
   // character in it rather than answering with a blank badge (its own R5 note).
   // The chart's deleted copy returned `''` and this guard is what replaces it.
   if (personName === null || personName.trim() === '') return null;
-  const room = drawnSpan * dayPx - 2 * LABEL_PAD_PX;
   const short = initialsOf(personName);
-  return room >= short.length * LABEL_CHAR_PX ? short : null;
+  return headFits(room, short) ? short : null;
 }
 
 /**
@@ -1092,90 +1185,83 @@ export function barLabelFor(
  * person is the more specific fact.
  *
  * The candidates are tried longest-first through the same room measurement
- * {@link barLabelFor} makes, so a narrow bar drops the name and keeps the
- * count — `×3` is the half a reader cannot get from anywhere else on the chart.
+ * {@link barLabelFor} makes ({@link headFits}), so a narrow bar drops the name
+ * and keeps the count — `×3` is the half a reader cannot get from anywhere else
+ * on the chart — and a narrower one drops the count for the row's number.
  *
  * Null where there is no team to name: no label, exactly as an unassigned bar
- * writes none today.
+ * writes none today. Asked of an assumed bar too since 2026-09-13, where the
+ * `?` used to stand alone: the pool is a fact about the row, not about the
+ * estimate.
  */
 export function poolLabelFor(
   team: ServiceTeamLabel,
   width: number,
-  drawnSpan: number,
-  dayPx: number,
+  room: LabelRoom,
 ): string | null {
   const name = team.state === 'named' || team.state === 'inherited' ? team.name : null;
   if (name === null) return null;
-  const room = drawnSpan * dayPx - 2 * LABEL_PAD_PX;
   const candidates = width > 1 ? [`${name} ×${String(width)}`, `×${String(width)}`, name] : [name];
-  return candidates.find((label) => room >= label.length * LABEL_CHAR_PX) ?? null;
+  return candidates.find((label) => headFits(room, label)) ?? null;
 }
 
 /**
- * The whole of what a bar writes on itself: who, then the row's own words.
+ * The whole of what a bar writes on itself: the row's number, then who, then
+ * the row's name — and the number whole, whatever else has to go.
  *
- * `who` is the assignee reading the width already decided — a name, initials,
- * the assumed bar's `?`-carrying candidate, or null when nobody fits or nobody
- * is on it — and the row words follow it always, because sixty anonymous
- * colours was the fault this label exists to remove. The string is **not**
- * measured against the bar: the label box is the bar's width and crops with an
- * ellipsis, so a narrow bar shows as much of the words as it has pixels for
- * rather than none of them.
+ * `010 · KH · Terraform: enable tag…` (Dany, 2026-09-13: "every title to start
+ * from the item number - and it must always be visible, then assignee, then
+ * title"). It read `KH · 010 - Terraform…` until that day, and the number was
+ * the half a two-day bar cropped: `text-ellipsis` eats the box from the right,
+ * so `KH · 01…` was what the bar wrote about row 010 — the one part of the
+ * label a reader finds a row by, cut in half. Dots throughout rather than
+ * {@link rowWords}' dash, because the assignee now stands where the dash did;
+ * the row label column beside the chart and every card still say `010 - …`.
  *
- * The one refusal left is a bar without room for a single character, which
- * keeps `writes nothing at all on a bar too narrow to hold a letter` true: a
- * label box over a 5px bar is a stray outline and a swallowed click, not words.
+ * `who` is the assignee reading the room already decided — initials, a team's
+ * pool, or null when nobody fits or nobody is on it — and the name follows,
+ * because sixty anonymous colours was the fault this label exists to remove.
+ * The name is **not** measured against the bar: the label box is the bar's
+ * width and crops with an ellipsis, so a narrow bar shows as much of the name
+ * as it has pixels for rather than none of it.
+ *
+ * **The number is measured, and it wins.** Five readings, in order, each tried
+ * only where the one before does not fit — `lead` being the number, or
+ * `? · number` on an assumed bar ({@link leadOf}):
+ *
+ * 1. `lead · who · name` where `lead · who` and the crop mark fit
+ *    ({@link headFits}) — the mark lands on the name.
+ * 2. `lead · name` where the lead and the mark fit — the initials are what a
+ *    bar gives up first, and the hover surface still names the person.
+ * 3. `lead` alone where only the lead fits — nothing follows, so no mark is
+ *    drawn and nothing eats into it.
+ * 4. `number` alone where only the number fits — the `?` goes, and the dashed
+ *    outline is what still says "a guess".
+ *
+ * And nothing where the number itself does not fit: half a number is the
+ * misreading this exists to remove, and a label box over a 5px bar is a stray
+ * outline and a swallowed click, not words.
  *
  * Proof: given the old appending rule — the words only when they fully fit —
  * `4 failed | 48 passed`: `carries the row words whole even where the box must
  * crop them` on `expected 'Kat' to be 'Kat · strip - strip'` and the three
  * narrow-bar cases with it, every wide bar green. Watched 2026-08-09.
+ *
+ * Proof, the number rule: given the rule before it back — a letter of room is
+ * enough and the number is never measured — `keeps the number whole before
+ * anything else on the bar` failed on `expected '170.1 · KB · Strip' to be
+ * '170.1 · Strip'` and `leads an assumed bar with the ?, and gives it up only
+ * for the number` on `expected '? · 010 · KB · Strip' to be '? · 010 · Strip'`,
+ * `2 failed | 237 passed`. Watched 2026-09-13.
  */
-export function barText(
-  who: string | null,
-  words: string,
-  drawnSpan: number,
-  dayPx: number,
-): string | null {
-  if (drawnSpan * dayPx - 2 * LABEL_PAD_PX < LABEL_CHAR_PX) return null;
-  return who === null ? words : `${who} · ${words}`;
-}
-
-/**
- * What an unestimated bar writes on itself: the `?` always, and whoever is on it
- * if there is room for them too.
- *
- * The `?` is the point and is never dropped for the name: this bar's width is
- * {@link ASSUMED_SLICE_WORKDAYS} and not an estimate, and a bar that says
- * `KA` and nothing else is a bar claiming two days of Kat's time. So the two
- * candidates are tried longer-first and the bare `?` is the second of them —
- * which at two workdays always fits, and is what a bar drawn narrower than that
- * would fall back to.
- *
- * **Two candidates and not three, since `gantt-short-assignee`.** The middle one
- * was the full name, and {@link barLabelFor} says why it is gone: one person is
- * one mark whatever a bar's width is.
- *
- * Null rather than an empty string, for {@link barLabelFor}'s reason: a caller
- * cannot render a label that is there and blank.
- *
- * Proof: the call site swapped for {@link barLabelFor}, so an assumed bar wrote
- * the assignee and the row words and nothing about being a guess. `draws no
- * mark for a slice nobody estimated until the detail is asked for` alone
- * failed, `1 failed | 90 passed`, on `expected 'Kat · sand - sand' to contain
- * '?'`. Watched 2026-08-12.
- */
-export function assumedLabelFor(
-  personName: string | null,
-  drawnSpan: number,
-  dayPx: number,
-): string | null {
-  const room = drawnSpan * dayPx - 2 * LABEL_PAD_PX;
-  const who = personName === null ? '' : personName.trim();
-  // The trim above is what makes {@link initialsOf} safe to call: it throws on a
-  // name with no non-space character rather than answering with a blank badge.
-  const candidates = who === '' ? ['?'] : [`${initialsOf(who)} · ?`, '?'];
-  return candidates.find((label) => room >= label.length * LABEL_CHAR_PX) ?? null;
+export function barText(who: string | null, name: string, room: LabelRoom): string | null {
+  const lead = leadOf(room);
+  const words = nameWords(name);
+  if (who !== null && headFits(room, who)) return [lead, who, words].join(LABEL_SEPARATOR);
+  const leadPx = lead.length * LABEL_CHAR_PX;
+  if (room.px >= leadPx + ELLIPSIS_PX) return [lead, words].join(LABEL_SEPARATOR);
+  if (room.px >= leadPx) return lead;
+  return room.px >= room.number.length * LABEL_CHAR_PX ? room.number : null;
 }
 
 /**
@@ -2253,8 +2339,8 @@ function layOutMarkerLegend(
  * The bar text (who is on it) is the one word that has to be rebuilt rather
  * than reused: it is HTML overlaid on the live page for the same reason the
  * labels and axis are (design §1), so it is drawn here from the same
- * {@link barLabelFor}/{@link poolLabelFor}/{@link assumedLabelFor}/
- * {@link barText} pure functions the live overlay calls, at the same pixel
+ * {@link barLabelFor}/{@link poolLabelFor}/{@link barText} pure functions
+ * the live overlay calls, at the same pixel
  * arithmetic.
  */
 function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement {
@@ -2485,12 +2571,12 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
   root.appendChild(labelClips);
 
   for (const [index, { bar, x, width }] of drawnBars.entries()) {
-    const who = bar.estimated
-      ? bar.personName === null
-        ? poolLabelFor(bar.team, bar.width, width, dayPx)
-        : barLabelFor(bar.personName, width, dayPx)
-      : assumedLabelFor(bar.personName, width, dayPx);
-    const shown = barText(who, rowWords(bar.workItemNumber, bar.workItemName), width, dayPx);
+    const room = labelRoomFor(bar.workItemNumber, width, dayPx, bar);
+    const who =
+      bar.personName === null
+        ? poolLabelFor(bar.team, bar.width, room)
+        : barLabelFor(bar.personName, room);
+    const shown = barText(who, bar.workItemName, room);
     if (shown === null) continue;
     const barLeft = gutterPx + x * dayPx + CHART_PAD_PX;
     const barTop = ROW_PX + (bar.rowIndex + BAR_INSET) * ROW_PX;
@@ -4933,21 +5019,20 @@ function GanttChart({
               and a span on top would swallow it in its middle.
             */}
         {drawnBars.map(({ bar, x, width }) => {
-          // An unestimated bar writes the `?` its width is a guess about —
-          // see {@link assumedLabelFor} — and an estimated one writes who is
-          // on it. The room is the **drawn** width, weekend cells included:
-          // a bar stretched over a Saturday has those pixels to write in.
-          // The row's own words follow either answer and are cropped by
-          // the box, not the string — see {@link barText}.
-          // Nobody named and a team on the row: the bar says whose people
-          // are on it and how many — see {@link poolLabelFor}. Never over a
-          // name: one label, and the person is the more specific fact.
-          const who = bar.estimated
-            ? bar.personName === null
-              ? poolLabelFor(bar.team, bar.width, width, dayPx)
-              : barLabelFor(bar.personName, width, dayPx)
-            : assumedLabelFor(bar.personName, width, dayPx);
-          const shown = barText(who, rowWords(bar.workItemNumber, bar.workItemName), width, dayPx);
+          // The row's number first, then who is on the bar, then its name —
+          // see {@link barText}; an unestimated bar leads with the `?` its
+          // width is a guess about ({@link leadOf}). The room is the **drawn**
+          // width, weekend cells included: a bar stretched over a Saturday has
+          // those pixels to write in. The name is cropped by the box, not the
+          // string. Nobody named and a team on the row: the bar says whose
+          // people are on it and how many — see {@link poolLabelFor}. Never
+          // over a name: one label, and the person is the more specific fact.
+          const room = labelRoomFor(bar.workItemNumber, width, dayPx, bar);
+          const who =
+            bar.personName === null
+              ? poolLabelFor(bar.team, bar.width, room)
+              : barLabelFor(bar.personName, room);
+          const shown = barText(who, bar.workItemName, room);
           if (shown === null) return null;
           return (
             <span
@@ -4976,15 +5061,9 @@ function GanttChart({
                 height: BAR_HEIGHT * ROW_PX,
                 lineHeight: `${String(BAR_HEIGHT * ROW_PX)}px`,
                 paddingLeft: LABEL_PAD_LEFT_PX,
-                // A done bar's label stops short of its tick, so the ellipsis
-                // lands before the mark instead of under it (Dany, 2026-09-13:
-                // "on the small slices the checkmark overlaps with text").
-                // The same threshold the tick is drawn at, so a bar too narrow
-                // for a tick keeps the whole width for its words.
-                paddingRight:
-                  bar.done && width * dayPx >= DONE_MARK_PX + 6
-                    ? LABEL_PAD_PX + DONE_MARK_PX + 3
-                    : LABEL_PAD_PX,
+                // The pixels {@link labelRoomFor} took off the box: the pad,
+                // and the done tick where one is drawn.
+                paddingRight: labelPadRightPx(bar.done, width * dayPx),
               }}
             >
               {shown}

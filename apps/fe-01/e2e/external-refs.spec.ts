@@ -117,12 +117,16 @@ async function seed(page: Page): Promise<Seed> {
             url: 'https://acme.atlassian.net/browse/AB-1',
             name: 'AB-1 Strip the walls',
           },
-          { systemId: systemOf['confluence-page'], url: 'https://acme.atlassian.net/wiki/spec' },
+          // GitHub second and not third since 2026-09-13: the cell draws three
+          // marks now (`MOST_MARKS`), and the GitHub disc is the one the
+          // legibility test below is really about — `currentColor` is the
+          // paint a hex would have got wrong.
           {
             systemId: systemOf['github-pr'],
             url: 'https://github.com/acme/tool/pull/7',
             name: '#7 Rewire the shed',
           },
+          { systemId: systemOf['confluence-page'], url: 'https://acme.atlassian.net/wiki/spec' },
           { systemId: systemOf['slack-message'], url: 'https://acme.slack.com/archives/C1/p1' },
           // The fault the scheme guard exists for, stored the way it really
           // arrives. It rides on an existing system so that it is a *link* the
@@ -218,7 +222,15 @@ function markContrasts(page: Page): Promise<{ kind: string; ratio: number; area:
     return [...document.querySelectorAll<HTMLElement>('[data-ref-mark]')].map((mark) => {
       const style = getComputedStyle(mark);
       const filled = rgbaOf(style.backgroundColor)[3] > 0;
-      const paint = rgbaOf(filled ? style.backgroundColor : style.borderTopColor);
+      // The overflow mark is a `+` in text ink, not a disc: neither a fill nor
+      // a ring, so its paint is `color` (`markStyle`, the overflow arm).
+      const paint = rgbaOf(
+        mark.dataset['refMark'] === 'overflow'
+          ? style.color
+          : filled
+            ? style.backgroundColor
+            : style.borderTopColor,
+      );
       const surface = surfaceUnder(mark);
       const ink = over(paint, surface);
       const [brighter, dimmer] = [luminance(ink), luminance(surface)].sort((a, b) => b - a);
@@ -236,7 +248,7 @@ function markContrasts(page: Page): Promise<{ kind: string; ratio: number; area:
 const READABLE_MARK = 3;
 
 test.describe('the ref column, in a browser', () => {
-  test('four marks stand inside the cell, and move neither the row nor the column', async ({
+  test('three marks stand inside the cell, and move neither the row nor the column', async ({
     page,
   }) => {
     // Design D2's claim: the marks are placed out of flow in a fixed-height box,
@@ -307,13 +319,10 @@ test.describe('the ref column, in a browser', () => {
     });
 
     // Or this is a check about a cell that drew nothing: four systems and a
-    // fifth ref into one of them, so four marks and no overflow.
-    expect(measured.marks.map((mark) => mark.kind)).toEqual([
-      'jira',
-      'confluence',
-      'github',
-      'slack',
-    ]);
+    // fifth ref into one of them, so three marks — `MOST_MARKS` since the
+    // column went 40 → 32 on 2026-09-13 — the last of them the overflow
+    // standing for Confluence and Slack. It was four marks and no overflow in 40px.
+    expect(measured.marks.map((mark) => mark.kind)).toEqual(['jira', 'github', 'overflow']);
     for (const mark of measured.marks) {
       // Every mark is the disc the design draws, at the size the column was
       // costed for. This is the assertion the normal-flow fault is watched
@@ -334,9 +343,10 @@ test.describe('the ref column, in a browser', () => {
     // see the note at the top of this test.
     expect(measured.wiredRow, 'the two rows are not the same height').toBe(measured.bareRow);
     expect(measured.wiredCell, 'the two cells are not the same width').toBe(measured.bareCell);
-    // And the column really is the 40px the width table declares, or "the same
-    // width" is two cells agreeing about a number nobody chose.
-    expect(measured.wiredCell).toBe(40);
+    // And the column really is the 32px the width table declares (40 until
+    // 2026-09-13), or "the same width" is two cells agreeing about a number
+    // nobody chose.
+    expect(measured.wiredCell).toBe(32);
   });
 
   test('the heading is a drawn link, and the column is ruled off from the name', async ({
@@ -362,12 +372,12 @@ test.describe('the ref column, in a browser', () => {
       0,
     );
 
-    // Nothing visible sticks out of the 40px the column declares. `sr-only` is
+    // Nothing visible sticks out of the 32px the column declares. `sr-only` is
     // clipped to a 1px box, so it is the icon this measures.
     const box = await heading.boundingBox();
     const drawn = await heading.locator('svg').first().boundingBox();
     if (box === null || drawn === null) throw new Error('the refs heading has no box');
-    expect(box.width).toBe(40);
+    expect(box.width).toBe(32);
     expect(drawn.width, 'the drawn link has no width').toBeGreaterThan(0);
     expect(drawn.x).toBeGreaterThanOrEqual(box.x);
     expect(drawn.x + drawn.width).toBeLessThanOrEqual(box.x + box.width);
@@ -456,7 +466,9 @@ test.describe('the ref column, in a browser', () => {
       await chooseTheme(page, palette);
 
       const marks = await markContrasts(page);
-      expect(marks.map((mark) => mark.kind)).toEqual(['jira', 'confluence', 'github', 'slack']);
+      // Three since 2026-09-13 (`MOST_MARKS`), the GitHub disc among them by
+      // the seed's order, and the overflow `+` measured as the text ink it is.
+      expect(marks.map((mark) => mark.kind)).toEqual(['jira', 'github', 'overflow']);
       for (const mark of marks) {
         // A mark with no area is a mark nobody can see, and a ratio about it is
         // a ratio about nothing — `G gantt-view`'s zero-width bar, one column
@@ -580,8 +592,8 @@ test.describe('the ref column, in a browser', () => {
     // any single assertion pass.
     await expect(card.locator('[data-refs-card-name]')).toHaveText([
       'AB-1 Strip the walls',
-      'acme.atlassian.net/spec',
       '#7 Rewire the shed',
+      'acme.atlassian.net/spec',
       'acme.slack.com/p1',
       'javascript:alert(1)',
     ]);
@@ -620,9 +632,10 @@ test.describe('the ref column, in a browser', () => {
     await page.getByLabel('Links for 010').click();
     const editor = page.getByRole('dialog', { name: 'Links for 010' });
     await expect(editor).toBeVisible();
-    // The second link is the unnamed Confluence page, and its box shows the
-    // derived label as a placeholder rather than as a value.
-    const second = editor.getByLabel('Name of link 2');
+    // The third link is the unnamed Confluence page (the seed's GitHub ref
+    // moved in front of it on 2026-09-13), and its box shows the derived label
+    // as a placeholder rather than as a value.
+    const second = editor.getByLabel('Name of link 3');
     await expect(second).toHaveValue('');
     await expect(second).toHaveAttribute('placeholder', 'acme.atlassian.net/spec');
 
@@ -635,7 +648,7 @@ test.describe('the ref column, in a browser', () => {
     // mints a fresh `crypto.randomUUID()` per ref on every replacement, so a
     // write changes every `ref.id`, so the `key` changes, so React remounts the
     // input and its `defaultValue` is the name be-01 sent back.
-    await expect(editor.getByLabel('Name of link 2')).toHaveValue('The wiring spec');
+    await expect(editor.getByLabel('Name of link 3')).toHaveValue('The wiring spec');
 
     await page.keyboard.press('Escape');
     await expect(editor).toBeHidden();
@@ -643,7 +656,8 @@ test.describe('the ref column, in a browser', () => {
     // assertion no keystroke could satisfy.
     await page.getByLabel('Links for 010').hover();
     const card = page.getByRole('tooltip', { name: 'Where 010 also exists' });
-    await expect(card.locator('[data-refs-card-name]').nth(1)).toHaveText('The wiring spec');
+    // The third line, since the seed's GitHub ref moved in front of Confluence.
+    await expect(card.locator('[data-refs-card-name]').nth(2)).toHaveText('The wiring spec');
   });
 
   test('the pointer opens the card from anywhere in the cell, not just off a dot', async ({
