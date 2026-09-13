@@ -3316,3 +3316,40 @@ CI, OpenSpec validation, or operational activation. It does not implement or acc
 real concurrency, live cohorts, one-factor comparisons, adoption, or scaling claims in Tasks
 7.2–7.5. The coordinator's fresh implementation checks remain recorded immediately above; the
 review did not treat that prior evidence as its own.
+
+### Slice 7.2 controlled experiment runner
+
+Commit `9c120de0` adds the strict structured execution packet, session evidence, run request, and
+durable checkpoint boundaries. The runner deterministically randomizes the frozen outcome set by
+seed and repeat, labels each packet with the pinned cache/resource envelope, launches one distinct
+process/session per assignment, and requires the requested simultaneous interval overlap before
+accounting. It retains completed evidence when another session times out or is canceled, returns an
+explicit pending checkpoint when the adapter or capacity is unavailable, and never emits verified
+zero accounting for incomplete work. The Task 7.1 accounting boundary then validates all retry,
+receipt, raw-usage, price, allocation, interval, ownership, and actual-executor links.
+
+Initial TDD ran before `runner.ts` existed and failed with 0 passing, 1 failing, and 1 module-load
+error. The first implementation run passed 8 and failed 4, exposing invalid fixture trial linkage,
+evidence-validation errors incorrectly modeled as pending, and missing retained partial evidence.
+Those paths were corrected before the restored focused run.
+
+Named protections were removed independently and restored:
+
+| Removed protection                    | Observed focused RED                                                                               |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| requested active-session overlap      | the sequential two-groups-of-four case resolved instead of rejecting; `expected promise to reject` |
+| exact manifest identity comparability | the post-observation threshold pair was returned as comparable; `Received function did not throw`  |
+| actual model versus pinned executor   | the silent `gpt-substitute` receipt resolved instead of rejecting; `expected promise to reject`    |
+
+The restored focused runner/accounting run passed 14 tests with 65 assertions. On reconciled commit
+`67a06f7e` (including `origin/main` `c61b370d`), the unfiltered Tool Wiki target passed 553 tests
+with 5,017 assertions across 30 files in 837.72 seconds. Fresh uncached Tool Wiki source lint and
+forced typecheck exited 0. Changed-file Prettier and `git diff --check` exited 0. Strict
+`OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate agent-scalable-llm-wiki --strict
+--json` passed 1 of 1 change with no issues. An earlier mistyped `bunx openspec` invocation was not
+a validation substitute: the sandbox attempt failed with `EROFS`, and the escalated package named
+`openspec` had no executable; the pinned repository command above supplied the successful result.
+
+No live model invocation, one/two/four/eight-session cohort, trusted usage capture, real capacity
+provisioning, scaling result, policy adoption, host gate, browser suite, or CI run was performed.
+Task 7.3 therefore remains open pending inspection and provisioning of its operational inputs.
