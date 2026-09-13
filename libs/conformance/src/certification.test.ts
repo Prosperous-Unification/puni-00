@@ -6,6 +6,19 @@ import { certifyExecution } from './certification';
 import { offeredDeclaration, passingRegistrations } from './source-declaration.test-support';
 
 describe('terminal certification', () => {
+  it('a missing new kit cannot shrink certification', async () => {
+    const declaration = offeredDeclaration();
+    const complete = passingRegistrations(declaration);
+    const registrations = complete.slice(0, -1);
+    const report = await runCases(registrations);
+
+    // Proof: deriving expected cases from registrations made this pass after
+    // the final admission-specific history kit was removed.
+    expect(() => {
+      certifyExecution({ declaration, registrations, report });
+    }).toThrow('missing registered cases: history: history.batch:interleaved-success-survives');
+  });
+
   it('rejects not-offered status for an offered case', async () => {
     const declaration = offeredDeclaration();
     const registrations = passingRegistrations(declaration);
@@ -28,7 +41,7 @@ describe('terminal certification', () => {
     }).toThrow('capability status mismatch');
   });
 
-  it('refuses a body that was declared but never invoked', async () => {
+  it('a skipped body is not passed', async () => {
     const declaration = offeredDeclaration();
     const registrations = passingRegistrations(declaration).map((registration) =>
       registration.caseId === CASE_MANIFEST.projects[0]
@@ -46,6 +59,73 @@ describe('terminal certification', () => {
         report,
       });
     }).toThrow('incomplete cases');
+  });
+
+  it('a supported case cannot keep a stale gap after its bypass passes', async () => {
+    const offered = offeredDeclaration();
+    const registrations = passingRegistrations(offered);
+    const report = await runCases(registrations);
+    const projects = offered.capabilities.projects;
+    if (projects.kind !== 'offered') throw new Error('test projects capability is absent');
+    const declaration = {
+      ...offered,
+      capabilities: {
+        ...offered.capabilities,
+        projects: {
+          ...projects,
+          gaps: [
+            {
+              caseId: CASE_MANIFEST.projects[0],
+              reason: 'stale test exclusion',
+              evidence: {
+                sourceRevision: 'stale',
+                assertion: 'the bypass passes',
+                observedFailure: 'none',
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    // Proof: removing status-to-gap correlation certified this passing bypass
+    // while the same case remained excluded.
+    expect(() => {
+      certifyExecution({ declaration, registrations, report });
+    }).toThrow('capability status mismatch: projects: projects.create:steps (passed)');
+  });
+
+  it('absent accounts do not create fake methods', async () => {
+    const offered = offeredDeclaration();
+    const declaration = {
+      ...offered,
+      capabilities: {
+        ...offered.capabilities,
+        users: { kind: 'absent' as const, reason: 'accountless source' },
+      },
+    };
+    let userBodies = 0;
+    const registrations = passingRegistrations(declaration).map((registration) =>
+      registration.family === 'users'
+        ? {
+            ...registration,
+            openAndRun: () => {
+              userBodies += 1;
+              return registration.openAndRun?.() ?? Promise.reject(new Error('missing body'));
+            },
+          }
+        : registration,
+    );
+    const report = await runCases(registrations, { declaration });
+
+    expect('open' in declaration.capabilities.users).toBe(false);
+    expect(userBodies).toBe(0);
+    expect(
+      report.cases
+        .filter(({ family }) => family === 'users')
+        .map(({ status, executed }) => ({ status, executed })),
+    ).toEqual(CASE_MANIFEST.users.map(() => ({ status: 'not-offered', executed: false })));
+    certifyExecution({ declaration, registrations, report });
   });
 
   it('refuses a declaration-only case relabeled as passed', async () => {

@@ -2093,3 +2093,28 @@ Fresh evidence:
 A fresh fetch was unavailable because the managed filesystem made the shared
 worktree `FETCH_HEAD` read-only; the existing tip contains `origin/main` at
 `c61b370d`. The committed-SHA h2puni gate remains Task 7.3.
+
+#### Task 7.1 terminal source declarations and reports
+
+Both real source suites now execute full terminal reports and call
+`certifyExecution` against independently derived exact case sets. SQLite
+declares all nineteen families offered with no gaps and passed every required
+case. Memory reports its six case-specific gaps as unexecuted `not-offered`
+records while every other required case passes.
+
+The six memory exclusions were also bypassed through real source registrations:
+the four unknown-step cases and the capacity and priority-band missing-reference
+cases reproduced their recorded assertion failures (`5/0/121` across five
+tests). Shared certification tests prove a removed final history kit cannot
+shrink the expected set, an uninvoked body remains incomplete, a passing bypass
+cannot retain a gap, and an absent users capability neither has an opener nor
+executes registered account bodies.
+
+Fresh evidence:
+
+- Shared certification passed `9/0/11`; the uncached conformance target passed
+  `32/0/53`.
+- Full real source files passed memory `71/0` and SQLite `71/0`; terminal source
+  focus passed memory `1/0/967` and SQLite `1/0/1,312`.
+- All six uncached conformance/memory/SQLite lint and typecheck targets passed.
+  Changed-file Prettier, strict change validation, format and diff checks passed.

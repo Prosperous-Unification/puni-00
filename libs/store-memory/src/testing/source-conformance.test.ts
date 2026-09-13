@@ -6,6 +6,7 @@ import {
   type CaptureDirectoryChange,
   type CaseFixture,
   type CaseId,
+  certifyExecution,
   completeSubtreeCopy,
   createFaultControl,
   defineFault,
@@ -14,6 +15,7 @@ import {
   type ExecutionReport,
   type ExistingStoreOpeners,
   existingStoreRegistrations,
+  expectedCasesFor,
   type Fault,
   type FaultProof,
   type FaultRun,
@@ -26,7 +28,6 @@ import {
   runCases,
   savedPlanCaptureExpected,
   seedSavedPlanCapture,
-  SOURCE_CONFORMANCE_CASES,
   sourceConformanceRegistrations,
   type SourceDeclaration,
   type SourceReaders,
@@ -843,8 +844,6 @@ const declaration: SourceDeclaration = {
   name: 'memory',
   revision: '3161e5fc',
   historyAdmission: 'independent-write',
-  // This slice executes five families; Task 7.1 replaces this test boundary
-  // with the complete source declaration before terminal certification.
   capabilities: {
     projects: { kind: 'offered', gaps: [], open: openers.projects },
     users: { kind: 'offered', gaps: [], open: openers.users },
@@ -5414,18 +5413,29 @@ describe('memory existing source conformance', () => {
 
   it('runs every offered existing case and reports the exact known gaps', async () => {
     const registrations = sourceConformanceRegistrations(declaration, sourceOpeners);
-    const memoryCases = SOURCE_CONFORMANCE_CASES.filter(
-      (caseId) => caseId !== 'history.batch:busy-does-not-wait',
-    );
-    const report = await runCases(registrations, {
-      declaration,
-      focus: memoryCases,
-    });
+    const expected = expectedCasesFor(declaration.historyAdmission);
+    const report = await runCases(registrations, { declaration });
+    const expectedKeys = expected.map(({ family, caseId }) => `${family}:${caseId}`).toSorted();
 
-    expect(report.kind).toBe('partial');
+    expect(report.kind).toBe('full');
+    expect(registrations.map(({ family, caseId }) => `${family}:${caseId}`).toSorted()).toEqual(
+      expectedKeys,
+    );
+    expect(report.cases.map(({ family, caseId }) => `${family}:${caseId}`).toSorted()).toEqual(
+      expectedKeys,
+    );
+    certifyExecution({ declaration, registrations, report });
     expect(
-      report.cases.filter(({ status }) => status === 'passed').map(({ caseId }) => caseId),
-    ).toEqual(memoryCases.filter((caseId) => !knownGaps.some((gap) => gap.caseId === caseId)));
+      report.cases
+        .filter(({ status }) => status === 'passed')
+        .map(({ caseId }) => caseId)
+        .toSorted(),
+    ).toEqual(
+      expected
+        .map(({ caseId }) => caseId)
+        .filter((caseId) => !knownGaps.some((gap) => gap.caseId === caseId))
+        .toSorted(),
+    );
     expect(
       knownGaps.map((gap) => {
         const execution = failedCase(report, gap.caseId);

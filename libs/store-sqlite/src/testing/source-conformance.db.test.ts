@@ -6,15 +6,18 @@ import {
   assertCompleteStateAlternative,
   assertSeedState,
   brokenSource,
+  type Capabilities,
   type CaptureDirectoryChange,
   type CaseFixture,
   type CaseId,
+  certifyExecution,
   createFaultControl,
   defineFault,
   DEPENDENCY_SURVIVOR_IDS,
   DETERMINISTIC_SEED,
   type ExistingStoreOpeners,
   existingStoreRegistrations,
+  expectedCasesFor,
   type Fault,
   type FaultProof,
   type FaultRun,
@@ -27,8 +30,8 @@ import {
   runCases,
   savedPlanCaptureExpected,
   seedSavedPlanCapture,
-  SOURCE_CONFORMANCE_CASES,
   sourceConformanceRegistrations,
+  type SourceDeclaration,
   type SourceReaders,
   subtreeSeedRecords,
 } from '@wbs/conformance';
@@ -666,6 +669,33 @@ const openers: ExistingStoreOpeners = {
 };
 
 const sourceOpeners = { ...openers, historyBatch: openSqliteHistoryBatchCase };
+
+const declaration: SourceDeclaration = {
+  name: 'sqlite',
+  revision: 'c61b370d',
+  historyAdmission: 'immediate-busy',
+  capabilities: {
+    projects: { kind: 'offered', gaps: [], open: openers.projects },
+    users: { kind: 'offered', gaps: [], open: openers.users },
+    capacity: { kind: 'offered', gaps: [], open: openers.capacity },
+    priorityBands: { kind: 'offered', gaps: [], open: openers.priorityBands },
+    calendarMarkers: { kind: 'offered', gaps: [], open: openers.calendarMarkers },
+    workItems: { kind: 'offered', gaps: [], open: openers.workItems },
+    steps: { kind: 'offered', gaps: [], open: openers.steps },
+    estimates: { kind: 'offered', gaps: [], open: openers.estimates },
+    actuals: { kind: 'offered', gaps: [], open: openers.actuals },
+    measures: { kind: 'offered', gaps: [], open: openers.measures },
+    progress: { kind: 'offered', gaps: [], open: openers.progress },
+    dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
+    directory: { kind: 'offered', gaps: [], open: openers.directory },
+    eventLog: { kind: 'offered', gaps: [], open: openers.eventLog },
+    planEvents: { kind: 'offered', gaps: [], open: openers.planEvents },
+    subtrees: { kind: 'offered', gaps: [], open: openers.subtrees },
+    journal: { kind: 'offered', gaps: [], open: openers.journal },
+    savedPlans: { kind: 'offered', gaps: [], open: openers.savedPlans },
+    savedPlanCapture: { kind: 'offered', gaps: [], open: openers.savedPlanCapture },
+  } satisfies Capabilities,
+};
 
 function withStores(source: SqliteSource, stores: Partial<TransactionalStores>): SqliteSource {
   return { ...source, stores: { ...source.stores, ...stores } };
@@ -5905,17 +5935,29 @@ describe('SQLite existing source conformance', () => {
     expect(existsSync(directory)).toBe(false);
   });
 
-  it('SQLite runs every offered existing case', async () => {
-    const sqliteCases = SOURCE_CONFORMANCE_CASES.filter(
-      (caseId) => !caseId.startsWith('history.batch:'),
-    );
-    const report = await runCases(existingStoreRegistrations(openers), { focus: sqliteCases });
+  it('SQLite terminal certification runs every exact offered case without gaps', async () => {
+    const registrations = sourceConformanceRegistrations(declaration, sourceOpeners);
+    const expected = expectedCasesFor(declaration.historyAdmission);
+    const report = await runCases(registrations, { declaration });
+    const expectedKeys = expected.map(({ family, caseId }) => `${family}:${caseId}`).toSorted();
 
-    expect(report.kind).toBe('partial');
-    expect(report.cases.map(({ caseId }) => caseId)).toEqual(sqliteCases);
+    expect(report.kind).toBe('full');
+    expect(registrations.map(({ family, caseId }) => `${family}:${caseId}`).toSorted()).toEqual(
+      expectedKeys,
+    );
+    expect(report.cases.map(({ family, caseId }) => `${family}:${caseId}`).toSorted()).toEqual(
+      expectedKeys,
+    );
     expect(
-      report.cases.map(({ caseId, status, executed }) => ({ caseId, status, executed })),
-    ).toEqual(sqliteCases.map((caseId) => ({ caseId, status: 'passed', executed: true })));
+      report.cases
+        .map(({ caseId, status, executed }) => ({ caseId, status, executed }))
+        .toSorted((left, right) => left.caseId.localeCompare(right.caseId)),
+    ).toEqual(
+      expected
+        .map(({ caseId }) => ({ caseId, status: 'passed' as const, executed: true }))
+        .toSorted((left, right) => left.caseId.localeCompare(right.caseId)),
+    );
+    certifyExecution({ declaration, registrations, report });
   });
 
   it('Task 6.3 observes each saved-plan capture boundary fault and reversals', async () => {
