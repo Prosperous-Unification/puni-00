@@ -232,21 +232,59 @@ describe('the uncached admitted batch baseline', () => {
         name: 'Before first demand',
       });
       if (!created.ok) throw new Error('working-plan seed creation refused');
-      const workingPlan = createWorkingPlan({ stores: source.stores }, projectId);
       const renamed = await publicGraph.workItems.patch(created.value.id, OWNER, {
         name: 'Loaded name',
       });
       if (!renamed.ok) throw new Error('working-plan seed rename refused');
 
+      const stored = await source.stores.workItems.listByProject(projectId);
+      const labelled = stored.map((row) => ({
+        ...row,
+        teamIds: ['team-before'],
+        tagIds: ['tag-before'],
+        serviceIds: ['service-before'],
+        typeIds: ['type-before'],
+        externalRefs: [
+          {
+            id: 'ref-before',
+            systemId: 'system-before',
+            url: 'https://before.example/ref',
+            name: 'Before reference',
+          },
+        ],
+      }));
+      const stores: PlanTransactionalStores = {
+        ...source.stores,
+        workItems: {
+          ...source.stores.workItems,
+          listByProject: () => Promise.resolve(labelled),
+        },
+      };
+      const workingPlan = createWorkingPlan({ stores }, projectId);
+
       const first = await workingPlan.stores.workItems.listByProject(projectId);
-      expect(first).toMatchObject([{ id: created.value.id, name: 'Loaded name' }]);
+      expect(first).toMatchObject([
+        {
+          id: created.value.id,
+          name: 'Loaded name',
+          teamIds: ['team-before'],
+          tagIds: ['tag-before'],
+          serviceIds: ['service-before'],
+          typeIds: ['type-before'],
+          externalRefs: [{ url: 'https://before.example/ref' }],
+        },
+      ]);
       const borrowed = first[0];
       borrowed.name = 'Borrower mutation';
+      // These casts deliberately model a caller violating the readonly type at runtime.
+      (borrowed.teamIds as string[]).push('team-borrowed');
+      (borrowed.tagIds as string[]).push('tag-borrowed');
+      (borrowed.serviceIds as string[]).push('service-borrowed');
+      (borrowed.typeIds as string[]).push('type-borrowed');
+      borrowed.externalRefs[0].url = 'https://borrowed.example/ref';
       await source.stores.workItems.remove([created.value.id], [], { at: 2, by: OWNER });
 
-      expect(await workingPlan.stores.workItems.listByProject(projectId)).toMatchObject([
-        { id: created.value.id, name: 'Loaded name' },
-      ]);
+      expect(await workingPlan.stores.workItems.listByProject(projectId)).toEqual(labelled);
       workingPlan.close();
     } finally {
       await source.close();

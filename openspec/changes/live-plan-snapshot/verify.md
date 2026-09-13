@@ -57,3 +57,27 @@ post-commit announcements therefore retain their established nonworking graphs.
 | Check                       | Injected fault                                                                       | Observed failure                                                                                          |
 | --------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
 | Closed batch-owned callback | Disabled the `isClosed` branch in the retained read guard, then invoked the callback | `throws after its batch closes` failed: the promise resolved with the committed row instead of rejecting. |
+
+## Task 2.2 detached before-images
+
+The command regression composes one actual memory-source batch over its admitted WorkingPlan only
+for this proof; production command composition remains on `scope.stores` until Task 3.1. Before the
+first of two patches reads the row, the test mutates a previously returned retained answer. The two
+patches name distinct names and tag sets, and one undo restores the database row from before the
+batch. The direct retained-read case separately mutates all four label arrays and a nested external
+reference, then verifies a second answer remains detached.
+
+| Scope                         | Command                                                                                                                               | Result                                                                      |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Exact before-image regression | `bun test libs/core/src/service/plan-commands.test.ts libs/core/src/service/working-plan.test.ts`                                     | Pass: 4 tests, 22 assertions.                                               |
+| Owning tests                  | `NX_DAEMON=false bunx nx run-many -t test -p core store-memory store-sqlite conformance --parallel=2 --output-style=static`           | Pass: core 427, memory 95, SQLite 724 and conformance 33 tests; 0 failures. |
+| Owning lint and typechecks    | `NX_DAEMON=false bunx nx run-many -t lint typecheck -p core store-memory store-sqlite conformance --parallel=2 --output-style=static` | Pass: all 8 targets.                                                        |
+| Changed-file format           | `bunx prettier --check <Task 2.2 core and packet files>`                                                                              | Pass: every matched file uses Prettier style.                               |
+| Diff whitespace               | `git diff --check`                                                                                                                    | Pass.                                                                       |
+| Strict packet                 | `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate live-plan-snapshot --strict --json`                                    | Pass: 1 item, 0 failed.                                                     |
+
+### Task 2.2 R5 fault observation
+
+| Check                   | Injected fault                                           | Observed failure                                                                                                                             |
+| ----------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Detached cached answers | Returned retained cache records directly without cloning | `two patches undo to the value before the batch` failed: undo restored `Mutated cached name` and the second tag instead of the original row. |

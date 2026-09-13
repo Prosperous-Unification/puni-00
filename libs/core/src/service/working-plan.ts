@@ -302,6 +302,10 @@ function cloneRecord<Row extends object>(record: Row): Row {
   return { ...record };
 }
 
+/**
+ * Detaches a retained row deeply enough that a borrowed before-image cannot
+ * rewrite the cache or an inverse already collected from another answer.
+ */
 function cloneWorkItem(workItem: LabelledWorkItem): LabelledWorkItem {
   return {
     ...workItem,
