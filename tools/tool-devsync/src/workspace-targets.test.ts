@@ -39,7 +39,13 @@ import { readProjects } from '../workspace-projects.mjs';
 const WORKSPACE = new URL('../../../', import.meta.url);
 
 interface ProjectTarget {
-  readonly options?: Readonly<{ command?: string; commands?: readonly string[] }>;
+  readonly cache?: boolean;
+  readonly options?: Readonly<{
+    command?: string;
+    commands?: readonly string[];
+    cwd?: string;
+    forwardAllArgs?: boolean;
+  }>;
   readonly inputs?: readonly (string | Readonly<Record<string, unknown>>)[];
 }
 
@@ -73,6 +79,102 @@ function commandsOf(target: ProjectTarget): string[] {
     ...(target.options?.commands ?? []),
   ];
 }
+
+describe('source conformance target discovery', () => {
+  it('selects each terminal source file exactly and keeps normal test inclusion', async () => {
+    const projects = await projectsOnDisk();
+    const expected = {
+      'store-memory': {
+        root: 'libs/store-memory',
+        file: 'src/testing/source-conformance.test.ts',
+        inputs: ['default', '^production'],
+        certificateTargets: ['test', 'test:conformance', 'test:unit'],
+      },
+      'store-sqlite': {
+        root: 'libs/store-sqlite',
+        file: 'src/testing/source-conformance.db.test.ts',
+        inputs: ['default', '^production', '{workspaceRoot}/apps/be-01/drizzle'],
+        certificateTargets: ['test', 'test:conformance'],
+      },
+    } as const;
+    const observed = Object.fromEntries(
+      Object.entries(expected).map(([name, contract]) => {
+        const project = projects.find(({ config }) => config.name === name);
+        if (project === undefined) throw new Error(`missing source project ${name}`);
+        const target = project.config.targets['test:conformance'];
+        if (target === undefined) throw new Error(`${name} is missing test:conformance`);
+        const command = commandsOf(target);
+        return [
+          name,
+          {
+            command,
+            cwd: target.options?.cwd,
+            cache: target.cache,
+            inputs: target.inputs,
+            normalIncludes: commandsOf(project.config.targets['test'] ?? {}).some(
+              (candidate) =>
+                candidate === 'bun test src --coverage --coverage-reporter=lcov' ||
+                candidate === 'bun test --coverage --coverage-reporter=lcov',
+            ),
+            certificateTargets: Object.entries(project.config.targets)
+              .filter(([, candidate]) =>
+                commandsOf(candidate ?? {}).some(
+                  (candidateCommand) =>
+                    candidateCommand.includes(contract.file) ||
+                    candidateCommand === 'bun test src --coverage --coverage-reporter=lcov' ||
+                    candidateCommand === 'bun test --coverage --coverage-reporter=lcov',
+                ),
+              )
+              .map(([targetName, candidate]) => ({ name: targetName, cache: candidate?.cache })),
+            filtered: command.some((candidate) =>
+              /(?:^|\s)(?:-t|--test-name-pattern)(?:\s|=)/.test(candidate),
+            ),
+            forwardsCliArgs: target.options?.forwardAllArgs ?? true,
+          },
+        ];
+      }),
+    );
+
+    // Proof: deleting either target, broadening its selector, adding a name
+    // filter, or dropping normal discovery changes this exact two-source map.
+    // Proof: removing historyBatchRegistrations made both the dedicated memory
+    // target and normal memory test fail terminal certification naming exactly
+    // independent-commit, independent-rollback and interleaved-success-survives.
+    // Proof: a string assigned to number in this file failed tool-devsync:typecheck
+    // at this exact path; its unused binding also failed the owning lint target.
+    // Proof: broadening memory to `bun test src/testing` failed this map with
+    // that directory received instead of the exact terminal source test file.
+    // Proof: restoring CLI forwarding made the review command with
+    // `--args='-t configuration-reference'` run one case and filter seventy;
+    // with forwarding disabled, that same command runs all seventy-one.
+    // Proof: restoring cache:true, priming this real Nx target on a clean tree,
+    // then adding an untracked workspace-root probe made the identical second
+    // invocation report `existing outputs match the cache` and replay the clean
+    // revision. With cache:false it reruns and prints that same SHA with -dirty.
+    // Discovery includes every broad target that can select the terminal file;
+    // adding another cacheable broad source target therefore changes this map.
+    expect(observed).toEqual(
+      Object.fromEntries(
+        Object.entries(expected).map(([name, contract]) => [
+          name,
+          {
+            command: [`bun test ${contract.file}`],
+            cwd: contract.root,
+            cache: false,
+            inputs: [...contract.inputs],
+            normalIncludes: true,
+            certificateTargets: contract.certificateTargets.map((targetName) => ({
+              name: targetName,
+              cache: false,
+            })),
+            filtered: false,
+            forwardsCliArgs: false,
+          },
+        ]),
+      ),
+    );
+  });
+});
 
 describe('every typecheck target compiles files', () => {
   it('finds a project.json for every project', async () => {

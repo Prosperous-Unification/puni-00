@@ -2,6 +2,7 @@ import type { PlanInputReads, SavedPlanCaptureStore } from '@wbs/core';
 
 import { ActualRepository } from './actual';
 import { CapacityRepository } from './capacity';
+import { type CaptureReadSeam, inertSqliteCaptureReadSeam } from './capture-read-seam';
 import type { Connection } from './db';
 import { drizzleReadTransaction } from './db';
 import { DependencyRepository } from './dependency';
@@ -111,7 +112,10 @@ export interface SavedPlanCaptureOptions {
  * topology found", records what changed.
  */
 export class SavedPlanCaptureRepository implements SavedPlanCaptureStore {
-  constructor(private readonly opts: SavedPlanCaptureOptions) {}
+  constructor(
+    private readonly opts: SavedPlanCaptureOptions,
+    private readonly captureRead: CaptureReadSeam = inertSqliteCaptureReadSeam,
+  ) {}
 
   /**
    * Every read the canonical input requires, inside one read snapshot.
@@ -138,6 +142,7 @@ export class SavedPlanCaptureRepository implements SavedPlanCaptureStore {
           tx.commit();
           return null;
         }
+        await this.captureRead.afterFirstRead({ projectId, project });
         const workItems = await new WorkItemRepository(db, OPEN).listByProject(projectId);
         const estimates = await new EstimateRepository(db, OPEN).listByProject(projectId);
         const actuals = await new ActualRepository(db, OPEN).listByProject(projectId);

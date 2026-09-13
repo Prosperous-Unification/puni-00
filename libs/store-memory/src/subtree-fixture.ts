@@ -23,21 +23,33 @@ import type {
  * work item fixture throws on a reposition it cannot find, and every store
  * here would accept the writes in any order the real database refuses.
  */
-export function inMemorySubtrees(stores: {
-  workItems: WorkItemStore;
-  estimates: EstimateStore;
-  actuals: ActualStore;
-  progress: StepProgressStore;
-  measures: MeasureStore;
-  dependencies: DependencyStore;
-  directory: DirectoryStore;
-}): SubtreeStore {
+export function inMemorySubtrees(
+  stores: {
+    workItems: WorkItemStore;
+    estimates: EstimateStore;
+    actuals: ActualStore;
+    progress: StepProgressStore;
+    measures: MeasureStore;
+    dependencies: DependencyStore;
+    directory: DirectoryStore;
+  },
+  afterFinalSatellite: (satelliteKeys: readonly string[]) => void = () => undefined,
+): SubtreeStore {
   return {
     async insertSubtree(copy, stamp) {
+      const satelliteKeys: string[] = [];
       // The respacing rides with the first row, which is how `WorkItemStore.insert`
       // takes it — one call applies both, as the one transaction does.
       for (const [index, row] of copy.rows.entries()) {
         await stores.workItems.insert(row, index === 0 ? copy.respaced : [], stamp);
+        if (row.teamIds !== undefined) {
+          const written = await stores.workItems.patch(row.id, { teamIds: row.teamIds }, stamp);
+          // Proof: `rolls back a copied row when its explicit team set is refused`
+          // failed here without this guard: Expected promise that rejects;
+          // Received promise that resolved: Promise { <resolved> }.
+          if (!written.ok)
+            throw new Error(`cannot restore team set for ${row.id}: ${written.reason}`);
+        }
       }
       // After the rows, because the real transaction has no choice: these point
       // at rows that must already exist. `move` is what the in-memory work item
@@ -45,7 +57,10 @@ export function inMemorySubtrees(stores: {
       for (const child of copy.reparented) {
         await stores.workItems.move(child.id, child.parentId, child.position, [], stamp);
       }
-      for (const estimate of copy.estimates) await stores.estimates.set(estimate, stamp);
+      for (const estimate of copy.estimates) {
+        await stores.estimates.set(estimate, stamp);
+        satelliteKeys.push(`${estimate.workItemId}:${estimate.stepId}`);
+      }
       for (const recorded of copy.actuals) await stores.actuals.set(recorded, stamp);
       for (const said of copy.progress) await stores.progress.set(said, stamp);
       for (const measured of copy.measures) await stores.measures.set(measured, stamp);
@@ -70,6 +85,7 @@ export function inMemorySubtrees(stores: {
       for (const taken of copy.removedMeasures) {
         await stores.measures.remove(taken.workItemId, taken.stepId, taken.metric, stamp);
       }
+      afterFinalSatellite(satelliteKeys);
     },
   };
 }
