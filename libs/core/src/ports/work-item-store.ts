@@ -557,6 +557,8 @@ export interface WorkItemStore {
    * nothing here consults it.
    */
   listByProject(projectId: string): Promise<LabelledWorkItem[]>;
+  /** The requested rows that belong to `projectId`, in stable id order. */
+  listByIds(projectId: string, ids: readonly string[]): Promise<LabelledWorkItem[]>;
   findById(id: string): Promise<WorkItem | null>;
   /**
    * Inserts, and respaces the sibling group in the same transaction when the

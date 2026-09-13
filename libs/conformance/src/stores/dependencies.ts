@@ -37,6 +37,43 @@ export function dependencyRegistrations(
   return [
     storeCase(
       'dependencies',
+      'dependencies.listByWorkItems:incident-scope',
+      open,
+      async ({ port, seed }) => {
+        const [firstId, secondId] = seed.workItemIds[0];
+        await addEdge(
+          port,
+          edge('edge-targeted', seed.projectIds[0], firstId, secondId),
+          seed.stamps[0],
+        );
+        expect(
+          (await port.listByWorkItems(seed.projectIds[0], [firstId])).map(({ id }) => id),
+        ).toEqual(['edge-targeted']);
+        // Proof: an unrelated edge in this answer makes the exact id list fail.
+        expect(await port.listByWorkItems(seed.projectIds[0], ['work-missing'])).toEqual([]);
+        expect(await port.listByWorkItems(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual(
+          [],
+        );
+        expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
+        await addEdge(
+          port,
+          edge(
+            'edge-cross-project',
+            seed.projectIds[0],
+            seed.workItemIds[1][0],
+            seed.workItemIds[1][1],
+          ),
+          seed.stamps[0],
+        );
+        // Proof: dropping endpoint project validation returned this malformed
+        // edge when the other project's id was targeted.
+        expect(port.listByWorkItems(seed.projectIds[0], [seed.workItemIds[1][0]])).rejects.toThrow(
+          /endpoint outside project/,
+        );
+      },
+    ),
+    storeCase(
+      'dependencies',
       'dependencies.add:idempotent-pair',
       open,
       async ({ port, readers, seed }) => {

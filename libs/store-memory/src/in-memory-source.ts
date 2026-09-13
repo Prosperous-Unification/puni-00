@@ -33,11 +33,12 @@ export function inMemoryStores(): TransactionalStores {
     workItems.listByProject(projectId),
   );
   const workItems = inMemoryWorkItems(directory);
-  const estimates = inMemoryEstimates(workItems);
-  const actuals = inMemoryActuals(workItems);
-  const measures = inMemoryMeasures(workItems);
-  const progress = inMemoryProgress(workItems);
-  const dependencies = inMemoryDependencies();
+  const steps = inMemorySteps();
+  const estimates = inMemoryEstimates(workItems, undefined, steps);
+  const actuals = inMemoryActuals(workItems, undefined, steps);
+  const measures = inMemoryMeasures(workItems, undefined, steps);
+  const progress = inMemoryProgress(workItems, undefined, steps);
+  const dependencies = inMemoryDependencies([], undefined, workItems);
   return {
     users,
     projects: inMemoryProjects(users),
@@ -51,7 +52,7 @@ export function inMemoryStores(): TransactionalStores {
     capacity: inMemoryCapacity(),
     priorityBands: inMemoryPriorityBands(),
     calendarMarkers: inMemoryCalendarMarkers(),
-    steps: inMemorySteps(),
+    steps,
     planEvents: inMemoryPlanEvents(),
     journal: inMemoryCommandJournal(),
     eventLog: inMemoryEventLog(),

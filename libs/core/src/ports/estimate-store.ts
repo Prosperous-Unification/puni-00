@@ -28,6 +28,8 @@ export type StepWriteOutcome = 'written' | 'unknown_step';
 
 export interface EstimateStore {
   listByProject(projectId: string): Promise<StoredEstimate[]>;
+  /** Values for the requested work items in project and step order. */
+  listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredEstimate[]>;
   /** Writes one work item's estimate for one step, replacing any earlier one. */
   set(estimate: StoredEstimate, stamp: WriteStamp): Promise<StepWriteOutcome>;
   /**

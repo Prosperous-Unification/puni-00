@@ -1,9 +1,10 @@
-import type { ActualStore, StoredActual, WorkItemStore } from '@wbs/core';
+import type { ActualStore, StepStore, StoredActual, WorkItemStore } from '@wbs/core';
 
 /** An ActualStore backed by an array, keyed as the composite primary key is. */
 export function inMemoryActuals(
   workItems: WorkItemStore,
   table: MemoryActualTable = memoryActualTable(),
+  steps?: StepStore,
 ): ActualStore {
   const { rows } = table;
   /**
@@ -14,7 +15,20 @@ export function inMemoryActuals(
   return {
     async listByProject(projectId) {
       const ids = new Set((await workItems.listByProject(projectId)).map((w) => w.id));
-      return rows.filter((row) => ids.has(row.workItemId));
+      return order(
+        rows.filter((row) => ids.has(row.workItemId)),
+        await steps?.listByProject(projectId),
+      );
+    },
+    async listByWorkItems(projectId, workItemIds) {
+      const projectIds = new Set(
+        (await workItems.listByIds(projectId, workItemIds)).map((row) => row.id),
+      );
+      const requested = new Set(workItemIds);
+      return order(
+        rows.filter((row) => projectIds.has(row.workItemId) && requested.has(row.workItemId)),
+        await steps?.listByProject(projectId),
+      );
     },
     set(toSet, _stamp) {
       const kept = rows.filter(
@@ -40,6 +54,20 @@ export function inMemoryActuals(
       return Promise.resolve();
     },
   };
+}
+
+function order(
+  rows: StoredActual[],
+  steps: Awaited<ReturnType<StepStore['listByProject']>> | undefined,
+): StoredActual[] {
+  if (steps === undefined) return rows;
+  const position = new Map(steps.map((step) => [step.id, step.position]));
+  return [...rows].sort(
+    (left, right) =>
+      left.workItemId.localeCompare(right.workItemId) ||
+      (position.get(left.stepId) ?? 0) - (position.get(right.stepId) ?? 0) ||
+      left.stepId.localeCompare(right.stepId),
+  );
 }
 
 export interface MemoryActualTable {

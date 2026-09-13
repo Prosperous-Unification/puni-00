@@ -35,6 +35,8 @@ export interface ActualKey {
 export interface ActualStore {
   /** Every actual in the project, in step order within each work item. */
   listByProject(projectId: string): Promise<StoredActual[]>;
+  /** Values for the requested work items in project and step order. */
+  listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredActual[]>;
   /** Writes one work item's actual for one step, replacing any earlier one. */
   set(actual: StoredActual, stamp: WriteStamp): Promise<StepWriteOutcome>;
   /**

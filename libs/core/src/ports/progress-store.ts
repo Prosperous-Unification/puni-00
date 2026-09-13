@@ -39,6 +39,8 @@ export interface ProgressKey {
 export interface StepProgressStore {
   /** Every stated step on every work item in the project, in step order within each. */
   listByProject(projectId: string): Promise<StoredProgress[]>;
+  /** Values for the requested work items in project and step order. */
+  listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredProgress[]>;
   /** States one work item's step, replacing whatever it said before. */
   set(progress: StoredProgress, stamp: WriteStamp): Promise<StepWriteOutcome>;
   /**

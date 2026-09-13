@@ -50,6 +50,8 @@ export interface MeasureKey {
 export interface MeasureStore {
   /** Every measure in the project, in step order within each work item and metric order within each pair. */
   listByProject(projectId: string): Promise<StoredMeasure[]>;
+  /** Values for the requested work items in project, step, and metric order. */
+  listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredMeasure[]>;
   /**
    * Writes one work item's figure in one metric for one step, replacing any
    * earlier one in that metric and leaving the pair's other metrics alone.

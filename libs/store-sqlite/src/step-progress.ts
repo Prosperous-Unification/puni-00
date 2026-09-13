@@ -1,5 +1,5 @@
 import type { StepProgressStore, StepWriteOutcome, StoredProgress, WriteStamp } from '@wbs/core';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -65,6 +65,53 @@ export class StepProgressRepository implements StepProgressStore {
         .where(eq(workItem.projectId, projectId))
         .orderBy(stepProgress.workItemId, step.position, stepProgress.stepId)
     );
+  }
+
+  async listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredProgress[]> {
+    if (ids.length === 0) return [];
+    await Promise.resolve();
+    const rows = await this.db
+      .select({
+        workItemId: stepProgress.workItemId,
+        stepId: stepProgress.stepId,
+        state: stepProgress.state,
+        statedAt: stepProgress.statedAt,
+        workItemProjectId: workItem.projectId,
+        stepProjectId: step.projectId,
+        stepPosition: step.position,
+      })
+      .from(stepProgress)
+      .leftJoin(step, eq(stepProgress.stepId, step.id))
+      .leftJoin(workItem, eq(stepProgress.workItemId, workItem.id))
+      .where(
+        and(
+          inArray(stepProgress.workItemId, [...ids]),
+          or(eq(workItem.projectId, projectId), isNull(workItem.projectId)),
+        ),
+      );
+    if (rows.some(({ workItemProjectId }) => workItemProjectId === null)) {
+      throw new Error('targeted progress has an invalid work-item reference');
+    }
+    const admitted = rows.filter(({ workItemProjectId }) => workItemProjectId === projectId);
+    for (const row of admitted) {
+      if (row.stepProjectId !== projectId || row.stepPosition === null) {
+        throw new Error(`progress ${row.workItemId}/${row.stepId} has an invalid step reference`);
+      }
+      if (!isProgressState(row.state)) {
+        throw new Error(`progress ${row.workItemId}/${row.stepId} has an invalid state`);
+      }
+      if (typeof row.statedAt !== 'number' || !Number.isFinite(row.statedAt)) {
+        throw new Error(`progress ${row.workItemId}/${row.stepId} has an invalid stated time`);
+      }
+    }
+    return admitted
+      .sort(
+        (left, right) =>
+          left.workItemId.localeCompare(right.workItemId) ||
+          (left.stepPosition ?? 0) - (right.stepPosition ?? 0) ||
+          left.stepId.localeCompare(right.stepId),
+      )
+      .map(({ workItemId, stepId, state, statedAt }) => ({ workItemId, stepId, state, statedAt }));
   }
 
   /**
@@ -143,4 +190,8 @@ export class StepProgressRepository implements StepProgressStore {
       });
     });
   }
+}
+
+function isProgressState(state: unknown): state is 'in_progress' | 'done' {
+  return state === 'in_progress' || state === 'done';
 }

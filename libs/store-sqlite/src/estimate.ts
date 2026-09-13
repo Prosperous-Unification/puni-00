@@ -1,5 +1,5 @@
 import type { EstimateStore, StepWriteOutcome, StoredEstimate, WriteStamp } from '@wbs/core';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -82,6 +82,59 @@ export class EstimateRepository implements EstimateStore {
         .where(eq(workItem.projectId, projectId))
         .orderBy(estimate.workItemId, step.position, estimate.stepId)
     );
+  }
+
+  async listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredEstimate[]> {
+    if (ids.length === 0) return [];
+    await Promise.resolve();
+    const rows = await this.db
+      .select({
+        workItemId: estimate.workItemId,
+        stepId: estimate.stepId,
+        optimistic: estimate.optimistic,
+        realistic: estimate.realistic,
+        pessimistic: estimate.pessimistic,
+        workItemProjectId: workItem.projectId,
+        stepProjectId: step.projectId,
+        stepPosition: step.position,
+      })
+      .from(estimate)
+      .leftJoin(step, eq(estimate.stepId, step.id))
+      .leftJoin(workItem, eq(estimate.workItemId, workItem.id))
+      .where(
+        and(
+          inArray(estimate.workItemId, [...ids]),
+          or(eq(workItem.projectId, projectId), isNull(workItem.projectId)),
+        ),
+      );
+    if (rows.some(({ workItemProjectId }) => workItemProjectId === null)) {
+      throw new Error('targeted estimate has an invalid work-item reference');
+    }
+    const admitted = rows.filter(({ workItemProjectId }) => workItemProjectId === projectId);
+    for (const row of admitted) {
+      if (row.stepProjectId !== projectId || row.stepPosition === null) {
+        throw new Error(`estimate ${row.workItemId}/${row.stepId} has an invalid step reference`);
+      }
+      for (const value of [row.optimistic, row.realistic, row.pessimistic]) {
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+          throw new Error(`estimate ${row.workItemId}/${row.stepId} has an invalid day value`);
+        }
+      }
+    }
+    return admitted
+      .sort(
+        (left, right) =>
+          left.workItemId.localeCompare(right.workItemId) ||
+          (left.stepPosition ?? 0) - (right.stepPosition ?? 0) ||
+          left.stepId.localeCompare(right.stepId),
+      )
+      .map(({ workItemId, stepId, optimistic, realistic, pessimistic }) => ({
+        workItemId,
+        stepId,
+        optimistic,
+        realistic,
+        pessimistic,
+      }));
   }
 
   async set(toSet: StoredEstimate, stamp: WriteStamp): Promise<StepWriteOutcome> {
