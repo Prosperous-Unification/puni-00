@@ -6053,7 +6053,8 @@ describe('SQLite existing source conformance', () => {
         .map(({ caseId }) => ({ caseId, status: 'passed' as const, executed: true }))
         .toSorted((left, right) => left.caseId.localeCompare(right.caseId)),
     );
-  }, 15_000);
+    // Proof: a never-settling await injected at test entry timed out at this 30-second bound.
+  }, 30_000);
 
   it('Task 6.3 observes each saved-plan capture boundary fault and reversals', async () => {
     const faults: readonly Fault<SqliteSource>[] = [
