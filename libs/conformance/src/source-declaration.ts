@@ -40,6 +40,7 @@ export interface SourceDeclaration {
 export interface CaseFixture<P> {
   readonly fixtureId: string;
   readonly port: P;
+  readonly journalAppender: Pick<Stores['journal'], 'append'>;
   readonly seed: SeededPlan;
   readonly readers: SourceReaders;
   readonly scenario: ScenarioControl;

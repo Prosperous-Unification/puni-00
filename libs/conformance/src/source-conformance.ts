@@ -11,6 +11,7 @@ import { estimateRegistrations } from './stores/estimates';
 import { eventLogRegistrations } from './stores/event-log';
 import { journalRegistrations } from './stores/journal';
 import { measureRegistrations } from './stores/measures';
+import { planEventRegistrations } from './stores/plan-events';
 export { DEPENDENCY_SURVIVOR_IDS } from './stores/dependencies';
 import { progressRegistrations } from './stores/progress';
 export { PROGRESS_SENTINEL_STEP_ID } from './stores/progress';
@@ -42,6 +43,7 @@ export interface ExistingStoreOpeners {
   ) => Promise<CaseFixture<TransactionalStores['dependencies']>>;
   readonly directory: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['directory']>>;
   readonly eventLog: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['eventLog']>>;
+  readonly planEvents: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['planEvents']>>;
   readonly subtrees: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['subtrees']>>;
   readonly journal: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['journal']>>;
 }
@@ -65,6 +67,7 @@ export function existingStoreRegistrations(
     ...dependencyRegistrations(openers.dependencies),
     ...directoryRegistrations(openers.directory),
     ...eventLogRegistrations(openers.eventLog),
+    ...planEventRegistrations(openers.planEvents),
     ...subtreeRegistrations(openers.subtrees),
     ...journalRegistrations(openers.journal),
   ];

@@ -1636,3 +1636,65 @@ all fallible TEMP-table setup now runs after the fixture owns cleanup.
 
 Task 5.1 is checked complete. Task 5.2 is next. Review:
 `/tmp/source-conformance-5-1-astra-acceptance.md`.
+
+### Task 5.2 journal settlement and plan-event conformance
+
+Added the shared `journal.flip:preconditions`,
+`planEvents.listFor:filters-order`, and
+`planEvents.pruneOlderThan:strict-cutoff` cases. Plan-event fixtures write only
+through the real journal append boundary and use complete, independently built
+event and journal expectations. The fixture covers two projects, distinct
+kinds, a plan-wide event, the combined item-and-kind predicate, cutoff records
+at 99/100/101, and three equal-instant IDs inserted z/a/m but expected z/m/a.
+Journal settlement compares complete `{ entries, states, history }` snapshots
+after append, flip, restamp, and each discard. History pruning compares one
+complete `{ deletedCount, projectAEvents, projectBEvents, journals }` result,
+including every retained cutoff event and every untouched journal row.
+
+R5 evidence:
+
+- Adding exactly the three IDs to the independent inventory first failed with
+  `Expected - 3 / Received + 0`; after registration the inventory passed at
+  `1/0/2`.
+- Both adapters observed all four named production-method faults: retaining the
+  old flip preconditions, changing direction during restamp, omitting the item
+  predicate, and turning strict cutoff into `<=`. Diagnostics included revision
+  21 versus 11; `undone: true` versus false together with `redoable: true`
+  versus false; both the plan-wide and other-item leaks; and deleted count 2
+  versus 6 with all four missing cutoff rows named.
+- Reversing all four mutations while retaining their verified phase reach
+  changed each adapter's exact fault list from four `observed` outcomes to four
+  `assertion-passed` outcomes (`Expected - 4 / Received + 4`).
+- Removing memory's ID tie-break returned z/a/m. Removing SQLite's ID order
+  returned m/a/z. Each failed on complete event objects; both production files
+  were restored before the passing runs.
+- Successful no-op flip and prune decorators cannot certify either family.
+  Each adapter returned two `phase-failed` outcomes after one attempt and one
+  close, with the complete pre-mutation journal, state, event, and sentinel
+  snapshots retained.
+
+Fresh passing evidence:
+
+- Focused shared/fault/window runs: memory `3/0/122`; SQLite `3/0/158`.
+- SQLite journal, plan-event, and UoW regressions: `18/0/48`. Core history,
+  retention, and compensating-command callers: `18/0/40`.
+- Uncached targets: conformance `29/0/48`, store-memory `65/0/2,834`, and
+  store-sqlite `689/0/5,619` across 60 files.
+- Core portable composition passed in Chromium (`1/0`) with bundle SHA-256
+  `1c4940b5b26a4fa3a8aad7ca484d5ebc455e2db3ec8ea9cd73cbf952cd51e6e7`.
+- All six uncached lint/typecheck targets passed for conformance, memory, and
+  SQLite. The changed-file formatting check, `git diff --check`, pinned
+  OpenSpec 1.3.0 strict validation, and all-artifact validation (`75/0`) passed.
+
+The first full memory target exposed that its partial declaration omitted the
+newly registered `planEvents` capability. Adding that source declaration
+wiring made the rerun pass. The first portable-composition attempt could not
+launch Chromium in the restricted sandbox (`sandbox_host_linux.cc:41`,
+`Operation not permitted`); the same required target passed outside that
+sandbox.
+
+Full workspace build/test gates, UI browser suites, deploy checks, and the
+h2puni committed-SHA gate remain skipped because Task 5.2 is an uncommitted
+three-project conformance slice. No production adapter behavior changed. Task
+5.2 remains unchecked pending Astra review; no commit, push, merge, archive, or
+deploy was performed.

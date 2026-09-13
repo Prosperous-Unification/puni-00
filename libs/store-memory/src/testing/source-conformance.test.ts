@@ -221,6 +221,7 @@ function memoryFixture<Family extends ExistingFamily>(
   return {
     fixtureId: `memory:${caseId}`,
     port: source.stores[family],
+    journalAppender: source.journal,
     seed: DETERMINISTIC_SEED,
     readers: readersOf(source),
     scenario: { kind: 'ordinary' },
@@ -249,6 +250,7 @@ async function openMemoryCase<Family extends ExistingFamily>(
     return {
       fixtureId: `memory:${caseId}`,
       port: transactionalSubtrees(source),
+      journalAppender: source.journal,
       seed: DETERMINISTIC_SEED,
       readers: readersOf(source),
       scenario:
@@ -263,12 +265,13 @@ async function openMemoryCase<Family extends ExistingFamily>(
               reached: () => lateControl.reached(),
             },
       close: () => source.close(),
-    } as CaseFixture<TransactionalStores[Family]>;
+    } as unknown as CaseFixture<TransactionalStores[Family]>;
   }
   if (family === 'journal') {
     return {
       fixtureId: `memory:${caseId}`,
       port: source.journal,
+      journalAppender: source.journal,
       seed: DETERMINISTIC_SEED,
       readers: readersOf(source),
       scenario:
@@ -283,7 +286,7 @@ async function openMemoryCase<Family extends ExistingFamily>(
               reached: () => lateControl.reached(),
             },
       close: () => source.close(),
-    } as CaseFixture<TransactionalStores[Family]>;
+    } as unknown as CaseFixture<TransactionalStores[Family]>;
   }
   return memoryFixture(source, family, caseId);
 }
@@ -412,6 +415,7 @@ const openers: ExistingStoreOpeners = {
   dependencies: (caseId) => openMemoryCase('dependencies', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
   eventLog: (caseId) => openMemoryCase('eventLog', caseId),
+  planEvents: (caseId) => openMemoryCase('planEvents', caseId),
   subtrees: (caseId) => openMemoryCase('subtrees', caseId),
   journal: (caseId) => openMemoryCase('journal', caseId),
 };
@@ -514,7 +518,7 @@ const declaration: SourceDeclaration = {
   name: 'memory',
   revision: '3161e5fc',
   historyAdmission: 'independent-write',
-  // This slice executes four families; Task 7.1 replaces this test boundary
+  // This slice executes five families; Task 7.1 replaces this test boundary
   // with the complete source declaration before terminal certification.
   capabilities: {
     projects: { kind: 'offered', gaps: [], open: openers.projects },
@@ -539,6 +543,7 @@ const declaration: SourceDeclaration = {
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
     eventLog: { kind: 'offered', gaps: [], open: openers.eventLog },
+    planEvents: { kind: 'offered', gaps: [], open: openers.planEvents },
     subtrees: { kind: 'offered', gaps: [], open: openers.subtrees },
     journal: { kind: 'offered', gaps: [], open: openers.journal },
   } as unknown as Capabilities,
@@ -1626,6 +1631,295 @@ const eventRetainedMaximumFault = defineFault({
   },
 });
 
+function task52JournalEntry(
+  id: 'flip-target' | 'flip-peer' | 'flip-other-project',
+  undone: boolean,
+  expectedRevision?: number,
+  fromRevision?: number,
+): JournalEntry {
+  const isTarget = id === 'flip-target';
+  const isPeer = id === 'flip-peer';
+  const createdAt = isTarget ? 101 : isPeer ? 102 : 103;
+  const projectId = id === 'flip-other-project' ? 'project-b' : 'project-a';
+  const userId = id === 'flip-other-project' ? 'owner-b' : 'owner-a';
+  const revisionKey = isTarget ? 'work-a-one' : isPeer ? 'work-a-two' : id;
+  return {
+    id,
+    projectId,
+    userId,
+    seq: isPeer ? 2 : 1,
+    kind: 'rename',
+    payload: { label: `Rename ${id}`, forward: { type: 'rename', name: `After ${id}` } },
+    inverse: { type: 'rename', name: `Before ${id}` },
+    preconditions: {
+      expected: { [revisionKey]: expectedRevision ?? createdAt },
+      from: { [revisionKey]: fromRevision ?? createdAt - 1 },
+    },
+    undone,
+    createdAt,
+  };
+}
+
+function task52FlipHistory(): [PlanEvent[], PlanEvent[]] {
+  const expectedEvent = (
+    id: 'flip-target' | 'flip-peer' | 'flip-other-project',
+    createdAt: number,
+  ): PlanEvent => ({
+    id: `event-${id}`,
+    projectId: id === 'flip-other-project' ? 'project-b' : 'project-a',
+    userId: id === 'flip-other-project' ? 'owner-b' : 'owner-a',
+    kind: 'rename',
+    label: `Rename ${id}`,
+    workItemId: `${id}-work`,
+    stepId: null,
+    before: { type: 'rename', name: `Before ${id}` },
+    after: { type: 'rename', name: `After ${id}` },
+    createdAt,
+  });
+  return [
+    [expectedEvent('flip-peer', 102), expectedEvent('flip-target', 101)],
+    [expectedEvent('flip-other-project', 103)],
+  ];
+}
+
+async function readTask52FlipState(source: MemorySource) {
+  return {
+    entries: await Promise.all([
+      source.journal.entriesFor('project-a', 'owner-a'),
+      source.journal.entriesFor('project-b', 'owner-b'),
+    ]),
+    states: await Promise.all([
+      source.journal.stateOf('project-a', 'owner-a'),
+      source.journal.stateOf('project-b', 'owner-b'),
+    ]),
+    history: await Promise.all([
+      source.stores.planEvents.listFor('project-a', {}),
+      source.stores.planEvents.listFor('project-b', {}),
+    ]),
+  };
+}
+
+const journalRetainedPreconditionsFault = defineFault({
+  id: 'break:journal.flip:preconditions',
+  caseId: 'journal.flip:preconditions',
+  createControl: () => createFaultControl('journal.flip:preconditions:retain-old'),
+  mutate(source: MemorySource, control) {
+    return {
+      ...source,
+      journal: replaceMethod(source.journal, 'flip', (flip) => {
+        return async (id, undone, preconditions) => {
+          if (!control.isArmed() || id !== 'flip-target') return flip(id, undone, preconditions);
+          // Proof: forwarding the supplied preconditions changed all four focused
+          // memory fault outcomes from `observed` to `assertion-passed`.
+          await flip(
+            id,
+            undone,
+            structuredClone({ expected: { 'work-a-one': 11 }, from: { 'work-a-one': 10 } }),
+          );
+          expect(await readTask52FlipState(source)).toEqual({
+            entries: [
+              [
+                task52JournalEntry('flip-target', true, 11, 10),
+                task52JournalEntry('flip-peer', false, 12, 11),
+              ],
+              [task52JournalEntry('flip-other-project', false)],
+            ],
+            states: [
+              { undoable: true, redoable: true },
+              { undoable: true, redoable: false },
+            ],
+            history: task52FlipHistory(),
+          });
+          control.reach('journal.flip:preconditions:retain-old');
+        };
+      }),
+    };
+  },
+});
+
+const journalRestampFlipsFault = defineFault({
+  id: 'break:journal.flip:preconditions',
+  caseId: 'journal.flip:preconditions',
+  createControl: () => createFaultControl('journal.flip:preconditions:restamp-flips'),
+  mutate(source: MemorySource, control) {
+    const flip = source.journal.flip.bind(source.journal);
+    return {
+      ...source,
+      journal: replaceMethod(source.journal, 'restamp', (restamp) => {
+        return async (id, preconditions) => {
+          if (!control.isArmed() || id !== 'flip-target') return restamp(id, preconditions);
+          // Proof: delegating to restamp preserved `undone: true` and changed the
+          // four-fault reversal to four `assertion-passed` outcomes.
+          await flip(id, false, structuredClone(preconditions));
+          expect(await readTask52FlipState(source)).toEqual({
+            entries: [
+              [
+                task52JournalEntry('flip-target', false, 31, 11),
+                task52JournalEntry('flip-peer', false, 12, 11),
+              ],
+              [task52JournalEntry('flip-other-project', false)],
+            ],
+            states: [
+              { undoable: true, redoable: false },
+              { undoable: true, redoable: false },
+            ],
+            history: task52FlipHistory(),
+          });
+          control.reach('journal.flip:preconditions:restamp-flips');
+        };
+      }),
+    };
+  },
+});
+
+function task52PlanEvent(
+  id: string,
+  projectId: 'project-a' | 'project-b',
+  userId: 'owner-a' | 'owner-b',
+  workItemId: string | null,
+  kind: string,
+  createdAt: number,
+): PlanEvent {
+  return {
+    id: `history-${projectId === 'project-a' ? 'a' : 'b'}-${id}`,
+    projectId,
+    userId,
+    kind,
+    label: `History history-${projectId === 'project-a' ? 'a' : 'b'}-${id}`,
+    workItemId,
+    stepId: null,
+    before: { type: `undo_${kind}`, workItemId },
+    after: { type: kind, workItemId },
+    createdAt,
+  };
+}
+
+function task52PlanEvents(): [PlanEvent[], PlanEvent[]] {
+  return [
+    [
+      task52PlanEvent('101-wide', 'project-a', 'owner-a', null, 'freeze', 101),
+      task52PlanEvent('100-z', 'project-a', 'owner-a', 'work-a-one', 'clear_estimate', 100),
+      task52PlanEvent('100-m', 'project-a', 'owner-a', 'work-a-one', 'actual', 100),
+      task52PlanEvent('100-a', 'project-a', 'owner-a', 'work-a-two', 'rename', 100),
+      task52PlanEvent('99', 'project-a', 'owner-a', 'work-a-one', 'estimate', 99),
+    ],
+    [
+      task52PlanEvent('101-wide', 'project-b', 'owner-b', null, 'freeze', 101),
+      task52PlanEvent('100', 'project-b', 'owner-b', 'work-b-two', 'rename', 100),
+      task52PlanEvent('99', 'project-b', 'owner-b', 'work-b-one', 'actual', 99),
+    ],
+  ];
+}
+
+function task52HistoryEntry(
+  id: string,
+  projectId: 'project-a' | 'project-b',
+  userId: 'owner-a' | 'owner-b',
+  seq: number,
+  workItemId: string | null,
+  kind: string,
+  createdAt: number,
+): JournalEntry {
+  const prefix = projectId === 'project-a' ? 'a' : 'b';
+  const journalId = `journal-${prefix}-${id}`;
+  const eventId = `history-${prefix}-${id}`;
+  return {
+    id: journalId,
+    projectId,
+    userId,
+    seq,
+    kind,
+    payload: { label: `History ${eventId}`, forward: { type: kind, workItemId } },
+    inverse: { type: `undo_${kind}`, workItemId },
+    preconditions: { expected: { [journalId]: createdAt }, from: {} },
+    undone: false,
+    createdAt,
+  };
+}
+
+function task52HistoryJournals(): [JournalEntry[], JournalEntry[]] {
+  return [
+    [
+      task52HistoryEntry('99', 'project-a', 'owner-a', 1, 'work-a-one', 'estimate', 99),
+      task52HistoryEntry('100-z', 'project-a', 'owner-a', 2, 'work-a-one', 'clear_estimate', 100),
+      task52HistoryEntry('100-a', 'project-a', 'owner-a', 3, 'work-a-two', 'rename', 100),
+      task52HistoryEntry('100-m', 'project-a', 'owner-a', 4, 'work-a-one', 'actual', 100),
+      task52HistoryEntry('101-wide', 'project-a', 'owner-a', 5, null, 'freeze', 101),
+    ],
+    [
+      task52HistoryEntry('99', 'project-b', 'owner-b', 1, 'work-b-one', 'actual', 99),
+      task52HistoryEntry('100', 'project-b', 'owner-b', 2, 'work-b-two', 'rename', 100),
+      task52HistoryEntry('101-wide', 'project-b', 'owner-b', 3, null, 'freeze', 101),
+    ],
+  ];
+}
+
+async function readTask52HistoryState(source: MemorySource) {
+  return {
+    projectAEvents: await source.stores.planEvents.listFor('project-a', {}),
+    projectBEvents: await source.stores.planEvents.listFor('project-b', {}),
+    journals: await Promise.all([
+      source.journal.entriesFor('project-a', 'owner-a'),
+      source.journal.entriesFor('project-b', 'owner-b'),
+    ]),
+  };
+}
+
+const planEventsIgnoreItemFilterFault = defineFault({
+  id: 'break:planEvents.listFor:filters-order',
+  caseId: 'planEvents.listFor:filters-order',
+  createControl: () => createFaultControl('planEvents.listFor:filters-order:ignore-item'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      planEvents: replaceMethod(source.stores.planEvents, 'listFor', (listFor) => {
+        return async (projectId, filter) => {
+          if (
+            !control.isArmed() ||
+            projectId !== 'project-a' ||
+            filter.workItemId !== 'work-a-one' ||
+            filter.kinds !== undefined
+          ) {
+            return listFor(projectId, filter);
+          }
+          // Proof: forwarding the item filter removed the leaked item-two event
+          // and changed the four-fault reversal to `assertion-passed` throughout.
+          const leaked = await listFor(projectId, {});
+          expect(leaked).toEqual(task52PlanEvents()[0]);
+          control.reach('planEvents.listFor:filters-order:ignore-item');
+          return leaked;
+        };
+      }),
+    });
+  },
+});
+
+const planEventsInclusivePruneFault = defineFault({
+  id: 'break:planEvents.pruneOlderThan:strict-cutoff',
+  caseId: 'planEvents.pruneOlderThan:strict-cutoff',
+  createControl: () => createFaultControl('planEvents.pruneOlderThan:strict-cutoff:inclusive'),
+  mutate(source: MemorySource, control) {
+    return withStores(source, {
+      planEvents: replaceMethod(source.stores.planEvents, 'pruneOlderThan', (pruneOlderThan) => {
+        return async (cutoff) => {
+          if (!control.isArmed() || cutoff !== 100) return pruneOlderThan(cutoff);
+          // Proof: forwarding cutoff 100 retained every cutoff row and changed
+          // the four-fault reversal to four `assertion-passed` outcomes.
+          const deletedCount = await pruneOlderThan(101);
+          const [projectAEvents, projectBEvents] = task52PlanEvents();
+          expect({ deletedCount, ...(await readTask52HistoryState(source)) }).toEqual({
+            deletedCount: 6,
+            projectAEvents: [projectAEvents[0]],
+            projectBEvents: [projectBEvents[0]],
+            journals: task52HistoryJournals(),
+          });
+          control.reach('planEvents.pruneOlderThan:strict-cutoff:inclusive');
+          return deletedCount;
+        };
+      }),
+    });
+  },
+});
+
 const journalIndependentHistoryFault = defineFault({
   id: 'break:journal.append:history-atomic',
   caseId: 'journal.append:history-atomic',
@@ -1984,6 +2278,7 @@ async function proveFault(
           return Promise.resolve({
             fixtureId: `memory:${caseId}`,
             port: source.journal,
+            journalAppender: source.journal,
             seed: DETERMINISTIC_SEED,
             readers: readersOf(source),
             scenario: {
@@ -2001,12 +2296,13 @@ async function proveFault(
                   : () => run.control.reached(),
             },
             close: () => source.close(),
-          } as CaseFixture<TransactionalStores[Family]>);
+          } as unknown as CaseFixture<TransactionalStores[Family]>);
         }
         if (family !== 'subtrees') return Promise.resolve(memoryFixture(source, family, caseId));
         return Promise.resolve({
           fixtureId: `memory:${caseId}`,
           port: transactionalSubtrees(source),
+          journalAppender: source.journal,
           seed: DETERMINISTIC_SEED,
           readers: readersOf(source),
           scenario:
@@ -2021,7 +2317,7 @@ async function proveFault(
                   reached: () => lateControl.reached(),
                 },
           close: () => source.close(),
-        } as CaseFixture<TransactionalStores[Family]>);
+        } as unknown as CaseFixture<TransactionalStores[Family]>);
       };
       const registrations = existingStoreRegistrations({
         projects: (caseId) => takeFixture('projects', caseId),
@@ -2038,6 +2334,7 @@ async function proveFault(
         dependencies: (caseId) => takeFixture('dependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
+        planEvents: (caseId) => takeFixture('planEvents', caseId),
         subtrees: (caseId) => takeFixture('subtrees', caseId),
         journal: (caseId) => takeFixture('journal', caseId),
       });
@@ -2070,6 +2367,48 @@ function failedCase(report: ExecutionReport, caseId: CaseId) {
 
 interface MemoryLifecycleProbe {
   closeCalls: number;
+}
+
+interface Task52FlipWindowProbe extends MemoryLifecycleProbe {
+  attempts: number;
+  state: Awaited<ReturnType<typeof readTask52FlipState>> | null;
+}
+
+function omitTask52Flip(source: MemorySource, probe: Task52FlipWindowProbe): MemorySource {
+  return {
+    ...source,
+    journal: replaceMethod(source.journal, 'flip', (flip) => async (id, undone, preconditions) => {
+      if (id !== 'flip-target') return flip(id, undone, preconditions);
+      probe.attempts += 1;
+      probe.state = await readTask52FlipState(source);
+    }),
+    async close() {
+      probe.closeCalls += 1;
+      await source.close();
+    },
+  };
+}
+
+interface Task52PruneWindowProbe extends MemoryLifecycleProbe {
+  attempts: number;
+  state: Awaited<ReturnType<typeof readTask52HistoryState>> | null;
+}
+
+function omitTask52Prune(source: MemorySource, probe: Task52PruneWindowProbe): MemorySource {
+  const decorated = withStores(source, {
+    planEvents: replaceMethod(source.stores.planEvents, 'pruneOlderThan', () => async () => {
+      probe.attempts += 1;
+      probe.state = await readTask52HistoryState(source);
+      return 0;
+    }),
+  });
+  return {
+    ...decorated,
+    async close() {
+      probe.closeCalls += 1;
+      await source.close();
+    },
+  };
 }
 
 interface JournalPrewriteProbe extends MemoryLifecycleProbe {
@@ -2290,6 +2629,97 @@ function openProgressSeedFailureSource(
 }
 
 describe('memory existing source conformance', () => {
+  it('runs every Task 5.2 journal and plan-event case through the staged memory source', async () => {
+    const caseIds = [
+      'planEvents.listFor:filters-order',
+      'planEvents.pruneOlderThan:strict-cutoff',
+      'journal.flip:preconditions',
+    ] as const;
+    const report = await runCases(existingStoreRegistrations(openers), { focus: caseIds });
+    const failure = report.cases.find(({ status }) => status === 'failed');
+    if (failure?.status === 'failed') throw new Error(failure.failure);
+    expect(report.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      caseIds.map((caseId) => ({ caseId, status: 'passed' })),
+    );
+  });
+
+  it('reinjects retained flip preconditions, restamp direction, ignored item filters and inclusive pruning in memory', async () => {
+    const proofs = await Promise.all([
+      proveFault(journalRetainedPreconditionsFault),
+      proveFault(journalRestampFlipsFault),
+      proveFault(planEventsIgnoreItemFilterFault),
+      proveFault(planEventsInclusivePruneFault),
+    ]);
+    // Proof: reversing each adapter fault at its production method produced
+    // `Expected - 4 / Received + 4`, with four `assertion-passed` outcomes.
+    expect(proofs.map(({ kind }) => kind)).toEqual([
+      'observed',
+      'observed',
+      'observed',
+      'observed',
+    ]);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    expect(failures[0]).toContain(`"work-a-one": 21`);
+    expect(failures[0]).toContain(`"work-a-one": 11`);
+    expect(failures[1]).toContain(`-         "undone": true`);
+    expect(failures[1]).toContain(`+         "undone": false`);
+    expect(failures[1]).toContain(`"redoable": true`);
+    expect(failures[1]).toContain(`"redoable": false`);
+    expect(failures[2]).toContain(`"history-a-101-wide"`);
+    expect(failures[2]).toContain(`"history-a-100-a"`);
+    expect(failures[3]).toContain(`"deletedCount": 2`);
+    expect(failures[3]).toContain(`"deletedCount": 6`);
+    expect(failures[3]).toContain(`"history-a-100-z"`);
+    expect(failures[3]).toContain(`"history-a-100-m"`);
+    expect(failures[3]).toContain(`"history-a-100-a"`);
+    expect(failures[3]).toContain(`"history-b-100"`);
+  });
+
+  it('refuses Task 5.2 memory faults before complete public mutations', async () => {
+    const flipProbe: Task52FlipWindowProbe = { attempts: 0, closeCalls: 0, state: null };
+    const pruneProbe: Task52PruneWindowProbe = { attempts: 0, closeCalls: 0, state: null };
+    const [flipProof, pruneProof] = await Promise.all([
+      proveFault(journalRetainedPreconditionsFault, openConformanceMemorySource, (source) =>
+        omitTask52Flip(source, flipProbe),
+      ),
+      proveFault(planEventsInclusivePruneFault, openConformanceMemorySource, (source) =>
+        omitTask52Prune(source, pruneProbe),
+      ),
+    ]);
+    // Proof: reaching either phase without its verified complete mutation changed
+    // this list away from the two required `phase-failed` outcomes.
+    expect([flipProof.kind, pruneProof.kind]).toEqual(['phase-failed', 'phase-failed']);
+    expect(flipProbe).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      state: {
+        entries: [
+          [
+            task52JournalEntry('flip-target', false, 11, 10),
+            task52JournalEntry('flip-peer', false, 12, 11),
+          ],
+          [task52JournalEntry('flip-other-project', false)],
+        ],
+        states: [
+          { undoable: true, redoable: false },
+          { undoable: true, redoable: false },
+        ],
+        history: task52FlipHistory(),
+      },
+    });
+    expect(pruneProbe).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      state: {
+        projectAEvents: task52PlanEvents()[0],
+        projectBEvents: task52PlanEvents()[1],
+        journals: task52HistoryJournals(),
+      },
+    });
+  });
+
   it('runs every Task 5.1 journal case through the staged memory source', async () => {
     const caseIds = ['journal.append:history-atomic', 'journal.append:account-redo-depth'] as const;
     const report = await runCases(existingStoreRegistrations(openers), { focus: caseIds });

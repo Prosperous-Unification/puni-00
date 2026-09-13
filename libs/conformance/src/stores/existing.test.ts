@@ -22,6 +22,7 @@ describe('the migrated existing store kits', () => {
       dependencies: unopened,
       directory: unopened,
       eventLog: unopened,
+      planEvents: unopened,
       subtrees: unopened,
       journal: unopened,
     });
@@ -30,6 +31,8 @@ describe('the migrated existing store kits', () => {
     // failed with both subtree IDs absent (`Expected - 2 / Received + 0`).
     // Proof: removing journalRegistrations from the production catalog failed
     // here with both journal IDs absent (`Expected - 2 / Received + 0`).
+    // Proof: before Task 5.2's three registrations existed, this failed with
+    // exactly those three IDs absent (`Expected - 3 / Received + 0`).
     expect(registrations.map(({ caseId }) => caseId)).toEqual([
       'projects.create:steps',
       'projects.update:scope',
@@ -82,10 +85,13 @@ describe('the migrated existing store kits', () => {
       'eventLog.rangeSince',
       'eventLog.pruneBeyond',
       'eventLog.pruneBeyond:empty-sequence',
+      'planEvents.listFor:filters-order',
+      'planEvents.pruneOlderThan:strict-cutoff',
       'subtrees.insertSubtree:complete-copy',
       'subtrees.insertSubtree:late-failure',
       'journal.append:history-atomic',
       'journal.append:account-redo-depth',
+      'journal.flip:preconditions',
     ]);
     // Proof: before the independent implemented inventory was repaired, this
     // complete equality failed with the five work-item and two directory IDs absent.
