@@ -1,5 +1,6 @@
 import type { PlanDocumentRequest } from '@wbs/contracts';
 
+import type { Clock } from '../ports/clock';
 import type { Scheduler } from '../ports/scheduler';
 import type { Scope, UnitOfWork } from '../ports/unit-of-work';
 import { AnnouncementCollector, type Broadcaster } from './broadcast';
@@ -11,6 +12,7 @@ interface ImportServices {
 }
 
 export interface ImportServiceOptions {
+  clock: Clock;
   scheduler: Scheduler;
   uow: UnitOfWork;
   announcements: Broadcaster;
@@ -19,6 +21,7 @@ export interface ImportServiceOptions {
 
 export interface ImportAdmission {
   ok: true;
+  projectId: string;
   solutionRef: 'kept' | 'left-off' | 'none';
 }
 
@@ -138,10 +141,68 @@ export class ImportService {
             (await scope.stores.projects.findBySolutionSlug(requested.slug)) === null
             ? 'kept'
             : 'left-off';
+      const stamp = this.opts.clock.stampFor(actorId);
+      const projectId = this.opts.clock.newId();
+      const settings = prepared.settings;
+      const steps = prepared.steps.map((step) => ({
+        id: this.opts.clock.newId(),
+        projectId,
+        name: step.name,
+        position: step.position,
+      }));
+      // Proof: routing this through ProjectService.create made the source contract
+      // read `[Dev@10, QA@20]` instead of `[Discover@10, Build@30, Verify@70]`.
+      await scope.stores.projects.create(
+        {
+          id: projectId,
+          name: settings.name,
+          ownerId: actorId,
+          restricted: settings.restricted,
+          estimateMethod: settings.estimateMethod,
+          depReach: settings.depReach,
+          pertWeights: settings.pertWeights,
+          estimateRounding: settings.estimateRounding,
+          startDate: settings.startDate,
+          solutionRef: requested !== null && solutionRef === 'kept' ? requested : null,
+          revision: 0,
+          createdAt: stamp.at,
+          optimizationEnabled: settings.optimizationEnabled,
+          scheduleEngine: settings.scheduleEngine,
+          scheduleObjective: settings.scheduleObjective,
+        },
+        steps,
+        stamp,
+      );
+      const bands = await scope.stores.priorityBands.replace(
+        projectId,
+        prepared.priorityBands,
+        stamp,
+      );
+      if (!bands.ok) throw new Error(`created project refused its priority bands: ${projectId}`);
+      for (const capacity of prepared.capacity) {
+        const teamId = teamsByFileId.get(capacity.teamFileId);
+        if (teamId === undefined)
+          throw new Error(`prepared capacity team mapping disappeared: ${capacity.teamFileId}`);
+        const written = await scope.stores.capacity.set(projectId, teamId, capacity.size, stamp);
+        if (!written.ok) throw new Error(`created project refused its capacity: ${projectId}`);
+      }
+      for (const marker of prepared.calendarMarkers) {
+        const written = await scope.stores.calendarMarkers.create({
+          id: this.opts.clock.newId(),
+          projectId,
+          date: marker.date,
+          name: marker.name,
+          color: marker.color,
+          createdAt: stamp.at,
+        });
+        if (!written.ok)
+          throw new Error(`created project refused its calendar marker: ${written.reason}`);
+      }
       return {
         commit: true,
         value: {
           ok: true,
+          projectId,
           solutionRef,
         },
       };

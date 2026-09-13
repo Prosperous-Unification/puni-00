@@ -125,4 +125,40 @@ Fresh green evidence:
 | Imported external-system persistence | Deliberately suffixed the SQLite post-insert name lookup                    | SQLite source contract, `reuses an existing tag by name` (its otherwise-valid document carries `Tracker`) | threw `external system vanished after insert: Tracker`                 |
 
 Each fault was observed, restored and recorded beside its production check.
-Tasks 3.2–5.2 remain unimplemented and unchecked.
+At the Task 3.1 checkpoint, Tasks 3.2–5.2 remained unimplemented and unchecked.
+
+## Section 3.2 — exact project configuration
+
+Task 3.2 extends the same admitted act with one project created directly through
+`ProjectStore.create`, its supplied steps, priority ladder, capacity entries and
+calendar markers. The import owns one stamp for these rows. It mints fresh
+project, step and marker ids; the document's marker id remains a file-local ref.
+The chosen solution reference is written only when Task 3.1's admitted lookup
+reported its slug free.
+
+The first focused test was red after preparation succeeded: the returned
+admission had no `projectId`, and `findById(undefined)` returned `null` instead
+of the supplied project settings. Memory and SQLite then both passed the five
+source-contract cases, including the exact three-step order and marker
+date/name/color. These focused semantic runs overlapped the E2E lane's final
+static gate; no timing conclusion is drawn from them.
+
+| Check                | Fault injected                                                                                                            | Test that observed it                                                                                       | Observed failure                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Exact imported steps | Replaced direct `ProjectStore.create(project, steps, stamp)` with `ProjectService.create`, whose defaults are Dev then QA | memory source contract, `stores exact project settings, nondefault step order, capacity, bands, and marker` | expected `Discover@10, Build@30, Verify@70`; received `Dev@10, QA@20` |
+
+The fault was observed, restored and recorded beside the direct production
+call.
+
+After the E2E timing lane released the host, fresh final evidence passed:
+
+- `cd libs/store-memory && bun test src/import.service.test.ts src/memory-source.test.ts` — 16 passed, 0 failed.
+- `cd libs/store-sqlite && bun test src/import.service.db.test.ts src/directory.db.test.ts src/project.db.test.ts src/priority-band.db.test.ts src/capacity.db.test.ts src/calendar-marker.db.test.ts` — 70 passed, 0 failed.
+- `cd libs/core && bun test src/service/prepare-import.test.ts src/service/calendar-marker.service.test.ts` — 62 passed, 0 failed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p core store-memory store-sqlite --skip-nx-cache --parallel=3 --output-style=static` — five targets passed; `core:lint` found the new test's forbidden non-null assertions and unsafe asymmetric matcher.
+- After replacing those assertions with explicit fixture/marker guards and a typed authored-marker projection, `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx lint core --skip-nx-cache --output-style=static` and `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p core store-memory store-sqlite --skip-nx-cache --parallel=3 --output-style=static` both passed.
+- Final adapter contracts: memory 5 passed and SQLite 5 passed, 0 failed.
+- `bunx prettier --check libs/core/src/service/import.service.ts libs/core/src/testing/import-service-source-contract.ts openspec/changes/plan-json-import/verify.md openspec/changes/plan-json-import/tasks.md` — all named files matched.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
+
+Tasks 3.3–5.2 remain unimplemented and unchecked.

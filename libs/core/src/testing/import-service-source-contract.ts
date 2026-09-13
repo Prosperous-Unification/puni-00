@@ -20,6 +20,7 @@ function importService(source: Source<TransactionalStores>): ImportService {
   });
   const announcements = recordingBroadcaster();
   return new ImportService({
+    clock,
     scheduler: fastScheduler,
     uow: source.uow,
     announcements,
@@ -32,9 +33,20 @@ function importService(source: Source<TransactionalStores>): ImportService {
 export function importServiceSourceContract(
   openSource: () => Promise<Source<TransactionalStores>>,
 ) {
-  describe('ImportService directory admission', () => {
-    it('reuses an existing tag by name', async () => {
+  describe('ImportService admitted writes', () => {
+    async function ownedSource(): Promise<Source<TransactionalStores>> {
       const source = await openSource();
+      if ((await source.stores.users.findById(ACTOR)) !== null) return source;
+      const created = await source.stores.users.create(
+        { id: ACTOR, username: ACTOR, passwordHash: 'x', createdAt: STAMP.at },
+        STAMP,
+      );
+      if (created === null) throw new Error('test owner name was already held');
+      return source;
+    }
+
+    it('reuses an existing tag by name', async () => {
+      const source = await ownedSource();
       try {
         await source.stores.directory.addTag({ id: 'held-tag', name: 'Release' }, STAMP);
         const document = planDocumentFixture();
@@ -53,7 +65,7 @@ export function importServiceSourceContract(
     });
 
     it('keeps an existing person byte-equivalent when the file disagrees', async () => {
-      const source = await openSource();
+      const source = await ownedSource();
       try {
         const heldTeam = await source.stores.directory.addTeam(
           { id: 'held-team', name: 'Existing team' },
@@ -84,7 +96,7 @@ export function importServiceSourceContract(
     });
 
     it('restores a new agent kind and memberships', async () => {
-      const source = await openSource();
+      const source = await ownedSource();
       try {
         const document = planDocumentFixture();
 
@@ -110,20 +122,8 @@ export function importServiceSourceContract(
     });
 
     it('leaves off a solution slug already held inside admission', async () => {
-      const source = await openSource();
+      const source = await ownedSource();
       try {
-        if ((await source.stores.users.findById(ACTOR)) === null) {
-          const created = await source.stores.users.create(
-            {
-              id: ACTOR,
-              username: ACTOR,
-              passwordHash: 'x',
-              createdAt: STAMP.at,
-            },
-            STAMP,
-          );
-          if (created === null) throw new Error('test owner name was already held');
-        }
         await source.stores.projects.create(
           {
             id: 'held-project',
@@ -151,6 +151,104 @@ export function importServiceSourceContract(
         const imported = await importService(source).import(document, ACTOR);
 
         expect(imported).toMatchObject({ ok: true, solutionRef: 'left-off' });
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('stores exact project settings, nondefault step order, capacity, bands, and marker', async () => {
+      const source = await ownedSource();
+      try {
+        const document = planDocumentFixture();
+        document.settings.name = 'Exact imported plan';
+        document.settings.restricted = true;
+        document.settings.estimateMethod = 'pessimistic';
+        document.settings.depReach = 'anchor-slice';
+        document.settings.pertWeights = { optimistic: 2, realistic: 3, pessimistic: 5 };
+        document.settings.estimateRounding = 'round';
+        document.settings.scheduleEngine = 'optimized';
+        document.settings.scheduleObjective = 'time';
+        document.steps = [
+          { id: 'step-discover', name: 'Discover', position: 10 },
+          { id: 'step-build', name: 'Build', position: 30 },
+          { id: 'step-verify', name: 'Verify', position: 70 },
+        ];
+        const row = document.workItems.at(0);
+        if (row === undefined) throw new Error('plan document fixture has no work item');
+        row.estimates = {
+          'step-discover': { optimistic: 1, realistic: 2, pessimistic: 3 },
+        };
+        row.actuals = {};
+        row.progress = {};
+        row.measures = {};
+        row.assignees = { 'step-build': 'person-1' };
+        document.calendarMarkers = [
+          {
+            id: 'file-marker',
+            date: '2026-09-21',
+            name: 'Release train',
+            color: '#f70100',
+          },
+        ];
+
+        const imported = await importService(source).import(document, ACTOR);
+        if (!imported.ok) throw new Error(`valid import refused at ${imported.path}`);
+        const project = await source.stores.projects.findById(imported.projectId);
+        const steps = await source.stores.projects.stepsOf(imported.projectId);
+        const teams = await source.stores.directory.listTeams();
+        const billing = teams.find(({ name }) => name === 'Billing');
+        if (billing === undefined) throw new Error('imported capacity team was not stored');
+
+        expect(steps.map(({ name, position }) => ({ name, position }))).toEqual([
+          { name: 'Discover', position: 10 },
+          { name: 'Build', position: 30 },
+          { name: 'Verify', position: 70 },
+        ]);
+        expect(project).toEqual({
+          id: imported.projectId,
+          name: 'Exact imported plan',
+          ownerId: ACTOR,
+          restricted: true,
+          estimateMethod: 'pessimistic',
+          depReach: 'anchor-slice',
+          pertWeights: { optimistic: 2, realistic: 3, pessimistic: 5 },
+          estimateRounding: 'round',
+          startDate: '2026-09-14',
+          solutionRef: null,
+          revision: 0,
+          createdAt: STAMP.at,
+          optimizationEnabled: false,
+          scheduleEngine: 'optimized',
+          scheduleObjective: 'time',
+        });
+        expect(await source.stores.priorityBands.listFor(imported.projectId)).toEqual([
+          { startsAt: 1, defaultValue: 10, label: 'Critical' },
+          { startsAt: 21, defaultValue: 30, label: 'High' },
+          { startsAt: 41, defaultValue: 50, label: 'Medium' },
+          { startsAt: 61, defaultValue: 70, label: 'Low' },
+          { startsAt: 81, defaultValue: 90, label: 'Lowest' },
+        ]);
+        expect(await source.stores.capacity.listFor(imported.projectId)).toEqual([
+          { serviceTeamId: billing.id, size: 2 },
+        ]);
+        const markers = await source.stores.calendarMarkers.listFor(imported.projectId);
+        const marker = markers.at(0);
+        if (marker === undefined) throw new Error('imported calendar marker was not stored');
+        expect(markers).toHaveLength(1);
+        expect(marker.id).not.toBe('file-marker');
+        expect({
+          projectId: marker.projectId,
+          date: marker.date,
+          name: marker.name,
+          color: marker.color,
+          createdAt: marker.createdAt,
+        }).toEqual({
+          projectId: imported.projectId,
+          date: '2026-09-21',
+          name: 'Release train',
+          color: '#f70100',
+          createdAt: STAMP.at,
+        });
       } finally {
         await source.close();
       }
