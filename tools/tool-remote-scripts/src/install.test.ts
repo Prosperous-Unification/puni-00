@@ -202,6 +202,7 @@ describe('host-wide solver supervisor contract', () => {
     );
     expect(unit).toContain('Restart=always');
     expect(unit).toContain(`RuntimeDirectory=${SOLVER_SUPERVISOR_RUNTIME_DIRECTORY}`);
+    expect(unit).toContain('RuntimeDirectoryPreserve=restart');
     expect(unit).not.toContain('/home/puni1/wbs/');
     expect(unit).not.toContain('/home/puni1/wbs-dev/');
   });

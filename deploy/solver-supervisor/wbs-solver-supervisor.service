@@ -8,6 +8,9 @@ Restart=always
 RestartSec=1s
 RuntimeDirectory=wbs-solver
 RuntimeDirectoryMode=0750
+# The dev container bind-mounts this directory, not the socket inode. Preserve
+# the directory across service restarts so the mount keeps seeing replacement sockets.
+RuntimeDirectoryPreserve=restart
 
 [Install]
 WantedBy=default.target
