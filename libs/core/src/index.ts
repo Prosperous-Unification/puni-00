@@ -69,6 +69,7 @@ export * from './service/directory.service';
 export * from './service/directory-usage';
 export * from './service/gateway-broadcaster';
 export * from './service/history.service';
+export * from './service/import.service';
 export * from './service/login-throttle';
 export * from './service/numbered-work-item';
 export * from './service/optimizer-trigger-broadcaster';

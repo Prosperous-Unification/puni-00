@@ -2,6 +2,7 @@ import type {
   Assignment,
   DirectoryStore,
   DirectoryUsageRows,
+  ExternalSystem,
   Person,
   PersonWithTeams,
   Service,
@@ -62,6 +63,7 @@ export interface MemoryDirectoryTables {
   readonly tags: Map<string, Tag>;
   readonly services: Map<string, Service>;
   readonly workItemTypes: Map<string, WorkItemType>;
+  readonly externalSystems: Map<string, ExternalSystem>;
   readonly people: Map<string, Person>;
   readonly memberships: Map<string, Set<string>>;
   readonly owned: Map<string, Set<string>>;
@@ -74,6 +76,13 @@ export function memoryDirectoryTables(): MemoryDirectoryTables {
     tags: new Map(),
     services: new Map(),
     workItemTypes: new Map(),
+    externalSystems: new Map([
+      ['sys-jira-issue', { id: 'sys-jira-issue', name: 'jira-issue' }],
+      ['sys-github-pr', { id: 'sys-github-pr', name: 'github-pr' }],
+      ['sys-github-issue', { id: 'sys-github-issue', name: 'github-issue' }],
+      ['sys-confluence-page', { id: 'sys-confluence-page', name: 'confluence-page' }],
+      ['sys-slack-message', { id: 'sys-slack-message', name: 'slack-message' }],
+    ]),
     people: new Map(),
     memberships: new Map(),
     owned: new Map(),
@@ -85,7 +94,17 @@ export function inMemoryDirectory(
   readProject?: (projectId: string) => Promise<readonly { id: string }[]>,
   tables: MemoryDirectoryTables = memoryDirectoryTables(),
 ): DirectoryStore {
-  const { teams, tags, services, workItemTypes, people, memberships, owned, assignments } = tables;
+  const {
+    teams,
+    tags,
+    services,
+    workItemTypes,
+    externalSystems,
+    people,
+    memberships,
+    owned,
+    assignments,
+  } = tables;
   /** The ownership map, by team — `memberships`' shape, one dimension over. */
   const key = (workItemId: string, stepId: string) => `${workItemId}::${stepId}`;
   /**
@@ -144,13 +163,13 @@ export function inMemoryDirectory(
     // these names, so a fake that answered an empty list would let a ref write
     // fail here for a reason the real store does not have.
     listExternalSystems: () =>
-      Promise.resolve([
-        { id: 'sys-jira-issue', name: 'jira-issue' },
-        { id: 'sys-github-pr', name: 'github-pr' },
-        { id: 'sys-github-issue', name: 'github-issue' },
-        { id: 'sys-confluence-page', name: 'confluence-page' },
-        { id: 'sys-slack-message', name: 'slack-message' },
-      ]),
+      Promise.resolve([...externalSystems.values()].sort((a, b) => a.name.localeCompare(b.name))),
+    addExternalSystem(toAdd, _stamp) {
+      const already = [...externalSystems.values()].find((each) => each.name === toAdd.name);
+      if (already !== undefined) return Promise.resolve(already);
+      externalSystems.set(toAdd.id, toAdd);
+      return Promise.resolve(toAdd);
+    },
     removeTag(tagId, _cascade, _stamp) {
       const found = tags.get(tagId);
       if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });

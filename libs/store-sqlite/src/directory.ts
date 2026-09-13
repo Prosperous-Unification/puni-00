@@ -852,6 +852,27 @@ export class DirectoryRepository implements DirectoryStore {
       .orderBy(asc(externalSystem.name));
   }
 
+  /** Adds an archival vocabulary row, resolving a concurrent same-name insert. */
+  async addExternalSystem(toAdd: ExternalSystem, stamp: WriteStamp): Promise<ExternalSystem> {
+    return await this.gate.enter(async () => {
+      await this.db
+        .insert(externalSystem)
+        .values({ ...toAdd, ...auditOnCreate(stamp) })
+        .onConflictDoNothing();
+      const rows = await this.db
+        .select({ id: externalSystem.id, name: externalSystem.name })
+        .from(externalSystem)
+        .where(eq(externalSystem.name, toAdd.name))
+        .limit(1);
+      const found = rows.at(0);
+      // Proof: querying a deliberately suffixed name made the SQLite import contract
+      // fail here with `external system vanished after insert: Tracker`.
+      if (found === undefined)
+        throw new Error(`external system vanished after insert: ${toAdd.name}`);
+      return found;
+    });
+  }
+
   /**
    * Every work item type in the global directory, by name —
    * {@link DirectoryRepository.listTags}' shape.

@@ -88,4 +88,41 @@ tests that open listener/process boundaries and included `Bun.serve` `EPERM:
 operation not permitted, listen`; the Section 1 mounted suites above remained
 green. The host-wide and browser gates remain assigned to task 5.2.
 
-Sections 3–5 are unimplemented and remain unchecked.
+At the Section 2 checkpoint, Sections 3–5 were unimplemented and unchecked.
+
+## Section 3.1 — admitted directory reconciliation
+
+Task 3.1 began from stacked head `fce5ac333f03b019d73438eaeb30961d14d185c6`,
+which contains Sections 1–2 and the accepted source-conformance prerequisite.
+The first focused run was deliberately red: `cd libs/store-memory && bun test
+src/import.service.test.ts` failed because `ImportService` was absent from the
+core boundary.
+
+`ImportService.import` now prepares before admission, creates one
+`AnnouncementCollector`, and builds its service graph from the exact `Scope`
+passed to `UnitOfWork.run`. All deployment-global name reads and writes plus the
+solution-slug occupancy lookup happen through that admitted scope. Names remain
+trimmed and case-sensitive. Existing teams and people are authoritative; only a
+new team receives imported service ownership and only a new person receives the
+imported kind and memberships. External-system vocabulary starts with the
+classifier's seeded names but may grow through archival import; it still has no
+public create route.
+
+Fresh green evidence:
+
+- `cd libs/store-memory && bun test src/import.service.test.ts` — 4 passed, 0 failed.
+- `cd libs/store-sqlite && bun test src/import.service.db.test.ts` — 4 passed, 0 failed.
+- `cd libs/core && bun test src/service/directory-usage.test.ts src/service/prepare-import.test.ts src/service/command-bindings.test.ts` — 48 passed, 0 failed.
+- `cd libs/store-memory && bun test src/import.service.test.ts src/memory-source.test.ts` — 15 passed, 0 failed.
+- `cd libs/store-sqlite && bun test src/import.service.db.test.ts src/directory.db.test.ts` — 17 passed, 0 failed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p core store-memory store-sqlite --skip-nx-cache --parallel=1 --output-style=static` — all six targets passed.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
+
+| Check                                | Fault injected                                                              | Test that observed it                                                                                     | Observed failure                                                       |
+| ------------------------------------ | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Existing person is global authority  | Patched a reused person with the file's `kind` and mapped memberships       | both source contracts, `keeps an existing person byte-equivalent when the file disagrees`                 | expected `person/held-team`; received `agent/imported-2` byte-for-byte |
+| Occupied solution slug               | Replaced the admitted `findBySolutionSlug` lookup with unconditional `kept` | memory source contract, `leaves off a solution slug already held inside admission`                        | expected `left-off`; received `kept`                                   |
+| Imported external-system persistence | Deliberately suffixed the SQLite post-insert name lookup                    | SQLite source contract, `reuses an existing tag by name` (its otherwise-valid document carries `Tracker`) | threw `external system vanished after insert: Tracker`                 |
+
+Each fault was observed, restored and recorded beside its production check.
+Tasks 3.2–5.2 remain unimplemented and unchecked.

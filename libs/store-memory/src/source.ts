@@ -173,6 +173,7 @@ export class MemoryState {
     replaceMap(this.tables.directory.tags, next.tables.directory.tags);
     replaceMap(this.tables.directory.services, next.tables.directory.services);
     replaceMap(this.tables.directory.workItemTypes, next.tables.directory.workItemTypes);
+    replaceMap(this.tables.directory.externalSystems, next.tables.directory.externalSystems);
     replaceMap(this.tables.directory.people, next.tables.directory.people);
     replaceMap(this.tables.directory.memberships, next.tables.directory.memberships);
     replaceMap(this.tables.directory.owned, next.tables.directory.owned);
@@ -322,6 +323,7 @@ function coordinatedStores(
         'renameTag',
         'removeTag',
         'addWorkItemType',
+        'addExternalSystem',
         'renameWorkItemType',
         'removeWorkItemType',
         'addService',

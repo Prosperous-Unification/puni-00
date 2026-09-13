@@ -317,13 +317,19 @@ export interface DirectoryStore {
   /**
    * Every external system in the global directory, by name.
    *
-   * Read-only: the vocabulary is seeded by the migration and grows only when a
-   * ref names a system that is not there — which the write path does, rather
-   * than a route of its own. There is no rename and no removal, and that absence
-   * is the change's own non-goal: removing a system takes every **link** with
-   * it, not a label off a row, and nothing has asked for that yet.
+   * The vocabulary starts with the systems the URL classifier knows. Archival
+   * import may add a name learned on another deployment, but there is no public
+   * create route, rename or removal: removing a system takes every **link** with
+   * it rather than a label off a row.
    */
   listExternalSystems(): Promise<ExternalSystem[]>;
+  /**
+   * Adds an external-system vocabulary row idempotently by name.
+   *
+   * The built-in URL classifiers seed their known systems, while an archival
+   * import may carry a vocabulary name from another compatible deployment.
+   */
+  addExternalSystem(toAdd: ExternalSystem, stamp: WriteStamp): Promise<ExternalSystem>;
   /** Every service in the global directory, by name. */
   listServices(): Promise<Service[]>;
   /**
