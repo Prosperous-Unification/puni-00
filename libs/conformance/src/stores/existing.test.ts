@@ -96,7 +96,10 @@ describe('the migrated existing store kits', () => {
       'journal.append:account-redo-depth',
       'journal.flip:preconditions',
       'savedPlans.write:bytes-and-bodies',
+      'savedPlans.write:quota-refusal',
+      'savedPlans.write:quota-window',
       'savedPlans.touch:principals-scope',
+      'savedPlans.write:late-body-failure',
     ]);
     // Proof: before the independent implemented inventory was repaired, this
     // complete equality failed with the five work-item and two directory IDs absent.

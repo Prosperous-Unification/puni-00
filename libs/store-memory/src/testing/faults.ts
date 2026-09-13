@@ -19,6 +19,10 @@ export interface MemoryLateWriteControl<Phase extends MemoryLateWritePoint> {
   reached(): boolean;
   observedJournalEventIds(): readonly string[];
   observedSatelliteKeys(): readonly string[];
+  observedSavedPlan(): Pick<
+    MemoryLateWriteEvidence,
+    'savedPlanId' | 'savedPlanHeaderPresent' | 'savedPlanBodyKinds'
+  >;
   reachStagedWrite(phase: MemoryLateWritePoint, evidence?: MemoryLateWriteEvidence): boolean;
 }
 
@@ -57,6 +61,11 @@ export function memoryLateWriteControl<const Phase extends MemoryLateWritePoint>
     reached: () => hasReached,
     observedJournalEventIds: () => evidence.journalEventIds ?? [],
     observedSatelliteKeys: () => evidence.satelliteKeys ?? [],
+    observedSavedPlan: () => ({
+      savedPlanId: evidence.savedPlanId,
+      savedPlanHeaderPresent: evidence.savedPlanHeaderPresent,
+      savedPlanBodyKinds: evidence.savedPlanBodyKinds,
+    }),
     reachStagedWrite: reach,
   };
 }
@@ -66,6 +75,7 @@ export function openMemorySourceWithFault(
   control: MemoryLateWriteControl<MemoryLateWritePoint>,
 ): MemoryFaultSource {
   const fixture = openMemorySourceWithLateWriteSeam({
+    isActive: (phase) => control.isArmed() && phase === control.phase,
     reach(phase, evidence) {
       if (control.reachStagedWrite(phase, evidence))
         throw new Error(`injected memory fault at ${phase}`);

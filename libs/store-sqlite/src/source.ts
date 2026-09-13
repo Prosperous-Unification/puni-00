@@ -31,6 +31,30 @@ export function openSqliteSourceWithLateWriteSeam(
   options: OpenSqliteSourceOptions,
   lateWrite: SqliteLateWriteSeam,
 ): SqliteSource {
+  return openSqliteSourceWithSavedPlanMode(options, lateWrite, 'atomic');
+}
+
+/** Opens the real source with the saved-plan header/input transaction split for conformance. @internal */
+export function openSqliteSourceWithSplitSavedPlanFault(
+  options: OpenSqliteSourceOptions,
+  lateWrite: SqliteLateWriteSeam,
+): SqliteSource {
+  return openSqliteSourceWithSavedPlanMode(options, lateWrite, 'split');
+}
+
+/** Opens the real source while omitting its saved-plan input insert for conformance. @internal */
+export function openSqliteSourceWithMissingSavedPlanInputFault(
+  options: OpenSqliteSourceOptions,
+  lateWrite: SqliteLateWriteSeam,
+): SqliteSource {
+  return openSqliteSourceWithSavedPlanMode(options, lateWrite, 'omit-input');
+}
+
+function openSqliteSourceWithSavedPlanMode(
+  options: OpenSqliteSourceOptions,
+  lateWrite: SqliteLateWriteSeam,
+  testingWriteMode: 'atomic' | 'split' | 'omit-input',
+): SqliteSource {
   const connect = options.openConnection ?? openDatabaseConnection;
   const process = connect(options.dbPath);
   const coordinator = new WriteCoordinator();
@@ -48,6 +72,7 @@ export function openSqliteSourceWithLateWriteSeam(
           openConnection: () => connect(options.dbPath),
         },
         lateWrite,
+        testingWriteMode,
       ),
       savedPlanCapture: new SavedPlanCaptureRepository({
         openConnection: () => connect(options.dbPath),

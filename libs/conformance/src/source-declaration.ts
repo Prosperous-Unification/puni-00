@@ -90,6 +90,12 @@ export interface PhaseBarrier {
   release(): void;
 }
 
+export interface LateWriteEvidence {
+  readonly savedPlanId?: string;
+  readonly savedPlanHeaderPresent?: boolean;
+  readonly savedPlanBodyKinds?: readonly ('input' | 'schedule')[];
+}
+
 export type ScenarioControl =
   | { readonly kind: 'ordinary' }
   | {
@@ -98,13 +104,18 @@ export type ScenarioControl =
         'subtree-final-satellite' | 'journal-history-insert' | 'saved-plan-schedule-body';
       arm(): void;
       reached(): boolean;
+      evidence(): LateWriteEvidence;
     }
   | {
       readonly kind: 'capture-interleave';
       readonly firstRead: PhaseBarrier;
       changeDirectory(): Promise<void>;
     }
-  | { readonly kind: 'competing-history-write'; readonly rivalWriter: SavedPlanStore }
+  | {
+      readonly kind: 'competing-history-write';
+      readonly rivalWriter: SavedPlanStore;
+      readonly expectedRival: 'quota-refused' | 'snapshot_busy';
+    }
   | {
       readonly kind: 'batch-settlement';
       begin(): Promise<void>;

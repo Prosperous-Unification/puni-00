@@ -1,6 +1,7 @@
 import type {
   PlanEvent,
   PlanInputReads,
+  SavedPlanHoldingRow,
   SavedPlanRow,
   SavedPlanStore,
   SavedPlanWrite,
@@ -382,6 +383,12 @@ export interface MemorySourceFixture {
   replaceSavedPlanInputBody(savedPlanId: string, bytes: string): void;
   /** Reproduces an altered schedule hash. @throws When the plan or schedule hash is missing. */
   replaceSavedPlanScheduleHash(savedPlanId: string, sha256: string): void;
+  /** Models split/omitted saved-plan body persistence at the real history owner. */
+  writeSavedPlanSplit<Refusal>(
+    plan: SavedPlanWrite,
+    check: (holding: SavedPlanHoldingRow, incomingBytes: number) => Promise<Refusal | null>,
+    includeInput: boolean,
+  ): Promise<never>;
 }
 
 /** Opens the conformance fixture with access to adapter-owned persistence seams. @internal */
@@ -408,6 +415,40 @@ export function openMemorySourceWithLateWriteSeam(
   const stores = coordinatedStores(bindStores(committed, lateWrite), coordinator);
 
   return {
+    writeSavedPlanSplit: (plan, check, includeInput) =>
+      historyCoordinator.run(async () => {
+        const rows = [...historyState.plans.values()].filter(
+          (stored) => stored.header.projectId === plan.projectId,
+        );
+        const holding = {
+          plans: rows.length,
+          bytes: rows.reduce(
+            (sum, stored) => sum + stored.header.inputBytes + (stored.header.scheduleBytes ?? 0),
+            0,
+          ),
+        };
+        const incomingBytes =
+          new TextEncoder().encode(plan.input.bytes).byteLength +
+          (plan.schedule.present
+            ? new TextEncoder().encode(plan.schedule.body.bytes).byteLength
+            : 0);
+        const refusal = await check(holding, incomingBytes);
+        if (refusal !== null) throw new Error('split saved-plan fault was unexpectedly refused');
+        historyState.plans.set(plan.id, {
+          header: savedPlanRow(plan),
+          bodies: { input: includeInput ? plan.input.bytes : null, schedule: null },
+        });
+        const partial = historyState.plans.get(plan.id);
+        assertSavedPlanScheduleBoundary(plan, partial);
+        if (partial.bodies.schedule !== null)
+          throw new Error('split saved-plan fault persisted schedule too early');
+        lateWrite.reach('saved-plan-schedule-body', {
+          savedPlanId: plan.id,
+          savedPlanHeaderPresent: partial.header.id === plan.id,
+          savedPlanBodyKinds: partial.bodies.input === plan.input.bytes ? ['input'] : [],
+        });
+        throw new Error('split saved-plan fault control did not reject');
+      }),
     setSavedPlanByteCounts(savedPlanId, inputBytes, scheduleBytes) {
       const stored = historyState.plans.get(savedPlanId);
       // Proof: removing this guard made the regression fail later with
@@ -536,6 +577,20 @@ function savedPlanRow(plan: SavedPlanWrite): SavedPlanRow {
   };
 }
 
+function assertSavedPlanScheduleBoundary(
+  plan: SavedPlanWrite,
+  stored: StoredSavedPlan | undefined,
+): asserts stored is StoredSavedPlan {
+  // Proof: removing this guard changed the adapter-owned missing-input proof
+  // from `phase-failed` to `observed` after the invalid boundary reached.
+  if (
+    stored === undefined ||
+    JSON.stringify(stored.header) !== JSON.stringify(savedPlanRow(plan)) ||
+    stored.bodies.input !== plan.input.bytes
+  )
+    throw new Error('saved-plan schedule boundary lacks complete header and input');
+}
+
 function memorySavedPlans(
   state: HistoryState,
   stores: () => TransactionalStores,
@@ -563,14 +618,29 @@ function memorySavedPlans(
         const refusal = await check(holding, incoming);
         if (refusal !== null) return { outcome: 'refused', refusal };
         const staged = structuredClone(state.plans);
-        staged.set(plan.id, {
+        const pending: StoredSavedPlan = {
           header: savedPlanRow(plan),
           bodies: {
             input: plan.input.bytes,
-            schedule: plan.schedule.present ? plan.schedule.body.bytes : null,
+            schedule: null,
           },
-        });
-        if (plan.schedule.present) lateWrite.reach('saved-plan-schedule-body');
+        };
+        staged.set(plan.id, pending);
+        if (plan.schedule.present) {
+          if (lateWrite.isActive?.('saved-plan-schedule-body') === true) {
+            assertSavedPlanScheduleBoundary(plan, pending);
+            lateWrite.reach('saved-plan-schedule-body', {
+              savedPlanId: plan.id,
+              savedPlanHeaderPresent:
+                JSON.stringify(pending.header) === JSON.stringify(savedPlanRow(plan)),
+              savedPlanBodyKinds: pending.bodies.input === plan.input.bytes ? ['input'] : [],
+            });
+          } else lateWrite.reach('saved-plan-schedule-body');
+          staged.set(plan.id, {
+            ...pending,
+            bodies: { ...pending.bodies, schedule: plan.schedule.body.bytes },
+          });
+        }
         replaceMap(state.plans, staged);
         return { outcome: 'written' };
       }),

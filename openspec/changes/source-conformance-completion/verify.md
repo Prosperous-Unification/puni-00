@@ -1868,3 +1868,63 @@ guard removal. The original ten preflight counterexamples remained
 focused checks, `193/0/7,669` affected regressions, and all six uncached
 conformance, memory, and SQLite lint/typecheck targets. Review:
 `/tmp/source-conformance-6-1-astra-rereview.md`.
+
+#### Task 6.2 saved-plan quota and late-write conformance
+
+The inventory-first RED named exactly `savedPlans.write:quota-refusal`,
+`savedPlans.write:quota-window`, and `savedPlans.write:late-body-failure`
+(`Expected - 3 / Received + 0`). The shared cases use fixed UTF-8 byte counts
+and hashes, detached requests, complete two-project read/list/principal setup
+and settlement snapshots, and one combined outcome/mechanism/public-state
+comparison. Memory's rival runs through the real history coordinator and is
+quota-refused after seeing 2 plans/18 bytes. SQLite's second real repository
+connection returns immediate `snapshot_busy` while the primary owns `BEGIN
+IMMEDIATE`.
+
+Both adapters observed the three canonical faults: a refused record persisted
+with both bodies, a quota check moved before the atomic owner so both rivals
+persisted, and header/input persistence split before schedule failure. Their
+diagnostics include the wrong outcome/mechanism together with the complete
+escaped record. Mutation removal is `assertion-passed`; retained mutation with
+reach removed and failures before callback/body phases are `phase-failed`.
+Premature operations attempt once and close once.
+
+The advisory preflight at
+`/tmp/source-conformance-6-2-astra-preflight.md` reported C0/I5/M1. Every item
+has a permanent runtime counterexample:
+
+- I1: callback values are copied at entry; real callback aliases repaired after
+  return retain `bytes: -777` and fail on both adapters.
+- I2: complete A/B state is asserted immediately before the target; real
+  deletion of project B fails before a target wrapper can restore it.
+- I3: every issued rival settles on primary success or failure. Dual real-path
+  failures preserve both causes, prove rival settlement before close, and close
+  once on both adapters.
+- I4: callback/outcome/mechanism and all reads, lists, and principals are read
+  before one equality. Canonical failures contain the complete refused, rival,
+  or partial target state.
+- I5: the armed adapter boundary verifies the actual complete target header and
+  input. Omitting only the real input write is `phase-failed`; removing the
+  guard changes that permanent proof to `observed`. The watched removals failed
+  `0/1` on both adapters with expected `phase-failed`, received `observed`
+  (memory 15 assertions; SQLite 19 assertions).
+- M1: rival settlement now has one explicit per-run owner shared across source
+  decoration. The stale-check faults are `observed` on memory and SQLite.
+
+Fresh evidence:
+
+- Focused complete conformance files: memory `56/0/3,425`; SQLite
+  `57/0/4,604`; inventory `1/0/2`.
+- Uncached affected targets: conformance `29/0/48`, store-memory
+  `79/0/3,639`, store-sqlite `703/0/6,615` across 60 files.
+- Retained adapters: memory `17/0/196`; SQLite `32/0/92`. Saved-plan callers:
+  core `20/0/32`; be-01 `15/0/64`.
+- All six uncached conformance/memory/SQLite lint and typecheck targets passed.
+  Pinned OpenSpec strict validation passed and all artifacts passed `75/0`.
+  `git diff --check` passed.
+
+Core portable composition built, but its Chromium check is unavailable in this
+sandbox: Chromium aborted with `sandbox_host_linux.cc:41 ... Operation not
+permitted`. This is recorded as an explicit environmental skip. Task 6.2
+remains unchecked pending Astra review. No commit, push, merge, archive, or
+deploy was performed.

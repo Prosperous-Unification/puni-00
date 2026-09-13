@@ -3,9 +3,13 @@ export type SqliteLateWritePoint =
 
 export interface SqliteLateWriteEvidence {
   readonly satelliteKeys?: readonly string[];
+  readonly savedPlanId?: string;
+  readonly savedPlanHeaderPresent?: boolean;
+  readonly savedPlanBodyKinds?: readonly ('input' | 'schedule')[];
 }
 
 export interface SqliteLateWriteSeam {
+  isActive?(phase: SqliteLateWritePoint): boolean;
   reach(phase: SqliteLateWritePoint, evidence?: SqliteLateWriteEvidence): void;
 }
 

@@ -4,7 +4,11 @@ import type {
   SqliteLateWriteSeam,
 } from '../late-write-seam';
 import type { OpenSqliteSourceOptions, SqliteSource } from '../source';
-import { openSqliteSourceWithLateWriteSeam } from '../source';
+import {
+  openSqliteSourceWithLateWriteSeam,
+  openSqliteSourceWithMissingSavedPlanInputFault,
+  openSqliteSourceWithSplitSavedPlanFault,
+} from '../source';
 import { createNonAtomicSubtreeMutantForTesting } from '../work-item';
 
 export type { SqliteLateWritePoint } from '../late-write-seam';
@@ -18,6 +22,10 @@ export interface SqliteLateWriteControl<Phase extends SqliteLateWritePoint> {
   reach(phase: SqliteLateWritePoint): boolean;
   reached(): boolean;
   observedSatelliteKeys(): readonly string[];
+  observedSavedPlan(): Pick<
+    SqliteLateWriteEvidence,
+    'savedPlanId' | 'savedPlanHeaderPresent' | 'savedPlanBodyKinds'
+  >;
   reachTransactionWrite(phase: SqliteLateWritePoint, evidence?: SqliteLateWriteEvidence): boolean;
 }
 
@@ -55,6 +63,11 @@ export function sqliteLateWriteControl<const Phase extends SqliteLateWritePoint>
     reach,
     reached: () => hasReached,
     observedSatelliteKeys: () => evidence.satelliteKeys ?? [],
+    observedSavedPlan: () => ({
+      savedPlanId: evidence.savedPlanId,
+      savedPlanHeaderPresent: evidence.savedPlanHeaderPresent,
+      savedPlanBodyKinds: evidence.savedPlanBodyKinds,
+    }),
     reachTransactionWrite: reach,
   };
 }
@@ -66,6 +79,7 @@ export function openSqliteSourceWithFault(
   reachProof: () => void = () => undefined,
 ): SqliteSource {
   return openSqliteSourceWithLateWriteSeam(options, {
+    isActive: (phase) => control.isArmed() && phase === control.phase,
     reach(phase, evidence) {
       if (control.reachTransactionWrite(phase, evidence)) {
         reachProof();
@@ -82,6 +96,7 @@ export function openSqliteSourceWithNonAtomicSubtreeFault(
   reachProof: () => void = () => undefined,
 ): SqliteSource {
   const lateWrite = {
+    isActive: (phase) => control.isArmed() && phase === control.phase,
     reach(phase, evidence) {
       if (control.reachTransactionWrite(phase, evidence)) {
         reachProof();
@@ -97,4 +112,38 @@ export function openSqliteSourceWithNonAtomicSubtreeFault(
       subtrees: createNonAtomicSubtreeMutantForTesting(source.db, source.gate, lateWrite),
     },
   };
+}
+
+/** Opens the real saved-plan repository with header/input committed before schedule failure. */
+export function openSqliteSourceWithNonAtomicSavedPlanFault(
+  options: OpenSqliteSourceOptions,
+  control: SqliteLateWriteControl<'saved-plan-schedule-body'>,
+  reachProof: () => void,
+): SqliteSource {
+  return openSqliteSourceWithSplitSavedPlanFault(options, {
+    isActive: (phase) => control.isArmed() && phase === control.phase,
+    reach(phase, evidence) {
+      if (control.reachTransactionWrite(phase, evidence)) {
+        reachProof();
+        throw new Error(`injected SQLite fault at ${phase}`);
+      }
+    },
+  });
+}
+
+/** Opens the real repository with its input insert omitted before the late barrier. */
+export function openSqliteSourceWithMissingSavedPlanInput(
+  options: OpenSqliteSourceOptions,
+  control: SqliteLateWriteControl<'saved-plan-schedule-body'>,
+  reachProof: () => void,
+): SqliteSource {
+  return openSqliteSourceWithMissingSavedPlanInputFault(options, {
+    isActive: (phase) => control.isArmed() && phase === control.phase,
+    reach(phase, evidence) {
+      if (control.reachTransactionWrite(phase, evidence)) {
+        reachProof();
+        throw new Error(`injected SQLite fault at ${phase}`);
+      }
+    },
+  });
 }

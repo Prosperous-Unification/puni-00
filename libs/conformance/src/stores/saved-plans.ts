@@ -1,4 +1,5 @@
 import type {
+  SavedPlanHoldingRow,
   SavedPlanPrincipals,
   SavedPlanRow,
   SavedPlanStore,
@@ -8,6 +9,7 @@ import type {
 import { expect } from 'bun:test';
 
 import type { CaseRegistration } from '../case-manifest';
+import { failureMessage } from '../failure-message';
 import type { CaseFixture, SeededPlan } from '../source-declaration';
 import { type OpenCase, storeCase } from './store-case';
 
@@ -15,6 +17,415 @@ interface SavedPlanState {
   readonly plans: readonly (StoredSavedPlan | null)[];
   readonly lists: readonly (readonly SavedPlanRow[])[];
   readonly principals: readonly (SavedPlanPrincipals | null)[];
+}
+
+function quotaPlan(
+  id: string,
+  projectId: string,
+  name: string,
+  createdAt: number,
+  input: { readonly bytes: string; readonly sha256: string },
+  schedule?: { readonly bytes: string; readonly sha256: string },
+): SavedPlanWrite {
+  return {
+    id,
+    projectId,
+    name,
+    createdBy: 'Quota Writer',
+    createdById: DETERMINISTIC_OWNER_B,
+    createdAt,
+    input: { schemaVersion: 11, ...input },
+    schedule:
+      schedule === undefined
+        ? { present: false, absentReason: 'pending' }
+        : {
+            present: true,
+            body: { schemaVersion: 12, ...schedule },
+            inputSha256: input.sha256,
+            algorithmId: 'conformance-scheduler',
+          },
+  };
+}
+
+const DETERMINISTIC_OWNER_B = 'owner-b';
+const HELD_HASH = 'bf34514df96c59c2de5d80148fbe17a5b9242635ca3ecc7aa38e23842f478355';
+const OTHER_HASH = '4a99557e4033c3539de2eb65472017cad5f9557f7a0625a09f1c3f6e2ba69c4c';
+const INCOMING_HASH = '20f308b7c45b89eaecd7daa6b17c214d4c303638748d2cd9298171474709a985';
+const DATES_HASH = '634793e74e7980a5cab8220e0cfd6c9fc916b78ab1af8a77f165a3be7bd319f0';
+const LAST_HASH = 'cb1554f2d98617e8cfbc265940ca894fffb31324d8e9846b70d684e34ef41515';
+const RIVAL_HASH = 'a2587844f6a3f32d7fa53ae64c1109cf97b7dfa12912a794afca9d56ad317b70';
+const LATE_INPUT_HASH = '9dffefcc444c719ff14991008d275645a34f081c07aa54fd1fb39f51488b4df4';
+const LATE_SCHEDULE_HASH = '67f1fdbc1d60444b0f4a7e14af440a54c9be6cb9004c37a71db3a6c70745d160';
+
+function expectedQuotaPlan(
+  id: string,
+  projectId: string,
+  name: string,
+  createdAt: number,
+  input: string,
+  inputBytes: number,
+  inputSha256: string,
+  schedule: null | { readonly bytes: string; readonly byteCount: number; readonly sha256: string },
+): StoredSavedPlan {
+  return {
+    header: {
+      id,
+      projectId,
+      name,
+      createdBy: 'Quota Writer',
+      createdById: 'owner-b',
+      createdAt,
+      inputSchemaVersion: 11,
+      inputBytes,
+      inputSha256,
+      scheduleSchemaVersion: schedule === null ? null : 12,
+      scheduleBytes: schedule?.byteCount ?? null,
+      scheduleSha256: schedule?.sha256 ?? null,
+      scheduleInputSha256: schedule === null ? null : inputSha256,
+      schedulerAlgorithmId: schedule === null ? null : 'conformance-scheduler',
+      scheduleAbsentReason: schedule === null ? 'pending' : null,
+    },
+    bodies: { input, schedule: schedule?.bytes ?? null },
+  };
+}
+
+function quotaSentinel(seed: SeededPlan) {
+  return {
+    request: quotaPlan('saved-other-project', seed.projectIds[1], 'Other project sentinel', 500, {
+      bytes: 'é',
+      sha256: OTHER_HASH,
+    }),
+    expected: expectedQuotaPlan(
+      'saved-other-project',
+      'project-b',
+      'Other project sentinel',
+      500,
+      'é',
+      2,
+      OTHER_HASH,
+      null,
+    ),
+  };
+}
+
+async function readQuotaState(fixture: CaseFixture<SavedPlanStore>, ids: readonly string[]) {
+  return {
+    plans: await Promise.all(ids.map((id) => fixture.readers.savedPlans.readOf(id))),
+    lists: await Promise.all(
+      fixture.seed.projectIds.map((id) => fixture.readers.savedPlans.listOf(id)),
+    ),
+    principals: await Promise.all(ids.map((id) => fixture.readers.savedPlans.principalsOf(id))),
+  };
+}
+
+function expectedQuotaState(
+  fixture: CaseFixture<SavedPlanStore>,
+  plans: readonly (StoredSavedPlan | null)[],
+  projectA: readonly StoredSavedPlan[],
+  other: StoredSavedPlan,
+) {
+  return {
+    plans: [...plans],
+    lists: [projectA.map(({ header }) => header), [other.header]],
+    principals: plans.map((plan) =>
+      plan === null
+        ? null
+        : principals(
+            {
+              id: plan.header.id,
+              projectId: plan.header.projectId,
+              name: plan.header.name,
+              createdBy: plan.header.createdBy,
+              createdById: plan.header.createdById,
+              createdAt: plan.header.createdAt,
+              input: {
+                schemaVersion: plan.header.inputSchemaVersion,
+                bytes: plan.bodies.input ?? '',
+                sha256: plan.header.inputSha256,
+              },
+              schedule: { present: false, absentReason: 'pending' },
+            },
+            plan.header.projectId === fixture.seed.projectIds[0]
+              ? fixture.seed.ownerIds[0]
+              : fixture.seed.ownerIds[1],
+          ),
+    ),
+  };
+}
+
+async function assertQuotaRefusal(fixture: CaseFixture<SavedPlanStore>) {
+  const other = quotaSentinel(fixture.seed);
+  const held = quotaPlan(
+    'quota-held',
+    fixture.seed.projectIds[0],
+    'Quota held',
+    501,
+    {
+      bytes: 'held-🔒',
+      sha256: HELD_HASH,
+    },
+    { bytes: 'é', sha256: OTHER_HASH },
+  );
+  const expectedHeld = expectedQuotaPlan(
+    'quota-held',
+    'project-a',
+    'Quota held',
+    501,
+    'held-🔒',
+    9,
+    HELD_HASH,
+    { bytes: 'é', byteCount: 2, sha256: OTHER_HASH },
+  );
+  await writePlan(fixture.port, structuredClone(other.request), other.expected);
+  await writePlan(fixture.port, structuredClone(held), expectedHeld);
+  expect(await readQuotaState(fixture, ['quota-held', 'saved-other-project'])).toEqual(
+    expectedQuotaState(fixture, [expectedHeld, other.expected], [expectedHeld], other.expected),
+  );
+  const incoming = quotaPlan(
+    'quota-refused',
+    fixture.seed.projectIds[0],
+    'Quota refused',
+    502,
+    { bytes: 'incoming-🧭', sha256: INCOMING_HASH },
+    { bytes: 'dates-📅', sha256: DATES_HASH },
+  );
+  const observations: { holding: SavedPlanHoldingRow; incomingBytes: number }[] = [];
+  const outcome = await fixture.port.write(structuredClone(incoming), (holding, incomingBytes) => {
+    observations.push({ holding: { plans: holding.plans, bytes: holding.bytes }, incomingBytes });
+    return Promise.resolve({ limit: 'conformance_quota', asked: 34, allowed: 33 } as const);
+  });
+  const state = await readQuotaState(fixture, [
+    'quota-refused',
+    'quota-held',
+    'saved-other-project',
+  ]);
+  expect({ observations, outcome, state }).toEqual({
+    observations: [{ holding: { plans: 1, bytes: 11 }, incomingBytes: 23 }],
+    outcome: {
+      outcome: 'refused',
+      refusal: { limit: 'conformance_quota', asked: 34, allowed: 33 },
+    },
+    state: expectedQuotaState(
+      fixture,
+      [null, expectedHeld, other.expected],
+      [expectedHeld],
+      other.expected,
+    ),
+  });
+}
+
+async function assertQuotaWindow(fixture: CaseFixture<SavedPlanStore>) {
+  if (fixture.scenario.kind !== 'competing-history-write')
+    throw new Error('quota window requires competing-history-write');
+  const other = quotaSentinel(fixture.seed);
+  const held = quotaPlan(
+    'quota-window-held',
+    fixture.seed.projectIds[0],
+    'Quota window held',
+    511,
+    { bytes: 'held-🔒', sha256: HELD_HASH },
+  );
+  const last = quotaPlan(
+    'quota-window-last',
+    fixture.seed.projectIds[0],
+    'Quota window last',
+    512,
+    { bytes: 'last-🧩', sha256: LAST_HASH },
+  );
+  const rival = quotaPlan(
+    'quota-window-rival',
+    fixture.seed.projectIds[0],
+    'Quota window rival',
+    513,
+    { bytes: 'rival-🚫', sha256: RIVAL_HASH },
+  );
+  const expectedHeld = expectedQuotaPlan(
+    'quota-window-held',
+    'project-a',
+    'Quota window held',
+    511,
+    'held-🔒',
+    9,
+    HELD_HASH,
+    null,
+  );
+  const expectedLast = expectedQuotaPlan(
+    'quota-window-last',
+    'project-a',
+    'Quota window last',
+    512,
+    'last-🧩',
+    9,
+    LAST_HASH,
+    null,
+  );
+  await writePlan(fixture.port, structuredClone(other.request), other.expected);
+  await writePlan(fixture.port, structuredClone(held), expectedHeld);
+  expect(await readQuotaState(fixture, ['quota-window-held', 'saved-other-project'])).toEqual(
+    expectedQuotaState(fixture, [expectedHeld, other.expected], [expectedHeld], other.expected),
+  );
+  const primaryObservations: { holding: SavedPlanHoldingRow; incomingBytes: number }[] = [];
+  const rivalObservations: { holding: SavedPlanHoldingRow; incomingBytes: number }[] = [];
+  const rivalAttempt: { promise?: Promise<unknown> } = {};
+  let primaryOutcome: unknown;
+  let primaryFailure: unknown;
+  try {
+    primaryOutcome = await fixture.port.write(structuredClone(last), (holding, incomingBytes) => {
+      primaryObservations.push({
+        holding: { plans: holding.plans, bytes: holding.bytes },
+        incomingBytes,
+      });
+      rivalAttempt.promise =
+        fixture.scenario.kind === 'competing-history-write'
+          ? fixture.scenario.rivalWriter.write(
+              structuredClone(rival),
+              (rivalHolding, rivalIncomingBytes) => {
+                rivalObservations.push({
+                  holding: { plans: rivalHolding.plans, bytes: rivalHolding.bytes },
+                  incomingBytes: rivalIncomingBytes,
+                });
+                return Promise.resolve(
+                  rivalHolding.plans + 1 > 2
+                    ? ({ limit: 'plan_count', asked: 3, allowed: 2 } as const)
+                    : null,
+                );
+              },
+            )
+          : undefined;
+      return Promise.resolve(null);
+    });
+  } catch (failure) {
+    primaryFailure = failure;
+  }
+  let rivalOutcome: unknown;
+  let rivalFailure: unknown;
+  if (rivalAttempt.promise !== undefined) {
+    try {
+      rivalOutcome = await rivalAttempt.promise;
+    } catch (failure) {
+      rivalFailure = failure;
+    }
+  }
+  if (primaryFailure !== undefined && rivalFailure !== undefined)
+    throw new AggregateError(
+      [primaryFailure, rivalFailure],
+      'quota primary and rival both failed',
+      { cause: primaryFailure },
+    );
+  if (primaryFailure !== undefined)
+    throw primaryFailure instanceof Error
+      ? primaryFailure
+      : new Error(failureMessage(primaryFailure));
+  if (rivalFailure !== undefined)
+    throw rivalFailure instanceof Error ? rivalFailure : new Error(failureMessage(rivalFailure));
+  if (rivalAttempt.promise === undefined)
+    throw new Error('quota rival was not issued inside the check callback');
+  const expectedMechanism =
+    fixture.scenario.expectedRival === 'quota-refused'
+      ? {
+          rivalObservations: [{ holding: { plans: 2, bytes: 18 }, incomingBytes: 10 }],
+          rivalOutcome: {
+            outcome: 'refused',
+            refusal: { limit: 'plan_count', asked: 3, allowed: 2 },
+          },
+        }
+      : { rivalObservations: [], rivalOutcome: { outcome: 'snapshot_busy' } };
+  const state = await readQuotaState(fixture, [
+    'quota-window-last',
+    'quota-window-held',
+    'quota-window-rival',
+    'saved-other-project',
+  ]);
+  expect({ primaryObservations, primaryOutcome, rivalObservations, rivalOutcome, state }).toEqual({
+    primaryObservations: [{ holding: { plans: 1, bytes: 9 }, incomingBytes: 9 }],
+    primaryOutcome: { outcome: 'written' },
+    ...expectedMechanism,
+    state: expectedQuotaState(
+      fixture,
+      [expectedLast, expectedHeld, null, other.expected],
+      [expectedLast, expectedHeld],
+      other.expected,
+    ),
+  });
+}
+
+async function assertLateBodyFailure(fixture: CaseFixture<SavedPlanStore>) {
+  if (
+    fixture.scenario.kind !== 'late-write' ||
+    fixture.scenario.point !== 'saved-plan-schedule-body'
+  )
+    throw new Error('late body case requires saved-plan schedule-body control');
+  const other = quotaSentinel(fixture.seed);
+  const sentinel = quotaPlan('late-sentinel', fixture.seed.projectIds[0], 'Late sentinel', 521, {
+    bytes: 'held-🔒',
+    sha256: HELD_HASH,
+  });
+  const expectedSentinel = expectedQuotaPlan(
+    'late-sentinel',
+    'project-a',
+    'Late sentinel',
+    521,
+    'held-🔒',
+    9,
+    HELD_HASH,
+    null,
+  );
+  await writePlan(fixture.port, structuredClone(other.request), other.expected);
+  await writePlan(fixture.port, structuredClone(sentinel), expectedSentinel);
+  expect(await readQuotaState(fixture, ['late-sentinel', 'saved-other-project'])).toEqual(
+    expectedQuotaState(
+      fixture,
+      [expectedSentinel, other.expected],
+      [expectedSentinel],
+      other.expected,
+    ),
+  );
+  const target = quotaPlan(
+    'late-target',
+    fixture.seed.projectIds[0],
+    'Late target',
+    522,
+    { bytes: 'late-input-🔧', sha256: LATE_INPUT_HASH },
+    { bytes: 'late-schedule-📆', sha256: LATE_SCHEDULE_HASH },
+  );
+  const observations: { holding: SavedPlanHoldingRow; incomingBytes: number }[] = [];
+  fixture.scenario.arm();
+  let rejected = false;
+  try {
+    await fixture.port.write(structuredClone(target), (holding, incomingBytes) => {
+      observations.push({ holding: { plans: holding.plans, bytes: holding.bytes }, incomingBytes });
+      return Promise.resolve(null);
+    });
+  } catch {
+    rejected = true;
+  }
+  const state = await readQuotaState(fixture, [
+    'late-target',
+    'late-sentinel',
+    'saved-other-project',
+  ]);
+  expect({
+    observations,
+    rejected,
+    reached: fixture.scenario.reached(),
+    evidence: fixture.scenario.evidence(),
+    state,
+  }).toEqual({
+    observations: [{ holding: { plans: 1, bytes: 9 }, incomingBytes: 33 }],
+    rejected: true,
+    reached: true,
+    evidence: {
+      savedPlanId: 'late-target',
+      savedPlanHeaderPresent: true,
+      savedPlanBodyKinds: ['input'],
+    },
+    state: expectedQuotaState(
+      fixture,
+      [null, expectedSentinel, other.expected],
+      [expectedSentinel],
+      other.expected,
+    ),
+  });
 }
 
 function storedPlan(
@@ -233,6 +644,9 @@ async function assertTouches(fixture: CaseFixture<SavedPlanStore>) {
 export function savedPlanRegistrations(open: OpenCase<'savedPlans'>): readonly CaseRegistration[] {
   return [
     storeCase('savedPlans', 'savedPlans.write:bytes-and-bodies', open, assertWrites),
+    storeCase('savedPlans', 'savedPlans.write:quota-refusal', open, assertQuotaRefusal),
+    storeCase('savedPlans', 'savedPlans.write:quota-window', open, assertQuotaWindow),
     storeCase('savedPlans', 'savedPlans.touch:principals-scope', open, assertTouches),
+    storeCase('savedPlans', 'savedPlans.write:late-body-failure', open, assertLateBodyFailure),
   ];
 }

@@ -70,7 +70,10 @@ export const SOURCE_CONFORMANCE_CASES = [
   'journal.append:account-redo-depth',
   'journal.flip:preconditions',
   'savedPlans.write:bytes-and-bodies',
+  'savedPlans.write:quota-refusal',
+  'savedPlans.write:quota-window',
   'savedPlans.touch:principals-scope',
+  'savedPlans.write:late-body-failure',
 ] as const;
 
 export interface CertificationInput {

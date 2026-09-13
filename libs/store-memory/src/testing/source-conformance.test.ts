@@ -71,6 +71,8 @@ type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   removeSavedPlanBodies(savedPlanId: string): void;
   replaceSavedPlanInputBody(savedPlanId: string, bytes: string): void;
   replaceSavedPlanScheduleHash(savedPlanId: string, sha256: string): void;
+  writeSavedPlanSplit: ReturnType<typeof openMemorySourceFixture>['writeSavedPlanSplit'];
+  quotaRivalOwner?: { settlement?: Promise<unknown> };
 };
 type OpenSource = () => MemorySource;
 type SavedPlanCheck<Refusal> = (
@@ -108,6 +110,11 @@ function openConformanceMemorySource(): MemorySource {
     replaceSavedPlanScheduleHash(savedPlanId: string, sha256: string) {
       fixture.replaceSavedPlanScheduleHash(savedPlanId, sha256);
     },
+    writeSavedPlanSplit: <Refusal>(
+      plan: SavedPlanWrite,
+      check: SavedPlanCheck<Refusal>,
+      includeInput: boolean,
+    ) => fixture.writeSavedPlanSplit(plan, check, includeInput),
   };
   return { ...source, journal: transactionalJournal(source as MemorySource) };
 }
@@ -290,6 +297,7 @@ async function openMemoryCase<Family extends ExistingFamily>(
                 lateControl.arm();
               },
               reached: () => lateControl.reached(),
+              evidence: () => lateControl.observedSavedPlan(),
             },
       close: () => source.close(),
     } as unknown as CaseFixture<TransactionalStores[Family]>;
@@ -311,6 +319,7 @@ async function openMemoryCase<Family extends ExistingFamily>(
                 lateControl.arm();
               },
               reached: () => lateControl.reached(),
+              evidence: () => lateControl.observedSavedPlan(),
             },
       close: () => source.close(),
     } as unknown as CaseFixture<TransactionalStores[Family]>;
@@ -319,14 +328,37 @@ async function openMemoryCase<Family extends ExistingFamily>(
 }
 
 async function openMemorySavedPlanCase(caseId: CaseId): Promise<CaseFixture<SavedPlanStore>> {
-  const source = await seedMemorySource();
+  const lateControl =
+    caseId === 'savedPlans.write:late-body-failure'
+      ? memoryLateWriteControl('saved-plan-schedule-body')
+      : null;
+  const source = await seedMemorySource(
+    lateControl === null ? openConformanceMemorySource : () => memoryLateSource(lateControl),
+  );
   return {
     fixtureId: `memory:${caseId}`,
     port: source.history.savedPlans,
     journalAppender: source.journal,
     seed: DETERMINISTIC_SEED,
     readers: readersOf(source),
-    scenario: { kind: 'ordinary' },
+    scenario:
+      caseId === 'savedPlans.write:quota-window'
+        ? {
+            kind: 'competing-history-write',
+            rivalWriter: source.history.savedPlans,
+            expectedRival: 'quota-refused',
+          }
+        : lateControl === null
+          ? { kind: 'ordinary' }
+          : {
+              kind: 'late-write',
+              point: 'saved-plan-schedule-body',
+              arm: () => {
+                lateControl.arm();
+              },
+              reached: () => lateControl.reached(),
+              evidence: () => lateControl.observedSavedPlan(),
+            },
     close: () => source.close(),
   };
 }
@@ -414,6 +446,7 @@ function memoryLateSource(
   reachProof?: () => void,
 ): MemorySource {
   const fixture = openMemorySourceWithLateWriteSeam({
+    isActive: (phase) => control.isArmed() && phase === control.phase,
     reach(phase, evidence) {
       if (control.reachStagedWrite(phase, evidence)) {
         reachProof?.();
@@ -448,6 +481,11 @@ function memoryLateSource(
     replaceSavedPlanScheduleHash(savedPlanId, sha256) {
       fixture.replaceSavedPlanScheduleHash(savedPlanId, sha256);
     },
+    writeSavedPlanSplit: <Refusal>(
+      plan: SavedPlanWrite,
+      check: SavedPlanCheck<Refusal>,
+      includeInput: boolean,
+    ) => fixture.writeSavedPlanSplit(plan, check, includeInput),
     journal: transactionalJournal(fixture.source as MemorySource),
   };
 }
@@ -2663,6 +2701,380 @@ const savedPlanUnknownDeleteFault = savedPlanUnknownTouchFault(
   'saved-plan:unknown-delete',
 );
 
+function expectedTask62Plan(
+  id: string,
+  name: string,
+  createdAt: number,
+  input: string,
+  inputBytes: number,
+  inputSha256: string,
+  schedule?: { readonly body: string; readonly bytes: number; readonly sha256: string },
+  projectId = 'project-a',
+): StoredSavedPlan {
+  return {
+    header: {
+      id,
+      projectId,
+      name,
+      createdBy: 'Quota Writer',
+      createdById: 'owner-b',
+      createdAt,
+      inputSchemaVersion: 11,
+      inputBytes,
+      inputSha256,
+      scheduleSchemaVersion: schedule === undefined ? null : 12,
+      scheduleBytes: schedule?.bytes ?? null,
+      scheduleSha256: schedule?.sha256 ?? null,
+      scheduleInputSha256: schedule === undefined ? null : inputSha256,
+      schedulerAlgorithmId: schedule === undefined ? null : 'conformance-scheduler',
+      scheduleAbsentReason: schedule === undefined ? 'pending' : null,
+    },
+    bodies: { input, schedule: schedule?.body ?? null },
+  };
+}
+
+function task62OtherPlan() {
+  return expectedTask62Plan(
+    'saved-other-project',
+    'Other project sentinel',
+    500,
+    'é',
+    2,
+    '4a99557e4033c3539de2eb65472017cad5f9557f7a0625a09f1c3f6e2ba69c4c',
+    undefined,
+    'project-b',
+  );
+}
+
+async function assertTask62FaultState(source: MemorySource, plans: readonly StoredSavedPlan[]) {
+  const ids = plans.map(({ header }) => header.id);
+  expect(await readSavedPlanPublicState(source, ids)).toEqual({
+    reads: [...plans],
+    lists: [
+      plans
+        .filter(({ header }) => header.projectId === 'project-a')
+        .map(({ header }) => header)
+        .toSorted((a, b) => b.createdAt - a.createdAt),
+      plans.filter(({ header }) => header.projectId === 'project-b').map(({ header }) => header),
+    ],
+    principals: plans.map(({ header }) => ({
+      savedPlanId: header.id,
+      projectId: header.projectId,
+      projectOwnerId: header.projectId === 'project-a' ? 'owner-a' : 'owner-b',
+      createdById: header.createdById,
+    })),
+  });
+}
+
+const savedPlanPersistedRefusalFault = defineFault({
+  id: 'break:savedPlans.write:quota-refusal',
+  caseId: 'savedPlans.write:quota-refusal',
+  createControl: () => createFaultControl('saved-plan:quota-refusal:persisted'),
+  mutate(source: MemorySource, control) {
+    return withSavedPlans(
+      source,
+      replaceSavedPlanWrite(source.history.savedPlans, (write) => {
+        return async <Refusal>(plan: SavedPlanWrite, check: SavedPlanCheck<Refusal>) => {
+          if (plan.id !== 'quota-refused') return write(plan, check);
+          const captured: { refusal?: Refusal } = {};
+          const internal = await write(plan, async (holding, incomingBytes) => {
+            const refusal = await check(holding, incomingBytes);
+            if (refusal === null) throw new Error('quota-refusal callback did not refuse');
+            captured.refusal = refusal;
+            return null;
+          });
+          expect(internal).toEqual({ outcome: 'written' });
+          expect(await source.history.savedPlans.readOf('quota-refused')).toEqual(
+            expectedTask62Plan(
+              'quota-refused',
+              'Quota refused',
+              502,
+              'incoming-🧭',
+              13,
+              '20f308b7c45b89eaecd7daa6b17c214d4c303638748d2cd9298171474709a985',
+              {
+                body: 'dates-📅',
+                bytes: 10,
+                sha256: '634793e74e7980a5cab8220e0cfd6c9fc916b78ab1af8a77f165a3be7bd319f0',
+              },
+            ),
+          );
+          await assertTask62FaultState(source, [
+            expectedTask62Plan(
+              'quota-refused',
+              'Quota refused',
+              502,
+              'incoming-🧭',
+              13,
+              '20f308b7c45b89eaecd7daa6b17c214d4c303638748d2cd9298171474709a985',
+              {
+                body: 'dates-📅',
+                bytes: 10,
+                sha256: '634793e74e7980a5cab8220e0cfd6c9fc916b78ab1af8a77f165a3be7bd319f0',
+              },
+            ),
+            expectedTask62Plan(
+              'quota-held',
+              'Quota held',
+              501,
+              'held-🔒',
+              9,
+              'bf34514df96c59c2de5d80148fbe17a5b9242635ca3ecc7aa38e23842f478355',
+              {
+                body: 'é',
+                bytes: 2,
+                sha256: '4a99557e4033c3539de2eb65472017cad5f9557f7a0625a09f1c3f6e2ba69c4c',
+              },
+            ),
+            task62OtherPlan(),
+          ]);
+          if (captured.refusal === undefined)
+            throw new Error('quota-refusal callback did not refuse');
+          // Proof: persisting through the production writer while returning the real refusal
+          // failed the shared full-state assertion with the complete extra quota-refused plan.
+          control.reach('saved-plan:quota-refusal:persisted');
+          return { outcome: 'refused', refusal: captured.refusal };
+        };
+      }),
+    );
+  },
+});
+
+const savedPlanStaleQuotaFault = defineFault({
+  id: 'break:savedPlans.write:quota-window',
+  caseId: 'savedPlans.write:quota-window',
+  createControl: () => createFaultControl('saved-plan:quota-window:stale-check'),
+  mutate(source: MemorySource, control) {
+    const quotaRivalOwner: { settlement?: Promise<unknown> } = {};
+    return {
+      ...withSavedPlans(
+        source,
+        replaceSavedPlanWrite(source.history.savedPlans, (write) => {
+          return async <Refusal>(plan: SavedPlanWrite, check: SavedPlanCheck<Refusal>) => {
+            if (plan.id !== 'quota-window-last') return write(plan, check);
+            const refusal = await check({ plans: 1, bytes: 9 }, 9);
+            if (refusal !== null) return { outcome: 'refused', refusal };
+            const rival = quotaRivalOwner.settlement;
+            if (rival === undefined)
+              throw new Error('quota rival was not issued by the real callback');
+            await rival;
+            const outcome = await write(plan, () => Promise.resolve<Refusal | null>(null));
+            expect(outcome).toEqual({ outcome: 'written' });
+            expect(await source.history.savedPlans.readOf('quota-window-rival')).toEqual(
+              expectedTask62Plan(
+                'quota-window-rival',
+                'Quota window rival',
+                513,
+                'rival-🚫',
+                10,
+                'a2587844f6a3f32d7fa53ae64c1109cf97b7dfa12912a794afca9d56ad317b70',
+              ),
+            );
+            expect(await source.history.savedPlans.readOf('quota-window-last')).toEqual(
+              expectedTask62Plan(
+                'quota-window-last',
+                'Quota window last',
+                512,
+                'last-🧩',
+                9,
+                'cb1554f2d98617e8cfbc265940ca894fffb31324d8e9846b70d684e34ef41515',
+              ),
+            );
+            await assertTask62FaultState(source, [
+              expectedTask62Plan(
+                'quota-window-rival',
+                'Quota window rival',
+                513,
+                'rival-🚫',
+                10,
+                'a2587844f6a3f32d7fa53ae64c1109cf97b7dfa12912a794afca9d56ad317b70',
+              ),
+              expectedTask62Plan(
+                'quota-window-last',
+                'Quota window last',
+                512,
+                'last-🧩',
+                9,
+                'cb1554f2d98617e8cfbc265940ca894fffb31324d8e9846b70d684e34ef41515',
+              ),
+              expectedTask62Plan(
+                'quota-window-held',
+                'Quota window held',
+                511,
+                'held-🔒',
+                9,
+                'bf34514df96c59c2de5d80148fbe17a5b9242635ca3ecc7aa38e23842f478355',
+              ),
+              task62OtherPlan(),
+            ]);
+            // Proof: moving the callback before the real history owner admitted both writers;
+            // the shared mechanism/state assertion received written plus the complete rival.
+            control.reach('saved-plan:quota-window:stale-check');
+            return outcome;
+          };
+        }),
+      ),
+      quotaRivalOwner,
+    };
+  },
+});
+
+const savedPlanSplitWriteFault = defineFault({
+  id: 'break:savedPlans.write:late-body-failure',
+  caseId: 'savedPlans.write:late-body-failure',
+  createControl: () => createFaultControl('saved-plan:late-body:split-commit'),
+  mutate(source: MemorySource) {
+    return withSavedPlans(
+      source,
+      replaceSavedPlanWrite(source.history.savedPlans, (write) => {
+        return (plan, check) =>
+          plan.id === 'late-target'
+            ? source.writeSavedPlanSplit(plan, check, true)
+            : write(plan, check);
+      }),
+    );
+  },
+});
+
+const savedPlanMissingInputFault = defineFault({
+  id: 'break:savedPlans.write:late-body-failure',
+  caseId: 'savedPlans.write:late-body-failure',
+  createControl: () => createFaultControl('saved-plan:late-body:missing-input'),
+  mutate(source: MemorySource) {
+    return withSavedPlans(
+      source,
+      replaceSavedPlanWrite(
+        source.history.savedPlans,
+        (write) => (plan, check) =>
+          plan.id === 'late-target'
+            ? source.writeSavedPlanSplit(plan, check, false)
+            : write(plan, check),
+      ),
+    );
+  },
+});
+
+const savedPlanRefusalNoMutationFault = defineFault({
+  id: 'break:savedPlans.write:quota-refusal',
+  caseId: 'savedPlans.write:quota-refusal',
+  createControl: () => createFaultControl('saved-plan:quota-refusal:no-mutation'),
+  mutate(source: MemorySource, control) {
+    return withSavedPlans(
+      source,
+      replaceSavedPlanWrite(source.history.savedPlans, (write) => async (plan, check) => {
+        const outcome = await write(plan, check);
+        if (plan.id === 'quota-refused') control.reach('saved-plan:quota-refusal:no-mutation');
+        return outcome;
+      }),
+    );
+  },
+});
+
+const savedPlanWindowNoMutationFault = defineFault({
+  id: 'break:savedPlans.write:quota-window',
+  caseId: 'savedPlans.write:quota-window',
+  createControl: () => createFaultControl('saved-plan:quota-window:no-mutation'),
+  mutate(source: MemorySource, control) {
+    return withSavedPlans(
+      source,
+      replaceSavedPlanWrite(source.history.savedPlans, (write) => async (plan, check) => {
+        const outcome = await write(plan, check);
+        if (plan.id === 'quota-window-last') control.reach('saved-plan:quota-window:no-mutation');
+        return outcome;
+      }),
+    );
+  },
+});
+
+const savedPlanLateNoMutationFault = defineFault({
+  id: 'break:savedPlans.write:late-body-failure',
+  caseId: 'savedPlans.write:late-body-failure',
+  createControl: () => createFaultControl('saved-plan:late-body:no-mutation'),
+  mutate(source: MemorySource) {
+    return source;
+  },
+});
+
+function prematureTask62Source(source: MemorySource, probe: SavedPlanPhaseProbe, targetId: string) {
+  const owned = {
+    ...source,
+    async close() {
+      probe.closeCalls += 1;
+      await source.close();
+    },
+  };
+  return withSavedPlans(
+    owned,
+    replaceSavedPlanWrite(source.history.savedPlans, (write) => async (plan, check) => {
+      if (plan.id !== targetId) return write(plan, check);
+      probe.attempts += 1;
+      throw new Error(`injected failure before ${targetId} phase`);
+    }),
+  );
+}
+
+const savedPlanRefusalPrematureFault = defineFault({
+  id: 'break:savedPlans.write:quota-refusal',
+  caseId: 'savedPlans.write:quota-refusal',
+  createControl: () => createFaultControl('saved-plan:quota-refusal:premature'),
+  mutate(source: MemorySource) {
+    return prematureTask62Source(source, memoryPrematureProbes[0], 'quota-refused');
+  },
+});
+const savedPlanWindowPrematureFault = defineFault({
+  id: 'break:savedPlans.write:quota-window',
+  caseId: 'savedPlans.write:quota-window',
+  createControl: () => createFaultControl('saved-plan:quota-window:premature'),
+  mutate(source: MemorySource) {
+    return prematureTask62Source(source, memoryPrematureProbes[1], 'quota-window-last');
+  },
+});
+const savedPlanLatePrematureFault = defineFault({
+  id: 'break:savedPlans.write:late-body-failure',
+  caseId: 'savedPlans.write:late-body-failure',
+  createControl: () => createFaultControl('saved-plan:late-body:premature'),
+  mutate(source: MemorySource) {
+    return prematureTask62Source(source, memoryPrematureProbes[2], 'late-target');
+  },
+});
+const memoryPrematureProbes: SavedPlanPhaseProbe[] = Array.from({ length: 3 }, () => ({
+  attempts: 0,
+  closeCalls: 0,
+  state: null,
+}));
+
+const savedPlanRefusalNoReachFault = defineFault({
+  id: 'break:savedPlans.write:quota-refusal',
+  caseId: 'savedPlans.write:quota-refusal',
+  createControl: () => createFaultControl('saved-plan:quota-refusal:no-reach'),
+  mutate(source: MemorySource) {
+    const muted = createFaultControl('saved-plan:quota-refusal:persisted');
+    muted.arm();
+    return savedPlanPersistedRefusalFault.mutate(source, muted);
+  },
+});
+const savedPlanWindowNoReachFault = defineFault({
+  id: 'break:savedPlans.write:quota-window',
+  caseId: 'savedPlans.write:quota-window',
+  createControl: () => createFaultControl('saved-plan:quota-window:no-reach'),
+  mutate(source: MemorySource) {
+    const muted = createFaultControl('saved-plan:quota-window:stale-check');
+    muted.arm();
+    return savedPlanStaleQuotaFault.mutate(source, muted);
+  },
+});
+const savedPlanLateNoReachFault = defineFault({
+  id: 'break:savedPlans.write:late-body-failure',
+  caseId: 'savedPlans.write:late-body-failure',
+  createControl: () => createFaultControl('saved-plan:late-body:no-reach'),
+  mutate(source: MemorySource) {
+    return savedPlanSplitWriteFault.mutate(
+      source,
+      createFaultControl('saved-plan:late-body:split-commit'),
+    );
+  },
+});
+
 interface SavedPlanPhaseProbe {
   attempts: number;
   closeCalls: number;
@@ -2939,14 +3351,21 @@ async function proveFault(
           : fault.caseId === 'journal.append:history-atomic' &&
               run.control.phase !== 'journal.append:history-atomic:outside-owner'
             ? memoryLateWriteControl('journal-history-insert')
-            : null;
+            : fault.caseId === 'savedPlans.write:late-body-failure'
+              ? memoryLateWriteControl('saved-plan-schedule-body')
+              : null;
       const baseOpen =
         lateControl === null
           ? openSource
           : () =>
-              memoryLateSource(lateControl, () => {
-                run.control.reach(run.control.phase);
-              });
+              memoryLateSource(
+                lateControl,
+                run.control.phase === 'saved-plan:late-body:no-reach'
+                  ? undefined
+                  : () => {
+                      run.control.reach(run.control.phase);
+                    },
+              );
       const source = await seedMemorySource(
         brokenSource(() => decorate(baseOpen()), run),
         async (seeded) => {
@@ -2987,6 +3406,7 @@ async function proveFault(
                 lateControl?.phase === 'journal-history-insert'
                   ? () => lateControl.reached()
                   : () => run.control.reached(),
+              evidence: () => lateControl?.observedSavedPlan() ?? {},
             },
             close: () => source.close(),
           } as unknown as CaseFixture<TransactionalStores[Family]>);
@@ -3008,6 +3428,7 @@ async function proveFault(
                     lateControl.arm();
                   },
                   reached: () => lateControl.reached(),
+                  evidence: () => lateControl.observedSavedPlan(),
                 },
           close: () => source.close(),
         } as unknown as CaseFixture<TransactionalStores[Family]>);
@@ -3021,7 +3442,31 @@ async function proveFault(
           journalAppender: source.journal,
           seed: DETERMINISTIC_SEED,
           readers: readersOf(source),
-          scenario: { kind: 'ordinary' },
+          scenario:
+            caseId === 'savedPlans.write:quota-window'
+              ? {
+                  kind: 'competing-history-write',
+                  rivalWriter: replaceSavedPlanWrite(source.history.savedPlans, (write) => {
+                    return (plan, check) => {
+                      const settlement = write(plan, check);
+                      if (source.quotaRivalOwner !== undefined)
+                        source.quotaRivalOwner.settlement = settlement;
+                      return settlement;
+                    };
+                  }),
+                  expectedRival: 'quota-refused',
+                }
+              : caseId === 'savedPlans.write:late-body-failure' && lateControl !== null
+                ? {
+                    kind: 'late-write',
+                    point: 'saved-plan-schedule-body',
+                    arm: () => {
+                      lateControl.arm();
+                    },
+                    reached: () => lateControl.reached(),
+                    evidence: () => lateControl.observedSavedPlan(),
+                  }
+                : { kind: 'ordinary' },
           close: () => source.close(),
         });
       };
@@ -5047,10 +5492,13 @@ describe('memory existing source conformance', () => {
     ]);
   });
 
-  it('runs every Task 6.1 saved-plan case through the staged memory source', async () => {
+  it('runs every Task 6.1 and 6.2 saved-plan case through the staged memory source', async () => {
     const caseIds = [
       'savedPlans.write:bytes-and-bodies',
+      'savedPlans.write:quota-refusal',
+      'savedPlans.write:quota-window',
       'savedPlans.touch:principals-scope',
+      'savedPlans.write:late-body-failure',
     ] as const;
     const report = await runCases(existingStoreRegistrations(openers), { focus: caseIds });
     const failure = report.cases.find(({ status }) => status === 'failed');
@@ -5112,6 +5560,250 @@ describe('memory existing source conformance', () => {
       { caseId: 'savedPlans.write:bytes-and-bodies', status: 'passed' },
       { caseId: 'savedPlans.touch:principals-scope', status: 'passed' },
     ]);
+  });
+
+  it('reinjects Task 6.2 saved-plan faults through memory history ownership', async () => {
+    const faults = [
+      savedPlanPersistedRefusalFault,
+      savedPlanStaleQuotaFault,
+      savedPlanSplitWriteFault,
+    ];
+    const proofs = [];
+    for (const fault of faults) proofs.push(await proveFault(fault));
+    expect(proofs.map(({ kind }) => kind)).toEqual(['observed', 'observed', 'observed']);
+    expect(proofs.map((proof) => (proof.kind === 'observed' ? proof.phase : null))).toEqual([
+      'saved-plan:quota-refusal:persisted',
+      'saved-plan:quota-window:stale-check',
+      'saved-plan:late-body:split-commit',
+    ]);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    expect(failures[0]).toContain('+           "id": "quota-refused",');
+    expect(failures[1]).toContain('"outcome": "written"');
+    expect(failures[1]).toContain('"id": "quota-window-rival"');
+    expect(failures[2]).toContain('+           "input": "late-input-🔧",');
+    expect(failures[2]).toContain('+           "schedule": null,');
+  });
+
+  it('rejects missing real memory input persistence before the late boundary', async () => {
+    const proof = await proveFault(savedPlanMissingInputFault);
+    expect(proof.kind).toBe('phase-failed');
+    if (proof.kind !== 'phase-failed') throw new Error('missing-input late fault reached');
+    // Proof: omitting the real input slot stops before the adapter phase can reach.
+    expect(proof.failure).toContain('fault did not reach saved-plan:late-body:missing-input');
+  });
+
+  it('rejects Task 6.2 memory proofs when each mutation is removed', async () => {
+    const proofs = [];
+    for (const fault of [
+      savedPlanRefusalNoMutationFault,
+      savedPlanWindowNoMutationFault,
+      savedPlanLateNoMutationFault,
+    ]) {
+      proofs.push(await proveFault(fault));
+    }
+    expect(proofs.map(({ kind }) => kind)).toEqual([
+      'assertion-passed',
+      'assertion-passed',
+      'assertion-passed',
+    ]);
+  });
+
+  it('rejects Task 6.2 memory failures before their named phases and closes once', async () => {
+    memoryPrematureProbes.forEach((probe) => {
+      probe.attempts = 0;
+      probe.closeCalls = 0;
+      probe.state = null;
+    });
+    const proofs = [];
+    for (const fault of [
+      savedPlanRefusalPrematureFault,
+      savedPlanWindowPrematureFault,
+      savedPlanLatePrematureFault,
+    ])
+      proofs.push(await proveFault(fault));
+    expect(proofs.map(({ kind }) => kind)).toEqual([
+      'phase-failed',
+      'phase-failed',
+      'phase-failed',
+    ]);
+    expect(
+      memoryPrematureProbes.map(({ attempts, closeCalls }) => ({ attempts, closeCalls })),
+    ).toEqual([
+      { attempts: 1, closeCalls: 1 },
+      { attempts: 1, closeCalls: 1 },
+      { attempts: 1, closeCalls: 1 },
+    ]);
+  });
+
+  it('rejects Task 6.2 memory mutations when their proof reach is removed', async () => {
+    const proofs = [];
+    for (const fault of [
+      savedPlanRefusalNoReachFault,
+      savedPlanWindowNoReachFault,
+      savedPlanLateNoReachFault,
+    ])
+      proofs.push(await proveFault(fault));
+    expect(proofs.map(({ kind }) => kind)).toEqual([
+      'phase-failed',
+      'phase-failed',
+      'phase-failed',
+    ]);
+  });
+
+  it('snapshots memory quota callback values before an adapter can repair aliases', async () => {
+    const source = await seedMemorySource();
+    let closeCalls = 0;
+    const port = replaceSavedPlanWrite(
+      source.history.savedPlans,
+      (write) => (plan, check) =>
+        write(plan, async (holding, incomingBytes) => {
+          if (plan.id !== 'quota-refused') return check(holding, incomingBytes);
+          const aliased = { plans: holding.plans, bytes: -777 };
+          const refusal = await check(aliased, incomingBytes);
+          aliased.bytes = holding.bytes;
+          return refusal;
+        }),
+    );
+    const report = await runCases(
+      existingStoreRegistrations({
+        ...openers,
+        savedPlans: (caseId) =>
+          Promise.resolve({
+            fixtureId: `memory:${caseId}`,
+            port,
+            journalAppender: source.journal,
+            seed: DETERMINISTIC_SEED,
+            readers: readersOf(source),
+            scenario: { kind: 'ordinary' },
+            close: async () => {
+              closeCalls += 1;
+              await source.close();
+            },
+          }),
+      }),
+      { focus: ['savedPlans.write:quota-refusal'] },
+    );
+    const failure = report.cases[0];
+    expect(failure.status).toBe('failed');
+    if (failure.status !== 'failed') throw new Error('mutable holding probe unexpectedly passed');
+    // Proof: the real callback received -777 and repaired the same object afterward;
+    // the shared snapshot retained -777 and failed beside complete settled state.
+    expect(Bun.stripANSI(failure.failure)).toContain('+         "bytes": -777,');
+    expect(closeCalls).toBe(1);
+  });
+
+  it('requires complete memory setup before a target can restore a deleted sentinel', async () => {
+    const source = await seedMemorySource();
+    let targetAttempts = 0;
+    let closeCalls = 0;
+    const base = source.history.savedPlans;
+    const port = replaceSavedPlanWrite(base, (write) => async (plan, check) => {
+      if (plan.id === 'quota-refused') {
+        targetAttempts += 1;
+        await base.write(
+          {
+            id: 'saved-other-project',
+            projectId: 'project-b',
+            name: 'Other project sentinel',
+            createdBy: 'Quota Writer',
+            createdById: 'owner-b',
+            createdAt: 500,
+            input: {
+              schemaVersion: 11,
+              bytes: 'é',
+              sha256: '4a99557e4033c3539de2eb65472017cad5f9557f7a0625a09f1c3f6e2ba69c4c',
+            },
+            schedule: { present: false, absentReason: 'pending' },
+          },
+          () => Promise.resolve(null),
+        );
+      }
+      const outcome = await write(plan, check);
+      if (plan.id === 'quota-held')
+        expect(await base.deleteOf('saved-other-project')).toBe('touched');
+      return outcome;
+    });
+    const report = await runCases(
+      existingStoreRegistrations({
+        ...openers,
+        savedPlans: (caseId) =>
+          Promise.resolve({
+            fixtureId: `memory:${caseId}`,
+            port,
+            journalAppender: source.journal,
+            seed: DETERMINISTIC_SEED,
+            readers: readersOf(source),
+            scenario: { kind: 'ordinary' },
+            close: async () => {
+              closeCalls += 1;
+              await source.close();
+            },
+          }),
+      }),
+      { focus: ['savedPlans.write:quota-refusal'] },
+    );
+    expect(report.cases[0]?.status).toBe('failed');
+    // Proof: deleting project B through the real port after A setup now fails the
+    // complete prerequisite before the target wrapper can repair it.
+    expect(targetAttempts).toBe(0);
+    expect(closeCalls).toBe(1);
+  });
+
+  it('settles and reports both memory quota-window errors before close', async () => {
+    const source = await seedMemorySource();
+    let rivalSettled = false;
+    let closeCalls = 0;
+    const base = source.history.savedPlans;
+    const primary = replaceSavedPlanWrite(
+      base,
+      (write) => (plan, check) =>
+        plan.id !== 'quota-window-last'
+          ? write(plan, check)
+          : write(plan, async (holding, incomingBytes) => {
+              await check(holding, incomingBytes);
+              throw new Error('memory quota primary failure');
+            }),
+    );
+    const rival = replaceSavedPlanWrite(base, (write) => async (plan, check) => {
+      await write(plan, check);
+      rivalSettled = true;
+      throw new Error('memory quota rival failure');
+    });
+    const report = await runCases(
+      existingStoreRegistrations({
+        ...openers,
+        savedPlans: (caseId) =>
+          Promise.resolve({
+            fixtureId: `memory:${caseId}`,
+            port: primary,
+            journalAppender: source.journal,
+            seed: DETERMINISTIC_SEED,
+            readers: readersOf(source),
+            scenario: {
+              kind: 'competing-history-write',
+              rivalWriter: rival,
+              expectedRival: 'quota-refused',
+            },
+            close: async () => {
+              closeCalls += 1;
+              if (!rivalSettled) throw new Error('memory source closed before quota rival settled');
+              await source.close();
+            },
+          }),
+      }),
+      { focus: ['savedPlans.write:quota-window'] },
+    );
+    const failure = report.cases[0];
+    expect(failure.status).toBe('failed');
+    if (failure.status !== 'failed') throw new Error('dual quota failure unexpectedly passed');
+    // Proof: throwing after the real callback still awaited the queued real rival;
+    // removing rival settlement lost this second cause and closed before settlement.
+    expect(failure.failure).toContain('quota primary and rival both failed');
+    expect(failure.failure).toContain('memory quota primary failure');
+    expect(failure.failure).toContain('memory quota rival failure');
+    expect({ rivalSettled, closeCalls }).toEqual({ rivalSettled: true, closeCalls: 1 });
   });
 
   it('refuses prewrite and successful-incomplete memory saved-plan proofs', async () => {

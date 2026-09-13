@@ -185,6 +185,7 @@ export class SavedPlanRepository implements SavedPlanStore {
   constructor(
     private readonly opts: SavedPlanWriteOptions,
     private readonly lateWrite: SqliteLateWriteSeam = inertSqliteLateWriteSeam,
+    private readonly testingWriteMode: 'atomic' | 'split' | 'omit-input' = 'atomic',
   ) {}
 
   /**
@@ -284,7 +285,7 @@ export class SavedPlanRepository implements SavedPlanStore {
           tx.rollback();
           return { outcome: 'refused', refusal };
         }
-        await db.insert(savedPlan).values({
+        const header = {
           id: plan.id,
           projectId: plan.projectId,
           name: plan.name,
@@ -300,15 +301,41 @@ export class SavedPlanRepository implements SavedPlanStore {
           scheduleInputSha256: plan.schedule.present ? plan.schedule.inputSha256 : null,
           schedulerAlgorithmId: plan.schedule.present ? plan.schedule.algorithmId : null,
           scheduleAbsentReason: plan.schedule.present ? null : plan.schedule.absentReason,
-        });
-        await db
-          .insert(savedPlanBody)
-          .values({ savedPlanId: plan.id, kind: 'input', bytes: plan.input.bytes });
+        };
+        await db.insert(savedPlan).values(header);
+        if (this.testingWriteMode !== 'omit-input' || plan.id !== 'late-target')
+          await db
+            .insert(savedPlanBody)
+            .values({ savedPlanId: plan.id, kind: 'input', bytes: plan.input.bytes });
         if (plan.schedule.present) {
+          if (this.testingWriteMode === 'split') {
+            tx.commit();
+            tx.begin();
+          }
+          if (this.lateWrite.isActive?.('saved-plan-schedule-body') === true) {
+            const persistedHeaders = await db
+              .select()
+              .from(savedPlan)
+              .where(eq(savedPlan.id, plan.id));
+            const persistedInput = await this.bodyOf(db, plan.id, 'input');
+            const persistedSchedule = await this.bodyOf(db, plan.id, 'schedule');
+            // Proof: removing this guard changed the adapter-owned missing-input proof
+            // from `phase-failed` to `observed` after the invalid boundary reached.
+            if (
+              JSON.stringify(persistedHeaders) !== JSON.stringify([header]) ||
+              persistedInput !== plan.input.bytes ||
+              persistedSchedule !== null
+            )
+              throw new Error('saved-plan schedule boundary lacks complete header and input');
+            this.lateWrite.reach('saved-plan-schedule-body', {
+              savedPlanId: plan.id,
+              savedPlanHeaderPresent: JSON.stringify(persistedHeaders) === JSON.stringify([header]),
+              savedPlanBodyKinds: persistedInput === plan.input.bytes ? ['input'] : [],
+            });
+          } else this.lateWrite.reach('saved-plan-schedule-body');
           await db
             .insert(savedPlanBody)
             .values({ savedPlanId: plan.id, kind: 'schedule', bytes: plan.schedule.body.bytes });
-          this.lateWrite.reach('saved-plan-schedule-body');
         }
         tx.commit();
         return { outcome: 'written' };
