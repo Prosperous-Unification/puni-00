@@ -148,7 +148,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
     const { workItemKey: omittedWorkItemKey, ...missing } = slice({ key: 'missing' });
     expect(omittedWorkItemKey).not.toBe('');
     for (const malformedSlice of [slice({ key: 'empty', workItemKey: '' }), missing]) {
-      const key = malformedSlice.key ?? 'missing';
+      const key = malformedSlice.key;
       const malformed = request({
         slices: [malformedSlice as SolverSlice],
         baselineOffsets: { [key]: 0 },
