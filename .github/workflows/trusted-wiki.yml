@@ -67,5 +67,6 @@ jobs:
       # preserved production launcher still rejects the stale application obligation.
       - name: Verify exact candidate with external trust
         env:
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
           TOOL_WIKI_REQUIRE_CERTIFIED: '1'
-        run: bash "$RUNNER_TEMP/tool-wiki-lint.sh" committed "$GITHUB_WORKSPACE/candidate" "${{ github.event.pull_request.head.sha }}"
+        run: bash "$RUNNER_TEMP/tool-wiki-lint.sh" committed "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"

@@ -957,6 +957,18 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(ci).toContain("github.event_name == 'push'");
     expect(ci).toContain('diagnostic/non-certifying');
     expect(ci).toContain('bash bin/tool-wiki-push-audit.sh . "$GITHUB_SHA"');
+    const pushProvision = ci.indexOf(
+      'name: Provision immutable external activation for push audit',
+    );
+    const pushAudit = ci.indexOf('bash bin/tool-wiki-push-audit.sh . "$GITHUB_SHA"');
+    expect(pushProvision).toBeGreaterThan(-1);
+    expect(pushProvision).toBeLessThan(pushAudit);
+    expect(ci).toContain('ACTIVATION_ARCHIVE_URL: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_URL }}');
+    expect(ci).toContain(
+      'ACTIVATION_ARCHIVE_SHA256: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256 }}',
+    );
+    expect(ci).toContain('ACTIVATION_VERSION: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}');
+    expect(ci.indexOf('sha256sum --check --strict')).toBeLessThan(ci.indexOf('tar --extract'));
     expect(trustedCi).toContain('pull_request_target:');
     expect(trustedCi).toContain('permissions:\n  contents: read');
     expect(trustedCi.match(/persist-credentials: false/g)).toHaveLength(2);
@@ -971,6 +983,9 @@ await import(${JSON.stringify(productionSnapshotter)});
     );
     expect(trustedCi).not.toContain('candidate/bin/');
     expect(trustedCi).not.toContain('h2puni-gate-steps.sh');
+    expect(trustedCi).toContain('CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}');
+    expect(trustedCi).toContain('committed "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"');
+    expect(trustedCi).not.toContain('"${{ github.event.pull_request.head.sha }}"');
     expect(lefthook).toContain('run: bash bin/tool-wiki-lint.sh staged . HEAD');
     expect(hostSteps).toContain('--exclude=tool-wiki');
     expect(hostSteps).toContain('bunx nx run tool-wiki:lint:source --skip-nx-cache');
@@ -997,6 +1012,29 @@ await import(${JSON.stringify(productionSnapshotter)});
       status: 'inactive',
       certified: false,
     });
+  });
+
+  test('push audit refuses a configured root whose activation marker is absent', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tool-wiki-push-missing-marker-'));
+    scratchPaths.push(directory);
+    const candidate = join(directory, 'candidate');
+    const activation = join(directory, 'activation');
+    mkdirSync(candidate);
+    mkdirSync(activation);
+    const invocation = Bun.spawnSync(['bash', pushAuditPath, candidate, 'abc123'], {
+      cwd: candidate,
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        TOOL_WIKI_ACTIVATION_ROOT: activation,
+      },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+
+    expect(invocation.exitCode).toBe(78);
+    expect(streamText(invocation.stderr, 'push audit stderr')).toContain(
+      'configured activation root has no marker',
+    );
   });
 
   test('push audit resolves a relative external launcher from its activation root', () => {
@@ -1058,6 +1096,34 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(invocation.exitCode).toBe(78);
     expect(streamText(invocation.stderr, 'push audit stderr')).toContain(
       'external launcher resolved inside candidate checkout',
+    );
+  });
+
+  test('push audit refuses an activation root inside the candidate workspace', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tool-wiki-push-root-boundary-'));
+    scratchPaths.push(directory);
+    const candidate = join(directory, 'candidate');
+    const activation = join(candidate, 'activation');
+    const launcher = join(directory, 'external-launcher.sh');
+    mkdirSync(activation, { recursive: true });
+    write(launcher, '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(launcher, 0o555);
+    write(join(activation, 'active-v1'), 'tool-wiki-active-v1\n');
+    write(join(activation, 'launcher-path'), `${launcher}\n`);
+
+    const invocation = Bun.spawnSync(['bash', pushAuditPath, candidate, 'abc123'], {
+      cwd: candidate,
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        TOOL_WIKI_ACTIVATION_ROOT: activation,
+      },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+
+    expect(invocation.exitCode).toBe(78);
+    expect(streamText(invocation.stderr, 'push audit stderr')).toContain(
+      'external activation root resolved inside candidate checkout',
     );
   });
 

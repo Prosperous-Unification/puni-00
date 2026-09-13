@@ -331,6 +331,29 @@ else
   fail 'candidate-contained activation root refusal did not name the trust boundary'
 fi
 
+# 17. The production host entrypoint must propagate resolver refusal before it takes the heavy
+# lock. A candidate-contained launcher is selected through a real external descriptor.
+host_activation="$scratch/host-activation"
+mkdir -p "$host_activation"
+printf 'tool-wiki-active-v1\n' >"$host_activation/active-v1"
+ln -s "$repo_root/bin/h2puni-gate.sh" "$host_activation/candidate-link.sh"
+printf 'candidate-link.sh\n' >"$host_activation/launcher-path"
+status=0
+TOOL_WIKI_ACTIVATION_ROOT="$host_activation" \
+  bash "$repo_root/bin/h2puni-gate.sh" HEAD >"$scratch/host-entrypoint-stdout" \
+  2>"$scratch/host-entrypoint-stderr" || status=$?
+expect_status 78 "$status" 'the host entrypoint propagates a candidate-launcher refusal'
+if grep -q 'launcher must be outside the candidate checkout' "$scratch/host-entrypoint-stderr"; then
+  pass 'the host entrypoint names the external launcher boundary'
+else
+  fail 'the host entrypoint did not name the external launcher boundary'
+fi
+if grep -q 'h2puni gate: running on' "$scratch/host-entrypoint-stderr"; then
+  fail 'the host entrypoint took the heavy gate after resolver refusal'
+else
+  pass 'the host entrypoint refuses before taking the heavy gate'
+fi
+
 if ((failures)); then
   printf '\n%d failing case(s)\n' "$failures" >&2
   exit 1

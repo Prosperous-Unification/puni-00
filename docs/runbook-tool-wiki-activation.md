@@ -40,6 +40,10 @@ are relative to the archive root so the same bytes relocate between GitHub runne
 and h2puni; every consumer resolves a relative descriptor from that root, never from its current
 working directory.
 
+The protected-default push audit downloads, verifies, and extracts that same pinned archive before
+running its launcher. With no archive variables it reports inactive; partial configuration or a
+configured activation root that loses its marker fails rather than silently auditing nothing.
+
 Copy the same digest-pinned archive to a versioned directory on h2puni. The base-owned
 `trusted-wiki` workflow downloads its operator-configured HTTPS archive into runner temporary
 storage, verifies the configured SHA-256 before extraction, and refuses missing URL, digest, or

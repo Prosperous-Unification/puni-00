@@ -5,11 +5,17 @@ candidate_root=${1:?candidate checkout is required}
 revision=${2:?committed revision is required}
 activation_root=${TOOL_WIKI_ACTIVATION_ROOT:-}
 
-# Proof: gate-entrypoints.test.ts runs this production script without external activation and
-# observes an explicit non-certifying inactive report with exit 0.
-if [[ -z $activation_root || ! -e $activation_root/active-v1 ]]; then
+# Proof: gate-entrypoints.test.ts runs this production script without an external activation root
+# and observes an explicit non-certifying inactive report with exit 0.
+if [[ -z $activation_root ]]; then
   printf '%s\n' '{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation marker is not provisioned"}'
   exit 0
+fi
+# Proof: gate-entrypoints.test.ts configures an otherwise empty activation root and observes exit
+# 78, so lost provisioning cannot collapse back into intentional inactivity.
+if [[ ! -e $activation_root/active-v1 ]]; then
+  printf 'configured activation root has no marker\n' >&2
+  exit 78
 fi
 
 if ! trusted_root=$(realpath -- "$activation_root") || [[ ! -d $trusted_root ]]; then
@@ -20,6 +26,8 @@ if ! candidate=$(realpath -- "$candidate_root") || [[ ! -d $candidate ]]; then
   printf 'candidate checkout is not a readable directory\n' >&2
   exit 78
 fi
+# Proof: gate-entrypoints.test.ts places the activation root inside the candidate while its
+# launcher points outward and observes exit 78 before launcher selection.
 case "$trusted_root" in
   "$candidate" | "$candidate"/*)
     printf 'external activation root resolved inside candidate checkout\n' >&2
