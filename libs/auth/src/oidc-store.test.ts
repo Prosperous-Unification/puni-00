@@ -1,8 +1,25 @@
 import { describe, expect, it } from 'bun:test';
 
-import { InMemoryOidcTransactionStore, InMemoryTokenStore } from './oidc-store';
+import { digestOidcBinding, InMemoryOidcTransactionStore, InMemoryTokenStore } from './oidc-store';
+
+function transactionRecords(store: InMemoryOidcTransactionStore): Map<string, unknown> {
+  // Tests inspect the concrete in-memory boundary to prove what it retains.
+  return (store as unknown as { records: Map<string, unknown> }).records;
+}
 
 describe('InMemoryOidcTransactionStore', () => {
+  // Proof: keying by the raw binding exposes it instead of the expected SHA-256
+  // key; retaining browserBinding in the record exposes it in serialized values.
+  it('retains neither the raw browser binding key nor value', () => {
+    const store = new InMemoryOidcTransactionStore({ now: () => 1_000, ttlMs: 5_000 });
+    const browserBinding = 'unguessable-browser-binding';
+    store.save({ browserBinding, nonce: 'nonce-1', state: 'state-1', verifier: 'verifier-1' });
+
+    const records = transactionRecords(store);
+    expect([...records.keys()]).toEqual([digestOidcBinding(browserBinding)]);
+    expect(JSON.stringify([...records.values()])).not.toContain(browserBinding);
+  });
+
   it('consumes a browser-bound transaction exactly once', () => {
     const store = new InMemoryOidcTransactionStore({ now: () => 1_000, ttlMs: 5_000 });
     store.save({
