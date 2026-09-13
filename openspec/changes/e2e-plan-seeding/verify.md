@@ -1,0 +1,21 @@
+## Section 1 fixture boundary
+
+Baseline reviewed at `c61b370dba618f00a875599d2d3a2aadb39f2f79`. The completed measured-rendering prerequisite `f66f73e8` is an ancestor of this checkout.
+
+### Setup and tested gestures
+
+- `rendering-fixture.ts` owns prerequisite setup: it signs in through the existing browser session, creates and names a project through the header, leaves the plan page while batches are authored, verifies the stored tree, and returns row identities. It does not take a rendering sample. `rendering-baseline.spec.ts` owns logical readiness (`aria-rowcount === rows + 1`), `renderingGeometry`, acceptance ceilings, and its existing malformed-identity and zero-geometry fault proofs.
+- `plan-surface.spec.ts`'s `seedPlan` owns static prerequisites: project creation, row creation, and the persisted estimate needed to make the chart non-empty. The cases themselves own their defining gestures: opening the chart, table and chart wheel scrolling, keyboard traversal, horizontal-scroll isolation, and the corresponding geometry reads.
+- The Section 2 allowlist remains `rendering-fixture.ts` and static setup in `plan-surface.spec.ts`. `layout.spec.ts`, `keyboard.spec.ts`, `mobile.spec.ts`, `priority-ramp.spec.ts`, `slack-cell.spec.ts`, `gantt.spec.ts`, `hints.spec.ts`, and `project-picker.spec.ts` retain their UI setup. `create-project.ts` remains the boundary that waits for the real header create to arm rename, verifies focus and selection, and settles the header; its consumers are unchanged in Section 1.
+
+Retained measurement artifacts remain historical observations of their recorded fixture hash. This change does not relabel them after harness changes.
+
+### Evidence
+
+- `CI=1 E2E_PORT_SHIFT=2400 bunx playwright test --config apps/fe-01/playwright.config.ts apps/fe-01/e2e/project-picker.spec.ts --grep "abandoning the new project’s rename keeps the project"` — 1 passed. The real create still armed rename and Escape retained the project.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:typecheck --skip-nx-cache` — passed.
+- `bunx prettier --check openspec/changes/e2e-plan-seeding/{tasks,verify}.md` — passed.
+- `git diff --check` — passed.
+- `bunx @fission-ai/openspec@latest validate e2e-plan-seeding --strict --json` — valid, 1 passed and 0 failed.
+
+The remaining Section 1 tasks are intentionally unmarked and unimplemented at this checkpoint.
