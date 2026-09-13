@@ -988,6 +988,7 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(ci.indexOf('sha256sum --check --strict')).toBeLessThan(ci.indexOf('tar --extract'));
     expect(trustedCi).toContain('pull_request_target:');
     expect(trustedCi).toContain('permissions:\n  contents: read');
+    expect(trustedCi).not.toContain('if: ${{ vars.TOOL_WIKI_ACTIVATION_');
     expect(trustedCi.match(/persist-credentials: false/g)).toHaveLength(2);
     expect(trustedCi).toContain('ref: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}');
     expect(trustedCi).toContain('bun install --frozen-lockfile --ignore-scripts');
