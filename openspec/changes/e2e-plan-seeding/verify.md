@@ -234,3 +234,24 @@ Fresh owning checks after the repair:
   validation remains 82/84 because the unrelated `local-solver-development`
   and `stale-solver-seat-masks-failure` changes still have no delta or
   `skip_specs: true`.
+
+## Latest-main integration
+
+Merge commit `530a20ac` joins accepted E2E head `6591db1f` with fetched
+`origin/main` `9b13f98e`. The merge was textually clean. Its behavioral overlap
+includes main's table layout, status, completion, deadline, steps, keyboard and
+browser changes; the fixture compiler, batch correlation, exact rendering
+checks and their permanent negatives remained intact.
+
+- `bunx vitest run src/testing/plan-fixture-command-results.test.ts src/components/wbs/actions-menu.test.tsx src/components/wbs/completion-prompt.test.tsx src/components/wbs/plan-layout.test.tsx src/components/wbs/table-frame.test.ts src/components/wbs/plan-cards.test.tsx --no-file-parallelism --maxWorkers=1`
+  from `apps/fe-01` — 296 passed across six files.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p fe-01,contracts --parallel=2 --skip-nx-cache --output-style=static`
+  — all four targets passed.
+- After confirming ports 12100, 12200 and 13200 were free,
+  `CI=1 E2E_PORT_SHIFT=9000 bunx playwright test --config apps/fe-01/playwright.config.ts apps/fe-01/e2e/plan-fixture.spec.ts apps/fe-01/e2e/rendering-fixture.spec.ts apps/fe-01/e2e/plan-surface.spec.ts apps/fe-01/e2e/deadline.spec.ts apps/fe-01/e2e/keyboard.spec.ts apps/fe-01/e2e/layout.spec.ts apps/fe-01/e2e/status.spec.ts apps/fe-01/e2e/steps.spec.ts --workers=1`
+  — 113 passed in 5.3 minutes on a fresh database.
+
+The performance matrix was not repeated: the merge changes rendered plan,
+status, deadline and solver behavior, while Playwright worker/retry settings,
+fixture write coordination and accepted recipe compilation paths are unchanged.
+The workers=1 refusal therefore continues to use the preserved frozen matrix.
