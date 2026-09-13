@@ -280,6 +280,57 @@ else
   fail 'candidate-contained launcher refusal did not name the trust boundary'
 fi
 
+# 13. A marker is an exact activation decision, not an existence flag. A malformed marker must
+# fail before any descriptor or launcher is considered.
+printf 'not-active\n' >"$activation_root/active-v1"
+status=0
+run_launcher_resolution "$activation_root" "$candidate_root" >/dev/null 2>"$scratch/marker-refusal" || status=$?
+expect_status 78 "$status" 'a malformed activation marker is refused'
+if grep -q 'marker is missing, unreadable, or malformed' "$scratch/marker-refusal"; then
+  pass 'malformed marker refusal names the invalid activation decision'
+else
+  fail 'malformed marker refusal did not name the invalid activation decision'
+fi
+
+# 14. An unreadable descriptor cannot silently select a default launcher.
+printf 'tool-wiki-active-v1\n' >"$activation_root/active-v1"
+chmod 000 "$activation_root/launcher-path"
+status=0
+run_launcher_resolution "$activation_root" "$candidate_root" >/dev/null 2>"$scratch/descriptor-refusal" || status=$?
+expect_status 78 "$status" 'an unreadable launcher descriptor is refused'
+if grep -q 'no readable launcher descriptor' "$scratch/descriptor-refusal"; then
+  pass 'unreadable descriptor refusal names the missing authority'
+else
+  fail 'unreadable descriptor refusal did not name the missing authority'
+fi
+chmod 0644 "$activation_root/launcher-path"
+
+# 15. A descriptor naming a directory is not an executable authority artifact.
+printf '.\n' >"$activation_root/launcher-path"
+status=0
+run_launcher_resolution "$activation_root" "$candidate_root" >/dev/null 2>"$scratch/file-refusal" || status=$?
+expect_status 78 "$status" 'a launcher descriptor naming a directory is refused'
+if grep -q 'launcher is not a readable regular file' "$scratch/file-refusal"; then
+  pass 'non-file launcher refusal names the invalid artifact shape'
+else
+  fail 'non-file launcher refusal did not name the invalid artifact shape'
+fi
+
+# 16. Trust roots are external state. Even an outward-pointing launcher cannot make a root inside
+# the candidate checkout authoritative.
+candidate_activation="$candidate_root/activation"
+mkdir -p "$candidate_activation"
+printf 'tool-wiki-active-v1\n' >"$candidate_activation/active-v1"
+printf '%s\n' "$activation_root/bootstrap-launcher.sh" >"$candidate_activation/launcher-path"
+status=0
+run_launcher_resolution "$candidate_activation" "$candidate_root" >/dev/null 2>"$scratch/root-refusal" || status=$?
+expect_status 78 "$status" 'an activation root inside the candidate is refused'
+if grep -q 'activation root must be outside the candidate checkout' "$scratch/root-refusal"; then
+  pass 'candidate-contained activation root refusal names the trust boundary'
+else
+  fail 'candidate-contained activation root refusal did not name the trust boundary'
+fi
+
 if ((failures)); then
   printf '\n%d failing case(s)\n' "$failures" >&2
   exit 1

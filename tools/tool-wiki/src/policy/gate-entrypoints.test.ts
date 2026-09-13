@@ -23,6 +23,7 @@ import { resolveValidatorArtifactPaths } from './trust';
 const workspace = join(import.meta.dir, '..', '..', '..', '..');
 const adapterPath = join(workspace, 'bin', 'tool-wiki-lint.sh');
 const gateLibraryPath = join(workspace, 'bin', 'h2puni-gate-lib.sh');
+const pushAuditPath = join(workspace, 'bin', 'tool-wiki-push-audit.sh');
 const trustedCliPath = join(workspace, 'tools', 'tool-wiki', 'src', 'cli.ts');
 const scratchPaths: string[] = [];
 
@@ -955,8 +956,7 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(ci).toContain('bash bin/tool-wiki-lint.sh committed . "$GITHUB_SHA"');
     expect(ci).toContain("github.event_name == 'push'");
     expect(ci).toContain('diagnostic/non-certifying');
-    expect(ci).toContain('bash "$launcher" committed . "$GITHUB_SHA"');
-    expect(ci).toContain('launcher_ref="$TOOL_WIKI_ACTIVATION_ROOT/$launcher_ref"');
+    expect(ci).toContain('bash bin/tool-wiki-push-audit.sh . "$GITHUB_SHA"');
     expect(trustedCi).toContain('pull_request_target:');
     expect(trustedCi).toContain('permissions:\n  contents: read');
     expect(trustedCi.match(/persist-credentials: false/g)).toHaveLength(2);
@@ -978,6 +978,86 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(ci).toContain('bunx nx run tool-wiki:lint:source --skip-nx-cache');
     expect(workspacePackage.scripts['lint']).toBe(
       'nx run-many -t lint --exclude=tool-wiki && nx run tool-wiki:lint:source',
+    );
+  });
+
+  test('push audit reports inactive external activation without certifying', () => {
+    const candidate = mkdtempSync(join(tmpdir(), 'tool-wiki-push-candidate-'));
+    scratchPaths.push(candidate);
+    const invocation = Bun.spawnSync(['bash', pushAuditPath, candidate, 'abc123'], {
+      cwd: candidate,
+      env: { PATH: process.env['PATH'] ?? '' },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+
+    expect(invocation.exitCode, streamText(invocation.stderr, 'push audit stderr')).toBe(0);
+    expect(JSON.parse(streamText(invocation.stdout, 'push audit stdout'))).toMatchObject({
+      schemaVersion: 1,
+      status: 'inactive',
+      certified: false,
+    });
+  });
+
+  test('push audit resolves a relative external launcher from its activation root', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tool-wiki-push-audit-'));
+    scratchPaths.push(directory);
+    const candidate = join(directory, 'candidate');
+    const activation = join(directory, 'activation');
+    mkdirSync(candidate);
+    mkdirSync(activation);
+    write(join(activation, 'active-v1'), 'tool-wiki-active-v1\n');
+    write(join(activation, 'launcher-path'), 'launcher.sh\n');
+    write(
+      join(activation, 'launcher.sh'),
+      '#!/usr/bin/env bash\nprintf \'%s|%s|%s\\n\' "$1" "$2" "$3"\n',
+    );
+    chmodSync(join(activation, 'launcher.sh'), 0o555);
+
+    const invocation = Bun.spawnSync(['bash', pushAuditPath, candidate, 'abc123'], {
+      cwd: candidate,
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        TOOL_WIKI_ACTIVATION_ROOT: activation,
+      },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+
+    expect(invocation.exitCode, streamText(invocation.stderr, 'push audit stderr')).toBe(0);
+    expect(streamText(invocation.stdout, 'push audit stdout')).toBe(
+      `committed|${realpathSync(candidate)}|abc123\n`,
+    );
+  });
+
+  test('push audit refuses a launcher resolving into a symlinked candidate workspace', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tool-wiki-push-boundary-'));
+    scratchPaths.push(directory);
+    const candidate = join(directory, 'candidate');
+    const candidateAlias = join(directory, 'candidate-alias');
+    const activation = join(directory, 'activation');
+    mkdirSync(candidate);
+    mkdirSync(activation);
+    symlinkSync(candidate, candidateAlias, 'dir');
+    write(join(candidate, 'candidate-launcher.sh'), '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(join(candidate, 'candidate-launcher.sh'), 0o555);
+    write(join(activation, 'active-v1'), 'tool-wiki-active-v1\n');
+    write(join(activation, 'launcher-path'), 'candidate-link.sh\n');
+    symlinkSync(join(candidate, 'candidate-launcher.sh'), join(activation, 'candidate-link.sh'));
+
+    const invocation = Bun.spawnSync(['bash', pushAuditPath, candidateAlias, 'abc123'], {
+      cwd: candidateAlias,
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        TOOL_WIKI_ACTIVATION_ROOT: activation,
+      },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+
+    expect(invocation.exitCode).toBe(78);
+    expect(streamText(invocation.stderr, 'push audit stderr')).toContain(
+      'external launcher resolved inside candidate checkout',
     );
   });
 
@@ -1135,7 +1215,9 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(secondInvocation.exitCode).toBe(1);
     expect(git(paths.repository, 'rev-parse', 'HEAD')).toBe(trustedCheckout);
     expect(existsSync(suppressedMarker)).toBe(false);
-  });
+    // Two real validator launches take 4.2s on an idle h2puni and 5.3s under concurrent gates.
+    // Keep the test bounded without letting Bun's 5s default kill the second refusal as SIGPIPE.
+  }, 15_000);
 
   test('the real Nx target reruns an omitted-input mutation and a controlled cache fault does not', () => {
     const paths = realFixture();

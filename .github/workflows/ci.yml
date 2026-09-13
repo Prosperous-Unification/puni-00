@@ -263,22 +263,7 @@ jobs:
         if: github.event_name == 'push'
         env:
           TOOL_WIKI_ACTIVATION_ROOT: ${{ vars.TOOL_WIKI_ACTIVATION_ROOT }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$TOOL_WIKI_ACTIVATION_ROOT" || ! -e "$TOOL_WIKI_ACTIVATION_ROOT/active-v1" ]]; then
-            echo '{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation marker is not provisioned"}'
-            exit 0
-          fi
-          launcher_ref="$(<"$TOOL_WIKI_ACTIVATION_ROOT/launcher-path")"
-          if [[ "$launcher_ref" != /* ]]; then
-            launcher_ref="$TOOL_WIKI_ACTIVATION_ROOT/$launcher_ref"
-          fi
-          launcher="$(realpath "$launcher_ref")"
-          [[ -f "$launcher" && -r "$launcher" ]]
-          case "$launcher" in
-            "$GITHUB_WORKSPACE"/*) echo 'external launcher resolved inside candidate checkout' >&2; exit 78 ;;
-          esac
-          bash "$launcher" committed . "$GITHUB_SHA"
+        run: bash bin/tool-wiki-push-audit.sh . "$GITHUB_SHA"
 
       # --all, not the default base..HEAD comparison. Without it the scope is
       # whatever `git diff main HEAD` returns, which is EMPTY on a push to main

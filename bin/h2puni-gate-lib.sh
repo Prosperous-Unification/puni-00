@@ -36,12 +36,24 @@ resolve_tool_wiki_launcher() {
     printf 'h2puni gate: candidate checkout is not a readable directory\n' >&2
     return 78
   fi
+  # Proof: h2puni-gate.test.sh case 16 places the activation root inside the candidate while its
+  # launcher points outward; resolution must exit 78 before returning that launcher.
+  case "$trusted_root" in
+    "$candidate" | "$candidate"/*)
+      printf 'h2puni gate: activation root must be outside the candidate checkout\n' >&2
+      return 78
+      ;;
+  esac
   local marker="$trusted_root/active-v1"
+  # Proof: h2puni-gate.test.sh case 13 writes a malformed marker and observes exit 78 plus this
+  # specific refusal before any launcher can be selected.
   if [[ ! -f $marker ]] || [[ ! -r $marker ]] || [[ $(<"$marker") != tool-wiki-active-v1 ]]; then
     printf 'h2puni gate: active tool-wiki marker is missing, unreadable, or malformed\n' >&2
     return 78
   fi
   local launcher_descriptor="$trusted_root/launcher-path"
+  # Proof: h2puni-gate.test.sh case 14 removes read permission from the descriptor and observes
+  # exit 78 instead of a default or candidate-owned launcher.
   if [[ ! -r $launcher_descriptor ]]; then
     printf 'h2puni gate: active tool-wiki rollout has no readable launcher descriptor\n' >&2
     return 78
@@ -49,10 +61,14 @@ resolve_tool_wiki_launcher() {
   local launcher_source
   launcher_source=$(<"$launcher_descriptor")
   if [[ $launcher_source != /* ]]; then launcher_source="$trusted_root/$launcher_source"; fi
+  # Proof: h2puni-gate.test.sh case 15 names a directory and observes exit 78 with this artifact
+  # shape refusal.
   if ! launcher_source=$(realpath -- "$launcher_source") || [[ ! -f $launcher_source ]] || [[ ! -r $launcher_source ]]; then
     printf 'h2puni gate: active tool-wiki launcher is not a readable regular file\n' >&2
     return 78
   fi
+  # Proof: h2puni-gate.test.sh case 12 resolves a symlink into the candidate and observes exit 78
+  # before the candidate launcher can run.
   case "$launcher_source" in
     "$candidate"/*)
       printf 'h2puni gate: active tool-wiki launcher must be outside the candidate checkout\n' >&2
