@@ -45,6 +45,7 @@ import {
   isDayPx,
   isoToday,
   LABEL_COLUMN_PX,
+  labelRoomFor,
   MARKER_BAND_MAX_PER_CELL,
   markersDrawnInBand,
   monthWords,
@@ -2534,9 +2535,12 @@ describe('the words on the bars are HTML over the chart', () => {
 
   const oneAssignedBar = (parts: { start: number; finish: number; duration: number }): GanttPlan =>
     planOf({
-      rows: [rowAt('trim', 0, 1), rowAt('strip', parts.start, parts.finish)],
+      // Three workdays for `trim`: room for `trim · RA` and the crop mark in
+      // front of its name, which one workday has not had since the number
+      // rule of 2026-09-13 ({@link barText}).
+      rows: [rowAt('trim', 0, 3), rowAt('strip', parts.start, parts.finish)],
       slices: [
-        sliceAt('trim-dev', 'trim', 0, 1, { personId: 'ravi' }),
+        sliceAt('trim-dev', 'trim', 0, 3, { personId: 'ravi' }),
         sliceAt('strip-dev', 'strip', parts.start, parts.finish, {
           personId: 'kat',
           duration: parts.duration,
@@ -2575,7 +2579,7 @@ describe('the words on the bars are HTML over the chart', () => {
     // The band is in the number because the SVG under this span begins one band
     // left of day 0 (see {@link CHART_PAD_PX}); dropping it here puts every
     // name 12px left of the bar it belongs to.
-    expect(label?.textContent).toBe('KA · strip - strip');
+    expect(label?.textContent).toBe('strip · KA · strip');
     expect(label?.style.left).toBe(`${String(7 * DAY_PX + CHART_PAD_PX)}px`);
     expect(label?.style.width).toBe(`${String(4 * DAY_PX)}px`);
     // Second row, and the same inset the rect above it has: the words sit on
@@ -2618,10 +2622,10 @@ describe('the words on the bars are HTML over the chart', () => {
       />,
     );
 
-    expect(labelOn('strip-dev')?.textContent).toBe('Platform ×3 · strip - strip');
+    expect(labelOn('strip-dev')?.textContent).toBe('strip · Platform ×3 · strip');
     // And a bar with no team on it writes the row's words alone, exactly as it
     // did before this change: nothing to say about a pool it is not on.
-    expect(labelOn('sand-dev')?.textContent).toBe('sand - sand');
+    expect(labelOn('sand-dev')?.textContent).toBe('sand · sand');
   });
 
   itDom('keeps the person’s name on a bar somebody is named on, team or no team', () => {
@@ -2644,7 +2648,7 @@ describe('the words on the bars are HTML over the chart', () => {
       />,
     );
 
-    expect(labelOn('strip-dev')?.textContent).toBe('KA · strip - strip');
+    expect(labelOn('strip-dev')?.textContent).toBe('strip · KA · strip');
   });
 
   itDom('writes nothing at all on a bar too narrow to hold a letter', () => {
@@ -2670,25 +2674,72 @@ describe('the words on the bars are HTML over the chart', () => {
     expect(labelOn('strip-dev')).toBeNull();
     // The wide bar on the row above still has its words, so this is a threshold
     // and not a switch that turned every label off.
-    expect(labelOn('trim-dev')?.textContent).toBe('RA · trim - trim');
+    expect(labelOn('trim-dev')?.textContent).toBe('trim · RA · trim');
   });
 
-  itDom('writes the row’s own words after the assignee, and alone when nobody fits', () => {
-    // The composition, taken directly: the assignee part the width already
-    // decided, then ` · `, then the row words — which are never dropped for
-    // room, because the label box crops them with an ellipsis instead.
-    expect(barText('Kat', '010 - Strip', 4, DAY_PX)).toBe('Kat · 010 - Strip');
-    expect(barText(null, '010 - Strip', 4, DAY_PX)).toBe('010 - Strip');
-    // The one refusal: a bar without room for a single character.
-    expect(barText(null, '010 - Strip', 0.2, DAY_PX)).toBeNull();
-    expect(barText('Kat', '010 - Strip', 0.2, DAY_PX)).toBeNull();
+  /** The label room of an estimated bar `span` workdays wide about row `number`, at the chart's own day width. */
+  const roomAt = (span: number, number = 'strip') =>
+    labelRoomFor(number, span, DAY_PX, { done: false, estimated: true });
+  /** The same room on a bar whose width nobody gave, which leads with `?`. */
+  const assumedRoomAt = (span: number, number = 'strip') =>
+    labelRoomFor(number, span, DAY_PX, { done: false, estimated: false });
+
+  itDom(
+    'writes the number, then the assignee, then the name — and no assignee when nobody fits',
+    () => {
+      // The composition, taken directly: the row's number, then the assignee
+      // part the room already decided, then the name — which is never dropped
+      // for room, because the label box crops it with an ellipsis instead.
+      expect(barText('Kat', 'Strip', roomAt(4, '010'))).toBe('010 · Kat · Strip');
+      expect(barText(null, 'Strip', roomAt(4, '010'))).toBe('010 · Strip');
+      // The refusal: a bar without room for its own number.
+      expect(barText(null, 'Strip', roomAt(0.2, '010'))).toBeNull();
+      expect(barText('Kat', 'Strip', roomAt(0.2, '010'))).toBeNull();
+    },
+  );
+
+  itDom('keeps the number whole before anything else on the bar', () => {
+    // Dany, 2026-09-13: "make sure that number is always visible". The crop is
+    // `text-ellipsis`, from the right, so a two-day bar about 010 with Kat on
+    // it read `KH · 01…` — the number was the half that went.
+    //
+    // Two workdays are 56px and 47 of them are the label's. `010 · KB` and the
+    // mark are 47: the initials stay.
+    expect(barText('KB', 'Strip', roomAt(2, '010'))).toBe('010 · KB · Strip');
+    // A five-character number on the same bar: the initials go, the number
+    // and the name stay, and the mark lands on the name.
+    expect(barText('KB', 'Strip', roomAt(2, '170.1'))).toBe('170.1 · Strip');
+    // One workday is 19px of room: the number and nothing after it, so no mark
+    // is drawn to eat into it.
+    expect(barText('KB', 'Strip', roomAt(1, '010'))).toBe('010');
+    // And a number the bar cannot hold whole is not written by half.
+    expect(barText('KB', 'Strip', roomAt(1, '170.1'))).toBeNull();
+    // The room is the box the browser lays out, done tick included: a done
+    // two-day bar has 15px less, and `010 · KB` no longer fits in front of it.
+    expect(
+      barText('KB', 'Strip', labelRoomFor('010', 2, DAY_PX, { done: true, estimated: true })),
+    ).toBe('010 · Strip');
+  });
+
+  itDom('leads an assumed bar with the ?, and gives it up only for the number', () => {
+    // The `?` sits first, as it did before the number rule (Dany, 2026-09-13:
+    // "let's just keep it at the beginning like now"). Four workdays hold all
+    // of it; two hold the lead and the name but not Kat between them; one
+    // holds the number alone, and the dashed outline is what still says
+    // "a guess".
+    expect(barText('KB', 'Strip', assumedRoomAt(4, '010'))).toBe('? · 010 · KB · Strip');
+    expect(barText('KB', 'Strip', assumedRoomAt(2, '010'))).toBe('? · 010 · Strip');
+    expect(barText(null, 'Strip', assumedRoomAt(2, '010'))).toBe('? · 010 · Strip');
+    expect(barText('KB', 'Strip', assumedRoomAt(1, '010'))).toBe('010');
+    expect(barText('KB', 'Strip', assumedRoomAt(1, '170.1'))).toBeNull();
   });
 
   itDom('carries the row words whole even where the box must crop them', () => {
-    // One workday is 28px — room for four characters, nowhere near the words.
-    // The DOM still holds the full string and the box crops it: a label
-    // shortened by dropping the words would read as the assignee-only chart
-    // this change removes.
+    // Three workdays are 84px — 75 of them the label's, room for `strip · KA`
+    // and the crop mark and nowhere near the whole of the words. The DOM still
+    // holds the full string and the box crops it: a label shortened by
+    // dropping the words would read as the assignee-only chart this change
+    // removes.
     //
     // Proof: `barText` given the old appending rule — the words only when they
     // fully fit — `4 failed | 48 passed`: this test on `expected 'Kat' to be
@@ -2696,7 +2747,7 @@ describe('the words on the bars are HTML over the chart', () => {
     // every wide bar stayed green. Watched 2026-08-09.
     render(
       <GanttPanel
-        plan={oneAssignedBar({ start: 5, finish: 6, duration: 1 })}
+        plan={oneAssignedBar({ start: 5, finish: 8, duration: 3 })}
         startDate={null}
         scheduleError={null}
         generation={0}
@@ -2707,7 +2758,7 @@ describe('the words on the bars are HTML over the chart', () => {
       />,
     );
     const label = labelOn('strip-dev');
-    expect(label?.textContent).toBe('KA · strip - strip');
+    expect(label?.textContent).toBe('strip · KA · strip');
     // Cropped by the box, in a size that sits inside the bar: the ellipsis
     // classes and the smaller font are what make the full string honest.
     expect(label?.classList.contains('text-ellipsis')).toBe(true);
@@ -2733,7 +2784,7 @@ describe('the words on the bars are HTML over the chart', () => {
     );
     // An unassigned bar used to write nothing at all — sixty grey bars with no
     // words was the fault. Now the row words stand alone.
-    expect(labelOn('strip-dev')?.textContent).toBe('strip - strip');
+    expect(labelOn('strip-dev')?.textContent).toBe('strip · strip');
   });
 
   itDom('writes the label in ink the bar it sits on can be read through', () => {
@@ -2779,12 +2830,14 @@ describe('the words on the bars are HTML over the chart', () => {
     // 281 passed. The narrow bar and both refusals below stayed green, which is
     // the shape of the fault — it is invisible on every bar too narrow to hold a
     // whole name.
-    expect(barLabelFor('Kat Bloom', 4, DAY_PX)).toBe('KB');
-    expect(barLabelFor('Kat Bloom', 1, DAY_PX)).toBe('KB');
-    // A fifth of a workday holds nothing: a label box over a 5px bar is a stray
-    // outline, not words.
-    expect(barLabelFor('Kat Bloom', 0.2, DAY_PX)).toBeNull();
-    expect(barLabelFor(null, 4, DAY_PX)).toBeNull();
+    expect(barLabelFor('Kat Bloom', roomAt(4))).toBe('KB');
+    expect(barLabelFor('Kat Bloom', roomAt(3))).toBe('KB');
+    // One workday holds the row's number and nothing after it
+    // ({@link barText}'s rule of 2026-09-13), and a fifth of one holds nothing:
+    // a label box over a 5px bar is a stray outline, not words.
+    expect(barLabelFor('Kat Bloom', roomAt(1))).toBeNull();
+    expect(barLabelFor('Kat Bloom', roomAt(0.2))).toBeNull();
+    expect(barLabelFor(null, roomAt(4))).toBeNull();
     // Spaces are not a name. The guard is what stands in front of `initialsOf`,
     // which **throws** rather than answering with a blank badge — so this case
     // is the one that says the guard is still there.
@@ -2794,7 +2847,7 @@ describe('the words on the bars are HTML over the chart', () => {
     // passed`, this case alone, the throw arriving out of `initialsOf`. A
     // `toBeNull()` against a function that answered `''` could never have seen
     // it; the throw is what makes the guard load-bearing.
-    expect(barLabelFor('   ', 4, DAY_PX)).toBeNull();
+    expect(barLabelFor('   ', roomAt(4))).toBeNull();
   });
 
   itDom('names a person the way the table names them, from one function', () => {
@@ -2814,7 +2867,7 @@ describe('the words on the bars are HTML over the chart', () => {
     // initials to `KB` under both rules, which is exactly why the two functions
     // disagreed without anything ever going red.
     for (const name of ['vadym', 'Kat Bloom', 'Kat van der Bloom', 'K']) {
-      expect(barLabelFor(name, 4, DAY_PX)).toBe(initialsOf(name));
+      expect(barLabelFor(name, roomAt(4))).toBe(initialsOf(name));
     }
   });
 
@@ -6680,7 +6733,9 @@ describe('downloading the chart as a standalone .svg', () => {
       (element): element is SVGTextElement =>
         element.tagName === 'text' &&
         element.getAttribute('font-weight') === '600' &&
-        element.textContent.includes('010 - Hull'),
+        // The bar's own spelling — number first, dots between — and not
+        // `rowWords`' dash, which the cloned bar's `aria-label` still carries.
+        element.textContent.startsWith('010 · '),
     );
     expect(labels).toHaveLength(bars.length);
 
