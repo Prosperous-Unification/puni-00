@@ -1928,3 +1928,24 @@ sandbox: Chromium aborted with `sandbox_host_linux.cc:41 ... Operation not
 permitted`. This is recorded as an explicit environmental skip. Task 6.2
 remains unchecked pending Astra review. No commit, push, merge, archive, or
 deploy was performed.
+
+#### Task 6.2 acceptance
+
+Astra round two accepted Task 6.2 at
+`65c7975fd28cf12efea1d4e4430d9c1f92355c74` with zero Critical or Important
+findings and one nonblocking Minor limited to a SQLite Proof comment. The
+review confirmed all original and round-one findings closed. The Minor was
+then corrected to state the observed old defect precisely: snapshot rejection
+left the SQLite connection open even though directory cleanup still ran.
+
+Fresh independent acceptance evidence passed the complete two-adapter
+source-conformance suite and inventory at `120/0/8,244`, thirteen affected
+adapter and caller files at `88/0/405`, all six uncached conformance, memory,
+and SQLite lint/typecheck targets, changed-file Prettier for all nine reviewed
+files, and the restored Task 6.2/public-boundary/restart focus at `22/0/746`.
+Diff whitespace and immutable snapshot integrity passed with all 3,048 tracked
+entries unchanged. The decisive reversals suppressed the real target or only
+its mutation, removed input and canonical target/content guards, skipped
+snapshot or writer close, dropped combined errors, delayed rival ownership,
+and restored stale rival or rollback behavior; each corresponding permanent
+negative failed. Review: `/tmp/source-conformance-6-2-astra-review-2.md`.

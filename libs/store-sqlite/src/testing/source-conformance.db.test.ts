@@ -6534,8 +6534,8 @@ describe('SQLite existing source conformance', () => {
         failure = cause;
       }
 
-      // Proof: awaiting the rejected reader first left the real connection alive and
-      // skipped directory cleanup; both owners must run even when each reports failure.
+      // Proof: awaiting the rejected reader first left the real connection alive even
+      // though directory cleanup still ran; both owners must run when each reports failure.
       expect({ closeCalls, directoryExists: existsSync(directory) }).toEqual({
         closeCalls: 1,
         directoryExists: false,
