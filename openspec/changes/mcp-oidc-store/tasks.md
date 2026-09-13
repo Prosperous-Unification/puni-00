@@ -22,7 +22,8 @@
 
 ## 3. Primitive proof and integration gates
 
-- [ ] 3.1 Add an isolated Bun test process instrumenting node:crypto timingSafeEqual, and execute honest/wrong-state MCP callbacks through the real wrapper/store. Assert the primitive sees equal-length digest bytes. Negative: replace shared sameSecret with direct equality; the primitive-call assertion must fail while the normal wrong-state rejection is the control. Record instrumentation availability honestly; elapsed-time sampling is not an acceptable substitute.
+- [x] 3.1 Add an isolated Bun test process instrumenting node:crypto timingSafeEqual, and execute honest/wrong-state MCP callbacks through the real wrapper/store. Assert the primitive sees equal-length digest bytes. Negative: replace shared sameSecret with direct equality; the primitive-call assertion must fail while the normal wrong-state rejection is the control. Record instrumentation availability honestly; elapsed-time sampling is not an acceptable substitute.
+  - Evidence: Bun 1.4.2 preload instrumentation observed two real native calls with 64/64-byte operands through the MCP wrapper/store. Direct equality left the wrong-state/honest callback control green but produced zero primitive calls, failing the exact call assertion.
 - [ ] 3.2 Run `bunx nx run-many -t test lint typecheck -p auth mcp-01 be-01`, including be-01's existing OIDC integration and plural-binding cases unchanged. Then full workspace gate (`bin/h2puni-gate.sh` on h2puni) and `OPENSPEC_TELEMETRY=0 openspec validate --all --json`. Record actual watched failures and restored green outputs in verify.md; add Proof comments only from observed output.
 
 This packet makes no claim that timing instrumentation or any security negative was executed during design.

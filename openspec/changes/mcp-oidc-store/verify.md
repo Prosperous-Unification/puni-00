@@ -111,3 +111,48 @@ Every fault above was restored before the green runs.
 The first typecheck correctly rejected grouped failure-outcome unions because they did not narrow
 to the consumed payload. Giving each outcome its own discriminated member fixed the type boundary;
 the green result above is from the corrected contract.
+
+## Section 3 — native comparison proof and local integration
+
+Bun 1.4.2 supports the required instrumentation with an isolated test process and a preload-time
+`mock.module('node:crypto', ...)`. The preload captures the real native `timingSafeEqual` before
+installing a recording wrapper; the wrapper records each operand's byte length and then invokes
+that captured native function. The child drives registration, authorization, a wrong-state
+callback, and the later honest callback through `InMemoryMcpOAuth` and `PendingAuthorizations`.
+It observes exactly two native calls, both with **64-byte / 64-byte** SHA-256 hex digest operands.
+No elapsed-time samples are used.
+
+### Section 3 failure proof
+
+The initial test red had both callback behavior assertions green but received an empty primitive
+call list instead of the two expected 64/64 calls. After installing the preload wrapper, replacing
+the production `sameSecret` body with direct `left === right` reproduced the decisive mutation:
+the child reported `real MCP wrong-state refusal preserves the honest callback` as passing, while
+`real MCP callbacks compare equal-length state digests with timingSafeEqual` failed with received
+`[]` versus the two expected calls. The child summary was **1 passed / 1 failed**. The mutation was
+restored before all green runs. The adjacent Proof comment records this observed dependency.
+
+### Section 3 commands
+
+| Command                                                                                                                                                    | Result                                                                      |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `bun test apps/mcp-01/src/oauth-timing-safe.test.ts`                                                                                                       | 1 passed, 0 failed, 2 outer assertions; isolated child passed both controls |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test lint typecheck -p auth mcp-01 be-01 --parallel=2 --skip-nx-cache --output-style=static` | clean, exit 0; auth 96/0, MCP 125/0, be-01 1054/0 with 1 declared skip      |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate mcp-oidc-store --strict --json`                                                             | valid, 1 passed, 0 failed                                                   |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`                                                                               | valid, 82 passed, 0 failed                                                  |
+| `bunx prettier --check` over the three proof files, `tasks.md`, and `verify.md`                                                                            | clean, exit 0                                                               |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx format:check --all --output-style=static`                                                                | clean, exit 0                                                               |
+| `git diff --check`                                                                                                                                         | clean, exit 0                                                               |
+| `bin/h2puni-gate.sh <final Section 3 SHA>`                                                                                                                 | exit 70: `heavy lock: /home/puni1/.cache does not exist`; no gate started   |
+
+Running the matrix without socket permission failed `auth:test` with its two localhost-bind cases
+and `be-01:test` with 16 server-bind cases; the rerun with the required socket permission produced
+the green result above. This is a host permission distinction, not a restored-code claim.
+
+Task 3.2 remains open until the committed Section 3 SHA is available in the clean shared h2puni
+checkout. On h2puni, `/home/puni1/.cache` must exist and be writable so the canonical
+`/home/puni1/.cache/wbs-heavy-work.lock.d` can be acquired. From that checkout, run exactly
+`bin/h2puni-gate.sh <final Section 3 SHA>` without checking out the SHA first; acceptance depends
+on the script printing `h2puni gate: running on <final Section 3 SHA>` and exiting zero. This local
+host lacks `/home/puni1/.cache`; the exact command exited **70** with `heavy lock:
+/home/puni1/.cache does not exist` before checkout or any gate step.
