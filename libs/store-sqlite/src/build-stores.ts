@@ -23,6 +23,7 @@ export function buildStores(
   db: Drizzle,
   gate: Gate,
   lateWrite: SqliteLateWriteSeam = inertSqliteLateWriteSeam,
+  subtreeAtomic = true,
 ) {
   return {
     projects: new ProjectRepository(db, gate),
@@ -40,7 +41,7 @@ export function buildStores(
     measures: new StepMeasureRepository(db, gate),
     progress: new StepProgressRepository(db, gate),
     dependencies: new DependencyRepository(db, gate),
-    subtrees: new SubtreeRepository(db, gate, lateWrite),
+    subtrees: new SubtreeRepository(db, gate, lateWrite, subtreeAtomic),
     journal: new CommandJournalRepository(db, gate, lateWrite),
   };
 }

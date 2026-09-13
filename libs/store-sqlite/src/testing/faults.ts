@@ -66,3 +66,20 @@ export function openSqliteSourceWithFault(
     },
   });
 }
+
+/** Opens the real source with only the subtree transaction boundary disabled. */
+export function openSqliteSourceWithNonAtomicSubtreeFault(
+  options: OpenSqliteSourceOptions,
+  control: SqliteLateWriteControl<'subtree-final-satellite'>,
+): SqliteSource {
+  return openSqliteSourceWithLateWriteSeam(
+    options,
+    {
+      reach(phase, evidence) {
+        if (control.reachTransactionWrite(phase, evidence))
+          throw new Error(`injected SQLite fault at ${phase}`);
+      },
+    },
+    false,
+  );
+}

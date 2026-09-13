@@ -21,8 +21,9 @@ import {
   runCases,
   SOURCE_CONFORMANCE_CASES,
   type SourceReaders,
+  subtreeSeedRecords,
 } from '@wbs/conformance';
-import type { TeamWithServices, TransactionalStores, User } from '@wbs/core';
+import type { StoredDependency, TeamWithServices, TransactionalStores, User } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { DEFAULT_ESTIMATE_RULE } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
@@ -38,6 +39,11 @@ import {
   users as userTable,
 } from '../schema';
 import { openSqliteSource, type OpenSqliteSourceOptions, type SqliteSource } from '../source';
+import {
+  openSqliteSourceWithFault,
+  openSqliteSourceWithNonAtomicSubtreeFault,
+  sqliteLateWriteControl,
+} from './faults';
 
 const MIGRATIONS = new URL('../../../../apps/be-01/drizzle', import.meta.url).pathname;
 type ExistingFamily = keyof ExistingStoreOpeners;
@@ -262,14 +268,40 @@ async function openSqliteCase<Family extends ExistingFamily>(
   caseId: CaseId,
   openSource: OpenSource = openSqliteSource,
 ): Promise<CaseFixture<TransactionalStores[Family]>> {
+  const lateControl =
+    family === 'subtrees' && caseId === 'subtrees.insertSubtree:late-failure'
+      ? sqliteLateWriteControl('subtree-final-satellite')
+      : null;
+  const selectedOpen: OpenSource =
+    lateControl === null
+      ? openSource
+      : (options) => openSqliteSourceWithFault(options, lateControl);
   const { source, directory } = await seedSqliteSource(
-    openSource,
+    selectedOpen,
     family === 'progress'
       ? seedProgressStep
       : family === 'dependencies'
         ? seedDependencyWorkItems
-        : undefined,
+        : family === 'subtrees'
+          ? seedSubtreeRecords
+          : undefined,
   );
+  if (family === 'subtrees') {
+    return {
+      ...sqliteFixture(source, directory, family, caseId),
+      scenario:
+        lateControl === null
+          ? { kind: 'ordinary' }
+          : {
+              kind: 'late-write',
+              point: 'subtree-final-satellite',
+              arm: () => {
+                lateControl.arm();
+              },
+              reached: () => lateControl.reached(),
+            },
+    };
+  }
   return sqliteFixture(source, directory, family, caseId);
 }
 
@@ -304,6 +336,30 @@ async function seedDependencyWorkItems(source: SqliteSource): Promise<void> {
   ).toEqual([...DETERMINISTIC_SEED.workItemIds[0], ...DEPENDENCY_SURVIVOR_IDS].toSorted());
 }
 
+async function seedSubtreeRecords(source: SqliteSource): Promise<void> {
+  const seeded = subtreeSeedRecords(DETERMINISTIC_SEED);
+  for (const row of seeded.estimates)
+    await source.stores.estimates.set(structuredClone(row), DETERMINISTIC_SEED.stamps[0]);
+  for (const row of seeded.actuals)
+    await source.stores.actuals.set(structuredClone(row), DETERMINISTIC_SEED.stamps[0]);
+  for (const row of seeded.progress)
+    await source.stores.progress.set(structuredClone(row), DETERMINISTIC_SEED.stamps[0]);
+  for (const row of seeded.measures)
+    await source.stores.measures.set(structuredClone(row), DETERMINISTIC_SEED.stamps[0]);
+  for (const row of seeded.assignments) {
+    expect(
+      await source.stores.directory.assign(
+        row.workItemId,
+        row.stepId,
+        row.personId,
+        DETERMINISTIC_SEED.stamps[0],
+      ),
+    ).toEqual({ ok: true });
+  }
+  for (const row of seeded.dependencies)
+    await source.stores.dependencies.add(structuredClone(row), DETERMINISTIC_SEED.stamps[0]);
+}
+
 const openers: ExistingStoreOpeners = {
   projects: (caseId) => openSqliteCase('projects', caseId),
   users: (caseId) => openSqliteCase('users', caseId),
@@ -319,6 +375,7 @@ const openers: ExistingStoreOpeners = {
   dependencies: (caseId) => openSqliteCase('dependencies', caseId),
   directory: (caseId) => openSqliteCase('directory', caseId),
   eventLog: (caseId) => openSqliteCase('eventLog', caseId),
+  subtrees: (caseId) => openSqliteCase('subtrees', caseId),
 };
 
 function withStores(source: SqliteSource, stores: Partial<TransactionalStores>): SqliteSource {
@@ -1641,6 +1698,81 @@ const pruneFault = defineFault({
   },
 });
 
+const subtreeDependencyBackingFault = defineFault({
+  id: 'break:subtrees.insertSubtree:complete-copy',
+  caseId: 'subtrees.insertSubtree:complete-copy',
+  createControl: () => createFaultControl('subtrees.insertSubtree:complete-copy:dependencies'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      subtrees: replaceMethod(source.stores.subtrees, 'insertSubtree', (insertSubtree) => {
+        return async (copy, stamp) => {
+          if (!control.reach('subtrees.insertSubtree:complete-copy:dependencies'))
+            return insertSubtree(copy, stamp);
+          await insertSubtree({ ...copy, dependencies: [] }, stamp);
+          source.db.run(
+            sql.raw(
+              'CREATE TEMP TABLE IF NOT EXISTS conformance_isolated_dependency (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, predecessor_id TEXT NOT NULL, successor_id TEXT NOT NULL)',
+            ),
+          );
+          for (const edge of copy.dependencies) {
+            source.db.run(
+              sql`INSERT INTO conformance_isolated_dependency (id, project_id, predecessor_id, successor_id)
+                  VALUES (${edge.id}, ${edge.projectId}, ${edge.predecessorId}, ${edge.successorId})`,
+            );
+          }
+          expect(
+            source.db.all<StoredDependency>(
+              sql`SELECT id, project_id AS projectId, predecessor_id AS predecessorId,
+                         successor_id AS successorId
+                  FROM conformance_isolated_dependency ORDER BY id`,
+            ),
+          ).toEqual([...copy.dependencies]);
+        };
+      }),
+    });
+  },
+});
+
+const subtreeRemovedMeasureFault = defineFault({
+  id: 'break:subtrees.insertSubtree:complete-copy',
+  caseId: 'subtrees.insertSubtree:complete-copy',
+  createControl: () => createFaultControl('subtrees.insertSubtree:complete-copy:removed-measure'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      subtrees: replaceMethod(source.stores.subtrees, 'insertSubtree', (insertSubtree) => {
+        return (copy, stamp) =>
+          insertSubtree(
+            control.reach('subtrees.insertSubtree:complete-copy:removed-measure')
+              ? {
+                  ...copy,
+                  removedMeasures: copy.removedMeasures.map((key) =>
+                    key.metric === 'token_actual' ? { ...key, metric: 'token_estimate' } : key,
+                  ),
+                }
+              : copy,
+            stamp,
+          );
+      }),
+    });
+  },
+});
+
+const subtreeRollbackFault = defineFault({
+  id: 'break:subtrees.insertSubtree:late-failure',
+  caseId: 'subtrees.insertSubtree:late-failure',
+  createControl: () => createFaultControl('subtrees.insertSubtree:late-failure:no-transaction'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      subtrees: replaceMethod(source.stores.subtrees, 'insertSubtree', (insertSubtree) => {
+        return (copy, stamp) => {
+          control.reach('subtrees.insertSubtree:late-failure:no-transaction');
+          return insertSubtree(copy, stamp);
+        };
+      }),
+    });
+  },
+});
+
 interface FaultContext {
   readonly registration: ReturnType<typeof existingStoreRegistrations>[number];
   assertionFailure: string | null;
@@ -1654,14 +1786,24 @@ async function proveFault(
   return recordFaultProof(fault, {
     assertion: `${fault.caseId} reports passed`,
     async setup(run: FaultRun<SqliteSource>) {
-      const openSource = brokenSource(openBase, run);
+      const lateControl =
+        fault.caseId === 'subtrees.insertSubtree:late-failure'
+          ? sqliteLateWriteControl('subtree-final-satellite')
+          : null;
+      const selectedBase: OpenSource =
+        lateControl === null
+          ? openBase
+          : (options) => openSqliteSourceWithNonAtomicSubtreeFault(options, lateControl);
+      const openSource = brokenSource(selectedBase, run);
       const { source, directory } = await seedSqliteSource(
         openSource,
         fault.caseId.startsWith('progress.')
           ? seedProgressStep
           : fault.caseId.startsWith('dependencies.')
             ? seedDependencyWorkItems
-            : undefined,
+            : fault.caseId.startsWith('subtrees.')
+              ? seedSubtreeRecords
+              : undefined,
       );
       let wasOpened = false;
       const takeFixture = <Family extends ExistingFamily>(
@@ -1670,7 +1812,22 @@ async function proveFault(
       ): Promise<CaseFixture<TransactionalStores[Family]>> => {
         if (wasOpened) return Promise.reject(new Error(`${fault.caseId} fixture opened twice`));
         wasOpened = true;
-        return Promise.resolve(sqliteFixture(source, directory, family, caseId));
+        if (family !== 'subtrees')
+          return Promise.resolve(sqliteFixture(source, directory, family, caseId));
+        return Promise.resolve({
+          ...sqliteFixture(source, directory, family, caseId),
+          scenario:
+            lateControl === null
+              ? { kind: 'ordinary' }
+              : {
+                  kind: 'late-write',
+                  point: 'subtree-final-satellite',
+                  arm: () => {
+                    lateControl.arm();
+                  },
+                  reached: () => lateControl.reached(),
+                },
+        });
       };
       const registrations = existingStoreRegistrations({
         projects: (caseId) => takeFixture('projects', caseId),
@@ -1687,6 +1844,7 @@ async function proveFault(
         dependencies: (caseId) => takeFixture('dependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
+        subtrees: (caseId) => takeFixture('subtrees', caseId),
       });
       const registration = registrations.find(({ caseId }) => caseId === fault.caseId);
       if (registration === undefined) {
@@ -1756,6 +1914,49 @@ function openDirectoryPrewriteFailureSource(
 }
 
 describe('SQLite existing source conformance', () => {
+  it('runs every subtree case through the real SQLite source', async () => {
+    const caseIds = [
+      'subtrees.insertSubtree:complete-copy',
+      'subtrees.insertSubtree:late-failure',
+    ] as const;
+    const report = await runCases(existingStoreRegistrations(openers), { focus: caseIds });
+    const failure = report.cases.find(({ status }) => status === 'failed');
+    if (failure?.status === 'failed') throw new Error(failure.failure);
+    expect(report.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      caseIds.map((caseId) => ({ caseId, status: 'passed' })),
+    );
+  });
+
+  it('reinjects complete-copy dependency and metric-key faults through SQLite state', async () => {
+    const proofs = await Promise.all([
+      proveFault(subtreeDependencyBackingFault),
+      proveFault(subtreeRemovedMeasureFault),
+    ]);
+    // Proof: disabling both corruptions returned two `assertion-passed`
+    // proofs here (`Expected -2 / Received +2`) instead of observed failures.
+    expect(proofs.map(({ kind }) => kind)).toEqual(['observed', 'observed']);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    // Proof: persisting the edge in the isolated SQLite table failed with the
+    // exact missing `subtree-copy-dependency` record in the public reader.
+    expect(failures[0]).toContain('subtree-copy-dependency');
+    // Proof: changing token_actual's removal key failed with its complete
+    // surviving value 102 / recordedAt 132 record.
+    expect(failures[1]).toContain('"metric": "token_actual"');
+    expect(failures[1]).toContain('"value": 102');
+    expect(failures[1]).toContain('"recordedAt": 132');
+  });
+
+  it('reinjects a terminal subtree failure without the SQLite transaction', async () => {
+    const proof = await proveFault(subtreeRollbackFault);
+    // Proof: restoring the repository transaction returned `assertion-passed` here.
+    expect(proof.kind).toBe('observed');
+    if (proof.kind !== 'observed') throw new Error(`expected observed proof, got ${proof.kind}`);
+    // Proof: running the real statements without their transaction failed the
+    // complete public snapshot with the escaped `subtree-copy-root` record.
+    expect(Bun.stripANSI(proof.observedFailure)).toContain('subtree-copy-root');
+  });
   it('runs every work-item case through the real SQLite source', async () => {
     const caseIds = [
       'workItems.insert:respace',

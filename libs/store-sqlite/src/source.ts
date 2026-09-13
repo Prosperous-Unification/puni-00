@@ -30,12 +30,13 @@ export function openSqliteSource(options: OpenSqliteSourceOptions): SqliteSource
 export function openSqliteSourceWithLateWriteSeam(
   options: OpenSqliteSourceOptions,
   lateWrite: SqliteLateWriteSeam,
+  subtreeAtomic = true,
 ): SqliteSource {
   const connect = options.openConnection ?? openDatabaseConnection;
   const process = connect(options.dbPath);
   const coordinator = new WriteCoordinator();
-  const stores = buildStores(process.db, coordinator, lateWrite);
-  const admitted = buildStores(process.db, OPEN, lateWrite);
+  const stores = buildStores(process.db, coordinator, lateWrite, subtreeAtomic);
+  const admitted = buildStores(process.db, OPEN, lateWrite, subtreeAtomic);
   let closed = false;
 
   return {

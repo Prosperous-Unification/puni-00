@@ -42,6 +42,11 @@ export function inMemorySubtrees(
       // takes it — one call applies both, as the one transaction does.
       for (const [index, row] of copy.rows.entries()) {
         await stores.workItems.insert(row, index === 0 ? copy.respaced : [], stamp);
+        if (row.teamIds !== undefined) {
+          const written = await stores.workItems.patch(row.id, { teamIds: row.teamIds }, stamp);
+          if (!written.ok)
+            throw new Error(`cannot restore team set for ${row.id}: ${written.reason}`);
+        }
       }
       // After the rows, because the real transaction has no choice: these point
       // at rows that must already exist. `move` is what the in-memory work item

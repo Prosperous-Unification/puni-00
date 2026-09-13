@@ -1260,3 +1260,60 @@ Twenty-eight focused tests passed with 842 assertions, and both adversarial
 reversions failed for their named reasons. Task 4.2 is checked complete and
 Task 4.3 is next. Reviews: `/tmp/source-conformance-4-2-astra-review.md` and
 `/tmp/source-conformance-4-2-astra-rereview.md`.
+
+### Task 4.3 implementation — subtree complete copy and late failure
+
+The independent inventory test was first run with the two new IDs present only
+in `SOURCE_CONFORMANCE_CASES`. It failed with `Expected - 2 / Received + 0`,
+naming `subtrees.insertSubtree:complete-copy` and
+`subtrees.insertSubtree:late-failure`. The restored inventory is independent of
+the registrations and both sources offer both cases without a legacy gap.
+
+The complete-copy case seeds meaningful project-A and project-B work items and
+every readable satellite, including touching and surviving dependencies. Its
+copy populates parent-before-child work items, reparenting, sibling spacing,
+estimates, actuals, all three measure metrics, progress, dependencies,
+assignments, every removal collection, and the three exact removed-measure
+keys. Pre-call and settled assertions compare complete independently held
+records through the ordinary public readers; project B remains byte-for-byte
+unchanged. The memory fixture now restores the explicit copied `teamIds`
+through the real work-item patch path. Before that repair, the shared assertion
+reported the copied root missing `team-b` and the child with an empty team set.
+
+The memory dependency fault writes the copied edge to a separate real
+in-memory dependency store while the ordinary staged source omits it. The
+SQLite equivalent persists the edge in a separate adapter-owned temporary
+table while the ordinary dependency reader omits it. Both fail the shared
+complete-state assertion on the exact missing `subtree-copy-dependency` edge.
+The wrong-key faults pass the real insertion path a token-estimate removal in
+place of the token-actual key, and both fail on the exact surviving
+token_actual/value-102/recordedAt-132 row. Disabling both corruptions produced
+two `assertion-passed` proofs on each source and failed the permanent proof
+test with `Expected -2 / Received +2`.
+
+The late-failure case snapshots both projects across every affected public
+store. Memory deliberately calls the real committed-state subtree repository
+instead of the staged unit of work; SQLite runs the same repository statements
+with only its transaction seam disabled. Each reaches the named final-actual
+satellite phase, throws there, then fails the complete post-rejection snapshot
+on the escaped `subtree-copy-root` record. Restoring the staged memory call or
+SQLite transaction made the focused proof `assertion-passed`.
+
+Fresh restored evidence:
+
+- Focused subtree and permanent proof runs: memory 3/0/82; SQLite 3/0/102.
+- Existing source and mixed adapter coverage: memory 15/0/180; SQLite
+  44/0/111 before the final broad runs.
+- Uncached targets: conformance 29/0/48; store-memory 52/0/2,317;
+  store-sqlite 674/0/4,946 across 60 files.
+- All six uncached lint/typecheck targets passed for conformance, store-memory,
+  and store-sqlite with the Nx daemon and plugin isolation disabled.
+
+Prettier reported all 14 changed implementation/evidence files formatted.
+Pinned OpenSpec 1.3.0 strict validation reported this change valid, and
+all-artifact JSON validation reported 75 passed and 0 failed. `git diff
+--check` passed after the final evidence edit. Full workspace, build, browser,
+deploy, h2puni SHA gate, commit, push, merge, and archive are skipped:
+the task authorizes the three relevant project targets and forbids repository
+publication or integration. Task 4.3 remains unchecked pending Astra review;
+Task 5.1 is untouched.

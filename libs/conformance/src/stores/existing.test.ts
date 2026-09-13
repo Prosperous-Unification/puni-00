@@ -22,10 +22,11 @@ describe('the migrated existing store kits', () => {
       dependencies: unopened,
       directory: unopened,
       eventLog: unopened,
+      subtrees: unopened,
     });
 
-    // Proof: before progressRegistrations joined the production catalog, this
-    // failed with all four progress IDs absent (`Expected - 4 / Received + 0`).
+    // Proof: before subtreeRegistrations joined the production catalog, this
+    // failed with both subtree IDs absent (`Expected - 2 / Received + 0`).
     expect(registrations.map(({ caseId }) => caseId)).toEqual([
       'projects.create:steps',
       'projects.update:scope',
@@ -78,6 +79,8 @@ describe('the migrated existing store kits', () => {
       'eventLog.rangeSince',
       'eventLog.pruneBeyond',
       'eventLog.pruneBeyond:empty-sequence',
+      'subtrees.insertSubtree:complete-copy',
+      'subtrees.insertSubtree:late-failure',
     ]);
     // Proof: before the independent implemented inventory was repaired, this
     // complete equality failed with the five work-item and two directory IDs absent.

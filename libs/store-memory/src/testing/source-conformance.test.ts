@@ -20,25 +20,32 @@ import {
   SOURCE_CONFORMANCE_CASES,
   type SourceDeclaration,
   type SourceReaders,
+  subtreeSeedRecords,
 } from '@wbs/conformance';
 import type {
   StoredDependency,
   StoredProgress,
+  SubtreeCopy,
+  SubtreeStore,
   TeamWithServices,
   TransactionalStores,
   User,
+  WriteStamp,
 } from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
+import { inMemoryDependencies } from '../dependency-fixture';
 import { projectRow } from '../project-fixture';
-import { openMemorySourceFixture } from '../source';
+import { openMemorySourceFixture, openMemorySourceWithLateWriteSeam } from '../source';
+import { type MemoryLateWriteControl, memoryLateWriteControl } from './faults';
 
 type ExistingFamily = keyof ExistingStoreOpeners;
 type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   deriveNextEventSeqFromRetained(subscription: string): void;
   storeDependencyById(dependency: StoredDependency): void;
+  insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
 };
 type OpenSource = () => MemorySource;
 
@@ -52,6 +59,11 @@ function openConformanceMemorySource(): MemorySource {
     storeDependencyById: (dependency) => {
       fixture.storeDependencyById(dependency);
     },
+    insertSubtree: (copy, stamp) =>
+      fixture.source.uow.run(async ({ stores }) => {
+        await stores.subtrees.insertSubtree(copy, stamp);
+        return { commit: true, value: undefined };
+      }),
   };
 }
 
@@ -203,10 +215,36 @@ async function openMemoryCase<Family extends ExistingFamily>(
   caseId: CaseId,
   openSource: OpenSource = openConformanceMemorySource,
 ): Promise<CaseFixture<TransactionalStores[Family]>> {
-  const source = await seedMemorySource(openSource, async (seeded) => {
+  const lateControl =
+    family === 'subtrees' && caseId === 'subtrees.insertSubtree:late-failure'
+      ? memoryLateWriteControl('subtree-final-satellite')
+      : null;
+  const selectedOpen = lateControl === null ? openSource : () => memoryLateSource(lateControl);
+  const source = await seedMemorySource(selectedOpen, async (seeded) => {
     if (family === 'progress') await seedProgressStep(seeded);
     if (family === 'dependencies') await seedDependencyWorkItems(seeded);
+    if (family === 'subtrees') await seedSubtreeRecords(seeded);
   });
+  if (family === 'subtrees') {
+    return {
+      fixtureId: `memory:${caseId}`,
+      port: transactionalSubtrees(source),
+      seed: DETERMINISTIC_SEED,
+      readers: readersOf(source),
+      scenario:
+        lateControl === null
+          ? { kind: 'ordinary' }
+          : {
+              kind: 'late-write',
+              point: 'subtree-final-satellite',
+              arm: () => {
+                lateControl.arm();
+              },
+              reached: () => lateControl.reached(),
+            },
+      close: () => source.close(),
+    } as CaseFixture<TransactionalStores[Family]>;
+  }
   return memoryFixture(source, family, caseId);
 }
 
@@ -241,6 +279,61 @@ async function seedDependencyWorkItems(source: MemorySource): Promise<void> {
   ).toEqual([...DETERMINISTIC_SEED.workItemIds[0], ...DEPENDENCY_SURVIVOR_IDS].toSorted());
 }
 
+async function seedSubtreeRecords(source: MemorySource): Promise<void> {
+  const seeded = subtreeSeedRecords(DETERMINISTIC_SEED);
+  for (const row of seeded.estimates)
+    await source.stores.estimates.set(structuredClone(row), DETERMINISTIC_SEED.stamps[0]);
+  for (const row of seeded.actuals)
+    await source.stores.actuals.set(structuredClone(row), DETERMINISTIC_SEED.stamps[0]);
+  for (const row of seeded.progress)
+    await source.stores.progress.set(structuredClone(row), DETERMINISTIC_SEED.stamps[0]);
+  for (const row of seeded.measures)
+    await source.stores.measures.set(structuredClone(row), DETERMINISTIC_SEED.stamps[0]);
+  for (const row of seeded.assignments) {
+    expect(
+      await source.stores.directory.assign(
+        row.workItemId,
+        row.stepId,
+        row.personId,
+        DETERMINISTIC_SEED.stamps[0],
+      ),
+    ).toEqual({ ok: true });
+  }
+  for (const row of seeded.dependencies)
+    await source.stores.dependencies.add(structuredClone(row), DETERMINISTIC_SEED.stamps[0]);
+}
+
+function transactionalSubtrees(source: MemorySource): SubtreeStore {
+  return {
+    insertSubtree: (copy, stamp) => source.insertSubtree(copy, stamp),
+  };
+}
+
+function memoryLateSource(
+  control: MemoryLateWriteControl<'subtree-final-satellite'>,
+): MemorySource {
+  const fixture = openMemorySourceWithLateWriteSeam({
+    reach(phase, evidence) {
+      if (control.reachStagedWrite(phase, evidence))
+        throw new Error(`injected memory fault at ${phase}`);
+    },
+  });
+  return {
+    ...fixture.source,
+    deriveNextEventSeqFromRetained: (subscription) => {
+      fixture.deriveNextEventSeqFromRetained(subscription);
+    },
+    storeDependencyById: (dependency) => {
+      fixture.storeDependencyById(dependency);
+    },
+    insertSubtree: (copy, stamp) =>
+      fixture.source.uow.run(async ({ stores }) => {
+        await stores.subtrees.insertSubtree(copy, stamp);
+        return { commit: true, value: undefined };
+      }),
+  };
+}
+
 const openers: ExistingStoreOpeners = {
   projects: (caseId) => openMemoryCase('projects', caseId),
   users: (caseId) => openMemoryCase('users', caseId),
@@ -256,6 +349,7 @@ const openers: ExistingStoreOpeners = {
   dependencies: (caseId) => openMemoryCase('dependencies', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
   eventLog: (caseId) => openMemoryCase('eventLog', caseId),
+  subtrees: (caseId) => openMemoryCase('subtrees', caseId),
 };
 
 const unknownStepGap = {
@@ -381,6 +475,7 @@ const declaration: SourceDeclaration = {
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
     eventLog: { kind: 'offered', gaps: [], open: openers.eventLog },
+    subtrees: { kind: 'offered', gaps: [], open: openers.subtrees },
   } as unknown as Capabilities,
 };
 
@@ -1466,6 +1561,68 @@ const eventRetainedMaximumFault = defineFault({
   },
 });
 
+const subtreeDependencyBackingFault = defineFault({
+  id: 'break:subtrees.insertSubtree:complete-copy',
+  caseId: 'subtrees.insertSubtree:complete-copy',
+  createControl: () => createFaultControl('subtrees.insertSubtree:complete-copy:dependencies'),
+  mutate(source: MemorySource, control) {
+    const isolated = inMemoryDependencies();
+    return {
+      ...source,
+      async insertSubtree(copy, stamp) {
+        if (!control.reach('subtrees.insertSubtree:complete-copy:dependencies'))
+          return source.insertSubtree(copy, stamp);
+        await source.insertSubtree({ ...copy, dependencies: [] }, stamp);
+        for (const dependency of copy.dependencies)
+          await isolated.add(structuredClone(dependency), stamp);
+        expect(await isolated.listByProject(DETERMINISTIC_SEED.projectIds[0])).toEqual([
+          ...copy.dependencies,
+        ]);
+      },
+    };
+  },
+});
+
+const subtreeRemovedMeasureFault = defineFault({
+  id: 'break:subtrees.insertSubtree:complete-copy',
+  caseId: 'subtrees.insertSubtree:complete-copy',
+  createControl: () => createFaultControl('subtrees.insertSubtree:complete-copy:removed-measure'),
+  mutate(source: MemorySource, control) {
+    return {
+      ...source,
+      insertSubtree(copy, stamp) {
+        if (!control.reach('subtrees.insertSubtree:complete-copy:removed-measure'))
+          return source.insertSubtree(copy, stamp);
+        return source.insertSubtree(
+          {
+            ...copy,
+            removedMeasures: copy.removedMeasures.map((key) =>
+              key.metric === 'token_actual' ? { ...key, metric: 'token_estimate' } : key,
+            ),
+          },
+          stamp,
+        );
+      },
+    };
+  },
+});
+
+const subtreeRollbackFault = defineFault({
+  id: 'break:subtrees.insertSubtree:late-failure',
+  caseId: 'subtrees.insertSubtree:late-failure',
+  createControl: () => createFaultControl('subtrees.insertSubtree:late-failure:unstaged'),
+  mutate(source: MemorySource, control) {
+    return {
+      ...source,
+      insertSubtree(copy, stamp) {
+        if (!control.reach('subtrees.insertSubtree:late-failure:unstaged'))
+          return source.insertSubtree(copy, stamp);
+        return source.stores.subtrees.insertSubtree(copy, stamp);
+      },
+    };
+  },
+});
+
 interface FaultContext {
   readonly registration: ReturnType<typeof existingStoreRegistrations>[number];
   assertionFailure: string | null;
@@ -1479,9 +1636,15 @@ async function proveFault(
   return recordFaultProof(fault, {
     assertion: `${fault.caseId} reports passed`,
     async setup(run: FaultRun<MemorySource>) {
-      const source = await seedMemorySource(brokenSource(openSource, run), async (seeded) => {
+      const lateControl =
+        fault.caseId === 'subtrees.insertSubtree:late-failure'
+          ? memoryLateWriteControl('subtree-final-satellite')
+          : null;
+      const baseOpen = lateControl === null ? openSource : () => memoryLateSource(lateControl);
+      const source = await seedMemorySource(brokenSource(baseOpen, run), async (seeded) => {
         if (fault.caseId.startsWith('progress.')) await seedProgressStep(seeded);
         if (fault.caseId.startsWith('dependencies.')) await seedDependencyWorkItems(seeded);
+        if (fault.caseId.startsWith('subtrees.')) await seedSubtreeRecords(seeded);
       });
       let wasOpened = false;
       const takeFixture = <Family extends ExistingFamily>(
@@ -1490,7 +1653,25 @@ async function proveFault(
       ): Promise<CaseFixture<TransactionalStores[Family]>> => {
         if (wasOpened) return Promise.reject(new Error(`${fault.caseId} fixture opened twice`));
         wasOpened = true;
-        return Promise.resolve(memoryFixture(source, family, caseId));
+        if (family !== 'subtrees') return Promise.resolve(memoryFixture(source, family, caseId));
+        return Promise.resolve({
+          fixtureId: `memory:${caseId}`,
+          port: transactionalSubtrees(source),
+          seed: DETERMINISTIC_SEED,
+          readers: readersOf(source),
+          scenario:
+            lateControl === null
+              ? { kind: 'ordinary' }
+              : {
+                  kind: 'late-write',
+                  point: 'subtree-final-satellite',
+                  arm: () => {
+                    lateControl.arm();
+                  },
+                  reached: () => lateControl.reached(),
+                },
+          close: () => source.close(),
+        } as CaseFixture<TransactionalStores[Family]>);
       };
       const registrations = existingStoreRegistrations({
         projects: (caseId) => takeFixture('projects', caseId),
@@ -1507,6 +1688,7 @@ async function proveFault(
         dependencies: (caseId) => takeFixture('dependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
         eventLog: (caseId) => takeFixture('eventLog', caseId),
+        subtrees: (caseId) => takeFixture('subtrees', caseId),
       });
       const registration = registrations.find(({ caseId }) => caseId === fault.caseId);
       if (registration === undefined) throw new Error(`missing registration for ${fault.caseId}`);
@@ -1626,6 +1808,49 @@ function openProgressSeedFailureSource(
 }
 
 describe('memory existing source conformance', () => {
+  it('runs every subtree case through the staged memory source', async () => {
+    const caseIds = [
+      'subtrees.insertSubtree:complete-copy',
+      'subtrees.insertSubtree:late-failure',
+    ] as const;
+    const report = await runCases(existingStoreRegistrations(openers), { focus: caseIds });
+    const failure = report.cases.find(({ status }) => status === 'failed');
+    if (failure?.status === 'failed') throw new Error(failure.failure);
+    expect(report.cases.map(({ caseId, status }) => ({ caseId, status }))).toEqual(
+      caseIds.map((caseId) => ({ caseId, status: 'passed' })),
+    );
+  });
+
+  it('reinjects complete-copy dependency and metric-key faults through memory state', async () => {
+    const proofs = await Promise.all([
+      proveFault(subtreeDependencyBackingFault),
+      proveFault(subtreeRemovedMeasureFault),
+    ]);
+    // Proof: disabling both corruptions returned two `assertion-passed`
+    // proofs here (`Expected -2 / Received +2`) instead of observed failures.
+    expect(proofs.map(({ kind }) => kind)).toEqual(['observed', 'observed']);
+    const failures = proofs.map((proof) =>
+      proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
+    );
+    // Proof: the isolated dependency fault failed the shared complete-state
+    // assertion with `subtree-copy-dependency` as the exact missing edge.
+    expect(failures[0]).toContain('subtree-copy-dependency');
+    // Proof: the wrong-key fault failed with the complete surviving
+    // token_actual record, including value 102 and recordedAt 132.
+    expect(failures[1]).toContain('"metric": "token_actual"');
+    expect(failures[1]).toContain('"value": 102');
+    expect(failures[1]).toContain('"recordedAt": 132');
+  });
+
+  it('reinjects an unstaged terminal subtree failure through committed memory state', async () => {
+    const proof = await proveFault(subtreeRollbackFault);
+    // Proof: restoring the staged insert returned `assertion-passed` here.
+    expect(proof.kind).toBe('observed');
+    if (proof.kind !== 'observed') throw new Error(`expected observed proof, got ${proof.kind}`);
+    // Proof: bypassing the staged MemoryState swap failed the complete public
+    // snapshot with the escaped `subtree-copy-root` record after the terminal throw.
+    expect(Bun.stripANSI(proof.observedFailure)).toContain('subtree-copy-root');
+  });
   it('closes once when ordinary progress companion seeding fails', async () => {
     const probe: MemoryLifecycleProbe = { closeCalls: 0 };
     let failure: unknown;

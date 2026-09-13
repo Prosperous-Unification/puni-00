@@ -62,6 +62,8 @@ export const SOURCE_CONFORMANCE_CASES = [
   'eventLog.rangeSince',
   'eventLog.pruneBeyond',
   'eventLog.pruneBeyond:empty-sequence',
+  'subtrees.insertSubtree:complete-copy',
+  'subtrees.insertSubtree:late-failure',
 ] as const;
 
 export interface CertificationInput {

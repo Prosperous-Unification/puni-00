@@ -910,6 +910,7 @@ export class SubtreeRepository implements SubtreeStore {
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
     private readonly lateWrite: SqliteLateWriteSeam = inertSqliteLateWriteSeam,
+    private readonly isAtomic = true,
   ) {}
 
   /**
@@ -938,7 +939,7 @@ export class SubtreeRepository implements SubtreeStore {
   async insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void> {
     await this.gate.enter(async () => {
       await Promise.resolve();
-      this.db.transaction((tx) => {
+      const write = (tx: SQLiteBunDatabase): void => {
         const satelliteKeys: string[] = [];
         for (const moved of copy.respaced) {
           tx.update(workItem)
@@ -1091,7 +1092,9 @@ export class SubtreeRepository implements SubtreeStore {
           stamp,
         );
         this.lateWrite.reach('subtree-final-satellite', { satelliteKeys });
-      });
+      };
+      if (this.isAtomic) this.db.transaction(write);
+      else write(this.db);
     });
   }
 }
