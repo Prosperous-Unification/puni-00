@@ -892,6 +892,8 @@ export class WorkItemRepository implements WorkItemStore {
   }
 }
 
+const nonAtomicSubtreeMutants = new WeakSet<SubtreeRepository>();
+
 /**
  * Writes a duplicated subtree, across the four tables it lives in, at once.
  *
@@ -905,8 +907,6 @@ export class WorkItemRepository implements WorkItemStore {
  * See `openspec/changes/duplicate-subtree/design.md` for why the alternative —
  * atomic rows, then the other three stores in order — was rejected.
  */
-const nonAtomicSubtreeMutants = new WeakSet<SubtreeRepository>();
-
 export class SubtreeRepository implements SubtreeStore {
   constructor(
     private readonly db: SQLiteBunDatabase,

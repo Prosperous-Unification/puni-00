@@ -389,17 +389,19 @@ function expectedAfter(seed: SeededPlan): Omit<SubtreePublicState, 'workItems'> 
 export interface MissingSubtreeRecords {
   readonly dependencyIds?: readonly string[];
   readonly measureKeys?: readonly string[];
+  readonly progressKeys?: readonly string[];
 }
 
 function expectedWithMissing(seed: SeededPlan, missing: MissingSubtreeRecords) {
   const expected = expectedAfter(seed);
   const missingDependencyIds = new Set(missing.dependencyIds ?? []);
   const missingMeasureKeys = new Set(missing.measureKeys ?? []);
+  const missingProgressKeys = new Set(missing.progressKeys ?? []);
   return {
     workItems: [...expected.workItems],
     estimates: [...expected.estimates],
     actuals: [...expected.actuals],
-    progress: [...expected.progress],
+    progress: expected.progress.filter((row) => !missingProgressKeys.has(pairKey(row))),
     dependencies: expected.dependencies.filter(({ id }) => !missingDependencyIds.has(id)),
     measures: expected.measures.filter((row) => !missingMeasureKeys.has(measureKey(row))),
     assignments: [...expected.assignments],
@@ -433,8 +435,8 @@ export function assertCompleteState(
 ): void {
   // Proof: routing copied dependencies to isolated adapter-owned storage on
   // either source removes the complete `subtree-copy-dependency` record here.
-  // Proof: changing the token_actual removal key to token_estimate leaves the
-  // complete `{workItemId, stepId, metric, value, recordedAt}` row here.
+  // Proof: pair-wide removal loses an unrequested sibling metric's complete
+  // `{workItemId, stepId, metric, value, recordedAt}` row here.
   // Proof: before memory restored explicit structural team sets, this failed
   // with team-b missing from the root and the child's teamIds received as [].
   expect(withoutRevisions(actual)).toEqual(expectedWithMissing(seed, missing));

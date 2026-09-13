@@ -44,6 +44,9 @@ export function inMemorySubtrees(
         await stores.workItems.insert(row, index === 0 ? copy.respaced : [], stamp);
         if (row.teamIds !== undefined) {
           const written = await stores.workItems.patch(row.id, { teamIds: row.teamIds }, stamp);
+          // Proof: `rolls back a copied row when its explicit team set is refused`
+          // failed here without this guard: Expected promise that rejects;
+          // Received promise that resolved: Promise { <resolved> }.
           if (!written.ok)
             throw new Error(`cannot restore team set for ${row.id}: ${written.reason}`);
         }

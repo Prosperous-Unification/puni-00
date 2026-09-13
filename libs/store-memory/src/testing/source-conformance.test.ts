@@ -1584,6 +1584,8 @@ const subtreeDependencyBackingFault = defineFault({
         expect(await isolated.listByProject(DETERMINISTIC_SEED.projectIds[0])).toEqual([
           ...copy.dependencies,
         ]);
+        // Proof: removing only this complete-state prerequisite changed the
+        // successful-incomplete dependency proof from phase-failed to observed.
         assertCompleteStateAlternative(
           await readSubtreePublicState(readersOf(source), DETERMINISTIC_SEED.projectIds[0]),
           DETERMINISTIC_SEED,
@@ -1615,6 +1617,8 @@ const subtreeRemovedMeasureFault = defineFault({
         await source.insertSubtree({ ...copy, removedMeasures: pairWide }, stamp);
         const [firstItemId, removalItemId] = DETERMINISTIC_SEED.workItemIds[0];
         const [devStepId, qaStepId] = DETERMINISTIC_SEED.stepIds[0];
+        // Proof: removing only this complete-state prerequisite changed the
+        // successful-incomplete measure proof from phase-failed to observed.
         assertCompleteStateAlternative(
           await readSubtreePublicState(readersOf(source), DETERMINISTIC_SEED.projectIds[0]),
           DETERMINISTIC_SEED,
@@ -1767,6 +1771,29 @@ interface MemoryLifecycleProbe {
 interface SubtreePrewriteProbe extends MemoryLifecycleProbe {
   attempts: number;
   state: Awaited<ReturnType<typeof readSubtreePublicState>>[] | null;
+}
+
+interface SubtreeIncompleteProbe extends MemoryLifecycleProbe {
+  attempts: number;
+  state: Awaited<ReturnType<typeof readSubtreePublicState>> | null;
+}
+
+function omitCopiedProgress(source: MemorySource, probe: SubtreeIncompleteProbe): MemorySource {
+  return {
+    ...source,
+    async insertSubtree(copy, stamp) {
+      probe.attempts += 1;
+      await source.insertSubtree({ ...copy, progress: [] }, stamp);
+      probe.state = await readSubtreePublicState(
+        readersOf(source),
+        DETERMINISTIC_SEED.projectIds[0],
+      );
+    },
+    async close() {
+      probe.closeCalls += 1;
+      await source.close();
+    },
+  };
 }
 
 function rejectSubtreeBeforeWrite(
@@ -2006,6 +2033,52 @@ describe('memory existing source conformance', () => {
     ]);
   });
 
+  it('refuses successful incomplete complete-copy prerequisites in memory', async () => {
+    const dependencyProbe: SubtreeIncompleteProbe = { attempts: 0, closeCalls: 0, state: null };
+    const measureProbe: SubtreeIncompleteProbe = { attempts: 0, closeCalls: 0, state: null };
+    const [dependency, measure] = await Promise.all([
+      proveFault(subtreeDependencyBackingFault, openConformanceMemorySource, (source) =>
+        omitCopiedProgress(source, dependencyProbe),
+      ),
+      proveFault(subtreeRemovedMeasureFault, openConformanceMemorySource, (source) =>
+        omitCopiedProgress(source, measureProbe),
+      ),
+    ]);
+
+    // Proof: deleting only the two owning assertCompleteStateAlternative calls
+    // changed both real successful-incomplete runs from phase-failed to observed.
+    expect([dependency.kind, measure.kind]).toEqual(['phase-failed', 'phase-failed']);
+    if (dependency.kind !== 'phase-failed' || measure.kind !== 'phase-failed') {
+      throw new Error('successful incomplete memory insert reached a proof phase');
+    }
+    expect([dependency.failure, measure.failure]).toEqual([
+      'fault did not reach subtrees.insertSubtree:complete-copy:dependencies',
+      'fault did not reach subtrees.insertSubtree:complete-copy:removed-measure',
+    ]);
+    expect([dependencyProbe.attempts, measureProbe.attempts]).toEqual([1, 1]);
+    expect([dependencyProbe.closeCalls, measureProbe.closeCalls]).toEqual([1, 1]);
+    if (dependencyProbe.state === null || measureProbe.state === null) {
+      throw new Error('successful incomplete memory insertion was not publicly observed');
+    }
+    const missingProgress = ['subtree-copy-root\u0000step-a-dev'];
+    assertCompleteStateAlternative(dependencyProbe.state, DETERMINISTIC_SEED, [
+      {
+        dependencyIds: ['subtree-copy-dependency'],
+        progressKeys: missingProgress,
+      },
+    ]);
+    assertCompleteStateAlternative(measureProbe.state, DETERMINISTIC_SEED, [
+      {
+        measureKeys: [
+          'work-a-two\u0000step-a-dev\u0000token_actual',
+          'work-a-two\u0000step-a-dev\u0000hours_actual',
+          'work-a-one\u0000step-a-qa\u0000token_estimate',
+        ],
+        progressKeys: missingProgress,
+      },
+    ]);
+  });
+
   it('refuses a late proof whose populated estimate prerequisite is missing', async () => {
     const probe = { attempts: 0, closeCalls: 0 };
     const proof = await proveFault(
@@ -2023,7 +2096,7 @@ describe('memory existing source conformance', () => {
       },
     );
 
-    // Proof: snapshotting without assertSeedState returned assertion-passed;
+    // Proof: snapshotting without assertSeedState returned observed;
     // the repaired case refuses the proof before any subtree write can reach.
     expect(proof.kind).toBe('phase-failed');
     if (proof.kind !== 'phase-failed') throw new Error(`expected phase failure, got ${proof.kind}`);
@@ -2061,8 +2134,8 @@ describe('memory existing source conformance', () => {
       const write = source.insertSubtree(refused, DETERMINISTIC_SEED.stamps[1]);
       expect(write).rejects.toThrow('cannot restore team set for subtree-copy-root: unknown_team');
       await write.catch(() => undefined);
-      // Proof: removing only the refusal guard made this write resolve and
-      // commit both rows, with the root retaining the wrong `["team-a"]` set.
+      // The guard-removal proof fails at the rejection above. These assertions
+      // cover the guarded operation's complete rollback.
       expect(
         await Promise.all(
           DETERMINISTIC_SEED.projectIds.map((projectId) =>

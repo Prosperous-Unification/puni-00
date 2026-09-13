@@ -1285,11 +1285,11 @@ in-memory dependency store while the ordinary staged source omits it. The
 SQLite equivalent persists the edge in a separate adapter-owned temporary
 table while the ordinary dependency reader omits it. Both fail the shared
 complete-state assertion on the exact missing `subtree-copy-dependency` edge.
-The wrong-key faults pass the real insertion path a token-estimate removal in
-place of the token-actual key, and both fail on the exact surviving
-token_actual/value-102/recordedAt-132 row. Disabling both corruptions produced
-two `assertion-passed` proofs on each source and failed the permanent proof
-test with `Expected -2 / Received +2`.
+The pair-wide faults pass all three metrics for every selected removal pair
+through the real insertion path. Both fail on the exact unrequested surviving
+token_actual/value-102/recordedAt-132 row. Disabling the dependency isolation
+or pair-wide deletion changes only its corresponding proof to
+`assertion-passed`.
 
 The late-failure case snapshots both projects across every affected public
 store. Memory deliberately calls the real committed-state subtree repository
@@ -1324,7 +1324,8 @@ Both shared late-failure runs now assert the complete seeded A/B state before
 arming or snapshotting. Removing the seeded estimate makes the permanent memory
 and SQLite prerequisite proofs `phase-failed` before insertion (`attempts: 0`)
 with complete A/B state and one close. Removing the shared prerequisite instead
-changed the proof to `assertion-passed`.
+changed the proof to `observed` after the rollback-disabled insert leaked its
+copy.
 
 The complete-copy dependency faults reach only after the real base copy, the
 adapter-owned isolated-edge persistence, and an exact complete public-state
@@ -1389,3 +1390,46 @@ h2puni SHA gate were skipped because this repair is scoped to the three
 relevant project targets and no commit was authorized. Commit, push, merge,
 archive, and deploy were not performed. Task 4.3 remains unchecked pending
 Astra rereview; Task 5.1 remains untouched.
+
+### Final Task 4.3 / Epic 4 prerequisite repair
+
+Both complete-copy fault decorators now have a permanent successful-incomplete
+negative on each real adapter. The test wrapper sits beneath the canonical
+dependency-isolation or pair-wide-measure decorator, calls the real insertion
+once with only copied progress omitted, and captures the complete committed
+public state. That state includes the copied rows and every other expected
+satellite while lacking the exact `subtree-copy-root` / `step-a-dev` progress
+record plus the canonical missing dependency or measure records. Cleanup runs
+once for every fixture.
+
+With the complete-state prerequisite present, all four proofs are
+`phase-failed` with the exact named phase not reached. Removing only the two
+memory and two SQLite `assertCompleteStateAlternative` calls changed each
+adapter's result from `[phase-failed, phase-failed]` to `[observed, observed]`:
+both focused tests failed with `Expected - 2 / Received + 2`. The adjacent
+guard comments record this observed mutant output.
+
+The late missing-estimate evidence now records the actual reversal: removing
+only `assertSeedState` produces `observed` on both adapters after the
+rollback-disabled write leaks state. The shared measure proof describes the
+current pair-wide deletion and its complete unrequested sibling metric. The
+memory copied-team refusal guard now carries its own adjacent proof naming the
+permanent test and `Expected promise that rejects / Received promise that
+resolved`; the later rollback assertions do not claim to execute in that
+mutant. `SubtreeRepository` JSDoc is again immediately attached to the class.
+
+Fresh restored evidence:
+
+- Focused repaired proofs: memory 6/0/188; SQLite 4/0/183; SQLite public mutant
+  boundary 1/0/2.
+- Current source/adapter files: memory 50/0/2,444 across three files; SQLite
+  77/0/3,201 across three files.
+- Uncached targets: conformance 29/0/48; store-memory 56/0/2,462;
+  store-sqlite 678/0/5,099 across 60 files.
+- All six uncached lint/typecheck targets passed for conformance, store-memory,
+  and store-sqlite.
+
+Nx used its in-process plugin mode because the sandbox denied daemon sockets.
+Full workspace, build, browser, deploy, and the h2puni SHA gate remain skipped
+because this is the assigned three-project repair and no commit was authorized.
+Task 4.3 remains unchecked pending final Astra review; Task 5.1 is untouched.
