@@ -424,6 +424,7 @@ function runAdapter(
   selection: 'working' | 'staged' | 'committed',
   paths: ReturnType<typeof fixture>,
   overrides: Record<string, string> = {},
+  cwd?: string,
 ): ReturnType<typeof Bun.spawnSync> {
   const environment = Object.fromEntries(
     Object.entries({
@@ -434,6 +435,7 @@ function runAdapter(
     }),
   );
   return Bun.spawnSync(['bash', adapterPath, selection, paths.repository, 'abc123'], {
+    cwd,
     env: environment,
     stderr: 'pipe',
     stdout: 'pipe',
@@ -586,8 +588,23 @@ describe('tool-wiki production entrypoint adapter', () => {
     });
     selectActivation(paths.activationRoot, prepared.directory, prepared.identity);
 
-    const invocation = runAdapter('committed', paths, { TOOL_WIKI_REQUIRE_CERTIFIED: '1' });
+    const preloadMarker = join(paths.directory, 'candidate-preload-ran');
+    write(join(paths.repository, 'bunfig.toml'), 'preload = ["./preload.ts"]\n');
+    write(
+      join(paths.repository, 'preload.ts'),
+      `await Bun.write(${JSON.stringify(preloadMarker)}, 'candidate ran\\n');\nprocess.exit(71);\n`,
+    );
+
+    const invocation = runAdapter(
+      'committed',
+      paths,
+      { TOOL_WIKI_REQUIRE_CERTIFIED: '1' },
+      paths.repository,
+    );
     expect(invocation.exitCode, streamText(invocation.stderr, 'adapter stderr')).toBe(0);
+    // Proof: required selected-package admission ran both inline trust checks from the candidate
+    // cwd and executed its bunfig preload until each inline Bun invocation pinned trusted ground.
+    expect(existsSync(preloadMarker)).toBe(false);
     expect(JSON.parse(streamText(invocation.stdout, 'adapter stdout'))).toMatchObject({
       accepted: true,
       certified: true,

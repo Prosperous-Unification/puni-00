@@ -53,7 +53,8 @@ esac
 selection_descriptor="$trusted_root/selected.json"
 if [[ -e "$selection_descriptor" ]]; then
   if ! selected=$(
-    env -i PATH="$trusted_path" SELECTION_DESCRIPTOR="$selection_descriptor" "$bun_path" -e '
+    env -i PATH="$trusted_path" SELECTION_DESCRIPTOR="$selection_descriptor" \
+      "$bun_path" --cwd "$trusted_root" --no-env-file -e '
       const bytes = await Bun.file(Bun.env.SELECTION_DESCRIPTOR).text();
       const value = JSON.parse(bytes);
       const keys = Object.keys(value).sort();
@@ -191,7 +192,8 @@ cat -- "$report_path"
 if [[ "$status" == 0 && "$required" == 1 ]]; then
   # Proof: the workflow-equivalent test returned exit 0 with output lacking a certified enforce
   # decision until required admission decoded and checked the trusted validator's actual report.
-  if ! env -i PATH="$trusted_path" REPORT_PATH="$report_path" "$bun_path" -e '
+  if ! env -i PATH="$trusted_path" REPORT_PATH="$report_path" \
+    "$bun_path" --cwd "$trusted_root" --no-env-file -e '
     const report = JSON.parse(await Bun.file(Bun.env.REPORT_PATH).text());
     if (report?.schemaVersion !== 1 || report?.mode !== "enforce" ||
         report?.trustProvenance !== "ci-preselected" || report?.accepted !== true ||
