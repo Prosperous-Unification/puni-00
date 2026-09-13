@@ -556,26 +556,19 @@ function publicDeclaration(
   return { ...selector, identity: hashCanonical(selector) };
 }
 
-function readCompilerIdentity(): ExtractorIdentity {
-  let packagePath: string;
-  try {
-    packagePath = Bun.resolveSync('typescript/package.json', import.meta.dir);
-  } catch (cause) {
-    const detail = cause instanceof Error ? cause.message : String(cause);
-    throw new Error(`TypeScript compiler unavailable: ${detail}`, { cause });
-  }
+function readCompilerIdentity(workspace: string): ExtractorIdentity {
+  if (ts.version.length === 0) throw new Error('TypeScript compiler version unavailable');
   let packageBytes: Uint8Array;
   try {
-    packageBytes = readFileSync(packagePath);
+    packageBytes = readFileSync(resolve(workspace, 'node_modules/typescript/package.json'));
   } catch (cause) {
-    const detail = cause instanceof Error ? cause.message : String(cause);
-    throw new Error(`TypeScript compiler identity unreadable: ${detail}`, { cause });
+    throw new Error('trusted TypeScript compiler identity is unreadable', { cause });
   }
-  if (ts.version.length === 0) throw new Error('TypeScript compiler version unavailable');
   return {
     extractorId: 'typescript.compiler',
     version: `v${ts.version}`,
     blob: hashCanonical({
+      implementation: 'bundled-typescript',
       packageBytes: Buffer.from(packageBytes).toString('base64'),
       version: ts.version,
     }),
@@ -587,7 +580,7 @@ export function extractTypeScriptRelationships(
   workspace: string,
   request: RelationshipRequest['typescript'],
 ): { extractor: ExtractorIdentity; relationships: TypeScriptRelationships } {
-  const extractor = readCompilerIdentity();
+  const extractor = readCompilerIdentity(workspace);
   const projects = request.configPaths.map((configPath) => parseProject(workspace, configPath));
   const importsByIdentity = new Map<string, TypeScriptImportSelector>();
   for (const project of projects) {

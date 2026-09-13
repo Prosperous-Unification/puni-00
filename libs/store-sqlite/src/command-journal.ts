@@ -10,6 +10,7 @@ import { and, asc, eq, lt, sql } from 'drizzle-orm';
 
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
+import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
 import { commandJournal, type CommandJournalRow, planEvent } from './schema';
 
 /**
@@ -34,6 +35,7 @@ export class CommandJournalRepository implements CommandJournalStore {
   constructor(
     private readonly db: Drizzle,
     private readonly gate: Gate,
+    private readonly lateWrite: SqliteLateWriteSeam = inertSqliteLateWriteSeam,
   ) {}
 
   /**
@@ -121,6 +123,7 @@ export class CommandJournalRepository implements CommandJournalStore {
             createdAt: event.createdAt,
           })
           .run();
+        this.lateWrite.reach('journal-history-insert');
       });
     });
   }

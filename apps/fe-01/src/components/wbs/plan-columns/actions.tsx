@@ -70,7 +70,11 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
                   id: 'unfreeze',
                   label: 'Unfreeze',
                   run: () => {
-                    void live.current.run(() => live.current.api.unfreezeWorkItem(row.original.id));
+                    void live.current.run((write) =>
+                      write.perform(['tree'], () =>
+                        live.current.api.unfreezeWorkItem(row.original.id),
+                      ),
+                    );
                   },
                 },
               ]),

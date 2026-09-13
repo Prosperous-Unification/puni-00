@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test';
 
-import { createProject } from './create-project';
+import { openSeededPlan, seedPlan as seedRecipe } from './plan-fixture';
 
 /**
  * The plan as one surface, measured by a browser.
@@ -63,36 +63,24 @@ const SHORT_PLAN = 3;
  */
 const TALL_PLAN = 23;
 
-/** Signs up a throwaway account and opens a project with `rows` work items. */
-async function seedPlan(page: Page, _account: string, rows: number): Promise<void> {
-  await page.goto('/');
-  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+const RUN_TOKEN = String(Date.now());
 
-  await createProject(page);
+/** Authors static prerequisites, then opens them through the real project picker. */
+async function seedPlan(page: Page, rows: number): Promise<void> {
+  const info = test.info();
+  const recipeRows = Array.from({ length: rows }, (_, index) => ({
+    ref: `row-${String(index)}`,
+    name: `Row ${String(index + 1)}`,
+    ...(index === 0 ? {} : { afterRef: `row-${String(index - 1)}` }),
+    ...(index === 0 ? { estimates: { Dev: { optimistic: 2, realistic: 4, pessimistic: 6 } } } : {}),
+  }));
+  const seeded = await seedRecipe(
+    page,
+    { name: 'Plan surface', rows: recipeRows },
+    { run: RUN_TOKEN, worker: info.workerIndex, test: info.title },
+  );
+  await openSeededPlan(page, seeded);
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
-
-  const addRow = page.getByRole('button', { name: 'Add work item' });
-  for (let added = 0; added < rows; added += 1) {
-    const number = String((added + 1) * 10).padStart(3, '0');
-    await addRow.click();
-    await expect(page.getByLabel(`Name of ${number}`)).toBeVisible();
-  }
-  // One estimate, so the chart has a mark on it as well as rows. A chart of
-  // nothing but labels would still carry every measurement below, and it would
-  // also be a chart nobody would ever have opened.
-  const estimate = page.getByLabel('Dev estimate for 010');
-  await estimate.fill('2/4/6');
-  await estimate.blur();
-  // `toHaveValue` reads the box's own value, which `fill` set synchronously —
-  // it says nothing about the blur-commit reaching be-01 or the plan coming
-  // back. The folded figure is drawn from the *fetched* plan, so block on the
-  // persisted estimate: the card the folded cell opens reads 'No estimate yet'
-  // until that round trip lands, and 'optimistic 2' once it has. (TASK-145,
-  // hover-card-estimate-race sibling seed)
-  await estimate.locator('..').hover();
-  await expect(page.locator('[role="tooltip"]').first()).toContainText('optimistic 2');
-  await page.mouse.move(0, 0);
-  await expect(page.locator('[role="tooltip"]')).toHaveCount(0);
 }
 
 /** Opens the chart and waits until it has drawn the plan's rows. */
@@ -238,13 +226,6 @@ async function wheelOver(page: Page, selector: string, downBy: number): Promise<
   );
 }
 
-/** The account this test registered, unique per run and per case. */
-let signedInAs = '';
-
-test.beforeEach(() => {
-  signedInAs = 'local-dev';
-});
-
 test.describe('the plan and its chart as one surface', () => {
   /**
    * **This case asserted the opposite rule until 2026-08-30, and Dany reversed
@@ -276,7 +257,7 @@ test.describe('the plan and its chart as one surface', () => {
    */
   test('ends the chart at the window’s bottom however short the plan is', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await seedPlan(page, signedInAs, SHORT_PLAN);
+    await seedPlan(page, SHORT_PLAN);
     await openTheChart(page, SHORT_PLAN);
     const measured = await measureSurface(page);
 
@@ -290,8 +271,8 @@ test.describe('the plan and its chart as one surface', () => {
     // `NEARLY`, matching the tall-plan case below — the two now assert one rule
     // at both ends of the fixture range instead of opposite ones.
     //
-    // Proof: `GANTT_DOCK_SLACK` deleted from `table-frame.ts`, watched failing
-    // on `the column stops 528px short of the window`; watched 2026-08-30.
+    // Proof: with the API fixture on 2026-09-13, changing
+    // `GANTT_DOCK_SLACK.flex` to `0 0 0` left 323px below the chart.
     expect(
       measured.belowChart,
       `the column stops ${String(Math.round(measured.belowChart))}px short of the window`,
@@ -318,12 +299,14 @@ test.describe('the plan and its chart as one surface', () => {
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await seedPlan(page, signedInAs, TALL_PLAN);
+    await seedPlan(page, TALL_PLAN);
     await openTheChart(page, TALL_PLAN);
     const measured = await measureSurface(page);
 
     // The half the shrink keeps: a plan past the remainder still gets the whole
     // remainder, and the frame is still the thing that scrolls.
+    // Proof: with the API fixture on 2026-09-13, making TABLE_FRAME
+    // non-shrinking left zero rows past the frame.
     expect(
       measured.rowsPastTheFrame,
       'the seeded plan is shorter than the frame, so nothing here is being shrunk',
@@ -350,7 +333,7 @@ test.describe('the plan and its chart as one surface', () => {
 
   test('takes the chart to the row the table was scrolled to', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await seedPlan(page, signedInAs, TALL_PLAN);
+    await seedPlan(page, TALL_PLAN);
     await openTheChart(page, TALL_PLAN);
 
     const atRest = await measureAgreement(page);
@@ -362,6 +345,8 @@ test.describe('the plan and its chart as one surface', () => {
     const scrolled = await measureAgreement(page);
 
     expect(scrolled.index, 'the wheel did not scroll the table').toBeGreaterThan(0);
+    // Proof: with the API fixture on 2026-09-13, suppressing the real frame
+    // scroll listener left the faces 8.554 rows apart.
     expect(
       Math.abs(scrolled.cutInChart - scrolled.cutInTable),
       `the table is showing ${scrolled.id} cut by ${scrolled.cutInTable.toFixed(3)} of a row and the chart by ${scrolled.cutInChart.toFixed(3)}`,
@@ -370,7 +355,7 @@ test.describe('the plan and its chart as one surface', () => {
 
   test('takes the table to the row the chart was scrolled to', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await seedPlan(page, signedInAs, TALL_PLAN);
+    await seedPlan(page, TALL_PLAN);
     await openTheChart(page, TALL_PLAN);
 
     expect((await measureAgreement(page)).index).toBe(0);
@@ -379,6 +364,8 @@ test.describe('the plan and its chart as one surface', () => {
 
     // Neither face is the master: a wheel over the chart is as much a scroll of
     // the plan as a wheel over the table.
+    // Proof: with the API fixture on 2026-09-13, suppressing the real panel
+    // scroll listener left the table at row zero.
     expect(scrolled.index, 'the wheel did not scroll the chart').toBeGreaterThan(0);
     expect(Math.abs(scrolled.cutInChart - scrolled.cutInTable)).toBeLessThanOrEqual(A_ROW_APART);
   });
@@ -387,7 +374,7 @@ test.describe('the plan and its chart as one surface', () => {
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await seedPlan(page, signedInAs, TALL_PLAN);
+    await seedPlan(page, TALL_PLAN);
     await openTheChart(page, TALL_PLAN);
 
     // Ctrl+J is the plan's own "next row, same column", and a browser scrolls
@@ -404,6 +391,8 @@ test.describe('the plan and its chart as one surface', () => {
 
     // The walk reached a cell the frame had to scroll for, or this says nothing
     // about scrolling.
+    // Proof: with the API fixture on 2026-09-13, mapping Ctrl+J to no command
+    // left the frame at row zero.
     expect(walked.index, 'the keyboard walk never scrolled the frame').toBeGreaterThan(0);
     expect(Math.abs(walked.cutInChart - walked.cutInTable)).toBeLessThanOrEqual(A_ROW_APART);
     // And the cell it walked to still has the focus. A link that scrolled by
@@ -414,7 +403,7 @@ test.describe('the plan and its chart as one surface', () => {
 
   test('never moves either face sideways for the other', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await seedPlan(page, signedInAs, TALL_PLAN);
+    await seedPlan(page, TALL_PLAN);
     await openTheChart(page, TALL_PLAN);
 
     // An unfolded step is what makes the frame scroll sideways at all
@@ -433,6 +422,8 @@ test.describe('the plan and its chart as one surface', () => {
     // sideways range at this width, and a browser clamps. What matters is that
     // it is somewhere sideways and stays there.
     const sideways = await measureAgreement(page);
+    // Proof: with the API fixture on 2026-09-13, copying the follower's
+    // horizontal offset into the driver reset the real frame to zero.
     expect(sideways.frameScrollLeft, 'the frame did not scroll sideways at all').toBeGreaterThan(0);
 
     await wheelOver(page, '[data-table-frame]', 8 * 28);

@@ -17,6 +17,7 @@
     },
     "test": {
       "executor": "nx:run-commands",
+      "cache": false,
       "inputs": ["default", "^production"],
       "options": {
         "command": "bun test src --coverage --coverage-reporter=lcov",
@@ -24,8 +25,19 @@
       },
       "outputs": ["{projectRoot}/coverage"]
     },
+    "test:conformance": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^production"],
+      "options": {
+        "command": "bun test src/testing/source-conformance.test.ts",
+        "cwd": "libs/store-memory",
+        "forwardAllArgs": false
+      }
+    },
     "test:unit": {
       "executor": "nx:run-commands",
+      "cache": false,
       "inputs": ["default", "^production"],
       "options": {
         "command": "bun test src --coverage --coverage-reporter=lcov",

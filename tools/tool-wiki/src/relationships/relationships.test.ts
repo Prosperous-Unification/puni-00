@@ -1,12 +1,4 @@
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
@@ -68,6 +60,9 @@ interface ExtractorIdentity {
 
 const pathsToRemove: string[] = [];
 const cliPath = join(import.meta.dir, '..', 'cli.ts');
+const trustedNodeModules = dirname(
+  dirname(Bun.resolveSync('typescript/package.json', import.meta.dir)),
+);
 const shapesDeclaration =
   "/// <reference path='./globals.d.ts' />\n/// <reference types='node' />\n/// <reference lib='es2022' />\nimport type { Hidden } from './hidden';\nexport interface Declared { label: string; hidden: Hidden; global: GlobalHidden }\n";
 
@@ -237,10 +232,13 @@ function invoke(
       requestPath,
     ],
     {
-      // The trusted caller starts outside the candidate; the production negative covers the
-      // extractor's nested runtime crossing into candidate graph input.
+      // The trusted caller starts outside the candidate so candidate Bun configuration cannot load.
       cwd: import.meta.dir,
-      env: env === undefined ? process.env : { ...process.env, ...env },
+      env: {
+        ...process.env,
+        TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
+        ...env,
+      },
       stderr: 'pipe',
       stdout: 'pipe',
     },
@@ -266,118 +264,6 @@ afterEach(() => {
 });
 
 describe('relationship extraction production CLI', () => {
-  test('refuses candidate Nx plugins before their module can execute', () => {
-    const repository = createRepository();
-    const sentinel = join(repository, '..', `${basename(repository)}.plugin-executed`);
-    pathsToRemove.push(sentinel);
-    write(
-      repository,
-      'tools/candidate-plugin.cjs',
-      "require('node:fs').writeFileSync(process.env.WBS_WIKI_PLUGIN_SENTINEL, 'executed');\nmodule.exports = { name: 'candidate-plugin', createNodesV2: ['project.json', () => []] };\n",
-    );
-    write(
-      repository,
-      'nx.json',
-      `${JSON.stringify({ plugins: ['./tools/candidate-plugin.cjs'], useInferencePlugins: false })}\n`,
-    );
-    const revision = commitAll(repository, 'candidate Nx plugin');
-
-    const invocation = invoke(repository, revision, writeRequest(repository), {
-      WBS_WIKI_PLUGIN_SENTINEL: sentinel,
-    });
-
-    expect(existsSync(sentinel)).toBe(false);
-    expect(invocation.exitCode).toBe(1);
-    expect(output(invocation)).toContain('candidate Nx plugins are unsupported');
-  });
-
-  test('refuses a candidate-local Nx wrapper before it can execute', () => {
-    const repository = createRepository();
-    const sentinel = join(repository, '..', `${basename(repository)}.local-nx-executed`);
-    pathsToRemove.push(sentinel);
-    write(
-      repository,
-      '.nx/installation/node_modules/nx/package.json',
-      `${JSON.stringify({ name: 'nx', version: '23.2.0' })}\n`,
-    );
-    write(repository, '.nx/installation/node_modules/nx/bin/nx.js', 'module.exports = {};\n');
-    write(
-      repository,
-      '.nx/nxw.js',
-      "require('node:fs').writeFileSync(process.env.WBS_WIKI_NX_SENTINEL, 'executed');\n",
-    );
-    const revision = commitAll(repository, 'candidate-local Nx wrapper');
-
-    const invocation = invoke(repository, revision, writeRequest(repository), {
-      WBS_WIKI_NX_SENTINEL: sentinel,
-    });
-
-    expect(existsSync(sentinel)).toBe(false);
-    expect(invocation.exitCode).toBe(1);
-    expect(output(invocation)).toContain('candidate-local Nx installation is unsupported');
-  });
-
-  test('uses trusted Nx when candidate root package metadata claims its package name', () => {
-    const repository = createRepository();
-    const requestPath = writeRequest(repository);
-    report(invoke(repository, commitAll(repository, 'declarative Nx baseline'), requestPath));
-    const sentinel = join(repository, '..', `${basename(repository)}.self-reference-executed`);
-    pathsToRemove.push(sentinel);
-    write(
-      repository,
-      'package.json',
-      `${JSON.stringify({
-        name: 'nx',
-        version: '23.2.0',
-        private: true,
-        type: 'commonjs',
-        exports: {
-          './bin/nx.js': './candidate-nx.js',
-          './package.json': './package.json',
-        },
-      })}\n`,
-    );
-    write(
-      repository,
-      'candidate-nx.js',
-      `require('node:fs').writeFileSync(${JSON.stringify(sentinel)}, 'executed');\n`,
-    );
-    const revision = commitAll(repository, 'candidate package self-reference');
-
-    const invocation = invoke(repository, revision, requestPath);
-    expect(existsSync(sentinel)).toBe(false);
-    const extracted = report(invocation);
-    expect(extracted.nx.projects.map(({ name }) => name)).toEqual([
-      'consumer',
-      'minimal',
-      'provider',
-    ]);
-  }, 30_000);
-
-  test('starts trusted Nx before entering a candidate with a Bun preload', () => {
-    const repository = createRepository();
-    const requestPath = writeRequest(repository);
-    report(invoke(repository, commitAll(repository, 'declarative Nx baseline'), requestPath));
-    const sentinel = join(repository, '..', `${basename(repository)}.bun-preload-executed`);
-    pathsToRemove.push(sentinel);
-    write(repository, 'bunfig.toml', 'preload = ["./candidate-preload.ts"]\n');
-    write(
-      repository,
-      'candidate-preload.ts',
-      `await Bun.write(${JSON.stringify(sentinel)}, 'executed');\n`,
-    );
-    const revision = commitAll(repository, 'candidate Bun preload');
-
-    const invocation = invoke(repository, revision, requestPath);
-    expect(existsSync(sentinel)).toBe(false);
-    const extracted = report(invocation);
-    expect(extracted.nx.projects.map(({ name }) => name)).toEqual([
-      'consumer',
-      'minimal',
-      'provider',
-    ]);
-  }, 30_000);
-
   test('strictly versions relationship requests and rejects ambiguous selector sets', () => {
     const repository = createRepository();
     const revision = commitAll(repository, 'strict request boundary');
@@ -456,13 +342,10 @@ describe('relationship extraction production CLI', () => {
     expect(extracted.schemaVersion).toBe(1);
     expect(extracted.selection.kind).toBe('committed');
     expect(extracted.extractors.map((extractor) => extractor.extractorId)).toEqual([
-      'nx.project-graph',
+      'nx.project-json',
       'typescript.compiler',
     ]);
-    expect(extracted.extractors.map((extractor) => extractor.version)).toEqual([
-      'v23.2.0',
-      'v6.0.3',
-    ]);
+    expect(extracted.extractors.map((extractor) => extractor.version)).toEqual(['v1', 'v6.0.3']);
     expect(extracted.extractors.every((extractor) => /^[0-9a-f]{64}$/.test(extractor.blob))).toBe(
       true,
     );
@@ -1053,49 +936,106 @@ describe('relationship extraction production CLI', () => {
     }
   }, 15_000);
 
-  test.each([
-    ['missing', 'process.exit(0);', 'output missing'],
-    [
-      'unreadable',
-      "writeFileSync(process.argv.at(-1)?.replace('--file=', '') ?? '', '{}'); chmodSync(process.argv.at(-1)?.replace('--file=', '') ?? '', 0o000);",
-      'output unreadable',
-    ],
-    [
-      'malformed',
-      "writeFileSync(process.argv.at(-1)?.replace('--file=', '') ?? '', '{ bad');",
-      'output malformed',
-    ],
-    [
-      'unresolved',
-      "process.stderr.write('injected graph failure'); process.exit(17);",
-      'unresolved',
-    ],
-  ] as const)(
-    'refuses %s Nx graph output distinctly',
-    // Proof: the former four-invocation aggregate timed out under one-core contention at
-    // 15050.70ms; separated cases then exposed the default bound at 5060.08-5065.31ms.
-    (name, action, expected) => {
-      const repository = createRepository();
-      const revision = commitAll(repository, 'Nx boundary');
-      const requestPath = writeRequest(repository);
-      const wrapper = join(
+  test('reads Nx project JSON without executing candidate plugins', () => {
+    const repository = createRepository();
+    const marker = join(dirname(repository), `${basename(repository)}-plugin-ran`);
+    pathsToRemove.push(marker);
+    write(
+      repository,
+      'nx.json',
+      `${JSON.stringify({
+        plugins: ['./candidate-plugin.ts'],
+        targetDefaults: { test: { cache: true, inputs: ['default'], outputs: ['coverage'] } },
+      })}\n`,
+    );
+    write(
+      repository,
+      'candidate-plugin.ts',
+      `await Bun.write(${JSON.stringify(marker)}, 'candidate plugin ran\\n');\nexport default {};\n`,
+    );
+    const extracted = report(
+      invoke(
         repository,
-        '..',
-        `${repository.slice(repository.lastIndexOf('/') + 1)}-${name}.ts`,
-      );
-      pathsToRemove.push(wrapper);
-      writeFileSync(
-        wrapper,
-        `import { chmodSync, writeFileSync } from 'node:fs';\n${action}\n`,
-        'utf8',
-      );
-      chmodSync(wrapper, 0o755);
-      const failed = invoke(repository, revision, requestPath, { WBS_WIKI_NX_CLI: wrapper });
-      expect(failed.exitCode).toBe(1);
-      expect(output(failed)).toContain(`Nx project graph ${expected}`);
-    },
-    10_000,
-  );
+        commitAll(repository, 'candidate plugin is data'),
+        writeRequest(repository),
+      ),
+    );
+
+    expect(existsSync(marker)).toBe(false);
+    expect(
+      extracted.nx.targets.find(
+        ({ project, target }) => project === 'consumer' && target === 'test',
+      )?.configuration,
+    ).toMatchObject({
+      cache: true,
+      inputs: ['default'],
+      outputs: ['coverage'],
+      configurations: {},
+      parallelism: true,
+      options: { command: 'bun test' },
+    });
+  });
+
+  test('the bundled validator resolves tools only from explicitly trusted runtime modules', () => {
+    const repository = createRepository();
+    const revision = commitAll(repository, 'standalone validator input');
+    const requestPath = writeRequest(repository);
+    const bundleDirectory = mkdtempSync(join(tmpdir(), 'tool-wiki-bundled-validator-'));
+    pathsToRemove.push(bundleDirectory);
+    const bundle = join(bundleDirectory, 'validator.mjs');
+    const built = Bun.spawnSync(
+      ['bun', 'build', cliPath, '--target=bun', '--format=esm', `--outfile=${bundle}`],
+      { stderr: 'pipe', stdout: 'pipe' },
+    );
+    expect(built.exitCode, output(built)).toBe(0);
+
+    const invocation = Bun.spawnSync(
+      [
+        process.execPath,
+        'run',
+        '--cwd',
+        bundleDirectory,
+        '--no-env-file',
+        bundle,
+        'extract-relationships',
+        'committed',
+        repository,
+        revision,
+        requestPath,
+      ],
+      {
+        cwd: bundleDirectory,
+        env: {
+          PATH: process.env['PATH'] ?? '',
+          TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
+        },
+        stderr: 'pipe',
+        stdout: 'pipe',
+      },
+    );
+
+    expect(invocation.exitCode, output(invocation)).toBe(0);
+    expect(report(invocation).nx.projects.map(({ name }) => name)).toEqual([
+      'consumer',
+      'minimal',
+      'provider',
+    ]);
+  }, 20_000);
+
+  test('refuses malformed static Nx project data without running candidate code', () => {
+    const repository = createRepository();
+    write(repository, 'packages/provider/project.json', '{ malformed\n');
+    const failed = invoke(
+      repository,
+      commitAll(repository, 'malformed project data'),
+      writeRequest(repository),
+    );
+
+    expect(failed.exitCode).toBe(1);
+    expect(output(failed)).toContain(
+      'Nx project configuration malformed: packages/provider/project.json',
+    );
+  });
 
   test('supports contained symlinks and refuses an effective intermediate-symlink escape', () => {
     const repository = createRepository();
@@ -1119,6 +1059,130 @@ describe('relationship extraction production CLI', () => {
     expect(output(escaped)).not.toContain('TypeScript');
   }, 15_000);
 });
+
+test('reads static Nx configuration without executing candidate plugins', () => {
+  const repository = createRepository();
+  const sentinel = join(repository, '..', `${basename(repository)}.plugin-executed`);
+  pathsToRemove.push(sentinel);
+  write(
+    repository,
+    'tools/candidate-plugin.cjs',
+    "require('node:fs').writeFileSync(process.env.WBS_WIKI_PLUGIN_SENTINEL, 'executed');\nmodule.exports = { name: 'candidate-plugin', createNodesV2: ['project.json', () => []] };\n",
+  );
+  write(
+    repository,
+    'nx.json',
+    `${JSON.stringify({ plugins: ['./tools/candidate-plugin.cjs'], useInferencePlugins: false })}\n`,
+  );
+  const revision = commitAll(repository, 'candidate Nx plugin');
+
+  const invocation = invoke(repository, revision, writeRequest(repository), {
+    WBS_WIKI_PLUGIN_SENTINEL: sentinel,
+  });
+
+  // Proof: executing the configured plugin from the production extractor wrote this sentinel and
+  // failed the assertion before static extraction could report the declared projects.
+  expect(existsSync(sentinel)).toBe(false);
+  expect(report(invocation).nx.projects.map(({ name }) => name)).toEqual([
+    'consumer',
+    'minimal',
+    'provider',
+  ]);
+});
+
+test('reads static Nx configuration without executing a candidate-local wrapper', () => {
+  const repository = createRepository();
+  const sentinel = join(repository, '..', `${basename(repository)}.local-nx-executed`);
+  pathsToRemove.push(sentinel);
+  write(
+    repository,
+    '.nx/installation/node_modules/nx/package.json',
+    `${JSON.stringify({ name: 'nx', version: '23.2.0' })}\n`,
+  );
+  write(repository, '.nx/installation/node_modules/nx/bin/nx.js', 'module.exports = {};\n');
+  write(
+    repository,
+    '.nx/nxw.js',
+    "require('node:fs').writeFileSync(process.env.WBS_WIKI_NX_SENTINEL, 'executed');\n",
+  );
+  const revision = commitAll(repository, 'candidate-local Nx wrapper');
+
+  const invocation = invoke(repository, revision, writeRequest(repository), {
+    WBS_WIKI_NX_SENTINEL: sentinel,
+  });
+
+  // Proof: executing the candidate-local wrapper from the production extractor wrote this sentinel
+  // and failed the assertion before static extraction could report the declared projects.
+  expect(existsSync(sentinel)).toBe(false);
+  expect(report(invocation).nx.projects.map(({ name }) => name)).toEqual([
+    'consumer',
+    'minimal',
+    'provider',
+  ]);
+});
+
+test('uses trusted Nx when candidate root package metadata claims its package name', () => {
+  const repository = createRepository();
+  const requestPath = writeRequest(repository);
+  report(invoke(repository, commitAll(repository, 'declarative Nx baseline'), requestPath));
+  const sentinel = join(repository, '..', `${basename(repository)}.self-reference-executed`);
+  pathsToRemove.push(sentinel);
+  write(
+    repository,
+    'package.json',
+    `${JSON.stringify({
+      name: 'nx',
+      version: '23.2.0',
+      private: true,
+      type: 'commonjs',
+      exports: {
+        './bin/nx.js': './candidate-nx.js',
+        './package.json': './package.json',
+      },
+    })}\n`,
+  );
+  write(
+    repository,
+    'candidate-nx.js',
+    `require('node:fs').writeFileSync(${JSON.stringify(sentinel)}, 'executed');\n`,
+  );
+  const revision = commitAll(repository, 'candidate package self-reference');
+
+  const invocation = invoke(repository, revision, requestPath);
+  expect(existsSync(sentinel)).toBe(false);
+  const extracted = report(invocation);
+  expect(extracted.nx.projects.map(({ name }) => name)).toEqual([
+    'consumer',
+    'minimal',
+    'provider',
+  ]);
+}, 30_000);
+
+test('starts the trusted relationship CLI outside a candidate with a Bun preload', () => {
+  const repository = createRepository();
+  const requestPath = writeRequest(repository);
+  report(invoke(repository, commitAll(repository, 'declarative Nx baseline'), requestPath));
+  const sentinel = join(repository, '..', `${basename(repository)}.bun-preload-executed`);
+  pathsToRemove.push(sentinel);
+  write(repository, 'bunfig.toml', 'preload = ["./candidate-preload.ts"]\n');
+  write(
+    repository,
+    'candidate-preload.ts',
+    `await Bun.write(${JSON.stringify(sentinel)}, 'executed');\n`,
+  );
+  const revision = commitAll(repository, 'candidate Bun preload');
+
+  const invocation = invoke(repository, revision, requestPath);
+  // Proof: starting the production CLI with `cwd: repository` loaded candidate-preload.ts, wrote
+  // this sentinel, and failed the assertion before relationship extraction began.
+  expect(existsSync(sentinel)).toBe(false);
+  const extracted = report(invocation);
+  expect(extracted.nx.projects.map(({ name }) => name)).toEqual([
+    'consumer',
+    'minimal',
+    'provider',
+  ]);
+}, 30_000);
 
 test('stales an implicit ambient declaration used by the public surface', () => {
   const repository = createRepository();

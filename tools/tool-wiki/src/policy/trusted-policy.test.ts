@@ -21,6 +21,9 @@ import { resolveValidatorArtifactPaths } from './trust';
 
 const cliPath = join(import.meta.dir, '..', 'cli.ts');
 const trustPath = join(import.meta.dir, 'trust.ts');
+const trustedNodeModules = realpathSync(
+  dirname(dirname(Bun.resolveSync('typescript/package.json', import.meta.dir))),
+);
 const scratchPaths: string[] = [];
 
 type Mode = 'observe' | 'ratchet' | 'enforce';
@@ -606,7 +609,12 @@ function runLocal(fixture: CandidateFixture, mode: Mode): ReturnType<typeof Bun.
       fixture.bindingPath,
       fixture.evidencePath,
     ],
-    { cwd: import.meta.dir, stderr: 'pipe', stdout: 'pipe' },
+    {
+      cwd: import.meta.dir,
+      env: { ...process.env, TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    },
   );
 }
 
@@ -616,9 +624,12 @@ function runCi(
   extraArguments: string[] = [],
   kind: 'committed' | 'staged' | 'working' = 'committed',
 ): ReturnType<typeof Bun.spawnSync> {
-  const env = { ...process.env };
-  if (bindingPath === null) delete env['TOOL_WIKI_CI_TRUSTED_BINDING'];
-  else env['TOOL_WIKI_CI_TRUSTED_BINDING'] = bindingPath;
+  const env: Record<string, string | undefined> & { TOOL_WIKI_CI_TRUSTED_BINDING?: string } = {
+    ...process.env,
+    TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
+  };
+  if (bindingPath === null) delete env.TOOL_WIKI_CI_TRUSTED_BINDING;
+  else env.TOOL_WIKI_CI_TRUSTED_BINDING = bindingPath;
   return Bun.spawnSync(
     [
       process.execPath,
@@ -1288,7 +1299,7 @@ describe('trusted policy production CLI', () => {
     expect(output).toContain('unknown relationship selector in README.md: selector.does-not-exist');
   });
 
-  test('CI trusted lint refuses candidate Nx plugins without executing them', () => {
+  test('CI trusted lint reads static Nx configuration without executing candidate plugins', () => {
     const fixture = createFixture('enforce');
     const sentinel = join(
       fixture.repository,
@@ -1351,12 +1362,17 @@ describe('trusted policy production CLI', () => {
     if (environmentSentinel === undefined) delete process.env['WBS_WIKI_PLUGIN_SENTINEL'];
     else process.env['WBS_WIKI_PLUGIN_SENTINEL'] = environmentSentinel;
     const output = outputOf(invocation);
+    // Proof: executing the configured plugin from relationship extraction wrote this sentinel and
+    // failed the assertion before trusted lint could accept the static project declarations.
     expect(existsSync(sentinel)).toBe(false);
-    expect(invocation.exitCode, output).toBe(1);
-    expect(output).toContain('candidate Nx plugins are unsupported');
+    expect(invocation.exitCode, output).toBe(0);
+    expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
+      accepted: true,
+      certified: true,
+    });
   }, 15_000);
 
-  test('preserved enforce launcher refuses a candidate-local Nx wrapper before execution', () => {
+  test('preserved enforce launcher ignores a candidate-local Nx wrapper', () => {
     const fixture = createFixture('enforce');
     const sentinel = join(
       fixture.repository,
@@ -1458,6 +1474,7 @@ describe('trusted policy production CLI', () => {
           TMPDIR: runtime,
           TOOL_WIKI_ACTIVATION_ROOT: activation,
           TOOL_WIKI_REQUIRE_CERTIFIED: '1',
+          TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
         },
         stderr: 'pipe',
         stdout: 'pipe',
@@ -1465,9 +1482,14 @@ describe('trusted policy production CLI', () => {
     );
 
     const output = outputOf(invocation);
+    // Proof: executing the candidate-local wrapper from relationship extraction wrote this sentinel
+    // and failed the assertion before trusted lint could accept the static project declarations.
     expect(existsSync(sentinel)).toBe(false);
-    expect(invocation.exitCode, output).toBe(1);
-    expect(output).toContain('candidate-local Nx installation is unsupported');
+    expect(invocation.exitCode, output).toBe(0);
+    expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
+      accepted: true,
+      certified: true,
+    });
   }, 30_000);
 
   test('preserved enforce launcher pins Nx outside candidate package self-reference', () => {
@@ -1576,6 +1598,7 @@ describe('trusted policy production CLI', () => {
           TMPDIR: runtime,
           TOOL_WIKI_ACTIVATION_ROOT: activation,
           TOOL_WIKI_REQUIRE_CERTIFIED: '1',
+          TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
         },
         stderr: 'pipe',
         stdout: 'pipe',
@@ -1685,6 +1708,7 @@ describe('trusted policy production CLI', () => {
           TMPDIR: runtime,
           TOOL_WIKI_ACTIVATION_ROOT: activation,
           TOOL_WIKI_REQUIRE_CERTIFIED: '1',
+          TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
         },
         stderr: 'pipe',
         stdout: 'pipe',
@@ -1885,6 +1909,8 @@ describe('trusted policy production CLI', () => {
     expect(output).toContain('CI trusted binding was not preselected by the caller');
   });
 
+  // This three-process negative control passed alone in 4.629s but crossed the shared suite's
+  // default at 5.005s; the explicit bound preserves the assertions under host load.
   test('binding, policy and validator aliases cannot resolve inside the selected candidate', () => {
     const cases = ['binding', 'policy', 'validator'] as const;
     for (const subject of cases) {
@@ -1919,7 +1945,7 @@ describe('trusted policy production CLI', () => {
       expect(invocation.exitCode, output).toBe(1);
       expect(output).toContain('resolves inside selected candidate');
     }
-  });
+  }, 10_000);
 
   test('trusted authority aliases cannot resolve inside the selected candidate', () => {
     const fixture = createFixture('enforce');

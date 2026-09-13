@@ -228,6 +228,11 @@ export function inMemoryWorkItems(
       // empty set rather than a delete so a later read answers the same either
       // way, which is what `listByProject`'s `?? []` above already means.
       if (wantedServices !== undefined) servicesOf.set(id, [...new Set(wantedServices)]);
+      // A tag set is the same whole-replacement relation as services and types.
+      // Proof: the complete saved-plan capture case patched `tag-a` through the
+      // real store and then failed because its captured work item still had `tagIds: []`.
+      const wantedTags = patch.tagIds;
+      if (wantedTags !== undefined) tagsOf.set(id, [...new Set(wantedTags)]);
       // The type set, whole and deduplicated, only where the patch names the
       // dimension — the real store's write, mirrored, `wantedServices`' line
       // exactly.
