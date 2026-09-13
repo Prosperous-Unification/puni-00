@@ -9098,6 +9098,8 @@ describe('a done bar', () => {
     const label = document.querySelector<HTMLElement>('[data-gantt-bar-label="strip-dev"]');
     if (label === null) throw new Error('the done bar has no label');
     expect(label.style.paddingRight).toBe(`${String(3 + 12 + 3)}px`);
+    // And the words start clear of the corner and the outline.
+    expect(label.style.paddingLeft).toBe('6px');
     expect(bar.getAttribute('aria-label') ?? '').toContain(
       'Done — drawn over what happened, not over the estimate',
     );

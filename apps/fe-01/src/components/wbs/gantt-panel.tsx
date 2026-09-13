@@ -783,6 +783,16 @@ function barClasses(critical: boolean, estimated: boolean, done = false): string
  * follows the font it measures.
  */
 const LABEL_PAD_PX = 3;
+/**
+ * The label's own left pad, wider than {@link LABEL_PAD_PX}: the words start
+ * clear of the bar's rounded corner and its 2px done outline (Dany,
+ * 2026-09-13: "a little more padding - from the left edge of a slice to the
+ * text"). The right pad stays at {@link LABEL_PAD_PX}, and the fit arithmetic
+ * in {@link barText} keeps its symmetric pair — a label that is a few pixels
+ * short of fitting is an ellipsis a few pixels sooner, which is what
+ * `text-ellipsis` is for.
+ */
+const LABEL_PAD_LEFT_PX = 6;
 const LABEL_CHAR_PX = 5;
 
 /**
@@ -2491,7 +2501,7 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
     clip.appendChild(svgRect(barLeft, barTop, width * dayPx, BAR_HEIGHT * ROW_PX, '#000'));
     labelClips.appendChild(clip);
 
-    const left = barLeft + LABEL_PAD_PX;
+    const left = barLeft + LABEL_PAD_LEFT_PX;
     const top = ROW_PX + (bar.rowIndex + BAR_INSET) * ROW_PX + (BAR_HEIGHT * ROW_PX) / 2 + 3;
     const label = svgText(left, top, shown, {
       fontSize: 9,
@@ -4965,7 +4975,7 @@ function GanttChart({
                 width: width * dayPx,
                 height: BAR_HEIGHT * ROW_PX,
                 lineHeight: `${String(BAR_HEIGHT * ROW_PX)}px`,
-                paddingLeft: LABEL_PAD_PX,
+                paddingLeft: LABEL_PAD_LEFT_PX,
                 // A done bar's label stops short of its tick, so the ellipsis
                 // lands before the mark instead of under it (Dany, 2026-09-13:
                 // "on the small slices the checkmark overlaps with text").
