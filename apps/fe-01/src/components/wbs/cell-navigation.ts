@@ -168,8 +168,12 @@ function arrowFor(direction: Direction): string {
  * either end — is the arrows' own behaviour, unchanged and deliberately
  * shared: two implementations of "the next cell that way" would eventually
  * disagree about a collapsed branch.
+ *
+ * Also what `caretOf` answers for the Status button, which holds a glyph and
+ * no text: a box the arrows have nothing to do in reads as this, not as a
+ * caret that is at neither end.
  */
-const NO_TEXT_IN_THE_WAY: Caret = {
+export const NO_TEXT_IN_THE_WAY: Caret = {
   atStart: true,
   atEnd: true,
   hasSelection: false,
