@@ -22,6 +22,7 @@ const PINNED_COMMAND_KINDS = [
   'clearActual',
   'setProgress',
   'clearProgress',
+  'setStatus',
   'setMeasure',
   'clearMeasure',
   'setAssignee',

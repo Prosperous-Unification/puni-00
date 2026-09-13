@@ -123,7 +123,12 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
     subtrees,
   };
   return {
-    service: new AvailableWorkItemService({ clock: testClock, ...stores, broadcast, scheduler }),
+    service: new AvailableWorkItemService({
+      clock: overrides.clock ?? testClock,
+      ...stores,
+      broadcast,
+      scheduler,
+    }),
     scheduler,
     broadcast: broadcast as RecordingBroadcaster,
     stores,
