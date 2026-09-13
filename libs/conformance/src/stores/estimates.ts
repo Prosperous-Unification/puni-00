@@ -8,6 +8,27 @@ const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 } as const;
 /** The original shared estimate cases, retaining their stable case IDs. */
 export function estimateRegistrations(open: OpenCase<'estimates'>): readonly CaseRegistration[] {
   return [
+    storeCase(
+      'estimates',
+      'estimates.listByWorkItems:scope-order',
+      open,
+      async ({ port, seed }) => {
+        const targetId = seed.workItemIds[0][0];
+        const [firstStep, secondStep] = seed.stepIds[0];
+        await port.set(
+          { workItemId: targetId, stepId: secondStep, optimistic: 4, realistic: 5, pessimistic: 6 },
+          seed.stamps[0],
+        );
+        await port.set({ workItemId: targetId, stepId: firstStep, ...DAYS }, seed.stamps[0]);
+        expect(
+          (await port.listByWorkItems(seed.projectIds[0], [targetId])).map(({ stepId }) => stepId),
+        ).toEqual([firstStep, secondStep]);
+        expect(await port.listByWorkItems(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual(
+          [],
+        );
+        expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
+      },
+    ),
     storeCase('estimates', 'estimates.set', open, async ({ port, seed }) => {
       const workItemId = seed.workItemIds[0][0];
       const stepId = seed.stepIds[0][0];

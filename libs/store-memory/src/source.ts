@@ -226,17 +226,18 @@ function bindStores(
       return { ...written, projectIds };
     },
   };
-  const dependencies = inMemoryDependencies([], state.tables.dependencies);
   workItems = inMemoryWorkItems(directory, state.tables.workItems);
-  const estimates = inMemoryEstimates(workItems, state.tables.estimates);
-  const actuals = inMemoryActuals(workItems, state.tables.actuals);
-  const measures = inMemoryMeasures(workItems, state.tables.measures);
-  const progress = inMemoryProgress(workItems, state.tables.progress);
+  const dependencies = inMemoryDependencies([], state.tables.dependencies, workItems);
+  const steps = inMemorySteps([], state.tables.steps);
+  const estimates = inMemoryEstimates(workItems, state.tables.estimates, steps);
+  const actuals = inMemoryActuals(workItems, state.tables.actuals, steps);
+  const measures = inMemoryMeasures(workItems, state.tables.measures, steps);
+  const progress = inMemoryProgress(workItems, state.tables.progress, steps);
   const stores: TransactionalStores = {
     users,
     projects: inMemoryProjects(users, state.tables.projects),
     directory,
-    steps: inMemorySteps([], state.tables.steps),
+    steps,
     workItems,
     estimates,
     actuals,

@@ -58,6 +58,7 @@ export const CASE_MANIFEST = {
   planEvents: ['planEvents.listFor:filters-order', 'planEvents.pruneOlderThan:strict-cutoff'],
   steps: ['steps.add', 'steps.rename', 'steps.rename:unknown'],
   workItems: [
+    'workItems.listByIds:labels-scope',
     'workItems.insert:respace',
     'workItems.patch:refusal-atomic',
     'workItems.move:parent-position',
@@ -65,6 +66,7 @@ export const CASE_MANIFEST = {
     'workItems.setFrozenNumbers:clear',
   ],
   estimates: [
+    'estimates.listByWorkItems:scope-order',
     'estimates.set',
     'estimates.set:replace',
     'estimates.set:unknown_step',
@@ -72,24 +74,28 @@ export const CASE_MANIFEST = {
     'estimates.moveAll:ownership',
   ],
   actuals: [
+    'actuals.listByWorkItems:scope-order',
     'actuals.set:replace',
     'actuals.remove:pair',
     'actuals.moveAll:ownership',
     'actuals.set:unknown_step',
   ],
   measures: [
+    'measures.listByWorkItems:scope-order',
     'measures.set:metric-key',
     'measures.remove:metric-key',
     'measures.moveAll:all-metrics',
     'measures.set:unknown_step',
   ],
   progress: [
+    'progress.listByWorkItems:scope-order',
     'progress.set:replace',
     'progress.remove:absence',
     'progress.moveAll:ownership',
     'progress.set:unknown_step',
   ],
   dependencies: [
+    'dependencies.listByWorkItems:incident-scope',
     'dependencies.add:idempotent-pair',
     'dependencies.remove:pair',
     'dependencies.removeAllFor:touching-set',

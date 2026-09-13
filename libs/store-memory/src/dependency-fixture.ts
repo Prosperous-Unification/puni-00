@@ -1,4 +1,4 @@
-import type { DependencyStore, StoredDependency } from '@wbs/core';
+import type { DependencyStore, StoredDependency, WorkItemStore } from '@wbs/core';
 
 /** The dependency table in an array, for tests whose subject is not SQLite. */
 export interface MemoryDependencyTable {
@@ -14,6 +14,7 @@ export function memoryDependencyTable(
 export function inMemoryDependencies(
   seed: readonly StoredDependency[] = [],
   table: MemoryDependencyTable = memoryDependencyTable(seed),
+  workItems?: WorkItemStore,
 ): DependencyStore & { readonly rows: StoredDependency[] } {
   const { rows } = table;
   /**
@@ -24,6 +25,34 @@ export function inMemoryDependencies(
     rows,
     listByProject: (projectId) =>
       Promise.resolve(rows.filter((row) => row.projectId === projectId)),
+    listByWorkItems: async (projectId, workItemIds) => {
+      const requested = new Set(workItemIds);
+      const incident = rows.filter(
+        (row) =>
+          row.projectId === projectId &&
+          (requested.has(row.predecessorId) || requested.has(row.successorId)),
+      );
+      if (workItems !== undefined && incident.length > 0) {
+        const endpointIds = [
+          ...new Set(
+            incident.flatMap(({ predecessorId, successorId }) => [predecessorId, successorId]),
+          ),
+        ];
+        const admitted = new Set(
+          (await workItems.listByIds(projectId, endpointIds)).map(({ id }) => id),
+        );
+        const malformed = incident.find(
+          ({ predecessorId, successorId }) =>
+            !admitted.has(predecessorId) || !admitted.has(successorId),
+        );
+        if (malformed !== undefined) {
+          throw new Error(
+            `dependency ${malformed.id} has an endpoint outside project ${projectId}`,
+          );
+        }
+      }
+      return incident;
+    },
     add(toAdd, _stamp) {
       // The real one leans on the unique pair; this mirrors it, because a test
       // that could hold the same edge twice would not be modelling the database.

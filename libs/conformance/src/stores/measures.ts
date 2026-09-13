@@ -15,6 +15,35 @@ function byKey(measures: StoredMeasure[]): StoredMeasure[] {
 /** Shared measure-store cases observed only through complete public reads. */
 export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseRegistration[] {
   return [
+    storeCase('measures', 'measures.listByWorkItems:scope-order', open, async ({ port, seed }) => {
+      const targetId = seed.workItemIds[0][0];
+      const [firstStep, secondStep] = seed.stepIds[0];
+      await port.set(
+        {
+          workItemId: targetId,
+          stepId: secondStep,
+          metric: 'token_estimate',
+          value: 2,
+          recordedAt: 2,
+        },
+        seed.stamps[0],
+      );
+      await port.set(
+        {
+          workItemId: targetId,
+          stepId: firstStep,
+          metric: 'token_estimate',
+          value: 1,
+          recordedAt: 1,
+        },
+        seed.stamps[0],
+      );
+      expect(
+        (await port.listByWorkItems(seed.projectIds[0], [targetId])).map(({ stepId }) => stepId),
+      ).toEqual([firstStep, secondStep]);
+      expect(await port.listByWorkItems(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual([]);
+      expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
+    }),
     storeCase('measures', 'measures.set:metric-key', open, async ({ port, readers, seed }) => {
       const [firstId, secondId] = seed.workItemIds[0];
       const [devId, qaId] = seed.stepIds[0];

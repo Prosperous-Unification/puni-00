@@ -191,22 +191,35 @@ export class WorkItemRepository implements WorkItemStore {
    * the key does not read this order.
    */
   async listByProject(projectId: string): Promise<LabelledWorkItem[]> {
+    return this.listRows(projectId);
+  }
+
+  async listByIds(projectId: string, ids: readonly string[]): Promise<LabelledWorkItem[]> {
+    if (ids.length === 0) return [];
+    return this.listRows(projectId, ids);
+  }
+
+  private async listRows(projectId: string, ids?: readonly string[]): Promise<LabelledWorkItem[]> {
+    const withinProject = () =>
+      ids === undefined
+        ? eq(workItem.projectId, projectId)
+        : and(eq(workItem.projectId, projectId), inArray(workItem.id, [...ids]));
     const rows = await this.db
       .select(WORK_ITEM_COLUMNS)
       .from(workItem)
-      .where(eq(workItem.projectId, projectId))
+      .where(withinProject())
       .orderBy(asc(workItem.id));
     const joined = await this.db
       .select({ workItemId: workItemTeam.workItemId, teamId: workItemTeam.teamId })
       .from(workItemTeam)
       .innerJoin(workItem, eq(workItemTeam.workItemId, workItem.id))
-      .where(eq(workItem.projectId, projectId))
+      .where(withinProject())
       .orderBy(asc(workItemTeam.teamId));
     const tagged = await this.db
       .select({ workItemId: workItemTag.workItemId, tagId: workItemTag.tagId })
       .from(workItemTag)
       .innerJoin(workItem, eq(workItemTag.workItemId, workItem.id))
-      .where(eq(workItem.projectId, projectId))
+      .where(withinProject())
       .orderBy(asc(workItemTag.tagId));
     // The third dimension's join, read exactly as the two above it. `service_id`
     // is still on the row this `select` returns and is still ignored here: the
@@ -217,7 +230,7 @@ export class WorkItemRepository implements WorkItemStore {
       .select({ workItemId: workItemService.workItemId, serviceId: workItemService.serviceId })
       .from(workItemService)
       .innerJoin(workItem, eq(workItemService.workItemId, workItem.id))
-      .where(eq(workItem.projectId, projectId))
+      .where(withinProject())
       .orderBy(asc(workItemService.serviceId));
     // The fourth dimension's join, read exactly as the three above it — and the
     // only one whose result needs no walk afterwards. A type does not inherit
@@ -228,7 +241,7 @@ export class WorkItemRepository implements WorkItemStore {
       .select({ workItemId: workItemWorkItemType.workItemId, typeId: workItemWorkItemType.typeId })
       .from(workItemWorkItemType)
       .innerJoin(workItem, eq(workItemWorkItemType.workItemId, workItem.id))
-      .where(eq(workItem.projectId, projectId))
+      .where(withinProject())
       .orderBy(asc(workItemWorkItemType.typeId));
     const teamsOf = new Map<string, string[]>();
     for (const each of joined) {
@@ -259,7 +272,7 @@ export class WorkItemRepository implements WorkItemStore {
       })
       .from(workItemExternalRef)
       .innerJoin(workItem, eq(workItemExternalRef.workItemId, workItem.id))
-      .where(eq(workItem.projectId, projectId))
+      .where(withinProject())
       .orderBy(asc(workItemExternalRef.position));
     const refsOf = new Map<string, ExternalRef[]>();
     for (const each of referenced) {

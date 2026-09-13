@@ -22,6 +22,7 @@ import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from './plan-command';
 import type { PriorityBandService } from './priority-band.service';
 import type { WorkItemRefusal } from './work-item.service';
 import type { Collected, UndoOutcome, WorkItemService } from './work-item.service';
+import { createWorkingPlan, type WorkingPlan } from './working-plan';
 
 /** The four services a command batch can invoke. */
 export interface PlanCommandServices {
@@ -119,7 +120,17 @@ export interface PlanCommandRunnerOptions {
    * stores on every run; retaining an earlier graph would write into discarded
    * state.
    */
-  batchServices: (scope: Scope, broadcast: Broadcaster) => PlanCommandServices;
+  batchServices: (
+    scope: Scope,
+    broadcast: Broadcaster,
+    /**
+     * The plan batch's owned retained graph. Task 2.1 exposes it while the
+     * service factory continues composing over `scope.stores`; Task 3.1 makes
+     * it the graph's stores after the mutation wrappers can advance it.
+     * Directory batches and rollback repair have no working plan.
+     */
+    workingPlan?: WorkingPlan,
+  ) => PlanCommandServices;
   /**
    * The process graph used after the unit of work settles: reads and broadcasts
    * here observe the committed source and take their own turn.
@@ -220,31 +231,32 @@ export class PlanCommandRunner {
     const collector = new AnnouncementCollector(this.opts.announcements);
     type Applied = BatchOutcome | Collected<AppliedCommand[]>;
     const done = await this.opts.uow.run<Applied>(async (scope): Promise<Decision<Applied>> => {
+      const workingPlan = projectId === null ? undefined : createWorkingPlan(scope, projectId);
       // Proof: building from publicServices let the refused write survive:
       // expected [], received ["rolled back"] (2026-09-09).
       // Proof: caching the first graph made the subsequent batch omit `later`:
       // expected ["kept", "later"], received ["kept"] (2026-09-09).
-      const graph = this.opts.batchServices(scope, collector);
-      // Proof: admitting one extra command returned404 instead of400 in the mounted cap-order case.
-      const over = commands.at(MOST_COMMANDS_IN_A_BATCH);
-      if (over !== undefined) {
-        return {
-          // Nothing was written, so there is nothing to undo — but the unit of
-          // work opened for this act all the same, and `commit: false` is how
-          // it is told to close without keeping anything. The transaction is
-          // the unit of work's to open and to close; this method no longer
-          // decides *when*, only *whether*.
-          commit: false,
-          value: {
-            ok: false,
-            at: MOST_COMMANDS_IN_A_BATCH,
-            kind: over.kind,
-            reason: 'too_many_commands',
-          },
-        };
-      }
-      let applied: Applied;
       try {
+        const graph = this.opts.batchServices(scope, collector, workingPlan);
+        // Proof: admitting one extra command returned404 instead of400 in the mounted cap-order case.
+        const over = commands.at(MOST_COMMANDS_IN_A_BATCH);
+        if (over !== undefined) {
+          return {
+            // Nothing was written, so there is nothing to undo — but the unit of
+            // work opened for this act all the same, and `commit: false` is how
+            // it is told to close without keeping anything. The transaction is
+            // the unit of work's to open and to close; this method no longer
+            // decides *when*, only *whether*.
+            commit: false,
+            value: {
+              ok: false,
+              at: MOST_COMMANDS_IN_A_BATCH,
+              kind: over.kind,
+              reason: 'too_many_commands',
+            },
+          };
+        }
+        let applied: Applied;
         const collected = await graph.workItems.collect(() =>
           this.applyAll(graph, projectId, actorId, commands),
         );
@@ -272,15 +284,23 @@ export class PlanCommandRunner {
         } else {
           applied = collected;
         }
+        // A refusal rolls the unit of work back, so whatever this batch collected
+        // describes writes that will not be there. Dropped rather than sent —
+        // which is one `if`, because the collector is this batch's alone.
+        return 'ok' in applied
+          ? { commit: false, value: applied }
+          : { commit: true, value: applied };
       } catch (cause) {
         if (cause instanceof CommandRefused) {
-          applied = { ok: false, at: cause.at, kind: cause.kind, ...cause.refusal };
-        } else throw cause;
+          return {
+            commit: false,
+            value: { ok: false, at: cause.at, kind: cause.kind, ...cause.refusal },
+          };
+        }
+        throw cause;
+      } finally {
+        workingPlan?.close();
       }
-      // A refusal rolls the unit of work back, so whatever this batch collected
-      // describes writes that will not be there. Dropped rather than sent —
-      // which is one `if`, because the collector is this batch's alone.
-      return 'ok' in applied ? { commit: false, value: applied } : { commit: true, value: applied };
     });
     if ('ok' in done) return done;
     // After the commit and after the turn is let go, which is what the whole
