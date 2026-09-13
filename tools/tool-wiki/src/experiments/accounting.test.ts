@@ -280,11 +280,9 @@ describe('trial accounting', () => {
     Reflect.deleteProperty(missingPrice.invocationReceipts[0], 'priceIdentity');
 
     expect(() => validateTrialReport(journal, inflated)).toThrow('accepted outcome accounting');
-    expect(() => validateTrialReport(journal, missingFailed)).toThrow(
-      'differs from complete journal',
-    );
+    expect(() => validateTrialReport(journal, missingFailed)).toThrow('does not own attempt');
     expect(() => validateTrialReport(journal, missingWaiting)).toThrow(
-      'differs from complete journal',
+      'mismatched elapsed receipt',
     );
     expect(() => validateTrialReport(journal, missingPrice)).toThrow('priceIdentity');
   });
@@ -364,5 +362,24 @@ describe('trial accounting', () => {
     overflow.invocationReceipts[0].chargedAmountMicros = Number.MAX_SAFE_INTEGER;
 
     expect(() => accountTrial(overflow)).toThrow('currency charge total');
+  });
+
+  test('refuses observations outside their trial or owning session interval', () => {
+    const invocationOutsideTrial = trialJournal();
+    invocationOutsideTrial.invocationReceipts[0].startedAt = '2025-09-13T08:00:00.000Z';
+    invocationOutsideTrial.invocationReceipts[0].endedAt = '2025-09-13T08:10:00.000Z';
+    const elapsedOutsideTrial = trialJournal();
+    elapsedOutsideTrial.elapsedReceipts[0].startedAt = '2025-09-13T08:00:00.000Z';
+    elapsedOutsideTrial.elapsedReceipts[0].endedAt = '2025-09-13T08:00:10.000Z';
+    const allocationOutsideTrial = trialJournal();
+    allocationOutsideTrial.allocationReceipts[0].startedAt = '2026-09-13T07:59:59.000Z';
+    allocationOutsideTrial.allocationReceipts[0].elapsedMs = 601_000;
+    const waitingOutsideSession = trialJournal();
+    waitingOutsideSession.sessions[0].startedAt = '2026-09-13T08:00:11.000Z';
+
+    expect(() => accountTrial(invocationOutsideTrial)).toThrow('outside owning session interval');
+    expect(() => accountTrial(elapsedOutsideTrial)).toThrow('outside owning session interval');
+    expect(() => accountTrial(allocationOutsideTrial)).toThrow('outside trial interval');
+    expect(() => accountTrial(waitingOutsideSession)).toThrow('outside owning session interval');
   });
 });

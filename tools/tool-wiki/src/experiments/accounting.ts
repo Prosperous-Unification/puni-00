@@ -153,6 +153,7 @@ export const TrialReport = type({
   trialId: OpaqueId,
   manifestId: OpaqueId,
   manifestIdentity: Sha256,
+  manifest: ExperimentManifest,
   corpusId: OpaqueId,
   acceptanceId: OpaqueId,
   repeat: PositiveSafeInteger,
@@ -213,6 +214,22 @@ function elapsedMs(startedAt: string, endedAt: string, label: string): number {
   return duration;
 }
 
+function assertWithinInterval(
+  startedAt: string,
+  endedAt: string,
+  boundaryStartedAt: string,
+  boundaryEndedAt: string,
+  boundaryLabel: 'trial' | 'owning session',
+  label: string,
+): void {
+  if (
+    Date.parse(startedAt) < Date.parse(boundaryStartedAt) ||
+    Date.parse(endedAt) > Date.parse(boundaryEndedAt)
+  ) {
+    throw new Error(`${label} lies outside ${boundaryLabel} interval`);
+  }
+}
+
 function validateJournal(journal: TrialJournal): void {
   // Proof: replacing the fixture's canonical identity with a different SHA-256 made
   // accounting.test.ts throw `trial manifest identity differs from its canonical bytes`.
@@ -254,6 +271,7 @@ function validateJournal(journal: TrialJournal): void {
   const elapsedById = new Map(
     journal.elapsedReceipts.map((receipt) => [receipt.receiptId, receipt]),
   );
+  const sessionById = new Map(journal.sessions.map((session) => [session.sessionId, session]));
 
   const sessionAttemptIds = journal.sessions.flatMap((session) => {
     elapsedMs(session.startedAt, session.endedAt, `session ${session.sessionId}`);
@@ -306,6 +324,10 @@ function validateJournal(journal: TrialJournal): void {
   const referencedInvocations: string[] = [];
   const referencedElapsed: string[] = [];
   for (const attempt of journal.attempts) {
+    const session = sessionById.get(attempt.sessionId);
+    if (session === undefined) {
+      throw new Error(`attempt ${attempt.attemptId} names unknown session ${attempt.sessionId}`);
+    }
     assertUnique(
       attempt.invocationReceiptIds,
       `attempt ${attempt.attemptId} invocation receipt identities`,
@@ -323,11 +345,22 @@ function validateJournal(journal: TrialJournal): void {
       throw new Error(`attempt ${attempt.attemptId} has no elapsed receipt coverage`);
     }
     for (const receiptId of attempt.invocationReceiptIds) {
-      if (!invocationById.has(receiptId)) {
+      const receipt = invocationById.get(receiptId);
+      if (receipt === undefined) {
         throw new Error(
           `attempt ${attempt.attemptId} names unknown invocation receipt ${receiptId}`,
         );
       }
+      // Proof: moving a valid invocation one year before its owning session made
+      // accounting.test.ts refuse it at this production join.
+      assertWithinInterval(
+        receipt.startedAt,
+        receipt.endedAt,
+        session.startedAt,
+        session.endedAt,
+        'owning session',
+        `invocation receipt ${receiptId}`,
+      );
       referencedInvocations.push(receiptId);
     }
     for (const receiptId of attempt.elapsedReceiptIds) {
@@ -341,6 +374,16 @@ function validateJournal(journal: TrialJournal): void {
         // throw `mismatched elapsed receipt` before elapsed aggregation.
         throw new Error(`attempt ${attempt.attemptId} has mismatched elapsed receipt ${receiptId}`);
       }
+      // Proof: moving discovery before its session, or shortening the session past waiting,
+      // made accounting.test.ts refuse the elapsed receipt rather than shrink the denominator.
+      assertWithinInterval(
+        receipt.startedAt,
+        receipt.endedAt,
+        session.startedAt,
+        session.endedAt,
+        'owning session',
+        `elapsed receipt ${receiptId}`,
+      );
       referencedElapsed.push(receiptId);
     }
   }
@@ -401,6 +444,16 @@ function validateJournal(journal: TrialJournal): void {
     if (receipt.elapsedMs !== elapsedMs(receipt.startedAt, receipt.endedAt, 'allocation receipt')) {
       throw new Error(`allocation receipt ${receipt.receiptId} has inconsistent elapsedMs`);
     }
+    // Proof: starting allocation before the trial made accounting.test.ts refuse it even when
+    // its own elapsed duration remained internally consistent.
+    assertWithinInterval(
+      receipt.startedAt,
+      receipt.endedAt,
+      journal.startedAt,
+      journal.endedAt,
+      'trial',
+      `allocation receipt ${receipt.receiptId}`,
+    );
     if (hashCanonical(receipt.priceIdentity) !== hashCanonical(journal.manifest.priceIdentity)) {
       throw new Error(
         `allocation receipt ${receipt.receiptId} differs from the pinned price identity`,
@@ -468,6 +521,7 @@ export function accountTrial(input: unknown): TrialReport {
     trialId: journal.trialId,
     manifestId: journal.manifest.manifestId,
     manifestIdentity: journal.manifestIdentity,
+    manifest: journal.manifest,
     corpusId: journal.manifest.corpus.corpusId,
     acceptanceId: journal.manifest.corpus.acceptanceId,
     repeat: journal.repeat,
@@ -485,12 +539,16 @@ export function accountTrial(input: unknown): TrialReport {
     acceptedOutcomeIds,
     phaseElapsedMs,
     currencyCharges,
-    sessions: [...journal.sessions].sort((left, right) =>
-      compareCanonicalText(left.sessionId, right.sessionId),
-    ),
-    attempts: [...journal.attempts].sort((left, right) =>
-      compareCanonicalText(left.attemptId, right.attemptId),
-    ),
+    sessions: journal.sessions
+      .map((session) => ({ ...session, attemptIds: sorted(session.attemptIds) }))
+      .sort((left, right) => compareCanonicalText(left.sessionId, right.sessionId)),
+    attempts: journal.attempts
+      .map((attempt) => ({
+        ...attempt,
+        invocationReceiptIds: sorted(attempt.invocationReceiptIds),
+        elapsedReceiptIds: sorted(attempt.elapsedReceiptIds),
+      }))
+      .sort((left, right) => compareCanonicalText(left.attemptId, right.attemptId)),
     outcomes,
     invocationReceipts: [...journal.invocationReceipts].sort((left, right) =>
       compareCanonicalText(left.receiptId, right.receiptId),
@@ -506,7 +564,45 @@ export function accountTrial(input: unknown): TrialReport {
 
 /** Validates a standalone accounted report before it crosses the portable export boundary. */
 export function decodeTrialReport(input: unknown): TrialReport {
-  const report = parseOrThrow(TrialReport, input);
+  const decoded = parseOrThrow(TrialReport, input);
+  // Proof: duplicating an accepted outcome made export.test.ts reach only a derived count
+  // mismatch; this identity check now refuses the contradictory observation set directly.
+  assertUnique(
+    decoded.outcomes.map(({ outcomeId }) => outcomeId),
+    'trial report outcome identities',
+  );
+  const report = parseOrThrow(TrialReport, {
+    ...decoded,
+    acceptedOutcomeIds: sorted(decoded.acceptedOutcomeIds),
+    phaseElapsedMs: [...decoded.phaseElapsedMs].sort((left, right) =>
+      compareCanonicalText(left.phase, right.phase),
+    ),
+    currencyCharges: [...decoded.currencyCharges].sort((left, right) =>
+      compareCanonicalText(left.currency, right.currency),
+    ),
+    sessions: decoded.sessions
+      .map((session) => ({ ...session, attemptIds: sorted(session.attemptIds) }))
+      .sort((left, right) => compareCanonicalText(left.sessionId, right.sessionId)),
+    attempts: decoded.attempts
+      .map((attempt) => ({
+        ...attempt,
+        invocationReceiptIds: sorted(attempt.invocationReceiptIds),
+        elapsedReceiptIds: sorted(attempt.elapsedReceiptIds),
+      }))
+      .sort((left, right) => compareCanonicalText(left.attemptId, right.attemptId)),
+    outcomes: decoded.outcomes
+      .map((outcome) => ({ ...outcome, attemptIds: sorted(outcome.attemptIds) }))
+      .sort((left, right) => compareCanonicalText(left.outcomeId, right.outcomeId)),
+    invocationReceipts: [...decoded.invocationReceipts].sort((left, right) =>
+      compareCanonicalText(left.receiptId, right.receiptId),
+    ),
+    elapsedReceipts: [...decoded.elapsedReceipts].sort((left, right) =>
+      compareCanonicalText(left.receiptId, right.receiptId),
+    ),
+    allocationReceipts: [...decoded.allocationReceipts].sort((left, right) =>
+      compareCanonicalText(left.receiptId, right.receiptId),
+    ),
+  });
   const acceptedOutcomeIds = report.outcomes
     .filter(({ status }) => status === 'accepted')
     .map(({ outcomeId }) => outcomeId)
@@ -519,7 +615,49 @@ export function decodeTrialReport(input: unknown): TrialReport {
   ) {
     throw new Error('trial report has inconsistent accepted outcome accounting');
   }
-  return report;
+  const journal = {
+    schemaVersion: report.schemaVersion,
+    trialId: report.trialId,
+    manifest: report.manifest,
+    manifestIdentity: report.manifestIdentity,
+    repeat: report.repeat,
+    seed: report.seed,
+    concurrency: report.concurrency,
+    startedAt: report.startedAt,
+    endedAt: report.endedAt,
+    status: report.status,
+    sessions: report.sessions,
+    attempts: report.attempts,
+    outcomes: report.outcomes.map((outcome) =>
+      outcome.status === 'accepted'
+        ? {
+            outcomeId: outcome.outcomeId,
+            status: outcome.status,
+            attemptIds: outcome.attemptIds,
+            acceptanceArtifact: outcome.acceptanceArtifact,
+            integrationIdentity: outcome.integrationIdentity,
+            defectCount: outcome.defectCount,
+          }
+        : {
+            outcomeId: outcome.outcomeId,
+            status: outcome.status,
+            attemptIds: outcome.attemptIds,
+            defectCount: outcome.defectCount,
+          },
+    ),
+    invocationReceipts: report.invocationReceipts,
+    elapsedReceipts: report.elapsedReceipts,
+    allocationReceipts: report.allocationReceipts,
+  };
+  const recomputed = accountTrial(journal);
+  // Proof: altering elapsed or currency headlines while retaining the raw observations made
+  // export.test.ts reach export before this comparison and emit contradictory CSV totals.
+  if (serializeCanonical(report) !== serializeCanonical(recomputed)) {
+    throw new Error(
+      'trial report has inconsistent trial elapsed, charge, or observation accounting',
+    );
+  }
+  return recomputed;
 }
 
 /** Recomputes a submitted report from its complete journal and refuses any omitted observation. */

@@ -1,8 +1,21 @@
+import { parseOrThrow, type } from '@wbs/validation';
+
 import { compareCanonicalText, serializeCanonical } from '../evidence/content-manifest';
-import { decodeTrialReport, type TrialReport as TrialReportRecord } from './accounting';
+import {
+  TrialJournal,
+  TrialReport,
+  type TrialReport as TrialReportRecord,
+  validateTrialReport,
+} from './accounting';
+
+const TrialEvidenceSubmission = type({
+  journal: TrialJournal,
+  report: TrialReport,
+  // Proof: adding an unknown key made export.test.ts refuse it at this production boundary.
+}).onUndeclaredKey('reject');
 
 export interface TrialEvidenceExport {
-  /** One canonical JSON object per line: trial, outcome, attempt, receipt, or allocation. */
+  /** One canonical JSON object per line: trial, session, outcome, attempt, receipt, or allocation. */
   jsonl: string;
   /** RFC 4180-compatible outcome rows with one row per frozen outcome and trial. */
   outcomesCsv: string;
@@ -24,7 +37,9 @@ function observation(report: TrialReportRecord, observationKind: string, record:
     observationKind,
     trialId: report.trialId,
     manifestId: report.manifestId,
+    manifestIdentity: report.manifestIdentity,
     corpusId: report.corpusId,
+    acceptanceId: report.acceptanceId,
     ...record,
   });
 }
@@ -35,7 +50,12 @@ function observation(report: TrialReportRecord, observationKind: string, record:
  */
 export function exportTrialEvidence(inputs: readonly unknown[]): TrialEvidenceExport {
   const reports = inputs
-    .map((input) => decodeTrialReport(input))
+    .map((input) => {
+      const submission = parseOrThrow(TrialEvidenceSubmission, input);
+      // Proof: removing complete-journal reconciliation let export.test.ts delete a failed
+      // attempt and its gate/cost observations while retaining a caller-written verified flag.
+      return validateTrialReport(submission.journal, submission.report);
+    })
     .sort((left, right) => compareCanonicalText(left.trialId, right.trialId));
   const trialIds = reports.map(({ trialId }) => trialId);
   if (new Set(trialIds).size !== trialIds.length) {
@@ -54,7 +74,9 @@ export function exportTrialEvidence(inputs: readonly unknown[]): TrialEvidenceEx
   let trialsCsv = csvRow([
     'trial_id',
     'manifest_id',
+    'manifest_identity',
     'corpus_id',
+    'acceptance_id',
     'concurrency',
     'status',
     'accepted_outcome_count',
@@ -74,9 +96,13 @@ export function exportTrialEvidence(inputs: readonly unknown[]): TrialEvidenceEx
       startedAt: report.startedAt,
       endedAt: report.endedAt,
       status: report.status,
+      manifest: report.manifest,
       totalElapsedMs: report.totalElapsedMs,
       aggregateSessionElapsedMs: report.aggregateSessionElapsedMs,
     });
+    for (const session of report.sessions) {
+      jsonl += observation(report, 'session', session);
+    }
     for (const outcome of report.outcomes) {
       jsonl += observation(report, 'outcome', outcome);
       outcomesCsv += csvRow([
@@ -106,7 +132,9 @@ export function exportTrialEvidence(inputs: readonly unknown[]): TrialEvidenceEx
     trialsCsv += csvRow([
       report.trialId,
       report.manifestId,
+      report.manifestIdentity,
       report.corpusId,
+      report.acceptanceId,
       report.concurrency,
       report.status,
       report.acceptedOutcomeCount,

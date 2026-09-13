@@ -21,14 +21,17 @@ bindings are created and retained outside the candidate tree.
 
 ## Experiment evidence
 
-`experiments/export.ts` emits canonical JSONL observations followed by two RFC 4180-compatible
-tables. JSONL uses one object per trial, outcome, attempt, invocation receipt, elapsed receipt, and
-infrastructure allocation; every object carries `trialId`, `manifestId`, and `corpusId`. The outcome
-CSV columns are `trial_id,outcome_id,title,status,attempt_count,defect_count`. The trial CSV columns
-are `trial_id,manifest_id,corpus_id,concurrency,status,accepted_outcome_count,outcome_count,total_elapsed_ms,aggregate_session_elapsed_ms,currency_charges`;
-charges are sorted `CURRENCY:micros` pairs separated by semicolons. These rows retain enough raw
-observations to recompute accepted outcomes, elapsed phase totals, and verified charges without this
-project's code.
+`experiments/export.ts` accepts a complete journal and its reconciled report, then emits canonical
+JSONL observations followed by two RFC 4180-compatible tables. JSONL uses one object per trial,
+session, outcome, attempt, invocation receipt, elapsed receipt, and infrastructure allocation; every
+object carries `trialId`, `manifestId`, `manifestIdentity`, `corpusId`, and `acceptanceId`. The trial
+observation embeds the strict manifest, so its canonical identity and pinned conditions remain
+resolvable without a separate Tool Wiki installation. The outcome CSV columns are
+`trial_id,outcome_id,title,status,attempt_count,defect_count`. The trial CSV columns are
+`trial_id,manifest_id,manifest_identity,corpus_id,acceptance_id,concurrency,status,accepted_outcome_count,outcome_count,total_elapsed_ms,aggregate_session_elapsed_ms,currency_charges`;
+charges are sorted `CURRENCY:micros` pairs separated by semicolons. The raw observations let an
+independent reader recompute accepted outcomes, trial and session elapsed totals, phase totals, and
+verified charges, including failed and censored work.
 
 ## Exhaustive census
 

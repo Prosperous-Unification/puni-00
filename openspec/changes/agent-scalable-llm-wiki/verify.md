@@ -3253,3 +3253,37 @@ seconds. Fresh uncached Tool Wiki source lint and forced typecheck exited 0. Who
 check, strict OpenSpec validation, and `git diff --check` exited 0; OpenSpec printed
 `Change 'agent-scalable-llm-wiki' is valid`. Its optional PostHog flush could not resolve
 `edge.openspec.dev` in the restricted environment after validation had completed.
+
+#### Task 7.1 independent-review correction
+
+Portable export now accepts only a strict complete-journal/report pair and reconciles the report
+against that journal before emitting bytes. Standalone report decoding also normalizes every
+identity-keyed collection, reconstructs the strict journal view, validates all joins, and recomputes
+accepted outcomes, trial/session/phase elapsed totals, and currency totals. A fully self-consistent
+report that excised one failed attempt, its invocation, gate receipt, links, phase total, and charge
+passed its own arithmetic but failed export against the unchanged complete journal.
+
+JSONL now includes session observations and carries the manifest identity and acceptance identity
+on every observation. Its trial observation embeds the strict pinned manifest. The independent
+reader recomputed the trial interval, both session intervals, all phase time, accepted/outcome
+counts, and invocation plus allocation charges, then matched every CSV headline while retaining
+completed, failed, and censored status rows. Changing only the pinned prompt hash changed the
+manifest identity and exported bytes. Nested input permutations now retain byte-identical output.
+
+Review-correction production faults were removed one at a time and restored:
+
+| Removed protection                             | Observed focused RED                                                                              |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| complete-journal reconciliation at export      | self-consistent failed-work omission exported; expected refusal reported `function did not throw` |
+| trial/session interval containment             | one-year-old invocation accounted as verified; expected refusal reported `function did not throw` |
+| session observation emission                   | independently recomputed aggregate session time was `0`, expected `1200000`                       |
+| manifest identity and embedded manifest export | prompt-changed and original exports became equal                                                  |
+| normalized outcome ordering                    | permuted report was refused as internally inconsistent instead of producing canonical bytes       |
+| strict submission unknown-key rejection        | caller `verificationOverride` exported; expected refusal reported `function did not throw`        |
+
+The final restored focused suite passed 13 tests with 51 assertions. The unfiltered Tool Wiki suite
+passed 546 tests with 4,987 assertions across 29 files in 840.52 seconds. Fresh uncached Tool Wiki
+source lint and forced typecheck exited 0. Whole-repository format check, strict OpenSpec validation,
+and `git diff --check` exited 0; OpenSpec printed `Change 'agent-scalable-llm-wiki' is valid` before
+its optional PostHog flush reported restricted DNS. Task 7.1 remains unchecked pending the second
+independent review; no runner, cohort, scaling, activation, or host acceptance is inferred.
