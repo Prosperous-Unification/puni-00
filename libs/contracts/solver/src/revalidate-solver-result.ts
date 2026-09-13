@@ -1,9 +1,4 @@
-import {
-  isOnTime,
-  lastWorkdayOf,
-  SOLVER_QUANTUM,
-  WORK_ITEM_PROJECTION_START,
-} from '@wbs/domain';
+import { isOnTime, lastWorkdayOf, SOLVER_QUANTUM, WORK_ITEM_PROJECTION_START } from '@wbs/domain';
 
 import {
   SOLVER_OBJECTIVE_TERMS,

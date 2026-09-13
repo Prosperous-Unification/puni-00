@@ -2,9 +2,7 @@
   "baselineOffsets": { "milestone\u0000first": 0, "milestone\u0000second": 0 },
   "budgetMs": 30000,
   "contractVersion": "10+0.1.3",
-  "edges": [
-    { "predecessorKey": "milestone\u0000first", "successorKey": "milestone\u0000second" }
-  ],
+  "edges": [{ "predecessorKey": "milestone\u0000first", "successorKey": "milestone\u0000second" }],
   "fastHint": { "milestone\u0000first": 0, "milestone\u0000second": 0 },
   "horizonUnits": 0,
   "objective": "pri",

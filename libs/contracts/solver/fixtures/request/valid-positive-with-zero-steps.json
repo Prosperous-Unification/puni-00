@@ -26,11 +26,66 @@
   "pools": {},
   "quantum": 48,
   "slices": [
-    { "deadlineUnits": null, "workItemIsMilestone": false, "durationUnits": 0, "workItemKey": "work", "key": "work\u0000leading", "notBeforeUnits": 0, "personId": null, "poolIds": [], "priorityWeight": 0, "width": 1 },
-    { "deadlineUnits": null, "workItemIsMilestone": false, "durationUnits": 48, "workItemKey": "work", "key": "work\u0000dev", "notBeforeUnits": 0, "personId": null, "poolIds": [], "priorityWeight": 0, "width": 1 },
-    { "deadlineUnits": null, "workItemIsMilestone": false, "durationUnits": 0, "workItemKey": "work", "key": "work\u0000interior", "notBeforeUnits": 0, "personId": null, "poolIds": [], "priorityWeight": 0, "width": 1 },
-    { "deadlineUnits": null, "workItemIsMilestone": false, "durationUnits": 48, "workItemKey": "work", "key": "work\u0000finish", "notBeforeUnits": 0, "personId": null, "poolIds": [], "priorityWeight": 0, "width": 1 },
-    { "deadlineUnits": null, "workItemIsMilestone": false, "durationUnits": 0, "workItemKey": "work", "key": "work\u0000trailing", "notBeforeUnits": 0, "personId": null, "poolIds": [], "priorityWeight": 0, "width": 1 }
+    {
+      "deadlineUnits": null,
+      "workItemIsMilestone": false,
+      "durationUnits": 0,
+      "workItemKey": "work",
+      "key": "work\u0000leading",
+      "notBeforeUnits": 0,
+      "personId": null,
+      "poolIds": [],
+      "priorityWeight": 0,
+      "width": 1
+    },
+    {
+      "deadlineUnits": null,
+      "workItemIsMilestone": false,
+      "durationUnits": 48,
+      "workItemKey": "work",
+      "key": "work\u0000dev",
+      "notBeforeUnits": 0,
+      "personId": null,
+      "poolIds": [],
+      "priorityWeight": 0,
+      "width": 1
+    },
+    {
+      "deadlineUnits": null,
+      "workItemIsMilestone": false,
+      "durationUnits": 0,
+      "workItemKey": "work",
+      "key": "work\u0000interior",
+      "notBeforeUnits": 0,
+      "personId": null,
+      "poolIds": [],
+      "priorityWeight": 0,
+      "width": 1
+    },
+    {
+      "deadlineUnits": null,
+      "workItemIsMilestone": false,
+      "durationUnits": 48,
+      "workItemKey": "work",
+      "key": "work\u0000finish",
+      "notBeforeUnits": 0,
+      "personId": null,
+      "poolIds": [],
+      "priorityWeight": 0,
+      "width": 1
+    },
+    {
+      "deadlineUnits": null,
+      "workItemIsMilestone": false,
+      "durationUnits": 0,
+      "workItemKey": "work",
+      "key": "work\u0000trailing",
+      "notBeforeUnits": 0,
+      "personId": null,
+      "poolIds": [],
+      "priorityWeight": 0,
+      "width": 1
+    }
   ],
   "solverVersion": "0.1.3",
   "stageBudgetSplit": [0.6, 0.25, 0.15],
