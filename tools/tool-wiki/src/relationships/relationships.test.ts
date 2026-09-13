@@ -1,11 +1,4 @@
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
@@ -67,7 +60,9 @@ interface ExtractorIdentity {
 
 const pathsToRemove: string[] = [];
 const cliPath = join(import.meta.dir, '..', 'cli.ts');
-const trustedNodeModules = dirname(dirname(Bun.resolveSync('typescript/package.json', import.meta.dir)));
+const trustedNodeModules = dirname(
+  dirname(Bun.resolveSync('typescript/package.json', import.meta.dir)),
+);
 const shapesDeclaration =
   "/// <reference path='./globals.d.ts' />\n/// <reference types='node' />\n/// <reference lib='es2022' />\nimport type { Hidden } from './hidden';\nexport interface Declared { label: string; hidden: Hidden; global: GlobalHidden }\n";
 
@@ -349,10 +344,7 @@ describe('relationship extraction production CLI', () => {
       'nx.project-json',
       'typescript.compiler',
     ]);
-    expect(extracted.extractors.map((extractor) => extractor.version)).toEqual([
-      'v1',
-      'v6.0.3',
-    ]);
+    expect(extracted.extractors.map((extractor) => extractor.version)).toEqual(['v1', 'v6.0.3']);
     expect(extracted.extractors.every((extractor) => /^[0-9a-f]{64}$/.test(extractor.blob))).toBe(
       true,
     );
@@ -961,13 +953,18 @@ describe('relationship extraction production CLI', () => {
       `await Bun.write(${JSON.stringify(marker)}, 'candidate plugin ran\\n');\nexport default {};\n`,
     );
     const extracted = report(
-      invoke(repository, commitAll(repository, 'candidate plugin is data'), writeRequest(repository)),
+      invoke(
+        repository,
+        commitAll(repository, 'candidate plugin is data'),
+        writeRequest(repository),
+      ),
     );
 
     expect(existsSync(marker)).toBe(false);
     expect(
-      extracted.nx.targets.find(({ project, target }) => project === 'consumer' && target === 'test')
-        ?.configuration,
+      extracted.nx.targets.find(
+        ({ project, target }) => project === 'consumer' && target === 'test',
+      )?.configuration,
     ).toMatchObject({
       cache: true,
       inputs: ['default'],
