@@ -14,13 +14,14 @@ import {
 
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import type { RunPlanWrite } from '@/lib/local-write';
+import { ALL_RESOURCES } from '@/lib/plan-refresh';
 import type { PersonView, PriorityBandView, TeamCapacityView, TeamView } from '@/lib/wbs-api';
 import { isEstimateMethod, type ProjectApi, type StepView } from '@/lib/wbs-api';
 
 import { MenuControl } from './actions-menu';
 import { useClosedByPointerOutside } from './close-on-outside-pointer';
 import { DateField } from './date-field';
-import { type CommitOutcome } from './live-editing';
 import type { PlanTableFeatures } from './plan-columns/column';
 import type { EstimateGaps } from './plan-completeness';
 import { describeGaps } from './plan-completeness';
@@ -598,7 +599,7 @@ export function PlanToolbar({
   freezeMenuOpen: boolean;
   setFreezeMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   busy: boolean;
-  run: (action: () => Promise<void>) => Promise<CommitOutcome>;
+  run: RunPlanWrite;
   api: ProjectApi;
   projectId: string;
   addWorkItem: () => void;
@@ -712,12 +713,16 @@ export function PlanToolbar({
           {
             id: 'freeze',
             label: 'Freeze numbering',
-            run: () => void run(() => api.freezeProject(projectId)),
+            run: () =>
+              void run((write) => write.perform(ALL_RESOURCES, () => api.freezeProject(projectId))),
           },
           {
             id: 'unfreeze-all',
             label: 'Unfreeze all',
-            run: () => void run(() => api.unfreezeProject(projectId)),
+            run: () =>
+              void run((write) =>
+                write.perform(ALL_RESOURCES, () => api.unfreezeProject(projectId)),
+              ),
           },
         ]}
         trigger={{
@@ -1344,7 +1349,11 @@ export function PlanToolbar({
           {...busyAffordance(busy)}
           value={startDate ?? ''}
           commit={(typed) => {
-            void run(() => api.setStartDate(projectId, typed === '' ? null : typed));
+            void run((write) =>
+              write.perform(ALL_RESOURCES, () =>
+                api.setStartDate(projectId, typed === '' ? null : typed),
+              ),
+            );
           }}
         />
       </label>

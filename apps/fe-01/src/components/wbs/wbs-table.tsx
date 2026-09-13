@@ -14,6 +14,7 @@ import {
 } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { ALL_RESOURCES } from '@/lib/plan-refresh';
 
 import { type CellCards, createCellCards, useCardOpenOn } from './cell-card-store';
 import type { CellRef } from './cell-navigation';
@@ -989,9 +990,11 @@ export function WbsTable({
    * schedule order because be-01 wrote the positions.
    */
   const arrangeBySchedule = useCallback(() => {
-    void run(() => api.arrangeBySchedule(projectId)).then((landed) => {
-      if (landed === 'landed') pushToast({ kind: 'info', text: 'Arranged by schedule.' });
-    });
+    void run((write) => write.perform(ALL_RESOURCES, () => api.arrangeBySchedule(projectId))).then(
+      (landed) => {
+        if (landed === 'landed') pushToast({ kind: 'info', text: 'Arranged by schedule.' });
+      },
+    );
   }, [api, projectId, pushToast, run]);
 
   const { siblingsOf, addWorkItem } = useAddWorkItem({
@@ -1888,10 +1891,16 @@ export function WbsTable({
         // lands later, and a switch is only visible once the read that follows
         // it comes back.
         onChoose={(patch) => {
-          void run(() => api.setOptimizationSettings(projectId, patch));
+          void run((write) =>
+            write.perform(ALL_RESOURCES, () => api.setOptimizationSettings(projectId, patch)),
+          );
         }}
         onRetry={(objective, inputHash) => {
-          void run(() => api.retryOptimization(projectId, objective, inputHash));
+          void run((write) =>
+            write.perform(ALL_RESOURCES, () =>
+              api.retryOptimization(projectId, objective, inputHash),
+            ),
+          );
         }}
       />
     );
@@ -2135,7 +2144,9 @@ export function WbsTable({
             return pickDependency(row.id, predecessorId);
           }}
           dropDependency={(row, predecessorId) => {
-            return run(() => api.removeDependency(row.id, predecessorId));
+            return run((write) =>
+              write.perform(ALL_RESOURCES, () => api.removeDependency(row.id, predecessorId)),
+            );
           }}
           // The `Start` cell's own sentence, off the one map, handed to the
           // face that has no hover to give it. `startFloor.current` is filled
@@ -2231,7 +2242,7 @@ export function WbsTable({
               void duplicateRow(rowId);
             },
             unfreeze: (rowId) => {
-              void run(() => api.unfreezeWorkItem(rowId));
+              void run((write) => write.perform(ALL_RESOURCES, () => api.unfreezeWorkItem(rowId)));
             },
             remove: (row) => {
               void deleteRow(row);

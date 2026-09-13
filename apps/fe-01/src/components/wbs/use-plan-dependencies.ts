@@ -1,6 +1,8 @@
 import type * as React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
 
+import type { RunPlanWrite } from '@/lib/local-write';
+import { ALL_RESOURCES } from '@/lib/plan-refresh';
 import type { ProjectApi, StepView } from '@/lib/wbs-api';
 
 import { pickerEntries } from './dep-picker';
@@ -37,7 +39,7 @@ export function usePlanDependencies({
   setDepPicker: React.Dispatch<
     React.SetStateAction<{ rowId: string; typed: string; highlightId: string | null } | null>
   >;
-  run: (action: () => Promise<void>) => Promise<CommitOutcome>;
+  run: RunPlanWrite;
   steps: StepView[];
 }) {
   /**
@@ -184,7 +186,9 @@ export function usePlanDependencies({
       setDepPicker((current) =>
         current === null ? null : { ...current, typed: '', highlightId: null },
       );
-      return run(() => api.addDependency(successorId, predecessorId));
+      return run((write) =>
+        write.perform(ALL_RESOURCES, () => api.addDependency(successorId, predecessorId)),
+      );
     },
     [api, run, setDepPicker],
   );

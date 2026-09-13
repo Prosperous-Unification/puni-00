@@ -2,6 +2,7 @@ import type { SettableStatus } from '@wbs/domain/progress';
 import type { IsoDate } from '@wbs/domain/workday';
 import type * as React from 'react';
 
+import type { RunPlanWrite } from '@/lib/local-write';
 import { type ProjectApi } from '@/lib/wbs-api';
 
 import { type CellCards } from './cell-card-store';
@@ -23,7 +24,7 @@ export interface PlanLiveValues {
   focusIntent: React.RefObject<FocusIntent>;
   gridElement: React.RefObject<HTMLElement | null>;
   api: ProjectApi;
-  run: (action: () => Promise<void>) => Promise<CommitOutcome>;
+  run: RunPlanWrite;
   duplicateRow: (id: string) => Promise<CommitOutcome>;
   deleteRow: (row: TreeRow) => Promise<CommitOutcome>;
   commitNameCell: (rowId: string, typed: string, baseline: string) => Promise<CommitOutcome>;

@@ -1712,3 +1712,56 @@ itDom('installs held directory labels after a newer tree already installed', asy
   });
   expect((await screen.findAllByText('Covered directory tag')).length).toBeGreaterThan(0);
 });
+
+itDom('refreshes a created tag after its attachment refuses', async () => {
+  // No `subscribe` prop: the directory read below is the only path by which
+  // the created tag can reach this production page.
+  const api = fakeApi();
+  await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Tagged later' });
+  await api.addTag('Seed');
+
+  let tagReads = 0;
+  const listTags = api.listTags.bind(api);
+  api.listTags = async () => {
+    tagReads += 1;
+    return listTags();
+  };
+
+  const addTag = api.addTag.bind(api);
+  let releaseCreate: (() => void) | undefined;
+  api.addTag = (name) =>
+    new Promise((resolve, reject) => {
+      releaseCreate = () => {
+        void addTag(name).then(resolve, reject);
+      };
+    });
+  api.patchWorkItem = () =>
+    Promise.reject(
+      new WbsRequestError({
+        kind: 'refusal',
+        operation: 'postApiProjectsByIdCommands',
+        refusal: { at: 0, kind: 'patchWorkItem', error: 'unknown_tag' },
+      }),
+    );
+
+  render(<WbsTable projectId="p1" api={api} />);
+  const box = await screen.findByRole('combobox', { name: 'Tags for 010' });
+  expect(tagReads).toBe(1);
+  fireEvent.focus(box);
+  fireEvent.change(box, { target: { value: 'Regulatory' } });
+  fireEvent.keyDown(box, { key: 'Enter' });
+  await waitFor(() => {
+    expect(releaseCreate).toBeTypeOf('function');
+  });
+  expect(tagReads).toBe(1);
+
+  act(() => {
+    releaseCreate?.();
+  });
+
+  await waitFor(() => {
+    expect(tagReads).toBe(2);
+    expect(screen.getByRole('option', { name: 'Regulatory' })).toBeInTheDocument();
+  });
+  expect(api.rows[0]?.tagIds ?? []).toEqual([]);
+});

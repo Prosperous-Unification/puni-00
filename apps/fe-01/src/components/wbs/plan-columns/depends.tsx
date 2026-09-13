@@ -1,3 +1,5 @@
+import { ALL_RESOURCES } from '@/lib/plan-refresh';
+
 import { useCardOpenOn } from '../cell-card-store';
 import { PICKER_PANEL_STYLE } from '../creatable-picker';
 import { REFUSAL_SUFFIX } from '../dep-picker';
@@ -459,8 +461,10 @@ export function createDependsColumn({ live }: { live: PlanLive }) {
                   live.current.depLights.updateFocus((current) =>
                     current?.rowId === row.original.id && current.pillId === id ? null : current,
                   );
-                  void live.current.run(() =>
-                    live.current.api.removeDependency(row.original.id, id),
+                  void live.current.run((write) =>
+                    write.perform(ALL_RESOURCES, () =>
+                      live.current.api.removeDependency(row.original.id, id),
+                    ),
                   );
                 }}
               >

@@ -1,6 +1,8 @@
 import type * as React from 'react';
 import { useCallback, useRef, useState } from 'react';
 
+import type { RunPlanWrite } from '@/lib/local-write';
+import { ALL_RESOURCES } from '@/lib/plan-refresh';
 import type { PersonView, TeamView } from '@/lib/wbs-api';
 import { type ProjectApi } from '@/lib/wbs-api';
 
@@ -37,7 +39,7 @@ export function useEstimateDrafts({
 }: {
   drafts: Record<string, string>;
   setDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  run: (action: () => Promise<void>) => Promise<CommitOutcome>;
+  run: RunPlanWrite;
   api: ProjectApi;
 }) {
   /**
@@ -141,8 +143,8 @@ export function useEstimateDrafts({
         // be-01 holds a trio for this row and step at all, and a stored
         // `0 / 0 / 0` is one.
         if (isTrioEmpty(next) && Object.hasOwn(row.estimates, stepId)) {
-          return run(async () => {
-            await api.clearEstimate(row.id, stepId);
+          return run(async (write) => {
+            await write.perform(ALL_RESOURCES, () => api.clearEstimate(row.id, stepId));
             forgetEstimateDrafts(row.id, stepId);
           });
         }
@@ -150,8 +152,8 @@ export function useEstimateDrafts({
         // stays in `drafts`, which is where this cell's unsent text lives.
         return unsent();
       }
-      return run(async () => {
-        await api.setEstimate(row.id, stepId, days);
+      return run(async (write) => {
+        await write.perform(ALL_RESOURCES, () => api.setEstimate(row.id, stepId, days));
         forgetEstimateDrafts(row.id, stepId);
       });
     },
@@ -268,13 +270,13 @@ export function useEstimateDrafts({
         // fail — one clear lost, one deletion posted per cell tabbed through.
         // Watched, 2026-08-06.
         if (!Object.hasOwn(row.estimates, stepId)) return unsent();
-        return run(async () => {
-          await api.clearEstimate(row.id, stepId);
+        return run(async (write) => {
+          await write.perform(ALL_RESOURCES, () => api.clearEstimate(row.id, stepId));
           forgetEstimateDrafts(row.id, stepId);
         });
       }
-      return run(async () => {
-        await api.setEstimate(row.id, stepId, entry.days);
+      return run(async (write) => {
+        await write.perform(ALL_RESOURCES, () => api.setEstimate(row.id, stepId, entry.days));
         forgetEstimateDrafts(row.id, stepId);
       });
     },
