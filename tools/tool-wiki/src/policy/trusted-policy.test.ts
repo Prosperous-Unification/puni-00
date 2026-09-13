@@ -1473,6 +1473,8 @@ describe('trusted policy production CLI', () => {
     expect(output).toContain('CI trusted binding was not preselected by the caller');
   });
 
+  // This three-process negative control passed alone in 4.629s but crossed the shared suite's
+  // default at 5.005s; the explicit bound preserves the assertions under host load.
   test('binding, policy and validator aliases cannot resolve inside the selected candidate', () => {
     const cases = ['binding', 'policy', 'validator'] as const;
     for (const subject of cases) {
@@ -1507,9 +1509,7 @@ describe('trusted policy production CLI', () => {
       expect(invocation.exitCode, output).toBe(1);
       expect(output).toContain('resolves inside selected candidate');
     }
-  }, // Proof: this three-process negative control passed alone in 4.629s but crossed the shared
-  // suite's default at 5.005s; the explicit bound preserves the assertions under host load.
-  10_000);
+  }, 10_000);
 
   test('trusted authority aliases cannot resolve inside the selected candidate', () => {
     const fixture = createFixture('enforce');
