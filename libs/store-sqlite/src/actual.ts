@@ -1,5 +1,5 @@
 import type { ActualStore, StepWriteOutcome, StoredActual, WriteStamp } from '@wbs/core';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -65,6 +65,58 @@ export class ActualRepository implements ActualStore {
         .where(eq(workItem.projectId, projectId))
         .orderBy(actual.workItemId, step.position, actual.stepId)
     );
+  }
+
+  async listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredActual[]> {
+    if (ids.length === 0) return [];
+    await Promise.resolve();
+    const rows = await this.db
+      .select({
+        workItemId: actual.workItemId,
+        stepId: actual.stepId,
+        days: actual.days,
+        recordedAt: actual.recordedAt,
+        workItemProjectId: workItem.projectId,
+        stepProjectId: step.projectId,
+        stepPosition: step.position,
+      })
+      .from(actual)
+      .leftJoin(step, eq(actual.stepId, step.id))
+      .leftJoin(workItem, eq(actual.workItemId, workItem.id))
+      .where(
+        and(
+          inArray(actual.workItemId, [...ids]),
+          or(eq(workItem.projectId, projectId), isNull(workItem.projectId)),
+        ),
+      );
+    if (rows.some(({ workItemProjectId }) => workItemProjectId === null)) {
+      throw new Error('targeted actual has an invalid work-item reference');
+    }
+    const admitted = rows.filter(({ workItemProjectId }) => workItemProjectId === projectId);
+    for (const row of admitted) {
+      if (row.stepProjectId !== projectId || row.stepPosition === null) {
+        throw new Error(`actual ${row.workItemId}/${row.stepId} has an invalid step reference`);
+      }
+      if (typeof row.days !== 'number' || !Number.isFinite(row.days) || row.days < 0) {
+        throw new Error(`actual ${row.workItemId}/${row.stepId} has an invalid day value`);
+      }
+      if (typeof row.recordedAt !== 'number' || !Number.isFinite(row.recordedAt)) {
+        throw new Error(`actual ${row.workItemId}/${row.stepId} has an invalid recorded time`);
+      }
+    }
+    return admitted
+      .sort(
+        (left, right) =>
+          left.workItemId.localeCompare(right.workItemId) ||
+          (left.stepPosition ?? 0) - (right.stepPosition ?? 0) ||
+          left.stepId.localeCompare(right.stepId),
+      )
+      .map(({ workItemId, stepId, days, recordedAt }) => ({
+        workItemId,
+        stepId,
+        days,
+        recordedAt,
+      }));
   }
 
   /**

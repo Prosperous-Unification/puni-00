@@ -161,6 +161,10 @@ test.describe('marking a row done, in a browser', () => {
 
     const status = page.getByRole('combobox', { name: 'Status of 010' });
     await expect(status).toHaveAttribute('data-status-value', 'unknown');
+    // A button, not a text box: no caret on a click and nothing for the grid
+    // to select on arrival (Dany, 2026-09-13: "it must not add cursor").
+    // `selectionStart` is null on a control that supports no selection.
+    await expect(status).toHaveJSProperty('selectionStart', null);
     const row = page.locator('tbody tr[data-row-id]').first();
     const dragCell = row.locator('td[data-column="drag"]');
     const pinnedCell = row.locator('td[data-column="number"]');

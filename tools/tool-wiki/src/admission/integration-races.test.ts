@@ -512,6 +512,51 @@ test('a target deletion terminalizes the exact immutable submission', async () =
   subject.store.close();
 });
 
+test('a target add/add conflict terminalizes the exact immutable submission', async () => {
+  const subject = fixture();
+  const added = subject.submission('added', 'src/new.ts', 'export const value = 2;\n');
+  const advanced = subject.advance('src/new.ts', 'export const value = 3;\n');
+
+  const report = await integrateWithRecovery(
+    subject.store,
+    subject.repository,
+    { policy, submissions: [added] },
+    options('add-add-target'),
+  );
+
+  expect(report).toEqual({
+    attempts: 0,
+    integrationId: 'add-add-target',
+    queueTimeMs: 0,
+    reason: 'incompatible-submission',
+    reworkCount: 0,
+    status: 'terminal',
+  });
+  expect(git(subject.repository, ['rev-parse', 'refs/heads/main'])).toBe(advanced);
+  expect(git(subject.repository, ['show', 'refs/heads/main:src/new.ts'])).toBe(
+    'export const value = 3;',
+  );
+  expect(git(added.worktree, ['show', ':src/new.ts'])).toBe('export const value = 2;');
+  expect(subject.store.inspect().integrations[0]).toMatchObject({
+    attemptCount: 0,
+    status: 'terminal',
+    terminalReason: 'incompatible-submission',
+  });
+  expect(
+    await integrateWithRecovery(
+      subject.store,
+      subject.repository,
+      { policy, submissions: [added] },
+      options('add-add-target', {
+        certify: () => {
+          throw new Error('terminal add/add recovery reran certification');
+        },
+      }),
+    ),
+  ).toEqual(report);
+  subject.store.close();
+});
+
 test('an infrastructure failure during recomposition stays recoverable and is not a conflict', async () => {
   const subject = fixture();
   const one = subject.submission('one', 'src/one.ts', 'export const one = 2;\n');

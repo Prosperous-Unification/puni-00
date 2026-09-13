@@ -1,5 +1,5 @@
 import type { MeasureStore, StepWriteOutcome, StoredMeasure, WriteStamp } from '@wbs/core';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -76,6 +76,64 @@ export class StepMeasureRepository implements MeasureStore {
         .where(eq(workItem.projectId, projectId))
         .orderBy(stepMeasure.workItemId, step.position, stepMeasure.stepId, stepMeasure.metric)
     );
+  }
+
+  async listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredMeasure[]> {
+    if (ids.length === 0) return [];
+    await Promise.resolve();
+    const rows = await this.db
+      .select({
+        workItemId: stepMeasure.workItemId,
+        stepId: stepMeasure.stepId,
+        metric: stepMeasure.metric,
+        value: stepMeasure.value,
+        recordedAt: stepMeasure.recordedAt,
+        workItemProjectId: workItem.projectId,
+        stepProjectId: step.projectId,
+        stepPosition: step.position,
+      })
+      .from(stepMeasure)
+      .leftJoin(step, eq(stepMeasure.stepId, step.id))
+      .leftJoin(workItem, eq(stepMeasure.workItemId, workItem.id))
+      .where(
+        and(
+          inArray(stepMeasure.workItemId, [...ids]),
+          or(eq(workItem.projectId, projectId), isNull(workItem.projectId)),
+        ),
+      );
+    if (rows.some(({ workItemProjectId }) => workItemProjectId === null)) {
+      throw new Error('targeted measure has an invalid work-item reference');
+    }
+    const admitted = rows.filter(({ workItemProjectId }) => workItemProjectId === projectId);
+    for (const row of admitted) {
+      if (row.stepProjectId !== projectId || row.stepPosition === null) {
+        throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid step reference`);
+      }
+      if (!isMeasureMetric(row.metric)) {
+        throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid metric`);
+      }
+      if (typeof row.value !== 'number' || !Number.isFinite(row.value) || row.value < 0) {
+        throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid value`);
+      }
+      if (typeof row.recordedAt !== 'number' || !Number.isFinite(row.recordedAt)) {
+        throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid recorded time`);
+      }
+    }
+    return admitted
+      .sort(
+        (left, right) =>
+          left.workItemId.localeCompare(right.workItemId) ||
+          (left.stepPosition ?? 0) - (right.stepPosition ?? 0) ||
+          left.stepId.localeCompare(right.stepId) ||
+          left.metric.localeCompare(right.metric),
+      )
+      .map(({ workItemId, stepId, metric, value, recordedAt }) => ({
+        workItemId,
+        stepId,
+        metric,
+        value,
+        recordedAt,
+      }));
   }
 
   /**
@@ -168,4 +226,8 @@ export class StepMeasureRepository implements MeasureStore {
       });
     });
   }
+}
+
+function isMeasureMetric(metric: unknown): metric is MeasureMetric {
+  return metric === 'token_estimate' || metric === 'token_actual' || metric === 'hours_actual';
 }

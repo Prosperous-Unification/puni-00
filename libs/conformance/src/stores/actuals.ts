@@ -15,6 +15,23 @@ function byKey(actuals: StoredActual[]): StoredActual[] {
 /** Shared actual-store cases observed only through complete public reads. */
 export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseRegistration[] {
   return [
+    storeCase('actuals', 'actuals.listByWorkItems:scope-order', open, async ({ port, seed }) => {
+      const targetId = seed.workItemIds[0][0];
+      const [firstStep, secondStep] = seed.stepIds[0];
+      await port.set(
+        { workItemId: targetId, stepId: secondStep, days: 2, recordedAt: 2 },
+        seed.stamps[0],
+      );
+      await port.set(
+        { workItemId: targetId, stepId: firstStep, days: 1, recordedAt: 1 },
+        seed.stamps[0],
+      );
+      expect(
+        (await port.listByWorkItems(seed.projectIds[0], [targetId])).map(({ stepId }) => stepId),
+      ).toEqual([firstStep, secondStep]);
+      expect(await port.listByWorkItems(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual([]);
+      expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
+    }),
     storeCase('actuals', 'actuals.set:replace', open, async ({ port, readers, seed }) => {
       const [firstId, secondId] = seed.workItemIds[0];
       const [devId, qaId] = seed.stepIds[0];

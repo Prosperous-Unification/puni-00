@@ -1,9 +1,10 @@
-import type { StepProgressStore, StoredProgress, WorkItemStore } from '@wbs/core';
+import type { StepProgressStore, StepStore, StoredProgress, WorkItemStore } from '@wbs/core';
 
 /** A StepProgressStore backed by an array, keyed as the composite primary key is. */
 export function inMemoryProgress(
   workItems: WorkItemStore,
   table: MemoryProgressTable = memoryProgressTable(),
+  steps?: StepStore,
 ): StepProgressStore {
   const { rows } = table;
   /**
@@ -14,7 +15,20 @@ export function inMemoryProgress(
   return {
     async listByProject(projectId) {
       const ids = new Set((await workItems.listByProject(projectId)).map((w) => w.id));
-      return rows.filter((row) => ids.has(row.workItemId));
+      return order(
+        rows.filter((row) => ids.has(row.workItemId)),
+        await steps?.listByProject(projectId),
+      );
+    },
+    async listByWorkItems(projectId, workItemIds) {
+      const projectIds = new Set(
+        (await workItems.listByIds(projectId, workItemIds)).map((row) => row.id),
+      );
+      const requested = new Set(workItemIds);
+      return order(
+        rows.filter((row) => projectIds.has(row.workItemId) && requested.has(row.workItemId)),
+        await steps?.listByProject(projectId),
+      );
     },
     set(toSet, _stamp) {
       const kept = rows.filter(
@@ -40,6 +54,20 @@ export function inMemoryProgress(
       return Promise.resolve();
     },
   };
+}
+
+function order(
+  rows: StoredProgress[],
+  steps: Awaited<ReturnType<StepStore['listByProject']>> | undefined,
+): StoredProgress[] {
+  if (steps === undefined) return rows;
+  const position = new Map(steps.map((step) => [step.id, step.position]));
+  return [...rows].sort(
+    (left, right) =>
+      left.workItemId.localeCompare(right.workItemId) ||
+      (position.get(left.stepId) ?? 0) - (position.get(right.stepId) ?? 0) ||
+      left.stepId.localeCompare(right.stepId),
+  );
 }
 
 export interface MemoryProgressTable {

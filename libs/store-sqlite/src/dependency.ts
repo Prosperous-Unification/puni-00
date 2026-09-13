@@ -5,7 +5,7 @@ import { auditOnCreate } from './audit';
 import type { Drizzle } from './db';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
-import { dependency } from './schema';
+import { dependency, workItem } from './schema';
 
 /**
  * An edge is a satellite of **both** work items it joins: the successor reads
@@ -37,6 +37,45 @@ export class DependencyRepository implements DependencyStore {
       })
       .from(dependency)
       .where(eq(dependency.projectId, projectId));
+  }
+
+  async listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredDependency[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.db
+      .select({
+        id: dependency.id,
+        projectId: dependency.projectId,
+        predecessorId: dependency.predecessorId,
+        successorId: dependency.successorId,
+      })
+      .from(dependency)
+      .where(
+        and(
+          eq(dependency.projectId, projectId),
+          or(
+            inArray(dependency.predecessorId, [...ids]),
+            inArray(dependency.successorId, [...ids]),
+          ),
+        ),
+      );
+    const endpointIds = [
+      ...new Set(rows.flatMap(({ predecessorId, successorId }) => [predecessorId, successorId])),
+    ];
+    if (endpointIds.length === 0) return [];
+    const endpoints = await this.db
+      .select({ id: workItem.id, projectId: workItem.projectId })
+      .from(workItem)
+      .where(inArray(workItem.id, endpointIds));
+    const endpointProjects = new Map(endpoints.map(({ id, projectId: owner }) => [id, owner]));
+    for (const row of rows) {
+      if (
+        endpointProjects.get(row.predecessorId) !== projectId ||
+        endpointProjects.get(row.successorId) !== projectId
+      ) {
+        throw new Error(`dependency ${row.id} has an endpoint outside project ${projectId}`);
+      }
+    }
+    return rows;
   }
 
   /**

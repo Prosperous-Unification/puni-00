@@ -96,9 +96,16 @@ export interface StatusCellProps {
  * statement and a row reads it only off the fold (`SETTABLE_STATUSES` in
  * `@wbs/domain`).
  *
- * The box is an `<input>` and not `readOnly`, for the deadline cell's reason:
- * `editableGrid` walks `[data-cell]:not([readonly])`, and a read-only box would
- * fall out of the keyboard grid. `onChange` opens the list instead of writing.
+ * The box is an `<input type="button">`. An input, and not `readOnly`, for the
+ * deadline cell's reason: `editableGrid` walks `[data-cell]:not([readonly])`,
+ * and a read-only box would fall out of the keyboard grid. A button, because a
+ * text box draws a caret on a click and has its glyph selected by `focusCellAt`
+ * on a Tab arrival — Dany, 2026-09-13: "interacting with status column puts a
+ * cursor in it as if it is editable text field - i just want the drop-down, it
+ * must not add cursor". A button supports no selection at all, so the grid
+ * focuses it the way it does a date cell, and `caretOf` reads it as a box with
+ * no text in the arrows' way. The glyph is its `value`, which a button shows as
+ * its label; there is no `onChange` because nothing can be typed into it.
  */
 export function StatusCell({
   cellKey,
@@ -122,6 +129,11 @@ export function StatusCell({
       }}
     >
       <input
+        // Proof: `type` dropped so the box was a text input again, and `is a
+        // button with no caret: neither a click nor the grid selects the glyph`
+        // failed on `expected 'text' to be 'button'`, then on `selectionStart`
+        // reading 0 where a button reads null. Watched 2026-09-13.
+        type="button"
         aria-label={`Status of ${rowNumber}`}
         role="combobox"
         aria-expanded={open}
@@ -146,9 +158,6 @@ export function StatusCell({
           color: STATUS_COLOR[status],
         }}
         value={STATUS_GLYPH[status]}
-        onChange={() => {
-          setOpen(true);
-        }}
         onClick={() => {
           setOpen((was) => !was);
         }}

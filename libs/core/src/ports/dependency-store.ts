@@ -10,6 +10,8 @@ export interface StoredDependency {
 
 export interface DependencyStore {
   listByProject(projectId: string): Promise<StoredDependency[]>;
+  /** Project edges incident to at least one requested work item. */
+  listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredDependency[]>;
   /**
    * Writes the edge, or does nothing if it is already there.
    *

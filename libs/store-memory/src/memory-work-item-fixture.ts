@@ -127,6 +127,24 @@ export function inMemoryWorkItems(
           ),
       );
     },
+    listByIds(projectId, ids) {
+      const requested = new Set(ids);
+      return Promise.resolve(
+        [...byId.values()]
+          .filter((row) => row.projectId === projectId && requested.has(row.id))
+          .sort((left, right) => left.id.localeCompare(right.id))
+          .map((row) =>
+            structuredClone({
+              ...row,
+              teamIds: teamsOf.get(row.id) ?? [],
+              tagIds: tagsOf.get(row.id) ?? [],
+              serviceIds: servicesOf.get(row.id) ?? [],
+              typeIds: typesOf.get(row.id) ?? [],
+              externalRefs: refsOf.get(row.id) ?? [],
+            }),
+          ),
+      );
+    },
     findById(id) {
       const found = byId.get(id);
       return Promise.resolve(found === undefined ? null : structuredClone(found));

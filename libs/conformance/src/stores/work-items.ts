@@ -80,6 +80,7 @@ function expectJunctionWitness(
   if (row === undefined) throw new Error(`junction witness row ${id} was not publicly readable`);
   expect(row).toMatchObject({
     teamIds: [seed.teamIds[0]],
+    tagIds: [seed.tagIds[0]],
     serviceIds: [seed.serviceIds[0]],
     typeIds: [seed.typeIds[0]],
     externalRefs: [
@@ -123,6 +124,22 @@ async function seededRows(readers: SourceReaders, projectId: string): Promise<La
 /** The shared work-row cases for transactional placement, refusal, promotion, and freezing. */
 export function workItemRegistrations(open: OpenCase<'workItems'>): readonly CaseRegistration[] {
   return [
+    storeCase('workItems', 'workItems.listByIds:labels-scope', open, async ({ port, seed }) => {
+      const [projectA] = seed.projectIds;
+      const [firstId, secondId] = seed.workItemIds[0];
+      await addJunctionWitness(port, secondId, seed);
+
+      const rows = await port.listByIds(projectA, [secondId, 'work-missing', firstId]);
+      expect(rows.map(({ id }) => id)).toEqual([firstId, secondId]);
+      expectJunctionWitness(rows, secondId, seed);
+      // Proof: omitting any targeted label/ref join makes this exact witness fail.
+      expect(await port.listByIds(projectA, [seed.workItemIds[1][0]])).toEqual([]);
+      expect(await port.listByIds(projectA, [])).toEqual([]);
+      await port.remove([firstId], [], seed.stamps[1]);
+      expect((await port.listByIds(projectA, [firstId, secondId])).map(({ id }) => id)).toEqual([
+        secondId,
+      ]);
+    }),
     storeCase('workItems', 'workItems.insert:respace', open, async ({ port, readers, seed }) => {
       const [projectA, projectB] = seed.projectIds;
       const [firstId, secondId] = seed.workItemIds[0];
