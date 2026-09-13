@@ -35,4 +35,4 @@
 - [ ] 5.1 Measure a 500-row document's preparation and admitted lock time separately; report input size, statement counts and queued ordinary-write completion. No speed target is invented; unusually long hold is explicit evidence, not a reason to skip atomicity.
 - [ ] 5.2 Run `bunx nx run-many -t test lint typecheck -p contracts core store-sqlite store-memory conformance be-01 fe-01 mcp-01`, the full workspace gate (`bin/h2puni-gate.sh` on h2puni), whole browser gate on owned ports, and `OPENSPEC_TELEMETRY=0 openspec validate --all --json`. Replace the preexisting unimplemented verify placeholder with actual observed fault/green evidence and exact commands; never tick tasks from artifact presence alone.
 
-All slices remain unchecked. This readiness revision implements no import behavior and records no runtime passes.
+Sections 1–3 are implemented and checked above. Sections 4–5 remain future work.

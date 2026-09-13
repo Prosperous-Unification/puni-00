@@ -1131,7 +1131,9 @@ export function importServiceSourceContract(
           source.stores.measures.listByProject(restored.projectId),
         ]);
         // Proof: admitting exported parent roll-ups made each source table name
-        // the parent here and made the second export double the authored values.
+        // the parent here. The second export still matched because its roll-up
+        // masks those duplicate stored facts, so the source-table check is the
+        // assertion that observed the fault.
         expect({
           parentFacts: {
             estimates: estimates.some(({ workItemId }) => workItemId === parent.id),
