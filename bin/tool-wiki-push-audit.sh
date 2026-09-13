@@ -13,7 +13,7 @@ if [[ -z $activation_root ]]; then
 fi
 # Proof: gate-entrypoints.test.ts configures an otherwise empty activation root and observes exit
 # 78, so lost provisioning cannot collapse back into intentional inactivity.
-if [[ ! -e $activation_root/active-v1 ]]; then
+if [[ ! -e "$activation_root/active-v1" ]]; then
   printf 'configured activation root has no marker\n' >&2
   exit 78
 fi
@@ -60,6 +60,26 @@ case "$launcher" in
     ;;
 esac
 
+modules_input=${TOOL_WIKI_TRUSTED_NODE_MODULES:-$trusted_root/trusted-node-modules}
+# Proof: gate-entrypoints.test.ts removes the archive runtime closure and observes exit 78 before
+# the external launcher can run.
+if ! trusted_modules=$(realpath -- "$modules_input") || [[ ! -d $trusted_modules ]] ||
+  [[ ! -f $trusted_modules/typescript/package.json ]]; then
+  printf 'external activation has no trusted TypeScript runtime modules\n' >&2
+  exit 78
+fi
+# Proof: gate-entrypoints.test.ts explicitly points the runtime override inside the candidate and
+# observes exit 78 before the launcher can inherit it.
+case "$trusted_modules" in
+  "$candidate" | "$candidate"/*)
+    printf 'trusted TypeScript runtime modules resolved inside candidate checkout\n' >&2
+    exit 78
+    ;;
+esac
+export TOOL_WIKI_TRUSTED_NODE_MODULES="$trusted_modules"
+export TOOL_WIKI_REQUIRE_CERTIFIED=1
+
 # Proof: gate-entrypoints.test.ts supplies a relative descriptor and observes the external
-# launcher receive the canonical candidate path and exact revision, independent of caller cwd.
+# launcher receive the canonical candidate path, exact revision, archive runtime, and required
+# certification flag, independent of caller cwd.
 exec bash "$launcher" committed "$candidate" "$revision"

@@ -974,6 +974,8 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(ci).toContain("github.event_name == 'push'");
     expect(ci).toContain('diagnostic/non-certifying');
     expect(ci).toContain('bash bin/tool-wiki-push-audit.sh . "$GITHUB_SHA"');
+    expect(ci).not.toContain('Stage trusted runtime modules outside the push candidate');
+    expect(ci).not.toContain('${{ runner.temp }}/tool-wiki-trusted-node-modules');
     const pushProvision = ci.indexOf(
       'name: Provision immutable external activation for push audit',
     );
@@ -989,6 +991,9 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(trustedCi).toContain('pull_request_target:');
     expect(trustedCi).toContain('permissions:\n  contents: read');
     expect(trustedCi).not.toContain('if: ${{ vars.TOOL_WIKI_ACTIVATION_');
+    expect(trustedCi.indexOf('name: Require immutable activation configuration')).toBeLessThan(
+      trustedCi.indexOf('name: Check out trusted launcher'),
+    );
     expect(trustedCi.match(/persist-credentials: false/g)).toHaveLength(2);
     expect(trustedCi).toContain('ref: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}');
     expect(trustedCi).toContain('bun install --frozen-lockfile --ignore-scripts');
@@ -1069,9 +1074,10 @@ await import(${JSON.stringify(productionSnapshotter)});
     mkdirSync(activation);
     write(join(activation, 'active-v1'), 'tool-wiki-active-v1\n');
     write(join(activation, 'launcher-path'), 'launcher.sh\n');
+    write(join(activation, 'trusted-node-modules/typescript/package.json'), '{}\n');
     write(
       join(activation, 'launcher.sh'),
-      '#!/usr/bin/env bash\nprintf \'%s|%s|%s\\n\' "$1" "$2" "$3"\n',
+      '#!/usr/bin/env bash\nprintf \'%s|%s|%s|%s|%s\\n\' "$1" "$2" "$3" "$TOOL_WIKI_TRUSTED_NODE_MODULES" "$TOOL_WIKI_REQUIRE_CERTIFIED"\n',
     );
     chmodSync(join(activation, 'launcher.sh'), 0o555);
 
@@ -1087,7 +1093,61 @@ await import(${JSON.stringify(productionSnapshotter)});
 
     expect(invocation.exitCode, streamText(invocation.stderr, 'push audit stderr')).toBe(0);
     expect(streamText(invocation.stdout, 'push audit stdout')).toBe(
-      `committed|${realpathSync(candidate)}|abc123\n`,
+      `committed|${realpathSync(candidate)}|abc123|${realpathSync(join(activation, 'trusted-node-modules'))}|1\n`,
+    );
+  });
+
+  test('push audit refuses an activation archive without trusted runtime modules', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tool-wiki-push-runtime-missing-'));
+    scratchPaths.push(directory);
+    const candidate = join(directory, 'candidate');
+    const activation = join(directory, 'activation');
+    mkdirSync(candidate);
+    mkdirSync(activation);
+    write(join(activation, 'active-v1'), 'tool-wiki-active-v1\n');
+    write(join(activation, 'launcher-path'), 'launcher.sh\n');
+    write(join(activation, 'launcher.sh'), '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(join(activation, 'launcher.sh'), 0o555);
+
+    const invocation = Bun.spawnSync(['bash', pushAuditPath, candidate, 'abc123'], {
+      cwd: candidate,
+      env: { PATH: process.env['PATH'] ?? '', TOOL_WIKI_ACTIVATION_ROOT: activation },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+
+    expect(invocation.exitCode).toBe(78);
+    expect(streamText(invocation.stderr, 'push audit stderr')).toContain(
+      'no trusted TypeScript runtime modules',
+    );
+  });
+
+  test('push audit refuses a candidate-contained trusted runtime override', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tool-wiki-push-runtime-boundary-'));
+    scratchPaths.push(directory);
+    const candidate = join(directory, 'candidate');
+    const activation = join(directory, 'activation');
+    write(join(candidate, 'node_modules/typescript/package.json'), '{}\n');
+    mkdirSync(activation);
+    write(join(activation, 'active-v1'), 'tool-wiki-active-v1\n');
+    write(join(activation, 'launcher-path'), 'launcher.sh\n');
+    write(join(activation, 'launcher.sh'), '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(join(activation, 'launcher.sh'), 0o555);
+
+    const invocation = Bun.spawnSync(['bash', pushAuditPath, candidate, 'abc123'], {
+      cwd: candidate,
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        TOOL_WIKI_ACTIVATION_ROOT: activation,
+        TOOL_WIKI_TRUSTED_NODE_MODULES: join(candidate, 'node_modules'),
+      },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
+
+    expect(invocation.exitCode).toBe(78);
+    expect(streamText(invocation.stderr, 'push audit stderr')).toContain(
+      'runtime modules resolved inside candidate checkout',
     );
   });
 

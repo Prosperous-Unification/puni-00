@@ -60,6 +60,7 @@ if [[ -n "$activation_root" ]]; then
   TOOL_WIKI_TRUSTED_NODE_MODULES=$(resolve_tool_wiki_modules \
     "$activation_root" "$repo_root" "${TOOL_WIKI_TRUSTED_NODE_MODULES:-}")
   export TOOL_WIKI_TRUSTED_NODE_MODULES
+  export TOOL_WIKI_REQUIRE_CERTIFIED=1
 else
   trusted_launcher=
 fi

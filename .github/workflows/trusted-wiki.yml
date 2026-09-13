@@ -13,6 +13,17 @@ jobs:
     # fails instead of reporting a green skipped admission check.
     runs-on: ubuntu-latest
     steps:
+      - name: Require immutable activation configuration
+        env:
+          ACTIVATION_ARCHIVE_SHA256: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256 }}
+          ACTIVATION_ARCHIVE_URL: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_URL }}
+          ACTIVATION_VERSION: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}
+        run: |
+          set -euo pipefail
+          : "${ACTIVATION_ARCHIVE_SHA256:?trusted activation archive digest is not configured}"
+          : "${ACTIVATION_ARCHIVE_URL:?trusted activation archive URL is not configured}"
+          : "${ACTIVATION_VERSION:?trusted activation version is not configured}"
+
       - name: Check out trusted launcher
         uses: actions/checkout@v4
         with:

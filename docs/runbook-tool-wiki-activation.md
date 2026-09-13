@@ -43,8 +43,10 @@ and h2puni; every consumer resolves a relative descriptor from that root, never 
 working directory.
 
 The protected-default push audit downloads, verifies, and extracts that same pinned archive before
-running its launcher. With no archive variables it reports inactive; partial configuration or a
-configured activation root that loses its marker fails rather than silently auditing nothing.
+running its launcher and archive-carried TypeScript runtime closure with required certification.
+It never relocates candidate-installed modules into the trust path. With no archive variables it
+reports inactive; partial configuration or a configured activation root that loses its marker
+fails rather than silently auditing nothing.
 
 Set `TOOL_WIKI_ACTIVATION_VERSION` to the exact reviewed source commit, not a display label. The
 target-context workflow checks out that immutable revision, installs its lockfile-pinned runtime
