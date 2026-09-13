@@ -520,6 +520,28 @@ function captureMatchesOracle(capture: PlanInputReads, projectIndex: 0 | 1): boo
   );
 }
 
+function optionalCaptureMatchesOracle(
+  capture: PlanInputReads | null,
+  projectIndex: 0 | 1,
+): boolean {
+  return capture !== null && captureMatchesOracle(capture, projectIndex);
+}
+
+function captureObservationMatchesOracle(
+  observed: ReturnType<typeof observePlanInput> | null,
+  projectIndex: 0 | 1,
+): boolean {
+  return (
+    observed !== null &&
+    (['memory-unbumped', 'sqlite-bumped'] as const).some((revisionPolicy) =>
+      Bun.deepEquals(
+        observed,
+        savedPlanCaptureExpected(DETERMINISTIC_SEED, projectIndex, revisionPolicy),
+      ),
+    )
+  );
+}
+
 function emptyMissingCapture(): PlanInputReads {
   return {
     project: {
@@ -5854,6 +5876,210 @@ describe('SQLite existing source conformance', () => {
       closeCalls: 1,
       directoryExists: false,
     });
+  });
+
+  it('Task 6.3 rejects non-null real missing captures before fault reach', async () => {
+    let unknownReads = 0;
+    let closeCalls = 0;
+    let directory = '';
+    let realMissing: PlanInputReads | null | undefined;
+    let projectA: PlanInputReads | null = null;
+    let projectB: PlanInputReads | null = null;
+    const fault = defineFault({
+      ...captureMissingFault,
+      mutate(source: SqliteSource, control) {
+        const invalid = withSavedPlanCapture(source, {
+          async readPlanInput(projectId) {
+            const captured = await source.history.savedPlanCapture.readPlanInput(projectId);
+            if (projectId !== 'capture-project-missing') return captured;
+            unknownReads += 1;
+            realMissing = captured;
+            [projectA, projectB] = await Promise.all([
+              source.history.savedPlanCapture.readPlanInput('project-a'),
+              source.history.savedPlanCapture.readPlanInput('project-b'),
+            ]);
+            return emptyMissingCapture();
+          },
+        });
+        return captureFaultSource(invalid, control, 'missing');
+      },
+    });
+    const proof = await proveFault(
+      fault,
+      openSqliteSource,
+      (source) => ({
+        ...source,
+        async close() {
+          closeCalls += 1;
+          await source.close();
+        },
+      }),
+      () => Promise.resolve(),
+      (ownedDirectory) => {
+        directory = ownedDirectory;
+      },
+    );
+    // Proof: removing the missing-null guard changed this source-specific
+    // reversal from phase-failed to observed; the real unknown read was the
+    // only unknown attempt and complete A/B state remained independently readable.
+    expect(proof).toEqual({
+      kind: 'phase-failed',
+      faultId: captureMissingFault.id,
+      caseId: captureMissingFault.caseId,
+      phase: 'saved-plan-capture:missing:empty-capture',
+      failure: 'fault did not reach saved-plan-capture:missing:empty-capture',
+    });
+    expect({
+      unknownReads,
+      realMissing,
+      closeCalls,
+      directoryExists: existsSync(directory),
+    }).toEqual({
+      unknownReads: 1,
+      realMissing: null,
+      closeCalls: 1,
+      directoryExists: false,
+    });
+    expect(optionalCaptureMatchesOracle(projectA, 0)).toBe(true);
+    expect(optionalCaptureMatchesOracle(projectB, 1)).toBe(true);
+  });
+
+  it('Task 6.3 proves the detached second-read prerequisite and ordinal', async () => {
+    let targetReads = 0;
+    let closeCalls = 0;
+    let directory = '';
+    let mutationObserved = false;
+    let firstTags: readonly { readonly id: string; readonly name: string }[] | null = null;
+    let firstCapture: PlanInputReads | null = null;
+    let firstSnapshot: ReturnType<typeof observePlanInput> | null = null;
+    let secondCapture: PlanInputReads | null = null;
+    let projectB: PlanInputReads | null = null;
+    const incompleteFault = defineFault({
+      ...captureDetachedFault,
+      mutate(source: SqliteSource, control) {
+        const incomplete = withSavedPlanCapture(source, {
+          async readPlanInput(projectId) {
+            if (projectId !== 'project-a')
+              return source.history.savedPlanCapture.readPlanInput(projectId);
+            targetReads += 1;
+            if (targetReads === 2) mutationObserved = firstTags?.length === 0;
+            const captured = await source.history.savedPlanCapture.readPlanInput(projectId);
+            if (captured === null) return null;
+            if (targetReads === 1) {
+              firstTags = captured.tags;
+              firstCapture = captured;
+              firstSnapshot = observePlanInput(captured);
+              return captured;
+            }
+            secondCapture = captured;
+            projectB = await source.history.savedPlanCapture.readPlanInput('project-b');
+            return { ...captured, tags: [] };
+          },
+        });
+        return captureFaultSource(incomplete, control, 'detached');
+      },
+    });
+    const incompleteProof = await proveFault(
+      incompleteFault,
+      openSqliteSource,
+      (source) => ({
+        ...source,
+        async close() {
+          closeCalls += 1;
+          await source.close();
+        },
+      }),
+      () => Promise.resolve(),
+      (ownedDirectory) => {
+        directory = ownedDirectory;
+      },
+    );
+    // Proof: removing the pristine second-capture guard changed this reversal
+    // from phase-failed to observed after two target calls and caller mutation.
+    expect(incompleteProof).toMatchObject({
+      kind: 'phase-failed',
+      faultId: captureDetachedFault.id,
+      caseId: captureDetachedFault.caseId,
+      phase: 'saved-plan-capture:detached:shared-tags',
+      failure: 'fault did not reach saved-plan-capture:detached:shared-tags',
+    });
+    expect({
+      targetReads,
+      mutationObserved,
+      closeCalls,
+      directoryExists: existsSync(directory),
+    }).toEqual({ targetReads: 2, mutationObserved: true, closeCalls: 1, directoryExists: false });
+    expect(captureObservationMatchesOracle(firstSnapshot, 0)).toBe(true);
+    expect(optionalCaptureMatchesOracle(firstCapture, 0)).toBe(false);
+    expect(optionalCaptureMatchesOracle(secondCapture, 0)).toBe(true);
+    expect(optionalCaptureMatchesOracle(projectB, 1)).toBe(true);
+  });
+
+  it('Task 6.3 requires the second real detached read before fault reach', async () => {
+    let targetReads = 0;
+    let closeCalls = 0;
+    let directory = '';
+    let mutationObserved = false;
+    let firstTags: readonly { readonly id: string; readonly name: string }[] | null = null;
+    let firstCapture: PlanInputReads | null = null;
+    let firstSnapshot: ReturnType<typeof observePlanInput> | null = null;
+    let projectB: PlanInputReads | null = null;
+    const refusalProof = await proveFault(
+      captureDetachedFault,
+      openSqliteSource,
+      (source) =>
+        withSavedPlanCapture(
+          {
+            ...source,
+            async close() {
+              closeCalls += 1;
+              await source.close();
+            },
+          },
+          {
+            async readPlanInput(projectId) {
+              if (projectId !== 'project-a')
+                return source.history.savedPlanCapture.readPlanInput(projectId);
+              targetReads += 1;
+              if (targetReads === 1) {
+                const captured = await source.history.savedPlanCapture.readPlanInput(projectId);
+                if (captured !== null) {
+                  firstTags = captured.tags;
+                  firstCapture = captured;
+                  firstSnapshot = observePlanInput(captured);
+                }
+                return captured;
+              }
+              mutationObserved = firstTags?.length === 0;
+              projectB = await source.history.savedPlanCapture.readPlanInput('project-b');
+              throw new Error('injected second SQLite capture refusal');
+            },
+          },
+        ),
+      () => Promise.resolve(),
+      (ownedDirectory) => {
+        directory = ownedDirectory;
+      },
+    );
+    // Proof: substituting a clone of the first capture for the second real call
+    // made this proof observed with targetReads 1; refusal at ordinal two makes
+    // the required operation phase-failed while preserving complete public state.
+    expect(refusalProof).toMatchObject({
+      kind: 'phase-failed',
+      faultId: captureDetachedFault.id,
+      caseId: captureDetachedFault.caseId,
+      phase: 'saved-plan-capture:detached:shared-tags',
+      failure: 'fault did not reach saved-plan-capture:detached:shared-tags',
+    });
+    expect({
+      targetReads,
+      mutationObserved,
+      closeCalls,
+      directoryExists: existsSync(directory),
+    }).toEqual({ targetReads: 2, mutationObserved: true, closeCalls: 1, directoryExists: false });
+    expect(captureObservationMatchesOracle(firstSnapshot, 0)).toBe(true);
+    expect(optionalCaptureMatchesOracle(firstCapture, 0)).toBe(false);
+    expect(optionalCaptureMatchesOracle(projectB, 1)).toBe(true);
   });
 
   it('Task 6.3 rejects an omitted capture-only directory before fault reach', async () => {

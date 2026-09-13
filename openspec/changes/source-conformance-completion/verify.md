@@ -1949,3 +1949,66 @@ its mutation, removed input and canonical target/content guards, skipped
 snapshot or writer close, dropped combined errors, delayed rival ownership,
 and restored stale rival or rollback behavior; each corresponding permanent
 negative failed. Review: `/tmp/source-conformance-6-2-astra-review-2.md`.
+
+#### Task 6.3 saved-plan capture values and detachment
+
+The inventory-first RED named exactly
+`savedPlanCapture.readPlanInput:complete`,
+`savedPlanCapture.readPlanInput:missing-project`, and
+`savedPlanCapture.readPlanInput:detached` (`Expected - 3 / Received + 0`). The
+shared cases project all 17 declared `PlanInputReads` fields and compare them
+with separately written complete literals. The two-project seed includes a
+capacity-only team, an unassigned person's membership, capture-only tag,
+service and work-item type rows, distinct assignments/facts/ladders, and the
+complete global external-system directory. Project-scoped set-like rows are
+normalized by explicit keys while step and priority-band order remains
+semantic.
+
+Memory and SQLite both pass the complete capture, return null for an unknown
+project without disturbing complete A/B state, and return detached arrays. The
+detached case mutates all fifteen top-level arrays plus the nonempty nested
+team, tag, service, type, membership and ownership arrays, then compares fresh
+A/B captures with the independent complete oracles. The memory work-item
+fixture now persists a supplied `tagIds` replacement; removing that write
+fails the public capture seed at the exact tag relation.
+
+Both adapters observe the three named value-boundary faults after calling the
+real public capture: omit the complete tag directory, substitute a typed empty
+capture for a real null unknown read, and reuse the first returned tag array
+only after caller mutation and a pristine second real capture. Neutralizing
+only mutation is `assertion-passed`; suppressing reach, suppressing the target
+operation, targeting another project, or breaking a prerequisite is
+`phase-failed`. Each fixture closes once. SQLite removes its owned directory,
+and assertion plus cleanup failures retain operation-then-cleanup order.
+
+The initial Astra review at `3c887a25` found that the missing-null and detached
+second-read prerequisites lacked permanent source-specific negatives. The
+repair now records the real unknown attempt, both detached target ordinals,
+the caller-mutation window, complete pre-mutation A state, complete independent
+B state, pristine second A state where available, exact fault phase, one
+close, and SQLite directory removal. Removing the missing-null guard failed
+both new adapter probes (`0/2`, 76 assertions). Removing the pristine
+second-capture guard failed both detached probes. Replacing the second real
+capture with a clone of the first failed all four detached prerequisite and
+ordinal probes (`0/4`, 164 assertions); the refusal probe observed only one
+real target call instead of ordinal two. Restoring the guards and real call
+returned both focused suites to green.
+
+Fresh restored evidence:
+
+- Task 6.3 focus passed memory `6/0/787` and SQLite `6/0/875`; the independent
+  inventory passed `1/0/2`.
+- The complete two-adapter source-conformance suite and inventory passed
+  `132/0/10,132` across three files.
+- Uncached conformance, memory and SQLite project targets passed respectively
+  `29/0/48`, `85/0/4,507`, and `714/0/7,623` before the proof-only repair. The
+  final complete source run exercises the repaired tests.
+- All six uncached conformance/memory/SQLite lint and typecheck targets passed.
+  `nx format:check --all`, changed-file Prettier and `git diff --check` passed.
+- Pinned OpenSpec strict validation passed; all artifacts passed `82/0` (71
+  changes and 11 specs).
+
+Core portable composition built 368 modules. Its Playwright phase remains
+unavailable in this sandbox because Chromium aborts at
+`sandbox_host_linux.cc:41` with `Operation not permitted`. The committed-SHA
+h2puni gate and full integrated browser/workspace checks remain Task 7.3.
