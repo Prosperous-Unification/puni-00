@@ -16,9 +16,10 @@ browser's UTC day and the host's day differed); CI is the gate — `bin/h2puni-g
   fill-and-overwrite variant of `setStatus`.
 - **Only the Status cell's act clears the fact end.** A per-step statement that drops a row
   from done to in progress leaves the facts alone; only a done row draws its fact end.
-- **The word is the cell's `title`, not part of its accessible name.** `jsx-a11y` refuses
-  `aria-description` on a combobox, and `Status of 010` is the handle every walk, hint and
-  browser proof finds the cell by.
+- **The word is in the cell's fact card, not in its accessible name and not a `title`.**
+  `jsx-a11y` refuses `aria-description` on a combobox, a `title` drew the browser's grey
+  tooltip beside the fact card (removed 2026-09-13 on Dany's screenshot), and `Status of 010`
+  is the handle every walk, hint and browser proof finds the cell by.
 - **A deleted row under an open prompt** is the `refsEditing` pattern (`?? null` → no
   surface) and is not separately tested.
 

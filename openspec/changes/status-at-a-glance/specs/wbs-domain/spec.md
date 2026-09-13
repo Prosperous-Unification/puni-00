@@ -87,8 +87,8 @@ The Status column SHALL sit after `#` and before Links, SHALL be a member of the
 block between them, and SHALL be 28px wide. Its heading SHALL be the `○` glyph with the
 accessible name `Status`. Its cell SHALL show `○` for `unknown`, `◐` for `in_progress` and
 `✓` for `done`, coloured as the strip is, its accessible name naming the row (`Status of 010`)
-and its `title` saying the status in words; the picker SHALL keep offering `Unknown` and
-`Done` in words. The status itself SHALL be readable off `data-status-value`. The column SHALL stay
+and its fact card saying the status in words, with no browser `title`; the picker SHALL keep
+offering `Unknown` and `Done` in words. The status itself SHALL be readable off `data-status-value`. The column SHALL stay
 hidden by default and SHALL be offered in the Columns control as `Status`, after `Deadline`
 as before.
 
@@ -103,8 +103,8 @@ as before.
 
 - **GIVEN** a done leaf `010` with the Status column shown
 - **WHEN** its Status cell is read
-- **THEN** the cell shows `✓`, its title is `Done`, `data-status-value` is `done`, and opening it
-  lists `Unknown` and `Done`
+- **THEN** the cell shows `✓`, its fact begins `Status: Done.`, it has no `title`,
+  `data-status-value` is `done`, and opening it lists `Unknown` and `Done`
 
 ### Requirement: The Status cell's fact names the status, and its card leaves when the list opens
 
@@ -185,7 +185,7 @@ be part of the same journal entry as the statements, so one undo takes them away
 
 The table SHALL offer three columns — `Status`, `Fact start`, `Fact end` — hidden by default
 and offered in the Columns control in table order after `Deadline`. The Status cell SHALL show
-the row's status as a glyph with the word as its title and offer `Unknown` and
+the row's status as a glyph with the word in its fact card and offer `Unknown` and
 `Done` to choose, on a parent as on a leaf; `In progress` SHALL be shown but not offered. The
 two fact cells SHALL be date cells with the deadline cell's rest and edit states. A row whose
 status is `done` SHALL carry `data-row-done` and its name and number SHALL read struck
@@ -208,4 +208,5 @@ through, on every stripe and under every row light.
 
 - **GIVEN** a leaf whose `Dev` says `done` and whose `QA` says nothing
 - **WHEN** its Status cell is read and then opened
-- **THEN** it shows `◐` titled `In progress`, and the list offers `Unknown` and `Done` only
+- **THEN** it shows `◐` with a fact beginning `Status: In progress.`, and the list offers
+  `Unknown` and `Done` only

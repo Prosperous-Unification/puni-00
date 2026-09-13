@@ -17,8 +17,10 @@ export const STATUS_LABEL: Readonly<Record<WorkItemStatus, string>> = {
  * An empty ring, a half ring and a tick: the first two are one shape filling
  * up, the third is the one mark every reader takes for finished. Glyphs and
  * not an icon set because the table draws with text everywhere else (`⠿`, `✕`)
- * and 28px holds one character. The word stays in the cell's `title` and on
- * the picker's lines.
+ * and 28px holds one character. The word is said by the fact card and on the
+ * picker's lines. No `title`: the browser drew its grey tooltip beside the
+ * fact card, two boxes for one word (Dany, 2026-09-13: "remove the system grey
+ * hint"), and a combobox takes no `aria-description` per `jsx-a11y`.
  */
 export const STATUS_GLYPH: Readonly<Record<WorkItemStatus, string>> = {
   unknown: '○',
@@ -65,9 +67,8 @@ export interface StatusCellProps {
 /**
  * The Status cell: the row's status as one glyph, and a two-line list to set it.
  *
- * The glyph is the box's `value`; the word is its `title` (a combobox takes no
- * `aria-description`, per `jsx-a11y`), and the row is its `aria-label`
- * (`Status of 010`) — the
+ * The glyph is the box's `value`; the word is said by its fact card —
+ * `Status: Unknown. …` — and the row is its `aria-label` (`Status of 010`) — the
  * handle every keyboard walk, browser proof and hint already finds the cell by,
  * kept stable when the cell stopped reading a word (`status-at-a-glance` D4).
  * `data-status-value` carries the status itself for anything that has to
@@ -122,7 +123,6 @@ export function StatusCell({
     >
       <input
         aria-label={`Status of ${rowNumber}`}
-        title={STATUS_LABEL[status]}
         role="combobox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}

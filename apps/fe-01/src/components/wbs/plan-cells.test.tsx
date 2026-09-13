@@ -3474,7 +3474,9 @@ describe('the status cell and the two fact cells', () => {
 
     expect(statusCell('010').value).toBe('○');
     expect(statusCell('010')).toHaveAttribute('data-status-value', 'unknown');
-    expect(statusCell('010')).toHaveAttribute('title', 'Unknown');
+    // No browser `title`: it drew a grey tooltip beside the fact card, two boxes
+    // for one word (Dany, 2026-09-13).
+    expect(statusCell('010')).not.toHaveAttribute('title');
     // The fact card names the status first — the glyph alone does not say the
     // word (Dany, 2026-09-13: "hint pop-up must show the full name of the
     // status or even write status: unknown").
@@ -3714,7 +3716,10 @@ describe('the status cell and the two fact cells', () => {
     click('Add work item');
     await waitFor(() => {
       expect(statusCell('010').value).toBe('◐');
-      expect(statusCell('010')).toHaveAttribute('title', 'In progress');
+      expect(statusCell('010')).toHaveAttribute(
+        'data-fact',
+        expect.stringMatching(/^Status: In progress\. /),
+      );
     });
 
     fireEvent.click(statusCell('010'));
