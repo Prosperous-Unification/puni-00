@@ -20,6 +20,7 @@ type CaptureSeedStores = Pick<
 >;
 
 export type CaptureRevisionPolicy = 'memory-unbumped' | 'sqlite-bumped';
+export type CaptureDirectoryEpoch = 'before' | 'after';
 
 const A_BANDS = [
   { startsAt: 1, label: 'A urgent', defaultValue: 2 },
@@ -164,6 +165,7 @@ export function savedPlanCaptureExpected(
   seed: SeededPlan,
   projectIndex: 0 | 1,
   revisionPolicy: CaptureRevisionPolicy,
+  directoryEpoch: CaptureDirectoryEpoch = 'before',
 ): ReturnType<typeof observePlanInput> {
   const isA = projectIndex === 0;
   const projectId = seed.projectIds[projectIndex];
@@ -270,7 +272,11 @@ export function savedPlanCaptureExpected(
     capacity: [[isA ? 'team-b' : 'team-a', isA ? 4 : 6]] as [string, number][],
     priorityBands: (isA ? A_BANDS : B_BANDS).map((row) => ({ ...row })),
     people: [
-      { id: 'capture-person-unassigned', name: 'Unassigned member', teamIds: ['team-b'] },
+      {
+        id: 'capture-person-unassigned',
+        name: 'Unassigned member',
+        teamIds: [directoryEpoch === 'before' ? 'team-b' : 'team-a'],
+      },
       { id: 'person-a', name: 'Person 1', teamIds: ['team-a'] },
       { id: 'person-b', name: 'Person 2', teamIds: ['team-b'] },
     ],
@@ -284,7 +290,7 @@ export function savedPlanCaptureExpected(
     ],
     tags: [
       { id: 'capture-tag-only', name: 'Capture-only tag' },
-      { id: 'tag-a', name: 'Tag 1' },
+      { id: 'tag-a', name: directoryEpoch === 'before' ? 'Tag 1' : 'Tag after interleave' },
     ],
     workItemTypes: [
       { id: 'capture-type-only', name: 'Capture-only type' },
@@ -604,6 +610,71 @@ export function savedPlanCaptureRegistrations(
           savedPlanCaptureExpected(seed, 0, 'memory-unbumped'),
           savedPlanCaptureExpected(seed, 0, 'sqlite-bumped'),
         ]).toContainEqual(captured);
+      },
+    ),
+    storeCase(
+      'savedPlanCapture',
+      'savedPlanCapture.readPlanInput:coherent-interleave',
+      open,
+      async ({ port, seed, scenario }) => {
+        if (scenario.kind !== 'capture-interleave')
+          throw new Error('coherent capture requires its interleave scenario');
+        const heldRead = port.readPlanInput(seed.projectIds[0]);
+        await scenario.firstRead.entered;
+        let change: Awaited<ReturnType<typeof scenario.changeDirectory>> | undefined;
+        let changeFailure: unknown;
+        try {
+          change = await scenario.changeDirectory();
+        } catch (cause) {
+          changeFailure = cause;
+        } finally {
+          scenario.firstRead.release();
+        }
+        const heldSettlement = await Promise.allSettled([heldRead]);
+        if (changeFailure !== undefined)
+          throw changeFailure instanceof Error
+            ? changeFailure
+            : new Error('capture directory change failed', { cause: changeFailure });
+        const held = heldSettlement[0];
+        if (held.status === 'rejected')
+          throw held.reason instanceof Error
+            ? held.reason
+            : new Error(`held capture rejected: ${String(held.reason)}`);
+        if (change === undefined) throw new Error('capture directory change did not settle');
+        const tag = change.tag;
+        const person = change.person;
+        if (!tag.ok) throw new Error(`capture tag change was refused: ${tag.reason}`);
+        if (!person.ok) throw new Error(`capture person change was refused: ${person.reason}`);
+        if (held.value === null) throw new Error('held capture unexpectedly absent');
+        const next = await readComplete(port, seed.projectIds[0]);
+        const observed = {
+          change: { tag, person },
+          held: observePlanInput(held.value),
+          next: observePlanInput(next),
+        };
+        expect(
+          (['memory-unbumped', 'sqlite-bumped'] as const).map((revisionPolicy) => ({
+            change: {
+              tag: {
+                ok: true as const,
+                tag: { id: 'tag-a', name: 'Tag after interleave' },
+                projectIds: [seed.projectIds[0]] as readonly string[],
+              },
+              person: {
+                ok: true as const,
+                person: {
+                  id: 'capture-person-unassigned',
+                  name: 'Unassigned member',
+                  kind: 'person',
+                  teamIds: ['team-a'] as readonly string[],
+                },
+                projectIds: [] as readonly string[],
+              },
+            },
+            held: savedPlanCaptureExpected(seed, 0, revisionPolicy, 'before'),
+            next: savedPlanCaptureExpected(seed, 0, revisionPolicy, 'after'),
+          })),
+        ).toContainEqual(observed);
       },
     ),
     storeCase(

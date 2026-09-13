@@ -102,6 +102,7 @@ describe('the migrated existing store kits', () => {
       'savedPlans.touch:principals-scope',
       'savedPlans.write:late-body-failure',
       'savedPlanCapture.readPlanInput:complete',
+      'savedPlanCapture.readPlanInput:coherent-interleave',
       'savedPlanCapture.readPlanInput:missing-project',
       'savedPlanCapture.readPlanInput:detached',
     ]);

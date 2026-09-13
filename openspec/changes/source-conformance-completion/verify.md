@@ -2012,3 +2012,50 @@ Core portable composition built 368 modules. Its Playwright phase remains
 unavailable in this sandbox because Chromium aborts at
 `sandbox_host_linux.cc:41` with `Operation not permitted`. The committed-SHA
 h2puni gate and full integrated browser/workspace checks remain Task 7.3.
+
+#### Task 6.4 coherent capture interleave and owner isolation
+
+The inventory-first RED named exactly
+`savedPlanCapture.readPlanInput:coherent-interleave`: one expected case was
+missing and none was received. The shared case holds after the first actual non-null project read,
+commits a tag rename and unassigned-person membership change through the
+independent writer, and compares the held capture with the complete before
+oracle and the next capture with the complete after oracle. Both adapters
+return exact successful directory outcomes before release.
+
+Memory clones its committed epoch before the awaited seam; SQLite holds a
+dedicated read transaction while the process connection commits the writer.
+The named mutant performs real public directory reads outside that epoch and
+returns a torn capture. Both adapters observe the stable before/after tag
+diagnostic, while neutral mutation is `assertion-passed`; omitted reach,
+incomplete before state, wrong target, and writer rejection are `phase-failed`.
+Held operations drain and sources close once; SQLite also removes each owned
+directory.
+
+The rollback proofs inject capture rejection only after exact writer success
+and public after-state. A fresh public capture remains completely after-state
+for the real memory clone and SQLite dedicated connection. The forbidden
+memory staged owner establishes the same after-state inside a real pending
+unit of work and then rolls it back to the complete before directory. The
+forbidden SQLite repository borrows the process handle, verifies affected-row
+counts and public after-state inside the capture transaction, then its rollback
+restores the complete before directory. Removing memory's project-tag relation
+lookup made the shared case receive no touched project instead of
+`project-a`; restoring the source-owned lookup returned the case to green.
+
+Fresh evidence:
+
+- Task 6.4 focus passed memory `3/0/288` and SQLite `3/0/320`; inventory passed
+  `1/0/2`.
+- Retained adapter and caller checks passed memory `17/0/196`, SQLite
+  `35/0/139`, core `16/0/33`, and be-01 `16/0/79`.
+- Uncached project targets passed conformance `29/0/48`, store-memory
+  `91/0/4,951`, and store-sqlite `720/0/8,115` across 60 SQLite files. Core
+  portable composition passed `1/0` in Chromium after running outside the
+  restricted filesystem sandbox that rejected Chromium startup with EPERM.
+- All six uncached conformance/memory/SQLite lint and typecheck targets passed.
+  `nx format:check --all`, `git diff --check`, pinned strict change validation,
+  and all OpenSpec artifacts `82/82` passed.
+
+The branch contains current `origin/main` at `c61b370d`. The committed-SHA
+h2puni gate remains Task 7.3.

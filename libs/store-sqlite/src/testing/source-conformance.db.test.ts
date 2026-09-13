@@ -6,6 +6,7 @@ import {
   assertCompleteStateAlternative,
   assertSeedState,
   brokenSource,
+  type CaptureDirectoryChange,
   type CaseFixture,
   type CaseId,
   createFaultControl,
@@ -55,15 +56,23 @@ import { asc, eq, sql } from 'drizzle-orm';
 
 import type { SqliteLateWriteEvidence } from '../late-write-seam';
 import { runMigrations } from '../migrate';
+import { SavedPlanCaptureRepository } from '../saved-plan-capture';
 import {
   actual as actualTable,
   calendarMarker as markerTable,
   eventSequencer,
+  personTeam as personTeamTable,
   stepMeasure as measureTable,
   stepProgress as progressTable,
+  tag as tagTable,
   users as userTable,
 } from '../schema';
-import { openSqliteSource, type OpenSqliteSourceOptions, type SqliteSource } from '../source';
+import {
+  openSqliteSource,
+  type OpenSqliteSourceOptions,
+  openSqliteSourceWithCaptureReadSeam,
+  type SqliteSource,
+} from '../source';
 import {
   openSqliteSourceWithFault,
   openSqliteSourceWithMissingSavedPlanInput,
@@ -404,7 +413,30 @@ async function openSqliteSavedPlanCase(
 async function openSqliteSavedPlanCaptureCase(
   caseId: CaseId,
 ): Promise<CaseFixture<SavedPlanCaptureStore>> {
-  const { source, directory } = await seedSqliteSource(openSqliteSource, async (seeded) => {
+  let enter: () => void = () => undefined;
+  let release: () => void = () => undefined;
+  let didEnter = false;
+  const entered = new Promise<void>((resolve) => {
+    enter = resolve;
+  });
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const openSource: OpenSource =
+    caseId === 'savedPlanCapture.readPlanInput:coherent-interleave'
+      ? (options) =>
+          openSqliteSourceWithCaptureReadSeam(options, {
+            async afterFirstRead({ projectId, project }) {
+              if (projectId !== 'project-a' || didEnter) return;
+              if (project.id !== 'project-a' || project.name !== 'Captured project A')
+                throw new Error('SQLite capture first-read evidence is not project A');
+              didEnter = true;
+              enter();
+              await released;
+            },
+          })
+      : openSqliteSource;
+  const { source, directory } = await seedSqliteSource(openSource, async (seeded) => {
     await seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED);
   });
   return {
@@ -413,9 +445,72 @@ async function openSqliteSavedPlanCaptureCase(
     journalAppender: source.stores.journal,
     seed: DETERMINISTIC_SEED,
     readers: readersOf(source),
-    scenario: { kind: 'ordinary' },
-    close: () => closeSqliteResources(source, directory),
+    scenario:
+      caseId === 'savedPlanCapture.readPlanInput:coherent-interleave'
+        ? {
+            kind: 'capture-interleave',
+            firstRead: { entered, release },
+            changeDirectory: () => changeSqliteCaptureDirectory(source),
+          }
+        : { kind: 'ordinary' },
+    close: async () => {
+      release();
+      await closeSqliteResources(source, directory);
+    },
   };
+}
+
+async function changeSqliteCaptureDirectory(source: SqliteSource): Promise<CaptureDirectoryChange> {
+  const stamp = { at: 600, by: DETERMINISTIC_SEED.ownerIds[1] };
+  const change = await source.uow.run(async ({ stores }) => {
+    const tag = await stores.directory.renameTag('tag-a', 'Tag after interleave', stamp);
+    const person = await stores.directory.patchPerson(
+      'capture-person-unassigned',
+      { teamIds: ['team-a'] },
+      stamp,
+    );
+    return { commit: true, value: { tag, person } };
+  });
+  const [tags, people] = await Promise.all([
+    source.stores.directory.listTags(),
+    source.stores.directory.listPeople(),
+  ]);
+  tags.sort((left, right) => left.id.localeCompare(right.id));
+  people.sort((left, right) => left.id.localeCompare(right.id));
+  expect({ change, tags, people }).toEqual({
+    change: {
+      tag: {
+        ok: true,
+        tag: { id: 'tag-a', name: 'Tag after interleave' },
+        projectIds: ['project-a'],
+      },
+      person: {
+        ok: true,
+        person: {
+          id: 'capture-person-unassigned',
+          name: 'Unassigned member',
+          kind: 'person',
+          teamIds: ['team-a'],
+        },
+        projectIds: [],
+      },
+    },
+    tags: [
+      { id: 'capture-tag-only', name: 'Capture-only tag' },
+      { id: 'tag-a', name: 'Tag after interleave' },
+    ],
+    people: [
+      {
+        id: 'capture-person-unassigned',
+        name: 'Unassigned member',
+        kind: 'person',
+        teamIds: ['team-a'],
+      },
+      { id: 'person-a', name: 'Person 1', kind: 'person', teamIds: ['team-a'] },
+      { id: 'person-b', name: 'Person 2', kind: 'person', teamIds: ['team-b'] },
+    ],
+  });
+  return change;
 }
 
 async function seedProgressStep(source: SqliteSource): Promise<void> {
@@ -510,12 +605,16 @@ function withSavedPlanCapture(
   return { ...source, history: { ...source.history, savedPlanCapture } };
 }
 
-function captureMatchesOracle(capture: PlanInputReads, projectIndex: 0 | 1): boolean {
+function captureMatchesOracle(
+  capture: PlanInputReads,
+  projectIndex: 0 | 1,
+  directoryEpoch: 'before' | 'after' = 'before',
+): boolean {
   const observed = observePlanInput(capture);
   return (['memory-unbumped', 'sqlite-bumped'] as const).some((revisionPolicy) =>
     Bun.deepEquals(
       observed,
-      savedPlanCaptureExpected(DETERMINISTIC_SEED, projectIndex, revisionPolicy),
+      savedPlanCaptureExpected(DETERMINISTIC_SEED, projectIndex, revisionPolicy, directoryEpoch),
     ),
   );
 }
@@ -662,6 +761,43 @@ const captureDetachedFault = defineFault({
   caseId: 'savedPlanCapture.readPlanInput:detached',
   createControl: () => createFaultControl('saved-plan-capture:detached:shared-tags'),
   mutate: (source: SqliteSource, control) => captureFaultSource(source, control, 'detached'),
+});
+
+function coherentCaptureFaultSource(
+  source: SqliteSource,
+  control: ReturnType<typeof createFaultControl>,
+  mutateResult = true,
+  targetId = 'project-a',
+): SqliteSource {
+  let targetReads = 0;
+  return withSavedPlanCapture(source, {
+    async readPlanInput(projectId) {
+      const captured = await source.history.savedPlanCapture.readPlanInput(projectId);
+      if (!control.isArmed() || projectId !== targetId) return captured;
+      targetReads += 1;
+      if (targetReads > 1) return captured;
+      if (captured === null || !captureMatchesOracle(captured, 0, 'before'))
+        throw new Error('coherent capture prerequisite was not complete before state');
+      const [tags, people] = await Promise.all([
+        source.stores.directory.listTags(),
+        source.stores.directory.listPeople(),
+      ]);
+      const torn = { ...captured, tags, people };
+      if (!captureMatchesOracle(torn, 0, 'after'))
+        throw new Error(
+          'coherent outside-epoch directory prerequisite was not complete after state',
+        );
+      if (!control.reach(control.phase)) return captured;
+      return mutateResult ? torn : captured;
+    },
+  });
+}
+
+const captureCoherentFault = defineFault({
+  id: 'break:savedPlanCapture.readPlanInput:coherent-interleave',
+  caseId: 'savedPlanCapture.readPlanInput:coherent-interleave',
+  createControl: () => createFaultControl('saved-plan-capture:coherent:directory-outside-epoch'),
+  mutate: (source: SqliteSource, control) => coherentCaptureFaultSource(source, control),
 });
 
 function replaceSavedPlanWrite(
@@ -4294,6 +4430,89 @@ async function proveFault(
   });
 }
 
+async function proveCoherentCaptureFault(
+  fault: Fault<SqliteSource>,
+  decorate: (source: SqliteSource) => SqliteSource = (source) => source,
+  observeDirectory: (directory: string) => void = () => undefined,
+  changeDirectory: (
+    source: SqliteSource,
+  ) => Promise<CaptureDirectoryChange> = changeSqliteCaptureDirectory,
+): Promise<FaultProof> {
+  return recordFaultProof(fault, {
+    assertion: `${fault.caseId} reports passed`,
+    async setup(run) {
+      let enter: () => void = () => undefined;
+      let release: () => void = () => undefined;
+      let didEnter = false;
+      const entered = new Promise<void>((resolve) => {
+        enter = resolve;
+      });
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const { source, directory } = await seedSqliteSource(
+        brokenSource(
+          (options) =>
+            decorate(
+              openSqliteSourceWithCaptureReadSeam(options, {
+                async afterFirstRead({ projectId, project }) {
+                  if (projectId !== 'project-a' || didEnter) return;
+                  if (project.id !== projectId || project.name !== 'Captured project A')
+                    throw new Error('coherent SQLite barrier received wrong first-read evidence');
+                  didEnter = true;
+                  enter();
+                  await released;
+                },
+              }),
+            ),
+          run,
+        ),
+        async (seeded) => seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED),
+      );
+      observeDirectory(directory);
+      let wasOpened = false;
+      const registrations = existingStoreRegistrations({
+        ...openers,
+        savedPlanCapture: (caseId) => {
+          if (wasOpened) return Promise.reject(new Error(`${fault.caseId} fixture opened twice`));
+          wasOpened = true;
+          return Promise.resolve({
+            fixtureId: `sqlite:${caseId}`,
+            port: source.history.savedPlanCapture,
+            journalAppender: source.stores.journal,
+            seed: DETERMINISTIC_SEED,
+            readers: readersOf(source),
+            scenario: {
+              kind: 'capture-interleave',
+              firstRead: { entered, release },
+              changeDirectory: () => changeDirectory(source),
+            },
+            close: async () => {
+              release();
+              await closeSqliteResources(source, directory);
+            },
+          });
+        },
+      });
+      const registration = registrations.find(({ caseId }) => caseId === fault.caseId);
+      if (registration === undefined) throw new Error(`missing registration for ${fault.caseId}`);
+      return { registration, assertionFailure: null, report: null };
+    },
+    async exercise(context: FaultContext) {
+      context.report = await runCases([context.registration], { focus: [fault.caseId] });
+      const execution = context.report.cases[0];
+      if (execution.status === 'failed' && execution.assertionPhase !== 'assertion')
+        throw new Error(execution.failure);
+      context.assertionFailure = execution.status === 'failed' ? execution.failure : null;
+    },
+    assert(context: FaultContext) {
+      if (context.assertionFailure !== null) throw new Error(context.assertionFailure);
+      expect(context.report?.cases[0]?.status).toBe('passed');
+      return Promise.resolve();
+    },
+  });
+}
+
 interface DirectoryPrewriteProbe {
   attempts: number;
   closeCalls: number;
@@ -6116,6 +6335,282 @@ describe('SQLite existing source conformance', () => {
     expect({ closeCalls, directoryExists: existsSync(directoryPath) }).toEqual({
       closeCalls: 1,
       directoryExists: false,
+    });
+  });
+
+  it('Task 6.4 observes outside-epoch directory tearing and its reversals', async () => {
+    let closeCalls = 0;
+    let directory = '';
+    const proof = await proveCoherentCaptureFault(
+      captureCoherentFault,
+      (source) => ({
+        ...source,
+        async close() {
+          closeCalls += 1;
+          await source.close();
+        },
+      }),
+      (ownedDirectory) => {
+        directory = ownedDirectory;
+      },
+    );
+    expect(proof.kind).toBe('observed');
+    if (proof.kind !== 'observed') throw new Error('coherent tearing was not observed');
+    expect(proof.phase).toBe('saved-plan-capture:coherent:directory-outside-epoch');
+    expect(Bun.stripANSI(proof.observedFailure)).toContain('Tag after interleave');
+    expect(Bun.stripANSI(proof.observedFailure)).toContain('Tag 1');
+    expect({ closeCalls, directoryExists: existsSync(directory) }).toEqual({
+      closeCalls: 1,
+      directoryExists: false,
+    });
+
+    const neutral = defineFault({
+      ...captureCoherentFault,
+      mutate: (source: SqliteSource, control) => coherentCaptureFaultSource(source, control, false),
+    });
+    const neutralProof = await proveCoherentCaptureFault(neutral);
+    // Proof: retaining the real held capture, committed writer, outside-epoch
+    // public reads and exact reach while removing only the torn return passes.
+    expect(neutralProof.kind).toBe('assertion-passed');
+
+    const noReach = defineFault({
+      id: captureCoherentFault.id,
+      caseId: captureCoherentFault.caseId,
+      createControl: () => createFaultControl('saved-plan-capture:coherent:no-reach'),
+      mutate(source: SqliteSource) {
+        const muted = captureCoherentFault.createControl();
+        muted.arm();
+        return coherentCaptureFaultSource(source, muted);
+      },
+    });
+    const noReachProof = await proveCoherentCaptureFault(noReach);
+    // Proof: retaining the torn public return while suppressing only the named
+    // reach is phase-failed and cannot certify the shared assertion failure.
+    expect(noReachProof.kind).toBe('phase-failed');
+
+    const incomplete = defineFault({
+      ...captureCoherentFault,
+      mutate(source: SqliteSource, control) {
+        const incompleteSource = withSavedPlanCapture(source, {
+          async readPlanInput(projectId) {
+            const captured = await source.history.savedPlanCapture.readPlanInput(projectId);
+            return projectId === 'project-a' && captured !== null
+              ? { ...captured, tags: [] }
+              : captured;
+          },
+        });
+        return coherentCaptureFaultSource(incompleteSource, control);
+      },
+    });
+    const incompleteProof = await proveCoherentCaptureFault(incomplete);
+    // Proof: weakening the complete before-state guard changed this prerequisite
+    // mutant to observed; with the guard it remains phase-failed before reach.
+    expect(incompleteProof.kind).toBe('phase-failed');
+
+    let wrongTargetCloseCalls = 0;
+    let wrongTargetDirectory = '';
+    const wrongTarget = defineFault({
+      ...captureCoherentFault,
+      mutate: (source: SqliteSource, control) =>
+        coherentCaptureFaultSource(source, control, true, 'project-b'),
+    });
+    const wrongTargetProof = await proveCoherentCaptureFault(
+      wrongTarget,
+      (source) => ({
+        ...source,
+        async close() {
+          wrongTargetCloseCalls += 1;
+          await source.close();
+        },
+      }),
+      (ownedDirectory) => {
+        wrongTargetDirectory = ownedDirectory;
+      },
+    );
+    expect({
+      kind: wrongTargetProof.kind,
+      wrongTargetCloseCalls,
+      directoryExists: existsSync(wrongTargetDirectory),
+    }).toEqual({ kind: 'phase-failed', wrongTargetCloseCalls: 1, directoryExists: false });
+
+    let writerFailureCloseCalls = 0;
+    let writerFailureDirectory = '';
+    const writerFailureProof = await proveCoherentCaptureFault(
+      captureCoherentFault,
+      (source) => ({
+        ...source,
+        async close() {
+          writerFailureCloseCalls += 1;
+          await source.close();
+        },
+      }),
+      (ownedDirectory) => {
+        writerFailureDirectory = ownedDirectory;
+      },
+      () => Promise.reject(new Error('injected coherent SQLite writer failure')),
+    );
+    // Proof: rejecting the writer while capture is held releases and drains the
+    // real capture, closes once, removes the directory, and never counts as proof.
+    expect({
+      kind: writerFailureProof.kind,
+      writerFailureCloseCalls,
+      directoryExists: existsSync(writerFailureDirectory),
+    }).toEqual({ kind: 'phase-failed', writerFailureCloseCalls: 1, directoryExists: false });
+  });
+
+  it('Task 6.4 capture rollback cannot revoke an independent committed SQLite writer', async () => {
+    let enter: () => void = () => undefined;
+    let release: () => void = () => undefined;
+    let closeCalls = 0;
+    let didEnter = false;
+    const entered = new Promise<void>((resolve) => {
+      enter = resolve;
+    });
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const seeded = await seedSqliteSource(
+      (options) =>
+        openSqliteSourceWithCaptureReadSeam(options, {
+          async afterFirstRead({ projectId, project }) {
+            if (projectId !== 'project-a' || didEnter) return;
+            if (project.id !== projectId || project.name !== 'Captured project A')
+              throw new Error('SQLite rollback probe reached before the real first read');
+            didEnter = true;
+            enter();
+            await released;
+            throw new Error('injected SQLite capture failure after independent writer');
+          },
+        }),
+      async (source) => seedSavedPlanCapture(source.stores, DETERMINISTIC_SEED),
+    );
+    const directory = seeded.directory;
+    const source: SqliteSource = {
+      ...seeded.source,
+      async close() {
+        closeCalls += 1;
+        await Promise.resolve(seeded.source.close());
+      },
+    };
+    try {
+      const held = source.history.savedPlanCapture.readPlanInput('project-a');
+      await entered;
+      const change = await changeSqliteCaptureDirectory(source);
+      release();
+      let captureFailure: unknown;
+      try {
+        await held;
+      } catch (cause) {
+        captureFailure = cause;
+      }
+      expect((captureFailure as Error | undefined)?.message).toBe(
+        'injected SQLite capture failure after independent writer',
+      );
+      const after = await source.history.savedPlanCapture.readPlanInput('project-a');
+      expect(change.tag).toMatchObject({ ok: true });
+      expect(change.person).toMatchObject({ ok: true });
+      expect(after === null ? false : captureMatchesOracle(after, 0, 'after')).toBe(true);
+    } finally {
+      release();
+      await closeSqliteResources(source, directory);
+    }
+    // Proof: giving capture the shared process handle makes its rollback restore
+    // the complete before directory; the dedicated connection preserves the writer.
+    expect({ didEnter, closeCalls, directoryExists: existsSync(directory) }).toEqual({
+      didEnter: true,
+      closeCalls: 1,
+      directoryExists: false,
+    });
+  });
+
+  it('Task 6.4 rejects capture on the shared SQLite writer connection', async () => {
+    const { source, directory } = await seedSqliteSource(openSqliteSource, async (seeded) => {
+      await seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED);
+    });
+    let borrowedCloseCalls = 0;
+    let reached = false;
+    let insideAfter = false;
+    let outsideBefore: boolean;
+    const borrowedCapture = new SavedPlanCaptureRepository(
+      {
+        openConnection: () => ({
+          db: source.db,
+          close() {
+            borrowedCloseCalls += 1;
+          },
+        }),
+      },
+      {
+        async afterFirstRead({ projectId, project }) {
+          if (projectId !== 'project-a' || project.name !== 'Captured project A')
+            throw new Error('shared SQLite owner reached before project A first read');
+          const tagWrite = source.db
+            .update(tagTable)
+            .set({ name: 'Tag after interleave', updatedAt: 600, createdBy: 'owner-b' })
+            .where(eq(tagTable.id, 'tag-a'))
+            .run();
+          const membershipDelete = source.db
+            .delete(personTeamTable)
+            .where(eq(personTeamTable.personId, 'capture-person-unassigned'))
+            .run();
+          const membershipWrite = source.db
+            .insert(personTeamTable)
+            .values({
+              personId: 'capture-person-unassigned',
+              serviceTeamId: 'team-a',
+              createdAt: 600,
+              createdBy: 'owner-b',
+              updatedAt: 600,
+            })
+            .run();
+          const [tags, people] = await Promise.all([
+            source.stores.directory.listTags(),
+            source.stores.directory.listPeople(),
+          ]);
+          insideAfter =
+            tagWrite.changes === 1 &&
+            membershipDelete.changes === 1 &&
+            membershipWrite.changes === 1 &&
+            tags.some(({ id, name }) => id === 'tag-a' && name === 'Tag after interleave') &&
+            people.some(
+              ({ id, teamIds }) =>
+                id === 'capture-person-unassigned' &&
+                teamIds.length === 1 &&
+                teamIds[0] === 'team-a',
+            );
+          if (!insideAfter)
+            throw new Error('shared SQLite owner did not establish complete after state');
+          reached = true;
+          throw new Error('injected shared SQLite capture rollback');
+        },
+      },
+    );
+    let failure: unknown;
+    try {
+      await borrowedCapture.readPlanInput('project-a');
+    } catch (cause) {
+      failure = cause;
+    } finally {
+      const [tags, people] = await Promise.all([
+        source.stores.directory.listTags(),
+        source.stores.directory.listPeople(),
+      ]);
+      outsideBefore =
+        tags.some(({ id, name }) => id === 'tag-a' && name === 'Tag 1') &&
+        people.some(
+          ({ id, teamIds }) =>
+            id === 'capture-person-unassigned' && teamIds.length === 1 && teamIds[0] === 'team-b',
+        );
+      await closeSqliteResources(source, directory);
+    }
+    expect((failure as Error | undefined)?.message).toBe('injected shared SQLite capture rollback');
+    // Proof: restoring the dedicated capture connection changes this forbidden
+    // owner reversal to after-state; the shared rollback revokes all three writes.
+    expect({ reached, insideAfter, outsideBefore, borrowedCloseCalls }).toEqual({
+      reached: true,
+      insideAfter: true,
+      outsideBefore: true,
+      borrowedCloseCalls: 1,
     });
   });
 

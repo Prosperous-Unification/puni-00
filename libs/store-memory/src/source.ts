@@ -23,6 +23,7 @@ import {
   type MemoryCapacityTable,
   memoryCapacityTable,
 } from './capacity-fixture';
+import { type CaptureReadSeam, inertMemoryCaptureReadSeam } from './capture-read-seam';
 import {
   inMemoryCommandJournal,
   type MemoryCommandJournalTables,
@@ -203,10 +204,27 @@ function bindStores(
 ): TransactionalStores {
   const users = inMemoryUsers(state.tables.users);
   let workItems: TransactionalStores['workItems'] | null = null;
-  const directory = inMemoryDirectory((projectId) => {
+  const fixtureDirectory = inMemoryDirectory((projectId) => {
     if (workItems === null) throw new Error('work-item table was read before it was bound');
     return workItems.listByProject(projectId);
   }, state.tables.directory);
+  const directory: TransactionalStores['directory'] = {
+    ...fixtureDirectory,
+    async renameTag(tagId, name, stamp) {
+      const written = await fixtureDirectory.renameTag(tagId, name, stamp);
+      if (!written.ok) return written;
+      // Proof: the coherent capture RED received projectIds: [] after the real
+      // attached tag rename; source-owned relations must supply its touched project.
+      const projectIds = [
+        ...new Set(
+          [...state.tables.workItems.byId.values()]
+            .filter((row) => state.tables.workItems.tagsOf.get(row.id)?.includes(tagId) === true)
+            .map((row) => row.projectId),
+        ),
+      ].sort();
+      return { ...written, projectIds };
+    },
+  };
   const dependencies = inMemoryDependencies([], state.tables.dependencies);
   workItems = inMemoryWorkItems(directory, state.tables.workItems);
   const estimates = inMemoryEstimates(workItems, state.tables.estimates);
@@ -353,7 +371,7 @@ function coordinatedStores(
 
 /** Opens a staged in-memory source with no ambient runtime dependencies. */
 export function openMemorySource(): Source<TransactionalStores> {
-  return openMemorySourceWithLateWriteSeam(inertMemoryLateWriteSeam).source;
+  return openMemorySourceWithSeams(inertMemoryLateWriteSeam, inertMemoryCaptureReadSeam).source;
 }
 
 /**
@@ -363,6 +381,18 @@ export function openMemorySource(): Source<TransactionalStores> {
  */
 export interface MemorySourceFixture {
   readonly source: Source<TransactionalStores>;
+  /** Runs capture and directory writes in one forbidden staged owner, then rolls it back. */
+  captureWithStagedDirectoryRollback(
+    projectId: string,
+    stamp: { readonly at: number; readonly by: string },
+    observe: (evidence: {
+      readonly project: PlanInputReads['project'];
+      readonly tag: Awaited<ReturnType<TransactionalStores['directory']['renameTag']>>;
+      readonly person: Awaited<ReturnType<TransactionalStores['directory']['patchPerson']>>;
+      readonly tags: Awaited<ReturnType<TransactionalStores['directory']['listTags']>>;
+      readonly people: Awaited<ReturnType<TransactionalStores['directory']['listPeople']>>;
+    }) => void,
+  ): Promise<never>;
   /** Reproduces forbidden ID-keyed dependency uniqueness in source-owned state. */
   storeDependencyById(dependency: StoredDependency): void;
   /** Reproduces the forbidden retained-row sequence derivation in source-owned state. */
@@ -394,12 +424,26 @@ export interface MemorySourceFixture {
 
 /** Opens the conformance fixture with access to adapter-owned persistence seams. @internal */
 export function openMemorySourceFixture(): MemorySourceFixture {
-  return openMemorySourceWithLateWriteSeam(inertMemoryLateWriteSeam);
+  return openMemorySourceWithSeams(inertMemoryLateWriteSeam, inertMemoryCaptureReadSeam);
 }
 
 /** @internal */
 export function openMemorySourceWithLateWriteSeam(
   lateWrite: MemoryLateWriteSeam,
+): MemorySourceFixture {
+  return openMemorySourceWithSeams(lateWrite, inertMemoryCaptureReadSeam);
+}
+
+/** @internal */
+export function openMemorySourceWithCaptureReadSeam(
+  captureRead: CaptureReadSeam,
+): MemorySourceFixture {
+  return openMemorySourceWithSeams(inertMemoryLateWriteSeam, captureRead);
+}
+
+function openMemorySourceWithSeams(
+  lateWrite: MemoryLateWriteSeam,
+  captureRead: CaptureReadSeam,
 ): MemorySourceFixture {
   const committed = new MemoryState();
   const coordinator = new MemoryCoordinator();
@@ -412,10 +456,38 @@ export function openMemorySourceWithLateWriteSeam(
     async (act) => await historyCoordinator.run(act),
     undefined,
     lateWrite,
+    captureRead,
   );
   const stores = coordinatedStores(bindStores(committed, lateWrite), coordinator);
 
   return {
+    captureWithStagedDirectoryRollback(projectId, stamp, observe) {
+      return coordinator.run(async () => {
+        const staged = committed.clone();
+        const stagedStores = bindStores(staged, lateWrite);
+        await capturePlanInput(stagedStores, projectId, {
+          async afterFirstRead({ project }) {
+            const tag = await stagedStores.directory.renameTag(
+              'tag-a',
+              'Tag after interleave',
+              stamp,
+            );
+            const person = await stagedStores.directory.patchPerson(
+              'capture-person-unassigned',
+              { teamIds: ['team-a'] },
+              stamp,
+            );
+            const [tags, people] = await Promise.all([
+              stagedStores.directory.listTags(),
+              stagedStores.directory.listPeople(),
+            ]);
+            observe({ project, tag, person, tags, people });
+            throw new Error('injected staged-owner capture rollback');
+          },
+        });
+        throw new Error('staged-owner capture fault did not reject');
+      });
+    },
     writeSavedPlanSplit: (plan, check, includeInput, observeBoundary) => {
       // Proof: changing the canonical request ID before this adapter boundary used to
       // exercise the split writer for an unrelated record and certify its failure.
@@ -697,9 +769,11 @@ function memorySavedPlans(
 async function capturePlanInput(
   stores: TransactionalStores,
   projectId: string,
+  captureRead: CaptureReadSeam,
 ): Promise<PlanInputReads | null> {
   const project = await stores.projects.findById(projectId);
   if (project === null) return null;
+  await captureRead.afterFirstRead({ projectId, project });
   const [
     steps,
     workItems,
@@ -762,6 +836,7 @@ function memoryHistory(
   writeTurn: <T>(act: () => Promise<T>) => Promise<T>,
   captureTurn: <T>(act: () => Promise<T>) => Promise<T> = async (act) => await act(),
   lateWrite: MemoryLateWriteSeam = inertMemoryLateWriteSeam,
+  captureRead: CaptureReadSeam = inertMemoryCaptureReadSeam,
 ): Source<TransactionalStores>['history'] {
   return {
     savedPlans: memorySavedPlans(state, stores, writeTurn, lateWrite),
@@ -769,7 +844,7 @@ function memoryHistory(
       readPlanInput(projectId) {
         // Capture gets a detached committed graph before its first awaited read.
         const epoch = stores();
-        return captureTurn(async () => await capturePlanInput(epoch, projectId));
+        return captureTurn(async () => await capturePlanInput(epoch, projectId, captureRead));
       },
     },
   };

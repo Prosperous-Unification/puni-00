@@ -3,6 +3,7 @@ import {
   assertSeedState,
   brokenSource,
   type Capabilities,
+  type CaptureDirectoryChange,
   type CaseFixture,
   type CaseId,
   completeSubtreeCopy,
@@ -58,7 +59,11 @@ import { describe, expect, it } from 'bun:test';
 import { inMemoryDependencies } from '../dependency-fixture';
 import type { MemoryLateWriteEvidence } from '../late-write-seam';
 import { projectRow } from '../project-fixture';
-import { openMemorySourceFixture, openMemorySourceWithLateWriteSeam } from '../source';
+import {
+  openMemorySourceFixture,
+  openMemorySourceWithCaptureReadSeam,
+  openMemorySourceWithLateWriteSeam,
+} from '../source';
 import {
   type MemoryLateWriteControl,
   memoryLateWriteControl,
@@ -67,6 +72,9 @@ import {
 
 type ExistingFamily = Exclude<keyof ExistingStoreOpeners, 'savedPlans' | 'savedPlanCapture'>;
 type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
+  captureWithStagedDirectoryRollback: ReturnType<
+    typeof openMemorySourceFixture
+  >['captureWithStagedDirectoryRollback'];
   deriveNextEventSeqFromRetained(subscription: string): void;
   independentJournalHistoryFor(): Promise<PlanEvent[]>;
   routeJournalEventToIndependent(eventId: string): PlanEvent;
@@ -87,9 +95,17 @@ type SavedPlanCheck<Refusal> = (
 ) => Promise<Refusal | null>;
 
 function openConformanceMemorySource(): MemorySource {
-  const fixture = openMemorySourceFixture();
+  return conformanceMemorySource(openMemorySourceFixture());
+}
+
+function conformanceMemorySource(
+  fixture: ReturnType<typeof openMemorySourceFixture>,
+): MemorySource {
   const source = {
     ...fixture.source,
+    captureWithStagedDirectoryRollback: (
+      ...args: Parameters<typeof fixture.captureWithStagedDirectoryRollback>
+    ) => fixture.captureWithStagedDirectoryRollback(...args),
     deriveNextEventSeqFromRetained: (subscription: string) => {
       fixture.deriveNextEventSeqFromRetained(subscription);
     },
@@ -378,7 +394,32 @@ async function openMemorySavedPlanCase(
 async function openMemorySavedPlanCaptureCase(
   caseId: CaseId,
 ): Promise<CaseFixture<SavedPlanCaptureStore>> {
-  const source = await seedMemorySource(openConformanceMemorySource, async (seeded) => {
+  let enter: () => void = () => undefined;
+  let release: () => void = () => undefined;
+  let didEnter = false;
+  const entered = new Promise<void>((resolve) => {
+    enter = resolve;
+  });
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const openSource =
+    caseId === 'savedPlanCapture.readPlanInput:coherent-interleave'
+      ? () =>
+          conformanceMemorySource(
+            openMemorySourceWithCaptureReadSeam({
+              async afterFirstRead({ projectId, project }) {
+                if (projectId !== 'project-a' || didEnter) return;
+                if (project.id !== 'project-a' || project.name !== 'Captured project A')
+                  throw new Error('memory capture first-read evidence is not project A');
+                didEnter = true;
+                enter();
+                await released;
+              },
+            }),
+          )
+      : openConformanceMemorySource;
+  const source = await seedMemorySource(openSource, async (seeded) => {
     await seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED);
   });
   return {
@@ -387,9 +428,72 @@ async function openMemorySavedPlanCaptureCase(
     journalAppender: source.journal,
     seed: DETERMINISTIC_SEED,
     readers: readersOf(source),
-    scenario: { kind: 'ordinary' },
-    close: () => source.close(),
+    scenario:
+      caseId === 'savedPlanCapture.readPlanInput:coherent-interleave'
+        ? {
+            kind: 'capture-interleave',
+            firstRead: { entered, release },
+            changeDirectory: () => changeMemoryCaptureDirectory(source),
+          }
+        : { kind: 'ordinary' },
+    close: async () => {
+      release();
+      await source.close();
+    },
   };
+}
+
+async function changeMemoryCaptureDirectory(source: MemorySource): Promise<CaptureDirectoryChange> {
+  const stamp = { at: 600, by: DETERMINISTIC_SEED.ownerIds[1] };
+  const change = await source.uow.run(async ({ stores }) => {
+    const tag = await stores.directory.renameTag('tag-a', 'Tag after interleave', stamp);
+    const person = await stores.directory.patchPerson(
+      'capture-person-unassigned',
+      { teamIds: ['team-a'] },
+      stamp,
+    );
+    return { commit: true, value: { tag, person } };
+  });
+  const [tags, people] = await Promise.all([
+    source.stores.directory.listTags(),
+    source.stores.directory.listPeople(),
+  ]);
+  tags.sort((left, right) => left.id.localeCompare(right.id));
+  people.sort((left, right) => left.id.localeCompare(right.id));
+  expect({ change, tags, people }).toEqual({
+    change: {
+      tag: {
+        ok: true,
+        tag: { id: 'tag-a', name: 'Tag after interleave' },
+        projectIds: ['project-a'],
+      },
+      person: {
+        ok: true,
+        person: {
+          id: 'capture-person-unassigned',
+          name: 'Unassigned member',
+          kind: 'person',
+          teamIds: ['team-a'],
+        },
+        projectIds: [],
+      },
+    },
+    tags: [
+      { id: 'capture-tag-only', name: 'Capture-only tag' },
+      { id: 'tag-a', name: 'Tag after interleave' },
+    ],
+    people: [
+      {
+        id: 'capture-person-unassigned',
+        name: 'Unassigned member',
+        kind: 'person',
+        teamIds: ['team-a'],
+      },
+      { id: 'person-a', name: 'Person 1', kind: 'person', teamIds: ['team-a'] },
+      { id: 'person-b', name: 'Person 2', kind: 'person', teamIds: ['team-b'] },
+    ],
+  });
+  return change;
 }
 
 async function seedProgressStep(source: MemorySource): Promise<void> {
@@ -487,41 +591,7 @@ function memoryLateSource(
       }
     },
   });
-  return {
-    ...fixture.source,
-    deriveNextEventSeqFromRetained: (subscription) => {
-      fixture.deriveNextEventSeqFromRetained(subscription);
-    },
-    independentJournalHistoryFor: () => fixture.independentJournalHistoryFor(),
-    routeJournalEventToIndependent: (eventId) => fixture.routeJournalEventToIndependent(eventId),
-    storeDependencyById: (dependency) => {
-      fixture.storeDependencyById(dependency);
-    },
-    insertSubtree: (copy, stamp) =>
-      fixture.source.uow.run(async ({ stores }) => {
-        await stores.subtrees.insertSubtree(copy, stamp);
-        return { commit: true, value: undefined };
-      }),
-    setSavedPlanByteCounts(savedPlanId, inputBytes, scheduleBytes) {
-      fixture.setSavedPlanByteCounts(savedPlanId, inputBytes, scheduleBytes);
-    },
-    removeSavedPlanBodies(savedPlanId) {
-      fixture.removeSavedPlanBodies(savedPlanId);
-    },
-    replaceSavedPlanInputBody(savedPlanId, bytes) {
-      fixture.replaceSavedPlanInputBody(savedPlanId, bytes);
-    },
-    replaceSavedPlanScheduleHash(savedPlanId, sha256) {
-      fixture.replaceSavedPlanScheduleHash(savedPlanId, sha256);
-    },
-    writeSavedPlanSplit: <Refusal>(
-      plan: SavedPlanWrite,
-      check: SavedPlanCheck<Refusal>,
-      includeInput: boolean,
-      observeBoundary?: (stored: StoredSavedPlan) => void,
-    ) => fixture.writeSavedPlanSplit(plan, check, includeInput, observeBoundary),
-    journal: transactionalJournal(fixture.source as MemorySource),
-  };
+  return conformanceMemorySource(fixture);
 }
 
 const openers: ExistingStoreOpeners = {
@@ -692,12 +762,16 @@ function withSavedPlanCapture(
   return { ...source, history: { ...source.history, savedPlanCapture } };
 }
 
-function captureMatchesOracle(capture: PlanInputReads, projectIndex: 0 | 1): boolean {
+function captureMatchesOracle(
+  capture: PlanInputReads,
+  projectIndex: 0 | 1,
+  directoryEpoch: 'before' | 'after' = 'before',
+): boolean {
   const observed = observePlanInput(capture);
   return (['memory-unbumped', 'sqlite-bumped'] as const).some((revisionPolicy) =>
     Bun.deepEquals(
       observed,
-      savedPlanCaptureExpected(DETERMINISTIC_SEED, projectIndex, revisionPolicy),
+      savedPlanCaptureExpected(DETERMINISTIC_SEED, projectIndex, revisionPolicy, directoryEpoch),
     ),
   );
 }
@@ -844,6 +918,43 @@ const captureDetachedFault = defineFault({
   caseId: 'savedPlanCapture.readPlanInput:detached',
   createControl: () => createFaultControl('saved-plan-capture:detached:shared-tags'),
   mutate: (source: MemorySource, control) => captureFaultSource(source, control, 'detached'),
+});
+
+function coherentCaptureFaultSource(
+  source: MemorySource,
+  control: ReturnType<typeof createFaultControl>,
+  mutateResult = true,
+  targetId = 'project-a',
+): MemorySource {
+  let targetReads = 0;
+  return withSavedPlanCapture(source, {
+    async readPlanInput(projectId) {
+      const captured = await source.history.savedPlanCapture.readPlanInput(projectId);
+      if (!control.isArmed() || projectId !== targetId) return captured;
+      targetReads += 1;
+      if (targetReads > 1) return captured;
+      if (captured === null || !captureMatchesOracle(captured, 0, 'before'))
+        throw new Error('coherent capture prerequisite was not complete before state');
+      const [tags, people] = await Promise.all([
+        source.stores.directory.listTags(),
+        source.stores.directory.listPeople(),
+      ]);
+      const torn = { ...captured, tags, people };
+      if (!captureMatchesOracle(torn, 0, 'after'))
+        throw new Error(
+          'coherent outside-epoch directory prerequisite was not complete after state',
+        );
+      if (!control.reach(control.phase)) return captured;
+      return mutateResult ? torn : captured;
+    },
+  });
+}
+
+const captureCoherentFault = defineFault({
+  id: 'break:savedPlanCapture.readPlanInput:coherent-interleave',
+  caseId: 'savedPlanCapture.readPlanInput:coherent-interleave',
+  createControl: () => createFaultControl('saved-plan-capture:coherent:directory-outside-epoch'),
+  mutate: (source: MemorySource, control) => coherentCaptureFaultSource(source, control),
 });
 
 function replaceSavedPlanWrite(
@@ -3922,6 +4033,89 @@ async function proveFault(
   });
 }
 
+async function proveCoherentCaptureFault(
+  fault: Fault<MemorySource>,
+  decorate: (source: MemorySource) => MemorySource = (source) => source,
+  changeDirectory: (
+    source: MemorySource,
+  ) => Promise<CaptureDirectoryChange> = changeMemoryCaptureDirectory,
+): Promise<FaultProof> {
+  return recordFaultProof(fault, {
+    assertion: `${fault.caseId} reports passed`,
+    async setup(run) {
+      let enter: () => void = () => undefined;
+      let release: () => void = () => undefined;
+      let didEnter = false;
+      const entered = new Promise<void>((resolve) => {
+        enter = resolve;
+      });
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const source = await seedMemorySource(
+        brokenSource(
+          () =>
+            decorate(
+              conformanceMemorySource(
+                openMemorySourceWithCaptureReadSeam({
+                  async afterFirstRead({ projectId, project }) {
+                    if (projectId !== 'project-a' || didEnter) return;
+                    if (project.id !== projectId || project.name !== 'Captured project A')
+                      throw new Error('coherent memory barrier received wrong first-read evidence');
+                    didEnter = true;
+                    enter();
+                    await released;
+                  },
+                }),
+              ),
+            ),
+          run,
+        ),
+        async (seeded) => seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED),
+      );
+      let wasOpened = false;
+      const registrations = existingStoreRegistrations({
+        ...openers,
+        savedPlanCapture: (caseId) => {
+          if (wasOpened) return Promise.reject(new Error(`${fault.caseId} fixture opened twice`));
+          wasOpened = true;
+          return Promise.resolve({
+            fixtureId: `memory:${caseId}`,
+            port: source.history.savedPlanCapture,
+            journalAppender: source.journal,
+            seed: DETERMINISTIC_SEED,
+            readers: readersOf(source),
+            scenario: {
+              kind: 'capture-interleave',
+              firstRead: { entered, release },
+              changeDirectory: () => changeDirectory(source),
+            },
+            close: async () => {
+              release();
+              await source.close();
+            },
+          });
+        },
+      });
+      const registration = registrations.find(({ caseId }) => caseId === fault.caseId);
+      if (registration === undefined) throw new Error(`missing registration for ${fault.caseId}`);
+      return { registration, assertionFailure: null, report: null };
+    },
+    async exercise(context: FaultContext) {
+      context.report = await runCases([context.registration], { focus: [fault.caseId] });
+      const execution = context.report.cases[0];
+      if (execution.status === 'failed' && execution.assertionPhase !== 'assertion')
+        throw new Error(execution.failure);
+      context.assertionFailure = execution.status === 'failed' ? execution.failure : null;
+    },
+    assert(context: FaultContext) {
+      if (context.assertionFailure !== null) throw new Error(context.assertionFailure);
+      expect(context.report?.cases[0]?.status).toBe('passed');
+      return Promise.resolve();
+    },
+  });
+}
+
 function failedCase(report: ExecutionReport, caseId: CaseId) {
   return report.cases.find((execution) => execution.caseId === caseId);
 }
@@ -5607,6 +5801,198 @@ describe('memory existing source conformance', () => {
     // public seed snapshot and the source still closes exactly once.
     expect(Bun.stripANSI(String(failure))).toContain('capture-tag-only');
     expect(closeCalls).toBe(1);
+  });
+
+  it('Task 6.4 observes outside-epoch directory tearing and its reversals', async () => {
+    let closeCalls = 0;
+    const proof = await proveCoherentCaptureFault(captureCoherentFault, (source) => ({
+      ...source,
+      async close() {
+        closeCalls += 1;
+        await source.close();
+      },
+    }));
+    expect(proof.kind).toBe('observed');
+    if (proof.kind !== 'observed') throw new Error('coherent tearing was not observed');
+    expect(proof.phase).toBe('saved-plan-capture:coherent:directory-outside-epoch');
+    expect(Bun.stripANSI(proof.observedFailure)).toContain('Tag after interleave');
+    expect(Bun.stripANSI(proof.observedFailure)).toContain('Tag 1');
+    expect(closeCalls).toBe(1);
+
+    const neutral = defineFault({
+      ...captureCoherentFault,
+      mutate: (source: MemorySource, control) => coherentCaptureFaultSource(source, control, false),
+    });
+    const neutralProof = await proveCoherentCaptureFault(neutral);
+    // Proof: retaining the real held capture, committed writer, outside-epoch
+    // public reads and exact reach while removing only the torn return passes.
+    expect(neutralProof.kind).toBe('assertion-passed');
+
+    const noReach = defineFault({
+      id: captureCoherentFault.id,
+      caseId: captureCoherentFault.caseId,
+      createControl: () => createFaultControl('saved-plan-capture:coherent:no-reach'),
+      mutate(source: MemorySource) {
+        const muted = captureCoherentFault.createControl();
+        muted.arm();
+        return coherentCaptureFaultSource(source, muted);
+      },
+    });
+    const noReachProof = await proveCoherentCaptureFault(noReach);
+    // Proof: retaining the torn public return while suppressing only the named
+    // reach is phase-failed and cannot certify the shared assertion failure.
+    expect(noReachProof.kind).toBe('phase-failed');
+
+    const incomplete = defineFault({
+      ...captureCoherentFault,
+      mutate(source: MemorySource, control) {
+        const incompleteSource = withSavedPlanCapture(source, {
+          async readPlanInput(projectId) {
+            const captured = await source.history.savedPlanCapture.readPlanInput(projectId);
+            return projectId === 'project-a' && captured !== null
+              ? { ...captured, tags: [] }
+              : captured;
+          },
+        });
+        return coherentCaptureFaultSource(incompleteSource, control);
+      },
+    });
+    const incompleteProof = await proveCoherentCaptureFault(incomplete);
+    // Proof: weakening the complete before-state guard changed this prerequisite
+    // mutant to observed; with the guard it remains phase-failed before reach.
+    expect(incompleteProof.kind).toBe('phase-failed');
+
+    let wrongTargetCloseCalls = 0;
+    const wrongTarget = defineFault({
+      ...captureCoherentFault,
+      mutate: (source: MemorySource, control) =>
+        coherentCaptureFaultSource(source, control, true, 'project-b'),
+    });
+    const wrongTargetProof = await proveCoherentCaptureFault(wrongTarget, (source) => ({
+      ...source,
+      async close() {
+        wrongTargetCloseCalls += 1;
+        await source.close();
+      },
+    }));
+    expect({ kind: wrongTargetProof.kind, wrongTargetCloseCalls }).toEqual({
+      kind: 'phase-failed',
+      wrongTargetCloseCalls: 1,
+    });
+
+    let writerFailureCloseCalls = 0;
+    const writerFailureProof = await proveCoherentCaptureFault(
+      captureCoherentFault,
+      (source) => ({
+        ...source,
+        async close() {
+          writerFailureCloseCalls += 1;
+          await source.close();
+        },
+      }),
+      () => Promise.reject(new Error('injected coherent memory writer failure')),
+    );
+    // Proof: rejecting the writer while capture is held releases and drains the
+    // real capture, closes once, and never accepts a coherence assertion as proof.
+    expect({ kind: writerFailureProof.kind, writerFailureCloseCalls }).toEqual({
+      kind: 'phase-failed',
+      writerFailureCloseCalls: 1,
+    });
+  });
+
+  it('Task 6.4 capture failure cannot revoke an independent committed memory writer', async () => {
+    let enter: () => void = () => undefined;
+    let release: () => void = () => undefined;
+    let closeCalls = 0;
+    let didEnter = false;
+    const entered = new Promise<void>((resolve) => {
+      enter = resolve;
+    });
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const source = await seedMemorySource(
+      () =>
+        conformanceMemorySource(
+          openMemorySourceWithCaptureReadSeam({
+            async afterFirstRead({ projectId, project }) {
+              if (projectId !== 'project-a' || didEnter) return;
+              if (project.id !== projectId || project.name !== 'Captured project A')
+                throw new Error('memory rollback probe reached before the real first read');
+              didEnter = true;
+              enter();
+              await released;
+              throw new Error('injected memory capture failure after independent writer');
+            },
+          }),
+        ),
+      async (seeded) => seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED),
+    );
+    const held = source.history.savedPlanCapture.readPlanInput('project-a');
+    await entered;
+    const change = await changeMemoryCaptureDirectory(source);
+    release();
+    let captureFailure: unknown;
+    try {
+      await held;
+    } catch (cause) {
+      captureFailure = cause;
+    }
+    expect((captureFailure as Error | undefined)?.message).toBe(
+      'injected memory capture failure after independent writer',
+    );
+    const after = await source.history.savedPlanCapture.readPlanInput('project-a');
+    expect(change.tag).toMatchObject({ ok: true });
+    expect(change.person).toMatchObject({ ok: true });
+    expect(after === null ? false : captureMatchesOracle(after, 0, 'after')).toBe(true);
+    await Promise.resolve(source.close());
+    closeCalls += 1;
+    // Proof: coupling the writer to a rolled-back command stage restores the
+    // complete before directory here; the committed writer survives capture failure.
+    expect({ didEnter, closeCalls }).toEqual({ didEnter: true, closeCalls: 1 });
+  });
+
+  it('Task 6.4 rejects capture and writer work in one staged memory owner', async () => {
+    const source = await seedMemorySource(openConformanceMemorySource, async (seeded) => {
+      await seedSavedPlanCapture(seeded.stores, DETERMINISTIC_SEED);
+    });
+    let reached = false;
+    let failure: unknown;
+    try {
+      await source.captureWithStagedDirectoryRollback(
+        'project-a',
+        { at: 600, by: 'owner-b' },
+        ({ project, tag, person, tags, people }) => {
+          reached =
+            project.id === 'project-a' &&
+            project.name === 'Captured project A' &&
+            tag.ok &&
+            tag.tag.name === 'Tag after interleave' &&
+            person.ok &&
+            person.person.teamIds.length === 1 &&
+            person.person.teamIds[0] === 'team-a' &&
+            tags.some(({ id, name }) => id === 'tag-a' && name === 'Tag after interleave') &&
+            people.some(
+              ({ id, teamIds }) =>
+                id === 'capture-person-unassigned' &&
+                teamIds.length === 1 &&
+                teamIds[0] === 'team-a',
+            );
+          if (!reached) throw new Error('staged memory owner did not establish after state');
+        },
+      );
+    } catch (cause) {
+      failure = cause;
+    }
+    const afterRollback = await source.history.savedPlanCapture.readPlanInput('project-a');
+    await source.close();
+    expect((failure as Error | undefined)?.message).toBe('injected staged-owner capture rollback');
+    // Proof: routing the same successful directory writes to committed state
+    // changes this reversal to after-state; the forbidden stage restores before-state.
+    expect({ reached, beforeRestored: optionalCaptureMatchesOracle(afterRollback, 0) }).toEqual({
+      reached: true,
+      beforeRestored: true,
+    });
   });
 
   it("memory's unknown-step gap names an observed refusal mismatch", async () => {

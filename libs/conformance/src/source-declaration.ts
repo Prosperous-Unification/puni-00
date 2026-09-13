@@ -95,6 +95,11 @@ export interface LateWriteEvidence {
   readonly savedPlan?: StoredSavedPlan;
 }
 
+export interface CaptureDirectoryChange {
+  readonly tag: Awaited<ReturnType<TransactionalStores['directory']['renameTag']>>;
+  readonly person: Awaited<ReturnType<TransactionalStores['directory']['patchPerson']>>;
+}
+
 export type ScenarioControl =
   | { readonly kind: 'ordinary' }
   | {
@@ -108,7 +113,7 @@ export type ScenarioControl =
   | {
       readonly kind: 'capture-interleave';
       readonly firstRead: PhaseBarrier;
-      changeDirectory(): Promise<void>;
+      changeDirectory(): Promise<CaptureDirectoryChange>;
     }
   | {
       readonly kind: 'competing-history-write';

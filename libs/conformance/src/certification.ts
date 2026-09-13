@@ -75,6 +75,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'savedPlans.touch:principals-scope',
   'savedPlans.write:late-body-failure',
   'savedPlanCapture.readPlanInput:complete',
+  'savedPlanCapture.readPlanInput:coherent-interleave',
   'savedPlanCapture.readPlanInput:missing-project',
   'savedPlanCapture.readPlanInput:detached',
 ] as const;

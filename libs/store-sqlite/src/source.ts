@@ -1,6 +1,7 @@
 import type { Source, TransactionalStores } from '@wbs/core';
 
 import { buildStores } from './build-stores';
+import { type CaptureReadSeam, inertSqliteCaptureReadSeam } from './capture-read-seam';
 import { type Connection, openConnection as openDatabaseConnection } from './db';
 import { OPEN, WriteCoordinator } from './gate';
 import { probeSchema } from './health-probe';
@@ -23,13 +24,29 @@ export interface OpenSqliteSourceOptions {
 
 /** Opens SQLite persistence without changing its schema. */
 export function openSqliteSource(options: OpenSqliteSourceOptions): SqliteSource {
-  return openSqliteSourceWithLateWriteSeam(options, inertSqliteLateWriteSeam);
+  return openSqliteSourceWithSeams(options, inertSqliteLateWriteSeam, inertSqliteCaptureReadSeam);
 }
 
 /** @internal */
 export function openSqliteSourceWithLateWriteSeam(
   options: OpenSqliteSourceOptions,
   lateWrite: SqliteLateWriteSeam,
+): SqliteSource {
+  return openSqliteSourceWithSeams(options, lateWrite, inertSqliteCaptureReadSeam);
+}
+
+/** @internal */
+export function openSqliteSourceWithCaptureReadSeam(
+  options: OpenSqliteSourceOptions,
+  captureRead: CaptureReadSeam,
+): SqliteSource {
+  return openSqliteSourceWithSeams(options, inertSqliteLateWriteSeam, captureRead);
+}
+
+function openSqliteSourceWithSeams(
+  options: OpenSqliteSourceOptions,
+  lateWrite: SqliteLateWriteSeam,
+  captureRead: CaptureReadSeam,
 ): SqliteSource {
   const connect = options.openConnection ?? openDatabaseConnection;
   const process = connect(options.dbPath);
@@ -49,9 +66,12 @@ export function openSqliteSourceWithLateWriteSeam(
         },
         lateWrite,
       ),
-      savedPlanCapture: new SavedPlanCaptureRepository({
-        openConnection: () => connect(options.dbPath),
-      }),
+      savedPlanCapture: new SavedPlanCaptureRepository(
+        {
+          openConnection: () => connect(options.dbPath),
+        },
+        captureRead,
+      ),
     },
     uow: sqliteUnitOfWork(process.db, coordinator, admitted),
     health() {
