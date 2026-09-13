@@ -7,9 +7,9 @@ One branch, `change/actions-set-status`; one PR, reviewed on :4200 before merge.
 - [x] 1.1 `createActionsColumn` and `cardRowActions` gain the status entry; `CardRowActionHandlers`
       gains `markDone` and `setUnknown`; the ⋯ cell is `text-align: center` — tests:
       `plan-structure.test.tsx` › `marks a row done from its ⋯ menu through the completion prompt,
-and offers the way back`; `plan-cards.test.tsx` › `offers Mark done…, which asks for the day
+and offers the way back`; `plan-cards.test.tsx` › `offers Set status to Done, which asks for the day
 and then sends the mark` and the enumerations; negative: the entry dropped from the column,
-      `Unable to find … "Mark done…"`.
+      `Unable to find … "Set status to Done"`.
 
 ## 2. `factStart` on the command; unknown clears both facts
 

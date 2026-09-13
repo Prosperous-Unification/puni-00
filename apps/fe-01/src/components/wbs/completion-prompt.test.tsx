@@ -41,7 +41,7 @@ const finished = (): HTMLInputElement => screen.getByLabelText<HTMLInputElement>
 const noteOf = (which: 'started' | 'finished'): string | null =>
   document.querySelector(`[data-day-note="${which}"]`)?.textContent ?? null;
 const markDone = (): HTMLButtonElement =>
-  screen.getByRole<HTMLButtonElement>('button', { name: 'Mark done' });
+  screen.getByRole<HTMLButtonElement>('button', { name: 'Set to Done' });
 /** The form the fields submit — Enter's path, which the disabled button cannot block. */
 function form(): HTMLFormElement {
   const found = started().closest('form');
@@ -84,7 +84,7 @@ describe('the completion prompt', () => {
     () => {
       prompt({ forecast: { startsOn: '2026-09-01', endsOn: '2026-09-20' } });
 
-      expect(screen.getByRole('dialog', { name: 'Mark 010 done' })).toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: 'Set 010 to Done' })).toBeInTheDocument();
       expect(started().value).toBe('2026-09-01');
       expect(finished().value).toBe('2026-09-13');
       expect(noteOf('started')).toBe('Same as the forecast start.');

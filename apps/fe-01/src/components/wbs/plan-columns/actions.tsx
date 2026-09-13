@@ -1,6 +1,7 @@
 import { ActionsMenu } from '../actions-menu';
 import { isoToday } from '../gantt-panel';
 import type { PlanLive } from '../plan-live';
+import { STATUS_LABEL } from '../status-cell';
 import { column } from './column';
 
 /** Builds the actions column family against the stable live cell contract. */
@@ -40,20 +41,24 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
           // 2026-09-13: "add a 'Set status ...' to the actions to allow setting
           // the status from UI without enabling the status column"). One entry,
           // the one that changes something: a row that is not done offers
-          // `Mark done…`, which asks for the day through the completion prompt
-          // exactly as the cell does; a done row offers the way back. `In
-          // progress` is a step's statement and is not offered here either.
+          // `Set status to Done`, which asks for the days through the completion
+          // prompt exactly as the cell does; a done row offers the way back. `In
+          // progress` is a step's statement and is not offered here either. The
+          // status word is drawn as the status card draws it — bold, `Done` in
+          // green — so a status is said one way everywhere.
           row.original.status === 'done'
             ? {
                 id: 'set-unknown',
-                label: 'Set status to unknown',
+                label: `Set status to ${STATUS_LABEL.unknown}`,
+                lead: { word: STATUS_LABEL.unknown },
                 run: () => {
                   void live.current.setStatus(row.original.id, 'unknown', isoToday(new Date()));
                 },
               }
             : {
                 id: 'mark-done',
-                label: 'Mark done…',
+                label: `Set status to ${STATUS_LABEL.done}`,
+                lead: { word: STATUS_LABEL.done, tone: 'done' },
                 run: () => {
                   live.current.openCompletionPrompt(row.original.id);
                 },

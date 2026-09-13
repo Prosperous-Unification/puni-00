@@ -11,6 +11,7 @@ import {
   ModalHeader,
   ModalTitle,
 } from '../ui/modal';
+import { withLeadWord } from './lead-word';
 
 /** The engine's two days for the row, as the table shows them, or null on an undated plan. */
 export interface ForecastSpan {
@@ -159,7 +160,9 @@ export function CompletionPrompt({
         }}
       >
         <ModalHeader>
-          <ModalTitle>Mark {number} done</ModalTitle>
+          <ModalTitle>
+            Set {number} to {withLeadWord('Done', { word: 'Done', tone: 'done' })}
+          </ModalTitle>
           <ModalDescription>
             Every step of {number} will say done. The two days below become its Fact start and Fact
             end — the span its bar is drawn over, whatever the estimate says.
@@ -221,7 +224,7 @@ export function CompletionPrompt({
               </Button>
             </ModalClose>
             <Button type="submit" disabled={!valid}>
-              Mark done
+              Set to Done
             </Button>
           </ModalFooter>
         </form>

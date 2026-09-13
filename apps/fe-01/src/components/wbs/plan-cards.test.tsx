@@ -2295,7 +2295,7 @@ describe('typing a trio on a card, where the keypad has no slash', () => {
 describe('the ⋯ row-actions menu on a card in a running plan', () => {
   afterEach(cleanup);
 
-  itDom('offers Mark done…, which asks for the day and then sends the mark', async () => {
+  itDom('offers Set status to Done, which asks for the day and then sends the mark', async () => {
     const api = fakeApi();
     await api.createWorkItem('p1', { parentId: null });
     const sent = recordCalls(api, 'setStatus', (_id, status, on) => ({ status, on }));
@@ -2304,11 +2304,11 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
     await screen.findByRole('article', { name: 'Work item 010' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Mark done…' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Set status to Done' }));
 
-    const prompt = await screen.findByRole('dialog', { name: 'Mark 010 done' });
+    const prompt = await screen.findByRole('dialog', { name: 'Set 010 to Done' });
     expect(sent).toEqual([]);
-    fireEvent.click(within(prompt).getByRole('button', { name: 'Mark done' }));
+    fireEvent.click(within(prompt).getByRole('button', { name: 'Set to Done' }));
     await waitFor(() => {
       expect(sent).toEqual([{ status: 'done', on: isoToday(new Date()) }]);
     });
@@ -2372,7 +2372,7 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
       const items = screen.getAllByRole('menuitem');
       expect(items.map((item) => item.textContent)).toEqual([
         'Duplicate',
-        'Mark done…',
+        'Set status to Done',
         'Unfreeze',
         'Delete',
       ]);
@@ -2614,7 +2614,7 @@ describe('the ⋯ row-actions menu on a card', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
       'Duplicate',
-      'Mark done…',
+      'Set status to Done',
       'Delete',
     ]);
   });
@@ -2625,7 +2625,7 @@ describe('the ⋯ row-actions menu on a card', () => {
     const items = screen.getAllByRole('menuitem');
     expect(items.map((item) => item.textContent)).toEqual([
       'Duplicate',
-      'Mark done…',
+      'Set status to Done',
       'Unfreeze',
       'Delete',
     ]);

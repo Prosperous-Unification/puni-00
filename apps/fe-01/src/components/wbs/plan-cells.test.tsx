@@ -3466,9 +3466,9 @@ describe('the status cell and the two fact cells', () => {
     fireEvent.click(within(statusList(number)).getByRole('option', { name: 'Done' }));
   };
   const completionPrompt = (number: string): HTMLElement =>
-    screen.getByRole('dialog', { name: `Mark ${number} done` });
+    screen.getByRole('dialog', { name: `Set ${number} to Done` });
   const confirmCompletion = (number: string): void => {
-    fireEvent.click(within(completionPrompt(number)).getByRole('button', { name: 'Mark done' }));
+    fireEvent.click(within(completionPrompt(number)).getByRole('button', { name: 'Set to Done' }));
   };
 
   itDom('reads Unknown at rest and offers Unknown and Done, in that order', async () => {
@@ -3565,7 +3565,7 @@ describe('the status cell and the two fact cells', () => {
       fireEvent.click(within(prompt).getByRole('button', { name: 'Cancel' }));
 
       await waitFor(() => {
-        expect(screen.queryByRole('dialog', { name: 'Mark 010 done' })).toBeNull();
+        expect(screen.queryByRole('dialog', { name: 'Set 010 to Done' })).toBeNull();
       });
       expect(sent).toEqual([]);
       expect(statusCell('010').value).toBe('○');

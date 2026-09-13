@@ -12,7 +12,7 @@ clear fact start and fact end". Also: "center the actions dots".
 ## What Changes
 
 **The row menu sets the status.** The ⋯ on a table row and on a card offers one status entry:
-`Mark done…` on a row that is not done, which opens the completion prompt; `Set status to
+`Set status to Done` on a row that is not done, which opens the completion prompt; `Set status to
 unknown` on a done row. The ⋯ itself is centred in its cell.
 
 **The prompt asks for both days, from the forecast.** A `Started on` field opens on the held

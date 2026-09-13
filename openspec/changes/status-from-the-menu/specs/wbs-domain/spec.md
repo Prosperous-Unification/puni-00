@@ -2,15 +2,15 @@
 
 ### Requirement: The row menu offers the one status change that applies
 
-The ⋯ menu of a row — on the table and on a card — SHALL offer `Mark done…` when the row's
+The ⋯ menu of a row — on the table and on a card — SHALL offer `Set status to Done` when the row's
 status is not `done`, which SHALL open the completion prompt for that row and send nothing
-until it is confirmed; and SHALL offer `Set status to unknown` when the row is `done`, which
+until it is confirmed; and SHALL offer `Set status to Unknown` when the row is `done`, which
 SHALL send `setStatus … unknown` at once. The ⋯ SHALL sit centred in its cell.
 
 #### Scenario: from the menu to the prompt and back
 
 - **GIVEN** a leaf reading unknown with the Status column hidden
-- **WHEN** `Mark done…` is chosen from its ⋯ and the prompt confirmed
+- **WHEN** `Set status to Done` is chosen from its ⋯ and the prompt confirmed
 - **THEN** one `setStatus … done` is sent and the row reads done; its ⋯ then offers `Set status
 to unknown`, which sends `setStatus … unknown`
 

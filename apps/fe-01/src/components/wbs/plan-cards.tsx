@@ -31,6 +31,7 @@ import { composeNameCell } from './name-notes';
 import { priorityBandStyleOf } from './priority-band-style';
 import { ReferenceSetSheet } from './reference-set-field';
 import { type PrintedDay, shortIsoDate } from './short-date';
+import { STATUS_LABEL } from './status-cell';
 import { cardIndentFor } from './table-frame';
 import type { TreeRow } from './wbs-rows';
 import { rowWords } from './work-item-words';
@@ -445,14 +446,16 @@ const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuActi
   row.status === 'done'
     ? {
         id: 'set-unknown',
-        label: 'Set status to unknown',
+        label: `Set status to ${STATUS_LABEL.unknown}`,
+        lead: { word: STATUS_LABEL.unknown },
         run: () => {
           handlers.setUnknown(row.id);
         },
       }
     : {
         id: 'mark-done',
-        label: 'Mark done…',
+        label: `Set status to ${STATUS_LABEL.done}`,
+        lead: { word: STATUS_LABEL.done, tone: 'done' },
         run: () => {
           handlers.markDone(row.id);
         },

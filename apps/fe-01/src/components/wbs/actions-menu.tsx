@@ -11,11 +11,19 @@ import {
 
 import { usePageShortcutsSuspended } from '@/components/ui/page-shortcuts';
 
+import { type LeadWord, withLeadWord } from './lead-word';
+
 /** One thing a menu offers: what it is called, and what taking it does. */
 export interface MenuAction {
   /** Stable within one menu — the React key, and what a caller names it by. */
   id: string;
   label: string;
+  /**
+   * The word of the label drawn bold, and toned — `Done` in `Set status to
+   * Done`, in the status green — through the same renderer the status card
+   * uses ({@link withLeadWord}), so a status is said one way everywhere.
+   */
+  lead?: LeadWord;
   run: () => void;
   /**
    * Why this item cannot be taken here, or absent when it can.
@@ -484,7 +492,7 @@ export function MenuControl({
                 takeAction(action);
               }}
             >
-              {action.label}
+              {withLeadWord(action.label, action.lead)}
             </button>
           ))}
         </div>

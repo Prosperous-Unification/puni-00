@@ -294,7 +294,7 @@ describe('the row actions menu', () => {
 
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
       'Duplicate',
-      'Mark done…',
+      'Set status to Done',
       'Delete',
     ]);
     expect(screen.getByRole('button', { name: 'Actions for 020' })).toHaveAttribute(
@@ -335,18 +335,18 @@ describe('the row actions menu', () => {
       openRowMenu('010');
       // Proof: the status entry dropped from `createActionsColumn`, and this
       // fails on `Unable to find an accessible element with the role "menuitem"
-      // and name "Mark done…"`; watched 2026-09-13.
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Mark done…' }));
+      // and name "Set status to Done"`; watched 2026-09-13.
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Set status to Done' }));
 
-      const prompt = await screen.findByRole('dialog', { name: 'Mark 010 done' });
+      const prompt = await screen.findByRole('dialog', { name: 'Set 010 to Done' });
       expect(sent).toEqual([]);
-      fireEvent.click(within(prompt).getByRole('button', { name: 'Mark done' }));
+      fireEvent.click(within(prompt).getByRole('button', { name: 'Set to Done' }));
       await waitFor(() => {
         expect(sent).toEqual(['done']);
       });
 
       openRowMenu('010');
-      fireEvent.click(await screen.findByRole('menuitem', { name: 'Set status to unknown' }));
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Set status to Unknown' }));
       await waitFor(() => {
         expect(sent).toEqual(['done', 'unknown']);
       });
