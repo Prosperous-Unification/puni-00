@@ -21,7 +21,7 @@ import { recordCalls } from '@/testing/record-calls';
 
 import { MONDAY_START, planOf, pointedAtRow, rowAt, sliceAt } from './gantt-fixtures';
 import type { GanttPlan } from './gantt-geometry';
-import { DONE_BAR_COLOR } from './gantt-geometry';
+import { DONE_BAR_COLOR, DONE_BAR_STROKE } from './gantt-geometry';
 import { PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR } from './gantt-geometry';
 import {
   appliedGanttHeight,
@@ -9075,7 +9075,22 @@ describe('a done bar', () => {
     // the fact end stops, three workdays before the estimate would have.
     expect([bar.getAttribute('data-start'), bar.getAttribute('data-finish')]).toEqual(['5', '8']);
     expect(bar.getAttribute('fill')).toBe(DONE_BAR_COLOR);
+    // The green outline, and the tick in the same green (Dany, 2026-09-13:
+    // "add smth like a green outline to the gantt chart slices … make [the
+    // checkmark] green same as in table"). Proof: the `bar.done ?
+    // DONE_BAR_STROKE :` arm dropped from the rect's `stroke`, and this fails
+    // on `expected '#475569' to be '#16a34a'`; watched 2026-09-13.
+    expect(bar.getAttribute('stroke')).toBe(DONE_BAR_STROKE);
+    expect(bar.getAttribute('class') ?? '').toContain('[stroke-width:2]');
     expect(bar.getAttribute('class') ?? '').not.toContain('stroke-dasharray');
+    const mark = document.querySelector('[data-done-mark="strip-dev"]');
+    if (mark === null) throw new Error('the done bar has no tick');
+    expect(mark.getAttribute('stroke')).toBe(DONE_BAR_STROKE);
+    // The label leaves the tick's width free at its right end, so the
+    // ellipsis lands before the mark rather than under it.
+    const label = document.querySelector<HTMLElement>('[data-gantt-bar-label="strip-dev"]');
+    if (label === null) throw new Error('the done bar has no label');
+    expect(label.style.paddingRight).toBe(`${String(3 + 12 + 3)}px`);
     expect(bar.getAttribute('aria-label') ?? '').toContain(
       'Done — drawn over what happened, not over the estimate',
     );

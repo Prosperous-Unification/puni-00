@@ -89,8 +89,8 @@ accessible name `Status`. Its cell SHALL show `○` for `unknown`, `◐` for `in
 `✓` for `done`, coloured as the strip is, its accessible name naming the row (`Status of 010`)
 and its fact card saying the status in words, with no browser `title`; the picker SHALL keep
 offering `Unknown` and `Done` in words. The status itself SHALL be readable off `data-status-value`. The column SHALL stay
-hidden by default and SHALL be offered in the Columns control as `Status`, after `Deadline`
-as before.
+hidden by default and SHALL be offered in the Columns control as `Status`, where it renders —
+after `Links` (`status-polish` moved it there from after `Deadline`).
 
 #### Scenario: the pinned block holds Status in its place
 
@@ -184,7 +184,8 @@ be part of the same journal entry as the statements, so one undo takes them away
 ### Requirement: The table shows Status, Fact start and Fact end, and strikes a done row
 
 The table SHALL offer three columns — `Status`, `Fact start`, `Fact end` — hidden by default
-and offered in the Columns control in table order after `Deadline`. The Status cell SHALL show
+and offered in the Columns control in table order: `Status` after `Links`, the two facts after
+`Deadline`. The Status cell SHALL show
 the row's status as a glyph with the word in its fact card and offer `Unknown` and
 `Done` to choose, on a parent as on a leaf; `In progress` SHALL be shown but not offered. The
 two fact cells SHALL be date cells with the deadline cell's rest and edit states. A row whose
@@ -195,8 +196,8 @@ through, on every stripe and under every row light.
 
 - **GIVEN** the Columns control open on a two-step plan
 - **WHEN** its entries are read
-- **THEN** `Status`, `Fact start`, `Fact end` follow `Deadline` in that order, and none of the
-  three is on screen until chosen
+- **THEN** `Status` follows `Links`, `Fact start` and `Fact end` follow `Deadline` in that order,
+  and none of the three is on screen until chosen
 
 #### Scenario: choosing Done marks the row and fills the fact end
 

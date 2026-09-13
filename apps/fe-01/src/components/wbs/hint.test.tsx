@@ -713,6 +713,64 @@ describe('a press says the reader already knows what the control does', () => {
   });
 });
 
+describe('a fact’s lead word is drawn bold, and in its tone', () => {
+  itDom('bolds the lead where it occurs in the words, and colours a done one', () => {
+    render(
+      <div>
+        <HintLayer />
+        <span
+          data-fact="Status: Done. Every step says finished."
+          data-fact-lead="Done"
+          data-fact-tone="done"
+        >
+          ✓
+        </span>
+        <span data-fact="Status: Unknown. Nobody has said." data-fact-lead="Unknown">
+          ○
+        </span>
+        <span data-fact="Backend — inherited from 010.">↳ Backend</span>
+      </div>,
+    );
+
+    pointAt(screen.getByText('✓'));
+    let card = screen.getByRole('tooltip');
+    expect(card.textContent).toBe('Status: Done. Every step says finished.');
+    let lead = card.querySelector('strong');
+    // Dany, 2026-09-13: "mark Unknown and Done statuses in bold + make Done
+    // green color". Proof: `factWords` made to return `words` outright, and
+    // this fails on `expected null not to be null`; watched 2026-09-13.
+    expect(lead).not.toBeNull();
+    expect(lead?.textContent).toBe('Done');
+    expect(lead?.style.color).toBe('var(--status-done)');
+
+    pointAt(screen.getByText('○'));
+    card = screen.getByRole('tooltip');
+    lead = card.querySelector('strong');
+    expect(lead?.textContent).toBe('Unknown');
+    expect(lead?.style.color).toBe('');
+    expect(card.textContent).toBe('Status: Unknown. Nobody has said.');
+
+    // A fact with no lead is the plain words it always was.
+    pointAt(screen.getByText('↳ Backend'));
+    expect(screen.getByRole('tooltip').querySelector('strong')).toBeNull();
+  });
+
+  itDom('draws a lead that is not in the words as plain words rather than a broken card', () => {
+    render(
+      <div>
+        <HintLayer />
+        <span data-fact="Status: Done." data-fact-lead="Finished">
+          ✓
+        </span>
+      </div>,
+    );
+    pointAt(screen.getByText('✓'));
+    const card = screen.getByRole('tooltip');
+    expect(card.textContent).toBe('Status: Done.');
+    expect(card.querySelector('strong')).toBeNull();
+  });
+});
+
 describe('a mark that opens a list of its own takes its card down', () => {
   /** A combobox the way the Status and priority cells are one: a click opens its list. */
   function AListOpener(): React.JSX.Element {

@@ -1961,6 +1961,9 @@ describe('the columns a reader has hidden', () => {
       // First, where the column is: between `#` and Name, and on by default —
       // a column hidden by default is a feature nobody finds (design D5).
       { label: 'Links', checked: false },
+      // Third pin since `status-at-a-glance`, listed where it renders (Dany,
+      // 2026-09-13: the Columns control in the real column order).
+      { label: 'Status', checked: false },
       { label: 'Depends on', checked: true },
       { label: 'Priority', checked: true },
       { label: 'Teams', checked: false },
@@ -1980,10 +1983,9 @@ describe('the columns a reader has hidden', () => {
       // control uses the same exact product label as the compact heading.
       // Proof: with `Work item deadline` this one filtered case failed on this entry.
       { label: 'Deadline', checked: false },
-      // Unticked for Deadline's reason, all three: `work-item-status-and-facts`
+      // Unticked for Deadline's reason, both: `work-item-status-and-facts`
       // put them in `INITIAL_HIDDEN_COLUMNS` so the folded 1280 table keeps its
       // width. A done row still reads as done with them hidden — struck through.
-      { label: 'Status', checked: false },
       { label: 'Fact start', checked: false },
       { label: 'Fact end', checked: false },
       { label: 'Start', checked: true },
