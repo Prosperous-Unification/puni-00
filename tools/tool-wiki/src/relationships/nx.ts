@@ -118,6 +118,13 @@ function installedNx(): { cli: string; extractor: ExtractorIdentity } {
 
 /** Refuses Nx configuration forms that can load candidate-owned modules during graph discovery. */
 function assertStaticNxConfiguration(workspace: string): void {
+  const localNxPaths = [join(workspace, '.nx', 'installation'), join(workspace, '.nx', 'nxw.js')];
+  // Proof: without this pre-launch boundary, Nx preferred a candidate `.nx/installation` and
+  // required its `.nx/nxw.js`; both the direct extractor and preserved enforce launcher wrote
+  // their sentinel before a later missing-graph refusal.
+  if (localNxPaths.some((path) => existsSync(path))) {
+    throw new Error('candidate-local Nx installation is unsupported');
+  }
   const configurationPath = join(workspace, 'nx.json');
   if (!existsSync(configurationPath)) return;
   let input: unknown;

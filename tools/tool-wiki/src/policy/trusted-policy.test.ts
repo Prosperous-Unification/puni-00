@@ -1356,6 +1356,120 @@ describe('trusted policy production CLI', () => {
     expect(output).toContain('candidate Nx plugins are unsupported');
   }, 15_000);
 
+  test('preserved enforce launcher refuses a candidate-local Nx wrapper before execution', () => {
+    const fixture = createFixture('enforce');
+    const sentinel = join(
+      fixture.repository,
+      '..',
+      `${fixture.repository.slice(fixture.repository.lastIndexOf('/') + 1)}.local-nx-executed`,
+    );
+    scratchPaths.push(sentinel);
+    write(
+      join(fixture.repository, 'tsconfig.json'),
+      `${JSON.stringify({ compilerOptions: { module: 'ESNext' }, include: ['src/**/*.ts'] })}\n`,
+    );
+    const localNxPaths = [
+      '.nx/installation/node_modules/nx/package.json',
+      '.nx/installation/node_modules/nx/bin/nx.js',
+      '.nx/nxw.js',
+    ];
+    write(
+      join(fixture.repository, localNxPaths[0]),
+      `${JSON.stringify({ name: 'nx', version: '23.2.0' })}\n`,
+    );
+    write(join(fixture.repository, localNxPaths[1]), 'module.exports = {};\n');
+    write(
+      join(fixture.repository, localNxPaths[2]),
+      `require('node:fs').writeFileSync(${JSON.stringify(sentinel)}, 'executed');\n`,
+    );
+    write(
+      join(fixture.repository, 'nx.json'),
+      `${JSON.stringify({ plugins: [], useInferencePlugins: false })}\n`,
+    );
+    write(
+      join(fixture.repository, 'README.md'),
+      indexSource(
+        [
+          'exemptions.json',
+          ...localNxPaths,
+          'nx.json',
+          'policy.json',
+          'src/app.ts',
+          'tsconfig.json',
+          'validator.ts',
+        ],
+        ['nx.projects'],
+      ),
+    );
+    fixture.revision = commit(fixture.repository, 'candidate-local Nx wrapper');
+    fixture.baselineRevision = fixture.revision;
+    writeEvidence(fixture, 'enforce', [
+      'obligation.application',
+      'obligation.exemptions',
+      'obligation.policy',
+      'obligation.validator',
+    ]);
+    writeAuthority(fixture);
+    writeTrust(fixture, 'enforce');
+    const policy = JSON.parse(readFileSync(fixture.policyPath, 'utf8')) as Record<string, unknown>;
+    policy['relationshipRequest'] = {
+      schemaVersion: 1,
+      typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/app.ts'] },
+    };
+    const candidateClassification = policy['classificationPolicy'] as {
+      contentRules: { contentClass: string; include: object[] }[];
+    };
+    const sourceRule = candidateClassification.contentRules.find(
+      ({ contentClass }) => contentClass === 'source',
+    );
+    if (sourceRule === undefined) throw new Error('fixture source classification disappeared');
+    sourceRule.include.push({ kind: 'suffix', value: '.js' });
+    write(fixture.policyPath, `${JSON.stringify(policy)}\n`);
+    const binding = JSON.parse(readFileSync(fixture.bindingPath, 'utf8')) as {
+      policy: { sha256: string };
+    };
+    binding.policy.sha256 = sha256(readFileSync(fixture.policyPath));
+    write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
+
+    const activation = join(fixture.trustDirectory, 'launcher-activation');
+    write(join(activation, 'active-v1'), 'tool-wiki-active-v1\n');
+    write(join(activation, 'validator-path'), `${cliPath}\n`);
+    write(
+      join(activation, 'snapshotter-path'),
+      `${join(import.meta.dir, 'snapshot-validator.ts')}\n`,
+    );
+    write(join(activation, 'ci-binding-path'), `${fixture.bindingPath}\n`);
+    write(join(activation, 'evidence-path'), `${fixture.evidencePath}\n`);
+    const workspace = join(import.meta.dir, '..', '..', '..', '..');
+    const runtime = mkdtempSync(join(workspace, '.tool-wiki-launcher-'));
+    scratchPaths.push(runtime);
+
+    const invocation = Bun.spawnSync(
+      [
+        'bash',
+        join(workspace, 'bin/tool-wiki-lint.sh'),
+        'committed',
+        fixture.repository,
+        fixture.revision,
+      ],
+      {
+        env: {
+          ...process.env,
+          TMPDIR: runtime,
+          TOOL_WIKI_ACTIVATION_ROOT: activation,
+          TOOL_WIKI_REQUIRE_CERTIFIED: '1',
+        },
+        stderr: 'pipe',
+        stdout: 'pipe',
+      },
+    );
+
+    const output = outputOf(invocation);
+    expect(existsSync(sentinel)).toBe(false);
+    expect(invocation.exitCode, output).toBe(1);
+    expect(output).toContain('candidate-local Nx installation is unsupported');
+  }, 30_000);
+
   test('production lint refuses absent external consumers and unresolved applicable checks', () => {
     const mutations = [
       {

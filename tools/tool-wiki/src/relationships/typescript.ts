@@ -438,6 +438,23 @@ function semanticDeclarationDependencies(
   const seenSymbols = new Set<ts.Symbol>();
   const seenTypes = new Set<ts.Type>();
 
+  const visitTypeSyntax = (node: ts.Node): void => {
+    if (ts.isIdentifier(node)) {
+      const symbol = checker.getSymbolAtLocation(node);
+      if (symbol !== undefined) visitSymbol(symbol);
+    }
+    ts.forEachChild(node, visitTypeSyntax);
+  };
+
+  const visitDeclarationTypeSyntax = (node: ts.Node): void => {
+    if (ts.isTypeNode(node)) {
+      visitTypeSyntax(node);
+      return;
+    }
+    if (ts.isBlock(node) || ts.isExpression(node)) return;
+    ts.forEachChild(node, visitDeclarationTypeSyntax);
+  };
+
   const visitSymbol = (symbol: ts.Symbol): void => {
     if (seenSymbols.has(symbol)) return;
     seenSymbols.add(symbol);
@@ -445,19 +462,22 @@ function semanticDeclarationDependencies(
       visitSymbol(checker.getAliasedSymbol(symbol));
     }
     const declarations = symbol.declarations ?? [];
-    let hasLocalDeclaration = false;
+    const localDeclarations: ts.Declaration[] = [];
     for (const declaration of declarations) {
       const path = workspacePath(workspace, declaration.getSourceFile().fileName);
       if (path === undefined || !project.declarations.has(path)) continue;
-      hasLocalDeclaration = true;
+      localDeclarations.push(declaration);
       paths.add(path);
     }
-    if (!hasLocalDeclaration) return;
+    if (localDeclarations.length === 0) return;
     const location = symbol.valueDeclaration ?? declarations[0];
     visitType(checker.getTypeOfSymbolAtLocation(symbol, location));
     if ((symbol.flags & ts.SymbolFlags.Type) !== 0) {
       visitType(checker.getDeclaredTypeOfSymbol(symbol));
     }
+    // Proof: resolved-type traversal alone reduced `keyof ImplicitAmbient` to literals and skipped
+    // a generic default; both ambient edits left the production structural selector unchanged.
+    for (const declaration of localDeclarations) visitDeclarationTypeSyntax(declaration);
   };
 
   const visitType = (type: ts.Type): void => {
@@ -506,9 +526,9 @@ function publicDeclaration(
     );
   }
   const visited = new Set<string>();
-  // Proof: omitting semantic dependencies kept both an implicitly available ambient interface
-  // and an applicable module augmentation outside the public closure; changing either declaration
-  // left the committed extractor's structural identity unchanged.
+  // Proof: omitting semantic dependencies kept direct ambient use, an applicable augmentation,
+  // `keyof` use, and a generic default outside the public closure; changing each declaration left
+  // the committed extractor's structural identity unchanged.
   const pending = [entrypoint, ...semanticDeclarationDependencies(workspace, project, entrypoint)];
   while (pending.length > 0) {
     const sourcePath = pending.pop();
