@@ -135,6 +135,7 @@ test('rejects malformed structures and nested extras including derived numbering
 
 test('emits inline MCP-readable command branches with real nested patch and estimate properties', () => {
   interface Descriptor {
+    description?: string;
     properties?: Record<string, Descriptor>;
     items?: Descriptor;
     anyOf?: Descriptor[];
@@ -149,6 +150,10 @@ test('emits inline MCP-readable command branches with real nested patch and esti
   if (branches === undefined) throw new Error('Missing command alternatives');
   const find = (kind: string) =>
     branches.find((branch) => branch.properties?.['kind']?.const === kind);
+  // Proof: emptying the production createWorkItem description failed here with received "".
+  expect(find('createWorkItem')?.description).toBe(
+    'Add a work item. `ref` names it for the rest of this batch.',
+  );
   expect(
     find('patchWorkItem')?.properties?.['patch']?.properties?.['externalRefs']?.items?.properties,
   ).toEqual({
