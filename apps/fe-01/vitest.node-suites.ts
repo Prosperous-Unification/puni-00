@@ -62,6 +62,7 @@ export const NODE_SUITES: readonly string[] = [
   'src/lib/saved-plan-compare.test.ts',
   'src/test-tiers.test.ts',
   'src/testing/fake-project-api.test.ts',
+  'src/testing/plan-fixture-command-results.test.ts',
   'src/testing/record-calls.test.ts',
   // Proof: after the generated-client merge, leaving `wbs-api.test.ts` here
   // and `refusing-api.test.ts` out failed test-tiers.test.ts with
