@@ -1798,6 +1798,15 @@ function prepareJournalIndependentHistory(source: SqliteSource): Promise<void> {
   return Promise.resolve();
 }
 
+function rejectJournalIndependentHistoryCreate(source: SqliteSource): Promise<void> {
+  source.db.run(
+    sql.raw(
+      'CREATE TEMP TABLE conformance_independent_journal_history AS SELECT * FROM conformance_missing_plan_event WHERE 0',
+    ),
+  );
+  return Promise.resolve();
+}
+
 const journalLateOutsideFault = defineFault({
   id: 'break:journal.append:history-atomic',
   caseId: 'journal.append:history-atomic',
@@ -2491,7 +2500,7 @@ describe('SQLite existing source conformance', () => {
     expect(failures[3]).toContain(`-     "id": "event-redo-a"`);
   });
 
-  it('closes independent-history TEMP setup failure without leaking its connection', async () => {
+  it('owns the first independent-history TEMP CREATE failure', async () => {
     let closeCalls = 0;
     let directory = '';
     let retainedSource: SqliteSource | undefined;
@@ -2500,11 +2509,6 @@ describe('SQLite existing source conformance', () => {
       openSqliteSource,
       (source) => {
         retainedSource = source;
-        source.db.run(
-          sql.raw(
-            'CREATE TEMP TABLE conformance_independent_journal_history AS SELECT * FROM plan_event WHERE 0',
-          ),
-        );
         return {
           ...source,
           async close() {
@@ -2513,7 +2517,7 @@ describe('SQLite existing source conformance', () => {
           },
         };
       },
-      prepareJournalIndependentHistory,
+      rejectJournalIndependentHistoryCreate,
       (openedDirectory) => {
         directory = openedDirectory;
       },
@@ -2522,10 +2526,10 @@ describe('SQLite existing source conformance', () => {
     expect(proof.kind).toBe('setup-failed');
     if (proof.kind !== 'setup-failed') throw new Error('expected failed TEMP setup proof');
     expect(proof.failure).toContain(
-      'Failed query: CREATE TEMP TABLE conformance_independent_journal_history AS SELECT * FROM plan_event WHERE 0',
+      'Failed query: CREATE TEMP TABLE conformance_independent_journal_history AS SELECT * FROM conformance_missing_plan_event WHERE 0',
     );
-    // Proof: creating the TEMP table from fault mutation before fixture ownership
-    // failed here with expected closeCalls 1 and received 0.
+    // Proof: moving this first CREATE back into fault mutation before fixture
+    // ownership failed here with expected closeCalls 1 and received 0.
     expect({ closeCalls, directoryExists: existsSync(directory) }).toEqual({
       closeCalls: 1,
       directoryExists: false,
@@ -2535,28 +2539,21 @@ describe('SQLite existing source conformance', () => {
     expect(() => sourceAfterFailure.db.all(sql`SELECT 42 AS stillOpen`)).toThrow();
   });
 
-  it('preserves independent-history TEMP setup and cleanup failures', async () => {
+  it('preserves first independent-history TEMP CREATE and cleanup failures', async () => {
     let closeCalls = 0;
     let directory = '';
     const proof = await proveFault(
       journalIndependentHistoryFault,
       openSqliteSource,
-      (source) => {
-        source.db.run(
-          sql.raw(
-            'CREATE TEMP TABLE conformance_independent_journal_history AS SELECT * FROM plan_event WHERE 0',
-          ),
-        );
-        return {
-          ...source,
-          async close() {
-            closeCalls += 1;
-            await source.close();
-            throw new Error('injected independent-history setup cleanup failure');
-          },
-        };
-      },
-      prepareJournalIndependentHistory,
+      (source) => ({
+        ...source,
+        async close() {
+          closeCalls += 1;
+          await source.close();
+          throw new Error('injected independent-history setup cleanup failure');
+        },
+      }),
+      rejectJournalIndependentHistoryCreate,
       (openedDirectory) => {
         directory = openedDirectory;
       },
@@ -2565,8 +2562,10 @@ describe('SQLite existing source conformance', () => {
     expect(proof.kind).toBe('setup-failed');
     if (proof.kind !== 'setup-failed') throw new Error('expected combined TEMP setup failure');
     expect(proof.failure).toContain(
-      'Failed query: CREATE TEMP TABLE conformance_independent_journal_history AS SELECT * FROM plan_event WHERE 0',
+      'Failed query: CREATE TEMP TABLE conformance_independent_journal_history AS SELECT * FROM conformance_missing_plan_event WHERE 0',
     );
+    // Proof: running this first CREATE in fault mutation before fixture ownership
+    // omitted the injected cleanup failure because close was never called.
     expect(proof.failure).toContain('injected independent-history setup cleanup failure');
     expect({ closeCalls, directoryExists: existsSync(directory) }).toEqual({
       closeCalls: 1,

@@ -1581,19 +1581,28 @@ that table.
 
 Permanent lifecycle tests establish three outcomes:
 
-- duplicate TEMP creation fails as `setup-failed`, closes once, removes the
-  directory, preserves the complete failed CREATE diagnostic, and leaves the
-  retained connection unusable;
-- the same CREATE failure combined with an injected close failure preserves
+- the first TEMP CREATE fails from the owned preparation callback as
+  `setup-failed`, closes once, removes the directory, preserves the complete
+  failed CREATE diagnostic, and leaves the retained connection unusable;
+- that first CREATE failure combined with an injected close failure preserves
   both messages through the established aggregate formatter, closes once, and
   still removes the directory;
 - successful TEMP setup records zero closes during preparation, its canonical
   fault is `observed`, and teardown closes exactly once.
 
-Moving CREATE back into fault mutation reproduced the leak: the lifecycle
-negative expected one close and received zero. Closing successful preparation
-early changed that proof to `phase-failed` and recorded one close during
-preparation plus two total closes.
+The decorators now only retain the source or wrap `close`; every fallible table
+setup runs after `seedSqliteSource` returns ownership. Moving the first CREATE
+back into fault mutation reproduced the leak: the lifecycle negative failed
+with expected `closeCalls: 1` and received `closeCalls: 0`. Restoring the owned
+preparation passed all three lifecycle tests (`3/0/53`). Closing successful
+preparation early changed that proof to `phase-failed` and recorded one close
+during preparation plus two total closes.
+
+Final lifecycle repair verification passed the complete SQLite source proof
+file (`40/0/3,410`) and journal/history/UoW/fault regressions (`25/0/74`). All
+six uncached conformance, memory, and SQLite lint/typecheck targets passed.
+Changed-file Prettier and `git diff --check` passed. Pinned OpenSpec 1.3.0
+validated this change strictly and all 75 artifacts passed.
 
 The memory fixture's missing-event guard now has an adjacent R5 proof and a
 real-fixture negative. The test seeds one complete legitimate journal/history
