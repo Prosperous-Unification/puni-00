@@ -1857,3 +1857,14 @@ Fresh restored repair evidence:
 
 The independent review report was not changed. Task 6.1 remains unchecked
 pending rereview; no commit or push was performed.
+
+#### Task 6.1 acceptance
+
+Astra accepted Task 6.1 at `468878d3` with zero Critical, Important, or Minor
+findings. The rereview independently re-ran the affected-row assertion removal,
+the omitted-real-write reversals for both adapters, and each corrected memory
+guard removal. The original ten preflight counterexamples remained
+`phase-failed` with one close. Fresh acceptance evidence passed `9/0/781`
+focused checks, `193/0/7,669` affected regressions, and all six uncached
+conformance, memory, and SQLite lint/typecheck targets. Review:
+`/tmp/source-conformance-6-1-astra-rereview.md`.
