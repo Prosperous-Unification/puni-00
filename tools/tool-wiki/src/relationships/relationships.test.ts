@@ -1,4 +1,11 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
@@ -60,6 +67,7 @@ interface ExtractorIdentity {
 
 const pathsToRemove: string[] = [];
 const cliPath = join(import.meta.dir, '..', 'cli.ts');
+const trustedNodeModules = dirname(dirname(Bun.resolveSync('typescript/package.json', import.meta.dir)));
 const shapesDeclaration =
   "/// <reference path='./globals.d.ts' />\n/// <reference types='node' />\n/// <reference lib='es2022' />\nimport type { Hidden } from './hidden';\nexport interface Declared { label: string; hidden: Hidden; global: GlobalHidden }\n";
 
@@ -230,7 +238,11 @@ function invoke(
     ],
     {
       cwd: repository,
-      env: env === undefined ? process.env : { ...process.env, ...env },
+      env: {
+        ...process.env,
+        TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
+        ...env,
+      },
       stderr: 'pipe',
       stdout: 'pipe',
     },
@@ -334,11 +346,11 @@ describe('relationship extraction production CLI', () => {
     expect(extracted.schemaVersion).toBe(1);
     expect(extracted.selection.kind).toBe('committed');
     expect(extracted.extractors.map((extractor) => extractor.extractorId)).toEqual([
-      'nx.project-graph',
+      'nx.project-json',
       'typescript.compiler',
     ]);
     expect(extracted.extractors.map((extractor) => extractor.version)).toEqual([
-      'v23.2.0',
+      'v1',
       'v6.0.3',
     ]);
     expect(extracted.extractors.every((extractor) => /^[0-9a-f]{64}$/.test(extractor.blob))).toBe(
@@ -931,49 +943,101 @@ describe('relationship extraction production CLI', () => {
     }
   }, 15_000);
 
-  test.each([
-    ['missing', 'process.exit(0);', 'output missing'],
-    [
-      'unreadable',
-      "writeFileSync(process.argv.at(-1)?.replace('--file=', '') ?? '', '{}'); chmodSync(process.argv.at(-1)?.replace('--file=', '') ?? '', 0o000);",
-      'output unreadable',
-    ],
-    [
-      'malformed',
-      "writeFileSync(process.argv.at(-1)?.replace('--file=', '') ?? '', '{ bad');",
-      'output malformed',
-    ],
-    [
-      'unresolved',
-      "process.stderr.write('injected graph failure'); process.exit(17);",
-      'unresolved',
-    ],
-  ] as const)(
-    'refuses %s Nx graph output distinctly',
-    // Proof: the former four-invocation aggregate timed out under one-core contention at
-    // 15050.70ms; separated cases then exposed the default bound at 5060.08-5065.31ms.
-    (name, action, expected) => {
-      const repository = createRepository();
-      const revision = commitAll(repository, 'Nx boundary');
-      const requestPath = writeRequest(repository);
-      const wrapper = join(
+  test('reads Nx project JSON without executing candidate plugins', () => {
+    const repository = createRepository();
+    const marker = join(dirname(repository), `${basename(repository)}-plugin-ran`);
+    pathsToRemove.push(marker);
+    write(
+      repository,
+      'nx.json',
+      `${JSON.stringify({
+        plugins: ['./candidate-plugin.ts'],
+        targetDefaults: { test: { cache: true, inputs: ['default'], outputs: ['coverage'] } },
+      })}\n`,
+    );
+    write(
+      repository,
+      'candidate-plugin.ts',
+      `await Bun.write(${JSON.stringify(marker)}, 'candidate plugin ran\\n');\nexport default {};\n`,
+    );
+    const extracted = report(
+      invoke(repository, commitAll(repository, 'candidate plugin is data'), writeRequest(repository)),
+    );
+
+    expect(existsSync(marker)).toBe(false);
+    expect(
+      extracted.nx.targets.find(({ project, target }) => project === 'consumer' && target === 'test')
+        ?.configuration,
+    ).toMatchObject({
+      cache: true,
+      inputs: ['default'],
+      outputs: ['coverage'],
+      configurations: {},
+      parallelism: true,
+      options: { command: 'bun test' },
+    });
+  });
+
+  test('the bundled validator resolves tools only from explicitly trusted runtime modules', () => {
+    const repository = createRepository();
+    const revision = commitAll(repository, 'standalone validator input');
+    const requestPath = writeRequest(repository);
+    const bundleDirectory = mkdtempSync(join(tmpdir(), 'tool-wiki-bundled-validator-'));
+    pathsToRemove.push(bundleDirectory);
+    const bundle = join(bundleDirectory, 'validator.mjs');
+    const built = Bun.spawnSync(
+      ['bun', 'build', cliPath, '--target=bun', '--format=esm', `--outfile=${bundle}`],
+      { stderr: 'pipe', stdout: 'pipe' },
+    );
+    expect(built.exitCode, output(built)).toBe(0);
+
+    const invocation = Bun.spawnSync(
+      [
+        process.execPath,
+        'run',
+        '--cwd',
+        bundleDirectory,
+        '--no-env-file',
+        bundle,
+        'extract-relationships',
+        'committed',
         repository,
-        '..',
-        `${repository.slice(repository.lastIndexOf('/') + 1)}-${name}.ts`,
-      );
-      pathsToRemove.push(wrapper);
-      writeFileSync(
-        wrapper,
-        `import { chmodSync, writeFileSync } from 'node:fs';\n${action}\n`,
-        'utf8',
-      );
-      chmodSync(wrapper, 0o755);
-      const failed = invoke(repository, revision, requestPath, { WBS_WIKI_NX_CLI: wrapper });
-      expect(failed.exitCode).toBe(1);
-      expect(output(failed)).toContain(`Nx project graph ${expected}`);
-    },
-    10_000,
-  );
+        revision,
+        requestPath,
+      ],
+      {
+        cwd: bundleDirectory,
+        env: {
+          PATH: process.env['PATH'] ?? '',
+          TOOL_WIKI_TRUSTED_NODE_MODULES: trustedNodeModules,
+        },
+        stderr: 'pipe',
+        stdout: 'pipe',
+      },
+    );
+
+    expect(invocation.exitCode, output(invocation)).toBe(0);
+    expect(report(invocation).nx.projects.map(({ name }) => name)).toEqual([
+      'consumer',
+      'minimal',
+      'provider',
+    ]);
+  }, 20_000);
+
+  test('refuses malformed static Nx project data without running candidate code', () => {
+    const repository = createRepository();
+    write(repository, 'packages/provider/project.json', '{ malformed\n');
+    const failed = invoke(
+      repository,
+      commitAll(repository, 'malformed project data'),
+      writeRequest(repository),
+    );
+
+    expect(failed.exitCode).toBe(1);
+    expect(output(failed)).toContain(
+      'Nx project configuration malformed: packages/provider/project.json',
+    );
+  });
 
   test('supports contained symlinks and refuses an effective intermediate-symlink escape', () => {
     const repository = createRepository();

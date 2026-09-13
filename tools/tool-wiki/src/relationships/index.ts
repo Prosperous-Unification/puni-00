@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   realpathSync,
@@ -9,7 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
 import type { RelationshipRequest } from '../contracts/records';
 import { hashCanonical } from '../evidence/content-manifest';
@@ -75,12 +76,42 @@ function assertContained(root: string, path: string, context: string): void {
   }
 }
 
+function trustedModules(candidateRoot: string): string {
+  const configured = process.env['TOOL_WIKI_TRUSTED_NODE_MODULES'];
+  if (configured === undefined || configured.length === 0) {
+    throw new Error('trusted TypeScript runtime modules are not configured');
+  }
+  let modules: string;
+  try {
+    modules = realpathSync(configured);
+  } catch (cause) {
+    throw new Error('trusted TypeScript runtime modules are unreadable', { cause });
+  }
+  const offset = relative(candidateRoot, modules);
+  if (offset === '' || (!isAbsolute(offset) && offset !== '..' && !offset.startsWith('../'))) {
+    throw new Error('trusted TypeScript runtime modules must be outside the candidate');
+  }
+  if (!existsSync(join(modules, 'typescript', 'package.json'))) {
+    throw new Error('trusted TypeScript runtime modules do not contain TypeScript');
+  }
+  return modules;
+}
+
 function materializeCandidate(repository: string, candidate: CandidateSnapshot): string {
   if (candidate.untracked.length > 0) {
     throw new Error(
       `relationship extraction cannot resolve untracked diagnostic paths: ${candidate.untracked.join(', ')}`,
     );
   }
+  const candidateRoot = realpathSync(repository);
+  if (
+    candidate.entries.some(
+      (entry) => entry.path === 'node_modules' || entry.path.startsWith('node_modules/'),
+    )
+  ) {
+    throw new Error('relationship candidate may not supply trusted runtime modules');
+  }
+  const installedModules = trustedModules(candidateRoot);
   const workspace = mkdtempSync(join(tmpdir(), 'tool-wiki-candidate-'));
   const blobs = readBlobs(repository, candidate);
   const effectiveWorkspace = realpathSync(workspace);
@@ -135,9 +166,6 @@ function materializeCandidate(repository: string, candidate: CandidateSnapshot):
     // `pivot -> .`; the production CLI expected the escape refusal before TypeScript ran.
     assertContained(effectiveWorkspace, effectiveTarget, `candidate symlink ${entry.path}`);
   }
-  const installedModules = dirname(
-    dirname(Bun.resolveSync('typescript/package.json', import.meta.dir)),
-  );
   const modulesPath = join(workspace, 'node_modules');
   if (!candidate.entries.some((entry) => entry.path === 'node_modules')) {
     symlinkSync(installedModules, modulesPath, 'dir');

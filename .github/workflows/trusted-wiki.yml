@@ -22,7 +22,9 @@ jobs:
       - name: Check out trusted launcher
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          # Repository variables are target-context authority. Pin both launcher and runtime
+          # modules to the same reviewed source revision that produced the activation archive.
+          ref: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}
           path: trusted
           persist-credentials: false
 
@@ -33,6 +35,10 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
+
+      - name: Install trusted validator runtime modules
+        working-directory: trusted
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Provision immutable external activation
         env:
@@ -69,4 +75,5 @@ jobs:
         env:
           CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
           TOOL_WIKI_REQUIRE_CERTIFIED: '1'
+          TOOL_WIKI_TRUSTED_NODE_MODULES: ${{ github.workspace }}/trusted/node_modules
         run: bash "$RUNNER_TEMP/tool-wiki-lint.sh" committed "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"

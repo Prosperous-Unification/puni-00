@@ -354,6 +354,26 @@ else
   pass 'the host entrypoint refuses before taking the heavy gate'
 fi
 
+# 18. Once an activation root is configured, losing its marker is a provisioning failure rather
+# than permission to silently fall back to an uncertified candidate-only gate.
+missing_marker_activation="$scratch/missing-marker-activation"
+mkdir -p "$missing_marker_activation"
+status=0
+TOOL_WIKI_ACTIVATION_ROOT="$missing_marker_activation" \
+  bash "$repo_root/bin/h2puni-gate.sh" HEAD >"$scratch/missing-marker-stdout" \
+  2>"$scratch/missing-marker-stderr" || status=$?
+expect_status 78 "$status" 'a configured host activation with no marker is refused'
+if grep -q 'configured activation has no external marker' "$scratch/missing-marker-stderr"; then
+  pass 'the missing host marker names the lost provisioning state'
+else
+  fail 'the missing host marker was treated as an inactive rollout'
+fi
+if grep -q 'h2puni gate: running on' "$scratch/missing-marker-stderr"; then
+  fail 'the host entrypoint took the heavy gate after losing its activation marker'
+else
+  pass 'the missing host marker is refused before taking the heavy gate'
+fi
+
 if ((failures)); then
   printf '\n%d failing case(s)\n' "$failures" >&2
   exit 1

@@ -284,8 +284,16 @@ jobs:
       # A protected-default push is already admitted. Its audit still refuses to execute the
       # repository adapter: active rollout selects the launcher from the downloaded, digest-pinned
       # external activation package.
+      - name: Stage trusted runtime modules outside the push candidate
+        if: github.event_name == 'push'
+        run: |
+          mkdir -m 0700 "$RUNNER_TEMP/tool-wiki-trusted-node-modules"
+          cp -a node_modules/. "$RUNNER_TEMP/tool-wiki-trusted-node-modules/"
+
       - name: Tool wiki — externally activated push audit
         if: github.event_name == 'push'
+        env:
+          TOOL_WIKI_TRUSTED_NODE_MODULES: ${{ runner.temp }}/tool-wiki-trusted-node-modules
         run: bash bin/tool-wiki-push-audit.sh . "$GITHUB_SHA"
 
       # --all, not the default base..HEAD comparison. Without it the scope is

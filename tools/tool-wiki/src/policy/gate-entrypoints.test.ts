@@ -359,6 +359,7 @@ function runRealAdapter(
       env: {
         ...process.env,
         TOOL_WIKI_ACTIVATION_ROOT: fixturePaths.activationRoot,
+        TOOL_WIKI_TRUSTED_NODE_MODULES: join(workspace, 'node_modules'),
         ...environment,
       },
       cwd: fixturePaths.repository,
@@ -428,6 +429,7 @@ function runAdapter(
     Object.entries({
       PATH: process.env['PATH'] ?? '',
       TOOL_WIKI_ACTIVATION_ROOT: paths.activationRoot,
+      TOOL_WIKI_TRUSTED_NODE_MODULES: join(workspace, 'node_modules'),
       ...overrides,
     }),
   );
@@ -743,6 +745,21 @@ describe('tool-wiki production entrypoint adapter', () => {
     expect(existsSync(marker)).toBe(false);
   });
 
+  test('candidate-contained runtime modules are refused before validator execution', () => {
+    const paths = fixture();
+    const candidateModules = join(paths.repository, 'node_modules');
+    write(join(candidateModules, 'typescript', 'package.json'), '{"name":"typescript"}\n');
+
+    const invocation = runAdapter('committed', paths, {
+      TOOL_WIKI_TRUSTED_NODE_MODULES: candidateModules,
+    });
+
+    expect(invocation.exitCode).not.toBe(0);
+    expect(streamText(invocation.stderr, 'adapter stderr')).toContain(
+      'trusted TypeScript runtime modules must be outside the candidate',
+    );
+  });
+
   test('a candidate child whose name begins with two dots is refused before validator execution', () => {
     const paths = fixture();
     const marker = join(paths.directory, 'candidate-dot-prefix-dependency-ran');
@@ -972,6 +989,11 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(trustedCi).toContain('pull_request_target:');
     expect(trustedCi).toContain('permissions:\n  contents: read');
     expect(trustedCi.match(/persist-credentials: false/g)).toHaveLength(2);
+    expect(trustedCi).toContain('ref: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}');
+    expect(trustedCi).toContain('bun install --frozen-lockfile --ignore-scripts');
+    expect(trustedCi).toContain(
+      'TOOL_WIKI_TRUSTED_NODE_MODULES: ${{ github.workspace }}/trusted/node_modules',
+    );
     expect(trustedCi).toContain('ref: ${{ github.event.pull_request.head.sha }}');
     expect(trustedCi).toContain('$RUNNER_TEMP/tool-wiki-lint.sh');
     // Proof: removing the selected-package check and required-certification environment from the

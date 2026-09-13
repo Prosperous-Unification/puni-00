@@ -8,7 +8,7 @@
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bun test --preload ../test/scratch/preload.ts",
+        "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../node_modules bun test --preload ../test/scratch/preload.ts",
         "cwd": "tools/tool-wiki"
       }
     },

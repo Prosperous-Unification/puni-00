@@ -20,7 +20,7 @@ bunx nx run tool-wiki:lint:source --skip-nx-cache
 bunx nx run tool-wiki:typecheck --skip-nx-cache
 ```
 
-Build a closure containing the launcher, snapshotter, a reviewed standalone validator bundle,
+Build a closure containing the launcher, snapshotter, a reviewed single-file validator bundle,
 policy, mapping, separate local/CI bindings, lint evidence, trusted authority, and review receipt.
 Pass those ten explicit roles to `prepareActivation`; it copies them into a new versioned directory,
 joins both bindings' policy, authority, validator, and optional mapping references to those exact
@@ -43,6 +43,13 @@ working directory.
 The protected-default push audit downloads, verifies, and extracts that same pinned archive before
 running its launcher. With no archive variables it reports inactive; partial configuration or a
 configured activation root that loses its marker fails rather than silently auditing nothing.
+
+Set `TOOL_WIKI_ACTIVATION_VERSION` to the exact reviewed source commit, not a display label. The
+target-context workflow checks out that immutable revision, installs its lockfile-pinned runtime
+modules with lifecycle scripts disabled, and passes their external path to the validator. The
+validator refuses runtime modules inside the candidate. Nx relationships are read statically from
+`nx.json` and `project.json`; candidate plugins and inferred plugin targets are never executed or
+admitted by this bootstrap boundary.
 
 Copy the same digest-pinned archive to a versioned directory on h2puni. The base-owned
 `trusted-wiki` workflow downloads its operator-configured HTTPS archive into runner temporary
