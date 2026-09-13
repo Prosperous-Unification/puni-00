@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from '@playwright/test';
 
 import { createProject } from './create-project';
 
@@ -80,17 +80,28 @@ const LONG_PROJECT_NAME = 'Rewire the shed and repaint the hall and paint the fe
  * the shape this guards against — a measurement taken against something with no
  * size at all.
  */
-function measureOpenListbox(page: Page): Promise<{
+/** The option for the project this page selected, independent of rival writers. */
+async function selectedProjectOption(page: Page): Promise<Locator> {
+  const projectId = await page.evaluate(() => window.localStorage.getItem('wbs.project'));
+  if (projectId === null) throw new Error('the picker has no selected project');
+  const option = page.locator(`#project-option-${projectId}`);
+  // Proof: measuring the first global option instead failed both long-entry
+  // cases in the real four-worker suite: a rival `New project` produced
+  // `entryOverflow 0` while this exact long project was present one row later.
+  await expect(option).toHaveCount(1);
+  return option;
+}
+
+async function measureOpenListbox(page: Page): Promise<{
   pastRightEdge: number;
   pageOverflowX: number;
   entryOverflow: number;
   nameOverflow: number;
 }> {
-  return page.evaluate(() => {
+  const option = await selectedProjectOption(page);
+  return option.evaluate((entry) => {
     const list = document.querySelector('[role="listbox"]');
     if (list === null) throw new Error('the picker is not open');
-    const entry = list.querySelector('[role="option"]');
-    if (entry === null) throw new Error('the open picker is offering nothing');
     // The clipped span, not the row: `truncate` is on the meta span, and the
     // `<li>` itself is a flex container that fits whatever its items come to.
     const clipped = [...entry.querySelectorAll('span')];
@@ -122,7 +133,7 @@ function measureOpenListbox(page: Page): Promise<{
  * the card is up with no delay a test can smuggle through.
  */
 async function readHoverCard(page: Page): Promise<string> {
-  await page.locator('[role="option"]').first().hover();
+  await (await selectedProjectOption(page)).hover();
   const card = page.locator('[role="tooltip"]').first();
   await expect(card).toBeVisible();
   return (await card.textContent()) ?? '';

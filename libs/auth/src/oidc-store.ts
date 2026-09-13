@@ -26,7 +26,9 @@ export interface ConsumedOidcTransaction {
  */
 export type OidcConsumeResult =
   | ({ outcome: 'consumed' } & ConsumedOidcTransaction)
-  | { outcome: 'expired' | 'missing' | 'state_mismatch' };
+  | { outcome: 'expired' }
+  | { outcome: 'missing' }
+  | { outcome: 'state_mismatch' };
 
 export interface OidcTransactionStore {
   cleanupExpired(): number;
@@ -39,9 +41,7 @@ export interface OidcTransactionStore {
   save(transaction: OidcTransactionInput): void;
 }
 
-interface StoredOidcTransaction extends OidcTransactionInput {
-  expiresAt: number;
-}
+type StoredOidcTransaction = Omit<OidcTransactionInput, 'browserBinding'> & { expiresAt: number };
 
 interface StoreOptions {
   now?: () => number;
@@ -69,8 +69,9 @@ export class InMemoryOidcTransactionStore implements OidcTransactionStore {
 
   save(transaction: OidcTransactionInput): void {
     this.cleanupExpired();
-    this.records.set(digest(transaction.browserBinding), {
-      ...transaction,
+    const { browserBinding, ...record } = transaction;
+    this.records.set(digestOidcBinding(browserBinding), {
+      ...record,
       expiresAt: this.now() + this.options.ttlMs,
     });
   }
@@ -120,7 +121,7 @@ export class InMemoryOidcTransactionStore implements OidcTransactionStore {
    * and `consumeBrowserBinding` consumes at most one record per callback.
    */
   consume(browserBinding: string, state: string): OidcConsumeResult {
-    const key = digest(browserBinding);
+    const key = digestOidcBinding(browserBinding);
     const transaction = this.records.get(key);
     // Proof: `refuses another browser without consuming the initiating browser
     // transaction` fails if a callback can address a record by state alone.
@@ -177,7 +178,7 @@ export class InMemoryOidcTransactionStore implements OidcTransactionStore {
    * and could learn the same by consuming it, at the cost of the login.
    */
   expiresAt(browserBinding: string): number | null {
-    const key = digest(browserBinding);
+    const key = digestOidcBinding(browserBinding);
     const transaction = this.records.get(key);
     if (transaction === undefined) return null;
     // Proof: `reaps an expired transaction it is asked to order` fails with
@@ -316,6 +317,11 @@ export class InMemoryTokenStore implements TokenStore {
 
 function digest(secret: string): string {
   return createHash('sha256').update(secret).digest('hex');
+}
+
+/** Returns the lowercase hexadecimal SHA-256 key used to retain an OIDC browser binding. */
+export function digestOidcBinding(browserBinding: string): string {
+  return digest(browserBinding);
 }
 
 function sameSecret(left: string, right: string): boolean {

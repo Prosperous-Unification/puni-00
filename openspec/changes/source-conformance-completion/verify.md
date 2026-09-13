@@ -2216,3 +2216,12 @@ With `cache: true`, a clean run followed by an untracked workspace-root
 and replayed clean revision `41908dcd763dc7f13768872099ec7d577679f9a4`.
 After disabling caching, the same second invocation executed the suite and
 printed `41908dcd763dc7f13768872099ec7d577679f9a4-dirty`.
+
+### 2026-09-13 latest-main integration
+
+The reviewed source-conformance work was merged without conflict with
+`origin/main` at `9b13f98e62a7cd880977e348421e992e8c4951a3`. On the resulting tree, the
+uncached `test`, `lint`, and `typecheck` targets for conformance, memory, and
+SQLite all passed: nine successful targets in 1m16s. Strict validation of this
+OpenSpec change and `git diff --check` also passed. Task 7.3 remains unchecked
+because the canonical h2puni workspace gate has not run for this commit.

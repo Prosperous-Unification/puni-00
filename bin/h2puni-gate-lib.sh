@@ -20,6 +20,101 @@ gate_lib_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=bin/heavy-lock-lib.sh
 source "$gate_lib_dir/heavy-lock-lib.sh"
 
+# Resolves the preserved launcher named by an externally provisioned activation root. Activation
+# descriptors are relocatable and therefore relative to their root; interpreting one against the
+# caller cwd makes the same archive behave differently depending on where the gate was launched.
+resolve_tool_wiki_launcher() {
+  local activation_root=${1:?activation root is required}
+  local candidate_root=${2:?candidate root is required}
+  local trusted_root
+  local candidate
+  if ! trusted_root=$(realpath -- "$activation_root") || [[ ! -d $trusted_root ]]; then
+    printf 'h2puni gate: active tool-wiki root is not a readable directory\n' >&2
+    return 78
+  fi
+  if ! candidate=$(realpath -- "$candidate_root") || [[ ! -d $candidate ]]; then
+    printf 'h2puni gate: candidate checkout is not a readable directory\n' >&2
+    return 78
+  fi
+  # Proof: h2puni-gate.test.sh case 16 places the activation root inside the candidate while its
+  # launcher points outward; resolution must exit 78 before returning that launcher.
+  case "$trusted_root" in
+    "$candidate" | "$candidate"/*)
+      printf 'h2puni gate: activation root must be outside the candidate checkout\n' >&2
+      return 78
+      ;;
+  esac
+  local marker="$trusted_root/active-v1"
+  # Proof: h2puni-gate.test.sh case 13 writes a malformed marker and observes exit 78 plus this
+  # specific refusal before any launcher can be selected.
+  if [[ ! -f $marker ]] || [[ ! -r $marker ]] || [[ $(<"$marker") != tool-wiki-active-v1 ]]; then
+    printf 'h2puni gate: active tool-wiki marker is missing, unreadable, or malformed\n' >&2
+    return 78
+  fi
+  local launcher_descriptor="$trusted_root/launcher-path"
+  # Proof: h2puni-gate.test.sh case 14 removes read permission from the descriptor and observes
+  # exit 78 instead of a default or candidate-owned launcher.
+  if [[ ! -r $launcher_descriptor ]]; then
+    printf 'h2puni gate: active tool-wiki rollout has no readable launcher descriptor\n' >&2
+    return 78
+  fi
+  local launcher_source
+  launcher_source=$(<"$launcher_descriptor")
+  if [[ $launcher_source != /* ]]; then launcher_source="$trusted_root/$launcher_source"; fi
+  # Proof: h2puni-gate.test.sh case 15 names a directory and observes exit 78 with this artifact
+  # shape refusal.
+  if ! launcher_source=$(realpath -- "$launcher_source") || [[ ! -f $launcher_source ]] || [[ ! -r $launcher_source ]]; then
+    printf 'h2puni gate: active tool-wiki launcher is not a readable regular file\n' >&2
+    return 78
+  fi
+  # Proof: h2puni-gate.test.sh case 12 resolves a symlink into the candidate and observes exit 78
+  # before the candidate launcher can run.
+  case "$launcher_source" in
+    "$candidate"/*)
+      printf 'h2puni gate: active tool-wiki launcher must be outside the candidate checkout\n' >&2
+      return 78
+      ;;
+  esac
+  printf '%s\n' "$launcher_source"
+}
+
+# Selects the TypeScript runtime from external activation state. The relocatable archive carries
+# its reviewed runtime below the root by default; an operator may instead name another external
+# path explicitly, but a candidate-owned path can never become trusted by configuration.
+resolve_tool_wiki_modules() {
+  local activation_root=${1:?activation root is required}
+  local candidate_root=${2:?candidate root is required}
+  local modules_input=${3:-}
+  local trusted_root
+  local candidate
+  if ! trusted_root=$(realpath -- "$activation_root") || [[ ! -d $trusted_root ]]; then
+    printf 'h2puni gate: active tool-wiki root is not a readable directory\n' >&2
+    return 78
+  fi
+  if ! candidate=$(realpath -- "$candidate_root") || [[ ! -d $candidate ]]; then
+    printf 'h2puni gate: candidate checkout is not a readable directory\n' >&2
+    return 78
+  fi
+  if [[ -z $modules_input ]]; then modules_input="$trusted_root/trusted-node-modules"; fi
+  local trusted_modules
+  # Proof: h2puni-gate.test.sh case 20 omits the default runtime directory and observes exit 78
+  # before the heavy gate can run.
+  if ! trusted_modules=$(realpath -- "$modules_input") || [[ ! -d $trusted_modules ]] ||
+    [[ ! -f $trusted_modules/typescript/package.json ]]; then
+    printf 'h2puni gate: trusted TypeScript runtime modules are not provisioned\n' >&2
+    return 78
+  fi
+  # Proof: h2puni-gate.test.sh case 21 selects candidate-owned modules explicitly and observes
+  # exit 78 before they can become validator authority.
+  case "$trusted_modules" in
+    "$candidate" | "$candidate"/*)
+      printf 'h2puni gate: trusted TypeScript runtime modules must be outside the candidate checkout\n' >&2
+      return 78
+      ;;
+  esac
+  printf '%s\n' "$trusted_modules"
+}
+
 # Check `$sha` out in `$repo` under the heavy lock at `$lock_path`, then run
 # `command [arg ...]` there with that head pinned for the whole run.
 #

@@ -3,6 +3,7 @@ import type { IsoDate } from '@wbs/domain/workday';
 import type * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import type { RunPlanWrite } from '@/lib/local-write';
 import type { PriorityBandView, ProjectApi } from '@/lib/wbs-api';
 
 import { cellIn, focusCellAt } from './editable-grid';
@@ -66,7 +67,7 @@ export function usePlanFields({
   pushToast,
   gridElement,
 }: {
-  run: (action: () => Promise<void>) => Promise<CommitOutcome>;
+  run: RunPlanWrite;
   api: ProjectApi;
   priorityBands: PriorityBandView[];
   pushToast: (toast: Toast) => void;
@@ -112,21 +113,23 @@ export function usePlanFields({
    */
   const setNotBefore = useCallback(
     (id: string, day: string | null, reason?: string | null) => {
-      void run(() =>
-        api.patchWorkItem(
-          id,
-          day === null
-            ? { startNoEarlierThan: null, startNoEarlierThanReason: null }
-            : reason === undefined
-              ? { startNoEarlierThan: day }
-              : // The blank box is `null` and never `''`, {@link setNotBeforeReason}'s
-                // own call: one spelling of "nobody has said", and the one thing
-                // be-01 cannot see from a field that is simply absent.
-                {
-                  startNoEarlierThan: day,
-                  startNoEarlierThanReason:
-                    reason === null || reason.trim() === '' ? null : reason.trim(),
-                },
+      void run((write) =>
+        write.perform(['tree'], () =>
+          api.patchWorkItem(
+            id,
+            day === null
+              ? { startNoEarlierThan: null, startNoEarlierThanReason: null }
+              : reason === undefined
+                ? { startNoEarlierThan: day }
+                : // The blank box is `null` and never `''`, {@link setNotBeforeReason}'s
+                  // own call: one spelling of "nobody has said", and the one thing
+                  // be-01 cannot see from a field that is simply absent.
+                  {
+                    startNoEarlierThan: day,
+                    startNoEarlierThanReason:
+                      reason === null || reason.trim() === '' ? null : reason.trim(),
+                  },
+          ),
         ),
       );
     },
@@ -153,8 +156,10 @@ export function usePlanFields({
   const setNotBeforeReason = useCallback(
     (id: string, typed: string) => {
       const said = typed.trim();
-      void run(() =>
-        api.patchWorkItem(id, { startNoEarlierThanReason: said === '' ? null : said }),
+      void run((write) =>
+        write.perform(['tree'], () =>
+          api.patchWorkItem(id, { startNoEarlierThanReason: said === '' ? null : said }),
+        ),
       );
     },
     [api, run],
@@ -185,7 +190,7 @@ export function usePlanFields({
    */
   const setDeadline = useCallback(
     (id: string, day: string | null) => {
-      void run(() => api.patchWorkItem(id, { deadline: day }));
+      void run((write) => write.perform(['tree'], () => api.patchWorkItem(id, { deadline: day })));
     },
     [api, run],
   );
@@ -198,13 +203,13 @@ export function usePlanFields({
    */
   const setFactStart = useCallback(
     (id: string, day: string | null) => {
-      void run(() => api.patchWorkItem(id, { factStart: day }));
+      void run((write) => write.perform(['tree'], () => api.patchWorkItem(id, { factStart: day })));
     },
     [api, run],
   );
   const setFactEnd = useCallback(
     (id: string, day: string | null) => {
-      void run(() => api.patchWorkItem(id, { factEnd: day }));
+      void run((write) => write.perform(['tree'], () => api.patchWorkItem(id, { factEnd: day })));
     },
     [api, run],
   );
@@ -224,7 +229,7 @@ export function usePlanFields({
    */
   const setStatus = useCallback(
     (id: string, status: SettableStatus, on: IsoDate, factStart?: IsoDate) =>
-      run(() => api.setStatus(id, status, on, factStart)),
+      run((write) => write.perform(['tree'], () => api.setStatus(id, status, on, factStart))),
     [api, run],
   );
 
@@ -252,7 +257,10 @@ export function usePlanFields({
       // typed name and a typed number all become one `patch`, one journal entry
       // and one undo. `priorityTyped` owns the rule and the order in it.
       const trimmed = priorityTyped(priorityBands, typed).trim();
-      if (trimmed === '') return run(() => api.patchWorkItem(id, { priority: null }));
+      if (trimmed === '')
+        return run((write) =>
+          write.perform(['tree'], () => api.patchWorkItem(id, { priority: null })),
+        );
       // `Number` rather than `parseInt`: `parseInt('1.5')` is 1 and
       // `parseInt('2x')` is 2, so both would go out as priorities nobody typed.
       // `Number` answers `NaN` for either.
@@ -278,7 +286,9 @@ export function usePlanFields({
         pushToast({ kind: 'error', text: 'A priority is a whole number from 1 upward.' });
         return Promise.resolve<CommitOutcome>('refused');
       }
-      return run(() => api.patchWorkItem(id, { priority: asNumber }));
+      return run((write) =>
+        write.perform(['tree'], () => api.patchWorkItem(id, { priority: asNumber })),
+      );
     },
     [api, priorityBands, pushToast, run],
   );
@@ -301,7 +311,10 @@ export function usePlanFields({
   const setParallelism = useCallback(
     (id: string, typed: string): Promise<CommitOutcome> => {
       const trimmed = typed.trim();
-      if (trimmed === '') return run(() => api.patchWorkItem(id, { maxParallel: null }));
+      if (trimmed === '')
+        return run((write) =>
+          write.perform(['tree'], () => api.patchWorkItem(id, { maxParallel: null })),
+        );
       const asNumber = Number(trimmed);
       // {@link setPriority}'s refusal, for its reason: JSON has no literal for
       // `NaN` or `Infinity`, so either would arrive as `null` — which here is
@@ -311,7 +324,9 @@ export function usePlanFields({
         pushToast({ kind: 'error', text: 'People at once is a whole number from 1 to 1000.' });
         return Promise.resolve<CommitOutcome>('refused');
       }
-      return run(() => api.patchWorkItem(id, { maxParallel: asNumber }));
+      return run((write) =>
+        write.perform(['tree'], () => api.patchWorkItem(id, { maxParallel: asNumber })),
+      );
     },
     [api, pushToast, run],
   );
