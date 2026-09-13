@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 
 import { hashCanonical } from '../evidence/content-manifest';
@@ -128,7 +128,8 @@ export function extractNxRelationships(workspace: string): {
   relationships: NxRelationships;
 } {
   const extractor = extractorIdentity();
-  const nx = parseJson(join(workspace, 'nx.json'), 'nx.json');
+  const nxPath = join(workspace, 'nx.json');
+  const nx = existsSync(nxPath) ? parseJson(nxPath, 'nx.json') : {};
   const targetDefaults =
     nx['targetDefaults'] === undefined
       ? {}
