@@ -272,3 +272,37 @@ Final green evidence:
 - `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
 
 At the Task 3.5 checkpoint, Tasks 3.6–5.2 remain unimplemented and unchecked.
+
+## Section 3.6 — announcements after admission
+
+The import's scoped service graph now collects one `directory_changed` for
+every project when the import creates a deployment-global directory name, the
+new project's exact `project_settings_changed`, and its full
+`tree_replaced`. The collector drains only after `UnitOfWork.run` has committed
+and released its turn. An existing project's subscriber rereads the public
+directory from its callback and observes the imported `Billing` name, proving
+the global directory fan-out rather than only inspecting an event recorder.
+
+The same source contract asserts the imported project has neither command
+journal entries nor plan-history rows. Its existing later-refusal and thrown
+source-error cases continue to assert that no collected announcement is sent.
+
+| Check                          | Fault injected                                               | Test that observed it                                                      | Observed failure                                                                |
+| ------------------------------ | ------------------------------------------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Global directory announcement  | Omitted the directory fan-out                                | `publishes directory, project, and tree refreshes without writing history` | existing subscriber recorded no refresh and never read the imported team name   |
+| Gate release before publishing | Moved `AnnouncementCollector.send()` inside the unit of work | `releases admission before a held publisher settles`                       | timed out at 1,000 ms while the queued ordinary project write awaited admission |
+
+Both faults were observed on the production import path, restored, and
+recorded beside the checks they protect.
+
+Final green evidence:
+
+- `bun test libs/store-memory/src/import.service.test.ts` — 11 passed, 0 failed, 65 assertions.
+- `bun test libs/store-sqlite/src/import.service.db.test.ts -t 'publishes directory, project, and tree refreshes without writing history|releases admission before a held publisher settles'` — 2 passed, 0 failed, 7 assertions.
+- `bun test libs/store-memory/src/import.service.test.ts libs/store-memory/src/memory-source.test.ts` — 22 passed, 0 failed, 235 assertions.
+- `bun test libs/store-sqlite/src/import.service.db.test.ts libs/store-sqlite/src/sqlite-unit-of-work.db.test.ts libs/store-sqlite/src/project.db.test.ts` — 48 passed, 0 failed, 147 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p core store-memory store-sqlite --skip-nx-cache --parallel=3 --output-style=static` — all six targets passed.
+- `bunx prettier --check libs/core/src/service/import.service.ts libs/core/src/testing/import-service-source-contract.ts openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
+
+At the Task 3.6 checkpoint, Tasks 3.7–5.2 remain unimplemented and unchecked.

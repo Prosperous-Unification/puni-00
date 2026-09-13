@@ -12,9 +12,11 @@ import {
   type PreparedWorkItem,
   prepareImport,
 } from './prepare-import';
+import type { WorkItemService } from './work-item.service';
 
 interface ImportServices {
   directory: DirectoryService;
+  workItems: Pick<WorkItemService, 'announceTreeNow'>;
 }
 
 export interface ImportServiceOptions {
@@ -46,6 +48,14 @@ type AdmittedImportOutcome = ImportAdmission | ImportSourceRefusal;
 
 function existingIds(rows: readonly { id: string; name: string }[]): Map<string, string> {
   return new Map(rows.map(({ id, name }) => [name, id]));
+}
+
+function importsNewName(
+  entries: ReadonlyMap<string, { name: string }>,
+  held: readonly { name: string }[],
+): boolean {
+  const heldNames = new Set(held.map(({ name }) => name));
+  return [...entries.values()].some(({ name }) => !heldNames.has(name));
 }
 
 function resolvedId(
@@ -107,6 +117,9 @@ async function resolveNamed(
  * graph composed over the {@link Scope} supplied by this import's own
  * {@link UnitOfWork}. Existing entries are authoritative and are never patched;
  * only entries created by this import receive file-owned metadata.
+ * Successful admission collects directory, project-settings and full-tree
+ * refreshes, then publishes them only after the unit of work has committed and
+ * released its turn. Import creation does not append undo or plan-history rows.
  */
 export class ImportService {
   constructor(private readonly opts: ImportServiceOptions) {}
@@ -127,6 +140,13 @@ export class ImportService {
         directory.listExternalSystems(),
       ]);
       const prepared = preparation.value;
+      const directoryChanged =
+        importsNewName(prepared.serviceByFileId, services) ||
+        importsNewName(prepared.teamByFileId, teams) ||
+        importsNewName(prepared.personByFileId, people) ||
+        importsNewName(prepared.tagByFileId, tags) ||
+        importsNewName(prepared.typeByFileId, types) ||
+        importsNewName(prepared.externalSystemByFileId, systems);
       const servicesByFileId = await resolveNamed(
         prepared.serviceByFileId,
         existingIds(services),
@@ -387,6 +407,20 @@ export class ImportService {
           };
         }
       }
+      if (directoryChanged) {
+        // Proof: omitting this fan-out left an existing project's subscriber
+        // with no refresh, so its post-import directory read never saw `Billing`.
+        for (const project of await scope.stores.projects.list()) {
+          await collector.publish(project.id, { type: 'directory_changed' });
+        }
+      }
+      await collector.publish(projectId, {
+        type: 'project_settings_changed',
+        optimizationEnabled: settings.optimizationEnabled,
+        scheduleEngine: settings.scheduleEngine,
+        scheduleObjective: settings.scheduleObjective,
+      });
+      await graph.workItems.announceTreeNow(projectId);
       return {
         commit: true,
         value: {
@@ -396,6 +430,8 @@ export class ImportService {
         },
       };
     });
+    // Proof: moving this drain inside the unit of work made the held-publisher
+    // contract time out while its queued ordinary project write waited for admission.
     if (admitted.ok) await collector.send();
     return admitted;
   }

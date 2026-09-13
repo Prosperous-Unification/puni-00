@@ -3,10 +3,12 @@ import { describe, expect, it } from 'bun:test';
 import { servicesOver } from '../compose';
 import { clockOf } from '../ports/clock';
 import type { ProjectStore } from '../ports/project-store';
+import type { NewProject } from '../ports/project-store';
 import type { Source } from '../ports/source';
 import type { TransactionalStores } from '../ports/stores';
 import type { UnitOfWork } from '../ports/unit-of-work';
 import type { WorkItemStore } from '../ports/work-item-store';
+import type { Broadcaster, ProjectEvent } from '../service/broadcast';
 import { ImportService } from '../service/import.service';
 import { type RecordingBroadcaster, recordingBroadcaster } from './broadcast-fixture';
 import { planDocumentFixture } from './plan-document-fixture';
@@ -16,7 +18,7 @@ const ACTOR = 'import-owner';
 const STAMP = { at: 1_757_851_200_000, by: ACTOR };
 
 interface ImportHarnessOptions {
-  announcements?: RecordingBroadcaster;
+  announcements?: Broadcaster;
   uow?: UnitOfWork<TransactionalStores>;
 }
 
@@ -53,6 +55,43 @@ function deferred<T>(): Deferred<T> {
     resolve = settle;
   });
   return { promise, resolve };
+}
+
+function projectFixture(id: string, name: string): NewProject {
+  return {
+    id,
+    name,
+    ownerId: ACTOR,
+    restricted: false,
+    estimateMethod: 'pert',
+    depReach: 'whole-item',
+    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+    estimateRounding: 'ceil',
+    startDate: null,
+    solutionRef: null,
+    revision: 0,
+    createdAt: STAMP.at,
+  };
+}
+
+function heldBroadcaster(
+  publishing: Deferred<undefined>,
+  continuePublishing: Promise<void>,
+): RecordingBroadcaster {
+  const published: { projectId: string; event: ProjectEvent }[] = [];
+  let held = false;
+  return {
+    published,
+    async publish(projectId, event) {
+      published.push({ projectId, event });
+      if (held) return;
+      held = true;
+      publishing.resolve(undefined);
+      await continuePublishing;
+    },
+    latestSeq: (projectId) =>
+      Promise.resolve(published.filter((entry) => entry.projectId === projectId).length - 1),
+  };
 }
 
 type LaterFault = { kind: 'refused' } | { kind: 'thrown'; cause: Error };
@@ -782,6 +821,100 @@ export function importServiceSourceContract(
           name: 'Second concurrent import',
           solutionRef: null,
         });
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('publishes directory, project, and tree refreshes without writing history', async () => {
+      const source = await ownedSource();
+      try {
+        const existingProjectId = 'existing-subscriber-project';
+        await source.stores.projects.create(
+          projectFixture(existingProjectId, 'Existing subscriber'),
+          [],
+          STAMP,
+        );
+        const published: { projectId: string; event: ProjectEvent }[] = [];
+        const subscriberReads: string[][] = [];
+        const announcements: Broadcaster = {
+          async publish(projectId, event) {
+            published.push({ projectId, event });
+            if (projectId === existingProjectId && event.type === 'directory_changed') {
+              subscriberReads.push(
+                (await source.stores.directory.listTeams()).map(({ name }) => name),
+              );
+            }
+          },
+          latestSeq: () => Promise.resolve(-1),
+        };
+
+        const imported = await importService(source, { announcements }).import(
+          planDocumentFixture(),
+          ACTOR,
+        );
+        if (!imported.ok) throw new Error(`valid import refused at ${imported.path}`);
+
+        expect(subscriberReads).toEqual([['Billing']]);
+        expect(
+          published
+            .filter(({ projectId }) => projectId === imported.projectId)
+            .map(({ event }) => event.type),
+        ).toEqual(['directory_changed', 'project_settings_changed', 'tree_replaced']);
+        expect(
+          published.find(
+            ({ projectId, event }) =>
+              projectId === imported.projectId && event.type === 'project_settings_changed',
+          ),
+        ).toEqual({
+          projectId: imported.projectId,
+          event: {
+            type: 'project_settings_changed',
+            optimizationEnabled: false,
+            scheduleEngine: 'fast',
+            scheduleObjective: 'pri',
+          },
+        });
+        const tree = published.find(
+          ({ projectId, event }) =>
+            projectId === imported.projectId && event.type === 'tree_replaced',
+        );
+        if (tree?.event.type !== 'tree_replaced')
+          throw new Error('import did not announce its tree');
+        expect(tree.event.workItems.map(({ name }) => name)).toEqual(['Ship']);
+        expect(await source.stores.journal.entriesFor(imported.projectId, ACTOR)).toEqual([]);
+        expect(await source.stores.planEvents.listFor(imported.projectId, {})).toEqual([]);
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('releases admission before a held publisher settles', async () => {
+      const source = await ownedSource();
+      try {
+        const publishing = deferred<undefined>();
+        const release = deferred<undefined>();
+        const announcements = heldBroadcaster(publishing, release.promise);
+        const importing = importService(source, { announcements }).import(
+          planDocumentFixture(),
+          ACTOR,
+        );
+        await publishing.promise;
+
+        const ordinary = source.uow.run(async (scope) => {
+          await scope.stores.projects.create(
+            projectFixture('ordinary-project', 'Ordinary write'),
+            [],
+            STAMP,
+          );
+          return { commit: true, value: undefined };
+        });
+        await ordinary;
+        expect(await source.stores.projects.findById('ordinary-project')).not.toBeNull();
+
+        release.resolve(undefined);
+        const imported = await importing;
+        expect(imported.ok).toBe(true);
       } finally {
         await source.close();
       }
