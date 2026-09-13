@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { hashBytes, hashCanonical } from '../evidence/content-manifest';
 import type { ExtractorIdentity } from './typescript';
@@ -87,14 +87,16 @@ function textArray(parent: UnknownRecord, field: string, context: string): strin
 }
 
 interface TrustedNx {
-  invocationPrefix: string[];
+  command: { kind: 'module'; path: string } | { kind: 'injected-cli'; path: string };
   extractor: ExtractorIdentity;
+  runtimeCwd: string;
 }
 
 /**
- * Resolves the trusted Nx command module relative to this validator, never relative to the
- * candidate workspace. `WBS_WIKI_NX_CLI` is a trusted fault-injection boundary used by production
- * path negatives; the preserved launcher clears it before running the immutable validator.
+ * Resolves the trusted Nx command module and runtime directory relative to this validator, never
+ * relative to the candidate workspace. Bun starts in that trusted directory; only the already
+ * started bootstrap enters the candidate to read its project graph. `WBS_WIKI_NX_CLI` is a trusted
+ * fault-injection boundary used by production path negatives, and the preserved launcher clears it.
  */
 function installedNx(): TrustedNx {
   let packagePath: string;
@@ -115,24 +117,21 @@ function installedNx(): TrustedNx {
   }
   const version = textField(record(input, 'Nx package'), 'version', 'Nx package');
   const injectedCli = process.env['WBS_WIKI_NX_CLI'];
-  const invocationPrefix =
+  const command: TrustedNx['command'] =
     injectedCli === undefined
-      ? [
-          process.execPath,
-          '-e',
-          // Proof: launching the package's public Nx CLI let candidate root package self-reference
-          // replace its eventual executable; direct and preserved-launcher sentinels were written.
-          'require(process.argv[1]).commandsObject.argv;',
-          join(packagePath, '..', 'dist', 'src', 'command-line', 'nx-commands.js'),
-        ]
-      : [process.execPath, injectedCli];
+      ? {
+          kind: 'module',
+          path: join(dirname(packagePath), 'dist', 'src', 'command-line', 'nx-commands.js'),
+        }
+      : { kind: 'injected-cli', path: injectedCli };
   return {
-    invocationPrefix,
+    command,
     extractor: {
       extractorId: 'nx.project-graph',
       version: `v${version}`,
       blob: hashBytes(bytes),
     },
+    runtimeCwd: dirname(packagePath),
   };
 }
 
@@ -169,7 +168,7 @@ function assertStaticNxConfiguration(workspace: string): void {
   }
 }
 
-function readGraph(workspace: string, invocationPrefix: string[]): UnknownRecord {
+function readGraph(workspace: string, trustedNx: TrustedNx): UnknownRecord {
   const outputDirectory = mkdtempSync(join(tmpdir(), 'tool-wiki-nx-'));
   const outputPath = join(outputDirectory, 'graph.json');
   try {
@@ -196,15 +195,26 @@ function readGraph(workspace: string, invocationPrefix: string[]): UnknownRecord
     );
     environment['NX_DAEMON'] = 'false';
     environment['NX_ISOLATE_PLUGINS'] = 'false';
-    const invocation = Bun.spawnSync(
-      [...invocationPrefix, 'graph', '--view=projects', '--groupByFolder', `--file=${outputPath}`],
-      {
-        cwd: workspace,
-        env: environment,
-        stderr: 'pipe',
-        stdout: 'pipe',
-      },
-    );
+    const graphArguments = ['graph', '--view=projects', '--groupByFolder', `--file=${outputPath}`];
+    const command =
+      trustedNx.command.kind === 'injected-cli'
+        ? [process.execPath, trustedNx.command.path, ...graphArguments]
+        : [
+            process.execPath,
+            '-e',
+            // Proof: starting Bun in the candidate loaded its bunfig preload before this pinned
+            // module; direct and preserved accepted/enforce sentinels were both written.
+            'const workspace = process.argv[1]; const command = process.argv[2]; process.argv.splice(1, 2, command); process.chdir(workspace); require(command).commandsObject.argv;',
+            workspace,
+            trustedNx.command.path,
+            ...graphArguments,
+          ];
+    const invocation = Bun.spawnSync(command, {
+      cwd: trustedNx.runtimeCwd,
+      env: environment,
+      stderr: 'pipe',
+      stdout: 'pipe',
+    });
     // Proof: ignoring exit 17 made the injected failed graph command report `output missing`;
     // the production assertion requiring `Nx project graph unresolved` failed.
     if (invocation.exitCode !== 0) {
@@ -246,8 +256,9 @@ export function extractNxRelationships(workspace: string): {
   relationships: NxRelationships;
 } {
   assertStaticNxConfiguration(workspace);
-  const { invocationPrefix, extractor } = installedNx();
-  const graph = readGraph(workspace, invocationPrefix);
+  const trustedNx = installedNx();
+  const graph = readGraph(workspace, trustedNx);
+  const { extractor } = trustedNx;
   const nodes = record(graph['nodes'], 'graph.nodes');
   const dependencies = record(graph['dependencies'], 'graph.dependencies');
   const projectNames = Object.keys(nodes).sort(compareText);

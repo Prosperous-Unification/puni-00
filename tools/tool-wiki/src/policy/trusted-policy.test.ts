@@ -1591,6 +1591,115 @@ describe('trusted policy production CLI', () => {
     });
   }, 30_000);
 
+  test('preserved enforce launcher starts trusted Nx before candidate Bun configuration', () => {
+    const fixture = createFixture('enforce');
+    const sentinel = join(
+      fixture.repository,
+      '..',
+      `${fixture.repository.slice(fixture.repository.lastIndexOf('/') + 1)}.bun-preload-executed`,
+    );
+    scratchPaths.push(sentinel);
+    write(
+      join(fixture.repository, 'tsconfig.json'),
+      `${JSON.stringify({ compilerOptions: { module: 'ESNext' }, include: ['src/**/*.ts'] })}\n`,
+    );
+    write(join(fixture.repository, 'bunfig.toml'), 'preload = ["./candidate-preload.ts"]\n');
+    write(
+      join(fixture.repository, 'candidate-preload.ts'),
+      `await Bun.write(${JSON.stringify(sentinel)}, 'executed');\n`,
+    );
+    write(
+      join(fixture.repository, 'nx.json'),
+      `${JSON.stringify({ plugins: [], useInferencePlugins: false })}\n`,
+    );
+    write(
+      join(fixture.repository, 'README.md'),
+      indexSource(
+        [
+          'bunfig.toml',
+          'candidate-preload.ts',
+          'exemptions.json',
+          'nx.json',
+          'policy.json',
+          'src/app.ts',
+          'tsconfig.json',
+          'validator.ts',
+        ],
+        ['nx.projects'],
+      ),
+    );
+    fixture.revision = commit(fixture.repository, 'candidate Bun preload');
+    fixture.baselineRevision = fixture.revision;
+    writeEvidence(fixture, 'enforce', [
+      'obligation.application',
+      'obligation.exemptions',
+      'obligation.policy',
+      'obligation.validator',
+    ]);
+    writeAuthority(fixture);
+    writeTrust(fixture, 'enforce');
+    const policy = JSON.parse(readFileSync(fixture.policyPath, 'utf8')) as Record<string, unknown>;
+    policy['relationshipRequest'] = {
+      schemaVersion: 1,
+      typescript: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/app.ts'] },
+    };
+    const candidateClassification = policy['classificationPolicy'] as {
+      contentRules: { contentClass: string; include: object[] }[];
+    };
+    const configRule = candidateClassification.contentRules.find(
+      ({ contentClass }) => contentClass === 'config',
+    );
+    if (configRule === undefined) throw new Error('fixture config classification disappeared');
+    configRule.include.push({ kind: 'suffix', value: '.toml' });
+    write(fixture.policyPath, `${JSON.stringify(policy)}\n`);
+    const binding = JSON.parse(readFileSync(fixture.bindingPath, 'utf8')) as {
+      policy: { sha256: string };
+    };
+    binding.policy.sha256 = sha256(readFileSync(fixture.policyPath));
+    write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
+
+    const activation = join(fixture.trustDirectory, 'launcher-activation');
+    write(join(activation, 'active-v1'), 'tool-wiki-active-v1\n');
+    write(join(activation, 'validator-path'), `${cliPath}\n`);
+    write(
+      join(activation, 'snapshotter-path'),
+      `${join(import.meta.dir, 'snapshot-validator.ts')}\n`,
+    );
+    write(join(activation, 'ci-binding-path'), `${fixture.bindingPath}\n`);
+    write(join(activation, 'evidence-path'), `${fixture.evidencePath}\n`);
+    const workspace = join(import.meta.dir, '..', '..', '..', '..');
+    const runtime = mkdtempSync(join(workspace, '.tool-wiki-launcher-'));
+    scratchPaths.push(runtime);
+
+    const invocation = Bun.spawnSync(
+      [
+        'bash',
+        join(workspace, 'bin/tool-wiki-lint.sh'),
+        'committed',
+        fixture.repository,
+        fixture.revision,
+      ],
+      {
+        env: {
+          ...process.env,
+          TMPDIR: runtime,
+          TOOL_WIKI_ACTIVATION_ROOT: activation,
+          TOOL_WIKI_REQUIRE_CERTIFIED: '1',
+        },
+        stderr: 'pipe',
+        stdout: 'pipe',
+      },
+    );
+
+    const output = outputOf(invocation);
+    expect(existsSync(sentinel)).toBe(false);
+    expect(invocation.exitCode, output).toBe(0);
+    expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
+      accepted: true,
+      certified: true,
+    });
+  }, 30_000);
+
   test('production lint refuses absent external consumers and unresolved applicable checks', () => {
     const mutations = [
       {

@@ -237,7 +237,9 @@ function invoke(
       requestPath,
     ],
     {
-      cwd: repository,
+      // The trusted caller starts outside the candidate; the production negative covers the
+      // extractor's nested runtime crossing into candidate graph input.
+      cwd: import.meta.dir,
       env: env === undefined ? process.env : { ...process.env, ...env },
       stderr: 'pipe',
       stdout: 'pipe',
@@ -341,6 +343,30 @@ describe('relationship extraction production CLI', () => {
       `require('node:fs').writeFileSync(${JSON.stringify(sentinel)}, 'executed');\n`,
     );
     const revision = commitAll(repository, 'candidate package self-reference');
+
+    const invocation = invoke(repository, revision, requestPath);
+    expect(existsSync(sentinel)).toBe(false);
+    const extracted = report(invocation);
+    expect(extracted.nx.projects.map(({ name }) => name)).toEqual([
+      'consumer',
+      'minimal',
+      'provider',
+    ]);
+  }, 30_000);
+
+  test('starts trusted Nx before entering a candidate with a Bun preload', () => {
+    const repository = createRepository();
+    const requestPath = writeRequest(repository);
+    report(invoke(repository, commitAll(repository, 'declarative Nx baseline'), requestPath));
+    const sentinel = join(repository, '..', `${basename(repository)}.bun-preload-executed`);
+    pathsToRemove.push(sentinel);
+    write(repository, 'bunfig.toml', 'preload = ["./candidate-preload.ts"]\n');
+    write(
+      repository,
+      'candidate-preload.ts',
+      `await Bun.write(${JSON.stringify(sentinel)}, 'executed');\n`,
+    );
+    const revision = commitAll(repository, 'candidate Bun preload');
 
     const invocation = invoke(repository, revision, requestPath);
     expect(existsSync(sentinel)).toBe(false);
