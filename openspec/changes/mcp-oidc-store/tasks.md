@@ -1,8 +1,11 @@
 ## 1. Characterize existing security and capacity behavior
 
-- [ ] 1.1 Run `bunx nx run mcp-01:test` and `bunx nx run auth:test`; pin existing registration, per-source promotion reservation, global/per-client pending, grant and session-capacity cases in `apps/mcp-01/src/oauth.test.ts`. Read the actual current case count; do not inherit historical 24 as a target.
-- [ ] 1.2 Add `wrong state preserves the honest MCP login and browser cookie`: authorize through InMemoryMcpOAuth.response, apply a wrong-state callback's Set-Cookie to a cookie jar, then send the honest callback. It must initially fail against delete-before-compare. After implementation, reinsert premature deletion and separately reinsert cookie clearing; each must fail at honest callback status/exchange count, not merely at map size.
-- [ ] 1.3 Add expiry-before-mismatch and matched-state replay controls through the same HTTP handler. Negative: compare before expiry or retain after match; assert expired metadata/cookie removal and exactly one exchange for two matching callbacks.
+- [x] 1.1 Run `bunx nx run mcp-01:test` and `bunx nx run auth:test`; pin existing registration, per-source promotion reservation, global/per-client pending, grant and session-capacity cases in `apps/mcp-01/src/oauth.test.ts`. Read the actual current case count; do not inherit historical 24 as a target.
+  - Evidence: the untouched baseline had 24 OAuth cases and 114 MCP cases; the named registration, promotion-reservation, pending, grant, and session-capacity cases all passed. The auth target passed 95 cases outside the filesystem sandbox after its four localhost-listener cases were unavailable inside it.
+- [x] 1.2 Add `wrong state preserves the honest MCP login and browser cookie`: authorize through InMemoryMcpOAuth.response, apply a wrong-state callback's Set-Cookie to a cookie jar, then send the honest callback. It must initially fail against delete-before-compare. After implementation, reinsert premature deletion and separately reinsert cookie clearing; each must fail at honest callback status/exchange count, not merely at map size.
+  - Evidence: the route-level browser-cookie test was red first and is green now; both restored premature deletion and restored mismatch cookie clearing made the honest callback return 400 instead of 302 before any exchange-count success claim.
+- [x] 1.3 Add expiry-before-mismatch and matched-state replay controls through the same HTTP handler. Negative: compare before expiry or retain after match; assert expired metadata/cookie removal and exactly one exchange for two matching callbacks.
+  - Evidence: compare-before-expiry retained one transaction instead of zero; retain-after-match made the exact exchange count two instead of one. The restored tests assert cookie clearing, exact metadata removal, one exchange, and replay refusal.
 
 ## 2. Shared store plus bounded metadata
 

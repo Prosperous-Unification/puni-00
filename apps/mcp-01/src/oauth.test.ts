@@ -112,6 +112,20 @@ function challengeOf(verifier: string): string {
   return createHash('sha256').update(verifier).digest('base64url');
 }
 
+/** Applies this endpoint's single Set-Cookie exactly as a browser would. */
+function browserCookie(previous: string | undefined, response: Response): string | undefined {
+  const setCookie = response.headers.get('set-cookie');
+  if (setCookie === null) return previous;
+  const pair = setCookie.split(';', 1)[0];
+  if (setCookie.includes('Max-Age=0')) return undefined;
+  return pair;
+}
+
+function transactionCount(oauth: InMemoryMcpOAuth): number {
+  // Tests inspect the actual in-process backing map to prove exact removal.
+  return (oauth as unknown as { transactions: Map<string, unknown> }).transactions.size;
+}
+
 async function completedAuthorization(
   oauth: InMemoryMcpOAuth,
   verifier: string,
@@ -568,6 +582,65 @@ describe('InMemoryMcpOAuth', () => {
     expect(await rejected?.json()).toEqual({ error: 'invalid_request' });
   });
 
+  // Proof: deleting before state comparison or clearing the mismatch response
+  // cookie makes the honest callback return 400 instead of 302 without exchange.
+  it('wrong state preserves the honest MCP login and browser cookie', async () => {
+    const { exchangeCalls, oauth } = fixture();
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    if (started === undefined) throw new Error('authorization endpoint did not handle the request');
+    let heldCookie = browserCookie(undefined, started);
+    const upstreamState = new URL(
+      started.headers.get('location') ?? 'https://invalid',
+    ).searchParams.get('state');
+    const wrong = await oauth.response(
+      new Request(
+        'https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=forged&state=wrong-state',
+        { headers: heldCookie === undefined ? undefined : { cookie: heldCookie } },
+      ),
+    );
+    if (wrong === undefined) throw new Error('callback endpoint did not handle the request');
+
+    expect(wrong.status).toBe(400);
+    expect(exchangeCalls).toHaveLength(0);
+    heldCookie = browserCookie(heldCookie, wrong);
+    const honest = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=upstream&state=${String(upstreamState)}`,
+        { headers: heldCookie === undefined ? undefined : { cookie: heldCookie } },
+      ),
+    );
+
+    expect(honest?.status).toBe(302);
+    expect(exchangeCalls).toHaveLength(1);
+    expect(wrong.headers.get('set-cookie')).toBeNull();
+    expect(heldCookie).toBe('__Host-wbs_mcp_oauth=random-2');
+  });
+
+  // Proof: comparing the wrong state before expiry leaves one dead transaction
+  // instead of removing it, so the exact retained-transaction assertion fails.
+  it('expires before mismatch and clears the dead browser transaction', async () => {
+    const { advance, exchangeCalls, oauth } = fixture({ transactionLimit: 1 });
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    if (started === undefined) throw new Error('authorization endpoint did not handle the request');
+    let heldCookie = browserCookie(undefined, started);
+    advance(300_000);
+    const expired = await oauth.response(
+      new Request(
+        'https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=late&state=wrong-state',
+        { headers: heldCookie === undefined ? undefined : { cookie: heldCookie } },
+      ),
+    );
+    if (expired === undefined) throw new Error('callback endpoint did not handle the request');
+
+    expect(expired.status).toBe(400);
+    expect(exchangeCalls).toHaveLength(0);
+    expect(transactionCount(oauth)).toBe(0);
+    heldCookie = browserCookie(heldCookie, expired);
+    expect(heldCookie).toBeUndefined();
+  });
+
   // Proof: retaining the upstream transaction after callback makes the same
   // provider response mint a second local authorization code.
   it('binds PKCE to a one-use upstream browser round trip', async () => {
@@ -605,8 +678,11 @@ describe('InMemoryMcpOAuth', () => {
       upstreamAccessToken: 'upstream-okta-token',
     });
     expect(exchangeCalls).toHaveLength(1);
-    expect((await oauth.response(callback))?.status).toBe(400);
+    const replay = await oauth.response(callback);
     expect(exchangeCalls).toHaveLength(1);
+    expect(replay?.status).toBe(400);
+    expect(completed?.headers.get('set-cookie')).toContain('Max-Age=0');
+    expect(transactionCount(oauth)).toBe(0);
   });
 
   // Break caught: forwarding the local MCP token or omitting its audience/JTI

@@ -337,15 +337,15 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   private async callback(request: Request, url: URL): Promise<Response> {
     const binding = cookieOf(request, COOKIE);
     const state = url.searchParams.get('state');
-    const transaction = binding === undefined ? undefined : this.transactions.get(binding);
-    if (binding !== undefined) this.transactions.delete(binding);
-    if (
-      transaction === undefined ||
-      transaction.expiresAt <= this.now() ||
-      state !== transaction.upstreamState
-    ) {
+    if (binding === undefined) return oauthError('invalid_request', clearCookie());
+    const transaction = this.transactions.get(binding);
+    if (transaction === undefined) return oauthError('invalid_request', clearCookie());
+    if (transaction.expiresAt <= this.now()) {
+      this.transactions.delete(binding);
       return oauthError('invalid_request', clearCookie());
     }
+    if (state !== transaction.upstreamState) return oauthError('invalid_request');
+    this.transactions.delete(binding);
 
     const callback = new URL(this.callbackUrl);
     callback.search = url.search;
