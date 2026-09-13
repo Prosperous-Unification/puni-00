@@ -27,6 +27,9 @@ const PositiveSafeInteger = type('number.integer>=1').narrow((value, context) =>
 );
 
 export const TrialSession = type({
+  // Proof: deleting process.alpha from the production journal fixture made accounting.test.ts
+  // refuse the session before runner evidence could lose its launched-process linkage.
+  processId: OpaqueId,
   sessionId: OpaqueId,
   startedAt: IsoInstant,
   endedAt: IsoInstant,

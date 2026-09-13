@@ -146,6 +146,7 @@ export function trialJournal() {
     status: 'censored',
     sessions: [
       {
+        processId: 'process.alpha',
         sessionId: 'session.alpha',
         startedAt: START,
         endedAt: END,
@@ -153,6 +154,7 @@ export function trialJournal() {
         attemptIds: ['attempt.alpha.1', 'attempt.alpha.2'],
       },
       {
+        processId: 'process.beta',
         sessionId: 'session.beta',
         startedAt: START,
         endedAt: END,
@@ -342,6 +344,11 @@ describe('trial accounting', () => {
           'strict trial record',
           (journal) => Reflect.set(journal, 'unexpected', true),
           'unexpected must be removed',
+        ],
+        [
+          'missing launched process',
+          (journal) => Reflect.deleteProperty(journal.sessions[0], 'processId'),
+          'processId',
         ],
         [
           'strict accepted outcome',
