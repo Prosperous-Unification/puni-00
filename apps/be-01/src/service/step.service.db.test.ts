@@ -490,6 +490,7 @@ describe('a step removed between the check and the write', () => {
   function serviceWritingIntoTheGap(): WorkItemService {
     const vanishing: EstimateStore = {
       listByProject: (of) => estimates.listByProject(of),
+      listByWorkItems: (of, ids) => estimates.listByWorkItems(of, ids),
       remove: (workItemId, stepId, stamp) => estimates.remove(workItemId, stepId, stamp),
       moveAll: (from, to, stamp) => estimates.moveAll(from, to, stamp),
       async set(toSet, stamp) {
