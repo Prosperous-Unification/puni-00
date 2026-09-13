@@ -1961,6 +1961,117 @@ describe('refresh owner lifetimes', () => {
       expect(toastTexts()).toEqual(['Arranged by schedule.']);
     });
   });
+
+  it('does not announce an arrangement after its covering read changes API owner', async () => {
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Old arrangement' });
+    const view = render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+
+    const readTree = api.tree.bind(api);
+    let finishRead!: () => void;
+    api.tree = (...args) =>
+      new Promise((resolve) => {
+        finishRead = () => {
+          void readTree(...args).then(resolve);
+        };
+      });
+    const arrangements: unknown[][] = [];
+    api.arrangeBySchedule = (...args) => {
+      arrangements.push(args);
+      return Promise.resolve();
+    };
+    click('Arrange by schedule');
+    await waitFor(() => {
+      expect(arrangements).toEqual([['p1']]);
+      expect(finishRead).toBeTypeOf('function');
+    });
+    expect(toastTexts()).toEqual([]);
+
+    const replacement = fakeApi();
+    await replacement.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Replacement during read',
+    });
+    const replacementReads: string[] = [];
+    for (const method of [
+      'tree',
+      'steps',
+      'listTeams',
+      'listTags',
+      'listServices',
+      'listWorkItemTypes',
+      'listExternalSystems',
+      'listPeople',
+      'listCalendarMarkers',
+    ] as const) {
+      recordCalls(replacement, method, () => replacementReads.push(method));
+    }
+    view.rerender(<WbsTable projectId="p1" api={replacement} />);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name of 010')).toHaveProperty(
+        'value',
+        'Replacement during read',
+      );
+      expect(replacementReads).toHaveLength(9);
+    });
+
+    await act(async () => {
+      finishRead();
+      await Promise.resolve();
+    });
+    expect(replacementReads).toHaveLength(9);
+    expect(toastTexts()).toEqual([]);
+  });
+
+  it('announces an arrangement after the same reader renews its subscription', async () => {
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Same reader' });
+    const view = render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+
+    const readTree = api.tree.bind(api);
+    let finishRead!: () => void;
+    api.tree = (...args) =>
+      new Promise((resolve) => {
+        finishRead = () => {
+          void readTree(...args).then(resolve);
+        };
+      });
+    const arrangements: unknown[][] = [];
+    api.arrangeBySchedule = (...args) => {
+      arrangements.push(args);
+      return Promise.resolve();
+    };
+    click('Arrange by schedule');
+    await waitFor(() => {
+      expect(arrangements).toEqual([['p1']]);
+      expect(finishRead).toBeTypeOf('function');
+    });
+    expect(toastTexts()).toEqual([]);
+
+    api.tree = readTree;
+    let subscriptions = 0;
+    view.rerender(
+      <WbsTable
+        projectId="p1"
+        api={api}
+        subscribe={() => {
+          subscriptions += 1;
+          return { seen: () => undefined, unsubscribe: () => undefined };
+        }}
+      />,
+    );
+    await waitFor(() => {
+      expect(subscriptions).toBe(1);
+    });
+    await act(async () => {
+      finishRead();
+      await Promise.resolve();
+    });
+    expect(toastTexts()).toEqual(['Arranged by schedule.']);
+  });
 });
 
 describe('write failure recovery scopes', () => {

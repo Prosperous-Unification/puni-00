@@ -135,10 +135,8 @@ export function usePlanDependencies({
               // goes through `run` and does get {@link refusalSentence}.
               refused.push(`${predecessor.number} (${failureText(thrown, 'refused')})`);
               // Proof: forcing this classifier false left both typed boundary
-              // failures at one tree read instead of all nine, and hid the
-              // successful prefix's chip after a later ambiguous failure.
-              // Watched in the three dependency-list recovery cases,
-              // 2026-09-13.
+              // failures at one tree read instead of all nine. Watched in the
+              // three dependency-list recovery cases, 2026-09-13.
               if (isAmbiguousWriteFailure(thrown)) ambiguous = true;
             }
           }

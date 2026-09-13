@@ -156,3 +156,36 @@ remaining visible, and tree-only recovery for a modeled refusal. The owner
 negative holds the old Arrange response across a same-project replacement and
 its pending rename, then proves no old toast, read, focus or busy-state change;
 a following same-owner Arrange remains the success control.
+
+## Astra rereview repair — ownership during the covering read
+
+Verified on 2026-09-13 from `c929b982`.
+
+| Check                                                                                  | Result                                 |
+| -------------------------------------------------------------------------------------- | -------------------------------------- |
+| New held-covering-read cases before the repair                                         | 1 failed, 1 control passed, 71 skipped |
+| New held-covering-read cases after the repair                                          | 2 passed, 71 skipped                   |
+| Complete owning file plus `plan-table.test.tsx`                                        | 2 files, 119 passed                    |
+| Exact Astra rereview probe file against the repaired production tree                   | 5 passed                               |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:typecheck --skip-nx-cache` | succeeded                              |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:lint --skip-nx-cache`      | succeeded                              |
+
+The new negative holds Arrange's covering tree GET, replaces the API for the
+same project, waits for all nine replacement reads, and then releases the old
+GET. Before the pair check it received `['Arranged by schedule.']`, expected
+no toast. The paired control renews the subscription coordinator while keeping
+the project and API unchanged and still receives the valid success toast.
+
+### R5 identity proof
+
+Removing the post-refresh project/API check reproduced the stale success toast.
+Replacing the check with captured-coordinator `isCurrent()` made the renewal
+control receive `[]`, expected `['Arranged by schedule.']`. The production
+check therefore uses the logical reader pair after refresh while retaining the
+captured coordinator guard before refresh and in the busy-state cleanup.
+
+The full frontend and browser targets were not rerun for this repair because
+the shared E2E lane was occupied. The focused test includes the complete owning
+and `plan-table` files; the prior integrated browser evidence and the suppressed
+full-frontend failure remain recorded above. Task 3.3 remains open for the
+publication-dependent exact-SHA h2puni gate.

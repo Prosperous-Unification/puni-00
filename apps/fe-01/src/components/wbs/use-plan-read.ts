@@ -860,6 +860,14 @@ export function usePlanRead({
         // 2026-09-13.
         if (!isCurrent()) return 'refused';
         if (completed.length > 0) await refreshResourcesOrMarkStale(completed);
+        // A covering read may renew the coordinator for the same reader, so
+        // its identity cannot decide this outcome. The project/API pair can:
+        // Proof: removing this pair check let an old Arrange success toast
+        // into the API that replaced it while its tree read was held; replacing
+        // it with `isCurrent()` suppressed the valid toast after a same-reader
+        // subscription renewal. Watched in the two covering-read Arrange cases,
+        // 2026-09-13.
+        if (activeProject.current !== projectId || activeApi.current !== api) return 'refused';
         return 'landed';
       } finally {
         // The next project's write owns its busy state. An older completion
