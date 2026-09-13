@@ -64,7 +64,7 @@
       "project": "store-memory",
       "target": "test",
       "expectedConfiguration": {
-        "cache": true,
+        "cache": false,
         "executor": "nx:run-commands",
         "inputs": ["default", "^production"],
         "options": {
