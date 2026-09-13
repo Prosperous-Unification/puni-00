@@ -1134,6 +1134,10 @@ export function ProjectPage({
         )}
         {selected !== null && (
           <WbsTable
+            // Each project owns its rows and transient editor state.
+            // Proof: omitting this key left “Departed project row” in Name010
+            // in `starts a created project without the previous project’s row anchors`.
+            key={selected}
             projectId={selected}
             // The name the export's header and filename carry. Read from the
             // list rather than held twice: a rename lands in `projects` and the

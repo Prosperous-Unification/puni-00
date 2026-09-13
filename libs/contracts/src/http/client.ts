@@ -218,7 +218,10 @@ async function invokeAfterPreflight(
       (shape.responses.some(
         (candidate) => candidate.status === status && candidate.kind === 'empty',
       ) ||
-        shape.refusals.some((candidate) => candidate.status === status && 'kind' in candidate)) &&
+        shape.refusals.some(
+          (candidate) =>
+            candidate.status === status && 'kind' in candidate && candidate.kind === 'empty',
+        )) &&
       source === ''
     ) {
       reply = { kind: 'empty', status, headers };
@@ -246,7 +249,21 @@ async function invokeAfterPreflight(
     for (const refusal of shape.refusals) {
       if (refusal.status !== status) continue;
       applicable = true;
-      if ('kind' in refusal) continue;
+      if ('kind' in refusal) {
+        // Contextual import refusals are JSON; only the explicit empty arm skips validation.
+        if (refusal.kind === 'empty') continue;
+        const checked = await validateSchema(refusal.schema, reply.body);
+        if (supplied.signal?.aborted) return failed({ code: 'cancelled' });
+        if (checked.issues === undefined)
+          return {
+            kind: 'refusal',
+            representation: 'json',
+            status: refusal.status,
+            body: checked.value,
+            headers,
+          };
+        continue;
+      }
       // Proof: bypassing validation failed malformed 429/503/501 refusals and recognized-code malformed 501 details.
       const checked = await validateSchema(refusal.schema, reply.body);
       if (supplied.signal?.aborted) return failed({ code: 'cancelled' });
@@ -262,7 +279,7 @@ async function invokeAfterPreflight(
   }
   if (reply.kind === 'empty') {
     for (const refusal of shape.refusals) {
-      if (refusal.status !== status || !('kind' in refusal)) continue;
+      if (refusal.status !== status || !('kind' in refusal) || refusal.kind !== 'empty') continue;
       return {
         kind: 'refusal',
         representation: 'empty',

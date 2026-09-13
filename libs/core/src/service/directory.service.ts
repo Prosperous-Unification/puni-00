@@ -449,6 +449,16 @@ export class DirectoryService {
     return this.opts.directory.listExternalSystems();
   }
 
+  /** Adds or resolves an archival external-system name in the global vocabulary. */
+  async addExternalSystem(actorId: string, name: string): Promise<ExternalSystem | null> {
+    const clean = cleanName(name);
+    if (clean === null) return null;
+    return this.opts.directory.addExternalSystem(
+      { id: this.clock.newId(), name: clean },
+      this.clock.stampFor(actorId),
+    );
+  }
+
   listServices(): Promise<Service[]> {
     return this.opts.directory.listServices();
   }
@@ -507,18 +517,24 @@ export class DirectoryService {
    * rather than membership of a "Free agents" row: a real row could be
    * renamed, deleted, or given work of its own, and the default would then
    * mean whatever somebody last did to it.
+   *
+   * `kind` is optional for the ordinary create route and explicit for archival
+   * import. An omitted value keeps the store's backwards-compatible `person`
+   * default; an imported agent is written as an agent in the same act as its
+   * memberships.
    */
   async addPerson(
     actorId: string,
     name: string,
     teamIds: readonly string[],
+    kind?: PersonKind,
   ): Promise<DirectoryOutcome<Person>> {
     const clean = cleanName(name);
     if (clean === null) return { ok: false, reason: 'name_required' };
     // One stamp for the person and the memberships alike: they are one create in
     // one transaction, as the comment below says, so they are one instant too.
     const written = await this.opts.directory.addPerson(
-      { id: this.clock.newId(), name: clean },
+      { id: this.clock.newId(), name: clean, ...(kind === undefined ? {} : { kind }) },
       teamIds,
       this.clock.stampFor(actorId),
     );

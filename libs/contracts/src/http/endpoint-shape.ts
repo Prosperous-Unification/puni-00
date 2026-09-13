@@ -1,4 +1,4 @@
-import type { Refusal, RefusalStatus } from './refusal';
+import type { ImportRefusal, Refusal, RefusalStatus } from './refusal';
 import type { SchemaShape } from './schema-shape';
 
 export type RequestPolicy =
@@ -34,6 +34,13 @@ export interface RefusalResponse {
   schema: SchemaShape<Refusal>;
 }
 
+/** A document import refusal whose stable archival path is part of its wire contract. */
+export interface ImportRefusalResponse {
+  kind: 'import-refusal';
+  status: RefusalStatus;
+  schema: SchemaShape<ImportRefusal>;
+}
+
 /** A modeled refusal whose wire representation is deliberately bodyless. */
 export interface EmptyRefusalResponse {
   kind: 'empty';
@@ -63,7 +70,7 @@ export interface EndpointShape {
   // Proof: widening to string[] produced TS2578 for the empty/unknown-media actual declaration fixtures.
   bodyMedia?: readonly [BodyMedia, ...BodyMedia[]];
   responses: readonly (JsonResponse | EmptyResponse | TextResponse)[];
-  refusals: readonly (RefusalResponse | EmptyRefusalResponse)[];
+  refusals: readonly (RefusalResponse | ImportRefusalResponse | EmptyRefusalResponse)[];
   document: { summary: string };
 }
 

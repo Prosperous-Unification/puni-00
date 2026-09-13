@@ -1,4 +1,4 @@
-import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectApi } from '@/lib/wbs-api';
@@ -6,6 +6,7 @@ import { DEV, fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 import { recordCalls } from '@/testing/record-calls';
 
 import { hintFor } from './column-hints';
+import { forgetRefusedDrafts } from './live-editing';
 import type * as TableFrameModule from './table-frame';
 import { useToday, WbsTable } from './wbs-table';
 
@@ -115,6 +116,10 @@ const pressTab = (number: string, shiftKey = false) => {
 // test's collapsing would arrive as the next test's starting shape.
 beforeEach(() => {
   localStorage.clear();
+  // Refused drafts survive unmounts, but each fake reuses w1/w2 for a new plan.
+  // Proof: retaining them left “Sand” in the blank leaf's Name cell, so
+  // `shows a parent estimate cell as read-only and a leaf as editable` could not indent it.
+  forgetRefusedDrafts(() => true);
 });
 
 /**
@@ -459,6 +464,39 @@ describe('the WBS table', () => {
     });
     expect(first.rows).toHaveLength(1);
     expect(second.rows).toHaveLength(1);
+  });
+
+  itDom('abandons queued adds when unmounted during their covering read', async () => {
+    const api = fakeApi();
+    const view = render(<WbsTable projectId="p1" api={api} />);
+    await waitFor(() => {
+      expect(document.querySelector('[data-export]')).not.toBeNull();
+    });
+
+    const readTree = api.tree.bind(api);
+    let finishRead!: () => void;
+    api.tree = (projectId) =>
+      new Promise((resolve) => {
+        finishRead = () => {
+          void readTree(projectId).then(resolve);
+        };
+      });
+    const creates: Parameters<ProjectApi['createWorkItem']>[] = [];
+    recordCalls(api, 'createWorkItem', (...args) => creates.push(args));
+    click('Add work item');
+    click('Add work item');
+    await waitFor(() => {
+      expect(creates).toHaveLength(1);
+      expect(finishRead).toBeTypeOf('function');
+    });
+
+    await act(async () => {
+      view.unmount();
+      finishRead();
+      await Promise.resolve();
+    });
+    expect(creates).toEqual([['p1', { parentId: null, afterId: null, name: '' }]]);
+    expect(api.rows).toHaveLength(1);
   });
 
   itDom('outdents with shift-tab', async () => {

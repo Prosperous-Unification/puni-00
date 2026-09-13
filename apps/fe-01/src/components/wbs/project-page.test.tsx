@@ -11,6 +11,7 @@ import type {
 } from '@/lib/saved-plan-api';
 import type { CreatedProject, ProjectApi, ProjectListEntry } from '@/lib/wbs-api';
 import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
+import { fakeProjectApi } from '@/testing/fake-project-api';
 import { recordCalls } from '@/testing/record-calls';
 import { refusingApi } from '@/testing/refusing-api';
 import { planRead } from '@/testing/views';
@@ -421,6 +422,68 @@ describe('the header bar', () => {
     expect(bar.contains(grid)).toBe(false);
     expect(document.querySelector('main')?.contains(grid)).toBe(true);
   });
+});
+
+itDom('starts a created project without the previous project’s row anchors', async () => {
+  const first = fakeProjectApi();
+  const second = fakeProjectApi();
+  await first.createWorkItem('p1', {
+    parentId: null,
+    afterId: null,
+    name: 'Departed project row',
+  });
+  const steps = await second.steps('p2');
+  let releaseSteps!: (loaded: typeof steps) => void;
+  const heldSteps = new Promise<typeof steps>((resolve) => {
+    releaseSteps = resolve;
+  });
+  let requestedSteps = false;
+  const creates: Parameters<ProjectApi['createWorkItem']>[] = [];
+  const forProject = (projectId: string) => {
+    if (projectId === 'p1') return first;
+    if (projectId === 'p2') return second;
+    throw new Error(`unexpected project ${projectId}`);
+  };
+  const api: ProjectApi = {
+    ...fakeProjects(TWO.slice(0, 1)),
+    tree: (projectId) => forProject(projectId).tree(projectId),
+    steps: (projectId) => {
+      if (projectId === 'p1') return first.steps(projectId);
+      requestedSteps = true;
+      return heldSteps;
+    },
+    createWorkItem: (projectId, input) => {
+      creates.push([projectId, input]);
+      return forProject(projectId).createWorkItem(projectId, input);
+    },
+  };
+  pageWith(api);
+  expect(await screen.findByLabelText('Name of 010')).toHaveProperty(
+    'value',
+    'Departed project row',
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+  const field = await screen.findByLabelText('Project name');
+  fireEvent.keyDown(field, { key: 'Escape' });
+  await waitFor(() => {
+    expect(requestedSteps).toBe(true);
+    expect(picker()).toHaveProperty('value', 'New project');
+  });
+
+  expect(screen.queryByLabelText('Name of 010')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Add work item' }));
+  await waitFor(() => {
+    expect(creates).toEqual([['p2', { parentId: null, afterId: null, name: '' }]]);
+  });
+  await act(async () => {
+    releaseSteps(steps);
+    await Promise.resolve();
+  });
+  expect(await screen.findByLabelText('Name of 010')).toHaveProperty('value', '');
+  expect(screen.queryByDisplayValue('Departed project row')).toBeNull();
+  expect(screen.queryByLabelText('Name of 020')).toBeNull();
+  expect(document.querySelector('[data-toast-text]')).toBeNull();
 });
 
 /**

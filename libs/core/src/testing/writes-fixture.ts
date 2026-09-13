@@ -12,6 +12,7 @@ import type { TransactionalStores } from '../ports/stores';
 import type { Scope, UnitOfWork } from '../ports/unit-of-work';
 import type { Broadcaster } from '../service/broadcast';
 import type { CalendarMarkerService } from '../service/calendar-marker.service';
+import type { ImportService } from '../service/import.service';
 import type { PlanCommandServices } from '../service/plan-commands';
 import type { ProjectService } from '../service/project.service';
 import type { StepService } from '../service/step.service';
@@ -91,11 +92,29 @@ export function testWrites(
     calendarMarkers: testCalendarMarkerService(),
   },
 ): {
+  imports: Pick<ImportService, 'import'>;
   uow: ReturnType<typeof countingUnitOfWork>;
   batch: (scope: Scope, broadcast: Broadcaster) => WritingServices;
   announcements: Broadcaster;
 } {
   return {
+    imports: {
+      import: () =>
+        Promise.resolve({
+          ok: true,
+          projectId: 'imported-project',
+          rows: 0,
+          created: {
+            teams: [],
+            people: [],
+            tags: [],
+            services: [],
+            types: [],
+            externalSystems: [],
+          },
+          solutionRef: 'none',
+        }),
+    },
     uow: countingUnitOfWork(),
     // The **same** services whatever collector is handed in, because these
     // doubles were built before the runner existed and there is no store under

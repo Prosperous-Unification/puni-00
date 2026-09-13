@@ -2,6 +2,7 @@ import type {
   Broadcaster,
   Clock,
   HistoryService,
+  ImportService,
   ReplayOrchestrator,
   SavedPlanService,
 } from '@wbs/core';
@@ -13,6 +14,7 @@ import { authPasswordEndpoints } from './controller/auth-password-endpoints';
 import { calendarMarkerRoutes } from './controller/calendar-marker.routes';
 import { directoryRoutes } from './controller/directory.routes';
 import { historyRoutes } from './controller/history.routes';
+import { importRoutes } from './controller/import.routes';
 import { infrastructureEndpoints } from './controller/infrastructure-endpoints';
 import { internalRoutes } from './controller/internal.routes';
 import type { OidcRouteOptions } from './controller/oidc-options';
@@ -137,6 +139,8 @@ export interface AppOptions {
    * `libs/core/src/service/plan-commands.ts`, ADR 0007 and ADR 0015.
    */
   writes: {
+    /** The process's atomic archival plan importer over this same source admission boundary. */
+    imports: Pick<ImportService, 'import'>;
     /**
      * What a command batch is one of: one turn at the source's write
      * coordinator and every write settled together (ADR 0015).
@@ -228,7 +232,16 @@ export function mountedEndpoints(
     ...directoryRoutes(opts.directory),
     ...historyRoutes(opts.history),
     ...solutionRoutes(opts.projects),
-    ...projectRoutes(opts.projects, opts.workItems, opts.optimizer),
+    // Proof: omitting this spread made the production import reachability test receive 404.
+    ...importRoutes(opts.writes.imports),
+    ...projectRoutes(
+      opts.projects,
+      opts.workItems,
+      opts.directory,
+      opts.calendarMarkers,
+      opts.clock,
+      opts.optimizer,
+    ),
     ...workItemRoutes(opts.workItems, commands),
     ...calendarMarkerRoutes(opts.calendarMarkers),
     ...savedPlanRoutes(opts.savedPlans, opts.projects, opts.writes.announcements),

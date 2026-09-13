@@ -15,6 +15,7 @@
  * than a move.
  */
 export * from './compose';
+export * from './http/import.routes';
 export * from './ports/actual-store';
 export * from './ports/calendar-marker-store';
 export * from './ports/capacity-store';
@@ -69,11 +70,14 @@ export * from './service/directory.service';
 export * from './service/directory-usage';
 export * from './service/gateway-broadcaster';
 export * from './service/history.service';
+export * from './service/import.service';
 export * from './service/login-throttle';
 export * from './service/numbered-work-item';
 export * from './service/optimizer-trigger-broadcaster';
 export * from './service/plan-command';
 export * from './service/plan-commands';
+export * from './service/plan-document';
+export * from './service/prepare-import';
 export * from './service/priority-band.service';
 export * from './service/project.service';
 export * from './service/replay-buffer';

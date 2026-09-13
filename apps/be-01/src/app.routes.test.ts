@@ -7,6 +7,7 @@ import {
   type RequestPolicy,
   startOidcLogin,
 } from '@wbs/contracts';
+import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import type { AppOptions } from './app';
@@ -117,6 +118,7 @@ const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   postApiProjectsByIdSteps: { name: 'Reachable step' },
   patchApiProjectsByIdStepsByStepId: { name: 'Renamed step' },
   postApiProjects: { name: 'Reachable plan' },
+  postApiProjectsImport: planDocumentFixture(),
   patchApiProjectsById: {
     pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
   },
@@ -209,6 +211,7 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiProjectsByIdSaved-plans',
   'postApiProjectsByIdSteps',
   'postApiProjectsByIdUndo',
+  'postApiProjectsImport',
 ] as const;
 const INTERNAL_OPERATIONS = ['postInternalForward', 'postInternalResume'] as const;
 const ALWAYS_ORIGIN_OPERATIONS = ['postApiAuthLogin', 'postApiAuthRegister'] as const;
@@ -233,6 +236,7 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'postApiProjectsByIdSaved-plans',
   'postApiProjectsByIdSteps',
   'postApiProjectsByIdUndo',
+  'postApiProjectsImport',
   'postApiSmokeEcho',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [

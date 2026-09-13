@@ -386,7 +386,15 @@ async function renderReply(shape: EndpointShape, reply: EndpointReply): Promise<
     for (const refusal of shape.refusals) {
       if (refusal.status !== reply.status) continue;
       if ('kind' in refusal) {
-        if (reply.body === EMPTY) return new Response(null, { status: reply.status, headers });
+        if (refusal.kind === 'empty') {
+          if (reply.body === EMPTY) return new Response(null, { status: reply.status, headers });
+          continue;
+        }
+        // Proof: treating every tagged refusal as bodyless made the mounted
+        // malformed import return 500 instead of its declared 400 and path.
+        if ((await validateSchema(refusal.schema, reply.body)).issues === undefined) {
+          return Response.json(reply.body, { status: reply.status, headers });
+        }
         continue;
       }
       if ((await validateSchema(refusal.schema, reply.body)).issues === undefined) {
