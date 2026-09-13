@@ -19,6 +19,7 @@
     },
     "test": {
       "executor": "nx:run-commands",
+      "cache": false,
       "inputs": [
         "default",
         "^production",
@@ -34,7 +35,7 @@
     },
     "test:conformance": {
       "executor": "nx:run-commands",
-      "cache": true,
+      "cache": false,
       "inputs": ["default", "^production", "{workspaceRoot}/apps/be-01/drizzle"],
       "options": {
         "command": "bun test src/testing/source-conformance.db.test.ts",

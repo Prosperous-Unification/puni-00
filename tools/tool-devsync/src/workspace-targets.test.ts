@@ -88,15 +88,17 @@ describe('source conformance target discovery', () => {
         root: 'libs/store-memory',
         file: 'src/testing/source-conformance.test.ts',
         inputs: ['default', '^production'],
+        certificateTargets: ['test', 'test:conformance', 'test:unit'],
       },
       'store-sqlite': {
         root: 'libs/store-sqlite',
         file: 'src/testing/source-conformance.db.test.ts',
         inputs: ['default', '^production', '{workspaceRoot}/apps/be-01/drizzle'],
+        certificateTargets: ['test', 'test:conformance'],
       },
     } as const;
     const observed = Object.fromEntries(
-      Object.entries(expected).map(([name]) => {
+      Object.entries(expected).map(([name, contract]) => {
         const project = projects.find(({ config }) => config.name === name);
         if (project === undefined) throw new Error(`missing source project ${name}`);
         const target = project.config.targets['test:conformance'];
@@ -114,6 +116,16 @@ describe('source conformance target discovery', () => {
                 candidate === 'bun test src --coverage --coverage-reporter=lcov' ||
                 candidate === 'bun test --coverage --coverage-reporter=lcov',
             ),
+            certificateTargets: Object.entries(project.config.targets)
+              .filter(([, candidate]) =>
+                commandsOf(candidate ?? {}).some(
+                  (candidateCommand) =>
+                    candidateCommand.includes(contract.file) ||
+                    candidateCommand === 'bun test src --coverage --coverage-reporter=lcov' ||
+                    candidateCommand === 'bun test --coverage --coverage-reporter=lcov',
+                ),
+              )
+              .map(([targetName, candidate]) => ({ name: targetName, cache: candidate?.cache })),
             filtered: command.some((candidate) =>
               /(?:^|\s)(?:-t|--test-name-pattern)(?:\s|=)/.test(candidate),
             ),
@@ -135,6 +147,12 @@ describe('source conformance target discovery', () => {
     // Proof: restoring CLI forwarding made the review command with
     // `--args='-t configuration-reference'` run one case and filter seventy;
     // with forwarding disabled, that same command runs all seventy-one.
+    // Proof: restoring cache:true, priming this real Nx target on a clean tree,
+    // then adding an untracked workspace-root probe made the identical second
+    // invocation report `existing outputs match the cache` and replay the clean
+    // revision. With cache:false it reruns and prints that same SHA with -dirty.
+    // Discovery includes every broad target that can select the terminal file;
+    // adding another cacheable broad source target therefore changes this map.
     expect(observed).toEqual(
       Object.fromEntries(
         Object.entries(expected).map(([name, contract]) => [
@@ -142,9 +160,13 @@ describe('source conformance target discovery', () => {
           {
             command: [`bun test ${contract.file}`],
             cwd: contract.root,
-            cache: true,
+            cache: false,
             inputs: [...contract.inputs],
             normalIncludes: true,
+            certificateTargets: contract.certificateTargets.map((targetName) => ({
+              name: targetName,
+              cache: false,
+            })),
             filtered: false,
             forwardsCliArgs: false,
           },

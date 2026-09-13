@@ -2204,3 +2204,15 @@ for both sources and passed both terminal cases plus both inventories (`4/0`).
 The final exact filtered target runs passed memory `72/0/4,813` and SQLite
 `72/0/6,180`; shared conformance passed `33/0/58`. All eight uncached lint and
 typecheck targets for conformance, memory, SQLite, and tool-devsync passed.
+
+### Certification cache identity repair
+
+The terminal certificates read repository-wide Git identity, including dirt
+outside either source project. Nx cannot express that changing dirty-state as a
+sound file input, so both dedicated certification targets and each ordinary
+source target that selects a terminal certificate set `cache: false`.
+With `cache: true`, a clean run followed by an untracked workspace-root
+`source-certification-probe` reproduced `[existing outputs match the cache]`
+and replayed clean revision `41908dcd763dc7f13768872099ec7d577679f9a4`.
+After disabling caching, the same second invocation executed the suite and
+printed `41908dcd763dc7f13768872099ec7d577679f9a4-dirty`.
