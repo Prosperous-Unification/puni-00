@@ -48,3 +48,25 @@ browser's UTC day and the host's day differed); CI is the gate — `bin/h2puni-g
 | focus returns to the Status cell     | found, not injected: Radix's default return target               | e2e status › `toBeFocused()` on the Status cell                                                  | `Expected: focused · Received: inactive` before `onClosed`; green after                                                                                                       |
 
 Every fault was restored and the named suite watched green again before the next.
+
+## Follow-up, 2026-09-13: the list under the pinned layer
+
+Dany, on the merged build: "i cannot see the status dropdown when i try to change the status".
+Reproduced in Chromium on his plan (41 rows, Links shown): the Status `<td>` is pinned since this
+change — sticky with `z-index: 1`, a stacking context — and its click-opened list was never
+reported as an open card, so `PlanCell` never lifted it and the list's lines lay under the next
+rows' pinned Links buttons (`Unknown → <BUTTON Links for 030>`, `Done → <BUTTON Links for 040>`,
+read with `elementFromPoint` after forcing the cell back to layer 1). The one-row browser proof
+had nothing below the list to cover it. Fix: `StatusCell` reports `onOpenChange`, and the column
+writes the store's keyboard reading (`cellCards.updateFocused`) — the list is only open while
+the box holds the focus — so the `<td>` rises to `POPOVER_ROW_LAYER` while the list is on screen.
+
+| Check                                               | Fault injected                                      | Test that observed it                                                                                   | Observed                                                                       |
+| --------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| the pinned Status cell lifts while its list is open | the `updateFocused` write dropped from `status.tsx` | plan-cells › `lifts the pinned Status cell over the rows below while its list is open`                  | `expected 1 to be 2`                                                           |
+| the list's lines are what the pointer reaches       | the same write dropped                              | e2e status › `opens over the rows below it, not under them` (two rows, Links shown, every line sampled) | `Error: the Unknown line is painted over · Expected: "Unknown" · Received: ""` |
+
+Two false negatives on the way, recorded so the next proof does not repeat them: with Links
+hidden the same scene passed with the write deleted (the Name cell did not cover the line), and
+with Links shown but only the **last** line sampled it passed again (that line hangs below the
+final row with nothing under it). `E2E_PORT_SHIFT=1900 … status.spec.ts`: 2 passed after the fix.

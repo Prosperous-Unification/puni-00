@@ -75,3 +75,10 @@ shown`: five measured lefts equal five declared — test: the spec.
 
 - [x] 6.1 `verify.md` with the command table and the failure-proof table; `LLM_README.md`
       untouched (no orientation changed) — test: `openspec validate status-at-a-glance --json`.
+
+## 7. Follow-up (2026-09-13)
+
+- [x] 7.1 The pinned Status cell lifts to `POPOVER_ROW_LAYER` while its list is open —
+      `StatusCell.onOpenChange` → `cellCards.updateFocused` — test: plan-cells › `lifts the
+pinned Status cell over the rows below while its list is open`; e2e status › `opens over the
+rows below it, not under them`; negatives in verify.md.
