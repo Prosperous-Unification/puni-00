@@ -4,29 +4,109 @@ import { servicesOver } from '../compose';
 import { clockOf } from '../ports/clock';
 import type { Source } from '../ports/source';
 import type { TransactionalStores } from '../ports/stores';
+import type { UnitOfWork } from '../ports/unit-of-work';
+import type { WorkItemStore } from '../ports/work-item-store';
 import { ImportService } from '../service/import.service';
-import { recordingBroadcaster } from './broadcast-fixture';
+import { type RecordingBroadcaster, recordingBroadcaster } from './broadcast-fixture';
 import { planDocumentFixture } from './plan-document-fixture';
 import { fastScheduler } from './scheduler-fixture';
 
 const ACTOR = 'import-owner';
 const STAMP = { at: 1_757_851_200_000, by: ACTOR };
 
-function importService(source: Source<TransactionalStores>): ImportService {
+interface ImportHarnessOptions {
+  announcements?: RecordingBroadcaster;
+  uow?: UnitOfWork<TransactionalStores>;
+}
+
+function importService(
+  source: Source<TransactionalStores>,
+  options: ImportHarnessOptions = {},
+): ImportService {
   let next = 0;
   const clock = clockOf({
     now: () => STAMP.at,
     newId: () => `imported-${String(++next)}`,
   });
-  const announcements = recordingBroadcaster();
+  const announcements = options.announcements ?? recordingBroadcaster();
   return new ImportService({
     clock,
     scheduler: fastScheduler,
-    uow: source.uow,
+    uow: options.uow ?? source.uow,
     announcements,
     batchServices: (scope, broadcast) =>
       servicesOver(scope.stores, { clock, broadcast, scheduler: fastScheduler }),
   });
+}
+
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolve = (_value: T): void => {
+    throw new Error('deferred resolved before initialization');
+  };
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
+type LaterFault = { kind: 'refused' } | { kind: 'thrown'; cause: Error };
+
+interface AdmittedImportState {
+  projectId: string;
+  rowIds: string[];
+  teamId: string;
+}
+
+function faultedUnitOfWork(
+  source: Source<TransactionalStores>,
+  fault: LaterFault,
+  admitted: Deferred<AdmittedImportState>,
+  continueWrite: Promise<void>,
+): UnitOfWork<TransactionalStores> {
+  return {
+    run: (act) =>
+      source.uow.run(async (scope) => {
+        const stored = scope.stores.workItems;
+        let faulted = false;
+        const patch: WorkItemStore['patch'] = async (id, changes, stamp) => {
+          if (faulted) return stored.patch(id, changes, stamp);
+          faulted = true;
+          const project = (await scope.stores.projects.list()).find(
+            ({ name }) => name === 'Portable plan',
+          );
+          const team = (await scope.stores.directory.listTeams()).find(
+            ({ name }) => name === 'Billing',
+          );
+          if (project === undefined || team === undefined)
+            throw new Error('import did not create its project and team before the later write');
+          admitted.resolve({
+            projectId: project.id,
+            rowIds: (await stored.listByProject(project.id)).map(({ id: rowId }) => rowId),
+            teamId: team.id,
+          });
+          await continueWrite;
+          if (fault.kind === 'thrown') throw fault.cause;
+          return { ok: false, reason: 'unknown_tag' };
+        };
+        const workItems: WorkItemStore = {
+          listByProject: (projectId) => stored.listByProject(projectId),
+          findById: (id) => stored.findById(id),
+          insert: (workItem, respaced, stamp) => stored.insert(workItem, respaced, stamp),
+          patch,
+          move: (id, parentId, position, respaced, stamp) =>
+            stored.move(id, parentId, position, respaced, stamp),
+          setPositions: (placements, moved, stamp) => stored.setPositions(placements, moved, stamp),
+          setFrozenNumbers: (updates, stamp) => stored.setFrozenNumbers(updates, stamp),
+          remove: (ids, promoted, stamp) => stored.remove(ids, promoted, stamp),
+        };
+        return act({ stores: { ...scope.stores, workItems } });
+      }),
+  };
 }
 
 /** Runs the import-directory contract against one real source implementation. */
@@ -567,5 +647,54 @@ export function importServiceSourceContract(
         await source.close();
       }
     });
+
+    for (const fault of [
+      { kind: 'refused' } as const,
+      { kind: 'thrown', cause: new Error('injected later source failure') } as const,
+    ]) {
+      it(`rolls back visible admitted writes after a later store ${fault.kind}`, async () => {
+        const source = await ownedSource();
+        try {
+          const admitted = deferred<AdmittedImportState>();
+          const release = deferred<undefined>();
+          const announcements = recordingBroadcaster();
+          const service = importService(source, {
+            announcements,
+            uow: faultedUnitOfWork(source, fault, admitted, release.promise),
+          });
+          const settled = service.import(planDocumentFixture(), ACTOR).then(
+            (outcome) => ({ kind: 'returned' as const, outcome }),
+            (cause: unknown) => ({ kind: 'threw' as const, cause }),
+          );
+
+          const visible = await admitted.promise;
+          expect(visible.rowIds).toHaveLength(1);
+          expect(visible.teamId).not.toBe('team-1');
+          release.resolve(undefined);
+          const terminal = await settled;
+          if (fault.kind === 'refused') {
+            expect(terminal).toEqual({
+              kind: 'returned',
+              outcome: {
+                ok: false,
+                code: 'source_refused',
+                path: 'workItems[0]',
+                detail: 'unknown_tag',
+              },
+            });
+          } else {
+            expect(terminal).toEqual({ kind: 'threw', cause: fault.cause });
+          }
+          expect(
+            (await source.stores.directory.listTeams()).some(({ name }) => name === 'Billing'),
+          ).toBe(false);
+          expect(await source.stores.projects.findById(visible.projectId)).toBeNull();
+          expect(await source.stores.workItems.listByProject(visible.projectId)).toEqual([]);
+          expect(announcements.published).toEqual([]);
+        } finally {
+          await source.close();
+        }
+      });
+    }
   });
 }

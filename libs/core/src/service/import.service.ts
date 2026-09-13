@@ -31,7 +31,18 @@ export interface ImportAdmission {
   solutionRef: 'kept' | 'left-off' | 'none';
 }
 
-export type ImportOutcome = ImportAdmission | Extract<ImportPreparation, { ok: false }>;
+/** A typed store refusal encountered after preparation and admission. */
+export interface ImportSourceRefusal {
+  ok: false;
+  code: 'source_refused';
+  path: string;
+  detail: string;
+}
+
+export type ImportOutcome =
+  ImportAdmission | ImportSourceRefusal | Extract<ImportPreparation, { ok: false }>;
+
+type AdmittedImportOutcome = ImportAdmission | ImportSourceRefusal;
 
 function existingIds(rows: readonly { id: string; name: string }[]): Map<string, string> {
   return new Map(rows.map(({ id, name }) => [name, id]));
@@ -104,7 +115,7 @@ export class ImportService {
     const preparation = prepareImport(document, this.opts.scheduler);
     if (!preparation.ok) return preparation;
     const collector = new AnnouncementCollector(this.opts.announcements);
-    const admitted = await this.opts.uow.run<ImportAdmission>(async (scope) => {
+    const admitted = await this.opts.uow.run<AdmittedImportOutcome>(async (scope) => {
       const graph = this.opts.batchServices(scope, collector);
       const directory = graph.directory;
       const [services, teams, people, tags, types, systems] = await Promise.all([
@@ -343,7 +354,7 @@ export class ImportService {
         removedMeasures: [],
       };
       await scope.stores.subtrees.insertSubtree(subtree, stamp);
-      for (const row of prepared.workItems) {
+      for (const [at, row] of prepared.workItems.entries()) {
         const written = await scope.stores.workItems.patch(
           resolvedId(rowsByFileId, row.fileId, 'labelled work item'),
           {
@@ -362,7 +373,19 @@ export class ImportService {
           },
           stamp,
         );
-        if (!written.ok) throw new Error(`created work item refused its labels: ${written.reason}`);
+        if (!written.ok) {
+          // Proof: returning `commit:true` here made the rollback contract leak
+          // the created `Billing` team after its modeled `unknown_tag` refusal.
+          return {
+            commit: false,
+            value: {
+              ok: false,
+              code: 'source_refused',
+              path: `workItems[${String(at)}]`,
+              detail: written.reason,
+            },
+          };
+        }
       }
       return {
         commit: true,
@@ -373,7 +396,7 @@ export class ImportService {
         },
       };
     });
-    await collector.send();
+    if (admitted.ok) await collector.send();
     return admitted;
   }
 }

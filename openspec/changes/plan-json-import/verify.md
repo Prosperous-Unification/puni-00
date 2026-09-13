@@ -202,4 +202,40 @@ Final green evidence:
 - `bunx prettier --check libs/core/src/service/import.service.ts libs/core/src/testing/import-service-source-contract.ts openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
 - `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
 
-At the Task 3.3 checkpoint, Tasks 3.4–5.2 remain unimplemented and unchecked.
+At the Task 3.3 checkpoint, Tasks 3.4–5.2 remained unimplemented and unchecked.
+
+## Section 3.4 — terminal rollback
+
+The rollback contract uses each production source's real `UnitOfWork`. A test
+wrapper changes only the first admitted work-item label patch: it reads the
+newly created `Billing` team, project and row through the admitted scope, then
+holds that later write until the test releases either a typed `unknown_tag`
+refusal or an exact thrown error. The valid document therefore proves writes
+occurred before the injected terminal condition; the old pre-admission dangling
+dependency is not involved.
+
+The first memory run was red only for the modeled arm: it expected a returned
+`source_refused` outcome at `workItems[0]` but received the thrown
+`created work item refused its labels: unknown_tag` error. The thrown arm
+already preserved the exact injected error and rolled back. `ImportService`
+now returns the typed store refusal with `commit:false`, rethrows unexpected
+source errors, and sends its collector only after a committed admission.
+
+| Check                     | Fault injected                                         | Test that observed it                                                   | Observed failure                                                |
+| ------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Modeled terminal rollback | Returned `commit:true` with the `source_refused` value | memory `rolls back visible admitted writes after a later store refused` | final directory expected no `Billing` team, but found it stored |
+
+The mutant was observed, restored, and recorded beside the `commit:false`
+decision it protects.
+
+Final green evidence:
+
+- `bun test libs/store-memory/src/import.service.test.ts` — 8 passed, 0 failed, 53 assertions.
+- `bun test libs/store-sqlite/src/import.service.db.test.ts` — 8 passed, 0 failed, 53 assertions.
+- `bun test libs/store-memory/src/import.service.test.ts libs/store-memory/src/memory-source.test.ts` — 19 passed, 0 failed, 222 assertions.
+- `bun test libs/store-sqlite/src/import.service.db.test.ts libs/store-sqlite/src/sqlite-unit-of-work.db.test.ts` — 14 passed, 0 failed, 71 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p core store-memory store-sqlite --skip-nx-cache --parallel=3 --output-style=static` — all six targets passed.
+- `bunx prettier --check libs/core/src/service/import.service.ts libs/core/src/testing/import-service-source-contract.ts openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
+
+At the Task 3.4 checkpoint, Tasks 3.5–5.2 remain unimplemented and unchecked.
