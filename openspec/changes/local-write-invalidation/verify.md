@@ -189,3 +189,30 @@ the shared E2E lane was occupied. The focused test includes the complete owning
 and `plan-table` files; the prior integrated browser evidence and the suppressed
 full-frontend failure remain recorded above. Task 3.3 remains open for the
 publication-dependent exact-SHA h2puni gate.
+
+## Publication integration
+
+Verified on 2026-09-13 after merge commit `00d83d8f` integrated actual
+`origin/main` `9b13f98e62a7cd880977e348421e992e8c4951a3`.
+
+The merge had one content conflict, in `use-plan-fields.ts`. Its resolution
+retains the accepted `write.perform(['tree'], ...)` invalidation around status
+writes and main's optional `factStart` argument through the same production
+call. Main's related completion prompt, status, deadline and layout changes are
+otherwise unchanged.
+
+| Check                                                                                                                                                    | Result                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| Owning write tests plus plan-table, cell, settings, team, modal and dependency neighbours                                                                | 9 files, 365 passed        |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p fe-01 --parallel=2 --output-style=static`                                | 2 targets succeeded        |
+| `CI=1 E2E_PORT_SHIFT=4300 bunx playwright test --config apps/fe-01/playwright.config.ts status.spec.ts deadline.spec.ts keyboard.spec.ts layout.spec.ts` | 79 passed, 0 failed; 4m12s |
+
+The first browser attempt inside the filesystem sandbox was unavailable: the
+backend dev server could not listen and reported `EPERM`. The identical command
+was rerun with the required process permission on isolated ports 7400, 7500 and
+8500, producing the result above. Vite reported transient websocket proxy
+`EPIPE`/`ECONNRESET` messages while browser contexts closed; all selected tests
+completed successfully.
+
+Task 3.3 remains unchecked pending the publication-dependent exact-SHA h2puni
+gate.
