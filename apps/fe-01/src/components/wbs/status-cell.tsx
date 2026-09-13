@@ -132,6 +132,8 @@ export function StatusCell({
         data-status-value={status}
         data-hint={STATUS_HINT}
         data-fact={STATUS_WORDS[status]}
+        data-fact-lead={STATUS_LABEL[status]}
+        data-fact-tone={status === 'done' ? 'done' : undefined}
         style={{
           width: '100%',
           boxSizing: 'border-box',

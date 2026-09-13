@@ -20,6 +20,7 @@ import type { CalendarMarkerView, NewCalendarMarkerView, PriorityBandView } from
 import { useGanttDetail } from './gantt-detail';
 import {
   CAPACITY_LINK_COLOR,
+  DONE_BAR_STROKE,
   droppedLinkWords,
   type EstimateTrio,
   type GanttBar,
@@ -738,7 +739,7 @@ const ASSUMED_BAR_CLASSES = '[fill-opacity:0.35] [stroke-dasharray:3_2]';
  * "guessed" where this says "over". The done mark the panel draws on top is
  * the rest of the saying.
  */
-const DONE_BAR_CLASSES = '[fill-opacity:0.75]';
+const DONE_BAR_CLASSES = '[fill-opacity:0.75] [stroke-width:2]';
 
 /**
  * The classes a bar carries beyond its two colours, and the two facts they say.
@@ -759,7 +760,10 @@ const DONE_BAR_CLASSES = '[fill-opacity:0.75]';
  */
 function barClasses(critical: boolean, estimated: boolean, done = false): string {
   return [
-    critical ? 'stroke-foreground [stroke-width:2]' : '',
+    // A done bar's ring is the green outline ({@link DONE_BAR_STROKE}) and not
+    // the critical ring: finished work is not on anybody's critical path any
+    // more, and two rings on one bar would say two things in one stroke.
+    critical && !done ? 'stroke-foreground [stroke-width:2]' : '',
     estimated ? '' : ASSUMED_BAR_CLASSES,
     done ? DONE_BAR_CLASSES : '',
   ]
@@ -4634,7 +4638,10 @@ function GanttChart({
             // already saying who. A ring in the foreground colour rather
             // than the destructive one: `#d62728` is the fourth person's
             // colour, and a red ring on a red bar is no ring at all.
-            stroke={bar.critical ? undefined : bar.personColor}
+            // A done bar wears the status green as its outline instead
+            // (`status-polish`; Dany: "add smth like a green outline to the
+            // gantt chart slices").
+            stroke={bar.done ? DONE_BAR_STROKE : bar.critical ? undefined : bar.personColor}
             className={barClasses(bar.critical, bar.estimated, bar.done)}
             vectorEffect="non-scaling-stroke"
             // A control, because it is one: it takes the keyboard, it has
@@ -4803,7 +4810,7 @@ function GanttChart({
               d="M1.5 6 L4.5 9 L10.5 2.5"
               transform={`translate(${String(x + width - (DONE_MARK_PX + 3) / dayPx)}, ${String(bar.rowIndex + BAR_INSET)}) scale(${String(1 / dayPx)}, ${String(BAR_HEIGHT / DONE_MARK_PX)})`}
               fill="none"
-              stroke="white"
+              stroke={DONE_BAR_STROKE}
               strokeWidth={2}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -4951,7 +4958,15 @@ function GanttChart({
                 height: BAR_HEIGHT * ROW_PX,
                 lineHeight: `${String(BAR_HEIGHT * ROW_PX)}px`,
                 paddingLeft: LABEL_PAD_PX,
-                paddingRight: LABEL_PAD_PX,
+                // A done bar's label stops short of its tick, so the ellipsis
+                // lands before the mark instead of under it (Dany, 2026-09-13:
+                // "on the small slices the checkmark overlaps with text").
+                // The same threshold the tick is drawn at, so a bar too narrow
+                // for a tick keeps the whole width for its words.
+                paddingRight:
+                  bar.done && width * dayPx >= DONE_MARK_PX + 6
+                    ? LABEL_PAD_PX + DONE_MARK_PX + 3
+                    : LABEL_PAD_PX,
               }}
             >
               {shown}

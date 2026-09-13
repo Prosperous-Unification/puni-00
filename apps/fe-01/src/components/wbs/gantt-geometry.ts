@@ -107,6 +107,13 @@ export const UNASSIGNED_BAR_COLOR = '#94a3b8';
  * carrying the done mark the panel draws over it.
  */
 export const DONE_BAR_COLOR = '#475569';
+/**
+ * The done bar's outline and its tick: the table's `--status-done` green, as a
+ * hex because the chart is exported as a standalone SVG where no custom
+ * property resolves. Dany, 2026-09-13: "add smth like a green outline to the
+ * gantt chart slices … make [the checkmark] green same as in table".
+ */
+export const DONE_BAR_STROKE = '#16a34a';
 
 /**
  * The colour every pool wait is drawn in — see {@link GanttCapacityLink}.

@@ -3484,6 +3484,9 @@ describe('the status cell and the two fact cells', () => {
       'data-fact',
       expect.stringMatching(/^Status: Unknown\. /),
     );
+    // The word the card draws bold, and no tone for unknown.
+    expect(statusCell('010')).toHaveAttribute('data-fact-lead', 'Unknown');
+    expect(statusCell('010')).not.toHaveAttribute('data-fact-tone');
     expect(statusCell('010')).toHaveAttribute('data-cell', expect.stringMatching(/::status$/));
     // The heading is the glyph with the word as its name: the Columns control
     // and a screen reader still say `Status` over a 28px column.
@@ -3513,6 +3516,8 @@ describe('the status cell and the two fact cells', () => {
       'data-fact',
       expect.stringMatching(/^Status: Done\. /),
     );
+    expect(statusCell('010')).toHaveAttribute('data-fact-lead', 'Done');
+    expect(statusCell('010')).toHaveAttribute('data-fact-tone', 'done');
   });
 
   itDom('lifts the pinned Status cell over the rows below while its list is open', async () => {
