@@ -487,7 +487,7 @@ describe('how wide the steps make the table', () => {
     // opens from the phone's toolbar sheet too, and the sentence used to
     // describe a table that reader has never seen.
     expect(document.body.textContent).toContain(
-      '2 steps need ≥1199px of width to sit side by side',
+      '2 steps need ≥1156px of width to sit side by side',
     );
     expect(document.body.textContent).toContain(
       'under 768px wide or 500px tall the plan is drawn as cards instead',
@@ -567,7 +567,7 @@ describe('how wide the steps make the table', () => {
     expect(document.body.textContent).toContain(`≥${String(quoted)}px`);
     // And it really moved: a figure that ignored the override would be the
     // undated default, which is what a stand-in id resolves to.
-    expect(quoted).toBe(foldedTableMinWidth(['step-dev', 'step-qa'], UNDATED) + (140 - 96));
+    expect(quoted).toBe(foldedTableMinWidth(['step-dev', 'step-qa'], UNDATED) + (140 - 104));
   });
 
   itDom('counts one step as one, and says so in the singular throughout', () => {
@@ -588,7 +588,7 @@ describe('how wide the steps make the table', () => {
     // 1175 → 1151 on 2026-08-31 when `depends` paid for it (110 → 86),
     // then 1151 → 1111 when Links joined the initial hide-list and 1111 →
     // 1103 when the drag column narrowed by 8px.
-    expect(document.body.textContent).toContain('1 step needs ≥1103px of width to sit side by');
+    expect(document.body.textContent).toContain('1 step needs ≥1052px of width to sit side by');
     expect(document.body.textContent).not.toContain('1 step need ≥');
   });
 
@@ -607,7 +607,7 @@ describe('how wide the steps make the table', () => {
     // 1271 → 1247 on 2026-08-31 when `depends` paid for it (110 → 86),
     // then 1247 → 1207 when Links joined the initial hide-list and 1207 →
     // 1199 when the drag column narrowed by 8px.
-    expect(document.body.textContent).toContain('2 steps need ≥1199px of width to sit side by');
+    expect(document.body.textContent).toContain('2 steps need ≥1156px of width to sit side by');
     expect(document.body.textContent).not.toContain('2 steps needs');
   });
 });

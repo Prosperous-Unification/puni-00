@@ -641,7 +641,10 @@ async function dateThePlanOffThisYear(page: Page): Promise<number> {
   const start = page.getByLabel('Project start date');
   await start.fill(`${String(year)}-05-20`);
   await start.blur();
-  await expect(page.locator('tbody tr:first-child [data-start]')).toContainText(String(year));
+  // `'27` and not `2027` since 2026-09-13 — `shortIsoDate`'s two-digit off-year.
+  await expect(page.locator('tbody tr:first-child [data-start]')).toContainText(
+    `'${String(year % 100).padStart(2, '0')}`,
+  );
   return year;
 }
 
@@ -986,7 +989,8 @@ test.describe('the table, measured by a browser', () => {
     const shown = await measuredLefts(page, PINNED_IDS);
     expect(shown['refs'] - shown['number']).toBe(widthFor('number', SEEDED_PLAN));
     expect(shown['name'] - shown['refs']).toBe(widthFor('refs', SEEDED_PLAN));
-    expect(shown['name']).toBe(161);
+    // 16 + 98 + 32 since 2026-09-13's compaction (16 + 105 + 40 before it).
+    expect(shown['name']).toBe(146);
 
     await page.evaluate(() => {
       const projectId = localStorage.getItem('wbs.project');
@@ -1003,7 +1007,7 @@ test.describe('the table, measured by a browser', () => {
     expect(hidden['drag']).toBe(shown['drag']);
     expect(hidden['number']).toBe(shown['number']);
     expect(hidden['name']).toBe(shown['name'] - widthFor('refs', SEEDED_PLAN));
-    expect(hidden['name']).toBe(121);
+    expect(hidden['name']).toBe(114);
   });
 
   test('leaves a picture of the table for the eye that has to judge the widths', async ({
@@ -1165,7 +1169,7 @@ test.describe('the table, measured by a browser', () => {
       // R5 #16.
       expect(measured.box.width).toBeGreaterThan(0);
       expect(measured.figure.width).toBeGreaterThan(0);
-      expect(measured.cell.width).toBe(96);
+      expect(measured.cell.width).toBe(104);
       expect(findOverrun(measured.cell, measured.box)).toBe(undefined);
       expect(findOverrun(measured.cell, measured.figure)).toBe(undefined);
       // Proof: the figure drawn at the row's own 13px rather than the table's
@@ -2713,7 +2717,8 @@ test.describe('the table, measured by a browser', () => {
     // a fourth pinned column between
     // `#` and Name. `number` is unchanged: the column's 40px is paid by
     // `depends`, which sits behind Name and moves no offset in front of it.
-    expect(declaredLeft('name')).toBe(161);
+    // 16 + 98 + 32 since 2026-09-13's compaction.
+    expect(declaredLeft('name')).toBe(146);
   });
 
   test('keeps the page from scrolling sideways at 125% zoom', async ({ page }) => {
@@ -2893,7 +2898,10 @@ test.describe('the table, measured by a browser', () => {
     // the check would pass at 52px while saying nothing. The year is what
     // makes the day the widest thing this column prints, and the marker is
     // what End prints besides it.
-    expect(starts.map((cell) => cell.text)).toContain(`20 May ${String(year)}`);
+    // Two digits behind an apostrophe since 2026-09-13 (`shortIsoDate`'s `offYear`).
+    expect(starts.map((cell) => cell.text)).toContain(
+      `20 May '${String(year % 100).padStart(2, '0')}`,
+    );
     expect(
       finishes.filter((cell) => cell.text.endsWith(' ?')).length,
       'no row is unestimated, so nothing carries the marker End is sized for',

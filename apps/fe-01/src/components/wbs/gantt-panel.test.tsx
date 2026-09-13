@@ -5997,7 +5997,7 @@ describe('the dates a bar says are printed by shortIsoDate and nothing else', ()
       />,
     );
 
-    expect(linesOf(surfaceOn('strip-dev'))).toContain('1 Jun 2027 → 1 Jun 2027 · 1 day');
+    expect(linesOf(surfaceOn('strip-dev'))).toContain("1 Jun '27 → 1 Jun '27 · 1 day");
   });
 });
 
