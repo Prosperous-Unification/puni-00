@@ -5,6 +5,7 @@ import type {
   SavedPlanRow,
   SavedPlanStore,
   SavedPlanWrite,
+  SavedPlanWriteOutcome,
   Source,
   StoredDependency,
   StoredSavedPlan,
@@ -420,6 +421,22 @@ export interface MemorySourceFixture {
     includeInput: boolean,
     observeBoundary?: (stored: StoredSavedPlan) => void,
   ): Promise<never>;
+  /** Routes one history write through the forbidden command coordinator. */
+  writeSavedPlanThroughCommandCoordinator<Refusal>(
+    plan: SavedPlanWrite,
+    check: (holding: SavedPlanHoldingRow, incomingBytes: number) => Promise<Refusal | null>,
+  ): Promise<SavedPlanWriteOutcome<Refusal>>;
+  /** Runs the real quota callback but suppresses the target state replacement. */
+  claimSavedPlanWriteWithoutState<Refusal>(
+    plan: SavedPlanWrite,
+    check: (holding: SavedPlanHoldingRow, incomingBytes: number) => Promise<Refusal | null>,
+  ): Promise<SavedPlanWriteOutcome<Refusal>>;
+  /** Activates a history state owned by the current command stage. */
+  activateCommandHistoryStage(): void;
+  /** Discards the forbidden command-owned history state. */
+  discardCommandHistoryStage(): void;
+  /** History port backed by the active command-owned stage. */
+  readonly commandStagedSavedPlans: SavedPlanStore;
 }
 
 /** Opens the conformance fixture with access to adapter-owned persistence seams. @internal */
@@ -449,6 +466,7 @@ function openMemorySourceWithSeams(
   const coordinator = new MemoryCoordinator();
   const historyCoordinator = new MemoryCoordinator();
   const historyState: HistoryState = { plans: new Map() };
+  let commandHistoryState: HistoryState | null = null;
   const independentJournalEvents: PlanEvent[] = [];
   const history = memoryHistory(
     historyState,
@@ -459,8 +477,52 @@ function openMemorySourceWithSeams(
     captureRead,
   );
   const stores = coordinatedStores(bindStores(committed, lateWrite), coordinator);
+  const activeCommandHistory = (): SavedPlanStore => {
+    if (commandHistoryState === null) throw new Error('command history stage is not active');
+    return memorySavedPlans(
+      commandHistoryState,
+      () => bindStores(committed.clone(), lateWrite),
+      async (act) => await act(),
+      lateWrite,
+    );
+  };
+  const commandStagedSavedPlans: SavedPlanStore = {
+    write: (plan, check) => activeCommandHistory().write(plan, check),
+    readOf: (id) => activeCommandHistory().readOf(id),
+    listOf: (projectId) => activeCommandHistory().listOf(projectId),
+    principalsOf: (id) => activeCommandHistory().principalsOf(id),
+    renameTo: (id, name) => activeCommandHistory().renameTo(id, name),
+    deleteOf: (id) => activeCommandHistory().deleteOf(id),
+  };
 
   return {
+    commandStagedSavedPlans,
+    activateCommandHistoryStage() {
+      if (commandHistoryState !== null) throw new Error('command history stage activated twice');
+      commandHistoryState = { plans: structuredClone(historyState.plans) };
+    },
+    discardCommandHistoryStage() {
+      commandHistoryState = null;
+    },
+    writeSavedPlanThroughCommandCoordinator: (plan, check) =>
+      coordinator.run(async () => await history.savedPlans.write(plan, check)),
+    claimSavedPlanWriteWithoutState: async (plan, check) => {
+      const rows = [...historyState.plans.values()].filter(
+        (stored) => stored.header.projectId === plan.projectId,
+      );
+      const holding = {
+        plans: rows.length,
+        bytes: rows.reduce(
+          (sum, stored) => sum + stored.header.inputBytes + (stored.header.scheduleBytes ?? 0),
+          0,
+        ),
+      };
+      const incomingBytes =
+        new TextEncoder().encode(plan.input.bytes).byteLength +
+        (plan.schedule.present ? new TextEncoder().encode(plan.schedule.body.bytes).byteLength : 0);
+      const refusal = await check(holding, incomingBytes);
+      return refusal === null ? { outcome: 'written' } : { outcome: 'refused', refusal };
+    },
     captureWithStagedDirectoryRollback(projectId, stamp, observe) {
       return coordinator.run(async () => {
         const staged = committed.clone();

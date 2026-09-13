@@ -78,6 +78,10 @@ export const SOURCE_CONFORMANCE_CASES = [
   'savedPlanCapture.readPlanInput:coherent-interleave',
   'savedPlanCapture.readPlanInput:missing-project',
   'savedPlanCapture.readPlanInput:detached',
+  'history.batch:independent-commit',
+  'history.batch:independent-rollback',
+  'history.batch:busy-does-not-wait',
+  'history.batch:interleaved-success-survives',
 ] as const;
 
 export interface CertificationInput {

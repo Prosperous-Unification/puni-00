@@ -2,12 +2,12 @@ import { describe, expect, it } from 'bun:test';
 
 import type { CaseId } from '../case-manifest';
 import { SOURCE_CONFORMANCE_CASES } from '../certification';
-import { existingStoreRegistrations } from '../source-conformance';
+import { sourceConformanceRegistrations } from '../source-conformance';
 
 describe('the migrated existing store kits', () => {
   it('preserves the original IDs and adds each completed family inventory', () => {
     const unopened = () => Promise.reject(new Error('ID inventory must not open a fixture'));
-    const registrations = existingStoreRegistrations({
+    const openers = {
       projects: unopened,
       users: unopened,
       capacity: unopened,
@@ -27,7 +27,17 @@ describe('the migrated existing store kits', () => {
       journal: unopened,
       savedPlans: unopened,
       savedPlanCapture: unopened,
-    });
+      historyBatch: unopened,
+    };
+    const memoryRegistrations = sourceConformanceRegistrations(
+      { historyAdmission: 'independent-write' },
+      openers,
+    );
+    const sqliteRegistrations = sourceConformanceRegistrations(
+      { historyAdmission: 'immediate-busy' },
+      openers,
+    );
+    const registrations = memoryRegistrations.slice(0, -3);
 
     // Proof: before subtreeRegistrations joined the production catalog, this
     // failed with both subtree IDs absent (`Expected - 2 / Received + 0`).
@@ -109,6 +119,9 @@ describe('the migrated existing store kits', () => {
     // Proof: before the independent implemented inventory was repaired, this
     // complete equality failed with the five work-item and two directory IDs absent.
     const implementedCaseIds: CaseId[] = [...SOURCE_CONFORMANCE_CASES];
-    expect(implementedCaseIds).toEqual(registrations.map(({ caseId }) => caseId));
+    expect(implementedCaseIds).toEqual([
+      ...sqliteRegistrations.map(({ caseId }) => caseId),
+      'history.batch:interleaved-success-survives',
+    ]);
   });
 });

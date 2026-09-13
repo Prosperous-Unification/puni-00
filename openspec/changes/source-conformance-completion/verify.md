@@ -2059,3 +2059,37 @@ Fresh evidence:
 
 The branch contains current `origin/main` at `c61b370d`. The committed-SHA
 h2puni gate remains Task 7.3.
+
+#### Task 6.5 independent history beside command batches
+
+The inventory RED contained exactly the four new `history.batch` IDs. Source
+registration selects the two common cases plus the declaration's admission
+mechanism. SQLite settles `snapshot_busy` on the real history connection while
+the process UoW holds its write lock, and its independently prewritten complete
+plan survives commit and rollback. Memory observes `written` before settlement
+and reads the exact complete ID after either terminal decision.
+
+The bounded coordinator mutants returned `pending`, then release drained the
+real write before the shared assertion failed. The memory command-owned history
+mutant held the complete target in the active stage and lost it on rollback;
+the suppressed replacement mutant ran the quota callback and returned `written`
+but exact-ID public readback returned null. Neutralizing each mutant made its
+permanent negative report `passed`, proving the checks directionally breakable.
+
+Fresh evidence:
+
+- Task 6.5 focus and inventory passed memory `4/0/1,005`, SQLite `3/0/1,329`,
+  and conformance inventory `4/0/6`.
+- Full source files passed memory `71/0` and SQLite `71/0`; uncached project
+  targets passed conformance `29/0/48`, memory `94/0/5,023`, and SQLite
+  `722/0/8,175`.
+- Retained memory history/UoW tests passed `17/0/196`, SQLite saved-plan and
+  fault tests `13/0/48`, and core composition/type tests `8/0/26`.
+- All six uncached conformance/memory/SQLite lint and typecheck targets passed
+  after correcting conformance export order. Changed-file Prettier,
+  `git diff --check`, strict change validation, and all-artifact OpenSpec
+  validation passed.
+
+A fresh fetch was unavailable because the managed filesystem made the shared
+worktree `FETCH_HEAD` read-only; the existing tip contains `origin/main` at
+`c61b370d`. The committed-SHA h2puni gate remains Task 7.3.

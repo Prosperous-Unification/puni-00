@@ -18,6 +18,7 @@ import {
   type Fault,
   type FaultProof,
   type FaultRun,
+  type HistoryBatchFixture,
   observePlanInput,
   PROGRESS_SENTINEL_STEP_ID,
   readSubtreePublicState,
@@ -27,6 +28,7 @@ import {
   savedPlanCaptureExpected,
   seedSavedPlanCapture,
   SOURCE_CONFORMANCE_CASES,
+  sourceConformanceRegistrations,
   type SourceReaders,
   subtreeSeedRecords,
 } from '@wbs/conformance';
@@ -460,6 +462,79 @@ async function openSqliteSavedPlanCaptureCase(
   };
 }
 
+async function openSqliteHistoryBatchCase(
+  caseId: CaseId,
+  routeThroughCommandCoordinator = false,
+): Promise<HistoryBatchFixture> {
+  const { source, directory } = await seedSqliteSource();
+  const base = source.history.savedPlans;
+  const port: SavedPlanStore = routeThroughCommandCoordinator
+    ? {
+        write: (plan, check) => source.gate.enter(async () => await base.write(plan, check)),
+        readOf: (id) => base.readOf(id),
+        listOf: (projectId) => base.listOf(projectId),
+        principalsOf: (id) => base.principalsOf(id),
+        renameTo: (id, name) => base.renameTo(id, name),
+        deleteOf: (id) => base.deleteOf(id),
+      }
+    : base;
+  let release: (decision: 'commit' | 'rollback') => void = () => undefined;
+  let enter: () => void = () => undefined;
+  const entered = new Promise<void>((resolve) => {
+    enter = resolve;
+  });
+  const released = new Promise<'commit' | 'rollback'>((resolve) => {
+    release = resolve;
+  });
+  let batch: Promise<void> | undefined;
+  let settled = false;
+  return {
+    fixtureId: `sqlite:${caseId}`,
+    port,
+    journalAppender: source.stores.journal,
+    seed: DETERMINISTIC_SEED,
+    readers: readersOf(source),
+    scenario: {
+      kind: 'batch-settlement',
+      async begin() {
+        if (batch !== undefined) throw new Error('SQLite history batch began twice');
+        batch = source.uow.run(async ({ stores }) => {
+          const projectId = DETERMINISTIC_SEED.projectIds[0];
+          const stamp = { at: 700, by: DETERMINISTIC_SEED.ownerIds[0] };
+          const updated = await stores.projects.update(
+            projectId,
+            { name: `Held ${caseId}` },
+            stamp,
+          );
+          const observed = await stores.projects.findById(projectId);
+          if (updated === null || observed?.name !== `Held ${caseId}`)
+            throw new Error('SQLite history batch did not complete its in-scope update');
+          enter();
+          const decision = await released;
+          return { commit: decision === 'commit', value: undefined };
+        });
+        await entered;
+      },
+      entered,
+      async settle(decision) {
+        if (batch === undefined) throw new Error('SQLite history batch settled before begin');
+        if (settled) throw new Error('SQLite history batch settled twice');
+        settled = true;
+        release(decision);
+        await batch;
+      },
+    },
+    close: async () => {
+      if (batch !== undefined && !settled) {
+        settled = true;
+        release('rollback');
+        await batch;
+      }
+      await closeSqliteResources(source, directory);
+    },
+  };
+}
+
 async function changeSqliteCaptureDirectory(source: SqliteSource): Promise<CaptureDirectoryChange> {
   const stamp = { at: 600, by: DETERMINISTIC_SEED.ownerIds[1] };
   const change = await source.uow.run(async ({ stores }) => {
@@ -589,6 +664,8 @@ const openers: ExistingStoreOpeners = {
   savedPlans: (caseId) => openSqliteSavedPlanCase(caseId),
   savedPlanCapture: (caseId) => openSqliteSavedPlanCaptureCase(caseId),
 };
+
+const sourceOpeners = { ...openers, historyBatch: openSqliteHistoryBatchCase };
 
 function withStores(source: SqliteSource, stores: Partial<TransactionalStores>): SqliteSource {
   return { ...source, stores: { ...source.stores, ...stores } };
@@ -5829,17 +5906,16 @@ describe('SQLite existing source conformance', () => {
   });
 
   it('SQLite runs every offered existing case', async () => {
-    const report = await runCases(existingStoreRegistrations(openers), {
-      focus: [...SOURCE_CONFORMANCE_CASES],
-    });
+    const sqliteCases = SOURCE_CONFORMANCE_CASES.filter(
+      (caseId) => !caseId.startsWith('history.batch:'),
+    );
+    const report = await runCases(existingStoreRegistrations(openers), { focus: sqliteCases });
 
     expect(report.kind).toBe('partial');
-    expect(report.cases.map(({ caseId }) => caseId)).toEqual([...SOURCE_CONFORMANCE_CASES]);
+    expect(report.cases.map(({ caseId }) => caseId)).toEqual(sqliteCases);
     expect(
       report.cases.map(({ caseId, status, executed }) => ({ caseId, status, executed })),
-    ).toEqual(
-      SOURCE_CONFORMANCE_CASES.map((caseId) => ({ caseId, status: 'passed', executed: true })),
-    );
+    ).toEqual(sqliteCases.map((caseId) => ({ caseId, status: 'passed', executed: true })));
   });
 
   it('Task 6.3 observes each saved-plan capture boundary fault and reversals', async () => {
@@ -6053,6 +6129,42 @@ describe('SQLite existing source conformance', () => {
     expect(cleanupProof.failure).toContain(
       'cleanup failed: injected SQLite capture cleanup failure after assertion',
     );
+  });
+
+  it('Task 6.5 settles independent SQLite history writes without waiting', async () => {
+    const caseIds = [
+      'history.batch:independent-commit',
+      'history.batch:independent-rollback',
+      'history.batch:busy-does-not-wait',
+    ] as const;
+    const report = await runCases(
+      sourceConformanceRegistrations({ historyAdmission: 'immediate-busy' }, sourceOpeners),
+      { focus: caseIds },
+    );
+
+    expect(
+      report.cases.map(({ caseId, status, executed }) => ({ caseId, status, executed })),
+    ).toEqual(caseIds.map((caseId) => ({ caseId, status: 'passed', executed: true })));
+  });
+
+  it('Task 6.5 rejects SQLite history routed through the held command coordinator', async () => {
+    const registrations = sourceConformanceRegistrations(
+      { historyAdmission: 'immediate-busy' },
+      {
+        ...openers,
+        historyBatch: (caseId) => openSqliteHistoryBatchCase(caseId, true),
+      },
+    );
+    const report = await runCases(registrations, {
+      focus: ['history.batch:busy-does-not-wait'],
+    });
+
+    expect(report.cases[0]?.status).toBe('failed');
+    if (report.cases[0]?.status !== 'failed') throw new Error('SQLite coordinator fault passed');
+    // Proof: routing the exact separate-connection history attempt through the
+    // held process coordinator produced `pending`, then release drained the write.
+    expect(Bun.stripANSI(report.cases[0].failure)).toContain('pending');
+    expect(Bun.stripANSI(report.cases[0].failure)).toContain('snapshot_busy');
   });
 
   it('Task 6.3 capture enrichment failures preserve setup and cleanup causes', async () => {

@@ -1,7 +1,7 @@
 import type { Stores, TransactionalStores } from '@wbs/core';
 
 import type { CaseId, CaseRegistration } from './case-manifest';
-import type { CaseFixture } from './source-declaration';
+import type { CaseFixture, SourceDeclaration } from './source-declaration';
 import { actualRegistrations } from './stores/actuals';
 import { calendarMarkerRegistrations } from './stores/calendar-markers';
 import { capacityRegistrations } from './stores/capacity';
@@ -15,6 +15,7 @@ import { planEventRegistrations } from './stores/plan-events';
 export { DEPENDENCY_SURVIVOR_IDS } from './stores/dependencies';
 import { progressRegistrations } from './stores/progress';
 export { PROGRESS_SENTINEL_STEP_ID } from './stores/progress';
+import { historyBatchRegistrations, type OpenHistoryBatchCase } from './stores/history-batch';
 import { priorityBandRegistrations } from './stores/priority-bands';
 import { projectRegistrations } from './stores/projects';
 import { savedPlanCaptureRegistrations } from './stores/saved-plan-capture';
@@ -52,6 +53,10 @@ export interface ExistingStoreOpeners {
   readonly savedPlanCapture: (caseId: CaseId) => Promise<CaseFixture<Stores['savedPlanCapture']>>;
 }
 
+export interface SourceConformanceOpeners extends ExistingStoreOpeners {
+  readonly historyBatch: OpenHistoryBatchCase;
+}
+
 /** Registers the migrated source-family kits in their implementation order. */
 export function existingStoreRegistrations(
   openers: ExistingStoreOpeners,
@@ -76,5 +81,16 @@ export function existingStoreRegistrations(
     ...journalRegistrations(openers.journal),
     ...savedPlanRegistrations(openers.savedPlans),
     ...savedPlanCaptureRegistrations(openers.savedPlanCapture),
+  ];
+}
+
+/** Adds the declaration-selected supplemental history cases to every store family. */
+export function sourceConformanceRegistrations(
+  declaration: Pick<SourceDeclaration, 'historyAdmission'>,
+  openers: SourceConformanceOpeners,
+): readonly CaseRegistration[] {
+  return [
+    ...existingStoreRegistrations(openers),
+    ...historyBatchRegistrations(declaration.historyAdmission, openers.historyBatch),
   ];
 }

@@ -17,6 +17,7 @@ import {
   type Fault,
   type FaultProof,
   type FaultRun,
+  type HistoryBatchFixture,
   observePlanInput,
   PROGRESS_SENTINEL_STEP_ID,
   readSubtreePublicState,
@@ -26,6 +27,7 @@ import {
   savedPlanCaptureExpected,
   seedSavedPlanCapture,
   SOURCE_CONFORMANCE_CASES,
+  sourceConformanceRegistrations,
   type SourceDeclaration,
   type SourceReaders,
   subtreeSeedRecords,
@@ -86,6 +88,19 @@ type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   replaceSavedPlanInputBody(savedPlanId: string, bytes: string): void;
   replaceSavedPlanScheduleHash(savedPlanId: string, sha256: string): void;
   writeSavedPlanSplit: ReturnType<typeof openMemorySourceFixture>['writeSavedPlanSplit'];
+  writeSavedPlanThroughCommandCoordinator: ReturnType<
+    typeof openMemorySourceFixture
+  >['writeSavedPlanThroughCommandCoordinator'];
+  claimSavedPlanWriteWithoutState: ReturnType<
+    typeof openMemorySourceFixture
+  >['claimSavedPlanWriteWithoutState'];
+  activateCommandHistoryStage: ReturnType<
+    typeof openMemorySourceFixture
+  >['activateCommandHistoryStage'];
+  discardCommandHistoryStage: ReturnType<
+    typeof openMemorySourceFixture
+  >['discardCommandHistoryStage'];
+  commandStagedSavedPlans: ReturnType<typeof openMemorySourceFixture>['commandStagedSavedPlans'];
   quotaRivalOwner?: { settlement?: Promise<unknown> };
 };
 type OpenSource = () => MemorySource;
@@ -106,6 +121,21 @@ function conformanceMemorySource(
     captureWithStagedDirectoryRollback: (
       ...args: Parameters<typeof fixture.captureWithStagedDirectoryRollback>
     ) => fixture.captureWithStagedDirectoryRollback(...args),
+    writeSavedPlanThroughCommandCoordinator: <Refusal>(
+      plan: SavedPlanWrite,
+      check: SavedPlanCheck<Refusal>,
+    ) => fixture.writeSavedPlanThroughCommandCoordinator(plan, check),
+    claimSavedPlanWriteWithoutState: <Refusal>(
+      plan: SavedPlanWrite,
+      check: SavedPlanCheck<Refusal>,
+    ) => fixture.claimSavedPlanWriteWithoutState(plan, check),
+    activateCommandHistoryStage: () => {
+      fixture.activateCommandHistoryStage();
+    },
+    discardCommandHistoryStage: () => {
+      fixture.discardCommandHistoryStage();
+    },
+    commandStagedSavedPlans: fixture.commandStagedSavedPlans,
     deriveNextEventSeqFromRetained: (subscription: string) => {
       fixture.deriveNextEventSeqFromRetained(subscription);
     },
@@ -443,6 +473,103 @@ async function openMemorySavedPlanCaptureCase(
   };
 }
 
+async function openMemoryHistoryBatchCase(
+  caseId: CaseId,
+  fault?: 'command-coordinator' | 'claimed-write-without-state' | 'staged-owner',
+): Promise<HistoryBatchFixture> {
+  const source = await seedMemorySource();
+  const base = source.history.savedPlans;
+  const port: SavedPlanStore =
+    fault === undefined
+      ? base
+      : fault === 'staged-owner'
+        ? {
+            ...base,
+            write: (plan, check) => source.commandStagedSavedPlans.write(plan, check),
+          }
+        : {
+            ...base,
+            write: <Refusal>(plan: SavedPlanWrite, check: SavedPlanCheck<Refusal>) =>
+              fault === 'command-coordinator'
+                ? source.writeSavedPlanThroughCommandCoordinator(plan, check)
+                : source.claimSavedPlanWriteWithoutState(plan, check),
+          };
+  let release: (decision: 'commit' | 'rollback') => void = () => undefined;
+  let enter: () => void = () => undefined;
+  const entered = new Promise<void>((resolve) => {
+    enter = resolve;
+  });
+  const released = new Promise<'commit' | 'rollback'>((resolve) => {
+    release = resolve;
+  });
+  let batch: Promise<void> | undefined;
+  let settled = false;
+  return {
+    fixtureId: `memory:${caseId}`,
+    port,
+    journalAppender: source.journal,
+    seed: DETERMINISTIC_SEED,
+    readers: readersOf(source),
+    scenario: {
+      kind: 'batch-settlement',
+      async begin() {
+        if (batch !== undefined) throw new Error('memory history batch began twice');
+        batch = source.uow.run(async ({ stores }) => {
+          const projectId = DETERMINISTIC_SEED.projectIds[0];
+          const stamp = { at: 700, by: DETERMINISTIC_SEED.ownerIds[0] };
+          const updated = await stores.projects.update(
+            projectId,
+            { name: `Held ${caseId}` },
+            stamp,
+          );
+          const observed = await stores.projects.findById(projectId);
+          expect({ updated, observed }).toEqual({ updated, observed });
+          if (updated === null || observed?.name !== `Held ${caseId}`)
+            throw new Error('memory history batch did not complete its in-scope update');
+          if (fault === 'staged-owner') source.activateCommandHistoryStage();
+          enter();
+          const decision = await released;
+          if (fault === 'staged-owner') {
+            const staged = await source.commandStagedSavedPlans.readOf(
+              'history-interleaved-rollback',
+            );
+            expect(staged).toMatchObject({
+              header: {
+                id: 'history-interleaved-rollback',
+                projectId,
+                inputSchemaVersion: 21,
+                inputBytes: 20,
+                scheduleAbsentReason: 'batch-survival',
+              },
+              bodies: { input: 'interleaved-rollback', schedule: null },
+            });
+            source.discardCommandHistoryStage();
+          }
+          return { commit: decision === 'commit', value: undefined };
+        });
+        await entered;
+      },
+      entered,
+      async settle(decision) {
+        if (batch === undefined) throw new Error('memory history batch settled before begin');
+        if (settled) throw new Error('memory history batch settled twice');
+        settled = true;
+        release(decision);
+        await batch;
+      },
+    },
+    close: async () => {
+      if (batch !== undefined && !settled) {
+        settled = true;
+        release('rollback');
+        await batch;
+      }
+      source.discardCommandHistoryStage();
+      await source.close();
+    },
+  };
+}
+
 async function changeMemoryCaptureDirectory(source: MemorySource): Promise<CaptureDirectoryChange> {
   const stamp = { at: 600, by: DETERMINISTIC_SEED.ownerIds[1] };
   const change = await source.uow.run(async ({ stores }) => {
@@ -615,6 +742,8 @@ const openers: ExistingStoreOpeners = {
   savedPlans: (caseId) => openMemorySavedPlanCase(caseId),
   savedPlanCapture: (caseId) => openMemorySavedPlanCaptureCase(caseId),
 };
+
+const sourceOpeners = { ...openers, historyBatch: openMemoryHistoryBatchCase };
 
 const unknownStepGap = {
   caseId: 'estimates.set:unknown_step' as const,
@@ -5284,18 +5413,19 @@ describe('memory existing source conformance', () => {
   });
 
   it('runs every offered existing case and reports the exact known gaps', async () => {
-    const registrations = existingStoreRegistrations(openers);
+    const registrations = sourceConformanceRegistrations(declaration, sourceOpeners);
+    const memoryCases = SOURCE_CONFORMANCE_CASES.filter(
+      (caseId) => caseId !== 'history.batch:busy-does-not-wait',
+    );
     const report = await runCases(registrations, {
       declaration,
-      focus: [...SOURCE_CONFORMANCE_CASES],
+      focus: memoryCases,
     });
 
     expect(report.kind).toBe('partial');
     expect(
       report.cases.filter(({ status }) => status === 'passed').map(({ caseId }) => caseId),
-    ).toEqual(
-      SOURCE_CONFORMANCE_CASES.filter((caseId) => !knownGaps.some((gap) => gap.caseId === caseId)),
-    );
+    ).toEqual(memoryCases.filter((caseId) => !knownGaps.some((gap) => gap.caseId === caseId)));
     expect(
       knownGaps.map((gap) => {
         const execution = failedCase(report, gap.caseId);
@@ -5346,6 +5476,56 @@ describe('memory existing source conformance', () => {
         executed: false,
       },
     ]);
+  });
+
+  it('Task 6.5 rejects history routed through the held command coordinator', async () => {
+    const registrations = sourceConformanceRegistrations(declaration, {
+      ...openers,
+      historyBatch: (caseId) => openMemoryHistoryBatchCase(caseId, 'command-coordinator'),
+    });
+    const report = await runCases(registrations, {
+      focus: ['history.batch:independent-commit'],
+    });
+
+    expect(report.cases[0]?.status).toBe('failed');
+    if (report.cases[0]?.status !== 'failed') throw new Error('command coordinator fault passed');
+    // Proof: routing the exact real history write through the held command owner
+    // produced `pending`; cleanup released and drained it before this failure.
+    expect(Bun.stripANSI(report.cases[0].failure)).toContain('pending');
+  });
+
+  it('Task 6.5 reads back a memory write that falsely reports success', async () => {
+    const registrations = sourceConformanceRegistrations(declaration, {
+      ...openers,
+      historyBatch: (caseId) => openMemoryHistoryBatchCase(caseId, 'claimed-write-without-state'),
+    });
+    const report = await runCases(registrations, {
+      focus: ['history.batch:interleaved-success-survives'],
+    });
+
+    expect(report.cases[0]?.status).toBe('failed');
+    if (report.cases[0]?.status !== 'failed') throw new Error('suppressed memory write passed');
+    // Proof: suppressing the real state replacement after the exact callback still
+    // returned `written`; the exact-ID public read observed `null` after rollback.
+    expect(Bun.stripANSI(report.cases[0].failure)).toContain('history-interleaved-rollback');
+    expect(Bun.stripANSI(report.cases[0].failure)).toContain('null');
+  });
+
+  it('Task 6.5 rejects history stored in a rolled-back command stage', async () => {
+    const registrations = sourceConformanceRegistrations(declaration, {
+      ...openers,
+      historyBatch: (caseId) => openMemoryHistoryBatchCase(caseId, 'staged-owner'),
+    });
+    const report = await runCases(registrations, {
+      focus: ['history.batch:interleaved-success-survives'],
+    });
+
+    expect(report.cases[0]?.status).toBe('failed');
+    if (report.cases[0]?.status !== 'failed') throw new Error('staged history fault passed');
+    // Proof: the exact complete plan existed in the real command-owned stage and
+    // returned `written`; rollback discarded it and the public read observed null.
+    expect(Bun.stripANSI(report.cases[0].failure)).toContain('history-interleaved-rollback');
+    expect(Bun.stripANSI(report.cases[0].failure)).toContain('null');
   });
 
   it('Task 6.3 observes each saved-plan capture boundary fault and reversals', async () => {
