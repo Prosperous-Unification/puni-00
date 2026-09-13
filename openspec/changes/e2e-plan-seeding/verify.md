@@ -130,3 +130,26 @@ replaces failed planned sample 2.
   sandboxed attempt reached 8 passes and failed only because its authentication
   probe could not spawn Bun (`spawnSync bun EPERM`); the same command passed
   outside that process sandbox.
+
+## Section 3 local final checks
+
+The measurement commits were rebased without conflict onto `b84e0713`, whose
+only intervening change hardens the agent-trailer hook and its test. No E2E
+implementation or configuration changed during integration, so the six-run
+matrix was not repeated.
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test lint typecheck -p fe-01 contracts --skip-nx-cache --output-style=static`
+  — all six targets passed. `fe-01:test` passed 2,698 UTC tests across 105
+  files and 3 zoned tests across 2 files; `contracts:test` passed 380 tests
+  across 41 files. Both projects' lint and typecheck targets passed.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@latest validate --all --strict --json`
+  — 82/84 items passed. The workspace-wide check exits 1 because unrelated
+  changes `local-solver-development` and `stale-solver-seat-masks-failure`
+  each have no delta and do not declare `skip_specs: true`.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@latest validate e2e-plan-seeding --strict --json`
+  — this change passed 1/1 with no issues.
+
+Task 3.4 remains unchecked. The canonical `bin/h2puni-gate.sh <sha>` host-wide
+gate was not run under the coordinator's explicit sequencing instruction, and
+the strict all-change validation remains red on the two unrelated changes
+named above.
