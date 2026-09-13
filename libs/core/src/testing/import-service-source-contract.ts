@@ -1,3 +1,4 @@
+import type { PlanDocumentRequest } from '@wbs/contracts';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../compose';
@@ -10,6 +11,7 @@ import type { UnitOfWork } from '../ports/unit-of-work';
 import type { WorkItemStore } from '../ports/work-item-store';
 import type { Broadcaster, ProjectEvent } from '../service/broadcast';
 import { ImportService } from '../service/import.service';
+import { classifyPlanDocument, PlanDocumentService } from '../service/plan-document';
 import { type RecordingBroadcaster, recordingBroadcaster } from './broadcast-fixture';
 import { planDocumentFixture } from './plan-document-fixture';
 import { fastScheduler } from './scheduler-fixture';
@@ -92,6 +94,173 @@ function heldBroadcaster(
     latestSeq: (projectId) =>
       Promise.resolve(published.filter((entry) => entry.projectId === projectId).length - 1),
   };
+}
+
+function roundTripFixture(): PlanDocumentRequest {
+  const document = planDocumentFixture();
+  document.settings = {
+    ...document.settings,
+    name: 'Round trip plan',
+    restricted: true,
+    estimateMethod: 'pessimistic',
+    depReach: 'anchor-slice',
+    pertWeights: { optimistic: 2, realistic: 3, pessimistic: 5 },
+    estimateRounding: 'round',
+    solutionRef: {
+      slug: 'round-trip-solution',
+      url: 'https://example.test/solutions/round-trip',
+    },
+    optimizationEnabled: false,
+    scheduleEngine: 'optimized',
+    scheduleObjective: 'time',
+  };
+  document.steps = [
+    { id: 'step-discover', name: 'Discover', position: 10 },
+    { id: 'step-build', name: 'Build', position: 30 },
+    { id: 'step-verify', name: 'Verify', position: 70 },
+  ];
+  document.calendarMarkers = [
+    {
+      id: 'marker-release',
+      date: '2026-09-21',
+      name: 'Release train',
+      color: '#f70100',
+    },
+  ];
+  const root = document.workItems.at(0);
+  if (root === undefined) throw new Error('plan document fixture has no root work item');
+  root.name = 'Release';
+  root.notes = 'Parent notes';
+  root.frozenNumber = 'ROUND-1';
+  root.maxParallel = 3;
+  root.estimates = { 'step-discover': { optimistic: 10, realistic: 20, pessimistic: 30 } };
+  root.actuals = { 'step-discover': 12 };
+  root.progress = { 'step-discover': 'done' };
+  root.measures = { hours_actual: { 'step-discover': 18 } };
+  root.assignees = {};
+  document.workItems.push(
+    {
+      ...structuredClone(root),
+      id: 'row-build',
+      parentId: root.id,
+      position: 10,
+      name: 'Build release',
+      notes: 'Leaf notes',
+      frozenNumber: null,
+      startNoEarlierThan: '2026-09-15',
+      startNoEarlierThanReason: 'Environment opens',
+      deadline: '2026-09-17',
+      factStart: '2026-09-15',
+      factEnd: '2026-09-16',
+      priority: 7,
+      maxParallel: 2,
+      externalRefs: [
+        {
+          id: 'external-build-a',
+          systemId: 'system-1',
+          url: 'https://example.test/issues/2',
+          name: 'ISSUE-2',
+        },
+        {
+          id: 'external-build-b',
+          systemId: 'system-1',
+          url: 'https://example.test/issues/3',
+          name: 'ISSUE-3',
+        },
+      ],
+      estimates: { 'step-build': { optimistic: 2, realistic: 4, pessimistic: 8 } },
+      actuals: { 'step-build': 3 },
+      progress: { 'step-build': 'in_progress' },
+      measures: {
+        token_estimate: { 'step-build': 1200 },
+        token_actual: { 'step-build': 900 },
+        hours_actual: { 'step-build': 6 },
+      },
+      dependsOn: [],
+      assignees: { 'step-verify': 'person-1' },
+    },
+    {
+      ...structuredClone(root),
+      id: 'row-verify',
+      parentId: root.id,
+      position: 20,
+      name: 'Verify release',
+      notes: 'Dependency successor',
+      frozenNumber: null,
+      serviceTeamId: null,
+      serviceId: null,
+      teamIds: [],
+      tagIds: [],
+      serviceIds: [],
+      typeIds: [],
+      externalRefs: [],
+      estimates: { 'step-verify': { optimistic: 1, realistic: 2, pessimistic: 5 } },
+      actuals: {},
+      progress: {},
+      measures: {},
+      dependsOn: ['row-build'],
+      assignees: {},
+    },
+  );
+  return document;
+}
+
+async function exportProject(
+  source: Source<TransactionalStores>,
+  projectId: string,
+): Promise<PlanDocumentRequest> {
+  const clock = clockOf({ now: () => STAMP.at, newId: () => crypto.randomUUID() });
+  const broadcast = recordingBroadcaster();
+  const graph = servicesOver(source.stores, { clock, broadcast, scheduler: fastScheduler });
+  const [project, tree] = await Promise.all([
+    source.stores.projects.findById(projectId),
+    graph.workItems.tree(projectId),
+  ]);
+  if (project === null) throw new Error(`imported project disappeared: ${projectId}`);
+  if (tree === null || 'kind' in tree) throw new Error(`imported project cannot be exported`);
+  const exported = await new PlanDocumentService({
+    directory: source.stores.directory,
+    markers: graph.calendarMarkers,
+    clock,
+  }).export(project, tree);
+  const classified = await classifyPlanDocument(exported);
+  if (!classified.ok) throw new Error(`exported project refused at ${classified.path}`);
+  return classified.value;
+}
+
+function authoredSnapshot(document: PlanDocumentRequest): unknown {
+  const aliases = new Map<string, string>();
+  const alias = (kind: string, id: string, name: string): void => {
+    aliases.set(id, `${kind}:${name}`);
+  };
+  for (const step of document.steps) alias('step', step.id, step.name);
+  for (const row of document.workItems) alias('work-item', row.id, row.name);
+  for (const team of document.directory.teams) alias('team', team.id, team.name);
+  for (const person of document.directory.people) alias('person', person.id, person.name);
+  for (const tag of document.directory.tags) alias('tag', tag.id, tag.name);
+  for (const service of document.directory.services) alias('service', service.id, service.name);
+  for (const type of document.directory.types) alias('type', type.id, type.name);
+  for (const system of document.directory.externalSystems)
+    alias('external-system', system.id, system.name);
+  for (const marker of document.calendarMarkers)
+    alias('marker', marker.id, `${marker.date}:${marker.name}`);
+  for (const row of document.workItems) {
+    for (const reference of row.externalRefs)
+      alias('external-ref', reference.id, `${reference.url}:${reference.name}`);
+  }
+
+  const authored = structuredClone(document);
+  authored.document.exportedAt = '<export-stamp>';
+  authored.settings.solutionRef = null;
+  const replaceIds = (value: unknown): unknown => {
+    if (typeof value === 'string') return aliases.get(value) ?? value;
+    if (Array.isArray(value)) return value.map(replaceIds);
+    if (value === null || typeof value !== 'object') return value;
+    return Object.fromEntries(
+      Object.entries(value).map(([key, field]) => [aliases.get(key) ?? key, replaceIds(field)]),
+    );
+  };
+  return replaceIds(authored);
 }
 
 type LaterFault = { kind: 'refused' } | { kind: 'thrown'; cause: Error };
@@ -915,6 +1084,69 @@ export function importServiceSourceContract(
         release.resolve(undefined);
         const imported = await importing;
         expect(imported.ok).toBe(true);
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('round trips every authored input while storing leaf values only', async () => {
+      const source = await ownedSource();
+      try {
+        const service = importService(source);
+        const seeded = await service.import(roundTripFixture(), ACTOR);
+        if (!seeded.ok) throw new Error(`round-trip seed refused at ${seeded.path}`);
+        const exported = await exportProject(source, seeded.projectId);
+        const directoryBefore = {
+          teams: await source.stores.directory.listTeams(),
+          people: await source.stores.directory.listPeople(),
+          tags: await source.stores.directory.listTags(),
+          services: await source.stores.directory.listServices(),
+          types: await source.stores.directory.listWorkItemTypes(),
+          systems: await source.stores.directory.listExternalSystems(),
+        };
+
+        const restored = await service.import(exported, ACTOR);
+        if (!restored.ok) throw new Error(`round-trip restore refused at ${restored.path}`);
+        expect(restored.solutionRef).toBe('left-off');
+        const reexported = await exportProject(source, restored.projectId);
+        expect({
+          teams: await source.stores.directory.listTeams(),
+          people: await source.stores.directory.listPeople(),
+          tags: await source.stores.directory.listTags(),
+          services: await source.stores.directory.listServices(),
+          types: await source.stores.directory.listWorkItemTypes(),
+          systems: await source.stores.directory.listExternalSystems(),
+        }).toEqual(directoryBefore);
+
+        const rows = await source.stores.workItems.listByProject(restored.projectId);
+        const parent = rows.find(({ name }) => name === 'Release');
+        const build = rows.find(({ name }) => name === 'Build release');
+        const verify = rows.find(({ name }) => name === 'Verify release');
+        if (parent === undefined || build === undefined || verify === undefined)
+          throw new Error('round-trip hierarchy is incomplete');
+        const [estimates, actuals, progress, measures] = await Promise.all([
+          source.stores.estimates.listByProject(restored.projectId),
+          source.stores.actuals.listByProject(restored.projectId),
+          source.stores.progress.listByProject(restored.projectId),
+          source.stores.measures.listByProject(restored.projectId),
+        ]);
+        // Proof: admitting exported parent roll-ups made each source table name
+        // the parent here and made the second export double the authored values.
+        expect({
+          parentFacts: {
+            estimates: estimates.some(({ workItemId }) => workItemId === parent.id),
+            actuals: actuals.some(({ workItemId }) => workItemId === parent.id),
+            progress: progress.some(({ workItemId }) => workItemId === parent.id),
+            measures: measures.some(({ workItemId }) => workItemId === parent.id),
+          },
+          reexported: authoredSnapshot(reexported),
+        }).toEqual({
+          parentFacts: { estimates: false, actuals: false, progress: false, measures: false },
+          reexported: authoredSnapshot(exported),
+        });
+        expect(new Set(estimates.map(({ workItemId }) => workItemId))).toEqual(
+          new Set([build.id, verify.id]),
+        );
       } finally {
         await source.close();
       }

@@ -674,7 +674,8 @@ export function prepareImport(
         return refuses('unknown_ref', `workItems[${String(at)}].assignees.${stepId}`);
       assignments.push({ stepFileId: stepId, personFileId: personId });
     }
-    // Proof: forcing every row to leaf made the parent-aggregate test refuse its ignored maps.
+    // Proof: forcing every row to leaf made the round-trip contract store its
+    // restored parent in all four value tables even though re-export hid the duplication.
     const leaf = !parents.has(row.id);
     const values = leaf
       ? parseLeaf(row, at, steps.byId)

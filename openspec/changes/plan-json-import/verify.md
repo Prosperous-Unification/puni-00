@@ -306,3 +306,43 @@ Final green evidence:
 - `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
 
 At the Task 3.6 checkpoint, Tasks 3.7–5.2 remain unimplemented and unchecked.
+
+## Section 3.7 — authored round trip
+
+The shared real-source contract creates a fully authored seed, exports it
+through `PlanDocumentService`, imports that classified archival request back
+into the same compatible directory, and exports the restored project again.
+Its id-independent snapshot compares the complete writable boundary after
+aliasing project-local and directory ids, normalizing the export stamp, and
+excluding the approved solution-reference collision. The fixture contains a
+parent and two leaves, three nondefault ordered steps, every directory and row
+satellite kind, a dependency, deadline/not-before/reason, frozen number,
+capacity, priority bands, marker, and nondefault optimization preferences.
+
+The second import reports `left-off` because the seed holds the solution slug,
+and the directory is byte-equivalent before and after that import. The
+normalized exports agree. Direct reads of estimates, actuals, progress, and
+measures separately prove that only leaf ids own stored values.
+
+| Check                   | Fault injected                            | Test that observed it                                             | Observed failure                                                                                                                                     |
+| ----------------------- | ----------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Leaf-only value restore | Forced every prepared work item to a leaf | `round trips every authored input while storing leaf values only` | the restored parent appeared in all four source tables and in the exact estimate-owner id set; re-export alone remained equal because roll-up hid it |
+
+The fault was observed on the production preparation path, restored, and
+recorded beside the leafhood derivation. The combined source-table and
+re-export assertion prevents the readable projection from masking duplicated
+stored facts.
+
+Final green evidence:
+
+- `bun test libs/store-memory/src/import.service.test.ts -t 'round trips every authored input while storing leaf values only'` — 1 passed, 0 failed, 4 assertions.
+- `bun test libs/store-sqlite/src/import.service.db.test.ts -t 'round trips every authored input while storing leaf values only'` — 1 passed, 0 failed, 4 assertions.
+- `bun test libs/store-memory/src/import.service.test.ts libs/store-memory/src/memory-source.test.ts` — 23 passed, 0 failed, 239 assertions.
+- `bun test libs/store-sqlite/src/import.service.db.test.ts libs/store-sqlite/src/sqlite-unit-of-work.db.test.ts libs/store-sqlite/src/project.db.test.ts` — 49 passed, 0 failed, 151 assertions.
+- `bun test libs/core/src/service/plan-document.test.ts libs/core/src/service/prepare-import.test.ts` — 53 passed, 0 failed, 92 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p core store-memory store-sqlite --skip-nx-cache --parallel=3 --output-style=static` — all six targets passed.
+- `bunx prettier --check libs/core/src/service/prepare-import.ts libs/core/src/testing/import-service-source-contract.ts openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
+
+At the Task 3.7 checkpoint, Section 3 is complete. Sections 4–5 remain
+unimplemented and unchecked.
