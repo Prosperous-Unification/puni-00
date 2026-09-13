@@ -74,7 +74,8 @@ nowhere. The env row is still silent, because a gitignored file cannot arrive in
 
 The host-owned solver supervisor config is optional until the first solver-affecting deploy. Once
 present, every changed target verifies the service, Unix socket, mapping, and exact digest-pinned
-image in the host Docker daemon before reset. A missing image is pulled by digest; a pull or final
+image in the host Docker daemon before reset. A missing image is pulled by digest; an image already
+present does not depend on registry availability. A pull or final
 inspection refusal is therefore visible in the poller deploy log instead of only in the supervisor
 user journal. Only a change to `libs/solver-py` or `apps/be-01/Dockerfile` publishes or installs a
 new binding; the directory pathspec is recursive.

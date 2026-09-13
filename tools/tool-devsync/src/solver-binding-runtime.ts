@@ -252,7 +252,8 @@ export function createTargetSolverBindingRuntime(
         // Dagger publishes into the registry; it does not populate the host
         // Docker daemon that the supervisor drives. Pull before changing the
         // shared mapping so the restarted service never points at an absent
-        // image.
+        // image. Proof: solver-binding-runtime.test.ts rejects this pull and
+        // observes that config materialization is never invoked.
         await run('solver host image pull', ['docker', 'pull', config.devSolverImage]);
         await run('solver host image inspection', [
           'docker',

@@ -188,6 +188,37 @@ describe('the production solver binding runtime', () => {
     expect(locks).toEqual(['/home/puni1/wbs/state/deploy.lock']);
   });
 
+  it('does not materialize a solver mapping after its host image pull fails', async () => {
+    const invocations: SolverBindingRuntimeInvocation[] = [];
+    const runtime = createTargetSolverBindingRuntime(
+      { root: ROOT, bunPath: BUN, sourceSha: SHA, compatibilityIdentity: IDENTITY },
+      {
+        exists: () => Promise.resolve(true),
+        isGitMetadata: () => Promise.resolve(true),
+        read: () => Promise.resolve(installed),
+        command: (invocation) => {
+          invocations.push(invocation);
+          return Promise.resolve({ exitCode: 1, stderr: 'registry unavailable' });
+        },
+        query: () => Promise.reject(new Error('materialization must not query')),
+        writeAtomic: () => Promise.reject(new Error('materialization must not checkpoint')),
+        withLock: (_path, action) => action(),
+      },
+    );
+
+    expect(
+      await rejection(
+        runtime.dependencies.materialize({
+          blueImage: BLUE,
+          greenImage: GREEN,
+          devSolverImage: DEV,
+          devSourceSha: SHA,
+        }),
+      ),
+    ).toContain('solver host image pull failed (exit 1): registry unavailable');
+    expect(invocations.map(({ argv }) => argv)).toEqual([['docker', 'pull', DEV]]);
+  });
+
   // Proof: making the post-install image inspection report the incident's
   // `No such image` fault keeps the durable state at published and prevents
   // the live checkout reset.
