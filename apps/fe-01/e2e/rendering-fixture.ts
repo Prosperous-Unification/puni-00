@@ -2,7 +2,7 @@ import { expect, type Page } from '@playwright/test';
 import type { PlanCommandWire } from '@wbs/contracts';
 
 import { createProject } from './create-project';
-import { fixtureClient, fixtureSuccess } from './plan-fixture';
+import { assertCommandResults, fixtureClient, fixtureSuccess } from './plan-fixture';
 
 export interface RenderingSize {
   rows: number;
@@ -68,16 +68,8 @@ export async function seedRenderingPlan(page: Page, size: RenderingSize) {
         body: { commands },
       }),
     ).body;
-    expect(answer.results).toHaveLength(count);
-    for (let index = 0; index < count; index += 1) {
-      const row = answer.results[index];
-      // Proof: removing this guard made `rendering setup refuses a successful batch
-      // without its row identity` receive the later setEstimate400 missing_id
-      // instead of the expected missing row identity0. Watched in Chromium.
-      if (row.index !== index || row.ref !== `row${String(index)}` || typeof row.id !== 'string')
-        throw new Error(`rendering fixture missing row identity ${String(start + index)}`);
-      ids.push(row.id);
-    }
+    const created = assertCommandResults('rendering create rows', commands, answer.results);
+    for (let index = 0; index < count; index += 1) ids.push(created[`row${String(index)}`]);
   }
   const estimates: PlanCommandWire[] = ids.flatMap((id) =>
     project.steps.map((step) => ({
@@ -103,7 +95,7 @@ export async function seedRenderingPlan(page: Page, size: RenderingSize) {
           body: { commands: batch },
         }),
       ).body;
-      expect(answer.results).toHaveLength(batch.length);
+      assertCommandResults('rendering authored commands', batch, answer.results);
     }
   }
   const tree = fixtureSuccess(
@@ -111,11 +103,27 @@ export async function seedRenderingPlan(page: Page, size: RenderingSize) {
     await client['getApiProjectsByIdWork-items']({ params: { id: projectId } }),
   ).body;
   expect(tree.workItems.map((row) => row.id)).toEqual(ids);
-  expect(tree.steps).toHaveLength(size.steps);
-  expect(tree.workItems.reduce((count, row) => count + Object.keys(row.estimates).length, 0)).toBe(
-    size.rows * size.steps,
+  expect(tree.steps.map(({ id, name }) => ({ id, name }))).toEqual(
+    project.steps.map(({ id, name }) => ({ id, name })),
   );
-  expect(tree.workItems.reduce((count, row) => count + row.dependsOn.length, 0)).toBe(edges.length);
+  const expectedDays = { optimistic: 1, realistic: 2, pessimistic: 3 };
+  for (const [index, row] of tree.workItems.entries()) {
+    // Proof: changing one real outgoing estimate to 8/9/10 made the named
+    // rendering estimate assertion refuse before geometry was sampled.
+    for (const step of project.steps)
+      expect(row.estimates[step.id], `rendering estimate ${String(index)}/${step.name}`).toEqual(
+        expectedDays,
+      );
+    const predecessors = edges
+      .filter(([successor]) => successor === index)
+      .map(([, predecessor]) => ids[predecessor])
+      .sort();
+    // Proof: redirecting the real sparse edge 10→9 to 10→0 preserved the
+    // edge count and made this endpoint assertion refuse before geometry.
+    expect([...row.dependsOn].sort(), `rendering dependencies for row ${String(index)}`).toEqual(
+      predecessors,
+    );
+  }
   return { ...size, projectId, ids, edges: edges.length, setupMs: Date.now() - started };
 }
 

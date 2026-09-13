@@ -51,7 +51,11 @@ function escaped(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function validateRecipe(recipe: PlanRecipe): void {
+interface NormalizedRecipeRow extends Omit<PlanRecipeRow, 'afterRef'> {
+  afterRef: string | null;
+}
+
+function normalizeRecipeRows(recipe: PlanRecipe): readonly NormalizedRecipeRow[] {
   const rowRefs = new Set<string>();
   for (const row of recipe.rows) {
     // Proof: deleting this refusal made the duplicate-recipe-ref browser case observe a project POST.
@@ -69,6 +73,11 @@ function validateRecipe(recipe: PlanRecipe): void {
     for (const tagRef of row.tagRefs ?? [])
       if (!tagRefs.has(tagRef)) throw new Error(`unknown recipe tag ref: ${tagRef}`);
   }
+  return recipe.rows.map((row, index) => ({
+    ...row,
+    // Recipe array order is authoritative when a caller omits a predecessor.
+    afterRef: row.afterRef ?? (index === 0 ? null : recipe.rows[index - 1].ref),
+  }));
 }
 
 function pageTransport(page: Page) {
@@ -128,24 +137,50 @@ export function fixtureClient(page: Page) {
   );
 }
 
-function identities(
+interface FixtureCommand {
+  kind: string;
+  ref?: string;
+}
+
+interface FixtureCommandResult {
+  index: number;
+  ref?: string;
+  id?: string;
+}
+
+const IDENTITY_COMMANDS = new Set(['createTag', 'createWorkItem']);
+
+/** Correlates a successful fixture batch body with its exact submitted command order. */
+export function assertCommandResults(
   operation: string,
-  requested: readonly { ref: string }[],
-  results: readonly { index: number; ref?: string; id?: string }[],
+  commands: readonly FixtureCommand[],
+  results: readonly FixtureCommandResult[],
 ): Record<string, string> {
-  if (results.length !== requested.length)
+  if (results.length !== commands.length)
     throw new Error(
-      `${operation} returned ${String(results.length)} of ${String(requested.length)} results`,
+      `${operation} returned ${String(results.length)} of ${String(commands.length)} results`,
     );
-  return Object.fromEntries(
-    requested.map(({ ref }, index) => {
-      const result = results.at(index);
-      // Proof: deleting this check made the malformed-success browser case proceed to a later command.
-      if (result?.index !== index || result.ref !== ref || typeof result.id !== 'string')
-        throw new Error(`${operation} missing identity for ${ref} at index ${String(index)}`);
-      return [ref, result.id];
-    }),
-  );
+  const identities: [string, string][] = [];
+  for (const [index, command] of commands.entries()) {
+    const answer = results[index];
+    // Proof: removing this correlation let empty, missing, index999 and
+    // duplicate-index authored HTTP200 bodies reach the next write/tree read.
+    if (answer.index !== index)
+      throw new Error(
+        `${operation} result at ${String(index)} has index ${String(answer.index)}, expected ${String(index)}`,
+      );
+    if (answer.ref !== command.ref)
+      throw new Error(
+        `${operation} result at ${String(index)} has ref ${String(answer.ref)}, expected ${String(command.ref)}`,
+      );
+    if (!IDENTITY_COMMANDS.has(command.kind)) continue;
+    if (command.ref === undefined)
+      throw new Error(`${operation} identity command at ${String(index)} has no submitted ref`);
+    if (typeof answer.id !== 'string')
+      throw new Error(`${operation} result at ${String(index)} has no id for ${command.ref}`);
+    identities.push([command.ref, answer.id]);
+  }
+  return Object.fromEntries(identities);
 }
 
 /** Seeds one independently named plan through validated public HTTP shapes and verifies its stored state. */
@@ -154,7 +189,7 @@ export async function seedPlan(
   recipe: PlanRecipe,
   identity: PlanFixtureIdentity,
 ): Promise<SeededPlan> {
-  validateRecipe(recipe);
+  const recipeRows = normalizeRecipeRows(recipe);
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
   const client = fixtureClient(page);
@@ -176,32 +211,34 @@ export async function seedPlan(
     ref: tag.ref,
     name: fixtureName(tag.name, identity),
   }));
-  const tagIds: Record<string, string> =
-    tags.length === 0
-      ? {}
-      : identities(
-          'postApiDirectoryCommands',
-          tags,
-          fixtureSuccess(
-            'postApiDirectoryCommands',
-            await client.postApiDirectoryCommands({ body: { commands: tags } }),
-          ).body.results,
-        );
+  const tagIds: Record<string, string> = {};
+  for (let start = 0; start < tags.length; start += CHUNK_SIZE) {
+    const commands = tags.slice(start, start + CHUNK_SIZE);
+    const answer = fixtureSuccess(
+      'postApiDirectoryCommands',
+      await client.postApiDirectoryCommands({ body: { commands } }),
+    );
+    Object.assign(
+      tagIds,
+      assertCommandResults('postApiDirectoryCommands', commands, answer.body.results),
+    );
+  }
 
   const rowIdByRef = new Map<string, string>();
-  for (let start = 0; start < recipe.rows.length; start += CHUNK_SIZE) {
-    const rows = recipe.rows.slice(start, start + CHUNK_SIZE);
+  for (let start = 0; start < recipeRows.length; start += CHUNK_SIZE) {
+    const rows = recipeRows.slice(start, start + CHUNK_SIZE);
     const localRefs = new Set(rows.map((row) => row.ref));
     const commands: PlanCommandWire[] = rows.map((row) => {
+      const { afterRef } = row;
       let placement: { afterId: string | null } | { afterRef: string };
-      if (row.afterRef === undefined) {
-        placement = { afterId: start === 0 ? null : ([...rowIdByRef.values()].at(-1) ?? null) };
-      } else if (localRefs.has(row.afterRef)) {
-        placement = { afterRef: row.afterRef };
+      if (afterRef === null) {
+        placement = { afterId: null };
+      } else if (localRefs.has(afterRef)) {
+        placement = { afterRef };
       } else {
-        const afterId = rowIdByRef.get(row.afterRef);
+        const afterId = rowIdByRef.get(afterRef);
         if (afterId === undefined)
-          throw new Error(`recipe row ${row.ref} follows unresolved ref: ${row.afterRef}`);
+          throw new Error(`recipe row ${row.ref} follows unresolved ref: ${afterRef}`);
         placement = { afterId };
       }
       return {
@@ -217,14 +254,14 @@ export async function seedPlan(
       await client.postApiProjectsByIdCommands({ params: { id: projectId }, body: { commands } }),
     );
     for (const [ref, id] of Object.entries(
-      identities('postApiProjectsByIdCommands', rows, answer.body.results),
+      assertCommandResults('postApiProjectsByIdCommands', commands, answer.body.results),
     ))
       rowIdByRef.set(ref, id);
   }
 
   const rowIds = Object.fromEntries(rowIdByRef);
 
-  const authored: PlanCommandWire[] = recipe.rows.flatMap((row) => {
+  const authored: PlanCommandWire[] = recipeRows.flatMap((row) => {
     const workItemId = rowIdByRef.get(row.ref);
     if (workItemId === undefined) throw new Error(`seeded row has no id: ${row.ref}`);
     const estimates: PlanCommandWire[] = Object.entries(row.estimates ?? {}).map(
@@ -245,18 +282,19 @@ export async function seedPlan(
   });
   for (let start = 0; start < authored.length; start += CHUNK_SIZE) {
     const commands = authored.slice(start, start + CHUNK_SIZE);
-    fixtureSuccess(
+    const answer = fixtureSuccess(
       'postApiProjectsByIdCommands',
       await client.postApiProjectsByIdCommands({ params: { id: projectId }, body: { commands } }),
     );
+    assertCommandResults('postApiProjectsByIdCommands', commands, answer.body.results);
   }
 
   const tree = fixtureSuccess(
     'getApiProjectsByIdWork-items',
     await client['getApiProjectsByIdWork-items']({ params: { id: projectId } }),
   ).body;
-  expect(tree.workItems.map((row) => row.id)).toEqual(recipe.rows.map((row) => rowIds[row.ref]));
-  for (const expected of recipe.rows) {
+  expect(tree.workItems.map((row) => row.id)).toEqual(recipeRows.map((row) => rowIds[row.ref]));
+  for (const expected of recipeRows) {
     const stored = tree.workItems.find((row) => row.id === rowIds[expected.ref]);
     if (stored === undefined) throw new Error(`stored tree is missing row ${expected.ref}`);
     expect(stored.name, `stored name for ${expected.ref}`).toBe(expected.name);
@@ -267,8 +305,8 @@ export async function seedPlan(
         days,
       );
     }
-    expect(stored.tagIds, `stored tag ids for ${expected.ref}`).toEqual(
-      (expected.tagRefs ?? []).map((ref) => tagIds[ref]),
+    expect([...stored.tagIds].sort(), `stored tag ids for ${expected.ref}`).toEqual(
+      (expected.tagRefs ?? []).map((ref) => tagIds[ref]).sort(),
     );
   }
   return { projectId, projectName, rowIds, stepIds, tagIds };

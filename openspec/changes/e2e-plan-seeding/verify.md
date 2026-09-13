@@ -98,16 +98,17 @@ from the normal E2E startup, and three checked, run-owned ports. The timing is
 `/usr/bin/time -p` wall time. A refusal count covers backend or POST refusal;
 the lock count covers `SQLITE_BUSY` and `database is locked`.
 
-| Planned sample | Shift (ports)            | Outcome                                                                                                                  | Wall time | Locks | Refusals | Vite `write EPIPE` |
-| -------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------ | --------: | ----: | -------: | -----------------: |
-| one worker 1   | 5500 (8600/8700/9700)    | 356 passed, 37 skipped                                                                                                   |  1144.60s |     0 |        0 |                644 |
-| one worker 2   | 6100 (9200/9300/10300)   | failed: case 42 did not arm project rename within 30s; stopped at Playwright's configured failure boundary after case 45 |   209.17s |     0 |        0 |                 62 |
-| one worker 3   | 6700 (9800/9900/10900)   | 356 passed, 37 skipped                                                                                                   |  1189.73s |     0 |        0 |                734 |
-| four workers 1 | 7300 (10400/10500/11500) | 356 passed, 37 skipped                                                                                                   |   453.41s |     0 |        0 |                668 |
-| four workers 2 | 7900 (11000/11100/12100) | 356 passed, 37 skipped                                                                                                   |   445.62s |     0 |        0 |                642 |
-| four workers 3 | 8500 (11600/11700/12700) | 356 passed, 37 skipped                                                                                                   |   430.96s |     0 |        0 |                654 |
+| Planned sample | Shift (ports)            | Outcome                                                                                         | Wall time | Locks | Refusals | Vite `write EPIPE` |
+| -------------- | ------------------------ | ----------------------------------------------------------------------------------------------- | --------: | ----: | -------: | -----------------: |
+| one worker 1   | 5500 (8600/8700/9700)    | 356 passed, 37 skipped                                                                          |  1144.60s |     0 |        0 |                644 |
+| one worker 2   | 6100 (9200/9300/10300)   | failed: case 42 did not arm project rename within 30s; manually stopped after case 45, exit 130 |   209.17s |     0 |        0 |                 62 |
+| one worker 3   | 6700 (9800/9900/10900)   | 356 passed, 37 skipped                                                                          |  1189.73s |     0 |        0 |                734 |
+| four workers 1 | 7300 (10400/10500/11500) | 356 passed, 37 skipped                                                                          |   453.41s |     0 |        0 |                668 |
+| four workers 2 | 7900 (11000/11100/12100) | 356 passed, 37 skipped                                                                          |   445.62s |     0 |        0 |                642 |
+| four workers 3 | 8500 (11600/11700/12700) | 356 passed, 37 skipped                                                                          |   430.96s |     0 |        0 |                654 |
 
-The three four-worker runs have a 445.62s median. There is no valid
+The 209.17s for one-worker sample 2 is elapsed time for that failed,
+manually interrupted attempt. The three four-worker runs have a 445.62s median. There is no valid
 three-run one-worker median because planned sample 2 failed; the two completed
 one-worker observations were 1144.60s and 1189.73s. The `write EPIPE` lines
 were Vite websocket proxy noise observed without a Playwright failure in five

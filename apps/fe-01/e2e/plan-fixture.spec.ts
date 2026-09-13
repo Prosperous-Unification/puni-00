@@ -33,6 +33,116 @@ test('resolves a predecessor in an earlier chunk', async ({ page }, testInfo) =>
   expect(chunkSizes).toEqual([200, 1]);
 });
 
+test('implicit recipe order appends rows', async ({ page }, testInfo) => {
+  const seeded = await seedPlan(
+    page,
+    {
+      name: 'Implicit order',
+      rows: [
+        { ref: 'first', name: 'First' },
+        { ref: 'second', name: 'Second' },
+      ],
+    },
+    identity('implicit-order', testInfo.workerIndex),
+  );
+  expect(Object.keys(seeded.rowIds)).toEqual(['first', 'second']);
+});
+
+test('implicit recipe order crosses a chunk boundary', async ({ page }, testInfo) => {
+  const creationBatchSizes: number[] = [];
+  await page.route('**/api/projects/*/commands', async (route) => {
+    const request = route.request().postDataJSON() as { commands: { kind: string }[] };
+    if (request.commands.every((command) => command.kind === 'createWorkItem'))
+      creationBatchSizes.push(request.commands.length);
+    await route.continue();
+  });
+  const rows = Array.from({ length: 201 }, (_, index) => ({
+    ref: `implicit-${String(index)}`,
+    name: `Implicit ${String(index)}`,
+  }));
+  const seeded = await seedPlan(
+    page,
+    { name: 'Implicit cross chunk', rows },
+    identity('implicit-cross', testInfo.workerIndex),
+  );
+  expect(Object.keys(seeded.rowIds)).toEqual(rows.map(({ ref }) => ref));
+  expect(creationBatchSizes).toEqual([200, 1]);
+});
+
+test('chunks 201 directory identities and verifies all links', async ({ page }, testInfo) => {
+  const directoryBatchSizes: number[] = [];
+  await page.route('**/api/directory/commands', async (route) => {
+    const request = route.request().postDataJSON() as { commands: unknown[] };
+    directoryBatchSizes.push(request.commands.length);
+    await route.continue();
+  });
+  const tags = Array.from({ length: 201 }, (_, index) => ({
+    ref: `tag-${String(index)}`,
+    name: `Tag ${String(index)}`,
+  }));
+  const seeded = await seedPlan(
+    page,
+    {
+      name: 'Directory chunks',
+      tags,
+      rows: Array.from({ length: 5 }, (_, index) => ({
+        ref: `row-${String(index)}`,
+        name: `Tags ${String(index)}`,
+        tagRefs: tags.slice(index * 50, (index + 1) * 50).map(({ ref }) => ref),
+      })),
+    },
+    identity('directory-chunks', testInfo.workerIndex),
+  );
+  expect(directoryBatchSizes).toEqual([200, 1]);
+  expect(Object.keys(seeded.tagIds)).toEqual(tags.map(({ ref }) => ref));
+});
+
+for (const fault of ['empty', 'missing', 'wrong', 'duplicate'] as const) {
+  test(`refuses an authored HTTP200 with ${fault} command results before the tree read`, async ({
+    page,
+  }, testInfo) => {
+    let treeReads = 0;
+    let authoredBatches = 0;
+    await page.route('**/api/projects/*/work-items', async (route) => {
+      treeReads += 1;
+      await route.continue();
+    });
+    await page.route('**/api/projects/*/commands', async (route) => {
+      const request = route.request().postDataJSON() as { commands: { kind: string }[] };
+      if (request.commands.every((command) => command.kind === 'createWorkItem')) {
+        await route.continue();
+        return;
+      }
+      authoredBatches += 1;
+      const response = await route.fetch();
+      const answer = (await response.json()) as {
+        results: { index: number; ref?: string; id?: string }[];
+      };
+      const results = answer.results.map((entry) => ({ ...entry }));
+      if (fault === 'empty') results.splice(0);
+      else if (fault === 'missing') results.pop();
+      else if (fault === 'wrong') results[0].index = 999;
+      else results[1].index = 0;
+      await route.fulfill({ response, json: { ...answer, results } });
+    });
+    const rows = Array.from({ length: fault === 'missing' ? 101 : 1 }, (_, index) => ({
+      ref: `row-${String(index)}`,
+      name: `Row ${String(index)}`,
+      estimates: { Dev: { optimistic: 1, realistic: 2, pessimistic: 3 } },
+      tagRefs: ['tag'],
+    }));
+    await expect(
+      seedPlan(
+        page,
+        { name: `Authored ${fault}`, tags: [{ ref: 'tag', name: 'Tag' }], rows },
+        identity(`authored-${fault}`, testInfo.workerIndex),
+      ),
+    ).rejects.toThrow(/postApiProjectsByIdCommands returned|result at/);
+    expect(authoredBatches).toBe(1);
+    expect(treeReads).toBe(0);
+  });
+}
+
 test('an unresolved earlier-chunk ref is refused before a tree sample', async ({
   page,
 }, testInfo) => {
@@ -133,19 +243,27 @@ test('setup refuses a missing row id at the malformed response', async ({ page }
       { name: 'Malformed', rows: [{ ref: 'row', name: 'Malformed' }] },
       identity('malformed', testInfo.workerIndex),
     ),
-  ).rejects.toThrow(/invalid_response|missing identity for row/);
+  ).rejects.toThrow(/invalid_response|has no id for row/);
 });
 
 test('verification catches one successfully omitted estimate', async ({ page }, testInfo) => {
-  // Proof: one setEstimate was removed from the real authored batch while the
-  // tag write still returned 200; the independent tree read named row/Dev.
+  // Proof: one real setEstimate was replaced by clearEstimate while the tag
+  // write and fully correlated batch returned 200; the tree read named row/Dev.
   let omittedEstimates = 0;
   await page.route('**/api/projects/*/commands', async (route) => {
     const request = route.request().postDataJSON() as { commands: Record<string, unknown>[] };
-    const retained = request.commands.filter((command) => command['kind'] !== 'setEstimate');
-    if (retained.length !== request.commands.length) {
-      omittedEstimates += request.commands.length - retained.length;
-      const response = await route.fetch({ postData: JSON.stringify({ commands: retained }) });
+    const commands = request.commands.map((command) =>
+      command['kind'] === 'setEstimate'
+        ? {
+            kind: 'clearEstimate',
+            workItemId: command['workItemId'],
+            stepId: command['stepId'],
+          }
+        : command,
+    );
+    if (commands.some((command) => command['kind'] === 'clearEstimate')) {
+      omittedEstimates += 1;
+      const response = await route.fetch({ postData: JSON.stringify({ commands }) });
       await route.fulfill({ response });
       return;
     }
@@ -173,15 +291,17 @@ test('verification catches one successfully omitted estimate', async ({ page }, 
 });
 
 test('verification catches one successfully dropped directory link', async ({ page }, testInfo) => {
-  // Proof: one patchWorkItem was removed while the real empty batch returned
-  // 200; the independent tree read named the missing tag ids on `row`.
+  // Proof: one real patchWorkItem was replaced by the same patch with no tag
+  // ids; the correlated HTTP200 preceded the tree's missing tag ids on `row`.
   let omittedLinks = 0;
   await page.route('**/api/projects/*/commands', async (route) => {
     const request = route.request().postDataJSON() as { commands: Record<string, unknown>[] };
-    const retained = request.commands.filter((command) => command['kind'] !== 'patchWorkItem');
-    if (retained.length !== request.commands.length) {
-      omittedLinks += request.commands.length - retained.length;
-      const response = await route.fetch({ postData: JSON.stringify({ commands: retained }) });
+    const commands = request.commands.map((command) =>
+      command['kind'] === 'patchWorkItem' ? { ...command, patch: { tagIds: [] } } : command,
+    );
+    if (commands.some((command) => command['kind'] === 'patchWorkItem')) {
+      omittedLinks += 1;
+      const response = await route.fetch({ postData: JSON.stringify({ commands }) });
       await route.fulfill({ response });
       return;
     }
