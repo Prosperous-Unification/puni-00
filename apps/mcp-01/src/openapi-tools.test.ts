@@ -221,8 +221,8 @@ describe('toolsFromDocument, on the generated document', () => {
    * Optimizer Retry belongs because it is a project-scoped lifecycle action with no
    * `commands` equivalent.
    */
-  it('is 33 tools, so a route that appears must be decided about', () => {
-    expect(tools).toHaveLength(33);
+  it('is 34 tools, so a route that appears must be decided about', () => {
+    expect(tools).toHaveLength(34);
     expect(EXCLUDED_PATHS).toHaveLength(3);
   });
 
