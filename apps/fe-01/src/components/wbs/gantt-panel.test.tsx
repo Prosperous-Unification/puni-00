@@ -22,7 +22,7 @@ import { recordCalls } from '@/testing/record-calls';
 import { MONDAY_START, planOf, pointedAtRow, rowAt, sliceAt } from './gantt-fixtures';
 import type { GanttPlan } from './gantt-geometry';
 import { DONE_BAR_STROKE } from './gantt-geometry';
-import { PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR } from './gantt-geometry';
+import { inkOn, PERSON_BAR_COLORS, UNASSIGNED_BAR_COLOR } from './gantt-geometry';
 import {
   appliedGanttHeight,
   axisNumberShown,
@@ -9089,19 +9089,15 @@ describe('a done bar', () => {
     expect(bar.getAttribute('class') ?? '').not.toContain('stroke-dasharray');
     const mark = document.querySelector('[data-done-mark="strip-dev"]');
     if (mark === null) throw new Error('the done bar has no tick');
-    expect(mark.getAttribute('stroke')).toBe(DONE_BAR_STROKE);
-    // On a white badge, because the bar keeps its person's colour and a green
-    // tick reads on none of the eight reliably. Badge and tick share one
-    // transform, so they move as one.
-    const badge = document.querySelector('[data-done-badge="strip-dev"]');
-    if (badge === null) throw new Error('the tick has no badge');
-    expect(badge.getAttribute('fill')).toBe('white');
-    expect(badge.getAttribute('transform')).toBe(mark.getAttribute('transform'));
+    // The tick in the label's ink for this bar's colour — the unassigned grey
+    // takes dark ink — and no badge under it.
+    expect(mark.getAttribute('stroke')).toBe(inkOn(UNASSIGNED_BAR_COLOR));
+    expect(document.querySelector('[data-done-badge]')).toBeNull();
     // The label leaves the tick's width free at its right end, so the
     // ellipsis lands before the mark rather than under it.
     const label = document.querySelector<HTMLElement>('[data-gantt-bar-label="strip-dev"]');
     if (label === null) throw new Error('the done bar has no label');
-    expect(label.style.paddingRight).toBe(`${String(3 + 12 + 6)}px`);
+    expect(label.style.paddingRight).toBe(`${String(3 + 12 + 3)}px`);
     expect(bar.getAttribute('aria-label') ?? '').toContain(
       'Done — drawn over what happened, not over the estimate',
     );

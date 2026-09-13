@@ -4807,32 +4807,19 @@ function GanttChart({
           // units down are the bar's height, whatever the zoom.
           const at = `translate(${String(x + width - (DONE_MARK_PX + 3) / dayPx)}, ${String(bar.rowIndex + BAR_INSET)}) scale(${String(1 / dayPx)}, ${String(BAR_HEIGHT / DONE_MARK_PX)})`;
           return [
-            // The white badge under the tick: the bar keeps its person's
-            // colour, which is any of eight, and a green tick reads on none of
-            // them reliably — Dany, 2026-09-13: "the icon is better with white
-            // background". A pill three pixels wider than the mark on each
-            // side, in the SVG so the export keeps it, `pointerEvents="none"`
-            // so the bar's click is not holed.
-            <rect
-              key={`${bar.sliceId}-done-badge`}
-              data-done-badge={bar.sliceId}
-              x={-1.5}
-              y={1.5}
-              width={DONE_MARK_PX + 3}
-              height={9}
-              rx={3}
-              transform={at}
-              fill="white"
-              pointerEvents="none"
-            />,
             <path
               key={`${bar.sliceId}-done`}
               data-done-mark={bar.sliceId}
               d="M1.5 6 L4.5 9 L10.5 2.5"
               transform={at}
               fill="none"
-              stroke={DONE_BAR_STROKE}
-              strokeWidth={2}
+              // The label's own ink — dark on a light bar, white on a dark one
+              // — so the tick reads on whichever of the eight person colours
+              // the bar wears. The green is the outline's to say; a green tick
+              // blended into slate and a white pill under it looked bolted on
+              // (Dany, 2026-09-13, two screenshots).
+              stroke={inkOn(bar.personColor)}
+              strokeWidth={2.5}
               strokeLinecap="round"
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
@@ -4986,7 +4973,7 @@ function GanttChart({
                 // for a tick keeps the whole width for its words.
                 paddingRight:
                   bar.done && width * dayPx >= DONE_MARK_PX + 6
-                    ? LABEL_PAD_PX + DONE_MARK_PX + 6
+                    ? LABEL_PAD_PX + DONE_MARK_PX + 3
                     : LABEL_PAD_PX,
               }}
             >
