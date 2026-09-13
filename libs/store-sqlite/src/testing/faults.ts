@@ -1,6 +1,11 @@
-import type { SqliteLateWriteEvidence, SqliteLateWritePoint } from '../late-write-seam';
+import type {
+  SqliteLateWriteEvidence,
+  SqliteLateWritePoint,
+  SqliteLateWriteSeam,
+} from '../late-write-seam';
 import type { OpenSqliteSourceOptions, SqliteSource } from '../source';
 import { openSqliteSourceWithLateWriteSeam } from '../source';
+import { createNonAtomicSubtreeMutantForTesting } from '../work-item';
 
 export type { SqliteLateWritePoint } from '../late-write-seam';
 
@@ -58,11 +63,14 @@ export function sqliteLateWriteControl<const Phase extends SqliteLateWritePoint>
 export function openSqliteSourceWithFault(
   options: OpenSqliteSourceOptions,
   control: SqliteLateWriteControl<SqliteLateWritePoint>,
+  reachProof: () => void = () => undefined,
 ): SqliteSource {
   return openSqliteSourceWithLateWriteSeam(options, {
     reach(phase, evidence) {
-      if (control.reachTransactionWrite(phase, evidence))
+      if (control.reachTransactionWrite(phase, evidence)) {
+        reachProof();
         throw new Error(`injected SQLite fault at ${phase}`);
+      }
     },
   });
 }
@@ -71,15 +79,22 @@ export function openSqliteSourceWithFault(
 export function openSqliteSourceWithNonAtomicSubtreeFault(
   options: OpenSqliteSourceOptions,
   control: SqliteLateWriteControl<'subtree-final-satellite'>,
+  reachProof: () => void = () => undefined,
 ): SqliteSource {
-  return openSqliteSourceWithLateWriteSeam(
-    options,
-    {
-      reach(phase, evidence) {
-        if (control.reachTransactionWrite(phase, evidence))
-          throw new Error(`injected SQLite fault at ${phase}`);
-      },
+  const lateWrite = {
+    reach(phase, evidence) {
+      if (control.reachTransactionWrite(phase, evidence)) {
+        reachProof();
+        throw new Error(`injected SQLite fault at ${phase}`);
+      }
     },
-    false,
-  );
+  } satisfies SqliteLateWriteSeam;
+  const source = openSqliteSourceWithLateWriteSeam(options, lateWrite);
+  return {
+    ...source,
+    stores: {
+      ...source.stores,
+      subtrees: createNonAtomicSubtreeMutantForTesting(source.db, source.gate, lateWrite),
+    },
+  };
 }

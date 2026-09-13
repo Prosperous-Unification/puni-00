@@ -905,12 +905,13 @@ export class WorkItemRepository implements WorkItemStore {
  * See `openspec/changes/duplicate-subtree/design.md` for why the alternative —
  * atomic rows, then the other three stores in order — was rejected.
  */
+const nonAtomicSubtreeMutants = new WeakSet<SubtreeRepository>();
+
 export class SubtreeRepository implements SubtreeStore {
   constructor(
     private readonly db: SQLiteBunDatabase,
     private readonly gate: Gate,
     private readonly lateWrite: SqliteLateWriteSeam = inertSqliteLateWriteSeam,
-    private readonly isAtomic = true,
   ) {}
 
   /**
@@ -1093,8 +1094,23 @@ export class SubtreeRepository implements SubtreeStore {
         );
         this.lateWrite.reach('subtree-final-satellite', { satelliteKeys });
       };
-      if (this.isAtomic) this.db.transaction(write);
+      if (!nonAtomicSubtreeMutants.has(this)) this.db.transaction(write);
       else write(this.db);
     });
   }
+}
+
+/**
+ * Creates the sole non-atomic subtree mutant for adapter proof fixtures.
+ *
+ * @internal
+ */
+export function createNonAtomicSubtreeMutantForTesting(
+  db: SQLiteBunDatabase,
+  gate: Gate,
+  lateWrite: SqliteLateWriteSeam,
+): SubtreeStore {
+  const repository = new SubtreeRepository(db, gate, lateWrite);
+  nonAtomicSubtreeMutants.add(repository);
+  return repository;
 }

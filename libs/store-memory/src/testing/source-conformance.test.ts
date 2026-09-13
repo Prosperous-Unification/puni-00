@@ -1,8 +1,11 @@
 import {
+  assertCompleteStateAlternative,
+  assertSeedState,
   brokenSource,
   type Capabilities,
   type CaseFixture,
   type CaseId,
+  completeSubtreeCopy,
   createFaultControl,
   defineFault,
   DEPENDENCY_SURVIVOR_IDS,
@@ -14,6 +17,7 @@ import {
   type FaultProof,
   type FaultRun,
   PROGRESS_SENTINEL_STEP_ID,
+  readSubtreePublicState,
   recordFaultProof,
   replaceMethod,
   runCases,
@@ -311,11 +315,14 @@ function transactionalSubtrees(source: MemorySource): SubtreeStore {
 
 function memoryLateSource(
   control: MemoryLateWriteControl<'subtree-final-satellite'>,
+  reachProof?: () => void,
 ): MemorySource {
   const fixture = openMemorySourceWithLateWriteSeam({
     reach(phase, evidence) {
-      if (control.reachStagedWrite(phase, evidence))
+      if (control.reachStagedWrite(phase, evidence)) {
+        reachProof?.();
         throw new Error(`injected memory fault at ${phase}`);
+      }
     },
   });
   return {
@@ -1570,14 +1577,19 @@ const subtreeDependencyBackingFault = defineFault({
     return {
       ...source,
       async insertSubtree(copy, stamp) {
-        if (!control.reach('subtrees.insertSubtree:complete-copy:dependencies'))
-          return source.insertSubtree(copy, stamp);
+        if (!control.isArmed()) return source.insertSubtree(copy, stamp);
         await source.insertSubtree({ ...copy, dependencies: [] }, stamp);
         for (const dependency of copy.dependencies)
           await isolated.add(structuredClone(dependency), stamp);
         expect(await isolated.listByProject(DETERMINISTIC_SEED.projectIds[0])).toEqual([
           ...copy.dependencies,
         ]);
+        assertCompleteStateAlternative(
+          await readSubtreePublicState(readersOf(source), DETERMINISTIC_SEED.projectIds[0]),
+          DETERMINISTIC_SEED,
+          [{ dependencyIds: copy.dependencies.map(({ id }) => id) }, {}],
+        );
+        control.reach('subtrees.insertSubtree:complete-copy:dependencies');
       },
     };
   },
@@ -1590,18 +1602,34 @@ const subtreeRemovedMeasureFault = defineFault({
   mutate(source: MemorySource, control) {
     return {
       ...source,
-      insertSubtree(copy, stamp) {
-        if (!control.reach('subtrees.insertSubtree:complete-copy:removed-measure'))
-          return source.insertSubtree(copy, stamp);
-        return source.insertSubtree(
-          {
-            ...copy,
-            removedMeasures: copy.removedMeasures.map((key) =>
-              key.metric === 'token_actual' ? { ...key, metric: 'token_estimate' } : key,
-            ),
-          },
-          stamp,
+      async insertSubtree(copy, stamp) {
+        if (!control.isArmed()) return source.insertSubtree(copy, stamp);
+        const metrics = ['token_estimate', 'token_actual', 'hours_actual'] as const;
+        const pairWide = copy.removedMeasures.flatMap(({ workItemId, stepId }) =>
+          metrics.map((metric) => ({
+            workItemId,
+            stepId,
+            metric,
+          })),
         );
+        await source.insertSubtree({ ...copy, removedMeasures: pairWide }, stamp);
+        const [firstItemId, removalItemId] = DETERMINISTIC_SEED.workItemIds[0];
+        const [devStepId, qaStepId] = DETERMINISTIC_SEED.stepIds[0];
+        assertCompleteStateAlternative(
+          await readSubtreePublicState(readersOf(source), DETERMINISTIC_SEED.projectIds[0]),
+          DETERMINISTIC_SEED,
+          [
+            {
+              measureKeys: [
+                `${removalItemId}\u0000${devStepId}\u0000token_actual`,
+                `${removalItemId}\u0000${devStepId}\u0000hours_actual`,
+                `${firstItemId}\u0000${qaStepId}\u0000token_estimate`,
+              ],
+            },
+            {},
+          ],
+        );
+        control.reach('subtrees.insertSubtree:complete-copy:removed-measure');
       },
     };
   },
@@ -1615,8 +1643,7 @@ const subtreeRollbackFault = defineFault({
     return {
       ...source,
       insertSubtree(copy, stamp) {
-        if (!control.reach('subtrees.insertSubtree:late-failure:unstaged'))
-          return source.insertSubtree(copy, stamp);
+        if (!control.isArmed()) return source.insertSubtree(copy, stamp);
         return source.stores.subtrees.insertSubtree(copy, stamp);
       },
     };
@@ -1632,6 +1659,8 @@ interface FaultContext {
 async function proveFault(
   fault: Fault<MemorySource>,
   openSource: OpenSource = openConformanceMemorySource,
+  decorate: (source: MemorySource) => MemorySource = (source) => source,
+  prepare: (source: MemorySource) => Promise<void> = () => Promise.resolve(),
 ): Promise<FaultProof> {
   return recordFaultProof(fault, {
     assertion: `${fault.caseId} reports passed`,
@@ -1640,12 +1669,26 @@ async function proveFault(
         fault.caseId === 'subtrees.insertSubtree:late-failure'
           ? memoryLateWriteControl('subtree-final-satellite')
           : null;
-      const baseOpen = lateControl === null ? openSource : () => memoryLateSource(lateControl);
-      const source = await seedMemorySource(brokenSource(baseOpen, run), async (seeded) => {
-        if (fault.caseId.startsWith('progress.')) await seedProgressStep(seeded);
-        if (fault.caseId.startsWith('dependencies.')) await seedDependencyWorkItems(seeded);
-        if (fault.caseId.startsWith('subtrees.')) await seedSubtreeRecords(seeded);
-      });
+      const baseOpen =
+        lateControl === null
+          ? openSource
+          : () =>
+              memoryLateSource(lateControl, () => {
+                run.control.reach(run.control.phase);
+              });
+      const source = await seedMemorySource(
+        brokenSource(() => decorate(baseOpen()), run),
+        async (seeded) => {
+          if (fault.caseId.startsWith('progress.')) await seedProgressStep(seeded);
+          if (fault.caseId.startsWith('dependencies.')) await seedDependencyWorkItems(seeded);
+          if (fault.caseId.startsWith('subtrees.')) await seedSubtreeRecords(seeded);
+        },
+      );
+      try {
+        await prepare(source);
+      } catch (failure) {
+        return throwAfterMemoryCleanup(failure, source);
+      }
       let wasOpened = false;
       const takeFixture = <Family extends ExistingFamily>(
         family: Family,
@@ -1719,6 +1762,63 @@ function failedCase(report: ExecutionReport, caseId: CaseId) {
 
 interface MemoryLifecycleProbe {
   closeCalls: number;
+}
+
+interface SubtreePrewriteProbe extends MemoryLifecycleProbe {
+  attempts: number;
+  state: Awaited<ReturnType<typeof readSubtreePublicState>>[] | null;
+}
+
+function rejectSubtreeBeforeWrite(
+  source: MemorySource,
+  probe: SubtreePrewriteProbe,
+  message: string,
+): MemorySource {
+  const reject = async (_copy: SubtreeCopy, _stamp: WriteStamp): Promise<void> => {
+    probe.attempts += 1;
+    probe.state = await Promise.all(
+      DETERMINISTIC_SEED.projectIds.map((projectId) =>
+        readSubtreePublicState(readersOf(source), projectId),
+      ),
+    );
+    throw new Error(message);
+  };
+  return withStores(
+    {
+      ...source,
+      insertSubtree: reject,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    },
+    {
+      subtrees: replaceMethod(source.stores.subtrees, 'insertSubtree', () => reject),
+    },
+  );
+}
+
+function observeSubtreeWrites(
+  source: MemorySource,
+  probe: MemoryLifecycleProbe & { attempts: number },
+) {
+  return withStores(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    },
+    {
+      subtrees: replaceMethod(source.stores.subtrees, 'insertSubtree', (insertSubtree) => {
+        return (copy, stamp) => {
+          probe.attempts += 1;
+          return insertSubtree(copy, stamp);
+        };
+      }),
+    },
+  );
 }
 
 interface DirectoryPrewriteProbe extends MemoryLifecycleProbe {
@@ -1826,20 +1926,155 @@ describe('memory existing source conformance', () => {
       proveFault(subtreeDependencyBackingFault),
       proveFault(subtreeRemovedMeasureFault),
     ]);
-    // Proof: disabling both corruptions returned two `assertion-passed`
-    // proofs here (`Expected -2 / Received +2`) instead of observed failures.
+    // Proof: independently disabling isolation changed the first proof to
+    // `assertion-passed`; disabling pair-wide deletion changed the second.
     expect(proofs.map(({ kind }) => kind)).toEqual(['observed', 'observed']);
     const failures = proofs.map((proof) =>
       proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
     );
-    // Proof: the isolated dependency fault failed the shared complete-state
-    // assertion with `subtree-copy-dependency` as the exact missing edge.
-    expect(failures[0]).toContain('subtree-copy-dependency');
-    // Proof: the wrong-key fault failed with the complete surviving
-    // token_actual record, including value 102 and recordedAt 132.
-    expect(failures[1]).toContain('"metric": "token_actual"');
-    expect(failures[1]).toContain('"value": 102');
-    expect(failures[1]).toContain('"recordedAt": 132');
+    // Proof: the isolated dependency fault reaches only after exact prerequisite
+    // state, then fails on this signed complete public edge.
+    expect(failures[0]).toContain(`-       "id": "subtree-copy-dependency",
+-       "predecessorId": "subtree-copy-root",
+-       "projectId": "project-a",
+-       "successorId": "subtree-copy-child",
+-     },
+-     {`);
+    // Proof: pair-wide deletion reaches only after exact corrupted state, then
+    // loses this signed complete unrequested triple-key survivor.
+    expect(failures[1]).toContain(`-     {
+-       "metric": "token_actual",
+-       "recordedAt": 132,
+-       "stepId": "step-a-dev",
+-       "value": 102,
+-       "workItemId": "work-a-two",
+-     },`);
+  });
+
+  it('classifies subtree pre-write failures before their real proof phases', async () => {
+    const dependencyProbe: SubtreePrewriteProbe = { attempts: 0, closeCalls: 0, state: null };
+    const measureProbe: SubtreePrewriteProbe = { attempts: 0, closeCalls: 0, state: null };
+    const rollbackProbe: SubtreePrewriteProbe = { attempts: 0, closeCalls: 0, state: null };
+    const [dependency, measure, rollback] = await Promise.all([
+      proveFault(subtreeDependencyBackingFault, openConformanceMemorySource, (source) =>
+        rejectSubtreeBeforeWrite(
+          source,
+          dependencyProbe,
+          'subtree-copy-dependency pre-write rejection',
+        ),
+      ),
+      proveFault(subtreeRemovedMeasureFault, openConformanceMemorySource, (source) =>
+        rejectSubtreeBeforeWrite(
+          source,
+          measureProbe,
+          'token_actual value 102 recordedAt 132 pre-write rejection',
+        ),
+      ),
+      proveFault(subtreeRollbackFault, openConformanceMemorySource, (source) =>
+        rejectSubtreeBeforeWrite(
+          source,
+          rollbackProbe,
+          'subtree-copy-root subtree-final-satellite pre-write rejection',
+        ),
+      ),
+    ]);
+
+    // Proof: reaching in the outer decorators classified both ID-bearing
+    // pre-write errors as observed shared failures instead of phase failures.
+    expect([dependency.kind, measure.kind, rollback.kind]).toEqual([
+      'phase-failed',
+      'phase-failed',
+      'phase-failed',
+    ]);
+    expect([dependencyProbe.attempts, measureProbe.attempts, rollbackProbe.attempts]).toEqual([
+      1, 1, 1,
+    ]);
+    expect([dependencyProbe.closeCalls, measureProbe.closeCalls, rollbackProbe.closeCalls]).toEqual(
+      [1, 1, 1],
+    );
+    for (const probe of [dependencyProbe, measureProbe, rollbackProbe]) {
+      if (probe.state === null) throw new Error('subtree pre-write state was not captured');
+      assertSeedState(probe.state[0], DETERMINISTIC_SEED, 0);
+      assertSeedState(probe.state[1], DETERMINISTIC_SEED, 1);
+    }
+    if (!('phase' in dependency) || !('phase' in measure) || !('phase' in rollback))
+      throw new Error('subtree pre-write proof did not report a phase');
+    expect([dependency.phase, measure.phase, rollback.phase]).toEqual([
+      'subtrees.insertSubtree:complete-copy:dependencies',
+      'subtrees.insertSubtree:complete-copy:removed-measure',
+      'subtrees.insertSubtree:late-failure:unstaged',
+    ]);
+  });
+
+  it('refuses a late proof whose populated estimate prerequisite is missing', async () => {
+    const probe = { attempts: 0, closeCalls: 0 };
+    const proof = await proveFault(
+      subtreeRollbackFault,
+      openConformanceMemorySource,
+      (source) => observeSubtreeWrites(source, probe),
+      async (source) => {
+        for (const estimate of subtreeSeedRecords(DETERMINISTIC_SEED).estimates) {
+          await source.stores.estimates.remove(
+            estimate.workItemId,
+            estimate.stepId,
+            DETERMINISTIC_SEED.stamps[0],
+          );
+        }
+      },
+    );
+
+    // Proof: snapshotting without assertSeedState returned assertion-passed;
+    // the repaired case refuses the proof before any subtree write can reach.
+    expect(proof.kind).toBe('phase-failed');
+    if (proof.kind !== 'phase-failed') throw new Error(`expected phase failure, got ${proof.kind}`);
+    expect(proof.failure).toBe('fault did not reach subtrees.insertSubtree:late-failure:unstaged');
+    expect(probe).toEqual({ attempts: 0, closeCalls: 1 });
+  });
+
+  it('rolls back a copied row when its explicit team set is refused', async () => {
+    let closeCalls = 0;
+    const source = await seedMemorySource(() => {
+      const opened = openConformanceMemorySource();
+      return {
+        ...opened,
+        async close() {
+          closeCalls += 1;
+          await opened.close();
+        },
+      };
+    }, seedSubtreeRecords);
+    try {
+      const before = await Promise.all(
+        DETERMINISTIC_SEED.projectIds.map((projectId) =>
+          readSubtreePublicState(readersOf(source), projectId),
+        ),
+      );
+      assertSeedState(before[0], DETERMINISTIC_SEED, 0);
+      assertSeedState(before[1], DETERMINISTIC_SEED, 1);
+      const copy = completeSubtreeCopy(DETERMINISTIC_SEED);
+      const refused: SubtreeCopy = {
+        ...copy,
+        rows: copy.rows.map((row, index) =>
+          index === 0 ? { ...row, teamIds: ['subtree-unknown-team'] } : structuredClone(row),
+        ),
+      };
+      const write = source.insertSubtree(refused, DETERMINISTIC_SEED.stamps[1]);
+      expect(write).rejects.toThrow('cannot restore team set for subtree-copy-root: unknown_team');
+      await write.catch(() => undefined);
+      // Proof: removing only the refusal guard made this write resolve and
+      // commit both rows, with the root retaining the wrong `["team-a"]` set.
+      expect(
+        await Promise.all(
+          DETERMINISTIC_SEED.projectIds.map((projectId) =>
+            readSubtreePublicState(readersOf(source), projectId),
+          ),
+        ),
+      ).toEqual(before);
+      expect(closeCalls).toBe(0);
+    } finally {
+      await source.close();
+    }
+    expect(closeCalls).toBe(1);
   });
 
   it('reinjects an unstaged terminal subtree failure through committed memory state', async () => {
@@ -1849,7 +2084,29 @@ describe('memory existing source conformance', () => {
     if (proof.kind !== 'observed') throw new Error(`expected observed proof, got ${proof.kind}`);
     // Proof: bypassing the staged MemoryState swap failed the complete public
     // snapshot with the escaped `subtree-copy-root` record after the terminal throw.
-    expect(Bun.stripANSI(proof.observedFailure)).toContain('subtree-copy-root');
+    expect(Bun.stripANSI(proof.observedFailure)).toContain(`+         "deadline": "2026-09-30",
++         "externalRefs": [],
++         "frozenNumber": "030",
++         "id": "subtree-copy-root",
++         "maxParallel": 2,
++         "name": "Copied root",
++         "notes": "all fields travel",
++         "parentId": null,
++         "position": 20,
++         "priority": 2,
++         "projectId": "project-a",
++         "revision": 0,
++         "serviceId": "service-a",
++         "serviceIds": [],
++         "serviceTeamId": "team-a",
++         "startNoEarlierThan": "2026-09-15",
++         "startNoEarlierThanReason": "contract start",
++         "tagIds": [],
++         "teamIds": [
++           "team-a",
++           "team-b",
++         ],
++         "typeIds": [],`);
   });
   it('closes once when ordinary progress companion seeding fails', async () => {
     const probe: MemoryLifecycleProbe = { closeCalls: 0 };

@@ -40,4 +40,4 @@ export * from './step-measure';
 export * from './step-progress';
 export * from './step-reference';
 export * from './user';
-export * from './work-item';
+export { SubtreeRepository, WORK_ITEM_COLUMNS, WorkItemRepository } from './work-item';

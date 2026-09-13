@@ -8,6 +8,7 @@ import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
 import { describe, expect, it } from 'bun:test';
 
+import * as publicSqlite from '../index';
 import { runMigrations } from '../migrate';
 import { openSqliteSourceWithFault, sqliteLateWriteControl } from './faults';
 
@@ -66,7 +67,22 @@ const subtree = (id: string): SubtreeCopy => ({
   removedMeasures: [],
 });
 
+function productionConstructionCannotDisableSubtreeAtomicity(
+  db: Parameters<typeof publicSqlite.buildStores>[0],
+): void {
+  // @ts-expect-error the ordinary catalog has no subtree atomicity argument
+  publicSqlite.buildStores(db, publicSqlite.OPEN, undefined, false);
+  // @ts-expect-error the ordinary repository has no subtree atomicity argument
+  new publicSqlite.SubtreeRepository(db, publicSqlite.OPEN, undefined, false);
+}
+
 describe('SQLite conformance fault controls', () => {
+  it('keeps the non-atomic subtree mutant outside the ordinary public barrel', () => {
+    expect(typeof productionConstructionCannotDisableSubtreeAtomicity).toBe('function');
+    // Proof: exporting the mutant factory from index changed this to true and
+    // let ordinary adapter imports opt out of subtree transactions.
+    expect('createNonAtomicSubtreeMutantForTesting' in publicSqlite).toBe(false);
+  });
   it('arms a named transaction write point per run', () => {
     const control = sqliteLateWriteControl('saved-plan-schedule-body');
 

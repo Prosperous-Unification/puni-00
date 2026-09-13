@@ -1317,3 +1317,75 @@ deploy, h2puni SHA gate, commit, push, merge, and archive are skipped:
 the task authorizes the three relevant project targets and forbids repository
 publication or integration. Task 4.3 remains unchecked pending Astra review;
 Task 5.1 is untouched.
+
+### Task 4.3 / Epic 4 Astra repair — proof timing, measure identity, and mutant boundaries
+
+Both shared late-failure runs now assert the complete seeded A/B state before
+arming or snapshotting. Removing the seeded estimate makes the permanent memory
+and SQLite prerequisite proofs `phase-failed` before insertion (`attempts: 0`)
+with complete A/B state and one close. Removing the shared prerequisite instead
+changed the proof to `assertion-passed`.
+
+The complete-copy dependency faults reach only after the real base copy, the
+adapter-owned isolated-edge persistence, and an exact complete public-state
+prerequisite. The shared assertion reports the signed missing record with ID
+`subtree-copy-dependency`, project `project-a`, predecessor
+`subtree-copy-root`, and successor `subtree-copy-child`. Independently disabling
+isolation changed the proof kinds to `[assertion-passed, observed]`.
+
+Removed-measure targets are now distributed across pairs. Removing
+`token_estimate` from `work-a-two` / `step-a-dev` must preserve its unrequested
+`token_actual` sibling with value 102 at recordedAt 132. The memory and SQLite
+pair-wide faults delete all metrics at that pair through the real insert path,
+verify the exact corrupted public prerequisite, and then reach. Disabling only
+the pair-wide deletion changed the proof kinds to `[observed,
+assertion-passed]`; the shared complete-state diff names the full missing
+metric/value/time record.
+
+Rollback reach now comes only from the actual adapter final-actual callback
+after earlier writes. The memory fault bypasses the staged state swap; the
+SQLite fault uses a narrow internal non-atomic repository factory. Each fails
+the post-rejection complete snapshot on the full escaped copied-root work-item
+record. Restoring staging or the transaction made the expected `observed`
+proof become `assertion-passed`.
+
+Three copied-ID/terminal-text pre-write failures per adapter stay
+`phase-failed`, leave complete A/B public state unchanged, and close exactly
+once. Moving generic reach back before the real insert changed these proofs to
+`observed`, demonstrating that message substrings cannot certify the named
+phase. The memory staged-call guard also has a permanent unknown copied-root
+team test. Removing only that guard failed with `Expected promise that
+rejects`; the operation resolved and committed both copied rows with the root
+retaining the wrong `team-a` state.
+
+Ordinary SQLite construction no longer accepts the transaction-disabling
+boolean. The non-atomic repository factory is excluded from the public barrel
+and used only by the adapter testing fault factory. Exporting it made the
+runtime boundary assertion fail with expected false and received true; compile
+checks also reject fourth arguments to `buildStores` and the repository
+constructor. The restored internal-seam rollback proof passes.
+
+Fresh restored evidence:
+
+- Focused source repair files: memory 6/0/184; SQLite 5/0/202.
+- Existing mixed memory subtree coverage: 14/0/176; SQLite work-item and fault
+  coverage: 9/0/25.
+- Complete source-conformance files: memory 34/0/2,225; SQLite 31/0/3,041.
+- Uncached targets: conformance 29/0/48; store-memory 55/0/2,423;
+  store-sqlite 677/0/5,052 across 60 files.
+- All six uncached lint/typecheck targets passed for conformance, store-memory,
+  and store-sqlite. Prettier check passed for all nine changed code/test files,
+  and the final diff check passed.
+- Pinned OpenSpec 1.3.0 strict validation passed; all-artifact JSON validation
+  reported 75 passed and 0 failed.
+
+Nx could not create sandboxed daemon/plugin-worker sockets and completed using
+its documented in-process fallback. A raw recursive
+`bun test libs/conformance/src` run discovered stale generated `dist/out-tsc`
+copies and failed inside that generated tree; the authoritative uncached
+`conformance:test` target passed, so the polluted recursive run is recorded and
+not treated as source evidence. Full workspace, build, browser, deploy, and the
+h2puni SHA gate were skipped because this repair is scoped to the three
+relevant project targets and no commit was authorized. Commit, push, merge,
+archive, and deploy were not performed. Task 4.3 remains unchecked pending
+Astra rereview; Task 5.1 remains untouched.

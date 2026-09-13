@@ -132,6 +132,13 @@ export function subtreeSeedRecords(seed: SeededPlan) {
         recordedAt: 135,
       },
       {
+        workItemId: firstItemId,
+        stepId: qaStepId,
+        metric: 'token_actual',
+        value: 107,
+        recordedAt: 137,
+      },
+      {
         workItemId: otherItemId,
         stepId: otherStepId,
         metric: 'token_actual',
@@ -254,14 +261,23 @@ export function completeSubtreeCopy(seed: SeededPlan): SubtreeCopy {
     removedProgress: [{ workItemId: removalItemId, stepId: devStepId }],
     removedMeasures: [
       { workItemId: removalItemId, stepId: devStepId, metric: 'token_estimate' },
-      { workItemId: removalItemId, stepId: devStepId, metric: 'token_actual' },
-      { workItemId: removalItemId, stepId: devStepId, metric: 'hours_actual' },
+      { workItemId: firstItemId, stepId: qaStepId, metric: 'token_actual' },
+      { workItemId: removalItemId, stepId: qaStepId, metric: 'hours_actual' },
     ],
   };
 }
 
 function withoutRevisions(state: SubtreePublicState) {
-  return { ...state, workItems: state.workItems.map(({ revision: _revision, ...row }) => row) };
+  return {
+    workItems: state.workItems.map(({ revision: _revision, ...row }) => row),
+    estimates: [...state.estimates],
+    actuals: [...state.actuals],
+    progress: [...state.progress],
+    measures: [...state.measures],
+    dependencies: [...state.dependencies],
+    assignments: [...state.assignments],
+    assignmentPeople: [...state.assignmentPeople],
+  };
 }
 
 function revisionsOf(state: SubtreePublicState) {
@@ -335,7 +351,12 @@ function expectedAfter(seed: SeededPlan): Omit<SubtreePublicState, 'workItems'> 
         ...seeded.measures.filter(
           (row) =>
             firstProjectIds.has(row.workItemId) &&
-            !(row.workItemId === removalItemId && row.stepId === devStepId),
+            !copy.removedMeasures.some(
+              (removed) =>
+                removed.workItemId === row.workItemId &&
+                removed.stepId === row.stepId &&
+                removed.metric === row.metric,
+            ),
         ),
         ...copy.measures,
       ],
@@ -365,14 +386,28 @@ function expectedAfter(seed: SeededPlan): Omit<SubtreePublicState, 'workItems'> 
   };
 }
 
-function assertCompleteState(actual: SubtreePublicState, seed: SeededPlan): void {
-  // Proof: routing copied dependencies to isolated adapter-owned storage on
-  // either source removes the complete `subtree-copy-dependency` record here.
-  // Proof: changing the token_actual removal key to token_estimate leaves the
-  // complete `{workItemId, stepId, metric, value, recordedAt}` row here.
-  // Proof: before memory restored explicit structural team sets, this failed
-  // with team-b missing from the root and the child's teamIds received as [].
-  expect(withoutRevisions(actual)).toEqual(expectedAfter(seed));
+export interface MissingSubtreeRecords {
+  readonly dependencyIds?: readonly string[];
+  readonly measureKeys?: readonly string[];
+}
+
+function expectedWithMissing(seed: SeededPlan, missing: MissingSubtreeRecords) {
+  const expected = expectedAfter(seed);
+  const missingDependencyIds = new Set(missing.dependencyIds ?? []);
+  const missingMeasureKeys = new Set(missing.measureKeys ?? []);
+  return {
+    workItems: [...expected.workItems],
+    estimates: [...expected.estimates],
+    actuals: [...expected.actuals],
+    progress: [...expected.progress],
+    dependencies: expected.dependencies.filter(({ id }) => !missingDependencyIds.has(id)),
+    measures: expected.measures.filter((row) => !missingMeasureKeys.has(measureKey(row))),
+    assignments: [...expected.assignments],
+    assignmentPeople: [...expected.assignmentPeople],
+  };
+}
+
+function assertCompleteRevisions(actual: SubtreePublicState, seed: SeededPlan): void {
   const revisions = revisionsOf(actual);
   expect([
     [
@@ -384,10 +419,38 @@ function assertCompleteState(actual: SubtreePublicState, seed: SeededPlan): void
     [
       { id: SUBTREE_COPY_IDS.child, revision: 0 },
       { id: SUBTREE_COPY_IDS.root, revision: 0 },
-      { id: seed.workItemIds[0][0], revision: 7 },
+      { id: seed.workItemIds[0][0], revision: 9 },
       { id: seed.workItemIds[0][1], revision: 11 },
     ],
   ]).toContainEqual(revisions);
+}
+
+/** Compares one public snapshot with the complete independently built subtree state. */
+export function assertCompleteState(
+  actual: SubtreePublicState,
+  seed: SeededPlan,
+  missing: MissingSubtreeRecords = {},
+): void {
+  // Proof: routing copied dependencies to isolated adapter-owned storage on
+  // either source removes the complete `subtree-copy-dependency` record here.
+  // Proof: changing the token_actual removal key to token_estimate leaves the
+  // complete `{workItemId, stepId, metric, value, recordedAt}` row here.
+  // Proof: before memory restored explicit structural team sets, this failed
+  // with team-b missing from the root and the child's teamIds received as [].
+  expect(withoutRevisions(actual)).toEqual(expectedWithMissing(seed, missing));
+  assertCompleteRevisions(actual, seed);
+}
+
+/** Accepts only explicitly enumerated complete post-write prerequisite states. */
+export function assertCompleteStateAlternative(
+  actual: SubtreePublicState,
+  seed: SeededPlan,
+  alternatives: readonly MissingSubtreeRecords[],
+): void {
+  expect(alternatives.map((missing) => expectedWithMissing(seed, missing))).toContainEqual(
+    withoutRevisions(actual),
+  );
+  assertCompleteRevisions(actual, seed);
 }
 
 function expectedSeedProject(seed: SeededPlan, projectIndex: 0 | 1) {
@@ -436,13 +499,17 @@ function expectedSeedProject(seed: SeededPlan, projectIndex: 0 | 1) {
   };
 }
 
-function assertSeedState(actual: SubtreePublicState, seed: SeededPlan, projectIndex: 0 | 1): void {
+export function assertSeedState(
+  actual: SubtreePublicState,
+  seed: SeededPlan,
+  projectIndex: 0 | 1,
+): void {
   expect(withoutRevisions(actual)).toEqual(expectedSeedProject(seed, projectIndex));
   const memory = seed.workItemIds[projectIndex].map((id) => ({ id, revision: 0 }));
   const sqlite =
     projectIndex === 0
       ? [
-          { id: seed.workItemIds[0][0], revision: 6 },
+          { id: seed.workItemIds[0][0], revision: 7 },
           { id: seed.workItemIds[0][1], revision: 10 },
         ]
       : [
@@ -481,6 +548,8 @@ export function subtreeRegistrations(open: OpenCase<'subtrees'>): readonly CaseR
         const before = await Promise.all(
           seed.projectIds.map((projectId) => readSubtreePublicState(readers, projectId)),
         );
+        assertSeedState(before[0], seed, 0);
+        assertSeedState(before[1], seed, 1);
         scenario.arm();
         const rejected = port.insertSubtree(
           structuredClone(completeSubtreeCopy(seed)),

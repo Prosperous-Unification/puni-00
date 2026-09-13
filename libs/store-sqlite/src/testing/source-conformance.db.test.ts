@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import {
+  assertCompleteStateAlternative,
+  assertSeedState,
   brokenSource,
   type CaseFixture,
   type CaseId,
@@ -16,6 +18,7 @@ import {
   type FaultProof,
   type FaultRun,
   PROGRESS_SENTINEL_STEP_ID,
+  readSubtreePublicState,
   recordFaultProof,
   replaceMethod,
   runCases,
@@ -23,7 +26,14 @@ import {
   type SourceReaders,
   subtreeSeedRecords,
 } from '@wbs/conformance';
-import type { StoredDependency, TeamWithServices, TransactionalStores, User } from '@wbs/core';
+import type {
+  StoredDependency,
+  SubtreeCopy,
+  TeamWithServices,
+  TransactionalStores,
+  User,
+  WriteStamp,
+} from '@wbs/core';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { DEFAULT_ESTIMATE_RULE } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
@@ -1706,8 +1716,7 @@ const subtreeDependencyBackingFault = defineFault({
     return withStores(source, {
       subtrees: replaceMethod(source.stores.subtrees, 'insertSubtree', (insertSubtree) => {
         return async (copy, stamp) => {
-          if (!control.reach('subtrees.insertSubtree:complete-copy:dependencies'))
-            return insertSubtree(copy, stamp);
+          if (!control.isArmed()) return insertSubtree(copy, stamp);
           await insertSubtree({ ...copy, dependencies: [] }, stamp);
           source.db.run(
             sql.raw(
@@ -1727,6 +1736,12 @@ const subtreeDependencyBackingFault = defineFault({
                   FROM conformance_isolated_dependency ORDER BY id`,
             ),
           ).toEqual([...copy.dependencies]);
+          assertCompleteStateAlternative(
+            await readSubtreePublicState(readersOf(source), DETERMINISTIC_SEED.projectIds[0]),
+            DETERMINISTIC_SEED,
+            [{ dependencyIds: copy.dependencies.map(({ id }) => id) }, {}],
+          );
+          control.reach('subtrees.insertSubtree:complete-copy:dependencies');
         };
       }),
     });
@@ -1740,18 +1755,31 @@ const subtreeRemovedMeasureFault = defineFault({
   mutate(source: SqliteSource, control) {
     return withStores(source, {
       subtrees: replaceMethod(source.stores.subtrees, 'insertSubtree', (insertSubtree) => {
-        return (copy, stamp) =>
-          insertSubtree(
-            control.reach('subtrees.insertSubtree:complete-copy:removed-measure')
-              ? {
-                  ...copy,
-                  removedMeasures: copy.removedMeasures.map((key) =>
-                    key.metric === 'token_actual' ? { ...key, metric: 'token_estimate' } : key,
-                  ),
-                }
-              : copy,
-            stamp,
+        return async (copy, stamp) => {
+          if (!control.isArmed()) return insertSubtree(copy, stamp);
+          const metrics = ['token_estimate', 'token_actual', 'hours_actual'] as const;
+          const pairWide = copy.removedMeasures.flatMap(({ workItemId, stepId }) =>
+            metrics.map((metric) => ({ workItemId, stepId, metric })),
           );
+          await insertSubtree({ ...copy, removedMeasures: pairWide }, stamp);
+          const [firstItemId, removalItemId] = DETERMINISTIC_SEED.workItemIds[0];
+          const [devStepId, qaStepId] = DETERMINISTIC_SEED.stepIds[0];
+          assertCompleteStateAlternative(
+            await readSubtreePublicState(readersOf(source), DETERMINISTIC_SEED.projectIds[0]),
+            DETERMINISTIC_SEED,
+            [
+              {
+                measureKeys: [
+                  `${removalItemId}\u0000${devStepId}\u0000token_actual`,
+                  `${removalItemId}\u0000${devStepId}\u0000hours_actual`,
+                  `${firstItemId}\u0000${qaStepId}\u0000token_estimate`,
+                ],
+              },
+              {},
+            ],
+          );
+          control.reach('subtrees.insertSubtree:complete-copy:removed-measure');
+        };
       }),
     });
   },
@@ -1761,11 +1789,10 @@ const subtreeRollbackFault = defineFault({
   id: 'break:subtrees.insertSubtree:late-failure',
   caseId: 'subtrees.insertSubtree:late-failure',
   createControl: () => createFaultControl('subtrees.insertSubtree:late-failure:no-transaction'),
-  mutate(source: SqliteSource, control) {
+  mutate(source: SqliteSource, _control) {
     return withStores(source, {
       subtrees: replaceMethod(source.stores.subtrees, 'insertSubtree', (insertSubtree) => {
         return (copy, stamp) => {
-          control.reach('subtrees.insertSubtree:late-failure:no-transaction');
           return insertSubtree(copy, stamp);
         };
       }),
@@ -1779,9 +1806,68 @@ interface FaultContext {
   report: Awaited<ReturnType<typeof runCases>> | null;
 }
 
+interface SubtreePrewriteProbe {
+  closeCalls: number;
+  attempts: number;
+  state: Awaited<ReturnType<typeof readSubtreePublicState>>[] | null;
+}
+
+function rejectSubtreeBeforeWrite(
+  source: SqliteSource,
+  probe: SubtreePrewriteProbe,
+  message: string,
+): SqliteSource {
+  const reject = async (_copy: SubtreeCopy, _stamp: WriteStamp): Promise<void> => {
+    probe.attempts += 1;
+    probe.state = await Promise.all(
+      DETERMINISTIC_SEED.projectIds.map((projectId) =>
+        readSubtreePublicState(readersOf(source), projectId),
+      ),
+    );
+    throw new Error(message);
+  };
+  return withStores(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    },
+    {
+      subtrees: replaceMethod(source.stores.subtrees, 'insertSubtree', () => reject),
+    },
+  );
+}
+
+function observeSubtreeWrites(
+  source: SqliteSource,
+  probe: { attempts: number; closeCalls: number },
+): SqliteSource {
+  return withStores(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    },
+    {
+      subtrees: replaceMethod(source.stores.subtrees, 'insertSubtree', (insertSubtree) => {
+        return (copy, stamp) => {
+          probe.attempts += 1;
+          return insertSubtree(copy, stamp);
+        };
+      }),
+    },
+  );
+}
+
 async function proveFault(
   fault: Fault<SqliteSource>,
   openBase: OpenSource = openSqliteSource,
+  decorate: (source: SqliteSource) => SqliteSource = (source) => source,
+  prepare: (source: SqliteSource) => Promise<void> = () => Promise.resolve(),
 ): Promise<FaultProof> {
   return recordFaultProof(fault, {
     assertion: `${fault.caseId} reports passed`,
@@ -1793,8 +1879,14 @@ async function proveFault(
       const selectedBase: OpenSource =
         lateControl === null
           ? openBase
-          : (options) => openSqliteSourceWithNonAtomicSubtreeFault(options, lateControl);
-      const openSource = brokenSource(selectedBase, run);
+          : (options) =>
+              openSqliteSourceWithNonAtomicSubtreeFault(options, lateControl, () => {
+                run.control.reach(run.control.phase);
+              });
+      const openSource = brokenSource(
+        (options: OpenSqliteSourceOptions) => decorate(selectedBase(options)),
+        run,
+      );
       const { source, directory } = await seedSqliteSource(
         openSource,
         fault.caseId.startsWith('progress.')
@@ -1805,6 +1897,11 @@ async function proveFault(
               ? seedSubtreeRecords
               : undefined,
       );
+      try {
+        await prepare(source);
+      } catch (failure) {
+        return throwAfterCleanup(failure, source, directory);
+      }
       let wasOpened = false;
       const takeFixture = <Family extends ExistingFamily>(
         family: Family,
@@ -1932,20 +2029,111 @@ describe('SQLite existing source conformance', () => {
       proveFault(subtreeDependencyBackingFault),
       proveFault(subtreeRemovedMeasureFault),
     ]);
-    // Proof: disabling both corruptions returned two `assertion-passed`
-    // proofs here (`Expected -2 / Received +2`) instead of observed failures.
+    // Proof: independently disabling isolation changed the first proof to
+    // `assertion-passed`; disabling pair-wide deletion changed the second.
     expect(proofs.map(({ kind }) => kind)).toEqual(['observed', 'observed']);
     const failures = proofs.map((proof) =>
       proof.kind === 'observed' ? Bun.stripANSI(proof.observedFailure) : '',
     );
-    // Proof: persisting the edge in the isolated SQLite table failed with the
-    // exact missing `subtree-copy-dependency` record in the public reader.
-    expect(failures[0]).toContain('subtree-copy-dependency');
-    // Proof: changing token_actual's removal key failed with its complete
-    // surviving value 102 / recordedAt 132 record.
-    expect(failures[1]).toContain('"metric": "token_actual"');
-    expect(failures[1]).toContain('"value": 102');
-    expect(failures[1]).toContain('"recordedAt": 132');
+    // Proof: isolated persistence reaches only after exact prerequisite state,
+    // then fails on this signed complete public edge.
+    expect(failures[0]).toContain(`-       "id": "subtree-copy-dependency",
+-       "predecessorId": "subtree-copy-root",
+-       "projectId": "project-a",
+-       "successorId": "subtree-copy-child",
+-     },
+-     {`);
+    // Proof: pair-wide deletion reaches only after exact corrupted state, then
+    // loses this signed complete unrequested triple-key survivor.
+    expect(failures[1]).toContain(`-     {
+-       "metric": "token_actual",
+-       "recordedAt": 132,
+-       "stepId": "step-a-dev",
+-       "value": 102,
+-       "workItemId": "work-a-two",
+-     },`);
+  });
+
+  it('classifies subtree pre-write failures before their real SQLite proof phases', async () => {
+    const dependencyProbe: SubtreePrewriteProbe = { attempts: 0, closeCalls: 0, state: null };
+    const measureProbe: SubtreePrewriteProbe = { attempts: 0, closeCalls: 0, state: null };
+    const rollbackProbe: SubtreePrewriteProbe = { attempts: 0, closeCalls: 0, state: null };
+    const [dependency, measure, rollback] = await Promise.all([
+      proveFault(subtreeDependencyBackingFault, openSqliteSource, (source) =>
+        rejectSubtreeBeforeWrite(
+          source,
+          dependencyProbe,
+          'subtree-copy-dependency pre-write rejection',
+        ),
+      ),
+      proveFault(subtreeRemovedMeasureFault, openSqliteSource, (source) =>
+        rejectSubtreeBeforeWrite(
+          source,
+          measureProbe,
+          'token_actual value 102 recordedAt 132 pre-write rejection',
+        ),
+      ),
+      proveFault(subtreeRollbackFault, openSqliteSource, (source) =>
+        rejectSubtreeBeforeWrite(
+          source,
+          rollbackProbe,
+          'subtree-copy-root subtree-final-satellite pre-write rejection',
+        ),
+      ),
+    ]);
+
+    // Proof: reaching in the outer decorators classified both ID-bearing
+    // pre-write errors as observed shared failures instead of phase failures.
+    expect([dependency.kind, measure.kind, rollback.kind]).toEqual([
+      'phase-failed',
+      'phase-failed',
+      'phase-failed',
+    ]);
+    expect([dependencyProbe.attempts, measureProbe.attempts, rollbackProbe.attempts]).toEqual([
+      1, 1, 1,
+    ]);
+    expect([dependencyProbe.closeCalls, measureProbe.closeCalls, rollbackProbe.closeCalls]).toEqual(
+      [1, 1, 1],
+    );
+    for (const probe of [dependencyProbe, measureProbe, rollbackProbe]) {
+      if (probe.state === null) throw new Error('subtree pre-write state was not captured');
+      assertSeedState(probe.state[0], DETERMINISTIC_SEED, 0);
+      assertSeedState(probe.state[1], DETERMINISTIC_SEED, 1);
+    }
+    if (!('phase' in dependency) || !('phase' in measure) || !('phase' in rollback))
+      throw new Error('subtree pre-write proof did not report a phase');
+    expect([dependency.phase, measure.phase, rollback.phase]).toEqual([
+      'subtrees.insertSubtree:complete-copy:dependencies',
+      'subtrees.insertSubtree:complete-copy:removed-measure',
+      'subtrees.insertSubtree:late-failure:no-transaction',
+    ]);
+  });
+
+  it('refuses a SQLite late proof whose populated estimate prerequisite is missing', async () => {
+    const probe = { attempts: 0, closeCalls: 0 };
+    const proof = await proveFault(
+      subtreeRollbackFault,
+      openSqliteSource,
+      (source) => observeSubtreeWrites(source, probe),
+      async (source) => {
+        for (const estimate of subtreeSeedRecords(DETERMINISTIC_SEED).estimates) {
+          await source.stores.estimates.remove(
+            estimate.workItemId,
+            estimate.stepId,
+            DETERMINISTIC_SEED.stamps[0],
+          );
+        }
+      },
+    );
+
+    // Proof: snapshotting without assertSeedState returned assertion-passed;
+    // the repaired case refuses the proof before any subtree write can reach.
+    expect(proof.kind).toBe('phase-failed');
+    if (proof.kind !== 'phase-failed') throw new Error(`expected phase failure, got ${proof.kind}`);
+    expect(proof.failure).toBe(
+      'fault did not reach subtrees.insertSubtree:late-failure:no-transaction',
+    );
+    expect(probe).toEqual({ attempts: 0, closeCalls: 1 });
   });
 
   it('reinjects a terminal subtree failure without the SQLite transaction', async () => {
@@ -1953,9 +2141,31 @@ describe('SQLite existing source conformance', () => {
     // Proof: restoring the repository transaction returned `assertion-passed` here.
     expect(proof.kind).toBe('observed');
     if (proof.kind !== 'observed') throw new Error(`expected observed proof, got ${proof.kind}`);
-    // Proof: running the real statements without their transaction failed the
-    // complete public snapshot with the escaped `subtree-copy-root` record.
-    expect(Bun.stripANSI(proof.observedFailure)).toContain('subtree-copy-root');
+    // Proof: the actual final-write callback reaches this proof only after
+    // earlier SQL writes, exposing this full signed public root record.
+    expect(Bun.stripANSI(proof.observedFailure)).toContain(`+         "deadline": "2026-09-30",
++         "externalRefs": [],
++         "frozenNumber": "030",
++         "id": "subtree-copy-root",
++         "maxParallel": 2,
++         "name": "Copied root",
++         "notes": "all fields travel",
++         "parentId": null,
++         "position": 20,
++         "priority": 2,
++         "projectId": "project-a",
++         "revision": 0,
++         "serviceId": "service-a",
++         "serviceIds": [],
++         "serviceTeamId": "team-a",
++         "startNoEarlierThan": "2026-09-15",
++         "startNoEarlierThanReason": "contract start",
++         "tagIds": [],
++         "teamIds": [
++           "team-a",
++           "team-b",
++         ],
++         "typeIds": [],`);
   });
   it('runs every work-item case through the real SQLite source', async () => {
     const caseIds = [
