@@ -111,7 +111,7 @@ describe('SQLite conformance fault controls', () => {
 
   it('reports a different transaction phase through the proof recorder', async () => {
     const fault = defineFault({
-      id: 'break:savedPlans.write:late-body-failure',
+      id: 'break:savedPlans.write:late-body-failure:saved-plan-split-write',
       caseId: 'savedPlans.write:late-body-failure',
       createControl: () =>
         sqliteLateWriteControl<'journal-history-insert' | 'saved-plan-schedule-body'>(

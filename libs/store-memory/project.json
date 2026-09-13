@@ -30,7 +30,8 @@
       "inputs": ["default", "^production"],
       "options": {
         "command": "bun test src/testing/source-conformance.test.ts",
-        "cwd": "libs/store-memory"
+        "cwd": "libs/store-memory",
+        "forwardAllArgs": false
       }
     },
     "test:unit": {

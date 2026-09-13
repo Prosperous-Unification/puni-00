@@ -44,6 +44,7 @@ interface ProjectTarget {
     command?: string;
     commands?: readonly string[];
     cwd?: string;
+    forwardAllArgs?: boolean;
   }>;
   readonly inputs?: readonly (string | Readonly<Record<string, unknown>>)[];
 }
@@ -116,6 +117,7 @@ describe('source conformance target discovery', () => {
             filtered: command.some((candidate) =>
               /(?:^|\s)(?:-t|--test-name-pattern)(?:\s|=)/.test(candidate),
             ),
+            forwardsCliArgs: target.options?.forwardAllArgs ?? true,
           },
         ];
       }),
@@ -130,6 +132,9 @@ describe('source conformance target discovery', () => {
     // at this exact path; its unused binding also failed the owning lint target.
     // Proof: broadening memory to `bun test src/testing` failed this map with
     // that directory received instead of the exact terminal source test file.
+    // Proof: restoring CLI forwarding made the review command with
+    // `--args='-t configuration-reference'` run one case and filter seventy;
+    // with forwarding disabled, that same command runs all seventy-one.
     expect(observed).toEqual(
       Object.fromEntries(
         Object.entries(expected).map(([name, contract]) => [
@@ -141,6 +146,7 @@ describe('source conformance target discovery', () => {
             inputs: [...contract.inputs],
             normalIncludes: true,
             filtered: false,
+            forwardsCliArgs: false,
           },
         ]),
       ),

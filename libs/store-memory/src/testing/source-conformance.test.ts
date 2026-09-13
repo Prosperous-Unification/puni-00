@@ -1,12 +1,12 @@
 import {
   assertCompleteStateAlternative,
+  assertFaultVariantCoverage,
   assertSeedState,
   brokenSource,
   type Capabilities,
   type CaptureDirectoryChange,
   type CaseFixture,
   type CaseId,
-  certifyExecution,
   completeSubtreeCopy,
   createFaultControl,
   defineFault,
@@ -21,6 +21,7 @@ import {
   type FaultRun,
   type HistoryBatchFixture,
   observePlanInput,
+  printCertification,
   PROGRESS_SENTINEL_STEP_ID,
   readSubtreePublicState,
   recordFaultProof,
@@ -1162,7 +1163,7 @@ const priorityDefaultsFault = defineFault({
 });
 
 const priorityFirstRungFault = defineFault({
-  id: 'break:priorityBands.replace:whole-project',
+  id: 'break:priorityBands.replace:whole-project:priority-first-rung',
   caseId: 'priorityBands.replace:whole-project',
   createControl: () => createFaultControl('priorityBands.replace:whole-project:first-rung'),
   mutate(source: MemorySource, control) {
@@ -1189,7 +1190,7 @@ const priorityFirstRungFault = defineFault({
 });
 
 const priorityProjectScopeFault = defineFault({
-  id: 'break:priorityBands.replace:whole-project',
+  id: 'break:priorityBands.replace:whole-project:priority-project-scope',
   caseId: 'priorityBands.replace:whole-project',
   createControl: () => createFaultControl('priorityBands.replace:whole-project:project-scope'),
   mutate(source: MemorySource, control) {
@@ -1250,7 +1251,7 @@ const markerOrderFault = defineFault({
 });
 
 const markerProjectScopeFault = defineFault({
-  id: 'break:calendarMarkers.write:project-scope',
+  id: 'break:calendarMarkers.write:project-scope:marker-project-scope',
   caseId: 'calendarMarkers.write:project-scope',
   createControl: () => createFaultControl('calendarMarkers.write:project-scope:project-predicate'),
   mutate(source: MemorySource, control) {
@@ -1272,7 +1273,7 @@ const markerProjectScopeFault = defineFault({
 });
 
 const markerLiteralDateFault = defineFault({
-  id: 'break:calendarMarkers.write:project-scope',
+  id: 'break:calendarMarkers.write:project-scope:marker-literal-date',
   caseId: 'calendarMarkers.write:project-scope',
   createControl: () => createFaultControl('calendarMarkers.write:project-scope:literal-date'),
   mutate(source: MemorySource, control) {
@@ -1514,7 +1515,7 @@ const removePromotionFault = defineFault({
 });
 
 const frozenAcquireFault = defineFault({
-  id: 'break:workItems.setFrozenNumbers:clear',
+  id: 'break:workItems.setFrozenNumbers:clear:frozen-acquire',
   caseId: 'workItems.setFrozenNumbers:clear',
   createControl: () => createFaultControl('workItems.setFrozenNumbers:clear:first-freeze'),
   mutate(source: MemorySource, control) {
@@ -1544,7 +1545,7 @@ const frozenAcquireFault = defineFault({
 });
 
 const frozenClearFault = defineFault({
-  id: 'break:workItems.setFrozenNumbers:clear',
+  id: 'break:workItems.setFrozenNumbers:clear:frozen-clear',
   caseId: 'workItems.setFrozenNumbers:clear',
   createControl: () => createFaultControl('workItems.setFrozenNumbers:clear'),
   mutate(source: MemorySource, control) {
@@ -1611,7 +1612,7 @@ const actualReplaceRecordedAtFault = defineFault({
 });
 
 const actualRemovePairFault = defineFault({
-  id: 'break:actuals.remove:pair',
+  id: 'break:actuals.remove:pair:actual-remove-pair',
   caseId: 'actuals.remove:pair',
   createControl: () => createFaultControl('actuals.remove:pair'),
   mutate(source: MemorySource, control) {
@@ -1629,7 +1630,7 @@ const actualRemovePairFault = defineFault({
 });
 
 const actualRemoveFirstCallFault = defineFault({
-  id: 'break:actuals.remove:pair',
+  id: 'break:actuals.remove:pair:actual-remove-first-call',
   caseId: 'actuals.remove:pair',
   createControl: () => createFaultControl('actuals.remove:pair:first-settlement'),
   mutate(source: MemorySource, control) {
@@ -1688,7 +1689,7 @@ const actualUnknownStepFault = defineFault({
 });
 
 const measureSetPairIdentityFault = defineFault({
-  id: 'break:measures.set:metric-key',
+  id: 'break:measures.set:metric-key:measure-set-pair-identity',
   caseId: 'measures.set:metric-key',
   createControl: () => createFaultControl('measures.set:metric-key'),
   mutate(source: MemorySource, control) {
@@ -1717,7 +1718,7 @@ const measureSetPairIdentityFault = defineFault({
 });
 
 const measureSetRecordedAtFault = defineFault({
-  id: 'break:measures.set:metric-key',
+  id: 'break:measures.set:metric-key:measure-set-recorded-at',
   caseId: 'measures.set:metric-key',
   createControl: () => createFaultControl('measures.set:metric-key:recorded-at'),
   mutate(source: MemorySource, control) {
@@ -1754,7 +1755,7 @@ const measureRemovePairIdentityFault = defineFault({
 });
 
 const measureMoveOneMetricFault = defineFault({
-  id: 'break:measures.moveAll:all-metrics',
+  id: 'break:measures.moveAll:all-metrics:measure-move-one-metric',
   caseId: 'measures.moveAll:all-metrics',
   createControl: () => createFaultControl('measures.moveAll:all-metrics'),
   mutate(source: MemorySource, control) {
@@ -1786,7 +1787,7 @@ const measureMoveOneMetricFault = defineFault({
 });
 
 const measureMoveRecordedAtFault = defineFault({
-  id: 'break:measures.moveAll:all-metrics',
+  id: 'break:measures.moveAll:all-metrics:measure-move-recorded-at',
   caseId: 'measures.moveAll:all-metrics',
   createControl: () => createFaultControl('measures.moveAll:all-metrics:recorded-at'),
   mutate(source: MemorySource, control) {
@@ -1909,7 +1910,7 @@ const progressUnknownStepFault = defineFault({
 });
 
 const dependencyIdFault = defineFault({
-  id: 'break:dependencies.add:idempotent-pair',
+  id: 'break:dependencies.add:idempotent-pair:dependency-id',
   caseId: 'dependencies.add:idempotent-pair',
   createControl: () => createFaultControl('dependencies.add:idempotent-pair:edge-id'),
   mutate(source: MemorySource, control) {
@@ -1947,7 +1948,7 @@ const dependencyIdFault = defineFault({
 });
 
 const dependencyInputMutationFault = defineFault({
-  id: 'break:dependencies.add:idempotent-pair',
+  id: 'break:dependencies.add:idempotent-pair:dependency-input-mutation',
   caseId: 'dependencies.add:idempotent-pair',
   createControl: () => createFaultControl('dependencies.add:idempotent-pair:input-id'),
   mutate(source: MemorySource, control) {
@@ -1966,7 +1967,7 @@ const dependencyInputMutationFault = defineFault({
 });
 
 const directoryAssignmentsOfSubsetFault = defineFault({
-  id: 'break:directory.assign:scope-replace-clear',
+  id: 'break:directory.assign:scope-replace-clear:directory-assignments-of-subset',
   caseId: 'directory.assign:scope-replace-clear',
   createControl: () => createFaultControl('directory.assign:scope-replace-clear:subset'),
   mutate(source: MemorySource, control) {
@@ -1991,7 +1992,7 @@ const directoryAssignmentsOfSubsetFault = defineFault({
 });
 
 const directoryAssignmentScopeFault = defineFault({
-  id: 'break:directory.assign:scope-replace-clear',
+  id: 'break:directory.assign:scope-replace-clear:directory-assignment-scope',
   caseId: 'directory.assign:scope-replace-clear',
   createControl: () => createFaultControl('directory.assign:scope-replace-clear:pair-scope'),
   mutate(source: MemorySource, control) {
@@ -2099,7 +2100,7 @@ const dependencyPairPredicateFault = defineFault({
 });
 
 const dependencyOutgoingOnlyFault = defineFault({
-  id: 'break:dependencies.removeAllFor:touching-set',
+  id: 'break:dependencies.removeAllFor:touching-set:dependency-outgoing-only',
   caseId: 'dependencies.removeAllFor:touching-set',
   createControl: () => createFaultControl('dependencies.removeAllFor:touching-set:outgoing-only'),
   mutate(source: MemorySource, control) {
@@ -2123,7 +2124,7 @@ const dependencyOutgoingOnlyFault = defineFault({
 });
 
 const dependencyIncompleteSetFault = defineFault({
-  id: 'break:dependencies.removeAllFor:touching-set',
+  id: 'break:dependencies.removeAllFor:touching-set:dependency-incomplete-set',
   caseId: 'dependencies.removeAllFor:touching-set',
   createControl: () => createFaultControl('dependencies.removeAllFor:touching-set:first-only'),
   mutate(source: MemorySource, control) {
@@ -2246,7 +2247,7 @@ async function readTask52FlipState(source: MemorySource) {
 }
 
 const journalRetainedPreconditionsFault = defineFault({
-  id: 'break:journal.flip:preconditions',
+  id: 'break:journal.flip:preconditions:journal-retained-preconditions',
   caseId: 'journal.flip:preconditions',
   createControl: () => createFaultControl('journal.flip:preconditions:retain-old'),
   mutate(source: MemorySource, control) {
@@ -2284,7 +2285,7 @@ const journalRetainedPreconditionsFault = defineFault({
 });
 
 const journalRestampFlipsFault = defineFault({
-  id: 'break:journal.flip:preconditions',
+  id: 'break:journal.flip:preconditions:journal-restamp-flips',
   caseId: 'journal.flip:preconditions',
   createControl: () => createFaultControl('journal.flip:preconditions:restamp-flips'),
   mutate(source: MemorySource, control) {
@@ -2479,7 +2480,7 @@ const planEventsInclusivePruneFault = defineFault({
 });
 
 const journalIndependentHistoryFault = defineFault({
-  id: 'break:journal.append:history-atomic',
+  id: 'break:journal.append:history-atomic:journal-independent-history',
   caseId: 'journal.append:history-atomic',
   createControl: () => createFaultControl('journal.append:history-atomic:independent-history'),
   mutate(source: MemorySource, control) {
@@ -2508,7 +2509,7 @@ const journalIndependentHistoryFault = defineFault({
 });
 
 const journalLateOutsideFault = defineFault({
-  id: 'break:journal.append:history-atomic',
+  id: 'break:journal.append:history-atomic:journal-late-outside',
   caseId: 'journal.append:history-atomic',
   createControl: () => createFaultControl('journal.append:history-atomic:outside-owner'),
   mutate(source: MemorySource, control) {
@@ -2610,7 +2611,7 @@ function expectedAtomicEvent(
 }
 
 const journalCollateralActorFault = defineFault({
-  id: 'break:journal.append:history-atomic',
+  id: 'break:journal.append:history-atomic:journal-collateral-actor',
   caseId: 'journal.append:history-atomic',
   createControl: () => createFaultControl('journal.append:history-atomic:collateral-actor'),
   mutate(source: MemorySource, control) {
@@ -2627,7 +2628,7 @@ const journalCollateralActorFault = defineFault({
 });
 
 const journalReplacementCorruptionFault = defineFault({
-  id: 'break:journal.append:account-redo-depth',
+  id: 'break:journal.append:account-redo-depth:journal-replacement-corruption',
   caseId: 'journal.append:account-redo-depth',
   createControl: () => createFaultControl('journal.append:account-redo-depth:replacement-record'),
   mutate(source: MemorySource, control) {
@@ -2658,7 +2659,7 @@ function expectedActorBRedo() {
 }
 
 const journalBroadRedoFault = defineFault({
-  id: 'break:journal.append:account-redo-depth',
+  id: 'break:journal.append:account-redo-depth:journal-broad-redo',
   caseId: 'journal.append:account-redo-depth',
   createControl: () => createFaultControl('journal.append:account-redo-depth:all-redo'),
   mutate(source: MemorySource, control) {
@@ -2681,7 +2682,7 @@ const journalBroadRedoFault = defineFault({
 });
 
 const journalHistoryPruneFault = defineFault({
-  id: 'break:journal.append:account-redo-depth',
+  id: 'break:journal.append:account-redo-depth:journal-history-prune',
   caseId: 'journal.append:account-redo-depth',
   createControl: () => createFaultControl('journal.append:account-redo-depth:history-prune'),
   mutate(source: MemorySource, control) {
@@ -2698,7 +2699,7 @@ const journalHistoryPruneFault = defineFault({
 });
 
 const subtreeDependencyBackingFault = defineFault({
-  id: 'break:subtrees.insertSubtree:complete-copy',
+  id: 'break:subtrees.insertSubtree:complete-copy:subtree-dependency-backing',
   caseId: 'subtrees.insertSubtree:complete-copy',
   createControl: () => createFaultControl('subtrees.insertSubtree:complete-copy:dependencies'),
   mutate(source: MemorySource, control) {
@@ -2727,7 +2728,7 @@ const subtreeDependencyBackingFault = defineFault({
 });
 
 const subtreeRemovedMeasureFault = defineFault({
-  id: 'break:subtrees.insertSubtree:complete-copy',
+  id: 'break:subtrees.insertSubtree:complete-copy:subtree-removed-measure',
   caseId: 'subtrees.insertSubtree:complete-copy',
   createControl: () => createFaultControl('subtrees.insertSubtree:complete-copy:removed-measure'),
   mutate(source: MemorySource, control) {
@@ -3037,7 +3038,7 @@ const savedPlanAlteredHashFault = savedPlanWriteFault(
 );
 
 const savedPlanPrincipalFault = defineFault({
-  id: 'break:savedPlans.touch:principals-scope',
+  id: 'break:savedPlans.touch:principals-scope:principal-identity',
   caseId: 'savedPlans.touch:principals-scope',
   createControl: () => createFaultControl('saved-plan:principals'),
   mutate(source: MemorySource, control) {
@@ -3089,7 +3090,10 @@ const savedPlanPrincipalFault = defineFault({
 
 function savedPlanUnknownTouchFault(method: 'renameTo' | 'deleteOf', phase: string) {
   return defineFault({
-    id: 'break:savedPlans.touch:principals-scope',
+    id:
+      method === 'renameTo'
+        ? 'break:savedPlans.touch:principals-scope:unknown-rename'
+        : 'break:savedPlans.touch:principals-scope:unknown-delete',
     caseId: 'savedPlans.touch:principals-scope',
     createControl: () => createFaultControl(phase),
     mutate(source: MemorySource, control) {
@@ -3282,7 +3286,7 @@ function expectedPrematureTask62States(): SavedPlanPublicState[] {
 }
 
 const savedPlanPersistedRefusalFault = defineFault({
-  id: 'break:savedPlans.write:quota-refusal',
+  id: 'break:savedPlans.write:quota-refusal:saved-plan-persisted-refusal',
   caseId: 'savedPlans.write:quota-refusal',
   createControl: () => createFaultControl('saved-plan:quota-refusal:persisted'),
   mutate(source: MemorySource, control) {
@@ -3356,7 +3360,7 @@ const savedPlanPersistedRefusalFault = defineFault({
 });
 
 const savedPlanStaleQuotaFault = defineFault({
-  id: 'break:savedPlans.write:quota-window',
+  id: 'break:savedPlans.write:quota-window:saved-plan-stale-quota',
   caseId: 'savedPlans.write:quota-window',
   createControl: () => createFaultControl('saved-plan:quota-window:stale-check'),
   mutate(source: MemorySource, control) {
@@ -3435,7 +3439,7 @@ const savedPlanStaleQuotaFault = defineFault({
 });
 
 const savedPlanSplitWriteFault = defineFault({
-  id: 'break:savedPlans.write:late-body-failure',
+  id: 'break:savedPlans.write:late-body-failure:saved-plan-split-write',
   caseId: 'savedPlans.write:late-body-failure',
   createControl: () => createFaultControl('saved-plan:late-body:split-commit'),
   mutate(source: MemorySource, control) {
@@ -3473,7 +3477,7 @@ const savedPlanSplitWriteFault = defineFault({
 });
 
 const savedPlanMissingInputFault = defineFault({
-  id: 'break:savedPlans.write:late-body-failure',
+  id: 'break:savedPlans.write:late-body-failure:saved-plan-missing-input',
   caseId: 'savedPlans.write:late-body-failure',
   createControl: () => createFaultControl('saved-plan:late-body:missing-input'),
   mutate(source: MemorySource) {
@@ -3498,7 +3502,7 @@ const savedPlanMissingInputFault = defineFault({
 });
 
 const savedPlanRefusalNoMutationFault = defineFault({
-  id: 'break:savedPlans.write:quota-refusal',
+  id: 'break:savedPlans.write:quota-refusal:saved-plan-refusal-no-mutation',
   caseId: 'savedPlans.write:quota-refusal',
   createControl: () => createFaultControl('saved-plan:quota-refusal:no-mutation'),
   mutate(source: MemorySource, control) {
@@ -3514,7 +3518,7 @@ const savedPlanRefusalNoMutationFault = defineFault({
 });
 
 const savedPlanWindowNoMutationFault = defineFault({
-  id: 'break:savedPlans.write:quota-window',
+  id: 'break:savedPlans.write:quota-window:saved-plan-window-no-mutation',
   caseId: 'savedPlans.write:quota-window',
   createControl: () => createFaultControl('saved-plan:quota-window:no-mutation'),
   mutate(source: MemorySource, control) {
@@ -3530,7 +3534,7 @@ const savedPlanWindowNoMutationFault = defineFault({
 });
 
 const savedPlanLateNoMutationFault = defineFault({
-  id: 'break:savedPlans.write:late-body-failure',
+  id: 'break:savedPlans.write:late-body-failure:saved-plan-late-no-mutation',
   caseId: 'savedPlans.write:late-body-failure',
   createControl: () => createFaultControl('saved-plan:late-body:no-mutation'),
   mutate(source: MemorySource) {
@@ -3632,7 +3636,7 @@ async function closeAfterSavedPlanSnapshot(
 }
 
 const savedPlanRefusalPrematureFault = defineFault({
-  id: 'break:savedPlans.write:quota-refusal',
+  id: 'break:savedPlans.write:quota-refusal:saved-plan-refusal-premature',
   caseId: 'savedPlans.write:quota-refusal',
   createControl: () => createFaultControl('saved-plan:quota-refusal:premature'),
   mutate(source: MemorySource) {
@@ -3640,7 +3644,7 @@ const savedPlanRefusalPrematureFault = defineFault({
   },
 });
 const savedPlanWindowPrematureFault = defineFault({
-  id: 'break:savedPlans.write:quota-window',
+  id: 'break:savedPlans.write:quota-window:saved-plan-window-premature',
   caseId: 'savedPlans.write:quota-window',
   createControl: () => createFaultControl('saved-plan:quota-window:premature'),
   mutate(source: MemorySource) {
@@ -3648,7 +3652,7 @@ const savedPlanWindowPrematureFault = defineFault({
   },
 });
 const savedPlanLatePrematureFault = defineFault({
-  id: 'break:savedPlans.write:late-body-failure',
+  id: 'break:savedPlans.write:late-body-failure:saved-plan-late-premature',
   caseId: 'savedPlans.write:late-body-failure',
   createControl: () => createFaultControl('saved-plan:late-body:premature'),
   mutate(source: MemorySource) {
@@ -3663,7 +3667,7 @@ const memoryPrematureProbes: SavedPlanPhaseProbe[] = Array.from({ length: 3 }, (
 const memoryMissingInputProbe: SavedPlanPhaseProbe = { attempts: 0, closeCalls: 0, state: null };
 
 const savedPlanRefusalNoReachFault = defineFault({
-  id: 'break:savedPlans.write:quota-refusal',
+  id: 'break:savedPlans.write:quota-refusal:saved-plan-refusal-no-reach',
   caseId: 'savedPlans.write:quota-refusal',
   createControl: () => createFaultControl('saved-plan:quota-refusal:no-reach'),
   mutate(source: MemorySource) {
@@ -3673,7 +3677,7 @@ const savedPlanRefusalNoReachFault = defineFault({
   },
 });
 const savedPlanWindowNoReachFault = defineFault({
-  id: 'break:savedPlans.write:quota-window',
+  id: 'break:savedPlans.write:quota-window:saved-plan-window-no-reach',
   caseId: 'savedPlans.write:quota-window',
   createControl: () => createFaultControl('saved-plan:quota-window:no-reach'),
   mutate(source: MemorySource) {
@@ -3683,7 +3687,7 @@ const savedPlanWindowNoReachFault = defineFault({
   },
 });
 const savedPlanLateNoReachFault = defineFault({
-  id: 'break:savedPlans.write:late-body-failure',
+  id: 'break:savedPlans.write:late-body-failure:saved-plan-late-no-reach',
   caseId: 'savedPlans.write:late-body-failure',
   createControl: () => createFaultControl('saved-plan:late-body:no-reach'),
   mutate(source: MemorySource) {
@@ -4627,7 +4631,63 @@ function openProgressSeedFailureSource(
   );
 }
 
+const namedFaultVariants = [
+  savedPlanPrincipalFault,
+  savedPlanUnknownRenameFault,
+  savedPlanUnknownDeleteFault,
+  priorityFirstRungFault,
+  priorityProjectScopeFault,
+  markerProjectScopeFault,
+  markerLiteralDateFault,
+  frozenAcquireFault,
+  frozenClearFault,
+  actualRemovePairFault,
+  actualRemoveFirstCallFault,
+  measureSetPairIdentityFault,
+  measureSetRecordedAtFault,
+  measureMoveOneMetricFault,
+  measureMoveRecordedAtFault,
+  dependencyIdFault,
+  dependencyInputMutationFault,
+  directoryAssignmentsOfSubsetFault,
+  directoryAssignmentScopeFault,
+  dependencyOutgoingOnlyFault,
+  dependencyIncompleteSetFault,
+  journalRetainedPreconditionsFault,
+  journalRestampFlipsFault,
+  journalIndependentHistoryFault,
+  journalLateOutsideFault,
+  journalCollateralActorFault,
+  journalReplacementCorruptionFault,
+  journalBroadRedoFault,
+  journalHistoryPruneFault,
+  subtreeDependencyBackingFault,
+  subtreeRemovedMeasureFault,
+  savedPlanPersistedRefusalFault,
+  savedPlanStaleQuotaFault,
+  savedPlanSplitWriteFault,
+  savedPlanMissingInputFault,
+  savedPlanRefusalNoMutationFault,
+  savedPlanWindowNoMutationFault,
+  savedPlanLateNoMutationFault,
+  savedPlanRefusalPrematureFault,
+  savedPlanWindowPrematureFault,
+  savedPlanLatePrematureFault,
+  savedPlanRefusalNoReachFault,
+  savedPlanWindowNoReachFault,
+  savedPlanLateNoReachFault,
+] as const;
+
 describe('memory existing source conformance', () => {
+  it('registers every named memory mutation exactly once', () => {
+    // Proof: removing the first real fault from the inventory throws a coverage
+    // mismatch even though every shared conformance case remains registered.
+    expect(() => {
+      assertFaultVariantCoverage('memory', namedFaultVariants.slice(1));
+    }).toThrow('memory fault variant coverage mismatch');
+    assertFaultVariantCoverage('memory', namedFaultVariants);
+  });
+
   it('runs every Task 5.2 journal and plan-event case through the staged memory source', async () => {
     const caseIds = [
       'planEvents.listFor:filters-order',
@@ -5418,7 +5478,7 @@ describe('memory existing source conformance', () => {
     const expectedKeys = expected.map(({ family, caseId }) => `${family}:${caseId}`).toSorted();
 
     expect(report.kind).toBe('full');
-    certifyExecution({ declaration, registrations, report });
+    printCertification({ declaration, registrations, report });
     expect(registrations.map(({ family, caseId }) => `${family}:${caseId}`).toSorted()).toEqual(
       expectedKeys,
     );

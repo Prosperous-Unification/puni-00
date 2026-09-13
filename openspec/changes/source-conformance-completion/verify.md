@@ -2145,3 +2145,44 @@ and typecheck targets for conformance, both adapters, and tool-devsync passed.
 Strict OpenSpec validation, changed-file formatting and diff checks passed. The
 full tool-devsync test remains unavailable in the restricted sandbox because
 its unrelated deployment probes require local listener sockets and fail EPERM.
+
+#### Final source review repair: unfilterable, visible, enumerable certification
+
+The final source review found that Nx forwarded a caller's test-name filter into
+both dedicated targets. The reviewed command therefore passed one matching gap
+test while filtering out terminal certification. Both targets now refuse
+forwarded CLI arguments, and workspace discovery asserts that contract. Repeating
+the exact review command with `--args='-t configuration-reference'` ran all 72
+tests in each source file: memory passed with 4,812 assertions and SQLite passed
+with 6,179 assertions.
+
+Terminal certification now prints one structured record containing source and
+revision, exact certified case IDs, exclusions with evidence, and absent
+families. The memory target printed 64 certified IDs and its six exact exclusions;
+SQLite printed all 70 required IDs with empty exclusions and absent families.
+Suppressing the report writer leaves certification otherwise green but makes the
+permanent output-path test receive no line.
+
+The closed fault type now derives case ownership from an explicit literal variant
+registry. Forty-four cross-source variants and three SQLite lifecycle variants
+have distinct IDs and source applicability. Each adapter enumerates its real fault
+objects and checks the exact applicable registry set. Removing the first memory
+fault or duplicating the first SQLite fault throws the named coverage mismatch
+while all shared case registrations remain intact.
+
+Fresh repair evidence:
+
+- Shared conformance passed `33/0/58`; the focused target-discovery oracle passed
+  `1/0/1`.
+- The exact filtered review commands ran the full source files: memory
+  `72/0/4,812`, SQLite `72/0/6,179`, and both printed their certification record.
+- Broad adapter targets passed memory `95/0/5,026` and SQLite `723/0/8,219`.
+- All eight uncached lint and typecheck targets for conformance, memory, SQLite,
+  and tool-devsync passed after restoring sorted imports and explicit void blocks.
+- Changed-file Prettier, `git diff --check`, and strict change validation passed.
+  All-artifact validation reported 82 of 84 valid; the only failures are the
+  unrelated pre-existing empty-delta changes `local-solver-development` and
+  `stale-solver-seat-masks-failure`.
+
+Task 7.3 remains unchecked until the repaired immutable commit receives the
+requested independent rereview.

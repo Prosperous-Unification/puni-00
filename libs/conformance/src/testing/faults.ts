@@ -1,11 +1,199 @@
 import type { CaseId } from '../case-manifest';
 import { failureMessage } from '../failure-message';
 
-export type FaultId = `break:${CaseId}`;
+export const FAULT_VARIANTS = {
+  'break:steps.add:stored-value': { caseId: 'steps.add', sources: ['sqlite'] },
+  'break:steps.add:seed-failure': { caseId: 'steps.add', sources: ['sqlite'] },
+  'break:steps.add:cleanup-failure': { caseId: 'steps.add', sources: ['sqlite'] },
+  'break:savedPlans.touch:principals-scope:principal-identity': {
+    caseId: 'savedPlans.touch:principals-scope',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.touch:principals-scope:unknown-rename': {
+    caseId: 'savedPlans.touch:principals-scope',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.touch:principals-scope:unknown-delete': {
+    caseId: 'savedPlans.touch:principals-scope',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:priorityBands.replace:whole-project:priority-first-rung': {
+    caseId: 'priorityBands.replace:whole-project',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:priorityBands.replace:whole-project:priority-project-scope': {
+    caseId: 'priorityBands.replace:whole-project',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:calendarMarkers.write:project-scope:marker-project-scope': {
+    caseId: 'calendarMarkers.write:project-scope',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:calendarMarkers.write:project-scope:marker-literal-date': {
+    caseId: 'calendarMarkers.write:project-scope',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:workItems.setFrozenNumbers:clear:frozen-acquire': {
+    caseId: 'workItems.setFrozenNumbers:clear',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:workItems.setFrozenNumbers:clear:frozen-clear': {
+    caseId: 'workItems.setFrozenNumbers:clear',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:actuals.remove:pair:actual-remove-pair': {
+    caseId: 'actuals.remove:pair',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:actuals.remove:pair:actual-remove-first-call': {
+    caseId: 'actuals.remove:pair',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:measures.set:metric-key:measure-set-pair-identity': {
+    caseId: 'measures.set:metric-key',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:measures.set:metric-key:measure-set-recorded-at': {
+    caseId: 'measures.set:metric-key',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:measures.moveAll:all-metrics:measure-move-one-metric': {
+    caseId: 'measures.moveAll:all-metrics',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:measures.moveAll:all-metrics:measure-move-recorded-at': {
+    caseId: 'measures.moveAll:all-metrics',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:dependencies.add:idempotent-pair:dependency-id': {
+    caseId: 'dependencies.add:idempotent-pair',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:dependencies.add:idempotent-pair:dependency-input-mutation': {
+    caseId: 'dependencies.add:idempotent-pair',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:directory.assign:scope-replace-clear:directory-assignments-of-subset': {
+    caseId: 'directory.assign:scope-replace-clear',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:directory.assign:scope-replace-clear:directory-assignment-scope': {
+    caseId: 'directory.assign:scope-replace-clear',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:dependencies.removeAllFor:touching-set:dependency-outgoing-only': {
+    caseId: 'dependencies.removeAllFor:touching-set',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:dependencies.removeAllFor:touching-set:dependency-incomplete-set': {
+    caseId: 'dependencies.removeAllFor:touching-set',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:journal.flip:preconditions:journal-retained-preconditions': {
+    caseId: 'journal.flip:preconditions',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:journal.flip:preconditions:journal-restamp-flips': {
+    caseId: 'journal.flip:preconditions',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:journal.append:history-atomic:journal-independent-history': {
+    caseId: 'journal.append:history-atomic',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:journal.append:history-atomic:journal-late-outside': {
+    caseId: 'journal.append:history-atomic',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:journal.append:history-atomic:journal-collateral-actor': {
+    caseId: 'journal.append:history-atomic',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:journal.append:account-redo-depth:journal-replacement-corruption': {
+    caseId: 'journal.append:account-redo-depth',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:journal.append:account-redo-depth:journal-broad-redo': {
+    caseId: 'journal.append:account-redo-depth',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:journal.append:account-redo-depth:journal-history-prune': {
+    caseId: 'journal.append:account-redo-depth',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:subtrees.insertSubtree:complete-copy:subtree-dependency-backing': {
+    caseId: 'subtrees.insertSubtree:complete-copy',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:subtrees.insertSubtree:complete-copy:subtree-removed-measure': {
+    caseId: 'subtrees.insertSubtree:complete-copy',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:quota-refusal:saved-plan-persisted-refusal': {
+    caseId: 'savedPlans.write:quota-refusal',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:quota-window:saved-plan-stale-quota': {
+    caseId: 'savedPlans.write:quota-window',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:late-body-failure:saved-plan-split-write': {
+    caseId: 'savedPlans.write:late-body-failure',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:late-body-failure:saved-plan-missing-input': {
+    caseId: 'savedPlans.write:late-body-failure',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:quota-refusal:saved-plan-refusal-no-mutation': {
+    caseId: 'savedPlans.write:quota-refusal',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:quota-window:saved-plan-window-no-mutation': {
+    caseId: 'savedPlans.write:quota-window',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:late-body-failure:saved-plan-late-no-mutation': {
+    caseId: 'savedPlans.write:late-body-failure',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:quota-refusal:saved-plan-refusal-premature': {
+    caseId: 'savedPlans.write:quota-refusal',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:quota-window:saved-plan-window-premature': {
+    caseId: 'savedPlans.write:quota-window',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:late-body-failure:saved-plan-late-premature': {
+    caseId: 'savedPlans.write:late-body-failure',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:quota-refusal:saved-plan-refusal-no-reach': {
+    caseId: 'savedPlans.write:quota-refusal',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:quota-window:saved-plan-window-no-reach': {
+    caseId: 'savedPlans.write:quota-window',
+    sources: ['memory', 'sqlite'],
+  },
+  'break:savedPlans.write:late-body-failure:saved-plan-late-no-reach': {
+    caseId: 'savedPlans.write:late-body-failure',
+    sources: ['memory', 'sqlite'],
+  },
+} as const satisfies Record<string, { caseId: CaseId; sources: readonly FaultSource[] }>;
 
-type CaseOf<Id extends FaultId> = Id extends `break:${infer FaultCase extends CaseId}`
-  ? FaultCase
-  : never;
+export type FaultSource = 'memory' | 'sqlite';
+type VariantFaultId = keyof typeof FAULT_VARIANTS;
+type VariantCaseId = (typeof FAULT_VARIANTS)[VariantFaultId]['caseId'];
+type CanonicalFaultId = `break:${Exclude<CaseId, VariantCaseId>}`;
+export type FaultId = CanonicalFaultId | VariantFaultId;
+
+type CaseOf<Id extends FaultId> = Id extends VariantFaultId
+  ? (typeof FAULT_VARIANTS)[Id]['caseId']
+  : Id extends `break:${infer FaultCase extends CaseId}`
+    ? FaultCase
+    : never;
 
 export interface FaultControl<Phase extends string> {
   readonly phase: Phase;
@@ -48,6 +236,36 @@ export type Fault<
 > = {
   [Id in FaultId]: RegisteredFault<Subject, Id, Phase, Control>;
 }[FaultId];
+
+/** Refuses missing, duplicate or source-inapplicable entries in an adapter's named mutation inventory. */
+export function assertFaultVariantCoverage(
+  source: FaultSource,
+  faults: readonly { readonly id: FaultId }[],
+): void {
+  const expected = Object.entries(FAULT_VARIANTS)
+    .filter(([, entry]) => (entry.sources as readonly FaultSource[]).includes(source))
+    .map(([id]) => id)
+    .toSorted();
+  const observed = faults
+    .map(({ id }) => id)
+    .filter((id): id is VariantFaultId => Object.hasOwn(FAULT_VARIANTS, id))
+    .toSorted();
+  const duplicates = observed.filter((id, index) => observed.indexOf(id) !== index);
+  // Proof: omitting a real adapter fault, repeating one, or supplying SQLite's
+  // lifecycle mutation to memory independently fails this exact inventory.
+  if (duplicates.length > 0 || expected.length !== observed.length) {
+    throw new Error(
+      `${source} fault variant coverage mismatch: expected ${JSON.stringify(expected)}, observed ${JSON.stringify(observed)}`,
+    );
+  }
+  for (let index = 0; index < expected.length; index += 1) {
+    if (expected[index] !== observed[index]) {
+      throw new Error(
+        `${source} fault variant coverage mismatch: expected ${JSON.stringify(expected)}, observed ${JSON.stringify(observed)}`,
+      );
+    }
+  }
+}
 
 /** Creates one activation state owned by one broken-source proof run. */
 export function createFaultControl<const Phase extends string>(phase: Phase): FaultControl<Phase> {

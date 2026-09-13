@@ -5,9 +5,10 @@ import {
   type ExpectedCase,
   expectedCasesFor,
   PORT_NAMES,
+  type PortName,
 } from './case-manifest';
 import type { CaseExecution, ExecutionReport, TerminalCaseStatus } from './case-runner';
-import type { SourceDeclaration } from './source-declaration';
+import type { Gap, SourceDeclaration } from './source-declaration';
 
 /** The implemented source-family cases, independently enumerated from the manifest. */
 export const SOURCE_CONFORMANCE_CASES = [
@@ -88,6 +89,19 @@ export interface CertificationInput {
   readonly declaration: SourceDeclaration;
   readonly registrations: readonly CaseRegistration[];
   readonly report: ExecutionReport;
+}
+
+export interface CertificationReport {
+  readonly source: string;
+  readonly revision: string;
+  readonly certifiedCases: readonly string[];
+  readonly exclusions: readonly {
+    family: PortName;
+    caseId: CaseId;
+    reason: string;
+    evidence: Gap['evidence'];
+  }[];
+  readonly absentFamilies: readonly { family: PortName; reason: string }[];
 }
 
 function keyOf(entry: ExpectedCase): string {
@@ -283,4 +297,43 @@ export function certifyExecution(input: CertificationInput): void {
       `${declaration.name} certification failed cases: ${failed.map(({ family, caseId, assertionPhase, failure }) => `${family}: ${caseId} (${assertionPhase}: ${failure})`).join(', ')}`,
     );
   }
+}
+
+/** Validates and prints the source's exact certification, exclusions and absent families. */
+export function printCertification(
+  input: CertificationInput,
+  write: (line: string) => void = console.log,
+): CertificationReport {
+  certifyExecution(input);
+  const exclusions = PORT_NAMES.flatMap((family) => {
+    const capability = input.declaration.capabilities[family];
+    return capability.kind === 'offered'
+      ? capability.gaps.map((gap) => ({
+          family,
+          caseId: gap.caseId,
+          reason: gap.reason,
+          evidence: gap.evidence,
+        }))
+      : [];
+  });
+  const absentFamilies = PORT_NAMES.flatMap((family) => {
+    const capability = input.declaration.capabilities[family];
+    return capability.kind === 'absent' ? [{ family, reason: capability.reason }] : [];
+  });
+  const report: CertificationReport = {
+    source: input.declaration.name,
+    revision: input.declaration.revision,
+    certifiedCases: input.report.cases
+      .filter(({ status }) => status === 'passed')
+      .map(({ caseId }) => caseId)
+      .toSorted(),
+    exclusions: exclusions.toSorted((left, right) => left.caseId.localeCompare(right.caseId)),
+    absentFamilies: absentFamilies.toSorted((left, right) =>
+      left.family.localeCompare(right.family),
+    ),
+  };
+  // Proof: suppressing this writer made the output-path test receive zero lines,
+  // while certification still passed; a green target must expose its exact scope.
+  write(`source-conformance certification ${JSON.stringify(report)}`);
+  return report;
 }

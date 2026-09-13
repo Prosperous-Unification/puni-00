@@ -87,7 +87,7 @@ describe('memory conformance fault controls', () => {
 
   it('reports a different staged-state phase through the proof recorder', async () => {
     const fault = defineFault({
-      id: 'break:journal.append:history-atomic',
+      id: 'break:journal.append:history-atomic:journal-late-outside',
       caseId: 'journal.append:history-atomic',
       createControl: () =>
         memoryLateWriteControl<'journal-history-insert' | 'saved-plan-schedule-body'>(

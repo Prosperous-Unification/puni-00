@@ -2,10 +2,46 @@ import { describe, expect, it } from 'bun:test';
 
 import { CASE_MANIFEST } from './case-manifest';
 import { type ExecutionReport, runCases } from './case-runner';
-import { certifyExecution } from './certification';
+import { certifyExecution, printCertification } from './certification';
 import { offeredDeclaration, passingRegistrations } from './source-declaration.test-support';
 
 describe('terminal certification', () => {
+  it('prints certified cases, exclusions and absent families separately', async () => {
+    const offered = offeredDeclaration();
+    const projects = offered.capabilities.projects;
+    if (projects.kind !== 'offered') throw new Error('test projects capability is absent');
+    const gap = {
+      caseId: CASE_MANIFEST.projects[0],
+      reason: 'observed project gap',
+      evidence: {
+        sourceRevision: 'gap-revision',
+        assertion: 'project assertion',
+        observedFailure: 'project mismatch',
+      },
+    } as const;
+    const declaration = {
+      ...offered,
+      capabilities: {
+        ...offered.capabilities,
+        projects: { ...projects, gaps: [gap] },
+        users: { kind: 'absent' as const, reason: 'accountless source' },
+      },
+    };
+    const registrations = passingRegistrations(declaration);
+    const execution = await runCases(registrations, { declaration });
+    const lines: string[] = [];
+
+    const report = printCertification({ declaration, registrations, report: execution }, (line) =>
+      lines.push(line),
+    );
+
+    expect(lines).toEqual([`source-conformance certification ${JSON.stringify(report)}`]);
+    expect(report.exclusions).toEqual([{ family: 'projects', ...gap }]);
+    expect(report.absentFamilies).toEqual([{ family: 'users', reason: 'accountless source' }]);
+    expect(report.certifiedCases).not.toContain(gap.caseId);
+    expect(report.certifiedCases).not.toContain(CASE_MANIFEST.users[0]);
+  });
+
   it('a missing new kit cannot shrink certification', async () => {
     const declaration = offeredDeclaration();
     const complete = passingRegistrations(declaration);
