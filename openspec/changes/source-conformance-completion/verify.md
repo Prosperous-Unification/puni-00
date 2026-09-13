@@ -2217,6 +2217,13 @@ and replayed clean revision `41908dcd763dc7f13768872099ec7d577679f9a4`.
 After disabling caching, the same second invocation executed the suite and
 printed `41908dcd763dc7f13768872099ec7d577679f9a4-dirty`.
 
+The Tool Wiki relationship declarations now pin `store-memory:test` to that
+uncached configuration. Proof: setting the candidate target back to
+`cache: true` made production `extract-relationships working . HEAD` exit 1
+for both relationship manifests, naming `check.store-memory.test` with
+expected `cache: false` and received `cache: true`; restoring `cache: false`
+made both committed extractions exit 0.
+
 ### 2026-09-13 latest-main integration
 
 The reviewed source-conformance work was merged without conflict with
