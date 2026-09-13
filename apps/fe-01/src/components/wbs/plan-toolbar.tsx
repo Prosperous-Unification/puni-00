@@ -677,6 +677,15 @@ export function PlanToolbar({
   }, [commitQuery, deferredQuery, projectId]);
   const currentCriteria = { ...criteria, query };
 
+  /** Conservatively reconciles a settings write whose server outcome is unknown. */
+  const recoverAmbiguousSettingsChange = async (thrown: unknown): Promise<void> => {
+    // Proof: removing this boundary left mounted priority, arithmetic and
+    // optimization transport/invalid-response cases at zero reads instead of
+    // all nine. Watched in `ambiguous $name $failure fully recovers from its
+    // mounted control`, 2026-09-14.
+    if (isAmbiguousWriteFailure(thrown)) await refreshOrMarkStale();
+  };
+
   return (
     <>
       {/*
@@ -916,18 +925,13 @@ export function PlanToolbar({
           ),
           setCapacity: (teamId, size) => api.setTeamCapacity(projectId, teamId, size),
           onChanged: () => refreshOrMarkStale('tree'),
-          onRefused: async (thrown) => {
-            // Proof: dropping this typed boundary left both transport and
-            // malformed capacity outcomes at zero reads instead of the full
-            // nine-operation recovery. Watched in the two ambiguous capacity
-            // cases, 2026-09-13.
-            if (isAmbiguousWriteFailure(thrown)) await refreshOrMarkStale();
-          },
+          onRefused: recoverAmbiguousSettingsChange,
         }}
         priorities={{
           bands: priorityBands,
           setBands: (bands) => api.setPriorityBands(projectId, bands),
           onChanged: () => refreshOrMarkStale('tree'),
+          onRefused: recoverAmbiguousSettingsChange,
         }}
         steps={{
           steps,
@@ -965,6 +969,7 @@ export function PlanToolbar({
           estimateRounding: chartRead.estimateRounding,
           setArithmetic: (arithmetic) => api.setEstimateArithmetic(projectId, arithmetic),
           onChanged: () => refreshOrMarkStale('tree'),
+          onRefused: recoverAmbiguousSettingsChange,
         }}
         {...(chartRead.optimization === undefined
           ? {}
@@ -973,6 +978,7 @@ export function PlanToolbar({
                 value: chartRead.optimization,
                 setSettings: (patch) => api.setOptimizationSettings(projectId, patch),
                 onChanged: () => refreshOrMarkStale('tree'),
+                onRefused: recoverAmbiguousSettingsChange,
               },
             })}
       />

@@ -17,6 +17,8 @@ export interface OptimizationSettingsProps {
   readonly value: OptimizationSettingsValue;
   readonly setSettings: (patch: ProjectOptimizationPatch) => Promise<void>;
   readonly onChanged: () => Promise<void>;
+  /** Recovery after a failure whose commit outcome is unknown. */
+  readonly onRefused?: (thrown: unknown) => Promise<void>;
   readonly onDirtyChange: (dirty: boolean) => void;
 }
 
@@ -30,6 +32,7 @@ export function OptimizationSettingsPanel({
   value,
   setSettings,
   onChanged,
+  onRefused,
   onDirtyChange,
 }: OptimizationSettingsProps) {
   const section = useSettingsSection({
@@ -37,6 +40,7 @@ export function OptimizationSettingsPanel({
     dirty: false,
     onDirtyChange,
     onChanged,
+    ...(onRefused === undefined ? {} : { onRefused }),
   });
 
   function write(patch: ProjectOptimizationPatch): void {

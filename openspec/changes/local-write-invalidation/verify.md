@@ -247,3 +247,52 @@ target completed successfully.
 Task 3.3 remains unchecked. `bin/h2puni-gate.sh <final-sha>` still requires the
 final committed SHA to be reachable on the h2puni host; this branch has not
 been pushed.
+
+## Astra P2 closeout repairs
+
+Verified on 2026-09-14 after the live-plan snapshot integration.
+
+The mounted production-page settings table now covers priority bands,
+estimate arithmetic and optimization for both an ambiguous typed transport
+failure and an invalid response. Each case holds the write answer, observes no
+premature read, then observes all nine recovery reads, the retained draft and
+the rendered failure. The corresponding success controls observe tree only.
+Removing each panel's `onRefused` path made its ambiguous cases observe zero
+reads instead of nine; all three faults failed before restoration.
+
+The arrangement renewal case now observes the toolbar leave `aria-busy` and
+its controls become usable after the accepted answer. Retaining the captured
+coordinator check in cleanup left the toolbar busy and failed that assertion.
+The separate replacement-owner case still holds a replacement rename and
+proves an old arrangement cannot clear that pending state.
+
+The dependency owner case holds an old dependency-list request, replaces the
+same project's API, then holds a replacement rename. Settling the old request
+must not clear replacement busy state, toast, or start reads; the replacement
+answer is the finish control. Removing the API-owner guards cleared busy and
+failed the mounted assertion before restoration.
+
+The former hook-only reference proof was replaced by mounted page cases for
+team, service, tag, type and person create-success followed by attach/assign
+refusal. Each created name is visible in its picker without a socket, the
+assignment remains unchanged, the refusal is rendered, and the exact reads
+are tree plus the directory family. Removing each create's directory
+obligation made all five visible picker assertions fail before restoration.
+
+| Check                                                               | Result                                                                                       |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Complete owning production-page file after formatting               | 1 file, 88 passed                                                                            |
+| Focused settings, toolbar, cell, keyboard and production-page batch | 10 files, 405 passed                                                                         |
+| Full FE and contracts tests, uncached                               | contracts 41 files / 392 passed; FE 107 UTC files / 2755 passed and 2 zoned files / 3 passed |
+| FE and contracts lint/typecheck, uncached                           | 4 targets succeeded                                                                          |
+| Serialized production `keyboard.spec.ts` on ports 11300/11400/12400 | 19 passed, 0 failed; 1m                                                                      |
+| Strict change and all-packet OpenSpec validation                    | 1/1 and 83/83 passed                                                                         |
+
+The selected browser file exercises the changed toolbar busy and keyboard
+usability surface. Ambiguous settings failures and replaced-owner completion
+require controlled held requests, so their production-page tests provide the
+direct negative evidence. Vite reported transient websocket `EPIPE` messages
+while the browser context closed; all selected scenarios completed.
+
+Task 3.3 remains unchecked pending Astra re-review and an exact committed-SHA
+`bin/h2puni-gate.sh` run. This branch has not been pushed.
