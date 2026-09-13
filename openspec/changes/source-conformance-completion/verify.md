@@ -1495,3 +1495,79 @@ denied sockets. OpenSpec's optional telemetry DNS failed after successful
 validation and both commands exited 0. Full workspace/build/browser/deploy and
 the h2puni SHA gate are deferred until the reviewed integration SHA exists.
 Task 5.1 remains unchecked pending Astra review; Task 5.2 is untouched.
+
+#### Task 5.1 Astra I1-I4 repair
+
+The shared atomic case now certifies both a successful append and a real late
+`journal-history-insert` rejection through each adapter's actual staged or
+transactional owner. Complete public journal/history state is checked after
+sentinel setup, successful settlement, and rollback. Pre-write failures capture
+the full settled A/B-account and other-project state and remain
+`phase-failed`; successful incomplete sources commit the full late journal row
+while omitting only its history, then fail the complete-history prerequisite
+before proof reach and close once.
+
+The redo/depth case now checks complete journal, direction, and history state
+after all three redo flips and immediately after the actor-A replacement. The
+replacement is inspected with its full payload, inverse, preconditions, stamp,
+and sequence before retention can evict it. Permanent real-path faults remove
+the same-project actor-B row, corrupt the replacement inverse, and omit actor
+B's redo setup. The first two are observed with exact signed records; missing
+redo setup is `phase-failed` before the canonical broad-clear phase.
+
+The workload and oracle are independent of the implementation constant: 51
+literal bulk writes, an explicit complete newest-50 expectation with sequences
+3 through 52, and independently constructed complete 51-event history.
+Changing only `JOURNAL_DEPTH` to 51 and 2 failed both adapter runs at
+`Expected: 50 / Received: 51` and `Expected: 50 / Received: 2`.
+
+Independent-history faults now preserve the target project/event identity.
+Memory moves the exact committed event into fixture-owned independent adapter
+state; SQLite moves the exact row into an independent temporary adapter table.
+The intended journal entry remains committed while its intended public history
+is absent. Disabling only either route changed the first canonical proof from
+`observed` to `assertion-passed` and broke the permanent four-fault assertion.
+Removing only each outside-owner complete-history prerequisite changed the new
+incomplete proof from `phase-failed` to `observed` after three complete journal
+rows had committed.
+
+Fresh restored evidence:
+
+- Focused Task 5.1 source/proof/prerequisite runs: memory `5/0/180`; SQLite
+  `5/0/223`. The subsequent pre-write snapshot-only runs passed `1/0/16` and
+  `1/0/20`.
+- Journal/history/UoW regressions: memory `15/0/171`; SQLite `23/0/57`.
+- Uncached targets: conformance `29/0/48`, store-memory `61/0/2,679`, and
+  store-sqlite `683/0/5,367` across 60 files.
+
+All six final uncached lint/typecheck targets passed. The changed-file Prettier
+check and final diff check passed. Pinned OpenSpec 1.3.0 strict validation
+passed, and all-artifact validation reported `75 passed / 0 failed`. Nx used its
+in-process plugin fallback because sandbox socket creation was denied. Full
+workspace/build/browser/deploy and the h2puni SHA gate remain skipped because
+this is an uncommitted review repair. Task 5.1 remains unchecked; Task 5.2 is
+untouched.
+
+#### Task 5.1 late-write certification repair
+
+The blocking review found that both ordinary history-atomic openers selected an
+ordinary scenario, so source certification proved the successful append but
+never armed the real adapter late-write seam. Both openers now create their
+adapter's `journal-history-insert` control, open the real source with that
+control, and expose the late-write scenario. The shared case first verifies a
+complete successful `atomic-target` entry/history append, then requires the
+late scenario, arms it, attempts `atomic-late-target`, proves the callback was
+reached after both staged writes, and compares complete public journal/history
+state with the settled pre-failure snapshot.
+
+The independent-history fault fails the successful target's complete-history
+assertion before its proof fixture later exercises the real late seam. The outside-owner
+fault uses the late proof scenario and leaks the complete `atomic-late-target`
+record, while a same-wording pre-write error remains `phase-failed`.
+
+R5: removing only the journal-control branch from either ordinary opener made
+its dedicated Task 5.1 run fail after the successful append with
+`journal.append:history-atomic requires journal-history-insert scenario`
+(memory: `0/1`, 27 assertions; SQLite: `0/1`, 35 assertions). Restored focused
+runs passed at memory `3/0/104` and SQLite `3/0/133`. Relevant real seam/UoW
+regressions passed at memory `21/0/198` and SQLite `25/0/74`.

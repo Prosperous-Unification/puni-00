@@ -28,6 +28,8 @@ import {
 } from '@wbs/conformance';
 import type {
   CommandJournalStore,
+  JournalEntry,
+  PlanEvent,
   StoredDependency,
   StoredProgress,
   SubtreeCopy,
@@ -41,7 +43,6 @@ import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain';
 import { describe, expect, it } from 'bun:test';
 
-import { inMemoryCommandJournal } from '../command-journal-fixture';
 import { inMemoryDependencies } from '../dependency-fixture';
 import { projectRow } from '../project-fixture';
 import { openMemorySourceFixture, openMemorySourceWithLateWriteSeam } from '../source';
@@ -54,6 +55,8 @@ import {
 type ExistingFamily = keyof ExistingStoreOpeners;
 type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   deriveNextEventSeqFromRetained(subscription: string): void;
+  independentJournalHistoryFor(): Promise<PlanEvent[]>;
+  routeJournalEventToIndependent(eventId: string): PlanEvent;
   storeDependencyById(dependency: StoredDependency): void;
   insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
   journal: CommandJournalStore;
@@ -67,6 +70,9 @@ function openConformanceMemorySource(): MemorySource {
     deriveNextEventSeqFromRetained: (subscription: string) => {
       fixture.deriveNextEventSeqFromRetained(subscription);
     },
+    independentJournalHistoryFor: () => fixture.independentJournalHistoryFor(),
+    routeJournalEventToIndependent: (eventId: string) =>
+      fixture.routeJournalEventToIndependent(eventId),
     storeDependencyById: (dependency: StoredDependency) => {
       fixture.storeDependencyById(dependency);
     },
@@ -230,7 +236,9 @@ async function openMemoryCase<Family extends ExistingFamily>(
   const lateControl =
     family === 'subtrees' && caseId === 'subtrees.insertSubtree:late-failure'
       ? memoryLateWriteControl('subtree-final-satellite')
-      : null;
+      : family === 'journal' && caseId === 'journal.append:history-atomic'
+        ? memoryLateWriteControl('journal-history-insert')
+        : null;
   const selectedOpen = lateControl === null ? openSource : () => memoryLateSource(lateControl);
   const source = await seedMemorySource(selectedOpen, async (seeded) => {
     if (family === 'progress') await seedProgressStep(seeded);
@@ -375,6 +383,8 @@ function memoryLateSource(
     deriveNextEventSeqFromRetained: (subscription) => {
       fixture.deriveNextEventSeqFromRetained(subscription);
     },
+    independentJournalHistoryFor: () => fixture.independentJournalHistoryFor(),
+    routeJournalEventToIndependent: (eventId) => fixture.routeJournalEventToIndependent(eventId),
     storeDependencyById: (dependency) => {
       fixture.storeDependencyById(dependency);
     },
@@ -1621,13 +1631,24 @@ const journalIndependentHistoryFault = defineFault({
   caseId: 'journal.append:history-atomic',
   createControl: () => createFaultControl('journal.append:history-atomic:independent-history'),
   mutate(source: MemorySource, control) {
-    const independent = inMemoryCommandJournal();
     return {
       ...source,
       journal: replaceMethod(source.journal, 'append', (append) => async (entry, event) => {
+        // Proof: disabling only this adapter-owned route changed the permanent
+        // four-fault result's first kind from `observed` to `assertion-passed`.
         if (!control.isArmed() || entry.id !== 'atomic-target') return append(entry, event);
-        await independent.append(structuredClone(entry), structuredClone(event));
-        await append(entry, { ...event, projectId: DETERMINISTIC_SEED.projectIds[1] });
+        await append(entry, event);
+        const moved = source.routeJournalEventToIndependent(event.id);
+        expect(moved).toEqual(event);
+        expect(await source.independentJournalHistoryFor()).toEqual([event]);
+        expect(await source.journal.entriesFor(entry.projectId, entry.userId)).toContainEqual({
+          ...entry,
+          seq: 2,
+          undone: false,
+        });
+        expect(await source.stores.planEvents.listFor(event.projectId, {})).not.toContainEqual(
+          event,
+        );
         control.reach('journal.append:history-atomic:independent-history');
       }),
     };
@@ -1643,13 +1664,146 @@ const journalLateOutsideFault = defineFault({
       ...source,
       journal: replaceMethod(source.journal, 'append', (append) => async (entry, event) => {
         await append(entry, event);
-        if (entry.id !== 'atomic-target') return;
+        if (entry.id !== 'atomic-late-target') return;
+        expect(await source.journal.entriesFor(entry.projectId, entry.userId)).toContainEqual({
+          ...entry,
+          seq: 3,
+          undone: false,
+        });
+        expect(await source.stores.planEvents.listFor(event.projectId, {})).toContainEqual(event);
         control.reach('journal.append:history-atomic:outside-owner');
         throw new Error('injected memory journal-history-insert failure outside staged owner');
       }),
     };
   },
 });
+
+interface JournalIncompleteProbe {
+  attempts: number;
+  closeCalls: number;
+  entries: JournalEntry[][] | null;
+  history: PlanEvent[][] | null;
+  independentHistory: PlanEvent[] | null;
+}
+
+function commitJournalWithoutLateHistory(
+  source: MemorySource,
+  probe: JournalIncompleteProbe,
+): MemorySource {
+  return {
+    ...source,
+    async close() {
+      probe.closeCalls += 1;
+      await source.close();
+    },
+    journal: replaceMethod(source.journal, 'append', (append) => async (entry, event) => {
+      await append(entry, event);
+      if (entry.id !== 'atomic-late-target') return;
+      probe.attempts += 1;
+      source.routeJournalEventToIndependent(event.id);
+      probe.entries = await Promise.all([
+        source.journal.entriesFor(DETERMINISTIC_SEED.projectIds[0], DETERMINISTIC_SEED.ownerIds[0]),
+        source.journal.entriesFor(DETERMINISTIC_SEED.projectIds[0], DETERMINISTIC_SEED.ownerIds[1]),
+        source.journal.entriesFor(DETERMINISTIC_SEED.projectIds[1], DETERMINISTIC_SEED.ownerIds[1]),
+      ]);
+      probe.history = await Promise.all(
+        DETERMINISTIC_SEED.projectIds.map((projectId) =>
+          source.stores.planEvents.listFor(projectId, {}),
+        ),
+      );
+      probe.independentHistory = await source.independentJournalHistoryFor();
+    }),
+  };
+}
+
+function expectedAtomicEntry(
+  id: string,
+  projectId: string,
+  userId: string,
+  seq: number,
+  createdAt: number,
+): JournalEntry {
+  return {
+    id,
+    projectId,
+    userId,
+    seq,
+    kind: 'rename',
+    payload: { label: `Rename ${id}`, forward: { type: 'rename', name: `After ${id}` } },
+    inverse: { type: 'rename', name: `Before ${id}` },
+    preconditions: { expected: { [id]: createdAt }, from: { [id]: createdAt - 1 } },
+    undone: false,
+    createdAt,
+  };
+}
+
+function expectedAtomicEvent(
+  id: string,
+  projectId: string,
+  userId: string,
+  createdAt: number,
+): PlanEvent {
+  return {
+    id: `event-${id}`,
+    projectId,
+    userId,
+    kind: 'rename',
+    label: `Rename ${id}`,
+    workItemId: `${id}-work`,
+    stepId: null,
+    before: { type: 'rename', name: `Before ${id}` },
+    after: { type: 'rename', name: `After ${id}` },
+    createdAt,
+  };
+}
+
+const journalCollateralActorFault = defineFault({
+  id: 'break:journal.append:history-atomic',
+  caseId: 'journal.append:history-atomic',
+  createControl: () => createFaultControl('journal.append:history-atomic:collateral-actor'),
+  mutate(source: MemorySource, control) {
+    return {
+      ...source,
+      journal: replaceMethod(source.journal, 'append', (append) => async (entry, event) => {
+        await append(entry, event);
+        if (entry.id !== 'atomic-target') return;
+        await source.journal.discard('atomic-sentinel-b');
+        control.reach('journal.append:history-atomic:collateral-actor');
+      }),
+    };
+  },
+});
+
+const journalReplacementCorruptionFault = defineFault({
+  id: 'break:journal.append:account-redo-depth',
+  caseId: 'journal.append:account-redo-depth',
+  createControl: () => createFaultControl('journal.append:account-redo-depth:replacement-record'),
+  mutate(source: MemorySource, control) {
+    return {
+      ...source,
+      journal: replaceMethod(source.journal, 'append', (append) => async (entry, event) => {
+        if (entry.id !== 'redo-a-replacement') return append(entry, event);
+        await append({ ...entry, inverse: { broken: 'replacement inverse' } }, event);
+        control.reach('journal.append:account-redo-depth:replacement-record');
+      }),
+    };
+  },
+});
+
+function expectedActorBRedo() {
+  return {
+    id: 'redo-b',
+    projectId: DETERMINISTIC_SEED.projectIds[0],
+    userId: DETERMINISTIC_SEED.ownerIds[1],
+    seq: 1,
+    kind: 'rename' as const,
+    payload: { label: 'Rename redo-b', forward: { type: 'rename', name: 'After redo-b' } },
+    inverse: { type: 'rename', name: 'Before redo-b' },
+    preconditions: { expected: { 'redo-b': 900 }, from: { 'redo-b': 899 } },
+    undone: true,
+    createdAt: 102,
+  };
+}
 
 const journalBroadRedoFault = defineFault({
   id: 'break:journal.append:account-redo-depth',
@@ -1661,6 +1815,12 @@ const journalBroadRedoFault = defineFault({
       journal: replaceMethod(source.journal, 'append', (append) => async (entry, event) => {
         await append(entry, event);
         if (entry.id !== 'redo-a-replacement') return;
+        expect(
+          await source.journal.entriesFor(
+            DETERMINISTIC_SEED.projectIds[0],
+            DETERMINISTIC_SEED.ownerIds[1],
+          ),
+        ).toEqual([expectedActorBRedo()]);
         await source.journal.discard('redo-b');
         control.reach('journal.append:account-redo-depth:all-redo');
       }),
@@ -1789,7 +1949,10 @@ async function proveFault(
       const lateControl =
         fault.caseId === 'subtrees.insertSubtree:late-failure'
           ? memoryLateWriteControl('subtree-final-satellite')
-          : null;
+          : fault.caseId === 'journal.append:history-atomic' &&
+              run.control.phase !== 'journal.append:history-atomic:outside-owner'
+            ? memoryLateWriteControl('journal-history-insert')
+            : null;
       const baseOpen =
         lateControl === null
           ? openSource
@@ -1823,15 +1986,20 @@ async function proveFault(
             port: source.journal,
             seed: DETERMINISTIC_SEED,
             readers: readersOf(source),
-            scenario:
-              run.control.phase === 'journal.append:history-atomic:outside-owner'
-                ? {
-                    kind: 'late-write',
-                    point: 'journal-history-insert',
-                    arm: () => undefined,
-                    reached: () => run.control.reached(),
-                  }
-                : { kind: 'ordinary' },
+            scenario: {
+              kind: 'late-write',
+              point: 'journal-history-insert',
+              arm:
+                lateControl?.phase === 'journal-history-insert'
+                  ? () => {
+                      lateControl.arm();
+                    }
+                  : () => undefined,
+              reached:
+                lateControl?.phase === 'journal-history-insert'
+                  ? () => lateControl.reached()
+                  : () => run.control.reached(),
+            },
             close: () => source.close(),
           } as CaseFixture<TransactionalStores[Family]>);
         }
@@ -1904,16 +2072,49 @@ interface MemoryLifecycleProbe {
   closeCalls: number;
 }
 
+interface JournalPrewriteProbe extends MemoryLifecycleProbe {
+  attempts: number;
+  entries: JournalEntry[][] | null;
+  history: PlanEvent[][] | null;
+}
+
 function rejectJournalBeforeAppend(
+  source: MemorySource,
+  probe: JournalPrewriteProbe,
+): MemorySource {
+  return {
+    ...source,
+    journal: replaceMethod(source.journal, 'append', (append) => async (entry, event) => {
+      if (entry.id !== 'atomic-late-target') return append(entry, event);
+      probe.attempts += 1;
+      probe.entries = await Promise.all([
+        source.journal.entriesFor(DETERMINISTIC_SEED.projectIds[0], DETERMINISTIC_SEED.ownerIds[0]),
+        source.journal.entriesFor(DETERMINISTIC_SEED.projectIds[0], DETERMINISTIC_SEED.ownerIds[1]),
+        source.journal.entriesFor(DETERMINISTIC_SEED.projectIds[1], DETERMINISTIC_SEED.ownerIds[1]),
+      ]);
+      probe.history = await Promise.all(
+        DETERMINISTIC_SEED.projectIds.map((projectId) =>
+          source.stores.planEvents.listFor(projectId, {}),
+        ),
+      );
+      throw new Error('injected journal-history-insert failure before target append');
+    }),
+    async close() {
+      probe.closeCalls += 1;
+      await source.close();
+    },
+  };
+}
+
+function skipActorBRedo(
   source: MemorySource,
   probe: MemoryLifecycleProbe & { attempts: number },
 ): MemorySource {
   return {
     ...source,
-    journal: replaceMethod(source.journal, 'append', (append) => async (entry, event) => {
-      if (entry.id !== 'atomic-target') return append(entry, event);
+    journal: replaceMethod(source.journal, 'flip', (flip) => async (id, undone, preconditions) => {
+      if (id !== 'redo-b') return flip(id, undone, preconditions);
       probe.attempts += 1;
-      throw new Error('injected journal-history-insert failure before target append');
     }),
     async close() {
       probe.closeCalls += 1;
@@ -2119,29 +2320,118 @@ describe('memory existing source conformance', () => {
     );
     // Proof: the independently routed target history leaves this complete event
     // absent from project A after its real journal entry commits.
-    expect(failures[0]).toContain(`-     "createdAt": 201,
--     "id": "event-atomic-target",
--     "kind": "rename",
--     "label": "Rename atomic-target",
--     "projectId": "project-a",`);
+    expect(failures[0]).toContain(`-       "createdAt": 201,
+-       "id": "event-atomic-target",
+-       "kind": "rename",
+-       "label": "Rename atomic-target",
+-       "projectId": "project-a",`);
     // Proof: throwing outside the staged owner leaves this complete entry committed.
-    expect(failures[1]).toContain(`+       "id": "atomic-target",
+    expect(failures[1]).toContain(`+       "id": "atomic-late-target",
 +       "inverse": {`);
     // Proof: clearing both actors' redo removes B's complete retained entry.
-    expect(failures[2]).toContain(`-     "id": "redo-b",
--     "inverse": {`);
+    expect(failures[2]).toContain(`-       "id": "redo-b",
+-       "inverse": {`);
     // Proof: pruning history with the journal removes the complete oldest event.
     expect(failures[3]).toContain(`-     "id": "event-redo-a"`);
   });
 
   it('refuses to certify a pre-write memory journal failure', async () => {
-    const probe = { attempts: 0, closeCalls: 0 };
+    const probe: JournalPrewriteProbe = {
+      attempts: 0,
+      closeCalls: 0,
+      entries: null,
+      history: null,
+    };
     const proof = await proveFault(journalLateOutsideFault, openConformanceMemorySource, (source) =>
       rejectJournalBeforeAppend(source, probe),
     );
     // Proof: reaching before the real target append changed this to observed.
     expect(proof.kind).toBe('phase-failed');
+    const [projectA, projectB] = DETERMINISTIC_SEED.projectIds;
+    const [actorA, actorB] = DETERMINISTIC_SEED.ownerIds;
+    expect(probe).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      entries: [
+        [
+          expectedAtomicEntry('atomic-sentinel-a', projectA, actorA, 1, 101),
+          expectedAtomicEntry('atomic-target', projectA, actorA, 2, 201),
+        ],
+        [expectedAtomicEntry('atomic-sentinel-b', projectA, actorB, 1, 102)],
+        [expectedAtomicEntry('atomic-other-project', projectB, actorB, 1, 103)],
+      ],
+      history: [
+        [
+          expectedAtomicEvent('atomic-target', projectA, actorA, 201),
+          expectedAtomicEvent('atomic-sentinel-b', projectA, actorB, 102),
+          expectedAtomicEvent('atomic-sentinel-a', projectA, actorA, 101),
+        ],
+        [expectedAtomicEvent('atomic-other-project', projectB, actorB, 103)],
+      ],
+    });
+  });
+
+  it('refuses to observe a reached memory late write with incomplete public history', async () => {
+    const probe: JournalIncompleteProbe = {
+      attempts: 0,
+      closeCalls: 0,
+      entries: null,
+      history: null,
+      independentHistory: null,
+    };
+    const proof = await proveFault(journalLateOutsideFault, openConformanceMemorySource, (source) =>
+      commitJournalWithoutLateHistory(source, probe),
+    );
+    const [projectA, projectB] = DETERMINISTIC_SEED.projectIds;
+    const [actorA, actorB] = DETERMINISTIC_SEED.ownerIds;
+    // Proof: removing only the outside-owner complete history prerequisite changed
+    // this result to `observed` after the incomplete source committed its three rows.
+    expect(proof.kind).toBe('phase-failed');
+    expect(probe).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      entries: [
+        [
+          expectedAtomicEntry('atomic-sentinel-a', projectA, actorA, 1, 101),
+          expectedAtomicEntry('atomic-target', projectA, actorA, 2, 201),
+          expectedAtomicEntry('atomic-late-target', projectA, actorA, 3, 202),
+        ],
+        [expectedAtomicEntry('atomic-sentinel-b', projectA, actorB, 1, 102)],
+        [expectedAtomicEntry('atomic-other-project', projectB, actorB, 1, 103)],
+      ],
+      history: [
+        [
+          expectedAtomicEvent('atomic-target', projectA, actorA, 201),
+          expectedAtomicEvent('atomic-sentinel-b', projectA, actorB, 102),
+          expectedAtomicEvent('atomic-sentinel-a', projectA, actorA, 101),
+        ],
+        [expectedAtomicEvent('atomic-other-project', projectB, actorB, 103)],
+      ],
+      independentHistory: [expectedAtomicEvent('atomic-late-target', projectA, actorA, 202)],
+    });
+  });
+
+  it('detects collateral actor deletion, replacement corruption and missing redo setup', async () => {
+    const collateral = await proveFault(journalCollateralActorFault);
+    const replacement = await proveFault(journalReplacementCorruptionFault);
+    const probe = { attempts: 0, closeCalls: 0 };
+    const missingRedo = await proveFault(
+      journalBroadRedoFault,
+      openConformanceMemorySource,
+      (source) => skipActorBRedo(source, probe),
+    );
+    expect([collateral.kind, replacement.kind, missingRedo.kind]).toEqual([
+      'observed',
+      'observed',
+      'phase-failed',
+    ]);
     expect(probe).toEqual({ attempts: 1, closeCalls: 1 });
+    expect(
+      collateral.kind === 'observed' ? Bun.stripANSI(collateral.observedFailure) : '',
+    ).toContain(`-       "id": "atomic-sentinel-b",`);
+    expect(
+      replacement.kind === 'observed' ? Bun.stripANSI(replacement.observedFailure) : '',
+    ).toContain(`+         "broken": "replacement inverse",`);
   });
 
   it('runs every subtree case through the staged memory source', async () => {

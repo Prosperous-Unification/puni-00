@@ -366,6 +366,10 @@ export interface MemorySourceFixture {
   storeDependencyById(dependency: StoredDependency): void;
   /** Reproduces the forbidden retained-row sequence derivation in source-owned state. */
   deriveNextEventSeqFromRetained(subscription: string): void;
+  /** Moves one committed journal event into adapter-owned disconnected storage. */
+  routeJournalEventToIndependent(eventId: string): PlanEvent;
+  /** Reads the fixture's disconnected journal-event storage as detached records. */
+  independentJournalHistoryFor(): Promise<PlanEvent[]>;
   journalHistoryFor(projectId: string): Promise<PlanEvent[]>;
 }
 
@@ -382,6 +386,7 @@ export function openMemorySourceWithLateWriteSeam(
   const coordinator = new MemoryCoordinator();
   const historyCoordinator = new MemoryCoordinator();
   const historyState: HistoryState = { plans: new Map() };
+  const independentJournalEvents: PlanEvent[] = [];
   const history = memoryHistory(
     historyState,
     () => bindStores(committed.clone(), lateWrite),
@@ -399,6 +404,18 @@ export function openMemorySourceWithLateWriteSeam(
     deriveNextEventSeqFromRetained(subscription) {
       const retained = committed.tables.eventLog.rows.get(subscription) ?? [];
       committed.tables.eventLog.nextSeq.set(subscription, (retained.at(-1)?.seq ?? -1) + 1);
+    },
+    routeJournalEventToIndependent(eventId) {
+      const index = committed.tables.journal.events.findIndex(({ id }) => id === eventId);
+      if (index < 0) throw new Error(`no journal event ${eventId}`);
+      const found = committed.tables.journal.events[index];
+      committed.tables.journal.events.splice(index, 1);
+      const moved = structuredClone(found);
+      independentJournalEvents.push(moved);
+      return structuredClone(moved);
+    },
+    independentJournalHistoryFor() {
+      return Promise.resolve(structuredClone(independentJournalEvents));
     },
     journalHistoryFor(projectId) {
       return Promise.resolve(

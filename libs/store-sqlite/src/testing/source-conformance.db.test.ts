@@ -27,6 +27,7 @@ import {
   subtreeSeedRecords,
 } from '@wbs/conformance';
 import type {
+  JournalEntry,
   PlanEvent,
   StoredDependency,
   SubtreeCopy,
@@ -282,7 +283,9 @@ async function openSqliteCase<Family extends ExistingFamily>(
   const lateControl =
     family === 'subtrees' && caseId === 'subtrees.insertSubtree:late-failure'
       ? sqliteLateWriteControl('subtree-final-satellite')
-      : null;
+      : family === 'journal' && caseId === 'journal.append:history-atomic'
+        ? sqliteLateWriteControl('journal-history-insert')
+        : null;
   const selectedOpen: OpenSource =
     lateControl === null
       ? openSource
@@ -306,6 +309,22 @@ async function openSqliteCase<Family extends ExistingFamily>(
           : {
               kind: 'late-write',
               point: 'subtree-final-satellite',
+              arm: () => {
+                lateControl.arm();
+              },
+              reached: () => lateControl.reached(),
+            },
+    };
+  }
+  if (family === 'journal') {
+    return {
+      ...sqliteFixture(source, directory, family, caseId),
+      scenario:
+        lateControl === null
+          ? { kind: 'ordinary' }
+          : {
+              kind: 'late-write',
+              point: 'journal-history-insert',
               arm: () => {
                 lateControl.arm();
               },
@@ -1715,14 +1734,59 @@ const journalIndependentHistoryFault = defineFault({
   caseId: 'journal.append:history-atomic',
   createControl: () => createFaultControl('journal.append:history-atomic:independent-history'),
   mutate(source: SqliteSource, control) {
-    const independent: PlanEvent[] = [];
+    source.db.run(
+      sql.raw(
+        'CREATE TEMP TABLE conformance_independent_journal_history AS SELECT * FROM plan_event WHERE 0',
+      ),
+    );
     return withStores(source, {
       journal: replaceMethod(source.stores.journal, 'append', (append) => {
         return async (entry, event) => {
+          // Proof: disabling only this adapter-owned route changed the permanent
+          // four-fault result's first kind from `observed` to `assertion-passed`.
           if (!control.isArmed() || entry.id !== 'atomic-target') return append(entry, event);
-          independent.push(structuredClone(event));
-          await append(entry, { ...event, projectId: DETERMINISTIC_SEED.projectIds[1] });
-          expect(independent).toEqual([event]);
+          await append(entry, event);
+          source.db.run(
+            sql`INSERT INTO conformance_independent_journal_history
+                SELECT * FROM plan_event WHERE id = ${event.id}`,
+          );
+          source.db.run(sql`DELETE FROM plan_event WHERE id = ${event.id}`);
+          expect(
+            source.db.all<{
+              id: string;
+              projectId: string;
+              userId: string;
+              kind: string;
+              label: string;
+              workItemId: string | null;
+              stepId: string | null;
+              before: string;
+              after: string;
+              createdAt: number;
+            }>(sql`SELECT id, project_id AS projectId, user_id AS userId, kind, label,
+                         work_item_id AS workItemId, step_id AS stepId, before, after,
+                         created_at AS createdAt
+                  FROM conformance_independent_journal_history`),
+          ).toEqual([
+            {
+              id: event.id,
+              projectId: event.projectId,
+              userId: event.userId,
+              kind: event.kind,
+              label: event.label,
+              workItemId: event.workItemId,
+              stepId: event.stepId,
+              before: JSON.stringify(event.before),
+              after: JSON.stringify(event.after),
+              createdAt: event.createdAt,
+            },
+          ]);
+          expect(
+            await source.stores.journal.entriesFor(entry.projectId, entry.userId),
+          ).toContainEqual({ ...entry, seq: 2, undone: false });
+          expect(await source.stores.planEvents.listFor(event.projectId, {})).not.toContainEqual(
+            event,
+          );
           control.reach('journal.append:history-atomic:independent-history');
         };
       }),
@@ -1739,7 +1803,11 @@ const journalLateOutsideFault = defineFault({
       journal: replaceMethod(source.stores.journal, 'append', (append) => {
         return async (entry, event) => {
           await append(entry, event);
-          if (entry.id !== 'atomic-target') return;
+          if (entry.id !== 'atomic-late-target') return;
+          expect(
+            await source.stores.journal.entriesFor(entry.projectId, entry.userId),
+          ).toContainEqual({ ...entry, seq: 3, undone: false });
+          expect(await source.stores.planEvents.listFor(event.projectId, {})).toContainEqual(event);
           control.reach('journal.append:history-atomic:outside-transaction');
           throw new Error('injected SQLite journal-history-insert failure outside transaction');
         };
@@ -1747,6 +1815,148 @@ const journalLateOutsideFault = defineFault({
     });
   },
 });
+
+interface JournalIncompleteProbe {
+  attempts: number;
+  closeCalls: number;
+  entries: JournalEntry[][] | null;
+  history: PlanEvent[][] | null;
+}
+
+function commitJournalWithoutLateHistory(
+  source: SqliteSource,
+  probe: JournalIncompleteProbe,
+): SqliteSource {
+  return withStores(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    },
+    {
+      journal: replaceMethod(source.stores.journal, 'append', (append) => {
+        return async (entry, event) => {
+          await append(entry, event);
+          if (entry.id !== 'atomic-late-target') return;
+          probe.attempts += 1;
+          source.db.run(sql`DELETE FROM plan_event WHERE id = ${event.id}`);
+          probe.entries = await Promise.all([
+            source.stores.journal.entriesFor(
+              DETERMINISTIC_SEED.projectIds[0],
+              DETERMINISTIC_SEED.ownerIds[0],
+            ),
+            source.stores.journal.entriesFor(
+              DETERMINISTIC_SEED.projectIds[0],
+              DETERMINISTIC_SEED.ownerIds[1],
+            ),
+            source.stores.journal.entriesFor(
+              DETERMINISTIC_SEED.projectIds[1],
+              DETERMINISTIC_SEED.ownerIds[1],
+            ),
+          ]);
+          probe.history = await Promise.all(
+            DETERMINISTIC_SEED.projectIds.map((projectId) =>
+              source.stores.planEvents.listFor(projectId, {}),
+            ),
+          );
+        };
+      }),
+    },
+  );
+}
+
+function expectedAtomicEntry(
+  id: string,
+  projectId: string,
+  userId: string,
+  seq: number,
+  createdAt: number,
+): JournalEntry {
+  return {
+    id,
+    projectId,
+    userId,
+    seq,
+    kind: 'rename',
+    payload: { label: `Rename ${id}`, forward: { type: 'rename', name: `After ${id}` } },
+    inverse: { type: 'rename', name: `Before ${id}` },
+    preconditions: { expected: { [id]: createdAt }, from: { [id]: createdAt - 1 } },
+    undone: false,
+    createdAt,
+  };
+}
+
+function expectedAtomicEvent(
+  id: string,
+  projectId: string,
+  userId: string,
+  createdAt: number,
+): PlanEvent {
+  return {
+    id: `event-${id}`,
+    projectId,
+    userId,
+    kind: 'rename',
+    label: `Rename ${id}`,
+    workItemId: `${id}-work`,
+    stepId: null,
+    before: { type: 'rename', name: `Before ${id}` },
+    after: { type: 'rename', name: `After ${id}` },
+    createdAt,
+  };
+}
+
+const journalCollateralActorFault = defineFault({
+  id: 'break:journal.append:history-atomic',
+  caseId: 'journal.append:history-atomic',
+  createControl: () => createFaultControl('journal.append:history-atomic:collateral-actor'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      journal: replaceMethod(source.stores.journal, 'append', (append) => {
+        return async (entry, event) => {
+          await append(entry, event);
+          if (entry.id !== 'atomic-target') return;
+          await source.stores.journal.discard('atomic-sentinel-b');
+          control.reach('journal.append:history-atomic:collateral-actor');
+        };
+      }),
+    });
+  },
+});
+
+const journalReplacementCorruptionFault = defineFault({
+  id: 'break:journal.append:account-redo-depth',
+  caseId: 'journal.append:account-redo-depth',
+  createControl: () => createFaultControl('journal.append:account-redo-depth:replacement-record'),
+  mutate(source: SqliteSource, control) {
+    return withStores(source, {
+      journal: replaceMethod(source.stores.journal, 'append', (append) => {
+        return async (entry, event) => {
+          if (entry.id !== 'redo-a-replacement') return append(entry, event);
+          await append({ ...entry, inverse: { broken: 'replacement inverse' } }, event);
+          control.reach('journal.append:account-redo-depth:replacement-record');
+        };
+      }),
+    });
+  },
+});
+
+function expectedActorBRedo() {
+  return {
+    id: 'redo-b',
+    projectId: DETERMINISTIC_SEED.projectIds[0],
+    userId: DETERMINISTIC_SEED.ownerIds[1],
+    seq: 1,
+    kind: 'rename' as const,
+    payload: { label: 'Rename redo-b', forward: { type: 'rename', name: 'After redo-b' } },
+    inverse: { type: 'rename', name: 'Before redo-b' },
+    preconditions: { expected: { 'redo-b': 900 }, from: { 'redo-b': 899 } },
+    undone: true,
+    createdAt: 102,
+  };
+}
 
 const journalBroadRedoFault = defineFault({
   id: 'break:journal.append:account-redo-depth',
@@ -1758,6 +1968,12 @@ const journalBroadRedoFault = defineFault({
         return async (entry, event) => {
           await append(entry, event);
           if (entry.id !== 'redo-a-replacement') return;
+          expect(
+            await source.stores.journal.entriesFor(
+              DETERMINISTIC_SEED.projectIds[0],
+              DETERMINISTIC_SEED.ownerIds[1],
+            ),
+          ).toEqual([expectedActorBRedo()]);
           await source.stores.journal.discard('redo-b');
           control.reach('journal.append:account-redo-depth:all-redo');
         };
@@ -1900,7 +2116,12 @@ interface SubtreeIncompleteProbe {
 
 function rejectJournalBeforeAppend(
   source: SqliteSource,
-  probe: { attempts: number; closeCalls: number },
+  probe: {
+    attempts: number;
+    closeCalls: number;
+    entries: JournalEntry[][] | null;
+    history: PlanEvent[][] | null;
+  },
 ): SqliteSource {
   return withStores(
     {
@@ -1913,9 +2134,51 @@ function rejectJournalBeforeAppend(
     {
       journal: replaceMethod(source.stores.journal, 'append', (append) => {
         return async (entry, event) => {
-          if (entry.id !== 'atomic-target') return append(entry, event);
+          if (entry.id !== 'atomic-late-target') return append(entry, event);
           probe.attempts += 1;
+          probe.entries = await Promise.all([
+            source.stores.journal.entriesFor(
+              DETERMINISTIC_SEED.projectIds[0],
+              DETERMINISTIC_SEED.ownerIds[0],
+            ),
+            source.stores.journal.entriesFor(
+              DETERMINISTIC_SEED.projectIds[0],
+              DETERMINISTIC_SEED.ownerIds[1],
+            ),
+            source.stores.journal.entriesFor(
+              DETERMINISTIC_SEED.projectIds[1],
+              DETERMINISTIC_SEED.ownerIds[1],
+            ),
+          ]);
+          probe.history = await Promise.all(
+            DETERMINISTIC_SEED.projectIds.map((projectId) =>
+              source.stores.planEvents.listFor(projectId, {}),
+            ),
+          );
           throw new Error('injected journal-history-insert failure before target append');
+        };
+      }),
+    },
+  );
+}
+
+function skipActorBRedo(
+  source: SqliteSource,
+  probe: { attempts: number; closeCalls: number },
+): SqliteSource {
+  return withStores(
+    {
+      ...source,
+      async close() {
+        probe.closeCalls += 1;
+        await source.close();
+      },
+    },
+    {
+      journal: replaceMethod(source.stores.journal, 'flip', (flip) => {
+        return async (id, undone, preconditions) => {
+          if (id !== 'redo-b') return flip(id, undone, preconditions);
+          probe.attempts += 1;
         };
       }),
     },
@@ -2009,14 +2272,22 @@ async function proveFault(
       const lateControl =
         fault.caseId === 'subtrees.insertSubtree:late-failure'
           ? sqliteLateWriteControl('subtree-final-satellite')
-          : null;
+          : fault.caseId === 'journal.append:history-atomic' &&
+              run.control.phase !== 'journal.append:history-atomic:outside-transaction'
+            ? sqliteLateWriteControl('journal-history-insert')
+            : null;
       const selectedBase: OpenSource =
         lateControl === null
           ? openBase
-          : (options) =>
-              openSqliteSourceWithNonAtomicSubtreeFault(options, lateControl, () => {
-                run.control.reach(run.control.phase);
-              });
+          : lateControl.phase === 'subtree-final-satellite'
+            ? (options) =>
+                openSqliteSourceWithNonAtomicSubtreeFault(options, lateControl, () => {
+                  run.control.reach(run.control.phase);
+                })
+            : (options) =>
+                openSqliteSourceWithFault(options, lateControl, () => {
+                  run.control.reach(run.control.phase);
+                });
       const openSource = brokenSource(
         (options: OpenSqliteSourceOptions) => decorate(selectedBase(options)),
         run,
@@ -2043,21 +2314,26 @@ async function proveFault(
       ): Promise<CaseFixture<TransactionalStores[Family]>> => {
         if (wasOpened) return Promise.reject(new Error(`${fault.caseId} fixture opened twice`));
         wasOpened = true;
+        if (family === 'journal')
+          return Promise.resolve({
+            ...sqliteFixture(source, directory, family, caseId),
+            scenario: {
+              kind: 'late-write',
+              point: 'journal-history-insert',
+              arm:
+                lateControl?.phase === 'journal-history-insert'
+                  ? () => {
+                      lateControl.arm();
+                    }
+                  : () => undefined,
+              reached:
+                lateControl?.phase === 'journal-history-insert'
+                  ? () => lateControl.reached()
+                  : () => run.control.reached(),
+            },
+          });
         if (family !== 'subtrees')
-          return Promise.resolve(
-            family === 'journal' &&
-              run.control.phase === 'journal.append:history-atomic:outside-transaction'
-              ? {
-                  ...sqliteFixture(source, directory, family, caseId),
-                  scenario: {
-                    kind: 'late-write',
-                    point: 'journal-history-insert',
-                    arm: () => undefined,
-                    reached: () => run.control.reached(),
-                  },
-                }
-              : sqliteFixture(source, directory, family, caseId),
-          );
+          return Promise.resolve(sqliteFixture(source, directory, family, caseId));
         return Promise.resolve({
           ...sqliteFixture(source, directory, family, caseId),
           scenario:
@@ -2189,29 +2465,114 @@ describe('SQLite existing source conformance', () => {
     );
     // Proof: the independently routed target history leaves this complete event
     // absent from project A after its real journal entry commits.
-    expect(failures[0]).toContain(`-     "createdAt": 201,
--     "id": "event-atomic-target",
--     "kind": "rename",
--     "label": "Rename atomic-target",
--     "projectId": "project-a",`);
+    expect(failures[0]).toContain(`-       "createdAt": 201,
+-       "id": "event-atomic-target",
+-       "kind": "rename",
+-       "label": "Rename atomic-target",
+-       "projectId": "project-a",`);
     // Proof: throwing outside the transaction leaves this complete entry committed.
-    expect(failures[1]).toContain(`+       "id": "atomic-target",
+    expect(failures[1]).toContain(`+       "id": "atomic-late-target",
 +       "inverse": {`);
     // Proof: clearing both actors' redo removes B's complete retained entry.
-    expect(failures[2]).toContain(`-     "id": "redo-b",
--     "inverse": {`);
+    expect(failures[2]).toContain(`-       "id": "redo-b",
+-       "inverse": {`);
     // Proof: pruning history with the journal removes the complete oldest event.
     expect(failures[3]).toContain(`-     "id": "event-redo-a"`);
   });
 
   it('refuses to certify a pre-write SQLite journal failure', async () => {
-    const probe = { attempts: 0, closeCalls: 0 };
+    const probe: JournalIncompleteProbe = {
+      attempts: 0,
+      closeCalls: 0,
+      entries: null,
+      history: null,
+    };
     const proof = await proveFault(journalLateOutsideFault, openSqliteSource, (source) =>
       rejectJournalBeforeAppend(source, probe),
     );
     // Proof: reaching before the real target append changed this to observed.
     expect(proof.kind).toBe('phase-failed');
+    const [projectA, projectB] = DETERMINISTIC_SEED.projectIds;
+    const [actorA, actorB] = DETERMINISTIC_SEED.ownerIds;
+    expect(probe).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      entries: [
+        [
+          expectedAtomicEntry('atomic-sentinel-a', projectA, actorA, 1, 101),
+          expectedAtomicEntry('atomic-target', projectA, actorA, 2, 201),
+        ],
+        [expectedAtomicEntry('atomic-sentinel-b', projectA, actorB, 1, 102)],
+        [expectedAtomicEntry('atomic-other-project', projectB, actorB, 1, 103)],
+      ],
+      history: [
+        [
+          expectedAtomicEvent('atomic-target', projectA, actorA, 201),
+          expectedAtomicEvent('atomic-sentinel-b', projectA, actorB, 102),
+          expectedAtomicEvent('atomic-sentinel-a', projectA, actorA, 101),
+        ],
+        [expectedAtomicEvent('atomic-other-project', projectB, actorB, 103)],
+      ],
+    });
+  });
+
+  it('refuses to observe a reached SQLite late write with incomplete public history', async () => {
+    const probe: JournalIncompleteProbe = {
+      attempts: 0,
+      closeCalls: 0,
+      entries: null,
+      history: null,
+    };
+    const proof = await proveFault(journalLateOutsideFault, openSqliteSource, (source) =>
+      commitJournalWithoutLateHistory(source, probe),
+    );
+    const [projectA, projectB] = DETERMINISTIC_SEED.projectIds;
+    const [actorA, actorB] = DETERMINISTIC_SEED.ownerIds;
+    // Proof: removing only the outside-transaction complete history prerequisite
+    // changed this result to `observed` after the incomplete source committed its rows.
+    expect(proof.kind).toBe('phase-failed');
+    expect(probe).toEqual({
+      attempts: 1,
+      closeCalls: 1,
+      entries: [
+        [
+          expectedAtomicEntry('atomic-sentinel-a', projectA, actorA, 1, 101),
+          expectedAtomicEntry('atomic-target', projectA, actorA, 2, 201),
+          expectedAtomicEntry('atomic-late-target', projectA, actorA, 3, 202),
+        ],
+        [expectedAtomicEntry('atomic-sentinel-b', projectA, actorB, 1, 102)],
+        [expectedAtomicEntry('atomic-other-project', projectB, actorB, 1, 103)],
+      ],
+      history: [
+        [
+          expectedAtomicEvent('atomic-target', projectA, actorA, 201),
+          expectedAtomicEvent('atomic-sentinel-b', projectA, actorB, 102),
+          expectedAtomicEvent('atomic-sentinel-a', projectA, actorA, 101),
+        ],
+        [expectedAtomicEvent('atomic-other-project', projectB, actorB, 103)],
+      ],
+    });
+  });
+
+  it('detects collateral actor deletion, replacement corruption and missing redo setup', async () => {
+    const collateral = await proveFault(journalCollateralActorFault);
+    const replacement = await proveFault(journalReplacementCorruptionFault);
+    const probe = { attempts: 0, closeCalls: 0 };
+    const missingRedo = await proveFault(journalBroadRedoFault, openSqliteSource, (source) =>
+      skipActorBRedo(source, probe),
+    );
+    expect([collateral.kind, replacement.kind, missingRedo.kind]).toEqual([
+      'observed',
+      'observed',
+      'phase-failed',
+    ]);
     expect(probe).toEqual({ attempts: 1, closeCalls: 1 });
+    expect(
+      collateral.kind === 'observed' ? Bun.stripANSI(collateral.observedFailure) : '',
+    ).toContain(`-       "id": "atomic-sentinel-b",`);
+    expect(
+      replacement.kind === 'observed' ? Bun.stripANSI(replacement.observedFailure) : '',
+    ).toContain(`+         "broken": "replacement inverse",`);
   });
 
   it('runs every subtree case through the real SQLite source', async () => {
