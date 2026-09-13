@@ -176,3 +176,22 @@ repaired immutable commit receives independent rereview and its required gate.
 The full uncached owning matrix passed auth `96/0/254` and MCP `125/0/512`, with
 both lint and typecheck targets clean. Changed-file Prettier, `git diff --check`,
 and strict `mcp-oidc-store` OpenSpec validation also passed.
+
+## Publication integration
+
+The accepted implementation head
+`ed1129b6ba00a73247c625cab59d48038b054817` was merged conflict-free with the
+actual fetched `origin/main` tip
+`9b13f98e62a7cd880977e348421e992e8c4951a3`. The resulting merge commit is
+`bf27d1638bda23b053b5cdd4910d216287d570f0`. Current main changed solver,
+work-item, backend composition and frontend behavior but did not overlap the MCP
+OIDC implementation files; the focused and owning integration runs below prove
+the accepted shared-store and callback behavior against those changes.
+
+Fresh integration evidence:
+
+- `bun test apps/mcp-01/src/oauth.test.ts apps/mcp-01/src/pending-authorizations.test.ts apps/mcp-01/src/oauth-timing-safe.test.ts libs/auth/src/oidc-store.test.ts apps/be-01/src/controller/oidc.integration.test.ts apps/be-01/src/controller/auth-oidc-endpoints.test.ts apps/be-01/src/http/elysia/auth-oidc.test.ts apps/be-01/src/app.routes.test.ts` — 119 passed, 0 failed, 1,153 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test lint typecheck -p auth mcp-01 be-01 --parallel=2 --skip-nx-cache --output-style=static` — all nine targets passed: auth 96/0/254, MCP 125/0/512, and be-01 1,055/0/18,467 with one declared solver-supervisor skip.
+
+No new behavior or failure proof was added during this conflict-free publication
+integration. Task 3.2 remains unchecked pending the required host gate.
