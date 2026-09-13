@@ -24,6 +24,7 @@ function fixture(
     sessionLimit?: number;
     transactionLimit?: number;
     transactionLimitPerClient?: number;
+    random?: () => string;
   } = {},
 ) {
   let now = 1_700_000_000_000;
@@ -112,25 +113,57 @@ function challengeOf(verifier: string): string {
   return createHash('sha256').update(verifier).digest('base64url');
 }
 
+/** Applies this endpoint's single Set-Cookie exactly as a browser would. */
+function browserCookie(previous: string | undefined, response: Response): string | undefined {
+  const setCookie = response.headers.get('set-cookie');
+  if (setCookie === null) return previous;
+  const pair = setCookie.split(';', 1)[0];
+  if (setCookie.includes('Max-Age=0')) return undefined;
+  return pair;
+}
+
+function pendingMaps(oauth: InMemoryMcpOAuth): {
+  contexts: Map<string, unknown>;
+  records: Map<string, unknown>;
+} {
+  // Tests inspect the actual in-process backing maps to prove exact retention.
+  const pending = (
+    oauth as unknown as {
+      pendingAuthorizations: {
+        contexts: Map<string, unknown>;
+        transactions: { records: Map<string, unknown> };
+      };
+    }
+  ).pendingAuthorizations;
+  return { contexts: pending.contexts, records: pending.transactions.records };
+}
+
+function transactionCount(oauth: InMemoryMcpOAuth): number {
+  return pendingMaps(oauth).contexts.size;
+}
+
+function grantCount(oauth: InMemoryMcpOAuth): number {
+  return (oauth as unknown as { grants: Map<string, unknown> }).grants.size;
+}
+
 async function completedAuthorization(
   oauth: InMemoryMcpOAuth,
   verifier: string,
   registeredClientId?: string,
-): Promise<{ clientId: string; response: Response }> {
+): Promise<{ callback: Request; clientId: string; response: Response }> {
   const clientId = registeredClientId ?? (await register(oauth));
   const url = authorizeUrl(clientId);
   url.searchParams.set('code_challenge', challengeOf(verifier));
   const started = await oauth.response(new Request(url));
   const binding = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
   const upstream = new URL(started?.headers.get('location') ?? 'https://invalid');
-  const response = await oauth.response(
-    new Request(
-      `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=upstream&state=${String(upstream.searchParams.get('state'))}`,
-      { headers: { cookie: binding } },
-    ),
+  const callback = new Request(
+    `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=upstream&state=${String(upstream.searchParams.get('state'))}`,
+    { headers: { cookie: binding } },
   );
+  const response = await oauth.response(callback);
   if (response === undefined) throw new Error('callback endpoint did not handle the request');
-  return { clientId, response };
+  return { callback, clientId, response };
 }
 
 async function authorizationCode(oauth: InMemoryMcpOAuth, verifier: string): Promise<string> {
@@ -467,7 +500,7 @@ describe('InMemoryMcpOAuth', () => {
     ).searchParams.get('state');
     const firstCookie = first?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
 
-    expect((await oauth.response(new Request(authorizeUrl(clientId))))?.status).toBe(429);
+    const overflow = await oauth.response(new Request(authorizeUrl(clientId)));
     const callback = await oauth.response(
       new Request(
         `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=upstream&state=${String(firstState)}`,
@@ -476,6 +509,7 @@ describe('InMemoryMcpOAuth', () => {
     );
     expect(callback?.status).toBe(302);
     expect(exchangeCalls).toHaveLength(1);
+    expect(overflow?.status).toBe(429);
   });
 
   // Proof: a global-only transaction cap lets one registered client deny
@@ -490,16 +524,35 @@ describe('InMemoryMcpOAuth', () => {
     expect((await oauth.response(new Request(authorizeUrl(second))))?.status).toBe(302);
   });
 
+  // Proof: disabling the wrapper's shared expiry cleanup makes the next real
+  // authorization return 429 instead of 302 at the deadline.
+  it('frees global and per-client pending capacity at the shared expiry', async () => {
+    const { advance, oauth } = fixture({ transactionLimit: 2, transactionLimitPerClient: 1 });
+    const first = await register(oauth);
+    const second = await register(oauth);
+
+    expect((await oauth.response(new Request(authorizeUrl(first))))?.status).toBe(302);
+    expect((await oauth.response(new Request(authorizeUrl(first))))?.status).toBe(429);
+    expect((await oauth.response(new Request(authorizeUrl(second))))?.status).toBe(302);
+    advance(300_000);
+    expect((await oauth.response(new Request(authorizeUrl(first))))?.status).toBe(302);
+    expect(pendingMaps(oauth).contexts.size).toBe(1);
+    expect(pendingMaps(oauth).records.size).toBe(1);
+  });
+
   // Proof: allowing callbacks to append authorization grants without a bound
   // lets completed Auth0 flows retain arbitrary upstream access tokens.
   it('refuses a callback at grant capacity without evicting a live grant', async () => {
-    const { oauth } = fixture({ grantLimit: 1 });
+    const { exchangeCalls, oauth } = fixture({ grantLimit: 1 });
     const verifier = 'v'.repeat(43);
     const firstCode = await authorizationCode(oauth, verifier);
     const second = await completedAuthorization(oauth, verifier);
 
     expect(firstCode).toBe('random-6');
     expect(second.response.status).toBe(429);
+    expect(exchangeCalls).toHaveLength(2);
+    expect((await oauth.response(second.callback))?.status).toBe(400);
+    expect(exchangeCalls).toHaveLength(2);
     expect(await second.response.json()).toEqual({ error: 'temporarily_unavailable' });
     expect((await tokenResponse(oauth, 'random-1', firstCode, verifier)).status).toBe(200);
   });
@@ -568,8 +621,160 @@ describe('InMemoryMcpOAuth', () => {
     expect(await rejected?.json()).toEqual({ error: 'invalid_request' });
   });
 
-  // Proof: retaining the upstream transaction after callback makes the same
-  // provider response mint a second local authorization code.
+  // Proof: replacing digestOidcBinding with identity made both retained keys
+  // equal `random-2` instead of this independently fixed SHA-256 value.
+  // Spreading browserBinding exposes it in the shared record's serialized value.
+  it('retains no raw browser binding in pending authorization keys or values', async () => {
+    const { oauth } = fixture();
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    const browserBinding =
+      started?.headers.get('set-cookie')?.split(';', 1)[0]?.split('=', 2)[1] ?? '';
+    const maps = pendingMaps(oauth);
+
+    expect(browserBinding).toBe('random-2');
+    const expectedDigest = 'a2d6d4faf36f2e1df73e7f326651ba0507442dc4b47698f700157c8460b4584d';
+    expect([...maps.contexts.keys()]).toEqual([expectedDigest]);
+    expect([...maps.records.keys()]).toEqual([expectedDigest]);
+    expect([...maps.contexts.keys(), ...maps.records.keys()]).not.toContain(browserBinding);
+    expect(JSON.stringify([...maps.contexts.values(), ...maps.records.values()])).not.toContain(
+      browserBinding,
+    );
+  });
+
+  // Proof: removing the generated-binding collision guard lets the second
+  // authorization resolve instead of throwing before it can replace the first.
+  it('duplicate live binding cannot overwrite an existing authorization', async () => {
+    const values = [
+      'client-id',
+      'same-binding',
+      'upstream-1',
+      'nonce-1',
+      'verifier-1',
+      'same-binding',
+      'upstream-2',
+      'nonce-2',
+      'verifier-2',
+      'grant-1',
+    ];
+    const { exchangeCalls, oauth } = fixture({ random: () => values.shift() ?? 'exhausted' });
+    const clientId = await register(oauth);
+    const first = await oauth.response(new Request(authorizeUrl(clientId)));
+    const cookie = first?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+
+    let thrown: unknown;
+    try {
+      await oauth.response(new Request(authorizeUrl(clientId)));
+    } catch (failure) {
+      thrown = failure;
+    }
+    const completed = await oauth.response(
+      new Request(
+        'https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=upstream&state=upstream-1',
+        { headers: { cookie } },
+      ),
+    );
+    expect(completed?.status).toBe(302);
+    expect(
+      new URL(completed?.headers.get('location') ?? 'https://invalid').searchParams.get('state'),
+    ).toBe('claude-state');
+    expect(exchangeCalls).toHaveLength(1);
+    expect(thrown).toEqual(
+      new Error('generated OIDC browser binding collided with a live authorization'),
+    );
+  });
+
+  // Proof: returning `missing` for consumed proof without context leaves the
+  // expected trusted-state error undefined, while exchange and grants stay zero.
+  it('consumed proof with missing metadata throws before exchange', async () => {
+    const { exchangeCalls, oauth } = fixture();
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    const cookie = started?.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    const upstreamState = new URL(
+      started?.headers.get('location') ?? 'https://invalid',
+    ).searchParams.get('state');
+    pendingMaps(oauth).contexts.clear();
+
+    let thrown: unknown;
+    try {
+      await oauth.response(
+        new Request(
+          `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=upstream&state=${String(upstreamState)}`,
+          { headers: { cookie } },
+        ),
+      );
+    } catch (failure) {
+      thrown = failure;
+    }
+    expect(exchangeCalls).toHaveLength(0);
+    expect(grantCount(oauth)).toBe(0);
+    expect(thrown).toEqual(new Error('consumed OIDC proof has no authorization context'));
+  });
+
+  // Proof: deleting before state comparison or clearing the mismatch response
+  // cookie makes the honest callback return 400 instead of 302 without exchange.
+  it('wrong state preserves the honest MCP login and browser cookie', async () => {
+    const { exchangeCalls, oauth } = fixture();
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    if (started === undefined) throw new Error('authorization endpoint did not handle the request');
+    let heldCookie = browserCookie(undefined, started);
+    const upstreamState = new URL(
+      started.headers.get('location') ?? 'https://invalid',
+    ).searchParams.get('state');
+    const wrong = await oauth.response(
+      new Request(
+        'https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=forged&state=wrong-state',
+        { headers: heldCookie === undefined ? undefined : { cookie: heldCookie } },
+      ),
+    );
+    if (wrong === undefined) throw new Error('callback endpoint did not handle the request');
+
+    expect(wrong.status).toBe(400);
+    expect(exchangeCalls).toHaveLength(0);
+    heldCookie = browserCookie(heldCookie, wrong);
+    const honest = await oauth.response(
+      new Request(
+        `https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=upstream&state=${String(upstreamState)}`,
+        { headers: heldCookie === undefined ? undefined : { cookie: heldCookie } },
+      ),
+    );
+
+    expect(honest?.status).toBe(302);
+    expect(exchangeCalls).toHaveLength(1);
+    expect(wrong.headers.get('set-cookie')).toBeNull();
+    expect(heldCookie).toBe('__Host-wbs_mcp_oauth=random-2');
+  });
+
+  // Proof: comparing the wrong state before expiry leaves one dead transaction
+  // instead of removing it, so the exact retained-transaction assertion fails.
+  it('expires before mismatch and clears the dead browser transaction', async () => {
+    const { advance, exchangeCalls, oauth } = fixture({ transactionLimit: 1 });
+    const clientId = await register(oauth);
+    const started = await oauth.response(new Request(authorizeUrl(clientId)));
+    if (started === undefined) throw new Error('authorization endpoint did not handle the request');
+    let heldCookie = browserCookie(undefined, started);
+    advance(300_000);
+    const expired = await oauth.response(
+      new Request(
+        'https://dev.wbs.bulletpoints.club/mcp/oauth/callback?code=late&state=wrong-state',
+        { headers: heldCookie === undefined ? undefined : { cookie: heldCookie } },
+      ),
+    );
+    if (expired === undefined) throw new Error('callback endpoint did not handle the request');
+
+    expect(expired.status).toBe(400);
+    expect(exchangeCalls).toHaveLength(0);
+    expect(transactionCount(oauth)).toBe(0);
+    heldCookie = browserCookie(heldCookie, expired);
+    expect(heldCookie).toBeUndefined();
+  });
+
+  // Proof: retaining the upstream proof makes replay reach the wrapper's
+  // missing-context guard; sending downstream state to exchange changes its
+  // check from random-3 to claude-state, and returning upstream state to the
+  // connector changes its redirect from claude-state to random-3.
   it('binds PKCE to a one-use upstream browser round trip', async () => {
     const { authorizationCalls, exchangeCalls, oauth } = fixture();
     const clientId = await register(oauth);
@@ -602,11 +807,27 @@ describe('InMemoryMcpOAuth', () => {
     expect(oauth.readGrant(code ?? '')).toMatchObject({
       clientId,
       codeChallenge: 'A'.repeat(43),
+      redirectUri: CALLBACK,
+      scope: 'wbs:read wbs:write',
+      scopes: ['wbs:read', 'wbs:write'],
       upstreamAccessToken: 'upstream-okta-token',
     });
     expect(exchangeCalls).toHaveLength(1);
-    expect((await oauth.response(callback))?.status).toBe(400);
+    const exchange = exchangeCalls[0] as {
+      checks: { nonce: string; state: string; verifier: string };
+      request: Request;
+    };
+    expect(exchange.checks).toEqual({
+      nonce: 'random-4',
+      state: 'random-3',
+      verifier: 'random-5',
+    });
+    expect(new URL(exchange.request.url).searchParams.get('state')).toBe('random-3');
+    const replay = await oauth.response(callback);
     expect(exchangeCalls).toHaveLength(1);
+    expect(replay?.status).toBe(400);
+    expect(completed?.headers.get('set-cookie')).toContain('Max-Age=0');
+    expect(transactionCount(oauth)).toBe(0);
   });
 
   // Break caught: forwarding the local MCP token or omitting its audience/JTI
