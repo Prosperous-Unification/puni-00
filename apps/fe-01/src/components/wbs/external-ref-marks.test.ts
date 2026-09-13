@@ -66,7 +66,9 @@ describe('which marks a row’s links draw', () => {
     ).toEqual(['slack', 'jira']);
   });
 
-  it('collapses everything past the fourth family into one overflow mark', () => {
+  it('collapses everything past the third family into one overflow mark', () => {
+    // Three marks since the column went 40 → 32 on 2026-09-13; five families
+    // here, so the overflow stands for the third, fourth and fifth.
     const marks = refMarksOf(
       refsTo('sys-jira', 'sys-confluence', 'sys-gh-pr', 'sys-slack', 'sys-nobody-has-heard-of'),
       SEEDED,
@@ -74,9 +76,13 @@ describe('which marks a row’s links draw', () => {
     expect(marks).toHaveLength(MOST_MARKS);
     expect(marks.at(-1)).toEqual({
       kind: 'overflow',
-      count: 2,
-      label: '2 more systems, 2 links',
+      count: 3,
+      label: '3 more systems, 3 links',
     });
+    // And exactly four families is the first row that overflows at all.
+    const four = refMarksOf(refsTo('sys-jira', 'sys-confluence', 'sys-gh-pr', 'sys-slack'), SEEDED);
+    expect(four).toHaveLength(MOST_MARKS);
+    expect(four.at(-1)?.kind).toBe('overflow');
   });
 
   it('is empty for a row with no links, which is a blank cell and not a dash', () => {
