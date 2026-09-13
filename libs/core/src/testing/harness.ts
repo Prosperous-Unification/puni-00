@@ -123,7 +123,19 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
     subtrees,
   };
   return {
-    service: new AvailableWorkItemService({ clock: testClock, ...stores, broadcast, scheduler }),
+    // The caller's clock when it hands one, or the wall clock. `testClock` was
+    // hardcoded here until 2026-09-13 while the type already accepted a
+    // `clock` override, so `takes the UTC day of its own stamp when no day is
+    // given` asserted a fixed day against `Date.now()` — green on the day it
+    // was written, red the morning after (`Expected: "2026-09-12" · Received:
+    // "2026-09-13"`, PR #428's gate). A check that could not fail; catalogued in
+    // docs/findings/checks-that-cannot-fail.md.
+    service: new AvailableWorkItemService({
+      clock: overrides.clock ?? testClock,
+      ...stores,
+      broadcast,
+      scheduler,
+    }),
     scheduler,
     broadcast: broadcast as RecordingBroadcaster,
     stores,

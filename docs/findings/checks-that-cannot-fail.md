@@ -37,6 +37,7 @@ incidents; those IDs deliberately share one preserved payload anchor.
 | R5-25    | [r5.catalogue.047](#r5-catalogue-047) |
 | R5-26    | [r5.catalogue.048](#r5-catalogue-048) |
 | R5-27    | [r5.catalogue.049](#r5-catalogue-049) |
+| R5-28    | [r5.catalogue.052](#r5-catalogue-052) |
 
 <a id="r5-catalogue-heading"></a>
 <!-- root-source:r5.catalogue.heading -->
@@ -46,7 +47,7 @@ incidents; those IDs deliberately share one preserved payload anchor.
 <a id="r5-catalogue-001"></a>
 <!-- root-source:r5.catalogue.001 -->
 
-R5 exists because this failure keeps recurring — twenty-seven times so far. Fixed: `assertPragmas` with no runtime
+R5 exists because this failure keeps recurring — twenty-eight times so far. Fixed: `assertPragmas` with no runtime
 caller, the migration lint's unreachable `ALTER TABLE ... RENAME COLUMN` branch, `readRemoteState`
 reading an unreadable file as never-deployed, `shellcheck … || echo`, the secrets scanner's
 `.catch(() => '')` (an unreadable file scanned as clean — in a CI gate), and `dev:setup` skipping a
@@ -705,6 +706,21 @@ font, not about the paint order. What settles it is asking the browser: the card
 `pointer-events` is set to `auto` for the length of one `elementFromPoint` and restored, which
 changes what the hit test can **see** and nothing about which box is on **top**. `the card`
 against `TEXTAREA`, watched both ways. There was never a defect.
+
+<a id="r5-catalogue-052"></a>
+<!-- root-source:r5.catalogue.052 -->
+
+**The twenty-eighth, 2026-09-13: a test handed the harness a fixed clock and the harness kept its
+own.** `takes the UTC day of its own stamp when no day is given` (`libs/core`, `progress.test.ts`)
+built `inMemoryServices({ clock: clockOf({ now: () => Date.UTC(2026, 8, 12, 23, 30) }) })` and
+asserted the fact end `2026-09-12`. `inMemoryServices` typed the override and ignored it —
+`clock: testClock`, the wall clock, was written into the service literal — so the assertion
+compared a fixed day against **today's** UTC day. Green on 2026-09-12, when it was written and
+when PR #427's gate ran; red on PR #428's gate the next morning, `Expected: "2026-09-12" ·
+Received: "2026-09-13"`, on a commit that touched nothing near it. The negative that would have
+caught it is the one R5 asks for and nobody ran: break the clock the test thinks it controls and
+watch the test notice. It could not, because the test never controlled it. Fixed by honouring
+`overrides.clock`; the proof is that the case is now green on a day that is not the 12th.
 
 <a id="r5-catalogue-050"></a>
 <!-- root-source:r5.catalogue.050 -->
