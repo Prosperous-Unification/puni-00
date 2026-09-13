@@ -364,3 +364,46 @@ approval is provided, fetch the candidate into the owned checkout and pass its
 final SHA to `bin/h2puni-gate.sh`; the wrapper must perform the checkout under
 the canonical heavy lock. Publication remains blocked by the two automatic-review
 rejections described above.
+
+## Current-main integration and host gate — 2026-09-13
+
+The branch was published after direct user authorization, then merged with
+`origin/main` at `029f65c7`. The semantic conflict resolution retained the
+central registry and added main's `setStatus` command and fact-date patch fields
+to its definition, normalizer and binding. The first clean host run at
+`4e31db5543899741a120f3cf68b91979a55bf24d` rejected two real integration faults:
+the independent kind fixture still named 37 commands, and the in-memory harness
+accepted a clock override but constructed the service with `testClock`. The
+former failed `contracts:test` at the exact set comparison; the latter failed
+`core:test` with expected `2026-09-12`, received `2026-09-13`. The same run passed
+99 other workspace tasks. Both faults were repaired in `1decec9f` and their exact
+focused tests passed before publication.
+
+The canonical target-version wrapper then ran against exact commit
+`1decec9f251ec6fa13db178cc1c3515da5a05b2a` in the owned clean checkout
+`/home/puni1/wbs-gate-command-registry-6e9b1b9c`. Its uncached workspace phase
+reported all 101 test, lint, typecheck and build tasks successful in 10m42s. The
+wrapper continued through the tool-wiki test/typecheck/build and source-lint
+phase and the solver-image smoke. After those processes ended, the wrapper's
+checkout remained detached, clean and pinned at the candidate SHA. This is the
+wrapper's successful state: its guarded EXIT path restores the pre-gate commit
+on any nonzero step.
+
+The SSH transport did not close after the remote wrapper process ended because a
+completed host test retained its channel; it was interrupted locally and
+therefore has local exit 255. That transport exit is not claimed as gate evidence.
+The wrapper's completed process sequence and preserved candidate checkout are the
+evidence. No check was skipped. The external tool-wiki activation probe reported
+inactive because no activation marker is provisioned; the required repository
+policy checks still ran.
+
+| Check                                                                          | Observed result                                                                             |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Forced contracts/core/SQLite/backend/MCP TypeScript build after semantic merge | Exit 0                                                                                      |
+| Focused command, mounted HTTP, generated MCP and write-coordinator suites      | 116 pass, 0 fail, 730 assertions                                                            |
+| Gate-failure reproductions                                                     | Independent kind pin and injected-clock status day both failed at their intended assertions |
+| Restored focused checks                                                        | 2 pass, 0 fail                                                                              |
+| Scoped ESLint and Prettier                                                     | Exit 0                                                                                      |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`   | 81/81 entries passed                                                                        |
+| Exact-SHA h2puni workspace phase                                               | 101/101 tasks passed uncached                                                               |
+| Exact-SHA h2puni remaining phases                                              | Tool-wiki checks and solver-image smoke completed; wrapper retained candidate SHA           |
