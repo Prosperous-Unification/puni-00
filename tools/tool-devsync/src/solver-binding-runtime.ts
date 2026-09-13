@@ -248,8 +248,20 @@ export function createTargetSolverBindingRuntime(
         );
         return io.read(releasePath);
       },
-      materialize: (config) =>
-        run('solver config materialization', [
+      materialize: async (config) => {
+        // Dagger publishes into the registry; it does not populate the host
+        // Docker daemon that the supervisor drives. Pull before changing the
+        // shared mapping so the restarted service never points at an absent
+        // image.
+        await run('solver host image pull', ['docker', 'pull', config.devSolverImage]);
+        await run('solver host image inspection', [
+          'docker',
+          'image',
+          'inspect',
+          '--format={{.Id}}',
+          config.devSolverImage,
+        ]);
+        await run('solver config materialization', [
           target.bunPath,
           materializer,
           `--blue-image=${config.blueImage}`,
@@ -258,7 +270,8 @@ export function createTargetSolverBindingRuntime(
           `--dev-source-sha=${config.devSourceSha}`,
           `--output=${configPath}`,
           '--replace',
-        ]),
+        ]);
+      },
       install: async () => {
         await run('solver supervisor bundle build', [
           target.bunPath,
@@ -276,6 +289,15 @@ export function createTargetSolverBindingRuntime(
         ]);
       },
       preflight: async (binding) => {
+        // Proof: solver-binding-runtime.test.ts injects a missing-image
+        // refusal here and observes no complete checkpoint or checkout reset.
+        await run('solver host image inspection', [
+          'docker',
+          'image',
+          'inspect',
+          '--format={{.Id}}',
+          binding.image,
+        ]);
         await run('solver supervisor service preflight', [
           'systemctl',
           '--user',

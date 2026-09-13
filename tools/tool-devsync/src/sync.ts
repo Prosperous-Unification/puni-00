@@ -128,6 +128,12 @@ function solverPreflightDependencies(
       return new Uint8Array(await file.slice(0, CONFIG_MAX_BYTES + 1).arrayBuffer());
     },
     requireHost: async (image) => {
+      // A registry publish does not load the host daemon. Pulling the exact
+      // digest makes an absent image self-healing; a pull or inspection
+      // refusal is emitted by the poller instead of remaining in the user
+      // service journal until the next optimization request.
+      await $`docker pull ${image}`;
+      await $`docker image inspect --format={{.Id}} ${image}`;
       await $`systemctl --user is-active --quiet ${SOLVER_SUPERVISOR_SERVICE}`;
       await $`test -S ${SOLVER_SUPERVISOR_SOCKET}`;
       await $`${SOLVER_SUPERVISOR_BUN} ${SOLVER_SUPERVISOR_BUNDLE.remote} --preflight=dev --config=${configPath} --solver-image=${image}`;
@@ -161,8 +167,9 @@ export async function preflightSolver(
   const changed = await dependencies.changedPaths(mapping.sourceSha, sha);
   assertDevSolverSourceCompatible(changed);
   // Proof: sync.test.ts stages a future mapping before an unrelated target and
-  // observes refusal before its injected host preflight can run.
-  if (targetChanges.length === 0) return;
+  // observes refusal before its injected host preflight can run. A compatible
+  // mapping is checked even for an unrelated target so the minute poller
+  // repairs or reports an image pruned after preparation.
   await dependencies.requireHost(mapping.image);
 }
 

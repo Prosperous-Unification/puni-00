@@ -302,7 +302,7 @@ describe('dev supervisor', () => {
     }
   });
 
-  it('does not require supervisor host state for source-unrelated deploys', async () => {
+  it('allows absent optional host state for source-unrelated deploys', async () => {
     const deployedSha = 'b'.repeat(40);
     const targetSha = 'c'.repeat(40);
     let configReads = 0;
@@ -327,6 +327,30 @@ describe('dev supervisor', () => {
 
     expect(configReads).toBe(1);
     expect(hostChecks).toBe(0);
+  });
+
+  // Proof: injecting the incident's missing-image refusal into an unrelated
+  // deploy now makes the poller fail instead of resetting and leaving the only
+  // evidence in the supervisor user journal.
+  it('surfaces host-image refusal for a compatible unrelated deploy', async () => {
+    const deployedSha = 'b'.repeat(40);
+    const targetSha = 'c'.repeat(40);
+    let changedPathReads = 0;
+
+    expect(
+      await rejection(
+        preflightSolver(targetSha, {
+          currentSha: () => Promise.resolve(deployedSha),
+          changedPaths: () => {
+            changedPathReads += 1;
+            return Promise.resolve([]);
+          },
+          readConfig: () => Promise.resolve(solverConfigBytes(deployedSha)),
+          requireHost: () => Promise.reject(new Error('No such image: exact solver digest')),
+        }),
+      ),
+    ).toContain('No such image: exact solver digest');
+    expect(changedPathReads).toBe(2);
   });
 
   it('names the materialize and install remedy when changed solver sources have no config', async () => {
