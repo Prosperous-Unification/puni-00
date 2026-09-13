@@ -14,7 +14,6 @@ import {
 } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { ALL_RESOURCES } from '@/lib/plan-refresh';
 
 import { type CellCards, createCellCards, useCardOpenOn } from './cell-card-store';
 import type { CellRef } from './cell-navigation';
@@ -990,7 +989,7 @@ export function WbsTable({
    * schedule order because be-01 wrote the positions.
    */
   const arrangeBySchedule = useCallback(() => {
-    void run((write) => write.perform(ALL_RESOURCES, () => api.arrangeBySchedule(projectId))).then(
+    void run((write) => write.perform(['tree'], () => api.arrangeBySchedule(projectId))).then(
       (landed) => {
         if (landed === 'landed') pushToast({ kind: 'info', text: 'Arranged by schedule.' });
       },
@@ -1892,14 +1891,12 @@ export function WbsTable({
         // it comes back.
         onChoose={(patch) => {
           void run((write) =>
-            write.perform(ALL_RESOURCES, () => api.setOptimizationSettings(projectId, patch)),
+            write.perform(['tree'], () => api.setOptimizationSettings(projectId, patch)),
           );
         }}
         onRetry={(objective, inputHash) => {
           void run((write) =>
-            write.perform(ALL_RESOURCES, () =>
-              api.retryOptimization(projectId, objective, inputHash),
-            ),
+            write.perform(['tree'], () => api.retryOptimization(projectId, objective, inputHash)),
           );
         }}
       />
@@ -2145,7 +2142,7 @@ export function WbsTable({
           }}
           dropDependency={(row, predecessorId) => {
             return run((write) =>
-              write.perform(ALL_RESOURCES, () => api.removeDependency(row.id, predecessorId)),
+              write.perform(['tree'], () => api.removeDependency(row.id, predecessorId)),
             );
           }}
           // The `Start` cell's own sentence, off the one map, handed to the
@@ -2242,7 +2239,7 @@ export function WbsTable({
               void duplicateRow(rowId);
             },
             unfreeze: (rowId) => {
-              void run((write) => write.perform(ALL_RESOURCES, () => api.unfreezeWorkItem(rowId)));
+              void run((write) => write.perform(['tree'], () => api.unfreezeWorkItem(rowId)));
             },
             remove: (row) => {
               void deleteRow(row);

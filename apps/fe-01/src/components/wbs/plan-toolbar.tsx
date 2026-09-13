@@ -15,7 +15,6 @@ import {
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { RunPlanWrite } from '@/lib/local-write';
-import { ALL_RESOURCES } from '@/lib/plan-refresh';
 import type { PersonView, PriorityBandView, TeamCapacityView, TeamView } from '@/lib/wbs-api';
 import { isEstimateMethod, type ProjectApi, type StepView } from '@/lib/wbs-api';
 
@@ -714,15 +713,13 @@ export function PlanToolbar({
             id: 'freeze',
             label: 'Freeze numbering',
             run: () =>
-              void run((write) => write.perform(ALL_RESOURCES, () => api.freezeProject(projectId))),
+              void run((write) => write.perform(['tree'], () => api.freezeProject(projectId))),
           },
           {
             id: 'unfreeze-all',
             label: 'Unfreeze all',
             run: () =>
-              void run((write) =>
-                write.perform(ALL_RESOURCES, () => api.unfreezeProject(projectId)),
-              ),
+              void run((write) => write.perform(['tree'], () => api.unfreezeProject(projectId))),
           },
         ]}
         trigger={{
@@ -917,12 +914,12 @@ export function PlanToolbar({
             flat.flatMap((row) => effectiveTeams.get(row.id)?.teamIds ?? []),
           ),
           setCapacity: (teamId, size) => api.setTeamCapacity(projectId, teamId, size),
-          onChanged: refreshOrMarkStale,
+          onChanged: () => refreshOrMarkStale('tree'),
         }}
         priorities={{
           bands: priorityBands,
           setBands: (bands) => api.setPriorityBands(projectId, bands),
-          onChanged: refreshOrMarkStale,
+          onChanged: () => refreshOrMarkStale('tree'),
         }}
         steps={{
           steps,
@@ -943,7 +940,12 @@ export function PlanToolbar({
           // The same reread every other change on this page makes, which is
           // what puts the new columns on the table and the new list in the
           // section.
-          onChanged: refreshOrMarkStale,
+          onChanged: () => refreshOrMarkStale('tree-and-steps'),
+          onReachChanged: () => refreshOrMarkStale('tree'),
+          // Proof: dropping this recovery left `Remove QA` visible after the
+          // fake peer had deleted it in `fully recovers when a peer already
+          // removed the refused step`. Watched, 2026-09-13.
+          onRefused: () => refreshOrMarkStale(),
         }}
         estimating={{
           // The method is reported, not set: `Plan with` on the bar is the one
@@ -954,7 +956,7 @@ export function PlanToolbar({
           pertWeights: chartRead.pertWeights,
           estimateRounding: chartRead.estimateRounding,
           setArithmetic: (arithmetic) => api.setEstimateArithmetic(projectId, arithmetic),
-          onChanged: refreshOrMarkStale,
+          onChanged: () => refreshOrMarkStale('tree'),
         }}
         {...(chartRead.optimization === undefined
           ? {}
@@ -962,7 +964,7 @@ export function PlanToolbar({
               optimization: {
                 value: chartRead.optimization,
                 setSettings: (patch) => api.setOptimizationSettings(projectId, patch),
-                onChanged: refreshOrMarkStale,
+                onChanged: () => refreshOrMarkStale('tree'),
               },
             })}
       />
@@ -1350,7 +1352,7 @@ export function PlanToolbar({
           value={startDate ?? ''}
           commit={(typed) => {
             void run((write) =>
-              write.perform(ALL_RESOURCES, () =>
+              write.perform(['tree'], () =>
                 api.setStartDate(projectId, typed === '' ? null : typed),
               ),
             );

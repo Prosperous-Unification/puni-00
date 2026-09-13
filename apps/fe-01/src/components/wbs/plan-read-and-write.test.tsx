@@ -1330,6 +1330,91 @@ describe('a step changing, and what the table does about it', () => {
     return api;
   }
 
+  itDom('step rename refreshes tree and steps without a socket', async () => {
+    // Proof: narrowing the successful step write to tree alone failed on the
+    // missing `Remove Build` button. Watched, 2026-09-13.
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Step locally' });
+    const reads: string[] = [];
+    for (const method of [
+      'tree',
+      'steps',
+      'listTeams',
+      'listTags',
+      'listServices',
+      'listWorkItemTypes',
+      'listExternalSystems',
+      'listPeople',
+      'listCalendarMarkers',
+    ] as const) {
+      recordCalls(api, method, () => reads.push(method));
+    }
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    await waitFor(() => {
+      expect(reads).toContain('listCalendarMarkers');
+    });
+    reads.length = 0;
+
+    openSteps();
+    const name = screen.getByDisplayValue('Dev');
+    fireEvent.change(name, { target: { value: 'Build' } });
+    fireEvent.blur(name);
+    await screen.findByRole('button', { name: 'Remove Build' });
+
+    expect([...reads].sort()).toEqual(['steps', 'tree']);
+    await closeSteps();
+    expect(screen.getByRole('button', { name: 'Unfold Build estimates' })).toBeInTheDocument();
+  });
+
+  itDom('fully recovers when a peer already removed the refused step', async () => {
+    // Proof: dropping the step section's refused-write recovery left the stale
+    // `Remove QA` button in this dialog. Watched, 2026-09-13.
+    const api = fakeApi();
+    const reads: string[] = [];
+    for (const method of [
+      'tree',
+      'steps',
+      'listTeams',
+      'listTags',
+      'listServices',
+      'listWorkItemTypes',
+      'listExternalSystems',
+      'listPeople',
+      'listCalendarMarkers',
+    ] as const) {
+      recordCalls(api, method, () => reads.push(method));
+    }
+    const removeStep = api.removeStep.bind(api);
+    api.removeStep = async (...args) => {
+      await removeStep(...args);
+      throw new Error('unknown_step');
+    };
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByRole('button', { name: 'Unfold QA estimates' });
+    await waitFor(() => {
+      expect(reads).toContain('listCalendarMarkers');
+    });
+    reads.length = 0;
+
+    openSteps();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove QA' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Remove QA' })).toBeNull();
+    });
+    expect([...reads].sort()).toEqual([
+      'listCalendarMarkers',
+      'listExternalSystems',
+      'listPeople',
+      'listServices',
+      'listTags',
+      'listTeams',
+      'listWorkItemTypes',
+      'steps',
+      'tree',
+    ]);
+  });
+
   itDom('takes the columns of a step that has gone, unfolded and all', async () => {
     // The accordion is left holding `step-qa` on purpose — see
     // `settleAgainstSteps`. Nothing can observe that, because `columns` is
@@ -1764,4 +1849,92 @@ itDom('refreshes a created tag after its attachment refuses', async () => {
     expect(screen.getByRole('option', { name: 'Regulatory' })).toBeInTheDocument();
   });
   expect(api.rows[0]?.tagIds ?? []).toEqual([]);
+});
+
+itDom('estimate refreshes only tree without a socket', async () => {
+  // Proof, both directions, watched 2026-09-13. With ALL_RESOURCES restored,
+  // the exact read assertion received tree, steps, six directory lists and
+  // markers. With the folded estimate's tree obligation dropped, the server's
+  // normalized `· 5` total never appeared.
+  const api = fakeApi();
+  await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Estimate locally' });
+  const setEstimate = api.setEstimate.bind(api);
+  api.setEstimate = (id, stepId) =>
+    setEstimate(id, stepId, { optimistic: 4, realistic: 5, pessimistic: 6 });
+  const reads: string[] = [];
+  for (const method of [
+    'tree',
+    'steps',
+    'listTeams',
+    'listTags',
+    'listServices',
+    'listWorkItemTypes',
+    'listExternalSystems',
+    'listPeople',
+    'listCalendarMarkers',
+  ] as const) {
+    recordCalls(api, method, () => reads.push(method));
+  }
+
+  render(<WbsTable projectId="p1" api={api} />);
+  await screen.findByLabelText('Dev estimate for 010');
+  await waitFor(() => {
+    expect(reads).toContain('listCalendarMarkers');
+  });
+  reads.length = 0;
+
+  const estimate = screen.getByLabelText<HTMLInputElement>('Dev estimate for 010');
+  fireEvent.change(estimate, { target: { value: '2/3/8' } });
+  fireEvent.keyDown(estimate, { key: 'Enter' });
+
+  await waitFor(() => {
+    expect(api.rows[0]?.estimates['step-dev']).toEqual({
+      optimistic: 4,
+      realistic: 5,
+      pessimistic: 6,
+    });
+    expect(screen.getByText('· 5')).toBeInTheDocument();
+  });
+  expect(reads).toEqual(['tree']);
+});
+
+itDom('capacity setting refreshes only tree without a socket', async () => {
+  const api = fakeApi();
+  const row = await api.createWorkItem('p1', {
+    parentId: null,
+    afterId: null,
+    name: 'Capacity locally',
+  });
+  const team = await api.addTeam('Platform');
+  await api.patchWorkItem(row.id, { teamIds: [team.id] });
+  const reads: string[] = [];
+  for (const method of [
+    'tree',
+    'steps',
+    'listTeams',
+    'listTags',
+    'listServices',
+    'listWorkItemTypes',
+    'listExternalSystems',
+    'listPeople',
+    'listCalendarMarkers',
+  ] as const) {
+    recordCalls(api, method, () => reads.push(method));
+  }
+
+  render(<WbsTable projectId="p1" api={api} />);
+  await screen.findByLabelText('Name of 010');
+  await waitFor(() => {
+    expect(reads).toContain('listCalendarMarkers');
+  });
+  reads.length = 0;
+
+  fireEvent.click(screen.getByRole('button', { name: 'Project settings' }));
+  const capacity = screen.getByLabelText('How many of Platform at once');
+  fireEvent.change(capacity, { target: { value: '3' } });
+  fireEvent.keyDown(capacity, { key: 'Enter' });
+  await waitFor(() => {
+    expect(reads).toContain('tree');
+  });
+  expect(reads).toEqual(['tree']);
 });

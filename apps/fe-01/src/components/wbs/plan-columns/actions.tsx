@@ -1,5 +1,3 @@
-import { ALL_RESOURCES } from '@/lib/plan-refresh';
-
 import { ActionsMenu } from '../actions-menu';
 import type { PlanLive } from '../plan-live';
 import { column } from './column';
@@ -45,7 +43,7 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
                   label: 'Unfreeze',
                   run: () => {
                     void live.current.run((write) =>
-                      write.perform(ALL_RESOURCES, () =>
+                      write.perform(['tree'], () =>
                         live.current.api.unfreezeWorkItem(row.original.id),
                       ),
                     );

@@ -4,7 +4,6 @@ import type * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
-import { ALL_RESOURCES } from '@/lib/plan-refresh';
 import type { PriorityBandView, ProjectApi } from '@/lib/wbs-api';
 
 import { cellIn, focusCellAt } from './editable-grid';
@@ -115,7 +114,7 @@ export function usePlanFields({
   const setNotBefore = useCallback(
     (id: string, day: string | null, reason?: string | null) => {
       void run((write) =>
-        write.perform(ALL_RESOURCES, () =>
+        write.perform(['tree'], () =>
           api.patchWorkItem(
             id,
             day === null
@@ -158,7 +157,7 @@ export function usePlanFields({
     (id: string, typed: string) => {
       const said = typed.trim();
       void run((write) =>
-        write.perform(ALL_RESOURCES, () =>
+        write.perform(['tree'], () =>
           api.patchWorkItem(id, { startNoEarlierThanReason: said === '' ? null : said }),
         ),
       );
@@ -191,9 +190,7 @@ export function usePlanFields({
    */
   const setDeadline = useCallback(
     (id: string, day: string | null) => {
-      void run((write) =>
-        write.perform(ALL_RESOURCES, () => api.patchWorkItem(id, { deadline: day })),
-      );
+      void run((write) => write.perform(['tree'], () => api.patchWorkItem(id, { deadline: day })));
     },
     [api, run],
   );
@@ -206,17 +203,13 @@ export function usePlanFields({
    */
   const setFactStart = useCallback(
     (id: string, day: string | null) => {
-      void run((write) =>
-        write.perform(ALL_RESOURCES, () => api.patchWorkItem(id, { factStart: day })),
-      );
+      void run((write) => write.perform(['tree'], () => api.patchWorkItem(id, { factStart: day })));
     },
     [api, run],
   );
   const setFactEnd = useCallback(
     (id: string, day: string | null) => {
-      void run((write) =>
-        write.perform(ALL_RESOURCES, () => api.patchWorkItem(id, { factEnd: day })),
-      );
+      void run((write) => write.perform(['tree'], () => api.patchWorkItem(id, { factEnd: day })));
     },
     [api, run],
   );
@@ -236,7 +229,7 @@ export function usePlanFields({
    */
   const setStatus = useCallback(
     (id: string, status: SettableStatus, on: IsoDate) =>
-      run((write) => write.perform(ALL_RESOURCES, () => api.setStatus(id, status, on))),
+      run((write) => write.perform(['tree'], () => api.setStatus(id, status, on))),
     [api, run],
   );
 
@@ -266,7 +259,7 @@ export function usePlanFields({
       const trimmed = priorityTyped(priorityBands, typed).trim();
       if (trimmed === '')
         return run((write) =>
-          write.perform(ALL_RESOURCES, () => api.patchWorkItem(id, { priority: null })),
+          write.perform(['tree'], () => api.patchWorkItem(id, { priority: null })),
         );
       // `Number` rather than `parseInt`: `parseInt('1.5')` is 1 and
       // `parseInt('2x')` is 2, so both would go out as priorities nobody typed.
@@ -294,7 +287,7 @@ export function usePlanFields({
         return Promise.resolve<CommitOutcome>('refused');
       }
       return run((write) =>
-        write.perform(ALL_RESOURCES, () => api.patchWorkItem(id, { priority: asNumber })),
+        write.perform(['tree'], () => api.patchWorkItem(id, { priority: asNumber })),
       );
     },
     [api, priorityBands, pushToast, run],
@@ -320,7 +313,7 @@ export function usePlanFields({
       const trimmed = typed.trim();
       if (trimmed === '')
         return run((write) =>
-          write.perform(ALL_RESOURCES, () => api.patchWorkItem(id, { maxParallel: null })),
+          write.perform(['tree'], () => api.patchWorkItem(id, { maxParallel: null })),
         );
       const asNumber = Number(trimmed);
       // {@link setPriority}'s refusal, for its reason: JSON has no literal for
@@ -332,7 +325,7 @@ export function usePlanFields({
         return Promise.resolve<CommitOutcome>('refused');
       }
       return run((write) =>
-        write.perform(ALL_RESOURCES, () => api.patchWorkItem(id, { maxParallel: asNumber })),
+        write.perform(['tree'], () => api.patchWorkItem(id, { maxParallel: asNumber })),
       );
     },
     [api, pushToast, run],

@@ -3,7 +3,6 @@ import type * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
-import { ALL_RESOURCES } from '@/lib/plan-refresh';
 import { type ProjectApi } from '@/lib/wbs-api';
 
 import { type DropRefusal, type DropZone, planMove } from './drag-drop';
@@ -153,7 +152,7 @@ export function useAddWorkItem({
         while (queue.queued > 0 && activeProject.current === queue.projectId) {
           queue.queued -= 1;
           const outcome = await run(async (write) => {
-            const created = await write.perform(ALL_RESOURCES, () =>
+            const created = await write.perform(['tree'], () =>
               api.createWorkItem(projectId, {
                 parentId: null,
                 afterId,
@@ -238,9 +237,7 @@ export function usePlanStructure({
 
       if (zone === 'into') setExpanded((current) => expandBranch(current, targetId));
       void run((write) =>
-        write.perform(ALL_RESOURCES, () =>
-          api.moveWorkItem(draggedId, plan.parentId, plan.afterId),
-        ),
+        write.perform(['tree'], () => api.moveWorkItem(draggedId, plan.parentId, plan.afterId)),
       );
     },
     [api, dragging, flat, pushToast, run, setDragging, setDropHint, setExpanded],
@@ -249,7 +246,7 @@ export function usePlanStructure({
   const addSibling = useCallback(
     (after: TreeRow) =>
       run(async (write) => {
-        const created = await write.perform(ALL_RESOURCES, () =>
+        const created = await write.perform(['tree'], () =>
           api.createWorkItem(projectId, {
             parentId: after.parentId,
             afterId: after.id,
@@ -279,7 +276,7 @@ export function usePlanStructure({
         const newParent = index > 0 ? siblings[index - 1] : undefined;
         if (newParent === undefined) return;
         const lastChild = newParent.subRows.at(-1) ?? null;
-        await write.perform(ALL_RESOURCES, () =>
+        await write.perform(['tree'], () =>
           api.moveWorkItem(row.id, newParent.id, lastChild?.id ?? null),
         );
         // After the move, not before: a refused request then leaves the focus
@@ -297,9 +294,7 @@ export function usePlanStructure({
         if (row.parentId === null) return;
         const parent = flat.find((w) => w.id === row.parentId);
         if (parent === undefined) return;
-        await write.perform(ALL_RESOURCES, () =>
-          api.moveWorkItem(row.id, parent.parentId, parent.id),
-        );
+        await write.perform(['tree'], () => api.moveWorkItem(row.id, parent.parentId, parent.id));
         // After the move, for the reason `indent` gives.
         focusIntent.current.wants({ rowId: row.id, columnId: landOn });
       }),
@@ -342,7 +337,7 @@ export function usePlanStructure({
           ? (siblings[swapWith]?.id ?? null)
           : (siblings[swapWith - 1]?.id ?? null);
       void run(async (write) => {
-        await write.perform(ALL_RESOURCES, () => api.moveWorkItem(row.id, row.parentId, afterId));
+        await write.perform(['tree'], () => api.moveWorkItem(row.id, row.parentId, afterId));
         // Asked for only once be-01 has taken the move: a refused request leaves
         // the focus where the person left it rather than chasing a row that did
         // not go anywhere.
@@ -368,7 +363,7 @@ export function usePlanStructure({
   const duplicateRow = useCallback(
     (id: string) =>
       run(async (write) => {
-        const copy = await write.perform(ALL_RESOURCES, () => api.duplicateWorkItem(id));
+        const copy = await write.perform(['tree'], () => api.duplicateWorkItem(id));
         focusIntent.current.wants({ rowId: copy.id, columnId: 'name' });
       }),
     [api, focusIntent, run],
@@ -414,7 +409,7 @@ export function usePlanStructure({
         // has no row above, and `.at(-1)` would send the focus to the last one.
         const above = flatAt > 0 ? flat[flatAt - 1] : undefined;
         const landsOn = nextSibling ?? above;
-        await write.perform(ALL_RESOURCES, () =>
+        await write.perform(['tree'], () =>
           api.removeWorkItem(row.id, {
             strategy: row.subRows.length > 0 ? 'promote' : undefined,
           }),
@@ -474,7 +469,7 @@ export function usePlanStructure({
       // mean the same thing, so there is nothing unsaved for the cell to hold
       // and nothing for be-01 to have refused.
       if (Object.keys(patch).length === 0) return unsent();
-      return run((write) => write.perform(ALL_RESOURCES, () => api.patchWorkItem(rowId, patch)));
+      return run((write) => write.perform(['tree'], () => api.patchWorkItem(rowId, patch)));
     },
     [api, run],
   );
@@ -490,7 +485,7 @@ export function usePlanStructure({
         focusIntent.current.wants(
           above === undefined ? null : { rowId: above.id, columnId: 'name' },
         );
-        await write.perform(ALL_RESOURCES, () => api.removeWorkItem(row.id));
+        await write.perform(['tree'], () => api.removeWorkItem(row.id));
       }),
     [api, flat, focusIntent, run],
   );

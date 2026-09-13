@@ -30,7 +30,7 @@ export interface SettingsSection {
    * the sentence beside it is about, and resetting it to be-01's would leave a
    * sentence explaining a value nobody can see.
    */
-  attempt: (change: () => Promise<void>) => Promise<boolean>;
+  attempt: (change: () => Promise<void>, onLanded?: () => Promise<void>) => Promise<boolean>;
 }
 
 export interface SettingsSectionOptions {
@@ -47,6 +47,8 @@ export interface SettingsSectionOptions {
   onDirtyChange: (dirty: boolean) => void;
   /** Re-reads the plan after a write landed. */
   onChanged: () => Promise<void>;
+  /** Optional recovery read after a refusal whose target may have changed. */
+  onRefused?: () => Promise<void>;
 }
 
 /**
@@ -67,7 +69,7 @@ export interface SettingsSectionOptions {
  * longer road.
  */
 export function useSettingsSection(options: SettingsSectionOptions): SettingsSection {
-  const { words, dirty, onDirtyChange, onChanged } = options;
+  const { words, dirty, onDirtyChange, onChanged, onRefused } = options;
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -102,15 +104,16 @@ export function useSettingsSection(options: SettingsSectionOptions): SettingsSec
     clear: () => {
       setProblem(null);
     },
-    attempt: async (change) => {
+    attempt: async (change, onLanded = onChanged) => {
       setBusy(true);
       setProblem(null);
       try {
         await change();
-        await onChanged();
+        await onLanded();
         return true;
       } catch (thrown: unknown) {
         setProblem(sentenceForRefusal(words, failureText(thrown, 'request_failed')));
+        if (onRefused !== undefined) await onRefused();
         return false;
       } finally {
         setBusy(false);

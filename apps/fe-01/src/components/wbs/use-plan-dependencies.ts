@@ -2,7 +2,6 @@ import type * as React from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
-import { ALL_RESOURCES } from '@/lib/plan-refresh';
 import type { ProjectApi, StepView } from '@/lib/wbs-api';
 
 import { pickerEntries } from './dep-picker';
@@ -140,7 +139,7 @@ export function usePlanDependencies({
           // Never rejects: a failed reread raises the banner and returns, so
           // the refusals below are still reported. The two are different facts
           // and a reader who saw only one of them would be misled either way.
-          await refreshOrMarkStale();
+          await refreshOrMarkStale('tree');
         } finally {
           setBusy(false);
         }
@@ -187,7 +186,7 @@ export function usePlanDependencies({
         current === null ? null : { ...current, typed: '', highlightId: null },
       );
       return run((write) =>
-        write.perform(ALL_RESOURCES, () => api.addDependency(successorId, predecessorId)),
+        write.perform(['tree'], () => api.addDependency(successorId, predecessorId)),
       );
     },
     [api, run, setDepPicker],

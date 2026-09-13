@@ -2,7 +2,6 @@ import type * as React from 'react';
 import { useCallback, useRef, useState } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
-import { ALL_RESOURCES } from '@/lib/plan-refresh';
 import type { PersonView, TeamView } from '@/lib/wbs-api';
 import { type ProjectApi } from '@/lib/wbs-api';
 
@@ -144,7 +143,7 @@ export function useEstimateDrafts({
         // `0 / 0 / 0` is one.
         if (isTrioEmpty(next) && Object.hasOwn(row.estimates, stepId)) {
           return run(async (write) => {
-            await write.perform(ALL_RESOURCES, () => api.clearEstimate(row.id, stepId));
+            await write.perform(['tree'], () => api.clearEstimate(row.id, stepId));
             forgetEstimateDrafts(row.id, stepId);
           });
         }
@@ -153,7 +152,7 @@ export function useEstimateDrafts({
         return unsent();
       }
       return run(async (write) => {
-        await write.perform(ALL_RESOURCES, () => api.setEstimate(row.id, stepId, days));
+        await write.perform(['tree'], () => api.setEstimate(row.id, stepId, days));
         forgetEstimateDrafts(row.id, stepId);
       });
     },
@@ -271,12 +270,12 @@ export function useEstimateDrafts({
         // Watched, 2026-08-06.
         if (!Object.hasOwn(row.estimates, stepId)) return unsent();
         return run(async (write) => {
-          await write.perform(ALL_RESOURCES, () => api.clearEstimate(row.id, stepId));
+          await write.perform(['tree'], () => api.clearEstimate(row.id, stepId));
           forgetEstimateDrafts(row.id, stepId);
         });
       }
       return run(async (write) => {
-        await write.perform(ALL_RESOURCES, () => api.setEstimate(row.id, stepId, entry.days));
+        await write.perform(['tree'], () => api.setEstimate(row.id, stepId, entry.days));
         forgetEstimateDrafts(row.id, stepId);
       });
     },

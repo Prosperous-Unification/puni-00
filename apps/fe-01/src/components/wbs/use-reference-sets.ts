@@ -6,7 +6,6 @@ import { assignedOutsideTeam, builtByNonOwner } from '@wbs/domain/label-mismatch
 import { useCallback, useMemo } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
-import { ALL_RESOURCES } from '@/lib/plan-refresh';
 import type { PersonView, ServiceView, TagView, TeamView } from '@/lib/wbs-api';
 import { type EstimateMethod, type ProjectApi } from '@/lib/wbs-api';
 
@@ -385,7 +384,7 @@ export function useReferenceSets({
   const setTeamOf = useCallback(
     (id: string, teamIds: readonly string[]): Promise<CommitOutcome> =>
       run((write) =>
-        write.perform(ALL_RESOURCES, () => api.patchWorkItem(id, { teamIds: [...teamIds] })),
+        write.perform(['tree'], () => api.patchWorkItem(id, { teamIds: [...teamIds] })),
       ),
     [api, run],
   );
@@ -409,7 +408,7 @@ export function useReferenceSets({
   const setServicesOf = useCallback(
     (id: string, serviceIds: readonly string[]): Promise<CommitOutcome> =>
       run((write) =>
-        write.perform(ALL_RESOURCES, () => api.patchWorkItem(id, { serviceIds: [...serviceIds] })),
+        write.perform(['tree'], () => api.patchWorkItem(id, { serviceIds: [...serviceIds] })),
       ),
     [api, run],
   );
@@ -424,9 +423,7 @@ export function useReferenceSets({
    */
   const setTagsOf = useCallback(
     (id: string, tagIds: readonly string[]): Promise<CommitOutcome> =>
-      run((write) =>
-        write.perform(ALL_RESOURCES, () => api.patchWorkItem(id, { tagIds: [...tagIds] })),
-      ),
+      run((write) => write.perform(['tree'], () => api.patchWorkItem(id, { tagIds: [...tagIds] }))),
     [api, run],
   );
 
@@ -436,8 +433,8 @@ export function useReferenceSets({
       run(async (write) => {
         // be-01 is idempotent by name, so two browsers typing `Platform` at
         // once end up on one team rather than two.
-        const team = await write.perform(ALL_RESOURCES, () => api.addTeam(name));
-        await write.perform(ALL_RESOURCES, () =>
+        const team = await write.perform(['tree', 'directory'], () => api.addTeam(name));
+        await write.perform(['tree'], () =>
           api.patchWorkItem(id, { teamIds: [...current, team.id] }),
         );
       }),
@@ -448,8 +445,8 @@ export function useReferenceSets({
   const createServiceFor = useCallback(
     (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
       run(async (write) => {
-        const service = await write.perform(ALL_RESOURCES, () => api.addService(name));
-        await write.perform(ALL_RESOURCES, () =>
+        const service = await write.perform(['tree', 'directory'], () => api.addService(name));
+        await write.perform(['tree'], () =>
           api.patchWorkItem(id, { serviceIds: [...current, service.id] }),
         );
       }),
@@ -473,7 +470,7 @@ export function useReferenceSets({
   const setExternalRefsOf = useCallback(
     (id: string, refs: readonly ExternalRefDraft[]): Promise<CommitOutcome> =>
       run((write) =>
-        write.perform(ALL_RESOURCES, () =>
+        write.perform(['tree'], () =>
           api.patchWorkItem(id, { externalRefs: refs.map((ref) => ({ ...ref })) }),
         ),
       ),
@@ -484,7 +481,7 @@ export function useReferenceSets({
   const setTypesOf = useCallback(
     (id: string, typeIds: readonly string[]): Promise<CommitOutcome> =>
       run((write) =>
-        write.perform(ALL_RESOURCES, () => api.patchWorkItem(id, { typeIds: [...typeIds] })),
+        write.perform(['tree'], () => api.patchWorkItem(id, { typeIds: [...typeIds] })),
       ),
     [api, run],
   );
@@ -502,8 +499,10 @@ export function useReferenceSets({
       run(async (write) => {
         // be-01 is idempotent by name, so two browsers typing `Bug` at once end
         // up on one type rather than two.
-        const workItemType = await write.perform(ALL_RESOURCES, () => api.addWorkItemType(name));
-        await write.perform(ALL_RESOURCES, () =>
+        const workItemType = await write.perform(['tree', 'directory'], () =>
+          api.addWorkItemType(name),
+        );
+        await write.perform(['tree'], () =>
           api.patchWorkItem(id, { typeIds: [...current, workItemType.id] }),
         );
       }),
@@ -514,8 +513,8 @@ export function useReferenceSets({
   const createTagFor = useCallback(
     (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
       run(async (write) => {
-        const tag = await write.perform(ALL_RESOURCES, () => api.addTag(name));
-        await write.perform(ALL_RESOURCES, () =>
+        const tag = await write.perform(['tree', 'directory'], () => api.addTag(name));
+        await write.perform(['tree'], () =>
           api.patchWorkItem(id, { tagIds: [...current, tag.id] }),
         );
       }),
@@ -524,9 +523,7 @@ export function useReferenceSets({
 
   const assignTo = useCallback(
     (id: string, stepId: string, personId: string | null) => {
-      void run((write) =>
-        write.perform(ALL_RESOURCES, () => api.assignPerson(id, stepId, personId)),
-      );
+      void run((write) => write.perform(['tree'], () => api.assignPerson(id, stepId, personId)));
     },
     [api, run],
   );
@@ -543,8 +540,10 @@ export function useReferenceSets({
   const createPersonFor = useCallback(
     (row: TreeRow, stepId: string, name: string) => {
       void run(async (write) => {
-        const person = await write.perform(ALL_RESOURCES, () => api.addPerson(name, row.teamIds));
-        await write.perform(ALL_RESOURCES, () => api.assignPerson(row.id, stepId, person.id));
+        const person = await write.perform(['tree', 'directory'], () =>
+          api.addPerson(name, row.teamIds),
+        );
+        await write.perform(['tree'], () => api.assignPerson(row.id, stepId, person.id));
       });
     },
     [api, run],
@@ -553,9 +552,7 @@ export function useReferenceSets({
   /** Changes how the project turns its trios into one number, for everybody. */
   const chooseEstimateMethod = useCallback(
     (method: EstimateMethod) => {
-      void run((write) =>
-        write.perform(ALL_RESOURCES, () => api.setEstimateMethod(projectId, method)),
-      );
+      void run((write) => write.perform(['tree'], () => api.setEstimateMethod(projectId, method)));
     },
     [api, projectId, run],
   );
