@@ -111,7 +111,8 @@ function savedWorkItemDeadline(page: Page, workItemId: string): Promise<Response
   // Proof: suffixing the requested workItemId with `-wrong-row` left the real
   // deadline response unmatched and failed on `page.waitForResponse: Timeout
   // 1000ms exceeded`; the negative probe temporarily shortened the helper's
-  // timeout from Playwright's configured default. Watched on h2puni, 2026-09-13.
+  // unbounded default (normally limited by the test timeout). Watched on
+  // h2puni, 2026-09-13.
   return page.waitForResponse((response) => {
     const request = response.request();
     const body = request.postData() ?? '';
@@ -130,7 +131,8 @@ function savedProjectStartDate(page: Page): Promise<Response> {
   // Proof: changing this endpoint to `/api/never/` made seedDatedWorkItem fail
   // here on `page.waitForResponse: Timeout 1000ms exceeded`, before Add work
   // item; the negative probe temporarily shortened the helper's timeout from
-  // Playwright's configured default. Watched on h2puni, 2026-09-13.
+  // its unbounded default (normally limited by the test timeout). Watched on
+  // h2puni, 2026-09-13.
   return page.waitForResponse(
     (response) =>
       response.request().method() === 'PATCH' && /\/api\/projects\/[^/]+$/.test(response.url()),
@@ -290,7 +292,8 @@ test('the phone deadline sheet leaves its card visible and drives Save and Clear
     .toBeGreaterThanOrEqual(0);
   // One passing sample is the invariant here, not a second test-owned stability
   // window: useTriggerAboveSheet applies only after the sheet rect is identical
-  // on two frames, and the preceding overlap poll observes that settled placement.
+  // on two frames, the bottom sheet has no open animation, and the preceding
+  // overlap poll observes that settled placement.
   await expect
     .poll(
       async () => {
@@ -302,11 +305,13 @@ test('the phone deadline sheet leaves its card visible and drives Save and Clear
         );
       },
       {
-        message: `less than the ${String(PHONE_CARD_VISIBLE_FLOOR_PX)}px tap-target floor remains visible above the sheet (347px shipped at 390x844)`,
+        message:
+          `less than the ${String(PHONE_CARD_VISIBLE_FLOOR_PX)}px tap-target floor remains ` +
+          'visible above the sheet (347px shipped at 390x844)',
       },
     )
-    // Proof: injecting `height: 1px` on the content-box card left its padding
-    // and borders in the border box and failed on `Expected: >= 44, Received:
+    // Proof: injecting `height: 1px` on the border-box card clamped it to its
+    // 24px padding plus 2px border and failed on `Expected: >= 44, Received:
     // 26`. Watched in Chromium at 390x844 on h2puni, 2026-09-13.
     .toBeGreaterThanOrEqual(PHONE_CARD_VISIBLE_FLOOR_PX);
 
