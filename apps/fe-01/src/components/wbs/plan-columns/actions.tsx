@@ -1,3 +1,5 @@
+import { SETTABLE_STATUSES } from '@wbs/domain/progress';
+
 import { ActionsMenu } from '../actions-menu';
 import { isoToday } from '../gantt-panel';
 import type { PlanLive } from '../plan-live';
@@ -27,6 +29,30 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
           );
         }}
         actions={[
+          // The status entries first — every settable status but the one the
+          // row reads, so a row in progress offers both — then Duplicate, then
+          // Unfreeze where it applies, and Delete last in the destructive tint
+          // (Dany, 2026-09-13: "Set status * … Duplicate … Delete in the end").
+          // `Set status to Done` asks for the days through the completion
+          // prompt exactly as the cell does; `In progress` is a step's statement
+          // and is not offered. The status word is drawn as the status card
+          // draws it — bold, `Done` in green — so a status is said one way
+          // everywhere.
+          ...SETTABLE_STATUSES.filter((status) => status !== row.original.status).map((status) => ({
+            id: `set-${status}`,
+            label: `Set status to ${STATUS_LABEL[status]}`,
+            lead: {
+              word: STATUS_LABEL[status],
+              ...(status === 'done' ? { tone: 'done' as const } : {}),
+            },
+            run: () => {
+              if (status === 'done') {
+                live.current.openCompletionPrompt(row.original.id);
+                return;
+              }
+              void live.current.setStatus(row.original.id, status, isoToday(new Date()));
+            },
+          })),
           {
             id: 'duplicate',
             // Offered on a frozen row as well, unlike Delete and unlike
@@ -37,32 +63,6 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
               void live.current.duplicateRow(row.original.id);
             },
           },
-          // The status, settable without the Status column on screen (Dany,
-          // 2026-09-13: "add a 'Set status ...' to the actions to allow setting
-          // the status from UI without enabling the status column"). One entry,
-          // the one that changes something: a row that is not done offers
-          // `Set status to Done`, which asks for the days through the completion
-          // prompt exactly as the cell does; a done row offers the way back. `In
-          // progress` is a step's statement and is not offered here either. The
-          // status word is drawn as the status card draws it — bold, `Done` in
-          // green — so a status is said one way everywhere.
-          row.original.status === 'done'
-            ? {
-                id: 'set-unknown',
-                label: `Set status to ${STATUS_LABEL.unknown}`,
-                lead: { word: STATUS_LABEL.unknown },
-                run: () => {
-                  void live.current.setStatus(row.original.id, 'unknown', isoToday(new Date()));
-                },
-              }
-            : {
-                id: 'mark-done',
-                label: `Set status to ${STATUS_LABEL.done}`,
-                lead: { word: STATUS_LABEL.done, tone: 'done' },
-                run: () => {
-                  live.current.openCompletionPrompt(row.original.id);
-                },
-              },
           ...(row.original.frozenNumber === null
             ? []
             : [
@@ -77,11 +77,7 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
           {
             id: 'delete',
             label: 'Delete',
-            // Present and refused on a frozen row rather than absent, and
-            // it carries the real `run` deliberately: an item whose action
-            // was stubbed out could not tell a working guard from a
-            // missing one. {@link MenuAction.refusedBecause} is what stops
-            // it, and the test that watches it stop is the proof.
+            destructive: true,
             ...(row.original.frozenNumber === null
               ? {}
               : { refusedBecause: 'Frozen — unfreeze this row before deleting it' }),

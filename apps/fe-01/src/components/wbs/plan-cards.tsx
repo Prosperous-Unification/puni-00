@@ -1,3 +1,4 @@
+import { SETTABLE_STATUSES } from '@wbs/domain/progress';
 import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import {
@@ -434,6 +435,18 @@ export interface CardRowActionHandlers {
  * menu rather than a card inventing a second one.
  */
 const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuAction[] => [
+  // The same list the table's ⋯ offers (`plan-columns/actions.tsx`), in the
+  // same order: the status entries, Duplicate, Unfreeze where it applies, and
+  // Delete last in the destructive tint.
+  ...SETTABLE_STATUSES.filter((status) => status !== row.status).map((status) => ({
+    id: `set-${status}`,
+    label: `Set status to ${STATUS_LABEL[status]}`,
+    lead: { word: STATUS_LABEL[status], ...(status === 'done' ? { tone: 'done' as const } : {}) },
+    run: () => {
+      if (status === 'done') handlers.markDone(row.id);
+      else handlers.setUnknown(row.id);
+    },
+  })),
   {
     id: 'duplicate',
     label: 'Duplicate',
@@ -441,25 +454,6 @@ const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuActi
       handlers.duplicate(row.id);
     },
   },
-  // The same status entry the table's ⋯ offers (`plan-columns/actions.tsx`):
-  // one, the one that changes something.
-  row.status === 'done'
-    ? {
-        id: 'set-unknown',
-        label: `Set status to ${STATUS_LABEL.unknown}`,
-        lead: { word: STATUS_LABEL.unknown },
-        run: () => {
-          handlers.setUnknown(row.id);
-        },
-      }
-    : {
-        id: 'mark-done',
-        label: `Set status to ${STATUS_LABEL.done}`,
-        lead: { word: STATUS_LABEL.done, tone: 'done' },
-        run: () => {
-          handlers.markDone(row.id);
-        },
-      },
   ...(row.frozenNumber === null
     ? []
     : [
@@ -474,6 +468,7 @@ const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuActi
   {
     id: 'delete',
     label: 'Delete',
+    destructive: true,
     ...(row.frozenNumber === null
       ? {}
       : { refusedBecause: 'Frozen — unfreeze this row before deleting it' }),

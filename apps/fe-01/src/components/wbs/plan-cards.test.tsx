@@ -2371,8 +2371,8 @@ describe('the ⋯ row-actions menu on a card in a running plan', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
       const items = screen.getAllByRole('menuitem');
       expect(items.map((item) => item.textContent)).toEqual([
-        'Duplicate',
         'Set status to Done',
+        'Duplicate',
         'Unfreeze',
         'Delete',
       ]);
@@ -2613,8 +2613,8 @@ describe('the ⋯ row-actions menu on a card', () => {
     renderCards([aTreeRow()], doNothingActions());
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
-      'Duplicate',
       'Set status to Done',
+      'Duplicate',
       'Delete',
     ]);
   });
@@ -2624,8 +2624,8 @@ describe('the ⋯ row-actions menu on a card', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Actions for 010' }));
     const items = screen.getAllByRole('menuitem');
     expect(items.map((item) => item.textContent)).toEqual([
-      'Duplicate',
       'Set status to Done',
+      'Duplicate',
       'Unfreeze',
       'Delete',
     ]);

@@ -293,8 +293,8 @@ describe('the row actions menu', () => {
     openRowMenu('020');
 
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
-      'Duplicate',
       'Set status to Done',
+      'Duplicate',
       'Delete',
     ]);
     expect(screen.getByRole('button', { name: 'Actions for 020' })).toHaveAttribute(

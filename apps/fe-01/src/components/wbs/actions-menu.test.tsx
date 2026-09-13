@@ -114,6 +114,37 @@ describe('a lead word on an item', () => {
     expect(unknown.querySelector('strong')?.textContent).toBe('Unknown');
     expect(unknown.querySelector('strong')?.style.color).toBe('');
   });
+
+  itDom('draws a destructive item in the destructive tint, unless it is refused', () => {
+    render(
+      <ActionsMenu
+        number="010"
+        open
+        busy={false}
+        onOpen={() => undefined}
+        onClose={() => undefined}
+        actions={[
+          { id: 'duplicate', label: 'Duplicate', run: () => undefined },
+          { id: 'delete', label: 'Delete', destructive: true, run: () => undefined },
+          {
+            id: 'delete-refused',
+            label: 'Delete anyway',
+            destructive: true,
+            refusedBecause: 'Frozen',
+            run: () => undefined,
+          },
+        ]}
+      />,
+    );
+    // Proof: the `destructive` arm dropped from the item's style, and this
+    // fails on `expected '' to be 'var(--destructive)'`; watched 2026-09-13.
+    expect(screen.getByRole('menuitem', { name: 'Delete' }).style.color).toBe('var(--destructive)');
+    // `ITEM`'s own colour is `inherit`; the tint is the one departure from it.
+    expect(screen.getByRole('menuitem', { name: 'Duplicate' }).style.color).toBe('inherit');
+    expect(screen.getByRole('menuitem', { name: 'Delete anyway' }).style.color).toBe(
+      'var(--muted-foreground)',
+    );
+  });
 });
 
 describe('menuShift', () => {

@@ -24,6 +24,12 @@ export interface MenuAction {
    * uses ({@link withLeadWord}), so a status is said one way everywhere.
    */
   lead?: LeadWord;
+  /**
+   * Drawn in the destructive tint: the one item on the menu that takes
+   * something away (`Delete`). Last on every menu, so the eye that reads the
+   * list top to bottom meets the safe items first (Dany, 2026-09-13).
+   */
+  destructive?: boolean;
   run: () => void;
   /**
    * Why this item cannot be taken here, or absent when it can.
@@ -435,9 +441,11 @@ export function MenuControl({
               aria-disabled={busy || action.refusedBecause !== undefined}
               data-fact={action.refusedBecause}
               style={
-                action.refusedBecause === undefined
-                  ? ITEM
-                  : { ...ITEM, cursor: 'not-allowed', color: 'var(--muted-foreground)' }
+                action.refusedBecause !== undefined
+                  ? { ...ITEM, cursor: 'not-allowed', color: 'var(--muted-foreground)' }
+                  : action.destructive === true
+                    ? { ...ITEM, color: 'var(--destructive)' }
+                    : ITEM
               }
               onClick={() => {
                 takeAction(action);
