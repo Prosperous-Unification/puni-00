@@ -55,7 +55,10 @@ if [[ -n "$activation_root" ]]; then
   launcher_source=$(resolve_tool_wiki_launcher "$activation_root" "$repo_root")
   cp "$launcher_source" "$trusted_launcher"
   chmod 0555 "$trusted_launcher"
-  : "${TOOL_WIKI_TRUSTED_NODE_MODULES:=$repo_root/node_modules}"
+  # Proof: h2puni-gate.test.sh cases 19-21 exercise the production resolver's default,
+  # missing-runtime refusal, and candidate-containment refusal.
+  TOOL_WIKI_TRUSTED_NODE_MODULES=$(resolve_tool_wiki_modules \
+    "$activation_root" "$repo_root" "${TOOL_WIKI_TRUSTED_NODE_MODULES:-}")
   export TOOL_WIKI_TRUSTED_NODE_MODULES
 else
   trusted_launcher=

@@ -32,9 +32,11 @@ authority snapshot.
 
 ## Transport and admission
 
-The transport archive root contains `selected.json`, its selected version directory, and a
-bootstrap copy of the reviewed launcher with root-level `active-v1` and `launcher-path`
-descriptors. The bootstrap launcher resolves the selected package and verifies its manifest,
+The transport archive root contains `selected.json`, its selected version directory, a bootstrap
+copy of the reviewed launcher with root-level `active-v1` and `launcher-path` descriptors, and the
+minimal `trusted-node-modules` TypeScript package closure copied from the exact lockfile-pinned
+reviewed checkout (`typescript` and its declared dependency directories). The bootstrap launcher
+resolves the selected package and verifies its manifest,
 checksum-list identity, and artifact checksums before reading any selected role. Root descriptors
 are relative to the archive root so the same bytes relocate between GitHub runner temporary storage
 and h2puni; every consumer resolves a relative descriptor from that root, never from its current
@@ -50,6 +52,12 @@ modules with lifecycle scripts disabled, and passes their external path to the v
 validator refuses runtime modules inside the candidate. Nx relationships are read statically from
 `nx.json` and `project.json`; candidate plugins and inferred plugin targets are never executed or
 admitted by this bootstrap boundary.
+
+The h2puni host gate defaults `TOOL_WIKI_TRUSTED_NODE_MODULES` to the archive's external
+`trusted-node-modules` directory. It refuses a missing TypeScript package and any explicit override
+that resolves inside the candidate checkout. The archive transport SHA-256 authenticates these
+runtime bytes alongside the root descriptors; do not construct or install the host archive without
+that directory.
 
 Copy the same digest-pinned archive to a versioned directory on h2puni. The base-owned
 `trusted-wiki` workflow downloads its operator-configured HTTPS archive into runner temporary

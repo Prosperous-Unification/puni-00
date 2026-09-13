@@ -72,6 +72,12 @@ run_launcher_resolution() {
     h2puni-launcher-resolution "$gate_lib" "$activation_root" "$candidate_root"
 }
 
+run_modules_resolution() {
+  local activation_root=$1 candidate_root=$2 modules_input=${3:-}
+  bash -c 'source "$1"; resolve_tool_wiki_modules "$2" "$3" "$4"' \
+    h2puni-modules-resolution "$gate_lib" "$activation_root" "$candidate_root" "$modules_input"
+}
+
 scratch="${TMPDIR:-/tmp}/wbs-h2puni-gate-test.$$"
 rm -rf "$scratch"
 mkdir -p "$scratch"
@@ -372,6 +378,44 @@ if grep -q 'h2puni gate: running on' "$scratch/missing-marker-stderr"; then
   fail 'the host entrypoint took the heavy gate after losing its activation marker'
 else
   pass 'the missing host marker is refused before taking the heavy gate'
+fi
+
+# 19. A relocated archive carries its external TypeScript runtime below the activation root, so
+# the active host gate has a usable default without trusting the candidate checkout's install.
+runtime_root="$scratch/runtime-activation"
+mkdir -p "$runtime_root/trusted-node-modules/typescript"
+printf '{}\n' >"$runtime_root/trusted-node-modules/typescript/package.json"
+status=0
+resolved=$(run_modules_resolution "$runtime_root" "$candidate_root") || status=$?
+expect_status 0 "$status" 'the host runtime defaults below the external activation root'
+expect_equal "$(realpath "$runtime_root/trusted-node-modules")" "$resolved" 'the default runtime is relocatable and external'
+
+# 20. An archive that loses its runtime is incomplete activation state, not permission to fall
+# back to the candidate's node_modules.
+missing_runtime_root="$scratch/missing-runtime-activation"
+mkdir -p "$missing_runtime_root"
+status=0
+run_modules_resolution "$missing_runtime_root" "$candidate_root" >/dev/null \
+  2>"$scratch/missing-runtime-stderr" || status=$?
+expect_status 78 "$status" 'a missing external TypeScript runtime is refused'
+if grep -q 'trusted TypeScript runtime modules are not provisioned' "$scratch/missing-runtime-stderr"; then
+  pass 'the missing runtime refusal names the lost provisioning state'
+else
+  fail 'the missing runtime refusal did not name the lost provisioning state'
+fi
+
+# 21. An explicit override remains external authority; configuration cannot select modules from
+# the candidate checkout and thereby make reviewed relationship extraction execute candidate bytes.
+mkdir -p "$candidate_root/node_modules/typescript"
+printf '{}\n' >"$candidate_root/node_modules/typescript/package.json"
+status=0
+run_modules_resolution "$runtime_root" "$candidate_root" "$candidate_root/node_modules" \
+  >/dev/null 2>"$scratch/candidate-runtime-stderr" || status=$?
+expect_status 78 "$status" 'candidate-owned TypeScript runtime modules are refused'
+if grep -q 'runtime modules must be outside the candidate checkout' "$scratch/candidate-runtime-stderr"; then
+  pass 'the candidate runtime refusal names the trust boundary'
+else
+  fail 'the candidate runtime refusal did not name the trust boundary'
 fi
 
 if ((failures)); then

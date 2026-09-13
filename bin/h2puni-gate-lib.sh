@@ -78,6 +78,43 @@ resolve_tool_wiki_launcher() {
   printf '%s\n' "$launcher_source"
 }
 
+# Selects the TypeScript runtime from external activation state. The relocatable archive carries
+# its reviewed runtime below the root by default; an operator may instead name another external
+# path explicitly, but a candidate-owned path can never become trusted by configuration.
+resolve_tool_wiki_modules() {
+  local activation_root=${1:?activation root is required}
+  local candidate_root=${2:?candidate root is required}
+  local modules_input=${3:-}
+  local trusted_root
+  local candidate
+  if ! trusted_root=$(realpath -- "$activation_root") || [[ ! -d $trusted_root ]]; then
+    printf 'h2puni gate: active tool-wiki root is not a readable directory\n' >&2
+    return 78
+  fi
+  if ! candidate=$(realpath -- "$candidate_root") || [[ ! -d $candidate ]]; then
+    printf 'h2puni gate: candidate checkout is not a readable directory\n' >&2
+    return 78
+  fi
+  if [[ -z $modules_input ]]; then modules_input="$trusted_root/trusted-node-modules"; fi
+  local trusted_modules
+  # Proof: h2puni-gate.test.sh case 20 omits the default runtime directory and observes exit 78
+  # before the heavy gate can run.
+  if ! trusted_modules=$(realpath -- "$modules_input") || [[ ! -d $trusted_modules ]] ||
+    [[ ! -f $trusted_modules/typescript/package.json ]]; then
+    printf 'h2puni gate: trusted TypeScript runtime modules are not provisioned\n' >&2
+    return 78
+  fi
+  # Proof: h2puni-gate.test.sh case 21 selects candidate-owned modules explicitly and observes
+  # exit 78 before they can become validator authority.
+  case "$trusted_modules" in
+    "$candidate" | "$candidate"/*)
+      printf 'h2puni gate: trusted TypeScript runtime modules must be outside the candidate checkout\n' >&2
+      return 78
+      ;;
+  esac
+  printf '%s\n' "$trusted_modules"
+}
+
 # Check `$sha` out in `$repo` under the heavy lock at `$lock_path`, then run
 # `command [arg ...]` there with that head pinned for the whole run.
 #
