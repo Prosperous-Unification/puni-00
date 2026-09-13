@@ -32,6 +32,15 @@
       },
       "outputs": ["{projectRoot}/coverage"]
     },
+    "test:conformance": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^production", "{workspaceRoot}/apps/be-01/drizzle"],
+      "options": {
+        "command": "bun test src/testing/source-conformance.db.test.ts",
+        "cwd": "libs/store-sqlite"
+      }
+    },
     "test:unit": {
       "executor": "nx:run-commands",
       "inputs": ["default", "^production", "{workspaceRoot}/apps/be-01/drizzle"],

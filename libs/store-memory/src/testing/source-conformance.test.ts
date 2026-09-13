@@ -5418,13 +5418,13 @@ describe('memory existing source conformance', () => {
     const expectedKeys = expected.map(({ family, caseId }) => `${family}:${caseId}`).toSorted();
 
     expect(report.kind).toBe('full');
+    certifyExecution({ declaration, registrations, report });
     expect(registrations.map(({ family, caseId }) => `${family}:${caseId}`).toSorted()).toEqual(
       expectedKeys,
     );
     expect(report.cases.map(({ family, caseId }) => `${family}:${caseId}`).toSorted()).toEqual(
       expectedKeys,
     );
-    certifyExecution({ declaration, registrations, report });
     expect(
       report.cases
         .filter(({ status }) => status === 'passed')

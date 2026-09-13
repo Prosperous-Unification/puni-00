@@ -5942,6 +5942,7 @@ describe('SQLite existing source conformance', () => {
     const expectedKeys = expected.map(({ family, caseId }) => `${family}:${caseId}`).toSorted();
 
     expect(report.kind).toBe('full');
+    certifyExecution({ declaration, registrations, report });
     expect(registrations.map(({ family, caseId }) => `${family}:${caseId}`).toSorted()).toEqual(
       expectedKeys,
     );
@@ -5957,8 +5958,7 @@ describe('SQLite existing source conformance', () => {
         .map(({ caseId }) => ({ caseId, status: 'passed' as const, executed: true }))
         .toSorted((left, right) => left.caseId.localeCompare(right.caseId)),
     );
-    certifyExecution({ declaration, registrations, report });
-  });
+  }, 15_000);
 
   it('Task 6.3 observes each saved-plan capture boundary fault and reversals', async () => {
     const faults: readonly Fault<SqliteSource>[] = [

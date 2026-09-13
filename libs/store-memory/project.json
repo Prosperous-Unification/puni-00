@@ -24,6 +24,15 @@
       },
       "outputs": ["{projectRoot}/coverage"]
     },
+    "test:conformance": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "^production"],
+      "options": {
+        "command": "bun test src/testing/source-conformance.test.ts",
+        "cwd": "libs/store-memory"
+      }
+    },
     "test:unit": {
       "executor": "nx:run-commands",
       "inputs": ["default", "^production"],

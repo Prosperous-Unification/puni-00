@@ -2118,3 +2118,30 @@ Fresh evidence:
   focus passed memory `1/0/967` and SQLite `1/0/1,312`.
 - All six uncached conformance/memory/SQLite lint and typecheck targets passed.
   Changed-file Prettier, strict change validation, format and diff checks passed.
+
+#### Task 7.2 dedicated certification targets and discovery
+
+Both adapter manifests now provide cached `test:conformance` targets selecting
+their one exact terminal source file. The ordinary test targets retain their
+existing broad discovery, so CI and the final gate continue to execute source
+certification without duplicating it through target dependencies. SQLite's
+dedicated target declares the migration directory it reads; neither target has
+a name filter or browser-capable directory selector.
+
+Before the explicit targets existed, Nx interpreted `test:conformance` as the
+broad `test` target, demonstrating that a successful command did not prove the
+intended selection. The restored dedicated targets passed memory `71/0/4,811`
+and SQLite `71/0/6,178`. The normal memory target passed `94/0/5,025`.
+
+Removing supplemental history registration made both the dedicated and normal
+memory targets fail terminal certification naming exactly independent commit,
+independent rollback, and interleaved-success-survives. Broadening memory's
+selector to `src/testing` failed the workspace target oracle. A string-to-number
+fault in that actual workspace test failed `tool-devsync:typecheck` at its exact
+path, and its unused binding failed `tool-devsync:lint`; restored targets pass.
+
+The focused workspace discovery test passed `1/0/1`. All eight uncached lint
+and typecheck targets for conformance, both adapters, and tool-devsync passed.
+Strict OpenSpec validation, changed-file formatting and diff checks passed. The
+full tool-devsync test remains unavailable in the restricted sandbox because
+its unrelated deployment probes require local listener sockets and fail EPERM.

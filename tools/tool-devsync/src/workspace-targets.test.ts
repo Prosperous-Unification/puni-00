@@ -39,7 +39,12 @@ import { readProjects } from '../workspace-projects.mjs';
 const WORKSPACE = new URL('../../../', import.meta.url);
 
 interface ProjectTarget {
-  readonly options?: Readonly<{ command?: string; commands?: readonly string[] }>;
+  readonly cache?: boolean;
+  readonly options?: Readonly<{
+    command?: string;
+    commands?: readonly string[];
+    cwd?: string;
+  }>;
   readonly inputs?: readonly (string | Readonly<Record<string, unknown>>)[];
 }
 
@@ -73,6 +78,75 @@ function commandsOf(target: ProjectTarget): string[] {
     ...(target.options?.commands ?? []),
   ];
 }
+
+describe('source conformance target discovery', () => {
+  it('selects each terminal source file exactly and keeps normal test inclusion', async () => {
+    const projects = await projectsOnDisk();
+    const expected = {
+      'store-memory': {
+        root: 'libs/store-memory',
+        file: 'src/testing/source-conformance.test.ts',
+        inputs: ['default', '^production'],
+      },
+      'store-sqlite': {
+        root: 'libs/store-sqlite',
+        file: 'src/testing/source-conformance.db.test.ts',
+        inputs: ['default', '^production', '{workspaceRoot}/apps/be-01/drizzle'],
+      },
+    } as const;
+    const observed = Object.fromEntries(
+      Object.entries(expected).map(([name]) => {
+        const project = projects.find(({ config }) => config.name === name);
+        if (project === undefined) throw new Error(`missing source project ${name}`);
+        const target = project.config.targets['test:conformance'];
+        if (target === undefined) throw new Error(`${name} is missing test:conformance`);
+        const command = commandsOf(target);
+        return [
+          name,
+          {
+            command,
+            cwd: target.options?.cwd,
+            cache: target.cache,
+            inputs: target.inputs,
+            normalIncludes: commandsOf(project.config.targets['test'] ?? {}).some(
+              (candidate) =>
+                candidate === 'bun test src --coverage --coverage-reporter=lcov' ||
+                candidate === 'bun test --coverage --coverage-reporter=lcov',
+            ),
+            filtered: command.some((candidate) =>
+              /(?:^|\s)(?:-t|--test-name-pattern)(?:\s|=)/.test(candidate),
+            ),
+          },
+        ];
+      }),
+    );
+
+    // Proof: deleting either target, broadening its selector, adding a name
+    // filter, or dropping normal discovery changes this exact two-source map.
+    // Proof: removing historyBatchRegistrations made both the dedicated memory
+    // target and normal memory test fail terminal certification naming exactly
+    // independent-commit, independent-rollback and interleaved-success-survives.
+    // Proof: a string assigned to number in this file failed tool-devsync:typecheck
+    // at this exact path; its unused binding also failed the owning lint target.
+    // Proof: broadening memory to `bun test src/testing` failed this map with
+    // that directory received instead of the exact terminal source test file.
+    expect(observed).toEqual(
+      Object.fromEntries(
+        Object.entries(expected).map(([name, contract]) => [
+          name,
+          {
+            command: [`bun test ${contract.file}`],
+            cwd: contract.root,
+            cache: true,
+            inputs: [...contract.inputs],
+            normalIncludes: true,
+            filtered: false,
+          },
+        ]),
+      ),
+    );
+  });
+});
 
 describe('every typecheck target compiles files', () => {
   it('finds a project.json for every project', async () => {
