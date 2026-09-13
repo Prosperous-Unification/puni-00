@@ -1,4 +1,5 @@
 import { ActionsMenu } from '../actions-menu';
+import { isoToday } from '../gantt-panel';
 import type { PlanLive } from '../plan-live';
 import { column } from './column';
 
@@ -35,6 +36,28 @@ export function createActionsColumn({ live }: { live: PlanLive }) {
               void live.current.duplicateRow(row.original.id);
             },
           },
+          // The status, settable without the Status column on screen (Dany,
+          // 2026-09-13: "add a 'Set status ...' to the actions to allow setting
+          // the status from UI without enabling the status column"). One entry,
+          // the one that changes something: a row that is not done offers
+          // `Mark done…`, which asks for the day through the completion prompt
+          // exactly as the cell does; a done row offers the way back. `In
+          // progress` is a step's statement and is not offered here either.
+          row.original.status === 'done'
+            ? {
+                id: 'set-unknown',
+                label: 'Set status to unknown',
+                run: () => {
+                  void live.current.setStatus(row.original.id, 'unknown', isoToday(new Date()));
+                },
+              }
+            : {
+                id: 'mark-done',
+                label: 'Mark done…',
+                run: () => {
+                  live.current.openCompletionPrompt(row.original.id);
+                },
+              },
           ...(row.original.frozenNumber === null
             ? []
             : [

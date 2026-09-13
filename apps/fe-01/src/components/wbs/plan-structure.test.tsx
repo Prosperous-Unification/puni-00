@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectApi } from '@/lib/wbs-api';
@@ -294,6 +294,7 @@ describe('the row actions menu', () => {
 
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
       'Duplicate',
+      'Mark done…',
       'Delete',
     ]);
     expect(screen.getByRole('button', { name: 'Actions for 020' })).toHaveAttribute(
@@ -323,6 +324,34 @@ describe('the row actions menu', () => {
     expect(screen.getAllByRole('menu')).toHaveLength(1);
     expect(screen.getByRole('menuitem', { name: 'Duplicate' })).toBeDefined();
   });
+
+  itDom(
+    'marks a row done from its ⋯ menu through the completion prompt, and offers the way back',
+    async () => {
+      const api = fakeApi();
+      await threeRows(api);
+      const sent = recordCalls(api, 'setStatus', (_id, status) => status);
+
+      openRowMenu('010');
+      // Proof: the status entry dropped from `createActionsColumn`, and this
+      // fails on `Unable to find an accessible element with the role "menuitem"
+      // and name "Mark done…"`; watched 2026-09-13.
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Mark done…' }));
+
+      const prompt = await screen.findByRole('dialog', { name: 'Mark 010 done' });
+      expect(sent).toEqual([]);
+      fireEvent.click(within(prompt).getByRole('button', { name: 'Mark done' }));
+      await waitFor(() => {
+        expect(sent).toEqual(['done']);
+      });
+
+      openRowMenu('010');
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Set status to unknown' }));
+      await waitFor(() => {
+        expect(sent).toEqual(['done', 'unknown']);
+      });
+    },
+  );
 
   itDom('promotes the children of a parent it deletes', async () => {
     const api = fakeApi();

@@ -2236,6 +2236,10 @@ export function WbsTable({
             remove: (row) => {
               void deleteRow(row);
             },
+            markDone: setCompletionFor,
+            setUnknown: (rowId) => {
+              void setStatus(rowId, 'unknown', isoToday(new Date()));
+            },
           }}
         />
       ) : (

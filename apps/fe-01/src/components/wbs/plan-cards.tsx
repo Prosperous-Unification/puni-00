@@ -420,6 +420,10 @@ export interface CardRowActionHandlers {
   duplicate: (rowId: string) => void;
   unfreeze: (rowId: string) => void;
   remove: (row: TreeRow) => void;
+  /** Opens the completion prompt over the row — `Mark done…`, the table's own gesture. */
+  markDone: (rowId: string) => void;
+  /** Sets a done row back to unknown, at once. */
+  setUnknown: (rowId: string) => void;
 }
 
 /**
@@ -436,6 +440,23 @@ const cardRowActions = (row: TreeRow, handlers: CardRowActionHandlers): MenuActi
       handlers.duplicate(row.id);
     },
   },
+  // The same status entry the table's ⋯ offers (`plan-columns/actions.tsx`):
+  // one, the one that changes something.
+  row.status === 'done'
+    ? {
+        id: 'set-unknown',
+        label: 'Set status to unknown',
+        run: () => {
+          handlers.setUnknown(row.id);
+        },
+      }
+    : {
+        id: 'mark-done',
+        label: 'Mark done…',
+        run: () => {
+          handlers.markDone(row.id);
+        },
+      },
   ...(row.frozenNumber === null
     ? []
     : [
