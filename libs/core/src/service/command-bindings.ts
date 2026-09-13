@@ -312,6 +312,17 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       );
       return { ...context.plain(), kind: command.kind };
     },
+    setStatus: async (command, context) => {
+      context.value(
+        await workItems.setStatus(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.status,
+          command.on,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
     setMeasure: async (command, context) => {
       context.value(
         await workItems.setMeasure(

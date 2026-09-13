@@ -2,6 +2,7 @@ import type { commandDefinitions, PlanCommandKind } from '@wbs/contracts';
 import {
   isIsoDate,
   type IsoDate,
+  isSettableStatus,
   isStepState,
   LONGEST_NOT_BEFORE_REASON,
   MOST_PEOPLE_AT_ONCE,
@@ -274,6 +275,19 @@ function parseProgress(body: CommandInput<'setProgress'>) {
   return state;
 }
 
+function parseStatus(body: CommandInput<'setStatus'>) {
+  const status = body.status;
+  if (!isSettableStatus(status)) throw new CommandNormalizationError('invalid_status');
+  return status;
+}
+
+function parseOn(body: CommandInput<'setStatus'>): IsoDate | undefined {
+  const on = body.on;
+  if (on === undefined) return undefined;
+  if (!isIsoDate(on)) throw new CommandNormalizationError('on_must_be_a_date');
+  return on;
+}
+
 /**
  * A calendar day, `null` to clear the constraint, or absent to leave it.
  *
@@ -399,6 +413,8 @@ function parsePatch(body: CommandInput<'patchWorkItem'>['patch']) {
       'startNoEarlierThanReason',
     ),
     deadline: asOptionalDate(body.deadline, 'deadline'),
+    factStart: asOptionalDate(body.factStart, 'factStart'),
+    factEnd: asOptionalDate(body.factEnd, 'factEnd'),
     priority: asOptionalPriority(body.priority, 'priority'),
     serviceTeamId:
       'serviceTeamId' in body ? asIdOrNull(body.serviceTeamId, 'serviceTeamId') : undefined,
@@ -586,6 +602,13 @@ export const commandNormalizers = {
     ...target(raw),
     ...step(raw),
   }),
+  setStatus: (raw: CommandInput<'setStatus'>) =>
+    present({
+      kind: 'setStatus' as const,
+      ...target(raw),
+      status: parseStatus(raw),
+      on: parseOn(raw),
+    }),
   setMeasure: (raw: CommandInput<'setMeasure'>) => ({
     kind: 'setMeasure' as const,
     ...target(raw),

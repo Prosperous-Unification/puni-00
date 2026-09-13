@@ -285,6 +285,7 @@ describe('toolsFromDocument, on the generated document', () => {
       'clearActual',
       'setProgress',
       'clearProgress',
+      'setStatus',
       'setMeasure',
       'clearMeasure',
       'setAssignee',

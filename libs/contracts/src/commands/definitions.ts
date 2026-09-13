@@ -53,6 +53,8 @@ const workItemPatch = type({
   'notes?': 'string',
   'startNoEarlierThan?': 'string | null',
   'deadline?': 'string | null',
+  'factStart?': 'string | null',
+  'factEnd?': 'string | null',
   'startNoEarlierThanReason?': 'string | null',
   'priority?': 'number | null',
   'serviceTeamId?': 'string | null',
@@ -135,6 +137,17 @@ export const commandDefinitions = {
     schema: type({ kind: "'clearProgress'", ...step }),
     scope: 'project',
     description: 'Take a step back to not started.',
+  }),
+  setStatus: defineCommand('setStatus', {
+    schema: type({
+      kind: "'setStatus'",
+      ...target,
+      status: "'unknown' | 'done'",
+      'on?': 'string',
+    }),
+    scope: 'project',
+    description:
+      'Mark a work item done, or take every progress statement back to unknown. `on` is the day it happened (YYYY-MM-DD); absent means today.',
   }),
   setMeasure: defineCommand('setMeasure', {
     schema: type({ kind: "'setMeasure'", ...step, metric: 'string', value: 'number' }),

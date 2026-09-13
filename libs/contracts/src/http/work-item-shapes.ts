@@ -45,6 +45,7 @@ const parserArms = {
   invalid_actual: type({ error: "'invalid_actual'", at: 'number', kind: commandKindsType }),
   invalid_measure: type({ error: "'invalid_measure'", at: 'number', kind: commandKindsType }),
   invalid_progress: type({ error: "'invalid_progress'", at: 'number', kind: commandKindsType }),
+  invalid_status: type({ error: "'invalid_status'", at: 'number', kind: commandKindsType }),
   invalid_estimate: type({ error: "'invalid_estimate'", at: 'number', kind: commandKindsType }),
   cannot_send_both_teamIds_and_serviceTeamId: type({
     error: "'cannot_send_both_teamIds_and_serviceTeamId'",
@@ -316,6 +317,17 @@ const parserArms = {
   }),
   deadline_must_be_a_date: type({
     error: "'deadline_must_be_a_date'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  on_must_be_a_date: type({ error: "'on_must_be_a_date'", at: 'number', kind: commandKindsType }),
+  factStart_must_be_a_date: type({
+    error: "'factStart_must_be_a_date'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  factEnd_must_be_a_date: type({
+    error: "'factEnd_must_be_a_date'",
     at: 'number',
     kind: commandKindsType,
   }),
