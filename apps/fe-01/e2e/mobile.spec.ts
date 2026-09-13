@@ -1151,14 +1151,32 @@ test.describe('the plan on a phone, measured by a browser', () => {
   test('keeps the dependency search and the waits in view at the bottom of a long sheet', async ({
     page,
   }) => {
-    const seeded = await page.evaluate(async () => {
+    const rival = await page.evaluate(async () => {
+      const made = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: `mobile isolation rival ${crypto.randomUUID()}` }),
+      });
+      if (made.status !== 200) throw new Error(`making the rival failed: ${String(made.status)}`);
+      const { project } = (await made.json()) as { project: { id: string } };
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const opened = await fetch(`/api/projects/${project.id}/opened`, { method: 'POST' });
       const { projects } = (await (await fetch('/api/projects')).json()) as {
         projects: { id: string }[];
       };
-      // One project exactly: this run's database is fresh (`tmp/e2e-<ts>.db`)
-      // and `seedPlan` made it. Destructured rather than guarded, the lint's
-      // `no-unnecessary-condition` reading an empty-list check as dead.
-      const [{ id: projectId }] = projects;
+      return { opened: opened.status, isFirst: projects[0]?.id === project.id };
+    });
+    expect(rival, 'the rival was not promoted above this fixture in the global list').toEqual({
+      opened: 204,
+      isFirst: true,
+    });
+
+    const seeded = await page.evaluate(async () => {
+      const projectId = window.localStorage.getItem('wbs.project');
+      // Proof: taking the first account-wide project after the rival above was
+      // promoted failed this real case at `no 020 in the seeded plan`. The
+      // exact selected id retains its two rows and reaches the measured sheet.
+      if (projectId === null) throw new Error('the mobile fixture has no selected project');
       const tree = (await (await fetch(`/api/projects/${projectId}/work-items`)).json()) as {
         workItems: { id: string; number: string }[];
       };

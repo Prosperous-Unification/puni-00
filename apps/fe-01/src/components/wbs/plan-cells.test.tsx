@@ -141,8 +141,9 @@ const rowFor = (number: string): HTMLElement => {
 describe('teams and assignees', () => {
   beforeEach(showEveryColumn);
 
-  async function oneRow() {
+  async function oneRow(teamNames: readonly string[] = []) {
     const api = fakeApi();
+    for (const teamName of teamNames) await api.addTeam(teamName);
     render(<WbsTable projectId="p1" api={api} />);
     click('Add work item');
     await screen.findByLabelText('Name of 010');
@@ -179,8 +180,7 @@ describe('teams and assignees', () => {
     // chip assertion alone stays green under that fault, because the chip is a
     // second read of the same set: which arm answered is the part only the
     // title can say.
-    const api = await oneRow();
-    await api.addTeam('Platform');
+    const api = await oneRow(['Platform']);
     const [row] = api.rows;
     row.teamIds = ['team1'];
     row.serviceTeamId = null;
@@ -216,12 +216,7 @@ describe('teams and assignees', () => {
   });
 
   itDom('offers an existing team rather than adding a second one', async () => {
-    const api = await oneRow();
-    await api.addTeam('Platform');
-    // Added behind the component's back, so a refresh has to bring it in —
-    // adding a row is the cheapest one to trigger.
-    click('Add work item');
-    await screen.findByLabelText('Name of 020');
+    await oneRow(['Platform']);
     const label = 'Service or team for 010';
 
     const picker = screen.getByLabelText(label);
@@ -253,11 +248,7 @@ describe('teams and assignees', () => {
    * the planner never chose.
    */
   itDom('creates the name typed rather than joining one that merely contains it', async () => {
-    const api = await oneRow();
-    await api.addTeam('claire qa billing');
-    // Added behind the component's back, so a refresh has to bring it in.
-    click('Add work item');
-    await screen.findByLabelText('Name of 020');
+    const api = await oneRow(['claire qa billing']);
     const label = 'Service or team for 010';
 
     const picker = screen.getByLabelText(label);
@@ -294,10 +285,8 @@ describe('teams and assignees', () => {
    * against in the first place.
    */
   itDom('still takes the team it is half-way through spelling', async () => {
-    const api = await oneRow();
-    const platform = await api.addTeam('Platform');
-    click('Add work item');
-    await screen.findByLabelText('Name of 020');
+    const api = await oneRow(['Platform']);
+    const [platform] = await api.listTeams();
     const label = 'Service or team for 010';
 
     const picker = screen.getByLabelText(label);
@@ -320,10 +309,8 @@ describe('teams and assignees', () => {
    * comparison and could lose it.
    */
   itDom('joins the team already spelled that way in another case', async () => {
-    const api = await oneRow();
-    const backend = await api.addTeam('backend');
-    click('Add work item');
-    await screen.findByLabelText('Name of 020');
+    const api = await oneRow(['backend']);
+    const [backend] = await api.listTeams();
     const label = 'Service or team for 010';
 
     const picker = screen.getByLabelText(label);

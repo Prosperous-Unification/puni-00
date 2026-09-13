@@ -48,6 +48,7 @@ export const NODE_SUITES: readonly string[] = [
   // Not `src/lib/api.test.ts`: `websocketUrl` reads `location`, so one of its
   // cases needs a browser after all. It is the file the plan's own measurement
   // named as the exception, and the guard below asserts it stays one.
+  'src/lib/local-write.test.ts',
   'src/lib/plan-refresh.test.ts',
   'src/lib/refusal.test.ts',
   // Of saved-plans' four `src/lib` suites this is the only one the tier rule
@@ -62,6 +63,7 @@ export const NODE_SUITES: readonly string[] = [
   'src/lib/saved-plan-compare.test.ts',
   'src/test-tiers.test.ts',
   'src/testing/fake-project-api.test.ts',
+  'src/testing/plan-fixture-command-results.test.ts',
   'src/testing/record-calls.test.ts',
   // Proof: after the generated-client merge, leaving `wbs-api.test.ts` here
   // and `refusing-api.test.ts` out failed test-tiers.test.ts with

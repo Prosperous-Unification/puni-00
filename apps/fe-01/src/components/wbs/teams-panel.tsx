@@ -88,6 +88,8 @@ export interface TeamsPanelProps extends SettingsSectionReport {
   setCapacity: (teamId: string, size: number | null) => Promise<void>;
   /** Re-reads the plan, which is what moves the dates the new number produced. */
   onChanged: () => Promise<void>;
+  /** Recovers after a failed request whose commit outcome is unknown. */
+  onRefused?: (thrown: unknown) => Promise<void>;
   /**
    * Asks the modal to close, once `Done` has landed every number it kept. The
    * panel is clean by the time it calls this, and says so by calling it: the
@@ -126,6 +128,7 @@ export function TeamsPanel({
   teams,
   setCapacity,
   onChanged,
+  onRefused,
   onDirtyChange,
   onDone,
 }: TeamsPanelProps) {
@@ -163,6 +166,7 @@ export function TeamsPanel({
     dirty: Object.keys(typed).length > 0,
     onDirtyChange,
     onChanged,
+    ...(onRefused === undefined ? {} : { onRefused }),
   });
 
   const shown = (team: TeamOnThePlan): string =>

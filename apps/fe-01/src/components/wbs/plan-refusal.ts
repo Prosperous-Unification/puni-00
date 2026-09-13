@@ -437,6 +437,10 @@ export const failureText = (thrown: unknown, fallback: string): string =>
       ? thrown.message
       : fallback;
 
+/** Whether a validated client-boundary failure leaves the write's commit outcome unknown. */
+export const isAmbiguousWriteFailure = (thrown: unknown): boolean =>
+  thrown instanceof WbsRequestError && thrown.problem.kind === 'failure';
+
 /**
  * How be-01 refuses a **malformed** request, in the words the shared client keeps.
  *

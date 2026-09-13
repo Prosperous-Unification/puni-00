@@ -8,21 +8,28 @@ permissions:
 
 jobs:
   lint:
-    # Skipped, not failed, while nothing has provisioned the activation: a repository
-    # with none of the three variables set has no archive to admit against, and a red
-    # check on every pull request says nothing a reader can act on. Skipped is **not**
-    # certified — required admission stays pending until an operator publishes the
-    # digest-pinned archive and sets all three (docs/runbook-tool-wiki-activation.md,
-    # "Transport and admission"). A partial configuration still runs and still dies
-    # on the `:?` guards below, so "refuses missing configuration" holds the moment
-    # anybody starts provisioning.
-    if: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_URL != '' || vars.TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256 != '' || vars.TOOL_WIKI_ACTIVATION_VERSION != '' }}
+    # Proof: gate-entrypoints.test.ts requires this job to have no variable-gated `if`; with all
+    # three variables absent the live pull_request_target job reaches the `:?` guards below and
+    # fails instead of reporting a green skipped admission check.
     runs-on: ubuntu-latest
     steps:
+      - name: Require immutable activation configuration
+        env:
+          ACTIVATION_ARCHIVE_SHA256: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256 }}
+          ACTIVATION_ARCHIVE_URL: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_URL }}
+          ACTIVATION_VERSION: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}
+        run: |
+          set -euo pipefail
+          : "${ACTIVATION_ARCHIVE_SHA256:?trusted activation archive digest is not configured}"
+          : "${ACTIVATION_ARCHIVE_URL:?trusted activation archive URL is not configured}"
+          : "${ACTIVATION_VERSION:?trusted activation version is not configured}"
+
       - name: Check out trusted launcher
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          # Repository variables are target-context authority. Pin both launcher and runtime
+          # modules to the same reviewed source revision that produced the activation archive.
+          ref: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}
           path: trusted
           persist-credentials: false
 
@@ -30,9 +37,13 @@ jobs:
         run: install -m 0555 trusted/bin/tool-wiki-lint.sh "$RUNNER_TEMP/tool-wiki-lint.sh"
 
       - name: Install pinned Bun runtime
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.4.2
+
+      - name: Install trusted validator runtime modules
+        working-directory: trusted
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Provision immutable external activation
         env:
@@ -54,7 +65,7 @@ jobs:
           printf 'TOOL_WIKI_ACTIVATION_ROOT=%s\n' "$activation_root" >> "$GITHUB_ENV"
 
       - name: Check out exact candidate
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           path: candidate
@@ -67,5 +78,7 @@ jobs:
       # preserved production launcher still rejects the stale application obligation.
       - name: Verify exact candidate with external trust
         env:
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
           TOOL_WIKI_REQUIRE_CERTIFIED: '1'
-        run: bash "$RUNNER_TEMP/tool-wiki-lint.sh" committed "$GITHUB_WORKSPACE/candidate" "${{ github.event.pull_request.head.sha }}"
+          TOOL_WIKI_TRUSTED_NODE_MODULES: ${{ github.workspace }}/trusted/node_modules
+        run: bash "$RUNNER_TEMP/tool-wiki-lint.sh" committed "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"
