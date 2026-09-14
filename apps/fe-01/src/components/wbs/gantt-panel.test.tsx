@@ -3293,6 +3293,8 @@ function fakeApi(startDate: string | null, skew: ReadSkew = {}): ProjectApi {
         undoable: false,
         redoable: false,
       }),
+    exportPlan: () => notImplemented('exportPlan'),
+    importPlan: () => notImplemented('importPlan'),
     // The **separate** read, which the skewed fixture below makes disagree with
     // the payload above on purpose.
     steps: () => Promise.resolve(skew.steps ?? [{ ...DEV }]),

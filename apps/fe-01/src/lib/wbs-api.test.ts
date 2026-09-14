@@ -119,12 +119,75 @@ const PROJECT = {
   scheduleObjective: 'pri',
 };
 
+const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
+  const tree = JSON.parse(TREE('p1', ids)) as Record<string, unknown>;
+  return {
+    ...tree,
+    project: PROJECT,
+    document: { format: 'wbs-plan', version: 1, exportedAt: '2026-09-14T08:30:00.000Z' },
+    settings: {
+      name: PROJECT.name,
+      restricted: PROJECT.restricted,
+      estimateMethod: PROJECT.estimateMethod,
+      depReach: PROJECT.depReach,
+      pertWeights: PROJECT.pertWeights,
+      estimateRounding: PROJECT.estimateRounding,
+      startDate: PROJECT.startDate,
+      solutionRef: PROJECT.solutionRef,
+      optimizationEnabled: PROJECT.optimizationEnabled,
+      scheduleEngine: PROJECT.scheduleEngine,
+      scheduleObjective: PROJECT.scheduleObjective,
+    },
+    capacity: [],
+    calendarMarkers: [],
+    directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+  };
+};
+
 beforeEach(() => {
   vi.stubGlobal('location', { origin: 'http://wbs.test' });
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe('plan JSON transfer', () => {
+  it('downloads the validated JSON representation through the generated project client', async () => {
+    const document = PLAN_DOCUMENT(['kept-row']);
+    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(response(200, JSON.stringify(document))),
+    );
+    vi.stubGlobal('fetch', fetched);
+
+    await expect(httpProjectApi('token').exportPlan('p1')).resolves.toEqual(document);
+
+    const call = fetched.mock.calls.at(0);
+    expect(call?.[0]).toBe('/api/projects/p1/export?format=json');
+    expect(call?.[1]?.method).toBe('GET');
+    expect(new Headers(call?.[1]?.headers).get('x-wbs-token')).toBe('token');
+  });
+
+  it('imports the archival request and returns its typed summary', async () => {
+    const document = PLAN_DOCUMENT();
+    const summary = {
+      projectId: 'restored-p1',
+      rows: 1,
+      created: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+      solutionRef: 'none',
+    };
+    const fetched = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(() =>
+      Promise.resolve(response(201, JSON.stringify(summary))),
+    );
+    vi.stubGlobal('fetch', fetched);
+
+    await expect(httpProjectApi('token').importPlan(document as never)).resolves.toEqual(summary);
+
+    const call = fetched.mock.calls.at(0);
+    expect(call?.[0]).toBe('/api/projects/import');
+    expect(call?.[1]?.method).toBe('POST');
+    expect(new Headers(call?.[1]?.headers).get('x-wbs-token')).toBe('token');
+  });
 });
 
 describe('removing a step', () => {

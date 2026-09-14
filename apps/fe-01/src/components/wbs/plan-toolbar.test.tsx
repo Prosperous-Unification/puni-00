@@ -441,10 +441,10 @@ describe('sharing the plan', () => {
     return api;
   };
 
-  itDom('offers all six ways of taking the plan out of the tool, in one Export menu', async () => {
+  itDom('offers plan transfer controls in one Export / Import menu', async () => {
     // `configurable-columns` measured the toolbar at 1280: 683px of five rare
     // actions on one row, and a Columns control pushed it to three rows. The
-    // five live behind one `Export` summary now — the same `<details>` the
+    // transfer controls live behind one `Export / Import` summary now — the same `<details>` the
     // Filters and Views controls are — so the row holds what a reader does
     // often and the exports are one click further. jsdom cannot see a closed
     // `<details>` hide its children, so what is asserted is where they live:
@@ -454,7 +454,7 @@ describe('sharing the plan', () => {
     expect(await screen.findByRole('button', { name: 'Copy as Markdown' })).toBeInTheDocument();
     const menu = document.querySelector<HTMLElement>('[data-toolbar] details[data-export]');
     if (menu === null) throw new Error('no Export menu on the toolbar');
-    expect(menu.querySelector('summary')?.textContent).toBe('Export');
+    expect(menu.querySelector('summary')?.textContent).toBe('Export / Import');
     expect([...menu.querySelectorAll('button')].map((button) => button.textContent.trim())).toEqual(
       [
         'Copy as Markdown',
@@ -463,10 +463,91 @@ describe('sharing the plan', () => {
         'Download as Markdown',
         'Download chart as SVG',
         'Download what’s on screen',
+        'Download JSON',
       ],
     );
-    // Proof: the `<details>` replaced by a plain `<div>` around the five, this
+    const importInput = screen.getByLabelText<HTMLInputElement>('Import JSON');
+    expect(importInput).toHaveAttribute('type', 'file');
+    expect(importInput).toHaveAttribute('accept', 'application/json');
+    expect(menu).toContainElement(importInput);
+    // Proof: the `<details>` replaced by a plain `<div>` around the controls, this
     // failed on `no Export menu on the toolbar`. Watched, 2026-08-28.
+  });
+
+  itDom('downloads JSON with collapsed and filtered-out rows', async () => {
+    const downloads = captureDownloads();
+    const model = fakeApi();
+    const parent = await model.createWorkItem('p1', {
+      parentId: null,
+      afterId: null,
+      name: 'Visible parent',
+    });
+    const collapsed = await model.createWorkItem('p1', {
+      parentId: parent.id,
+      afterId: null,
+      name: 'Collapsed child exact',
+    });
+    const filtered = await model.createWorkItem('p1', {
+      parentId: null,
+      afterId: parent.id,
+      name: 'Filtered root exact',
+    });
+    const exported = {
+      document: {
+        format: 'wbs-plan',
+        version: 1,
+        exportedAt: '2026-09-14T08:30:00.000Z',
+      },
+      settings: { name: 'Rewire the shed' },
+      workItems: [
+        { id: parent.id, name: 'Visible parent' },
+        { id: collapsed.id, name: 'Collapsed child exact' },
+        { id: filtered.id, name: 'Filtered root exact' },
+      ],
+    } as unknown as Awaited<ReturnType<typeof model.exportPlan>>;
+    const api = { ...model, exportPlan: () => Promise.resolve(exported) };
+    render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
+    await screen.findByLabelText('Name of 010');
+
+    click('Collapse all');
+    click('Download JSON');
+    await waitFor(() => {
+      expect(downloads.names).toHaveLength(1);
+    });
+    const collapsedFile = downloads.blobs.at(0);
+    if (collapsedFile === undefined) throw new Error('nothing was handed to createObjectURL');
+    const collapsedDownload = JSON.parse(
+      new TextDecoder().decode(await readBlobBytes(collapsedFile)),
+    ) as { workItems: { id: string; name: string }[] };
+    expect(collapsedDownload.workItems).toContainEqual({
+      id: collapsed.id,
+      name: 'Collapsed child exact',
+    });
+
+    fireEvent.change(screen.getByLabelText('Find'), { target: { value: 'Visible parent' } });
+    await waitFor(() => {
+      expect(screen.queryByDisplayValue('Filtered root exact')).toBeNull();
+    });
+
+    click('Download JSON');
+
+    await waitFor(() => {
+      expect(downloads.names).toEqual([
+        'rewire-the-shed-2026-09-14.json',
+        'rewire-the-shed-2026-09-14.json',
+      ]);
+    });
+    const filteredFile = downloads.blobs.at(1);
+    if (filteredFile === undefined) throw new Error('the filtered download was not created');
+    expect(filteredFile.type).toBe('application/json');
+    const downloaded = JSON.parse(new TextDecoder().decode(await readBlobBytes(filteredFile))) as {
+      workItems: { id: string; name: string }[];
+    };
+    expect(downloaded.workItems).toContainEqual({
+      id: filtered.id,
+      name: 'Filtered root exact',
+    });
+    expect(downloads.revoked).toEqual(['blob:plan-1', 'blob:plan-2']);
   });
 
   itDom('draws Undo and Redo as glyphs that still answer to their names', async () => {

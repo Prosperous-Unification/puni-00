@@ -1143,6 +1143,10 @@ describe('planFileName', () => {
   it('names the bundled Mermaid document md instead, on the same date and slug', () => {
     expect(planFileName(plan(), 'md')).toBe('rewire-the-shed-2026-08-07.md');
   });
+
+  it('names an archival plan JSON on the same date and slug', () => {
+    expect(planFileName(plan(), 'json')).toBe('rewire-the-shed-2026-08-07.json');
+  });
 });
 
 describe('markdownHeaderLines and markdownTableLines', () => {

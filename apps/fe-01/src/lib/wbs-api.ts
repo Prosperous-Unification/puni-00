@@ -17,7 +17,9 @@ import {
   type ClientReply,
   createCalendarMarker as createCalendarMarkerShape,
   createProject as createProjectShape,
+  exportProject as exportProjectShape,
   getWorkItems,
+  importProject as importProjectShape,
   listCalendarMarkers as listCalendarMarkersShape,
   listExternalSystems as listExternalSystemsShape,
   listPeople as listPeopleShape,
@@ -27,6 +29,8 @@ import {
   listTeams as listTeamsShape,
   listWorkItemTypes as listWorkItemTypesShape,
   patchProject as patchProjectShape,
+  type PlanDocument,
+  type PlanDocumentRequest,
   readProject as readProjectShape,
   recordProjectOpen,
   redoProject as redoProjectShape,
@@ -1219,6 +1223,12 @@ export interface PlanOptimizationView {
  * adapted here because the UI keeps mutable label lists and a smaller step view.
  */
 type PlanReadWire = Extract<ClientReply<typeof getWorkItems>, { kind: 'success' }>['body'];
+
+/** The created project and file-local names reported after one archival restore. */
+export type PlanImportSummary = Extract<
+  ClientReply<typeof importProjectShape>,
+  { kind: 'success' }
+>['body'];
 export interface PlanRead extends Omit<
   PlanReadWire,
   'workItems' | 'slices' | 'steps' | 'waitingForPerson' | 'waitingForCapacity'
@@ -1301,6 +1311,10 @@ export interface ProjectApi {
   renameProject(id: string, name: string): Promise<void>;
   /** One read of the plan — see {@link PlanRead}, which be-01 answers whole. */
   tree(projectId: string): Promise<PlanRead>;
+  /** Downloads the complete versioned archival document, independently of table visibility. */
+  exportPlan(projectId: string): Promise<PlanDocument>;
+  /** Restores one archival document as a new project. */
+  importPlan(document: PlanDocumentRequest): Promise<PlanImportSummary>;
   /**
    * Reverses this account's last change to the project, **if nothing it
    * touched has been written to since**.
@@ -1699,8 +1713,12 @@ const WBS_SHAPES = [
   updateCalendarMarkerShape,
 ] as const;
 
+const PROJECT_TRANSFER_SHAPES = [exportProjectShape, importProjectShape] as const;
+const PROJECT_SHAPES = [...WBS_SHAPES, ...PROJECT_TRANSFER_SHAPES] as const;
+
 type WbsShape = (typeof WBS_SHAPES)[number];
-export type WbsOperationId = WbsShape['operationId'];
+export type WbsOperationId =
+  WbsShape['operationId'] | (typeof PROJECT_TRANSFER_SHAPES)[number]['operationId'];
 type RefusalFor<S extends WbsShape> = Extract<ClientReply<S>, { kind: 'refusal' }>['body'];
 type WbsProblemFor<S extends WbsShape> = S extends WbsShape
   ? | { kind: 'refusal'; operation: S['operationId']; refusal: RefusalFor<S> }
@@ -2280,7 +2298,7 @@ export function httpDirectoryApi(token: string): DirectoryApi {
 }
 
 export function httpProjectApi(token: string): ProjectApi {
-  const client = browserClient(WBS_SHAPES);
+  const client = browserClient(PROJECT_SHAPES);
   /**
    * The directory client, spread into the answer below rather than delegated
    * method by method: the thirteen vocabulary members {@link ProjectApi} shares
@@ -2383,6 +2401,26 @@ export function httpProjectApi(token: string): ProjectApi {
       };
       for (const row of plan.workItems) projectOf.set(row.id, projectId);
       return plan;
+    },
+    async exportPlan(projectId) {
+      const reply = await client.getApiProjectsByIdExport({
+        params: { id: projectId },
+        query: { format: 'json' },
+        headers: auth(token),
+      });
+      if (reply.kind === 'success' && reply.representation === 'json') return reply.body;
+      if (reply.kind === 'success') throw new Error('export_json_returned_non_json');
+      if (reply.kind === 'failure') throw new Error(wbsFailureCode(reply.failure));
+      throw new Error(reply.body.error);
+    },
+    async importPlan(document) {
+      const reply = await client.postApiProjectsImport({
+        body: document,
+        headers: auth(token),
+      });
+      if (reply.kind === 'success') return reply.body;
+      if (reply.kind === 'failure') throw new Error(wbsFailureCode(reply.failure));
+      throw new Error(reply.body.error);
     },
     async undo(projectId) {
       const reply = await client.postApiProjectsByIdUndo({

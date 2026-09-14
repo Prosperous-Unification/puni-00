@@ -930,7 +930,8 @@ const UNNAMEABLE_PROJECT = 'plan';
  * calendars by a day.
  *
  * `extension` defaults to `csv` so every existing caller compiles unchanged;
- * the bundled Mermaid document (`plan-mermaid.ts`) is the first to pass `md`.
+ * the bundled Mermaid document passes `md`, and the archival document passes
+ * `json`.
  *
  * **A filtered export files itself under `-on-screen`**, off
  * {@link PlanExport.scope} and not off a flag the caller could forget to pass:
@@ -940,7 +941,7 @@ const UNNAMEABLE_PROJECT = 'plan';
  */
 export function planFileName(
   plan: Pick<PlanExport, 'projectName' | 'generatedAt' | 'scope'>,
-  extension: 'csv' | 'md' = 'csv',
+  extension: 'csv' | 'json' | 'md' = 'csv',
 ): string {
   const slug = plan.projectName
     .toLowerCase()

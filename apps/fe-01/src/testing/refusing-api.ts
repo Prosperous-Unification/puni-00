@@ -13,7 +13,9 @@ import {
   clientFromShapes,
   createCalendarMarker,
   createProject,
+  exportProject,
   getWorkItems,
+  importProject,
   listCalendarMarkers,
   listExternalSystems,
   listPeople,
@@ -173,6 +175,8 @@ const PROJECT_API_OPERATIONS = {
   openProject: 'postApiProjectsByIdOpened',
   renameProject: 'patchApiProjectsById',
   tree: 'getApiProjectsByIdWork-items',
+  exportPlan: 'getApiProjectsByIdExport',
+  importPlan: 'postApiProjectsImport',
   undo: 'postApiProjectsByIdUndo',
   redo: 'postApiProjectsByIdRedo',
   setEstimateMethod: 'patchApiProjectsById',
@@ -555,6 +559,40 @@ function checkedAnswers(answers: Partial<ProjectApi>): Partial<ProjectApi> {
           };
         }),
       };
+    };
+  }
+
+  const exportPlanAnswer = answers.exportPlan;
+  if (exportPlanAnswer !== undefined) {
+    checked.exportPlan = async (projectId) => {
+      const client = clientFromShapes([exportProject], async () => ({
+        kind: 'json' as const,
+        status: 200,
+        body: await exportPlanAnswer(projectId),
+      }));
+      const reply = await client.getApiProjectsByIdExport({
+        params: { id: projectId },
+        query: { format: 'json' },
+      });
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
+      if (reply.representation !== 'json') throw new Error('fake_invalid_response');
+      return reply.body;
+    };
+  }
+
+  const importPlanAnswer = answers.importPlan;
+  if (importPlanAnswer !== undefined) {
+    checked.importPlan = async (document) => {
+      const client = clientFromShapes([importProject], async () => ({
+        kind: 'json' as const,
+        status: 201,
+        body: await importPlanAnswer(document),
+      }));
+      const reply = await client.postApiProjectsImport({ body: document });
+      if (reply.kind === 'failure') boundaryFailure(reply.failure);
+      if (reply.kind === 'refusal') throw new Error(reply.body.error);
+      return reply.body;
     };
   }
 

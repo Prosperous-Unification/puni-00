@@ -590,6 +590,7 @@ export function PlanToolbar({
   downloadMermaidDocument,
   downloadChartSvg,
   downloadOnScreen,
+  downloadJson,
   mermaidSectionMode,
   setMermaidSectionMode,
   startDate,
@@ -655,6 +656,7 @@ export function PlanToolbar({
   downloadMermaidDocument: () => void;
   downloadChartSvg: () => void;
   downloadOnScreen: () => void;
+  downloadJson: () => void;
   mermaidSectionMode: 'step' | 'outline' | 'assignee';
   setMermaidSectionMode: React.Dispatch<React.SetStateAction<'step' | 'outline' | 'assignee'>>;
   startDate: string | null;
@@ -1185,9 +1187,11 @@ export function PlanToolbar({
         <KeyboardIcon />
       </Button>
       {/*
-        Sharing the plan, which is what most of it is written for. All four
-        take the whole plan rather than what is on screen, and none asks
-        be-01 for anything — so none is disabled by `busy`, and all four
+        Sharing the plan, which is what most of it is written for. The local
+        exports take the whole plan rather than what is on screen and ask
+        be-01 for nothing; Download JSON deliberately asks for the complete
+        archival document instead of rebuilding one from visible rows. None is
+        disabled by `busy`, and the local exports
         work while the socket is down or the tree is stale. What they cannot
         do is say the figures are current; the header's timestamp is what
         says when they were true. The two Mermaid buttons add a fourth
@@ -1199,7 +1203,7 @@ export function PlanToolbar({
         page rather than about the plan — see {@link downloadChartSvg}.
       */}
       {/*
-        One menu for the six, since `configurable-columns`: measured at 1280,
+        One menu for the transfer controls, since `configurable-columns`: measured at 1280,
         the five buttons of that day took 683px of a 1248px toolbar and a thirteenth
         control pushed the row to three lines. A `<details>`, as Filters and
         Views are — no dismiss handler, and a `<button>` inside it still
@@ -1213,9 +1217,9 @@ export function PlanToolbar({
         <details ref={exportMenu} data-export className="relative">
           <summary
             className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
-            data-hint="Copy or download the plan — as a Markdown table, a Mermaid gantt, a CSV, or what is on screen"
+            data-hint="Copy, download, or import the plan as Markdown, Mermaid, CSV, JSON, or what is on screen"
           >
-            Export
+            Export / Import
           </summary>
           <div
             data-export-panel
@@ -1297,8 +1301,26 @@ export function PlanToolbar({
             >
               Download what’s on screen
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              data-hint="Download the complete versioned plan archive as JSON"
+              onClick={downloadJson}
+            >
+              Download JSON
+            </Button>
+            <label className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+              Import JSON
+              <input
+                type="file"
+                accept="application/json"
+                aria-label="Import JSON"
+                className="sr-only"
+              />
+            </label>
             {/*
-            The one setting among the six actions, and it governs two of them:
+            The one setting among the export actions, and it governs two of them:
             `Copy as Mermaid` and `Download as Markdown` both write their fence
             through it. Mermaid has exactly one grouping channel and it is
             `section`, so a fence can be lanes of outline, of step, or of

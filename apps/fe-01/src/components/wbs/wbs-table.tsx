@@ -39,6 +39,7 @@ import { FilterReadingProvider, StartSentenceProvider } from './plan-cell-readin
 import { usePlanChartInput, usePlanSchedule } from './plan-chart-input';
 import { PLAN_TABLE_FEATURES, type PlanTableFeatures } from './plan-columns/column';
 import { createPlanColumns } from './plan-columns/columns';
+import { planFileName } from './plan-export';
 import { usePlanExportActions, usePlanOnScreenExport } from './plan-export-actions';
 import type { PlanLiveValues } from './plan-live';
 import { showDay } from './plan-number-format';
@@ -1601,6 +1602,27 @@ export function WbsTable({
     criteria,
     filterLabels,
   });
+  const downloadJson = useCallback(() => {
+    void api.exportPlan(projectId).then((document) => {
+      // Proof: replacing the server document's workItems with `shownRows` made
+      // `downloads JSON with collapsed and filtered-out rows` miss exact row
+      // `{ id: "w2", name: "Collapsed child exact" }`. Observed 2026-09-14.
+      const blob = new Blob([JSON.stringify(document, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = window.document.createElement('a');
+      anchor.href = url;
+      anchor.download = planFileName(
+        {
+          projectName: document.settings.name,
+          generatedAt: document.document.exportedAt,
+          scope: undefined,
+        },
+        'json',
+      );
+      anchor.click();
+      URL.revokeObjectURL(url);
+    });
+  }, [api, projectId]);
 
   /**
    * The columns this render puts on screen, in order — which is exactly what a
@@ -1860,6 +1882,7 @@ export function WbsTable({
       downloadMermaidDocument={downloadMermaidDocument}
       downloadChartSvg={downloadChartSvg}
       downloadOnScreen={downloadOnScreen}
+      downloadJson={downloadJson}
       mermaidSectionMode={mermaidSectionMode}
       setMermaidSectionMode={setMermaidSectionMode}
       startDate={startDate}

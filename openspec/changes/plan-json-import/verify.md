@@ -455,3 +455,38 @@ Fresh green evidence:
 
 At the Task 5.1 checkpoint, Tasks 4.3–4.5 and 5.2 remain unimplemented and
 unchecked.
+
+## Section 4.3 — generated-client facade and plan transfer controls
+
+`ProjectApi` now exposes only `exportPlan(projectId)` and
+`importPlan(document)` for archival transfer, with both methods backed by the
+shared generated client. The plan toolbar names the combined menu
+`Export / Import`, downloads the complete server JSON under `planFileName`, and
+contains an `application/json` file input hidden behind the `Import JSON`
+label. File reading, submission state, selection and import outcomes remain in
+Task 4.4.
+
+The production `WbsTable` test makes one download after collapsing a parent and
+a second after filtering out a root. Both downloaded documents retain the
+hidden rows by exact id and name. The initial TDD run failed four new assertions:
+the facade methods were absent, the summary still read `Export`, and no
+`Download JSON` control existed; the other 145 focused assertions passed.
+
+| Check                         | Fault injected                                                       | Test that observed it                                 | Observed failure                                                                                   |
+| ----------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Complete server JSON download | Replaced the server document's workItems with production `shownRows` | `downloads JSON with collapsed and filtered-out rows` | exact collapsed row `{ id: "w2", name: "Collapsed child exact" }` was absent; 1 failed, 28 skipped |
+
+The production mutation was observed red, restored, and recorded in the
+adjacent `Proof:` comment. It proves that a locally constructed visible-row
+document cannot satisfy the download test.
+
+Fresh green evidence:
+
+- `TZ=UTC bunx vitest run src/lib/wbs-api.test.ts src/components/wbs/plan-export.test.ts src/components/wbs/plan-toolbar.test.tsx --no-file-parallelism --maxWorkers=1` from `apps/fe-01` — 3 files passed, 149 tests passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx typecheck fe-01 --outputStyle=static` — target passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx lint fe-01 --outputStyle=static` — target passed.
+- `bunx prettier --check apps/fe-01/src/lib/wbs-api.ts apps/fe-01/src/lib/wbs-api.test.ts apps/fe-01/src/testing/refusing-api.ts apps/fe-01/src/components/wbs/wbs-table.tsx apps/fe-01/src/components/wbs/plan-toolbar.tsx apps/fe-01/src/components/wbs/plan-toolbar.test.tsx apps/fe-01/src/components/wbs/plan-export.ts apps/fe-01/src/components/wbs/plan-export.test.ts apps/fe-01/src/components/wbs/gantt-panel.test.tsx openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
+
+At the Task 4.3 checkpoint, Tasks 4.4–4.5 and 5.2 remain unimplemented and
+unchecked.
