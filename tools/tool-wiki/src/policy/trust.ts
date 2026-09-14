@@ -1078,7 +1078,10 @@ function relocateBaseline(
   boundary: TrustedPolicy['boundaries'][number],
   baseline: TrustedPolicy['boundaries'][number]['baselineEntries'][number],
 ): TrustedPolicy['boundaries'][number]['baselineEntries'][number] {
-  const source = boundary.sourceSelector ?? boundary.selector;
+  // Proof: without this exact-path branch, a production ratchet accepted a byte-identical
+  // `validator.ts` to `renamed-validator.ts` move with no source selector or changed boundary.
+  if (boundary.sourceSelector === undefined) return baseline;
+  const source = boundary.sourceSelector;
   if (source.kind === 'path') return { ...baseline, path: boundary.selector.value };
   return {
     ...baseline,
