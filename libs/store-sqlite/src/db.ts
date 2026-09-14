@@ -74,9 +74,26 @@ export interface Connection {
  * close is handed out as a function instead. A process that exits without it
  * leaves a WAL to be recovered by whoever opens the file next, which during a
  * blue/green swap is the other colour, mid-request.
+ *
+ * `observeNativeTransaction` is a diagnostic hook for each Bun
+ * `Database.transaction` wrapper Drizzle creates. Bun executes a successful
+ * wrapper nested under an existing transaction as `SAVEPOINT` plus `RELEASE`,
+ * and those native controls bypass Drizzle's query logger. The hook observes
+ * the wrapper, not either SQL control separately.
  */
-export function openConnection(dbPath: string, logger?: Logger): Connection {
+export function openConnection(
+  dbPath: string,
+  logger?: Logger,
+  observeNativeTransaction?: () => void,
+): Connection {
   const client = openDatabase(dbPath);
+  if (observeNativeTransaction !== undefined) {
+    const transaction = client.transaction.bind(client);
+    client.transaction = (insideTransaction) => {
+      observeNativeTransaction();
+      return transaction(insideTransaction);
+    };
+  }
   return {
     db: drizzle({ client, logger }),
     close: () => {

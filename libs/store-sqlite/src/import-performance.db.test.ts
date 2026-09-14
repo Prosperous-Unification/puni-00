@@ -49,11 +49,18 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
   const path = join(dir, 'source.db');
   runMigrations(path, MIGRATIONS);
   const statements: string[] = [];
-  const connection = openConnection(path, {
-    logQuery(query) {
-      statements.push(query);
+  let nativeTransactions = 0;
+  const connection = openConnection(
+    path,
+    {
+      logQuery(query) {
+        statements.push(query);
+      },
     },
-  });
+    () => {
+      nativeTransactions += 1;
+    },
+  );
   try {
     const coordinator = new WriteCoordinator();
     const stores = buildStores(connection.db, coordinator);
@@ -65,19 +72,23 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
       stamp,
     );
     statements.length = 0;
+    nativeTransactions = 0;
 
     const document = measuredDocument();
     const encoded = JSON.stringify(document);
     const inputBytes = new TextEncoder().encode(encoded).byteLength;
     const prepareStatementStart = statements.length;
+    const prepareNativeStart = nativeTransactions;
     const prepareStarted = performance.now();
     const preparation = prepareImport(document, fastScheduler);
     const prepareMs = performance.now() - prepareStarted;
-    const prepareStatements = statements.length - prepareStatementStart;
+    const prepareDrizzleStatements = statements.length - prepareStatementStart;
+    const prepareNativeTransactions = nativeTransactions - prepareNativeStart;
     expect(preparation.ok).toBe(true);
     if (!preparation.ok) throw new Error(`measurement refused at ${preparation.path}`);
     expect(preparation.value.workItems).toHaveLength(ROWS);
-    expect(prepareStatements).toBe(0);
+    expect(prepareDrizzleStatements).toBe(0);
+    expect(prepareNativeTransactions).toBe(0);
 
     let admittedStarted = 0;
     let admittedMs = 0;
@@ -133,7 +144,14 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
     expect(beginAt).toBeGreaterThanOrEqual(0);
     expect(commitAt).toBeGreaterThan(beginAt);
     expect(queuedAt).toBeGreaterThan(commitAt);
-    const admittedStatements = commitAt - beginAt + 1;
+    const drizzleStatements = commitAt - beginAt + 1;
+    // One project, bands, capacity, marker, team patch, person insert and subtree
+    // transaction, then one label patch per row: 7 + 500 nested transactions.
+    // Proof: omitting the native transaction observer reported 0 instead of 507,
+    // hiding its 1,014 SAVEPOINT/RELEASE controls from the admitted total.
+    expect(nativeTransactions).toBe(507);
+    const nativeControls = nativeTransactions * 2;
+    const admittedStatements = drizzleStatements + nativeControls;
 
     console.log(
       JSON.stringify({
@@ -141,9 +159,18 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
         rows: document.workItems.length,
         inputBytes,
         prepareMs: Number(prepareMs.toFixed(3)),
-        prepareStatements,
+        prepareStatements: {
+          drizzle: prepareDrizzleStatements,
+          nativeControls: prepareNativeTransactions * 2,
+          total: prepareDrizzleStatements + prepareNativeTransactions * 2,
+        },
         admittedMs: Number(admittedMs.toFixed(3)),
-        admittedStatements,
+        admittedStatements: {
+          drizzle: drizzleStatements,
+          nativeTransactionWrappers: nativeTransactions,
+          nativeControls,
+          total: admittedStatements,
+        },
         queuedWrite: {
           completed: queuedCompleted > 0,
           elapsedMs: Number((queuedCompleted - queuedStarted).toFixed(3)),

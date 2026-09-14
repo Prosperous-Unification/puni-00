@@ -422,30 +422,35 @@ At the Task 4.2 checkpoint, Tasks 4.3–5.2 remain unimplemented and unchecked.
 
 The production `ImportService` imported exactly 500 root rows into a migrated
 SQLite file. The UTF-8 JSON request was 381,862 bytes. A direct call to pure
-`prepareImport` took 8.072 ms and issued 0 SQL statements. The separately
-timed admitted `UnitOfWork.run` interval took 210.894 ms and issued 7,065
-statements from its logged `BEGIN IMMEDIATE` through its logged `COMMIT`,
-inclusive. These observed times are evidence, not pass/fail budgets.
+`prepareImport` took 7.702 ms and issued 0 SQL statements or native transaction
+controls. The separately timed admitted `UnitOfWork.run` interval took 223.086
+ms. Drizzle logged 7,065 statements from `BEGIN IMMEDIATE` through `COMMIT`,
+inclusive. The same production connection observed 507 successful native
+transaction wrappers nested inside that interval; their 507 `SAVEPOINT` and
+507 `RELEASE` controls bypass Drizzle's logger. The admitted total is therefore
+7,065 logged statements + 1,014 native controls = 8,079 SQL statements. These
+observed times are evidence, not pass/fail budgets.
 
 An ordinary public directory write was started synchronously from inside the
 admitted act, so the production `WriteCoordinator` queued it behind the import.
-It completed after admission in 213.441 ms from queueing; the logger placed its
+It completed after admission in 224.695 ms from queueing; the logger placed its
 first `tag` insert after the import's `COMMIT`. The imported project contained
 all 500 rows, and the queued tag was readable after settlement.
 
 | Check                         | Fault injected                                        | Test that observed it                                                           | Observed failure                                                    |
 | ----------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Real SQL statement accounting | Omitted the logger when opening the closable database | `measures preparation and admitted SQLite work separately for exactly 500 rows` | expected a logged `BEGIN IMMEDIATE` index at least 0, received `-1` |
+| Native transaction accounting | Omitted the native transaction observer               | same production-path measurement test                                           | expected 507 native wrappers, received 0                            |
 
-The fault was watched before `openConnection` forwarded Drizzle's logger,
-then restored. The adjacent `Proof:` comment guards against reporting a fake
-zero statement count. The row-count, stored-row, transaction-boundary and
-post-commit queued-write assertions prevent a fast refusal or empty import
-from masquerading as a measurement.
+Both faults were watched and restored. The adjacent `Proof:` comments guard
+against reporting either a fake zero statement count or a Drizzle-only count
+that silently omits native controls. The row-count, stored-row,
+transaction-boundary and post-commit queued-write assertions prevent a fast
+refusal or empty import from masquerading as a measurement.
 
 Fresh green evidence:
 
-- `bun test src/import-performance.db.test.ts src/import.service.db.test.ts src/db.db.test.ts` from `libs/store-sqlite` — 19 passed, 0 failed, 88 assertions. Measurement output: `{"measurement":"plan-json-import-500","rows":500,"inputBytes":381862,"prepareMs":8.072,"prepareStatements":0,"admittedMs":210.894,"admittedStatements":7065,"queuedWrite":{"completed":true,"elapsedMs":213.441,"completedAfterAdmission":true}}`.
+- `bun test src/import-performance.db.test.ts src/import.service.db.test.ts src/db.db.test.ts` from `libs/store-sqlite` — 19 passed, 0 failed, 90 assertions. Measurement output: `{"measurement":"plan-json-import-500","rows":500,"inputBytes":381862,"prepareMs":7.702,"prepareStatements":{"drizzle":0,"nativeControls":0,"total":0},"admittedMs":223.086,"admittedStatements":{"drizzle":7065,"nativeTransactionWrappers":507,"nativeControls":1014,"total":8079},"queuedWrite":{"completed":true,"elapsedMs":224.695,"completedAfterAdmission":true}}`.
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p store-sqlite --skip-nx-cache --parallel=1 --output-style=static` — both targets passed.
 
 At the Task 5.1 checkpoint, Tasks 4.3–4.5 and 5.2 remain unimplemented and
