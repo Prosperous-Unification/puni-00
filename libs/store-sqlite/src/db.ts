@@ -74,11 +74,14 @@ export interface Connection {
  * close is handed out as a function instead. A process that exits without it
  * leaves a WAL to be recovered by whoever opens the file next, which during a
  * blue/green swap is the other colour, mid-request.
+ *
+ * The optional logger observes this connection's repository statements. It is
+ * a diagnostic boundary; production leaves it absent and remains silent.
  */
-export function openConnection(dbPath: string): Connection {
+export function openConnection(dbPath: string, logger?: Logger): Connection {
   const client = openDatabase(dbPath);
   return {
-    db: drizzle({ client }),
+    db: drizzle({ client, logger }),
     close: () => {
       client.close();
     },
