@@ -41,6 +41,27 @@ function runnerOver(
   });
 }
 
+function captureAdmittedStores(uow: UnitOfWork): {
+  readonly uow: UnitOfWork;
+  readonly current: () => PlanTransactionalStores;
+} {
+  let admitted: PlanTransactionalStores | undefined;
+  return {
+    uow: {
+      run<T>(act: (scope: Scope) => Promise<Decision<T>>): Promise<T> {
+        return uow.run((scope) => {
+          admitted = scope.stores;
+          return act(scope);
+        });
+      },
+    },
+    current: () => {
+      if (admitted === undefined) throw new Error('batch graph built before admission');
+      return admitted;
+    },
+  };
+}
+
 describe('working plan batch ownership', () => {
   async function seededEstimate() {
     const source = openMemorySource();
@@ -248,19 +269,27 @@ describe('working plan batch ownership', () => {
     });
 
     try {
-      expect(
-        await runner.run(projectId, OWNER, [
+      let runFailure: unknown;
+      const outcome = await runner
+        .run(projectId, OWNER, [
           {
             kind: 'setEstimate',
             workItemId,
             stepId,
             days: { optimistic: 4, realistic: 5, pessimistic: 6 },
           },
-        ]),
-      ).toMatchObject({ ok: true });
-      // Proof: retaining the batch graph for post-commit publication threw its
-      // closed WorkingPlan invariant instead of reaching this public graph.
-      expect(announcements).toBe(1);
+        ])
+        .catch((cause: unknown) => {
+          runFailure = cause;
+          return undefined;
+        });
+      // Proof: substituting the closed admitted graph for `publicServices` after commit
+      // produced `{ announcements: 0, failure: "Working plan ... is closed" }` here.
+      expect({
+        announcements,
+        failure: runFailure instanceof Error ? runFailure.message : runFailure,
+      }).toEqual({ announcements: 1, failure: undefined });
+      expect(outcome).toMatchObject({ ok: true });
     } finally {
       await source.close();
     }
@@ -729,7 +758,8 @@ describe('working plan value mutations through runner commands', () => {
       ).toBe(true);
 
       let observations = 0;
-      const runner = runnerOver(source, publicGraph, source.uow, (scope, broadcast) => {
+      const admitted = captureAdmittedStores(source.uow);
+      const runner = runnerOver(source, publicGraph, admitted.uow, (scope, broadcast) => {
         const loaded = Promise.all([
           scope.stores.estimates.listByProject(projectId),
           scope.stores.actuals.listByProject(projectId),
@@ -748,14 +778,17 @@ describe('working plan value mutations through runner commands', () => {
                 scope.stores.progress.listByProject(projectId),
                 scope.stores.measures.listByProject(projectId),
               ]);
+              const authoritativeStores = admitted.current();
               const authoritative = await Promise.all([
-                scope.stores.estimates.listByProject(projectId),
-                scope.stores.actuals.listByProject(projectId),
-                scope.stores.progress.listByProject(projectId),
-                scope.stores.measures.listByProject(projectId),
+                authoritativeStores.estimates.listByProject(projectId),
+                authoritativeStores.actuals.listByProject(projectId),
+                authoritativeStores.progress.listByProject(projectId),
+                authoritativeStores.measures.listByProject(projectId),
               ]);
               // Proof: restoring binary value-group placement made retained groups A,a while
               // every authoritative memory full reader returned a,A here.
+              // Proof: changing the targeted estimate reader's optimistic value while retaining
+              // both work-item identities made this exact admitted-store comparison fail 2 vs 99.
               expect(retained).toEqual(authoritative);
               expect(retained.map((rows) => rows.map(({ workItemId }) => workItemId))).toEqual([
                 ['a', 'A'],
@@ -816,7 +849,8 @@ describe('working plan value mutations through runner commands', () => {
         );
       }
       let observations = 0;
-      const runner = runnerOver(source, publicGraph, source.uow, (scope, broadcast) => {
+      const admitted = captureAdmittedStores(source.uow);
+      const runner = runnerOver(source, publicGraph, admitted.uow, (scope, broadcast) => {
         const loaded = Promise.all([
           scope.stores.estimates.listByProject(projectId),
           scope.stores.actuals.listByProject(projectId),
@@ -835,11 +869,12 @@ describe('working plan value mutations through runner commands', () => {
                 scope.stores.progress.listByProject(projectId),
                 scope.stores.measures.listByProject(projectId),
               ]);
+              const authoritativeStores = admitted.current();
               const authoritative = await Promise.all([
-                scope.stores.estimates.listByProject(projectId),
-                scope.stores.actuals.listByProject(projectId),
-                scope.stores.progress.listByProject(projectId),
-                scope.stores.measures.listByProject(projectId),
+                authoritativeStores.estimates.listByProject(projectId),
+                authoritativeStores.actuals.listByProject(projectId),
+                authoritativeStores.progress.listByProject(projectId),
+                authoritativeStores.measures.listByProject(projectId),
               ]);
               expect(retained).toEqual(authoritative);
               expect(retained.map((rows) => rows.map(({ workItemId }) => workItemId))).toEqual([
@@ -988,8 +1023,9 @@ describe('working plan value mutations through runner commands', () => {
       });
       const orderedCompose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
         servicesOver(stores, { clock: orderedClock, broadcast, scheduler: fastScheduler });
+      const admitted = captureAdmittedStores(source.uow);
       const runner = new PlanCommandRunner({
-        uow: source.uow,
+        uow: admitted.uow,
         announcements: direct,
         publicServices: publicGraph,
         batchServices(scope, broadcast) {
@@ -1012,16 +1048,20 @@ describe('working plan value mutations through runner commands', () => {
                     scope.stores.progress.listByProject(projectId),
                     scope.stores.measures.listByProject(projectId),
                   ]);
+                  const authoritativeStores = admitted.current();
                   const authoritative = await Promise.all([
-                    scope.stores.estimates.listByProject(projectId),
-                    scope.stores.actuals.listByProject(projectId),
-                    scope.stores.progress.listByProject(projectId),
-                    scope.stores.measures.listByProject(projectId),
+                    authoritativeStores.estimates.listByProject(projectId),
+                    authoritativeStores.actuals.listByProject(projectId),
+                    authoritativeStores.progress.listByProject(projectId),
+                    authoritativeStores.measures.listByProject(projectId),
                   ]);
                   expect(retained).toEqual(authoritative);
-                  expect(new Set(retained.flat().map(({ workItemId }) => workItemId))).toEqual(
-                    new Set(['a-child', 'm-existing']),
-                  );
+                  expect(retained.map((rows) => rows.map(({ workItemId }) => workItemId))).toEqual([
+                    ['a-child', 'm-existing'],
+                    ['a-child', 'm-existing'],
+                    ['a-child', 'm-existing'],
+                    ['a-child', 'a-child', 'a-child', 'm-existing', 'm-existing', 'm-existing'],
+                  ]);
                 }
               },
             };

@@ -572,11 +572,30 @@ the transaction callback's `finally`, including success, modeled refusal, and th
 
 ### Task 3.1 R5 fault observations
 
-| Check                         | Injected fault                                                                                                                        | Observed failure                                                                                                                                                   |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Fresh graph and before-image  | Cached the first working graph in production and suppressed its close, then ran two SQLite batches around an ordinary estimate write. | The second undo restored stale `{ optimistic: 4, realistic: 5, pessimistic: 6 }` instead of the intervening `{ optimistic: 7, realistic: 8, pessimistic: 9 }`.     |
-| Terminal close                | Omitted the working plan close, retaining callbacks from successful, refused, and throwing actual runner batches.                     | Each callback continued reading after its batch settled instead of rejecting `working plan is closed`.                                                             |
-| Nonworking announcement graph | Retained the admitted callback while announcing through the process graph after commit.                                               | The admitted callback rejected as closed while the process graph read committed state and announced once; using the closed graph would reject before announcement. |
+The review repair was verified from clean base `b576dbd8a664314e259e29dbc39611f64dbb9e86`
+with Bun 1.4.2. The focused four-file probe passed 82 tests and 303 assertions. The uncached
+four-project `test` run passed for `core`, `store-sqlite`, `store-memory`, and `conformance`
+(`core`: 534 tests/1,789 assertions; `store-sqlite`: 754 tests/8,569 assertions). The uncached
+five-project `lint typecheck` run passed those four owners plus `be-01`. Strict validation passed
+1/1 for this change and all-change validation passed 83/83. `nx format:check --all` and
+`git diff --check` passed. The exact commands were:
+
+```sh
+bun test libs/core/src/service/plan-commands.test.ts libs/core/src/service/working-plan.test.ts libs/store-sqlite/src/working-plan-order.db.test.ts apps/be-01/src/service/plan-commands.db.test.ts
+GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-task31-review-tests NX_DAEMON=false bunx nx run-many -t test -p core store-sqlite store-memory conformance --parallel=2 --output-style=static --skip-nx-cache
+GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-task31-review-checks NX_DAEMON=false bunx nx run-many -t lint typecheck -p core store-sqlite store-memory conformance be-01 --parallel=2 --output-style=static --skip-nx-cache
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate live-plan-snapshot --strict --json
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json
+GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-task31-review-format NX_DAEMON=false bunx nx format:check --all
+git diff --check
+```
+
+| Check                         | Injected fault                                                                                                                         | Observed failure                                                                                                                                                                                                       |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fresh graph and before-image  | Cached the first working graph in production and suppressed its close, then ran two SQLite batches around an ordinary estimate write.  | The second undo restored stale `{ optimistic: 4, realistic: 5, pessimistic: 6 }` instead of the intervening `{ optimistic: 7, realistic: 8, pessimistic: 9 }`.                                                         |
+| Terminal close                | Omitted the working plan close, retaining callbacks from successful, refused, and throwing actual runner batches.                      | Each callback continued reading after its batch settled instead of rejecting `working plan is closed`.                                                                                                                 |
+| Independent memory oracle     | Changed only the production targeted estimate reader to return `optimistic: 99`, preserving both requested identities and their order. | `keeps mixed-case memory value groups in the full readers order after population` failed its exact retained/admitted-store comparison: `A.optimistic` was `99` instead of the authoritative `2`; 0 passed, 1 failed.   |
+| Nonworking announcement graph | Retained the admitted service graph and substituted it for `publicServices` at the exact after-commit assignment.                      | `announces after commit through the nonworking graph` failed with `{ announcements: 0, failure: "Working plan for <projectId> is closed" }` instead of `{ announcements: 1, failure: undefined }`; 0 passed, 1 failed. |
 
 The five-project lint/typecheck run initially found an earlier port-integration omission in the
 be-01 step-service test fake: its `EstimateStore` lacked `listPlacements`. The bounded cleanup
