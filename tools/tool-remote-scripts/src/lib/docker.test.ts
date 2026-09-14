@@ -354,8 +354,22 @@ describe('deriveTierSecrets', () => {
     // owning suite failed both real BeConfig consumers with MODULE_NOT_FOUND.
     // Pinning its moved external read then failed this test 0/1 until the real
     // cached target declared `apps/wbs/be-01/src/config.ts` as an input.
+    // Proof: omitting the imported libraries below let a warmed target replay
+    // 1/1 from local cache after `define-config.ts` was changed to throw. With
+    // these inputs restored, that fault missed cache and failed 277/1 in
+    // "boots local backend configuration..."; restoring the source passed.
     const manifest = readFileSync(new URL('../../project.json', import.meta.url), 'utf8');
-    expect(manifest).toContain('"{workspaceRoot}/apps/wbs/be-01/src/config.ts"');
+    for (const input of [
+      '{workspaceRoot}/apps/wbs/be-01/src/config.ts',
+      '{workspaceRoot}/libs/wbs/adapters/auth/src/*.ts',
+      '!{workspaceRoot}/libs/wbs/adapters/auth/src/*.test.ts',
+      '{workspaceRoot}/libs/wbs/adapters/config/src/*.ts',
+      '!{workspaceRoot}/libs/wbs/adapters/config/src/*.test.ts',
+      '{workspaceRoot}/libs/wbs/domain/validation/src/*.ts',
+      '!{workspaceRoot}/libs/wbs/domain/validation/src/*.test.ts',
+    ]) {
+      expect(manifest).toContain(JSON.stringify(input));
+    }
     const beModule: unknown = await import(['../../../..', 'apps/wbs/be-01/src/config'].join('/'));
     if (
       typeof beModule !== 'object' ||

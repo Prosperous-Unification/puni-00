@@ -407,3 +407,26 @@ The final focused Dev Setup/Devsync surface passed 38/38 with 104 expectations, 
 repository's external-read totality guard. The final Tool Remote Scripts test/lint/typecheck rerun
 passed all three targets (278 tests, 584 expectations, 2 real-Docker skips). All-tree Prettier,
 `git diff --check` and strict all OpenSpec validation passed; OpenSpec reported 83/83 items valid.
+
+### Tool Remote Scripts transitive runtime cache closure repair
+
+The Tool Remote Scripts test computes an import of the backend `BeConfig` without adding an
+infrastructure-to-app project dependency. A Bun build metafile for
+`apps/wbs/be-01/src/config.ts` identified its workspace runtime closure as the backend entrypoint
+plus production TypeScript sources in Auth, Config and Validation. The test target now declares
+those source-root globs explicitly and excludes colocated tests. Its manifest assertion initially
+failed 0/1 on the absent Auth input and passed 1/1 after the complete closure was declared.
+
+The real target was primed uncached at 278/0 with 590 expectations and then replayed 1/1 from local
+cache unchanged. Changing `libs/wbs/adapters/config/src/define-config.ts` to throw caused a cache
+miss and failed 277/1 in `boots local backend configuration from the rendered environment and
+keeps OIDC callback origin authoritative`. For the omission oracle, removing all six transitive
+input patterns, warming the target, and applying the same source fault replayed 1/1 from local
+cache and falsely exited 0 with 278 tests and 584 expectations. Restoring the inputs while retaining
+the fault caused a cache miss and the same named 277/1 failure. All source and manifest faults were
+then restored.
+
+The restored host-permission uncached Tool Remote Scripts matrix passed test, lint and typecheck;
+tests passed 278/278 with 590 expectations and the two intentional real-Docker skips. The focused
+external-read totality suite passed 16/16 with 51 expectations. All-tree Prettier,
+`git diff --check`, and strict all OpenSpec validation passed; OpenSpec reported 83/83 items valid.
