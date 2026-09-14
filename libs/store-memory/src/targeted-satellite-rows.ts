@@ -13,11 +13,11 @@ interface TargetedSatelliteRows<Row> {
 /**
  * Admits requested memory satellite rows through their project boundary.
  *
- * Stored rows are trusted state, so a requested row whose work item or step is
- * missing, or belongs to another project, is an invariant failure rather than
- * an absent answer. The row-specific validator runs once after both references
- * are proven, and the returned project steps are the same read used for
- * validation and subsequent ordering.
+ * Stored rows are trusted state, so a requested row whose work item is missing
+ * is an invariant failure. A valid row owned by another project is filtered as
+ * the complete project reader filters it; only admitted rows then have their
+ * step reference and family-specific value validated. The returned project
+ * steps are the same read used for validation and subsequent ordering.
  *
  * @throws When a requested row has an invalid reference or stored value.
  */
@@ -42,20 +42,16 @@ export async function readTargetedSatelliteRows<Row extends SatelliteRow>(
     }
     owners.set(workItemId, workItem.projectId);
   }
-  for (const row of rows) {
-    if (owners.get(row.workItemId) !== projectId) {
-      throw new Error(`${family} ${row.workItemId}/${row.stepId} is outside project ${projectId}`);
-    }
-  }
+  const admitted = rows.filter(({ workItemId }) => owners.get(workItemId) === projectId);
   const projectSteps = await steps?.listByProject(projectId);
   if (projectSteps !== undefined) {
     const stepIds = new Set(projectSteps.map(({ id }) => id));
-    for (const row of rows) {
+    for (const row of admitted) {
       if (!stepIds.has(row.stepId)) {
         throw new Error(`${family} ${row.workItemId}/${row.stepId} has an invalid step reference`);
       }
     }
   }
-  rows.forEach(validate);
-  return { rows, steps: projectSteps };
+  admitted.forEach(validate);
+  return { rows: admitted, steps: projectSteps };
 }

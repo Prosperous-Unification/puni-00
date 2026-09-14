@@ -85,12 +85,15 @@ describe('targeted memory readers reject malformed trusted state', () => {
     );
   });
 
-  it('names a cross-project work-item in all four satellite families', async () => {
+  it('filters a valid cross-project work-item in all four satellite families', async () => {
     const stores = await openSeededStores();
     await seedAll(stores, ROW_B, STEP_B);
 
-    // Proof: joining through the requested project's listByIds returned four empty answers.
-    expectReferenceRejections(stores, PROJECT_A, ROW_B, /outside project/);
+    // Proof: validating ownership before filtering threw for each valid project-B row.
+    expect(await stores.estimates.listByWorkItems(PROJECT_A, [ROW_B])).toEqual([]);
+    expect(await stores.actuals.listByWorkItems(PROJECT_A, [ROW_B])).toEqual([]);
+    expect(await stores.progress.listByWorkItems(PROJECT_A, [ROW_B])).toEqual([]);
+    expect(await stores.measures.listByWorkItems(PROJECT_A, [ROW_B])).toEqual([]);
   });
 
   it('names a cross-project step in all four satellite families', async () => {

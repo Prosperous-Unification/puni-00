@@ -38,10 +38,26 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
         },
         seed.stamps[0],
       );
+      const foreignId = seed.workItemIds[1][0];
+      await port.set(
+        {
+          workItemId: foreignId,
+          stepId: seed.stepIds[1][0],
+          metric: 'token_estimate',
+          value: 3,
+          recordedAt: 3,
+        },
+        seed.stamps[1],
+      );
+      const complete = await port.listByProject(seed.projectIds[0]);
       expect(
         (await port.listByWorkItems(seed.projectIds[0], [targetId])).map(({ stepId }) => stepId),
       ).toEqual([firstStep, secondStep]);
-      expect(await port.listByWorkItems(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual([]);
+      const foreign = await port.listByWorkItems(seed.projectIds[0], [foreignId]);
+      // Proof: validating ownership before project filtering made the memory
+      // adapter throw for this valid project-B measure instead of returning [].
+      expect(foreign).toEqual(complete.filter(({ workItemId }) => workItemId === foreignId));
+      expect(foreign).toEqual([]);
       expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
     }),
     storeCase('measures', 'measures.set:metric-key', open, async ({ port, readers, seed }) => {

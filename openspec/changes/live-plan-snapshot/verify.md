@@ -136,8 +136,9 @@ Tasks 1.2, 1.3 and 2.3 onward remained open.
 The targeted work-item reader now preserves its full reader's authoritative order. A loaded
 WorkingPlan replaces refreshed groups at their retained positions and replaces incident dependency
 identities in place, so unrelated interleavings remain untouched. The memory satellite readers
-share one admission boundary: it resolves requested stored work items, checks project ownership,
-reads and validates project steps once, then validates the family-specific values before ordering.
+share one admission boundary: it resolves requested stored work items, filters valid foreign-project
+owners, reads and validates project steps once, then validates the admitted family-specific values
+before ordering.
 
 | Scope                       | Command                                                                                                                                                                                                               | Result                                                                                                |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -163,3 +164,43 @@ reads and validates project steps once, then validates the family-specific value
 | Unrelated dependency interleaving | Kept the old remove-all-and-splice-at-first-incident replacement.             | The production WorkingPlan regression received `e1,e3,e2` instead of admitted `e1,e2,e3`.                                      |
 | Memory satellite reference checks | Kept the old `listByIds` membership filter and absent-step position fallback. | All four regressions failed: missing/cross-project work items and cross-project steps resolved instead of rejecting.           |
 | Memory satellite value checks     | Kept the old unvalidated stored rows.                                         | The estimate, actual, progress and measure regression failed because malformed values/times resolved instead of named rejects. |
+
+## Astra P2 foreign-project parity repair
+
+Each shared satellite case stores a valid project-B row, targets its work-item ID while asking for
+project A, and compares the complete targeted answer with the project-A full answer filtered to
+that ID. Both adapters return `[]`. The memory boundary still throws for a missing work-item owner
+before filtering; after filtering, every admitted row must reference a project-A step and carry
+valid family-specific values.
+
+SQLite corruption tests now distinguish states the reader must reject from states ordinary schema
+enforcement prevents. Foreign keys were disabled only for missing-owner, missing-step and
+foreign-project-step reader proofs. `ignore_check_constraints` was enabled only to prove the
+progress-state and measure-metric reader defenses. With constraints active, SQLite reported the
+exact stored constraint names; binding `NaN` became `NULL` and hit the estimate column's `NOT NULL`.
+
+| Scope                       | Command                                                                                                                                                                                                               | Result                                                                                      |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Memory targeted corruption  | `bun test libs/store-memory/src/targeted-readers.test.ts`                                                                                                                                                             | Pass: 5 tests, 24 assertions.                                                               |
+| SQLite corruption matrix    | `bun test libs/store-sqlite/src/targeted-readers.db.test.ts`                                                                                                                                                          | Pass: 7 tests, 24 assertions.                                                               |
+| Memory source certification | `bun test libs/store-memory/src/testing/source-conformance.test.ts --test-name-pattern 'runs every offered existing case'`                                                                                            | Pass: terminal certification, 1 test, 1,045 assertions.                                     |
+| SQLite source certification | `bun test libs/store-sqlite/src/testing/source-conformance.db.test.ts --test-name-pattern 'SQLite terminal certification runs every exact offered case'`                                                              | Pass: terminal certification, 1 test, 1,414 assertions.                                     |
+| Focused core paths          | `bun test libs/core/src/use-cases/admission.test.ts libs/core/src/service/plan-commands.test.ts libs/core/src/service/working-plan.test.ts`                                                                           | Pass: 15 tests, 55 assertions.                                                              |
+| Owning lint and typechecks  | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-repair NX_DAEMON=false bunx nx run-many -t lint typecheck -p conformance store-memory store-sqlite core --parallel=2 --output-style=static --skip-nx-cache` | Pass: all 8 targets, 0 cache hits.                                                          |
+| Owning tests                | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-repair NX_DAEMON=false bunx nx run-many -t test -p core store-sqlite store-memory conformance --parallel=2 --output-style=static --skip-nx-cache`           | Pass: all 4 targets; core 490/1,617, memory 112/5,199, SQLite 742/8,416, conformance 33/58. |
+| Strict and all OpenSpec     | `bunx @fission-ai/openspec@1.3.0 validate live-plan-snapshot --strict --json` and `bunx @fission-ai/openspec@1.3.0 validate --all --json`                                                                             | Pass: change 1/1; repository 83/83 (72 changes and 11 specs).                               |
+| Format and whitespace       | `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all` and `git diff --check`                                                                                                                          | Pass.                                                                                       |
+
+### Foreign-project parity R5 fault observation
+
+| Check                             | Injected fault                                                 | Observed failure                                                                                                                                                                                                                                |
+| --------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Valid foreign satellite filtering | Validated ownership before filtering the requested stored rows | Memory certification failed all four shared `listByWorkItems:scope-order` cases: estimate, actual, progress and measure each threw `<family> work-b-one/step-b-dev is outside project project-a` instead of matching filtered full-reader `[]`. |
+
+### SQLite constraint evidence
+
+| Attempt with constraints active       | Exact refusal                                     |
+| ------------------------------------- | ------------------------------------------------- |
+| Store progress state `broken`         | `CHECK constraint failed: role_progress_state`    |
+| Store measure metric `broken`         | `CHECK constraint failed: role_measure_metric`    |
+| Bind `NaN` into `estimate.optimistic` | `NOT NULL constraint failed: estimate.optimistic` |

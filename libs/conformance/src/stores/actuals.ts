@@ -26,10 +26,20 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
         { workItemId: targetId, stepId: firstStep, days: 1, recordedAt: 1 },
         seed.stamps[0],
       );
+      const foreignId = seed.workItemIds[1][0];
+      await port.set(
+        { workItemId: foreignId, stepId: seed.stepIds[1][0], days: 3, recordedAt: 3 },
+        seed.stamps[1],
+      );
+      const complete = await port.listByProject(seed.projectIds[0]);
       expect(
         (await port.listByWorkItems(seed.projectIds[0], [targetId])).map(({ stepId }) => stepId),
       ).toEqual([firstStep, secondStep]);
-      expect(await port.listByWorkItems(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual([]);
+      const foreign = await port.listByWorkItems(seed.projectIds[0], [foreignId]);
+      // Proof: validating ownership before project filtering made the memory
+      // adapter throw for this valid project-B actual instead of returning [].
+      expect(foreign).toEqual(complete.filter(({ workItemId }) => workItemId === foreignId));
+      expect(foreign).toEqual([]);
       expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
     }),
     storeCase('actuals', 'actuals.set:replace', open, async ({ port, readers, seed }) => {

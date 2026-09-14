@@ -29,10 +29,20 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
         { workItemId: targetId, stepId: firstStep, state: 'in_progress', statedAt: 1 },
         seed.stamps[0],
       );
+      const foreignId = seed.workItemIds[1][0];
+      await port.set(
+        { workItemId: foreignId, stepId: seed.stepIds[1][0], state: 'done', statedAt: 3 },
+        seed.stamps[1],
+      );
+      const complete = await port.listByProject(seed.projectIds[0]);
       expect(
         (await port.listByWorkItems(seed.projectIds[0], [targetId])).map(({ stepId }) => stepId),
       ).toEqual([firstStep, secondStep]);
-      expect(await port.listByWorkItems(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual([]);
+      const foreign = await port.listByWorkItems(seed.projectIds[0], [foreignId]);
+      // Proof: validating ownership before project filtering made the memory
+      // adapter throw for this valid project-B progress row instead of returning [].
+      expect(foreign).toEqual(complete.filter(({ workItemId }) => workItemId === foreignId));
+      expect(foreign).toEqual([]);
       expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
     }),
     storeCase('progress', 'progress.set:replace', open, async ({ port, readers, seed }) => {
