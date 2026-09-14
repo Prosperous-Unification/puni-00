@@ -267,6 +267,7 @@ mutation proofs and the broad final old-path sweep.
 | Setup root                 | Restored `seedApp` to `apps/<app>`                                                   | Temporary moved-layout fixture                    | 10 setup/solver cases failed; setup threw the legacy-path `MissingEnvExampleError`, so the exact namespaced diagnostic also failed.                                      |
 | Solver environment/request | Restored lock, package and contract request roots                                    | `solverEnvironment` and `solveGoldenRequest`      | The lock assertion returned `/repo/libs/solver-py/...`; the request caller threw ENOENT before invoking the fake solver.                                                 |
 | Solver test cache input    | Restored the lock input to `libs/solver-py`, then changed the moved Linux NumPy lock | Real `tool-dev-setup:test` Nx target              | The second run was a `[local cache]` hit (1/1) and exited 0; with the namespaced input restored, the same mutation reran and exited 1 on Linux 2.5.3 versus macOS 2.5.2. |
+| Port-preflight app root    | Restored `apps_dir` to `$repo_root/apps`                                             | Copied production script in moved-layout fixture  | `default app root resolves the moved configured port` failed with `expected: be-01:43117` and an empty actual value; no root or `--apps-dir` override was supplied.      |
 | Development selectors      | Restored all four unqualified selectors in `bin/dev.sh`                              | Host `bin/dev.test.sh`                            | `local solver runs all four tiers` observed the wrong selector list while fake Nx was still reached.                                                                     |
 | Restart inventory          | Retained the pre-move app/library paths                                              | Actual project discovery and `needsRestart` tests | Coverage first named missing `libs/wbs/adapters/auth/project.json`; the moved migration/config path assertions failed.                                                   |
 | Solver compatibility       | Restored `libs/solver-py` and `apps/be-01/Dockerfile`                                | Real target-tree object reader                    | Threw `fixture has no object id` at the first deleted path instead of accepting the moved source tree.                                                                   |
@@ -277,8 +278,8 @@ Restored evidence:
 
 - `bun test tools/dev` — 19 passed, 0 failed, 37 expectations.
 - Host-permitted `bun test tools/tool-devsync/src` — 173 passed, 0 failed, 496 expectations.
-- Host-permitted `bash bin/dev.test.sh` — all 47 shell checks passed, including loopback
-  refusal/cleanup and the exact four namespaced selectors.
+- Host-permitted `bash bin/dev.test.sh` — all 48 shell checks passed, including the moved
+  default app root, loopback refusal/cleanup and the exact four namespaced selectors.
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test lint typecheck -p
 tool-dev-setup,tool-devsync --skip-nx-cache --parallel=1 --output-style=stream` — all six owning
   targets passed; tests repeated the 19/173 counts.

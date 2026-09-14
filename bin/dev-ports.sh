@@ -166,8 +166,9 @@ free_port() {
 }
 
 mode=check
-# Proof: restoring the pre-move default made bin/dev.test.sh miss the committed
-# namespaced env examples and refuse before reaching Nx.
+# Proof: on 2026-09-14, restoring this to `$repo_root/apps` made the moved-layout
+# production-script fixture fail `default app root resolves the moved configured
+# port · expected: be-01:43117 · actual:`.
 apps_dir=$repo_root/apps/wbs
 while (($# > 0)); do
   case $1 in
