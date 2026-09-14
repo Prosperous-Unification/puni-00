@@ -547,3 +547,58 @@ ESLint over all Tool Devsync sources and the uncached Tool Devsync typecheck bot
 `nx format:check --all` exited 0; and pinned strict OpenSpec validation reported 83/83 valid
 (72 changes and 11 specs). The read-only Tool Wiki lint remained intentionally noncertifying:
 `status: inactive`, `certified: false`, `external activation root is not provisioned`.
+
+## Section 4.2 local production-path verification
+
+The frozen candidate was `7abb72f5107e5c9c03aaa077ce4d9b41549e707c`. Neither
+`git branch -r --contains 7abb72f5107e5c9c03aaa077ce4d9b41549e707c` nor an exact-SHA
+`git ls-remote origin` query returned a remote ref. The canonical h2puni gate was therefore not
+invoked: its checkout-under-lock contract requires the exact candidate object to be reachable from
+the build host. The remaining prerequisite is a published remote ref containing the exact candidate
+SHA, followed by `bin/h2puni-gate.sh 7abb72f5107e5c9c03aaa077ce4d9b41549e707c` on h2puni. Task 4.2
+remains unchecked until that gate and every obligation below are accepted together.
+
+Before the browser run, `lsof -nP -iTCP:<port> -sTCP:LISTEN` found no listener on the assigned
+5000/5100/6100 ports or packaged port 4341, and no process was rooted in this worktree. The complete
+browser command was:
+
+```sh
+CI=1 E2E_PORT_SHIFT=1900 NX_DAEMON=false NX_ISOLATE_PLUGINS=false \
+  bunx nx run wbs-fe-01:e2e --skip-nx-cache --output-style=stream
+```
+
+It built 916 modules into `dist/apps/wbs/fe-01`, ran one Chromium worker with zero retries, and
+passed 374 tests with 37 intentional rendering-baseline skips and zero failures in 19m26s. The
+backend, gateway and frontend listened only on 5000, 5100 and 6100. Repeated Vite proxy
+`EPIPE`/`ECONNRESET` diagnostics accompanied deliberate page/socket teardown but did not fail a
+case. All three ports were unbound after Playwright exited.
+
+Docker client/server 29.7.2 and ShellCheck were available with host permissions. The packaged
+command was:
+
+```sh
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false \
+  bunx nx run wbs-fe-01:e2e-packaged --skip-nx-cache --output-style=stream
+```
+
+It rebuilt the same 916-module artifact, served `dist/apps/wbs/fe-01` with the moved Caddyfile, and
+passed 2/2 Chromium cases in 12.5s. Port 4341 and the temporary Caddy container were gone after the
+run. The renamed backend image command was:
+
+```sh
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false \
+  bunx nx run wbs-be-01:solver-image-smoke --skip-nx-cache --output-style=stream
+```
+
+It passed in 40.3s after building from `apps/wbs/be-01/Dockerfile`, executing the moved solver
+request, publishing to a temporary local registry, resolving a digest-pinned image and completing
+the authenticated supervisor launch. One bounded registry readiness probe received a transient
+`curl: (56) Recv failure: Connection reset by peer`; the subsequent required probe passed. The
+temporary registry, caller and attempt containers were absent afterward. The conditional
+`WBS_RUN_SOLVER_ORPHAN_PROC=1` half was not run because it requires the persistent systemd timer in
+the h2puni user session that the canonical gate supplies; this remains part of the blocked h2puni
+obligation rather than a local success claim.
+
+The non-destructive setup step had created three ignored `.env` copies byte-identical to their
+checked-in examples; those files and the run's exact timestamped SQLite database were removed after
+the services stopped. Normal Playwright reports and screenshots remain as ignored gate artifacts.
