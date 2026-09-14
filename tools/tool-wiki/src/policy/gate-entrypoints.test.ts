@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
+import { parse as parseYaml } from 'yaml';
 
 import { hashBytes, hashCanonical } from '../evidence/content-manifest';
 import { prepareActivation, selectActivation, verifyActivation } from './activation';
@@ -35,6 +36,31 @@ function streamText(stream: Uint8Array | undefined, subject: string): string {
 function write(path: string, source: string): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, source, 'utf8');
+}
+
+function workflowStep(workflowPath: string, stepName: string): string {
+  const workflow = parseYaml(readFileSync(workflowPath, 'utf8')) as {
+    jobs?: {
+      gate?: { steps?: { name?: string; run?: string }[] };
+      lint?: { steps?: { name?: string; run?: string }[] };
+    };
+  };
+  const steps = workflow.jobs?.gate?.steps ?? workflow.jobs?.lint?.steps ?? [];
+  const run = steps.find((step) => step.name === stepName)?.run;
+  if (typeof run !== 'string') throw new Error(`workflow step is missing: ${stepName}`);
+  return run;
+}
+
+function runActivationConfigurationGuard(workflowPath: string, stepName: string, version: string) {
+  return Bun.spawnSync(['bash', '-c', workflowStep(workflowPath, stepName)], {
+    env: {
+      ACTIVATION_ARCHIVE_SHA256: 'a'.repeat(64),
+      ACTIVATION_ARCHIVE_URL: 'file:///not-used-before-version-validation',
+      ACTIVATION_VERSION: version,
+    },
+    stderr: 'pipe',
+    stdout: 'pipe',
+  });
 }
 
 function fixture(): {
@@ -1049,6 +1075,34 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(workspacePackage.scripts['lint']).toBe(
       'nx run-many -t lint --exclude=tool-wiki && nx run tool-wiki:lint:source',
     );
+  });
+
+  test('activation workflows refuse a mutable activation version before using it as authority', () => {
+    const workflows = [
+      {
+        path: join(workspace, '.github', 'workflows', 'trusted-wiki.yml'),
+        step: 'Require immutable activation configuration',
+      },
+      {
+        path: join(workspace, '.github', 'workflows', 'ci.yml'),
+        step: 'Provision immutable external activation for push audit',
+      },
+    ];
+
+    for (const workflow of workflows) {
+      const mutable = runActivationConfigurationGuard(workflow.path, workflow.step, 'main');
+      expect(mutable.exitCode).not.toBe(0);
+      expect(streamText(mutable.stderr, 'activation guard stderr')).toContain(
+        'activation version must be a full commit SHA',
+      );
+    }
+
+    const immutable = runActivationConfigurationGuard(
+      workflows[0].path,
+      workflows[0].step,
+      '0123456789abcdef0123456789abcdef01234567',
+    );
+    expect(immutable.exitCode, streamText(immutable.stderr, 'activation guard stderr')).toBe(0);
   });
 
   test('push audit reports inactive external activation without certifying', () => {
