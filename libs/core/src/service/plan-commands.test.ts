@@ -526,8 +526,8 @@ describe('working plan placement validation rolls back its production unit of wo
   });
 
   it('rejects an unexpected placement identity', async () => {
-    // Proof: removing the expected-identity guard let the source place an identity
-    // that the targeted row reader never returned before the batch committed.
+    // Proof: removing the expected-identity guard reached the later
+    // `targeted placement omitted work item unexpected` error without committing.
     await expectPlacementFaultRollsBack(
       () => [{ id: 'unexpected', afterId: null }],
       /targeted placement returned unexpected work item unexpected/i,
@@ -556,14 +556,14 @@ describe('working plan placement validation rolls back its production unit of wo
     // This deliberately violates the runtime source boundary that the typed port protects.
     const malformed = (placements: Placement[]): Placement[] =>
       placements.map(({ id }) => ({ id, afterId: 42 }) as unknown as Placement);
-    // Proof: removing the predecessor-shape guard treated 42 as an identity and
-    // reached the splice path after the source had already written the new row.
+    // Proof: removing the predecessor-shape guard sent numeric predecessor 42
+    // to the later missing-predecessor guard.
     await expectPlacementFaultRollsBack(malformed, /targeted placement.*malformed predecessor/i);
   });
 
   it('rejects a placement that follows itself', async () => {
-    // Proof: removing the self-predecessor guard admitted a cyclic placement
-    // description after the source had already written the inserted row.
+    // Proof: removing the self-predecessor guard reached the later
+    // missing-predecessor error with the inserted row's own identity.
     await expectPlacementFaultRollsBack((placements) => {
       const placement = placements.at(0);
       return placement === undefined ? [] : [{ ...placement, afterId: placement.id }];
