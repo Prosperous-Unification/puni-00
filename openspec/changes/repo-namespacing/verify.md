@@ -8,7 +8,8 @@
 
 **Verified at**: 2026-09-14
 
-**Scope**: Tasks 1.1–2.2 only
+**Scope**: Tasks 1.1–4.4 evidence accumulated below; Tasks 4.2–4.4 remain partial and open on
+their named external prerequisites and final integration obligations.
 
 ## Preflight inventory
 
