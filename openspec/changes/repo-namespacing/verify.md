@@ -727,3 +727,35 @@ items.
 
 Task 4.4 remains open: Tasks 4.2 and 4.3 still retain their published-candidate and release-input
 prerequisites, and this scoped repair is not the final integration/archive review.
+
+## Section 4.4 post-main integration verification
+
+The reviewed repair was merged into the integration candidate and current
+`origin/main` commit `d3342da5855abbec5c34445e0a360ba9b9a0ab4e` was then merged at tested SHA
+`745f01166681d8287e0083b94351034668756d23`. The upstream immutable Tool Wiki activation-version
+patch was already present through local commit `dcd3573a`; both commits have stable patch id
+`17a6a6d83443c23fc081396dff3fc6efa356bc57`. The mainline merge therefore produced the same tree
+as its first parent. Independent review confirmed that `trusted-wiki.yml` and the production
+gate-entrypoint test are byte-identical to upstream, while `ci.yml` differs from upstream only in
+the intended namespaced solver, image and frontend artifact paths. The activation workflows'
+immutable 40-hex version guard is unchanged.
+
+Fresh production-path verification on that exact SHA produced these results:
+
+- the complete Tool Wiki command passed 579/579 tests across 30 files with 5,362 expectations in
+  900.69 seconds;
+- the complete tool-devsync command passed 192/192 tests across 17 files with 531 expectations in
+  30.50 seconds;
+- the focused root-migration suite passed 32/32 with 324 expectations, and the host-permitted
+  handoff suite passed 14/14 with 15 expectations;
+- source lint and typecheck passed for both Tool Wiki and tool-devsync, `nx format:check --all`
+  passed, and `git diff --check` against current main passed; and
+- pinned `@fission-ai/openspec@1.3.0` strict validation passed all 83 items. Its optional PostHog
+  flush reported restricted-network DNS failure after the complete valid JSON summary, but the
+  validation command exited 0; this is not recorded as telemetry success.
+
+Whole-tree Tool Wiki lint exited 0 with `status: inactive`, `certified: false` and `external
+activation root is not provisioned`. The independent post-main review found no merge loss and
+reran all 44 gate-entrypoint cases successfully. Tasks 4.2–4.4 remain open: no candidate was
+published, no canonical h2puni gate or external activation was run, no release images were
+published, and no production dry-run acquired its required release manifest.
