@@ -126,6 +126,27 @@ describe('the cached development test target', () => {
   });
 });
 
+describe('golden corpus writers', () => {
+  it('write to the moved domain fixture root', () => {
+    const fastWriter = readFileSync(
+      resolve(import.meta.dir, 'write-fast-golden-corpus.ts'),
+      'utf8',
+    );
+    const quantumWriter = readFileSync(
+      resolve(import.meta.dir, 'write-solver-quantum-golden-corpus.ts'),
+      'utf8',
+    );
+
+    // Proof: before the active-script sweep repaired both targets, this failed
+    // with the complete fast writer source showing the deleted
+    // `../../libs/domain/fixtures/fast-golden-corpus.json` destination.
+    expect(fastWriter).toContain('../../libs/wbs/domain/domain/fixtures/fast-golden-corpus.json');
+    expect(quantumWriter).toContain(
+      '../../libs/wbs/domain/domain/fixtures/solver-quantum-golden-corpus.json',
+    );
+  });
+});
+
 describe('verifySolverEnvironment', () => {
   /**
    * A fake interpreter whose two version authorities disagree is the whole

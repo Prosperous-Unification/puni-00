@@ -79,7 +79,7 @@ refer to the old root before slice 3 and its mapped destination afterward.
       zero migrations. A missing down script and missing root waiver script still refuse;
       restored old Docker COPY input must fail candidate image construction/input resolution.
       Assert preserved migration blobs and all pinned deployment identity values.
-- [ ] 3.5 Correct recursive Nx inputs and every changed out-of-project read declaration,
+- [x] 3.5 Correct recursive Nx inputs and every changed out-of-project read declaration,
       `.dockerignore` dev exclusion, `.prettierignore` migration snapshots and solver build
       ignores. Test: warm `tool-devsync:test`, mutate a nested manifest and a moved Dockerfile
       with separately invalid values and observe a cache miss plus the named failure.
