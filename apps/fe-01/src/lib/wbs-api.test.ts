@@ -1,3 +1,4 @@
+import { importProject, type PlanDocumentRequest, preflightRequest } from '@wbs/contracts';
 import { automaticColor } from '@wbs/domain/marker-color';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -8,6 +9,7 @@ import {
   type DirectoryUsage,
   httpDirectoryApi,
   httpProjectApi,
+  PlanImportRefusalError,
   STEP_REFUSALS,
   type StepUsage,
 } from './wbs-api';
@@ -144,6 +146,12 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
   };
 };
 
+const importDocument = async (): Promise<PlanDocumentRequest> => {
+  const preflight = await preflightRequest(importProject, { body: PLAN_DOCUMENT() });
+  if (preflight.kind === 'failure') throw new Error('the import fixture is not a valid request');
+  return preflight.input.body;
+};
+
 beforeEach(() => {
   vi.stubGlobal('location', { origin: 'http://wbs.test' });
 });
@@ -169,7 +177,7 @@ describe('plan JSON transfer', () => {
   });
 
   it('imports the archival request and returns its typed summary', async () => {
-    const document = PLAN_DOCUMENT();
+    const document = await importDocument();
     const summary = {
       projectId: 'restored-p1',
       rows: 1,
@@ -181,12 +189,42 @@ describe('plan JSON transfer', () => {
     );
     vi.stubGlobal('fetch', fetched);
 
-    await expect(httpProjectApi('token').importPlan(document as never)).resolves.toEqual(summary);
+    await expect(httpProjectApi('token').importPlan(document)).resolves.toEqual(summary);
 
     const call = fetched.mock.calls.at(0);
     expect(call?.[0]).toBe('/api/projects/import');
     expect(call?.[1]?.method).toBe('POST');
     expect(new Headers(call?.[1]?.headers).get('x-wbs-token')).toBe('token');
+  });
+
+  it('retains a validated import refusal code, path and detail', async () => {
+    const document = await importDocument();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          response(
+            400,
+            JSON.stringify({
+              error: 'unknown_ref',
+              path: 'workItems[12].dependsOn[0]',
+              detail: 'missing work item file-row-9',
+            }),
+          ),
+        ),
+      ),
+    );
+
+    const refusal = httpProjectApi('token').importPlan(document);
+    await expect(refusal).rejects.toBeInstanceOf(PlanImportRefusalError);
+    await expect(refusal).rejects.toMatchObject({
+      name: 'PlanImportRefusalError',
+      refusal: {
+        error: 'unknown_ref',
+        path: 'workItems[12].dependsOn[0]',
+        detail: 'missing work item file-row-9',
+      },
+    });
   });
 });
 

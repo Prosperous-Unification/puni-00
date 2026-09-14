@@ -550,6 +550,25 @@ describe('sharing the plan', () => {
     expect(downloads.revoked).toEqual(['blob:plan-1', 'blob:plan-2']);
   });
 
+  itDom('reports a rejected JSON download and creates no file', async () => {
+    const downloads = captureDownloads();
+    const model = fakeApi();
+    const api = {
+      ...model,
+      exportPlan: () => Promise.reject(new Error('network unavailable exact')),
+    };
+    render(<WbsTable projectId="p1" api={api} projectName="Rewire the shed" />);
+    await screen.findByRole('button', { name: 'Download JSON' });
+
+    click('Download JSON');
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual(['Plan JSON download failed (network unavailable exact).']);
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent('network unavailable exact');
+    expect(downloads.names).toHaveLength(0);
+  });
+
   itDom('draws Undo and Redo as glyphs that still answer to their names', async () => {
     // 55px of word each where a 33px glyph does the job the ⌨ beside them
     // already proved; the name stays on the control for a reader who cannot see

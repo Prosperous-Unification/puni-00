@@ -472,20 +472,28 @@ hidden rows by exact id and name. The initial TDD run failed four new assertions
 the facade methods were absent, the summary still read `Export`, and no
 `Download JSON` control existed; the other 145 focused assertions passed.
 
-| Check                         | Fault injected                                                       | Test that observed it                                 | Observed failure                                                                                   |
-| ----------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Complete server JSON download | Replaced the server document's workItems with production `shownRows` | `downloads JSON with collapsed and filtered-out rows` | exact collapsed row `{ id: "w2", name: "Collapsed child exact" }` was absent; 1 failed, 28 skipped |
+Review repair added a persistent error toast for rejected downloads and a
+`PlanImportRefusalError` that retains the generated client's validated refusal
+object. Its focused 400 response names `unknown_ref`,
+`workItems[12].dependsOn[0]`, and the exact missing-reference detail. Before
+production repair, both new tests failed and the unhandled download rejection
+was also reported by Vitest.
 
-The production mutation was observed red, restored, and recorded in the
-adjacent `Proof:` comment. It proves that a locally constructed visible-row
-document cannot satisfy the download test.
+| Check                            | Fault injected                                                       | Test that observed it                                      | Observed failure                                                                                                 |
+| -------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Complete server JSON download    | Replaced the server document's workItems with production `shownRows` | `downloads JSON with collapsed and filtered-out rows`      | exact collapsed row `{ id: "w2", name: "Collapsed child exact" }` was absent; 1 failed, 28 skipped               |
+| Visible rejected-download report | Removed the production promise rejection handler                     | `reports a rejected JSON download and creates no file`     | toast list stayed empty and Vitest reported unhandled `network unavailable exact`; 1 failed, 29 skipped, 1 error |
+| Structured import refusal        | Replaced `PlanImportRefusalError(reply.body)` with `Error(error)`    | `retains a validated import refusal code, path and detail` | expected the named structured refusal and received only `Error: unknown_ref`; 1 failed, 55 skipped               |
+
+Each production mutation was observed red independently, restored, and
+recorded in its adjacent `Proof:` comment.
 
 Fresh green evidence:
 
-- `TZ=UTC bunx vitest run src/lib/wbs-api.test.ts src/components/wbs/plan-export.test.ts src/components/wbs/plan-toolbar.test.tsx --no-file-parallelism --maxWorkers=1` from `apps/fe-01` — 3 files passed, 149 tests passed.
+- `TZ=UTC bunx vitest run src/lib/wbs-api.test.ts src/components/wbs/plan-export.test.ts src/components/wbs/plan-toolbar.test.tsx --no-file-parallelism --maxWorkers=1` from `apps/fe-01` — 3 files passed, 151 tests passed.
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx typecheck fe-01 --outputStyle=static` — target passed.
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx lint fe-01 --outputStyle=static` — target passed.
-- `bunx prettier --check apps/fe-01/src/lib/wbs-api.ts apps/fe-01/src/lib/wbs-api.test.ts apps/fe-01/src/testing/refusing-api.ts apps/fe-01/src/components/wbs/wbs-table.tsx apps/fe-01/src/components/wbs/plan-toolbar.tsx apps/fe-01/src/components/wbs/plan-toolbar.test.tsx apps/fe-01/src/components/wbs/plan-export.ts apps/fe-01/src/components/wbs/plan-export.test.ts apps/fe-01/src/components/wbs/gantt-panel.test.tsx openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
+- `bunx prettier --check apps/fe-01/src/lib/wbs-api.ts apps/fe-01/src/lib/wbs-api.test.ts apps/fe-01/src/components/wbs/wbs-table.tsx apps/fe-01/src/components/wbs/plan-toolbar.test.tsx openspec/changes/plan-json-import/verify.md` — all named files matched.
 - `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
 
 At the Task 4.3 checkpoint, Tasks 4.4–4.5 and 5.2 remain unimplemented and

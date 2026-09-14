@@ -43,6 +43,7 @@ import { planFileName } from './plan-export';
 import { usePlanExportActions, usePlanOnScreenExport } from './plan-export-actions';
 import type { PlanLiveValues } from './plan-live';
 import { showDay } from './plan-number-format';
+import { failureText } from './plan-refusal';
 import { attachRowReadings, type EstimateReadings, type PlanRenderRow } from './plan-render-rows';
 import { useRendererForViewport } from './plan-renderer';
 import { PlanToolbar } from './plan-toolbar';
@@ -1603,26 +1604,37 @@ export function WbsTable({
     filterLabels,
   });
   const downloadJson = useCallback(() => {
-    void api.exportPlan(projectId).then((document) => {
-      // Proof: replacing the server document's workItems with `shownRows` made
-      // `downloads JSON with collapsed and filtered-out rows` miss exact row
-      // `{ id: "w2", name: "Collapsed child exact" }`. Observed 2026-09-14.
-      const blob = new Blob([JSON.stringify(document, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const anchor = window.document.createElement('a');
-      anchor.href = url;
-      anchor.download = planFileName(
-        {
-          projectName: document.settings.name,
-          generatedAt: document.document.exportedAt,
-          scope: undefined,
-        },
-        'json',
-      );
-      anchor.click();
-      URL.revokeObjectURL(url);
-    });
-  }, [api, projectId]);
+    void api
+      .exportPlan(projectId)
+      .then((document) => {
+        // Proof: replacing the server document's workItems with `shownRows` made
+        // `downloads JSON with collapsed and filtered-out rows` miss exact row
+        // `{ id: "w2", name: "Collapsed child exact" }`. Observed 2026-09-14.
+        const blob = new Blob([JSON.stringify(document, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = window.document.createElement('a');
+        anchor.href = url;
+        anchor.download = planFileName(
+          {
+            projectName: document.settings.name,
+            generatedAt: document.document.exportedAt,
+            scope: undefined,
+          },
+          'json',
+        );
+        anchor.click();
+        URL.revokeObjectURL(url);
+      })
+      // Proof: removing this rejection handler made `reports a rejected JSON
+      // download and creates no file` receive no toast and Vitest report the
+      // exact unhandled `network unavailable exact` rejection. Observed 2026-09-14.
+      .catch((thrown: unknown) => {
+        pushToast({
+          kind: 'error',
+          text: `Plan JSON download failed (${failureText(thrown, 'unknown')}).`,
+        });
+      });
+  }, [api, projectId, pushToast]);
 
   /**
    * The columns this render puts on screen, in order — which is exactly what a

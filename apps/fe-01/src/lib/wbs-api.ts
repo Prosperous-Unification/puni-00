@@ -1229,6 +1229,20 @@ export type PlanImportSummary = Extract<
   ClientReply<typeof importProjectShape>,
   { kind: 'success' }
 >['body'];
+
+/** A generated-client-validated refusal from the archival import route. */
+export type PlanImportRefusal = Extract<
+  ClientReply<typeof importProjectShape>,
+  { kind: 'refusal' }
+>['body'];
+
+/** Preserves every import refusal field, including a document location when one is supplied. */
+export class PlanImportRefusalError extends Error {
+  constructor(readonly refusal: PlanImportRefusal) {
+    super(refusal.error);
+    this.name = 'PlanImportRefusalError';
+  }
+}
 export interface PlanRead extends Omit<
   PlanReadWire,
   'workItems' | 'slices' | 'steps' | 'waitingForPerson' | 'waitingForCapacity'
@@ -2420,7 +2434,10 @@ export function httpProjectApi(token: string): ProjectApi {
       });
       if (reply.kind === 'success') return reply.body;
       if (reply.kind === 'failure') throw new Error(wbsFailureCode(reply.failure));
-      throw new Error(reply.body.error);
+      // Proof: replacing this structured refusal with `Error(reply.body.error)`
+      // made `retains a validated import refusal code, path and detail` lose
+      // `workItems[12].dependsOn[0]` and its exact detail. Observed 2026-09-14.
+      throw new PlanImportRefusalError(reply.body);
     },
     async undo(projectId) {
       const reply = await client.postApiProjectsByIdUndo({
