@@ -101,7 +101,7 @@ refer to the old root before slice 3 and its mapped destination afterward.
       image-smoke target with its required host prerequisites. Record actual commands,
       counts, timings, skipped cases and restored negative outputs in `verify.md`.
 - [ ] 4.3 Build fresh executor bundles through the existing release workflow and run
-      `bunx nx run tool-deploy:deploy --all --env=prod --dry-run` against the candidate's
+      `bunx nx run tool-deploy:deploy --args='--all --env=prod --dry-run'` against the candidate's
       current release inputs. Respect existing release-manifest/clean-tree refusals; do not
       synthesize or reuse stale success evidence. Record all tier plans, moved build inputs
       and relative migration CLI resolution; a dry-run is not a publish or live deploy.
