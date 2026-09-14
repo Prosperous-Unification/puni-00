@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { join, posix, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { expect, test } from 'bun:test';
@@ -9,7 +9,7 @@ import { readProjects } from '../workspace-projects.mjs';
 
 const WORKSPACE = fileURLToPath(new URL('../../../', import.meta.url));
 const LEGACY_ROOT =
-  /(?:apps\/(?:be-01|fe-01|gw-01|mcp-01)|libs\/(?:auth|config|conformance|contracts|core|domain|observability|realtime|runtime-portable|solver-py|store-memory|store-sqlite|validation))(?:\/|\b)/g;
+  /(?:apps\/(?:be-01|fe-01|gw-01|mcp-01|\*+|\$\{[^}]+\})|libs\/(?:auth|config|conformance|contracts|core|domain|observability|realtime|runtime-portable|solver-py|store-memory|store-sqlite|validation|\*+|\$\{[^}]+\}))(?:\/|\b)/g;
 
 const CURRENT_MARKDOWN = [
   'AGENTS.md',
@@ -121,18 +121,6 @@ const EXPECTED_PROJECTS = [
   ['tools/tool-wiki', 'tool-wiki'],
 ] as const;
 
-const CLASSIFIED_LEGACY_SOURCE_CONFIG = [
-  ['.github/workflows/ci.yml', 'dated proof comment'],
-  ['docs/wiki-policy/policy.json', 'historical source selectors and baseline tuples'],
-  ['lefthook.yml', 'watched-fault proof comment'],
-  ['tools/tool-dagger/src/main.ts', 'watched-fault proof comments'],
-  ['tools/tool-deploy/src/migrations.ts', 'revision-local migration transition and proofs'],
-  ['tools/tool-git-hooks/src/hooks/corpus-version-lint.ts', 'revision-local corpus transition'],
-  ['tools/tool-wiki/src/admission/authority-store.ts', 'watched-fault proof comment'],
-  ['tools/tool-wiki/src/admission/claims.ts', 'watched-fault proof comments'],
-  ['tools/tool-wiki/src/contracts/records.ts', 'negative-example diagnostics'],
-] as const;
-
 const CLASSIFIED_LEGACY_DOCUMENTATION = [
   ['docs/2026-08-30-agent-loop-audit.md', 'dated audit'],
   ['docs/2026-08-30-sustainability-audit.md', 'dated audit'],
@@ -147,6 +135,8 @@ const CLASSIFIED_LEGACY_DOCUMENTATION = [
   ['docs/2026-09-02-refactoring-review/README.md', 'dated review index'],
   ['docs/2026-09-05-ports-and-adapters-history.md', 'dated architecture history'],
   ['docs/2026-09-05-ports-and-adapters-plan.md', 'dated architecture plan'],
+  ['docs/adr/0008-tags-accumulate-down-the-tree.md', 'historical diff observation'],
+  ['docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md', 'historical diff observation'],
   ['docs/findings/checks-that-cannot-fail.md', 'historical incident catalogue'],
   ['docs/local-dev.md', 'historical measured path'],
   ['docs/plans/2026-08-07-table-ui-cleanup.md', 'dated plan'],
@@ -173,6 +163,7 @@ const CLASSIFIED_LEGACY_DOCUMENTATION = [
 ] as const;
 
 const HANDOFF_TEST_INPUTS = [
+  '{workspaceRoot}/**/*',
   '{workspaceRoot}/AGENTS.md',
   '{workspaceRoot}/HUMAN_README.md',
   '{workspaceRoot}/LLM_README.md',
@@ -220,27 +211,186 @@ function candidatePaths(): string[] {
   return new TextDecoder().decode(invocation.stdout).split('\0').filter(Boolean);
 }
 
-function isCurrentSourceConfig(path: string): boolean {
-  if (!/\.(?:[cm]?[jt]sx?|json|ya?ml|sh)$/.test(path)) return false;
-  return !(
-    /(?:^|\/)fixtures\//.test(path) ||
-    /(?:^|\/)drizzle\//.test(path) ||
-    /\.test\.[^.]+$/.test(path) ||
-    path.startsWith('.superpowers/') ||
-    path.startsWith('docs/experiment-evidence/') ||
-    path.startsWith('notes/') ||
-    path.startsWith('openspec/') ||
-    [
-      'docs/wiki-policy/bootstrap-policy.json',
-      'docs/wiki-policy/modules.bootstrap.json',
-      'docs/wiki-policy/relationships.bootstrap.json',
-    ].includes(path)
+function currentDocuments(): string[] {
+  const readmes = candidatePaths().filter(
+    (path) =>
+      path.endsWith('/README.md') &&
+      (path.startsWith('apps/') || path.startsWith('libs/') || path.startsWith('tools/')),
   );
+  return [...new Set([...CURRENT_MARKDOWN, ...readmes])].sort();
+}
+
+function localMarkdownDestinations(source: string): string[] {
+  const destinations: string[] = [];
+  for (const match of source.matchAll(/!?\[[^\]]*\]\((<[^>]+>|[^\s)]+)(?:\s+[^)]*)?\)/g)) {
+    destinations.push(match[1].replace(/^<|>$/g, ''));
+  }
+  for (const match of source.matchAll(/^\s*\[[^\]]+\]:\s*(<[^>]+>|\S+)/gm)) {
+    destinations.push(match[1].replace(/^<|>$/g, ''));
+  }
+  return destinations.filter(
+    (destination) => !/^[a-z][a-z0-9+.-]*:/i.test(destination) && !destination.startsWith('//'),
+  );
+}
+
+function documentAnchors(source: string): Set<string> {
+  const anchors = new Set<string>();
+  const collisions = new Map<string, number>();
+  for (const match of source.matchAll(
+    /<(?:a|[a-z][a-z0-9-]*)\s+[^>]*(?:id|name)=["']([^"']+)["'][^>]*>/gi,
+  )) {
+    anchors.add(match[1]);
+  }
+  for (const match of source.matchAll(/^#{1,6}\s+(.+?)\s*#*$/gm)) {
+    const visible = match[1]
+      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/<[^>]+>/g, '')
+      .replace(/[`*_~]/g, '')
+      .toLocaleLowerCase('en-US');
+    const base = visible
+      .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+      .trim()
+      .replace(/\s+/g, '-');
+    const collision = collisions.get(base) ?? 0;
+    collisions.set(base, collision + 1);
+    anchors.add(collision === 0 ? base : `${base}-${String(collision)}`);
+  }
+  return anchors;
+}
+
+async function currentDocumentLinkFailures(): Promise<string[]> {
+  const candidates = new Set(candidatePaths());
+  const failures: string[] = [];
+  for (const sourcePath of currentDocuments()) {
+    const source = await readFile(join(WORKSPACE, sourcePath), 'utf8');
+    for (const destination of localMarkdownDestinations(source)) {
+      const hashAt = destination.indexOf('#');
+      const encodedPath = hashAt === -1 ? destination : destination.slice(0, hashAt);
+      const encodedAnchor = hashAt === -1 ? '' : destination.slice(hashAt + 1);
+      const decodedPath = decodeURIComponent(encodedPath.split('?', 1)[0]);
+      let targetPath =
+        decodedPath.length === 0
+          ? sourcePath
+          : decodedPath.startsWith('/')
+            ? posix.normalize(decodedPath.slice(1))
+            : posix.normalize(posix.join(posix.dirname(sourcePath), decodedPath));
+      if (!candidates.has(targetPath) && candidates.has(`${targetPath}/README.md`)) {
+        targetPath = `${targetPath}/README.md`;
+      }
+      if (!candidates.has(targetPath)) {
+        failures.push(`${sourcePath} -> ${destination} (absent ${targetPath})`);
+        continue;
+      }
+      if (encodedAnchor.length === 0 || !targetPath.endsWith('.md')) {
+        continue;
+      }
+      const anchors = documentAnchors(await readFile(join(WORKSPACE, targetPath), 'utf8'));
+      const anchor = decodeURIComponent(encodedAnchor);
+      if (!anchors.has(anchor))
+        failures.push(`${sourcePath} -> ${destination} (absent #${anchor})`);
+    }
+  }
+  return failures;
+}
+
+function isRelevantSourceConfig(path: string): boolean {
+  if (
+    path === 'tools/tool-devsync/src/repo-namespacing-handoff.test.ts' ||
+    path.endsWith('/README.md') ||
+    path.endsWith('.md')
+  ) {
+    return false;
+  }
+  const basename = posix.basename(path);
+  const isConfigurationName =
+    basename === 'Dockerfile' ||
+    basename.startsWith('Caddyfile') ||
+    /^\.[a-z0-9.-]+$/i.test(basename);
+  const isTextExtension =
+    /\.(?:[cm]?[jt]sx?|py|sh|json|ya?ml|toml|ini|conf|service|caddy|sql)$/i.test(path);
+  const isOwnedFamily =
+    /^(?:\.github|apps|libs|tools|bin|deploy|ops)\//.test(path) ||
+    path.startsWith('docs/wiki-policy/') ||
+    !path.includes('/');
+  return isOwnedFamily && (isConfigurationName || isTextExtension || path.startsWith('bin/'));
+}
+
+async function legacySourceOccurrences(): Promise<{
+  categories: Record<string, number>;
+  coverage: {
+    applicationLibraryToolReadmes: number;
+    dockerfiles: boolean;
+    extensionlessScripts: boolean;
+    policyJson: boolean;
+    python: boolean;
+  };
+  digest: string;
+  occurrences: number;
+  unclassified: string[];
+}> {
+  const contexts: string[] = [];
+  const categories: Record<string, number> = {};
+  const unclassified: string[] = [];
+  const relevantPaths = candidatePaths().filter(isRelevantSourceConfig);
+  for (const path of relevantPaths) {
+    const lines = (await readFile(join(WORKSPACE, path), 'utf8')).split('\n');
+    for (const [offset, line] of lines.entries()) {
+      for (const match of line.matchAll(LEGACY_ROOT)) {
+        const context = `${path}:${String(offset + 1)}:${match[0]}:${line.trim()}`;
+        contexts.push(context);
+        const category = /^(?:apps|libs)\/\*+\//.test(match[0])
+          ? 'current recursive selector'
+          : path.includes('/drizzle/') && path.endsWith('.sql')
+            ? 'frozen migration evidence'
+            : /(?:\.test\.[^/]+|\.test\.sh)$/.test(path) || path.includes('/fixtures/')
+              ? 'test fixture or proof'
+              : [
+                    'docs/wiki-policy/bootstrap-policy.json',
+                    'docs/wiki-policy/modules.bootstrap.json',
+                    'docs/wiki-policy/relationships.bootstrap.json',
+                  ].includes(path)
+                ? 'historical bootstrap policy or mapping'
+                : path === 'docs/wiki-policy/policy.json'
+                  ? 'historical policy selector or baseline'
+                  : [
+                        '.dockerignore',
+                        '.github/workflows/ci.yml',
+                        'lefthook.yml',
+                        'tools/tool-dagger/src/main.ts',
+                        'tools/tool-deploy/src/migrations.ts',
+                        'tools/tool-git-hooks/src/hooks/corpus-version-lint.ts',
+                        'tools/tool-wiki/src/admission/authority-store.ts',
+                        'tools/tool-wiki/src/admission/claims.ts',
+                        'tools/tool-wiki/src/contracts/records.ts',
+                      ].includes(path)
+                    ? 'production proof or revision transition'
+                    : 'UNCLASSIFIED';
+        categories[category] = (categories[category] ?? 0) + 1;
+        if (category === 'UNCLASSIFIED') unclassified.push(context);
+      }
+    }
+  }
+  contexts.sort();
+  return {
+    categories,
+    coverage: {
+      applicationLibraryToolReadmes: currentDocuments().filter((path) =>
+        path.endsWith('/README.md'),
+      ).length,
+      dockerfiles: relevantPaths.some((path) => posix.basename(path) === 'Dockerfile'),
+      extensionlessScripts: relevantPaths.includes('bin/dev-ports.sh'),
+      policyJson: relevantPaths.includes('docs/wiki-policy/policy.json'),
+      python: relevantPaths.some((path) => path.endsWith('.py')),
+    },
+    digest: createHash('sha256').update(JSON.stringify(contexts)).digest('hex'),
+    occurrences: contexts.length,
+    unclassified,
+  };
 }
 
 test('current documentation and active solver packets use namespaced roots', async () => {
   const references: string[] = [];
-  for (const path of CURRENT_MARKDOWN) {
+  for (const path of currentDocuments()) {
     const source = await readFile(join(WORKSPACE, path), 'utf8');
     for (const match of source.matchAll(LEGACY_ROOT)) references.push(`${path}:${match[0]}`);
   }
@@ -248,9 +398,36 @@ test('current documentation and active solver packets use namespaced roots', asy
   // The 2026-08-31 runbook incident records the path at observation time; changing that one
   // reference would rewrite evidence rather than repair current navigation.
   expect(references).toEqual([
+    'docs/adr/0008-tags-accumulate-down-the-tree.md:libs/domain/',
+    'docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md:libs/domain/',
     'docs/local-dev.md:apps/fe-01',
     'docs/runbook-dev-deploy.md:apps/be-01/',
   ]);
+});
+
+test('current Nx commands select existing qualified projects', async () => {
+  const projectNames = new Set((await readProjects(WORKSPACE)).map(({ name }) => name));
+  const staleSelectors: string[] = [];
+  for (const path of currentDocuments()) {
+    const lines = (await readFile(join(WORKSPACE, path), 'utf8')).split('\n');
+    for (const [offset, line] of lines.entries()) {
+      if (line.includes('historical path)')) continue;
+      const commandSelectors = [
+        ...line.matchAll(/\bnx run ([a-z0-9-]+):/g),
+        ...line.matchAll(/\bnx (?:test|lint|build|typecheck) ([a-z0-9-]+)/g),
+      ];
+      for (const match of commandSelectors) {
+        const selector = match[1];
+        if (!projectNames.has(selector)) {
+          staleSelectors.push(`${path}:${String(offset + 1)}:${selector}`);
+        }
+      }
+    }
+  }
+
+  // Proof: the pre-review current commands named `be-01`, `gw-01`, `fe-01`, and `validation`;
+  // this oracle failed with their five exact locations instead of trusting path-only checks.
+  expect(staleSelectors).toEqual([]);
 });
 
 test('the production index checker resolves current Markdown links and anchors', () => {
@@ -265,6 +442,12 @@ test('the production index checker resolves current Markdown links and anchors',
   expect(new TextDecoder().decode(invocation.stderr)).toBe('');
   expect(invocation.exitCode).toBe(0);
 }, 30_000);
+
+test('every routed current document resolves its local links and anchors', async () => {
+  // Proof: adding `[fault](missing-round-one.md)` to non-index guide docs/capacity.md made this
+  // complete current-document reader fail with its exact source, destination, and absent path.
+  expect(await currentDocumentLinkFailures()).toEqual([]);
+});
 
 test('the public alias manifest remains complete and stable', async () => {
   const config = JSON.parse(await readFile(join(WORKSPACE, 'tsconfig.base.json'), 'utf8')) as {
@@ -305,17 +488,29 @@ test('every migration keeps its expected namespaced path and Git blob', async ()
   expect(observed).toEqual(expected);
 });
 
-test('every legacy source and configuration reference is classified', async () => {
-  const observed: (readonly [string, string])[] = [];
-  const categories = new Map<string, string>(CLASSIFIED_LEGACY_SOURCE_CONFIG);
-  for (const path of candidatePaths().filter(isCurrentSourceConfig)) {
-    if ((await readFile(join(WORKSPACE, path), 'utf8')).match(LEGACY_ROOT) === null) continue;
-    observed.push([path, categories.get(path) ?? 'UNCLASSIFIED']);
-  }
-
-  // Proof: adding a stale `apps/be-01` reference to tools/dev/setup.ts made this complete
-  // actual-candidate inventory fail with that path classified as UNCLASSIFIED (2026-09-14).
-  expect(observed).toEqual([...CLASSIFIED_LEGACY_SOURCE_CONFIG]);
+test('every legacy source occurrence and relevant text family is pinned', async () => {
+  // Proof: injecting executable `const roundOneFault = 'apps/be-01/src'` into the already
+  // classified tool-dagger main changed the pinned occurrence count/digest and failed this test.
+  expect(await legacySourceOccurrences()).toEqual({
+    categories: {
+      'current recursive selector': 22,
+      'frozen migration evidence': 19,
+      'historical bootstrap policy or mapping': 65,
+      'historical policy selector or baseline': 39,
+      'production proof or revision transition': 18,
+      'test fixture or proof': 98,
+    },
+    coverage: {
+      applicationLibraryToolReadmes: 16,
+      dockerfiles: true,
+      extensionlessScripts: true,
+      policyJson: true,
+      python: true,
+    },
+    digest: '0b4393e5b99993b8be5c481455f61612d06048de0bdbcff1bfca47f697fdf669',
+    occurrences: 261,
+    unclassified: [],
+  });
 });
 
 test('every legacy documentation reference is classified', async () => {
@@ -341,7 +536,7 @@ test('the Nx test target watches every handoff verification input', async () => 
   const handoffInputs = new Set<string>(HANDOFF_TEST_INPUTS);
   const configured = manifest.targets.test.inputs.filter((input) => handoffInputs.has(input));
 
-  // Proof: omitting the docs glob let a stale docs/capacity.md path reuse a green local-cache
-  // entry; restoring this watched input made the same candidate execute and fail (2026-09-14).
+  // Proof: without the all-candidate input, adding an old root to the previously unwatched
+  // bin/dev-ports.sh replayed a green local cache; restoring it executed and failed the target.
   expect(configured).toEqual([...HANDOFF_TEST_INPUTS]);
 });

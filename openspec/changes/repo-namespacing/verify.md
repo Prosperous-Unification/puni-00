@@ -437,15 +437,21 @@ Current indexes, runbooks, architectural pointers and the two active solver pack
 name the final `apps/wbs/...`, `libs/wbs/{domain,application,adapters}/...` roots and `wbs-*` Nx
 projects. Of the preflight inventory's 41 documentation files, 13 current files were revised and
 28 dated audits, plans, reviews, evidence and frozen specifications were retained as historical.
-The only legacy roots in the revised current-document set are the explicitly historical
-`docs/local-dev.md` measurement and the dated 2026-08-31 `docs/runbook-dev-deploy.md` incident.
+The legacy roots in the routed current-document set are four exact historical observations: the
+two original diff locations in ADRs 0008 and 0009, the `docs/local-dev.md` measurement and the
+dated 2026-08-31 `docs/runbook-dev-deploy.md` incident. Each ADR now follows its historical
+observation with the current namespaced source location.
 
 The candidate handoff suite pins complete manifests: 51 public alias keys, all 31 recursive Nx
-root/name tuples, and all 92 migration path/Git-blob tuples. Its tracked source/configuration
-sweep finds exactly nine legacy-reference files, classified as dated or watched-fault comments,
-revision-local transition logic, historical Tool Wiki policy selectors/baselines, or negative
-diagnostics. Bootstrap Tool Wiki policy/mapping files, frozen migrations, test fixtures,
-OpenSpec/history and external activation state are outside the current-reference rewrite.
+root/name tuples, and all 92 migration path/Git-blob tuples. Its candidate-wide source/config
+sweep covers TypeScript/JavaScript, Python, shell, JSON/YAML/TOML/INI/config/service/SQL,
+Dockerfiles, dot-configs, extensionless `bin/` scripts, and every application/library/tool README.
+It pins all 261 legacy-root occurrences by line context and digest: 22 current recursive
+selectors, 19 frozen migration occurrences, 65 historical bootstrap-policy/mapping occurrences,
+39 historical policy selector/baseline occurrences, 18 production proof/revision-transition
+occurrences and 98 test fixture/proof occurrences. Bootstrap Tool Wiki policy/mapping files,
+frozen migrations, test fixtures, OpenSpec/history and external activation state remain
+classified evidence rather than current-reference rewrite targets.
 
 ### TDD and R5 observations
 
@@ -456,19 +462,32 @@ OpenSpec/history and external activation state are outside the current-reference
 - Replacing the findings index target with `current.md#missing` made the production
   `check-indexes working` path exit 1 with
   `Markdown anchor absent in docs/findings/README.md: docs/findings/current.md#missing`.
+- Adding `[fault](missing-round-one.md)` to the non-index guide `docs/capacity.md` made the
+  complete routed-document link oracle fail 0/1 with
+  `docs/capacity.md -> missing-round-one.md (absent docs/missing-round-one.md)`; restoring the
+  guide passed 1/1. The reader covers the root routers, changed ADRs/runbooks, active solver
+  packet surfaces, and all application/library/tool READMEs rather than only Tool Wiki indexes.
+- The Nx-command oracle initially failed 0/1 with five exact unqualified selectors at
+  `docs/local-dev.md:101-104` and `:151`; replacing them with the qualified `wbs-*` projects
+  passed 1/1. The explicitly labelled historical `fe-01` measurement remains evidence.
 - Removing `@wbs/validation/fixtures` exposed the complete 50-key received alias list. Replacing
   `wbs-domain` with `domain` exposed the differing complete project tuple. Removing
   `apps/wbs/be-01/drizzle/20260830120000_add_dep_reach/down.sql` exposed that exact missing
-  path/blob tuple while retaining the other 91. Adding `apps/be-01` to `tools/dev/setup.ts`
-  exposed it as `UNCLASSIFIED` in the complete nine-file source/config inventory. Restoring a
+  path/blob tuple while retaining the other 91. Injecting executable
+  `const roundOneFault = 'apps/be-01/src'` into already-classified
+  `tools/tool-dagger/src/main.ts` changed the occurrence total from 261 to 262 and the pinned
+  digest from `9a0613f4...` to `879d8e14...`, so a historical Proof comment elsewhere in that
+  file could not exempt the new reference. Restoring a
   stale `apps/be-01` path in `docs/capacity.md` made the executable historical-document
   inventory fail 0/1 (185 filtered) with that current document classified as `UNCLASSIFIED`;
   after restoring the namespaced path it passed 1/1 (185 filtered).
-- With the docs input omitted, the full 185-test target warmed green. A stale path added only to
-  `docs/capacity.md` then replayed 1/1 from local cache and falsely exited 0. Restoring
-  `{workspaceRoot}/docs/**/*.md` while keeping the fault caused a cache miss and the exact
-  184/1 documentation failure. All faults and omitted inputs were restored; adjacent `Proof:`
-  comments preserve each observation.
+- With the universal candidate input omitted, the full 188-test target warmed green. An old root
+  added only to previously unwatched `bin/dev-ports.sh` then replayed 1/1 from local cache and
+  falsely exited 0 with 188/188. Restoring `{workspaceRoot}/**/*` while keeping the fault caused
+  a cache miss and the exact 187/1 failure at `bin/dev-ports.sh:2`; the occurrence total became
+  262 and digest `61c8d9f6...`. All faults and omitted inputs were restored; adjacent `Proof:`
+  comments preserve each observation. The 12 declared handoff inputs now include the universal
+  candidate read required by `candidatePaths()` and the production index command.
 
 ### Tool Wiki boundary
 
@@ -479,7 +498,7 @@ authority artifacts. This task did not mutate the external store, activated arch
 policy/mappings or selected activation.
 
 The production index command exited 0 with eight indexes and no review debt. The uncached Tool
-Devsync suite passed 186/186 with 525 expectations; its lint and typecheck targets also passed.
+Devsync suite passed 188/188 with 527 expectations; its lint and typecheck targets also passed.
 Tool Wiki source lint and typecheck passed, while the complete suite passed 578 tests and failed
 one of 579 with 5,358 expectations: the frozen pilot-policy test correctly reported that the
 externally activated `check.tool-dagger.test` authority selector still has its pre-namespace input

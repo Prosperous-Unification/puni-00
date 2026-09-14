@@ -98,10 +98,10 @@ typescript-eslint needs because TS 7 ships no compiler API until 7.1. VS Code's
 Scoped variants:
 
 ```bash
-bunx nx test be-01
-bunx nx test gw-01
-bunx nx test fe-01           # vitest + jsdom
-bunx nx test validation      # or domain, contracts, realtime, config, ...
+bunx nx test wbs-be-01
+bunx nx test wbs-gw-01
+bunx nx test wbs-fe-01           # vitest + jsdom
+bunx nx test wbs-validation      # or wbs-domain, wbs-contracts, wbs-realtime, wbs-config, ...
 ```
 
 ## Observability stack (optional, local)
@@ -148,7 +148,7 @@ require it for day-to-day dev.
   the relevant `apps/wbs/*/.env`; all URLs in peer `.env` files update by
   convention, not by magic, so change both ends. `WBS_DEV_PORTS='fe-01:4300'`
   overrides which ports are checked.
-- **`@/` imports fail in fe-01 tests** — run them via `bunx nx test fe-01`
+- **`@/` imports fail in fe-01 tests** — run them via `bunx nx test wbs-fe-01`
   (Vitest resolves the alias); root `bun test` does not.
 - **gw-01 refuses the WS upgrade** — check the configured authentication mode.
   The seeded local mode uses its fixed development identity, so
