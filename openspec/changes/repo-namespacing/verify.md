@@ -601,3 +601,70 @@ the candidate HEAD that creates `dist/tool-dagger/release.json` with current ent
 and fe; the corrected dry-run must then be repeated to emit and review every tier plan. Bundle
 installation is a separate live-execution preflight and was not required or performed by this dry
 run. This local verification did not publish, install or mutate host state.
+
+## Section 4.2 local production-path verification
+
+The frozen candidate was `7abb72f5107e5c9c03aaa077ce4d9b41549e707c`. Remote reachability
+was rechecked from advertised branch refs, not by treating the SHA as a ref-name pattern. The exact
+commands were:
+
+```sh
+git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+git ls-remote --heads origin
+git branch -r --contains 7abb72f5107e5c9c03aaa077ce4d9b41549e707c
+```
+
+The fetch advanced `origin/main` from `e8dcc24a` to `d3342da5`; `git ls-remote --heads origin`
+enumerated 236 advertised branch refs and object IDs; and the ancestry query against the freshly
+updated remote-tracking refs printed no lines. No advertised remote branch therefore contained the
+candidate. The canonical h2puni gate was not invoked: its checkout-under-lock contract requires the
+candidate object to be available after the build host fetches advertised remote refs. The remaining
+prerequisite is a published remote branch containing the exact candidate SHA, followed by
+`bin/h2puni-gate.sh 7abb72f5107e5c9c03aaa077ce4d9b41549e707c` on h2puni. Task 4.2 remains
+unchecked until that gate and every obligation below are accepted together.
+
+Before the browser run, `lsof -nP -iTCP:<port> -sTCP:LISTEN` found no listener on the assigned
+5000/5100/6100 ports or packaged port 4341, and no process was rooted in this worktree. The complete
+browser command was:
+
+```sh
+CI=1 E2E_PORT_SHIFT=1900 NX_DAEMON=false NX_ISOLATE_PLUGINS=false \
+  bunx nx run wbs-fe-01:e2e --skip-nx-cache --output-style=stream
+```
+
+It built 916 modules into `dist/apps/wbs/fe-01`, ran one Chromium worker with zero retries, and
+passed 374 tests with 36 opt-in rendering-baseline cases skipped, one existing Gantt
+`test.fixme` skipped, and zero failures in 19m26s. The backend, gateway and frontend listened only
+on 5000, 5100 and 6100. Repeated Vite proxy
+`EPIPE`/`ECONNRESET` diagnostics accompanied deliberate page/socket teardown but did not fail a
+case. All three ports were unbound after Playwright exited.
+
+Docker client/server 29.7.2 and ShellCheck were available with host permissions. The packaged
+command was:
+
+```sh
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false \
+  bunx nx run wbs-fe-01:e2e-packaged --skip-nx-cache --output-style=stream
+```
+
+It rebuilt the same 916-module artifact, served `dist/apps/wbs/fe-01` with the moved Caddyfile, and
+passed 2/2 Chromium cases in 12.5s. Port 4341 and the temporary Caddy container were gone after the
+run. The renamed backend image command was:
+
+```sh
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false \
+  bunx nx run wbs-be-01:solver-image-smoke --skip-nx-cache --output-style=stream
+```
+
+It passed in 40.3s after building from `apps/wbs/be-01/Dockerfile`, executing the moved solver
+request, publishing to a temporary local registry, resolving a digest-pinned image and completing
+the authenticated supervisor launch. One bounded registry readiness probe received a transient
+`curl: (56) Recv failure: Connection reset by peer`; the subsequent required probe passed. The
+temporary registry, caller and attempt containers were absent afterward. The conditional
+`WBS_RUN_SOLVER_ORPHAN_PROC=1` half was not run because it requires the persistent systemd timer in
+the h2puni user session that the canonical gate supplies; this remains part of the blocked h2puni
+obligation rather than a local success claim.
+
+The non-destructive setup step had created three ignored `.env` copies byte-identical to their
+checked-in examples; those files and the run's exact timestamped SQLite database were removed after
+the services stopped. Normal Playwright reports and screenshots remain as ignored gate artifacts.
