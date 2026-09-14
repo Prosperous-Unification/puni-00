@@ -450,6 +450,146 @@ describe('targeted working-plan refreshes', () => {
     }
   });
 
+  it('refreshes every restore-related collection and preserves borrowed before-images', async () => {
+    const source = openMemorySource();
+    const publicGraph = servicesOver(source.stores, {
+      clock: testClock,
+      broadcast: silentBroadcaster(),
+      scheduler: fastScheduler,
+    });
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const createdProject = await publicGraph.projects.create('Retained subtree restore', OWNER);
+      const projectId = createdProject.project.id;
+      const stepId = createdProject.steps[0].id;
+      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      for (const row of [
+        workItemRow({ id: 'prior-parent', projectId, position: 10, name: 'Prior parent' }),
+        workItemRow({ id: 'other-values', projectId, position: 20, name: 'Other values' }),
+        workItemRow({ id: 'respaced', projectId, position: 30, name: 'Respaced' }),
+        workItemRow({ id: 'old-parent', projectId, position: 40, name: 'Old parent' }),
+        workItemRow({
+          id: 'reparented',
+          projectId,
+          parentId: 'old-parent',
+          position: 10,
+          name: 'Reparented',
+        }),
+      ]) {
+        await source.stores.workItems.insert(row, [], { at: 2, by: OWNER });
+      }
+      await source.stores.estimates.set(
+        { workItemId: 'prior-parent', stepId, optimistic: 1, realistic: 2, pessimistic: 3 },
+        { at: 2, by: OWNER },
+      );
+      await source.stores.actuals.set(
+        { workItemId: 'other-values', stepId, days: 2, recordedAt: 2 },
+        { at: 2, by: OWNER },
+      );
+      await source.stores.progress.set(
+        { workItemId: 'other-values', stepId, state: 'done', statedAt: 2 },
+        { at: 2, by: OWNER },
+      );
+      await source.stores.measures.set(
+        {
+          workItemId: 'other-values',
+          stepId,
+          metric: 'token_estimate',
+          value: 5,
+          recordedAt: 2,
+        },
+        { at: 2, by: OWNER },
+      );
+
+      const workingPlan = createWorkingPlan({ stores: source.stores }, projectId);
+      const borrowed = await Promise.all([
+        workingPlan.stores.workItems.listByProject(projectId),
+        workingPlan.stores.estimates.listByProject(projectId),
+        workingPlan.stores.actuals.listByProject(projectId),
+        workingPlan.stores.progress.listByProject(projectId),
+        workingPlan.stores.measures.listByProject(projectId),
+        workingPlan.stores.dependencies.listByProject(projectId),
+      ]);
+      const before = structuredClone(borrowed);
+
+      await workingPlan.stores.subtrees.insertSubtree(
+        {
+          rows: [
+            workItemRow({ id: 'new-root', projectId, position: 15, name: 'Restored root' }),
+            workItemRow({
+              id: 'new-child',
+              projectId,
+              parentId: 'new-root',
+              position: 10,
+              name: 'Restored child',
+            }),
+          ],
+          respaced: [{ id: 'respaced', position: 40 }],
+          reparented: [{ id: 'reparented', parentId: 'new-root', position: 20 }],
+          estimates: [
+            { workItemId: 'new-child', stepId, optimistic: 3, realistic: 4, pessimistic: 5 },
+          ],
+          actuals: [{ workItemId: 'new-child', stepId, days: 4, recordedAt: 3 }],
+          progress: [{ workItemId: 'new-child', stepId, state: 'in_progress', statedAt: 3 }],
+          measures: [
+            {
+              workItemId: 'new-child',
+              stepId,
+              metric: 'token_estimate',
+              value: 8,
+              recordedAt: 3,
+            },
+          ],
+          assignments: [],
+          dependencies: [
+            {
+              id: 'restored-edge',
+              projectId,
+              predecessorId: 'new-child',
+              successorId: 'reparented',
+            },
+          ],
+          removedEstimates: [{ workItemId: 'prior-parent', stepId }],
+          removedActuals: [{ workItemId: 'other-values', stepId }],
+          removedProgress: [{ workItemId: 'other-values', stepId }],
+          removedMeasures: [{ workItemId: 'other-values', stepId, metric: 'token_estimate' }],
+        },
+        { at: 3, by: OWNER },
+      );
+
+      const retained = await Promise.all([
+        workingPlan.stores.workItems.listByProject(projectId),
+        workingPlan.stores.estimates.listByProject(projectId),
+        workingPlan.stores.actuals.listByProject(projectId),
+        workingPlan.stores.progress.listByProject(projectId),
+        workingPlan.stores.measures.listByProject(projectId),
+        workingPlan.stores.dependencies.listByProject(projectId),
+      ]);
+      const authoritative = await Promise.all([
+        source.stores.workItems.listByProject(projectId),
+        source.stores.estimates.listByProject(projectId),
+        source.stores.actuals.listByProject(projectId),
+        source.stores.progress.listByProject(projectId),
+        source.stores.measures.listByProject(projectId),
+        source.stores.dependencies.listByProject(projectId),
+      ]);
+      // Proof: omitting removedEstimates from the subtree refresh left this
+      // prior parent carrying its old estimate immediately after insertion.
+      expect(retained[1].some(({ workItemId }) => workItemId === 'prior-parent')).toBe(false);
+      expect(retained).toEqual(authoritative);
+      // Proof: mutating retained answers during refresh changed arrays already
+      // borrowed as undo before-images instead of replacing cache entries.
+      expect(borrowed).toEqual(before);
+      workingPlan.close();
+    } finally {
+      await source.close();
+    }
+  });
+
   it('refreshes a labelled row and rejects an unrequested satellite row', async () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();

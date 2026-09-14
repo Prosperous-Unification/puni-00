@@ -199,6 +199,75 @@ describe('working plan dependency mutations through runner commands', () => {
   });
 });
 
+describe('working plan subtree mutations through runner commands', () => {
+  it('patches a copied descendant immediately after duplicating its subtree', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const setup = compose(source.stores, direct);
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await setup.projects.create('Retained duplicated subtree', OWNER)).project
+        .id;
+      for (const row of [
+        workItemRow({ id: 'root', projectId, position: 10, name: 'Root' }),
+        workItemRow({
+          id: 'child',
+          projectId,
+          parentId: 'root',
+          position: 10,
+          name: 'Child',
+        }),
+      ]) {
+        await source.stores.workItems.insert(row, [], { at: 2, by: OWNER });
+      }
+      const ids = ['copy-root', 'copy-child', 'journal', 'event'];
+      const clock = clockOf({
+        now: () => 3,
+        newId: () => {
+          const id = ids.shift();
+          if (id === undefined) throw new Error('duplicate batch minted an unexpected fifth id');
+          return id;
+        },
+      });
+      const composeBatch = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
+        servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+      const publicGraph = composeBatch(source.stores, direct);
+      const runner = new PlanCommandRunner({
+        uow: source.uow,
+        announcements: direct,
+        publicServices: publicGraph,
+        batchServices: (scope, broadcast, workingPlan) =>
+          composeBatch(workingPlan?.stores ?? scope.stores, broadcast),
+      });
+
+      const copied = await runner.run(projectId, OWNER, [
+        { kind: 'duplicateWorkItem', workItemId: 'root', ref: 'copy' },
+        {
+          kind: 'patchWorkItem',
+          workItemId: 'copy-child',
+          patch: { name: 'Patched copied child' },
+        },
+      ]);
+
+      // Proof: delegating insertSubtree without refreshing its new row identities
+      // made the second production command refuse `not_found` at index 1.
+      expect(copied).toMatchObject({ ok: true });
+      expect(
+        await source.stores.workItems.listByIds(projectId, ['copy-root', 'copy-child']),
+      ).toMatchObject([
+        { id: 'copy-root', parentId: null, name: 'Root (copy)' },
+        { id: 'copy-child', parentId: 'copy-root', name: 'Patched copied child' },
+      ]);
+    } finally {
+      await source.close();
+    }
+  });
+});
+
 const MEASURE_METRICS = ['token_estimate', 'token_actual', 'hours_actual'] as const;
 
 function setAllValues(workItemId: string, stepId: string, scalar: number): PlanCommand[] {
@@ -1063,6 +1132,85 @@ interface Placement {
   afterId: string | null;
 }
 
+async function expectSubtreePlacementFaultRollsBack(
+  alter: (placements: Placement[]) => Placement[],
+  expected: RegExp,
+): Promise<void> {
+  const source = openMemorySource();
+  const direct = silentBroadcaster();
+  const setup = compose(source.stores, direct);
+  try {
+    await source.stores.users.create(
+      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+      { at: 1, by: OWNER },
+    );
+    const projectId = (await setup.projects.create('Subtree placement validation', OWNER)).project
+      .id;
+    for (const row of [
+      workItemRow({ id: 'root', projectId, position: 10, name: 'Root' }),
+      workItemRow({ id: 'child', projectId, parentId: 'root', position: 10, name: 'Child' }),
+    ]) {
+      await source.stores.workItems.insert(row, [], { at: 2, by: OWNER });
+    }
+    let placementCalls = 0;
+    const brokenUow: UnitOfWork = {
+      run<T>(act: (scope: Scope) => Promise<Decision<T>>): Promise<T> {
+        return source.uow.run((scope) =>
+          act({
+            stores: {
+              ...scope.stores,
+              workItems: {
+                ...scope.stores.workItems,
+                listPlacements: async (requestedProjectId, ids) => {
+                  placementCalls += 1;
+                  return alter(
+                    await scope.stores.workItems.listPlacements(requestedProjectId, ids),
+                  );
+                },
+              },
+            },
+          }),
+        );
+      },
+    };
+    const ids = ['copy-root', 'copy-child'];
+    const clock = clockOf({
+      now: () => 3,
+      newId: () => {
+        const id = ids.shift();
+        if (id === undefined) throw new Error('placement fault minted an unexpected third id');
+        return id;
+      },
+    });
+    const composeBatch = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
+      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+    const publicGraph = composeBatch(source.stores, direct);
+    const runner = runnerOver(source, publicGraph, brokenUow, (scope, broadcast, workingPlan) =>
+      composeBatch(workingPlan?.stores ?? scope.stores, broadcast),
+    );
+
+    let failure: unknown;
+    try {
+      await runner.run(projectId, OWNER, [
+        { kind: 'duplicateWorkItem', workItemId: 'root', ref: 'copy' },
+      ]);
+    } catch (error) {
+      failure = error;
+    }
+    expect(placementCalls).toBe(1);
+    expect((await source.stores.workItems.listByProject(projectId)).map(({ id }) => id)).toEqual([
+      'root',
+      'child',
+    ]);
+    if (!(failure instanceof Error)) throw new Error('subtree placement fault did not reject');
+    expect(() => {
+      throw failure;
+    }).toThrow(expected);
+  } finally {
+    await source.close();
+  }
+}
+
 async function expectPlacementFaultRollsBack(
   alter: (placements: Placement[]) => Placement[],
   expected: RegExp,
@@ -1126,6 +1274,30 @@ async function expectPlacementFaultRollsBack(
 }
 
 describe('working plan placement validation rolls back its production unit of work', () => {
+  it('rejects an omitted placement from a multi-row subtree refresh', async () => {
+    // The existing omitted-placement guard is exercised here through Task 2.6's
+    // first production path that refreshes more than one new identity at once.
+    await expectSubtreePlacementFaultRollsBack(
+      (placements) => placements.filter(({ id }) => id !== 'copy-child'),
+      /targeted placement omitted work item copy-child/i,
+    );
+  });
+
+  it('rejects a malformed placement from a multi-row subtree refresh', async () => {
+    const malformed = (placements: Placement[]): Placement[] =>
+      placements.map((placement) =>
+        placement.id === 'copy-child'
+          ? ({ ...placement, afterId: 42 } as unknown as Placement)
+          : placement,
+      );
+    // The existing predecessor-shape guard is exercised through that same
+    // multi-new-row path, and the durable source assertion proves rollback.
+    await expectSubtreePlacementFaultRollsBack(
+      malformed,
+      /targeted placement for copy-child has malformed predecessor/i,
+    );
+  });
+
   it('rejects an omitted placement', async () => {
     // Proof: removing the omitted-placement guard let this inserted row commit.
     await expectPlacementFaultRollsBack(() => [], /targeted placement omitted work item/i);

@@ -479,3 +479,36 @@ The SQLite runner witness records exact journal preconditions
 deleted branch, survivor name and external dependency endpoints. The be-01 suite was not run
 because Task 2.5 touched no application composition boundary. Full workspace build, browser,
 deploy and h2puni gates were explicitly outside this slice.
+
+## Task 2.6 subtree refresh wrapper
+
+`working-plan-subtrees.ts` now captures reparented rows before persistence, delegates the atomic
+subtree write, then refreshes every copied row and parent, respaced/reparented row and old/new
+parent, removed estimate/actual/progress/measure work-item key, and inserted dependency endpoint.
+Every copied row is authorized for the shared multi-new-row placement path before the method
+returns. The actual runner can therefore duplicate a two-row branch and patch the copied child in
+the same batch. Restore-shaped controls compare all six retained collections with the uncached
+source and keep every borrowed pre-write answer detached.
+
+| Scope                      | Command                                                                                                                                                                                                                             | Result                                                                                                                                              |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Duplicate runner RED       | `GSETTINGS_BACKEND=memory bun test libs/core/src/service/plan-commands.test.ts --test-name-pattern 'patches a copied descendant'` before mounting the subtree wrapper                                                               | Expected RED: 0 passed, 1 failed; the second command returned `not_found` at index 1.                                                               |
+| Removed-estimate RED       | The focused restore-related working-plan test with `removedEstimates` omitted from the production refresh identities                                                                                                                | Expected RED: the immediate post-insertion assertion found the prior parent's estimate (`Received: true`, expected `false`) before any later write. |
+| Focused GREEN              | `GSETTINGS_BACKEND=memory bun test libs/core/src/service/plan-commands.test.ts libs/core/src/service/working-plan.test.ts libs/store-sqlite/src/working-plan-order.db.test.ts`                                                      | Pass: 47 tests, 174 assertions.                                                                                                                     |
+| Owning tests               | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-subtree-tests NX_DAEMON=false bunx nx run-many -t test -p core store-sqlite store-memory conformance --parallel=2 --output-style=static --skip-nx-cache`                  | Pass: all 4 targets; core 522 tests/1,728 assertions and SQLite 750 tests/8,544 assertions; cache skipped.                                          |
+| Owning lint and typechecks | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-subtree-checks-final NX_DAEMON=false bunx nx run-many -t lint typecheck -p core store-sqlite store-memory conformance --parallel=2 --output-style=static --skip-nx-cache` | Pass: all 8 targets; cache skipped.                                                                                                                 |
+| Strict and all OpenSpec    | `OPENSPEC_TELEMETRY=0 bun x @fission-ai/openspec@1.3.0 validate live-plan-snapshot --strict --json` and `OPENSPEC_TELEMETRY=0 bun x @fission-ai/openspec@1.3.0 validate --all --json`                                               | Pass: change 1/1; repository 83/83 (72 changes and 11 specs).                                                                                       |
+| Workspace format and diff  | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-subtree-format-final-check NX_DAEMON=false bunx nx format:check --all` and `git diff --check`                                                                             | Pass.                                                                                                                                               |
+
+### Task 2.6 R5 fault observations
+
+| Check                              | Injected fault                                                                    | Observed failure                                                                                                     |
+| ---------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Mounted duplicate descendant       | Delegated `insertSubtree` without refreshing copied identities.                   | The second actual runner command refused the copied descendant as `not_found` and the batch rolled back.             |
+| Exact removed-estimate visibility  | Omitted only `removedEstimates` work-item IDs from the subtree refresh.           | The prior parent retained its removed estimate immediately after insertion, before another write could conceal it.   |
+| Multi-new omitted placement        | The adapter omitted the copied child's placement from a two-row duplicate answer. | The production runner rejected the trusted response and rolled both copied rows back.                                |
+| Multi-new malformed placement      | The adapter returned numeric predecessor `42` for the copied child.               | The production runner rejected the malformed predecessor and rolled both copied rows back.                           |
+| SQLite authoritative subtree order | Supplied parent-first `b-new-root`, `a-new-child` to `insertSubtree`.             | Retained rows and all four value collections matched SQLite's `a-new-child`, `b-new-root` BINARY/group reader order. |
+
+The be-01 suite was not run because Task 2.6 touched no application composition boundary. Full
+workspace build, browser, deploy and h2puni gates were explicitly outside this slice.

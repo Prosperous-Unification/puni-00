@@ -158,6 +158,159 @@ it('keeps SQLite dependency order authoritative after a WorkingPlan add', async 
   }
 });
 
+it('places every new subtree row and value group in SQLite authoritative order', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-subtree-order-'));
+  const path = join(directory, 'source.db');
+  runMigrations(path, MIGRATIONS);
+  const source = openSqliteSource({ dbPath: path });
+
+  try {
+    await source.stores.users.create(
+      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
+      STAMP,
+    );
+    await source.stores.projects.create(
+      projectRow({ id: PROJECT, ownerId: OWNER }),
+      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10 }],
+      STAMP,
+    );
+    for (const id of ['m-existing', 'z-existing']) {
+      await source.stores.workItems.insert(workItemRow({ id, projectId: PROJECT }), [], STAMP);
+    }
+    await source.stores.estimates.set(
+      {
+        workItemId: 'z-existing',
+        stepId: 'step',
+        optimistic: 1,
+        realistic: 2,
+        pessimistic: 3,
+      },
+      STAMP,
+    );
+
+    const workingPlan = createWorkingPlan({ stores: source.stores }, PROJECT);
+    await Promise.all([
+      workingPlan.stores.workItems.listByProject(PROJECT),
+      workingPlan.stores.estimates.listByProject(PROJECT),
+      workingPlan.stores.actuals.listByProject(PROJECT),
+      workingPlan.stores.progress.listByProject(PROJECT),
+      workingPlan.stores.measures.listByProject(PROJECT),
+      workingPlan.stores.dependencies.listByProject(PROJECT),
+    ]);
+    await workingPlan.stores.subtrees.insertSubtree(
+      {
+        // Parent-first insertion deliberately opposes SQLite's BINARY id order.
+        rows: [
+          workItemRow({ id: 'b-new-root', projectId: PROJECT, name: 'New root' }),
+          workItemRow({
+            id: 'a-new-child',
+            projectId: PROJECT,
+            parentId: 'b-new-root',
+            name: 'New child',
+          }),
+        ],
+        respaced: [],
+        reparented: [],
+        estimates: [
+          {
+            workItemId: 'b-new-root',
+            stepId: 'step',
+            optimistic: 2,
+            realistic: 3,
+            pessimistic: 4,
+          },
+          {
+            workItemId: 'a-new-child',
+            stepId: 'step',
+            optimistic: 3,
+            realistic: 4,
+            pessimistic: 5,
+          },
+        ],
+        actuals: [
+          { workItemId: 'b-new-root', stepId: 'step', days: 2, recordedAt: 2 },
+          { workItemId: 'a-new-child', stepId: 'step', days: 3, recordedAt: 2 },
+        ],
+        progress: [
+          { workItemId: 'b-new-root', stepId: 'step', state: 'in_progress', statedAt: 2 },
+          { workItemId: 'a-new-child', stepId: 'step', state: 'done', statedAt: 2 },
+        ],
+        measures: [
+          {
+            workItemId: 'b-new-root',
+            stepId: 'step',
+            metric: 'token_estimate',
+            value: 2,
+            recordedAt: 2,
+          },
+          {
+            workItemId: 'a-new-child',
+            stepId: 'step',
+            metric: 'token_estimate',
+            value: 3,
+            recordedAt: 2,
+          },
+        ],
+        assignments: [],
+        dependencies: [
+          {
+            id: 'new-edge',
+            projectId: PROJECT,
+            predecessorId: 'b-new-root',
+            successorId: 'a-new-child',
+          },
+        ],
+        removedEstimates: [],
+        removedActuals: [],
+        removedProgress: [],
+        removedMeasures: [],
+      },
+      { at: 2, by: OWNER },
+    );
+
+    const retained = await Promise.all([
+      workingPlan.stores.workItems.listByProject(PROJECT),
+      workingPlan.stores.estimates.listByProject(PROJECT),
+      workingPlan.stores.actuals.listByProject(PROJECT),
+      workingPlan.stores.progress.listByProject(PROJECT),
+      workingPlan.stores.measures.listByProject(PROJECT),
+      workingPlan.stores.dependencies.listByProject(PROJECT),
+    ]);
+    const authoritative = await Promise.all([
+      source.stores.workItems.listByProject(PROJECT),
+      source.stores.estimates.listByProject(PROJECT),
+      source.stores.actuals.listByProject(PROJECT),
+      source.stores.progress.listByProject(PROJECT),
+      source.stores.measures.listByProject(PROJECT),
+      source.stores.dependencies.listByProject(PROJECT),
+    ]);
+    // Proof: applying placements in copy insertion order returned b-new-root
+    // before a-new-child instead of the adapter's BINARY order.
+    expect(retained).toEqual(authoritative);
+    expect(retained[0].map(({ id }) => id)).toEqual([
+      'a-new-child',
+      'b-new-root',
+      'm-existing',
+      'z-existing',
+    ]);
+    expect([
+      retained[1].map(({ workItemId }) => workItemId),
+      retained[2].map(({ workItemId }) => workItemId),
+      retained[3].map(({ workItemId }) => workItemId),
+      retained[4].map(({ workItemId }) => workItemId),
+    ]).toEqual([
+      ['a-new-child', 'b-new-root', 'z-existing'],
+      ['a-new-child', 'b-new-root'],
+      ['a-new-child', 'b-new-root'],
+      ['a-new-child', 'b-new-root'],
+    ]);
+    workingPlan.close();
+  } finally {
+    await source.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 it('keeps SQLite work-item order authoritative immediately after a runner insert', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-insert-order-'));
   const path = join(directory, 'source.db');

@@ -8,6 +8,7 @@ import type { Scope } from '../ports/unit-of-work';
 import type { LabelledWorkItem } from '../ports/work-item-store';
 import { createWorkingPlanEdges } from './working-plan-edges';
 import { createWorkingPlanRows } from './working-plan-rows';
+import { createWorkingPlanSubtrees } from './working-plan-subtrees';
 import { createWorkingPlanValues } from './working-plan-values';
 
 /** One project's lazily retained reads, owned by one admitted command batch. */
@@ -24,8 +25,8 @@ export interface WorkingPlan {
  * permanently refuses retained reads, including callbacks borrowed while the
  * batch was open.
  *
- * Row, step-value and dependency wrappers exercise the authoritative targeted-refresh
- * boundary. The command service graph must not switch wholesale to
+ * Row, step-value, dependency and subtree wrappers exercise the authoritative
+ * targeted-refresh boundary. The command service graph must not switch wholesale to
  * `workingPlan.stores` until every remaining mutation wrapper can advance the
  * collections it affects; doing so earlier would make a later command observe
  * an earlier command's stale before-image.
@@ -278,6 +279,17 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     assertOpen,
     refreshRows,
   );
+  const retainedSubtrees = createWorkingPlanSubtrees(
+    () => scope.stores.subtrees,
+    {
+      byIds: async (ids) => {
+        const requested = new Set(ids);
+        return (await workItems.all()).filter(({ id }) => requested.has(id));
+      },
+    },
+    assertOpen,
+    refreshRows,
+  );
 
   const stores: PlanTransactionalStores = {
     get projects() {
@@ -318,10 +330,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     measures: retainedMeasures,
     progress: retainedProgress,
     dependencies: retainedDependencies,
-    get subtrees() {
-      assertOpen();
-      return scope.stores.subtrees;
-    },
+    subtrees: retainedSubtrees,
     get journal() {
       assertOpen();
       return scope.stores.journal;
