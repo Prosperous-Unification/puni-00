@@ -211,13 +211,35 @@ function candidatePaths(): string[] {
   return new TextDecoder().decode(invocation.stdout).split('\0').filter(Boolean);
 }
 
-function currentDocuments(): string[] {
+async function currentDocuments(): Promise<string[]> {
   const readmes = candidatePaths().filter(
     (path) =>
       path.endsWith('/README.md') &&
       (path.startsWith('apps/') || path.startsWith('libs/') || path.startsWith('tools/')),
   );
-  return [...new Set([...CURRENT_MARKDOWN, ...readmes])].sort();
+  const historical = new Set<string>(CLASSIFIED_LEGACY_DOCUMENTATION.map(([path]) => path));
+  const rootRouted = (await rootRoutedDocuments()).filter((path) => !historical.has(path));
+  return [...new Set([...CURRENT_MARKDOWN, ...rootRouted, ...readmes])].sort();
+}
+
+async function rootRoutedDocuments(): Promise<string[]> {
+  const candidates = new Set(candidatePaths());
+  const source = await readFile(join(WORKSPACE, 'LLM_README.md'), 'utf8');
+  const destinations = [
+    ...localMarkdownDestinations(source),
+    ...[...source.matchAll(/`([^`\s]+\.md)`/g)].map((match) => match[1]),
+  ];
+  const routed: string[] = [];
+  for (const destination of destinations) {
+    const path = decodeURIComponent(destination.split(/[?#]/, 1)[0]).replace(/^\//, '');
+    const candidate = candidates.has(path)
+      ? path
+      : candidates.has(`${path}/README.md`)
+        ? `${path}/README.md`
+        : undefined;
+    if (candidate?.endsWith('.md') === true) routed.push(candidate);
+  }
+  return [...new Set(routed)].sort();
 }
 
 function localMarkdownDestinations(source: string): string[] {
@@ -261,7 +283,7 @@ function documentAnchors(source: string): Set<string> {
 async function currentDocumentLinkFailures(): Promise<string[]> {
   const candidates = new Set(candidatePaths());
   const failures: string[] = [];
-  for (const sourcePath of currentDocuments()) {
+  for (const sourcePath of await currentDocuments()) {
     const source = await readFile(join(WORKSPACE, sourcePath), 'utf8');
     for (const destination of localMarkdownDestinations(source)) {
       const hashAt = destination.indexOf('#');
@@ -304,6 +326,7 @@ function isRelevantSourceConfig(path: string): boolean {
   const basename = posix.basename(path);
   const isConfigurationName =
     basename === 'Dockerfile' ||
+    basename.endsWith('.Dockerfile') ||
     basename.startsWith('Caddyfile') ||
     /^\.[a-z0-9.-]+$/i.test(basename);
   const isTextExtension =
@@ -319,7 +342,7 @@ async function legacySourceOccurrences(): Promise<{
   categories: Record<string, number>;
   coverage: {
     applicationLibraryToolReadmes: number;
-    dockerfiles: boolean;
+    dockerfiles: string[];
     extensionlessScripts: boolean;
     policyJson: boolean;
     python: boolean;
@@ -374,10 +397,15 @@ async function legacySourceOccurrences(): Promise<{
   return {
     categories,
     coverage: {
-      applicationLibraryToolReadmes: currentDocuments().filter((path) =>
-        path.endsWith('/README.md'),
+      applicationLibraryToolReadmes: (await currentDocuments()).filter(
+        (path) =>
+          path.endsWith('/README.md') &&
+          (path.startsWith('apps/') || path.startsWith('libs/') || path.startsWith('tools/')),
       ).length,
-      dockerfiles: relevantPaths.some((path) => posix.basename(path) === 'Dockerfile'),
+      dockerfiles: relevantPaths.filter((path) => {
+        const basename = posix.basename(path);
+        return basename === 'Dockerfile' || basename.endsWith('.Dockerfile');
+      }),
       extensionlessScripts: relevantPaths.includes('bin/dev-ports.sh'),
       policyJson: relevantPaths.includes('docs/wiki-policy/policy.json'),
       python: relevantPaths.some((path) => path.endsWith('.py')),
@@ -390,7 +418,7 @@ async function legacySourceOccurrences(): Promise<{
 
 test('current documentation and active solver packets use namespaced roots', async () => {
   const references: string[] = [];
-  for (const path of currentDocuments()) {
+  for (const path of await currentDocuments()) {
     const source = await readFile(join(WORKSPACE, path), 'utf8');
     for (const match of source.matchAll(LEGACY_ROOT)) references.push(`${path}:${match[0]}`);
   }
@@ -408,7 +436,7 @@ test('current documentation and active solver packets use namespaced roots', asy
 test('current Nx commands select existing qualified projects', async () => {
   const projectNames = new Set((await readProjects(WORKSPACE)).map(({ name }) => name));
   const staleSelectors: string[] = [];
-  for (const path of currentDocuments()) {
+  for (const path of await currentDocuments()) {
     const lines = (await readFile(join(WORKSPACE, path), 'utf8')).split('\n');
     for (const [offset, line] of lines.entries()) {
       if (line.includes('historical path)')) continue;
@@ -446,7 +474,33 @@ test('the production index checker resolves current Markdown links and anchors',
 test('every routed current document resolves its local links and anchors', async () => {
   // Proof: adding `[fault](missing-round-one.md)` to non-index guide docs/capacity.md made this
   // complete current-document reader fail with its exact source, destination, and absent path.
+  // Proof: adding a missing link to newly discovered docs/runbook-prod-deploy.md failed with its
+  // exact routed source/destination, proving root discovery feeds this reader (2026-09-14).
   expect(await currentDocumentLinkFailures()).toEqual([]);
+});
+
+test('every root-routed current document participates in handoff checks', async () => {
+  const historical = new Set<string>(CLASSIFIED_LEGACY_DOCUMENTATION.map(([path]) => path));
+  const current = new Set(await currentDocuments());
+  const omitted = (await rootRoutedDocuments()).filter(
+    (path) => !historical.has(path) && !current.has(path),
+  );
+
+  // Proof: the fixed list omitted six live LLM routes, including all three production runbooks;
+  // this actual root-router comparison failed with their exact paths before discovery was wired.
+  expect(omitted).toEqual([]);
+});
+
+test('every Dockerfile naming variant participates in source inventory', () => {
+  const dockerfile = /(?:^|\/)(?:Dockerfile|[^/]+\.Dockerfile)$/;
+  const candidates = candidatePaths().filter((path) => dockerfile.test(path));
+  const inventoried = candidatePaths()
+    .filter(isRelevantSourceConfig)
+    .filter((path) => dockerfile.test(path));
+
+  // Proof: exact-basename matching omitted solver-orphan-fixture.Dockerfile from this manifest;
+  // this test failed with that exact missing app path before suffix matching was added.
+  expect(inventoried).toEqual(candidates);
 });
 
 test('the public alias manifest remains complete and stable', async () => {
@@ -491,6 +545,8 @@ test('every migration keeps its expected namespaced path and Git blob', async ()
 test('every legacy source occurrence and relevant text family is pinned', async () => {
   // Proof: injecting executable `const roundOneFault = 'apps/be-01/src'` into the already
   // classified tool-dagger main changed the pinned occurrence count/digest and failed this test.
+  // Proof: changing solver-orphan-fixture.Dockerfile line 4 to `COPY apps/be-01/...` failed with
+  // that exact UNCLASSIFIED context, count 262, and digest 116ba02b... (2026-09-14).
   expect(await legacySourceOccurrences()).toEqual({
     categories: {
       'current recursive selector': 22,
@@ -502,7 +558,13 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     },
     coverage: {
       applicationLibraryToolReadmes: 16,
-      dockerfiles: true,
+      dockerfiles: [
+        'apps/wbs/be-01/Dockerfile',
+        'apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile',
+        'apps/wbs/fe-01/Dockerfile',
+        'apps/wbs/gw-01/Dockerfile',
+        'deploy/dev-src/Dockerfile',
+      ],
       extensionlessScripts: true,
       policyJson: true,
       python: true,

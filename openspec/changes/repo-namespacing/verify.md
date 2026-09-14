@@ -467,6 +467,12 @@ classified evidence rather than current-reference rewrite targets.
   `docs/capacity.md -> missing-round-one.md (absent docs/missing-round-one.md)`; restoring the
   guide passed 1/1. The reader covers the root routers, changed ADRs/runbooks, active solver
   packet surfaces, and all application/library/tool READMEs rather than only Tool Wiki indexes.
+- Comparing the root router to the first fixed document list failed with six live omissions:
+  `docs/2026-09-08-hosted-optimization-api.md`, `docs/findings/README.md`, Radical Modularity and
+  the production-deploy, Tool Wiki activation and Dagger registry-DNS runbooks. Current-document
+  discovery now follows every existing Markdown path linked or named by `LLM_README.md`, excluding
+  only explicitly classified history. Adding `missing-round-two.md` to the newly discovered
+  production runbook then failed the routed-link check with its exact source and missing target.
 - The Nx-command oracle initially failed 0/1 with five exact unqualified selectors at
   `docs/local-dev.md:101-104` and `:151`; replacing them with the qualified `wbs-*` projects
   passed 1/1. The explicitly labelled historical `fe-01` measurement remains evidence.
@@ -488,6 +494,12 @@ classified evidence rather than current-reference rewrite targets.
   262 and digest `61c8d9f6...`. All faults and omitted inputs were restored; adjacent `Proof:`
   comments preserve each observation. The 12 declared handoff inputs now include the universal
   candidate read required by `candidatePaths()` and the production index command.
+- The Dockerfile-family manifest initially failed with the omitted
+  `apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile`. Matching canonical Dockerfiles and
+  `.Dockerfile` suffix variants pins all five candidate paths. Replacing that variant's line 4
+  with `COPY apps/be-01/...` failed the occurrence inventory with one exact `UNCLASSIFIED`
+  context, count 262 and digest `116ba02b...`; restoring it returned to 261 classified
+  occurrences and the pinned digest.
 
 ### Tool Wiki boundary
 
@@ -498,7 +510,7 @@ authority artifacts. This task did not mutate the external store, activated arch
 policy/mappings or selected activation.
 
 The production index command exited 0 with eight indexes and no review debt. The uncached Tool
-Devsync suite passed 188/188 with 527 expectations; its lint and typecheck targets also passed.
+Devsync suite passed 190/190 with 529 expectations; its lint and typecheck targets also passed.
 Tool Wiki source lint and typecheck passed, while the complete suite passed 578 tests and failed
 one of 579 with 5,358 expectations: the frozen pilot-policy test correctly reported that the
 externally activated `check.tool-dagger.test` authority selector still has its pre-namespace input
