@@ -36,6 +36,158 @@ const silentBroadcaster: Broadcaster = {
   latestSeq: () => Promise.resolve(-1),
 };
 
+function captureAdmittedStores(uow: UnitOfWork): {
+  readonly uow: UnitOfWork;
+  readonly current: () => PlanTransactionalStores;
+} {
+  let admitted: PlanTransactionalStores | undefined;
+  return {
+    uow: {
+      run<T>(act: (scope: Scope) => Promise<Decision<T>>): Promise<T> {
+        return uow.run((scope) => {
+          admitted = scope.stores;
+          return act(scope);
+        });
+      },
+    },
+    current: () => {
+      if (admitted === undefined) throw new Error('batch graph built before admission');
+      return admitted;
+    },
+  };
+}
+
+async function sqliteEstimateRunner(name: string) {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-batch-'));
+  const path = join(directory, 'source.db');
+  runMigrations(path, MIGRATIONS);
+  const source = openSqliteSource({ dbPath: path });
+  await source.stores.users.create(
+    { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
+    STAMP,
+  );
+  await source.stores.projects.create(
+    projectRow({ id: PROJECT, ownerId: OWNER, name }),
+    [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10 }],
+    STAMP,
+  );
+  await source.stores.workItems.insert(workItemRow({ id: ROW, projectId: PROJECT }), [], STAMP);
+  await source.stores.estimates.set(
+    { workItemId: ROW, stepId: 'step', optimistic: 1, realistic: 2, pessimistic: 3 },
+    STAMP,
+  );
+  const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
+  const publicGraph = servicesOver(source.stores, {
+    clock,
+    broadcast: silentBroadcaster,
+    scheduler: fastScheduler,
+  });
+  const runner = new PlanCommandRunner({
+    uow: source.uow,
+    announcements: silentBroadcaster,
+    publicServices: publicGraph,
+    batchServices: (scope, broadcast) =>
+      servicesOver(scope.stores, { clock, broadcast, scheduler: fastScheduler }),
+  });
+  return {
+    source,
+    publicGraph,
+    runner,
+    close: async () => {
+      await source.close();
+      rmSync(directory, { recursive: true, force: true });
+    },
+  };
+}
+
+it('refuses then runs another SQLite batch without leaked values', async () => {
+  const fixture = await sqliteEstimateRunner('SQLite refused working plan');
+
+  try {
+    expect(
+      await fixture.runner.run(PROJECT, OWNER, [
+        {
+          kind: 'setEstimate',
+          workItemId: ROW,
+          stepId: 'step',
+          days: { optimistic: 4, realistic: 5, pessimistic: 6 },
+        },
+        {
+          kind: 'setEstimate',
+          workItemId: 'missing-row',
+          stepId: 'step',
+          days: { optimistic: 7, realistic: 8, pessimistic: 9 },
+        },
+      ]),
+    ).toMatchObject({ ok: false, at: 1, reason: 'not_found' });
+    expect(await fixture.source.stores.estimates.listByWorkItems(PROJECT, [ROW])).toMatchObject([
+      { optimistic: 1, realistic: 2, pessimistic: 3 },
+    ]);
+
+    expect(
+      await fixture.runner.run(PROJECT, OWNER, [
+        {
+          kind: 'setEstimate',
+          workItemId: ROW,
+          stepId: 'step',
+          days: { optimistic: 10, realistic: 11, pessimistic: 12 },
+        },
+      ]),
+    ).toMatchObject({ ok: true });
+    expect(await fixture.runner.undo(PROJECT, OWNER)).toMatchObject({ ok: true });
+    expect(await fixture.source.stores.estimates.listByWorkItems(PROJECT, [ROW])).toMatchObject([
+      { optimistic: 1, realistic: 2, pessimistic: 3 },
+    ]);
+  } finally {
+    await fixture.close();
+  }
+});
+
+it('uses an ordinary SQLite write between batches as the next before-image', async () => {
+  const fixture = await sqliteEstimateRunner('SQLite intervening estimate');
+
+  try {
+    expect(
+      await fixture.runner.run(PROJECT, OWNER, [
+        {
+          kind: 'setEstimate',
+          workItemId: ROW,
+          stepId: 'step',
+          days: { optimistic: 4, realistic: 5, pessimistic: 6 },
+        },
+      ]),
+    ).toMatchObject({ ok: true });
+    expect(
+      (
+        await fixture.publicGraph.workItems.setEstimate(ROW, OWNER, 'step', {
+          optimistic: 7,
+          realistic: 8,
+          pessimistic: 9,
+        })
+      ).ok,
+    ).toBe(true);
+    expect(
+      await fixture.runner.run(PROJECT, OWNER, [
+        {
+          kind: 'setEstimate',
+          workItemId: ROW,
+          stepId: 'step',
+          days: { optimistic: 10, realistic: 11, pessimistic: 12 },
+        },
+      ]),
+    ).toMatchObject({ ok: true });
+
+    expect(await fixture.runner.undo(PROJECT, OWNER)).toMatchObject({ ok: true });
+    // Proof: reusing the first SQLite batch's working graph restored stale
+    // 4/5/6 values here instead of this intervening 7/8/9 write.
+    expect(await fixture.source.stores.estimates.listByWorkItems(PROJECT, [ROW])).toMatchObject([
+      { optimistic: 7, realistic: 8, pessimistic: 9 },
+    ]);
+  } finally {
+    await fixture.close();
+  }
+});
+
 it('keeps SQLite satellite order authoritative after a WorkingPlan patch refresh', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-order-'));
   const path = join(directory, 'source.db');
@@ -198,25 +350,25 @@ it('advances SQLite assignment and directory cascades before the next runner com
     let borrowedBeforeRemoval: { revision: number; teamIds: readonly string[] } | undefined;
     let retainedAfterRemoval: { revision: number; teamIds: readonly string[] } | undefined;
     let storedAfterRemoval: { revision: number; teamIds: readonly string[] } | undefined;
+    const admitted = captureAdmittedStores(source.uow);
     const runner = new PlanCommandRunner({
-      uow: source.uow,
+      uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
-      batchServices(scope, broadcast, workingPlan) {
-        if (workingPlan === undefined) return compose(scope.stores, broadcast);
+      batchServices(scope, broadcast) {
         const directoryStore = {
-          ...workingPlan.stores.directory,
+          ...scope.stores.directory,
           assign: async (
             ...parameters: Parameters<PlanTransactionalStores['directory']['assign']>
           ) => {
-            const written = await workingPlan.stores.directory.assign(...parameters);
+            const written = await scope.stores.directory.assign(...parameters);
             if (written.ok) {
               assignmentObservations.push({
-                retained: (
-                  await workingPlan.stores.workItems.listByIds(PROJECT, [parameters[0]])
-                ).at(0)?.revision,
-                stored: (await scope.stores.workItems.listByIds(PROJECT, [parameters[0]])).at(0)
+                retained: (await scope.stores.workItems.listByIds(PROJECT, [parameters[0]])).at(0)
                   ?.revision,
+                stored: (await admitted.current().workItems.listByIds(PROJECT, [parameters[0]])).at(
+                  0,
+                )?.revision,
               });
             }
             return written;
@@ -224,20 +376,18 @@ it('advances SQLite assignment and directory cascades before the next runner com
           removeTeam: async (
             ...parameters: Parameters<PlanTransactionalStores['directory']['removeTeam']>
           ) => {
-            borrowedBeforeRemoval = (
-              await workingPlan.stores.workItems.listByIds(PROJECT, [ROW])
-            ).at(0);
-            const removed = await workingPlan.stores.directory.removeTeam(...parameters);
+            borrowedBeforeRemoval = (await scope.stores.workItems.listByIds(PROJECT, [ROW])).at(0);
+            const removed = await scope.stores.directory.removeTeam(...parameters);
             if (removed.ok) {
-              retainedAfterRemoval = (
-                await workingPlan.stores.workItems.listByIds(PROJECT, [ROW])
+              retainedAfterRemoval = (await scope.stores.workItems.listByIds(PROJECT, [ROW])).at(0);
+              storedAfterRemoval = (
+                await admitted.current().workItems.listByIds(PROJECT, [ROW])
               ).at(0);
-              storedAfterRemoval = (await scope.stores.workItems.listByIds(PROJECT, [ROW])).at(0);
             }
             return removed;
           },
         };
-        return compose({ ...workingPlan.stores, directory: directoryStore }, broadcast);
+        return compose({ ...scope.stores, directory: directoryStore }, broadcast);
       },
     });
 
@@ -387,8 +537,7 @@ it('rolls back a successful directory write when its retained reload fails', asy
       uow: failingUow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
-      batchServices: (scope, broadcast, workingPlan) =>
-        compose(workingPlan?.stores ?? scope.stores, broadcast),
+      batchServices: (scope, broadcast) => compose(scope.stores, broadcast),
     });
 
     // Proof: catching this reload failure would commit both the preceding
@@ -615,26 +764,26 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
     const publicGraph = compose(source.stores, silentBroadcaster);
+    const admitted = captureAdmittedStores(source.uow);
     const runner = new PlanCommandRunner({
-      uow: source.uow,
+      uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
-      batchServices(scope, broadcast, workingPlan) {
-        if (workingPlan === undefined) return compose(scope.stores, broadcast);
+      batchServices(scope, broadcast) {
         const loadedValues = Promise.all([
-          workingPlan.stores.estimates.listByProject(PROJECT),
-          workingPlan.stores.actuals.listByProject(PROJECT),
-          workingPlan.stores.progress.listByProject(PROJECT),
-          workingPlan.stores.measures.listByProject(PROJECT),
+          scope.stores.estimates.listByProject(PROJECT),
+          scope.stores.actuals.listByProject(PROJECT),
+          scope.stores.progress.listByProject(PROJECT),
+          scope.stores.measures.listByProject(PROJECT),
         ]);
         const workItems = {
-          ...workingPlan.stores.workItems,
+          ...scope.stores.workItems,
           insert: async (
             ...parameters: Parameters<PlanTransactionalStores['workItems']['insert']>
           ) => {
-            await workingPlan.stores.workItems.insert(...parameters);
-            const retained = await workingPlan.stores.workItems.listByProject(PROJECT);
-            const authoritative = await scope.stores.workItems.listByProject(PROJECT);
+            await scope.stores.workItems.insert(...parameters);
+            const retained = await scope.stores.workItems.listByProject(PROJECT);
+            const authoritative = await admitted.current().workItems.listByProject(PROJECT);
             // Proof: before adapter-authoritative reordering, RetainedRows appended
             // a-inserted and this received z-existing,a-inserted from the working plan.
             expect(retained).toEqual(authoritative);
@@ -646,23 +795,23 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
           },
         };
         const measures = {
-          ...workingPlan.stores.measures,
+          ...scope.stores.measures,
           moveAll: async (
             ...parameters: Parameters<PlanTransactionalStores['measures']['moveAll']>
           ) => {
             await loadedValues;
-            await workingPlan.stores.measures.moveAll(...parameters);
+            await scope.stores.measures.moveAll(...parameters);
             const retained = await Promise.all([
-              workingPlan.stores.estimates.listByProject(PROJECT),
-              workingPlan.stores.actuals.listByProject(PROJECT),
-              workingPlan.stores.progress.listByProject(PROJECT),
-              workingPlan.stores.measures.listByProject(PROJECT),
-            ]);
-            const authoritative = await Promise.all([
               scope.stores.estimates.listByProject(PROJECT),
               scope.stores.actuals.listByProject(PROJECT),
               scope.stores.progress.listByProject(PROJECT),
               scope.stores.measures.listByProject(PROJECT),
+            ]);
+            const authoritative = await Promise.all([
+              admitted.current().estimates.listByProject(PROJECT),
+              admitted.current().actuals.listByProject(PROJECT),
+              admitted.current().progress.listByProject(PROJECT),
+              admitted.current().measures.listByProject(PROJECT),
             ]);
             // Proof: appending new value groups instead of applying their placement returned the
             // unaffected group before the moveAll destination in all four retained collections.
@@ -682,7 +831,7 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
             ]);
           },
         };
-        return compose({ ...workingPlan.stores, workItems, measures }, broadcast);
+        return compose({ ...scope.stores, workItems, measures }, broadcast);
       },
     });
 
@@ -741,27 +890,30 @@ it('refreshes a dependency survivor before the next runner command and preserves
     const publicGraph = compose(source.stores, silentBroadcaster);
     let retainedBeforeNext: number | undefined;
     let authoritativeBeforeNext: number | undefined;
+    let observeDependencyRemoval = true;
+    const admitted = captureAdmittedStores(source.uow);
     const runner = new PlanCommandRunner({
-      uow: source.uow,
+      uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
-      batchServices(scope, broadcast, workingPlan) {
-        if (workingPlan === undefined) return compose(scope.stores, broadcast);
+      batchServices(scope, broadcast) {
+        if (!observeDependencyRemoval) return compose(scope.stores, broadcast);
+        observeDependencyRemoval = false;
         const dependencies = {
-          ...workingPlan.stores.dependencies,
+          ...scope.stores.dependencies,
           removeAllFor: async (
             ...parameters: Parameters<PlanTransactionalStores['dependencies']['removeAllFor']>
           ) => {
-            await workingPlan.stores.dependencies.removeAllFor(...parameters);
-            retainedBeforeNext = (
-              await workingPlan.stores.workItems.listByIds(PROJECT, ['survivor'])
-            ).at(0)?.revision;
+            await scope.stores.dependencies.removeAllFor(...parameters);
+            retainedBeforeNext = (await scope.stores.workItems.listByIds(PROJECT, ['survivor'])).at(
+              0,
+            )?.revision;
             authoritativeBeforeNext = (
-              await scope.stores.workItems.listByIds(PROJECT, ['survivor'])
+              await admitted.current().workItems.listByIds(PROJECT, ['survivor'])
             ).at(0)?.revision;
           },
         };
-        return compose({ ...workingPlan.stores, dependencies }, broadcast);
+        return compose({ ...scope.stores, dependencies }, broadcast);
       },
     });
 
@@ -844,35 +996,35 @@ it('keeps every SQLite value group in source order after runner sets populate an
       servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
     const publicGraph = compose(source.stores, silentBroadcaster);
     let observations = 0;
+    const admitted = captureAdmittedStores(source.uow);
     const runner = new PlanCommandRunner({
-      uow: source.uow,
+      uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
-      batchServices(scope, broadcast, workingPlan) {
-        if (workingPlan === undefined) return compose(scope.stores, broadcast);
+      batchServices(scope, broadcast) {
         const loaded = Promise.all([
-          workingPlan.stores.estimates.listByProject(PROJECT),
-          workingPlan.stores.actuals.listByProject(PROJECT),
-          workingPlan.stores.progress.listByProject(PROJECT),
-          workingPlan.stores.measures.listByProject(PROJECT),
+          scope.stores.estimates.listByProject(PROJECT),
+          scope.stores.actuals.listByProject(PROJECT),
+          scope.stores.progress.listByProject(PROJECT),
+          scope.stores.measures.listByProject(PROJECT),
         ]);
         const measures = {
-          ...workingPlan.stores.measures,
+          ...scope.stores.measures,
           set: async (...parameters: Parameters<PlanTransactionalStores['measures']['set']>) => {
             await loaded;
-            const written = await workingPlan.stores.measures.set(...parameters);
+            const written = await scope.stores.measures.set(...parameters);
             if (parameters[0].metric === 'hours_actual') {
               const retained = await Promise.all([
-                workingPlan.stores.estimates.listByProject(PROJECT),
-                workingPlan.stores.actuals.listByProject(PROJECT),
-                workingPlan.stores.progress.listByProject(PROJECT),
-                workingPlan.stores.measures.listByProject(PROJECT),
-              ]);
-              const authoritative = await Promise.all([
                 scope.stores.estimates.listByProject(PROJECT),
                 scope.stores.actuals.listByProject(PROJECT),
                 scope.stores.progress.listByProject(PROJECT),
                 scope.stores.measures.listByProject(PROJECT),
+              ]);
+              const authoritative = await Promise.all([
+                admitted.current().estimates.listByProject(PROJECT),
+                admitted.current().actuals.listByProject(PROJECT),
+                admitted.current().progress.listByProject(PROJECT),
+                admitted.current().measures.listByProject(PROJECT),
               ]);
               expect(retained).toEqual(authoritative);
               expect(retained.map((rows) => rows.map(({ workItemId }) => workItemId))).toEqual([
@@ -886,7 +1038,7 @@ it('keeps every SQLite value group in source order after runner sets populate an
             return written;
           },
         };
-        return compose({ ...workingPlan.stores, measures }, broadcast);
+        return compose({ ...scope.stores, measures }, broadcast);
       },
     });
 

@@ -11,7 +11,6 @@ import { workItemRow } from '../testing/work-item-fixture';
 import type { Broadcaster } from './broadcast';
 import type { PlanCommand } from './plan-command';
 import { PlanCommandRunner } from './plan-commands';
-import type { WorkingPlan } from './working-plan';
 
 const OWNER = 'plan-command-owner';
 
@@ -29,12 +28,10 @@ function runnerOver(
   source: ReturnType<typeof openMemorySource>,
   publicGraph: ReturnType<typeof compose>,
   uow: UnitOfWork = source.uow,
-  batchServices: (
-    scope: Scope,
-    broadcast: Broadcaster,
-    workingPlan?: WorkingPlan,
-  ) => ReturnType<typeof compose> = (scope, broadcast, workingPlan) =>
-    compose(workingPlan?.stores ?? scope.stores, broadcast),
+  batchServices: (scope: Scope, broadcast: Broadcaster) => ReturnType<typeof compose> = (
+    scope,
+    broadcast,
+  ) => compose(scope.stores, broadcast),
 ): PlanCommandRunner {
   return new PlanCommandRunner({
     uow,
@@ -43,6 +40,232 @@ function runnerOver(
     batchServices,
   });
 }
+
+describe('working plan batch ownership', () => {
+  async function seededEstimate() {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+    await source.stores.users.create(
+      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+      { at: 1, by: OWNER },
+    );
+    const createdProject = await publicGraph.projects.create('Working plan ownership', OWNER);
+    const projectId = createdProject.project.id;
+    const stepId = createdProject.steps[0].id;
+    await source.stores.steps.add(
+      { id: stepId, projectId, name: createdProject.steps[0].name },
+      { at: 1, by: OWNER },
+    );
+    const created = await publicGraph.workItems.create(projectId, OWNER, {
+      parentId: null,
+      afterId: null,
+      name: 'Owned estimate',
+    });
+    if (!created.ok) throw new Error('working plan ownership row creation refused');
+    await publicGraph.workItems.setEstimate(created.value.id, OWNER, stepId, {
+      optimistic: 1,
+      realistic: 2,
+      pessimistic: 3,
+    });
+    return { source, direct, publicGraph, projectId, stepId, workItemId: created.value.id };
+  }
+
+  it('refuses then runs another batch without leaked values', async () => {
+    const fixture = await seededEstimate();
+    const { source, publicGraph, projectId, stepId, workItemId } = fixture;
+    const runner = runnerOver(source, publicGraph);
+
+    try {
+      expect(
+        await runner.run(projectId, OWNER, [
+          {
+            kind: 'setEstimate',
+            workItemId,
+            stepId,
+            days: { optimistic: 4, realistic: 5, pessimistic: 6 },
+          },
+          {
+            kind: 'setEstimate',
+            workItemId: 'missing-row',
+            stepId,
+            days: { optimistic: 7, realistic: 8, pessimistic: 9 },
+          },
+        ]),
+      ).toMatchObject({ ok: false, at: 1, reason: 'not_found' });
+      expect(await source.stores.estimates.listByWorkItems(projectId, [workItemId])).toMatchObject([
+        { optimistic: 1, realistic: 2, pessimistic: 3 },
+      ]);
+
+      expect(
+        await runner.run(projectId, OWNER, [
+          {
+            kind: 'setEstimate',
+            workItemId,
+            stepId,
+            days: { optimistic: 10, realistic: 11, pessimistic: 12 },
+          },
+        ]),
+      ).toMatchObject({ ok: true });
+      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+      expect(await source.stores.estimates.listByWorkItems(projectId, [workItemId])).toMatchObject([
+        { optimistic: 1, realistic: 2, pessimistic: 3 },
+      ]);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('ordinary write between batches is the next before-image', async () => {
+    const fixture = await seededEstimate();
+    const { source, publicGraph, projectId, stepId, workItemId } = fixture;
+    const runner = runnerOver(source, publicGraph);
+
+    try {
+      expect(
+        await runner.run(projectId, OWNER, [
+          {
+            kind: 'setEstimate',
+            workItemId,
+            stepId,
+            days: { optimistic: 4, realistic: 5, pessimistic: 6 },
+          },
+        ]),
+      ).toMatchObject({ ok: true });
+      expect(
+        (
+          await publicGraph.workItems.setEstimate(workItemId, OWNER, stepId, {
+            optimistic: 7,
+            realistic: 8,
+            pessimistic: 9,
+          })
+        ).ok,
+      ).toBe(true);
+      expect(
+        await runner.run(projectId, OWNER, [
+          {
+            kind: 'setEstimate',
+            workItemId,
+            stepId,
+            days: { optimistic: 10, realistic: 11, pessimistic: 12 },
+          },
+        ]),
+      ).toMatchObject({ ok: true });
+
+      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+      // Proof: reusing the previous batch's working graph restored its stale
+      // 4/5/6 estimate here instead of the intervening ordinary write.
+      expect(await source.stores.estimates.listByWorkItems(projectId, [workItemId])).toMatchObject([
+        { optimistic: 7, realistic: 8, pessimistic: 9 },
+      ]);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('closes the admitted graph after success, refusal, and throw', async () => {
+    const fixture = await seededEstimate();
+    const { source, publicGraph, projectId, stepId, workItemId } = fixture;
+    const retainedReads: (() => Promise<unknown>)[] = [];
+    const capture = (scope: Scope, broadcast: Broadcaster) => {
+      retainedReads.push(() => scope.stores.workItems.listByProject(projectId));
+      return compose(scope.stores, broadcast);
+    };
+    const runner = runnerOver(source, publicGraph, source.uow, capture);
+
+    try {
+      expect(await runner.run(projectId, OWNER, [])).toMatchObject({ ok: true });
+      expect(
+        await runner.run(projectId, OWNER, [
+          {
+            kind: 'setEstimate',
+            workItemId: 'missing-row',
+            stepId,
+            days: { optimistic: 1, realistic: 1, pessimistic: 1 },
+          },
+        ]),
+      ).toMatchObject({ ok: false });
+
+      const throwingUow: UnitOfWork = {
+        run: (act) =>
+          source.uow.run((scope) =>
+            act({
+              stores: {
+                ...scope.stores,
+                estimates: {
+                  ...scope.stores.estimates,
+                  set: () => Promise.reject(new Error('injected estimate failure')),
+                },
+              },
+            }),
+          ),
+      };
+      const throwingRunner = runnerOver(source, publicGraph, throwingUow, capture);
+      expect(
+        throwingRunner.run(projectId, OWNER, [
+          {
+            kind: 'setEstimate',
+            workItemId,
+            stepId,
+            days: { optimistic: 4, realistic: 5, pessimistic: 6 },
+          },
+        ]),
+      ).rejects.toThrow('injected estimate failure');
+
+      expect(retainedReads).toHaveLength(3);
+      for (const read of retainedReads) {
+        // Proof: passing the original admitted scope to the service factory
+        // let each callback keep reading after its terminal path settled.
+        expect(read()).rejects.toThrow(/Working plan .* is closed/);
+      }
+      expect(await source.stores.workItems.listByProject(projectId)).toHaveLength(1);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('announces after commit through the nonworking graph', async () => {
+    const fixture = await seededEstimate();
+    const { source, direct, publicGraph, projectId, stepId, workItemId } = fixture;
+    let retainedRead: (() => Promise<unknown>) | undefined;
+    let announcements = 0;
+    const announceTreeNow = publicGraph.workItems.announceTreeNow.bind(publicGraph.workItems);
+    publicGraph.workItems.announceTreeNow = async (announcedProjectId: string) => {
+      if (retainedRead === undefined) throw new Error('after-commit announce ran before batch');
+      expect(retainedRead()).rejects.toThrow(/Working plan .* is closed/);
+      expect(await source.stores.workItems.listByProject(announcedProjectId)).toHaveLength(1);
+      announcements += 1;
+      await announceTreeNow(announcedProjectId);
+    };
+    const runner = new PlanCommandRunner({
+      uow: source.uow,
+      announcements: direct,
+      publicServices: publicGraph,
+      batchServices(scope, broadcast) {
+        retainedRead = () => scope.stores.workItems.listByProject(projectId);
+        return compose(scope.stores, broadcast);
+      },
+    });
+
+    try {
+      expect(
+        await runner.run(projectId, OWNER, [
+          {
+            kind: 'setEstimate',
+            workItemId,
+            stepId,
+            days: { optimistic: 4, realistic: 5, pessimistic: 6 },
+          },
+        ]),
+      ).toMatchObject({ ok: true });
+      // Proof: retaining the batch graph for post-commit publication threw its
+      // closed WorkingPlan invariant instead of reaching this public graph.
+      expect(announcements).toBe(1);
+    } finally {
+      await source.close();
+    }
+  });
+});
 
 describe('working plan command before-images', () => {
   it('two patches undo to the value before the batch', async () => {
@@ -81,12 +304,11 @@ describe('working plan command before-images', () => {
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
-        batchServices(scope, broadcast, workingPlan) {
-          if (workingPlan === undefined) return compose(scope.stores, broadcast);
-          const borrowedRows = workingPlan.stores.workItems.listByProject(projectId);
+        batchServices(scope, broadcast) {
+          const borrowedRows = scope.stores.workItems.listByProject(projectId);
           let didMutateBorrowedBefore = false;
           const workItems = {
-            ...workingPlan.stores.workItems,
+            ...scope.stores.workItems,
             listByProject: async (requestedProjectId: string) => {
               if (!didMutateBorrowedBefore) {
                 const borrowed = (await borrowedRows).find(({ id }) => id === created.value.id);
@@ -96,14 +318,14 @@ describe('working plan command before-images', () => {
                 (borrowed.tagIds as string[]).splice(0, borrowed.tagIds.length, secondTag.id);
                 didMutateBorrowedBefore = true;
               }
-              return workingPlan.stores.workItems.listByProject(requestedProjectId);
+              return scope.stores.workItems.listByProject(requestedProjectId);
             },
             patch: async (
               ...parameters: Parameters<PlanTransactionalStores['workItems']['patch']>
             ) => {
-              const written = await workingPlan.stores.workItems.patch(...parameters);
+              const written = await scope.stores.workItems.patch(...parameters);
               if (written.ok) {
-                const refreshed = await workingPlan.stores.workItems.listByIds(projectId, [
+                const refreshed = await scope.stores.workItems.listByIds(projectId, [
                   parameters[0],
                 ]);
                 const row = refreshed.at(0);
@@ -113,7 +335,7 @@ describe('working plan command before-images', () => {
               return written;
             },
           };
-          const stores: PlanTransactionalStores = { ...workingPlan.stores, workItems };
+          const stores: PlanTransactionalStores = { ...scope.stores, workItems };
           return compose(stores, broadcast);
         },
       });
@@ -202,31 +424,25 @@ describe('working plan directory mutations through runner commands', () => {
         },
       };
       let readsAfterAssign: { full: number; targeted: number; placements: number } | undefined;
-      const runner = runnerOver(
-        source,
-        publicGraph,
-        countedUow,
-        (scope, broadcast, workingPlan) => {
-          if (workingPlan === undefined) return compose(scope.stores, broadcast);
-          const directory = {
-            ...workingPlan.stores.directory,
-            assign: async (
-              ...parameters: Parameters<PlanTransactionalStores['directory']['assign']>
-            ) => {
-              const written = await workingPlan.stores.directory.assign(...parameters);
-              if (written.ok) {
-                readsAfterAssign = {
-                  full: fullReads,
-                  targeted: targetedHydrations.length,
-                  placements: placementCalls,
-                };
-              }
-              return written;
-            },
-          };
-          return compose({ ...workingPlan.stores, directory }, broadcast);
-        },
-      );
+      const runner = runnerOver(source, publicGraph, countedUow, (scope, broadcast) => {
+        const directory = {
+          ...scope.stores.directory,
+          assign: async (
+            ...parameters: Parameters<PlanTransactionalStores['directory']['assign']>
+          ) => {
+            const written = await scope.stores.directory.assign(...parameters);
+            if (written.ok) {
+              readsAfterAssign = {
+                full: fullReads,
+                targeted: targetedHydrations.length,
+                placements: placementCalls,
+              };
+            }
+            return written;
+          },
+        };
+        return compose({ ...scope.stores, directory }, broadcast);
+      });
 
       const createdAndAssigned = await runner.run(projectId, OWNER, [
         { kind: 'createPerson', ref: 'created-person', name: 'Created in batch', teamIds: [] },
@@ -303,23 +519,17 @@ describe('working plan directory mutations through runner commands', () => {
       });
       if (!labelled.ok) throw new Error('cascade row labelling refused');
 
-      const runner = runnerOver(
-        source,
-        publicGraph,
-        source.uow,
-        (scope, broadcast, workingPlan) => {
-          if (workingPlan === undefined) return compose(scope.stores, broadcast);
-          const directory = {
-            ...workingPlan.stores.directory,
-            removeTeam: async (
-              ...parameters: Parameters<PlanTransactionalStores['directory']['removeTeam']>
-            ) => {
-              return workingPlan.stores.directory.removeTeam(...parameters);
-            },
-          };
-          return compose({ ...workingPlan.stores, directory }, broadcast);
-        },
-      );
+      const runner = runnerOver(source, publicGraph, source.uow, (scope, broadcast) => {
+        const directory = {
+          ...scope.stores.directory,
+          removeTeam: async (
+            ...parameters: Parameters<PlanTransactionalStores['directory']['removeTeam']>
+          ) => {
+            return scope.stores.directory.removeTeam(...parameters);
+          },
+        };
+        return compose({ ...scope.stores, directory }, broadcast);
+      });
 
       expect(
         await runner.run(projectId, OWNER, [
@@ -430,8 +640,7 @@ describe('working plan subtree mutations through runner commands', () => {
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
-        batchServices: (scope, broadcast, workingPlan) =>
-          composeBatch(workingPlan?.stores ?? scope.stores, broadcast),
+        batchServices: (scope, broadcast) => composeBatch(scope.stores, broadcast),
       });
 
       const copied = await runner.run(projectId, OWNER, [
@@ -520,53 +729,47 @@ describe('working plan value mutations through runner commands', () => {
       ).toBe(true);
 
       let observations = 0;
-      const runner = runnerOver(
-        source,
-        publicGraph,
-        source.uow,
-        (scope, broadcast, workingPlan) => {
-          if (workingPlan === undefined) return compose(scope.stores, broadcast);
-          const loaded = Promise.all([
-            workingPlan.stores.estimates.listByProject(projectId),
-            workingPlan.stores.actuals.listByProject(projectId),
-            workingPlan.stores.progress.listByProject(projectId),
-            workingPlan.stores.measures.listByProject(projectId),
-          ]);
-          const measures = {
-            ...workingPlan.stores.measures,
-            set: async (...parameters: Parameters<PlanTransactionalStores['measures']['set']>) => {
-              await loaded;
-              const written = await workingPlan.stores.measures.set(...parameters);
-              if (parameters[0].metric === 'hours_actual') {
-                const retained = await Promise.all([
-                  workingPlan.stores.estimates.listByProject(projectId),
-                  workingPlan.stores.actuals.listByProject(projectId),
-                  workingPlan.stores.progress.listByProject(projectId),
-                  workingPlan.stores.measures.listByProject(projectId),
-                ]);
-                const authoritative = await Promise.all([
-                  scope.stores.estimates.listByProject(projectId),
-                  scope.stores.actuals.listByProject(projectId),
-                  scope.stores.progress.listByProject(projectId),
-                  scope.stores.measures.listByProject(projectId),
-                ]);
-                // Proof: restoring binary value-group placement made retained groups A,a while
-                // every authoritative memory full reader returned a,A here.
-                expect(retained).toEqual(authoritative);
-                expect(retained.map((rows) => rows.map(({ workItemId }) => workItemId))).toEqual([
-                  ['a', 'A'],
-                  ['a', 'A'],
-                  ['a', 'A'],
-                  ['a', 'a', 'a', 'A', 'A', 'A'],
-                ]);
-                observations += 1;
-              }
-              return written;
-            },
-          };
-          return compose({ ...workingPlan.stores, measures }, broadcast);
-        },
-      );
+      const runner = runnerOver(source, publicGraph, source.uow, (scope, broadcast) => {
+        const loaded = Promise.all([
+          scope.stores.estimates.listByProject(projectId),
+          scope.stores.actuals.listByProject(projectId),
+          scope.stores.progress.listByProject(projectId),
+          scope.stores.measures.listByProject(projectId),
+        ]);
+        const measures = {
+          ...scope.stores.measures,
+          set: async (...parameters: Parameters<PlanTransactionalStores['measures']['set']>) => {
+            await loaded;
+            const written = await scope.stores.measures.set(...parameters);
+            if (parameters[0].metric === 'hours_actual') {
+              const retained = await Promise.all([
+                scope.stores.estimates.listByProject(projectId),
+                scope.stores.actuals.listByProject(projectId),
+                scope.stores.progress.listByProject(projectId),
+                scope.stores.measures.listByProject(projectId),
+              ]);
+              const authoritative = await Promise.all([
+                scope.stores.estimates.listByProject(projectId),
+                scope.stores.actuals.listByProject(projectId),
+                scope.stores.progress.listByProject(projectId),
+                scope.stores.measures.listByProject(projectId),
+              ]);
+              // Proof: restoring binary value-group placement made retained groups A,a while
+              // every authoritative memory full reader returned a,A here.
+              expect(retained).toEqual(authoritative);
+              expect(retained.map((rows) => rows.map(({ workItemId }) => workItemId))).toEqual([
+                ['a', 'A'],
+                ['a', 'A'],
+                ['a', 'A'],
+                ['a', 'a', 'a', 'A', 'A', 'A'],
+              ]);
+              observations += 1;
+            }
+            return written;
+          },
+        };
+        return compose({ ...scope.stores, measures }, broadcast);
+      });
 
       expect((await runner.run(projectId, OWNER, setAllValues('A', stepId, 2))).ok).toBe(true);
       expect(observations).toBe(1);
@@ -613,51 +816,45 @@ describe('working plan value mutations through runner commands', () => {
         );
       }
       let observations = 0;
-      const runner = runnerOver(
-        source,
-        publicGraph,
-        source.uow,
-        (scope, broadcast, workingPlan) => {
-          if (workingPlan === undefined) return compose(scope.stores, broadcast);
-          const loaded = Promise.all([
-            workingPlan.stores.estimates.listByProject(projectId),
-            workingPlan.stores.actuals.listByProject(projectId),
-            workingPlan.stores.progress.listByProject(projectId),
-            workingPlan.stores.measures.listByProject(projectId),
-          ]);
-          const measures = {
-            ...workingPlan.stores.measures,
-            set: async (...parameters: Parameters<PlanTransactionalStores['measures']['set']>) => {
-              await loaded;
-              const written = await workingPlan.stores.measures.set(...parameters);
-              if (parameters[0].metric === 'hours_actual') {
-                const retained = await Promise.all([
-                  workingPlan.stores.estimates.listByProject(projectId),
-                  workingPlan.stores.actuals.listByProject(projectId),
-                  workingPlan.stores.progress.listByProject(projectId),
-                  workingPlan.stores.measures.listByProject(projectId),
-                ]);
-                const authoritative = await Promise.all([
-                  scope.stores.estimates.listByProject(projectId),
-                  scope.stores.actuals.listByProject(projectId),
-                  scope.stores.progress.listByProject(projectId),
-                  scope.stores.measures.listByProject(projectId),
-                ]);
-                expect(retained).toEqual(authoritative);
-                expect(retained.map((rows) => rows.map(({ workItemId }) => workItemId))).toEqual([
-                  ['a-earlier', 'z-existing'],
-                  ['a-earlier', 'z-existing'],
-                  ['a-earlier', 'z-existing'],
-                  ['a-earlier', 'a-earlier', 'a-earlier', 'z-existing', 'z-existing', 'z-existing'],
-                ]);
-                observations += 1;
-              }
-              return written;
-            },
-          };
-          return compose({ ...workingPlan.stores, measures }, broadcast);
-        },
-      );
+      const runner = runnerOver(source, publicGraph, source.uow, (scope, broadcast) => {
+        const loaded = Promise.all([
+          scope.stores.estimates.listByProject(projectId),
+          scope.stores.actuals.listByProject(projectId),
+          scope.stores.progress.listByProject(projectId),
+          scope.stores.measures.listByProject(projectId),
+        ]);
+        const measures = {
+          ...scope.stores.measures,
+          set: async (...parameters: Parameters<PlanTransactionalStores['measures']['set']>) => {
+            await loaded;
+            const written = await scope.stores.measures.set(...parameters);
+            if (parameters[0].metric === 'hours_actual') {
+              const retained = await Promise.all([
+                scope.stores.estimates.listByProject(projectId),
+                scope.stores.actuals.listByProject(projectId),
+                scope.stores.progress.listByProject(projectId),
+                scope.stores.measures.listByProject(projectId),
+              ]);
+              const authoritative = await Promise.all([
+                scope.stores.estimates.listByProject(projectId),
+                scope.stores.actuals.listByProject(projectId),
+                scope.stores.progress.listByProject(projectId),
+                scope.stores.measures.listByProject(projectId),
+              ]);
+              expect(retained).toEqual(authoritative);
+              expect(retained.map((rows) => rows.map(({ workItemId }) => workItemId))).toEqual([
+                ['a-earlier', 'z-existing'],
+                ['a-earlier', 'z-existing'],
+                ['a-earlier', 'z-existing'],
+                ['a-earlier', 'a-earlier', 'a-earlier', 'z-existing', 'z-existing', 'z-existing'],
+              ]);
+              observations += 1;
+            }
+            return written;
+          },
+        };
+        return compose({ ...scope.stores, measures }, broadcast);
+      });
 
       expect(
         (
@@ -795,12 +992,11 @@ describe('working plan value mutations through runner commands', () => {
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
-        batchServices(scope, broadcast, workingPlan) {
-          if (workingPlan === undefined) return compose(scope.stores, broadcast);
+        batchServices(scope, broadcast) {
           const watch = <Store extends 'estimates' | 'actuals' | 'progress' | 'measures'>(
             name: Store,
           ): PlanTransactionalStores[Store] => {
-            const values = workingPlan.stores[name];
+            const values = scope.stores[name];
             return {
               ...values,
               moveAll: async (...parameters: Parameters<typeof values.moveAll>) => {
@@ -811,10 +1007,10 @@ describe('working plan value mutations through runner commands', () => {
                 }
                 if (name === 'measures') {
                   const retained = await Promise.all([
-                    workingPlan.stores.estimates.listByProject(projectId),
-                    workingPlan.stores.actuals.listByProject(projectId),
-                    workingPlan.stores.progress.listByProject(projectId),
-                    workingPlan.stores.measures.listByProject(projectId),
+                    scope.stores.estimates.listByProject(projectId),
+                    scope.stores.actuals.listByProject(projectId),
+                    scope.stores.progress.listByProject(projectId),
+                    scope.stores.measures.listByProject(projectId),
                   ]);
                   const authoritative = await Promise.all([
                     scope.stores.estimates.listByProject(projectId),
@@ -832,7 +1028,7 @@ describe('working plan value mutations through runner commands', () => {
           };
           return orderedCompose(
             {
-              ...workingPlan.stores,
+              ...scope.stores,
               estimates: watch('estimates'),
               actuals: watch('actuals'),
               progress: watch('progress'),
@@ -960,47 +1156,41 @@ describe('working plan value mutations through runner commands', () => {
         ).ok,
       ).toBe(true);
       const observed: string[] = [];
-      const runner = runnerOver(
-        source,
-        publicGraph,
-        source.uow,
-        (scope, broadcast, workingPlan) => {
-          if (workingPlan === undefined) return compose(scope.stores, broadcast);
-          const watch = <Store extends 'estimates' | 'actuals' | 'progress' | 'measures'>(
-            name: Store,
-          ): PlanTransactionalStores[Store] => {
-            const values = workingPlan.stores[name];
-            return {
-              ...values,
-              remove: async (...parameters: Parameters<typeof values.remove>) => {
-                const remove = values.remove.bind(values);
-                await Reflect.apply(remove, values, parameters);
-                const remaining = await values.listByProject(projectId);
-                const removedRemains = remaining.some((row) => {
-                  if (row.workItemId !== leaf.value.id || row.stepId !== stepId) return false;
-                  return (
-                    name !== 'measures' ||
-                    (typeof parameters[2] === 'string' &&
-                      'metric' in row &&
-                      row.metric === parameters[2])
-                  );
-                });
-                if (removedRemains) observed.push(name);
-              },
-            };
-          };
-          return compose(
-            {
-              ...workingPlan.stores,
-              estimates: watch('estimates'),
-              actuals: watch('actuals'),
-              progress: watch('progress'),
-              measures: watch('measures'),
+      const runner = runnerOver(source, publicGraph, source.uow, (scope, broadcast) => {
+        const watch = <Store extends 'estimates' | 'actuals' | 'progress' | 'measures'>(
+          name: Store,
+        ): PlanTransactionalStores[Store] => {
+          const values = scope.stores[name];
+          return {
+            ...values,
+            remove: async (...parameters: Parameters<typeof values.remove>) => {
+              const remove = values.remove.bind(values);
+              await Reflect.apply(remove, values, parameters);
+              const remaining = await values.listByProject(projectId);
+              const removedRemains = remaining.some((row) => {
+                if (row.workItemId !== leaf.value.id || row.stepId !== stepId) return false;
+                return (
+                  name !== 'measures' ||
+                  (typeof parameters[2] === 'string' &&
+                    'metric' in row &&
+                    row.metric === parameters[2])
+                );
+              });
+              if (removedRemains) observed.push(name);
             },
-            broadcast,
-          );
-        },
-      );
+          };
+        };
+        return compose(
+          {
+            ...scope.stores,
+            estimates: watch('estimates'),
+            actuals: watch('actuals'),
+            progress: watch('progress'),
+            measures: watch('measures'),
+          },
+          broadcast,
+        );
+      });
 
       expect((await runner.run(projectId, OWNER, clearAllValues(leaf.value.id, stepId))).ok).toBe(
         true,
@@ -1272,29 +1462,23 @@ describe('working plan row mutations through runner commands', () => {
         },
       };
       let observedAfterRefusal: string | undefined;
-      const runner = runnerOver(
-        source,
-        publicGraph,
-        deceptiveUow,
-        (scope, broadcast, workingPlan) => {
-          if (workingPlan === undefined) return compose(scope.stores, broadcast);
-          const workItems = {
-            ...workingPlan.stores.workItems,
-            patch: async (
-              ...parameters: Parameters<PlanTransactionalStores['workItems']['patch']>
-            ) => {
-              const written = await workingPlan.stores.workItems.patch(...parameters);
-              if (!written.ok) {
-                observedAfterRefusal = (
-                  await workingPlan.stores.workItems.listByProject(projectId)
-                ).find(({ id }) => id === parameters[0])?.name;
-              }
-              return written;
-            },
-          };
-          return compose({ ...workingPlan.stores, workItems }, broadcast);
-        },
-      );
+      const runner = runnerOver(source, publicGraph, deceptiveUow, (scope, broadcast) => {
+        const workItems = {
+          ...scope.stores.workItems,
+          patch: async (
+            ...parameters: Parameters<PlanTransactionalStores['workItems']['patch']>
+          ) => {
+            const written = await scope.stores.workItems.patch(...parameters);
+            if (!written.ok) {
+              observedAfterRefusal = (await scope.stores.workItems.listByProject(projectId)).find(
+                ({ id }) => id === parameters[0],
+              )?.name;
+            }
+            return written;
+          },
+        };
+        return compose({ ...scope.stores, workItems }, broadcast);
+      });
 
       const refused = await runner.run(projectId, OWNER, [
         {
@@ -1375,8 +1559,8 @@ async function expectSubtreePlacementFaultRollsBack(
     const composeBatch = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
     const publicGraph = composeBatch(source.stores, direct);
-    const runner = runnerOver(source, publicGraph, brokenUow, (scope, broadcast, workingPlan) =>
-      composeBatch(workingPlan?.stores ?? scope.stores, broadcast),
+    const runner = runnerOver(source, publicGraph, brokenUow, (scope, broadcast) =>
+      composeBatch(scope.stores, broadcast),
     );
 
     let failure: unknown;
@@ -1646,16 +1830,10 @@ describe('working plan value placement validation rolls back its production unit
             });
           },
         };
-        const runner = runnerOver(
-          source,
-          publicGraph,
-          brokenUow,
-          (scope, broadcast, workingPlan) => {
-            if (workingPlan === undefined) return compose(scope.stores, broadcast);
-            const loaded = workingPlan.stores[family].listByProject(projectId);
-            return compose(waitForValueLoad(workingPlan.stores, family, loaded), broadcast);
-          },
-        );
+        const runner = runnerOver(source, publicGraph, brokenUow, (scope, broadcast) => {
+          const loaded = scope.stores[family].listByProject(projectId);
+          return compose(waitForValueLoad(scope.stores, family, loaded), broadcast);
+        });
 
         // Proof: omitting this adapter-owned placement used to commit the newly
         // populated group at the retained array's end instead of rejecting trusted input.

@@ -26,11 +26,9 @@ export interface WorkingPlan {
  * permanently refuses retained reads, including callbacks borrowed while the
  * batch was open.
  *
- * Row, step-value, dependency and subtree wrappers exercise the authoritative
- * targeted-refresh boundary. The command service graph must not switch wholesale to
- * `workingPlan.stores` until every remaining mutation wrapper can advance the
- * collections it affects; doing so earlier would make a later command observe
- * an earlier command's stale before-image.
+ * Row, step-value, dependency, subtree and directory wrappers advance the
+ * authoritative affected identities before returning, so the command service
+ * graph can use these stores for the full lifetime of its admitted batch.
  */
 export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan {
   let isClosed = false;

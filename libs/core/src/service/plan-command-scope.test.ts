@@ -47,7 +47,7 @@ function clonePlan(source: PlanState): PlanState {
 
 function stagedSource() {
   const publicPlan: PlanState = { names: [], undo: [], redo: [], stale: false };
-  const plans = new WeakMap<PlanTransactionalStores, PlanState>();
+  const plans = new WeakMap<object, PlanState>();
   const scopedStores: PlanTransactionalStores[] = [];
   const rollbackReached = deferred();
   const repairReached = deferred();
@@ -56,8 +56,9 @@ function stagedSource() {
   let turn = Promise.resolve();
 
   const makeScope = (plan: PlanState): Scope => {
-    const stores = {} as PlanTransactionalStores;
-    plans.set(stores, plan);
+    const projectStoreIdentity = {};
+    const stores = { projects: projectStoreIdentity } as PlanTransactionalStores;
+    plans.set(projectStoreIdentity, plan);
     return { stores };
   };
 
@@ -204,7 +205,7 @@ describe('the command runner builds services from each unit-of-work scope', () =
     const runner = new PlanCommandRunner({
       batchServices: (scope, _broadcast) => {
         source.scopedStores.push(scope.stores);
-        const plan = source.plans.get(scope.stores);
+        const plan = source.plans.get(scope.stores.projects);
         if (plan === undefined) throw new Error('unit-of-work scope has no staged plan');
         return servicesFor(plan, false);
       },

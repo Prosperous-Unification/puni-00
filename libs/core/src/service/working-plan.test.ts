@@ -20,8 +20,8 @@ function silentBroadcaster(): Broadcaster {
   };
 }
 
-describe('the uncached admitted batch baseline', () => {
-  it('preserves the four mutation sequences before a working collection is introduced', async () => {
+describe('the admitted working batch baseline', () => {
+  it('preserves the four mutation sequences through a working collection', async () => {
     const source = openMemorySource();
     const admitted: PlanTransactionalStores[] = [];
     const direct = silentBroadcaster();
@@ -46,6 +46,10 @@ describe('the uncached admitted batch baseline', () => {
       const createdProject = await publicGraph.projects.create('Working baseline', OWNER);
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
+      await source.stores.steps.add(
+        { id: stepId, projectId, name: createdProject.steps[0].name },
+        { at: 1, by: OWNER },
+      );
 
       const createdAndEstimated = await runner.run(projectId, OWNER, [
         {
@@ -186,9 +190,8 @@ describe('the uncached admitted batch baseline', () => {
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
-        batchServices(scope, broadcast, workingPlan) {
-          if (workingPlan === undefined) throw new Error('plan batch has no working plan');
-          retainedRead = () => workingPlan.stores.workItems.listByProject(projectId);
+        batchServices(scope, broadcast) {
+          retainedRead = () => scope.stores.workItems.listByProject(projectId);
           return compose(scope.stores, broadcast);
         },
       });
