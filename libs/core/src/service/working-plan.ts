@@ -6,6 +6,7 @@ import type { StepProgressStore } from '../ports/progress-store';
 import type { PlanTransactionalStores } from '../ports/stores';
 import type { Scope } from '../ports/unit-of-work';
 import type { LabelledWorkItem } from '../ports/work-item-store';
+import { createWorkingPlanEdges } from './working-plan-edges';
 import { createWorkingPlanRows } from './working-plan-rows';
 import { createWorkingPlanValues } from './working-plan-values';
 
@@ -23,7 +24,7 @@ export interface WorkingPlan {
  * permanently refuses retained reads, including callbacks borrowed while the
  * batch was open.
  *
- * Row and step-value wrappers exercise the authoritative targeted-refresh
+ * Row, step-value and dependency wrappers exercise the authoritative targeted-refresh
  * boundary. The command service graph must not switch wholesale to
  * `workingPlan.stores` until every remaining mutation wrapper can advance the
  * collections it affects; doing so earlier would make a later command observe
@@ -257,29 +258,26 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     assertOpen,
     refreshRows,
   );
-  const retainedDependencies: DependencyStore = {
-    listByProject: async (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return dependencies.all();
+  const retainedDependencies: DependencyStore = createWorkingPlanEdges(
+    () => scope.stores.dependencies,
+    projectId,
+    {
+      all: async (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return dependencies.all();
+      },
+      byWorkItems: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        const requested = new Set(ids);
+        return (await dependencies.all()).filter(
+          ({ predecessorId, successorId }) =>
+            requested.has(predecessorId) || requested.has(successorId),
+        );
+      },
     },
-    listByWorkItems: async (requestedProjectId, ids) => {
-      assertProject(requestedProjectId);
-      const requested = new Set(ids);
-      return (await dependencies.all()).filter(
-        ({ predecessorId, successorId }) =>
-          requested.has(predecessorId) || requested.has(successorId),
-      );
-    },
-    add: guarded(assertOpen, (dependency, stamp) =>
-      scope.stores.dependencies.add(dependency, stamp),
-    ),
-    remove: guarded(assertOpen, (predecessorId, successorId, stamp) =>
-      scope.stores.dependencies.remove(predecessorId, successorId, stamp),
-    ),
-    removeAllFor: guarded(assertOpen, (workItemIds, stamp) =>
-      scope.stores.dependencies.removeAllFor(workItemIds, stamp),
-    ),
-  };
+    assertOpen,
+    refreshRows,
+  );
 
   const stores: PlanTransactionalStores = {
     get projects() {
@@ -465,7 +463,6 @@ class RetainedRows<Row> {
       replacements.map((row) => [identityOf(row), row] as const),
     );
     const retained: Row[] = [];
-    let lastIncidentIndex = -1;
     for (const row of this.rows) {
       if (!isIncident(row)) {
         retained.push(row);
@@ -475,13 +472,8 @@ class RetainedRows<Row> {
       if (replacement === undefined) continue;
       retained.push(replacement);
       replacementByIdentity.delete(identityOf(row));
-      lastIncidentIndex = retained.length;
     }
-    retained.splice(
-      lastIncidentIndex < 0 ? retained.length : lastIncidentIndex,
-      0,
-      ...replacementByIdentity.values(),
-    );
+    retained.push(...replacementByIdentity.values());
     this.rows = retained.map(this.clone);
   }
 }
@@ -492,16 +484,6 @@ function retainedRows<Row>(
   assertOpen: () => void,
 ): RetainedRows<Row> {
   return new RetainedRows(load, clone, assertOpen);
-}
-
-function guarded<Arguments extends readonly unknown[], Value>(
-  assertOpen: () => void,
-  operation: (...parameters: Arguments) => Promise<Value>,
-): (...parameters: Arguments) => Promise<Value> {
-  return (...parameters) => {
-    assertOpen();
-    return operation(...parameters);
-  };
 }
 
 function byWorkItem<Row extends { workItemId: string }>(

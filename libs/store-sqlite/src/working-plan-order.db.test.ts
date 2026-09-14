@@ -110,6 +110,54 @@ it('keeps SQLite satellite order authoritative after a WorkingPlan patch refresh
   }
 });
 
+it('keeps SQLite dependency order authoritative after a WorkingPlan add', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-edge-order-'));
+  const path = join(directory, 'source.db');
+  runMigrations(path, MIGRATIONS);
+  const source = openSqliteSource({ dbPath: path });
+
+  try {
+    await source.stores.users.create(
+      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
+      STAMP,
+    );
+    await source.stores.projects.create(
+      projectRow({ id: PROJECT, ownerId: OWNER }),
+      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10 }],
+      STAMP,
+    );
+    for (const id of ['a', 'b', 'c', 'd', 'e']) {
+      await source.stores.workItems.insert(workItemRow({ id, projectId: PROJECT }), [], STAMP);
+    }
+    for (const edge of [
+      { id: 'edge-a-b', projectId: PROJECT, predecessorId: 'a', successorId: 'b' },
+      { id: 'edge-c-d', projectId: PROJECT, predecessorId: 'c', successorId: 'd' },
+    ]) {
+      await source.stores.dependencies.add(edge, STAMP);
+    }
+
+    const workingPlan = createWorkingPlan({ stores: source.stores }, PROJECT);
+    await workingPlan.stores.dependencies.listByProject(PROJECT);
+    await workingPlan.stores.dependencies.add(
+      { id: 'edge-a-e', projectId: PROJECT, predecessorId: 'a', successorId: 'e' },
+      { at: 2, by: OWNER },
+    );
+
+    expect(await workingPlan.stores.dependencies.listByProject(PROJECT)).toEqual(
+      await source.stores.dependencies.listByProject(PROJECT),
+    );
+    // Proof: inserting a new incident replacement beside edge-a-b moved the
+    // unrelated edge-c-d behind it instead of retaining SQLite's source order.
+    expect(
+      (await workingPlan.stores.dependencies.listByProject(PROJECT)).map(({ id }) => id),
+    ).toEqual(['edge-a-b', 'edge-c-d', 'edge-a-e']);
+    workingPlan.close();
+  } finally {
+    await source.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 it('keeps SQLite work-item order authoritative immediately after a runner insert', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-insert-order-'));
   const path = join(directory, 'source.db');
@@ -242,6 +290,105 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
         },
       ]),
     ).toMatchObject({ ok: true });
+  } finally {
+    await source.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+it('refreshes a dependency survivor before the next runner command and preserves undo', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-dependency-survivor-'));
+  const path = join(directory, 'source.db');
+  runMigrations(path, MIGRATIONS);
+  const source = openSqliteSource({ dbPath: path });
+
+  try {
+    await source.stores.users.create(
+      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
+      STAMP,
+    );
+    await source.stores.projects.create(
+      projectRow({ id: PROJECT, ownerId: OWNER }),
+      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10 }],
+      STAMP,
+    );
+    for (const id of ['doomed', 'survivor']) {
+      await source.stores.workItems.insert(
+        workItemRow({ id, projectId: PROJECT, name: id, position: id === 'doomed' ? 10 : 20 }),
+        [],
+        STAMP,
+      );
+    }
+    await source.stores.dependencies.add(
+      {
+        id: 'external-edge',
+        projectId: PROJECT,
+        predecessorId: 'doomed',
+        successorId: 'survivor',
+      },
+      STAMP,
+    );
+
+    const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
+    const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
+      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+    const publicGraph = compose(source.stores, silentBroadcaster);
+    let retainedBeforeNext: number | undefined;
+    let authoritativeBeforeNext: number | undefined;
+    const runner = new PlanCommandRunner({
+      uow: source.uow,
+      announcements: silentBroadcaster,
+      publicServices: publicGraph,
+      batchServices(scope, broadcast, workingPlan) {
+        if (workingPlan === undefined) return compose(scope.stores, broadcast);
+        const dependencies = {
+          ...workingPlan.stores.dependencies,
+          removeAllFor: async (
+            ...parameters: Parameters<PlanTransactionalStores['dependencies']['removeAllFor']>
+          ) => {
+            await workingPlan.stores.dependencies.removeAllFor(...parameters);
+            retainedBeforeNext = (
+              await workingPlan.stores.workItems.listByIds(PROJECT, ['survivor'])
+            ).at(0)?.revision;
+            authoritativeBeforeNext = (
+              await scope.stores.workItems.listByIds(PROJECT, ['survivor'])
+            ).at(0)?.revision;
+          },
+        };
+        return compose({ ...workingPlan.stores, dependencies }, broadcast);
+      },
+    });
+
+    expect(
+      await runner.run(PROJECT, OWNER, [
+        { kind: 'deleteWorkItem', workItemId: 'doomed', strategy: 'cascade' },
+        { kind: 'patchWorkItem', workItemId: 'survivor', patch: { name: 'Patched survivor' } },
+      ]),
+    ).toMatchObject({ ok: true });
+
+    // Proof: omitting the captured survivor from removeAllFor's refresh left
+    // retainedBeforeNext at 1 while the admitted SQLite row was revision 2.
+    expect(retainedBeforeNext).toBe(2);
+    expect(retainedBeforeNext).toBe(authoritativeBeforeNext);
+    const entry = (await source.stores.journal.entriesFor(PROJECT, OWNER)).at(0);
+    if (entry === undefined) throw new Error('dependency survivor batch wrote no journal entry');
+    expect(entry.preconditions).toEqual({
+      expected: { survivor: 3 },
+      from: { survivor: 1 },
+    });
+
+    expect(await runner.undo(PROJECT, OWNER)).toMatchObject({ ok: true });
+    expect(await source.stores.dependencies.listByProject(PROJECT)).toMatchObject([
+      {
+        projectId: PROJECT,
+        predecessorId: 'doomed',
+        successorId: 'survivor',
+      },
+    ]);
+    expect(await source.stores.workItems.listByIds(PROJECT, ['doomed', 'survivor'])).toMatchObject([
+      { id: 'doomed', name: 'doomed' },
+      { id: 'survivor', name: 'survivor' },
+    ]);
   } finally {
     await source.close();
     rmSync(directory, { recursive: true, force: true });

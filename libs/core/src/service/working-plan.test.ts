@@ -382,6 +382,74 @@ describe('targeted working-plan refreshes', () => {
     }
   });
 
+  it('keeps a newly added edge in authoritative order and returned edges detached', async () => {
+    const source = openMemorySource();
+    const publicGraph = servicesOver(source.stores, {
+      clock: testClock,
+      broadcast: silentBroadcaster(),
+      scheduler: fastScheduler,
+    });
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Ordered dependency writes', OWNER))
+        .project.id;
+      for (const id of ['a', 'b', 'c', 'd', 'e']) {
+        await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
+          at: 2,
+          by: OWNER,
+        });
+      }
+      for (const edge of [
+        { id: 'edge-a-b', projectId, predecessorId: 'a', successorId: 'b' },
+        { id: 'edge-c-d', projectId, predecessorId: 'c', successorId: 'd' },
+      ]) {
+        await source.stores.dependencies.add(edge, { at: 2, by: OWNER });
+      }
+
+      const workingPlan = createWorkingPlan({ stores: source.stores }, projectId);
+      const borrowed = await workingPlan.stores.dependencies.listByProject(projectId);
+      const first = borrowed.at(0);
+      if (first === undefined) throw new Error('dependency fixture returned no first edge');
+      first.successorId = 'e';
+
+      await workingPlan.stores.dependencies.add(
+        { id: 'edge-a-e', projectId, predecessorId: 'a', successorId: 'e' },
+        { at: 3, by: OWNER },
+      );
+
+      // Proof: inserting a new incident replacement beside the last retained
+      // incident edge moved edge-c-d behind edge-a-e instead of keeping the
+      // memory adapter's authoritative append order.
+      expect(await workingPlan.stores.dependencies.listByProject(projectId)).toEqual(
+        await source.stores.dependencies.listByProject(projectId),
+      );
+      expect(
+        (await workingPlan.stores.dependencies.listByProject(projectId)).map(({ id }) => id),
+      ).toEqual(['edge-a-b', 'edge-c-d', 'edge-a-e']);
+
+      await workingPlan.stores.dependencies.remove('a', 'b', { at: 4, by: OWNER });
+      // Proof: delegating remove without refreshing both endpoints left
+      // edge-a-b in this retained answer after the source deleted it.
+      expect(await workingPlan.stores.dependencies.listByProject(projectId)).toEqual(
+        await source.stores.dependencies.listByProject(projectId),
+      );
+
+      await workingPlan.stores.dependencies.removeAllFor(['a'], { at: 5, by: OWNER });
+      // Proof: delegating removeAllFor without refreshing its captured
+      // surviving endpoints left edge-a-e in the retained answer.
+      expect(await workingPlan.stores.dependencies.listByProject(projectId)).toEqual(
+        await source.stores.dependencies.listByProject(projectId),
+      );
+      workingPlan.close();
+    } finally {
+      await source.close();
+    }
+  });
+
   it('refreshes a labelled row and rejects an unrequested satellite row', async () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
@@ -831,6 +899,72 @@ describe('working plan value failures', () => {
       expect(await workingPlan.stores.actuals.listByProject(projectId)).toEqual([
         { workItemId: leaf.value.id, stepId, days: 2, recordedAt: 2 },
       ]);
+      workingPlan.close();
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('does not advance retained edges before throwing dependency mutations succeed', async () => {
+    const source = openMemorySource();
+    const publicGraph = servicesOver(source.stores, {
+      clock: testClock,
+      broadcast: silentBroadcaster(),
+      scheduler: fastScheduler,
+    });
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Throwing dependency refresh', OWNER))
+        .project.id;
+      for (const id of ['a', 'b', 'c']) {
+        await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
+          at: 2,
+          by: OWNER,
+        });
+      }
+      const storedEdge = {
+        id: 'stored-edge',
+        projectId,
+        predecessorId: 'a',
+        successorId: 'b',
+      };
+      await source.stores.dependencies.add(storedEdge, { at: 2, by: OWNER });
+      const dependencies: PlanTransactionalStores['dependencies'] = {
+        ...source.stores.dependencies,
+        listByWorkItems: async (requestedProjectId, ids) =>
+          (await source.stores.dependencies.listByWorkItems(requestedProjectId, ids)).map(
+            (edge) => ({ ...edge, id: 'invented-before-success' }),
+          ),
+        add: () => Promise.reject(new Error('injected dependency add failure')),
+        remove: () => Promise.reject(new Error('injected dependency remove failure')),
+        removeAllFor: () => Promise.reject(new Error('injected dependency removeAllFor failure')),
+      };
+      const workingPlan = createWorkingPlan(
+        { stores: { ...source.stores, dependencies } },
+        projectId,
+      );
+      await workingPlan.stores.workItems.listByProject(projectId);
+      await workingPlan.stores.dependencies.listByProject(projectId);
+
+      expect(
+        workingPlan.stores.dependencies.add(
+          { id: 'new-edge', projectId, predecessorId: 'b', successorId: 'c' },
+          { at: 3, by: OWNER },
+        ),
+      ).rejects.toThrow('injected dependency add failure');
+      expect(
+        workingPlan.stores.dependencies.remove('a', 'b', { at: 3, by: OWNER }),
+      ).rejects.toThrow('injected dependency remove failure');
+      expect(
+        workingPlan.stores.dependencies.removeAllFor(['a'], { at: 3, by: OWNER }),
+      ).rejects.toThrow('injected dependency removeAllFor failure');
+
+      // Proof: moving an edge refresh ahead of its source write replaced this
+      // retained id with invented-before-success before the injected throw.
+      expect(await workingPlan.stores.dependencies.listByProject(projectId)).toEqual([storedEdge]);
       workingPlan.close();
     } finally {
       await source.close();

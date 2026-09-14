@@ -440,3 +440,42 @@ group sequence.
 The be-01 suite and full workspace test, lint, typecheck, build, browser, deploy, and h2puni gates
 were not run: this final repair is limited to the four owning libraries, and the task explicitly
 excluded the host gate.
+
+## Task 2.5 dependency refresh wrapper
+
+`working-plan-edges.ts` persists dependency add/remove operations before refreshing both endpoint
+rows and the retained edge set. `removeAllFor` reads its incident edges before deletion, retains
+every endpoint outside the doomed set, then refreshes the doomed and surviving identities after
+success. Existing edges keep their retained positions and genuinely new adapter-returned edges
+append in authoritative memory and SQLite order. Returned edge records remain detached; modeled
+cycle refusal and thrown source writes do not advance retained state.
+
+| Scope                      | Command                                                                                                                                                                                                                                                                         | Result                                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Added-edge RED             | `GSETTINGS_BACKEND=memory bun test libs/core/src/service/plan-commands.test.ts --test-name-pattern 'refuses a reversed edge'` before the add refresh                                                                                                                            | Expected RED: 0 passed, 1 failed; the actual runner returned `ok: true` and admitted both directions.              |
+| Edge-order RED             | `GSETTINGS_BACKEND=memory bun test libs/core/src/service/working-plan.test.ts --test-name-pattern 'keeps a newly added edge'` before new-edge append                                                                                                                            | Expected RED: retained `edge-a-b,edge-a-e,edge-c-d`; authoritative memory order was `edge-a-b,edge-c-d,edge-a-e`.  |
+| Remove RED                 | The same focused working-plan case with add refresh restored and remove still delegated                                                                                                                                                                                         | Expected RED: retained `edge-a-b` after the source deleted it.                                                     |
+| Remove-all RED             | The same focused working-plan case with remove refresh restored and removeAllFor still delegated                                                                                                                                                                                | Expected RED: retained `edge-a-e` after the source deleted it.                                                     |
+| Survivor revision RED      | `GSETTINGS_BACKEND=memory bun test libs/store-sqlite/src/working-plan-order.db.test.ts --test-name-pattern 'dependency survivor'` with only the captured survivor omitted from refresh                                                                                          | Expected RED: actual runner retained revision `1`; the admitted SQLite row was revision `2` before the next patch. |
+| Focused GREEN              | `GSETTINGS_BACKEND=memory bun test libs/core/src/service/plan-commands.test.ts libs/core/src/service/working-plan.test.ts libs/store-sqlite/src/working-plan-order.db.test.ts libs/store-sqlite/src/targeted-readers.db.test.ts libs/store-memory/src/targeted-readers.test.ts` | Pass: 56 tests, 229 assertions.                                                                                    |
+| Owning tests               | `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx run-many -t test -p core store-sqlite store-memory conformance --parallel=2 --output-style=static --skip-nx-cache`                                                                                                            | Pass: all 4 targets; core 518/1,717 and SQLite 749/8,541; cache skipped.                                           |
+| Owning lint and typechecks | `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx run-many -t lint typecheck -p core store-sqlite store-memory conformance --parallel=2 --output-style=static --skip-nx-cache`                                                                                                  | Pass: all 8 targets; cache skipped.                                                                                |
+| Strict and all OpenSpec    | `OPENSPEC_TELEMETRY=0 bun x @fission-ai/openspec@1.3.0 validate live-plan-snapshot --strict --json` and `OPENSPEC_TELEMETRY=0 bun x @fission-ai/openspec@1.3.0 validate --all --json`                                                                                           | Pass: change 1/1; repository 83/83 (72 changes and 11 specs).                                                      |
+| Workspace format and diff  | `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all` and `git diff --check`                                                                                                                                                                                    | Pass.                                                                                                              |
+
+### Task 2.5 R5 fault observations
+
+| Check                    | Injected fault                                                               | Observed failure                                                                                                                            |
+| ------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mounted cycle refusal    | Omitted the newly added edge from retained reads.                            | The second reversed dependency was admitted and the batch returned `ok: true` instead of refusing `cycle`.                                  |
+| Exact survivor revision  | Refreshed only doomed ids after `removeAllFor`, omitting captured survivors. | Before the next command, the production runner retained revision `1` while SQLite stored `2`; restored code journals expected revision `3`. |
+| Authoritative edge order | Inserted a new incident edge beside the last retained incident edge.         | Memory retained `edge-a-b,edge-a-e,edge-c-d` instead of source order; the SQLite parity case now returns the same source sequence.          |
+| Successful remove        | Delegated `remove` without refreshing either endpoint.                       | The deleted edge remained in the retained dependency collection.                                                                            |
+| Successful remove-all    | Delegated `removeAllFor` without refreshing captured endpoints.              | The deleted external edge remained in the retained dependency collection.                                                                   |
+| Thrown write stability   | Moved add/remove/removeAllFor refresh before injected source throws.         | The retained edge id became `invented-before-success` instead of remaining `stored-edge`.                                                   |
+
+The SQLite runner witness records exact journal preconditions
+`{expected:{survivor:3},from:{survivor:1}}`, then successfully undoes the batch and restores the
+deleted branch, survivor name and external dependency endpoints. The be-01 suite was not run
+because Task 2.5 touched no application composition boundary. Full workspace build, browser,
+deploy and h2puni gates were explicitly outside this slice.

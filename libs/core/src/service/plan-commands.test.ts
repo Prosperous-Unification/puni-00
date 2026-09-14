@@ -151,6 +151,54 @@ describe('working plan command before-images', () => {
   });
 });
 
+describe('working plan dependency mutations through runner commands', () => {
+  it('refuses a reversed edge through the dependency added earlier in the batch', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Retained dependency cycle', OWNER))
+        .project.id;
+
+      const refused = await runnerOver(source, publicGraph).run(projectId, OWNER, [
+        {
+          kind: 'createWorkItem',
+          ref: 'first',
+          parentId: null,
+          afterId: null,
+          name: 'First',
+        },
+        {
+          kind: 'createWorkItem',
+          ref: 'second',
+          parentId: null,
+          afterId: null,
+          name: 'Second',
+        },
+        { kind: 'addDependency', workItemRef: 'second', predecessorRef: 'first' },
+        { kind: 'addDependency', workItemRef: 'first', predecessorRef: 'second' },
+      ]);
+
+      // Proof: omitting the newly added edge from the retained read admitted
+      // this reversed edge and returned ok instead of refusing its cycle.
+      expect(refused).toMatchObject({
+        ok: false,
+        at: 3,
+        kind: 'addDependency',
+        reason: 'cycle',
+      });
+      expect(await source.stores.dependencies.listByProject(projectId)).toEqual([]);
+    } finally {
+      await source.close();
+    }
+  });
+});
+
 const MEASURE_METRICS = ['token_estimate', 'token_actual', 'hours_actual'] as const;
 
 function setAllValues(workItemId: string, stepId: string, scalar: number): PlanCommand[] {
