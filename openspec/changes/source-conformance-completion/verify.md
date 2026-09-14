@@ -2232,3 +2232,178 @@ uncached `test`, `lint`, and `typecheck` targets for conformance, memory, and
 SQLite all passed: nine successful targets in 1m16s. Strict validation of this
 OpenSpec change and `git diff --check` also passed. Task 7.3 remains unchecked
 because the canonical h2puni workspace gate has not run for this commit.
+
+### 2026-09-14 task 7.3 closeout before the immutable gate
+
+The clean source baseline was fast-forwarded, without merge commit or rebase,
+from `d9e82a3f28569a2c54303fe5f36d2e2b95cadbbf` to refreshed
+`origin/main` at `8779208a38b5312cae949d9706c650a392f33415`. The manifest's
+last source revision is `cdce7b2cdcee95f72f258d2e04666ee5e75053b3`; both terminal
+source files' last source revision is
+`41908dcd763dc7f13768872099ec7d577679f9a4`. Exact content hashes at the
+tested checkout were:
+
+- case manifest: `b2fb1c906da6bb5bfd4b32a61e69bc57fce174bcda992d8261995f3b39969189`;
+- closed fault-variant registry: `40c76d38cc62df015a53eb35fb632e1cbf97c6e464b8fac04c79d5dba4388838`;
+- memory terminal source: `f76bc041884cee48279bd6a7e57ce58e7cbd7bb4d83721d7d536fbd176238a50`;
+- SQLite terminal source: `16c210676483151f0bbec46e6096e02f186f030fa878d6170b71e7cfd6c191d9`.
+
+Both unfilterable source targets ran every actual shared-case baseline, every
+adapter-applicable named matrix mutation, the mutation-removal reversals and
+the setup/effect-window refusal probes. Their exact-inventory tests admit no
+missing or duplicate registered variant: 48 variants apply to both sources
+and four additional variants apply only to SQLite. The family-level matrix
+outcomes below are assertions made by the passing terminal tests, not inferred
+from their process exit codes.
+
+| Shared-case fault group                                        | Actual shared-case observation under the armed mutation                                                                                                     | Diagnostic/reversal reviewed                                                                                                                                          | Restored source            |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| projects, users, capacity, priority bands and calendar markers | every applicable proof was `observed` only after its named phase                                                                                            | wrong steps/scope/actor or identity, complete map/ladder mismatch, marker order/scope/literal-date mismatch; neutral mutation becomes `assertion-passed`              | both source targets passed |
+| migrated steps, estimates, directory and event log             | changed/missing public value, missing removal/range/prune, broad assignment deletion or retained maximum was observed through the original shared case      | the terminal files retain exact case IDs and require setup before reach; removed mutation is rejected by the reversal assertions                                      | both source targets passed |
+| work items, actuals, measures, progress and dependencies       | all row/fact/key/ownership/atomicity mutations were `observed` against complete public snapshots                                                            | premature or incomplete setup remains `phase-failed`; neutral mutations become `assertion-passed`; settlement diagnostics include the escaped or missing exact rows   | both source targets passed |
+| subtree complete copy and late failure                         | disconnected dependency/measure state and escaped uncommitted writes were observed only through ordinary source readers                                     | pre-write or missing populated prerequisites remain `phase-failed`; transaction/staged-state restoration passes                                                       | both source targets passed |
+| journal and plan events                                        | retained preconditions, wrong restamp direction, independent/late history, collateral redo/depth damage, ignored filters and inclusive cutoff were observed | complete journal/history snapshots expose each mutation; no-op or pre-phase mutations remain `phase-failed`                                                           | both source targets passed |
+| saved-plan values, quota, ownership and late bodies            | distinct UTF-8, header-only, altered-body/hash, principal, unknown-touch, persisted-refusal, stale-window and split-write faults were observed              | missing real writes, wrong target/content/phase, premature calls and removed reach cannot count; SQLite's zero affected-row guard has its separate registered variant | both source targets passed |
+| capture and independent history                                | omitted/null/detachment/epoch faults and command-owned history faults were observed through the shared capture/history cases                                | mutation reversals pass; wrong target, missing second read, failed writer and unentered phase remain refused                                                          | both source targets passed |
+
+Terminal certification sets at checkout revision
+`8779208a38b5312cae949d9706c650a392f33415`:
+
+| Source | Families offered | Absent | Gaps / `not-offered` | Passed | Failed | Incomplete |
+| ------ | ---------------: | -----: | -------------------: | -----: | -----: | ---------: |
+| memory |               19 |      0 |                    6 |     64 |      0 |          0 |
+| SQLite |               19 |      0 |                    0 |     70 |      0 |          0 |
+
+Memory's six exact gaps remain
+`actuals.set:unknown_step`, `capacity.set:missing-reference`,
+`estimates.set:unknown_step`, `measures.set:unknown_step`,
+`priorityBands.replace:missing-project`, and
+`progress.set:unknown_step`; their bypass diagnostics remain embedded in the
+printed certificate. SQLite has no exclusions. Neither source has an absent
+family.
+
+Source-specific mechanisms were exercised rather than normalized away:
+
+- staged memory admitted the independent history write as `written`, retained
+  its exact saved ID across both command-batch commit and rollback, serialized
+  the competing quota writer against the history owner, and injected late
+  faults inside staged writes;
+- SQLite settled the competing history attempt as `snapshot_busy` before the
+  held command batch was released, retained the separately prewritten saved ID
+  across commit and rollback, returned immediate busy for the quota rival, and
+  injected atomicity faults inside its real transaction/connection seams.
+
+Fresh pre-gate commands and results:
+
+| Command                                                                                                       | Result                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run store-memory:test:conformance --skip-nx-cache`          | 72 passed, 0 failed, 4,813 assertions; exact memory certificate printed                                                                                                                                                                                          |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run store-sqlite:test:conformance --skip-nx-cache`          | 72 passed, 0 failed, 6,180 assertions; exact SQLite certificate printed                                                                                                                                                                                          |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run conformance:test --skip-nx-cache`                       | 33 passed, 0 failed, 58 assertions across eight files                                                                                                                                                                                                            |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run store-memory:test --skip-nx-cache`                      | 95 passed, 0 failed, 5,027 assertions across four files                                                                                                                                                                                                          |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run store-sqlite:test --skip-nx-cache`                      | 723 passed, 0 failed, 8,220 assertions across 60 files                                                                                                                                                                                                           |
+| `bun test src/source-conformance.test.ts` from `libs/store-memory`                                            | unit-of-work conformance: 6 passed, 0 failed, 18 assertions                                                                                                                                                                                                      |
+| `bun test src/sqlite-unit-of-work.db.test.ts` from `libs/store-sqlite`                                        | unit-of-work conformance: 6 passed, 0 failed, 18 assertions                                                                                                                                                                                                      |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run core:test:portable --skip-nx-cache`                     | restricted sandbox reproduced Chromium `sandbox_host_linux.cc:41` EPERM after bundling 369 modules; the identical approved run outside that sandbox passed 1/0, bundle SHA-256 `38ae0a909d349233cfbd17c5d067929be0b5d6e8e35eb263bf14fb176eefd27b`, 922,839 bytes |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate source-conformance-completion --strict --json` | 1 passed, 0 failed                                                                                                                                                                                                                                               |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`                                  | 83 passed, 0 failed: 72 changes and 11 specs                                                                                                                                                                                                                     |
+
+Independent Astra task/epic reviews and their decisive mutation reversals are
+recorded beside each slice above. The final source review's two enumeration
+findings were repaired before the terminal source files at `41908dcd`; the
+subsequent latest-main integration changed neither terminal source file nor
+the manifest. The only remaining task 7.3 evidence is the committed-SHA
+canonical h2puni gate.
+
+### 2026-09-14 final review repair: staged-history proof and batch lifecycle
+
+The memory command-stage disposal mutant is now the registered variant
+`break:history.batch:interleaved-success-survives:staged-owner` and participates
+in the exact memory inventory. Its named `complete-staged-write` phase is reached
+only after the real stage contains the complete expected header and bodies and
+the shared writer has returned exactly `{ outcome: "written" }`. After rollback,
+the fixture separately records that an exact-ID public read returned null; the
+shared case must then fail with that same missing ID. A wrong-body adversary
+(`wrong-stage-body`) is rejected before phase reach, while the actual disposal
+mutant is `observed`.
+
+Both history-batch fixtures now race admission against early batch rejection.
+Update and readback failures therefore reject the shared assertion instead of
+waiting forever for `entered`. Settlement records whether a batch rejection was
+already reported; teardown drains an unobserved batch failure, then always closes
+the source. SQLite additionally always removes its exact opened temporary
+directory. When settlement and cleanup both reject, `runCases` retains the
+operation first and appends the cleanup cause. The bounded terminal tests cover
+update, readback, and settlement failure for both adapters and assert one actual
+close attempt, no unhandled rejection, and (for SQLite) absent opened directories.
+
+#### R5 reversals observed
+
+| Check                                          | Reversal                                                         | Exact observed failure                                                                                                                                                    |
+| ---------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Complete staged prerequisite gates proof reach | Replaced the complete staged-plan equality with an ID-only check | `wrongBodyProof.kind` changed from expected `phase-failed` to received `observed`.                                                                                        |
+| Admission owns early memory rejection          | Restored unconditional `await entered`                           | Bun surfaced `injected memory history update failure` as unhandled and failed the bounded terminal test.                                                                  |
+| Admission owns early SQLite rejection          | Restored unconditional `await entered`                           | Bounded test failed `update admission did not terminate` after 500 ms.                                                                                                    |
+| Cleanup owns a rejected batch before disposal  | Restored the early `await batch` throw in both teardowns         | Update/readback rows changed from one close + assertion phase to zero closes + cleanup phase; SQLite's exact opened directory remained until restored cleanup removed it. |
+
+#### Restored verification
+
+| Command                                                                                                                                             | Result                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run store-memory:test:conformance --skip-nx-cache`                                                | 73 passed, 0 failed, 4,850 assertions                                                                                                                                                            |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run store-sqlite:test:conformance --skip-nx-cache`                                                | 73 passed, 0 failed, 6,223 assertions                                                                                                                                                            |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run conformance:test --skip-nx-cache`                                                             | 33 passed, 0 failed, 58 assertions across 8 files                                                                                                                                                |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run store-memory:test --skip-nx-cache`                                                            | 96 passed, 0 failed, 5,064 assertions across 4 files                                                                                                                                             |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run store-sqlite:test --skip-nx-cache`                                                            | 724 passed, 0 failed, 8,263 assertions across 60 files                                                                                                                                           |
+| `bun test src/source-conformance.test.ts` from `libs/store-memory`                                                                                  | 6 passed, 0 failed, 18 assertions                                                                                                                                                                |
+| `bun test src/sqlite-unit-of-work.db.test.ts` from `libs/store-sqlite`                                                                              | 6 passed, 0 failed, 18 assertions                                                                                                                                                                |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run core:test:portable --skip-nx-cache`                                                           | Restricted run could not start Chromium; approved identical run passed 1/0 after bundling 369 modules, SHA-256 `38ae0a909d349233cfbd17c5d067929be0b5d6e8e35eb263bf14fb176eefd27b`, 922,839 bytes |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint,typecheck -p conformance,store-memory,store-sqlite --skip-nx-cache --parallel=1` | All six scoped targets passed                                                                                                                                                                    |
+
+Task 7.3 deliberately remains unchecked: the repaired immutable commit still
+requires the canonical h2puni gate and independent re-review.
+
+### 2026-09-14 second final-review repair: failure ordering and real close boundaries
+
+The shared history-batch case no longer lets a rejected `scenario.settle`
+escape a `finally` and replace the history writer's rejection. It captures the
+settlement failure, drains a still-pending history write before fixture close,
+and reports simultaneous causes in operation-first order. The production-path
+regression opens the shared `historyBatchRegistrations`, executes the real
+`runCases` lifecycle, and covers writer+settlement and
+writer+settlement+cleanup failures.
+
+The adapter terminal tests no longer count a callback before disposal. Memory
+decorates the exact `source.close` method used by its history fixture. SQLite
+injects a precisely typed replacement for `closeSqliteResources`, which calls
+the real boundary (including exact-directory removal) before injecting cleanup
+rejection. Both continue to cover update, readback and settlement failures,
+one real boundary invocation, and no unhandled rejection.
+
+#### R5 reversals observed
+
+| Check                                                       | Reversal                                                                                               | Exact observed failure                                                                                                                                                                                                                                                               |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Writer and settlement causes survive together               | Ran the new shared production-path test against the former `finally { await settle() }` implementation | Writer+settlement expected `history batch write and settlement failed: [injected history writer failure; injected history settlement failure]`; received only `injected history settlement failure`. The cleanup row likewise received settlement+cleanup and lost the writer cause. |
+| Pending history write is drained before close               | The same former implementation let settlement escape before awaiting the delayed writer rejection      | Both shared rows failed `Expected: true`, `Received: false` at the close-after-write oracle; restored implementation awaits the write before close and both rows pass.                                                                                                               |
+| Memory cleanup oracle observes the actual source close      | Omitted, then duplicated, the fixture's `source.close()` call                                          | Omission changed all three rows from `closeCalls: 1` to `0`; duplication changed the update/readback rows to `closeCalls: 2`.                                                                                                                                                        |
+| SQLite cleanup oracle observes close plus directory removal | Omitted, then duplicated, the fixture's `closeSqliteResources()` call                                  | Omission changed all rows to `closeCalls: 0` and `directoryExists: true`; duplication changed update/readback rows to `closeCalls: 2` while directories remained removed.                                                                                                            |
+
+#### Restored verification
+
+| Command                                                                                                                                             | Result                                                                                                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run conformance:test --skip-nx-cache`                                                             | 35 passed, 0 failed, 66 assertions across 9 files; both shared lifecycle regressions passed.                                                                                                                 |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run store-memory:test:conformance --skip-nx-cache`                                                | 73 passed, 0 failed, 4,850 assertions; exact memory certificate printed.                                                                                                                                     |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run store-sqlite:test:conformance --skip-nx-cache`                                                | 73 passed, 0 failed, 6,223 assertions; exact SQLite certificate printed.                                                                                                                                     |
+| Focused Task 6.5 terminal tests in each adapter                                                                                                     | Memory 1/0 with 31 assertions; SQLite 1/0 with 43 assertions.                                                                                                                                                |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run store-memory:test --skip-nx-cache`                                                            | 96 passed, 0 failed, 5,064 assertions across 4 files.                                                                                                                                                        |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run store-sqlite:test --skip-nx-cache`                                                            | 724 passed, 0 failed, 8,263 assertions across 60 files.                                                                                                                                                      |
+| Unit-of-work suites (`bun test src/source-conformance.test.ts`; `bun test src/sqlite-unit-of-work.db.test.ts`)                                      | Each passed 6/0 with 18 assertions.                                                                                                                                                                          |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run core:test:portable --skip-nx-cache`                                                           | Restricted Chromium launch reproduced `sandbox_host_linux.cc:41` EPERM; approved identical run passed 1/0, bundle SHA-256 `38ae0a909d349233cfbd17c5d067929be0b5d6e8e35eb263bf14fb176eefd27b`, 922,839 bytes. |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint,typecheck -p conformance,store-memory,store-sqlite --skip-nx-cache --parallel=1` | All six scoped targets passed.                                                                                                                                                                               |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate source-conformance-completion --strict --json`                                       | 1 passed, 0 failed.                                                                                                                                                                                          |
+| `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`                                                                        | 83 passed, 0 failed: 72 changes and 11 specs.                                                                                                                                                                |
+
+Task 7.3 remains unchecked pending the canonical committed-SHA gate and final
+independent Astra re-review.
