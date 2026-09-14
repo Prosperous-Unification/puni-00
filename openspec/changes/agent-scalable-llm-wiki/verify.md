@@ -3416,3 +3416,26 @@ Fresh proportional checks on the restored tree:
 The unfiltered Tool Wiki suite, h2puni gate, browser suite, CI, external trusted review and receipts,
 activation administration, ruleset, authority snapshot, and external binding publication were not
 run or created. The operational obligations remain pending, so Task 5.3 stays unchecked.
+
+### Repo namespace pilot mapping repair
+
+The repository namespace move had mechanically rewritten the live pilot policy's historical
+baseline paths while retaining reviewed source revision `7851161bf96312750d07b933ca5d42b75ce575c7`.
+The exact source-tree comparison consequently failed with an empty old-revision selection against
+eight renamed saved-plan tuples. The repair retains the original path/mode/blob packets and models
+each moved boundary with an old `sourceSelector` and current `selector`; the live module mapping
+keeps current ownership paths and advances to `pilot-layout-namespaced-v2`. Bootstrap policy,
+bootstrap mapping, and external activation archives remain unchanged.
+
+The production-path source-selector negative independently removed the saved-plan source selector
+and observed exit 1 with `trusted boundary baseline escapes selector`; changing its kind from
+`prefix` to `path` independently observed exit 1 with `trusted boundary source selector kind
+differs`. The restored combined negative passed 1 test with 40 assertions. The original focused
+positive then passed 1 test with 27 assertions, including exact tuples from `7851161b`, current
+index reconciliation, and observe lint through external local-operator trust.
+
+The final combined pilot-policy, trusted-policy, and contract-decoder run passed 85 tests with 1,760
+assertions. Fresh uncached Tool Wiki source lint and forced typecheck exited 0. Strict pinned OpenSpec
+validation passed the change. The isolated worktree initially lacked its ignored `node_modules`
+link, producing `trusted TypeScript runtime modules are unreadable`; linking the repository's
+existing dependency tree restored the established test environment before the successful runs.

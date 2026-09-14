@@ -56,6 +56,7 @@ const BoundarySelector = type({ kind: "'path'", value: RelativePath })
 const TrustedBoundary = type({
   boundaryId: OpaqueId,
   selector: BoundarySelector,
+  'sourceSelector?': BoundarySelector,
   baselineEntries: ExactTuple.array(),
   obligationIds: OpaqueId.array(),
 }).onUndeclaredKey('reject');
@@ -385,6 +386,14 @@ function validatePolicy(policy: TrustedPolicy): void {
     if (!boundaries.has(boundaryId)) throw new Error(`unknown activation boundary: ${boundaryId}`);
   }
   for (const boundary of policy.boundaries) {
+    if (
+      boundary.sourceSelector !== undefined &&
+      boundary.sourceSelector.kind !== boundary.selector.kind
+    ) {
+      // Proof: changing the saved-plan source selector from prefix to path makes the production
+      // pilot lint refuse the incompatible relocation before comparing candidate tuples.
+      throw new Error(`trusted boundary source selector kind differs: ${boundary.boundaryId}`);
+    }
     // Proof: removing this check made production observe lint accept an empty saved-plan baseline
     // with all six pilot boundaries merely reported changed (expected exit 1, received accepted).
     if (policy.pilot !== undefined && boundary.baselineEntries.length === 0) {
@@ -395,14 +404,14 @@ function validatePolicy(policy: TrustedPolicy): void {
       `baseline path in boundary ${boundary.boundaryId}`,
     );
     for (const entry of policy.pilot === undefined ? [] : boundary.baselineEntries) {
+      const selector = boundary.sourceSelector ?? boundary.selector;
       const selected =
-        boundary.selector.kind === 'path'
-          ? entry.path === boundary.selector.value
-          : entry.path === boundary.selector.value ||
-            entry.path.startsWith(`${boundary.selector.value}/`);
+        selector.kind === 'path'
+          ? entry.path === selector.value
+          : entry.path === selector.value || entry.path.startsWith(`${selector.value}/`);
       if (!selected) {
-        // Proof: skipping pilot tuple containment made production observe lint accept a core
-        // replay tuple inside the saved-plan baseline (expected exit 1, received accepted).
+        // Proof: deleting the namespaced saved-plan source selector, and separately moving its
+        // first tuple into the old core prefix, makes production pilot lint refuse each mismatch.
         throw new Error(
           `trusted boundary baseline escapes selector ${boundary.boundaryId}: ${entry.path}`,
         );
@@ -1065,15 +1074,28 @@ function selectedMembers(
   );
 }
 
+function relocateBaseline(
+  boundary: TrustedPolicy['boundaries'][number],
+  baseline: TrustedPolicy['boundaries'][number]['baselineEntries'][number],
+): TrustedPolicy['boundaries'][number]['baselineEntries'][number] {
+  const source = boundary.sourceSelector ?? boundary.selector;
+  if (source.kind === 'path') return { ...baseline, path: boundary.selector.value };
+  return {
+    ...baseline,
+    path: `${boundary.selector.value}${baseline.path.slice(source.value.length)}`,
+  };
+}
+
 function changedBoundaries(candidate: CandidateSnapshot, policy: TrustedPolicy): string[] {
   return policy.boundaries
     .filter((boundary) => {
       const selected = selectedMembers(candidate, boundary.selector);
+      const baselineEntries = boundary.baselineEntries.map((baseline) =>
+        relocateBaseline(boundary, baseline),
+      );
       return (
-        selected.length !== boundary.baselineEntries.length ||
-        selected.some(
-          (entry) => !boundary.baselineEntries.some((baseline) => sameTuple(entry, baseline)),
-        )
+        selected.length !== baselineEntries.length ||
+        selected.some((entry) => !baselineEntries.some((baseline) => sameTuple(entry, baseline)))
       );
     })
     .map(({ boundaryId }) => boundaryId)
