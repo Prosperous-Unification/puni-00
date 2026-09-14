@@ -211,20 +211,27 @@ function candidatePaths(): string[] {
   return new TextDecoder().decode(invocation.stdout).split('\0').filter(Boolean);
 }
 
-async function currentDocuments(): Promise<string[]> {
-  const readmes = candidatePaths().filter(
+async function currentDocuments(
+  rootRouterSource?: string,
+  candidates = new Set(candidatePaths()),
+): Promise<string[]> {
+  const readmes = [...candidates].filter(
     (path) =>
       path.endsWith('/README.md') &&
       (path.startsWith('apps/') || path.startsWith('libs/') || path.startsWith('tools/')),
   );
   const historical = new Set<string>(CLASSIFIED_LEGACY_DOCUMENTATION.map(([path]) => path));
-  const rootRouted = (await rootRoutedDocuments()).filter((path) => !historical.has(path));
+  const rootRouted = (await rootRoutedDocuments(rootRouterSource, candidates)).filter(
+    (path) => candidates.has(path) && !historical.has(path),
+  );
   return [...new Set([...CURRENT_MARKDOWN, ...rootRouted, ...readmes])].sort();
 }
 
-async function rootRoutedDocuments(): Promise<string[]> {
-  const candidates = new Set(candidatePaths());
-  const source = await readFile(join(WORKSPACE, 'LLM_README.md'), 'utf8');
+async function rootRoutedDocuments(
+  rootRouterSource?: string,
+  candidates = new Set(candidatePaths()),
+): Promise<string[]> {
+  const source = rootRouterSource ?? (await readFile(join(WORKSPACE, 'LLM_README.md'), 'utf8'));
   const destinations = [
     ...localMarkdownDestinations(source),
     ...[...source.matchAll(/`([^`\s]+\.md)`/g)].map((match) => match[1]),
@@ -232,12 +239,14 @@ async function rootRoutedDocuments(): Promise<string[]> {
   const routed: string[] = [];
   for (const destination of destinations) {
     const path = decodeURIComponent(destination.split(/[?#]/, 1)[0]).replace(/^\//, '');
-    const candidate = candidates.has(path)
-      ? path
-      : candidates.has(`${path}/README.md`)
-        ? `${path}/README.md`
-        : undefined;
-    if (candidate?.endsWith('.md') === true) routed.push(candidate);
+    const isExplicitRoute =
+      !/[{}*?[\]]/.test(path) &&
+      (/^(?:apps|docs|libs|openspec|tools)\//.test(path) ||
+        path === 'AGENTS.md' ||
+        path === 'HUMAN_README.md');
+    if (!isExplicitRoute) continue;
+    const candidate = candidates.has(`${path}/README.md`) ? `${path}/README.md` : path;
+    if (candidate.endsWith('.md')) routed.push(candidate);
   }
   return [...new Set(routed)].sort();
 }
@@ -280,10 +289,17 @@ function documentAnchors(source: string): Set<string> {
   return anchors;
 }
 
-async function currentDocumentLinkFailures(): Promise<string[]> {
-  const candidates = new Set(candidatePaths());
+async function currentDocumentLinkFailures(
+  rootRouterSource?: string,
+  candidates = new Set(candidatePaths()),
+): Promise<string[]> {
   const failures: string[] = [];
-  for (const sourcePath of await currentDocuments()) {
+  for (const routedPath of await rootRoutedDocuments(rootRouterSource, candidates)) {
+    if (!candidates.has(routedPath)) {
+      failures.push(`LLM_README.md -> ${routedPath} (absent ${routedPath})`);
+    }
+  }
+  for (const sourcePath of await currentDocuments(rootRouterSource, candidates)) {
     const source = await readFile(join(WORKSPACE, sourcePath), 'utf8');
     for (const destination of localMarkdownDestinations(source)) {
       const hashAt = destination.indexOf('#');
@@ -489,6 +505,28 @@ test('every root-routed current document participates in handoff checks', async 
   // Proof: the fixed list omitted six live LLM routes, including all three production runbooks;
   // this actual root-router comparison failed with their exact paths before discovery was wired.
   expect(omitted).toEqual([]);
+});
+
+test('absent inline-code root routes survive extraction', async () => {
+  const missingRoute = 'docs/missing-runbook.md';
+  const rootRouter = '`docs/runbook-prod-deploy.md` -> `docs/missing-runbook.md`';
+  const candidates = new Set(candidatePaths());
+
+  // Proof: injecting this absent inline-code destination into the root router returned only
+  // the 18 existing routes until extraction stopped filtering destinations by candidate membership.
+  expect(await rootRoutedDocuments(rootRouter, candidates)).toContain(missingRoute);
+});
+
+test('absent inline-code root routes fail validation by exact name', async () => {
+  const missingRoute = 'docs/missing-runbook.md';
+  const rootRouter = '`docs/runbook-prod-deploy.md` -> `docs/missing-runbook.md`';
+  const candidates = new Set(candidatePaths());
+
+  // Proof: the injected missing route previously produced no link failures; this exact
+  // LLM_README.md diagnostic failed until routed destinations were validated before reads.
+  expect(await currentDocumentLinkFailures(rootRouter, candidates)).toContain(
+    `LLM_README.md -> ${missingRoute} (absent ${missingRoute})`,
+  );
 });
 
 test('every Dockerfile naming variant participates in source inventory', () => {

@@ -519,3 +519,31 @@ and `external activation root is not provisioned`; no activation success is clai
 Bun OpenSpec CLI validated all 83/83 changes/specs strictly. The unpinned `openspec` executable
 was unavailable (exit 127), so `bunx @fission-ai/openspec@1.3.0` supplied the recorded result.
 Task 4.2 owns the frozen-candidate h2puni/browser/image gates; they were not run here.
+
+### Astra follow-up: absent root-route destinations
+
+`rootRoutedDocuments()` now preserves concrete Markdown destinations named by `LLM_README.md`
+even when the candidate inventory does not contain them. Wildcard families and prose suffixes
+remain non-routes. Existing files continue into the current-document readers; absent destinations
+are diagnosed first as an exact `LLM_README.md` link failure rather than disappearing from both
+sets.
+
+The focused RED command was:
+
+```sh
+bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts --test-name-pattern 'absent inline-code root routes'
+```
+
+Before the fix it exited 1 with 0 pass, 2 fail, 12 filtered and 2 expectations. Extraction
+returned only the 18 existing routes instead of containing `docs/missing-runbook.md`; validation
+returned `[]` instead of
+`LLM_README.md -> docs/missing-runbook.md (absent docs/missing-runbook.md)`. After separating
+explicit route extraction from candidate-backed document reads, the identical command passed 2/2
+with 12 filtered and 2 expectations. Adjacent `Proof:` comments retain both injected-fault
+observations.
+
+Final verification passed: the complete handoff file reported 14/14 tests and 15 expectations;
+ESLint over all Tool Devsync sources and the uncached Tool Devsync typecheck both exited 0;
+`nx format:check --all` exited 0; and pinned strict OpenSpec validation reported 83/83 valid
+(72 changes and 11 specs). The read-only Tool Wiki lint remained intentionally noncertifying:
+`status: inactive`, `certified: false`, `external activation root is not provisioned`.
