@@ -16,6 +16,18 @@ it('routes staged SQL from lefthook through the moved migration root', async () 
   );
 });
 
+it('hashes the external lefthook route into the Nx test cache key', async () => {
+  const manifest: unknown = await Bun.file(
+    new URL('tools/tool-git-hooks/project.json', WORKSPACE),
+  ).json();
+  // Proof: after warming the real Nx cache, injecting the legacy migration glob in
+  // lefthook.yml made `nx test tool-git-hooks` execute again and fail this suite.
+  expect(manifest).toHaveProperty(
+    'targets.test.inputs',
+    expect.arrayContaining(['{workspaceRoot}/lefthook.yml']),
+  );
+});
+
 describe('down script rules', () => {
   const root = scratchSync('wbs-migration-lint-');
   const dir = join(root, 'apps', 'wbs', 'be-01', 'drizzle');

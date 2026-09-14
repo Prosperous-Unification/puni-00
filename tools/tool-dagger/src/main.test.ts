@@ -92,6 +92,23 @@ describe('candidate image inputs', () => {
     expect(manifest).toHaveProperty('targets.test-fe.options.command', 'nx test wbs-fe-01');
   });
 
+  it('hashes every external build-input assertion into the Nx test cache key', async () => {
+    const manifest: unknown = await Bun.file(new URL('../project.json', import.meta.url)).json();
+    // Proof: after warming the real Nx cache, injecting the legacy backend Dockerfile COPY path
+    // and, separately, the old smoke-script root ascent each made `nx test tool-dagger` execute
+    // again and fail the corresponding production-path assertion (61 passed / 1 failed).
+    expect(manifest).toHaveProperty(
+      'targets.test.inputs',
+      expect.arrayContaining([
+        '{workspaceRoot}/apps/wbs/be-01/**/*',
+        '{workspaceRoot}/apps/wbs/gw-01/**/*',
+        '{workspaceRoot}/apps/wbs/fe-01/**/*',
+        '{workspaceRoot}/libs/**/*',
+        '{workspaceRoot}/nx.json',
+      ]),
+    );
+  });
+
   it('resolves the solver image smoke repository root after the app move', () => {
     const root = scratchSync('wbs-solver-smoke-root-');
     const commands = join(root, 'commands');
