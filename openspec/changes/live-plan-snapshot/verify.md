@@ -519,10 +519,14 @@ workspace build, browser, deploy and h2puni gates were explicitly outside this s
 `working-plan-directory.ts` delegates directory reads, reloads every already-retained global
 collection after a successful global entry or membership mutation, and refreshes only the assigned
 work-item row after a successful project-scoped assignment. Refused and thrown writes do not
-advance retained state. The actual runner covers create-person then assign, assign then patch, and
-cascade-delete-team then patch in one batch; undo restores the prior row, directory membership and
-labels. A failed post-write reload rejects the command and the SQLite unit of work rolls back both
-the directory write and its row cascade.
+advance retained state. The memory runner provides command-sequence/read-count smoke: its
+create-person then assign and assign then patch paths cover assignment refresh reads, while its
+delete-team then patch path asserts only the final row name. That path's custom directory adapter
+does not cascade labels or bump row revisions; the SQLite runner is the actual cascade and revision
+proof. Undo is demonstrated only for assign then patch, restoring the previous assignment and row
+name. Global directory writes are unjournalled, so this does not claim restoration of directory
+membership, and cascade deletion is not undone. A failed post-write reload rejects the command and
+the SQLite unit of work rolls back both the directory write and its row cascade.
 
 | Scope                      | Command                                                                                                                                                                                                                             | Result                                                                                                                                                                                          |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -536,12 +540,12 @@ the directory write and its row cascade.
 
 ### Task 2.7 R5 fault observations
 
-| Check                             | Injected fault                                                                                          | Observed failure                                                                                                                                  |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Exact assignment revision         | Omitted only the successful assignment's target-row refresh.                                            | At the next patch boundary, retained/stored revisions diverged as `1/2` and then `2/3`; restored code journals `{expected:{row:4},from:{row:2}}`. |
-| Exact deleted labels and revision | Delegated `removeTeam` without the global reload barrier.                                               | Before the following patch, the retained row still had the removed team and revision `6`, while SQLite had cleared both labels at revision `7`.   |
-| Reload failure rollback           | Threw from the authoritative work-item reload after SQLite accepted `removeTeam`.                       | The command rejected, and a fresh SQLite read found the team and the exact pre-write labelled row restored.                                       |
-| Refusal and throw stability       | Exercised every modeled false result and thrown directory/assignment write through the mounted wrapper. | Neither global reload nor target refresh ran; successful assignment refreshed one affected row with zero placement calls and no global reload.    |
+| Check                             | Injected fault                                                                                                                          | Observed failure                                                                                                                                  |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact assignment revision         | Omitted only the successful assignment's target-row refresh.                                                                            | At the next patch boundary, retained/stored revisions diverged as `1/2` and then `2/3`; restored code journals `{expected:{row:4},from:{row:2}}`. |
+| Exact deleted labels and revision | Delegated `removeTeam` without the global reload barrier.                                                                               | Before the following patch, the retained row still had the removed team and revision `6`, while SQLite had cleared both labels at revision `7`.   |
+| Reload failure rollback           | Threw from the authoritative work-item reload after SQLite accepted `removeTeam`.                                                       | The command rejected, and a fresh SQLite read found the team and the exact pre-write labelled row restored.                                       |
+| Refusal and throw stability       | Exercised one false outcome for every refusing global method, both assignment refusals, and throws from only `removeTeam` and `assign`. | Neither global reload nor target refresh ran; successful assignment refreshed one affected row with zero placement calls and no global reload.    |
 
 The be-01 suite was not run because Task 2.7 touched no application composition boundary. Full
 workspace build, browser, deploy and h2puni gates were explicitly outside this slice.
