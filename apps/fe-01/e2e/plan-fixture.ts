@@ -6,6 +6,7 @@ import {
   clientFromShapes,
   createProject,
   getWorkItems,
+  listTags,
   type PlanCommandWire,
   readProject,
   type TransportReply,
@@ -60,26 +61,46 @@ function normalizeRecipeRows(recipe: PlanRecipe): readonly NormalizedRecipeRow[]
   for (const row of recipe.rows) {
     // Proof: deleting this refusal made the duplicate-recipe-ref browser case observe a project POST.
     if (rowRefs.has(row.ref)) throw new Error(`duplicate recipe row ref: ${row.ref}`);
+    // Proof: removing this refusal made `an unavailable predecessor fails before a write request`
+    // observe one project POST before the later unresolved-ref refusal.
     if (row.afterRef !== undefined && !rowRefs.has(row.afterRef))
       throw new Error(`recipe row ${row.ref} follows unavailable ref: ${row.afterRef}`);
     rowRefs.add(row.ref);
   }
   const tagRefs = new Set<string>();
   for (const tag of recipe.tags ?? []) {
+    // Proof: removing this refusal made `a duplicate tag ref fails before a write request`
+    // observe one project POST before directory identity verification refused.
     if (tagRefs.has(tag.ref)) throw new Error(`duplicate recipe tag ref: ${tag.ref}`);
     tagRefs.add(tag.ref);
   }
   for (const row of recipe.rows) {
-    for (const tagRef of row.tagRefs ?? [])
+    for (const tagRef of row.tagRefs ?? []) {
+      // Proof: removing this refusal made `an unknown row tag ref fails before a write request`
+      // observe one project POST before the later missing-id refusal.
       if (!tagRefs.has(tagRef)) throw new Error(`unknown recipe tag ref: ${tagRef}`);
+    }
   }
   return recipe.rows.map((row, index) => ({
     ...row,
     // Recipe array order is authoritative when a caller omits a predecessor.
     // Proof: defaulting every omission to null reversed the real two-row plan
-    // and the 201-row plan across its batch boundary; both exact-id checks failed.
+    // and the 201-row plan across its batch boundary; both independent exact
+    // stored-id checks failed.
     afterRef: row.afterRef ?? (index === 0 ? null : recipe.rows[index - 1].ref),
   }));
+}
+
+function calculateExpectedRowRefs(rows: readonly PlanRecipeRow[]): readonly string[] {
+  const orderedRefs: string[] = [];
+  for (const [index, row] of rows.entries()) {
+    const afterRef = row.afterRef ?? (index === 0 ? null : rows[index - 1].ref);
+    const predecessorIndex = afterRef === null ? -1 : orderedRefs.indexOf(afterRef);
+    if (afterRef !== null && predecessorIndex < 0)
+      throw new Error(`expected order is missing predecessor: ${afterRef}`);
+    orderedRefs.splice(predecessorIndex + 1, 0, row.ref);
+  }
+  return orderedRefs;
 }
 
 function pageTransport(page: Page) {
@@ -134,6 +155,7 @@ export function fixtureClient(page: Page) {
       applyProjectCommands,
       applyDirectoryCommands,
       getWorkItems,
+      listTags,
     ] as const,
     pageTransport(page),
   );
@@ -228,6 +250,15 @@ export async function seedPlan(
     );
   }
 
+  const storedTags = fixtureSuccess('getApiTags', await client.getApiTags({})).body.tags;
+  const storedTagById = new Map(storedTags.map((tag) => [tag.id, tag]));
+  for (const tag of tags) {
+    const tagId = tagIds[tag.ref];
+    // Proof: removing this directory comparison made the swapped-successful-tag-ids
+    // case resolve and start its project commands instead of refusing here.
+    expect(storedTagById.get(tagId)?.name, `stored tag identity for ${tag.ref}`).toBe(tag.name);
+  }
+
   const rowIdByRef = new Map<string, string>();
   for (let start = 0; start < recipeRows.length; start += CHUNK_SIZE) {
     const rows = recipeRows.slice(start, start + CHUNK_SIZE);
@@ -297,7 +328,11 @@ export async function seedPlan(
     'getApiProjectsByIdWork-items',
     await client['getApiProjectsByIdWork-items']({ params: { id: projectId } }),
   ).body;
-  expect(tree.workItems.map((row) => row.id)).toEqual(recipeRows.map((row) => rowIds[row.ref]));
+  // Proof: replacing this original-recipe placement calculation with recipe array
+  // order made the explicit sibling case expect [a,b,c] from the stored [a,c,b].
+  expect(tree.workItems.map((row) => row.id)).toEqual(
+    calculateExpectedRowRefs(recipe.rows).map((ref) => rowIds[ref]),
+  );
   for (const expected of recipeRows) {
     const stored = tree.workItems.find((row) => row.id === rowIds[expected.ref]);
     if (stored === undefined) throw new Error(`stored tree is missing row ${expected.ref}`);
