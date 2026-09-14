@@ -761,9 +761,27 @@ one residue was removed explicitly. Final `docker ps` plus `lsof` checks found n
 listener; 5000/5100/6100 were also unbound, the generated env files were absent, and Git remained
 clean at the frozen candidate before this evidence edit.
 
-No production safety check changed in Task 4.2, so it created no new injected R5 fault. All earlier
-injected negatives recorded above were restored before the frozen candidate. The two retained
-refusals here are observed environment/preflight negatives, not synthesized release, activation or
+The retained, uninterrupted transcript was copied read-only from h2puni
+`/tmp/repo-namespacing-task11-h2-gate.log` to the same local path. It is 16,036 bytes with SHA-256
+`a5e6384bd0971868655719ca50036736fb35ebf07170737bb6e6ec5c9e1c2943`. It contains exactly one
+candidate header for `5a6bc949302bb3aabc1ac182176feba751a9defe`, the solver orphan/timer proof
+above, and the final `real 2102.65` timing.
+
+Follow-up review found that this frozen candidate's production gate steps omitted the required
+all-change OpenSpec validation. The subsequent gate-contract repair runs pinned
+`@fission-ai/openspec@1.3.0 validate --all --json`, retains that JSON in gate output through `tee`,
+and accepts exactly one JSON object whose `failed` and `passed` totals are numeric integers with
+`failed == 0` and `passed > 0`. Its production-path test injected exit-zero JSON with `failed=1`:
+before the repair the steps returned 0 and reached Nx; after the repair they exited 1 before Nx and
+cleaned the report. Review then injected `passed="0"`, `passed=1.5`, and two sequential documents
+whose first failed and second passed; the former loose `jq` expression admitted all three and
+reached Nx. The exact type/cardinality guard refused each before Nx, and replacing it with the
+loose expression reproduced all six assertions. Missing-validator, missing-`jq`, and missing-`tee`
+cases exit 127 before later work; passing validator JSON remains visible in stdout. The repair was
+verified by the focused gate test and lightweight owning checks; the full h2puni gate was
+deliberately not rerun, so the retained transcript proves the original frozen-candidate run rather
+than the subsequent contract repair. All mutations were restored. The two earlier retained
+refusals are observed environment/preflight negatives, not synthesized release, activation or
 production-deploy evidence. No live production deploy ran.
 
 ## Section 4.4 Astra live relationship repair

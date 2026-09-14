@@ -5,6 +5,21 @@ repo=${1:?repository is required}
 : "${2:?committed revision is required}"
 cd "$repo"
 
+openspec_report=$(mktemp)
+trap 'rm -f -- "$openspec_report"' EXIT
+# Proof: h2puni-gate.test.sh injects failed=1, passed="0", passed=1.5 and failed-then-passing
+# documents. The loose jq check admitted the latter three and reached Nx; this exact contract
+# refuses every injected fault before Nx while retaining the validator JSON in gate output.
+bunx @fission-ai/openspec@1.3.0 validate --all --json | tee "$openspec_report"
+jq -s -e '
+  length == 1 and
+  (.[0] | type == "object") and
+  (.[0].summary.totals.failed | type == "number" and floor == . and . == 0) and
+  (.[0].summary.totals.passed | type == "number" and floor == . and . > 0)
+' "$openspec_report" >/dev/null
+rm -f -- "$openspec_report"
+trap - EXIT
+
 bunx nx format:check --all
 # Proof: dropping this exclusion made gate-entrypoints.test.ts lose the exact-once split and fail
 # at `Expected to contain: --exclude=tool-wiki`; tool-wiki source lint is invoked below.

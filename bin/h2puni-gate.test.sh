@@ -78,6 +78,50 @@ run_modules_resolution() {
     h2puni-modules-resolution "$gate_lib" "$activation_root" "$candidate_root" "$modules_input"
 }
 
+prepare_gate_steps_path() {
+  local fixture_root=$1 include_jq=$2 include_tee=${3:-yes}
+  mkdir -p "$fixture_root/bin" "$fixture_root/reports"
+  ln -s "$(type -P mktemp)" "$fixture_root/bin/mktemp"
+  ln -s "$(type -P rm)" "$fixture_root/bin/rm"
+  if [[ $include_jq == yes ]]; then
+    ln -s "$(type -P jq)" "$fixture_root/bin/jq"
+  fi
+  if [[ $include_tee == yes ]]; then
+    ln -s "$(type -P tee)" "$fixture_root/bin/tee"
+  fi
+  # shellcheck disable=SC2016 # These variables belong to the generated fake, not this process.
+  printf '%s\n' \
+    '#!/bin/bash' \
+    'printf '\''%s\n'\'' "$*" >>"$GATE_CALL_LOG"' \
+    'if [[ $1 == @fission-ai/openspec@1.3.0 ]]; then' \
+    '  case $GATE_OPEN_SPEC_MODE in' \
+    '    failed) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":7,"failed":1}}}'\'' ;;' \
+    '    empty) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":0,"failed":0}}}'\'' ;;' \
+    '    string) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":"0","failed":0}}}'\'' ;;' \
+    '    fractional) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":1.5,"failed":0}}}'\'' ;;' \
+    '    multiple) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":7,"failed":1}}}'\'' '\''{"summary":{"totals":{"passed":8,"failed":0}}}'\'' ;;' \
+    '    missing) exit 127 ;;' \
+    '    passed) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":8,"failed":0}}}'\'' ;;' \
+    '    *) exit 64 ;;' \
+    '  esac' \
+    '  exit 0' \
+    'fi' \
+    'printf '\''later\n'\'' >"$GATE_LATER_MARKER"' \
+    >"$fixture_root/bin/bunx"
+  chmod +x "$fixture_root/bin/bunx"
+}
+
+run_gate_steps_fixture() {
+  local fixture_root=$1 mode=$2
+  GATE_CALL_LOG="$fixture_root/calls" \
+    GATE_LATER_MARKER="$fixture_root/later" \
+    GATE_OPEN_SPEC_MODE="$mode" \
+    PATH="$fixture_root/bin" \
+    TMPDIR="$fixture_root/reports" \
+    /bin/bash "$repo_root/bin/h2puni-gate-steps.sh" "$repo_root" HEAD \
+    >"$fixture_root/stdout" 2>"$fixture_root/stderr"
+}
+
 scratch="${TMPDIR:-/tmp}/wbs-h2puni-gate-test.$$"
 rm -rf "$scratch"
 mkdir -p "$scratch"
@@ -416,6 +460,129 @@ if grep -q 'runtime modules must be outside the candidate checkout' "$scratch/ca
   pass 'the candidate runtime refusal names the trust boundary'
 else
   fail 'the candidate runtime refusal did not name the trust boundary'
+fi
+
+# 22. OpenSpec reports its contract in JSON even when the process exits zero. A failed spec must
+# stop the real production steps before Nx work begins.
+failed_spec_fixture="$scratch/failed-spec"
+prepare_gate_steps_path "$failed_spec_fixture" yes
+status=0
+run_gate_steps_fixture "$failed_spec_fixture" failed || status=$?
+expect_status 1 "$status" 'an exit-zero OpenSpec report with a failed spec refuses the gate steps'
+expect_equal '@fission-ai/openspec@1.3.0 validate --all --json' \
+  "$(head -n 1 "$failed_spec_fixture/calls" 2>/dev/null)" 'the gate invokes the pinned validator contract'
+if [[ -e $failed_spec_fixture/later ]]; then
+  fail 'the failed OpenSpec report allowed later Nx work'
+else
+  pass 'the failed OpenSpec report stops before later Nx work'
+fi
+if compgen -G "$failed_spec_fixture/reports/*" >/dev/null; then
+  fail 'the failed OpenSpec report left its temporary file behind'
+else
+  pass 'the failed OpenSpec report cleans its temporary file'
+fi
+
+# 23. Zero failures is insufficient when no spec was validated.
+empty_spec_fixture="$scratch/empty-spec"
+prepare_gate_steps_path "$empty_spec_fixture" yes
+status=0
+run_gate_steps_fixture "$empty_spec_fixture" empty || status=$?
+expect_status 1 "$status" 'an OpenSpec report with no passing specs refuses the gate steps'
+if [[ -e $empty_spec_fixture/later ]]; then
+  fail 'the empty OpenSpec report allowed later Nx work'
+else
+  pass 'the empty OpenSpec report stops before later Nx work'
+fi
+
+# 24. A missing validator is a required-tool failure, not permission to continue.
+missing_validator_fixture="$scratch/missing-validator"
+prepare_gate_steps_path "$missing_validator_fixture" yes
+status=0
+run_gate_steps_fixture "$missing_validator_fixture" missing || status=$?
+expect_status 127 "$status" 'a missing OpenSpec validator refuses the gate steps'
+if [[ -e $missing_validator_fixture/later ]]; then
+  fail 'the missing validator allowed later Nx work'
+else
+  pass 'the missing validator stops before later Nx work'
+fi
+
+# 25. JSON is accepted only through jq; losing that parser must fail closed.
+missing_jq_fixture="$scratch/missing-jq"
+prepare_gate_steps_path "$missing_jq_fixture" no
+status=0
+run_gate_steps_fixture "$missing_jq_fixture" passed || status=$?
+expect_status 127 "$status" 'a missing jq refuses the gate steps'
+if [[ -e $missing_jq_fixture/later ]]; then
+  fail 'the missing jq allowed later Nx work'
+else
+  pass 'the missing jq stops before later Nx work'
+fi
+
+# 26. JSON type ordering must not let a string total satisfy numeric acceptance.
+string_spec_fixture="$scratch/string-spec"
+prepare_gate_steps_path "$string_spec_fixture" yes
+status=0
+run_gate_steps_fixture "$string_spec_fixture" string || status=$?
+expect_status 1 "$status" 'a string OpenSpec pass total refuses the gate steps'
+if [[ -e $string_spec_fixture/later ]]; then
+  fail 'the string OpenSpec pass total allowed later Nx work'
+else
+  pass 'the string OpenSpec pass total stops before later Nx work'
+fi
+
+# 27. Totals are counts, so even numeric fractions are malformed.
+fractional_spec_fixture="$scratch/fractional-spec"
+prepare_gate_steps_path "$fractional_spec_fixture" yes
+status=0
+run_gate_steps_fixture "$fractional_spec_fixture" fractional || status=$?
+expect_status 1 "$status" 'a fractional OpenSpec pass total refuses the gate steps'
+if [[ -e $fractional_spec_fixture/later ]]; then
+  fail 'the fractional OpenSpec pass total allowed later Nx work'
+else
+  pass 'the fractional OpenSpec pass total stops before later Nx work'
+fi
+
+# 28. A later passing JSON document cannot overwrite an earlier failed report's jq exit status.
+multiple_spec_fixture="$scratch/multiple-spec"
+prepare_gate_steps_path "$multiple_spec_fixture" yes
+status=0
+run_gate_steps_fixture "$multiple_spec_fixture" multiple || status=$?
+expect_status 1 "$status" 'two sequential OpenSpec reports refuse the gate steps'
+if [[ -e $multiple_spec_fixture/later ]]; then
+  fail 'two sequential OpenSpec reports allowed later Nx work'
+else
+  pass 'two sequential OpenSpec reports stop before later Nx work'
+fi
+
+# 29. Losing the command-output retention tool must fail before validation can be hidden.
+missing_tee_fixture="$scratch/missing-tee"
+prepare_gate_steps_path "$missing_tee_fixture" yes no
+status=0
+run_gate_steps_fixture "$missing_tee_fixture" passed || status=$?
+expect_status 127 "$status" 'a missing tee refuses the gate steps'
+if [[ -e $missing_tee_fixture/later ]]; then
+  fail 'the missing tee allowed later Nx work'
+else
+  pass 'the missing tee stops before later Nx work'
+fi
+
+# 30. A non-empty, failure-free report admits the remaining production steps and remains visible.
+passed_spec_fixture="$scratch/passed-spec"
+prepare_gate_steps_path "$passed_spec_fixture" yes
+status=0
+run_gate_steps_fixture "$passed_spec_fixture" passed || status=$?
+expect_status 0 "$status" 'a passing OpenSpec report admits the remaining gate steps'
+expect_equal '{"summary":{"totals":{"passed":8,"failed":0}}}' \
+  "$(cat "$passed_spec_fixture/stdout")" 'the passing OpenSpec JSON remains in gate output'
+if [[ -e $passed_spec_fixture/later ]]; then
+  pass 'the passing OpenSpec report reaches later Nx work'
+else
+  fail 'the passing OpenSpec report did not reach later Nx work'
+fi
+if compgen -G "$passed_spec_fixture/reports/*" >/dev/null; then
+  fail 'the passing OpenSpec report left its temporary file behind'
+else
+  pass 'the passing OpenSpec report cleans its temporary file'
 fi
 
 if ((failures)); then
