@@ -714,5 +714,15 @@ live relationship's new `{workspaceRoot}/libs/**/*` input also raises the curren
 selector inventory from 22 to 23 and the complete occurrence total from 261 to 262, with digest
 `c3d5e0c4bb0845cfbdda63bb64686893cc181af36a14894899a5e2f73a56d588`.
 
+After committing the candidate so the production root-migration CLI could inspect the exact
+selected tree, its focused suite passed 32/32 with 324 expectations in 63.81 seconds. The complete
+handoff suite passed 14/14 with 15 expectations in 12.71 seconds under the host-permitted Git
+fixture environment. The final complete Tool Wiki run then passed 579/579 across 30 files with
+5,362 expectations in 927.35 seconds, including the repaired pilot relationship tuple and every
+root-migration refusal. Uncached `tool-wiki:lint:source` and both affected tools' typechecks
+completed, their regular lint targets passed with the expected inactive/non-certified Tool Wiki
+activation result, `nx format:check --all` passed, and strict OpenSpec validation passed all 83
+items.
+
 Task 4.4 remains open: Tasks 4.2 and 4.3 still retain their published-candidate and release-input
 prerequisites, and this scoped repair is not the final integration/archive review.
