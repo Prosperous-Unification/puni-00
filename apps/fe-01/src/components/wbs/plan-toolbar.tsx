@@ -1324,9 +1324,9 @@ export function PlanToolbar({
                 accept="application/json"
                 aria-label="Import JSON"
                 className="sr-only"
-                // Proof: making this permanently enabled let `blocks a
-                // duplicate submit while the first file is in flight` call
-                // the import facade twice. Observed 2026-09-14.
+                // Proof: making this permanently enabled failed `disables the
+                // import file control while an import is in flight`: expected
+                // disabled, received enabled. Observed 2026-09-14.
                 disabled={importBusy}
                 onChange={importJson}
               />

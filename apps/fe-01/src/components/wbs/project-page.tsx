@@ -563,8 +563,7 @@ export function ProjectPage({
     if (search === null) setHoveredId(null);
   }, [search]);
 
-  const load = useCallback(async () => {
-    const found = await api.listProjects();
+  const installProjects = useCallback((found: ProjectListEntry[]) => {
     setProjects(found);
     setSelected((current) => {
       // The current selection and the remembered id are both claims, honoured
@@ -583,8 +582,15 @@ export function ProjectPage({
       if (remembered !== null) rememberProject(null);
       return found.length === 1 ? (found[0]?.id ?? null) : null;
     });
+  }, []);
+
+  const fetchProjects = useCallback(() => api.listProjects(), [api]);
+
+  const load = useCallback(async () => {
+    const found = await fetchProjects();
+    installProjects(found);
     return found;
-  }, [api]);
+  }, [fetchProjects, installProjects]);
 
   useEffect(() => {
     void load().catch((e: unknown) => {
@@ -748,7 +754,8 @@ export function ProjectPage({
   const planImport = usePlanImport({
     api,
     selectedProjectId: selected,
-    reloadProjects: load,
+    fetchProjects,
+    installProjects,
     openProject: choose,
     pushToast: toastApi.pushToast,
   });

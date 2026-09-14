@@ -74,13 +74,15 @@ export interface PlanImportControl {
 export function usePlanImport({
   api,
   selectedProjectId,
-  reloadProjects,
+  fetchProjects,
+  installProjects,
   openProject,
   pushToast,
 }: {
   api: ProjectApi;
   selectedProjectId: string | null;
-  reloadProjects: () => Promise<readonly ProjectListEntry[]>;
+  fetchProjects: () => Promise<ProjectListEntry[]>;
+  installProjects: (projects: ProjectListEntry[]) => void;
   openProject: (projectId: string) => void;
   pushToast: ToastStackApi['pushToast'];
 }): PlanImportControl {
@@ -115,39 +117,47 @@ export function usePlanImport({
       admittedLifetime.current = lifetime;
       setBusyLifetime(lifetime);
       const sourceProjectId = selectedProjectId;
-      void readPlanJson(file)
-        .then(planDocumentRequestFromJson)
-        .then((document) => api.importPlan(document))
-        .then(async (summary) => {
-          // Proof: removing the epoch guards let a replaced API lifetime emit
-          // `imported_project_missing`; the page expected no stale toast.
-          // Observed 2026-09-14.
+      void (async () => {
+        try {
+          const source = await readPlanJson(file);
+          // Proof: removing this post-read boundary and the pre-write boundary
+          // below submitted one write through the replaced API. Observed
+          // 2026-09-14.
           if (currentLifetime.current !== lifetime) return;
-          // Proof: reading the API catalogue without installing it made the
-          // imported tree open under an empty picker. Observed 2026-09-14.
-          const catalogue = await reloadProjects();
+          const document = await planDocumentRequestFromJson(source);
+          if (currentLifetime.current !== lifetime) return;
+          const summary = await api.importPlan(document);
+          if (currentLifetime.current !== lifetime) return;
+          const catalogue = await fetchProjects();
+          // Proof: installing before this post-fetch boundary let exact stale
+          // project `p3` replace the new lifetime's picker. Observed 2026-09-14.
+          if (currentLifetime.current !== lifetime) return;
+          installProjects(catalogue);
+          if (currentLifetime.current !== lifetime) return;
           if (!catalogue.some((project) => project.id === summary.projectId)) {
             throw new Error('imported_project_missing');
           }
           // Proof: removing this ownership comparison navigated from exact p2
           // back to the completed import p3. Observed 2026-09-14.
+          if (currentLifetime.current !== lifetime) return;
           if (currentProject.current === sourceProjectId) openProject(summary.projectId);
+          if (currentLifetime.current !== lifetime) return;
           pushToast({ kind: 'info', text: importSummarySentence(summary) });
-        })
-        .catch((thrown: unknown) => {
+        } catch (thrown: unknown) {
           if (currentLifetime.current !== lifetime) return;
           pushToast({ kind: 'error', text: importRefusalSentence(thrown) });
-        })
-        .finally(() => {
+        } finally {
           // Proof: removing this reset left the browser-model file path set and
           // the same-file case completed one attempt, not two. Observed 2026-09-14.
           input.value = '';
-          if (currentLifetime.current !== lifetime) return;
-          admittedLifetime.current = null;
-          setBusyLifetime(null);
-        });
+          if (currentLifetime.current === lifetime) {
+            admittedLifetime.current = null;
+            setBusyLifetime(null);
+          }
+        }
+      })();
     },
-    [api, lifetime, openProject, pushToast, reloadProjects, selectedProjectId],
+    [api, fetchProjects, installProjects, lifetime, openProject, pushToast, selectedProjectId],
   );
 
   return { busy: busyLifetime === lifetime, chooseFile };

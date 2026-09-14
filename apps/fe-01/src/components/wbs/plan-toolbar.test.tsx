@@ -475,6 +475,20 @@ describe('sharing the plan', () => {
     // failed on `no Export menu on the toolbar`. Watched, 2026-08-28.
   });
 
+  itDom('disables the import file control while an import is in flight', async () => {
+    const api = fakeApi();
+    render(
+      <WbsTable
+        projectId="p1"
+        api={api}
+        projectName="Rewire the shed"
+        planImport={{ busy: true, chooseFile: vi.fn() }}
+      />,
+    );
+
+    expect(await screen.findByLabelText('Import JSON')).toBeDisabled();
+  });
+
   itDom('downloads JSON with collapsed and filtered-out rows', async () => {
     const downloads = captureDownloads();
     const model = fakeApi();

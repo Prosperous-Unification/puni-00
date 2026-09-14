@@ -530,6 +530,98 @@ describe('opening an imported project', () => {
     // Observed 2026-09-14.
   });
 
+  itDom(
+    'does not submit a file whose read finishes after the API lifetime is replaced',
+    async () => {
+      const first = fakeProjects(TWO);
+      const replacement = fakeProjects(TWO);
+      const importPlan = vi.fn(() => Promise.resolve(IMPORTED));
+      first.importPlan = importPlan;
+      let finishRead = (): void => {
+        throw new Error('the held file reader was not installed');
+      };
+      vi.spyOn(FileReader.prototype, 'readAsText').mockImplementation(function holdRead(
+        this: FileReader,
+      ) {
+        Object.defineProperty(this, 'result', {
+          configurable: true,
+          value: JSON.stringify(IMPORTABLE_PLAN),
+        });
+        finishRead = () => {
+          this.dispatchEvent(new ProgressEvent('load'));
+        };
+      });
+      const view = pageWith(first);
+      await selectProject('p1');
+      await screen.findByLabelText('Import JSON');
+      importFile();
+
+      view.rerender(
+        <ProjectPage token="t" api={replacement} savedPlansDeps={fakeSavedPlansDeps()} />,
+      );
+      await act(async () => {
+        finishRead();
+        await Promise.resolve();
+      });
+
+      expect(importPlan).not.toHaveBeenCalled();
+      expect(toastTexts()).toEqual([]);
+      // Proof: removing the post-read and pre-write lifetime checks submitted one
+      // write through the departed API. Observed 2026-09-14.
+    },
+  );
+
+  itDom('does not install a catalogue fetched by a replaced API lifetime', async () => {
+    const first = fakeProjects(TWO);
+    const replacement = fakeProjects(TWO);
+    let finishCatalogue: (projects: ProjectListEntry[]) => void = () => {
+      throw new Error('the held catalogue resolver was not installed');
+    };
+    const listProjects = vi.fn(first.listProjects.bind(first));
+    listProjects.mockImplementationOnce(first.listProjects.bind(first)).mockImplementationOnce(
+      () =>
+        new Promise<ProjectListEntry[]>((resolve) => {
+          finishCatalogue = resolve;
+        }),
+    );
+    first.listProjects = listProjects;
+    first.importPlan = () => Promise.resolve(IMPORTED);
+    const view = pageWith(first);
+    await selectProject('p1');
+    await screen.findByLabelText('Import JSON');
+    importFile();
+    await waitFor(() => {
+      expect(listProjects).toHaveBeenCalledTimes(2);
+    });
+
+    view.rerender(
+      <ProjectPage token="t" api={replacement} savedPlansDeps={fakeSavedPlansDeps()} />,
+    );
+    await act(async () => {
+      finishCatalogue([
+        ...TWO,
+        {
+          id: 'p3',
+          name: 'Imported exact',
+          restricted: false,
+          startDate: null,
+          lastOpenedAt: null,
+          ownerName: 'kat',
+          createdAt: MADE_ON,
+        },
+      ]);
+      await Promise.resolve();
+    });
+
+    expect(picker()).toHaveValue('Rewire the shed');
+    openPicker();
+    expect(document.getElementById('project-option-p3')).toBeNull();
+    expect(localStorage.getItem('wbs.project')).toBe('p1');
+    expect(toastTexts()).toEqual([]);
+    // Proof: installing the fetched catalogue before the post-fetch lifetime
+    // check added exact `project-option-p3`. Observed 2026-09-14.
+  });
+
   itDom('reports a malformed row with its exact schema path and detail', async () => {
     const api = fakeProjects(TWO);
     const importPlan = vi.fn(() => Promise.resolve(IMPORTED));

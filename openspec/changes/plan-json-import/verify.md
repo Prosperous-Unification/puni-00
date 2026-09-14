@@ -525,6 +525,16 @@ API-lifetime assertion was separately red because the replacement input
 remained disabled; tying busy/admission state to the API token made the new
 lifetime usable without allowing the old completion to report.
 
+A subsequent ownership review found two earlier async boundaries were still
+open. A file read or schema validation could settle after `api` changed and
+still call the departed facade, and a catalogue fetched for the old facade
+could install after replacement. Import now checks its lifetime after each
+await and immediately before the write. Catalogue fetching and installation
+are separate operations, with ownership checked after fetch and before install,
+selection, and reporting. The new tests were first observed red together: the
+held-reader case called the old `importPlan` once instead of zero, and the held
+catalogue selected `Imported exact` instead of retaining `Rewire the shed`.
+
 | Check                      | Fault injected                                                           | Production-path test                                                                  | Observed RED                                                                                                                                             |
 | -------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Stable success report      | Omitted the page-owned toast API passed into the keyed table             | `refreshes the picker catalogue and keeps one success toast across the table remount` | expected the exact 40-row/one-tag summary; received `[]`                                                                                                 |
@@ -536,15 +546,19 @@ lifetime usable without allowing the old completion to report.
 | File read failure          | Removed `FileReader.onerror` rejection                                   | `reports an asynchronous file read failure without submitting`                        | expected `file_read_failed`; received no toast                                                                                                           |
 | Same-file reselection      | Removed `input.value = ''` settlement reset                              | `clears the file control so the same file can complete twice`                         | expected empty input value; retained exact `C:\\fakepath\\plan.json`                                                                                     |
 | Refusal keeps selection    | Injected `openProject('p2')` into the request-refusal path               | `keeps the selected project when the request returns a structured refusal`            | picker expected `Rewire the shed`; received `Paint the fence`                                                                                            |
+| Pre-write lifetime         | Removed both post-read and pre-write lifetime checks                     | `does not submit a file whose read finishes after the API lifetime is replaced`       | old `importPlan` expected 0 calls; received 1                                                                                                            |
+| Pre-install lifetime       | Installed the fetched catalogue before its post-fetch lifetime check     | `does not install a catalogue fetched by a replaced API lifetime`                     | expected no `project-option-p3`; received the exact stale `Imported exact` option                                                                        |
+| Busy file control          | Replaced `disabled={importBusy}` with `disabled={false}`                 | `disables the import file control while an import is in flight`                       | expected the input disabled; received an enabled input                                                                                                   |
 
 Each fault was applied separately, observed red, restored and named by an
 adjacent `Proof:` comment. The success case also asserts one `data-toasts`
 region, the exact selected name and the imported option. Request-phase admission
-is independently held after the async read and asserts one read and one request.
+is independently held after the async read and asserts one read and one request;
+the toolbar test separately proves the rendered disabled state.
 
 Fresh green evidence:
 
-- `TZ=UTC bunx vitest run src/lib/wbs-api.test.ts src/components/wbs/plan-toolbar.test.tsx src/components/wbs/project-page.test.tsx --no-file-parallelism --maxWorkers=1` from `apps/fe-01` — 3 files passed, 150 tests passed.
+- `TZ=UTC bunx vitest run src/lib/wbs-api.test.ts src/components/wbs/plan-toolbar.test.tsx src/components/wbs/project-page.test.tsx --no-file-parallelism --maxWorkers=1` from `apps/fe-01` — 3 files passed, 153 tests passed.
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:lint --skip-nx-cache --output-style=stream` — passed.
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:typecheck --skip-nx-cache --output-style=stream` — passed.
 - `bunx prettier --check apps/fe-01/src/lib/wbs-api.ts apps/fe-01/src/components/wbs/use-plan-read.ts apps/fe-01/src/components/wbs/use-plan-import.ts apps/fe-01/src/components/wbs/plan-toolbar.tsx apps/fe-01/src/components/wbs/wbs-table.tsx apps/fe-01/src/components/wbs/plan-toolbar.test.tsx apps/fe-01/src/components/wbs/project-page.tsx apps/fe-01/src/components/wbs/project-page.test.tsx openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
