@@ -1,6 +1,7 @@
 import { type Cell as TableCell, flexRender, type Header, useTable } from '@tanstack/react-table';
 import type { WorkItemStatus } from '@wbs/domain/progress';
 import {
+  type ChangeEventHandler,
   type ComponentProps,
   memo,
   type ReactNode,
@@ -14,11 +15,6 @@ import {
 } from 'react';
 
 import { Button } from '@/components/ui/button';
-import {
-  planDocumentRequestFromJson,
-  PlanImportRefusalError,
-  type PlanImportSummary,
-} from '@/lib/wbs-api';
 
 import { type CellCards, createCellCards, useCardOpenOn } from './cell-card-store';
 import type { CellRef } from './cell-navigation';
@@ -107,6 +103,8 @@ import {
 import { usePlanViewport } from './use-plan-viewport';
 import { usePlanAssignments, usePlanLabels, useReferenceSets } from './use-reference-sets';
 import { type TreeRow } from './wbs-rows';
+
+const ignoreImportFile: ChangeEventHandler<HTMLInputElement> = () => undefined;
 
 /** What {@link PlanRow} needs beyond the cells it is handed. */
 interface PlanRowProps {
@@ -529,57 +527,6 @@ export function useToday(): Date {
   return useMemo(() => new Date(`${todayIso}T12:00:00`), [todayIso]);
 }
 
-const readPlanJson = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') resolve(reader.result);
-      else reject(new Error('file_read_failed'));
-    };
-    // Proof: removing this handler made `reports a file read failure without
-    // submitting or opening a project` time out with an empty toast list.
-    // Observed 2026-09-14.
-    reader.onerror = () => {
-      reject(new Error('file_read_failed'));
-    };
-    reader.onabort = () => {
-      reject(new Error('file_read_failed'));
-    };
-    reader.readAsText(file);
-  });
-
-const importedNames = (summary: PlanImportSummary): string => {
-  const kinds: readonly [string, readonly string[]][] = [
-    ['team', summary.created.teams],
-    ['person', summary.created.people],
-    ['tag', summary.created.tags],
-    ['service', summary.created.services],
-    ['type', summary.created.types],
-    ['external system', summary.created.externalSystems],
-  ];
-  const created = kinds.flatMap(([kind, names]) =>
-    names.length === 0
-      ? []
-      : [`${String(names.length)} ${kind}${names.length === 1 ? '' : 's'} (${names.join(', ')})`],
-  );
-  return created.length === 0 ? 'no directory names' : created.join(', ');
-};
-
-const importSummarySentence = (summary: PlanImportSummary): string =>
-  `Imported ${String(summary.rows)} work item${summary.rows === 1 ? '' : 's'}. Created ${importedNames(summary)}. Solution reference: ${summary.solutionRef}.`;
-
-const importRefusalSentence = (thrown: unknown): string => {
-  if (thrown instanceof PlanImportRefusalError) {
-    const refusal = thrown.refusal;
-    if ('path' in refusal) {
-      const detail = refusal.detail === null ? '' : ` (${refusal.detail})`;
-      return `Plan JSON import refused: ${refusal.error} at ${refusal.path}${detail}.`;
-    }
-    return `Plan JSON import refused: ${refusal.error}.`;
-  }
-  return `Plan JSON import failed (${failureText(thrown, 'unknown')}).`;
-};
-
 /**
  * The work breakdown: one grid that is a table and a nested list at once.
  *
@@ -597,7 +544,8 @@ export function WbsTable({
   projectId,
   projectName,
   api,
-  onOpenProject,
+  planImport,
+  toastApi: toastApiOverride,
   subscribe,
   savedPlansShelf,
 }: WbsTableProps) {
@@ -676,8 +624,8 @@ export function WbsTable({
    * something changes it and a toast is a thing that happened once. See
    * {@link ToastStack}.
    */
-  const { toasts, pushToast, dismissToast } = useToasts();
-  const [importBusy, setImportBusy] = useState(false);
+  const localToastApi = useToasts();
+  const { toasts, pushToast, dismissToast } = toastApiOverride ?? localToastApi;
   const { drafts, setDrafts, mention, setMention, foldedBox, foldedAtFocus } =
     useEstimateDraftState();
   /**
@@ -1693,34 +1641,6 @@ export function WbsTable({
         });
       });
   }, [api, projectId, pushToast]);
-  const importJson = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const input = event.currentTarget;
-      const file = input.files?.[0];
-      if (file === undefined) return;
-      setImportBusy(true);
-      void readPlanJson(file)
-        .then(planDocumentRequestFromJson)
-        .then((document) => api.importPlan(document))
-        .then(async (summary) => {
-          if (onOpenProject === undefined) throw new Error('project_opener_missing');
-          await onOpenProject(summary.projectId);
-          pushToast({ kind: 'info', text: importSummarySentence(summary) });
-        })
-        .catch((thrown: unknown) => {
-          pushToast({ kind: 'error', text: importRefusalSentence(thrown) });
-        })
-        .finally(() => {
-          // Proof: removing this reset left `can choose and complete the same
-          // file twice` at one import: its browser-model helper suppressed the
-          // second selection while the same fake path remained. Observed 2026-09-14.
-          input.value = '';
-          setImportBusy(false);
-        });
-    },
-    [api, onOpenProject, pushToast],
-  );
-
   /**
    * The columns this render puts on screen, in order — which is exactly what a
    * `<colgroup>` declares and what the table's own width adds up. Read from the
@@ -1980,8 +1900,8 @@ export function WbsTable({
       downloadChartSvg={downloadChartSvg}
       downloadOnScreen={downloadOnScreen}
       downloadJson={downloadJson}
-      importBusy={importBusy}
-      importJson={importJson}
+      importBusy={planImport?.busy ?? false}
+      importJson={planImport?.chooseFile ?? ignoreImportFile}
       mermaidSectionMode={mermaidSectionMode}
       setMermaidSectionMode={setMermaidSectionMode}
       startDate={startDate}

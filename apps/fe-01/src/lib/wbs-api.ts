@@ -31,7 +31,6 @@ import {
   patchProject as patchProjectShape,
   type PlanDocument,
   type PlanDocumentRequest,
-  preflightRequest,
   readProject as readProjectShape,
   recordProjectOpen,
   redoProject as redoProjectShape,
@@ -41,6 +40,7 @@ import {
   retryProjectOptimization as retryProjectOptimizationShape,
   undoProject as undoProjectShape,
   updateCalendarMarker as updateCalendarMarkerShape,
+  validateSchema,
 } from '@wbs/contracts';
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import type { PriorityBand } from '@wbs/domain/priority-band';
@@ -1245,6 +1245,32 @@ export class PlanImportRefusalError extends Error {
   }
 }
 
+/** The first precise Standard Schema issue in a malformed archival file. */
+export class PlanDocumentSchemaError extends Error {
+  constructor(
+    readonly path: string,
+    readonly detail: string,
+  ) {
+    super('invalid_body');
+    this.name = 'PlanDocumentSchemaError';
+  }
+}
+
+/** Renders Standard Schema path segments in the document's dotted/indexed vocabulary. */
+function planDocumentIssuePath(
+  path: readonly (PropertyKey | { readonly key: PropertyKey })[] | undefined,
+): string {
+  if (path === undefined || path.length === 0) return 'document';
+  return path
+    .map((segment, index) => {
+      const key = typeof segment === 'object' ? segment.key : segment;
+      if (typeof key === 'number') return `[${String(key)}]`;
+      if (typeof key === 'symbol') throw new Error('JSON schema issue path contained a symbol');
+      return index === 0 ? key : `.${key}`;
+    })
+    .join('');
+}
+
 /** Parses and generated-client-validates one untrusted archival JSON file. */
 export async function planDocumentRequestFromJson(json: string): Promise<PlanDocumentRequest> {
   let untrustedDocument: unknown;
@@ -1252,14 +1278,20 @@ export async function planDocumentRequestFromJson(json: string): Promise<PlanDoc
     untrustedDocument = JSON.parse(json);
   } catch (cause) {
     // Proof: letting the native SyntaxError escape made `reports invalid JSON
-    // without submitting or opening a project` expose engine-specific parser
+    // without submitting or changing project` expose engine-specific parser
     // wording instead of the modeled `invalid_json`. Observed 2026-09-14.
     if (cause instanceof SyntaxError) throw new Error('invalid_json', { cause });
     throw cause;
   }
-  const preflight = await preflightRequest(importProjectShape, { body: untrustedDocument });
-  if (preflight.kind === 'failure') throw new Error(wbsFailureCode(preflight.failure));
-  return preflight.input.body;
+  const validation = await validateSchema(importProjectShape.body, untrustedDocument);
+  if (validation.issues !== undefined) {
+    const issue = validation.issues[0];
+    // Proof: replacing this structured issue with `Error('invalid_request')`
+    // made the page's malformed-row case receive that generic failure instead
+    // of exact `workItems[0].priority` and its type detail. Observed 2026-09-14.
+    throw new PlanDocumentSchemaError(planDocumentIssuePath(issue.path), issue.message);
+  }
+  return validation.value;
 }
 export interface PlanRead extends Omit<
   PlanReadWire,

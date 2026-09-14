@@ -47,15 +47,18 @@ import {
   NOTHING_TO_UNDO,
   refusalSentence,
 } from './plan-refusal';
-import { type Toast } from './toasts';
+import { type Toast, type ToastStackApi } from './toasts';
 import { dropDrafts, rowOfCellKey, stepOfCellKey, stepOfDraftKey } from './use-estimate-drafts';
+import type { PlanImportControl } from './use-plan-import';
 import { toTree, type TreeRow } from './wbs-rows';
 
 export interface WbsTableProps {
   projectId: string;
   api: ProjectApi;
-  /** Selects an imported project through the same path as the project picker. */
-  onOpenProject?: (projectId: string) => void | Promise<void>;
+  /** Page-owned archival import lifecycle; absent in isolated table tests. */
+  planImport?: PlanImportControl;
+  /** Page-owned production toast lifetime; absent in isolated table tests. */
+  toastApi?: ToastStackApi;
   /**
    * What this project is called, for the export's header and its filename.
    *

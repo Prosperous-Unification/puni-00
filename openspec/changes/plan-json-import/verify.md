@@ -501,39 +501,53 @@ unchecked.
 
 ## Section 4.4 — interactive JSON import
 
-The production file input now reads and generated-client-validates one JSON
-document, admits only one request at a time, and clears its value after every
-settled attempt. A successful response calls `ProjectPage`'s existing picker
-selection function with the returned project id before emitting exactly one
-typed summary toast. Cancellation is a no-op. Syntax, read and structured
-request refusals each emit one error toast; the structured form retains its
-exact code, path and detail and never calls the project-opening callback.
+`ProjectPage` now owns the import attempt and production toast API outside the
+project-keyed `WbsTable`. Its synchronous admission ref blocks a second file
+read as well as a second request. An API-lifetime token ignores settlement from
+a replaced page dependency; the captured source project prevents a valid old
+completion navigating away from a project selected while it was pending.
 
-The initial TDD run kept all 31 existing toolbar tests green. Six new active
-cases failed because the input had no change handler: the open/import spies
-received zero calls and the expected parse/read/refusal toasts remained empty.
-The cancellation case passed before implementation because selecting no file
-was already inert.
+Success installs a freshly read project catalogue, verifies that it contains
+the created id, then uses the existing picker selection path. The one summary
+toast is held by the page and rendered by the remounted table, so its lifetime
+survives the project key. Cancellation remains inert; read, syntax, schema and
+server failures retain the prior selection. The archival request is parsed once
+as JSON and normalized by the existing shared Standard Schema declaration. Its
+first issue is preserved as `invalid_body` with the exact document path and
+validator detail rather than collapsed to generated preflight's
+`invalid_request` code.
 
-| Check                       | Fault injected                                                     | Test that observed it                                                         | Observed failure                                                                                                                     |
-| --------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Refusal keeps selection     | Called `onOpenProject(projectId)` in the production rejection path | `keeps the current project selected when import returns a structured refusal` | expected zero calls; received one exact call with `prior-p1` while the `prior-p1` table remained mounted                             |
-| Same-file reselection       | Removed the production `input.value = ''` settlement reset         | `can choose and complete the same file twice`                                 | expected two completed facade calls; received one because the browser-model helper suppressed the unchanged fake path                |
-| Invalid JSON classification | Re-threw the native `SyntaxError` instead of `invalid_json`        | `reports invalid JSON without submitting or opening a project`                | expected `Plan JSON import failed (invalid_json).`; received the engine parser sentence beginning `Expected ':' after property name` |
-| File read refusal           | Removed the production `FileReader.onerror` rejection              | `reports a file read failure without submitting or opening a project`         | expected one `file_read_failed` toast; received an empty toast list                                                                  |
-| Duplicate in-flight submit  | Made the production file input permanently enabled                 | `blocks a duplicate submit while the first file is in flight`                 | expected the input to be disabled; received an enabled file input                                                                    |
+The repair TDD run was 4 failed / 52 passed: the picker value was empty after
+success, two rapid changes invoked `readAsText` twice, the stale-completion
+resolver had not yet been reached by the first async read, and the malformed
+row produced no stable page toast. After the first implementation, the added
+API-lifetime assertion was separately red because the replacement input
+remained disabled; tying busy/admission state to the API token made the new
+lifetime usable without allowing the old completion to report.
 
-Every mutation was applied separately, observed red, restored, and recorded in
-an adjacent `Proof:` comment. The success case additionally asserts the complete
-40-row/one-tag/solution-reference toast as the only toast. The `ProjectPage`
-case observes the imported id in both `wbs.project` and the next table tree
-read, proving the live page uses the real picker selection path.
+| Check                      | Fault injected                                                           | Production-path test                                                                  | Observed RED                                                                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stable success report      | Omitted the page-owned toast API passed into the keyed table             | `refreshes the picker catalogue and keeps one success toast across the table remount` | expected the exact 40-row/one-tag summary; received `[]`                                                                                                 |
+| Installed catalogue        | Read `api.listProjects()` without installing it through `reloadProjects` | same success case                                                                     | picker expected `Imported exact`; received an empty value while the imported tree opened                                                                 |
+| Synchronous admission      | Removed the `admittedLifetime` early return                              | `admits only one asynchronous file read and request at a time`                        | `readAsText` expected 1 call; received 2                                                                                                                 |
+| Departed-project ownership | Removed the source/current project comparison                            | `does not navigate when an import completes after its project was departed`           | picker expected `Paint the fence`; received `Imported exact`                                                                                             |
+| API-lifetime ownership     | Removed the lifetime guards from success, failure and settlement         | `ignores an import completion from a replaced API lifetime`                           | expected no toast; received `Plan JSON import failed (imported_project_missing).`                                                                        |
+| Actionable schema issue    | Replaced `PlanDocumentSchemaError` with `Error('invalid_request')`       | `reports a malformed row with its exact schema path and detail`                       | expected `invalid_body` at `workItems[0].priority` with `must be a number or null (was a string)`; received `Plan JSON import failed (invalid_request).` |
+| File read failure          | Removed `FileReader.onerror` rejection                                   | `reports an asynchronous file read failure without submitting`                        | expected `file_read_failed`; received no toast                                                                                                           |
+| Same-file reselection      | Removed `input.value = ''` settlement reset                              | `clears the file control so the same file can complete twice`                         | expected empty input value; retained exact `C:\\fakepath\\plan.json`                                                                                     |
+| Refusal keeps selection    | Injected `openProject('p2')` into the request-refusal path               | `keeps the selected project when the request returns a structured refusal`            | picker expected `Rewire the shed`; received `Paint the fence`                                                                                            |
+
+Each fault was applied separately, observed red, restored and named by an
+adjacent `Proof:` comment. The success case also asserts one `data-toasts`
+region, the exact selected name and the imported option. Request-phase admission
+is independently held after the async read and asserts one read and one request.
 
 Fresh green evidence:
 
-- `TZ=UTC bunx vitest run src/lib/wbs-api.test.ts src/components/wbs/plan-toolbar.test.tsx src/components/wbs/project-page.test.tsx --no-file-parallelism --maxWorkers=1` from `apps/fe-01` — 3 files passed, 146 tests passed.
-- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p fe-01 --skip-nx-cache --parallel=1 --output-style=static` — both targets passed.
-- `bunx prettier --check apps/fe-01/src/lib/wbs-api.ts apps/fe-01/src/components/wbs/use-plan-read.ts apps/fe-01/src/components/wbs/plan-toolbar.tsx apps/fe-01/src/components/wbs/wbs-table.tsx apps/fe-01/src/components/wbs/plan-toolbar.test.tsx apps/fe-01/src/components/wbs/project-page.tsx apps/fe-01/src/components/wbs/project-page.test.tsx openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
+- `TZ=UTC bunx vitest run src/lib/wbs-api.test.ts src/components/wbs/plan-toolbar.test.tsx src/components/wbs/project-page.test.tsx --no-file-parallelism --maxWorkers=1` from `apps/fe-01` — 3 files passed, 150 tests passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:lint --skip-nx-cache --output-style=stream` — passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:typecheck --skip-nx-cache --output-style=stream` — passed.
+- `bunx prettier --check apps/fe-01/src/lib/wbs-api.ts apps/fe-01/src/components/wbs/use-plan-read.ts apps/fe-01/src/components/wbs/use-plan-import.ts apps/fe-01/src/components/wbs/plan-toolbar.tsx apps/fe-01/src/components/wbs/wbs-table.tsx apps/fe-01/src/components/wbs/plan-toolbar.test.tsx apps/fe-01/src/components/wbs/project-page.tsx apps/fe-01/src/components/wbs/project-page.test.tsx openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
 - `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
 
 At the Task 4.4 checkpoint, Tasks 4.5 and 5.2 remain unimplemented and

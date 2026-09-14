@@ -26,6 +26,8 @@ import {
   SavedPlansPanel,
   type SavedPlansPanelDeps,
 } from './saved-plans-panel';
+import { useToasts } from './toasts';
+import { usePlanImport } from './use-plan-import';
 import { type SubscriptionHandlers, WbsTable } from './wbs-table';
 
 export interface ProjectPageProps {
@@ -504,6 +506,7 @@ export function ProjectPage({
   const [projects, setProjects] = useState<ProjectListEntry[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const toastApi = useToasts();
   /**
    * The rename in progress, or null while the picker is showing.
    *
@@ -580,6 +583,7 @@ export function ProjectPage({
       if (remembered !== null) rememberProject(null);
       return found.length === 1 ? (found[0]?.id ?? null) : null;
     });
+    return found;
   }, [api]);
 
   useEffect(() => {
@@ -740,6 +744,14 @@ export function ProjectPage({
     setSearch(null);
     pickerBox.current?.blur();
   };
+
+  const planImport = usePlanImport({
+    api,
+    selectedProjectId: selected,
+    reloadProjects: load,
+    openProject: choose,
+    pushToast: toastApi.pushToast,
+  });
 
   /** Moves the picker highlight by `delta` over what is on offer, clamped. */
   const moveHighlight = (delta: 1 | -1) => {
@@ -1144,7 +1156,10 @@ export function ProjectPage({
             // next export says the new name.
             projectName={selectedProject?.name}
             api={api}
-            onOpenProject={choose}
+            planImport={planImport}
+            // Proof: omitting this page-owned API left the remounted table's
+            // toast list empty after a successful import. Observed 2026-09-14.
+            toastApi={toastApi}
             subscribe={subscribe}
             // Rendered by the table only on a cards viewport, which is the
             // same answer `renderer` above gives — one hook, one store, so the

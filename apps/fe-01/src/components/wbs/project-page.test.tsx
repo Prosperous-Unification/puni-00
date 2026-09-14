@@ -10,8 +10,13 @@ import type {
   SavedPlanRenameReply,
   SavedPlanSaveReply,
 } from '@/lib/saved-plan-api';
-import type { CreatedProject, ProjectApi, ProjectListEntry } from '@/lib/wbs-api';
-import { DEFAULT_PERT_WEIGHTS_VIEW } from '@/lib/wbs-api';
+import type {
+  CreatedProject,
+  PlanImportSummary,
+  ProjectApi,
+  ProjectListEntry,
+} from '@/lib/wbs-api';
+import { DEFAULT_PERT_WEIGHTS_VIEW, PlanImportRefusalError } from '@/lib/wbs-api';
 import { fakeProjectApi } from '@/testing/fake-project-api';
 import { recordCalls } from '@/testing/record-calls';
 import { refusingApi } from '@/testing/refusing-api';
@@ -202,6 +207,39 @@ const IMPORTABLE_PLAN: PlanDocumentRequest = {
   steps: [],
 };
 
+const IMPORTED: PlanImportSummary = {
+  projectId: 'p3',
+  rows: 40,
+  created: {
+    teams: [],
+    people: [],
+    tags: ['Needs review'],
+    services: [],
+    types: [],
+    externalSystems: [],
+  },
+  solutionRef: 'none',
+};
+
+const importFile = (contents: unknown = IMPORTABLE_PLAN): void => {
+  fireEvent.change(screen.getByLabelText('Import JSON'), {
+    target: {
+      files: [
+        new File(
+          [typeof contents === 'string' ? contents : JSON.stringify(contents)],
+          'plan.json',
+          {
+            type: 'application/json',
+          },
+        ),
+      ],
+    },
+  });
+};
+
+const toastTexts = (): string[] =>
+  [...document.querySelectorAll('[data-toast-text]')].map((node) => node.textContent);
+
 /** A third project, so a card can be asked to leave the options either side of it alone. */
 const THREE: ProjectListEntry[] = [
   ...TWO,
@@ -326,43 +364,363 @@ beforeEach(() => {
   localStorage.clear();
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('opening an imported project', () => {
-  itDom('uses the picker selection path for the imported project id', async () => {
-    const api = fakeProjects(TWO);
-    const readTree = vi.fn(api.tree.bind(api));
-    api.tree = readTree;
-    api.importPlan = () =>
-      Promise.resolve({
-        projectId: 'imported-p3',
-        rows: 0,
-        created: {
-          teams: [],
-          people: [],
-          tags: [],
-          services: [],
-          types: [],
-          externalSystems: [],
-        },
-        solutionRef: 'none',
+  itDom(
+    'refreshes the picker catalogue and keeps one success toast across the table remount',
+    async () => {
+      const api = fakeProjects(TWO);
+      const readTree = vi.fn(api.tree.bind(api));
+      api.tree = readTree;
+      api.importPlan = async () => {
+        const project = await api.createProject('Imported exact');
+        return { ...IMPORTED, projectId: project.id };
+      };
+      pageWith(api);
+      await selectProject('p1');
+      await screen.findByLabelText('Import JSON');
+
+      importFile();
+
+      await waitFor(() => {
+        expect(localStorage.getItem('wbs.project')).toBe('p3');
+        expect(readTree).toHaveBeenCalledWith('p3');
+        expect(picker()).toHaveValue('Imported exact');
       });
+      openPicker();
+      expect(document.getElementById('project-option-p3')).not.toBeNull();
+      expect(document.querySelectorAll('[data-toasts]')).toHaveLength(1);
+      expect(toastTexts()).toEqual([
+        'Imported 40 work items. Created 1 tag (Needs review). Solution reference: none.',
+      ]);
+      // Proof: moving import reporting back into the keyed `WbsTable` made this
+      // receive no toast after `choose` remounted the table. Observed 2026-09-14.
+      // Proof: removing the catalogue reload left the picker value empty and no
+      // `project-option-p3`, although the imported tree was mounted. Observed 2026-09-14.
+    },
+  );
+
+  itDom('admits only one asynchronous file read and request at a time', async () => {
+    const api = fakeProjects(TWO);
+    const importPlan = vi.fn(() => Promise.resolve(IMPORTED));
+    api.importPlan = importPlan;
+    const reads = vi.spyOn(FileReader.prototype, 'readAsText').mockImplementation(() => undefined);
+    pageWith(api);
+    await selectProject('p1');
+    await screen.findByLabelText('Import JSON');
+
+    importFile();
+    importFile();
+
+    expect(reads).toHaveBeenCalledTimes(1);
+    expect(importPlan).not.toHaveBeenCalled();
+    // Proof: replacing the synchronous admission ref with React state let both
+    // change events enter `readPlanJson`; expected one read, received two.
+    // Observed 2026-09-14.
+  });
+
+  itDom('does not start another read while the first request remains in flight', async () => {
+    const api = fakeProjects(TWO);
+    const importedProject = await api.createProject('Imported exact');
+    let finishImport: (summary: PlanImportSummary) => void = () => {
+      throw new Error('the held import resolver was not installed');
+    };
+    const importPlan = vi.fn(
+      () =>
+        new Promise<PlanImportSummary>((resolve) => {
+          finishImport = resolve;
+        }),
+    );
+    api.importPlan = importPlan;
+    const reads = vi.spyOn(FileReader.prototype, 'readAsText');
+    pageWith(api);
+    await selectProject('p1');
+    await screen.findByLabelText('Import JSON');
+
+    importFile();
+    await waitFor(() => {
+      expect(importPlan).toHaveBeenCalledTimes(1);
+    });
+    importFile();
+
+    expect(reads).toHaveBeenCalledTimes(1);
+    expect(importPlan).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      finishImport({ ...IMPORTED, projectId: importedProject.id });
+      await Promise.resolve();
+    });
+  });
+
+  itDom('does not navigate when an import completes after its project was departed', async () => {
+    const api = fakeProjects(TWO);
+    const importedProject = await api.createProject('Imported exact');
+    let finishImport: (summary: PlanImportSummary) => void = () => {
+      throw new Error('the held import resolver was not installed');
+    };
+    const importPlan = vi.fn(
+      () =>
+        new Promise<PlanImportSummary>((resolve) => {
+          finishImport = resolve;
+        }),
+    );
+    api.importPlan = importPlan;
+    pageWith(api);
+    await selectProject('p1');
+    await screen.findByLabelText('Import JSON');
+    importFile();
+    await waitFor(() => {
+      expect(importPlan).toHaveBeenCalledTimes(1);
+    });
+
+    await selectProject('p2');
+    await act(async () => {
+      finishImport({ ...IMPORTED, projectId: importedProject.id });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual([
+        'Imported 40 work items. Created 1 tag (Needs review). Solution reference: none.',
+      ]);
+    });
+    expect(picker()).toHaveValue('Paint the fence');
+    expect(localStorage.getItem('wbs.project')).toBe('p2');
+    // Proof: removing the attempt's source-project comparison navigated to
+    // exact `p3` after the reader had selected `p2`. Observed 2026-09-14.
+  });
+
+  itDom('ignores an import completion from a replaced API lifetime', async () => {
+    const first = fakeProjects(TWO);
+    const replacement = fakeProjects(TWO);
+    let finishImport: (summary: PlanImportSummary) => void = () => {
+      throw new Error('the held import resolver was not installed');
+    };
+    const importPlan = vi.fn(
+      () =>
+        new Promise<PlanImportSummary>((resolve) => {
+          finishImport = resolve;
+        }),
+    );
+    first.importPlan = importPlan;
+    const view = pageWith(first);
+    await selectProject('p1');
+    await screen.findByLabelText('Import JSON');
+    importFile();
+    await waitFor(() => {
+      expect(importPlan).toHaveBeenCalledTimes(1);
+    });
+
+    view.rerender(
+      <ProjectPage token="t" api={replacement} savedPlansDeps={fakeSavedPlansDeps()} />,
+    );
+    await act(async () => {
+      finishImport(IMPORTED);
+      await Promise.resolve();
+    });
+
+    expect(picker()).toHaveValue('Rewire the shed');
+    expect(localStorage.getItem('wbs.project')).toBe('p1');
+    expect(toastTexts()).toEqual([]);
+    expect(screen.getByLabelText('Import JSON')).not.toBeDisabled();
+    // Proof: removing the epoch comparison let the departed API's completion
+    // report and attempt to install its project in the replacement lifetime.
+    // Observed 2026-09-14.
+  });
+
+  itDom('reports a malformed row with its exact schema path and detail', async () => {
+    const api = fakeProjects(TWO);
+    const importPlan = vi.fn(() => Promise.resolve(IMPORTED));
+    api.importPlan = importPlan;
+    const malformed = {
+      ...IMPORTABLE_PLAN,
+      workItems: [
+        {
+          id: 'file-row-1',
+          parentId: null,
+          position: 10,
+          name: 'Malformed exact',
+          notes: '',
+          frozenNumber: null,
+          startNoEarlierThan: null,
+          startNoEarlierThanReason: null,
+          deadline: null,
+          factStart: null,
+          factEnd: null,
+          priority: 'high',
+          serviceTeamId: null,
+          serviceId: null,
+          maxParallel: 1,
+          teamIds: [],
+          tagIds: [],
+          serviceIds: [],
+          typeIds: [],
+          externalRefs: [],
+          estimates: {},
+          actuals: {},
+          progress: {},
+          measures: {},
+          dependsOn: [],
+          assignees: {},
+        },
+      ],
+    };
+    pageWith(api);
+    await selectProject('p1');
+    await screen.findByLabelText('Import JSON');
+
+    importFile(malformed);
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual([
+        'Plan JSON import refused: invalid_body at workItems[0].priority (workItems[0].priority must be a number or null (was a string)).',
+      ]);
+    });
+    expect(importPlan).not.toHaveBeenCalled();
+    expect(picker()).toHaveValue('Rewire the shed');
+    // Proof: collapsing Standard Schema issues to the preflight failure code
+    // produced `Plan JSON import failed (invalid_request).` and hid the exact
+    // `workItems[0].priority` path/detail. Observed 2026-09-14.
+  });
+
+  itDom(
+    'keeps the prior selection when the refreshed catalogue omits the imported id',
+    async () => {
+      const api = fakeProjects(TWO);
+      api.importPlan = () => Promise.resolve(IMPORTED);
+      pageWith(api);
+      await selectProject('p1');
+      await screen.findByLabelText('Import JSON');
+
+      importFile();
+
+      await waitFor(() => {
+        expect(toastTexts()).toEqual(['Plan JSON import failed (imported_project_missing).']);
+      });
+      expect(picker()).toHaveValue('Rewire the shed');
+      expect(localStorage.getItem('wbs.project')).toBe('p1');
+    },
+  );
+
+  itDom('treats picker cancellation as no import attempt', async () => {
+    const api = fakeProjects(TWO);
+    const importPlan = vi.fn(() => Promise.resolve(IMPORTED));
+    api.importPlan = importPlan;
     pageWith(api);
     await selectProject('p1');
     const input = await screen.findByLabelText('Import JSON');
 
-    fireEvent.change(input, {
-      target: {
-        files: [
-          new File([JSON.stringify(IMPORTABLE_PLAN)], 'plan.json', {
-            type: 'application/json',
-          }),
-        ],
-      },
-    });
+    fireEvent.change(input, { target: { files: [] } });
+
+    expect(importPlan).not.toHaveBeenCalled();
+    expect(toastTexts()).toEqual([]);
+    expect(picker()).toHaveValue('Rewire the shed');
+  });
+
+  itDom('reports invalid JSON without submitting or changing project', async () => {
+    const api = fakeProjects(TWO);
+    const importPlan = vi.fn(() => Promise.resolve(IMPORTED));
+    api.importPlan = importPlan;
+    pageWith(api);
+    await selectProject('p1');
+    await screen.findByLabelText('Import JSON');
+
+    importFile('{"broken"');
 
     await waitFor(() => {
-      expect(localStorage.getItem('wbs.project')).toBe('imported-p3');
-      expect(readTree).toHaveBeenCalledWith('imported-p3');
+      expect(toastTexts()).toEqual(['Plan JSON import failed (invalid_json).']);
     });
+    expect(importPlan).not.toHaveBeenCalled();
+    expect(picker()).toHaveValue('Rewire the shed');
+  });
+
+  itDom('reports an asynchronous file read failure without submitting', async () => {
+    const api = fakeProjects(TWO);
+    const importPlan = vi.fn(() => Promise.resolve(IMPORTED));
+    api.importPlan = importPlan;
+    vi.spyOn(FileReader.prototype, 'readAsText').mockImplementation(function refuseRead(
+      this: FileReader,
+    ) {
+      this.dispatchEvent(new ProgressEvent('error'));
+    });
+    pageWith(api);
+    await selectProject('p1');
+    await screen.findByLabelText('Import JSON');
+
+    importFile();
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual(['Plan JSON import failed (file_read_failed).']);
+    });
+    expect(importPlan).not.toHaveBeenCalled();
+  });
+
+  itDom('keeps the selected project when the request returns a structured refusal', async () => {
+    const api = fakeProjects(TWO);
+    const importPlan = vi.fn(() =>
+      Promise.reject(
+        new PlanImportRefusalError({
+          error: 'unknown_ref',
+          path: 'workItems[12].dependsOn[0]',
+          detail: 'missing work item file-row-9',
+        }),
+      ),
+    );
+    api.importPlan = importPlan;
+    pageWith(api);
+    await selectProject('p1');
+    await screen.findByLabelText('Import JSON');
+
+    importFile();
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual([
+        'Plan JSON import refused: unknown_ref at workItems[12].dependsOn[0] (missing work item file-row-9).',
+      ]);
+    });
+    expect(picker()).toHaveValue('Rewire the shed');
+    expect(localStorage.getItem('wbs.project')).toBe('p1');
+    // Proof: routing request rejection through `openProject` selected another
+    // id; this exact prior selection assertion failed. Observed 2026-09-14.
+  });
+
+  itDom('clears the file control so the same file can complete twice', async () => {
+    const api = fakeProjects(TWO);
+    const importPlan = vi.fn(() => Promise.reject(new Error('server exact')));
+    api.importPlan = importPlan;
+    pageWith(api);
+    await selectProject('p1');
+    const sameFile = new File([JSON.stringify(IMPORTABLE_PLAN)], 'plan.json', {
+      type: 'application/json',
+    });
+    const input = await screen.findByLabelText<HTMLInputElement>('Import JSON');
+    const chooseSameFile = () => {
+      if (input.value === 'C:\\fakepath\\plan.json') return;
+      Object.defineProperty(input, 'value', {
+        configurable: true,
+        writable: true,
+        value: 'C:\\fakepath\\plan.json',
+      });
+      fireEvent.change(input, { target: { files: [sameFile] } });
+    };
+
+    chooseSameFile();
+    await waitFor(() => {
+      expect(importPlan).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(input.value).toBe('');
+    });
+    chooseSameFile();
+
+    await waitFor(() => {
+      expect(importPlan).toHaveBeenCalledTimes(2);
+    });
+    // Proof: removing the settlement reset left the control at the same fake
+    // path and this browser-model dispatched only one completed import.
+    // Observed 2026-09-14.
   });
 });
 
