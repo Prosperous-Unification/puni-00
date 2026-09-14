@@ -547,3 +547,57 @@ ESLint over all Tool Devsync sources and the uncached Tool Devsync typecheck bot
 `nx format:check --all` exited 0; and pinned strict OpenSpec validation reported 83/83 valid
 (72 changes and 11 specs). The read-only Tool Wiki lint remained intentionally noncertifying:
 `status: inactive`, `certified: false`, `external activation root is not provisioned`.
+
+## Section 4.3 local release verification
+
+The candidate worktree was clean at exact HEAD
+`7abb72f5107e5c9c03aaa077ce4d9b41549e707c`. Fresh uncached builds completed through the
+existing Nx dependency graph:
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-remote-scripts:build --skip-nx-cache`
+  built `dist/tool-remote-scripts/swap.js` (35,796 bytes, SHA-256
+  `c80baa10adcb8629106233c7caaa6764e668d4b1add409a46218e2f6eadbca20`) and
+  `dist/tool-remote-scripts/solver-supervisor.js` (52,596 bytes, SHA-256
+  `2fe2ddb9fc6b538ad586642290f37c792c7eee8e008815b5f40c9852ab9cb696`) from
+  the current `tools/tool-remote-scripts/src/` input and its Tool Compose, test-scratch and
+  solver-supervisor protocol dependencies.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-smoke:build --skip-nx-cache`
+  built `dist/tool-smoke/smoke.js` (35,065 bytes, SHA-256
+  `23181078dce7dc3cb5d13804c5892b26c7c6ff73d7b3fb3619a470788f819a8d`) from the current
+  `tools/tool-smoke/src/` input. All three outputs are ignored under the repository's `dist/`
+  contract and did not dirty the worktree.
+
+The task's original command,
+`bunx nx run tool-deploy:deploy --all --env=prod --dry-run`, ran all five declared dependency
+tasks but exited 1 before `deploy.ts`: Nx treated `--env=prod` as the `nx:run-commands` executor's
+object-valued `env` option and reported `Property 'env' does not match the schema. 'prod' should
+be a 'object'.` The installed Nx target help names `--args` as its supported extra-argument
+boundary, while the ordinary `-- --all --env=prod --dry-run` form hit the same collision.
+Task 4.3 now records the executable form
+`bunx nx run tool-deploy:deploy --args='--all --env=prod --dry-run'`; the failed original
+invocation remains evidence rather than a claimed deploy result.
+
+The corrected production dry-run reached `deploy.ts` and the read-only h2puni state lookup, then
+exited 1 with the modeled refusal
+`release manifest not found at dist/tool-dagger/release.json — run "nx run
+tool-dagger:publish-all" first`. No release was synthesized or reused, no registry publication
+or executor installation occurred, and no live deploy was requested. Because release validation
+precedes plan emission, no tier plan was printed and the migration gate was not evaluated. Static
+inspection of the freshly generated `swap.js` found the image-relative
+`src/migrate-status-cli.ts` and `src/migrate-down-cli.ts` paths; that is bundle verification, not
+evidence that a release exercised either CLI.
+
+The candidate image-input check passed 1/1 before any Dagger connection. It resolved the exact
+Dockerfile map `apps/wbs/{be-01,gw-01,fe-01}/Dockerfile`, including namespaced local COPY inputs
+`libs/wbs/adapters/solver-py`, `apps/wbs/be-01`, `apps/wbs/gw-01` and `apps/wbs/fe-01`; the
+frontend's build-stage COPY also names `dist/apps/wbs/fe-01`. The rename-spanning Git
+migration-root fixture passed 1/1 with six expectations, and the four focused executor
+migration-command tests passed 4/4: status and down resolution remain relative to the backend
+image workdir as `src/migrate-status-cli.ts` and `src/migrate-down-cli.ts`, with an explicit named
+down baseline.
+
+Task 4.3 remains open. Its exact prerequisite is a real, clean-tree tool-dagger publication at
+the candidate HEAD that creates `dist/tool-dagger/release.json` with current entries for be, gw
+and fe; the corrected dry-run must then be repeated to emit and review every tier plan. Bundle
+installation is a separate live-execution preflight and was not required or performed by this dry
+run. This local verification did not publish, install or mutate host state.
