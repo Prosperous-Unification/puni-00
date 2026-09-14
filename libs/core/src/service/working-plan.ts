@@ -5,7 +5,12 @@ import type { MeasureStore } from '../ports/measure-store';
 import type { StepProgressStore } from '../ports/progress-store';
 import type { PlanTransactionalStores } from '../ports/stores';
 import type { Scope } from '../ports/unit-of-work';
-import type { LabelledWorkItem, WorkItemStore } from '../ports/work-item-store';
+import type { LabelledWorkItem } from '../ports/work-item-store';
+import { createWorkingPlanDirectory } from './working-plan-directory';
+import { createWorkingPlanEdges } from './working-plan-edges';
+import { createWorkingPlanRows } from './working-plan-rows';
+import { createWorkingPlanSubtrees } from './working-plan-subtrees';
+import { createWorkingPlanValues } from './working-plan-values';
 
 /** One project's lazily retained reads, owned by one admitted command batch. */
 export interface WorkingPlan {
@@ -21,12 +26,9 @@ export interface WorkingPlan {
  * permanently refuses retained reads, including callbacks borrowed while the
  * batch was open.
  *
- * Task 2.1 deliberately creates and closes this graph from the production
- * runner without yet dispatching commands through it. Tasks 2.3–2.7 add the
- * mutation-aware wrappers; Task 3.1 then switches the command service graph to
- * `workingPlan.stores`. Activating these retained reads before their mutation
- * refreshes exist would make a later command observe an earlier command's
- * stale before-image.
+ * Row, step-value, dependency, subtree and directory wrappers advance the
+ * authoritative affected identities before returning, so the command service
+ * graph can use these stores for the full lifetime of its admitted batch.
  */
 export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan {
   let isClosed = false;
@@ -71,129 +73,237 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     assertOpen,
   );
 
-  const retainedWorkItems: WorkItemStore = {
-    listByProject: async (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return workItems.all();
-    },
-    listByIds: async (requestedProjectId, ids) => {
-      assertProject(requestedProjectId);
-      const requested = new Set(ids);
-      return (await workItems.all())
-        .filter(({ id }) => requested.has(id))
-        .sort((left, right) => left.id.localeCompare(right.id));
-    },
-    findById: guarded(assertOpen, (id) => scope.stores.workItems.findById(id)),
-    insert: guarded(assertOpen, (workItem, respaced, stamp) =>
-      scope.stores.workItems.insert(workItem, respaced, stamp),
-    ),
-    patch: guarded(assertOpen, (id, patch, stamp) =>
-      scope.stores.workItems.patch(id, patch, stamp),
-    ),
-    move: guarded(assertOpen, (id, parentId, position, respaced, stamp) =>
-      scope.stores.workItems.move(id, parentId, position, respaced, stamp),
-    ),
-    setPositions: guarded(assertOpen, (placements, moved, stamp) =>
-      scope.stores.workItems.setPositions(placements, moved, stamp),
-    ),
-    setFrozenNumbers: guarded(assertOpen, (updates, stamp) =>
-      scope.stores.workItems.setFrozenNumbers(updates, stamp),
-    ),
-    remove: guarded(assertOpen, (ids, promoted, stamp) =>
-      scope.stores.workItems.remove(ids, promoted, stamp),
-    ),
+  const refreshRows = async (
+    ids: readonly string[],
+    insertedIds: readonly string[] = [],
+  ): Promise<void> => {
+    assertOpen();
+    const requestedIds = [...new Set(ids)];
+    if (requestedIds.length === 0) return;
+    const requested = new Set(requestedIds);
+    await workItems.replaceAndPlace(
+      requestedIds,
+      insertedIds,
+      () => scope.stores.workItems.listByIds(projectId, requestedIds),
+      (newIds) => scope.stores.workItems.listPlacements(projectId, newIds),
+      ({ id }) => id,
+      (row) => {
+        if (row.projectId !== projectId) {
+          throw new Error(`targeted work item ${row.id} is outside project ${projectId}`);
+        }
+        if (!requested.has(row.id)) {
+          throw new Error(`targeted work item ${row.id} was not requested for refresh`);
+        }
+      },
+    );
+    await estimates.replaceGroupsAndPlace(
+      requestedIds,
+      () => scope.stores.estimates.listByWorkItems(projectId, requestedIds),
+      (newIds) => scope.stores.estimates.listPlacements(projectId, newIds),
+      ({ workItemId }) => workItemId,
+      ({ workItemId }) => {
+        assertRequested('estimate', workItemId, requested);
+      },
+    );
+    await actuals.replaceGroupsAndPlace(
+      requestedIds,
+      () => scope.stores.actuals.listByWorkItems(projectId, requestedIds),
+      (newIds) => scope.stores.actuals.listPlacements(projectId, newIds),
+      ({ workItemId }) => workItemId,
+      ({ workItemId }) => {
+        assertRequested('actual', workItemId, requested);
+      },
+    );
+    await measures.replaceGroupsAndPlace(
+      requestedIds,
+      () => scope.stores.measures.listByWorkItems(projectId, requestedIds),
+      (newIds) => scope.stores.measures.listPlacements(projectId, newIds),
+      ({ workItemId }) => workItemId,
+      ({ workItemId }) => {
+        assertRequested('measure', workItemId, requested);
+      },
+    );
+    await progress.replaceGroupsAndPlace(
+      requestedIds,
+      () => scope.stores.progress.listByWorkItems(projectId, requestedIds),
+      (newIds) => scope.stores.progress.listPlacements(projectId, newIds),
+      ({ workItemId }) => workItemId,
+      ({ workItemId }) => {
+        assertRequested('progress', workItemId, requested);
+      },
+    );
+    await dependencies.replaceIncident(
+      () => scope.stores.dependencies.listByWorkItems(projectId, requestedIds),
+      ({ predecessorId, successorId }) =>
+        requested.has(predecessorId) || requested.has(successorId),
+      ({ id }) => id,
+      (edge) => {
+        if (edge.projectId !== projectId) {
+          throw new Error(`targeted dependency ${edge.id} is outside project ${projectId}`);
+        }
+        if (!requested.has(edge.predecessorId) && !requested.has(edge.successorId)) {
+          throw new Error(
+            `targeted dependency ${edge.id} touches no refreshed work item in project ${projectId}`,
+          );
+        }
+      },
+    );
   };
-  const retainedEstimates: EstimateStore = {
-    listByProject: async (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return estimates.all();
+
+  const retainedWorkItems = createWorkingPlanRows(
+    // Keep store selection lazy: admission refusals construct this graph but
+    // must never touch transactional mutation ports.
+    // Proof: passing the store eagerly made the absent-account admission test
+    // throw "something asked it for workItems" before returning `forbidden`.
+    () => scope.stores.workItems,
+    {
+      all: async () => workItems.all(),
+      byIds: async (ids) => {
+        const requested = new Set(ids);
+        return (await workItems.all()).filter(({ id }) => requested.has(id));
+      },
+      placements: async (ids) => placementsOf(await workItems.all(), ids, ({ id }) => id),
     },
-    listByWorkItems: async (requestedProjectId, ids) => {
+    assertOpen,
+    refreshRows,
+  );
+  const checkedWorkItems = {
+    ...retainedWorkItems,
+    listByProject: async (requestedProjectId: string) => {
       assertProject(requestedProjectId);
-      return byWorkItem(await estimates.all(), ids);
+      return retainedWorkItems.listByProject(requestedProjectId);
     },
-    set: guarded(assertOpen, (estimate, stamp) => scope.stores.estimates.set(estimate, stamp)),
-    remove: guarded(assertOpen, (workItemId, stepId, stamp) =>
-      scope.stores.estimates.remove(workItemId, stepId, stamp),
-    ),
-    moveAll: guarded(assertOpen, (fromWorkItemId, toWorkItemId, stamp) =>
-      scope.stores.estimates.moveAll(fromWorkItemId, toWorkItemId, stamp),
-    ),
+    listByIds: async (requestedProjectId: string, ids: readonly string[]) => {
+      assertProject(requestedProjectId);
+      return retainedWorkItems.listByIds(requestedProjectId, ids);
+    },
+    listPlacements: async (requestedProjectId: string, ids: readonly string[]) => {
+      assertProject(requestedProjectId);
+      return retainedWorkItems.listPlacements(requestedProjectId, ids);
+    },
   };
-  const retainedActuals: ActualStore = {
-    listByProject: async (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return actuals.all();
+  const retainedEstimates: EstimateStore = createWorkingPlanValues(
+    () => scope.stores.estimates,
+    {
+      all: async (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return estimates.all();
+      },
+      byWorkItems: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return byWorkItem(await estimates.all(), ids);
+      },
+      placements: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return placementsOfGroups(await estimates.all(), ids, ({ workItemId }) => workItemId);
+      },
     },
-    listByWorkItems: async (requestedProjectId, ids) => {
-      assertProject(requestedProjectId);
-      return byWorkItem(await actuals.all(), ids);
+    assertOpen,
+    refreshRows,
+  );
+  const retainedActuals: ActualStore = createWorkingPlanValues(
+    () => scope.stores.actuals,
+    {
+      all: async (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return actuals.all();
+      },
+      byWorkItems: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return byWorkItem(await actuals.all(), ids);
+      },
+      placements: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return placementsOfGroups(await actuals.all(), ids, ({ workItemId }) => workItemId);
+      },
     },
-    set: guarded(assertOpen, (actual, stamp) => scope.stores.actuals.set(actual, stamp)),
-    remove: guarded(assertOpen, (workItemId, stepId, stamp) =>
-      scope.stores.actuals.remove(workItemId, stepId, stamp),
-    ),
-    moveAll: guarded(assertOpen, (fromWorkItemId, toWorkItemId, stamp) =>
-      scope.stores.actuals.moveAll(fromWorkItemId, toWorkItemId, stamp),
-    ),
-  };
-  const retainedMeasures: MeasureStore = {
-    listByProject: async (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return measures.all();
+    assertOpen,
+    refreshRows,
+  );
+  const retainedMeasures: MeasureStore = createWorkingPlanValues(
+    () => scope.stores.measures,
+    {
+      all: async (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return measures.all();
+      },
+      byWorkItems: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return byWorkItem(await measures.all(), ids);
+      },
+      placements: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return placementsOfGroups(await measures.all(), ids, ({ workItemId }) => workItemId);
+      },
     },
-    listByWorkItems: async (requestedProjectId, ids) => {
-      assertProject(requestedProjectId);
-      return byWorkItem(await measures.all(), ids);
+    assertOpen,
+    refreshRows,
+  );
+  const retainedProgress: StepProgressStore = createWorkingPlanValues(
+    () => scope.stores.progress,
+    {
+      all: async (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return progress.all();
+      },
+      byWorkItems: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return byWorkItem(await progress.all(), ids);
+      },
+      placements: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return placementsOfGroups(await progress.all(), ids, ({ workItemId }) => workItemId);
+      },
     },
-    set: guarded(assertOpen, (measure, stamp) => scope.stores.measures.set(measure, stamp)),
-    remove: guarded(assertOpen, (workItemId, stepId, metric, stamp) =>
-      scope.stores.measures.remove(workItemId, stepId, metric, stamp),
-    ),
-    moveAll: guarded(assertOpen, (fromWorkItemId, toWorkItemId, stamp) =>
-      scope.stores.measures.moveAll(fromWorkItemId, toWorkItemId, stamp),
-    ),
-  };
-  const retainedProgress: StepProgressStore = {
-    listByProject: async (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return progress.all();
+    assertOpen,
+    refreshRows,
+  );
+  const retainedDependencies: DependencyStore = createWorkingPlanEdges(
+    () => scope.stores.dependencies,
+    projectId,
+    {
+      all: async (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return dependencies.all();
+      },
+      byWorkItems: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        const requested = new Set(ids);
+        return (await dependencies.all()).filter(
+          ({ predecessorId, successorId }) =>
+            requested.has(predecessorId) || requested.has(successorId),
+        );
+      },
     },
-    listByWorkItems: async (requestedProjectId, ids) => {
-      assertProject(requestedProjectId);
-      return byWorkItem(await progress.all(), ids);
+    assertOpen,
+    refreshRows,
+  );
+  const retainedSubtrees = createWorkingPlanSubtrees(
+    () => scope.stores.subtrees,
+    {
+      byIds: async (ids) => {
+        const requested = new Set(ids);
+        return (await workItems.all()).filter(({ id }) => requested.has(id));
+      },
     },
-    set: guarded(assertOpen, (statement, stamp) => scope.stores.progress.set(statement, stamp)),
-    remove: guarded(assertOpen, (workItemId, stepId, stamp) =>
-      scope.stores.progress.remove(workItemId, stepId, stamp),
-    ),
-    moveAll: guarded(assertOpen, (fromWorkItemId, toWorkItemId, stamp) =>
-      scope.stores.progress.moveAll(fromWorkItemId, toWorkItemId, stamp),
-    ),
-  };
-  const retainedDependencies: DependencyStore = {
-    listByProject: async (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return dependencies.all();
+    assertOpen,
+    refreshRows,
+  );
+  const retainedDirectory = createWorkingPlanDirectory(
+    () => scope.stores.directory,
+    assertOpen,
+    async () => {
+      await Promise.all([
+        workItems.reload(),
+        estimates.reload(),
+        actuals.reload(),
+        measures.reload(),
+        progress.reload(),
+        dependencies.reload(),
+      ]);
     },
-    listByWorkItems: async (requestedProjectId, ids) => {
-      assertProject(requestedProjectId);
-      const requested = new Set(ids);
-      return (await dependencies.all()).filter(
-        ({ predecessorId, successorId }) =>
-          requested.has(predecessorId) || requested.has(successorId),
-      );
-    },
-    add: guarded(assertOpen, (dependency, stamp) =>
-      scope.stores.dependencies.add(dependency, stamp),
-    ),
-    remove: guarded(assertOpen, (predecessorId, successorId, stamp) =>
-      scope.stores.dependencies.remove(predecessorId, successorId, stamp),
-    ),
-    removeAllFor: guarded(assertOpen, (workItemIds, stamp) =>
-      scope.stores.dependencies.removeAllFor(workItemIds, stamp),
-    ),
-  };
+    refreshRows,
+  );
 
   const stores: PlanTransactionalStores = {
     get projects() {
@@ -202,7 +312,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     },
     get directory() {
       assertOpen();
-      return scope.stores.directory;
+      return retainedDirectory;
     },
     get capacity() {
       assertOpen();
@@ -228,16 +338,13 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       assertOpen();
       return scope.stores.steps;
     },
-    workItems: retainedWorkItems,
+    workItems: checkedWorkItems,
     estimates: retainedEstimates,
     actuals: retainedActuals,
     measures: retainedMeasures,
     progress: retainedProgress,
     dependencies: retainedDependencies,
-    get subtrees() {
-      assertOpen();
-      return scope.stores.subtrees;
-    },
+    subtrees: retainedSubtrees,
     get journal() {
       assertOpen();
       return scope.stores.journal;
@@ -270,6 +377,136 @@ class RetainedRows<Row> {
     }
     return this.rows.map(this.clone);
   }
+
+  async reload(): Promise<void> {
+    this.assertOpen();
+    if (this.rows === undefined) return;
+    const loaded = await this.load();
+    this.assertOpen();
+    this.rows = loaded.map(this.clone);
+  }
+
+  async replaceGroupsAndPlace(
+    ids: readonly string[],
+    load: () => Promise<Row[]>,
+    loadPlacements: (
+      ids: readonly string[],
+    ) => Promise<readonly { id: string; afterId: string | null }[]>,
+    groupOf: (row: Row) => string,
+    validate: (row: Row) => void,
+  ): Promise<void> {
+    this.assertOpen();
+    if (this.rows === undefined) return;
+    const replacements = await load();
+    this.assertOpen();
+    replacements.forEach(validate);
+    const replaced = new Set(ids);
+    const replacementsByGroup = new Map<string, Row[]>();
+    for (const row of replacements) addToGroup(replacementsByGroup, groupOf(row), row);
+    const inserted = new Set<string>();
+    const retainedGroups = new Set(this.rows.map(groupOf));
+    const retained: Row[] = [];
+    for (const row of this.rows) {
+      const group = groupOf(row);
+      if (!replaced.has(group)) {
+        retained.push(row);
+        continue;
+      }
+      if (inserted.has(group)) continue;
+      retained.push(...(replacementsByGroup.get(group) ?? []));
+      inserted.add(group);
+    }
+    const newGroups = [...replacementsByGroup.keys()].filter((group) => !retainedGroups.has(group));
+    if (newGroups.length === 0) {
+      this.rows = retained.map(this.clone);
+      return;
+    }
+    const placements = await loadPlacements(newGroups);
+    this.assertOpen();
+    const newReplacements = new Map(
+      newGroups.map((group) => [group, replacementsByGroup.get(group) ?? []] as const),
+    );
+    placeGroups(retained, newReplacements, placements, groupOf, 'value group');
+    this.rows = retained.map(this.clone);
+  }
+
+  async replaceAndPlace(
+    ids: readonly string[],
+    insertedIds: readonly string[],
+    load: () => Promise<Row[]>,
+    loadPlacements: (
+      ids: readonly string[],
+    ) => Promise<readonly { id: string; afterId: string | null }[]>,
+    groupOf: (row: Row) => string,
+    validate: (row: Row) => void,
+  ): Promise<void> {
+    this.assertOpen();
+    if (this.rows === undefined) return;
+    const replacements = await load();
+    this.assertOpen();
+    replacements.forEach(validate);
+    const replaced = new Set(ids);
+    const replacementsByIdentity = new Map(replacements.map((row) => [groupOf(row), row] as const));
+    const retained: Row[] = [];
+    for (const row of this.rows) {
+      const identity = groupOf(row);
+      if (!replaced.has(identity)) {
+        retained.push(row);
+        continue;
+      }
+      const replacement = replacementsByIdentity.get(identity);
+      if (replacement !== undefined) {
+        retained.push(replacement);
+        replacementsByIdentity.delete(identity);
+      }
+    }
+
+    const inserted = new Set(insertedIds);
+    const newIds = [...replacementsByIdentity.keys()];
+    for (const id of newIds) {
+      if (!inserted.has(id)) throw new Error(`refreshed work item ${id} has no retained position`);
+    }
+    if (newIds.length === 0) {
+      this.rows = retained.map(this.clone);
+      return;
+    }
+    const placements = await loadPlacements(newIds);
+    this.assertOpen();
+    const newRows = new Map<string, Row[]>(
+      [...replacementsByIdentity].map(([id, row]) => [id, [row]]),
+    );
+    placeGroups(retained, newRows, placements, groupOf, 'work item');
+    this.rows = retained.map(this.clone);
+  }
+
+  async replaceIncident(
+    load: () => Promise<Row[]>,
+    isIncident: (row: Row) => boolean,
+    identityOf: (row: Row) => string,
+    validate: (row: Row) => void,
+  ): Promise<void> {
+    this.assertOpen();
+    if (this.rows === undefined) return;
+    const replacements = await load();
+    this.assertOpen();
+    replacements.forEach(validate);
+    const replacementByIdentity = new Map(
+      replacements.map((row) => [identityOf(row), row] as const),
+    );
+    const retained: Row[] = [];
+    for (const row of this.rows) {
+      if (!isIncident(row)) {
+        retained.push(row);
+        continue;
+      }
+      const replacement = replacementByIdentity.get(identityOf(row));
+      if (replacement === undefined) continue;
+      retained.push(replacement);
+      replacementByIdentity.delete(identityOf(row));
+    }
+    retained.push(...replacementByIdentity.values());
+    this.rows = retained.map(this.clone);
+  }
 }
 
 function retainedRows<Row>(
@@ -280,16 +517,6 @@ function retainedRows<Row>(
   return new RetainedRows(load, clone, assertOpen);
 }
 
-function guarded<Arguments extends readonly unknown[], Value>(
-  assertOpen: () => void,
-  operation: (...parameters: Arguments) => Promise<Value>,
-): (...parameters: Arguments) => Promise<Value> {
-  return (...parameters) => {
-    assertOpen();
-    return operation(...parameters);
-  };
-}
-
 function byWorkItem<Row extends { workItemId: string }>(
   rows: readonly Row[],
   ids: readonly string[],
@@ -298,8 +525,92 @@ function byWorkItem<Row extends { workItemId: string }>(
   return rows.filter(({ workItemId }) => requested.has(workItemId));
 }
 
+function placementsOf<Row>(
+  rows: readonly Row[],
+  ids: readonly string[],
+  identityOf: (row: Row) => string,
+): { id: string; afterId: string | null }[] {
+  const requested = new Set(ids);
+  return rows.flatMap((row, index) => {
+    const id = identityOf(row);
+    if (!requested.has(id)) return [];
+    return [{ id, afterId: index === 0 ? null : identityOf(rows[index - 1]) }];
+  });
+}
+
+function placementsOfGroups<Row>(
+  rows: readonly Row[],
+  ids: readonly string[],
+  groupOf: (row: Row) => string,
+): { id: string; afterId: string | null }[] {
+  const requested = new Set(ids);
+  const groups = [...new Set(rows.map(groupOf))];
+  return groups.flatMap((id, index) =>
+    requested.has(id) ? [{ id, afterId: index === 0 ? null : groups[index - 1] }] : [],
+  );
+}
+
+function placeGroups<Row>(
+  retained: Row[],
+  replacements: ReadonlyMap<string, Row[]>,
+  placements: readonly { id: string; afterId: string | null }[],
+  groupOf: (row: Row) => string,
+  noun: 'value group' | 'work item',
+): void {
+  const expected = new Set(replacements.keys());
+  const placed = new Set<string>();
+  const known = new Set(retained.map(groupOf));
+  for (const { id, afterId } of placements) {
+    if (placed.has(id)) throw new Error(`targeted placement returned duplicate ${noun} ${id}`);
+    if (!expected.has(id)) throw new Error(`targeted placement returned unexpected ${noun} ${id}`);
+    if (afterId !== null && typeof afterId !== 'string') {
+      throw new Error(`targeted placement for ${id} has malformed predecessor`);
+    }
+    if (afterId === id) throw new Error(`targeted placement for ${id} cannot follow itself`);
+    if (afterId !== null && !known.has(afterId)) {
+      throw new Error(`targeted placement for ${id} follows missing ${noun} ${afterId}`);
+    }
+    known.add(id);
+    placed.add(id);
+  }
+  if (placed.size !== expected.size) {
+    const missing = [...expected].find((id) => !placed.has(id));
+    throw new Error(`targeted placement omitted ${noun} ${missing ?? 'unknown'}`);
+  }
+  for (const { id, afterId } of placements) {
+    const rows = replacements.get(id);
+    if (rows === undefined) throw new Error(`targeted placement omitted ${noun} ${id}`);
+    const index = afterId === null ? 0 : lastGroupIndex(retained, afterId, groupOf) + 1;
+    retained.splice(index, 0, ...rows);
+  }
+}
+
+function lastGroupIndex<Row>(
+  rows: readonly Row[],
+  id: string,
+  groupOf: (row: Row) => string,
+): number {
+  return rows.findLastIndex((row) => groupOf(row) === id);
+}
+
 function cloneRecord<Row extends object>(record: Row): Row {
   return { ...record };
+}
+
+function addToGroup<Row>(groups: Map<string, Row[]>, key: string, row: Row): void {
+  const rows = groups.get(key);
+  if (rows === undefined) groups.set(key, [row]);
+  else rows.push(row);
+}
+
+function assertRequested(
+  collection: string,
+  workItemId: string,
+  requested: ReadonlySet<string>,
+): void {
+  if (!requested.has(workItemId)) {
+    throw new Error(`targeted ${collection} belongs to unrequested work item ${workItemId}`);
+  }
 }
 
 /**

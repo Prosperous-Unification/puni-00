@@ -1,5 +1,8 @@
 import type { StepProgressStore, StepStore, StoredProgress, WorkItemStore } from '@wbs/core';
 
+import { readTargetedSatelliteRows } from './targeted-satellite-rows';
+import { compareValueGroupIds, listValueGroupPlacements } from './value-group-placement';
+
 /** A StepProgressStore backed by an array, keyed as the composite primary key is. */
 export function inMemoryProgress(
   workItems: WorkItemStore,
@@ -21,15 +24,25 @@ export function inMemoryProgress(
       );
     },
     async listByWorkItems(projectId, workItemIds) {
-      const projectIds = new Set(
-        (await workItems.listByIds(projectId, workItemIds)).map((row) => row.id),
+      const targeted = await readTargetedSatelliteRows(
+        'progress',
+        rows,
+        projectId,
+        workItemIds,
+        workItems,
+        steps,
+        (row) => {
+          if (!isProgressState(row.state)) {
+            throw new Error(`progress ${row.workItemId}/${row.stepId} has an invalid state`);
+          }
+          if (typeof row.statedAt !== 'number' || !Number.isFinite(row.statedAt)) {
+            throw new Error(`progress ${row.workItemId}/${row.stepId} has an invalid stated time`);
+          }
+        },
       );
-      const requested = new Set(workItemIds);
-      return order(
-        rows.filter((row) => projectIds.has(row.workItemId) && requested.has(row.workItemId)),
-        await steps?.listByProject(projectId),
-      );
+      return order(targeted.rows, targeted.steps);
     },
+    listPlacements: (projectId, ids) => listValueGroupPlacements(rows, projectId, ids, workItems),
     set(toSet, _stamp) {
       const kept = rows.filter(
         (row) => !(row.workItemId === toSet.workItemId && row.stepId === toSet.stepId),
@@ -56,6 +69,10 @@ export function inMemoryProgress(
   };
 }
 
+function isProgressState(state: unknown): state is StoredProgress['state'] {
+  return state === 'in_progress' || state === 'done';
+}
+
 function order(
   rows: StoredProgress[],
   steps: Awaited<ReturnType<StepStore['listByProject']>> | undefined,
@@ -64,7 +81,7 @@ function order(
   const position = new Map(steps.map((step) => [step.id, step.position]));
   return [...rows].sort(
     (left, right) =>
-      left.workItemId.localeCompare(right.workItemId) ||
+      compareValueGroupIds(left.workItemId, right.workItemId) ||
       (position.get(left.stepId) ?? 0) - (position.get(right.stepId) ?? 0) ||
       left.stepId.localeCompare(right.stepId),
   );

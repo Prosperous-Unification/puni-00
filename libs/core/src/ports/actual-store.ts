@@ -1,4 +1,4 @@
-import type { StepWriteOutcome } from './estimate-store';
+import type { StepWriteOutcome, ValueGroupPlacement } from './estimate-store';
 import type { WriteStamp } from './write-stamp';
 
 /**
@@ -37,6 +37,8 @@ export interface ActualStore {
   listByProject(projectId: string): Promise<StoredActual[]>;
   /** Values for the requested work items in project and step order. */
   listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredActual[]>;
+  /** Populated-group placements with {@link EstimateStore.listPlacements}'s exact semantics. */
+  listPlacements(projectId: string, ids: readonly string[]): Promise<ValueGroupPlacement[]>;
   /** Writes one work item's actual for one step, replacing any earlier one. */
   set(actual: StoredActual, stamp: WriteStamp): Promise<StepWriteOutcome>;
   /**

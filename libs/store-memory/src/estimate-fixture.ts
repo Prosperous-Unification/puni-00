@@ -1,5 +1,8 @@
 import type { EstimateStore, StepStore, StoredEstimate, WorkItemStore } from '@wbs/core';
 
+import { readTargetedSatelliteRows } from './targeted-satellite-rows';
+import { compareValueGroupIds, listValueGroupPlacements } from './value-group-placement';
+
 /** An EstimateStore backed by an array, keyed as the composite primary key is. */
 export function inMemoryEstimates(
   workItems: WorkItemStore,
@@ -21,15 +24,24 @@ export function inMemoryEstimates(
       );
     },
     async listByWorkItems(projectId, workItemIds) {
-      const projectIds = new Set(
-        (await workItems.listByIds(projectId, workItemIds)).map((row) => row.id),
+      const targeted = await readTargetedSatelliteRows(
+        'estimate',
+        rows,
+        projectId,
+        workItemIds,
+        workItems,
+        steps,
+        (row) => {
+          for (const value of [row.optimistic, row.realistic, row.pessimistic]) {
+            if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+              throw new Error(`estimate ${row.workItemId}/${row.stepId} has an invalid day value`);
+            }
+          }
+        },
       );
-      const requested = new Set(workItemIds);
-      return order(
-        rows.filter((row) => projectIds.has(row.workItemId) && requested.has(row.workItemId)),
-        await steps?.listByProject(projectId),
-      );
+      return order(targeted.rows, targeted.steps);
     },
+    listPlacements: (projectId, ids) => listValueGroupPlacements(rows, projectId, ids, workItems),
     set(toSet, _stamp) {
       const kept = rows.filter(
         (row) => !(row.workItemId === toSet.workItemId && row.stepId === toSet.stepId),
@@ -64,7 +76,7 @@ function order(
   const position = new Map(steps.map((step) => [step.id, step.position]));
   return [...rows].sort(
     (left, right) =>
-      left.workItemId.localeCompare(right.workItemId) ||
+      compareValueGroupIds(left.workItemId, right.workItemId) ||
       (position.get(left.stepId) ?? 0) - (position.get(right.stepId) ?? 0) ||
       left.stepId.localeCompare(right.stepId),
   );

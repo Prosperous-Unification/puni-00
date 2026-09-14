@@ -139,7 +139,47 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
       expect((await port.listByIds(projectA, [firstId, secondId])).map(({ id }) => id)).toEqual([
         secondId,
       ]);
+
+      const template = (await port.listByProject(projectA)).find(({ id }) => id === secondId);
+      if (template === undefined) throw new Error('targeted-order template row is missing');
+      await port.remove([secondId], [], seed.stamps[1]);
+      const insertedIds = ['z', 'a', 'b', 'c'] as const;
+      for (const [position, id] of insertedIds.entries()) {
+        await port.insert(
+          rowFrom(template, { id, position: (position + 1) * 10, revision: 0 }),
+          [],
+          seed.stamps[0],
+        );
+      }
+      const complete = await port.listByProject(projectA);
+      const targeted = await port.listByIds(projectA, ['c', 'z', 'b', 'a']);
+      const inserted: ReadonlySet<string> = new Set(insertedIds);
+      // Proof: sorting the memory targeted reader by ID produced a,b,c,z while
+      // its authoritative full reader produced the insertion order z,a,b,c.
+      expect(targeted).toEqual(complete.filter(({ id }) => inserted.has(id)));
     }),
+    storeCase(
+      'workItems',
+      'workItems.listPlacements:source-order',
+      open,
+      async ({ port, seed }) => {
+        const [projectA, projectB] = seed.projectIds;
+        const requestedIds = [seed.workItemIds[0][1], seed.workItemIds[0][0]];
+        const completeIds = (await port.listByProject(projectA)).map(({ id }) => id);
+        const expected = completeIds
+          .filter((id) => requestedIds.includes(id))
+          .map((id) => {
+            const index = completeIds.indexOf(id);
+            return { id, afterId: index === 0 ? null : completeIds[index - 1] };
+          });
+
+        // Proof: adapters returning no placements failed here with [] instead of
+        // both requested identities and their source-authoritative predecessors.
+        expect(await port.listPlacements(projectA, requestedIds)).toEqual(expected);
+        expect(await port.listPlacements(projectA, [seed.workItemIds[1][0]])).toEqual([]);
+        expect(await port.listPlacements(projectB, [])).toEqual([]);
+      },
+    ),
     storeCase('workItems', 'workItems.insert:respace', open, async ({ port, readers, seed }) => {
       const [projectA, projectB] = seed.projectIds;
       const [firstId, secondId] = seed.workItemIds[0];

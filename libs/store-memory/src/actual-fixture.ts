@@ -1,5 +1,8 @@
 import type { ActualStore, StepStore, StoredActual, WorkItemStore } from '@wbs/core';
 
+import { readTargetedSatelliteRows } from './targeted-satellite-rows';
+import { compareValueGroupIds, listValueGroupPlacements } from './value-group-placement';
+
 /** An ActualStore backed by an array, keyed as the composite primary key is. */
 export function inMemoryActuals(
   workItems: WorkItemStore,
@@ -21,15 +24,25 @@ export function inMemoryActuals(
       );
     },
     async listByWorkItems(projectId, workItemIds) {
-      const projectIds = new Set(
-        (await workItems.listByIds(projectId, workItemIds)).map((row) => row.id),
+      const targeted = await readTargetedSatelliteRows(
+        'actual',
+        rows,
+        projectId,
+        workItemIds,
+        workItems,
+        steps,
+        (row) => {
+          if (typeof row.days !== 'number' || !Number.isFinite(row.days) || row.days < 0) {
+            throw new Error(`actual ${row.workItemId}/${row.stepId} has an invalid day value`);
+          }
+          if (typeof row.recordedAt !== 'number' || !Number.isFinite(row.recordedAt)) {
+            throw new Error(`actual ${row.workItemId}/${row.stepId} has an invalid recorded time`);
+          }
+        },
       );
-      const requested = new Set(workItemIds);
-      return order(
-        rows.filter((row) => projectIds.has(row.workItemId) && requested.has(row.workItemId)),
-        await steps?.listByProject(projectId),
-      );
+      return order(targeted.rows, targeted.steps);
     },
+    listPlacements: (projectId, ids) => listValueGroupPlacements(rows, projectId, ids, workItems),
     set(toSet, _stamp) {
       const kept = rows.filter(
         (row) => !(row.workItemId === toSet.workItemId && row.stepId === toSet.stepId),
@@ -64,7 +77,7 @@ function order(
   const position = new Map(steps.map((step) => [step.id, step.position]));
   return [...rows].sort(
     (left, right) =>
-      left.workItemId.localeCompare(right.workItemId) ||
+      compareValueGroupIds(left.workItemId, right.workItemId) ||
       (position.get(left.stepId) ?? 0) - (position.get(right.stepId) ?? 0) ||
       left.stepId.localeCompare(right.stepId),
   );

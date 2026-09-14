@@ -1,4 +1,5 @@
 import type { Source, TransactionalStores } from '@wbs/core';
+import type { Logger } from 'drizzle-orm';
 
 import { buildStores } from './build-stores';
 import { type CaptureReadSeam, inertSqliteCaptureReadSeam } from './capture-read-seam';
@@ -20,6 +21,8 @@ export interface SqliteSource extends Source<TransactionalStores> {
 export interface OpenSqliteSourceOptions {
   readonly dbPath: string;
   readonly openConnection?: (dbPath: string) => Connection;
+  /** Optional Drizzle query observer for diagnostics such as statement-count tests. */
+  readonly logger?: Logger;
 }
 
 /** Opens SQLite persistence without changing its schema. */
@@ -48,7 +51,8 @@ function openSqliteSourceWithSeams(
   lateWrite: SqliteLateWriteSeam,
   captureRead: CaptureReadSeam,
 ): SqliteSource {
-  const connect = options.openConnection ?? openDatabaseConnection;
+  const connect =
+    options.openConnection ?? ((dbPath: string) => openDatabaseConnection(dbPath, options.logger));
   const process = connect(options.dbPath);
   const coordinator = new WriteCoordinator();
   const stores = buildStores(process.db, coordinator, lateWrite);

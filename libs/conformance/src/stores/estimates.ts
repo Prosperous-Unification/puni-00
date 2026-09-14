@@ -1,6 +1,7 @@
 import { expect } from 'bun:test';
 
 import type { CaseRegistration } from '../case-manifest';
+import { TARGETED_ORDER_WORK_ITEM_IDS } from '../source-declaration';
 import { type OpenCase, storeCase } from './store-case';
 
 const DAYS = { optimistic: 1, realistic: 2, pessimistic: 3 } as const;
@@ -20,13 +21,71 @@ export function estimateRegistrations(open: OpenCase<'estimates'>): readonly Cas
           seed.stamps[0],
         );
         await port.set({ workItemId: targetId, stepId: firstStep, ...DAYS }, seed.stamps[0]);
+        const foreignId = seed.workItemIds[1][0];
+        await port.set(
+          { workItemId: foreignId, stepId: seed.stepIds[1][0], ...DAYS },
+          seed.stamps[1],
+        );
+        for (const [index, workItemId] of TARGETED_ORDER_WORK_ITEM_IDS.entries()) {
+          await port.set(
+            {
+              workItemId,
+              stepId: firstStep,
+              optimistic: index + 1,
+              realistic: index + 2,
+              pessimistic: index + 3,
+            },
+            seed.stamps[0],
+          );
+        }
+        const complete = await port.listByProject(seed.projectIds[0]);
         expect(
           (await port.listByWorkItems(seed.projectIds[0], [targetId])).map(({ stepId }) => stepId),
         ).toEqual([firstStep, secondStep]);
-        expect(await port.listByWorkItems(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual(
-          [],
+        const foreign = await port.listByWorkItems(seed.projectIds[0], [foreignId]);
+        // Proof: validating ownership before project filtering made the memory
+        // adapter throw for this valid project-B estimate instead of returning [].
+        expect(foreign).toEqual(complete.filter(({ workItemId }) => workItemId === foreignId));
+        expect(foreign).toEqual([]);
+        const mixedCase = await port.listByWorkItems(
+          seed.projectIds[0],
+          TARGETED_ORDER_WORK_ITEM_IDS,
+        );
+        // Proof: SQLite's old localeCompare post-sort returned work-a before
+        // work-A, disagreeing with the full reader's BINARY order.
+        expect(mixedCase).toEqual(
+          complete.filter(({ workItemId }) =>
+            TARGETED_ORDER_WORK_ITEM_IDS.some((id) => id === workItemId),
+          ),
         );
         expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
+      },
+    ),
+    storeCase(
+      'estimates',
+      'estimates.listPlacements:source-order',
+      open,
+      async ({ port, seed }) => {
+        const [firstId, secondId] = seed.workItemIds[0];
+        const stepId = seed.stepIds[0][0];
+        await port.set({ workItemId: secondId, stepId, ...DAYS }, seed.stamps[0]);
+        await port.set({ workItemId: firstId, stepId, ...DAYS }, seed.stamps[0]);
+        await port.set(
+          { workItemId: seed.workItemIds[1][0], stepId: seed.stepIds[1][0], ...DAYS },
+          seed.stamps[1],
+        );
+        const groups = [
+          ...new Set(
+            (await port.listByProject(seed.projectIds[0])).map(({ workItemId }) => workItemId),
+          ),
+        ];
+        expect(
+          await port.listPlacements(seed.projectIds[0], [secondId, 'missing', firstId]),
+        ).toEqual(
+          groups.map((id, index) => ({ id, afterId: index === 0 ? null : groups[index - 1] })),
+        );
+        expect(await port.listPlacements(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual([]);
+        expect(await port.listPlacements(seed.projectIds[0], [])).toEqual([]);
       },
     ),
     storeCase('estimates', 'estimates.set', open, async ({ port, seed }) => {

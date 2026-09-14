@@ -26,10 +26,24 @@ export interface StoredEstimate {
  */
 export type StepWriteOutcome = 'written' | 'unknown_step';
 
+/** One populated value group's predecessor in that value store's full-reader order. */
+export interface ValueGroupPlacement {
+  readonly id: string;
+  readonly afterId: string | null;
+}
+
 export interface EstimateStore {
   listByProject(projectId: string): Promise<StoredEstimate[]>;
   /** Values for the requested work items in project and step order. */
   listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredEstimate[]>;
+  /**
+   * Placement of each requested populated group in this store's full-reader order.
+   *
+   * Each answer names the immediate populated predecessor whether requested or
+   * not. Missing, empty, and foreign-project groups are absent; empty IDs return
+   * an empty collection.
+   */
+  listPlacements(projectId: string, ids: readonly string[]): Promise<ValueGroupPlacement[]>;
   /** Writes one work item's estimate for one step, replacing any earlier one. */
   set(estimate: StoredEstimate, stamp: WriteStamp): Promise<StepWriteOutcome>;
   /**

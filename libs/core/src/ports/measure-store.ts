@@ -1,6 +1,6 @@
 import type { MeasureMetric } from '@wbs/domain';
 
-import type { StepWriteOutcome } from './estimate-store';
+import type { StepWriteOutcome, ValueGroupPlacement } from './estimate-store';
 import type { WriteStamp } from './write-stamp';
 
 /**
@@ -52,6 +52,8 @@ export interface MeasureStore {
   listByProject(projectId: string): Promise<StoredMeasure[]>;
   /** Values for the requested work items in project, step, and metric order. */
   listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredMeasure[]>;
+  /** Populated-group placements with {@link EstimateStore.listPlacements}'s exact semantics. */
+  listPlacements(projectId: string, ids: readonly string[]): Promise<ValueGroupPlacement[]>;
   /**
    * Writes one work item's figure in one metric for one step, replacing any
    * earlier one in that metric and leaving the pair's other metrics alone.

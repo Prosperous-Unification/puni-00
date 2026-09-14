@@ -59,6 +59,7 @@ export const CASE_MANIFEST = {
   steps: ['steps.add', 'steps.rename', 'steps.rename:unknown'],
   workItems: [
     'workItems.listByIds:labels-scope',
+    'workItems.listPlacements:source-order',
     'workItems.insert:respace',
     'workItems.patch:refusal-atomic',
     'workItems.move:parent-position',
@@ -67,6 +68,7 @@ export const CASE_MANIFEST = {
   ],
   estimates: [
     'estimates.listByWorkItems:scope-order',
+    'estimates.listPlacements:source-order',
     'estimates.set',
     'estimates.set:replace',
     'estimates.set:unknown_step',
@@ -74,6 +76,7 @@ export const CASE_MANIFEST = {
     'estimates.moveAll:ownership',
   ],
   actuals: [
+    'actuals.listPlacements:source-order',
     'actuals.listByWorkItems:scope-order',
     'actuals.set:replace',
     'actuals.remove:pair',
@@ -81,6 +84,7 @@ export const CASE_MANIFEST = {
     'actuals.set:unknown_step',
   ],
   measures: [
+    'measures.listPlacements:source-order',
     'measures.listByWorkItems:scope-order',
     'measures.set:metric-key',
     'measures.remove:metric-key',
@@ -88,6 +92,7 @@ export const CASE_MANIFEST = {
     'measures.set:unknown_step',
   ],
   progress: [
+    'progress.listPlacements:source-order',
     'progress.listByWorkItems:scope-order',
     'progress.set:replace',
     'progress.remove:absence',

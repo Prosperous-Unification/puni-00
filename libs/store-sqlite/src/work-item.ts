@@ -199,6 +199,31 @@ export class WorkItemRepository implements WorkItemStore {
     return this.listRows(projectId, ids);
   }
 
+  /**
+   * Finds each requested row's source-order predecessor with one correlated
+   * descending index seek. An aggregate self-join is not equivalent here: it
+   * scans every earlier row in the project before computing the same identity.
+   */
+  async listPlacements(
+    projectId: string,
+    ids: readonly string[],
+  ): Promise<{ id: string; afterId: string | null }[]> {
+    if (ids.length === 0) return [];
+    const afterId = sql<string | null>`(
+      SELECT predecessor.id
+      FROM work_item AS predecessor
+      WHERE predecessor.project_id = work_item.project_id
+        AND predecessor.id < work_item.id
+      ORDER BY predecessor.id DESC
+      LIMIT 1
+    )`;
+    return this.db
+      .select({ id: workItem.id, afterId })
+      .from(workItem)
+      .where(and(eq(workItem.projectId, projectId), inArray(workItem.id, [...ids])))
+      .orderBy(asc(workItem.id));
+  }
+
   private async listRows(projectId: string, ids?: readonly string[]): Promise<LabelledWorkItem[]> {
     const withinProject = () =>
       ids === undefined

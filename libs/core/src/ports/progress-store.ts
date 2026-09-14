@@ -1,6 +1,6 @@
 import type { StepState } from '@wbs/domain';
 
-import type { StepWriteOutcome } from './estimate-store';
+import type { StepWriteOutcome, ValueGroupPlacement } from './estimate-store';
 import type { WriteStamp } from './write-stamp';
 
 /**
@@ -41,6 +41,8 @@ export interface StepProgressStore {
   listByProject(projectId: string): Promise<StoredProgress[]>;
   /** Values for the requested work items in project and step order. */
   listByWorkItems(projectId: string, ids: readonly string[]): Promise<StoredProgress[]>;
+  /** Populated-group placements with {@link EstimateStore.listPlacements}'s exact semantics. */
+  listPlacements(projectId: string, ids: readonly string[]): Promise<ValueGroupPlacement[]>;
   /** States one work item's step, replacing whatever it said before. */
   set(progress: StoredProgress, stamp: WriteStamp): Promise<StepWriteOutcome>;
   /**

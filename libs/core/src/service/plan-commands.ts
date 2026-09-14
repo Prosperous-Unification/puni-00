@@ -22,7 +22,7 @@ import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from './plan-command';
 import type { PriorityBandService } from './priority-band.service';
 import type { WorkItemRefusal } from './work-item.service';
 import type { Collected, UndoOutcome, WorkItemService } from './work-item.service';
-import { createWorkingPlan, type WorkingPlan } from './working-plan';
+import { createWorkingPlan } from './working-plan';
 
 /** The four services a command batch can invoke. */
 export interface PlanCommandServices {
@@ -120,17 +120,7 @@ export interface PlanCommandRunnerOptions {
    * stores on every run; retaining an earlier graph would write into discarded
    * state.
    */
-  batchServices: (
-    scope: Scope,
-    broadcast: Broadcaster,
-    /**
-     * The plan batch's owned retained graph. Task 2.1 exposes it while the
-     * service factory continues composing over `scope.stores`; Task 3.1 makes
-     * it the graph's stores after the mutation wrappers can advance it.
-     * Directory batches and rollback repair have no working plan.
-     */
-    workingPlan?: WorkingPlan,
-  ) => PlanCommandServices;
+  batchServices: (scope: Scope, broadcast: Broadcaster) => PlanCommandServices;
   /**
    * The process graph used after the unit of work settles: reads and broadcasts
    * here observe the committed source and take their own turn.
@@ -237,7 +227,13 @@ export class PlanCommandRunner {
       // Proof: caching the first graph made the subsequent batch omit `later`:
       // expected ["kept", "later"], received ["kept"] (2026-09-09).
       try {
-        const graph = this.opts.batchServices(scope, collector, workingPlan);
+        // Proof: retaining the first working graph across SQLite batches made
+        // the second undo restore stale 4/5/6 figures instead of an intervening
+        // ordinary write's 7/8/9 figures.
+        const graph = this.opts.batchServices(
+          workingPlan === undefined ? scope : { stores: workingPlan.stores },
+          collector,
+        );
         // Proof: admitting one extra command returned404 instead of400 in the mounted cap-order case.
         const over = commands.at(MOST_COMMANDS_IN_A_BATCH);
         if (over !== undefined) {
@@ -299,6 +295,8 @@ export class PlanCommandRunner {
         }
         throw cause;
       } finally {
+        // Proof: omitting this close let callbacks retained from successful,
+        // refused and throwing batches keep reading after settlement.
         workingPlan?.close();
       }
     });

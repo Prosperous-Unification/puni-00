@@ -548,6 +548,12 @@ export interface FrozenNumber {
   frozenNumber: string | null;
 }
 
+/** One requested row's immediate predecessor in its source's full-reader order. */
+export interface WorkItemPlacement {
+  readonly id: string;
+  readonly afterId: string | null;
+}
+
 export interface WorkItemStore {
   /**
    * Every work item of one project, each carrying the teams it is joined to.
@@ -557,8 +563,16 @@ export interface WorkItemStore {
    * nothing here consults it.
    */
   listByProject(projectId: string): Promise<LabelledWorkItem[]>;
-  /** The requested rows that belong to `projectId`, in stable id order. */
+  /** The requested rows that belong to `projectId`, in the full project reader's order. */
   listByIds(projectId: string, ids: readonly string[]): Promise<LabelledWorkItem[]>;
+  /**
+   * Placement of each requested existing row in the full project reader's order.
+   *
+   * Missing or foreign-project IDs are absent. Each answer names the immediate
+   * predecessor across the complete project, whether or not that predecessor
+   * was requested. Empty IDs return an empty collection.
+   */
+  listPlacements(projectId: string, ids: readonly string[]): Promise<WorkItemPlacement[]>;
   findById(id: string): Promise<WorkItem | null>;
   /**
    * Inserts, and respaces the sibling group in the same transaction when the

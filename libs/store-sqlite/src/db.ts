@@ -75,6 +75,9 @@ export interface Connection {
  * leaves a WAL to be recovered by whoever opens the file next, which during a
  * blue/green swap is the other colour, mid-request.
  *
+ * The optional logger observes this connection's repository statements. It is
+ * a diagnostic boundary; production leaves it absent and remains silent.
+ *
  * `observeNativeTransaction` is a diagnostic hook for each Bun
  * `Database.transaction` wrapper Drizzle creates. Bun executes a successful
  * wrapper nested under an existing transaction as `SAVEPOINT` plus `RELEASE`,

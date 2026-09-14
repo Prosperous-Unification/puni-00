@@ -1,5 +1,5 @@
 import type { MeasureStore, StepWriteOutcome, StoredMeasure, WriteStamp } from '@wbs/core';
-import { and, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -100,7 +100,8 @@ export class StepMeasureRepository implements MeasureStore {
           inArray(stepMeasure.workItemId, [...ids]),
           or(eq(workItem.projectId, projectId), isNull(workItem.projectId)),
         ),
-      );
+      )
+      .orderBy(stepMeasure.workItemId, step.position, stepMeasure.stepId, stepMeasure.metric);
     if (rows.some(({ workItemProjectId }) => workItemProjectId === null)) {
       throw new Error('targeted measure has an invalid work-item reference');
     }
@@ -119,21 +120,33 @@ export class StepMeasureRepository implements MeasureStore {
         throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid recorded time`);
       }
     }
-    return admitted
-      .sort(
-        (left, right) =>
-          left.workItemId.localeCompare(right.workItemId) ||
-          (left.stepPosition ?? 0) - (right.stepPosition ?? 0) ||
-          left.stepId.localeCompare(right.stepId) ||
-          left.metric.localeCompare(right.metric),
-      )
-      .map(({ workItemId, stepId, metric, value, recordedAt }) => ({
-        workItemId,
-        stepId,
-        metric,
-        value,
-        recordedAt,
-      }));
+    return admitted.map(({ workItemId, stepId, metric, value, recordedAt }) => ({
+      workItemId,
+      stepId,
+      metric,
+      value,
+      recordedAt,
+    }));
+  }
+
+  async listPlacements(projectId: string, ids: readonly string[]) {
+    if (ids.length === 0) return [];
+    const afterId = sql<string | null>`(
+      SELECT predecessor.work_item_id FROM step_measure AS predecessor
+      WHERE predecessor.work_item_id < ${stepMeasure.workItemId}
+        AND EXISTS (
+          SELECT 1 FROM work_item AS predecessor_owner
+          WHERE predecessor_owner.id = predecessor.work_item_id
+            AND predecessor_owner.project_id = ${projectId}
+        )
+      ORDER BY predecessor.work_item_id DESC LIMIT 1
+    )`;
+    return this.db
+      .selectDistinct({ id: stepMeasure.workItemId, afterId })
+      .from(stepMeasure)
+      .innerJoin(workItem, eq(stepMeasure.workItemId, workItem.id))
+      .where(and(eq(workItem.projectId, projectId), inArray(stepMeasure.workItemId, [...ids])))
+      .orderBy(asc(stepMeasure.workItemId));
   }
 
   /**

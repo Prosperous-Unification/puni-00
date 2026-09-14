@@ -86,6 +86,9 @@ export const DETERMINISTIC_SEED: SeededPlan = {
   ],
 };
 
+/** Mixed-case owners that distinguish SQLite BINARY order from locale collation. */
+export const TARGETED_ORDER_WORK_ITEM_IDS = ['work-A', 'work-a'] as const;
+
 export interface PhaseBarrier {
   readonly entered: Promise<void>;
   release(): void;
