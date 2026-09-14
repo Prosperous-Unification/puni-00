@@ -73,6 +73,25 @@ describe('the Bun version', () => {
     // Both jobs set Bun up; one reading the file and one floating is the drift this exists to stop.
     expect(fromFile.length).toBe((workflow.match(/uses: oven-sh\/setup-bun@/g) ?? []).length);
   });
+
+  it('CI and the heavy gate use the moved solver and image paths', async () => {
+    const workflow = await read('.github/workflows/ci.yml');
+    const gateSteps = await read('bin/h2puni-gate-steps.sh');
+    const manifest = await read('tools/tool-devsync/project.json');
+
+    // Proof: the legacy CI solver paths made this production-workflow oracle fail before its
+    // first expected cache path; the heavy-gate companion also failed on its old Nx identity
+    // (0 passed / 2 failed).
+    expect(workflow).toContain(
+      'cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock',
+    );
+    expect(workflow).toContain(
+      'python3 -m pip install --require-hashes -r libs/wbs/adapters/solver-py/requirements.lock',
+    );
+    expect(workflow).toContain('bunx nx run wbs-be-01:solver-image-smoke');
+    expect(gateSteps).toContain('bunx nx run wbs-be-01:solver-image-smoke');
+    expect(manifest).toContain('"{workspaceRoot}/apps/**/Dockerfile"');
+  });
 });
 
 /**

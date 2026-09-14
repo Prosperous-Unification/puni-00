@@ -586,7 +586,7 @@ if [ "$1" = --version ]; then echo ${Bun.version}; exit 0; fi
 if [ "$1" = build ] || [ "$1" = -e ]; then exec ${process.execPath} "$@"; fi
 target_root=$(cd "$(dirname "$1")/../../.." && pwd)
 [ "$PWD" = "$target_root" ] || { echo "wrong cwd: $PWD" >&2; exit 41; }
-for required in apps/be-01/Dockerfile bin/publish-release.sh deploy/solver-supervisor/wbs-solver-supervisor.service bun.lock; do
+for required in apps/wbs/be-01/Dockerfile bin/publish-release.sh deploy/solver-supervisor/wbs-solver-supervisor.service bun.lock; do
   [ -f "$target_root/$required" ] || { echo "missing target file: $required" >&2; exit 42; }
 done
 [ "$(git -C "$target_root" rev-parse HEAD)" = "$2" ] || { echo 'wrong target HEAD' >&2; exit 43; }
@@ -621,6 +621,11 @@ printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
     // this failed one check earlier on `target tree is dirty` instead. The
     // borrows-an-install probe is what makes the guarantee hold either way,
     // which is the point — the dirty check could never see a symlink.
+    //
+    // Proof: retaining the pre-namespace `apps/be-01/Dockerfile` target input
+    // made this production poller path exit 42 with
+    // `missing target file: apps/be-01/Dockerfile` (52 pass / 4 fail).
+    // Observed 2026-09-14.
     //
     // And `import '@dagger.io/dagger'` committed into sync.ts — the guard
     // refuses before the probe runs, on
@@ -756,6 +761,6 @@ CONTENT=SAME`),
     // Proof: moving the smoke command into the steps script without following that production
     // call failed here on `Expected to contain: WBS_RUN_SOLVER_ORPHAN_PROC=1`.
     expect(steps).toContain('WBS_RUN_SOLVER_ORPHAN_PROC=1');
-    expect(steps).toContain('bunx nx run be-01:solver-image-smoke');
+    expect(steps).toContain('bunx nx run wbs-be-01:solver-image-smoke');
   });
 });

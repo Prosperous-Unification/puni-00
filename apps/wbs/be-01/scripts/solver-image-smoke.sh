@@ -2,7 +2,9 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd "$script_dir/../../.." && pwd)"
+# Proof: the fake-Docker production entrypoint test observed the old three-level ascent passing
+# `<workspace>/apps/apps/wbs/be-01/Dockerfile` and `<workspace>/apps` as its build inputs.
+repo_root="$(cd "$script_dir/../../../.." && pwd)"
 image="wbs-be-01:solver-smoke"
 request="$repo_root/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline.json"
 registry_name="wbs-solver-smoke-registry-$$"

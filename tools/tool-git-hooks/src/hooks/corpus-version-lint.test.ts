@@ -424,9 +424,12 @@ describe('unreadable inputs fail closed, because a check that skips itself is th
 
 describe('the fixture list is the one the corpora actually ship', () => {
   it('names both checked-in golden corpora and nothing else', () => {
+    // Proof: restoring all three legacy `libs/domain` paths made the production corpus
+    // boundary fixture receive both old roots (0 passed / 2 failed with the hook glob).
     expect([...CORPUS_FIXTURES]).toEqual([
-      'libs/domain/fixtures/fast-golden-corpus.json',
-      'libs/domain/fixtures/solver-quantum-golden-corpus.json',
+      'libs/wbs/domain/domain/fixtures/fast-golden-corpus.json',
+      'libs/wbs/domain/domain/fixtures/solver-quantum-golden-corpus.json',
     ]);
+    expect(CONTRACT_VERSION_PATH).toBe('libs/wbs/domain/domain/src/contract-version.ts');
   });
 });
