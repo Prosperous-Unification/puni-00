@@ -40,9 +40,14 @@ tools/tool-smoke	tool-smoke	scope:infra,type:scripts,runtime:bun,ring:adapter
 tools/tool-wiki	tool-wiki	scope:infra,type:scripts,runtime:bun,ring:adapter
 ```
 
-## Active path consumer files
+## Workspace-root path token consumers
 
-This is the complete tracked-source/config file set matching an `apps/` or `libs/` path literal/wildcard, a constructed `apps/${…}` or `libs/${…}` path, or the shared recursive project-group symbols. Frozen `docs/**`, `openspec/**`, `.superpowers/**`, and `notes/**` were excluded. Some in-tree source files appear because their tests or JSDoc name a cross-tree path; they remain classified here so Section 3 cannot silently miss them.
+This is the 288-file tracked-source/config set matching an `apps/` or `libs/` path
+literal/wildcard, a constructed `apps/${…}` or `libs/${…}` path, or the shared recursive
+project-group symbols. This sweep proves only those token forms; it does not cover
+parent-relative configuration or documentation. `docs/**`, `openspec/**`, `.superpowers/**`,
+and `notes/**` were excluded here and handled separately below. Some in-tree source files
+appear because their tests or JSDoc name a cross-tree path.
 
 ```text
 .dockerignore
@@ -335,7 +340,118 @@ tools/tool-wiki/src/review/exhaustive-coverage.ts
 tsconfig.base.json
 ```
 
-The operational ownership families within that exact set are root aliases/scripts/lint/CI/ignore files; every app/lib manifest and tsconfig; Vite/Vitest/Playwright and packaged frontend paths; `bin/dev*` plus `tools/dev` and tool-devsync restart/compatibility paths; all application Dockerfiles and tool-dagger inputs; deployment/migration and migration-lint callers; corpus-version and solver fixtures; and cross-tree store/domain/backend/frontend reads.
+The operational ownership families within this token set are root aliases/scripts/lint/CI/ignore files; app/lib manifests with workspace-root values; Vite/Vitest/Playwright and packaged frontend paths; `bin/dev*` plus `tools/dev` and tool-devsync restart/compatibility paths; application Dockerfiles and tool-dagger inputs; deployment/migration and migration-lint callers; corpus-version and solver fixtures; and cross-tree store/domain/backend/frontend reads.
+
+## Depth-sensitive app/library configuration
+
+`readDepthSensitiveConfigPaths` recursively discovers app/library roots, parses their
+`project.json` and `tsconfig*.json` as JSONC, and records every string containing `../` with
+its file and property path. The pinned pre-move run reports 148 values in these 72 files:
+
+```text
+apps/be-01                         project.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json, tsconfig.tools.json
+apps/fe-01                         project.json, tsconfig.json, tsconfig.app.json, tsconfig.e2e.json, tsconfig.spec.json
+apps/gw-01                         project.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json
+apps/mcp-01                        project.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json
+libs/auth                          project.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json
+libs/config                        project.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json
+libs/conformance                   project.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json
+libs/contracts                     project.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json
+libs/contracts/solver/supervisor-protocol project.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json
+libs/core                          project.json, tsconfig.json, tsconfig.lib.json, tsconfig.portable.json, tsconfig.spec.json
+libs/domain                        project.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json
+libs/observability                 project.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json
+libs/realtime                      project.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json
+libs/runtime-portable              project.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json
+libs/solver-py                     project.json
+libs/store-memory                  project.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json
+libs/store-sqlite                  project.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json
+libs/validation                    project.json, tsconfig.json, tsconfig.lib.json, tsconfig.spec.json
+```
+
+The 148 values divide exactly into 18 project-schema paths, 17 root `extends` paths, 37
+compiler `outDir` paths, and 76 frontend compiler-alias targets. The ordinary-depth values
+use `../../`; the nested supervisor uses `../../../../`; backend tools compilation uses
+`../../dist/out-tsc-tools`. The frontend's 19 alias targets each occur in `tsconfig.json`,
+`tsconfig.app.json`, `tsconfig.spec.json`, and `tsconfig.e2e.json`. Sibling `./tsconfig*`
+references move with their owning files and are not depth-sensitive; workspace-root values
+remain in the token inventory above.
+
+The non-JSON configuration/script sweep adds these depth-sensitive paths:
+
+```text
+apps/be-01/scripts/solver-image-smoke.sh:5       $script_dir/../../.. -> workspace root
+apps/fe-01/vite-config.test.ts:72                ../../deploy/dev-src/compose.yml
+apps/fe-01/vite.config.ts:232                    ../../dist/apps/fe-01
+libs/core/playwright.config.ts:8                 ../../tmp/core-portable-results
+```
+
+The frontend Vite and Vitest alias paths also use `../../libs/...`; those files and values
+are already captured by the workspace-root token sweep. The cross-project source/test
+relative reads are recorded in their own AST-derived table below. Relative imports that
+stay inside one moving project, such as `../src/...`, retain their meaning and are excluded.
+The non-JSON review was reproduced with:
+
+```sh
+rg -n '\.\./' apps libs --glob '!**/src/**' --glob '!**/drizzle/**' --glob '!**/e2e/**' --glob '!**/e2e-packaged/**' --glob '!**/README.md' --glob '!**/*.lock' --glob '!**/__snapshots__/**'
+```
+
+## Documentation path references
+
+The tracked `docs/**/*.md` sweep below records all 41 files containing an existing app/lib
+root token. It intentionally includes current runbooks and historical plans, ADRs, reviews,
+and evidence. Section 4 must classify each occurrence before rewriting; inclusion here does
+not claim that frozen historical evidence should change.
+
+```text
+docs/2026-08-30-agent-loop-audit.md
+docs/2026-08-30-sustainability-audit.md
+docs/2026-09-02-refactoring-handoff.md
+docs/2026-09-02-refactoring-plan.md
+docs/2026-09-02-refactoring-review/A-be-repository.md
+docs/2026-09-02-refactoring-review/B-be-service-controller.md
+docs/2026-09-02-refactoring-review/C-fe-wbs-table.md
+docs/2026-09-02-refactoring-review/D-fe-rest.md
+docs/2026-09-02-refactoring-review/E-gw-mcp-libs.md
+docs/2026-09-02-refactoring-review/F-tools-tests.md
+docs/2026-09-02-refactoring-review/README.md
+docs/2026-09-05-ports-and-adapters-history.md
+docs/2026-09-05-ports-and-adapters-plan.md
+docs/adr/0008-tags-accumulate-down-the-tree.md
+docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md
+docs/adr/0012-a-write-carries-its-actor-as-an-argument.md
+docs/adr/0014-ports-live-in-a-framework-free-core-lib.md
+docs/adr/0016-a-tied-sibling-position-is-legal-and-the-row-id-resolves-it.md
+docs/adr/0018-the-dev-deploy-trigger-owns-solver-compatibility-preparation.md
+docs/adr/0024-a-done-work-item-draws-its-facts-not-its-slices.md
+docs/auth-integration.md
+docs/capacity.md
+docs/findings/checks-that-cannot-fail.md
+docs/findings/current.md
+docs/local-dev.md
+docs/plans/2026-08-07-table-ui-cleanup.md
+docs/plans/2026-08-08-tailwind-spike-verify.md
+docs/plans/2026-08-09-resource-planning.md
+docs/plans/2026-09-13-tool-wiki-precedents-and-extraction.md
+docs/refactoring/tasks.md
+docs/refactoring/verify.md
+docs/refactoring/w4-4/extraction-map.md
+docs/refactoring/w4-4/verify.md
+docs/runbook-dev-deploy.md
+docs/state/TASK-347-http-endpoint-port.md
+docs/superpowers/plans/2026-08-02-compose-blue-green-HANDOVER.md
+docs/superpowers/plans/2026-08-02-compose-blue-green-deploy.md
+docs/superpowers/plans/2026-08-04-cheap-dev-deploy.md
+docs/superpowers/plans/2026-08-24-password-login.md
+docs/superpowers/specs/2026-08-02-compose-blue-green-deploy-design.md
+docs/superpowers/specs/2026-09-05-be01-route-auth-metadata-design.md
+```
+
+Reproduction command:
+
+```sh
+rg -l --glob '*.md' '(^|[^[:alnum:]_])(apps|libs)/(be-01|fe-01|gw-01|mcp-01|auth|config|conformance|contracts|core|domain|observability|realtime|runtime-portable|solver-py|store-memory|store-sqlite|validation)(/|\b)' docs | sort
+```
 
 ## Nx selector sweep
 

@@ -24,6 +24,7 @@
         "{workspaceRoot}/libs/**/project.json",
         "{workspaceRoot}/tools/**/project.json",
         "{projectRoot}/workspace-projects.mjs",
+        "{projectRoot}/workspace-inventory.mjs",
         "{workspaceRoot}/apps/**/src/**/*.test.ts",
         "{workspaceRoot}/libs/**/src/**/*.test.ts",
         "{workspaceRoot}/tools/**/src/**/*.test.ts",
@@ -44,13 +45,13 @@
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint tools/tool-devsync/src tools/tool-devsync/workspace-projects.mjs"
+        "command": "bunx eslint tools/tool-devsync/src tools/tool-devsync/workspace-projects.mjs tools/tool-devsync/workspace-inventory.mjs"
       }
     },
     "lint:fast": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint tools/tool-devsync/src tools/tool-devsync/workspace-projects.mjs --cache --cache-location .nx/eslintcache-tool-devsync"
+        "command": "bunx eslint tools/tool-devsync/src tools/tool-devsync/workspace-projects.mjs tools/tool-devsync/workspace-inventory.mjs --cache --cache-location .nx/eslintcache-tool-devsync"
       }
     },
     "typecheck": {

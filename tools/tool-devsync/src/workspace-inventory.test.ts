@@ -1,0 +1,116 @@
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { expect, it } from 'bun:test';
+
+import { readDepthSensitiveConfigPaths } from '../workspace-inventory.mjs';
+
+const WORKSPACE = new URL('../../../', import.meta.url);
+
+async function failureMessageOf(reading: Promise<readonly unknown[]>): Promise<string> {
+  try {
+    await reading;
+  } catch (failure) {
+    if (failure instanceof Error) return failure.message;
+    throw new Error('inventory rejected without an Error', { cause: failure });
+  }
+  throw new Error('inventory unexpectedly succeeded');
+}
+
+it('finds every parent-relative path in project and TypeScript configuration', async () => {
+  const workspace = await mkdtemp(join(tmpdir(), 'workspace-inventory-'));
+  await Promise.all(
+    ['apps/probe', 'libs', 'tools'].map((root) =>
+      mkdir(join(workspace, root), { recursive: true }),
+    ),
+  );
+  await writeFile(
+    join(workspace, 'apps/probe/project.json'),
+    JSON.stringify({
+      name: 'probe',
+      tags: ['scope:app', 'ring:adapter', 'runtime:bun'],
+      targets: { test: {} },
+      $schema: '../../node_modules/nx/schemas/project-schema.json',
+    }),
+  );
+  await writeFile(
+    join(workspace, 'apps/probe/tsconfig.json'),
+    `{
+      // JSONC is the TypeScript configuration boundary.
+      "extends": "../../tsconfig.base.json",
+      "compilerOptions": { "outDir": "../../dist/out-tsc" },
+      "references": [{ "path": "./tsconfig.spec.json" }]
+    }`,
+  );
+
+  expect(await readDepthSensitiveConfigPaths(workspace)).toEqual([
+    {
+      file: 'apps/probe/project.json',
+      propertyPath: '$schema',
+      value: '../../node_modules/nx/schemas/project-schema.json',
+    },
+    {
+      file: 'apps/probe/tsconfig.json',
+      propertyPath: 'compilerOptions.outDir',
+      value: '../../dist/out-tsc',
+    },
+    {
+      file: 'apps/probe/tsconfig.json',
+      propertyPath: 'extends',
+      value: '../../tsconfig.base.json',
+    },
+  ]);
+});
+
+it('refuses malformed depth-sensitive configuration by its workspace path', async () => {
+  const workspace = await mkdtemp(join(tmpdir(), 'workspace-inventory-'));
+  await Promise.all(
+    ['apps/probe', 'libs', 'tools'].map((root) =>
+      mkdir(join(workspace, root), { recursive: true }),
+    ),
+  );
+  await writeFile(
+    join(workspace, 'apps/probe/project.json'),
+    JSON.stringify({
+      name: 'probe',
+      tags: ['scope:app', 'ring:adapter', 'runtime:bun'],
+      targets: { test: {} },
+    }),
+  );
+  await writeFile(join(workspace, 'apps/probe/tsconfig.json'), '{ "extends": "../../oops" ');
+
+  expect(await failureMessageOf(readDepthSensitiveConfigPaths(workspace))).toStartWith(
+    'cannot parse apps/probe/tsconfig.json:',
+  );
+});
+
+it('pins the complete pre-move depth-sensitive configuration inventory', async () => {
+  const paths = await readDepthSensitiveConfigPaths(WORKSPACE);
+
+  // Proof: filtering out `compilerOptions.outDir` made this production-workspace
+  // oracle fail with 111 instead of 148 rows and omitted the core outDir below
+  // (2026-09-14).
+  expect(paths).toHaveLength(148);
+  expect(new Set(paths.map(({ file }) => file))).toHaveLength(72);
+  expect(paths).toContainEqual({
+    file: 'apps/be-01/tsconfig.json',
+    propertyPath: 'extends',
+    value: '../../tsconfig.base.json',
+  });
+  expect(paths).toContainEqual({
+    file: 'libs/core/tsconfig.lib.json',
+    propertyPath: 'compilerOptions.outDir',
+    value: '../../dist/out-tsc',
+  });
+  expect(paths).toContainEqual({
+    file: 'libs/contracts/solver/supervisor-protocol/tsconfig.lib.json',
+    propertyPath: 'compilerOptions.outDir',
+    value: '../../../../dist/out-tsc',
+  });
+  expect(paths).toContainEqual({
+    file: 'apps/fe-01/tsconfig.e2e.json',
+    propertyPath: 'compilerOptions.paths.@wbs/domain/workday.0',
+    value: '../../libs/domain/src/workday.ts',
+  });
+});
