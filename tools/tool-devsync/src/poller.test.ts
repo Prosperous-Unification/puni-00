@@ -610,7 +610,7 @@ printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
 
     // Proof, each watched failing on the merged loader (2026-09-09), all as
     // `Received` stderr on the `toEqual` below: the pre-TASK-326 `git archive`
-    // of tools/libs/root configs — `missing target file: apps/wbs/be-01/Dockerfile`;
+    // of tools/libs/root configs — `missing target file: apps/be-01/Dockerfile`;
     // `cd "$SRC"` restored before the exec — `wrong cwd: <the source checkout>`;
     // the guard's `rm -rf` of its scratch removed — `target tree is dirty`;
     // restoring `git clone --shared` — `target objects still borrow source

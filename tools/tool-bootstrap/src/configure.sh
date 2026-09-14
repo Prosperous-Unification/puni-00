@@ -320,7 +320,7 @@ ENVFILE
 log "  $WBS_ROOT/fe-01.env (comment-only — fe-01 is a static caddy:2-alpine server, no env vars)"
 cat > "$WBS_ROOT/fe-01.env" <<'ENVFILE'
 # fe-01 runtime is caddy:2-alpine serving pre-built static assets
-# (apps/fe-01/Dockerfile) — no server-side config.ts / env vars required.
+# (apps/wbs/fe-01/Dockerfile) — no server-side config.ts / env vars required.
 # This file exists only because tier.compose.tmpl's env_file directive
 # requires the path to exist; docker compose errors on a missing env_file.
 ENVFILE

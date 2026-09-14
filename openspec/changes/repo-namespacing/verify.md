@@ -347,5 +347,63 @@ waiver at repository-root `bin/assert-no-prod-release.sh`.
   was claimed. Production-path candidate input validation, fake-Docker smoke execution,
   shellcheck and all Dagger unit tests were exhausted instead.
 
-Tasks 3.5 and 4, recursive cache mutation proof, fresh Tool Wiki activation, live images and
-deployment, publication, whole-workspace/browser gates and the h2puni gate remain open.
+Tasks 4.1–4.4, fresh Tool Wiki activation, live images and deployment, publication,
+whole-workspace/browser gates and the h2puni gate remain open.
+
+## Section 3.5 recursive cache inputs and active-path sweep
+
+The Tool Devsync test target retains the direct Task 3.3/3.4 inputs owned by its setup and
+operational-path tests and adds the root ignore files those tests now read. Its repository
+inventory inputs recurse through application, library and tool manifests, application/library
+TypeScript configurations and application Dockerfiles. The moved backend development entrypoint
+is excluded from Docker contexts; Drizzle snapshots and generated solver build/package metadata
+are excluded from formatting, and the same solver outputs are ignored by Git. Both golden-corpus
+writers resolve the moved domain fixture root.
+
+### TDD and R5 observations
+
+- The focused initial RED passed 33 tests and failed 4 with 92 expectations: the fast-corpus
+  writer still named `../../libs/domain/fixtures/fast-golden-corpus.json`, `.dockerignore`
+  contained only `apps/be-01/src/dev`, and the formatter/Git ignore files lacked the moved solver
+  output paths. Restored focused evidence passed 38/38 with 104 expectations.
+- A cold real `tool-devsync:test` run passed 178 tests with 516 expectations, then the unchanged
+  warm run replayed 1/1 from the local cache. Removing the `ring:adapter` tag from nested
+  `libs/wbs/adapters/solver-supervisor-protocol/project.json` with recursive inputs present caused
+  a cache miss and named failure: the manifest had zero ring tags. Removing the library-manifest
+  input was not accepted as the omission proof because Nx still invalidated the target through
+  its `^production` dependency edge.
+- The independent manifest omission used nondependency `apps/wbs/fe-01/project.json`. With the
+  recursive app-manifest input and its assertion removed, removing `product:wbs` replayed 1/1
+  from local cache and exited 0. Restoring the input while retaining the fault reran the target
+  and failed 176/2 in the product-axis and actual-layout guards.
+- Changing the real `apps/wbs/be-01/Dockerfile` Bun tag from 1.4.2 to 0.0.0 with its recursive
+  input present caused a cache miss and failed 177/1, naming
+  `apps/wbs/be-01/Dockerfile: 0.0.0`. Removing the Dockerfile input and its assertion, warming,
+  and repeating that mutation replayed 1/1 from local cache and exited 0. Restoring the input
+  while retaining the fault reran and reproduced the named 177/1 failure.
+- All injected manifest, Dockerfile and input-pattern faults were restored. Adjacent `Proof:`
+  comments pin the accepted stale-cache observations.
+
+The active-path sweep used
+`rg -n --hidden '(apps/(be-01|fe-01|gw-01|mcp-01)|libs/(domain|application|adapters|contracts|solver-py))'`
+while excluding documentation, OpenSpec, notes, frozen migrations, tests and worktrees. Remaining
+hits are classified: `MIGRATION_DIRS` and `CORPUS_LAYOUTS` intentionally read both sides of the
+rename at historical Git revisions; the Dockerignore database incident, CI, Dagger and lefthook
+comments are dated or watched-fault evidence; Tool Wiki comments and contract fixtures are
+preserved historical/negative examples.
+Current human/LLM indexes remain Task 4.1 work. The dated 2026-09-09 poller observation was restored
+to its actually observed `apps/be-01/Dockerfile`; the separate 2026-09-14 proof records the moved
+path.
+
+The first complete touched-owner matrix exposed two test-side imports of the deleted backend root
+in Tool Remote Scripts: 276 passed, 2 failed, 2 skipped. Both failures were `MODULE_NOT_FOUND` at
+`apps/be-01/src/config`; the moved imports then passed the focused file 70/70. The final uncached
+matrix ran test, lint and typecheck for Tool Dev Setup, Devsync, Bootstrap, Remote Scripts and
+Smoke: all 15 targets passed in 38.7s. Test totals included Dev Setup 20/0, Devsync 178/0,
+Bootstrap 61/0, Remote Scripts 278/0 with 2 Docker-dependent skips, and Smoke 33/0.
+The moved Tool Remote Scripts runtime contract read is now an explicit test input; its manifest
+assertion failed 0/1 before that declaration was added and passed 1/1 after restoration.
+The final focused Dev Setup/Devsync surface passed 38/38 with 104 expectations, including the
+repository's external-read totality guard. The final Tool Remote Scripts test/lint/typecheck rerun
+passed all three targets (278 tests, 584 expectations, 2 real-Docker skips). All-tree Prettier,
+`git diff --check` and strict all OpenSpec validation passed; OpenSpec reported 83/83 items valid.

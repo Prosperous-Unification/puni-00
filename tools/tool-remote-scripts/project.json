@@ -41,6 +41,7 @@
     },
     "test": {
       "executor": "nx:run-commands",
+      "inputs": ["default", "^production", "{workspaceRoot}/apps/wbs/be-01/src/config.ts"],
       "options": {
         "command": "bun test --preload ../test/scratch/preload.ts",
         "cwd": "tools/tool-remote-scripts"

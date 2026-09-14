@@ -35,7 +35,10 @@
         "{workspaceRoot}/libs/**/src/**/*.ts",
         "{workspaceRoot}/tools/**/src/**/*.ts",
         "{workspaceRoot}/.bun-version",
+        "{workspaceRoot}/.dockerignore",
+        "{workspaceRoot}/.gitignore",
         "{workspaceRoot}/.github/workflows/ci.yml",
+        "{workspaceRoot}/.prettierignore",
         "{workspaceRoot}/apps/**/Dockerfile",
         "{workspaceRoot}/deploy/dev-src/Dockerfile"
       ],

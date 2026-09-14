@@ -90,7 +90,55 @@ describe('the Bun version', () => {
     );
     expect(workflow).toContain('bunx nx run wbs-be-01:solver-image-smoke');
     expect(gateSteps).toContain('bunx nx run wbs-be-01:solver-image-smoke');
+    // Proof: on 2026-09-14, removing the recursive app-manifest glob and this
+    // assertion, then warming the real target, let removing `product:wbs` from
+    // apps/wbs/fe-01/project.json replay 1/1 from local cache and exit 0. With
+    // the input restored, it reran and failed 176/2 in the product/layout guards.
+    expect(manifest).toContain('"{workspaceRoot}/apps/**/project.json"');
+    expect(manifest).toContain('"{workspaceRoot}/libs/**/project.json"');
+    expect(manifest).toContain('"{workspaceRoot}/tools/**/project.json"');
+    // Proof: on 2026-09-14, removing this Dockerfile input and assertion, then
+    // warming the real target, let a 1.4.2 -> 0.0.0 backend Bun-tag mutation
+    // replay 1/1 from local cache and exit 0. Restoring the input reran and
+    // failed 177/1 on `apps/wbs/be-01/Dockerfile: 0.0.0`.
     expect(manifest).toContain('"{workspaceRoot}/apps/**/Dockerfile"');
+  });
+});
+
+describe('namespace-sensitive ignore boundaries', () => {
+  it('keeps the development entrypoint out of production image contexts', async () => {
+    const dockerIgnore = (await read('.dockerignore')).split('\n');
+    // Proof: the pre-move exclusion failed here with the received root file
+    // containing only `apps/be-01/src/dev`; the moved entrypoint was absent.
+    expect(dockerIgnore).toContain('apps/wbs/be-01/src/dev');
+    expect(dockerIgnore).not.toContain('apps/be-01/src/dev');
+  });
+
+  it('keeps generated migration and solver artifacts out of formatting', async () => {
+    const prettierIgnore = (await read('.prettierignore')).split('\n');
+    expect(prettierIgnore).toContain('apps/wbs/be-01/drizzle/**/snapshot.json');
+    // Proof: before these moved solver exclusions were added, the received
+    // production ignore list ended after the migration snapshot and root/tool
+    // exclusions, with neither build-output path present.
+    expect(prettierIgnore).toContain('libs/wbs/adapters/solver-py/build/');
+    expect(prettierIgnore).toContain('libs/wbs/adapters/solver-py/src/*.egg-info/');
+  });
+
+  it('keeps local solver build artifacts under the moved adapter root', async () => {
+    const gitIgnore = (await read('.gitignore')).split('\n');
+    // Proof: the pre-move file failed this assertion with only
+    // `libs/solver-py/build/` and `libs/solver-py/src/*.egg-info/` received.
+    expect(gitIgnore).toContain('libs/wbs/adapters/solver-py/build/');
+    expect(gitIgnore).toContain('libs/wbs/adapters/solver-py/src/*.egg-info/');
+    expect(gitIgnore).not.toContain('libs/solver-py/build/');
+    expect(gitIgnore).not.toContain('libs/solver-py/src/*.egg-info/');
+  });
+
+  it('declares every root ignore file this cached guard reads', async () => {
+    const manifest = await read('tools/tool-devsync/project.json');
+    expect(manifest).toContain('"{workspaceRoot}/.dockerignore"');
+    expect(manifest).toContain('"{workspaceRoot}/.gitignore"');
+    expect(manifest).toContain('"{workspaceRoot}/.prettierignore"');
   });
 });
 

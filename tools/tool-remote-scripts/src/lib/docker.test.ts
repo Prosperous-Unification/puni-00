@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { renderTemplate, tierComposeTmpl } from '@wbs/tool-compose';
 import { describe, expect, it } from 'bun:test';
 
@@ -348,14 +350,20 @@ describe('deriveTierSecrets', () => {
     // This is deliberately a runtime cross-project contract check. A static
     // infra -> app import would make the deploy library depend on an app;
     // the computed specifier keeps that exception inside this test only.
-    const beModule: unknown = await import(['../../../..', 'apps/be-01/src/config'].join('/'));
+    // Proof: the active-path sweep found the deleted `apps/be-01` import; the
+    // owning suite failed both real BeConfig consumers with MODULE_NOT_FOUND.
+    // Pinning its moved external read then failed this test 0/1 until the real
+    // cached target declared `apps/wbs/be-01/src/config.ts` as an input.
+    const manifest = readFileSync(new URL('../../project.json', import.meta.url), 'utf8');
+    expect(manifest).toContain('"{workspaceRoot}/apps/wbs/be-01/src/config.ts"');
+    const beModule: unknown = await import(['../../../..', 'apps/wbs/be-01/src/config'].join('/'));
     if (
       typeof beModule !== 'object' ||
       beModule === null ||
       !('BeConfig' in beModule) ||
       typeof beModule.BeConfig !== 'function'
     ) {
-      throw new Error('apps/be-01/src/config does not export BeConfig');
+      throw new Error('apps/wbs/be-01/src/config does not export BeConfig');
     }
     const validateBeConfig = beModule.BeConfig as (env: Record<string, string>) => unknown;
     const derived = Object.fromEntries(
@@ -708,7 +716,7 @@ it('boots local backend configuration from the rendered environment and keeps OI
   };
   const service = Object.values(compose.services)[0];
   const script = `
-    import { loadConfig } from './apps/be-01/src/config.ts';
+    import { loadConfig } from './apps/wbs/be-01/src/config.ts';
     const config = loadConfig(JSON.parse(process.env['ORIGIN_CONFIG']));
     console.log(config.appOrigin);
   `;
