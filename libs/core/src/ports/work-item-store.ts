@@ -557,7 +557,7 @@ export interface WorkItemStore {
    * nothing here consults it.
    */
   listByProject(projectId: string): Promise<LabelledWorkItem[]>;
-  /** The requested rows that belong to `projectId`, in stable id order. */
+  /** The requested rows that belong to `projectId`, in the full project reader's order. */
   listByIds(projectId: string, ids: readonly string[]): Promise<LabelledWorkItem[]>;
   findById(id: string): Promise<WorkItem | null>;
   /**

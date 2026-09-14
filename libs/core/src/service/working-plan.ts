@@ -22,11 +22,11 @@ export interface WorkingPlan {
  * permanently refuses retained reads, including callbacks borrowed while the
  * batch was open.
  *
- * The patch wrapper exercises the authoritative targeted-refresh boundary,
- * while the remaining mutations still delegate unchanged. The command service
- * graph must not switch wholesale to `workingPlan.stores` until every mutation
- * wrapper can advance the collections it affects; doing so earlier would make
- * a later command observe an earlier command's stale before-image.
+ * Row wrappers exercise the authoritative targeted-refresh boundary. The
+ * command service graph must not switch wholesale to `workingPlan.stores`
+ * until every remaining mutation wrapper can advance the collections it
+ * affects; doing so earlier would make a later command observe an earlier
+ * command's stale before-image.
  */
 export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan {
   let isClosed = false;

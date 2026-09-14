@@ -231,3 +231,31 @@ compares every retained collection with its current full source read.
 | -------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Mixed-case owner parity    | Kept the four `localeCompare` post-sorts. | SQLite certification failed estimate, actual, progress and measure scope-order cases because targeted `work-a,work-A` disagreed with full-reader `work-A,work-a`. |
 | WorkingPlan retained order | Kept the four `localeCompare` post-sorts. | The SQLite WorkingPlan regression failed first on estimates: retained `step-a,step-A` disagreed with the current full source's `step-A,step-a`.                   |
+
+## Task 2.3 work-item row refreshes
+
+The working row store refreshes the inserted/moved/removed identities, their affected parents and
+every explicit respace or promotion before returning. Frozen-number writes refresh every update.
+A refused patch does not consult the targeted reader or advance the retained collection. The
+`listByIds` port JSDoc now names its actual ordering contract: the authoritative full-project
+reader's order, rather than id order.
+
+| Scope                     | Command                                                                                                                                                                       | Result                                                                                                              |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Focused pre-change RED    | `bun test libs/core/src/service/plan-commands.test.ts --test-name-pattern 'working plan row mutations through runner commands'`                                               | Expected RED: 1 passed and 4 failed; insert/freeze assertions failed and move/promote placement threw.              |
+| Exact respace fault       | Same focused file filtered to `refreshes an inserted row and every densely respaced sibling`, with only `respaced` ids omitted from insert refresh                            | Expected RED: 0 passed, 1 failed; second placement produced `A@10,Y@20,B@30,X@40` instead of `A@10,Y@15,X@20,B@30`. |
+| Exact refused-patch fault | Same focused file filtered to `does not advance a retained row after a refused patch`, with patch refresh forced after `{ ok: false }`                                        | Expected RED: 0 passed, 1 failed; next within-batch read saw `Invented after refusal` instead of the stored name.   |
+| Restored focused GREEN    | `bun test libs/core/src/service/plan-commands.test.ts libs/core/src/service/working-plan.test.ts`                                                                             | Pass: 14 tests, 46 assertions.                                                                                      |
+| Complete core suite       | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-rows NX_DAEMON=false bunx nx run core:test --output-style=static --skip-nx-cache`                                   | Pass: 495 tests, 1,628 assertions; cache skipped.                                                                   |
+| Core lint and typecheck   | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-rows NX_DAEMON=false bunx nx run-many -t lint typecheck -p core --parallel=2 --output-style=static --skip-nx-cache` | Pass: both targets; cache skipped.                                                                                  |
+| Strict OpenSpec packet    | `OPENSPEC_TELEMETRY=0 bun x @fission-ai/openspec@1.3.0 validate live-plan-snapshot --strict --json`                                                                           | Pass: 1 item, 0 failed.                                                                                             |
+| All OpenSpec artifacts    | `OPENSPEC_TELEMETRY=0 bun x @fission-ai/openspec@1.3.0 validate --all --json`                                                                                                 | Pass: 83 items, 0 failed (72 changes and 11 specs).                                                                 |
+| Workspace format          | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-format NX_DAEMON=false bunx nx format:check --all`                                                                  | Pass.                                                                                                               |
+| Diff whitespace           | `git diff --check`                                                                                                                                                            | Pass.                                                                                                               |
+
+### Task 2.3 R5 fault observations
+
+| Check                     | Injected fault                                            | Observed failure                                                                                          |
+| ------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Dense sibling advancement | Omitted only insert's `respaced` ids from `refreshRows`.  | The later runner command placed Y from stale positions and moved X behind B.                              |
+| Refused patch stability   | Called `refreshRows([id])` after a modeled patch refusal. | The instrumented next read inside the runner batch returned the targeted reader's invented advanced name. |

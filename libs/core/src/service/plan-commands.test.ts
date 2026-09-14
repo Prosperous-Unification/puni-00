@@ -3,10 +3,13 @@ import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../compose';
 import type { PlanTransactionalStores } from '../ports/stores';
+import type { Decision, Scope, UnitOfWork } from '../ports/unit-of-work';
 import { testClock } from '../testing/clock-fixture';
 import { fastScheduler } from '../testing/scheduler-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
 import type { Broadcaster } from './broadcast';
 import { PlanCommandRunner } from './plan-commands';
+import type { WorkingPlan } from './working-plan';
 
 const OWNER = 'plan-command-owner';
 
@@ -15,6 +18,28 @@ function silentBroadcaster(): Broadcaster {
     publish: () => Promise.resolve(),
     latestSeq: () => Promise.resolve(-1),
   };
+}
+
+const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
+  servicesOver(stores, { clock: testClock, broadcast, scheduler: fastScheduler });
+
+function runnerOver(
+  source: ReturnType<typeof openMemorySource>,
+  publicGraph: ReturnType<typeof compose>,
+  uow: UnitOfWork = source.uow,
+  batchServices: (
+    scope: Scope,
+    broadcast: Broadcaster,
+    workingPlan?: WorkingPlan,
+  ) => ReturnType<typeof compose> = (scope, broadcast, workingPlan) =>
+    compose(workingPlan?.stores ?? scope.stores, broadcast),
+): PlanCommandRunner {
+  return new PlanCommandRunner({
+    uow,
+    announcements: silentBroadcaster(),
+    publicServices: publicGraph,
+    batchServices,
+  });
 }
 
 describe('working plan command before-images', () => {
@@ -117,6 +142,309 @@ describe('working plan command before-images', () => {
       // `Mutated cached name` and the second tag instead of these original values.
       expect(await source.stores.workItems.listByIds(projectId, [created.value.id])).toMatchObject([
         { name: 'Before batch', tagIds: [originalTag.id] },
+      ]);
+    } finally {
+      await source.close();
+    }
+  });
+});
+
+describe('working plan row mutations through runner commands', () => {
+  it('refreshes an inserted row and every densely respaced sibling before the next placement', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Inserted row refresh', OWNER)).project
+        .id;
+      await source.stores.workItems.insert(
+        workItemRow({ id: 'parent', projectId, position: 10, name: 'Parent' }),
+        [],
+        { at: 2, by: OWNER },
+      );
+      for (const [id, position] of [
+        ['a', 1],
+        ['b', 2],
+      ] as const) {
+        await source.stores.workItems.insert(
+          workItemRow({ id, projectId, parentId: 'parent', position, name: id.toUpperCase() }),
+          [],
+          { at: 2, by: OWNER },
+        );
+      }
+      const runner = runnerOver(source, publicGraph);
+
+      const inserted = await runner.run(projectId, OWNER, [
+        {
+          kind: 'createWorkItem',
+          ref: 'x',
+          parentId: 'parent',
+          afterId: 'a',
+          name: 'X',
+        },
+        {
+          kind: 'createWorkItem',
+          parentId: 'parent',
+          afterId: 'a',
+          name: 'Y',
+        },
+      ]);
+
+      expect(inserted.ok).toBe(true);
+      const children = (await source.stores.workItems.listByProject(projectId))
+        .filter(({ parentId }) => parentId === 'parent')
+        .sort((left, right) => left.position - right.position);
+      // Proof: omitting the first insert's respaced sibling ids from refreshRows made the
+      // second production command place B before X (and leave duplicate position 20).
+      expect(children.map(({ name, position }) => [name, position])).toEqual([
+        ['A', 10],
+        ['Y', 15],
+        ['X', 20],
+        ['B', 30],
+      ]);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('refreshes a moved row and dense destination siblings before the next move', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Moved row refresh', OWNER)).project.id;
+      for (const row of [
+        workItemRow({ id: 'old-parent', projectId, position: 10, name: 'Old parent' }),
+        workItemRow({ id: 'new-parent', projectId, position: 20, name: 'New parent' }),
+        workItemRow({
+          id: 'moving',
+          projectId,
+          parentId: 'old-parent',
+          position: 10,
+          name: 'Moving',
+        }),
+        workItemRow({ id: 'a', projectId, parentId: 'new-parent', position: 1, name: 'A' }),
+        workItemRow({ id: 'b', projectId, parentId: 'new-parent', position: 2, name: 'B' }),
+      ]) {
+        await source.stores.workItems.insert(row, [], { at: 2, by: OWNER });
+      }
+      const runner = runnerOver(source, publicGraph);
+
+      const moved = await runner.run(projectId, OWNER, [
+        {
+          kind: 'moveWorkItem',
+          workItemId: 'moving',
+          parentId: 'new-parent',
+          afterId: 'a',
+        },
+        {
+          kind: 'moveWorkItem',
+          workItemId: 'b',
+          parentId: 'new-parent',
+          afterId: 'moving',
+        },
+      ]);
+
+      expect(moved.ok).toBe(true);
+      // Proof: delegating move without refreshing its row and dense siblings made the
+      // second command throw "cannot place after moving: not a sibling in this group".
+      expect(
+        (await source.stores.workItems.listByProject(projectId))
+          .filter(({ parentId }) => parentId === 'new-parent')
+          .sort((left, right) => left.position - right.position)
+          .map(({ id, position }) => [id, position]),
+      ).toEqual([
+        ['a', 10],
+        ['moving', 20],
+        ['b', 30],
+      ]);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('refreshes every frozen row before an unfreeze in the same batch', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Frozen row refresh', OWNER)).project.id;
+      for (const [id, position] of [
+        ['a', 10],
+        ['b', 20],
+      ] as const) {
+        await source.stores.workItems.insert(
+          workItemRow({ id, projectId, position, name: id.toUpperCase() }),
+          [],
+          { at: 2, by: OWNER },
+        );
+      }
+      const runner = runnerOver(source, publicGraph);
+
+      const frozen = await runner.run(projectId, OWNER, [
+        { kind: 'freezeProject' },
+        { kind: 'unfreezeProject' },
+      ]);
+
+      expect(frozen.ok).toBe(true);
+      // Proof: delegating setFrozenNumbers without refreshing every update made the
+      // unfreeze command see no frozen rows; the store retained "010" and "020".
+      expect(
+        (await source.stores.workItems.listByProject(projectId)).map(({ id, frozenNumber }) => [
+          id,
+          frozenNumber,
+        ]),
+      ).toEqual([
+        ['a', null],
+        ['b', null],
+      ]);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('refreshes removed rows and promoted children before the next placement', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Promoted row refresh', OWNER)).project
+        .id;
+      for (const row of [
+        workItemRow({ id: 'sibling', projectId, position: 10, name: 'Sibling' }),
+        workItemRow({ id: 'removed', projectId, position: 20, name: 'Removed' }),
+        workItemRow({
+          id: 'promoted',
+          projectId,
+          parentId: 'removed',
+          position: 10,
+          name: 'Promoted',
+        }),
+      ]) {
+        await source.stores.workItems.insert(row, [], { at: 2, by: OWNER });
+      }
+      const runner = runnerOver(source, publicGraph);
+
+      const removed = await runner.run(projectId, OWNER, [
+        { kind: 'deleteWorkItem', workItemId: 'removed', strategy: 'promote' },
+        {
+          kind: 'createWorkItem',
+          parentId: null,
+          afterId: 'promoted',
+          name: 'After promoted',
+        },
+      ]);
+
+      expect(removed.ok).toBe(true);
+      // Proof: delegating remove without refreshing its promoted row made the next command
+      // throw "cannot place after promoted: not a sibling in this group".
+      expect(
+        (await source.stores.workItems.listByProject(projectId))
+          .filter(({ parentId }) => parentId === null)
+          .sort((left, right) => left.position - right.position)
+          .map(({ name }) => name),
+      ).toEqual(['Sibling', 'Promoted', 'After promoted']);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('does not advance a retained row after a refused patch', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Refused patch refresh', OWNER)).project
+        .id;
+      const created = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Authoritative before refusal',
+      });
+      if (!created.ok) throw new Error('refused-patch fixture creation refused');
+
+      const deceptiveUow: UnitOfWork = {
+        run<T>(act: (scope: Scope) => Promise<Decision<T>>): Promise<T> {
+          return source.uow.run((scope) => {
+            const stores: PlanTransactionalStores = {
+              ...scope.stores,
+              workItems: {
+                ...scope.stores.workItems,
+                listByIds: async (requestedProjectId, ids) =>
+                  (await scope.stores.workItems.listByIds(requestedProjectId, ids)).map((row) => ({
+                    ...row,
+                    name: 'Invented after refusal',
+                  })),
+              },
+            };
+            return act({ stores });
+          });
+        },
+      };
+      let observedAfterRefusal: string | undefined;
+      const runner = runnerOver(
+        source,
+        publicGraph,
+        deceptiveUow,
+        (scope, broadcast, workingPlan) => {
+          if (workingPlan === undefined) return compose(scope.stores, broadcast);
+          const workItems = {
+            ...workingPlan.stores.workItems,
+            patch: async (
+              ...parameters: Parameters<PlanTransactionalStores['workItems']['patch']>
+            ) => {
+              const written = await workingPlan.stores.workItems.patch(...parameters);
+              if (!written.ok) {
+                observedAfterRefusal = (
+                  await workingPlan.stores.workItems.listByProject(projectId)
+                ).find(({ id }) => id === parameters[0])?.name;
+              }
+              return written;
+            },
+          };
+          return compose({ ...workingPlan.stores, workItems }, broadcast);
+        },
+      );
+
+      const refused = await runner.run(projectId, OWNER, [
+        {
+          kind: 'patchWorkItem',
+          workItemId: created.value.id,
+          patch: { teamIds: ['missing-team'] },
+        },
+      ]);
+
+      expect(refused).toMatchObject({ ok: false, at: 0, reason: 'unknown_team' });
+      // Proof: refreshing after the store's modeled refusal made this next production-path
+      // read observe "Invented after refusal" although the store kept the prior row.
+      expect(observedAfterRefusal).toBe('Authoritative before refusal');
+      expect(await source.stores.workItems.listByIds(projectId, [created.value.id])).toMatchObject([
+        { name: 'Authoritative before refusal' },
       ]);
     } finally {
       await source.close();

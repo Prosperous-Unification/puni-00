@@ -8,10 +8,9 @@ interface RetainedWorkItemReads {
 /**
  * Builds the work-item part of a batch-owned working plan.
  *
- * Successful patches refresh the affected identity before resolving. The
- * other mutations remain guarded delegates until their complete affected-id
- * sets are supplied; callers must not mount this partial graph as the general
- * production batch graph yet.
+ * Successful row mutations refresh every directly or structurally affected
+ * identity before resolving. Refused patches leave the retained rows exactly
+ * as they were before the store call.
  */
 export function createWorkingPlanRows(
   source: () => WorkItemStore,
@@ -32,19 +31,45 @@ export function createWorkingPlanRows(
     listByProject: async () => reads.all(),
     listByIds: async (_projectId, ids) => reads.byIds(ids),
     findById: guarded((id) => source().findById(id)),
-    insert: guarded((workItem, respaced, stamp) => source().insert(workItem, respaced, stamp)),
+    insert: guarded(async (workItem, respaced, stamp) => {
+      await source().insert(workItem, respaced, stamp);
+      await refreshRows([
+        workItem.id,
+        ...(workItem.parentId === null ? [] : [workItem.parentId]),
+        ...respaced.map(({ id }) => id),
+      ]);
+    }),
     patch: guarded(async (id, patch, stamp) => {
       const written = await source().patch(id, patch, stamp);
       if (written.ok) await refreshRows([id]);
       return written;
     }),
-    move: guarded((id, parentId, position, respaced, stamp) =>
-      source().move(id, parentId, position, respaced, stamp),
-    ),
+    move: guarded(async (id, parentId, position, respaced, stamp) => {
+      const moving = (await reads.byIds([id])).at(0);
+      await source().move(id, parentId, position, respaced, stamp);
+      await refreshRows([
+        id,
+        ...(moving?.parentId === null || moving?.parentId === undefined ? [] : [moving.parentId]),
+        ...(parentId === null ? [] : [parentId]),
+        ...respaced.map(({ id: respacedId }) => respacedId),
+      ]);
+    }),
     setPositions: guarded((placements, moved, stamp) =>
       source().setPositions(placements, moved, stamp),
     ),
-    setFrozenNumbers: guarded((updates, stamp) => source().setFrozenNumbers(updates, stamp)),
-    remove: guarded((ids, promoted, stamp) => source().remove(ids, promoted, stamp)),
+    setFrozenNumbers: guarded(async (updates, stamp) => {
+      await source().setFrozenNumbers(updates, stamp);
+      await refreshRows(updates.map(({ id }) => id));
+    }),
+    remove: guarded(async (ids, promoted, stamp) => {
+      const before = await reads.byIds([...ids, ...promoted.map(({ id }) => id)]);
+      await source().remove(ids, promoted, stamp);
+      await refreshRows([
+        ...ids,
+        ...promoted.map(({ id }) => id),
+        ...before.flatMap(({ parentId }) => (parentId === null ? [] : [parentId])),
+        ...promoted.flatMap(({ parentId }) => (parentId === null ? [] : [parentId])),
+      ]);
+    }),
   };
 }
