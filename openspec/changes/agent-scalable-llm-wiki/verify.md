@@ -3439,3 +3439,17 @@ assertions. Fresh uncached Tool Wiki source lint and forced typecheck exited 0. 
 validation passed the change. The isolated worktree initially lacked its ignored `node_modules`
 link, producing `trusted TypeScript runtime modules are unreadable`; linking the repository's
 existing dependency tree restored the established test environment before the successful runs.
+
+#### Exact-path compatibility correction
+
+A production `lint-local ratchet` negative then exposed that the relocation helper also rewrote a
+path-selector baseline when `sourceSelector` was absent. Renaming byte-identical `validator.ts` to
+`renamed-validator.ts`, updating only the current selector, and leaving the original exact baseline
+incorrectly exited 0 with `accepted:true`, `changedBoundaryIds:[]`, and no refusals. The corrected
+helper preserves every baseline tuple exactly unless the policy explicitly supplies a validated
+source selector. The restored focused negative exited 1, named `boundary.validator`, and reported
+both activation and ratchet refusals; it passed 1 test with 22 assertions. The explicit namespaced
+pilot relocation positive remained green with 1 test and 27 assertions. The final combined
+trusted-policy, pilot-policy, and contract-decoder run passed 86 tests with 1,782 assertions. Fresh
+uncached Tool Wiki source lint and forced typecheck, repository-wide format check, strict pinned
+OpenSpec validation, and `git diff --check` exited 0.
