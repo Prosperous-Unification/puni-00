@@ -433,6 +433,10 @@ export function useReferenceSets({
       run(async (write) => {
         // be-01 is idempotent by name, so two browsers typing `Platform` at
         // once end up on one team rather than two.
+        // Proof: removing `directory` from each of these five create prefixes
+        // left its mounted picker at one tree read instead of seven and hid
+        // the created option after attachment refusal. Watched in `keeps a new
+        // $name visible when its assignment refuses`, 2026-09-14.
         const team = await write.perform(['tree', 'directory'], () => api.addTeam(name));
         await write.perform(['tree'], () =>
           api.patchWorkItem(id, { teamIds: [...current, team.id] }),
@@ -445,6 +449,7 @@ export function useReferenceSets({
   const createServiceFor = useCallback(
     (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
       run(async (write) => {
+        // Proof: see the mounted five-family mutation at {@link createTeamFor}.
         const service = await write.perform(['tree', 'directory'], () => api.addService(name));
         await write.perform(['tree'], () =>
           api.patchWorkItem(id, { serviceIds: [...current, service.id] }),
@@ -499,6 +504,7 @@ export function useReferenceSets({
       run(async (write) => {
         // be-01 is idempotent by name, so two browsers typing `Bug` at once end
         // up on one type rather than two.
+        // Proof: see the mounted five-family mutation at {@link createTeamFor}.
         const workItemType = await write.perform(['tree', 'directory'], () =>
           api.addWorkItemType(name),
         );
@@ -513,6 +519,7 @@ export function useReferenceSets({
   const createTagFor = useCallback(
     (id: string, name: string, current: readonly string[]): Promise<CommitOutcome> =>
       run(async (write) => {
+        // Proof: see the mounted five-family mutation at {@link createTeamFor}.
         const tag = await write.perform(['tree', 'directory'], () => api.addTag(name));
         await write.perform(['tree'], () =>
           api.patchWorkItem(id, { tagIds: [...current, tag.id] }),
@@ -540,6 +547,7 @@ export function useReferenceSets({
   const createPersonFor = useCallback(
     (row: TreeRow, stepId: string, name: string) => {
       void run(async (write) => {
+        // Proof: see the mounted five-family mutation at {@link createTeamFor}.
         const person = await write.perform(['tree', 'directory'], () =>
           api.addPerson(name, row.teamIds),
         );

@@ -105,6 +105,8 @@ export interface EstimatingPanelProps extends SettingsSectionReport {
   }) => Promise<void>;
   /** Re-reads the plan, which is what puts the new figures on the table. */
   onChanged: () => Promise<void>;
+  /** Recovers after a failed request whose commit outcome is unknown. */
+  onRefused?: (thrown: unknown) => Promise<void>;
   /** Asks the modal to close, once what was typed has landed. */
   onDone: () => void;
 }
@@ -164,6 +166,7 @@ export function EstimatingPanel({
   estimateRounding,
   setArithmetic,
   onChanged,
+  onRefused,
   onDirtyChange,
   onDone,
 }: EstimatingPanelProps) {
@@ -182,6 +185,7 @@ export function EstimatingPanel({
     dirty,
     onDirtyChange,
     onChanged,
+    ...(onRefused === undefined ? {} : { onRefused }),
   });
 
   async function write(

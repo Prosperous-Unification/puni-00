@@ -1,5 +1,5 @@
 import type * as React from 'react';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { RunPlanWrite } from '@/lib/local-write';
 import type { ProjectApi, StepView } from '@/lib/wbs-api';
@@ -41,6 +41,9 @@ export function usePlanDependencies({
   run: RunPlanWrite;
   steps: StepView[];
 }) {
+  const activeApi = useRef(api);
+  activeApi.current = api;
+
   /**
    * The callbacks the cells use, read through a ref rather than closed over.
    *
@@ -116,6 +119,8 @@ export function usePlanDependencies({
       // chips and the reasons have to survive. This loop therefore collects
       // every answer before choosing its aggregate recovery scope.
       void (async () => {
+        const owner = api;
+        const isCurrent = () => activeApi.current === owner;
         setBusy(true);
         const refused: string[] = [];
         let ambiguous = false;
@@ -143,9 +148,13 @@ export function usePlanDependencies({
           // Never rejects: a failed reread raises the banner and returns, so
           // the refusals below are still reported. The two are different facts
           // and a reader who saw only one of them would be misled either way.
-          await refreshOrMarkStale(ambiguous ? undefined : 'tree');
+          if (isCurrent()) await refreshOrMarkStale(ambiguous ? undefined : 'tree');
         } finally {
-          setBusy(false);
+          // Proof: clearing without the API-owner guard released a replacement
+          // rename while it was still pending. Watched in `keeps an old
+          // dependency-list refusal out of its busy API replacement`,
+          // 2026-09-14.
+          if (isCurrent()) setBusy(false);
         }
         const problems = [
           notThere,
@@ -156,10 +165,13 @@ export function usePlanDependencies({
         // Proof: split into one push per line, `reports every refused
         // dependency in one toast, not one each` failed with two. Watched,
         // 2026-08-06.
-        if (problems.length > 0) pushToast({ kind: 'error', text: problems.join(' ') });
+        // The refusal belongs to the API that answered it, not merely the
+        // project id a replacement API may also serve.
+        if (isCurrent() && problems.length > 0)
+          pushToast({ kind: 'error', text: problems.join(' ') });
       })();
     },
-    [api, flat, pushToast, refreshOrMarkStale, setBusy],
+    [activeApi, api, flat, pushToast, refreshOrMarkStale, setBusy],
   );
 
   /**

@@ -2066,11 +2066,17 @@ describe('refresh owner lifetimes', () => {
     await waitFor(() => {
       expect(subscriptions).toBe(1);
     });
+
     await act(async () => {
       finishRead();
-      await Promise.resolve();
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+      });
     });
     expect(toastTexts()).toEqual(['Arranged by schedule.']);
+    expect(document.querySelector('[data-toolbar]')).toHaveAttribute('aria-busy', 'false');
+    expect(screen.getByRole('button', { name: 'Arrange by schedule' })).toBeEnabled();
+    expect(screen.getByLabelText('Name of 010')).toBeEnabled();
   });
 });
 
@@ -2193,6 +2199,152 @@ describe('write failure recovery scopes', () => {
     expect(capacity.value).toBe('3');
     expect(screen.getByRole('alert')).toBeInTheDocument();
   });
+
+  const settingsCases = [
+    { name: 'priority bands', method: 'setPriorityBands' },
+    { name: 'estimate arithmetic', method: 'setEstimateArithmetic' },
+    { name: 'optimization', method: 'setOptimizationSettings' },
+  ] as const;
+
+  function startSettingsWrite(name: (typeof settingsCases)[number]['name']): void {
+    click('Project settings');
+    if (name === 'priority bands') {
+      fireEvent.click(screen.getByRole('tab', { name: 'Priorities' }));
+      fireEvent.change(screen.getByLabelText('Name of band 1'), {
+        target: { value: 'Critical now' },
+      });
+      click('Save');
+      return;
+    }
+    if (name === 'estimate arithmetic') {
+      fireEvent.click(screen.getByRole('tab', { name: 'Estimating' }));
+      fireEvent.change(screen.getByLabelText('optimistic'), { target: { value: '2' } });
+      click('Save weights');
+      return;
+    }
+    fireEvent.click(screen.getByRole('tab', { name: 'Optimization' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Optimize schedules' }));
+  }
+
+  function expectSettingsDraft(name: (typeof settingsCases)[number]['name']): void {
+    if (name === 'priority bands') {
+      expect(screen.getByLabelText('Name of band 1')).toHaveValue('Critical now');
+    } else if (name === 'estimate arithmetic') {
+      expect(screen.getByLabelText('optimistic')).toHaveValue('2');
+    } else {
+      expect(screen.getByRole('checkbox', { name: 'Optimize schedules' })).not.toBeChecked();
+    }
+  }
+
+  it.each(
+    settingsCases.flatMap((settings) => [
+      { ...settings, failure: 'transport' as const },
+      { ...settings, failure: 'invalid response' as const },
+    ]),
+  )('ambiguous $name $failure fully recovers from its mounted control', async (testCase) => {
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Settings recovery' });
+    const reads: string[] = [];
+    for (const method of allReads) recordCalls(api, method, () => reads.push(method));
+    let rejectWrite!: (cause: unknown) => void;
+    api[testCase.method] = () =>
+      new Promise((_resolve, reject) => {
+        rejectWrite = reject;
+      });
+
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    await waitFor(() => {
+      expect(reads).toHaveLength(allReads.length);
+    });
+    reads.length = 0;
+    startSettingsWrite(testCase.name);
+    await waitFor(() => {
+      expect(rejectWrite).toBeTypeOf('function');
+    });
+    expect(reads).toEqual([]);
+    const cause =
+      testCase.failure === 'transport'
+        ? new WbsRequestError({
+            kind: 'failure',
+            operation: 'postApiProjectsByIdCommands',
+            failure: { code: 'transport', cause: new Error('settings outcome unknown') },
+          })
+        : new WbsRequestError({
+            kind: 'failure',
+            operation: 'postApiProjectsByIdCommands',
+            failure: {
+              code: 'invalid_response',
+              reason: 'schema',
+              status: 200,
+              headers: new Headers(),
+            },
+          });
+    await act(async () => {
+      rejectWrite(cause);
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(reads).toHaveLength(allReads.length);
+    });
+    expect([...reads].sort()).toEqual([...allReads].sort());
+    expectSettingsDraft(testCase.name);
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+  });
+
+  it.each(settingsCases)(
+    '$name success from its mounted control refreshes only tree',
+    async (testCase) => {
+      const api = fakeApi();
+      await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Settings success' });
+      const reads: string[] = [];
+      for (const method of allReads) recordCalls(api, method, () => reads.push(method));
+      let finishWrite!: () => void;
+      if (testCase.name === 'priority bands') {
+        const write = api.setPriorityBands.bind(api);
+        api.setPriorityBands = (...args) =>
+          new Promise((resolve) => {
+            finishWrite = () => {
+              void write(...args).then(resolve);
+            };
+          });
+      } else if (testCase.name === 'estimate arithmetic') {
+        const write = api.setEstimateArithmetic.bind(api);
+        api.setEstimateArithmetic = (...args) =>
+          new Promise((resolve) => {
+            finishWrite = () => {
+              void write(...args).then(resolve);
+            };
+          });
+      } else {
+        const write = api.setOptimizationSettings.bind(api);
+        api.setOptimizationSettings = (...args) =>
+          new Promise((resolve) => {
+            finishWrite = () => {
+              void write(...args).then(resolve);
+            };
+          });
+      }
+
+      render(<WbsTable projectId="p1" api={api} />);
+      await screen.findByLabelText('Name of 010');
+      await waitFor(() => {
+        expect(reads).toHaveLength(allReads.length);
+      });
+      reads.length = 0;
+      startSettingsWrite(testCase.name);
+      await waitFor(() => {
+        expect(finishWrite).toBeTypeOf('function');
+      });
+      expect(reads).toEqual([]);
+      act(() => {
+        finishWrite();
+      });
+      await waitFor(() => {
+        expect(reads).toEqual(['tree']);
+      });
+    },
+  );
 
   it.each([
     {
@@ -2325,6 +2477,76 @@ describe('write failure recovery scopes', () => {
       expect(reads).toEqual(['tree']);
     });
   });
+
+  it('keeps an old dependency-list refusal out of its busy API replacement', async () => {
+    const api = fakeApi();
+    for (const name of ['Old first', 'Old second', 'Old successor']) {
+      await api.createWorkItem('p1', { parentId: null, afterId: null, name });
+    }
+    let rejectOldDependency!: (cause: unknown) => void;
+    api.addDependency = () =>
+      new Promise((_resolve, reject) => {
+        rejectOldDependency = reject;
+      });
+    const view = render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 030');
+    const oldDependency = screen.getByLabelText('Add a dependency to 030');
+    // A comma-separated gesture takes the dependency-list path rather than
+    // the highlighted single-option `run` path.
+    fireEvent.change(oldDependency, { target: { value: '010, missing' } });
+    fireEvent.keyDown(oldDependency, { key: 'Enter' });
+    await waitFor(() => {
+      expect(rejectOldDependency).toBeTypeOf('function');
+    });
+
+    const replacement = fakeApi();
+    for (const name of ['New first', 'New second', 'New successor']) {
+      await replacement.createWorkItem('p1', { parentId: null, afterId: null, name });
+    }
+    const replacementReads: string[] = [];
+    for (const method of allReads) {
+      recordCalls(replacement, method, () => replacementReads.push(method));
+    }
+    const patchReplacement = replacement.patchWorkItem.bind(replacement);
+    let finishReplacement!: () => void;
+    replacement.patchWorkItem = (...args) =>
+      new Promise((resolve) => {
+        finishReplacement = () => {
+          void patchReplacement(...args).then(resolve);
+        };
+      });
+    view.rerender(<WbsTable projectId="p1" api={replacement} />);
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name of 010')).toHaveValue('New first');
+      expect(replacementReads).toHaveLength(allReads.length);
+    });
+    replacementReads.length = 0;
+    typeName('010', 'Replacement pending');
+    fireEvent.blur(screen.getByLabelText('Name of 010'));
+    await waitFor(() => {
+      expect(finishReplacement).toBeTypeOf('function');
+      expect(document.querySelector('[data-toolbar]')).toHaveAttribute('aria-busy', 'true');
+    });
+
+    await act(async () => {
+      rejectOldDependency(new Error('cycle'));
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+    expect(document.querySelector('[data-toolbar]')).toHaveAttribute('aria-busy', 'true');
+    expect(replacementReads).toEqual([]);
+    expect(toastTexts()).toEqual([]);
+
+    act(() => {
+      finishReplacement();
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Name of 010')).toHaveValue('Replacement pending');
+      expect(document.querySelector('[data-toolbar]')).toHaveAttribute('aria-busy', 'false');
+    });
+    expect(replacementReads).toEqual(['tree']);
+  });
 });
 
 itDom('does not expose a first editor before its held column vocabulary installs', async () => {
@@ -2450,6 +2672,129 @@ itDom('refreshes a created tag after its attachment refuses', async () => {
     expect(screen.getByRole('option', { name: 'Regulatory' })).toBeInTheDocument();
   });
   expect(api.rows[0]?.tagIds ?? []).toEqual([]);
+});
+
+describe('mounted reference creation after attachment refusal', () => {
+  const families = [
+    { name: 'team', box: 'Service or team for 010' },
+    { name: 'service', box: 'Services for 010' },
+    { name: 'tag', box: 'Tags for 010' },
+    { name: 'work-item type', box: 'Types for 010' },
+    { name: 'person', box: 'Dev assignee for 010' },
+  ] as const;
+  const expectedReads = [
+    'tree',
+    'listTeams',
+    'listTags',
+    'listServices',
+    'listWorkItemTypes',
+    'listExternalSystems',
+    'listPeople',
+  ] as const;
+
+  it.each(families)('keeps a new $name visible when its assignment refuses', async (family) => {
+    // All columns are visible so this drives the real type picker as well as
+    // the four controls that are visible by default.
+    localStorage.setItem('wbs.hiddenColumns.p1', '[]');
+    const api = fakeApi();
+    await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Reference owner' });
+    const reads: string[] = [];
+    for (const method of [
+      'tree',
+      'steps',
+      'listTeams',
+      'listTags',
+      'listServices',
+      'listWorkItemTypes',
+      'listExternalSystems',
+      'listPeople',
+      'listCalendarMarkers',
+    ] as const) {
+      recordCalls(api, method, () => reads.push(method));
+    }
+    let releaseCreate!: () => void;
+    if (family.name === 'team') {
+      const create = api.addTeam.bind(api);
+      api.addTeam = (name) =>
+        new Promise((resolve) => {
+          releaseCreate = () => {
+            void create(name).then(resolve);
+          };
+        });
+    } else if (family.name === 'service') {
+      const create = api.addService.bind(api);
+      api.addService = (name) =>
+        new Promise((resolve) => {
+          releaseCreate = () => {
+            void create(name).then(resolve);
+          };
+        });
+    } else if (family.name === 'tag') {
+      const create = api.addTag.bind(api);
+      api.addTag = (name) =>
+        new Promise((resolve) => {
+          releaseCreate = () => {
+            void create(name).then(resolve);
+          };
+        });
+    } else if (family.name === 'work-item type') {
+      const create = api.addWorkItemType.bind(api);
+      api.addWorkItemType = (name) =>
+        new Promise((resolve) => {
+          releaseCreate = () => {
+            void create(name).then(resolve);
+          };
+        });
+    } else {
+      const create = api.addPerson.bind(api);
+      api.addPerson = (name, teamIds) =>
+        new Promise((resolve) => {
+          releaseCreate = () => {
+            void create(name, teamIds).then(resolve);
+          };
+        });
+    }
+    api.patchWorkItem = () => Promise.reject(new Error('attachment refused'));
+    api.assignPerson = () => Promise.reject(new Error('assignment refused'));
+
+    render(<WbsTable projectId="p1" api={api} />);
+    await screen.findByLabelText('Name of 010');
+    await waitFor(() => {
+      expect(reads).toHaveLength(9);
+    });
+    reads.length = 0;
+    if (family.name === 'person') unfoldStep('Dev');
+    const box = screen.getByRole('combobox', { name: family.box });
+    const createdName = `New ${family.name}`;
+    fireEvent.focus(box);
+    fireEvent.change(box, { target: { value: createdName } });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    await waitFor(() => {
+      expect(releaseCreate).toBeTypeOf('function');
+    });
+    expect(reads).toEqual([]);
+
+    act(() => {
+      releaseCreate();
+    });
+    await waitFor(() => {
+      expect(reads).toHaveLength(expectedReads.length);
+      expect(toastTexts()).toHaveLength(1);
+    });
+    // A person create returns no promise to the picker, so it closes before
+    // the assignment answers. Reopening every family alike proves the
+    // installed directory, rather than only a list that happened to stay open.
+    fireEvent.focus(screen.getByRole('combobox', { name: family.box }));
+    expect(
+      await screen.findByRole('option', { name: new RegExp(`^${createdName}`) }),
+    ).toBeInTheDocument();
+    expect([...reads].sort()).toEqual([...expectedReads].sort());
+    expect(api.rows[0]?.teamIds ?? []).toEqual([]);
+    expect(api.rows[0]?.serviceIds ?? []).toEqual([]);
+    expect(api.rows[0]?.tagIds ?? []).toEqual([]);
+    expect(api.rows[0]?.typeIds ?? []).toEqual([]);
+    expect(api.rows[0]?.assignees ?? {}).toEqual({});
+  });
 });
 
 itDom('estimate refreshes only tree without a socket', async () => {

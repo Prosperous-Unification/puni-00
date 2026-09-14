@@ -878,9 +878,14 @@ export function usePlanRead({
           return 'refused';
         return 'landed';
       } finally {
-        // The next project's write owns its busy state. An older completion
-        // cannot clear the affordance while that write is still in flight.
-        if (isCurrent()) setBusy(false);
+        // A covering read may renew the coordinator while retaining the same
+        // logical reader. That reader owns this busy state; a different API or
+        // project does not.
+        // Proof: requiring captured coordinator identity left the renewed
+        // reader busy forever. Dropping the API half let the departed owner
+        // clear its replacement's pending rename. Watched in the renewal and
+        // busy-replacement cases, 2026-09-14.
+        if (activeProject.current === projectId && activeApi.current === api) setBusy(false);
       }
     },
     [activeProject, api, focusIntent, projectId, pushToast, refreshResourcesOrMarkStale, setBusy],

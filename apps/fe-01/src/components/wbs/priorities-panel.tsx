@@ -83,6 +83,8 @@ export interface PrioritiesPanelProps extends SettingsSectionReport {
   setBands: (bands: readonly PriorityBandView[]) => Promise<void>;
   /** Re-reads the plan, which is what redraws every face in the new labels. */
   onChanged: () => Promise<void>;
+  /** Recovers after a failed request whose commit outcome is unknown. */
+  onRefused?: (thrown: unknown) => Promise<void>;
   /**
    * Asks the modal to close — from `Save` once the ladder has landed, and from
    * `Cancel` with the drafts put back. The panel is clean when it calls this and
@@ -127,6 +129,7 @@ export function PrioritiesPanel({
   bands,
   setBands,
   onChanged,
+  onRefused,
   onDirtyChange,
   onDone,
 }: PrioritiesPanelProps) {
@@ -155,6 +158,7 @@ export function PrioritiesPanel({
     dirty,
     onDirtyChange,
     onChanged,
+    ...(onRefused === undefined ? {} : { onRefused }),
   });
 
   function edit(at: number, field: keyof BandDraft, value: string): void {
