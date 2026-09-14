@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "mappingId": "modules.radical-modularity-pilot.v1",
-  "mappingVersion": "pilot-layout-7851161b-v1",
+  "mappingVersion": "pilot-layout-namespaced-v2",
   "sourceRevision": "7851161bf96312750d07b933ca5d42b75ce575c7",
   "modules": [
     {

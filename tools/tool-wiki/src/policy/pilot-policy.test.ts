@@ -313,19 +313,27 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       readFileSync(join(candidate.repository, 'docs/wiki-policy/policy.json'), 'utf8'),
     ) as {
       pilot: { sourceRevision: string; coverage: string; exclusions: object[] };
-      boundaries: { selector: { value: string }; baselineEntries: ExactTuple[] }[];
+      boundaries: {
+        selector: { value: string };
+        sourceSelector?: { value: string };
+        baselineEntries: ExactTuple[];
+      }[];
     };
     expect(policy.pilot).toMatchObject({
       sourceRevision: '7851161bf96312750d07b933ca5d42b75ce575c7',
       coverage: 'selected-boundaries-only',
     });
     expect(policy.pilot.exclusions.length).toBeGreaterThan(0);
+    expect(policy.boundaries.at(0)).toMatchObject({
+      selector: { value: 'libs/wbs/domain/domain/src/saved-plan' },
+      sourceSelector: { value: 'libs/domain/src/saved-plan' },
+    });
     const baseline = entriesAt(repositoryRoot, policy.pilot.sourceRevision);
     for (const boundary of policy.boundaries) {
+      const selector = boundary.sourceSelector ?? boundary.selector;
       expect(boundary.baselineEntries).toEqual(
         baseline.filter(
-          ({ path }) =>
-            path === boundary.selector.value || path.startsWith(`${boundary.selector.value}/`),
+          ({ path }) => path === selector.value || path.startsWith(`${selector.value}/`),
         ),
       );
     }
@@ -707,29 +715,61 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     );
   }, 120_000);
 
-  test('refuses an empty or selector-escaping pre-index tuple manifest', () => {
+  test('refuses an empty, unmapped, incompatible, or escaping pre-index tuple manifest', () => {
     const mutations = [
       {
-        mutate(boundary: { baselineEntries: ExactTuple[] }): void {
+        mutate(boundary: {
+          baselineEntries: ExactTuple[];
+          sourceSelector?: { kind: string };
+        }): void {
           boundary.baselineEntries = [];
         },
         expected: 'trusted boundary baseline is empty: boundary.domain.saved-plan',
       },
       {
-        mutate(boundary: { baselineEntries: ExactTuple[] }): void {
-          const entry = boundary.baselineEntries.at(0);
-          if (entry === undefined) throw new Error('pilot baseline unexpectedly empty');
-          entry.path = 'libs/wbs/application/core/src/use-cases/replay.ts';
+        mutate(boundary: {
+          baselineEntries: ExactTuple[];
+          sourceSelector?: { kind: string };
+        }): void {
+          delete boundary.sourceSelector;
         },
         expected:
-          'trusted boundary baseline escapes selector boundary.domain.saved-plan: libs/wbs/application/core/src/use-cases/replay.ts',
+          'trusted boundary baseline escapes selector boundary.domain.saved-plan: libs/domain/src/saved-plan/canonical-plan-input.test.ts',
+      },
+      {
+        mutate(boundary: {
+          baselineEntries: ExactTuple[];
+          sourceSelector?: { kind: string };
+        }): void {
+          if (boundary.sourceSelector === undefined) {
+            throw new Error('pilot source selector unexpectedly absent');
+          }
+          boundary.sourceSelector.kind = 'path';
+        },
+        expected: 'trusted boundary source selector kind differs: boundary.domain.saved-plan',
+      },
+      {
+        mutate(boundary: {
+          baselineEntries: ExactTuple[];
+          sourceSelector?: { kind: string };
+        }): void {
+          const entry = boundary.baselineEntries.at(0);
+          if (entry === undefined) throw new Error('pilot baseline unexpectedly empty');
+          entry.path = 'libs/core/src/use-cases/replay.ts';
+        },
+        expected:
+          'trusted boundary baseline escapes selector boundary.domain.saved-plan: libs/core/src/use-cases/replay.ts',
       },
     ];
     for (const mutation of mutations) {
       const candidate = createCandidate();
       const trust = createExternalTrust(candidate);
       const policy = JSON.parse(readFileSync(trust.policyPath, 'utf8')) as {
-        boundaries: { boundaryId: string; baselineEntries: ExactTuple[] }[];
+        boundaries: {
+          boundaryId: string;
+          baselineEntries: ExactTuple[];
+          sourceSelector?: { kind: string };
+        }[];
       };
       const boundary = policy.boundaries.find(
         ({ boundaryId }) => boundaryId === 'boundary.domain.saved-plan',
