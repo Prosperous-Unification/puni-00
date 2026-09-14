@@ -234,6 +234,26 @@ function bindStores(
   const actuals = inMemoryActuals(workItems, state.tables.actuals, steps);
   const measures = inMemoryMeasures(workItems, state.tables.measures, steps);
   const progress = inMemoryProgress(workItems, state.tables.progress, steps);
+  const rowsOnlyWorkItems = workItems;
+  workItems = {
+    ...rowsOnlyWorkItems,
+    async remove(ids, promoted, stamp) {
+      await rowsOnlyWorkItems.remove(ids, promoted, stamp);
+      const removed = new Set(ids);
+      const removeSatelliteRows = (rows: { readonly workItemId: string }[]) => {
+        const kept = rows.filter(({ workItemId }) => !removed.has(workItemId));
+        rows.splice(0, rows.length, ...kept);
+      };
+      // SQLite's work-item foreign keys cascade these four tables inside the same
+      // statement; the memory source must expose the same post-write boundary.
+      // Proof: omitting this cascade made the runner's delete-last-child hand-up
+      // reject at the next targeted estimate read with an orphaned work-item reference.
+      removeSatelliteRows(state.tables.estimates.rows);
+      removeSatelliteRows(state.tables.actuals.rows);
+      removeSatelliteRows(state.tables.progress.rows);
+      removeSatelliteRows(state.tables.measures.rows);
+    },
+  };
   const stores: TransactionalStores = {
     users,
     projects: inMemoryProjects(users, state.tables.projects),

@@ -8,6 +8,7 @@ import { testClock } from '../testing/clock-fixture';
 import { fastScheduler } from '../testing/scheduler-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
 import type { Broadcaster } from './broadcast';
+import type { PlanCommand } from './plan-command';
 import { PlanCommandRunner } from './plan-commands';
 import type { WorkingPlan } from './working-plan';
 
@@ -143,6 +144,355 @@ describe('working plan command before-images', () => {
       expect(await source.stores.workItems.listByIds(projectId, [created.value.id])).toMatchObject([
         { name: 'Before batch', tagIds: [originalTag.id] },
       ]);
+    } finally {
+      await source.close();
+    }
+  });
+});
+
+const MEASURE_METRICS = ['token_estimate', 'token_actual', 'hours_actual'] as const;
+
+function setAllValues(workItemId: string, stepId: string, scalar: number): PlanCommand[] {
+  return [
+    {
+      kind: 'setEstimate',
+      workItemId,
+      stepId,
+      days: { optimistic: scalar, realistic: scalar + 1, pessimistic: scalar + 2 },
+    },
+    { kind: 'setActual', workItemId, stepId, days: scalar },
+    { kind: 'setProgress', workItemId, stepId, state: scalar === 1 ? 'in_progress' : 'done' },
+    ...MEASURE_METRICS.map((metric): PlanCommand => ({
+      kind: 'setMeasure',
+      workItemId,
+      stepId,
+      metric,
+      value: scalar,
+    })),
+  ];
+}
+
+function clearAllValues(workItemId: string, stepId: string): PlanCommand[] {
+  return [
+    { kind: 'clearEstimate', workItemId, stepId },
+    { kind: 'clearActual', workItemId, stepId },
+    { kind: 'clearProgress', workItemId, stepId },
+    ...MEASURE_METRICS.map((metric): PlanCommand => ({
+      kind: 'clearMeasure',
+      workItemId,
+      stepId,
+      metric,
+    })),
+  ];
+}
+
+describe('working plan value mutations through runner commands', () => {
+  it('refreshes every set, hand-down endpoint, and measure metric before later commands', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const createdProject = await publicGraph.projects.create('Value hand-down refresh', OWNER);
+      const projectId = createdProject.project.id;
+      const stepId = createdProject.steps[0].id;
+      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      const parent = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Parent',
+      });
+      if (!parent.ok) throw new Error('value hand-down parent creation refused');
+      const runner = runnerOver(source, publicGraph);
+
+      const changed = await runner.run(projectId, OWNER, [
+        ...setAllValues(parent.value.id, stepId, 1),
+        {
+          kind: 'createWorkItem',
+          ref: 'child',
+          parentId: parent.value.id,
+          afterId: null,
+          name: 'Child',
+        },
+        ...setAllValues('parent', stepId, 7).map((command) => ({
+          ...command,
+          workItemId: undefined,
+          workItemRef: 'child',
+        })),
+      ]);
+
+      expect(changed.ok).toBe(true);
+      if (!changed.ok) throw new Error('value hand-down batch refused');
+      const childId = changed.results[6]?.id;
+      if (childId === undefined) throw new Error('value hand-down returned no child id');
+      expect(await source.stores.estimates.listByProject(projectId)).toEqual([
+        { workItemId: childId, stepId, optimistic: 7, realistic: 8, pessimistic: 9 },
+      ]);
+      expect(await source.stores.actuals.listByProject(projectId)).toMatchObject([
+        { workItemId: childId, stepId, days: 7 },
+      ]);
+      expect(await source.stores.progress.listByProject(projectId)).toMatchObject([
+        { workItemId: childId, stepId, state: 'done' },
+      ]);
+      expect(
+        (await source.stores.measures.listByProject(projectId))
+          .map(({ workItemId, stepId: storedStepId, metric, value }) => ({
+            workItemId,
+            stepId: storedStepId,
+            metric,
+            value,
+          }))
+          .sort((left, right) => left.metric.localeCompare(right.metric)),
+      ).toEqual(
+        MEASURE_METRICS.map((metric) => ({ workItemId: childId, stepId, metric, value: 7 })).sort(
+          (left, right) => left.metric.localeCompare(right.metric),
+        ),
+      );
+
+      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+      expect(await source.stores.estimates.listByProject(projectId)).toEqual([]);
+      expect(await source.stores.actuals.listByProject(projectId)).toEqual([]);
+      expect(await source.stores.progress.listByProject(projectId)).toEqual([]);
+      expect(await source.stores.measures.listByProject(projectId)).toEqual([]);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('removes every moveAll source during the same create command', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const createdProject = await publicGraph.projects.create('Value move refresh', OWNER);
+      const projectId = createdProject.project.id;
+      const stepId = createdProject.steps[0].id;
+      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      const parent = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Parent',
+      });
+      if (!parent.ok) throw new Error('value move parent creation refused');
+      expect(
+        (
+          await runnerOver(source, publicGraph).run(
+            projectId,
+            OWNER,
+            setAllValues(parent.value.id, stepId, 1),
+          )
+        ).ok,
+      ).toBe(true);
+
+      const staleSources: string[] = [];
+      const runner = runnerOver(
+        source,
+        publicGraph,
+        source.uow,
+        (scope, broadcast, workingPlan) => {
+          if (workingPlan === undefined) return compose(scope.stores, broadcast);
+          const watch = <Store extends 'estimates' | 'actuals' | 'progress' | 'measures'>(
+            name: Store,
+          ): PlanTransactionalStores[Store] => {
+            const values = workingPlan.stores[name];
+            return {
+              ...values,
+              moveAll: async (...parameters: Parameters<typeof values.moveAll>) => {
+                await values.moveAll(parameters[0], parameters[1], parameters[2]);
+                const remaining = await values.listByProject(projectId);
+                if (remaining.some(({ workItemId }) => workItemId === parameters[0])) {
+                  staleSources.push(name);
+                }
+              },
+            };
+          };
+          return compose(
+            {
+              ...workingPlan.stores,
+              estimates: watch('estimates'),
+              actuals: watch('actuals'),
+              progress: watch('progress'),
+              measures: watch('measures'),
+            },
+            broadcast,
+          );
+        },
+      );
+
+      expect(
+        (
+          await runner.run(projectId, OWNER, [
+            {
+              kind: 'createWorkItem',
+              parentId: parent.value.id,
+              afterId: null,
+              name: 'Child',
+            },
+          ])
+        ).ok,
+      ).toBe(true);
+      // Proof: refreshing only moveAll's destination left all four source values visible in
+      // this same create command, before its next store call or any later command barrier.
+      expect(staleSources).toEqual([]);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('refreshes every delete-last-child hand-up before editing the parent', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const createdProject = await publicGraph.projects.create('Value hand-up refresh', OWNER);
+      const projectId = createdProject.project.id;
+      const stepId = createdProject.steps[0].id;
+      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      const parent = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Parent',
+      });
+      if (!parent.ok) throw new Error('value hand-up parent creation refused');
+      const child = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: parent.value.id,
+        afterId: null,
+        name: 'Only child',
+      });
+      if (!child.ok) throw new Error('value hand-up child creation refused');
+      expect(
+        (
+          await runnerOver(source, publicGraph).run(
+            projectId,
+            OWNER,
+            setAllValues(child.value.id, stepId, 1),
+          )
+        ).ok,
+      ).toBe(true);
+      const runner = runnerOver(source, publicGraph);
+
+      const changed = await runner.run(projectId, OWNER, [
+        { kind: 'deleteWorkItem', workItemId: child.value.id, strategy: 'cascade' },
+        ...setAllValues(parent.value.id, stepId, 7),
+      ]);
+
+      expect(changed.ok).toBe(true);
+      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+      expect(await source.stores.estimates.listByProject(projectId)).toMatchObject([
+        { workItemId: child.value.id, optimistic: 1, realistic: 2, pessimistic: 3 },
+      ]);
+      expect(await source.stores.actuals.listByProject(projectId)).toMatchObject([
+        { workItemId: child.value.id, days: 1 },
+      ]);
+      expect(await source.stores.progress.listByProject(projectId)).toMatchObject([
+        { workItemId: child.value.id, state: 'in_progress' },
+      ]);
+      expect(
+        (await source.stores.measures.listByProject(projectId))
+          .map(({ workItemId, metric, value }) => ({ workItemId, metric, value }))
+          .sort((left, right) => left.metric.localeCompare(right.metric)),
+      ).toEqual(
+        MEASURE_METRICS.map((metric) => ({ workItemId: child.value.id, metric, value: 1 })).sort(
+          (left, right) => left.metric.localeCompare(right.metric),
+        ),
+      );
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('removes every value and metric from retained reads before the store method returns', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const createdProject = await publicGraph.projects.create('Value remove refresh', OWNER);
+      const projectId = createdProject.project.id;
+      const stepId = createdProject.steps[0].id;
+      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      const leaf = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Leaf',
+      });
+      if (!leaf.ok) throw new Error('value remove leaf creation refused');
+      expect(
+        (
+          await runnerOver(source, publicGraph).run(
+            projectId,
+            OWNER,
+            setAllValues(leaf.value.id, stepId, 1),
+          )
+        ).ok,
+      ).toBe(true);
+      const observed: string[] = [];
+      const runner = runnerOver(
+        source,
+        publicGraph,
+        source.uow,
+        (scope, broadcast, workingPlan) => {
+          if (workingPlan === undefined) return compose(scope.stores, broadcast);
+          const watch = <Store extends 'estimates' | 'actuals' | 'progress' | 'measures'>(
+            name: Store,
+          ): PlanTransactionalStores[Store] => {
+            const values = workingPlan.stores[name];
+            return {
+              ...values,
+              remove: async (...parameters: Parameters<typeof values.remove>) => {
+                const remove = values.remove.bind(values);
+                await Reflect.apply(remove, values, parameters);
+                const remaining = await values.listByProject(projectId);
+                const removedRemains = remaining.some((row) => {
+                  if (row.workItemId !== leaf.value.id || row.stepId !== stepId) return false;
+                  return (
+                    name !== 'measures' ||
+                    (typeof parameters[2] === 'string' &&
+                      'metric' in row &&
+                      row.metric === parameters[2])
+                  );
+                });
+                if (removedRemains) observed.push(name);
+              },
+            };
+          };
+          return compose(
+            {
+              ...workingPlan.stores,
+              estimates: watch('estimates'),
+              actuals: watch('actuals'),
+              progress: watch('progress'),
+              measures: watch('measures'),
+            },
+            broadcast,
+          );
+        },
+      );
+
+      expect((await runner.run(projectId, OWNER, clearAllValues(leaf.value.id, stepId))).ok).toBe(
+        true,
+      );
+      // Proof: delegating remove left the removed identity in each retained collection during
+      // the same command; every name appeared here before a later command could hide the fault.
+      expect(observed).toEqual([]);
     } finally {
       await source.close();
     }

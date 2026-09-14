@@ -721,3 +721,119 @@ describe('targeted working-plan refreshes', () => {
     }
   });
 });
+
+describe('working plan value failures', () => {
+  it('does not advance a retained value after a modeled set refusal', async () => {
+    const source = openMemorySource();
+    const publicGraph = servicesOver(source.stores, {
+      clock: testClock,
+      broadcast: silentBroadcaster(),
+      scheduler: fastScheduler,
+    });
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const createdProject = await publicGraph.projects.create('Refused value refresh', OWNER);
+      const projectId = createdProject.project.id;
+      const stepId = createdProject.steps[0].id;
+      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      const leaf = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Leaf',
+      });
+      if (!leaf.ok) throw new Error('refused value leaf creation refused');
+      await source.stores.estimates.set(
+        { workItemId: leaf.value.id, stepId, ...DAYS },
+        { at: 2, by: OWNER },
+      );
+      const stores: PlanTransactionalStores = {
+        ...source.stores,
+        estimates: {
+          ...source.stores.estimates,
+          set: () => Promise.resolve('unknown_step'),
+          listByWorkItems: async (requestedProjectId, ids) =>
+            (await source.stores.estimates.listByWorkItems(requestedProjectId, ids)).map(
+              (estimate) => ({ ...estimate, optimistic: 99 }),
+            ),
+        },
+      };
+      const workingPlan = createWorkingPlan({ stores }, projectId);
+      await workingPlan.stores.estimates.listByProject(projectId);
+
+      expect(
+        await workingPlan.stores.estimates.set(
+          { workItemId: leaf.value.id, stepId, optimistic: 7, realistic: 8, pessimistic: 9 },
+          { at: 3, by: OWNER },
+        ),
+      ).toBe('unknown_step');
+      // Proof: refreshing after the modeled refusal replaced the retained optimistic day with
+      // the targeted reader's injected 99 even though the source refused the write.
+      expect(await workingPlan.stores.estimates.listByProject(projectId)).toEqual([
+        { workItemId: leaf.value.id, stepId, ...DAYS },
+      ]);
+      workingPlan.close();
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('does not advance a retained value before a throwing mutation succeeds', async () => {
+    const source = openMemorySource();
+    const publicGraph = servicesOver(source.stores, {
+      clock: testClock,
+      broadcast: silentBroadcaster(),
+      scheduler: fastScheduler,
+    });
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const createdProject = await publicGraph.projects.create('Throwing value refresh', OWNER);
+      const projectId = createdProject.project.id;
+      const stepId = createdProject.steps[0].id;
+      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      const leaf = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Leaf',
+      });
+      if (!leaf.ok) throw new Error('throwing value leaf creation refused');
+      await source.stores.actuals.set(
+        { workItemId: leaf.value.id, stepId, days: 2, recordedAt: 2 },
+        { at: 2, by: OWNER },
+      );
+      const stores: PlanTransactionalStores = {
+        ...source.stores,
+        actuals: {
+          ...source.stores.actuals,
+          remove: () => Promise.reject(new Error('injected actual removal failure')),
+          listByWorkItems: async (requestedProjectId, ids) =>
+            (await source.stores.actuals.listByWorkItems(requestedProjectId, ids)).map(
+              (actual) => ({
+                ...actual,
+                days: 99,
+              }),
+            ),
+        },
+      };
+      const workingPlan = createWorkingPlan({ stores }, projectId);
+      await workingPlan.stores.actuals.listByProject(projectId);
+
+      expect(
+        workingPlan.stores.actuals.remove(leaf.value.id, stepId, { at: 3, by: OWNER }),
+      ).rejects.toThrow('injected actual removal failure');
+      // Proof: refreshing before the throwing source mutation changed the retained days to the
+      // targeted reader's injected 99 despite the write never succeeding.
+      expect(await workingPlan.stores.actuals.listByProject(projectId)).toEqual([
+        { workItemId: leaf.value.id, stepId, days: 2, recordedAt: 2 },
+      ]);
+      workingPlan.close();
+    } finally {
+      await source.close();
+    }
+  });
+});

@@ -7,6 +7,7 @@ import type { PlanTransactionalStores } from '../ports/stores';
 import type { Scope } from '../ports/unit-of-work';
 import type { LabelledWorkItem } from '../ports/work-item-store';
 import { createWorkingPlanRows } from './working-plan-rows';
+import { createWorkingPlanValues } from './working-plan-values';
 
 /** One project's lazily retained reads, owned by one admitted command batch. */
 export interface WorkingPlan {
@@ -22,11 +23,11 @@ export interface WorkingPlan {
  * permanently refuses retained reads, including callbacks borrowed while the
  * batch was open.
  *
- * Row wrappers exercise the authoritative targeted-refresh boundary. The
- * command service graph must not switch wholesale to `workingPlan.stores`
- * until every remaining mutation wrapper can advance the collections it
- * affects; doing so earlier would make a later command observe an earlier
- * command's stale before-image.
+ * Row and step-value wrappers exercise the authoritative targeted-refresh
+ * boundary. The command service graph must not switch wholesale to
+ * `workingPlan.stores` until every remaining mutation wrapper can advance the
+ * collections it affects; doing so earlier would make a later command observe
+ * an earlier command's stale before-image.
  */
 export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan {
   let isClosed = false;
@@ -176,74 +177,66 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       return retainedWorkItems.listPlacements(requestedProjectId, ids);
     },
   };
-  const retainedEstimates: EstimateStore = {
-    listByProject: async (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return estimates.all();
+  const retainedEstimates: EstimateStore = createWorkingPlanValues(
+    () => scope.stores.estimates,
+    {
+      all: async (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return estimates.all();
+      },
+      byWorkItems: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return byWorkItem(await estimates.all(), ids);
+      },
     },
-    listByWorkItems: async (requestedProjectId, ids) => {
-      assertProject(requestedProjectId);
-      return byWorkItem(await estimates.all(), ids);
+    assertOpen,
+    refreshRows,
+  );
+  const retainedActuals: ActualStore = createWorkingPlanValues(
+    () => scope.stores.actuals,
+    {
+      all: async (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return actuals.all();
+      },
+      byWorkItems: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return byWorkItem(await actuals.all(), ids);
+      },
     },
-    set: guarded(assertOpen, (estimate, stamp) => scope.stores.estimates.set(estimate, stamp)),
-    remove: guarded(assertOpen, (workItemId, stepId, stamp) =>
-      scope.stores.estimates.remove(workItemId, stepId, stamp),
-    ),
-    moveAll: guarded(assertOpen, (fromWorkItemId, toWorkItemId, stamp) =>
-      scope.stores.estimates.moveAll(fromWorkItemId, toWorkItemId, stamp),
-    ),
-  };
-  const retainedActuals: ActualStore = {
-    listByProject: async (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return actuals.all();
+    assertOpen,
+    refreshRows,
+  );
+  const retainedMeasures: MeasureStore = createWorkingPlanValues(
+    () => scope.stores.measures,
+    {
+      all: async (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return measures.all();
+      },
+      byWorkItems: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return byWorkItem(await measures.all(), ids);
+      },
     },
-    listByWorkItems: async (requestedProjectId, ids) => {
-      assertProject(requestedProjectId);
-      return byWorkItem(await actuals.all(), ids);
+    assertOpen,
+    refreshRows,
+  );
+  const retainedProgress: StepProgressStore = createWorkingPlanValues(
+    () => scope.stores.progress,
+    {
+      all: async (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return progress.all();
+      },
+      byWorkItems: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return byWorkItem(await progress.all(), ids);
+      },
     },
-    set: guarded(assertOpen, (actual, stamp) => scope.stores.actuals.set(actual, stamp)),
-    remove: guarded(assertOpen, (workItemId, stepId, stamp) =>
-      scope.stores.actuals.remove(workItemId, stepId, stamp),
-    ),
-    moveAll: guarded(assertOpen, (fromWorkItemId, toWorkItemId, stamp) =>
-      scope.stores.actuals.moveAll(fromWorkItemId, toWorkItemId, stamp),
-    ),
-  };
-  const retainedMeasures: MeasureStore = {
-    listByProject: async (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return measures.all();
-    },
-    listByWorkItems: async (requestedProjectId, ids) => {
-      assertProject(requestedProjectId);
-      return byWorkItem(await measures.all(), ids);
-    },
-    set: guarded(assertOpen, (measure, stamp) => scope.stores.measures.set(measure, stamp)),
-    remove: guarded(assertOpen, (workItemId, stepId, metric, stamp) =>
-      scope.stores.measures.remove(workItemId, stepId, metric, stamp),
-    ),
-    moveAll: guarded(assertOpen, (fromWorkItemId, toWorkItemId, stamp) =>
-      scope.stores.measures.moveAll(fromWorkItemId, toWorkItemId, stamp),
-    ),
-  };
-  const retainedProgress: StepProgressStore = {
-    listByProject: async (requestedProjectId) => {
-      assertProject(requestedProjectId);
-      return progress.all();
-    },
-    listByWorkItems: async (requestedProjectId, ids) => {
-      assertProject(requestedProjectId);
-      return byWorkItem(await progress.all(), ids);
-    },
-    set: guarded(assertOpen, (statement, stamp) => scope.stores.progress.set(statement, stamp)),
-    remove: guarded(assertOpen, (workItemId, stepId, stamp) =>
-      scope.stores.progress.remove(workItemId, stepId, stamp),
-    ),
-    moveAll: guarded(assertOpen, (fromWorkItemId, toWorkItemId, stamp) =>
-      scope.stores.progress.moveAll(fromWorkItemId, toWorkItemId, stamp),
-    ),
-  };
+    assertOpen,
+    refreshRows,
+  );
   const retainedDependencies: DependencyStore = {
     listByProject: async (requestedProjectId) => {
       assertProject(requestedProjectId);
