@@ -85,17 +85,19 @@ function normalizeRecipeRows(recipe: PlanRecipe): readonly NormalizedRecipeRow[]
     ...row,
     // Recipe array order is authoritative when a caller omits a predecessor.
     // Proof: defaulting every omission to null reversed the real two-row plan
-    // and the 201-row plan across its batch boundary; both exact-id checks failed.
+    // and the 201-row plan across its batch boundary; both independent exact
+    // stored-id checks failed.
     afterRef: row.afterRef ?? (index === 0 ? null : recipe.rows[index - 1].ref),
   }));
 }
 
-function calculateExpectedRowRefs(rows: readonly NormalizedRecipeRow[]): readonly string[] {
+function calculateExpectedRowRefs(rows: readonly PlanRecipeRow[]): readonly string[] {
   const orderedRefs: string[] = [];
-  for (const row of rows) {
-    const predecessorIndex = row.afterRef === null ? -1 : orderedRefs.indexOf(row.afterRef);
-    if (row.afterRef !== null && predecessorIndex < 0)
-      throw new Error(`expected order is missing predecessor: ${row.afterRef}`);
+  for (const [index, row] of rows.entries()) {
+    const afterRef = row.afterRef ?? (index === 0 ? null : rows[index - 1].ref);
+    const predecessorIndex = afterRef === null ? -1 : orderedRefs.indexOf(afterRef);
+    if (afterRef !== null && predecessorIndex < 0)
+      throw new Error(`expected order is missing predecessor: ${afterRef}`);
     orderedRefs.splice(predecessorIndex + 1, 0, row.ref);
   }
   return orderedRefs;
@@ -326,10 +328,10 @@ export async function seedPlan(
     'getApiProjectsByIdWork-items',
     await client['getApiProjectsByIdWork-items']({ params: { id: projectId } }),
   ).body;
-  // Proof: replacing this placement calculation with recipe array order made the
-  // explicit sibling case expect [a,b,c] from the stored [a,c,b].
+  // Proof: replacing this original-recipe placement calculation with recipe array
+  // order made the explicit sibling case expect [a,b,c] from the stored [a,c,b].
   expect(tree.workItems.map((row) => row.id)).toEqual(
-    calculateExpectedRowRefs(recipeRows).map((ref) => rowIds[ref]),
+    calculateExpectedRowRefs(recipe.rows).map((ref) => rowIds[ref]),
   );
   for (const expected of recipeRows) {
     const stored = tree.workItems.find((row) => row.id === rowIds[expected.ref]);

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { openSeededPlan, seedPlan } from './plan-fixture';
+import { fixtureClient, fixtureSuccess, openSeededPlan, seedPlan } from './plan-fixture';
 
 const identity = (testName: string, worker: number) => ({
   run: 'section-1',
@@ -45,7 +45,16 @@ test('implicit recipe order appends rows', async ({ page }, testInfo) => {
     },
     identity('implicit-order', testInfo.workerIndex),
   );
-  expect(Object.keys(seeded.rowIds)).toEqual(['first', 'second']);
+  const tree = fixtureSuccess(
+    'getApiProjectsByIdWork-items',
+    await fixtureClient(page)['getApiProjectsByIdWork-items']({
+      params: { id: seeded.projectId },
+    }),
+  ).body;
+  expect(tree.workItems.map(({ id }) => id)).toEqual([
+    seeded.rowIds['first'],
+    seeded.rowIds['second'],
+  ]);
 });
 
 test('verifies explicit sibling insertions in their stored order', async ({ page }, testInfo) => {
@@ -81,7 +90,13 @@ test('implicit recipe order crosses a chunk boundary', async ({ page }, testInfo
     { name: 'Implicit cross chunk', rows },
     identity('implicit-cross', testInfo.workerIndex),
   );
-  expect(Object.keys(seeded.rowIds)).toEqual(rows.map(({ ref }) => ref));
+  const tree = fixtureSuccess(
+    'getApiProjectsByIdWork-items',
+    await fixtureClient(page)['getApiProjectsByIdWork-items']({
+      params: { id: seeded.projectId },
+    }),
+  ).body;
+  expect(tree.workItems.map(({ id }) => id)).toEqual(rows.map(({ ref }) => seeded.rowIds[ref]));
   expect(creationBatchSizes).toEqual([200, 1]);
 });
 

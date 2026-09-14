@@ -329,3 +329,31 @@ The recorded six-run performance matrix and production fault injections above
 were preserved as the actual task evidence and were not fabricated or rerun.
 Task 3.4 remains open until this committed SHA passes the canonical h2puni gate
 and receives whole-change re-review.
+
+## Independent row-order oracle repair
+
+The final row-order verification now derives omitted and explicit placements
+directly from the original `recipe.rows`. It does not consume the normalized
+rows used to compile backend commands. The explicit sibling recipe remains
+`[a, b-after-a, c-after-a]` with stored order `[a, c, b]`. The implicit two-row
+and 201-row browser cases independently reread the public project tree and
+compare its exact ID sequence with the caller-authored recipe order.
+
+R5 mutation and restored evidence:
+
+- Changing production normalization from ordered omitted predecessors to
+  `afterRef ?? null` made both implicit-order cases fail. The two-row tree was
+  reversed, and the 201-row tree was returned in reverse insertion order; both
+  failures were at the tests' independent exact persisted-ID comparisons.
+- Restoring ordered normalization and using the original-recipe oracle made the
+  same focused command pass 2/2 in 11.7s. The complete
+  `plan-fixture.spec.ts` suite then passed 20/20 in 32.6s, retaining the
+  explicit sibling and both 201-entry boundary cases.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx test contracts --skip-nx-cache --output-style=static`
+  passed 394 tests across 42 files in 1.7s.
+- The first FE/contracts lint/typecheck run found TS4111 on dot access through
+  the test's `rowIds` index signature. After changing those two accesses to
+  bracket notation, the complete uncached four-target lint/typecheck matrix
+  passed in 44.7s.
+
+Task 3.4 remains unchecked pending the canonical gate and final re-review.
