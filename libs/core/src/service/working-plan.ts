@@ -71,20 +71,25 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     assertOpen,
   );
 
-  const refreshRows = async (ids: readonly string[]): Promise<void> => {
+  const refreshRows = async (
+    ids: readonly string[],
+    insertedIds: readonly string[] = [],
+  ): Promise<void> => {
     assertOpen();
     const requestedIds = [...new Set(ids)];
     if (requestedIds.length === 0) return;
     const requested = new Set(requestedIds);
-    await workItems.replaceAllInSourceOrder(
+    await workItems.replaceAndPlace(
       requestedIds,
-      (retainedIds) => scope.stores.workItems.listByIds(projectId, retainedIds),
+      insertedIds,
+      () => scope.stores.workItems.listByIds(projectId, requestedIds),
+      (newIds) => scope.stores.workItems.listPlacements(projectId, newIds),
       ({ id }) => id,
-      (row, retainedIds) => {
+      (row) => {
         if (row.projectId !== projectId) {
           throw new Error(`targeted work item ${row.id} is outside project ${projectId}`);
         }
-        if (!retainedIds.has(row.id)) {
+        if (!requested.has(row.id)) {
           throw new Error(`targeted work item ${row.id} was not requested for refresh`);
         }
       },
@@ -151,6 +156,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         const requested = new Set(ids);
         return (await workItems.all()).filter(({ id }) => requested.has(id));
       },
+      placements: async (ids) => placementsOf(await workItems.all(), ids, ({ id }) => id),
     },
     assertOpen,
     refreshRows,
@@ -164,6 +170,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     listByIds: async (requestedProjectId: string, ids: readonly string[]) => {
       assertProject(requestedProjectId);
       return retainedWorkItems.listByIds(requestedProjectId, ids);
+    },
+    listPlacements: async (requestedProjectId: string, ids: readonly string[]) => {
+      assertProject(requestedProjectId);
+      return retainedWorkItems.listPlacements(requestedProjectId, ids);
     },
   };
   const retainedEstimates: EstimateStore = {
@@ -369,22 +379,66 @@ class RetainedRows<Row> {
     this.rows = retained.map(this.clone);
   }
 
-  async replaceAllInSourceOrder(
+  async replaceAndPlace(
     ids: readonly string[],
-    load: (ids: readonly string[]) => Promise<Row[]>,
+    insertedIds: readonly string[],
+    load: () => Promise<Row[]>,
+    loadPlacements: (
+      ids: readonly string[],
+    ) => Promise<readonly { id: string; afterId: string | null }[]>,
     groupOf: (row: Row) => string,
-    validate: (row: Row, ids: ReadonlySet<string>) => void,
+    validate: (row: Row) => void,
   ): Promise<void> {
     this.assertOpen();
     if (this.rows === undefined) return;
-    const retainedIds = [...new Set([...this.rows.map(groupOf), ...ids])];
-    const requested = new Set(retainedIds);
-    const replacements = await load(retainedIds);
+    const replacements = await load();
     this.assertOpen();
-    replacements.forEach((row) => {
-      validate(row, requested);
-    });
-    this.rows = replacements.map(this.clone);
+    replacements.forEach(validate);
+    const replaced = new Set(ids);
+    const replacementsByIdentity = new Map(replacements.map((row) => [groupOf(row), row] as const));
+    const retained: Row[] = [];
+    for (const row of this.rows) {
+      const identity = groupOf(row);
+      if (!replaced.has(identity)) {
+        retained.push(row);
+        continue;
+      }
+      const replacement = replacementsByIdentity.get(identity);
+      if (replacement !== undefined) {
+        retained.push(replacement);
+        replacementsByIdentity.delete(identity);
+      }
+    }
+
+    const inserted = new Set(insertedIds);
+    const newIds = [...replacementsByIdentity.keys()];
+    for (const id of newIds) {
+      if (!inserted.has(id)) throw new Error(`refreshed work item ${id} has no retained position`);
+    }
+    const placements = await loadPlacements(newIds);
+    this.assertOpen();
+    const placed = new Set<string>();
+    for (const { id, afterId } of placements) {
+      if (!replacementsByIdentity.has(id) || placed.has(id)) {
+        throw new Error(`targeted placement returned unexpected work item ${id}`);
+      }
+      const row = replacementsByIdentity.get(id);
+      if (row === undefined) throw new Error(`targeted placement omitted work item ${id}`);
+      const index =
+        afterId === null
+          ? 0
+          : retained.findIndex((candidate) => groupOf(candidate) === afterId) + 1;
+      if (index === 0 && afterId !== null) {
+        throw new Error(`targeted placement for ${id} follows missing work item ${afterId}`);
+      }
+      retained.splice(index, 0, row);
+      placed.add(id);
+    }
+    if (placed.size !== newIds.length) {
+      const missing = newIds.find((id) => !placed.has(id));
+      throw new Error(`targeted placement omitted work item ${missing ?? 'unknown'}`);
+    }
+    this.rows = retained.map(this.clone);
   }
 
   async replaceIncident(
@@ -447,6 +501,19 @@ function byWorkItem<Row extends { workItemId: string }>(
 ): Row[] {
   const requested = new Set(ids);
   return rows.filter(({ workItemId }) => requested.has(workItemId));
+}
+
+function placementsOf<Row>(
+  rows: readonly Row[],
+  ids: readonly string[],
+  identityOf: (row: Row) => string,
+): { id: string; afterId: string | null }[] {
+  const requested = new Set(ids);
+  return rows.flatMap((row, index) => {
+    const id = identityOf(row);
+    if (!requested.has(id)) return [];
+    return [{ id, afterId: index === 0 ? null : identityOf(rows[index - 1]) }];
+  });
 }
 
 function cloneRecord<Row extends object>(record: Row): Row {

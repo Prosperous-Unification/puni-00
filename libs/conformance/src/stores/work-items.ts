@@ -158,6 +158,28 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
       // its authoritative full reader produced the insertion order z,a,b,c.
       expect(targeted).toEqual(complete.filter(({ id }) => inserted.has(id)));
     }),
+    storeCase(
+      'workItems',
+      'workItems.listPlacements:source-order',
+      open,
+      async ({ port, seed }) => {
+        const [projectA, projectB] = seed.projectIds;
+        const requestedIds = [seed.workItemIds[0][1], seed.workItemIds[0][0]];
+        const completeIds = (await port.listByProject(projectA)).map(({ id }) => id);
+        const expected = completeIds
+          .filter((id) => requestedIds.includes(id))
+          .map((id) => {
+            const index = completeIds.indexOf(id);
+            return { id, afterId: index === 0 ? null : completeIds[index - 1] };
+          });
+
+        // Proof: adapters returning no placements failed here with [] instead of
+        // both requested identities and their source-authoritative predecessors.
+        expect(await port.listPlacements(projectA, requestedIds)).toEqual(expected);
+        expect(await port.listPlacements(projectA, [seed.workItemIds[1][0]])).toEqual([]);
+        expect(await port.listPlacements(projectB, [])).toEqual([]);
+      },
+    ),
     storeCase('workItems', 'workItems.insert:respace', open, async ({ port, readers, seed }) => {
       const [projectA, projectB] = seed.projectIds;
       const [firstId, secondId] = seed.workItemIds[0];

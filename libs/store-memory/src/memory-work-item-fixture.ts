@@ -144,6 +144,17 @@ export function inMemoryWorkItems(
           ),
       );
     },
+    listPlacements(projectId, ids) {
+      const requested = new Set(ids);
+      const placements: { id: string; afterId: string | null }[] = [];
+      let afterId: string | null = null;
+      for (const row of byId.values()) {
+        if (row.projectId !== projectId) continue;
+        if (requested.has(row.id)) placements.push({ id: row.id, afterId });
+        afterId = row.id;
+      }
+      return Promise.resolve(placements);
+    },
     findById(id) {
       const found = byId.get(id);
       return Promise.resolve(found === undefined ? null : structuredClone(found));

@@ -59,6 +59,7 @@ export const CASE_MANIFEST = {
   steps: ['steps.add', 'steps.rename', 'steps.rename:unknown'],
   workItems: [
     'workItems.listByIds:labels-scope',
+    'workItems.listPlacements:source-order',
     'workItems.insert:respace',
     'workItems.patch:refusal-atomic',
     'workItems.move:parent-position',

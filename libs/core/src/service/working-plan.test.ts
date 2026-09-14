@@ -564,6 +564,74 @@ describe('targeted working-plan refreshes', () => {
     }
   });
 
+  it('hydrates only the affected identity after ordinary single-row patches', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = servicesOver(source.stores, {
+      clock: testClock,
+      broadcast: direct,
+      scheduler: fastScheduler,
+    });
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Bounded row refresh', OWNER)).project
+        .id;
+      const retainedCount = 200;
+      for (let index = 0; index < retainedCount; index += 1) {
+        await source.stores.workItems.insert(
+          workItemRow({
+            id: `row-${String(index).padStart(3, '0')}`,
+            projectId,
+            position: index * 10,
+          }),
+          [],
+          { at: 2, by: OWNER },
+        );
+      }
+      const hydrationCardinality: { requested: number; returned: number }[] = [];
+      const stores: PlanTransactionalStores = {
+        ...source.stores,
+        workItems: {
+          ...source.stores.workItems,
+          listByIds: async (requestedProjectId, ids) => {
+            const rows = await source.stores.workItems.listByIds(requestedProjectId, ids);
+            hydrationCardinality.push({ requested: ids.length, returned: rows.length });
+            return rows;
+          },
+        },
+      };
+      const workingPlan = createWorkingPlan({ stores }, projectId);
+      expect(await workingPlan.stores.workItems.listByProject(projectId)).toHaveLength(
+        retainedCount,
+      );
+
+      for (const [at, name] of ['First patch', 'Second patch', 'Third patch'].entries()) {
+        expect(
+          await workingPlan.stores.workItems.patch('row-117', { name }, { at: at + 3, by: OWNER }),
+        ).toMatchObject({ ok: true });
+      }
+      // Proof: expanding this refresh to every retained identity requested and returned
+      // 200 labelled rows here, masking faults in the affected-identity set.
+      expect(hydrationCardinality).toEqual([
+        { requested: 1, returned: 1 },
+        { requested: 1, returned: 1 },
+        { requested: 1, returned: 1 },
+      ]);
+      expect(
+        (await workingPlan.stores.workItems.listByProject(projectId)).find(
+          ({ id }) => id === 'row-117',
+        ),
+      ).toMatchObject({ name: 'Third patch' });
+      workingPlan.close();
+    } finally {
+      await source.close();
+    }
+  });
+
   it('rejects work items outside the requested project and identity set', async () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();

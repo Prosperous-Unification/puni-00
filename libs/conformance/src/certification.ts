@@ -28,6 +28,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'calendarMarkers.listFor:total-order',
   'calendarMarkers.write:project-scope',
   'workItems.listByIds:labels-scope',
+  'workItems.listPlacements:source-order',
   'workItems.insert:respace',
   'workItems.patch:refusal-atomic',
   'workItems.move:parent-position',

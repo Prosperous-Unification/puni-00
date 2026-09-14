@@ -3,6 +3,7 @@ import type { WorkItemStore } from '../ports/work-item-store';
 interface RetainedWorkItemReads {
   all(): ReturnType<WorkItemStore['listByProject']>;
   byIds(ids: readonly string[]): ReturnType<WorkItemStore['listByIds']>;
+  placements(ids: readonly string[]): ReturnType<WorkItemStore['listPlacements']>;
 }
 
 /**
@@ -16,7 +17,7 @@ export function createWorkingPlanRows(
   source: () => WorkItemStore,
   reads: RetainedWorkItemReads,
   assertOpen: () => void,
-  refreshRows: (ids: readonly string[]) => Promise<void>,
+  refreshRows: (ids: readonly string[], insertedIds?: readonly string[]) => Promise<void>,
 ): WorkItemStore {
   const guarded =
     <Arguments extends readonly unknown[], Value>(
@@ -30,14 +31,18 @@ export function createWorkingPlanRows(
   return {
     listByProject: async () => reads.all(),
     listByIds: async (_projectId, ids) => reads.byIds(ids),
+    listPlacements: async (_projectId, ids) => reads.placements(ids),
     findById: guarded((id) => source().findById(id)),
     insert: guarded(async (workItem, respaced, stamp) => {
       await source().insert(workItem, respaced, stamp);
-      await refreshRows([
-        workItem.id,
-        ...(workItem.parentId === null ? [] : [workItem.parentId]),
-        ...respaced.map(({ id }) => id),
-      ]);
+      await refreshRows(
+        [
+          workItem.id,
+          ...(workItem.parentId === null ? [] : [workItem.parentId]),
+          ...respaced.map(({ id }) => id),
+        ],
+        [workItem.id],
+      );
     }),
     patch: guarded(async (id, patch, stamp) => {
       const written = await source().patch(id, patch, stamp);

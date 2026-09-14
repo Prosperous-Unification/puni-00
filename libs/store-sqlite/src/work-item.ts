@@ -13,8 +13,9 @@ import type {
   WriteStamp,
 } from '@wbs/core';
 import { isOrphanedNotBeforeReason } from '@wbs/domain';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, lt, max, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
+import { alias } from 'drizzle-orm/sqlite-core';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Gate } from './gate';
@@ -197,6 +198,24 @@ export class WorkItemRepository implements WorkItemStore {
   async listByIds(projectId: string, ids: readonly string[]): Promise<LabelledWorkItem[]> {
     if (ids.length === 0) return [];
     return this.listRows(projectId, ids);
+  }
+
+  async listPlacements(
+    projectId: string,
+    ids: readonly string[],
+  ): Promise<{ id: string; afterId: string | null }[]> {
+    if (ids.length === 0) return [];
+    const predecessor = alias(workItem, 'work_item_predecessor');
+    return this.db
+      .select({ id: workItem.id, afterId: max(predecessor.id) })
+      .from(workItem)
+      .leftJoin(
+        predecessor,
+        and(eq(predecessor.projectId, workItem.projectId), lt(predecessor.id, workItem.id)),
+      )
+      .where(and(eq(workItem.projectId, projectId), inArray(workItem.id, [...ids])))
+      .groupBy(workItem.id)
+      .orderBy(asc(workItem.id));
   }
 
   private async listRows(projectId: string, ids?: readonly string[]): Promise<LabelledWorkItem[]> {
