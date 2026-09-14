@@ -550,13 +550,24 @@ ESLint over all Tool Devsync sources and the uncached Tool Devsync typecheck bot
 
 ## Section 4.2 local production-path verification
 
-The frozen candidate was `7abb72f5107e5c9c03aaa077ce4d9b41549e707c`. Neither
-`git branch -r --contains 7abb72f5107e5c9c03aaa077ce4d9b41549e707c` nor an exact-SHA
-`git ls-remote origin` query returned a remote ref. The canonical h2puni gate was therefore not
-invoked: its checkout-under-lock contract requires the exact candidate object to be reachable from
-the build host. The remaining prerequisite is a published remote ref containing the exact candidate
-SHA, followed by `bin/h2puni-gate.sh 7abb72f5107e5c9c03aaa077ce4d9b41549e707c` on h2puni. Task 4.2
-remains unchecked until that gate and every obligation below are accepted together.
+The frozen candidate was `7abb72f5107e5c9c03aaa077ce4d9b41549e707c`. Remote reachability
+was rechecked from advertised branch refs, not by treating the SHA as a ref-name pattern. The exact
+commands were:
+
+```sh
+git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+git ls-remote --heads origin
+git branch -r --contains 7abb72f5107e5c9c03aaa077ce4d9b41549e707c
+```
+
+The fetch advanced `origin/main` from `e8dcc24a` to `d3342da5`; `git ls-remote --heads origin`
+enumerated 236 advertised branch refs and object IDs; and the ancestry query against the freshly
+updated remote-tracking refs printed no lines. No advertised remote branch therefore contained the
+candidate. The canonical h2puni gate was not invoked: its checkout-under-lock contract requires the
+candidate object to be available after the build host fetches advertised remote refs. The remaining
+prerequisite is a published remote branch containing the exact candidate SHA, followed by
+`bin/h2puni-gate.sh 7abb72f5107e5c9c03aaa077ce4d9b41549e707c` on h2puni. Task 4.2 remains
+unchecked until that gate and every obligation below are accepted together.
 
 Before the browser run, `lsof -nP -iTCP:<port> -sTCP:LISTEN` found no listener on the assigned
 5000/5100/6100 ports or packaged port 4341, and no process was rooted in this worktree. The complete
@@ -568,8 +579,9 @@ CI=1 E2E_PORT_SHIFT=1900 NX_DAEMON=false NX_ISOLATE_PLUGINS=false \
 ```
 
 It built 916 modules into `dist/apps/wbs/fe-01`, ran one Chromium worker with zero retries, and
-passed 374 tests with 37 intentional rendering-baseline skips and zero failures in 19m26s. The
-backend, gateway and frontend listened only on 5000, 5100 and 6100. Repeated Vite proxy
+passed 374 tests with 36 opt-in rendering-baseline cases skipped, one existing Gantt
+`test.fixme` skipped, and zero failures in 19m26s. The backend, gateway and frontend listened only
+on 5000, 5100 and 6100. Repeated Vite proxy
 `EPIPE`/`ECONNRESET` diagnostics accompanied deliberate page/socket teardown but did not fail a
 case. All three ports were unbound after Playwright exited.
 
