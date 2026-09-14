@@ -23,6 +23,12 @@ jobs:
           : "${ACTIVATION_ARCHIVE_SHA256:?trusted activation archive digest is not configured}"
           : "${ACTIVATION_ARCHIVE_URL:?trusted activation archive URL is not configured}"
           : "${ACTIVATION_VERSION:?trusted activation version is not configured}"
+          # Proof: gate-entrypoints.test.ts executes this production block with `main` and
+          # observes exit 78 before the mutable ref can supply the trusted launcher or runtime.
+          [[ "$ACTIVATION_VERSION" =~ ^[0-9a-f]{40}$ ]] || {
+            printf 'activation version must be a full commit SHA\n' >&2
+            exit 78
+          }
 
       - name: Check out trusted launcher
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -71,7 +77,8 @@ jobs:
           path: candidate
           persist-credentials: false
 
-      # This target-context job runs only the launcher preserved from the default branch.
+      # This target-context job runs only the launcher preserved from the operator-pinned
+      # activation-version revision.
       # The launcher runs its externally activated validator with an empty environment and
       # treats candidate bytes solely as the immutable committed selection being inspected.
       # Proof: gate-entrypoints.test.ts replaces both candidate scripts with exit 0 and the

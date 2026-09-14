@@ -3387,3 +3387,32 @@ all owned siblings on evidence failure, waits for every launch wrapper to settle
 export tests passed 21 tests with 88 assertions. Fresh uncached Tool Wiki source lint and forced
 typecheck, repository-wide format check, strict change validation, and `git diff --check` passed.
 Tasks 7.3–7.5 remain unchanged.
+
+### Slice 5.3 sole-parent proof completion
+
+The production-path negative constructs a real two-parent Git commit whose tree equals the checked
+candidate tree and whose first parent equals the independently expected base. Its immutable marker,
+serialized binding publication tuple, and separately retained publication tuple all name that commit,
+so verification reaches the Git sole-parent count check rather than failing on an earlier tuple join.
+
+After adding the test, the focused baseline run passed 6 tests with 24 assertions. Removing only
+`parents.length !== 1 ||` from `assertCommit` then made `trusted verification refuses a publication
+commit with a second parent` fail with `Received function did not throw`; 5 tests passed and 1 failed.
+Restoring the guard and adding the adjacent observed `Proof:` comment returned the same focused command
+to 6 passed, 0 failed, and 24 assertions:
+`bun test --preload ../test/scratch/preload.ts src/admission/attestation.test.ts` from
+`tools/tool-wiki`.
+
+Fresh proportional checks on the restored tree:
+
+- uncached `tool-wiki:lint:source` exited 0;
+- uncached forced `tool-wiki:typecheck` exited 0;
+- uncached `tool-wiki:lint` exited 0 with
+  `{status:"inactive",certified:false,reason:"external activation root is not provisioned"}`; this is
+  diagnostic only and is not admission evidence;
+- strict pinned OpenSpec validation passed 1 of 1 change with no issues; and
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx format:check --all` exited 0.
+
+The unfiltered Tool Wiki suite, h2puni gate, browser suite, CI, external trusted review and receipts,
+activation administration, ruleset, authority snapshot, and external binding publication were not
+run or created. The operational obligations remain pending, so Task 5.3 stays unchecked.

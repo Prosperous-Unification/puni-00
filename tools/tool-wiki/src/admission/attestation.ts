@@ -159,6 +159,9 @@ function assertCommit(
   )
     .split(' ')
     .filter((identity) => identity.length > 0);
+  // Proof: removing only the parent-count guard made `trusted verification refuses a publication
+  // commit with a second parent` return a verified binding (`Received function did not throw`) for
+  // a two-parent commit with the checked tree and expected first parent.
   if (actualTree !== tree || parents.length !== 1 || parents[0] !== parent) {
     throw new Error('integration binding commit differs from checked tree or sole parent');
   }
