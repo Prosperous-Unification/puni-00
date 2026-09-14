@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { PlanDocumentRequest } from '@wbs/contracts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { PlanImportRefusalError, type PlanImportSummary } from '@/lib/wbs-api';
 import { fakeProjectApi as fakeApi } from '@/testing/fake-project-api';
 
 import type * as TableFrameModule from './table-frame';
@@ -59,6 +61,56 @@ const toastTexts = (): string[] =>
 
 const click = (name: string) => {
   fireEvent.click(screen.getByRole('button', { name }));
+};
+
+const PLAN_FILE: PlanDocumentRequest = {
+  document: { format: 'wbs-plan', version: 1, exportedAt: '2026-09-14T09:00:00.000Z' },
+  settings: {
+    name: 'Imported exact',
+    restricted: false,
+    estimateMethod: 'pert',
+    depReach: 'whole-item',
+    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+    estimateRounding: 'ceil',
+    startDate: null,
+    solutionRef: null,
+    optimizationEnabled: false,
+    scheduleEngine: 'fast',
+    scheduleObjective: 'pri',
+  },
+  capacity: [],
+  priorityBands: [],
+  calendarMarkers: [],
+  directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+  workItems: [],
+  steps: [],
+};
+
+const IMPORTED: PlanImportSummary = {
+  projectId: 'imported-p2',
+  rows: 40,
+  created: {
+    teams: [],
+    people: [],
+    tags: ['Needs review'],
+    services: [],
+    types: [],
+    externalSystems: [],
+  },
+  solutionRef: 'none',
+};
+
+const planFile = (): File =>
+  new File([JSON.stringify(PLAN_FILE)], 'plan.json', { type: 'application/json' });
+
+const chooseImportFile = (file: File): void => {
+  const input = screen.getByLabelText<HTMLInputElement>('Import JSON');
+  Object.defineProperty(input, 'value', {
+    configurable: true,
+    writable: true,
+    value: 'C:\\fakepath\\plan.json',
+  });
+  fireEvent.change(input, { target: { files: [file] } });
 };
 
 /**
@@ -421,6 +473,7 @@ describe('sharing the plan', () => {
     });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     Reflect.deleteProperty(navigator, 'clipboard');
     Reflect.deleteProperty(URL, 'createObjectURL');
     Reflect.deleteProperty(URL, 'revokeObjectURL');
@@ -472,6 +525,179 @@ describe('sharing the plan', () => {
     expect(menu).toContainElement(importInput);
     // Proof: the `<details>` replaced by a plain `<div>` around the controls, this
     // failed on `no Export menu on the toolbar`. Watched, 2026-08-28.
+  });
+
+  itDom('imports one file, opens its project and reports one complete summary', async () => {
+    const model = fakeApi();
+    const importPlan = vi.fn(() => Promise.resolve(IMPORTED));
+    const onOpenProject = vi.fn();
+    render(
+      <WbsTable
+        projectId="p1"
+        api={{ ...model, importPlan }}
+        projectName="Rewire the shed"
+        onOpenProject={onOpenProject}
+      />,
+    );
+    await screen.findByLabelText('Import JSON');
+
+    chooseImportFile(planFile());
+
+    await waitFor(() => {
+      expect(onOpenProject).toHaveBeenCalledWith('imported-p2');
+    });
+    expect(importPlan).toHaveBeenCalledWith(PLAN_FILE);
+    expect(toastTexts()).toEqual([
+      'Imported 40 work items. Created 1 tag (Needs review). Solution reference: none.',
+    ]);
+  });
+
+  itDom('treats a cancelled file picker as no import attempt', async () => {
+    const model = fakeApi();
+    const importPlan = vi.fn(() => Promise.resolve(IMPORTED));
+    const onOpenProject = vi.fn();
+    render(
+      <WbsTable projectId="p1" api={{ ...model, importPlan }} onOpenProject={onOpenProject} />,
+    );
+    const input = await screen.findByLabelText('Import JSON');
+
+    fireEvent.change(input, { target: { files: [] } });
+
+    expect(importPlan).not.toHaveBeenCalled();
+    expect(onOpenProject).not.toHaveBeenCalled();
+    expect(toastTexts()).toEqual([]);
+  });
+
+  itDom('reports invalid JSON without submitting or opening a project', async () => {
+    const model = fakeApi();
+    const importPlan = vi.fn(() => Promise.resolve(IMPORTED));
+    const onOpenProject = vi.fn();
+    render(
+      <WbsTable projectId="p1" api={{ ...model, importPlan }} onOpenProject={onOpenProject} />,
+    );
+    await screen.findByLabelText('Import JSON');
+
+    chooseImportFile(new File(['{"broken"'], 'broken.json', { type: 'application/json' }));
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual(['Plan JSON import failed (invalid_json).']);
+    });
+    expect(importPlan).not.toHaveBeenCalled();
+    expect(onOpenProject).not.toHaveBeenCalled();
+  });
+
+  itDom('reports a file read failure without submitting or opening a project', async () => {
+    const model = fakeApi();
+    const importPlan = vi.fn(() => Promise.resolve(IMPORTED));
+    const onOpenProject = vi.fn();
+    vi.spyOn(FileReader.prototype, 'readAsText').mockImplementation(function refuseRead(
+      this: FileReader,
+    ) {
+      this.dispatchEvent(new ProgressEvent('error'));
+    });
+    render(
+      <WbsTable projectId="p1" api={{ ...model, importPlan }} onOpenProject={onOpenProject} />,
+    );
+    await screen.findByLabelText('Import JSON');
+
+    chooseImportFile(planFile());
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual(['Plan JSON import failed (file_read_failed).']);
+    });
+    expect(importPlan).not.toHaveBeenCalled();
+    expect(onOpenProject).not.toHaveBeenCalled();
+  });
+
+  itDom('keeps the current project selected when import returns a structured refusal', async () => {
+    const model = fakeApi();
+    const importPlan = vi.fn(() =>
+      Promise.reject(
+        new PlanImportRefusalError({
+          error: 'unknown_ref',
+          path: 'workItems[12].dependsOn[0]',
+          detail: 'missing work item file-row-9',
+        }),
+      ),
+    );
+    const onOpenProject = vi.fn();
+    render(
+      <WbsTable
+        projectId="prior-p1"
+        api={{ ...model, importPlan }}
+        projectName="Prior exact"
+        onOpenProject={onOpenProject}
+      />,
+    );
+    await screen.findByLabelText('Import JSON');
+
+    chooseImportFile(planFile());
+
+    await waitFor(() => {
+      expect(toastTexts()).toEqual([
+        'Plan JSON import refused: unknown_ref at workItems[12].dependsOn[0] (missing work item file-row-9).',
+      ]);
+    });
+    expect(onOpenProject).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-project-id="prior-p1"]')).not.toBeNull();
+    // Proof: calling `onOpenProject(projectId)` in the production rejection
+    // path made the spy receive exact `prior-p1` once while that prior table
+    // remained mounted. Observed 2026-09-14.
+  });
+
+  itDom('can choose and complete the same file twice', async () => {
+    const model = fakeApi();
+    const importPlan = vi.fn(() => Promise.resolve(IMPORTED));
+    const onOpenProject = vi.fn();
+    render(
+      <WbsTable projectId="p1" api={{ ...model, importPlan }} onOpenProject={onOpenProject} />,
+    );
+    const sameFile = planFile();
+    await screen.findByLabelText('Import JSON');
+
+    chooseImportFile(sameFile);
+    await waitFor(() => {
+      expect(importPlan).toHaveBeenCalledTimes(1);
+    });
+    const input = screen.getByLabelText<HTMLInputElement>('Import JSON');
+    if (input.value === '') chooseImportFile(sameFile);
+
+    await waitFor(() => {
+      expect(importPlan).toHaveBeenCalledTimes(2);
+    });
+    expect(onOpenProject).toHaveBeenCalledTimes(2);
+    // Proof: removing the production `input.value = ''` left the simulated
+    // browser at `C:\\fakepath\\plan.json`, suppressed the second same-file
+    // change, and this received one import instead of two. Observed 2026-09-14.
+  });
+
+  itDom('blocks a duplicate submit while the first file is in flight', async () => {
+    const model = fakeApi();
+    let finishImport: (summary: PlanImportSummary) => void = () => {
+      throw new Error('the held import resolver was not installed');
+    };
+    const heldImport = new Promise<PlanImportSummary>((resolve) => {
+      finishImport = resolve;
+    });
+    const importPlan = vi.fn(() => heldImport);
+    const onOpenProject = vi.fn();
+    render(
+      <WbsTable projectId="p1" api={{ ...model, importPlan }} onOpenProject={onOpenProject} />,
+    );
+    await screen.findByLabelText('Import JSON');
+
+    chooseImportFile(planFile());
+    await waitFor(() => {
+      expect(importPlan).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByLabelText('Import JSON')).toBeDisabled();
+    chooseImportFile(planFile());
+    expect(importPlan).toHaveBeenCalledTimes(1);
+
+    finishImport(IMPORTED);
+    await waitFor(() => {
+      expect(onOpenProject).toHaveBeenCalledTimes(1);
+    });
   });
 
   itDom('downloads JSON with collapsed and filtered-out rows', async () => {

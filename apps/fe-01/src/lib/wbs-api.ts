@@ -31,6 +31,7 @@ import {
   patchProject as patchProjectShape,
   type PlanDocument,
   type PlanDocumentRequest,
+  preflightRequest,
   readProject as readProjectShape,
   recordProjectOpen,
   redoProject as redoProjectShape,
@@ -1242,6 +1243,23 @@ export class PlanImportRefusalError extends Error {
     super(refusal.error);
     this.name = 'PlanImportRefusalError';
   }
+}
+
+/** Parses and generated-client-validates one untrusted archival JSON file. */
+export async function planDocumentRequestFromJson(json: string): Promise<PlanDocumentRequest> {
+  let untrustedDocument: unknown;
+  try {
+    untrustedDocument = JSON.parse(json);
+  } catch (cause) {
+    // Proof: letting the native SyntaxError escape made `reports invalid JSON
+    // without submitting or opening a project` expose engine-specific parser
+    // wording instead of the modeled `invalid_json`. Observed 2026-09-14.
+    if (cause instanceof SyntaxError) throw new Error('invalid_json', { cause });
+    throw cause;
+  }
+  const preflight = await preflightRequest(importProjectShape, { body: untrustedDocument });
+  if (preflight.kind === 'failure') throw new Error(wbsFailureCode(preflight.failure));
+  return preflight.input.body;
 }
 export interface PlanRead extends Omit<
   PlanReadWire,

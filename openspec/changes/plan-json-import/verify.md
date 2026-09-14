@@ -498,3 +498,44 @@ Fresh green evidence:
 
 At the Task 4.3 checkpoint, Tasks 4.4–4.5 and 5.2 remain unimplemented and
 unchecked.
+
+## Section 4.4 — interactive JSON import
+
+The production file input now reads and generated-client-validates one JSON
+document, admits only one request at a time, and clears its value after every
+settled attempt. A successful response calls `ProjectPage`'s existing picker
+selection function with the returned project id before emitting exactly one
+typed summary toast. Cancellation is a no-op. Syntax, read and structured
+request refusals each emit one error toast; the structured form retains its
+exact code, path and detail and never calls the project-opening callback.
+
+The initial TDD run kept all 31 existing toolbar tests green. Six new active
+cases failed because the input had no change handler: the open/import spies
+received zero calls and the expected parse/read/refusal toasts remained empty.
+The cancellation case passed before implementation because selecting no file
+was already inert.
+
+| Check                       | Fault injected                                                     | Test that observed it                                                         | Observed failure                                                                                                                     |
+| --------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Refusal keeps selection     | Called `onOpenProject(projectId)` in the production rejection path | `keeps the current project selected when import returns a structured refusal` | expected zero calls; received one exact call with `prior-p1` while the `prior-p1` table remained mounted                             |
+| Same-file reselection       | Removed the production `input.value = ''` settlement reset         | `can choose and complete the same file twice`                                 | expected two completed facade calls; received one because the browser-model helper suppressed the unchanged fake path                |
+| Invalid JSON classification | Re-threw the native `SyntaxError` instead of `invalid_json`        | `reports invalid JSON without submitting or opening a project`                | expected `Plan JSON import failed (invalid_json).`; received the engine parser sentence beginning `Expected ':' after property name` |
+| File read refusal           | Removed the production `FileReader.onerror` rejection              | `reports a file read failure without submitting or opening a project`         | expected one `file_read_failed` toast; received an empty toast list                                                                  |
+| Duplicate in-flight submit  | Made the production file input permanently enabled                 | `blocks a duplicate submit while the first file is in flight`                 | expected the input to be disabled; received an enabled file input                                                                    |
+
+Every mutation was applied separately, observed red, restored, and recorded in
+an adjacent `Proof:` comment. The success case additionally asserts the complete
+40-row/one-tag/solution-reference toast as the only toast. The `ProjectPage`
+case observes the imported id in both `wbs.project` and the next table tree
+read, proving the live page uses the real picker selection path.
+
+Fresh green evidence:
+
+- `TZ=UTC bunx vitest run src/lib/wbs-api.test.ts src/components/wbs/plan-toolbar.test.tsx src/components/wbs/project-page.test.tsx --no-file-parallelism --maxWorkers=1` from `apps/fe-01` — 3 files passed, 146 tests passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p fe-01 --skip-nx-cache --parallel=1 --output-style=static` — both targets passed.
+- `bunx prettier --check apps/fe-01/src/lib/wbs-api.ts apps/fe-01/src/components/wbs/use-plan-read.ts apps/fe-01/src/components/wbs/plan-toolbar.tsx apps/fe-01/src/components/wbs/wbs-table.tsx apps/fe-01/src/components/wbs/plan-toolbar.test.tsx apps/fe-01/src/components/wbs/project-page.tsx apps/fe-01/src/components/wbs/project-page.test.tsx openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
+
+At the Task 4.4 checkpoint, Tasks 4.5 and 5.2 remain unimplemented and
+unchecked. The full h2puni gate and browser gate remain Task 5.2 and were not
+run here.

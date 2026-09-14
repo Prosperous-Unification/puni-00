@@ -1144,6 +1144,7 @@ export function ProjectPage({
             // next export says the new name.
             projectName={selectedProject?.name}
             api={api}
+            onOpenProject={choose}
             subscribe={subscribe}
             // Rendered by the table only on a cards viewport, which is the
             // same answer `renderer` above gives — one hook, one store, so the

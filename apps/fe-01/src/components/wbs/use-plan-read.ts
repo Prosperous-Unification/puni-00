@@ -54,6 +54,8 @@ import { toTree, type TreeRow } from './wbs-rows';
 export interface WbsTableProps {
   projectId: string;
   api: ProjectApi;
+  /** Selects an imported project through the same path as the project picker. */
+  onOpenProject?: (projectId: string) => void | Promise<void>;
   /**
    * What this project is called, for the export's header and its filename.
    *

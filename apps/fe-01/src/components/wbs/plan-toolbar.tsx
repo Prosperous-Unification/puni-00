@@ -591,6 +591,8 @@ export function PlanToolbar({
   downloadChartSvg,
   downloadOnScreen,
   downloadJson,
+  importBusy,
+  importJson,
   mermaidSectionMode,
   setMermaidSectionMode,
   startDate,
@@ -657,6 +659,8 @@ export function PlanToolbar({
   downloadChartSvg: () => void;
   downloadOnScreen: () => void;
   downloadJson: () => void;
+  importBusy: boolean;
+  importJson: React.ChangeEventHandler<HTMLInputElement>;
   mermaidSectionMode: 'step' | 'outline' | 'assignee';
   setMermaidSectionMode: React.Dispatch<React.SetStateAction<'step' | 'outline' | 'assignee'>>;
   startDate: string | null;
@@ -1310,13 +1314,21 @@ export function PlanToolbar({
             >
               Download JSON
             </Button>
-            <label className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+            <label
+              aria-disabled={importBusy}
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
               Import JSON
               <input
                 type="file"
                 accept="application/json"
                 aria-label="Import JSON"
                 className="sr-only"
+                // Proof: making this permanently enabled let `blocks a
+                // duplicate submit while the first file is in flight` call
+                // the import facade twice. Observed 2026-09-14.
+                disabled={importBusy}
+                onChange={importJson}
               />
             </label>
             {/*

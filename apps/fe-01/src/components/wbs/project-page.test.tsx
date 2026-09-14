@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { PlanDocumentRequest } from '@wbs/contracts';
 import { DEFAULT_PRIORITY_BANDS } from '@wbs/domain/priority-band';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -178,6 +179,29 @@ const TWO: ProjectListEntry[] = [
   },
 ];
 
+const IMPORTABLE_PLAN: PlanDocumentRequest = {
+  document: { format: 'wbs-plan', version: 1, exportedAt: '2026-09-14T09:00:00.000Z' },
+  settings: {
+    name: 'Imported exact',
+    restricted: false,
+    estimateMethod: 'pert',
+    depReach: 'whole-item',
+    pertWeights: { optimistic: 1, realistic: 4, pessimistic: 1 },
+    estimateRounding: 'ceil',
+    startDate: null,
+    solutionRef: null,
+    optimizationEnabled: false,
+    scheduleEngine: 'fast',
+    scheduleObjective: 'pri',
+  },
+  capacity: [],
+  priorityBands: [],
+  calendarMarkers: [],
+  directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+  workItems: [],
+  steps: [],
+};
+
 /** A third project, so a card can be asked to leave the options either side of it alone. */
 const THREE: ProjectListEntry[] = [
   ...TWO,
@@ -300,6 +324,46 @@ async function selectProject(id: string) {
 
 beforeEach(() => {
   localStorage.clear();
+});
+
+describe('opening an imported project', () => {
+  itDom('uses the picker selection path for the imported project id', async () => {
+    const api = fakeProjects(TWO);
+    const readTree = vi.fn(api.tree.bind(api));
+    api.tree = readTree;
+    api.importPlan = () =>
+      Promise.resolve({
+        projectId: 'imported-p3',
+        rows: 0,
+        created: {
+          teams: [],
+          people: [],
+          tags: [],
+          services: [],
+          types: [],
+          externalSystems: [],
+        },
+        solutionRef: 'none',
+      });
+    pageWith(api);
+    await selectProject('p1');
+    const input = await screen.findByLabelText('Import JSON');
+
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File([JSON.stringify(IMPORTABLE_PLAN)], 'plan.json', {
+            type: 'application/json',
+          }),
+        ],
+      },
+    });
+
+    await waitFor(() => {
+      expect(localStorage.getItem('wbs.project')).toBe('imported-p3');
+      expect(readTree).toHaveBeenCalledWith('imported-p3');
+    });
+  });
 });
 
 /**
