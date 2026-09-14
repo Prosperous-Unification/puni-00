@@ -371,6 +371,59 @@ test('trusted verification refuses invented provenance, mismatched binding kind,
   ).toThrow('integration binding publication differs from retained authority');
 });
 
+test('trusted verification refuses a publication commit with a second parent', () => {
+  const subject = fixture();
+  const emitted = emitIntegrationBinding({
+    activation: subject.activation,
+    admissionProvenance: { kind: 'not-applicable', reason: 'pre-authority bootstrap commit' },
+    candidate: subject.checked,
+    contentManifestIdentity: 'c'.repeat(64),
+    destination: join(subject.store, 'binding.json'),
+    evidenceValidation: {
+      validationId: 'validation.tool-wiki.bootstrap',
+      validationIdentity: 'd'.repeat(64),
+    },
+    publication: { commit: subject.commit, markerRef: subject.markerRef, tree: subject.tree },
+    repository: subject.repository,
+  });
+  const mergeCommit = git(subject.repository, [
+    'commit-tree',
+    subject.tree,
+    '-p',
+    subject.checked.baseCommit,
+    '-p',
+    subject.commit,
+    '-m',
+    'merge publication',
+  ]);
+  const mergeMarker = 'refs/wbs-wiki/publications/merge';
+  git(subject.repository, ['update-ref', mergeMarker, mergeCommit]);
+  const publication = {
+    commit: mergeCommit,
+    markerRef: mergeMarker,
+    parent: subject.checked.baseCommit,
+    tree: subject.tree,
+  };
+
+  expect(() =>
+    verifyIntegrationBinding({
+      admissionProvenance: trustedVerification(subject).admissionProvenance,
+      activation: subject.activation,
+      bindingBytes: serializeCanonical({
+        ...emitted.binding,
+        commit: mergeCommit,
+        markerRef: mergeMarker,
+      }),
+      candidate: subject.checked,
+      contentManifestIdentity: emitted.binding.contentManifestIdentity,
+      evidenceValidation: emitted.binding.evidenceValidation,
+      publication,
+      repository: subject.repository,
+      verifier: subject.verifier,
+    }),
+  ).toThrow('integration binding commit differs from checked tree or sole parent');
+});
+
 test('trusted verification refuses forged serialized receipt provenance', () => {
   const subject = fixture();
   const emitted = emitIntegrationBinding({
