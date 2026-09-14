@@ -68,7 +68,8 @@ refer to the old root before slice 3 and its mapped destination afterward.
       Negative: restore each old path at its real caller and observe missing environment,
       missing restart or compatibility-refusal assertion. Do not edit a live remote `.env`.
 - [ ] 3.4 Rewrite the Dagger Dockerfile map, image entrypoints, Docker COPY/WORKDIR/output
-      paths, solver lock/package paths, image-smoke script, corpus-version hook and fixtures,
+      paths, solver lock/package paths, image-smoke script including its moved `script_dir`
+      repository-root ascent, corpus-version hook and fixtures,
       migration-directory discovery, migration-lint root handling and lefthook SQL glob.
       Test: tool-dagger/deploy/git-hooks/devsync suites and moved migration CLI fixtures.
       Test migration discovery against two fixture commits spanning the directory rename:

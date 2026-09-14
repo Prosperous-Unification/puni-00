@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { expect, test } from '@playwright/test';
@@ -14,6 +14,26 @@ declare global {
 
 const bootstrap = 'https://core-probe.invalid/';
 const bundlePath = resolve('dist/libs/wbs/application/core/portable-composition.js');
+
+test('portable artifacts use the output directory declared to Nx', async ({
+  browserName,
+}, testInfo) => {
+  expect(browserName).toBe('chromium');
+  const manifest = JSON.parse(
+    await readFile(resolve('libs/wbs/application/core/project.json'), 'utf8'),
+  ) as {
+    targets?: { 'test:portable'?: { outputs?: unknown } };
+  };
+  const declaredOutput = '{workspaceRoot}/tmp/core-portable-results';
+  expect(manifest.targets?.['test:portable']?.outputs).toEqual([declaredOutput]);
+
+  const artifact = testInfo.outputPath('artifact-proof.txt');
+  await writeFile(artifact, 'portable artifact');
+  // Proof: retaining the pre-namespace `../../tmp/core-portable-results`
+  // made the real `wbs-core:test:portable` target receive
+  // `libs/wbs/tmp/core-portable-results` here instead of Nx's declared root.
+  expect(artifact.startsWith(`${resolve('tmp/core-portable-results')}/`)).toBe(true);
+});
 
 test('portable composition executes all operations in Chromium', async ({ page }) => {
   const unexpectedRequests: string[] = [];

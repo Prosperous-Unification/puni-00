@@ -210,6 +210,25 @@ All three faults were removed. Fresh restored evidence:
   homogeneous had 400 targeted reads, 1 assignment read and 404 writes, while mixed had 994
   targeted reads, 41 assignment reads and 404 writes.
 
+### Portable artifact output repair
+
+Task 1's depth-sensitive inventory deliberately enumerates `project.json` and
+`tsconfig*.json`; it did not inspect the TypeScript Playwright configuration. After the core
+project moved three namespace levels deeper, its unchanged `../../tmp/core-portable-results`
+therefore resolved to `libs/wbs/tmp/core-portable-results`, while Nx declared
+`{workspaceRoot}/tmp/core-portable-results`. A production-path Playwright assertion now writes an
+artifact through `testInfo.outputPath` and requires that actual path to be below the declared Nx
+output.
+
+- Watched RED: the real uncached `wbs-core:test:portable` target ran two Chromium tests; the new
+  artifact assertion failed with `Received: false`, and Playwright reported its error context below
+  `libs/wbs/tmp/core-portable-results`.
+- Restored GREEN: changing the config to `../../../../tmp/core-portable-results` made the same real
+  target pass both tests in 2.1s.
+- The analogous non-JSON parent-relative scan found the already-rewritten Vite/Vitest paths and one
+  deferred `solver-image-smoke.sh` repository-root ascent. The latter belongs to unchecked Task 3.4
+  image verification and is recorded there rather than silently broadening this repair.
+
 ### Tool Wiki reconciliation boundary
 
 The live module mapping, policy selectors, relationship declarations, module README indexes and

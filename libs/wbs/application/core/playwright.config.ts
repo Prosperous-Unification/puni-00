@@ -5,7 +5,7 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './testing',
   testMatch: 'portable-composition.spec.ts',
-  outputDir: '../../tmp/core-portable-results',
+  outputDir: '../../../../tmp/core-portable-results',
   fullyParallel: false,
   workers: 1,
   retries: 0,
