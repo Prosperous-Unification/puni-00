@@ -144,7 +144,7 @@ specific mutation and observed result.
 
 ## Deferred verification
 
-Tasks 3.3–4, the whole-workspace h2puni gate, browser gate, image checks, production dry-run,
+Tasks 3.4–4, the whole-workspace h2puni gate, browser gate, image checks, production dry-run,
 publication, and archive remain intentionally unverified.
 
 ## Section 3.1 coordinated project move
@@ -241,5 +241,51 @@ publication occurred. The contracts/relationship run reached 34 pass with all 19
 selector cases green; its one contract expectation was an accidental edit to a frozen benchmark
 criterion and was restored before final verification.
 
-Tasks 3.3–4, fresh Tool Wiki activation, the whole browser gate, images, deployment/migration
+Tasks 3.4–4, fresh Tool Wiki activation, the whole browser gate, images, deployment/migration
 transition tooling, publication and the h2puni gate remain open.
+
+## Section 3.3 development and sync consumers
+
+Development setup reads and writes its three managed environments below `apps/wbs`; the port
+preflight defaults to that same root, and both supervisor modes select all four qualified Nx
+projects. The macOS solver environment, package install and golden request resolve the mapped
+adapter and contracts roots. Dev deployment and sync use the moved remote MCP environment without
+reading or changing a live `.env`. Restart fingerprints cover every moved application config,
+migration root and library manifest discovered from the actual graph. Solver compatibility binds
+the moved Python adapter and backend Dockerfile while preserving the existing preparation,
+restart and recreate ordering.
+
+The directly affected `tool-dev-setup:test` target now declares the namespaced environment,
+solver-lock and request-corpus inputs that its tests read. This is the narrow declaration required
+to keep the changed caller cache-sound; Task 3.5 still owns recursive Dockerfile inputs, cache
+mutation proofs and the broad final old-path sweep.
+
+### R5 observations
+
+| Check                      | Injected fault                                                                       | Production-path observer                          | Observed RED                                                                                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Setup root                 | Restored `seedApp` to `apps/<app>`                                                   | Temporary moved-layout fixture                    | 10 setup/solver cases failed; setup threw the legacy-path `MissingEnvExampleError`, so the exact namespaced diagnostic also failed.                                      |
+| Solver environment/request | Restored lock, package and contract request roots                                    | `solverEnvironment` and `solveGoldenRequest`      | The lock assertion returned `/repo/libs/solver-py/...`; the request caller threw ENOENT before invoking the fake solver.                                                 |
+| Solver test cache input    | Restored the lock input to `libs/solver-py`, then changed the moved Linux NumPy lock | Real `tool-dev-setup:test` Nx target              | The second run was a `[local cache]` hit (1/1) and exited 0; with the namespaced input restored, the same mutation reran and exited 1 on Linux 2.5.3 versus macOS 2.5.2. |
+| Development selectors      | Restored all four unqualified selectors in `bin/dev.sh`                              | Host `bin/dev.test.sh`                            | `local solver runs all four tiers` observed the wrong selector list while fake Nx was still reached.                                                                     |
+| Restart inventory          | Retained the pre-move app/library paths                                              | Actual project discovery and `needsRestart` tests | Coverage first named missing `libs/wbs/adapters/auth/project.json`; the moved migration/config path assertions failed.                                                   |
+| Solver compatibility       | Restored `libs/solver-py` and `apps/be-01/Dockerfile`                                | Real target-tree object reader                    | Threw `fixture has no object id` at the first deleted path instead of accepting the moved source tree.                                                                   |
+| Remote MCP environment     | Restored `src/apps/mcp-01/.env` at deploy and sync callers                           | Production script/default-path assertions         | The sync module initially could not export the expected default, and the deploy source missed the exact namespaced path; neither test read remote state.                 |
+
+All injected old paths were removed. Adjacent `Proof:` comments identify the watched faults.
+Restored evidence:
+
+- `bun test tools/dev` — 19 passed, 0 failed, 37 expectations.
+- Host-permitted `bun test tools/tool-devsync/src` — 173 passed, 0 failed, 496 expectations.
+- Host-permitted `bash bin/dev.test.sh` — all 47 shell checks passed, including loopback
+  refusal/cleanup and the exact four namespaced selectors.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test lint typecheck -p
+tool-dev-setup,tool-devsync --skip-nx-cache --parallel=1 --output-style=stream` — all six owning
+  targets passed; tests repeated the 19/173 counts.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx build tool-devsync --skip-nx-cache
+--output-style=stream` — Tool Devsync and all four dependencies passed.
+- The real `serve-local-solver` task graph listed exactly `wbs-be-01`, `wbs-fe-01`, `wbs-gw-01`
+  and `wbs-mcp-01`.
+
+Tasks 3.4–4, recursive Dockerfile/cache mutation proof, production deployment, publication,
+whole-workspace/browser gates and the h2puni gate remain open.
