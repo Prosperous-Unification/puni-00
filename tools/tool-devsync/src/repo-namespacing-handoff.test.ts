@@ -138,6 +138,7 @@ const CLASSIFIED_LEGACY_DOCUMENTATION = [
   ['docs/adr/0008-tags-accumulate-down-the-tree.md', 'historical diff observation'],
   ['docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md', 'historical diff observation'],
   ['docs/findings/checks-that-cannot-fail.md', 'historical incident catalogue'],
+  ['docs/findings/current.md', 'historical migrated root payload'],
   ['docs/local-dev.md', 'historical measured path'],
   ['docs/plans/2026-08-07-table-ui-cleanup.md', 'dated plan'],
   ['docs/plans/2026-08-08-tailwind-spike-verify.md', 'dated verification'],
@@ -439,11 +440,14 @@ test('current documentation and active solver packets use namespaced roots', asy
     for (const match of source.matchAll(LEGACY_ROOT)) references.push(`${path}:${match[0]}`);
   }
 
-  // The 2026-08-31 runbook incident records the path at observation time; changing that one
-  // reference would rewrite evidence rather than repair current navigation.
+  // The root-source block and 2026-08-31 runbook incident record their paths at observation time;
+  // changing either rewrites evidence rather than repairing current navigation.
+  // Proof: rewriting the root-source path to its current namespace made root-migration.test.ts
+  // fail 14 cases behind the exact router.landmines.001 payload mismatch (2026-09-14).
   expect(references).toEqual([
     'docs/adr/0008-tags-accumulate-down-the-tree.md:libs/domain/',
     'docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md:libs/domain/',
+    'docs/findings/current.md:apps/be-01/',
     'docs/local-dev.md:apps/fe-01',
     'docs/runbook-dev-deploy.md:apps/be-01/',
   ]);
@@ -587,7 +591,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
   // that exact UNCLASSIFIED context, count 262, and digest 116ba02b... (2026-09-14).
   expect(await legacySourceOccurrences()).toEqual({
     categories: {
-      'current recursive selector': 22,
+      'current recursive selector': 23,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 65,
       'historical policy selector or baseline': 39,
@@ -607,8 +611,8 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       policyJson: true,
       python: true,
     },
-    digest: '0b4393e5b99993b8be5c481455f61612d06048de0bdbcff1bfca47f697fdf669',
-    occurrences: 261,
+    digest: 'c3d5e0c4bb0845cfbdda63bb64686893cc181af36a14894899a5e2f73a56d588',
+    occurrences: 262,
     unclassified: [],
   });
 });

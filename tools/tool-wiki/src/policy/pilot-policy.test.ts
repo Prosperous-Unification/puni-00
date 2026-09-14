@@ -385,6 +385,8 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     );
     const trust = createExternalTrust(candidate);
     const invocation = lint(candidate, trust);
+    // Proof: omitting the five namespaced Dagger target inputs from the live relationship
+    // declaration made this production CLI report the exact authority-selector mismatch (0/1).
     expect(invocation.exitCode, output(invocation)).toBe(0);
     expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
       mode: 'observe',

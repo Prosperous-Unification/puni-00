@@ -231,15 +231,15 @@ output.
 
 ### Tool Wiki reconciliation boundary
 
-The live module mapping, policy selectors, relationship declarations, module README indexes and
-Nx check names use moved roots. Immutable bootstrap activation artifacts remain byte-identical.
-The full Tool Wiki run consequently refuses the current moved policy against its pinned pre-move
-`sourceRevision`; an intermediate dirty-base fixture also reported duplicate legacy and moved
-module identities. This is the required visible indication that a fresh activation must be
-prepared after the exact candidate is published. No activation, external store mutation or
-publication occurred. The contracts/relationship run reached 34 pass with all 19 relationship
-selector cases green; its one contract expectation was an accidental edit to a frozen benchmark
-criterion and was restored before final verification.
+The live module mapping, policy selectors, module README indexes and Nx check names use moved
+roots. The live relationship declaration originally did not: its `check.tool-dagger.test` fact
+retained only five inputs after the target gained five namespaced candidate inputs. The
+candidate-built pilot fixture refused that exact current-fact mismatch before external activation
+could matter. Immutable bootstrap activation artifacts remain byte-identical and preserve their
+historical tuple. No activation, external store mutation or publication occurred. The initial
+contracts/relationship run reached 34 pass with all 19 relationship selector cases green; its one
+contract expectation was an accidental edit to a frozen benchmark criterion and was restored
+before final verification.
 
 ## Section 3.3 development and sync consumers
 
@@ -512,13 +512,14 @@ policy/mappings or selected activation.
 The production index command exited 0 with eight indexes and no review debt. The uncached Tool
 Devsync suite passed 190/190 with 529 expectations; its lint and typecheck targets also passed.
 Tool Wiki source lint and typecheck passed, while the complete suite passed 578 tests and failed
-one of 579 with 5,358 expectations: the frozen pilot-policy test correctly reported that the
-externally activated `check.tool-dagger.test` authority selector still has its pre-namespace input
-tuple. Production `tool-wiki-lint.sh` returned exit 0 with `status: inactive`, `certified: false`
-and `external activation root is not provisioned`; no activation success is claimed. The pinned
-Bun OpenSpec CLI validated all 83/83 changes/specs strictly. The unpinned `openspec` executable
-was unavailable (exit 127), so `bunx @fission-ai/openspec@1.3.0` supplied the recorded result.
-Task 4.2 owns the frozen-candidate h2puni/browser/image gates; they were not run here.
+one of 579 with 5,358 expectations: the candidate-built pilot fixture correctly reported that the
+live `check.tool-dagger.test` relationship fact omitted five current target inputs. That mismatch
+was candidate-owned; a fresh external activation could not repair it. Production
+`tool-wiki-lint.sh` returned exit 0 with `status: inactive`, `certified: false` and `external
+activation root is not provisioned`; no activation success is claimed. The pinned Bun OpenSpec
+CLI validated all 83/83 changes/specs strictly. The unpinned `openspec` executable was unavailable
+(exit 127), so `bunx @fission-ai/openspec@1.3.0` supplied the recorded result. Task 4.2 owns the
+frozen-candidate h2puni/browser/image gates; they were not run here.
 
 ### Astra follow-up: absent root-route destinations
 
@@ -668,3 +669,50 @@ obligation rather than a local success claim.
 The non-destructive setup step had created three ignored `.env` copies byte-identical to their
 checked-in examples; those files and the run's exact timestamped SQLite database were removed after
 the services stopped. Normal Playwright reports and screenshots remain as ignored gate artifacts.
+
+## Section 4.4 Astra live relationship repair
+
+Review of `343ee3bd9aed2e4d2e6192bf6aadd3dcc7106ae9` found a candidate-owned Tool
+Wiki mismatch before any external activation boundary. The live
+`docs/wiki-policy/relationships.json` fact for `check.tool-dagger.test` pinned five inputs while
+the current Nx target pinned ten. The omitted inputs were exactly:
+
+- `{workspaceRoot}/apps/wbs/be-01/**/*`
+- `{workspaceRoot}/apps/wbs/gw-01/**/*`
+- `{workspaceRoot}/apps/wbs/fe-01/**/*`
+- `{workspaceRoot}/libs/**/*`
+- `{workspaceRoot}/nx.json`
+
+The focused production-path command was
+`TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../node_modules bun test
+src/policy/pilot-policy.test.ts --test-name-pattern='pins exact pre-index tuples'` from
+`tools/tool-wiki`. Before repair it exited 1 after 48.66 seconds with 0 pass, 1 fail, 15 filtered
+and 26 expectations; line 388 reported the complete expected five-input authority selector and
+received ten-input target configuration. Adding only the five omitted inputs to the live current
+relationship tuple made the identical command pass 1/1 with 15 filtered and 27 expectations in
+47.71 seconds. An adjacent `Proof:` comment records the watched omission and exact production CLI
+failure.
+
+The bootstrap relationship declaration retains its historical five-input tuple. Bootstrap policy,
+bootstrap/live mappings, the live policy, frozen history and external activation archives were not
+changed. The restored contracts and relationship surface passed 59/59 with 1,013 expectations
+across three files. The complete Tool Wiki run reached 565 pass and 14 fail across 579 tests with
+5,361 expectations in 929.84 seconds. Every failure was confined to
+`root-migration.test.ts` and was preempted by
+`mapped destination block mismatch: docs/findings/current.md#router-landmines-001`; the pilot,
+contracts and relationship files all completed green in that aggregate.
+
+That failure was candidate-owned, not an unrelated base condition. The root-migration map and test
+blobs are identical at `7abb72f5`, `343ee3bd` and this repair, while blame and the two merge parents
+showed Task 4.1 had rewritten two paths inside the exact migrated `router.landmines.001` payload.
+Restoring the historical `be-01/src/repository/db.ts` and `apps/be-01/src` text returned the entire
+destination file to its pre-Task4.1 blob and its extracted payload to the map/source SHA-256
+`ffd7294cc5ee56476bd3053fe8b0bf484dec2fe9a11addcd4c77e4f875d60f02`. The handoff inventory
+initially failed 3/3 on that restored evidence; classifying the document as a historical migrated
+root payload and pinning its exact legacy occurrence made the same focused command pass 3/3. The
+live relationship's new `{workspaceRoot}/libs/**/*` input also raises the current recursive
+selector inventory from 22 to 23 and the complete occurrence total from 261 to 262, with digest
+`c3d5e0c4bb0845cfbdda63bb64686893cc181af36a14894899a5e2f73a56d588`.
+
+Task 4.4 remains open: Tasks 4.2 and 4.3 still retain their published-candidate and release-input
+prerequisites, and this scoped repair is not the final integration/archive review.
