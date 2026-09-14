@@ -2,7 +2,18 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { createWorkingPlan, type Project, type Step, type WriteStamp } from '@wbs/core';
+import type { Broadcaster } from '@wbs/core';
+import {
+  clockOf,
+  createWorkingPlan,
+  PlanCommandRunner,
+  type PlanTransactionalStores,
+  type Project,
+  servicesOver,
+  type Step,
+  type WriteStamp,
+} from '@wbs/core';
+import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
 import { expect, it } from 'bun:test';
@@ -16,6 +27,11 @@ const PROJECT = 'working-plan-order-project';
 const ROW = 'working-plan-order-row';
 const STEPS = ['step-A', 'step-a'] as const;
 const STAMP: WriteStamp = { at: 1, by: OWNER };
+
+const silentBroadcaster: Broadcaster = {
+  publish: () => Promise.resolve(),
+  latestSeq: () => Promise.resolve(-1),
+};
 
 it('keeps SQLite satellite order authoritative after a WorkingPlan patch refresh', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-order-'));
@@ -88,6 +104,78 @@ it('keeps SQLite satellite order authoritative after a WorkingPlan patch refresh
     expect(await workingPlan.stores.progress.listByProject(PROJECT)).toEqual(progress);
     expect(await workingPlan.stores.measures.listByProject(PROJECT)).toEqual(measures);
     workingPlan.close();
+  } finally {
+    await source.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+it('keeps SQLite work-item order authoritative immediately after a runner insert', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-insert-order-'));
+  const path = join(directory, 'source.db');
+  runMigrations(path, MIGRATIONS);
+  const source = openSqliteSource({ dbPath: path });
+
+  try {
+    await source.stores.users.create(
+      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
+      STAMP,
+    );
+    const project: Project = projectRow({ id: PROJECT, ownerId: OWNER });
+    const steps: Step[] = [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10 }];
+    await source.stores.projects.create(project, steps, STAMP);
+    await source.stores.workItems.insert(
+      workItemRow({ id: 'z-existing', projectId: PROJECT }),
+      [],
+      STAMP,
+    );
+
+    const ids = ['a-inserted', 'journal', 'event'];
+    const clock = clockOf({
+      now: () => 2,
+      newId: () => {
+        const id = ids.shift();
+        if (id === undefined) throw new Error('runner minted an unexpected fourth id');
+        return id;
+      },
+    });
+    const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
+      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+    const publicGraph = compose(source.stores, silentBroadcaster);
+    const runner = new PlanCommandRunner({
+      uow: source.uow,
+      announcements: silentBroadcaster,
+      publicServices: publicGraph,
+      batchServices(scope, broadcast, workingPlan) {
+        if (workingPlan === undefined) return compose(scope.stores, broadcast);
+        const workItems = {
+          ...workingPlan.stores.workItems,
+          insert: async (
+            ...parameters: Parameters<PlanTransactionalStores['workItems']['insert']>
+          ) => {
+            await workingPlan.stores.workItems.insert(...parameters);
+            const retained = await workingPlan.stores.workItems.listByProject(PROJECT);
+            const authoritative = await scope.stores.workItems.listByProject(PROJECT);
+            // Proof: before adapter-authoritative reordering, RetainedRows appended
+            // a-inserted and this received z-existing,a-inserted from the working plan.
+            expect(retained).toEqual(authoritative);
+            expect(retained.map(({ id }) => id)).toEqual(['a-inserted', 'z-existing']);
+          },
+        };
+        return compose({ ...workingPlan.stores, workItems }, broadcast);
+      },
+    });
+
+    expect(
+      await runner.run(PROJECT, OWNER, [
+        {
+          kind: 'createWorkItem',
+          parentId: null,
+          afterId: 'z-existing',
+          name: 'Inserted',
+        },
+      ]),
+    ).toMatchObject({ ok: true });
   } finally {
     await source.close();
     rmSync(directory, { recursive: true, force: true });

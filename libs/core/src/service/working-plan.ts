@@ -76,15 +76,15 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     const requestedIds = [...new Set(ids)];
     if (requestedIds.length === 0) return;
     const requested = new Set(requestedIds);
-    await workItems.replaceGroups(
+    await workItems.replaceAllInSourceOrder(
       requestedIds,
-      () => scope.stores.workItems.listByIds(projectId, requestedIds),
+      (retainedIds) => scope.stores.workItems.listByIds(projectId, retainedIds),
       ({ id }) => id,
-      (row) => {
+      (row, retainedIds) => {
         if (row.projectId !== projectId) {
           throw new Error(`targeted work item ${row.id} is outside project ${projectId}`);
         }
-        if (!requested.has(row.id)) {
+        if (!retainedIds.has(row.id)) {
           throw new Error(`targeted work item ${row.id} was not requested for refresh`);
         }
       },
@@ -367,6 +367,24 @@ class RetainedRows<Row> {
       inserted.add(group);
     }
     this.rows = retained.map(this.clone);
+  }
+
+  async replaceAllInSourceOrder(
+    ids: readonly string[],
+    load: (ids: readonly string[]) => Promise<Row[]>,
+    groupOf: (row: Row) => string,
+    validate: (row: Row, ids: ReadonlySet<string>) => void,
+  ): Promise<void> {
+    this.assertOpen();
+    if (this.rows === undefined) return;
+    const retainedIds = [...new Set([...this.rows.map(groupOf), ...ids])];
+    const requested = new Set(retainedIds);
+    const replacements = await load(retainedIds);
+    this.assertOpen();
+    replacements.forEach((row) => {
+      validate(row, requested);
+    });
+    this.rows = replacements.map(this.clone);
   }
 
   async replaceIncident(

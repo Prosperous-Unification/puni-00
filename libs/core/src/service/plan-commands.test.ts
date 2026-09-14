@@ -200,7 +200,7 @@ describe('working plan row mutations through runner commands', () => {
         .filter(({ parentId }) => parentId === 'parent')
         .sort((left, right) => left.position - right.position);
       // Proof: omitting the first insert's respaced sibling ids from refreshRows made the
-      // second production command place B before X (and leave duplicate position 20).
+      // second production command leave A@10,Y@20,B@30,X@40.
       expect(children.map(({ name, position }) => [name, position])).toEqual([
         ['A', 10],
         ['Y', 15],
