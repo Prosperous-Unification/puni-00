@@ -602,3 +602,61 @@ be-01 step-service test fake: its `EstimateStore` lacked `listPlacements`. The b
 delegates to the real SQLite repository; the focused regression and `be-01:typecheck` then passed.
 Full workspace build, browser, deploy, performance Task 3.2, and h2puni gate were outside this
 slice.
+
+## Tasks 3.2 and 3.2a performance acceptance
+
+The frozen acceptance checkout was `f91ed3ea8ebab8fa99e7e248298692aaf7ddbfe4`; `git status
+--short` was empty before the run and unchanged after all samples. The host was Linux
+`7.0.11-76070011-generic`, x64, 12th Gen Intel Core i7-12800HX, 24 logical CPUs, Bun 1.4.2.
+Both fixtures held 200 rows and exactly 200 commands. Each mode was warmed by one run and undo
+before sampling. Twenty pairs per fixture alternated uncached-first and cached-first by pair index;
+the semantic authored values and assignments were compared with the frozen baseline before each
+timed run and after its untimed undo. The uncached runner graph used the raw admitted SQLite stores
+captured inside the real UnitOfWork callback. The cached graph used the runner-created WorkingPlan.
+
+| Fixture     | Mode     | Median (ms) | Range (ms)      | Cached / uncached | Acceptance |
+| ----------- | -------- | ----------: | --------------- | ----------------: | ---------- |
+| Homogeneous | Uncached |     204.428 | 189.780–210.928 |                 — | —          |
+| Homogeneous | Cached   |     132.662 | 95.871–141.261  |             0.649 | Pass       |
+| Mixed       | Uncached |     220.311 | 184.878–233.184 |                 — | —          |
+| Mixed       | Cached   |     189.431 | 165.233–198.663 |             0.860 | Pass       |
+
+Every retained sample, in collection order:
+
+```text
+homogeneous cached: 138.314, 134.724, 133.905, 133.778, 131.091, 95.871, 132.979, 126.201, 128.298, 134.583, 141.261, 129.276, 132.383, 134.407, 130.969, 133.656, 130.403, 130.314, 131.396, 132.941
+homogeneous uncached: 207.737, 210.928, 201.302, 208.908, 199.094, 206.378, 201.001, 205.523, 203.008, 204.688, 204.680, 189.780, 203.359, 204.175, 207.562, 207.934, 201.505, 203.849, 197.207, 206.884
+mixed cached: 187.365, 190.044, 185.804, 198.663, 186.642, 188.781, 178.670, 170.905, 192.920, 185.761, 186.663, 189.558, 193.936, 165.233, 190.151, 191.674, 192.039, 189.741, 191.053, 189.305
+mixed uncached: 212.162, 222.382, 220.420, 214.144, 215.918, 222.300, 233.184, 219.442, 184.878, 217.554, 215.054, 219.468, 224.283, 221.137, 220.202, 225.891, 224.815, 222.457, 190.218, 221.142
+```
+
+The homogeneous correctness run loaded each of work items, estimates, actuals, progress,
+measures and dependencies exactly once, with 400 targeted reads, zero placement reads, one
+assignment read and 404 SQL write statements. All 200 changed estimates matched their distinct
+expected values, and undo restored all 200 distinct originals. The mixed plan-only run also loaded
+each retained collection once, with 994 targeted reads, zero placement reads, 41 separately-counted
+assignment reads and 404 SQL write statements. Its 40 `setAssignee` commands repeatedly named the
+two people created before the batch.
+
+| Fault                     | Injected production-path fault                                                              | Observed failure                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Cached full-read bound    | Delegated the generic retained value store's `listByProject` directly to its SQLite source. | The 200-command homogeneous runner made 201 estimate full-project reads; expected at most one. |
+| Assignment classification | Routed successful `DirectoryStore.assign` through the global directory reload barrier.      | The 40 assignments made 41 work-item full-project reads; expected at most one.                 |
+| SQL statement observer    | Dropped the logger from the source connection.                                              | The admitted runner committed the 200 commands but the SQL write count stayed zero.            |
+
+`GSETTINGS_BACKEND=memory bun test src/working-plan-performance.test.ts` from
+`libs/store-sqlite` passed 4 tests and 365 assertions in 29.83 seconds on the frozen checkout.
+The uncached `store-sqlite:test` owner suite then passed 758 tests and 8,934 assertions across 64
+files in 97.00 seconds. Its lint and typecheck targets passed uncached. Strict change validation
+passed 1/1 and repository validation passed 83/83; workspace format and `git diff --check` passed.
+Task 3.3's core, memory, conformance and be-01 integration matrix and h2puni gate remain unclaimed.
+
+```sh
+GSETTINGS_BACKEND=memory bun test src/working-plan-performance.test.ts # from libs/store-sqlite
+GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx run store-sqlite:test --output-style=static --skip-nx-cache
+GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx run-many -t lint typecheck -p store-sqlite --parallel=2 --output-style=static --skip-nx-cache
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate live-plan-snapshot --strict --json
+OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json
+GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all
+git diff --check
+```
