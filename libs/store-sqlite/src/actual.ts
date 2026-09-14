@@ -88,7 +88,8 @@ export class ActualRepository implements ActualStore {
           inArray(actual.workItemId, [...ids]),
           or(eq(workItem.projectId, projectId), isNull(workItem.projectId)),
         ),
-      );
+      )
+      .orderBy(actual.workItemId, step.position, actual.stepId);
     if (rows.some(({ workItemProjectId }) => workItemProjectId === null)) {
       throw new Error('targeted actual has an invalid work-item reference');
     }
@@ -104,19 +105,12 @@ export class ActualRepository implements ActualStore {
         throw new Error(`actual ${row.workItemId}/${row.stepId} has an invalid recorded time`);
       }
     }
-    return admitted
-      .sort(
-        (left, right) =>
-          left.workItemId.localeCompare(right.workItemId) ||
-          (left.stepPosition ?? 0) - (right.stepPosition ?? 0) ||
-          left.stepId.localeCompare(right.stepId),
-      )
-      .map(({ workItemId, stepId, days, recordedAt }) => ({
-        workItemId,
-        stepId,
-        days,
-        recordedAt,
-      }));
+    return admitted.map(({ workItemId, stepId, days, recordedAt }) => ({
+      workItemId,
+      stepId,
+      days,
+      recordedAt,
+    }));
   }
 
   /**

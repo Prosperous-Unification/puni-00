@@ -88,7 +88,8 @@ export class StepProgressRepository implements StepProgressStore {
           inArray(stepProgress.workItemId, [...ids]),
           or(eq(workItem.projectId, projectId), isNull(workItem.projectId)),
         ),
-      );
+      )
+      .orderBy(stepProgress.workItemId, step.position, stepProgress.stepId);
     if (rows.some(({ workItemProjectId }) => workItemProjectId === null)) {
       throw new Error('targeted progress has an invalid work-item reference');
     }
@@ -104,14 +105,12 @@ export class StepProgressRepository implements StepProgressStore {
         throw new Error(`progress ${row.workItemId}/${row.stepId} has an invalid stated time`);
       }
     }
-    return admitted
-      .sort(
-        (left, right) =>
-          left.workItemId.localeCompare(right.workItemId) ||
-          (left.stepPosition ?? 0) - (right.stepPosition ?? 0) ||
-          left.stepId.localeCompare(right.stepId),
-      )
-      .map(({ workItemId, stepId, state, statedAt }) => ({ workItemId, stepId, state, statedAt }));
+    return admitted.map(({ workItemId, stepId, state, statedAt }) => ({
+      workItemId,
+      stepId,
+      state,
+      statedAt,
+    }));
   }
 
   /**

@@ -106,7 +106,8 @@ export class EstimateRepository implements EstimateStore {
           inArray(estimate.workItemId, [...ids]),
           or(eq(workItem.projectId, projectId), isNull(workItem.projectId)),
         ),
-      );
+      )
+      .orderBy(estimate.workItemId, step.position, estimate.stepId);
     if (rows.some(({ workItemProjectId }) => workItemProjectId === null)) {
       throw new Error('targeted estimate has an invalid work-item reference');
     }
@@ -121,20 +122,13 @@ export class EstimateRepository implements EstimateStore {
         }
       }
     }
-    return admitted
-      .sort(
-        (left, right) =>
-          left.workItemId.localeCompare(right.workItemId) ||
-          (left.stepPosition ?? 0) - (right.stepPosition ?? 0) ||
-          left.stepId.localeCompare(right.stepId),
-      )
-      .map(({ workItemId, stepId, optimistic, realistic, pessimistic }) => ({
-        workItemId,
-        stepId,
-        optimistic,
-        realistic,
-        pessimistic,
-      }));
+    return admitted.map(({ workItemId, stepId, optimistic, realistic, pessimistic }) => ({
+      workItemId,
+      stepId,
+      optimistic,
+      realistic,
+      pessimistic,
+    }));
   }
 
   async set(toSet: StoredEstimate, stamp: WriteStamp): Promise<StepWriteOutcome> {

@@ -37,6 +37,7 @@ import {
   type SourceReaders,
   sourceRevision,
   subtreeSeedRecords,
+  TARGETED_ORDER_WORK_ITEM_IDS,
 } from '@wbs/conformance';
 import type {
   JournalEntry,
@@ -261,6 +262,16 @@ async function seedSqliteSource(
   }
 }
 
+async function seedTargetedOrderWorkItems(source: SqliteSource): Promise<void> {
+  for (const id of TARGETED_ORDER_WORK_ITEM_IDS) {
+    await source.stores.workItems.insert(
+      workItemRow({ id, projectId: DETERMINISTIC_SEED.projectIds[0], name: id }),
+      [],
+      DETERMINISTIC_SEED.stamps[0],
+    );
+  }
+}
+
 async function verifySqliteSeed(source: SqliteSource): Promise<void> {
   const seed = DETERMINISTIC_SEED;
   for (const [index, projectId] of seed.projectIds.entries()) {
@@ -330,16 +341,14 @@ async function openSqliteCase<Family extends ExistingFamily>(
     lateControl === null
       ? openSource
       : (options) => openSqliteSourceWithFault(options, lateControl);
-  const { source, directory } = await seedSqliteSource(
-    selectedOpen,
-    family === 'progress'
-      ? seedProgressStep
-      : family === 'dependencies'
-        ? seedDependencyWorkItems
-        : family === 'subtrees'
-          ? seedSubtreeRecords
-          : undefined,
-  );
+  const { source, directory } = await seedSqliteSource(selectedOpen, async (seeded) => {
+    if (caseId.endsWith('listByWorkItems:scope-order')) {
+      await seedTargetedOrderWorkItems(seeded);
+    }
+    if (family === 'progress') await seedProgressStep(seeded);
+    if (family === 'dependencies') await seedDependencyWorkItems(seeded);
+    if (family === 'subtrees') await seedSubtreeRecords(seeded);
+  });
   if (family === 'subtrees') {
     return {
       ...sqliteFixture(source, directory, family, caseId),

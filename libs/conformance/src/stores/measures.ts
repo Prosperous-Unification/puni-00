@@ -2,6 +2,7 @@ import type { StoredMeasure } from '@wbs/core';
 import { expect } from 'bun:test';
 
 import type { CaseRegistration } from '../case-manifest';
+import { TARGETED_ORDER_WORK_ITEM_IDS } from '../source-declaration';
 import { type OpenCase, storeCase } from './store-case';
 
 function byKey(measures: StoredMeasure[]): StoredMeasure[] {
@@ -49,6 +50,18 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
         },
         seed.stamps[1],
       );
+      for (const [index, workItemId] of TARGETED_ORDER_WORK_ITEM_IDS.entries()) {
+        await port.set(
+          {
+            workItemId,
+            stepId: firstStep,
+            metric: 'token_estimate',
+            value: index + 1,
+            recordedAt: index + 1,
+          },
+          seed.stamps[0],
+        );
+      }
       const complete = await port.listByProject(seed.projectIds[0]);
       expect(
         (await port.listByWorkItems(seed.projectIds[0], [targetId])).map(({ stepId }) => stepId),
@@ -58,6 +71,17 @@ export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseR
       // adapter throw for this valid project-B measure instead of returning [].
       expect(foreign).toEqual(complete.filter(({ workItemId }) => workItemId === foreignId));
       expect(foreign).toEqual([]);
+      const mixedCase = await port.listByWorkItems(
+        seed.projectIds[0],
+        TARGETED_ORDER_WORK_ITEM_IDS,
+      );
+      // Proof: SQLite's old localeCompare post-sort returned work-a before
+      // work-A, disagreeing with the full reader's BINARY order.
+      expect(mixedCase).toEqual(
+        complete.filter(({ workItemId }) =>
+          TARGETED_ORDER_WORK_ITEM_IDS.some((id) => id === workItemId),
+        ),
+      );
       expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
     }),
     storeCase('measures', 'measures.set:metric-key', open, async ({ port, readers, seed }) => {

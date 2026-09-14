@@ -2,6 +2,7 @@ import type { StoredProgress } from '@wbs/core';
 import { expect } from 'bun:test';
 
 import type { CaseRegistration } from '../case-manifest';
+import { TARGETED_ORDER_WORK_ITEM_IDS } from '../source-declaration';
 import { type OpenCase, storeCase } from './store-case';
 
 /** A progress-only third step that keeps move-source rows and the target sentinel disjoint. */
@@ -34,6 +35,12 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
         { workItemId: foreignId, stepId: seed.stepIds[1][0], state: 'done', statedAt: 3 },
         seed.stamps[1],
       );
+      for (const [index, workItemId] of TARGETED_ORDER_WORK_ITEM_IDS.entries()) {
+        await port.set(
+          { workItemId, stepId: firstStep, state: 'in_progress', statedAt: index + 1 },
+          seed.stamps[0],
+        );
+      }
       const complete = await port.listByProject(seed.projectIds[0]);
       expect(
         (await port.listByWorkItems(seed.projectIds[0], [targetId])).map(({ stepId }) => stepId),
@@ -43,6 +50,17 @@ export function progressRegistrations(open: OpenCase<'progress'>): readonly Case
       // adapter throw for this valid project-B progress row instead of returning [].
       expect(foreign).toEqual(complete.filter(({ workItemId }) => workItemId === foreignId));
       expect(foreign).toEqual([]);
+      const mixedCase = await port.listByWorkItems(
+        seed.projectIds[0],
+        TARGETED_ORDER_WORK_ITEM_IDS,
+      );
+      // Proof: SQLite's old localeCompare post-sort returned work-a before
+      // work-A, disagreeing with the full reader's BINARY order.
+      expect(mixedCase).toEqual(
+        complete.filter(({ workItemId }) =>
+          TARGETED_ORDER_WORK_ITEM_IDS.some((id) => id === workItemId),
+        ),
+      );
       expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
     }),
     storeCase('progress', 'progress.set:replace', open, async ({ port, readers, seed }) => {

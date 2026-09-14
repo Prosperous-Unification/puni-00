@@ -100,7 +100,8 @@ export class StepMeasureRepository implements MeasureStore {
           inArray(stepMeasure.workItemId, [...ids]),
           or(eq(workItem.projectId, projectId), isNull(workItem.projectId)),
         ),
-      );
+      )
+      .orderBy(stepMeasure.workItemId, step.position, stepMeasure.stepId, stepMeasure.metric);
     if (rows.some(({ workItemProjectId }) => workItemProjectId === null)) {
       throw new Error('targeted measure has an invalid work-item reference');
     }
@@ -119,21 +120,13 @@ export class StepMeasureRepository implements MeasureStore {
         throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid recorded time`);
       }
     }
-    return admitted
-      .sort(
-        (left, right) =>
-          left.workItemId.localeCompare(right.workItemId) ||
-          (left.stepPosition ?? 0) - (right.stepPosition ?? 0) ||
-          left.stepId.localeCompare(right.stepId) ||
-          left.metric.localeCompare(right.metric),
-      )
-      .map(({ workItemId, stepId, metric, value, recordedAt }) => ({
-        workItemId,
-        stepId,
-        metric,
-        value,
-        recordedAt,
-      }));
+    return admitted.map(({ workItemId, stepId, metric, value, recordedAt }) => ({
+      workItemId,
+      stepId,
+      metric,
+      value,
+      recordedAt,
+    }));
   }
 
   /**

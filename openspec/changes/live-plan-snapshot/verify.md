@@ -174,10 +174,11 @@ before filtering; after filtering, every admitted row must reference a project-A
 valid family-specific values.
 
 SQLite corruption tests now distinguish states the reader must reject from states ordinary schema
-enforcement prevents. Foreign keys were disabled only for missing-owner, missing-step and
-foreign-project-step reader proofs. `ignore_check_constraints` was enabled only to prove the
-progress-state and measure-metric reader defenses. With constraints active, SQLite reported the
-exact stored constraint names; binding `NaN` became `NULL` and hit the estimate column's `NOT NULL`.
+enforcement prevents. Foreign keys were disabled for every corruption injection so each update
+could exercise the reader boundary; reference proofs depend on that setting, while representable
+dynamic values do not. `ignore_check_constraints` was enabled only to prove the progress-state and
+measure-metric reader defenses. Separate attempts with constraints active reported the exact stored
+constraint names; binding `NaN` became `NULL` and hit the estimate column's `NOT NULL`.
 
 | Scope                       | Command                                                                                                                                                                                                               | Result                                                                                      |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
@@ -204,3 +205,29 @@ exact stored constraint names; binding `NaN` became `NULL` and hit the estimate 
 | Store progress state `broken`         | `CHECK constraint failed: role_progress_state`    |
 | Store measure metric `broken`         | `CHECK constraint failed: role_measure_metric`    |
 | Bind `NaN` into `estimate.optimistic` | `NOT NULL constraint failed: estimate.optimistic` |
+
+## Astra SQLite targeted-order repair
+
+All four shared satellite cases now seed valid `work-A` and `work-a` owners. Their complete targeted
+answers must equal the SQLite-BINARY or memory-admitted full answer filtered to those IDs. SQLite's
+targeted statements carry the same `ORDER BY` expressions as their full readers; no JavaScript
+locale collation can reinterpret the stored order. A SQLite-backed WorkingPlan regression gives
+`step-A` and `step-a` the same position, loads all four collections, patches their work item, and
+compares every retained collection with its current full source read.
+
+| Scope                          | Command                                                                                                                                                                                                              | Result                                                                       |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Targeted and WorkingPlan paths | `bun test libs/store-sqlite/src/working-plan-order.db.test.ts libs/store-sqlite/src/targeted-readers.db.test.ts`                                                                                                     | Pass: 8 tests, 29 assertions.                                                |
+| Memory source certification    | `bun test libs/store-memory/src/testing/source-conformance.test.ts --test-name-pattern 'runs every offered existing case'`                                                                                           | Pass: 1 test, 1,049 assertions.                                              |
+| SQLite source certification    | `bun test libs/store-sqlite/src/testing/source-conformance.db.test.ts --test-name-pattern 'SQLite terminal certification runs every exact offered case'`                                                             | Pass: 1 test, 1,418 assertions.                                              |
+| Owning lint and typechecks     | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-order NX_DAEMON=false bunx nx run-many -t lint typecheck -p conformance store-memory store-sqlite core --parallel=2 --output-style=static --skip-nx-cache` | Pass: all 8 targets, no cache.                                               |
+| Owning tests                   | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-order NX_DAEMON=false bunx nx run-many -t test -p core store-memory store-sqlite conformance --parallel=2 --output-style=static --skip-nx-cache`           | Pass: core 490/1,617; memory 112/5,203; SQLite 743/8,425; conformance 33/58. |
+| Strict and all OpenSpec        | `bunx @fission-ai/openspec@1.3.0 validate live-plan-snapshot --strict --json` and `bunx @fission-ai/openspec@1.3.0 validate --all --json`                                                                            | Pass: change 1/1; repository 83/83.                                          |
+| Format and whitespace          | `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all` and `git diff --check`                                                                                                                         | Pass.                                                                        |
+
+### SQLite targeted-order R5 fault observations
+
+| Check                      | Injected fault                            | Observed failure                                                                                                                                                  |
+| -------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mixed-case owner parity    | Kept the four `localeCompare` post-sorts. | SQLite certification failed estimate, actual, progress and measure scope-order cases because targeted `work-a,work-A` disagreed with full-reader `work-A,work-a`. |
+| WorkingPlan retained order | Kept the four `localeCompare` post-sorts. | The SQLite WorkingPlan regression failed first on estimates: retained `step-a,step-A` disagreed with the current full source's `step-A,step-a`.                   |

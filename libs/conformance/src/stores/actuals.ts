@@ -2,6 +2,7 @@ import type { StoredActual } from '@wbs/core';
 import { expect } from 'bun:test';
 
 import type { CaseRegistration } from '../case-manifest';
+import { TARGETED_ORDER_WORK_ITEM_IDS } from '../source-declaration';
 import { type OpenCase, storeCase } from './store-case';
 
 function byKey(actuals: StoredActual[]): StoredActual[] {
@@ -31,6 +32,12 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
         { workItemId: foreignId, stepId: seed.stepIds[1][0], days: 3, recordedAt: 3 },
         seed.stamps[1],
       );
+      for (const [index, workItemId] of TARGETED_ORDER_WORK_ITEM_IDS.entries()) {
+        await port.set(
+          { workItemId, stepId: firstStep, days: index + 1, recordedAt: index + 1 },
+          seed.stamps[0],
+        );
+      }
       const complete = await port.listByProject(seed.projectIds[0]);
       expect(
         (await port.listByWorkItems(seed.projectIds[0], [targetId])).map(({ stepId }) => stepId),
@@ -40,6 +47,17 @@ export function actualRegistrations(open: OpenCase<'actuals'>): readonly CaseReg
       // adapter throw for this valid project-B actual instead of returning [].
       expect(foreign).toEqual(complete.filter(({ workItemId }) => workItemId === foreignId));
       expect(foreign).toEqual([]);
+      const mixedCase = await port.listByWorkItems(
+        seed.projectIds[0],
+        TARGETED_ORDER_WORK_ITEM_IDS,
+      );
+      // Proof: SQLite's old localeCompare post-sort returned work-a before
+      // work-A, disagreeing with the full reader's BINARY order.
+      expect(mixedCase).toEqual(
+        complete.filter(({ workItemId }) =>
+          TARGETED_ORDER_WORK_ITEM_IDS.some((id) => id === workItemId),
+        ),
+      );
       expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
     }),
     storeCase('actuals', 'actuals.set:replace', open, async ({ port, readers, seed }) => {
