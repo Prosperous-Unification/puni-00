@@ -144,8 +144,8 @@ specific mutation and observed result.
 
 ## Deferred verification
 
-Tasks 3–4, all project moves, the whole-workspace h2puni gate, browser gate, image checks,
-production dry-run, publication, and archive remain intentionally unverified.
+Tasks 3.3–4, the whole-workspace h2puni gate, browser gate, image checks, production dry-run,
+publication, and archive remain intentionally unverified.
 
 ## Section 3.1 coordinated project move
 
@@ -200,9 +200,15 @@ All three faults were removed. Fresh restored evidence:
 - Focused moved readers: backend 26 passed with the existing orphan-process case skipped;
   domain/contracts/core 87 passed; CI workflow 1 passed; Python metadata/path 4 passed. The core
   portable target built the moved bundle and passed its Chromium check (1 test).
-- The full SQLite target reached 762 pass, 0 fail, then reported its one designed suite-level
-  error because frozen performance certification refuses a dirty Git tree. It must be rerun from
-  the committed clean candidate; the failure is not recorded as green.
+- The full SQLite target passed 764 tests across 65 files with 9,002 expectations in 104.13s from
+  clean candidate `7c5dee9e3552d05418287ce4f42b6a90d762277f`. Its performance proof observed the
+  unchanged clean SHA/status before and after all samples. Homogeneous cached median/range was
+  155.481/138.685–163.546ms against uncached 254.278/242.047–260.453ms (ratio 0.6115); mixed
+  cached median/range was 216.958/206.188–224.891ms against uncached
+  264.365/250.525–274.994ms (ratio 0.8207). Both are within the fixed 1.10 ceiling. Functional
+  counts were one full read for each of the six retained collections in both fixtures;
+  homogeneous had 400 targeted reads, 1 assignment read and 404 writes, while mixed had 994
+  targeted reads, 41 assignment reads and 404 writes.
 
 ### Tool Wiki reconciliation boundary
 

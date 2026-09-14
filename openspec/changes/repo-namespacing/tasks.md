@@ -47,14 +47,14 @@ refer to the old root before slice 3 and its mapped destination afterward.
 
 ## 3. Move projects and every active consumer in one candidate
 
-- [ ] 3.1 Apply the exact root/name/tag/alias/output mapping in `design.md`, extracting the
+- [x] 3.1 Apply the exact root/name/tag/alias/output mapping in `design.md`, extracting the
       nested supervisor project before moving its old contracts parent. Rewrite manifests,
       tsconfigs, aliases, root scripts and ESLint path scopes in the same candidate. Test:
       project graph and alias keys preserve the pinned set; actual renamed app/library
       typechecks compile source and specs. Negative: inject a type error into a moved test
       file and observe its renamed Nx target fail; restore. Carry core's ring/runtime/
       SQLite negatives through their new paths; do not change their intended exemption.
-- [ ] 3.2 Rewrite Vite/Vitest aliases and outputs, both Playwright configurations and tests,
+- [x] 3.2 Rewrite Vite/Vitest aliases and outputs, both Playwright configurations and tests,
       the packaged-build server, root lint source inputs, CI artifact paths and all
       cross-tree fixtures. Test: frontend configuration/test-tier suites and `wbs-fe-01`
       typecheck/build resolve the moved files. Negative: restore one old alias target and
