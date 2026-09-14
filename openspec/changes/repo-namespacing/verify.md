@@ -430,3 +430,61 @@ The restored host-permission uncached Tool Remote Scripts matrix passed test, li
 tests passed 278/278 with 590 expectations and the two intentional real-Docker skips. The focused
 external-read totality suite passed 16/16 with 51 expectations. All-tree Prettier,
 `git diff --check`, and strict all OpenSpec validation passed; OpenSpec reported 83/83 items valid.
+
+## Section 4.1 documentation and handoff verification
+
+Current indexes, runbooks, architectural pointers and the two active solver packet surfaces now
+name the final `apps/wbs/...`, `libs/wbs/{domain,application,adapters}/...` roots and `wbs-*` Nx
+projects. Of the preflight inventory's 41 documentation files, 13 current files were revised and
+28 dated audits, plans, reviews, evidence and frozen specifications were retained as historical.
+The only legacy roots in the revised current-document set are the explicitly historical
+`docs/local-dev.md` measurement and the dated 2026-08-31 `docs/runbook-dev-deploy.md` incident.
+
+The candidate handoff suite pins complete manifests: 51 public alias keys, all 31 recursive Nx
+root/name tuples, and all 92 migration path/Git-blob tuples. Its tracked source/configuration
+sweep finds exactly nine legacy-reference files, classified as dated or watched-fault comments,
+revision-local transition logic, historical Tool Wiki policy selectors/baselines, or negative
+diagnostics. Bootstrap Tool Wiki policy/mapping files, frozen migrations, test fixtures,
+OpenSpec/history and external activation state are outside the current-reference rewrite.
+
+### TDD and R5 observations
+
+- The initial focused documentation command was
+  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx test tool-devsync --skip-nx-cache --output-style=stream --test-name-pattern='current documentation and active solver packets use namespaced roots'`.
+  It exited 1 with 62 references across 19 current files; after classification and current-path
+  repairs it passed 1/1.
+- Replacing the findings index target with `current.md#missing` made the production
+  `check-indexes working` path exit 1 with
+  `Markdown anchor absent in docs/findings/README.md: docs/findings/current.md#missing`.
+- Removing `@wbs/validation/fixtures` exposed the complete 50-key received alias list. Replacing
+  `wbs-domain` with `domain` exposed the differing complete project tuple. Removing
+  `apps/wbs/be-01/drizzle/20260830120000_add_dep_reach/down.sql` exposed that exact missing
+  path/blob tuple while retaining the other 91. Adding `apps/be-01` to `tools/dev/setup.ts`
+  exposed it as `UNCLASSIFIED` in the complete nine-file source/config inventory. Restoring a
+  stale `apps/be-01` path in `docs/capacity.md` made the executable historical-document
+  inventory fail 0/1 (185 filtered) with that current document classified as `UNCLASSIFIED`;
+  after restoring the namespaced path it passed 1/1 (185 filtered).
+- With the docs input omitted, the full 185-test target warmed green. A stale path added only to
+  `docs/capacity.md` then replayed 1/1 from local cache and falsely exited 0. Restoring
+  `{workspaceRoot}/docs/**/*.md` while keeping the fault caused a cache miss and the exact
+  184/1 documentation failure. All faults and omitted inputs were restored; adjacent `Proof:`
+  comments preserve each observation.
+
+### Tool Wiki boundary
+
+`check-indexes working` validates the repository's current eight-index graph, links, anchors and
+case. Trusted Tool Wiki activation remains pending: the moved mapping must be committed and
+published at one exact source SHA before an operator can materialize and activate immutable
+authority artifacts. This task did not mutate the external store, activated archive, bootstrap
+policy/mappings or selected activation.
+
+The production index command exited 0 with eight indexes and no review debt. The uncached Tool
+Devsync suite passed 186/186 with 525 expectations; its lint and typecheck targets also passed.
+Tool Wiki source lint and typecheck passed, while the complete suite passed 578 tests and failed
+one of 579 with 5,358 expectations: the frozen pilot-policy test correctly reported that the
+externally activated `check.tool-dagger.test` authority selector still has its pre-namespace input
+tuple. Production `tool-wiki-lint.sh` returned exit 0 with `status: inactive`, `certified: false`
+and `external activation root is not provisioned`; no activation success is claimed. The pinned
+Bun OpenSpec CLI validated all 83/83 changes/specs strictly. The unpinned `openspec` executable
+was unavailable (exit 127), so `bunx @fission-ai/openspec@1.3.0` supplied the recorded result.
+Task 4.2 owns the frozen-candidate h2puni/browser/image gates; they were not run here.

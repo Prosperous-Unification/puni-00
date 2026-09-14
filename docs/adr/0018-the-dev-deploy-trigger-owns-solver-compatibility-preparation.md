@@ -4,7 +4,8 @@ status: accepted
 
 # The dev deploy trigger owns solver compatibility preparation
 
-When a target revision changes `libs/solver-py` or `apps/be-01/Dockerfile`, the
+When a target revision changes `libs/wbs/adapters/solver-py` or
+`apps/wbs/be-01/Dockerfile`, the
 dev deploy trigger on h2puni must prepare the target's Solver compatibility
 binding before the deploy preflight and checkout reset. Preparation is
 host-owned, target-revision-pinned, idempotent, and serialized with the deploy:
