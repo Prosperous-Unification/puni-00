@@ -417,3 +417,36 @@ Fresh green evidence:
 - `bunx prettier --check apps/be-01/src/openapi/openapi-document.test.ts apps/mcp-01/src/generated-document.test.ts apps/mcp-01/src/openapi-tools.test.ts libs/contracts/src/http/import-shapes.test.ts openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
 
 At the Task 4.2 checkpoint, Tasks 4.3–5.2 remain unimplemented and unchecked.
+
+## Section 5.1 — SQLite import measurement
+
+The production `ImportService` imported exactly 500 root rows into a migrated
+SQLite file. The UTF-8 JSON request was 381,862 bytes. A direct call to pure
+`prepareImport` took 8.072 ms and issued 0 SQL statements. The separately
+timed admitted `UnitOfWork.run` interval took 210.894 ms and issued 7,065
+statements from its logged `BEGIN IMMEDIATE` through its logged `COMMIT`,
+inclusive. These observed times are evidence, not pass/fail budgets.
+
+An ordinary public directory write was started synchronously from inside the
+admitted act, so the production `WriteCoordinator` queued it behind the import.
+It completed after admission in 213.441 ms from queueing; the logger placed its
+first `tag` insert after the import's `COMMIT`. The imported project contained
+all 500 rows, and the queued tag was readable after settlement.
+
+| Check                         | Fault injected                                        | Test that observed it                                                           | Observed failure                                                    |
+| ----------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Real SQL statement accounting | Omitted the logger when opening the closable database | `measures preparation and admitted SQLite work separately for exactly 500 rows` | expected a logged `BEGIN IMMEDIATE` index at least 0, received `-1` |
+
+The fault was watched before `openConnection` forwarded Drizzle's logger,
+then restored. The adjacent `Proof:` comment guards against reporting a fake
+zero statement count. The row-count, stored-row, transaction-boundary and
+post-commit queued-write assertions prevent a fast refusal or empty import
+from masquerading as a measurement.
+
+Fresh green evidence:
+
+- `bun test src/import-performance.db.test.ts src/import.service.db.test.ts src/db.db.test.ts` from `libs/store-sqlite` — 19 passed, 0 failed, 88 assertions. Measurement output: `{"measurement":"plan-json-import-500","rows":500,"inputBytes":381862,"prepareMs":8.072,"prepareStatements":0,"admittedMs":210.894,"admittedStatements":7065,"queuedWrite":{"completed":true,"elapsedMs":213.441,"completedAfterAdmission":true}}`.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p store-sqlite --skip-nx-cache --parallel=1 --output-style=static` — both targets passed.
+
+At the Task 5.1 checkpoint, Tasks 4.3–4.5 and 5.2 remain unimplemented and
+unchecked.

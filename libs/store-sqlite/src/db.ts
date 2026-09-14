@@ -75,10 +75,10 @@ export interface Connection {
  * leaves a WAL to be recovered by whoever opens the file next, which during a
  * blue/green swap is the other colour, mid-request.
  */
-export function openConnection(dbPath: string): Connection {
+export function openConnection(dbPath: string, logger?: Logger): Connection {
   const client = openDatabase(dbPath);
   return {
-    db: drizzle({ client }),
+    db: drizzle({ client, logger }),
     close: () => {
       client.close();
     },
