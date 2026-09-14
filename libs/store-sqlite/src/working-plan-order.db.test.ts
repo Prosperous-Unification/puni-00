@@ -124,31 +124,29 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
     const project: Project = projectRow({ id: PROJECT, ownerId: OWNER });
     const steps: Step[] = [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10 }];
     await source.stores.projects.create(project, steps, STAMP);
-    await source.stores.workItems.insert(
-      workItemRow({ id: 'z-existing', projectId: PROJECT }),
-      [],
-      STAMP,
-    );
-    for (const write of [
-      source.stores.estimates.set(
-        { workItemId: 'z-existing', stepId: 'step', optimistic: 1, realistic: 2, pessimistic: 3 },
-        STAMP,
-      ),
-      source.stores.actuals.set(
-        { workItemId: 'z-existing', stepId: 'step', days: 1, recordedAt: 1 },
-        STAMP,
-      ),
-      source.stores.progress.set(
-        { workItemId: 'z-existing', stepId: 'step', state: 'done', statedAt: 1 },
-        STAMP,
-      ),
-    ])
-      await write;
-    for (const metric of ['token_estimate', 'token_actual', 'hours_actual'] as const) {
-      await source.stores.measures.set(
-        { workItemId: 'z-existing', stepId: 'step', metric, value: 1, recordedAt: 1 },
-        STAMP,
-      );
+    for (const id of ['z-existing', 'm-unaffected']) {
+      await source.stores.workItems.insert(workItemRow({ id, projectId: PROJECT }), [], STAMP);
+      for (const write of [
+        source.stores.estimates.set(
+          { workItemId: id, stepId: 'step', optimistic: 1, realistic: 2, pessimistic: 3 },
+          STAMP,
+        ),
+        source.stores.actuals.set(
+          { workItemId: id, stepId: 'step', days: 1, recordedAt: 1 },
+          STAMP,
+        ),
+        source.stores.progress.set(
+          { workItemId: id, stepId: 'step', state: 'done', statedAt: 1 },
+          STAMP,
+        ),
+      ])
+        await write;
+      for (const metric of ['token_estimate', 'token_actual', 'hours_actual'] as const) {
+        await source.stores.measures.set(
+          { workItemId: id, stepId: 'step', metric, value: 1, recordedAt: 1 },
+          STAMP,
+        );
+      }
     }
 
     const ids = ['a-inserted', 'journal', 'event'];
@@ -186,7 +184,11 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
             // Proof: before adapter-authoritative reordering, RetainedRows appended
             // a-inserted and this received z-existing,a-inserted from the working plan.
             expect(retained).toEqual(authoritative);
-            expect(retained.map(({ id }) => id)).toEqual(['a-inserted', 'z-existing']);
+            expect(retained.map(({ id }) => id)).toEqual([
+              'a-inserted',
+              'm-unaffected',
+              'z-existing',
+            ]);
           },
         };
         const measures = {
@@ -208,10 +210,22 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
               scope.stores.progress.listByProject(PROJECT),
               scope.stores.measures.listByProject(PROJECT),
             ]);
+            // Proof: appending new value groups instead of applying their placement returned the
+            // unaffected group before the moveAll destination in all four retained collections.
             expect(retained).toEqual(authoritative);
-            expect(
-              retained.every((rows) => rows.every(({ workItemId }) => workItemId === 'a-inserted')),
-            ).toBe(true);
+            expect(retained.map((rows) => rows.map(({ workItemId }) => workItemId))).toEqual([
+              ['a-inserted', 'm-unaffected'],
+              ['a-inserted', 'm-unaffected'],
+              ['a-inserted', 'm-unaffected'],
+              [
+                'a-inserted',
+                'a-inserted',
+                'a-inserted',
+                'm-unaffected',
+                'm-unaffected',
+                'm-unaffected',
+              ],
+            ]);
           },
         };
         return compose({ ...workingPlan.stores, workItems, measures }, broadcast);

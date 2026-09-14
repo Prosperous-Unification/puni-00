@@ -403,7 +403,40 @@ instead of borrowing its insertion-ordered work-item reader.
 | Omitted value placement       | Removed the shared omitted-placement guard while the estimate adapter returned `[]` for a newly populated group.    | The production runner promise resolved instead of rejecting; its rollback assertion could no longer run. Restoring the guard makes all four adapter-specific omitted-placement cases reject and retain only `z-existing` durably. |
 | Bounded SQLite predecessor    | Used the first join-shaped predecessor query over 10,000 populated groups.                                          | `EXPLAIN` lacked `SeekLT` and contained prefix-loop `Next` plus `Sort`; the correlated `EXISTS` form now has `SeekLT` and `DecrJumpZero`, with no `AggStep`.                                                                      |
 
-The all-four production regressions cover new-group insertion, removal of every row followed by
-reinsertion, and a `moveAll` destination before an unaffected populated group in both the memory
-and SQLite runner paths. The measure witness carries all three metrics. Existing retained groups
-remain in their slots, and no value refresh expands targeted hydration beyond its affected IDs.
+The memory set regression observes new-group insertion and empty-group reinsertion across all four
+families, while its move regression observes a destination before one unaffected populated group.
+The SQLite set regression observes the same insertion and reinsertion cases. At this point the
+SQLite move witness had no unaffected populated group, so it proved source removal and destination
+hydration but not the destination's placement relative to retained groups. Every measure witness
+carries all three metrics. No value refresh expands targeted hydration beyond its affected IDs.
+
+## Astra Task 2.4 final mixed-case and moveAll ordering repair
+
+Memory value placement now uses the same exported `localeCompare` group comparator as all four
+authoritative memory full readers. A production `PlanCommandRunner` regression seeds every family
+and all three measure metrics for `a`, loads the retained collections, then populates `A`; the
+retained arrays equal the authoritative arrays exactly in `a,A` group order. The SQLite runner's
+`moveAll` witness now retains a populated `m-unaffected` group while moving `z-existing` to
+`a-inserted`, and compares every complete retained array with its source before checking the exact
+group sequence.
+
+| Scope                      | Command                                                                                                                                                                                                                          | Result                                                                                                                                                                 |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mixed-case RED             | `GSETTINGS_BACKEND=memory bun test libs/core/src/service/plan-commands.test.ts --test-name-pattern 'mixed-case memory value groups'` before the comparator repair                                                                | Expected RED: retained `A,a`; authoritative estimates, actuals and progress returned `a,A`, and measures returned three `a` rows before three `A` rows.                |
+| SQLite placement fault RED | Focused SQLite runner after changing only value-group placement to append new groups                                                                                                                                             | Expected RED: retained every unaffected `m-unaffected` group before destination `a-inserted`; authoritative arrays placed `a-inserted` first for all four collections. |
+| Focused GREEN              | `GSETTINGS_BACKEND=memory bun test libs/core/src/service/plan-commands.test.ts libs/core/src/service/working-plan.test.ts libs/store-sqlite/src/targeted-readers.db.test.ts libs/store-sqlite/src/working-plan-order.db.test.ts` | Pass: 46 tests, 186 assertions.                                                                                                                                        |
+| Owning tests               | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-mixed-case-tests NX_DAEMON=false bunx nx run-many -t test -p core store-sqlite store-memory conformance --parallel=2 --output-style=static --skip-nx-cache`            | Pass: all 4 targets; core 515 tests and SQLite 747 tests; cache skipped.                                                                                               |
+| Owning lint and typechecks | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-mixed-case-checks NX_DAEMON=false bunx nx run-many -t lint typecheck -p core store-sqlite store-memory conformance --parallel=2 --output-style=static --skip-nx-cache` | Pass: all 8 targets; cache skipped.                                                                                                                                    |
+| Strict and all OpenSpec    | `OPENSPEC_TELEMETRY=0 bun x @fission-ai/openspec@1.3.0 validate live-plan-snapshot --strict --json` and `OPENSPEC_TELEMETRY=0 bun x @fission-ai/openspec@1.3.0 validate --all --json`                                            | Pass: change 1/1; repository 83/83 (72 changes and 11 specs).                                                                                                          |
+| Workspace format and diff  | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-mixed-case-format-final-2 NX_DAEMON=false bunx nx format:check --all` and `git diff --check`                                                                           | Pass.                                                                                                                                                                  |
+
+### Final Task 2.4 R5 fault observations
+
+| Check                              | Injected fault                                             | Observed failure                                                                                                                         |
+| ---------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Mixed-case memory group placement  | Restored the binary string comparator in memory placement. | The production runner retained `A,a` while every authoritative full reader returned `a,A`, including all three measures for each group.  |
+| SQLite moveAll destination placing | Appended new value groups instead of applying placement.   | All four retained collections returned `m-unaffected,a-inserted`; the exact authoritative comparison required `a-inserted,m-unaffected`. |
+
+The be-01 suite and full workspace test, lint, typecheck, build, browser, deploy, and h2puni gates
+were not run: this final repair is limited to the four owning libraries, and the task explicitly
+excluded the host gate.

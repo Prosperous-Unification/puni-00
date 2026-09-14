@@ -2,7 +2,7 @@ import type { MeasureStore, StepStore, StoredMeasure, WorkItemStore } from '@wbs
 import { MEASURE_METRICS } from '@wbs/domain';
 
 import { readTargetedSatelliteRows } from './targeted-satellite-rows';
-import { listValueGroupPlacements } from './value-group-placement';
+import { compareValueGroupIds, listValueGroupPlacements } from './value-group-placement';
 
 /**
  * A MeasureStore backed by an array, keyed as the composite primary key is —
@@ -92,7 +92,7 @@ function order(
   const position = new Map(steps.map((step) => [step.id, step.position]));
   return [...rows].sort(
     (left, right) =>
-      left.workItemId.localeCompare(right.workItemId) ||
+      compareValueGroupIds(left.workItemId, right.workItemId) ||
       (position.get(left.stepId) ?? 0) - (position.get(right.stepId) ?? 0) ||
       left.stepId.localeCompare(right.stepId) ||
       left.metric.localeCompare(right.metric),

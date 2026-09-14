@@ -9,7 +9,9 @@ export async function listValueGroupPlacements(
 ): Promise<ValueGroupPlacement[]> {
   if (ids.length === 0) return [];
   const requested = new Set(ids);
-  const groupIds = [...new Set(rows.map(({ workItemId }) => workItemId))].sort(compareBinaryText);
+  const groupIds = [...new Set(rows.map(({ workItemId }) => workItemId))].sort(
+    compareValueGroupIds,
+  );
   const projectGroups: string[] = [];
   for (const id of groupIds) {
     const workItem = await workItems.findById(id);
@@ -20,6 +22,7 @@ export async function listValueGroupPlacements(
   );
 }
 
-function compareBinaryText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
+/** Orders populated groups exactly as the memory satellite full readers do. */
+export function compareValueGroupIds(left: string, right: string): number {
+  return left.localeCompare(right);
 }

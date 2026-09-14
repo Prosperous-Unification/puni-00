@@ -1,7 +1,7 @@
 import type { ActualStore, StepStore, StoredActual, WorkItemStore } from '@wbs/core';
 
 import { readTargetedSatelliteRows } from './targeted-satellite-rows';
-import { listValueGroupPlacements } from './value-group-placement';
+import { compareValueGroupIds, listValueGroupPlacements } from './value-group-placement';
 
 /** An ActualStore backed by an array, keyed as the composite primary key is. */
 export function inMemoryActuals(
@@ -77,7 +77,7 @@ function order(
   const position = new Map(steps.map((step) => [step.id, step.position]));
   return [...rows].sort(
     (left, right) =>
-      left.workItemId.localeCompare(right.workItemId) ||
+      compareValueGroupIds(left.workItemId, right.workItemId) ||
       (position.get(left.stepId) ?? 0) - (position.get(right.stepId) ?? 0) ||
       left.stepId.localeCompare(right.stepId),
   );

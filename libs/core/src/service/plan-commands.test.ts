@@ -188,6 +188,86 @@ function clearAllValues(workItemId: string, stepId: string): PlanCommand[] {
 }
 
 describe('working plan value mutations through runner commands', () => {
+  it('keeps mixed-case memory value groups in the full readers order after population', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const createdProject = await publicGraph.projects.create('Mixed-case value ordering', OWNER);
+      const projectId = createdProject.project.id;
+      const stepId = createdProject.steps[0].id;
+      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      for (const id of ['a', 'A']) {
+        await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
+          at: 2,
+          by: OWNER,
+        });
+      }
+      expect(
+        (await runnerOver(source, publicGraph).run(projectId, OWNER, setAllValues('a', stepId, 1)))
+          .ok,
+      ).toBe(true);
+
+      let observations = 0;
+      const runner = runnerOver(
+        source,
+        publicGraph,
+        source.uow,
+        (scope, broadcast, workingPlan) => {
+          if (workingPlan === undefined) return compose(scope.stores, broadcast);
+          const loaded = Promise.all([
+            workingPlan.stores.estimates.listByProject(projectId),
+            workingPlan.stores.actuals.listByProject(projectId),
+            workingPlan.stores.progress.listByProject(projectId),
+            workingPlan.stores.measures.listByProject(projectId),
+          ]);
+          const measures = {
+            ...workingPlan.stores.measures,
+            set: async (...parameters: Parameters<PlanTransactionalStores['measures']['set']>) => {
+              await loaded;
+              const written = await workingPlan.stores.measures.set(...parameters);
+              if (parameters[0].metric === 'hours_actual') {
+                const retained = await Promise.all([
+                  workingPlan.stores.estimates.listByProject(projectId),
+                  workingPlan.stores.actuals.listByProject(projectId),
+                  workingPlan.stores.progress.listByProject(projectId),
+                  workingPlan.stores.measures.listByProject(projectId),
+                ]);
+                const authoritative = await Promise.all([
+                  scope.stores.estimates.listByProject(projectId),
+                  scope.stores.actuals.listByProject(projectId),
+                  scope.stores.progress.listByProject(projectId),
+                  scope.stores.measures.listByProject(projectId),
+                ]);
+                // Proof: restoring binary value-group placement made retained groups A,a while
+                // every authoritative memory full reader returned a,A here.
+                expect(retained).toEqual(authoritative);
+                expect(retained.map((rows) => rows.map(({ workItemId }) => workItemId))).toEqual([
+                  ['a', 'A'],
+                  ['a', 'A'],
+                  ['a', 'A'],
+                  ['a', 'a', 'a', 'A', 'A', 'A'],
+                ]);
+                observations += 1;
+              }
+              return written;
+            },
+          };
+          return compose({ ...workingPlan.stores, measures }, broadcast);
+        },
+      );
+
+      expect((await runner.run(projectId, OWNER, setAllValues('A', stepId, 2))).ok).toBe(true);
+      expect(observations).toBe(1);
+    } finally {
+      await source.close();
+    }
+  });
+
   it('keeps every memory value group in source order after sets populate an earlier group', async () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
