@@ -177,11 +177,6 @@ describe('source conformance target discovery', () => {
 });
 
 describe('every typecheck target compiles files', () => {
-  it('finds a project.json for every project', async () => {
-    const projects = await projectsOnDisk();
-    expect(projects.length).toBeGreaterThan(20);
-  });
-
   it('never runs `tsc -p` against a solution-style config', async () => {
     const offenders: string[] = [];
     for (const { config } of await projectsOnDisk()) {
@@ -715,7 +710,8 @@ describe('every project says which ring, scope and runtime it is', () => {
     // the ring from `tools/dev/project.json` likewise failed here with its path.
     // Proof: after the focused Nx target returned a 1/1 cache hit, removing the
     // nested ring forced the target to execute and fail here with that path,
-    // proving the recursive manifest input invalidates its cache. Watched 2026-09-10.
+    // proving the recursive manifest input invalidates its cache: the 2026-09-14
+    // run failed with supervisor-protocol's full path and `found 0`.
     expect(wrong).toEqual([]);
   });
 

@@ -111,9 +111,13 @@ describe('RESTART_PATHS coverage', () => {
     }
   });
 
-  it('names every app tsconfig, which is read once at process start', () => {
-    for (const app of ['be-01', 'gw-01', 'fe-01', 'mcp-01']) {
-      expect(RESTART_PATHS).toContain(`apps/${app}/tsconfig.json`);
+  it('names every app tsconfig, which is read once at process start', async () => {
+    const apps = (await readProjects(WORKSPACE)).filter((project) =>
+      project.root.startsWith('apps/'),
+    );
+    expect(apps.map((project) => project.name)).toContain('mcp-01');
+    for (const app of apps) {
+      expect(RESTART_PATHS).toContain(`${app.root}/tsconfig.json`);
     }
     expect(RESTART_PATHS).toContain('tsconfig.base.json');
   });
@@ -121,10 +125,10 @@ describe('RESTART_PATHS coverage', () => {
   it('names every app project.json, whose serve target the supervisor reads once', async () => {
     const apps = (await readProjects(WORKSPACE))
       .filter((project) => project.root.startsWith('apps/'))
-      .map((project) => project.name);
-    expect(apps).toContain('mcp-01');
+      .map((project) => ({ name: project.name, manifest: `${project.root}/project.json` }));
+    expect(apps.map((app) => app.name)).toContain('mcp-01');
     for (const app of apps) {
-      expect(RESTART_PATHS).toContain(`apps/${app}/project.json`);
+      expect(RESTART_PATHS).toContain(app.manifest);
     }
   });
 });

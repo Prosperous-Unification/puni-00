@@ -3,7 +3,9 @@ import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PROJECT_GROUPS = ['apps', 'libs', 'tools'];
-const EXCLUDED_DIRECTORIES = new Set(['.nx', 'coverage', 'dist', 'node_modules']);
+// Proof: omitting `.git` failed the recursive fixture with the unexpected
+// project `libs/outer/.git/hidden` (2026-09-14).
+const EXCLUDED_DIRECTORIES = new Set(['.git', '.nx', 'coverage', 'dist', 'node_modules']);
 
 /**
  * @typedef {Readonly<{
@@ -125,13 +127,13 @@ async function readProject(directory, root) {
 }
 
 /**
- * A symlink is never traversed. If it points at a directory containing a
- * manifest, it is a project directory whose physical ownership is ambiguous.
+ * A directory symlink is never traversed because its physical ownership is
+ * ambiguous even when it does not currently contain a project manifest.
  *
  * @param {string} path
  * @param {string} root
  */
-async function rejectSymlinkedProject(path, root) {
+async function rejectSymlinkedDirectory(path, root) {
   let target;
   try {
     target = await stat(path);
@@ -140,15 +142,30 @@ async function rejectSymlinkedProject(path, root) {
   }
   if (!target.isDirectory()) return;
 
+  // Proof: accepting a directory symlink whose target had no manifest failed
+  // `rejects every symlinked directory even when it has no manifest` on
+  // `readProjects unexpectedly succeeded` (2026-09-14).
+  throw new Error(`directory is symlinked: ${relativePath(path, root)}`);
+}
+
+/**
+ * Reject a workspace project-group link before readdir can follow it.
+ *
+ * @param {string} path
+ * @param {string} root
+ */
+async function rejectSymlinkedProjectGroup(path, root) {
+  let entry;
   try {
-    await lstat(join(path, 'project.json'));
+    entry = await lstat(path);
   } catch (failure) {
-    if (errorCode(failure) === 'ENOENT') return;
-    throw new Error(`cannot inspect ${relativePath(join(path, 'project.json'), root)}`, {
-      cause: failure,
-    });
+    throw new Error(`cannot read directory ${relativePath(path, root)}`, { cause: failure });
   }
-  throw new Error(`project directory is symlinked: ${relativePath(path, root)}`);
+  // Proof: omitting this refusal made the top-level group fixture report
+  // `readProjects unexpectedly succeeded` (2026-09-14).
+  if (entry.isSymbolicLink()) {
+    throw new Error(`directory is symlinked: ${relativePath(path, root)}`);
+  }
 }
 
 /**
@@ -176,7 +193,7 @@ async function scanDirectory(directory, root, projects) {
     if (entry.isSymbolicLink()) {
       // Proof: skipping this rejection failed the symlink case on
       // `readProjects unexpectedly succeeded` (2026-09-09).
-      await rejectSymlinkedProject(child, root);
+      await rejectSymlinkedDirectory(child, root);
       continue;
     }
     // Proof: replacing this recursion with `continue` failed the nested-project
@@ -196,7 +213,11 @@ export async function readProjects(workspace) {
   const root = workspacePath(workspace);
   /** @type {WorkspaceProject[]} */
   const projects = [];
-  for (const group of PROJECT_GROUPS) await scanDirectory(join(root, group), root, projects);
+  for (const group of PROJECT_GROUPS) {
+    const path = join(root, group);
+    await rejectSymlinkedProjectGroup(path, root);
+    await scanDirectory(path, root, projects);
+  }
 
   projects.sort((left, right) => left.root.localeCompare(right.root));
   const rootsByName = new Map();
