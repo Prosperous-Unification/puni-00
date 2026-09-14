@@ -132,7 +132,6 @@ export function inMemoryWorkItems(
       return Promise.resolve(
         [...byId.values()]
           .filter((row) => row.projectId === projectId && requested.has(row.id))
-          .sort((left, right) => left.id.localeCompare(right.id))
           .map((row) =>
             structuredClone({
               ...row,

@@ -1,5 +1,7 @@
 import type { EstimateStore, StepStore, StoredEstimate, WorkItemStore } from '@wbs/core';
 
+import { readTargetedSatelliteRows } from './targeted-satellite-rows';
+
 /** An EstimateStore backed by an array, keyed as the composite primary key is. */
 export function inMemoryEstimates(
   workItems: WorkItemStore,
@@ -21,14 +23,22 @@ export function inMemoryEstimates(
       );
     },
     async listByWorkItems(projectId, workItemIds) {
-      const projectIds = new Set(
-        (await workItems.listByIds(projectId, workItemIds)).map((row) => row.id),
+      const targeted = await readTargetedSatelliteRows(
+        'estimate',
+        rows,
+        projectId,
+        workItemIds,
+        workItems,
+        steps,
+        (row) => {
+          for (const value of [row.optimistic, row.realistic, row.pessimistic]) {
+            if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+              throw new Error(`estimate ${row.workItemId}/${row.stepId} has an invalid day value`);
+            }
+          }
+        },
       );
-      const requested = new Set(workItemIds);
-      return order(
-        rows.filter((row) => projectIds.has(row.workItemId) && requested.has(row.workItemId)),
-        await steps?.listByProject(projectId),
-      );
+      return order(targeted.rows, targeted.steps);
     },
     set(toSet, _stamp) {
       const kept = rows.filter(

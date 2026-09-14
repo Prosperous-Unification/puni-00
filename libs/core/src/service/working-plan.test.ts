@@ -5,6 +5,7 @@ import { servicesOver } from '../compose';
 import type { PlanTransactionalStores } from '../ports/stores';
 import { testClock } from '../testing/clock-fixture';
 import { fastScheduler } from '../testing/scheduler-fixture';
+import { workItemRow } from '../testing/work-item-fixture';
 import type { Broadcaster } from './broadcast';
 import { PlanCommandRunner } from './plan-commands';
 import { createWorkingPlan } from './working-plan';
@@ -293,6 +294,94 @@ describe('the uncached admitted batch baseline', () => {
 });
 
 describe('targeted working-plan refreshes', () => {
+  it('preserves the admitted work-item order when one row refreshes', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = servicesOver(source.stores, {
+      clock: testClock,
+      broadcast: direct,
+      scheduler: fastScheduler,
+    });
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Ordered targeted rows', OWNER)).project
+        .id;
+      for (const [position, id] of ['z', 'a', 'b', 'c'].entries()) {
+        await source.stores.workItems.insert(
+          workItemRow({ id, projectId, position: (position + 1) * 10, name: `Row ${id}` }),
+          [],
+          { at: 2, by: OWNER },
+        );
+      }
+      const workingPlan = createWorkingPlan({ stores: source.stores }, projectId);
+      await workingPlan.stores.workItems.listByProject(projectId);
+      expect(
+        await workingPlan.stores.workItems.patch('b', { name: 'Patched B' }, { at: 3, by: OWNER }),
+      ).toMatchObject({ ok: true });
+
+      // Proof: the grouping refresh sorted the retained rows a,b,c,z instead
+      // of preserving the admitted source's z,a,b,c order.
+      expect(await workingPlan.stores.workItems.listByProject(projectId)).toEqual(
+        await source.stores.workItems.listByProject(projectId),
+      );
+      workingPlan.close();
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('preserves unrelated dependency interleaving when incident edges refresh', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = servicesOver(source.stores, {
+      clock: testClock,
+      broadcast: direct,
+      scheduler: fastScheduler,
+    });
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Ordered incident edges', OWNER)).project
+        .id;
+      for (const [position, id] of ['z', 'a', 'b', 'c'].entries()) {
+        await source.stores.workItems.insert(
+          workItemRow({ id, projectId, position: (position + 1) * 10, name: `Row ${id}` }),
+          [],
+          { at: 2, by: OWNER },
+        );
+      }
+      for (const edge of [
+        { id: 'e1', projectId, predecessorId: 'z', successorId: 'a' },
+        { id: 'e2', projectId, predecessorId: 'b', successorId: 'c' },
+        { id: 'e3', projectId, predecessorId: 'a', successorId: 'c' },
+      ]) {
+        await source.stores.dependencies.add(edge, { at: 2, by: OWNER });
+      }
+      const workingPlan = createWorkingPlan({ stores: source.stores }, projectId);
+      await workingPlan.stores.workItems.listByProject(projectId);
+      await workingPlan.stores.dependencies.listByProject(projectId);
+      expect(
+        await workingPlan.stores.workItems.patch('a', { name: 'Patched A' }, { at: 3, by: OWNER }),
+      ).toMatchObject({ ok: true });
+
+      // Proof: splicing all incident replacements at e1 produced e1,e3,e2,
+      // moving the unrelated e2 out of its authoritative interleaving.
+      expect(await workingPlan.stores.dependencies.listByProject(projectId)).toEqual(
+        await source.stores.dependencies.listByProject(projectId),
+      );
+      workingPlan.close();
+    } finally {
+      await source.close();
+    }
+  });
+
   it('refreshes a labelled row and rejects an unrequested satellite row', async () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();

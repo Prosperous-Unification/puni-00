@@ -1,4 +1,7 @@
 import type { MeasureStore, StepStore, StoredMeasure, WorkItemStore } from '@wbs/core';
+import { MEASURE_METRICS } from '@wbs/domain';
+
+import { readTargetedSatelliteRows } from './targeted-satellite-rows';
 
 /**
  * A MeasureStore backed by an array, keyed as the composite primary key is —
@@ -25,14 +28,26 @@ export function inMemoryMeasures(
       );
     },
     async listByWorkItems(projectId, workItemIds) {
-      const projectIds = new Set(
-        (await workItems.listByIds(projectId, workItemIds)).map((row) => row.id),
+      const targeted = await readTargetedSatelliteRows(
+        'measure',
+        rows,
+        projectId,
+        workItemIds,
+        workItems,
+        steps,
+        (row) => {
+          if (!MEASURE_METRICS.includes(row.metric)) {
+            throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid metric`);
+          }
+          if (typeof row.value !== 'number' || !Number.isFinite(row.value) || row.value < 0) {
+            throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid value`);
+          }
+          if (typeof row.recordedAt !== 'number' || !Number.isFinite(row.recordedAt)) {
+            throw new Error(`measure ${row.workItemId}/${row.stepId} has an invalid recorded time`);
+          }
+        },
       );
-      const requested = new Set(workItemIds);
-      return order(
-        rows.filter((row) => projectIds.has(row.workItemId) && requested.has(row.workItemId)),
-        await steps?.listByProject(projectId),
-      );
+      return order(targeted.rows, targeted.steps);
     },
     set(toSet, _stamp) {
       const kept = rows.filter(

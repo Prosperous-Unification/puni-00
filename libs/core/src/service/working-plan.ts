@@ -125,6 +125,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       () => scope.stores.dependencies.listByWorkItems(projectId, requestedIds),
       ({ predecessorId, successorId }) =>
         requested.has(predecessorId) || requested.has(successorId),
+      ({ id }) => id,
       (edge) => {
         if (edge.projectId !== projectId) {
           throw new Error(`targeted dependency ${edge.id} is outside project ${projectId}`);
@@ -345,21 +346,33 @@ class RetainedRows<Row> {
     this.assertOpen();
     replacements.forEach(validate);
     const replaced = new Set(ids);
-    const groups = new Map<string, Row[]>();
+    const replacementsByGroup = new Map<string, Row[]>();
+    for (const row of replacements) addToGroup(replacementsByGroup, groupOf(row), row);
+    const inserted = new Set<string>();
+    const retained: Row[] = [];
     for (const row of this.rows) {
       const group = groupOf(row);
-      if (!replaced.has(group)) addToGroup(groups, group, row);
+      if (!replaced.has(group)) {
+        retained.push(row);
+        continue;
+      }
+      if (inserted.has(group)) continue;
+      retained.push(...(replacementsByGroup.get(group) ?? []));
+      inserted.add(group);
     }
-    for (const row of replacements) addToGroup(groups, groupOf(row), row);
-    this.rows = [...groups.entries()]
-      .sort(([left], [right]) => left.localeCompare(right))
-      .flatMap(([, rows]) => rows)
-      .map(this.clone);
+    for (const row of replacements) {
+      const group = groupOf(row);
+      if (inserted.has(group)) continue;
+      retained.push(...(replacementsByGroup.get(group) ?? []));
+      inserted.add(group);
+    }
+    this.rows = retained.map(this.clone);
   }
 
   async replaceIncident(
     load: () => Promise<Row[]>,
     isIncident: (row: Row) => boolean,
+    identityOf: (row: Row) => string,
     validate: (row: Row) => void,
   ): Promise<void> {
     this.assertOpen();
@@ -367,9 +380,27 @@ class RetainedRows<Row> {
     const replacements = await load();
     this.assertOpen();
     replacements.forEach(validate);
-    const firstIncident = this.rows.findIndex(isIncident);
-    const retained = this.rows.filter((row) => !isIncident(row));
-    retained.splice(firstIncident < 0 ? retained.length : firstIncident, 0, ...replacements);
+    const replacementByIdentity = new Map(
+      replacements.map((row) => [identityOf(row), row] as const),
+    );
+    const retained: Row[] = [];
+    let lastIncidentIndex = -1;
+    for (const row of this.rows) {
+      if (!isIncident(row)) {
+        retained.push(row);
+        continue;
+      }
+      const replacement = replacementByIdentity.get(identityOf(row));
+      if (replacement === undefined) continue;
+      retained.push(replacement);
+      replacementByIdentity.delete(identityOf(row));
+      lastIncidentIndex = retained.length;
+    }
+    retained.splice(
+      lastIncidentIndex < 0 ? retained.length : lastIncidentIndex,
+      0,
+      ...replacementByIdentity.values(),
+    );
     this.rows = retained.map(this.clone);
   }
 }

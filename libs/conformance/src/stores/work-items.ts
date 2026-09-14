@@ -139,6 +139,24 @@ export function workItemRegistrations(open: OpenCase<'workItems'>): readonly Cas
       expect((await port.listByIds(projectA, [firstId, secondId])).map(({ id }) => id)).toEqual([
         secondId,
       ]);
+
+      const template = (await port.listByProject(projectA)).find(({ id }) => id === secondId);
+      if (template === undefined) throw new Error('targeted-order template row is missing');
+      await port.remove([secondId], [], seed.stamps[1]);
+      const insertedIds = ['z', 'a', 'b', 'c'] as const;
+      for (const [position, id] of insertedIds.entries()) {
+        await port.insert(
+          rowFrom(template, { id, position: (position + 1) * 10, revision: 0 }),
+          [],
+          seed.stamps[0],
+        );
+      }
+      const complete = await port.listByProject(projectA);
+      const targeted = await port.listByIds(projectA, ['c', 'z', 'b', 'a']);
+      const inserted: ReadonlySet<string> = new Set(insertedIds);
+      // Proof: sorting the memory targeted reader by ID produced a,b,c,z while
+      // its authoritative full reader produced the insertion order z,a,b,c.
+      expect(targeted).toEqual(complete.filter(({ id }) => inserted.has(id)));
     }),
     storeCase('workItems', 'workItems.insert:respace', open, async ({ port, readers, seed }) => {
       const [projectA, projectB] = seed.projectIds;
