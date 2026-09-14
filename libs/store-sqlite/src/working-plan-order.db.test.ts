@@ -284,8 +284,8 @@ it('places every new subtree row and value group in SQLite authoritative order',
       source.stores.measures.listByProject(PROJECT),
       source.stores.dependencies.listByProject(PROJECT),
     ]);
-    // Proof: applying placements in copy insertion order returned b-new-root
-    // before a-new-child instead of the adapter's BINARY order.
+    // Proof: bypassing adapter placements and applying insertedIds in copy
+    // insertion order returned b-new-root before a-new-child instead of BINARY order.
     expect(retained).toEqual(authoritative);
     expect(retained[0].map(({ id }) => id)).toEqual([
       'a-new-child',
