@@ -3453,3 +3453,17 @@ pilot relocation positive remained green with 1 test and 27 assertions. The fina
 trusted-policy, pilot-policy, and contract-decoder run passed 86 tests with 1,782 assertions. Fresh
 uncached Tool Wiki source lint and forced typecheck, repository-wide format check, strict pinned
 OpenSpec validation, and `git diff --check` exited 0.
+
+#### Non-pilot source-selector correction
+
+A second production `lint-local ratchet` negative supplied baseline `validator.ts`, explicit source
+selector `not-the-baseline.ts`, current selector `renamed-validator.ts`, and a byte-identical
+candidate rename under a non-pilot policy. Before the guard it incorrectly exited 0 with
+`accepted:true`, `changedBoundaryIds:[]`, and no refusals. Because a non-pilot policy has no reviewed
+`pilot.sourceRevision` to anchor the source location, policy validation now refuses any such source
+selector. The restored negative exited 1 with `trusted boundary source selector requires pilot
+policy` and passed 1 test with 22 assertions. The no-source exact-path negative also passed 1 test
+with 22 assertions, and the explicit pilot relocation positive passed 1 test with 27 assertions.
+The final combined trusted-policy, pilot-policy, and contract-decoder run passed 87 tests with 1,804
+assertions. Fresh uncached Tool Wiki source lint and forced typecheck, repository-wide format check,
+strict pinned OpenSpec validation, and `git diff --check` exited 0.
