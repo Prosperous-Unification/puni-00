@@ -1220,9 +1220,15 @@ export function PlanToolbar({
       {exportAvailable && (
         <details ref={exportMenu} data-export className="relative">
           <summary
-            className="border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none"
+            className="border-input flex h-8 w-16 cursor-pointer items-center justify-center rounded-md border px-1 py-1 text-center text-xs leading-3 select-none"
             data-hint="Copy, download, or import the plan as Markdown, Mermaid, CSV, JSON, or what is on screen"
           >
+            {/*
+              Two lines keep the renamed menu inside the width the old Export
+              summary occupied. Proof: allowing this summary to take its
+              natural one-line width made both 1280px toolbar budgets fail by
+              about 42px in the full browser gate on 2026-09-14.
+            */}
             Export / Import
           </summary>
           <div
@@ -1316,6 +1322,7 @@ export function PlanToolbar({
             </Button>
             <label
               aria-disabled={importBusy}
+              data-import-file
               className={buttonVariants({ variant: 'outline', size: 'sm' })}
             >
               Import JSON

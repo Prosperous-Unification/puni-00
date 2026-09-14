@@ -1538,6 +1538,12 @@
   [data-modal-surface] input:not([type='checkbox'], [type='radio']),
   [data-modal-surface] label:has(> input[type='checkbox']),
   [data-modal-surface] label:has(> input[type='radio']),
+  /*
+   * A file input delegates its tap target to its visible label just as the
+   * checkbox and radio rows do. Proof: without this selector the whole-browser
+   * phone sweeps measured Import JSON at 32px in portrait and landscape.
+   */
+  [data-modal-surface] label[data-import-file],
   [data-account-menu] button,
   /*
    * The Gantt panel's control strip, added 2026-08-23 with the collapsible

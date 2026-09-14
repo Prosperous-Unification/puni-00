@@ -608,5 +608,54 @@ Fresh green evidence:
 - `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
 - `git diff --check` — passed.
 
-At the Task 4.5 checkpoint, only Task 5.2 remains unchecked. Its full workspace,
-h2puni, and whole-browser gates were not run here.
+At the Task 4.5 checkpoint, only Task 5.2 remains unchecked.
+
+## Section 5.2 — final verification (in progress)
+
+The affected-project matrix was run uncached with
+`NX_CLOUD=false NX_NO_CLOUD=true NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test lint typecheck -p contracts core store-sqlite store-memory conformance be-01 fe-01 mcp-01 --skipNxCache --parallel=2 --outputStyle=static`.
+Every requested lint and typecheck target passed. The first sandboxed test pass
+also passed every test target except three environment-bound targets: be-01
+could not bind loopback (`EPERM`), fe-01 subprocess probes could not run, and
+contracts could not find the worktree-local `node_modules/.bin/tsc`.
+
+The exact failed test targets were then rerun outside the network/process
+sandbox. The combined rerun began before the worktree dependency link was
+present, so its backend and frontend results were green while contracts was
+superseded by a contracts-only rerun after adding that link. Fresh terminal
+evidence:
+
+- `NX_CLOUD=false NX_NO_CLOUD=true NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run contracts:test --skipNxCache --outputStyle=static` — 394 passed, 0 failed.
+- `NX_CLOUD=false NX_NO_CLOUD=true NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test -p contracts be-01 fe-01 --skipNxCache --parallel=1 --outputStyle=static` — be-01 passed 1,075 tests with one pre-existing skip; fe-01 passed 107 files and 2,778 tests plus 2 zoned files and 3 zoned tests. Contracts in this earlier rerun still lacked the worktree dependency link and was superseded by the green contracts-only command above.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx format:check --all --outputStyle=static` — passed.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --strict --json` — every reported spec and change was valid; exit 0.
+- `git diff --check origin/main...HEAD` — the committed branch was clean before
+  the browser-discovered repair below; this result does not cover that
+  uncommitted repair.
+
+The first whole-browser run used
+`CI=1 NX_DAEMON=false NX_ISOLATE_PLUGINS=false E2E_PORT_SHIFT=9700 bun run e2e`
+against be-01 `12800`, gw-01 `12900`, fe-01 `13900` and its fresh Playwright
+database. It completed 370 passed and 37 skipped in 19.3 minutes, with four
+failures. Both phone sweeps measured the new Import JSON label at 32px rather
+than the required 44px. Both 1280px toolbar budgets measured about 42px of
+unbudgeted width after the Export summary became Export / Import.
+
+The repair keeps the required exact menu name but wraps its summary inside the
+old width budget, and includes the visible file-input label in the existing
+phone-surface tap-target floor. The four failed production-path cases were then
+rerun together with
+`CI=1 NX_DAEMON=false NX_ISOLATE_PLUGINS=false E2E_PORT_SHIFT=9700 bunx playwright test --config apps/fe-01/playwright.config.ts apps/fe-01/e2e/mobile.spec.ts apps/fe-01/e2e/optimization-cue.spec.ts apps/fe-01/e2e/project-settings.spec.ts --grep "gives every control on the phone’s own surfaces at least 44px|is still cards, at a finger’s size, and still does not scroll sideways|lays the 1280 toolbar out inside its budget with the cue on it|the toolbar keeps its 1280 budget with one settings control"`:
+4 passed in 13.3 seconds. The same repaired frontend then passed 552 unit tests,
+lint, typecheck and named-file Prettier checks. An Astra xhigh review found no
+production-code issue and independently passed the 39 toolbar/style tests.
+
+A fresh whole-browser rerun used
+`CI=1 NX_DAEMON=false NX_ISOLATE_PLUGINS=false E2E_PORT_SHIFT=9900 bun run e2e`
+on separately owned ports be-01 `13000`, gw-01 `13100` and fe-01 `14100`, with
+fresh database `tmp/e2e-1789383780717.db`. It completed 374 passed, 37
+intentionally skipped and 0 failed in 19.3 minutes. Vite's websocket proxy
+logged `EPIPE` as test pages disconnected; server readiness and the terminal
+Playwright result remained green.
+
+The h2puni exact-SHA gate has not run. Task 5.2 therefore remains unchecked.

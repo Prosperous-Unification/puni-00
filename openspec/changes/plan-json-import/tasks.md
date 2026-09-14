@@ -36,4 +36,4 @@
 - [ ] 5.2 Run `bunx nx run-many -t test lint typecheck -p contracts core store-sqlite store-memory conformance be-01 fe-01 mcp-01`, the full workspace gate (`bin/h2puni-gate.sh` on h2puni), whole browser gate on owned ports, and `OPENSPEC_TELEMETRY=0 openspec validate --all --json`. Replace the preexisting unimplemented verify placeholder with actual observed fault/green evidence and exact commands; never tick tasks from artifact presence alone.
 
 Sections 1–3, Tasks 4.1–4.5, and Task 5.1 are implemented and checked above.
-Task 5.2 remains future work.
+Task 5.2 is in progress; only the exact-SHA h2puni gate remains pending.
