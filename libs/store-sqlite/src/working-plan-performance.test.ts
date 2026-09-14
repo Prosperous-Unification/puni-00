@@ -351,9 +351,12 @@ function repositoryObservation(arguments_: readonly string[]): string {
 
 function median(samples: readonly number[]): number {
   const ordered = [...samples].sort((left, right) => left - right);
-  const upper = ordered.at(ordered.length / 2);
-  const lower = ordered.at(ordered.length / 2 - 1);
-  if (upper === undefined || lower === undefined) throw new Error('median requires paired samples');
+  const middle = Math.floor(ordered.length / 2);
+  const upper = ordered.at(middle);
+  if (upper === undefined) throw new Error('median requires samples');
+  if (ordered.length % 2 === 1) return upper;
+  const lower = ordered.at(middle - 1);
+  if (lower === undefined) throw new Error('median requires samples');
   return (lower + upper) / 2;
 }
 
@@ -364,6 +367,219 @@ function sampleRange(samples: readonly number[]): readonly [number, number] {
     throw new Error('sample range requires finite samples');
   }
   return [lowest, highest];
+}
+
+type PerformanceWorkloadName = 'homogeneous' | 'mixed';
+type PerformanceReportStatus = 'pending' | 'running' | 'complete' | 'failed';
+
+interface ModePerformanceReport {
+  readonly samples: number[];
+  median?: number;
+  range?: readonly [number, number];
+}
+
+interface WorkloadPerformanceReport {
+  status: PerformanceReportStatus;
+  failure?: string;
+  readonly cached: ModePerformanceReport;
+  readonly uncached: ModePerformanceReport;
+}
+
+interface PerformanceEvidence {
+  phase: 'measurements' | 'final';
+  status: 'running' | 'complete' | 'failed';
+  readonly failures: string[];
+  readonly repository: {
+    certification: 'frozen-clean' | 'developer-run';
+    initialHead?: string;
+    finalHead?: string;
+    initialStatus?: string;
+    finalStatus?: string;
+    unchanged?: boolean;
+  };
+  readonly workload: {
+    rows: number;
+    commands: number;
+    pairs: number;
+    order: 'alternating by pair index';
+    fixtures: readonly PerformanceWorkloadName[];
+  };
+  host?: {
+    platform: string;
+    release: string;
+    arch: string;
+    cpu: string;
+    logicalCpus: number;
+    bun: string;
+  };
+  readonly reports: Record<PerformanceWorkloadName, WorkloadPerformanceReport>;
+}
+
+interface PerformanceCertificationOptions {
+  readonly certifyClean: boolean;
+  readonly pairs?: number;
+  readonly observeRepository: (observation: 'head' | 'status') => string;
+  readonly measure: (
+    workload: PerformanceWorkloadName,
+    report: WorkloadPerformanceReport,
+  ) => Promise<void>;
+  readonly emit: (evidence: PerformanceEvidence) => void;
+}
+
+function createModeReport(): ModePerformanceReport {
+  return { samples: [] };
+}
+
+function createWorkloadReport(): WorkloadPerformanceReport {
+  return { status: 'pending', cached: createModeReport(), uncached: createModeReport() };
+}
+
+function summarizeReport(report: WorkloadPerformanceReport): void {
+  for (const mode of ['uncached', 'cached'] as const) {
+    const modeReport = report[mode];
+    if (modeReport.samples.length === 0) continue;
+    modeReport.median = median(modeReport.samples);
+    modeReport.range = sampleRange(modeReport.samples);
+  }
+}
+
+function describeFailure(reason: unknown): string {
+  return reason instanceof Error ? reason.message : String(reason);
+}
+
+async function captureFailure(promise: Promise<unknown>): Promise<Error | undefined> {
+  try {
+    await promise;
+    return undefined;
+  } catch (reason) {
+    return reason instanceof Error ? reason : new Error(String(reason));
+  }
+}
+
+function readCurrentHost(): PerformanceEvidence['host'] {
+  const processors = cpus();
+  const processor = processors.at(0);
+  if (processor === undefined) throw new Error('performance host has no reported CPU');
+  return {
+    platform: platform(),
+    release: release(),
+    arch: arch(),
+    cpu: processor.model,
+    logicalCpus: processors.length,
+    bun: Bun.version,
+  };
+}
+
+/**
+ * Retains timing evidence while treating measurement, ratio, and repository checks as
+ * independent failures. Frozen-clean certification is explicit so ordinary dirty developer
+ * runs prove only that their starting repository state stayed unchanged.
+ */
+async function runPerformanceCertification(
+  options: PerformanceCertificationOptions,
+): Promise<PerformanceEvidence> {
+  const pairs = options.pairs ?? 20;
+  const failures: Error[] = [];
+  const workloadNames: readonly PerformanceWorkloadName[] = ['homogeneous', 'mixed'];
+  const evidence: PerformanceEvidence = {
+    phase: 'measurements',
+    status: 'running',
+    failures: [],
+    repository: {
+      certification: options.certifyClean ? 'frozen-clean' : 'developer-run',
+    },
+    workload: {
+      rows: ROWS,
+      commands: ROWS,
+      pairs,
+      order: 'alternating by pair index',
+      fixtures: workloadNames,
+    },
+    reports: {
+      homogeneous: createWorkloadReport(),
+      mixed: createWorkloadReport(),
+    },
+  };
+  const recordFailure = (reason: unknown): void => {
+    const failure = reason instanceof Error ? reason : new Error(String(reason));
+    failures.push(failure);
+    evidence.failures.push(failure.message);
+  };
+
+  try {
+    evidence.host = readCurrentHost();
+    evidence.repository.initialHead = options.observeRepository('head');
+    evidence.repository.initialStatus = options.observeRepository('status');
+    if (options.certifyClean && evidence.repository.initialStatus !== '') {
+      throw new Error('frozen-clean performance certification requires an initially clean tree');
+    }
+
+    for (const workload of workloadNames) {
+      const report = evidence.reports[workload];
+      report.status = 'running';
+      try {
+        await options.measure(workload, report);
+        if (report.cached.samples.length !== pairs || report.uncached.samples.length !== pairs) {
+          throw new Error(
+            `${workload} requires ${String(pairs)} cached and uncached samples; received ${String(report.cached.samples.length)} and ${String(report.uncached.samples.length)}`,
+          );
+        }
+        report.status = 'complete';
+      } catch (reason) {
+        report.status = 'failed';
+        report.failure = describeFailure(reason);
+        recordFailure(reason);
+      } finally {
+        summarizeReport(report);
+      }
+    }
+
+    options.emit(structuredClone(evidence));
+
+    for (const workload of workloadNames) {
+      const report = evidence.reports[workload];
+      if (report.status !== 'complete') continue;
+      const cachedMedian = report.cached.median;
+      const uncachedMedian = report.uncached.median;
+      if (cachedMedian === undefined || uncachedMedian === undefined) {
+        recordFailure(new Error(`${workload} complete report has no median`));
+        continue;
+      }
+      const ratio = cachedMedian / uncachedMedian;
+      if (ratio > 1.1) {
+        recordFailure(
+          new Error(`${workload} cached median ratio ${ratio.toFixed(3)} exceeded 1.100`),
+        );
+      }
+    }
+  } catch (reason) {
+    recordFailure(reason);
+  } finally {
+    try {
+      evidence.repository.finalHead = options.observeRepository('head');
+      evidence.repository.finalStatus = options.observeRepository('status');
+      const initialHead = evidence.repository.initialHead;
+      const initialStatus = evidence.repository.initialStatus;
+      if (initialHead !== undefined && initialStatus !== undefined) {
+        evidence.repository.unchanged =
+          evidence.repository.finalHead === initialHead &&
+          evidence.repository.finalStatus === initialStatus;
+        if (!evidence.repository.unchanged) {
+          recordFailure(new Error('repository HEAD or status changed during performance run'));
+        }
+      }
+    } catch (reason) {
+      recordFailure(reason);
+    }
+    evidence.phase = 'final';
+    evidence.status = failures.length === 0 ? 'complete' : 'failed';
+    options.emit(structuredClone(evidence));
+  }
+
+  if (failures.length > 0) {
+    throw new AggregateError(failures, evidence.failures.join('; '));
+  }
+  return evidence;
 }
 
 it('bounds retained reads for 200 estimates and undo restores every distinct original', async () => {
@@ -446,89 +662,218 @@ it('can run the real SQLite command runner over uncached admitted stores', async
 }, 120_000);
 
 it('keeps cached medians within ten percent on homogeneous and mixed paired workloads', async () => {
-  const checkout = repositoryObservation(['rev-parse', 'HEAD']);
-  const worktreeBefore = repositoryObservation(['status', '--short']);
-  const reports: Record<
-    'homogeneous' | 'mixed',
-    Record<RunnerMode, { samples: number[]; median: number; range: readonly [number, number] }>
-  > = {
-    homogeneous: {
-      cached: { samples: [], median: 0, range: [0, 0] },
-      uncached: { samples: [], median: 0, range: [0, 0] },
-    },
-    mixed: {
-      cached: { samples: [], median: 0, range: [0, 0] },
-      uncached: { samples: [], median: 0, range: [0, 0] },
-    },
+  const certificationValue = process.env['WBS_PERFORMANCE_CERTIFY'];
+  if (
+    certificationValue !== undefined &&
+    certificationValue !== '0' &&
+    certificationValue !== '1'
+  ) {
+    throw new Error('WBS_PERFORMANCE_CERTIFY must be 0, 1, or absent');
+  }
+  const commands: Record<PerformanceWorkloadName, readonly PlanCommand[]> = {
+    homogeneous: homogeneousCommands(),
+    mixed: mixedCommands(),
   };
-  const workloads = [
-    { name: 'homogeneous' as const, commands: homogeneousCommands() },
-    { name: 'mixed' as const, commands: mixedCommands() },
-  ];
 
-  for (const workload of workloads) {
-    const fixture = await performanceFixture(`Timing ${workload.name}`);
-    try {
-      const baseline = await authoredState(fixture);
-      for (const mode of ['uncached', 'cached'] as const) {
-        expect(await fixture.runner(mode).run(PROJECT, OWNER, workload.commands)).toMatchObject({
-          ok: true,
-        });
-        expect(await fixture.runner(mode).undo(PROJECT, OWNER)).toMatchObject({ ok: true });
-        expect(await authoredState(fixture)).toBe(baseline);
-      }
-
-      for (let pair = 0; pair < 20; pair += 1) {
-        const order: readonly RunnerMode[] =
-          pair % 2 === 0 ? ['uncached', 'cached'] : ['cached', 'uncached'];
-        for (const mode of order) {
-          expect(await authoredState(fixture)).toBe(baseline);
-          resetCounts(fixture.counts);
-          const started = performance.now();
-          const outcome = await fixture.runner(mode).run(PROJECT, OWNER, workload.commands);
-          const elapsed = performance.now() - started;
-          expect(outcome).toMatchObject({ ok: true });
-          reports[workload.name][mode].samples.push(elapsed);
+  await runPerformanceCertification({
+    certifyClean: certificationValue === '1',
+    observeRepository: (observation) =>
+      observation === 'head'
+        ? repositoryObservation(['rev-parse', 'HEAD'])
+        : repositoryObservation(['status', '--short']),
+    measure: async (workload, report) => {
+      const fixture = await performanceFixture(`Timing ${workload}`);
+      try {
+        const baseline = await authoredState(fixture);
+        for (const mode of ['uncached', 'cached'] as const) {
+          expect(await fixture.runner(mode).run(PROJECT, OWNER, commands[workload])).toMatchObject({
+            ok: true,
+          });
           expect(await fixture.runner(mode).undo(PROJECT, OWNER)).toMatchObject({ ok: true });
           expect(await authoredState(fixture)).toBe(baseline);
         }
+
+        for (let pair = 0; pair < 20; pair += 1) {
+          const order: readonly RunnerMode[] =
+            pair % 2 === 0 ? ['uncached', 'cached'] : ['cached', 'uncached'];
+          for (const mode of order) {
+            expect(await authoredState(fixture)).toBe(baseline);
+            resetCounts(fixture.counts);
+            const started = performance.now();
+            const outcome = await fixture.runner(mode).run(PROJECT, OWNER, commands[workload]);
+            const elapsed = performance.now() - started;
+            expect(outcome).toMatchObject({ ok: true });
+            report[mode].samples.push(elapsed);
+            expect(await fixture.runner(mode).undo(PROJECT, OWNER)).toMatchObject({ ok: true });
+            expect(await authoredState(fixture)).toBe(baseline);
+          }
+        }
+      } finally {
+        await fixture.close();
       }
-    } finally {
-      await fixture.close();
-    }
-
-    for (const mode of ['uncached', 'cached'] as const) {
-      const report = reports[workload.name][mode];
-      report.median = median(report.samples);
-      report.range = sampleRange(report.samples);
-    }
-    expect(reports[workload.name].cached.samples).toHaveLength(20);
-    expect(reports[workload.name].uncached.samples).toHaveLength(20);
-    expect(reports[workload.name].cached.median).toBeLessThanOrEqual(
-      1.1 * reports[workload.name].uncached.median,
-    );
-  }
-
-  expect(repositoryObservation(['status', '--short'])).toBe(worktreeBefore);
-  process.stdout.write(
-    `${JSON.stringify({
-      checkout,
-      workload: {
-        rows: ROWS,
-        commands: ROWS,
-        pairs: 20,
-        order: 'alternating by pair index',
-        fixtures: workloads.map(({ name }) => name),
-      },
-      host: {
-        platform: platform(),
-        release: release(),
-        arch: arch(),
-        cpu: cpus().at(0)?.model ?? 'unknown',
-        logicalCpus: cpus().length,
-        bun: Bun.version,
-      },
-      reports,
-    })}\n`,
-  );
+    },
+    emit: (evidence) => process.stdout.write(`${JSON.stringify(evidence)}\n`),
+  });
 }, 600_000);
+
+it('reports both completed workloads before aggregating independent ratio failures', async () => {
+  const emissions: PerformanceEvidence[] = [];
+  const sample = {
+    cached: Array.from({ length: 20 }, () => 111),
+    uncached: Array.from({ length: 20 }, () => 100),
+  };
+
+  // Proof: restoring the in-loop ratio failure made this test receive no measurement report at
+  // all after homogeneous failed, before mixed was attempted; 0 passed, 1 failed.
+  const certification = runPerformanceCertification({
+    certifyClean: false,
+    observeRepository: (argument) => (argument === 'head' ? 'head-a' : ''),
+    measure: (_workload, report) => {
+      report.cached.samples.push(...sample.cached);
+      report.uncached.samples.push(...sample.uncached);
+      return Promise.resolve();
+    },
+    emit: (evidence) => emissions.push(structuredClone(evidence)),
+  });
+
+  const failure = await captureFailure(certification);
+  expect(failure).toBeInstanceOf(AggregateError);
+  const measurement = emissions.find(({ phase }) => phase === 'measurements');
+  expect(measurement).toMatchObject({
+    phase: 'measurements',
+    status: 'running',
+    workload: {
+      rows: ROWS,
+      commands: ROWS,
+      pairs: 20,
+      order: 'alternating by pair index',
+      fixtures: ['homogeneous', 'mixed'],
+    },
+    host: { bun: Bun.version },
+    reports: {
+      homogeneous: {
+        status: 'complete',
+        cached: { median: 111, range: [111, 111] },
+        uncached: { median: 100, range: [100, 100] },
+      },
+      mixed: {
+        status: 'complete',
+        cached: { median: 111, range: [111, 111] },
+        uncached: { median: 100, range: [100, 100] },
+      },
+    },
+  });
+  expect(measurement?.reports.homogeneous.cached.samples).toHaveLength(20);
+  expect(measurement?.reports.mixed.cached.samples).toHaveLength(20);
+  expect(emissions.at(-1)?.status).toBe('failed');
+  expect(emissions.at(-1)?.failures).toEqual([
+    'homogeneous cached median ratio 1.110 exceeded 1.100',
+    'mixed cached median ratio 1.110 exceeded 1.100',
+  ]);
+});
+
+it('emits partial evidence when an earlier measurement fails', async () => {
+  const emissions: PerformanceEvidence[] = [];
+  const attempted: PerformanceWorkloadName[] = [];
+
+  const certification = runPerformanceCertification({
+    certifyClean: false,
+    pairs: 1,
+    observeRepository: (argument) => (argument === 'head' ? 'head-a' : ' M local-change'),
+    measure: (workload, report) => {
+      attempted.push(workload);
+      report.uncached.samples.push(101);
+      if (workload === 'homogeneous') {
+        return Promise.reject(new Error('injected measurement interruption'));
+      }
+      report.cached.samples.push(100);
+      return Promise.resolve();
+    },
+    emit: (evidence) => emissions.push(structuredClone(evidence)),
+  });
+
+  const failure = await captureFailure(certification);
+  expect(failure?.message).toContain('injected measurement interruption');
+  expect(attempted).toEqual(['homogeneous', 'mixed']);
+  expect(emissions.at(-1)?.reports.homogeneous).toMatchObject({
+    status: 'failed',
+    failure: 'injected measurement interruption',
+    uncached: { samples: [101] },
+  });
+  expect(emissions.at(-1)?.reports.mixed).toMatchObject({ status: 'complete' });
+  expect(emissions.at(-1)?.repository).toMatchObject({
+    initialHead: 'head-a',
+    finalHead: 'head-a',
+    initialStatus: ' M local-change',
+    finalStatus: ' M local-change',
+    unchanged: true,
+    certification: 'developer-run',
+  });
+  expect(emissions.at(-1)?.status).toBe('failed');
+  // Proof: removing the outer-final emission left only the pre-check snapshot, without final
+  // HEAD, status, or unchanged state; 0 passed, 1 failed at this repository assertion.
+});
+
+it('labels and refuses explicit frozen-clean certification from a dirty checkout', async () => {
+  const emissions: PerformanceEvidence[] = [];
+  const attempted: PerformanceWorkloadName[] = [];
+
+  const failure = await captureFailure(
+    runPerformanceCertification({
+      certifyClean: true,
+      pairs: 1,
+      observeRepository: (observation) => (observation === 'head' ? 'head-a' : ' M change'),
+      measure: (workload) => {
+        attempted.push(workload);
+        return Promise.resolve();
+      },
+      emit: (evidence) => emissions.push(structuredClone(evidence)),
+    }),
+  );
+
+  // Proof: removing the explicit clean-mode refusal makes measurement run and this setup
+  // interruption disappear; ordinary dirty runs remain covered by the preceding test.
+  expect(failure?.message).toContain('requires an initially clean tree');
+  expect(attempted).toEqual([]);
+  expect(emissions).toHaveLength(1);
+  expect(emissions[0]).toMatchObject({
+    phase: 'final',
+    status: 'failed',
+    repository: { certification: 'frozen-clean', unchanged: true },
+  });
+});
+
+it('reports a HEAD or status change before refusing the completed run', async () => {
+  const emissions: PerformanceEvidence[] = [];
+  let statusObservation = 0;
+
+  const failure = await captureFailure(
+    runPerformanceCertification({
+      certifyClean: false,
+      pairs: 1,
+      observeRepository: (observation) => {
+        if (observation === 'head') return 'head-a';
+        statusObservation += 1;
+        return statusObservation === 1 ? '' : ' M change-during-run';
+      },
+      measure: (_workload, report) => {
+        report.cached.samples.push(100);
+        report.uncached.samples.push(100);
+        return Promise.resolve();
+      },
+      emit: (evidence) => emissions.push(structuredClone(evidence)),
+    }),
+  );
+
+  // Proof: comparing only the initial and final HEAD misses this injected status mutation and
+  // would certify a run whose source changed while samples were collected.
+  expect(failure?.message).toContain('repository HEAD or status changed');
+  expect(emissions.at(-1)?.repository).toMatchObject({
+    initialHead: 'head-a',
+    finalHead: 'head-a',
+    initialStatus: '',
+    finalStatus: ' M change-during-run',
+    unchanged: false,
+  });
+  expect(emissions.at(-1)?.status).toBe('failed');
+});

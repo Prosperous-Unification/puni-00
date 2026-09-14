@@ -590,6 +590,36 @@ GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-task31-review-format NX
 git diff --check
 ```
 
+### Performance evidence-retention harness repair
+
+The reporting repair started from clean checkout `d66b7a2ef5cb1dcafd9aa9c4586f54decaa27ca5`.
+It does not change either workload, warm-up, pair order, timing boundary, or acceptance tolerance,
+so the frozen `f91ed3ea8ebab8fa99e7e248298692aaf7ddbfe4` samples, medians, ranges, and ratios recorded in
+Tasks 3.2 and 3.2a below remain the acceptance evidence. The 80 timed samples were therefore not
+rerun.
+
+The harness now attempts both fixtures independently, emits every available sample and summary
+with host/workload provenance before evaluating both ratios, aggregates ratio failures, and emits
+a terminal report from an outer `finally`. That report records initial and final HEAD plus status
+and their equality. `WBS_PERFORMANCE_CERTIFY=1` explicitly requires a clean initial checkout;
+ordinary developer runs may start dirty but must finish with the same HEAD and status.
+
+| Scope                     | Command                                                                                                                                                                                             | Result                                                                                                 |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Test-first RED            | Reporting cases before the helper existed                                                                                                                                                           | Expected RED: 0 passed, 2 failed because `runPerformanceCertification` was undefined.                  |
+| Old-order R5 fault        | Focused dual-ratio case with the homogeneous ratio failure restored inside the workload loop                                                                                                        | Expected RED: 0 passed, 1 failed; no measurement report existed before mixed could run.                |
+| Outer-final R5 fault      | Focused partial-measurement case with the terminal emission removed                                                                                                                                 | Expected RED: 0 passed, 1 failed; the emitted snapshot lacked final HEAD, status, and unchanged state. |
+| Reporting GREEN           | `GSETTINGS_BACKEND=memory bun test libs/store-sqlite/src/working-plan-performance.test.ts --test-name-pattern 'reports both completed\|emits partial evidence\|labels and refuses\|reports a HEAD'` | Pass: 4 tests, 19 assertions.                                                                          |
+| Correctness and reporting | Same file, selecting every case except the 80-sample timing case                                                                                                                                    | Pass: 7 tests, 45 assertions.                                                                          |
+| Remaining SQLite suite    | All 63 other `store-sqlite` test files                                                                                                                                                              | Pass: 754 tests, 8,569 assertions.                                                                     |
+| SQLite lint and typecheck | `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx run-many -t lint typecheck -p store-sqlite --parallel=2 --output-style=static --skip-nx-cache`                                                    | Pass: both targets, cache skipped.                                                                     |
+| Strict and all OpenSpec   | `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate live-plan-snapshot --strict --json` and `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`                 | Pass: change 1/1; repository 83/83.                                                                    |
+| Workspace format and diff | `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all` and `git diff --check`                                                                                                        | Pass.                                                                                                  |
+
+The full timed performance case and h2puni gate were deliberately not run: the former preserves
+the still-valid frozen evidence above, and the latter remains Task 3.3 work excluded from this
+repair.
+
 | Check                         | Injected fault                                                                                                                         | Observed failure                                                                                                                                                                                                       |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Fresh graph and before-image  | Cached the first working graph in production and suppressed its close, then ran two SQLite batches around an ordinary estimate write.  | The second undo restored stale `{ optimistic: 4, realistic: 5, pessimistic: 6 }` instead of the intervening `{ optimistic: 7, realistic: 8, pessimistic: 9 }`.                                                         |
