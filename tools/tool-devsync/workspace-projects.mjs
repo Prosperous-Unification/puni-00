@@ -21,6 +21,14 @@ const EXCLUDED_DIRECTORIES = new Set(['.git', '.nx', 'coverage', 'dist', 'node_m
  *   root: string;
  *   name: string;
  *   tags: readonly string[];
+ * }>} NamespaceProject
+ */
+
+/**
+ * @typedef {Readonly<{
+ *   root: string;
+ *   name: string;
+ *   tags: readonly string[];
  *   targets: ProjectTargets;
  * }>} WorkspaceProject
  */
@@ -231,4 +239,191 @@ export async function readProjects(workspace) {
     rootsByName.set(project.name, project.root);
   }
   return projects;
+}
+
+/**
+ * Build Nx dependency constraints for every product present in the project
+ * graph. Product-neutral infrastructure contributes no rule; shared product
+ * code may depend only on other shared product code.
+ *
+ * @param {readonly WorkspaceProject[]} projects
+ * @returns {readonly Readonly<{
+ *   sourceTag: string;
+ *   onlyDependOnLibsWithTags: readonly string[];
+ * }>[]}
+ */
+export function productConstraints(projects) {
+  /** @type {Set<string>} */
+  const products = new Set();
+  for (const project of projects) {
+    for (const tag of project.tags) {
+      if (tag.startsWith('product:')) products.add(tag.slice('product:'.length));
+    }
+  }
+
+  return [...products].sort().map((product) => ({
+    sourceTag: `product:${product}`,
+    // Proof: removing only the generated product:probe rule made the fixture's
+    // actual uncached Nx lint accept its forbidden @wbs/core production import
+    // with exit 0. Adding product:wbs to shared likewise made the shared-source
+    // fixture's forbidden import pass with exit 0 (2026-09-14).
+    onlyDependOnLibsWithTags:
+      product === 'shared' ? ['product:shared'] : [`product:${product}`, 'product:shared'],
+  }));
+}
+
+/** @param {NamespaceProject} project @param {string} axis */
+function filterTags(project, axis) {
+  return project.tags.filter((tag) => tag.startsWith(axis));
+}
+
+/**
+ * Find every disagreement between discovered projects and the final product
+ * namespace. Callers decide when to enforce the violations so the pre-move
+ * fixture can prove the final policy without rejecting the current layout.
+ *
+ * @param {readonly NamespaceProject[]} projects
+ * @returns {readonly string[]}
+ */
+export function findNamespaceLayoutViolations(projects) {
+  /** @type {string[]} */
+  const violations = [];
+  for (const project of projects) {
+    const scopes = filterTags(project, 'scope:');
+    const rings = filterTags(project, 'ring:');
+    const runtimes = filterTags(project, 'runtime:');
+    for (const [axis, tags] of [
+      ['scope:', scopes],
+      ['ring:', rings],
+      ['runtime:', runtimes],
+    ]) {
+      // Proof: disabling this common cardinality guard made the owning Nx test
+      // target report six named failures: absent and duplicate scope, ring and
+      // runtime tags all returned no violation (2026-09-14).
+      if (tags.length !== 1) {
+        violations.push(
+          `${project.root}: expected exactly one ${axis} tag, found ${String(tags.length)}`,
+        );
+      }
+    }
+
+    const products = filterTags(project, 'product:');
+    if (project.root.startsWith('tools/')) {
+      // Proof: disabling this check made the owning Nx target omit the
+      // scope:shared tool violation while retaining its ring and product faults
+      // (2026-09-14).
+      if (scopes.length === 1 && scopes[0] !== 'scope:infra') {
+        violations.push(`${project.root}: tools require scope:infra, found ${scopes[0]}`);
+      }
+      // Proof: disabling this check made the owning Nx target omit the
+      // ring:domain tool violation while retaining its scope and product faults
+      // (2026-09-14).
+      if (rings.length === 1 && rings[0] !== 'ring:adapter') {
+        violations.push(`${project.root}: tools require ring:adapter, found ${rings[0]}`);
+      }
+      // Proof: disabling this check made the owning Nx target omit the
+      // product:wbs violation from its otherwise-invalid tool fixture
+      // (2026-09-14).
+      if (products.length > 0) {
+        violations.push(
+          `${project.root}: tools must not carry a product tag, found ${products.join(', ')}`,
+        );
+      }
+      continue;
+    }
+
+    // Proof: disabling this root-group guard made the owning Nx target replace
+    // the named outside-root refusal with a misleading library-shape fault
+    // (2026-09-14).
+    if (!project.root.startsWith('apps/') && !project.root.startsWith('libs/')) {
+      violations.push(`${project.root}: project root must begin with apps/, libs/ or tools/`);
+      continue;
+    }
+    // Proof: disabling this product cardinality guard made the owning Nx target
+    // report both absent and duplicate product fixtures returning no violation
+    // (2026-09-14).
+    if (products.length !== 1) {
+      violations.push(
+        `${project.root}: expected exactly one product: tag, found ${String(products.length)}`,
+      );
+    }
+
+    const segments = project.root.split('/');
+    if (project.root.startsWith('apps/')) {
+      // Proof: disabling this shape guard made the owning Nx target replace the
+      // named malformed-app refusal with misleading derived product/name faults
+      // (2026-09-14).
+      if (segments.length !== 3) {
+        violations.push(`${project.root}: applications require apps/<product>/<project>`);
+        continue;
+      }
+      // Proof: disabling this check made the owning Nx target omit the app's
+      // ring:application refusal while retaining its malformed-shape refusal
+      // (2026-09-14).
+      if (rings.length === 1 && rings[0] !== 'ring:adapter') {
+        violations.push(`${project.root}: applications require ring:adapter, found ${rings[0]}`);
+      }
+      // Proof: disabling this check made the owning Nx target omit the app's
+      // directory/product disagreement while retaining the library refusal
+      // (2026-09-14).
+      if (products.length === 1 && products[0] !== `product:${segments[1]}`) {
+        violations.push(
+          `${project.root}: directory product ${segments[1]} disagrees with ${products[0]}`,
+        );
+      }
+      const expectedName = `${segments[1]}-${segments[2]}`;
+      // Proof: disabling this app-name check made the owning Nx target omit the
+      // unqualified be-01 refusal while retaining the library refusal
+      // (2026-09-14).
+      if (project.name !== expectedName) {
+        violations.push(
+          `${project.root}: project name must be ${expectedName}, found ${project.name}`,
+        );
+      }
+      continue;
+    }
+
+    /** @type {Readonly<Record<string, string>>} */
+    const ringByDirectory = {
+      domain: 'ring:domain',
+      application: 'ring:application',
+      adapters: 'ring:adapter',
+    };
+    const expectedRing = ringByDirectory[segments[2]];
+    // Proof: disabling this shape guard made the owning Nx target replace the
+    // named unknown-library-ring refusal with a derived `requires undefined`
+    // fault (2026-09-14).
+    if (segments.length !== 4 || expectedRing === undefined) {
+      violations.push(
+        `${project.root}: libraries require libs/<product>/<domain|application|adapters>/<project>`,
+      );
+      continue;
+    }
+    // Proof: disabling this check made the owning Nx target omit the library's
+    // directory/product disagreement while retaining the app refusal
+    // (2026-09-14).
+    if (products.length === 1 && products[0] !== `product:${segments[1]}`) {
+      violations.push(
+        `${project.root}: directory product ${segments[1]} disagrees with ${products[0]}`,
+      );
+    }
+    // Proof: disabling this correlation made the owning Nx target omit the
+    // adapters-to-ring:adapter refusal for a ring:application library
+    // (2026-09-14).
+    if (rings.length === 1 && rings[0] !== expectedRing) {
+      violations.push(
+        `${project.root}: directory ${segments[2]} requires ${expectedRing}, found ${rings[0]}`,
+      );
+    }
+    const expectedName = `${segments[1]}-${segments[3]}`;
+    // Proof: disabling this library-name check made the owning Nx target omit
+    // the unqualified core refusal while retaining the app refusal
+    // (2026-09-14).
+    if (project.name !== expectedName) {
+      violations.push(
+        `${project.root}: project name must be ${expectedName}, found ${project.name}`,
+      );
+    }
+  }
+  return violations;
 }

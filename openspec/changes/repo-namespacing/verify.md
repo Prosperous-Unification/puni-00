@@ -2,11 +2,13 @@
 
 **Change**: `repo-namespacing`
 
-**Implementation base**: `6ca89944d37ee1bdaed7f7290df0fc4272847d81`
+**Task 1 implementation base**: `6ca89944d37ee1bdaed7f7290df0fc4272847d81`
+
+**Task 2 implementation base**: `35677e3e6c6ecffd22a8871953f73affcc8fd83e`
 
 **Verified at**: 2026-09-14
 
-**Scope**: Tasks 1.1–1.2 only
+**Scope**: Tasks 1.1–2.2 only
 
 ## Preflight inventory
 
@@ -52,7 +54,49 @@ name. The core-extraction base already supplied the shared recursive entrypoint 
 it in tool-devsync lint/test inputs; this slice migrated the remaining root/name assumptions
 in sync and target coverage and removed the fixed project-count oracle.
 
+## Product and final-layout fixture proof
+
+The product axis is active on all 18 pre-move WBS apps and libraries. Thirteen manifests that
+did not already carry the tag received `product:wbs`; no second product was committed.
+`productConstraints(projects)` discovers and sorts products, permits each product to depend
+on itself and `product:shared`, and restricts shared sources to shared targets. Production,
+general-test and store-memory-test ESLint configurations all include those rules; only the
+existing ring constraints remain exempt in tests. Lint cache inputs include the generator and
+recursive app/lib/tool manifest globs.
+
+The final namespace validator remains fixture-only until the atomic move in Task 3. It accepts
+both app kinds, all three library ring directories (`adapters` maps to `ring:adapter`) and
+product-neutral infra adapter tools. It names malformed roots, ring/product directory
+disagreement, unqualified Nx names, invalid tools and absent/duplicate tags on all four axes.
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test src/product-constraints.test.ts src/namespace-layout.test.ts src/lint-policy-cache.test.ts` from `tools/tool-devsync` — 21 passed, 0 failed, 36 expectations.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx test tool-devsync --skip-nx-cache --output-style=stream` — 167 passed, 0 failed, 483 expectations with the host permissions required by existing listener and Git fixtures. The restricted-sandbox run reached 158 passes and 9 environmental failures: seven listener cases received `EPERM`, and two poller Git fixtures could not complete.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p tool-devsync --skip-nx-cache --parallel=1 --output-style=stream` — both targets passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint -p be-01,fe-01,gw-01,mcp-01,auth,config,conformance,contracts,solver-supervisor-protocol,core,domain,observability,realtime,runtime-portable,store-memory,store-sqlite,validation --skip-nx-cache --parallel=1 --output-style=stream` — all 17 TypeScript WBS lint targets passed; `solver-py` has no lint target.
+- `bunx prettier --check <all Task 2 changed files>` — all matched files use Prettier style.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate repo-namespacing --strict --json` — 1 passed, 0 failed.
+- `git diff --check` — passed.
+
+### R5 product/layout faults
+
+| Check                     | Injected fault                                                                                      | Observed RED                                                                                                                            |
+| ------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Generated product rule    | Removed only `product:probe` from the generated rules                                               | Real uncached Nx lint accepted the forbidden production `@wbs/core` import with exit 0.                                                 |
+| Shared-product isolation  | Allowed `product:wbs` from `product:shared`                                                         | Real uncached Nx lint accepted the forbidden shared-to-WBS import with exit 0.                                                          |
+| ESLint placement          | Removed product rules separately from production, general-test and store-memory-test configurations | Effective-config oracle failed at `libs/core/src/index.ts`, `libs/core/src/example.test.ts` and `libs/store-memory/src/source.test.ts`. |
+| WBS product totality      | Removed `product:wbs` from `libs/contracts/project.json`                                            | Exact 18-root oracle named `libs/contracts` with `[]`; the real Nx graph oracle also reported all ten incoming WBS edges.               |
+| Policy-module cache input | Omitted the generated module from lint inputs after two warm runs                                   | Third real Nx lint reused 1/1 cached task and exited 0 after the policy denied every product.                                           |
+| Manifest cache input      | Omitted recursive manifest inputs after two warm runs                                               | Third real Nx lint reused 1/1 cached task and exited 0 after the imported target changed product.                                       |
+| Axis cardinality          | Disabled the shared scope/ring/runtime guard, then the product guard                                | Owning Nx target reported six missing absent/duplicate failures, then both product cases, each with received `[]`.                      |
+| App layout                | Disabled app shape, ring, product and name checks individually                                      | Each owning target lost the named refusal; without shape validation it emitted misleading derived product/name faults.                  |
+| Library layout            | Disabled library shape, ring, product and name checks individually                                  | Each owning target lost the named refusal; without shape validation it emitted `requires undefined`.                                    |
+| Tool layout               | Disabled tool scope, ring and product checks individually                                           | Each owning target omitted only the corresponding invalid-tool refusal.                                                                 |
+| Root groups               | Disabled the apps/libs/tools guard                                                                  | Owning target replaced the named outside-root refusal with a misleading library-shape fault.                                            |
+
+All injected source and metadata faults were restored. Adjacent `Proof:` comments record the
+specific mutation and observed result.
+
 ## Deferred verification
 
-Tasks 2–4, all project moves, the whole-workspace h2puni gate, browser gate, image checks,
+Tasks 3–4, all project moves, the whole-workspace h2puni gate, browser gate, image checks,
 production dry-run, publication, and archive remain intentionally unverified.
