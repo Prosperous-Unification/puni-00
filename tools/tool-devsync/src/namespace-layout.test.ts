@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'bun:test';
 
-import { findNamespaceLayoutViolations } from '../workspace-projects.mjs';
+import { findNamespaceLayoutViolations, readProjects } from '../workspace-projects.mjs';
+
+const WORKSPACE = new URL('../../../', import.meta.url);
 
 interface LayoutProject {
   readonly root: string;
@@ -48,6 +50,14 @@ const VALID_PROJECTS = [
 ] as const;
 
 describe('namespace layout validation', () => {
+  it('accepts the complete actual workspace after the coordinated move', async () => {
+    const projects = await readProjects(WORKSPACE);
+
+    // Proof: before the coordinated move this owning Nx target named malformed
+    // roots for all 18 WBS applications and libraries.
+    expect(findNamespaceLayoutViolations(projects)).toEqual([]);
+  });
+
   it('accepts both apps, every library ring directory and product-neutral tools', () => {
     expect(findNamespaceLayoutViolations(VALID_PROJECTS)).toEqual([]);
   });
@@ -130,7 +140,7 @@ describe('namespace layout validation', () => {
     });
   }
 
-  it('requires applications in the complete product shape and adapter ring', () => {
+  it('requires applications in the adapter ring with product-qualified names', () => {
     expect(
       findNamespaceLayoutViolations([
         project('apps/wbs/be-01', 'wbs-be-01', [
@@ -139,11 +149,16 @@ describe('namespace layout validation', () => {
           'runtime:bun',
           'product:wbs',
         ]),
-        project('apps/be-01', 'be-01', ['scope:app', 'ring:adapter', 'runtime:bun', 'product:wbs']),
+        project('apps/wbs/be-01', 'be-01', [
+          'scope:app',
+          'ring:adapter',
+          'runtime:bun',
+          'product:wbs',
+        ]),
       ]),
     ).toEqual([
       'apps/wbs/be-01: applications require ring:adapter, found ring:application',
-      'apps/be-01: applications require apps/<product>/<project>',
+      'apps/wbs/be-01: project name must be wbs-be-01, found be-01',
     ]);
   });
 

@@ -23,9 +23,9 @@ import { describe, expect, it } from 'bun:test';
  * cache]` — green, having run nothing. `workspace-targets.test.ts` cannot see
  * these reads (it looks for `'../../../…'` literals), so the list is kept by hand.
  *
- * Proof: with `apps/be-01/Dockerfile`'s first stage put back to
+ * Proof: with `apps/wbs/be-01/Dockerfile`'s first stage put back to
  * `oven/bun:1.3.14-alpine`, `every Bun image tag equals .bun-version` failed
- * on `- []` / `+ [ "apps/be-01/Dockerfile: 1.3.14" ]` (2026-09-06). And with
+ * on `- []` / `+ [ "apps/wbs/be-01/Dockerfile: 1.3.14" ]` (2026-09-06). And with
  * `bun-version: 1.3.14` put back in place of `bun-version-file` in the
  * `pixels` job, `CI reads the file rather than a literal` failed on
  * `Expected: 0 · Received: 1`.
@@ -38,9 +38,9 @@ async function read(path: string): Promise<string> {
 
 /** Every Dockerfile that starts from a Bun image. Listed, so a new one is added here on the day it is written. */
 const BUN_DOCKERFILES = [
-  'apps/be-01/Dockerfile',
-  'apps/gw-01/Dockerfile',
-  'apps/fe-01/Dockerfile',
+  'apps/wbs/be-01/Dockerfile',
+  'apps/wbs/gw-01/Dockerfile',
+  'apps/wbs/fe-01/Dockerfile',
   'deploy/dev-src/Dockerfile',
 ] as const;
 

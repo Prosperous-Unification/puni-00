@@ -11,24 +11,24 @@ import { productConstraints, readProjects } from '../workspace-projects.mjs';
 const WORKSPACE = new URL('../../../', import.meta.url);
 
 const EXPECTED_WBS_PROJECTS = [
-  ['apps/be-01', 'be-01'],
-  ['apps/fe-01', 'fe-01'],
-  ['apps/gw-01', 'gw-01'],
-  ['apps/mcp-01', 'mcp-01'],
-  ['libs/auth', 'auth'],
-  ['libs/config', 'config'],
-  ['libs/conformance', 'conformance'],
-  ['libs/contracts', 'contracts'],
-  ['libs/contracts/solver/supervisor-protocol', 'solver-supervisor-protocol'],
-  ['libs/core', 'core'],
-  ['libs/domain', 'domain'],
-  ['libs/observability', 'observability'],
-  ['libs/realtime', 'realtime'],
-  ['libs/runtime-portable', 'runtime-portable'],
-  ['libs/solver-py', 'solver-py'],
-  ['libs/store-memory', 'store-memory'],
-  ['libs/store-sqlite', 'store-sqlite'],
-  ['libs/validation', 'validation'],
+  ['apps/wbs/be-01', 'wbs-be-01'],
+  ['apps/wbs/fe-01', 'wbs-fe-01'],
+  ['apps/wbs/gw-01', 'wbs-gw-01'],
+  ['apps/wbs/mcp-01', 'wbs-mcp-01'],
+  ['libs/wbs/adapters/auth', 'wbs-auth'],
+  ['libs/wbs/adapters/config', 'wbs-config'],
+  ['libs/wbs/adapters/observability', 'wbs-observability'],
+  ['libs/wbs/adapters/realtime', 'wbs-realtime'],
+  ['libs/wbs/adapters/runtime-portable', 'wbs-runtime-portable'],
+  ['libs/wbs/adapters/solver-py', 'wbs-solver-py'],
+  ['libs/wbs/adapters/solver-supervisor-protocol', 'wbs-solver-supervisor-protocol'],
+  ['libs/wbs/adapters/store-memory', 'wbs-store-memory'],
+  ['libs/wbs/adapters/store-sqlite', 'wbs-store-sqlite'],
+  ['libs/wbs/application/conformance', 'wbs-conformance'],
+  ['libs/wbs/application/core', 'wbs-core'],
+  ['libs/wbs/domain/contracts', 'wbs-contracts'],
+  ['libs/wbs/domain/domain', 'wbs-domain'],
+  ['libs/wbs/domain/validation', 'wbs-validation'],
 ] as const;
 
 interface ProjectManifest {
@@ -127,17 +127,19 @@ describe('readProjects', () => {
     const names = projects.map((project) => project.name).sort();
     const pairs = projects.map(({ root, name }) => [root, name] as const);
 
-    expect(names).toContain('solver-supervisor-protocol');
+    expect(names).toContain('wbs-solver-supervisor-protocol');
     expect(names).toEqual((await runNxProjectNames()).sort());
     expect(pairs).toEqual(await nxProjectPairs());
   });
 
-  it('pins every pre-move WBS root and Nx identity in the destination map', async () => {
+  it('pins every moved WBS root and qualified Nx identity in the destination map', async () => {
     const projects = await readProjects(WORKSPACE);
     const wbsProjects = projects
       .filter(({ root }) => root.startsWith('apps/') || root.startsWith('libs/'))
       .map(({ root, name }) => [root, name] as const);
 
+    // Proof: before the coordinated move this owning Nx target returned all 18
+    // unqualified roots and names against this exact destination oracle.
     expect(wbsProjects).toEqual([...EXPECTED_WBS_PROJECTS]);
   });
 
@@ -147,7 +149,7 @@ describe('readProjects', () => {
       .filter(({ root }) => root.startsWith('apps/') || root.startsWith('libs/'))
       .map(({ root, tags }) => [root, tags.filter((tag) => tag.startsWith('product:'))] as const);
 
-    // Proof: removing product:wbs from libs/contracts made the owning Nx target
+    // Proof: removing product:wbs from libs/wbs/domain/contracts made the owning Nx target
     // report its exact root with an empty product-tag collection (2026-09-14).
     expect(products).toEqual(EXPECTED_WBS_PROJECTS.map(([root]) => [root, ['product:wbs']]));
   });
@@ -375,7 +377,7 @@ describe('productConstraints', () => {
       }
     }
 
-    // Proof: removing product:wbs from libs/contracts made this real Nx graph
+    // Proof: removing product:wbs from libs/wbs/domain/contracts made this real Nx graph
     // oracle report all ten incoming WBS dependency edges (2026-09-14).
     expect(violations).toEqual([]);
   });

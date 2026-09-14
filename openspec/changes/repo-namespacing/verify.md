@@ -146,3 +146,75 @@ specific mutation and observed result.
 
 Tasks 3–4, all project moves, the whole-workspace h2puni gate, browser gate, image checks,
 production dry-run, publication, and archive remain intentionally unverified.
+
+## Section 3.1 coordinated project move
+
+The move started from `c63e9010cb0fb61e757e3ddd71f19db13e242e2c`. The nested supervisor
+protocol moved out of contracts first, then all four applications and fourteen libraries moved
+to the exact `design.md` roots. Their Nx identities are product-qualified while the 51 public
+`@wbs/*` alias keys remain unchanged. The recursive reader and real Nx graph agree on all 31
+projects and the exact 18 moved WBS root/name pairs. All original product, scope, ring and runtime
+tags remain present; final-layout validation is now active against the actual workspace.
+
+`git diff --raw -M100% HEAD -- apps/be-01/drizzle apps/wbs/be-01/drizzle` reported exactly
+92 `R100` records, so every migration path moved with byte-identical content. A deployment-token
+diff over the moved app configuration reported no changes to `APP_NAME`, `IMAGE_NAME` or ports.
+
+- The first actual-workspace namespace run failed on all 18 legacy roots before the move. The
+  restored `workspace-projects` and `namespace-layout` tests pass against the moved graph.
+- Injecting `const deliberatelyWrong: number = 'not a number'` into the moved domain estimate
+  test made uncached `wbs-domain:typecheck` fail at the namespaced path with `TS2322`; restoring it
+  returned the target to green. The adjacent `Proof:` comment records that observation.
+- The uncached 17-project TypeScript matrix passed for every renamed TypeScript project; the
+  Python adapter has no typecheck target. A later combined lint/typecheck run reconfirmed every
+  typecheck while exposing legacy circular-exemption names; replacing all three occurrences with
+  `wbs-core`/`wbs-store-memory` restored the three affected real lint targets.
+- Focused Tool Devsync moved-graph, layout, target, out-of-project-read and cache declarations pass.
+  Its complete intermediate run was 166 pass/6 fail: three failures fixed by this slice and three
+  expected `RESTART_PATHS` failures owned by Task 3.3, whose production paths remain unchanged.
+
+## Section 3.2 frontend and cross-tree consumers
+
+Vite and Vitest aliases resolve to `libs/wbs`; Vite emits to `dist/apps/wbs/fe-01`. Both source
+and packaged Playwright configurations use moved roots, the packaged server reads the namespaced
+artifact and Caddyfile, frontend lint lists every moved root TypeScript input, and CI uploads both
+browser artifact directories from `apps/wbs/fe-01`. SQLite, domain, contracts, conformance, core,
+backend and Python cross-tree readers now resolve from their new depths.
+
+### R5 observations
+
+| Check                | Injected fault                                                                                        | Observed RED                                                                                                             |
+| -------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Moved alias target   | Restored Vite's workday alias to the deleted old root                                                 | Actual uncached `wbs-fe-01:build` exited 1 with `UNLOADABLE_DEPENDENCY` at `completion-prompt.tsx`.                      |
+| Root lint reach      | Kept an unused-variable fault in `vite.config.ts` while omitting that file from the real lint command | Actual uncached lint incorrectly exited 0; the owning tier oracle failed naming exactly `apps/wbs/fe-01/vite.config.ts`. |
+| CI browser artifacts | Restored only `apps/fe-01/test-results/`                                                              | The production workflow oracle failed with the complete received legacy path.                                            |
+
+All three faults were removed. Fresh restored evidence:
+
+- `TZ=UTC bunx vitest run vite-config.test.ts playwright-config.test.ts` from the frontend root —
+  29 passed, 0 failed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:test:unit
+--skip-nx-cache --output-style=stream` with host process permissions — 34 files, 554 tests
+  passed.
+- The actual uncached frontend build transformed 916 modules and wrote the namespaced output.
+- Focused moved readers: backend 26 passed with the existing orphan-process case skipped;
+  domain/contracts/core 87 passed; CI workflow 1 passed; Python metadata/path 4 passed. The core
+  portable target built the moved bundle and passed its Chromium check (1 test).
+- The full SQLite target reached 762 pass, 0 fail, then reported its one designed suite-level
+  error because frozen performance certification refuses a dirty Git tree. It must be rerun from
+  the committed clean candidate; the failure is not recorded as green.
+
+### Tool Wiki reconciliation boundary
+
+The live module mapping, policy selectors, relationship declarations, module README indexes and
+Nx check names use moved roots. Immutable bootstrap activation artifacts remain byte-identical.
+The full Tool Wiki run consequently refuses the current moved policy against its pinned pre-move
+`sourceRevision`; an intermediate dirty-base fixture also reported duplicate legacy and moved
+module identities. This is the required visible indication that a fresh activation must be
+prepared after the exact candidate is published. No activation, external store mutation or
+publication occurred. The contracts/relationship run reached 34 pass with all 19 relationship
+selector cases green; its one contract expectation was an accidental edit to a frozen benchmark
+criterion and was restored before final verification.
+
+Tasks 3.3–4, fresh Tool Wiki activation, the whole browser gate, images, deployment/migration
+transition tooling, publication and the h2puni gate remain open.

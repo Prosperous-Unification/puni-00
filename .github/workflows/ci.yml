@@ -527,7 +527,7 @@ jobs:
   # for it would make every unrelated red slower to read. Both must pass.
   #
   # Proven non-vacuous on 2026-08-08. The faults are written out at the bottom
-  # of `apps/fe-01/e2e/layout.spec.ts`, each with the failure it was watched
+  # of `apps/wbs/fe-01/e2e/layout.spec.ts`, each with the failure it was watched
   # producing against a real chromium;
   # `openspec/changes/table-geometry-and-tab-order/verify.md` has the run
   # output, including the two faults that turned out NOT to break the test they
@@ -632,8 +632,8 @@ jobs:
           # Successful runs keep the deliberate geometry screenshot and HTML
           # report; failed runs additionally keep Playwright's retained trace.
           path: |
-            apps/fe-01/test-results/
-            apps/fe-01/playwright-report/
+            apps/wbs/fe-01/test-results/
+            apps/wbs/fe-01/playwright-report/
 
   # Branch protection asks for one stable `pixels` check. The matrix above has
   # changing display names, so this job reduces its aggregate result without

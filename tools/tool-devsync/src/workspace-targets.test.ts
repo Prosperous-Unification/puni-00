@@ -84,16 +84,16 @@ describe('source conformance target discovery', () => {
   it('selects each terminal source file exactly and keeps normal test inclusion', async () => {
     const projects = await projectsOnDisk();
     const expected = {
-      'store-memory': {
-        root: 'libs/store-memory',
+      'wbs-store-memory': {
+        root: 'libs/wbs/adapters/store-memory',
         file: 'src/testing/source-conformance.test.ts',
         inputs: ['default', '^production'],
         certificateTargets: ['test', 'test:conformance', 'test:unit'],
       },
-      'store-sqlite': {
-        root: 'libs/store-sqlite',
+      'wbs-store-sqlite': {
+        root: 'libs/wbs/adapters/store-sqlite',
         file: 'src/testing/source-conformance.db.test.ts',
-        inputs: ['default', '^production', '{workspaceRoot}/apps/be-01/drizzle'],
+        inputs: ['default', '^production', '{workspaceRoot}/apps/wbs/be-01/drizzle'],
         certificateTargets: ['test', 'test:conformance'],
       },
     } as const;
@@ -205,9 +205,12 @@ describe('every typecheck target compiles files', () => {
     // while its suite stayed green (`d4b62a30`). `tsc --build` on the solution
     // config follows every reference, so the tests are compiled with the code.
     //
-    // Proof: with `apps/gw-01/project.json` put back to
-    // `bunx tsc --build --force apps/gw-01/tsconfig.lib.json`, watched failing
+    // Proof: with `apps/wbs/gw-01/project.json` put back to
+    // `bunx tsc --build --force apps/wbs/gw-01/tsconfig.lib.json`, watched failing
     // on `Expected value to be empty · Received: [ "gw-01" ]` (2026-09-02).
+    // Proof: after the namespace move, assigning a string to a number in
+    // libs/wbs/domain/domain/src/estimate.test.ts made the real renamed
+    // wbs-domain:typecheck target fail with TS2322 (2026-09-14).
     const offenders: string[] = [];
     for (const { dir, config } of await projectsOnDisk()) {
       const target = config.targets['typecheck'];
@@ -227,8 +230,8 @@ describe('every typecheck target compiles files', () => {
     // right.
     //
     // Proof: with the `./tsconfig.spec.json` reference struck from
-    // `apps/gw-01/tsconfig.json`, watched failing on `Expected value to be
-    // empty · Received: [ "apps/gw-01" ]` (2026-09-02).
+    // `apps/wbs/gw-01/tsconfig.json`, watched failing on `Expected value to be
+    // empty · Received: [ "apps/wbs/gw-01" ]` (2026-09-02).
     const orphans: string[] = [];
     for (const { dir } of await projectsOnDisk()) {
       let spec: string;
@@ -264,7 +267,7 @@ describe('every typecheck target compiles files', () => {
  * changes, and reports green over a change no command read.
  *
  * The nine on 2026-09-02: five suites drive shell scripts under `bin/`, three
- * read shipped Caddy and Compose fragments under `deploy/`, and `libs/domain`'s
+ * read shipped Caddy and Compose fragments under `deploy/`, and `libs/wbs/domain/domain`'s
  * `every name it can answer is one the migration seeds` reads a be-01 migration
  * to prove the two lists are one fact — an anti-drift check whose own input was
  * invisible to the thing deciding whether to run it.
@@ -276,8 +279,8 @@ describe('every typecheck target compiles files', () => {
  * Proof: with `inputs` deleted from `tool-devsync`'s `test` target, watched
  * failing on `Expected value to be empty · Received: [ "tool-devsync:test does
  * not declare apps", "tool-devsync:test does not declare bin/dev-be-probe.sh",
- * …`; and with `libs/domain`'s deleted, on `Received: [ "domain:test does not
- * declare apps/be-01/drizzle/20260830020000_add_external_ref/migration.sql" ]`.
+ * …`; and with `libs/wbs/domain/domain`'s deleted, on `Received: [ "domain:test does not
+ * declare apps/wbs/be-01/drizzle/20260830020000_add_external_ref/migration.sql" ]`.
  *
  * The fault itself was watched through Nx the same day: with `tool-devsync`'s
  * declaration removed, an edit to `bin/dev-be-probe.sh` gave `nx run
@@ -558,7 +561,7 @@ describe('every cached target declares what it reads', () => {
             pattern.startsWith(`${read}/`),
         );
         // Proof: ignoring dependency inputs failed on
-        // `be-01:test does not declare libs/runtime-portable/src/scheduler.ts`,
+        // `be-01:test does not declare libs/wbs/adapters/runtime-portable/src/scheduler.ts`,
         // even though Nx hashes that production file through `^production`.
         if (!covered && !dependencyInputCovers(read, config.name, projectGraph, nxJson)) {
           undeclared.push(`${config.name}:test does not declare ${read}`);
@@ -732,7 +735,7 @@ describe('every project says which ring, scope and runtime it is', () => {
 describe('the root fast tier discovers every eligible project', () => {
   it('requires a test:unit target independently of target presence', async () => {
     const projects = await projectsOnDisk();
-    const requiredNonLibraries = new Set(['be-01', 'fe-01']);
+    const requiredNonLibraries = new Set(['wbs-be-01', 'wbs-fe-01']);
     const missing: string[] = [];
     const unexpected: string[] = [];
     for (const { dir, config } of projects) {

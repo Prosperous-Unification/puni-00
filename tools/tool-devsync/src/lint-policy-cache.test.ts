@@ -72,7 +72,10 @@ async function createLintWorkspace(): Promise<string> {
       plugins: [],
     }),
     writeJson(join(workspace, 'tsconfig.base.json'), {
-      compilerOptions: { baseUrl: '.', paths: { '@wbs/domain': ['libs/domain/src/index.ts'] } },
+      compilerOptions: {
+        baseUrl: '.',
+        paths: { '@wbs/domain': ['libs/wbs/domain/domain/src/index.ts'] },
+      },
     }),
     writeFile(join(workspace, '.prettierrc.json'), '{}\n'),
     writeFile(join(workspace, POLICY), await readFile(join(CHECKOUT, POLICY), 'utf8')),
@@ -80,12 +83,12 @@ async function createLintWorkspace(): Promise<string> {
   await Promise.all([
     writeProject(
       workspace,
-      'libs/config',
+      'libs/wbs/adapters/config',
       'config',
       ['scope:shared', 'ring:adapter', 'runtime:bun', 'product:wbs'],
       true,
     ),
-    writeProject(workspace, 'libs/domain', 'domain', [
+    writeProject(workspace, 'libs/wbs/domain/domain', 'domain', [
       'scope:shared',
       'ring:domain',
       'runtime:isomorphic',
@@ -93,8 +96,11 @@ async function createLintWorkspace(): Promise<string> {
     ]),
   ]);
   await Promise.all([
-    writeFile(join(workspace, 'libs/config/src/index.ts'), "import '@wbs/domain';\n"),
-    writeFile(join(workspace, 'libs/domain/src/index.ts'), 'export const domain = true;\n'),
+    writeFile(join(workspace, 'libs/wbs/adapters/config/src/index.ts'), "import '@wbs/domain';\n"),
+    writeFile(
+      join(workspace, 'libs/wbs/domain/domain/src/index.ts'),
+      'export const domain = true;\n',
+    ),
     writeFile(
       join(workspace, 'eslint.config.js'),
       `
@@ -146,7 +152,7 @@ async function runDirectLint(workspace: string): Promise<LintRun> {
     [
       process.execPath,
       join(workspace, 'node_modules/.bin/eslint'),
-      'libs/config/src',
+      'libs/wbs/adapters/config/src',
       '--no-cache',
     ],
     {
@@ -216,13 +222,13 @@ describe('production lint policy cache inputs', () => {
   it('reruns cached lint when only a discovered project manifest changes', async () => {
     const workspace = await createLintWorkspace();
     await primeLint(workspace);
-    await writeProject(workspace, 'libs/domain', 'domain', [
+    await writeProject(workspace, 'libs/wbs/domain/domain', 'domain', [
       'scope:shared',
       'ring:domain',
       'runtime:isomorphic',
       'product:review-denied',
     ]);
-    await markChanged(join(workspace, 'libs/domain/project.json'));
+    await markChanged(join(workspace, 'libs/wbs/domain/domain/project.json'));
 
     // Proof: before project manifests were lint inputs, this third real Nx run
     // reused 1/1 cached task and exited 0 after the target tag changed (2026-09-14).

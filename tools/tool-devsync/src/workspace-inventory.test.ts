@@ -85,7 +85,7 @@ it('refuses malformed depth-sensitive configuration by its workspace path', asyn
   );
 });
 
-it('pins the complete pre-move depth-sensitive configuration inventory', async () => {
+it('pins the complete moved depth-sensitive configuration inventory', async () => {
   const paths = await readDepthSensitiveConfigPaths(WORKSPACE);
 
   // Proof: filtering out `compilerOptions.outDir` made this production-workspace
@@ -94,30 +94,30 @@ it('pins the complete pre-move depth-sensitive configuration inventory', async (
   expect(paths).toHaveLength(148);
   expect(new Set(paths.map(({ file }) => file))).toHaveLength(72);
   expect(paths).toContainEqual({
-    file: 'apps/be-01/tsconfig.json',
+    file: 'apps/wbs/be-01/tsconfig.json',
     propertyPath: 'extends',
-    value: '../../tsconfig.base.json',
+    value: '../../../tsconfig.base.json',
   });
   expect(paths).toContainEqual({
-    file: 'libs/core/tsconfig.lib.json',
-    propertyPath: 'compilerOptions.outDir',
-    value: '../../dist/out-tsc',
-  });
-  expect(paths).toContainEqual({
-    file: 'libs/contracts/solver/supervisor-protocol/tsconfig.lib.json',
+    file: 'libs/wbs/application/core/tsconfig.lib.json',
     propertyPath: 'compilerOptions.outDir',
     value: '../../../../dist/out-tsc',
   });
   expect(paths).toContainEqual({
-    file: 'apps/fe-01/tsconfig.e2e.json',
+    file: 'libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json',
+    propertyPath: 'compilerOptions.outDir',
+    value: '../../../../dist/out-tsc',
+  });
+  expect(paths).toContainEqual({
+    file: 'apps/wbs/fe-01/tsconfig.e2e.json',
     propertyPath: 'compilerOptions.paths.@wbs/domain/workday.0',
-    value: '../../libs/domain/src/workday.ts',
+    value: '../../../libs/wbs/domain/domain/src/workday.ts',
   });
 });
 
 it('hashes every recursively discovered app and library TypeScript config', async () => {
   // Proof: after a 1/1 local cache hit, changing only
-  // `libs/core/tsconfig.lib.json` made the owning target execute and fail with
+  // `libs/wbs/application/core/tsconfig.lib.json` made the owning target execute and fail with
   // 147 instead of 148 inventory rows (2026-09-14).
   const manifest = await Bun.file(new URL('../project.json', import.meta.url)).text();
   expect(manifest).toContain('"{workspaceRoot}/apps/**/tsconfig*.json"');
