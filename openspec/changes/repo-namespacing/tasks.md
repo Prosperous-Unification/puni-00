@@ -89,7 +89,7 @@ refer to the old root before slice 3 and its mapped destination afterward.
 
 ## 4. Handoff and production-path evidence
 
-- [ ] 4.1 Update current indexes/runbooks and JSDoc with final root paths and Nx names,
+- [x] 4.1 Update current indexes/runbooks and JSDoc with final root paths and Nx names,
       preserving frozen OpenSpec/history references as historical. Reconcile read dependencies
       with Radical Modularity and any active solver packet. Test: resolved documentation links,
       complete migration/alias/project manifests and source/config path inventory on the

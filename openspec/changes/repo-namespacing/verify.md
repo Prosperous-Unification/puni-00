@@ -430,3 +430,120 @@ The restored host-permission uncached Tool Remote Scripts matrix passed test, li
 tests passed 278/278 with 590 expectations and the two intentional real-Docker skips. The focused
 external-read totality suite passed 16/16 with 51 expectations. All-tree Prettier,
 `git diff --check`, and strict all OpenSpec validation passed; OpenSpec reported 83/83 items valid.
+
+## Section 4.1 documentation and handoff verification
+
+Current indexes, runbooks, architectural pointers and the two active solver packet surfaces now
+name the final `apps/wbs/...`, `libs/wbs/{domain,application,adapters}/...` roots and `wbs-*` Nx
+projects. Of the preflight inventory's 41 documentation files, 13 current files were revised and
+28 dated audits, plans, reviews, evidence and frozen specifications were retained as historical.
+The legacy roots in the routed current-document set are four exact historical observations: the
+two original diff locations in ADRs 0008 and 0009, the `docs/local-dev.md` measurement and the
+dated 2026-08-31 `docs/runbook-dev-deploy.md` incident. Each ADR now follows its historical
+observation with the current namespaced source location.
+
+The candidate handoff suite pins complete manifests: 51 public alias keys, all 31 recursive Nx
+root/name tuples, and all 92 migration path/Git-blob tuples. Its candidate-wide source/config
+sweep covers TypeScript/JavaScript, Python, shell, JSON/YAML/TOML/INI/config/service/SQL,
+Dockerfiles, dot-configs, extensionless `bin/` scripts, and every application/library/tool README.
+It pins all 261 legacy-root occurrences by line context and digest: 22 current recursive
+selectors, 19 frozen migration occurrences, 65 historical bootstrap-policy/mapping occurrences,
+39 historical policy selector/baseline occurrences, 18 production proof/revision-transition
+occurrences and 98 test fixture/proof occurrences. Bootstrap Tool Wiki policy/mapping files,
+frozen migrations, test fixtures, OpenSpec/history and external activation state remain
+classified evidence rather than current-reference rewrite targets.
+
+### TDD and R5 observations
+
+- The initial focused documentation command was
+  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx test tool-devsync --skip-nx-cache --output-style=stream --test-name-pattern='current documentation and active solver packets use namespaced roots'`.
+  It exited 1 with 62 references across 19 current files; after classification and current-path
+  repairs it passed 1/1.
+- Replacing the findings index target with `current.md#missing` made the production
+  `check-indexes working` path exit 1 with
+  `Markdown anchor absent in docs/findings/README.md: docs/findings/current.md#missing`.
+- Adding `[fault](missing-round-one.md)` to the non-index guide `docs/capacity.md` made the
+  complete routed-document link oracle fail 0/1 with
+  `docs/capacity.md -> missing-round-one.md (absent docs/missing-round-one.md)`; restoring the
+  guide passed 1/1. The reader covers the root routers, changed ADRs/runbooks, active solver
+  packet surfaces, and all application/library/tool READMEs rather than only Tool Wiki indexes.
+- Comparing the root router to the first fixed document list failed with six live omissions:
+  `docs/2026-09-08-hosted-optimization-api.md`, `docs/findings/README.md`, Radical Modularity and
+  the production-deploy, Tool Wiki activation and Dagger registry-DNS runbooks. Current-document
+  discovery now follows every existing Markdown path linked or named by `LLM_README.md`, excluding
+  only explicitly classified history. Adding `missing-round-two.md` to the newly discovered
+  production runbook then failed the routed-link check with its exact source and missing target.
+- The Nx-command oracle initially failed 0/1 with five exact unqualified selectors at
+  `docs/local-dev.md:101-104` and `:151`; replacing them with the qualified `wbs-*` projects
+  passed 1/1. The explicitly labelled historical `fe-01` measurement remains evidence.
+- Removing `@wbs/validation/fixtures` exposed the complete 50-key received alias list. Replacing
+  `wbs-domain` with `domain` exposed the differing complete project tuple. Removing
+  `apps/wbs/be-01/drizzle/20260830120000_add_dep_reach/down.sql` exposed that exact missing
+  path/blob tuple while retaining the other 91. Injecting executable
+  `const roundOneFault = 'apps/be-01/src'` into already-classified
+  `tools/tool-dagger/src/main.ts` changed the occurrence total from 261 to 262 and the pinned
+  digest from `9a0613f4...` to `879d8e14...`, so a historical Proof comment elsewhere in that
+  file could not exempt the new reference. Restoring a
+  stale `apps/be-01` path in `docs/capacity.md` made the executable historical-document
+  inventory fail 0/1 (185 filtered) with that current document classified as `UNCLASSIFIED`;
+  after restoring the namespaced path it passed 1/1 (185 filtered).
+- With the universal candidate input omitted, the full 188-test target warmed green. An old root
+  added only to previously unwatched `bin/dev-ports.sh` then replayed 1/1 from local cache and
+  falsely exited 0 with 188/188. Restoring `{workspaceRoot}/**/*` while keeping the fault caused
+  a cache miss and the exact 187/1 failure at `bin/dev-ports.sh:2`; the occurrence total became
+  262 and digest `61c8d9f6...`. All faults and omitted inputs were restored; adjacent `Proof:`
+  comments preserve each observation. The 12 declared handoff inputs now include the universal
+  candidate read required by `candidatePaths()` and the production index command.
+- The Dockerfile-family manifest initially failed with the omitted
+  `apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile`. Matching canonical Dockerfiles and
+  `.Dockerfile` suffix variants pins all five candidate paths. Replacing that variant's line 4
+  with `COPY apps/be-01/...` failed the occurrence inventory with one exact `UNCLASSIFIED`
+  context, count 262 and digest `116ba02b...`; restoring it returned to 261 classified
+  occurrences and the pinned digest.
+
+### Tool Wiki boundary
+
+`check-indexes working` validates the repository's current eight-index graph, links, anchors and
+case. Trusted Tool Wiki activation remains pending: the moved mapping must be committed and
+published at one exact source SHA before an operator can materialize and activate immutable
+authority artifacts. This task did not mutate the external store, activated archive, bootstrap
+policy/mappings or selected activation.
+
+The production index command exited 0 with eight indexes and no review debt. The uncached Tool
+Devsync suite passed 190/190 with 529 expectations; its lint and typecheck targets also passed.
+Tool Wiki source lint and typecheck passed, while the complete suite passed 578 tests and failed
+one of 579 with 5,358 expectations: the frozen pilot-policy test correctly reported that the
+externally activated `check.tool-dagger.test` authority selector still has its pre-namespace input
+tuple. Production `tool-wiki-lint.sh` returned exit 0 with `status: inactive`, `certified: false`
+and `external activation root is not provisioned`; no activation success is claimed. The pinned
+Bun OpenSpec CLI validated all 83/83 changes/specs strictly. The unpinned `openspec` executable
+was unavailable (exit 127), so `bunx @fission-ai/openspec@1.3.0` supplied the recorded result.
+Task 4.2 owns the frozen-candidate h2puni/browser/image gates; they were not run here.
+
+### Astra follow-up: absent root-route destinations
+
+`rootRoutedDocuments()` now preserves concrete Markdown destinations named by `LLM_README.md`
+even when the candidate inventory does not contain them. Wildcard families and prose suffixes
+remain non-routes. Existing files continue into the current-document readers; absent destinations
+are diagnosed first as an exact `LLM_README.md` link failure rather than disappearing from both
+sets.
+
+The focused RED command was:
+
+```sh
+bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts --test-name-pattern 'absent inline-code root routes'
+```
+
+Before the fix it exited 1 with 0 pass, 2 fail, 12 filtered and 2 expectations. Extraction
+returned only the 18 existing routes instead of containing `docs/missing-runbook.md`; validation
+returned `[]` instead of
+`LLM_README.md -> docs/missing-runbook.md (absent docs/missing-runbook.md)`. After separating
+explicit route extraction from candidate-backed document reads, the identical command passed 2/2
+with 12 filtered and 2 expectations. Adjacent `Proof:` comments retain both injected-fault
+observations.
+
+Final verification passed: the complete handoff file reported 14/14 tests and 15 expectations;
+ESLint over all Tool Devsync sources and the uncached Tool Devsync typecheck both exited 0;
+`nx format:check --all` exited 0; and pinned strict OpenSpec validation reported 83/83 valid
+(72 changes and 11 specs). The read-only Tool Wiki lint remained intentionally noncertifying:
+`status: inactive`, `certified: false`, `external activation root is not provisioned`.

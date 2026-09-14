@@ -43,7 +43,7 @@ REGISTRY_INSECURE="${REGISTRY_INSECURE:-0}"
 # which the real per-deploy render-route step reads this same variable from).
 SITE_ADDRESS="${SITE_ADDRESS:-wbs.bulletpoints.club}"
 # Pinned to match the version this repo builds and tests against (see
-# apps/*/Dockerfile's `oven/bun:1.3.14-alpine` and package.json's
+# apps/wbs/*/Dockerfile's `oven/bun:1.3.14-alpine` and package.json's
 # `bun-types` devDependency) — not the version already on h2puni
 # (1.2.20, installed by tool-bootstrap's bootstrap.sh before this line
 # existed). `bun build --target=bun` output is ordinary bundled JS, not a
