@@ -386,6 +386,13 @@ function validatePolicy(policy: TrustedPolicy): void {
     if (!boundaries.has(boundaryId)) throw new Error(`unknown activation boundary: ${boundaryId}`);
   }
   for (const boundary of policy.boundaries) {
+    if (boundary.sourceSelector !== undefined && policy.pilot === undefined) {
+      // Proof: without this guard, production ratchet lint accepted an explicit
+      // `not-the-baseline.ts` source selector with no reviewed pilot source revision.
+      throw new Error(
+        `trusted boundary source selector requires pilot policy: ${boundary.boundaryId}`,
+      );
+    }
     if (
       boundary.sourceSelector !== undefined &&
       boundary.sourceSelector.kind !== boundary.selector.kind

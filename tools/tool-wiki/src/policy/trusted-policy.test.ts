@@ -898,6 +898,42 @@ describe('trusted policy production CLI', () => {
     });
   });
 
+  test('refuses a non-pilot source selector with no reviewed source revision', () => {
+    const fixture = createFixture('ratchet');
+    runGit(fixture.repository, ['mv', 'validator.ts', 'renamed-validator.ts']);
+    write(
+      join(fixture.repository, 'README.md'),
+      indexSource(['exemptions.json', 'policy.json', 'renamed-validator.ts', 'src/app.ts']),
+    );
+    fixture.revision = commit(fixture.repository, 'rename validator with an unanchored selector');
+    const policy = JSON.parse(readFileSync(fixture.policyPath, 'utf8')) as {
+      boundaries: {
+        boundaryId: string;
+        selector: { value: string };
+        sourceSelector?: { kind: 'path'; value: string };
+      }[];
+    };
+    const validator = policy.boundaries.find(
+      ({ boundaryId }) => boundaryId === 'boundary.validator',
+    );
+    if (validator === undefined) throw new Error('validator boundary absent');
+    validator.selector.value = 'renamed-validator.ts';
+    validator.sourceSelector = { kind: 'path', value: 'not-the-baseline.ts' };
+    write(fixture.policyPath, `${JSON.stringify(policy)}\n`);
+    const binding = JSON.parse(readFileSync(fixture.bindingPath, 'utf8')) as {
+      policy: { sha256: string };
+    };
+    binding.policy.sha256 = sha256(readFileSync(fixture.policyPath));
+    write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
+
+    const invocation = runLocal(fixture, 'ratchet');
+    const observed = outputOf(invocation);
+    expect(invocation.exitCode, observed).toBe(1);
+    expect(observed).toContain(
+      'trusted boundary source selector requires pilot policy: boundary.validator',
+    );
+  });
+
   test('ratchet refuses a candidate that removes an adopted boundary from its own policy', () => {
     const fixture = createFixture('ratchet');
     write(join(fixture.repository, 'policy.json'), '{"boundaries":["validator","exemptions"]}\n');
