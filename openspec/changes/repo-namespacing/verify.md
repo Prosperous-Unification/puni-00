@@ -80,6 +80,24 @@ Fresh repair evidence after restoring both injected faults:
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx test tool-devsync --skip-nx-cache` with host permissions required by its listener and Git fixtures — 145 passed, 0 failed, 448 expectations.
 - `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p tool-devsync --skip-nx-cache --parallel=1 --output-style=stream` — both targets passed after adding the explicit JSONC `ParseError[]` boundary type.
 
+## Inventory cache-input review repair
+
+The review of `eb4f2f19bfbcb698e2026eae08fa4ac18ec2937e` found that the owning Nx
+target hashed the inventory module but not the recursively read TypeScript configurations.
+Its exact inputs now include `{workspaceRoot}/apps/**/tsconfig*.json` and
+`{workspaceRoot}/libs/**/tsconfig*.json`; a source assertion prevents either family from
+disappearing.
+
+The focused production target first executed with `0/1` cache hits, then an identical run
+reported `[local cache]`, `1/1` and `100%`. Changing only
+`libs/core/tsconfig.lib.json` from `../../dist/out-tsc` to `./dist/out-tsc` caused the next
+identical invocation to execute and fail with 147 rather than 148 inventory rows. After
+restoring the config, the combined inventory/input target passed 2 tests with 7 expectations.
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx test tool-devsync --skip-nx-cache`
+  with host permissions required by listener and Git fixtures — 146 passed, 0 failed, 450
+  expectations.
+
 ## Deferred verification
 
 Tasks 2–4, all project moves, the whole-workspace h2puni gate, browser gate, image checks,

@@ -114,3 +114,12 @@ it('pins the complete pre-move depth-sensitive configuration inventory', async (
     value: '../../libs/domain/src/workday.ts',
   });
 });
+
+it('hashes every recursively discovered app and library TypeScript config', async () => {
+  // Proof: after a 1/1 local cache hit, changing only
+  // `libs/core/tsconfig.lib.json` made the owning target execute and fail with
+  // 147 instead of 148 inventory rows (2026-09-14).
+  const manifest = await Bun.file(new URL('../project.json', import.meta.url)).text();
+  expect(manifest).toContain('"{workspaceRoot}/apps/**/tsconfig*.json"');
+  expect(manifest).toContain('"{workspaceRoot}/libs/**/tsconfig*.json"');
+});

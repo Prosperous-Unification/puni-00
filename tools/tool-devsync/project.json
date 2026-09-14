@@ -23,6 +23,8 @@
         "{workspaceRoot}/apps/**/project.json",
         "{workspaceRoot}/libs/**/project.json",
         "{workspaceRoot}/tools/**/project.json",
+        "{workspaceRoot}/apps/**/tsconfig*.json",
+        "{workspaceRoot}/libs/**/tsconfig*.json",
         "{projectRoot}/workspace-projects.mjs",
         "{projectRoot}/workspace-inventory.mjs",
         "{workspaceRoot}/apps/**/src/**/*.test.ts",
