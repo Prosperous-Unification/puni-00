@@ -451,3 +451,191 @@ describe('working plan row mutations through runner commands', () => {
     }
   });
 });
+
+interface Placement {
+  id: string;
+  afterId: string | null;
+}
+
+async function expectPlacementFaultRollsBack(
+  alter: (placements: Placement[]) => Placement[],
+  expected: RegExp,
+): Promise<void> {
+  const source = openMemorySource();
+  const direct = silentBroadcaster();
+  const publicGraph = compose(source.stores, direct);
+  try {
+    await source.stores.users.create(
+      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+      { at: 1, by: OWNER },
+    );
+    const projectId = (await publicGraph.projects.create('Placement validation', OWNER)).project.id;
+    await source.stores.workItems.insert(
+      workItemRow({ id: 'anchor', projectId, position: 10, name: 'Anchor' }),
+      [],
+      { at: 2, by: OWNER },
+    );
+    let placementCalls = 0;
+    const brokenUow: UnitOfWork = {
+      run<T>(act: (scope: Scope) => Promise<Decision<T>>): Promise<T> {
+        return source.uow.run((scope) =>
+          act({
+            stores: {
+              ...scope.stores,
+              workItems: {
+                ...scope.stores.workItems,
+                listPlacements: async (requestedProjectId, ids) => {
+                  placementCalls += 1;
+                  return alter(
+                    await scope.stores.workItems.listPlacements(requestedProjectId, ids),
+                  );
+                },
+              },
+            },
+          }),
+        );
+      },
+    };
+    const runner = runnerOver(source, publicGraph, brokenUow);
+
+    let failure: unknown;
+    try {
+      await runner.run(projectId, OWNER, [
+        { kind: 'createWorkItem', parentId: null, afterId: 'anchor', name: 'Rolled back' },
+      ]);
+    } catch (error) {
+      failure = error;
+    }
+    expect(placementCalls).toBe(1);
+    expect((await source.stores.workItems.listByProject(projectId)).map(({ id }) => id)).toEqual([
+      'anchor',
+    ]);
+    if (!(failure instanceof Error)) throw new Error('placement fault did not reject with Error');
+    expect(() => {
+      throw failure;
+    }).toThrow(expected);
+  } finally {
+    await source.close();
+  }
+}
+
+describe('working plan placement validation rolls back its production unit of work', () => {
+  it('rejects an omitted placement', async () => {
+    // Proof: removing the omitted-placement guard let this inserted row commit.
+    await expectPlacementFaultRollsBack(() => [], /targeted placement omitted work item/i);
+  });
+
+  it('rejects an unexpected placement identity', async () => {
+    // Proof: removing the expected-identity guard let the source place an identity
+    // that the targeted row reader never returned before the batch committed.
+    await expectPlacementFaultRollsBack(
+      () => [{ id: 'unexpected', afterId: null }],
+      /targeted placement returned unexpected work item unexpected/i,
+    );
+  });
+
+  it('rejects a duplicate placement identity', async () => {
+    // Proof: removing the duplicate-identity guard inserted the same refreshed
+    // row twice in the retained plan and let its database write commit.
+    await expectPlacementFaultRollsBack((placements) => {
+      const placement = placements.at(0);
+      return placement === undefined ? [] : [placement, placement];
+    }, /targeted placement returned duplicate work item/i);
+  });
+
+  it('rejects a missing placement predecessor', async () => {
+    // Proof: removing the predecessor-presence guard let this placement splice
+    // at the start while its insert committed after a nonexistent predecessor.
+    await expectPlacementFaultRollsBack((placements) => {
+      const placement = placements.at(0);
+      return placement === undefined ? [] : [{ ...placement, afterId: 'missing-predecessor' }];
+    }, /targeted placement.*follows missing work item missing-predecessor/i);
+  });
+
+  it('rejects a malformed placement predecessor', async () => {
+    // This deliberately violates the runtime source boundary that the typed port protects.
+    const malformed = (placements: Placement[]): Placement[] =>
+      placements.map(({ id }) => ({ id, afterId: 42 }) as unknown as Placement);
+    // Proof: removing the predecessor-shape guard treated 42 as an identity and
+    // reached the splice path after the source had already written the new row.
+    await expectPlacementFaultRollsBack(malformed, /targeted placement.*malformed predecessor/i);
+  });
+
+  it('rejects a placement that follows itself', async () => {
+    // Proof: removing the self-predecessor guard admitted a cyclic placement
+    // description after the source had already written the inserted row.
+    await expectPlacementFaultRollsBack((placements) => {
+      const placement = placements.at(0);
+      return placement === undefined ? [] : [{ ...placement, afterId: placement.id }];
+    }, /targeted placement.*cannot follow itself/i);
+  });
+
+  it('rejects a newly returned identity without an authorized insertion', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Unauthorized refresh row', OWNER))
+        .project.id;
+      await source.stores.workItems.insert(
+        workItemRow({ id: 'old-parent', projectId, position: 10, name: 'Hidden old parent' }),
+        [],
+        { at: 2, by: OWNER },
+      );
+      await source.stores.workItems.insert(
+        workItemRow({
+          id: 'moving',
+          projectId,
+          parentId: 'old-parent',
+          position: 10,
+          name: 'Moving',
+        }),
+        [],
+        { at: 2, by: OWNER },
+      );
+      const brokenUow: UnitOfWork = {
+        run<T>(act: (scope: Scope) => Promise<Decision<T>>): Promise<T> {
+          return source.uow.run((scope) =>
+            act({
+              stores: {
+                ...scope.stores,
+                workItems: {
+                  ...scope.stores.workItems,
+                  listByProject: async (requestedProjectId) =>
+                    (await scope.stores.workItems.listByProject(requestedProjectId)).filter(
+                      ({ id }) => id !== 'old-parent',
+                    ),
+                },
+              },
+            }),
+          );
+        },
+      };
+
+      const runner = runnerOver(source, publicGraph, brokenUow);
+      // Proof: removing the authorized-insertion guard let the source's newly
+      // returned old-parent enter the retained plan after an unrelated move.
+      let failure: unknown;
+      try {
+        await runner.run(projectId, OWNER, [
+          { kind: 'moveWorkItem', workItemId: 'moving', parentId: null, afterId: null },
+        ]);
+      } catch (error) {
+        failure = error;
+      }
+      expect(await source.stores.workItems.listByIds(projectId, ['moving'])).toMatchObject([
+        { id: 'moving', parentId: 'old-parent' },
+      ]);
+      if (!(failure instanceof Error)) throw new Error('placement fault did not reject with Error');
+      expect(() => {
+        throw failure;
+      }).toThrow(/refreshed work item old-parent has no retained position/i);
+    } finally {
+      await source.close();
+    }
+  });
+});

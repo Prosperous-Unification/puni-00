@@ -13,9 +13,8 @@ import type {
   WriteStamp,
 } from '@wbs/core';
 import { isOrphanedNotBeforeReason } from '@wbs/domain';
-import { and, asc, eq, inArray, lt, max, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
-import { alias } from 'drizzle-orm/sqlite-core';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Gate } from './gate';
@@ -200,21 +199,28 @@ export class WorkItemRepository implements WorkItemStore {
     return this.listRows(projectId, ids);
   }
 
+  /**
+   * Finds each requested row's source-order predecessor with one correlated
+   * descending index seek. An aggregate self-join is not equivalent here: it
+   * scans every earlier row in the project before computing the same identity.
+   */
   async listPlacements(
     projectId: string,
     ids: readonly string[],
   ): Promise<{ id: string; afterId: string | null }[]> {
     if (ids.length === 0) return [];
-    const predecessor = alias(workItem, 'work_item_predecessor');
+    const afterId = sql<string | null>`(
+      SELECT predecessor.id
+      FROM work_item AS predecessor
+      WHERE predecessor.project_id = work_item.project_id
+        AND predecessor.id < work_item.id
+      ORDER BY predecessor.id DESC
+      LIMIT 1
+    )`;
     return this.db
-      .select({ id: workItem.id, afterId: max(predecessor.id) })
+      .select({ id: workItem.id, afterId })
       .from(workItem)
-      .leftJoin(
-        predecessor,
-        and(eq(predecessor.projectId, workItem.projectId), lt(predecessor.id, workItem.id)),
-      )
       .where(and(eq(workItem.projectId, projectId), inArray(workItem.id, [...ids])))
-      .groupBy(workItem.id)
       .orderBy(asc(workItem.id));
   }
 

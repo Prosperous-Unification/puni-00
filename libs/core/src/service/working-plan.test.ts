@@ -593,6 +593,7 @@ describe('targeted working-plan refreshes', () => {
         );
       }
       const hydrationCardinality: { requested: number; returned: number }[] = [];
+      let placementCalls = 0;
       const stores: PlanTransactionalStores = {
         ...source.stores,
         workItems: {
@@ -601,6 +602,10 @@ describe('targeted working-plan refreshes', () => {
             const rows = await source.stores.workItems.listByIds(requestedProjectId, ids);
             hydrationCardinality.push({ requested: ids.length, returned: rows.length });
             return rows;
+          },
+          listPlacements: (requestedProjectId, ids) => {
+            placementCalls += 1;
+            return source.stores.workItems.listPlacements(requestedProjectId, ids);
           },
         },
       };
@@ -621,6 +626,9 @@ describe('targeted working-plan refreshes', () => {
         { requested: 1, returned: 1 },
         { requested: 1, returned: 1 },
       ]);
+      // Proof: calling the real placement reader for an empty new-ID set made
+      // three ordinary patches cross this boundary three times.
+      expect(placementCalls).toBe(0);
       expect(
         (await workingPlan.stores.workItems.listByProject(projectId)).find(
           ({ id }) => id === 'row-117',

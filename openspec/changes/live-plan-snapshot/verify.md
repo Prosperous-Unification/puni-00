@@ -287,12 +287,12 @@ map. Existing rows keep their retained slot, so ordinary patches issue no placem
 | Dense sibling advancement      | Omitted only insert's `respaced` ids from affected hydration.                      | The later runner command produced `A@10,Y@20,B@30,X@40` instead of `A@10,Y@15,X@20,B@30`.                                         |
 | Refused patch stability        | Forced affected hydration after `{ ok: false }`.                                   | The next production-path read returned `Invented after refusal` instead of `Authoritative before refusal`.                        |
 
-### Astra Task 2.3 inserted-row order repair
+### Superseded: Astra Task 2.3 inserted-row order repair
 
-An inserted identity has no prior cache position to replace. The working plan now asks the admitted
-adapter for every retained and affected work-item identity in one targeted read and adopts that
-answer's order. It does not apply a shared comparator: SQLite therefore retains its `ORDER BY id`
-contract while memory retains its insertion order.
+This section records the earlier all-retained hydration implementation. It was superseded by
+"Astra Task 2.3 bounded authoritative placement repair" above: the current implementation hydrates
+only affected identities and asks `listPlacements` only for genuinely new retained rows. The table
+below remains historical evidence for the ordering defect that prompted the replacement.
 
 | Scope                       | Command                                                                                                                                                                                                                         | Result                                                                                                           |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -302,3 +302,43 @@ contract while memory retains its insertion order.
 | Owning lint and typechecks  | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-order-fix-checks NX_DAEMON=false bunx nx run-many -t lint typecheck -p core store-sqlite store-memory conformance --parallel=2 --output-style=static --skip-nx-cache` | Pass: all 8 targets; cache skipped.                                                                              |
 | Strict and all OpenSpec     | `OPENSPEC_TELEMETRY=0 bun x @fission-ai/openspec@1.3.0 validate live-plan-snapshot --strict --json` and `OPENSPEC_TELEMETRY=0 bun x @fission-ai/openspec@1.3.0 validate --all --json`                                           | Pass: change 1/1; repository 83/83 (72 changes and 11 specs).                                                    |
 | Workspace format/whitespace | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-order-fix-format NX_DAEMON=false bunx nx format:check --all` and `git diff --check`                                                                                   | Pass.                                                                                                            |
+
+## Astra Task 2.3 final row-refresh hardening
+
+SQLite `listPlacements` now keeps the requested project filter and ascending requested-row order,
+while each requested row's predecessor is found by a correlated `(project_id, id)` descending seek
+with `id < current`, `ORDER BY id DESC LIMIT 1`. Ordinary retained-row patches stop before the
+placement source boundary because they introduce no new retained identity. Placement answers are
+validated completely before the retained array changes, and every malformed-source failure escapes
+the admitted unit of work so its preceding write rolls back.
+
+| Scope                    | Command                                                                                                                                                                                                                          | Result                                                                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| SQLite cost/shape RED    | Focused `targeted-readers.db.test.ts` test against the production self-join/`MAX` query on a 10,000-row project                                                                                                                  | Expected RED: returned the right predecessor, but `EXPLAIN` contained `AggStep` and the prefix loop's `Next`.                              |
+| Empty-placement-call RED | `bun test libs/core/src/service/working-plan.test.ts --test-name-pattern 'hydrates only the affected identity'` before the short circuit                                                                                         | Expected RED: three 200-row patches made 3 placement calls; expected 0.                                                                    |
+| Placement validation RED | `bun test libs/core/src/service/plan-commands.test.ts --test-name-pattern 'working plan placement validation'` before the distinct predecessor/duplicate guards                                                                  | Expected RED: 4 passed, 3 failed; duplicate was reported as unexpected, malformed predecessor as missing, and self-predecessor as missing. |
+| Focused GREEN            | `GSETTINGS_BACKEND=memory bun test libs/core/src/service/plan-commands.test.ts libs/core/src/service/working-plan.test.ts libs/store-sqlite/src/targeted-readers.db.test.ts libs/store-sqlite/src/working-plan-order.db.test.ts` | Pass: 32 tests, 109 assertions. SQLite bytecode has `SeekLT` and `DecrJumpZero`, no `AggStep`; all seven rollback cases pass.              |
+| Owning tests             | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-final-tests-2 NX_DAEMON=false bunx nx run-many -t test -p core store-sqlite store-memory conformance --parallel=2 --output-style=static --skip-nx-cache`               | Pass: all 4 targets; core 503/1,655 and SQLite 745/8,447; cache skipped.                                                                   |
+| Lint and typecheck       | `GSETTINGS_BACKEND=memory NX_SOCKET_DIR=/tmp/nx-live-plan-final-checks-2 NX_DAEMON=false bunx nx run-many -t lint typecheck -p core store-sqlite store-memory conformance --parallel=2 --output-style=static --skip-nx-cache`    | Pass: all 8 targets; cache skipped.                                                                                                        |
+| Strict and all OpenSpec  | `OPENSPEC_TELEMETRY=0 bun x @fission-ai/openspec@1.3.0 validate live-plan-snapshot --strict --json` and `OPENSPEC_TELEMETRY=0 bun x @fission-ai/openspec@1.3.0 validate --all --json`                                            | Pass: change 1/1; repository 83/83 (72 changes and 11 specs).                                                                              |
+
+### Final row-refresh R5 fault observations
+
+| Check                                  | Injected fault                                 | Observed failure                                                                                                             |
+| -------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Bounded SQLite predecessor             | Restored the production self-join/`MAX` query. | The 10,000-row regression found `AggStep` plus `Next`, proving the aggregate prefix scan.                                    |
+| Zero placement calls for patches       | Kept the unconditional `loadPlacements([])`.   | Three ordinary patches over 200 retained rows made three placement-source calls instead of zero.                             |
+| Omitted placement                      | Removed the omitted-placement guard.           | Durable IDs were `[anchor, generated-id]` instead of `[anchor]`.                                                             |
+| Unexpected placement identity          | Removed the expected-identity guard.           | The production runner reported the later `omitted work item unexpected` error instead of rejecting at the violated boundary. |
+| Duplicate placement identity           | Removed the duplicate-identity guard.          | Durable IDs were `[anchor, generated-id]` instead of `[anchor]`.                                                             |
+| Missing predecessor                    | Removed the predecessor-presence guard.        | Durable IDs were `[anchor, generated-id]` instead of `[anchor]`.                                                             |
+| Malformed predecessor                  | Removed the runtime predecessor-shape guard.   | Numeric predecessor `42` reached the later missing-predecessor branch.                                                       |
+| Self predecessor                       | Removed the self-predecessor guard.            | The row reached the later missing-predecessor branch with its own identity.                                                  |
+| New identity without authorized insert | Removed the authorized-insertion guard.        | The moved row's durable `parentId` became `null` instead of rolling back to `old-parent`.                                    |
+
+Every placement-validation case runs through `PlanCommandRunner`, injects its broken source inside
+the supplied `UnitOfWork` scope, and checks the durable source after rejection. Simultaneous
+multiple-new-ID refresh is not applicable to Task 2.3's production path: the only wrapper that
+supplies `insertedIds` is `WorkItemStore.insert`, and it supplies exactly its one inserted identity.
+The future subtree wrapper in Task 2.6 is the first matrix row that can authorize multiple new IDs,
+so no non-production helper-only claim was added here.

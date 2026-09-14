@@ -415,28 +415,45 @@ class RetainedRows<Row> {
     for (const id of newIds) {
       if (!inserted.has(id)) throw new Error(`refreshed work item ${id} has no retained position`);
     }
+    if (newIds.length === 0) {
+      this.rows = retained.map(this.clone);
+      return;
+    }
     const placements = await loadPlacements(newIds);
     this.assertOpen();
     const placed = new Set<string>();
+    const known = new Set(retained.map(groupOf));
     for (const { id, afterId } of placements) {
-      if (!replacementsByIdentity.has(id) || placed.has(id)) {
+      if (placed.has(id)) {
+        throw new Error(`targeted placement returned duplicate work item ${id}`);
+      }
+      if (!replacementsByIdentity.has(id)) {
         throw new Error(`targeted placement returned unexpected work item ${id}`);
       }
+      if (afterId !== null && typeof afterId !== 'string') {
+        throw new Error(`targeted placement for ${id} has malformed predecessor`);
+      }
+      if (afterId === id) {
+        throw new Error(`targeted placement for ${id} cannot follow itself`);
+      }
+      if (afterId !== null && !known.has(afterId)) {
+        throw new Error(`targeted placement for ${id} follows missing work item ${afterId}`);
+      }
+      known.add(id);
+      placed.add(id);
+    }
+    if (placed.size !== newIds.length) {
+      const missing = newIds.find((id) => !placed.has(id));
+      throw new Error(`targeted placement omitted work item ${missing ?? 'unknown'}`);
+    }
+    for (const { id, afterId } of placements) {
       const row = replacementsByIdentity.get(id);
       if (row === undefined) throw new Error(`targeted placement omitted work item ${id}`);
       const index =
         afterId === null
           ? 0
           : retained.findIndex((candidate) => groupOf(candidate) === afterId) + 1;
-      if (index === 0 && afterId !== null) {
-        throw new Error(`targeted placement for ${id} follows missing work item ${afterId}`);
-      }
       retained.splice(index, 0, row);
-      placed.add(id);
-    }
-    if (placed.size !== newIds.length) {
-      const missing = newIds.find((id) => !placed.has(id));
-      throw new Error(`targeted placement omitted work item ${missing ?? 'unknown'}`);
     }
     this.rows = retained.map(this.clone);
   }

@@ -92,6 +92,56 @@ function corrupt(statements: readonly string[], ignoreChecks = false): void {
 }
 
 describe('targeted SQLite readers reject malformed stored state', () => {
+  it('seeks one immediate predecessor instead of aggregating the project prefix', async () => {
+    const sqlite = openDatabase(path);
+    try {
+      sqlite.run(`
+        WITH RECURSIVE sequence(n) AS (
+          SELECT 0
+          UNION ALL
+          SELECT n + 1 FROM sequence WHERE n < 9999
+        )
+        INSERT INTO work_item (id, project_id, position)
+        SELECT printf('row-%05d', n), '${PROJECT}', n + 1 FROM sequence
+      `);
+    } finally {
+      sqlite.close();
+    }
+
+    const statements: { sql: string; parameters: unknown[] }[] = [];
+    const db = openDrizzle(path, {
+      logQuery(sql, parameters) {
+        statements.push({ sql, parameters });
+      },
+    });
+    const repository = new WorkItemRepository(db, OPEN);
+    expect(await repository.listPlacements(PROJECT, ['row-09999'])).toEqual([
+      { id: 'row-09999', afterId: 'row-09998' },
+    ]);
+    const read = statements.at(0);
+    if (read === undefined) throw new Error('placement reader emitted no SQL statement');
+    const parameters = read.parameters.map((parameter) => {
+      if (typeof parameter !== 'string' && typeof parameter !== 'number' && parameter !== null) {
+        throw new Error('placement query emitted an unsupported SQLite binding');
+      }
+      return parameter;
+    });
+    const explain = openDatabase(path);
+    try {
+      const opcodes = explain
+        .query<{ opcode: string }, (string | number | null)[]>(`EXPLAIN ${read.sql}`)
+        .all(...parameters)
+        .map(({ opcode }) => opcode);
+      // Proof: restoring the self-join/MAX production query adds AggStep and
+      // walks the 9,999-row predecessor prefix instead of stopping after one seek.
+      expect(opcodes).not.toContain('AggStep');
+      expect(opcodes).toContain('SeekLT');
+      expect(opcodes).toContain('DecrJumpZero');
+    } finally {
+      explain.close();
+    }
+  });
+
   it('names missing work-item owners in all four families', async () => {
     await seedSatellites();
     corrupt([
