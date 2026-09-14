@@ -567,3 +567,46 @@ Fresh green evidence:
 At the Task 4.4 checkpoint, Tasks 4.5 and 5.2 remain unimplemented and
 unchecked. The full h2puni gate and browser gate remain Task 5.2 and were not
 run here.
+
+## Section 4.5 — owned-stack browser import
+
+`apps/fe-01/e2e/plan-import.spec.ts` uses the shared `seedPlan` and
+`openSeededPlan` fixture against public HTTP and the real picker. The success
+case downloads a real 13-row document, checks every exported row id, validates
+it through generated `importProject` preflight, gives the copy a unique name,
+and adds one unique file-local tag to its first row. The hidden file chooser
+imports that document; the picker selects and offers the exact new name, and
+one toast reports 13 rows and the one created tag.
+
+The refusal case downloads at least 13 rows and completes generated preflight
+before injecting `missing-file-row` at `workItems[12].dependsOn[0]`. The
+fixture's generated client was extended only with `listProjects`, which proves
+the backend project count before and after. The browser receives exact
+`unknown_ref` at that path, retains the seeded project, and the backend count
+does not change.
+
+The run used `E2E_PORT_SHIFT=8700`: be-01 `11800`, gw-01 `11900`, fe-01
+`12900`. A privileged `ss -ltn` check immediately before each browser run found
+no listener on any port. `CI=1` made reuse impossible, and the final green run
+owned `tmp/e2e-1789380828433.db` through the Playwright config.
+
+R5 proof: `firstDependencyRefusal(document.workItems)` was replaced with a null
+refusal, then only the dangling-dependency browser case ran on the same isolated
+ports with its own `tmp/e2e-1789380439296.db`. It failed after 32.9 seconds:
+the toast expected `Plan JSON import refused: unknown_ref at
+workItems[12].dependsOn[0].` and received exact `Plan JSON import failed
+(http_500).` The production guard was restored; the adjacent `Proof:` comment
+is on the browser assertion.
+
+Fresh green evidence:
+
+- `CI=1 NX_DAEMON=false NX_ISOLATE_PLUGINS=false E2E_PORT_SHIFT=8700 bunx playwright test --config apps/fe-01/playwright.config.ts apps/fe-01/e2e/plan-import.spec.ts` — 2 passed in 13.5 seconds against the owned ports/database above. Vite logged websocket-proxy `EPIPE` while a page was replaced; neither case nor server readiness failed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:test:unit --skip-nx-cache --output-style=stream` — 34 files and 552 tests passed in 4.6 seconds when run with permission for its documented Bun subprocess probes. The sandboxed attempt failed 3 probes with `spawnSync bun EPERM`; no assertion or code fault was involved.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:typecheck --skip-nx-cache --output-style=stream` — passed in 2.5 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:lint --skip-nx-cache --output-style=stream` — passed in 42.1 seconds. Before repair, direct ESLint exposed the wrapper's otherwise silent `no-unnecessary-condition` on a null check forbidden by Playwright's precise download-path type.
+- `bunx prettier --check apps/fe-01/e2e/plan-import.spec.ts apps/fe-01/e2e/plan-fixture.ts openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
+- `git diff --check` — passed.
+
+At the Task 4.5 checkpoint, only Task 5.2 remains unchecked. Its full workspace,
+h2puni, and whole-browser gates were not run here.
