@@ -294,6 +294,112 @@ describe('the uncached admitted batch baseline', () => {
 });
 
 describe('targeted working-plan refreshes', () => {
+  it('reloads every loaded collection and keeps unloaded collections lazy after a global write', async () => {
+    const source = openMemorySource();
+    const publicGraph = servicesOver(source.stores, {
+      clock: testClock,
+      broadcast: silentBroadcaster(),
+      scheduler: fastScheduler,
+    });
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Global reload barrier', OWNER)).project
+        .id;
+      const row = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Retained before directory write',
+      });
+      if (!row.ok) throw new Error('global reload fixture row creation refused');
+      const reads = {
+        workItems: 0,
+        estimates: 0,
+        actuals: 0,
+        progress: 0,
+        measures: 0,
+        dependencies: 0,
+      };
+      const stores: PlanTransactionalStores = {
+        ...source.stores,
+        workItems: {
+          ...source.stores.workItems,
+          listByProject: (id) => {
+            reads.workItems += 1;
+            return source.stores.workItems.listByProject(id);
+          },
+        },
+        estimates: {
+          ...source.stores.estimates,
+          listByProject: (id) => {
+            reads.estimates += 1;
+            return source.stores.estimates.listByProject(id);
+          },
+        },
+        actuals: {
+          ...source.stores.actuals,
+          listByProject: (id) => {
+            reads.actuals += 1;
+            return source.stores.actuals.listByProject(id);
+          },
+        },
+        progress: {
+          ...source.stores.progress,
+          listByProject: (id) => {
+            reads.progress += 1;
+            return source.stores.progress.listByProject(id);
+          },
+        },
+        measures: {
+          ...source.stores.measures,
+          listByProject: (id) => {
+            reads.measures += 1;
+            return source.stores.measures.listByProject(id);
+          },
+        },
+        dependencies: {
+          ...source.stores.dependencies,
+          listByProject: (id) => {
+            reads.dependencies += 1;
+            return source.stores.dependencies.listByProject(id);
+          },
+        },
+      };
+      const workingPlan = createWorkingPlan({ stores }, projectId);
+      const borrowed = await workingPlan.stores.workItems.listByProject(projectId);
+      await Promise.all([
+        workingPlan.stores.estimates.listByProject(projectId),
+        workingPlan.stores.actuals.listByProject(projectId),
+        workingPlan.stores.progress.listByProject(projectId),
+        workingPlan.stores.measures.listByProject(projectId),
+      ]);
+
+      await workingPlan.stores.directory.addTag(
+        { id: 'reload-tag', name: 'Reload tag' },
+        { at: 2, by: OWNER },
+      );
+
+      // Proof: omitting any loaded collection from the global barrier left its
+      // count at one, while eagerly reloading dependencies changed zero to one.
+      expect(reads).toEqual({
+        workItems: 2,
+        estimates: 2,
+        actuals: 2,
+        progress: 2,
+        measures: 2,
+        dependencies: 0,
+      });
+      expect(borrowed).toMatchObject([
+        { id: row.value.id, name: 'Retained before directory write' },
+      ]);
+      workingPlan.close();
+    } finally {
+      await source.close();
+    }
+  });
+
   it('preserves the admitted work-item order when one row refreshes', async () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();

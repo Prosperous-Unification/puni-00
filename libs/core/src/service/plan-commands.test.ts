@@ -151,6 +151,196 @@ describe('working plan command before-images', () => {
   });
 });
 
+describe('working plan directory mutations through runner commands', () => {
+  it('delegates person reads and target-refreshes an assignment before the next patch', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const createdProject = await publicGraph.projects.create('Assignment refresh', OWNER);
+      const projectId = createdProject.project.id;
+      const stepId = createdProject.steps[0].id;
+      const row = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Before assignment',
+      });
+      if (!row.ok) throw new Error('assignment refresh row creation refused');
+
+      const targetedHydrations: string[][] = [];
+      let placementCalls = 0;
+      let fullReads = 0;
+      const countedUow: UnitOfWork = {
+        run<T>(act: (scope: Scope) => Promise<Decision<T>>): Promise<T> {
+          return source.uow.run((scope) =>
+            act({
+              stores: {
+                ...scope.stores,
+                workItems: {
+                  ...scope.stores.workItems,
+                  listByProject: (requestedProjectId) => {
+                    fullReads += 1;
+                    return scope.stores.workItems.listByProject(requestedProjectId);
+                  },
+                  listByIds: (requestedProjectId, ids) => {
+                    targetedHydrations.push([...ids]);
+                    return scope.stores.workItems.listByIds(requestedProjectId, ids);
+                  },
+                  listPlacements: (requestedProjectId, ids) => {
+                    placementCalls += 1;
+                    return scope.stores.workItems.listPlacements(requestedProjectId, ids);
+                  },
+                },
+              },
+            }),
+          );
+        },
+      };
+      let readsAfterAssign: { full: number; targeted: number; placements: number } | undefined;
+      const runner = runnerOver(
+        source,
+        publicGraph,
+        countedUow,
+        (scope, broadcast, workingPlan) => {
+          if (workingPlan === undefined) return compose(scope.stores, broadcast);
+          const directory = {
+            ...workingPlan.stores.directory,
+            assign: async (
+              ...parameters: Parameters<PlanTransactionalStores['directory']['assign']>
+            ) => {
+              const written = await workingPlan.stores.directory.assign(...parameters);
+              if (written.ok) {
+                readsAfterAssign = {
+                  full: fullReads,
+                  targeted: targetedHydrations.length,
+                  placements: placementCalls,
+                };
+              }
+              return written;
+            },
+          };
+          return compose({ ...workingPlan.stores, directory }, broadcast);
+        },
+      );
+
+      const createdAndAssigned = await runner.run(projectId, OWNER, [
+        { kind: 'createPerson', ref: 'created-person', name: 'Created in batch', teamIds: [] },
+        {
+          kind: 'setAssignee',
+          workItemId: row.value.id,
+          stepId,
+          personId: null,
+          personRef: 'created-person',
+        },
+      ]);
+      expect(createdAndAssigned).toMatchObject({ ok: true });
+      const createdPersonId = createdAndAssigned.ok ? createdAndAssigned.results[0]?.id : undefined;
+      if (createdPersonId === undefined) throw new Error('createPerson returned no person id');
+      expect(await source.stores.directory.assignmentsFor(row.value.id)).toEqual([
+        { workItemId: row.value.id, stepId, personId: createdPersonId },
+      ]);
+
+      const replacement = await publicGraph.directory.addPerson(OWNER, 'Replacement', []);
+      if (!replacement.ok) throw new Error('replacement person creation refused');
+      const assignedAndPatched = await runner.run(projectId, OWNER, [
+        {
+          kind: 'setAssignee',
+          workItemId: row.value.id,
+          stepId,
+          personId: replacement.value.id,
+        },
+        {
+          kind: 'patchWorkItem',
+          workItemId: row.value.id,
+          patch: { name: 'After assignment' },
+        },
+      ]);
+
+      expect(assignedAndPatched).toMatchObject({ ok: true });
+      expect(readsAfterAssign).toEqual({ full: 2, targeted: 2, placements: 0 });
+      expect(targetedHydrations).toEqual([[row.value.id], [row.value.id], [row.value.id]]);
+      const journal = (await source.stores.journal.entriesFor(projectId, OWNER)).at(0);
+      if (journal === undefined) throw new Error('assignment batch wrote no journal entry');
+      expect(await runner.undo(projectId, OWNER)).toMatchObject({ ok: true });
+      expect(await source.stores.directory.assignmentsFor(row.value.id)).toEqual([
+        { workItemId: row.value.id, stepId, personId: createdPersonId },
+      ]);
+      expect(await source.stores.workItems.listByIds(projectId, [row.value.id])).toMatchObject([
+        { id: row.value.id, name: 'Before assignment' },
+      ]);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('runs a team cascade before the next patch through the memory working graph', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Directory cascade refresh', OWNER))
+        .project.id;
+      const team = await publicGraph.directory.addTeam(OWNER, 'Removed team');
+      if (team === null) throw new Error('cascade team creation refused');
+      const row = await publicGraph.workItems.create(projectId, OWNER, {
+        parentId: null,
+        afterId: null,
+        name: 'Before cascade',
+      });
+      if (!row.ok) throw new Error('cascade row creation refused');
+      const labelled = await publicGraph.workItems.patch(row.value.id, OWNER, {
+        teamIds: [team.id],
+      });
+      if (!labelled.ok) throw new Error('cascade row labelling refused');
+
+      const runner = runnerOver(
+        source,
+        publicGraph,
+        source.uow,
+        (scope, broadcast, workingPlan) => {
+          if (workingPlan === undefined) return compose(scope.stores, broadcast);
+          const directory = {
+            ...workingPlan.stores.directory,
+            removeTeam: async (
+              ...parameters: Parameters<PlanTransactionalStores['directory']['removeTeam']>
+            ) => {
+              return workingPlan.stores.directory.removeTeam(...parameters);
+            },
+          };
+          return compose({ ...workingPlan.stores, directory }, broadcast);
+        },
+      );
+
+      expect(
+        await runner.run(projectId, OWNER, [
+          { kind: 'deleteTeam', teamId: team.id, cascade: true },
+          {
+            kind: 'patchWorkItem',
+            workItemId: row.value.id,
+            patch: { name: 'After cascade' },
+          },
+        ]),
+      ).toMatchObject({ ok: true });
+
+      expect(await source.stores.workItems.listByIds(projectId, [row.value.id])).toMatchObject([
+        { id: row.value.id, name: 'After cascade' },
+      ]);
+    } finally {
+      await source.close();
+    }
+  });
+});
+
 describe('working plan dependency mutations through runner commands', () => {
   it('refuses a reversed edge through the dependency added earlier in the batch', async () => {
     const source = openMemorySource();

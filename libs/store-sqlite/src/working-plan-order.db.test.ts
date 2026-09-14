@@ -6,11 +6,14 @@ import type { Broadcaster } from '@wbs/core';
 import {
   clockOf,
   createWorkingPlan,
+  type Decision,
   PlanCommandRunner,
   type PlanTransactionalStores,
   type Project,
+  type Scope,
   servicesOver,
   type Step,
+  type UnitOfWork,
   type WriteStamp,
 } from '@wbs/core';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
@@ -152,6 +155,256 @@ it('keeps SQLite dependency order authoritative after a WorkingPlan add', async 
       (await workingPlan.stores.dependencies.listByProject(PROJECT)).map(({ id }) => id),
     ).toEqual(['edge-a-b', 'edge-c-d', 'edge-a-e']);
     workingPlan.close();
+  } finally {
+    await source.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+it('advances SQLite assignment and directory cascades before the next runner command', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-directory-'));
+  const path = join(directory, 'source.db');
+  runMigrations(path, MIGRATIONS);
+  const source = openSqliteSource({ dbPath: path });
+
+  try {
+    await source.stores.users.create(
+      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
+      STAMP,
+    );
+    await source.stores.projects.create(
+      projectRow({ id: PROJECT, ownerId: OWNER }),
+      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10 }],
+      STAMP,
+    );
+    await source.stores.workItems.insert(
+      workItemRow({ id: ROW, projectId: PROJECT, name: 'Before directory writes' }),
+      [],
+      STAMP,
+    );
+    const team = await source.stores.directory.addTeam(
+      { id: 'removed-team', name: 'Removed team' },
+      STAMP,
+    );
+    const labelled = await source.stores.workItems.patch(ROW, { teamIds: [team.id] }, STAMP);
+    if (!labelled.ok) throw new Error('SQLite directory row labelling refused');
+
+    const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
+    const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
+      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+    const publicGraph = compose(source.stores, silentBroadcaster);
+    const assignmentObservations: { retained: number | undefined; stored: number | undefined }[] =
+      [];
+    let borrowedBeforeRemoval: { revision: number; teamIds: readonly string[] } | undefined;
+    let retainedAfterRemoval: { revision: number; teamIds: readonly string[] } | undefined;
+    let storedAfterRemoval: { revision: number; teamIds: readonly string[] } | undefined;
+    const runner = new PlanCommandRunner({
+      uow: source.uow,
+      announcements: silentBroadcaster,
+      publicServices: publicGraph,
+      batchServices(scope, broadcast, workingPlan) {
+        if (workingPlan === undefined) return compose(scope.stores, broadcast);
+        const directoryStore = {
+          ...workingPlan.stores.directory,
+          assign: async (
+            ...parameters: Parameters<PlanTransactionalStores['directory']['assign']>
+          ) => {
+            const written = await workingPlan.stores.directory.assign(...parameters);
+            if (written.ok) {
+              assignmentObservations.push({
+                retained: (
+                  await workingPlan.stores.workItems.listByIds(PROJECT, [parameters[0]])
+                ).at(0)?.revision,
+                stored: (await scope.stores.workItems.listByIds(PROJECT, [parameters[0]])).at(0)
+                  ?.revision,
+              });
+            }
+            return written;
+          },
+          removeTeam: async (
+            ...parameters: Parameters<PlanTransactionalStores['directory']['removeTeam']>
+          ) => {
+            borrowedBeforeRemoval = (
+              await workingPlan.stores.workItems.listByIds(PROJECT, [ROW])
+            ).at(0);
+            const removed = await workingPlan.stores.directory.removeTeam(...parameters);
+            if (removed.ok) {
+              retainedAfterRemoval = (
+                await workingPlan.stores.workItems.listByIds(PROJECT, [ROW])
+              ).at(0);
+              storedAfterRemoval = (await scope.stores.workItems.listByIds(PROJECT, [ROW])).at(0);
+            }
+            return removed;
+          },
+        };
+        return compose({ ...workingPlan.stores, directory: directoryStore }, broadcast);
+      },
+    });
+
+    const createdAndAssigned = await runner.run(PROJECT, OWNER, [
+      { kind: 'createPerson', ref: 'created-person', name: 'Created in batch', teamIds: [] },
+      {
+        kind: 'setAssignee',
+        workItemId: ROW,
+        stepId: 'step',
+        personId: null,
+        personRef: 'created-person',
+      },
+    ]);
+    expect(createdAndAssigned).toMatchObject({ ok: true });
+    const createdPersonId = createdAndAssigned.ok ? createdAndAssigned.results[0]?.id : undefined;
+    if (createdPersonId === undefined) throw new Error('SQLite createPerson returned no id');
+
+    const replacement = await source.stores.directory.addPerson(
+      { id: 'replacement-person', name: 'Replacement' },
+      [],
+      STAMP,
+    );
+    if (!replacement.ok) throw new Error('SQLite replacement person creation refused');
+    expect(
+      await runner.run(PROJECT, OWNER, [
+        {
+          kind: 'setAssignee',
+          workItemId: ROW,
+          stepId: 'step',
+          personId: replacement.person.id,
+        },
+        { kind: 'patchWorkItem', workItemId: ROW, patch: { name: 'After assignment' } },
+      ]),
+    ).toMatchObject({ ok: true });
+
+    // Proof: omitting assign's target refresh left the second observation at
+    // retained revision 2 while SQLite already held revision 3.
+    expect(assignmentObservations).toEqual([
+      { retained: 2, stored: 2 },
+      { retained: 3, stored: 3 },
+    ]);
+    const assignmentEntry = (await source.stores.journal.entriesFor(PROJECT, OWNER)).at(-1);
+    if (assignmentEntry === undefined) throw new Error('SQLite assignment batch wrote no journal');
+    expect(assignmentEntry.preconditions).toEqual({ expected: { [ROW]: 4 }, from: { [ROW]: 2 } });
+    expect(await runner.undo(PROJECT, OWNER)).toMatchObject({ ok: true });
+    expect(await source.stores.directory.assignmentsFor(ROW)).toEqual([
+      { workItemId: ROW, stepId: 'step', personId: createdPersonId },
+    ]);
+    expect(await source.stores.workItems.listByIds(PROJECT, [ROW])).toMatchObject([
+      { id: ROW, name: 'Before directory writes', teamIds: [team.id] },
+    ]);
+
+    const beforeCascade = (await source.stores.workItems.listByIds(PROJECT, [ROW])).at(0);
+    if (beforeCascade === undefined) throw new Error('SQLite cascade fixture row missing');
+    expect(
+      await runner.run(PROJECT, OWNER, [
+        { kind: 'deleteTeam', teamId: team.id, cascade: true },
+        { kind: 'patchWorkItem', workItemId: ROW, patch: { name: 'After cascade' } },
+      ]),
+    ).toMatchObject({ ok: true });
+
+    // Proof: removing the successful-delete reload barrier left the retained
+    // row labelled at the prior revision while SQLite had removed the label
+    // and advanced exactly once before the second command.
+    expect(retainedAfterRemoval).toEqual(storedAfterRemoval);
+    expect(retainedAfterRemoval).toMatchObject({
+      revision: beforeCascade.revision + 1,
+      teamIds: [],
+    });
+    expect(borrowedBeforeRemoval).toMatchObject({
+      revision: beforeCascade.revision,
+      teamIds: [team.id],
+    });
+    expect(await source.stores.workItems.listByIds(PROJECT, [ROW])).toMatchObject([
+      { id: ROW, name: 'After cascade', revision: beforeCascade.revision + 2, teamIds: [] },
+    ]);
+  } finally {
+    await source.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+it('rolls back a successful directory write when its retained reload fails', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-directory-rollback-'));
+  const path = join(directory, 'source.db');
+  runMigrations(path, MIGRATIONS);
+  const source = openSqliteSource({ dbPath: path });
+
+  try {
+    await source.stores.users.create(
+      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
+      STAMP,
+    );
+    await source.stores.projects.create(
+      projectRow({ id: PROJECT, ownerId: OWNER }),
+      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10 }],
+      STAMP,
+    );
+    await source.stores.workItems.insert(
+      workItemRow({ id: ROW, projectId: PROJECT, name: 'Before rollback' }),
+      [],
+      STAMP,
+    );
+    await source.stores.directory.addTeam({ id: 'rollback-team', name: 'Rollback team' }, STAMP);
+    const labelled = await source.stores.workItems.patch(
+      ROW,
+      { teamIds: ['rollback-team'] },
+      STAMP,
+    );
+    if (!labelled.ok) throw new Error('SQLite rollback row labelling refused');
+    const before = (await source.stores.workItems.listByIds(PROJECT, [ROW])).at(0);
+    if (before === undefined) throw new Error('SQLite rollback fixture row missing');
+
+    const failingUow: UnitOfWork = {
+      run<T>(act: (scope: Scope) => Promise<Decision<T>>): Promise<T> {
+        return source.uow.run((scope) => {
+          let fullReads = 0;
+          const workItems = new Proxy(scope.stores.workItems, {
+            get(target, key, receiver) {
+              if (key === 'listByProject') {
+                return (projectId: string) => {
+                  fullReads += 1;
+                  if (fullReads === 2) throw new Error('injected directory reload failure');
+                  return target.listByProject(projectId);
+                };
+              }
+              const member: unknown = Reflect.get(target, key, receiver);
+              if (typeof member !== 'function') return member;
+              return (...parameters: unknown[]): unknown =>
+                Reflect.apply(member, target, parameters);
+            },
+          });
+          return act({
+            stores: {
+              ...scope.stores,
+              workItems,
+            },
+          });
+        });
+      },
+    };
+    const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
+    const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
+      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+    const publicGraph = compose(source.stores, silentBroadcaster);
+    const runner = new PlanCommandRunner({
+      uow: failingUow,
+      announcements: silentBroadcaster,
+      publicServices: publicGraph,
+      batchServices: (scope, broadcast, workingPlan) =>
+        compose(workingPlan?.stores ?? scope.stores, broadcast),
+    });
+
+    // Proof: catching this reload failure would commit both the preceding
+    // rename and the directory cascade while leaving retained state stale.
+    expect(
+      runner.run(PROJECT, OWNER, [
+        { kind: 'patchWorkItem', workItemId: ROW, patch: { name: 'Must roll back' } },
+        { kind: 'deleteTeam', teamId: 'rollback-team', cascade: true },
+      ]),
+    ).rejects.toThrow('injected directory reload failure');
+    expect(await source.stores.directory.listTeams()).toContainEqual({
+      id: 'rollback-team',
+      name: 'Rollback team',
+      serviceIds: [],
+    });
+    expect(await source.stores.workItems.listByIds(PROJECT, [ROW])).toEqual([before]);
   } finally {
     await source.close();
     rmSync(directory, { recursive: true, force: true });

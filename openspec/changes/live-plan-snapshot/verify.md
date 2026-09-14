@@ -513,3 +513,35 @@ source and keep every borrowed pre-write answer detached.
 
 The be-01 suite was not run because Task 2.6 touched no application composition boundary. Full
 workspace build, browser, deploy and h2puni gates were explicitly outside this slice.
+
+## Task 2.7 directory refresh wrapper
+
+`working-plan-directory.ts` delegates directory reads, reloads every already-retained global
+collection after a successful global entry or membership mutation, and refreshes only the assigned
+work-item row after a successful project-scoped assignment. Refused and thrown writes do not
+advance retained state. The actual runner covers create-person then assign, assign then patch, and
+cascade-delete-team then patch in one batch; undo restores the prior row, directory membership and
+labels. A failed post-write reload rejects the command and the SQLite unit of work rolls back both
+the directory write and its row cascade.
+
+| Scope                      | Command                                                                                                                                                                                                                             | Result                                                                                                                                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Assignment refresh RED     | Focused SQLite runner with the successful assignment target refresh removed                                                                                                                                                         | Expected RED: retained/stored revisions were `1/2` and `2/3`, instead of `2/2` and `3/3`; the next journal precondition therefore exposed the stale retained revision.                          |
+| Deletion reload RED        | Focused SQLite runner with only `removeTeam`'s global reload barrier removed                                                                                                                                                        | Expected RED before the second command: retained revision `6`, `teamIds:[removed-team]` and `serviceTeamId:removed-team`; SQLite stored revision `7`, empty `teamIds` and null `serviceTeamId`. |
+| Focused GREEN              | `GSETTINGS_BACKEND=memory bun test libs/core/src/service/working-plan-directory.test.ts libs/core/src/service/working-plan.test.ts libs/core/src/service/plan-commands.test.ts libs/store-sqlite/src/working-plan-order.db.test.ts` | Pass: 57 tests, 228 assertions.                                                                                                                                                                 |
+| Owning tests               | `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx run-many -t test -p core store-sqlite store-memory conformance --parallel=2 --output-style=static --skip-nx-cache`                                                                | Pass: all 4 targets; core 530 tests/1,767 assertions and SQLite 752 tests/8,559 assertions; cache skipped.                                                                                      |
+| Owning lint and typechecks | `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx run-many -t lint typecheck -p core store-sqlite store-memory conformance --parallel=2 --output-style=static --skip-nx-cache`                                                      | Pass: all 8 targets; cache skipped.                                                                                                                                                             |
+| Strict and all OpenSpec    | `OPENSPEC_TELEMETRY=0 bun x @fission-ai/openspec@1.3.0 validate live-plan-snapshot --strict --json` and `OPENSPEC_TELEMETRY=0 bun x @fission-ai/openspec@1.3.0 validate --all --json`                                               | Pass: change 1/1; repository 83/83 (72 changes and 11 specs).                                                                                                                                   |
+| Workspace format and diff  | `GSETTINGS_BACKEND=memory NX_DAEMON=false bunx nx format:check --all` and `git diff --check`                                                                                                                                        | Pass after formatting the changed source, tests and this verification record.                                                                                                                   |
+
+### Task 2.7 R5 fault observations
+
+| Check                             | Injected fault                                                                                          | Observed failure                                                                                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Exact assignment revision         | Omitted only the successful assignment's target-row refresh.                                            | At the next patch boundary, retained/stored revisions diverged as `1/2` and then `2/3`; restored code journals `{expected:{row:4},from:{row:2}}`. |
+| Exact deleted labels and revision | Delegated `removeTeam` without the global reload barrier.                                               | Before the following patch, the retained row still had the removed team and revision `6`, while SQLite had cleared both labels at revision `7`.   |
+| Reload failure rollback           | Threw from the authoritative work-item reload after SQLite accepted `removeTeam`.                       | The command rejected, and a fresh SQLite read found the team and the exact pre-write labelled row restored.                                       |
+| Refusal and throw stability       | Exercised every modeled false result and thrown directory/assignment write through the mounted wrapper. | Neither global reload nor target refresh ran; successful assignment refreshed one affected row with zero placement calls and no global reload.    |
+
+The be-01 suite was not run because Task 2.7 touched no application composition boundary. Full
+workspace build, browser, deploy and h2puni gates were explicitly outside this slice.

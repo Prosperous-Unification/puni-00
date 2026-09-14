@@ -6,6 +6,7 @@ import type { StepProgressStore } from '../ports/progress-store';
 import type { PlanTransactionalStores } from '../ports/stores';
 import type { Scope } from '../ports/unit-of-work';
 import type { LabelledWorkItem } from '../ports/work-item-store';
+import { createWorkingPlanDirectory } from './working-plan-directory';
 import { createWorkingPlanEdges } from './working-plan-edges';
 import { createWorkingPlanRows } from './working-plan-rows';
 import { createWorkingPlanSubtrees } from './working-plan-subtrees';
@@ -290,6 +291,21 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     assertOpen,
     refreshRows,
   );
+  const retainedDirectory = createWorkingPlanDirectory(
+    () => scope.stores.directory,
+    assertOpen,
+    async () => {
+      await Promise.all([
+        workItems.reload(),
+        estimates.reload(),
+        actuals.reload(),
+        measures.reload(),
+        progress.reload(),
+        dependencies.reload(),
+      ]);
+    },
+    refreshRows,
+  );
 
   const stores: PlanTransactionalStores = {
     get projects() {
@@ -298,7 +314,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     },
     get directory() {
       assertOpen();
-      return scope.stores.directory;
+      return retainedDirectory;
     },
     get capacity() {
       assertOpen();
@@ -362,6 +378,14 @@ class RetainedRows<Row> {
       this.rows = loaded.map(this.clone);
     }
     return this.rows.map(this.clone);
+  }
+
+  async reload(): Promise<void> {
+    this.assertOpen();
+    if (this.rows === undefined) return;
+    const loaded = await this.load();
+    this.assertOpen();
+    this.rows = loaded.map(this.clone);
   }
 
   async replaceGroupsAndPlace(
