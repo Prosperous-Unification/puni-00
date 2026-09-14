@@ -21,8 +21,8 @@ status here so the root router stays stable.
   test until 2026-08-04 matched `be-01-blue` inside `dev-be-01-blue` and read prod's colour wrong.
 - `be-01.internal` resolves to **both colours** mid-swap (round-robin). Two releases, one DB file.
 - `bun:sqlite` defaults to no WAL, `busy_timeout=0`. Set **and asserted at open** in
-  `apps/wbs/be-01/src/repository/db.ts`; an ESLint rule bans importing `bun:sqlite` elsewhere under
-  `apps/wbs/be-01/src` — `busy_timeout`/`foreign_keys` are per-connection and a direct `new Database()`,
+  `be-01/src/repository/db.ts`; an ESLint rule bans importing `bun:sqlite` elsewhere under
+  `apps/be-01/src` — `busy_timeout`/`foreign_keys` are per-connection and a direct `new Database()`,
   or a reach into drizzle's `$client`, silently loses them. `boot.ts` goes through `openConnection`.
 - **`ALTER TABLE … RENAME` rewrites other tables' `REFERENCES` only with `foreign_keys` on** — off
   for a whole fresh-DB run until `pendingNeedingForeignKeysOff`; a name sweep passed, five FKs dangling.

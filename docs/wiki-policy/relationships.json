@@ -93,7 +93,12 @@
           "^production",
           "{workspaceRoot}/bin/with-heavy-lock.sh",
           "{workspaceRoot}/bin/heavy-lock-lib.sh",
-          "{workspaceRoot}/docs/runbook-prod-deploy.md"
+          "{workspaceRoot}/docs/runbook-prod-deploy.md",
+          "{workspaceRoot}/apps/wbs/be-01/**/*",
+          "{workspaceRoot}/apps/wbs/gw-01/**/*",
+          "{workspaceRoot}/apps/wbs/fe-01/**/*",
+          "{workspaceRoot}/libs/**/*",
+          "{workspaceRoot}/nx.json"
         ],
         "options": {
           "command": "bun test --preload ../test/scratch/preload.ts",
