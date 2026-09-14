@@ -129,6 +129,27 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
       [],
       STAMP,
     );
+    for (const write of [
+      source.stores.estimates.set(
+        { workItemId: 'z-existing', stepId: 'step', optimistic: 1, realistic: 2, pessimistic: 3 },
+        STAMP,
+      ),
+      source.stores.actuals.set(
+        { workItemId: 'z-existing', stepId: 'step', days: 1, recordedAt: 1 },
+        STAMP,
+      ),
+      source.stores.progress.set(
+        { workItemId: 'z-existing', stepId: 'step', state: 'done', statedAt: 1 },
+        STAMP,
+      ),
+    ])
+      await write;
+    for (const metric of ['token_estimate', 'token_actual', 'hours_actual'] as const) {
+      await source.stores.measures.set(
+        { workItemId: 'z-existing', stepId: 'step', metric, value: 1, recordedAt: 1 },
+        STAMP,
+      );
+    }
 
     const ids = ['a-inserted', 'journal', 'event'];
     const clock = clockOf({
@@ -148,6 +169,12 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
       publicServices: publicGraph,
       batchServices(scope, broadcast, workingPlan) {
         if (workingPlan === undefined) return compose(scope.stores, broadcast);
+        const loadedValues = Promise.all([
+          workingPlan.stores.estimates.listByProject(PROJECT),
+          workingPlan.stores.actuals.listByProject(PROJECT),
+          workingPlan.stores.progress.listByProject(PROJECT),
+          workingPlan.stores.measures.listByProject(PROJECT),
+        ]);
         const workItems = {
           ...workingPlan.stores.workItems,
           insert: async (
@@ -162,7 +189,32 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
             expect(retained.map(({ id }) => id)).toEqual(['a-inserted', 'z-existing']);
           },
         };
-        return compose({ ...workingPlan.stores, workItems }, broadcast);
+        const measures = {
+          ...workingPlan.stores.measures,
+          moveAll: async (
+            ...parameters: Parameters<PlanTransactionalStores['measures']['moveAll']>
+          ) => {
+            await loadedValues;
+            await workingPlan.stores.measures.moveAll(...parameters);
+            const retained = await Promise.all([
+              workingPlan.stores.estimates.listByProject(PROJECT),
+              workingPlan.stores.actuals.listByProject(PROJECT),
+              workingPlan.stores.progress.listByProject(PROJECT),
+              workingPlan.stores.measures.listByProject(PROJECT),
+            ]);
+            const authoritative = await Promise.all([
+              scope.stores.estimates.listByProject(PROJECT),
+              scope.stores.actuals.listByProject(PROJECT),
+              scope.stores.progress.listByProject(PROJECT),
+              scope.stores.measures.listByProject(PROJECT),
+            ]);
+            expect(retained).toEqual(authoritative);
+            expect(
+              retained.every((rows) => rows.every(({ workItemId }) => workItemId === 'a-inserted')),
+            ).toBe(true);
+          },
+        };
+        return compose({ ...workingPlan.stores, workItems, measures }, broadcast);
       },
     });
 
@@ -170,12 +222,151 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
       await runner.run(PROJECT, OWNER, [
         {
           kind: 'createWorkItem',
-          parentId: null,
-          afterId: 'z-existing',
+          parentId: 'z-existing',
+          afterId: null,
           name: 'Inserted',
         },
       ]),
     ).toMatchObject({ ok: true });
+  } finally {
+    await source.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+it('keeps every SQLite value group in source order after runner sets populate an earlier group', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'wbs-working-plan-value-order-'));
+  const path = join(directory, 'source.db');
+  runMigrations(path, MIGRATIONS);
+  const source = openSqliteSource({ dbPath: path });
+
+  try {
+    await source.stores.users.create(
+      { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: STAMP.at },
+      STAMP,
+    );
+    await source.stores.projects.create(
+      projectRow({ id: PROJECT, ownerId: OWNER }),
+      [{ id: 'step', projectId: PROJECT, name: 'Step', position: 10 }],
+      STAMP,
+    );
+    for (const id of ['z-existing', 'a-earlier']) {
+      await source.stores.workItems.insert(workItemRow({ id, projectId: PROJECT }), [], STAMP);
+    }
+    await source.stores.estimates.set(
+      { workItemId: 'z-existing', stepId: 'step', optimistic: 1, realistic: 2, pessimistic: 3 },
+      STAMP,
+    );
+    await source.stores.actuals.set(
+      { workItemId: 'z-existing', stepId: 'step', days: 1, recordedAt: 1 },
+      STAMP,
+    );
+    await source.stores.progress.set(
+      { workItemId: 'z-existing', stepId: 'step', state: 'done', statedAt: 1 },
+      STAMP,
+    );
+    for (const metric of ['token_estimate', 'token_actual', 'hours_actual'] as const) {
+      await source.stores.measures.set(
+        { workItemId: 'z-existing', stepId: 'step', metric, value: 1, recordedAt: 1 },
+        STAMP,
+      );
+    }
+
+    const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
+    const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
+      servicesOver(stores, { clock, broadcast, scheduler: fastScheduler });
+    const publicGraph = compose(source.stores, silentBroadcaster);
+    let observations = 0;
+    const runner = new PlanCommandRunner({
+      uow: source.uow,
+      announcements: silentBroadcaster,
+      publicServices: publicGraph,
+      batchServices(scope, broadcast, workingPlan) {
+        if (workingPlan === undefined) return compose(scope.stores, broadcast);
+        const loaded = Promise.all([
+          workingPlan.stores.estimates.listByProject(PROJECT),
+          workingPlan.stores.actuals.listByProject(PROJECT),
+          workingPlan.stores.progress.listByProject(PROJECT),
+          workingPlan.stores.measures.listByProject(PROJECT),
+        ]);
+        const measures = {
+          ...workingPlan.stores.measures,
+          set: async (...parameters: Parameters<PlanTransactionalStores['measures']['set']>) => {
+            await loaded;
+            const written = await workingPlan.stores.measures.set(...parameters);
+            if (parameters[0].metric === 'hours_actual') {
+              const retained = await Promise.all([
+                workingPlan.stores.estimates.listByProject(PROJECT),
+                workingPlan.stores.actuals.listByProject(PROJECT),
+                workingPlan.stores.progress.listByProject(PROJECT),
+                workingPlan.stores.measures.listByProject(PROJECT),
+              ]);
+              const authoritative = await Promise.all([
+                scope.stores.estimates.listByProject(PROJECT),
+                scope.stores.actuals.listByProject(PROJECT),
+                scope.stores.progress.listByProject(PROJECT),
+                scope.stores.measures.listByProject(PROJECT),
+              ]);
+              expect(retained).toEqual(authoritative);
+              expect(retained.map((rows) => rows.map(({ workItemId }) => workItemId))).toEqual([
+                ['a-earlier', 'z-existing'],
+                ['a-earlier', 'z-existing'],
+                ['a-earlier', 'z-existing'],
+                ['a-earlier', 'a-earlier', 'a-earlier', 'z-existing', 'z-existing', 'z-existing'],
+              ]);
+              observations += 1;
+            }
+            return written;
+          },
+        };
+        return compose({ ...workingPlan.stores, measures }, broadcast);
+      },
+    });
+
+    expect(
+      await runner.run(PROJECT, OWNER, [
+        {
+          kind: 'setEstimate',
+          workItemId: 'a-earlier',
+          stepId: 'step',
+          days: { optimistic: 2, realistic: 3, pessimistic: 4 },
+        },
+        { kind: 'setActual', workItemId: 'a-earlier', stepId: 'step', days: 2 },
+        { kind: 'setProgress', workItemId: 'a-earlier', stepId: 'step', state: 'in_progress' },
+        ...(['token_estimate', 'token_actual', 'hours_actual'] as const).map((metric) => ({
+          kind: 'setMeasure' as const,
+          workItemId: 'a-earlier',
+          stepId: 'step',
+          metric,
+          value: 2,
+        })),
+        { kind: 'clearEstimate', workItemId: 'a-earlier', stepId: 'step' },
+        { kind: 'clearActual', workItemId: 'a-earlier', stepId: 'step' },
+        { kind: 'clearProgress', workItemId: 'a-earlier', stepId: 'step' },
+        ...(['token_estimate', 'token_actual', 'hours_actual'] as const).map((metric) => ({
+          kind: 'clearMeasure' as const,
+          workItemId: 'a-earlier',
+          stepId: 'step',
+          metric,
+        })),
+        {
+          kind: 'setEstimate',
+          workItemId: 'a-earlier',
+          stepId: 'step',
+          days: { optimistic: 3, realistic: 4, pessimistic: 5 },
+        },
+        { kind: 'setActual', workItemId: 'a-earlier', stepId: 'step', days: 3 },
+        { kind: 'setProgress', workItemId: 'a-earlier', stepId: 'step', state: 'done' },
+        ...(['token_estimate', 'token_actual', 'hours_actual'] as const).map((metric) => ({
+          kind: 'setMeasure' as const,
+          workItemId: 'a-earlier',
+          stepId: 'step',
+          metric,
+          value: 3,
+        })),
+      ]),
+    ).toMatchObject({ ok: true });
+    expect(observations).toBe(2);
   } finally {
     await source.close();
     rmSync(directory, { recursive: true, force: true });

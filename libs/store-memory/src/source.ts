@@ -244,8 +244,9 @@ function bindStores(
         const kept = rows.filter(({ workItemId }) => !removed.has(workItemId));
         rows.splice(0, rows.length, ...kept);
       };
-      // SQLite's work-item foreign keys cascade these four tables inside the same
-      // statement; the memory source must expose the same post-write boundary.
+      // SQLite explicitly deletes estimates before its work-item delete, while
+      // work-item foreign keys cascade actuals, progress, and measures; the
+      // memory source must expose the same post-write boundary for all four.
       // Proof: omitting this cascade made the runner's delete-last-child hand-up
       // reject at the next targeted estimate read with an orphaned work-item reference.
       removeSatelliteRows(state.tables.estimates.rows);

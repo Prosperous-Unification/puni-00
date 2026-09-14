@@ -1,5 +1,5 @@
 import type { StepProgressStore, StepWriteOutcome, StoredProgress, WriteStamp } from '@wbs/core';
-import { and, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -111,6 +111,26 @@ export class StepProgressRepository implements StepProgressStore {
       state,
       statedAt,
     }));
+  }
+
+  async listPlacements(projectId: string, ids: readonly string[]) {
+    if (ids.length === 0) return [];
+    const afterId = sql<string | null>`(
+      SELECT predecessor.work_item_id FROM step_progress AS predecessor
+      WHERE predecessor.work_item_id < ${stepProgress.workItemId}
+        AND EXISTS (
+          SELECT 1 FROM work_item AS predecessor_owner
+          WHERE predecessor_owner.id = predecessor.work_item_id
+            AND predecessor_owner.project_id = ${projectId}
+        )
+      ORDER BY predecessor.work_item_id DESC LIMIT 1
+    )`;
+    return this.db
+      .selectDistinct({ id: stepProgress.workItemId, afterId })
+      .from(stepProgress)
+      .innerJoin(workItem, eq(stepProgress.workItemId, workItem.id))
+      .where(and(eq(workItem.projectId, projectId), inArray(stepProgress.workItemId, [...ids])))
+      .orderBy(asc(stepProgress.workItemId));
   }
 
   /**

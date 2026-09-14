@@ -142,6 +142,72 @@ describe('targeted SQLite readers reject malformed stored state', () => {
     }
   });
 
+  it('seeks one populated predecessor for each value placement reader', async () => {
+    const sqlite = openDatabase(path);
+    try {
+      sqlite.run(`
+        WITH RECURSIVE sequence(n) AS (
+          SELECT 0 UNION ALL SELECT n + 1 FROM sequence WHERE n < 9999
+        )
+        INSERT INTO work_item (id, project_id, position)
+        SELECT printf('row-%05d', n), '${PROJECT}', n + 1 FROM sequence
+      `);
+      sqlite.run(`INSERT INTO estimate (work_item_id, step_id, optimistic, realistic, pessimistic)
+        SELECT id, '${STEP}', 1, 2, 3 FROM work_item WHERE id LIKE 'row-%'`);
+      sqlite.run(`INSERT INTO actual (work_item_id, step_id, days, recorded_at)
+        SELECT id, '${STEP}', 1, 1 FROM work_item WHERE id LIKE 'row-%'`);
+      sqlite.run(`INSERT INTO step_progress (work_item_id, step_id, state, stated_at)
+        SELECT id, '${STEP}', 'done', 1 FROM work_item WHERE id LIKE 'row-%'`);
+      sqlite.run(`INSERT INTO step_measure (work_item_id, step_id, metric, value, recorded_at)
+        SELECT id, '${STEP}', 'token_actual', 1, 1 FROM work_item WHERE id LIKE 'row-%'`);
+    } finally {
+      sqlite.close();
+    }
+
+    const statements: { sql: string; parameters: unknown[] }[] = [];
+    const db = openDrizzle(path, {
+      logQuery: (sql, parameters) => statements.push({ sql, parameters }),
+    });
+    const repositories = [
+      new EstimateRepository(db, OPEN),
+      new ActualRepository(db, OPEN),
+      new StepProgressRepository(db, OPEN),
+      new StepMeasureRepository(db, OPEN),
+    ] as const;
+    for (const repository of repositories) {
+      expect(await repository.listPlacements(PROJECT, ['row-09999'])).toEqual([
+        { id: 'row-09999', afterId: 'row-09998' },
+      ]);
+    }
+    expect(statements).toHaveLength(4);
+    const explain = openDatabase(path);
+    try {
+      for (const read of statements) {
+        const parameters = read.parameters.map((parameter) => {
+          if (
+            typeof parameter !== 'string' &&
+            typeof parameter !== 'number' &&
+            parameter !== null
+          ) {
+            throw new Error('value placement query emitted an unsupported SQLite binding');
+          }
+          return parameter;
+        });
+        const opcodes = explain
+          .query<{ opcode: string }, (string | number | null)[]>(`EXPLAIN ${read.sql}`)
+          .all(...parameters)
+          .map(({ opcode }) => opcode);
+        // Proof: replacing the correlated descending seek with MAX adds AggStep
+        // and scans the populated 9,999-group prefix before answering one ID.
+        expect(opcodes).not.toContain('AggStep');
+        expect(opcodes).toContain('SeekLT');
+        expect(opcodes).toContain('DecrJumpZero');
+      }
+    } finally {
+      explain.close();
+    }
+  });
+
   it('names missing work-item owners in all four families', async () => {
     await seedSatellites();
     corrupt([

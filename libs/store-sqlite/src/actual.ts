@@ -1,5 +1,5 @@
 import type { ActualStore, StepWriteOutcome, StoredActual, WriteStamp } from '@wbs/core';
-import { and, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -111,6 +111,26 @@ export class ActualRepository implements ActualStore {
       days,
       recordedAt,
     }));
+  }
+
+  async listPlacements(projectId: string, ids: readonly string[]) {
+    if (ids.length === 0) return [];
+    const afterId = sql<string | null>`(
+      SELECT predecessor.work_item_id FROM actual AS predecessor
+      WHERE predecessor.work_item_id < ${actual.workItemId}
+        AND EXISTS (
+          SELECT 1 FROM work_item AS predecessor_owner
+          WHERE predecessor_owner.id = predecessor.work_item_id
+            AND predecessor_owner.project_id = ${projectId}
+        )
+      ORDER BY predecessor.work_item_id DESC LIMIT 1
+    )`;
+    return this.db
+      .selectDistinct({ id: actual.workItemId, afterId })
+      .from(actual)
+      .innerJoin(workItem, eq(actual.workItemId, workItem.id))
+      .where(and(eq(workItem.projectId, projectId), inArray(actual.workItemId, [...ids])))
+      .orderBy(asc(actual.workItemId));
   }
 
   /**

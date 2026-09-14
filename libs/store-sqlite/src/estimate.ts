@@ -1,5 +1,5 @@
 import type { EstimateStore, StepWriteOutcome, StoredEstimate, WriteStamp } from '@wbs/core';
-import { and, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -129,6 +129,26 @@ export class EstimateRepository implements EstimateStore {
       realistic,
       pessimistic,
     }));
+  }
+
+  async listPlacements(projectId: string, ids: readonly string[]) {
+    if (ids.length === 0) return [];
+    const afterId = sql<string | null>`(
+      SELECT predecessor.work_item_id FROM estimate AS predecessor
+      WHERE predecessor.work_item_id < ${estimate.workItemId}
+        AND EXISTS (
+          SELECT 1 FROM work_item AS predecessor_owner
+          WHERE predecessor_owner.id = predecessor.work_item_id
+            AND predecessor_owner.project_id = ${projectId}
+        )
+      ORDER BY predecessor.work_item_id DESC LIMIT 1
+    )`;
+    return this.db
+      .selectDistinct({ id: estimate.workItemId, afterId })
+      .from(estimate)
+      .innerJoin(workItem, eq(estimate.workItemId, workItem.id))
+      .where(and(eq(workItem.projectId, projectId), inArray(estimate.workItemId, [...ids])))
+      .orderBy(asc(estimate.workItemId));
   }
 
   async set(toSet: StoredEstimate, stamp: WriteStamp): Promise<StepWriteOutcome> {

@@ -61,6 +61,33 @@ export function estimateRegistrations(open: OpenCase<'estimates'>): readonly Cas
         expect(await port.listByWorkItems(seed.projectIds[0], [])).toEqual([]);
       },
     ),
+    storeCase(
+      'estimates',
+      'estimates.listPlacements:source-order',
+      open,
+      async ({ port, seed }) => {
+        const [firstId, secondId] = seed.workItemIds[0];
+        const stepId = seed.stepIds[0][0];
+        await port.set({ workItemId: secondId, stepId, ...DAYS }, seed.stamps[0]);
+        await port.set({ workItemId: firstId, stepId, ...DAYS }, seed.stamps[0]);
+        await port.set(
+          { workItemId: seed.workItemIds[1][0], stepId: seed.stepIds[1][0], ...DAYS },
+          seed.stamps[1],
+        );
+        const groups = [
+          ...new Set(
+            (await port.listByProject(seed.projectIds[0])).map(({ workItemId }) => workItemId),
+          ),
+        ];
+        expect(
+          await port.listPlacements(seed.projectIds[0], [secondId, 'missing', firstId]),
+        ).toEqual(
+          groups.map((id, index) => ({ id, afterId: index === 0 ? null : groups[index - 1] })),
+        );
+        expect(await port.listPlacements(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual([]);
+        expect(await port.listPlacements(seed.projectIds[0], [])).toEqual([]);
+      },
+    ),
     storeCase('estimates', 'estimates.set', open, async ({ port, seed }) => {
       const workItemId = seed.workItemIds[0][0];
       const stepId = seed.stepIds[0][0];

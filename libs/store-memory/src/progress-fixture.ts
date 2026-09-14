@@ -1,6 +1,7 @@
 import type { StepProgressStore, StepStore, StoredProgress, WorkItemStore } from '@wbs/core';
 
 import { readTargetedSatelliteRows } from './targeted-satellite-rows';
+import { listValueGroupPlacements } from './value-group-placement';
 
 /** A StepProgressStore backed by an array, keyed as the composite primary key is. */
 export function inMemoryProgress(
@@ -41,6 +42,7 @@ export function inMemoryProgress(
       );
       return order(targeted.rows, targeted.steps);
     },
+    listPlacements: (projectId, ids) => listValueGroupPlacements(rows, projectId, ids, workItems),
     set(toSet, _stamp) {
       const kept = rows.filter(
         (row) => !(row.workItemId === toSet.workItemId && row.stepId === toSet.stepId),

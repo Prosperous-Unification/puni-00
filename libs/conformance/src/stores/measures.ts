@@ -16,6 +16,38 @@ function byKey(measures: StoredMeasure[]): StoredMeasure[] {
 /** Shared measure-store cases observed only through complete public reads. */
 export function measureRegistrations(open: OpenCase<'measures'>): readonly CaseRegistration[] {
   return [
+    storeCase('measures', 'measures.listPlacements:source-order', open, async ({ port, seed }) => {
+      const [firstId, secondId] = seed.workItemIds[0];
+      const stepId = seed.stepIds[0][0];
+      await port.set(
+        { workItemId: secondId, stepId, metric: 'token_actual', value: 2, recordedAt: 1 },
+        seed.stamps[0],
+      );
+      await port.set(
+        { workItemId: firstId, stepId, metric: 'hours_actual', value: 1, recordedAt: 1 },
+        seed.stamps[0],
+      );
+      await port.set(
+        {
+          workItemId: seed.workItemIds[1][0],
+          stepId: seed.stepIds[1][0],
+          metric: 'token_estimate',
+          value: 3,
+          recordedAt: 1,
+        },
+        seed.stamps[1],
+      );
+      const groups = [
+        ...new Set(
+          (await port.listByProject(seed.projectIds[0])).map(({ workItemId }) => workItemId),
+        ),
+      ];
+      expect(await port.listPlacements(seed.projectIds[0], [secondId, 'missing', firstId])).toEqual(
+        groups.map((id, index) => ({ id, afterId: index === 0 ? null : groups[index - 1] })),
+      );
+      expect(await port.listPlacements(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual([]);
+      expect(await port.listPlacements(seed.projectIds[0], [])).toEqual([]);
+    }),
     storeCase('measures', 'measures.listByWorkItems:scope-order', open, async ({ port, seed }) => {
       const targetId = seed.workItemIds[0][0];
       const [firstStep, secondStep] = seed.stepIds[0];

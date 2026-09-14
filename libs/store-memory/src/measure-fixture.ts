@@ -2,6 +2,7 @@ import type { MeasureStore, StepStore, StoredMeasure, WorkItemStore } from '@wbs
 import { MEASURE_METRICS } from '@wbs/domain';
 
 import { readTargetedSatelliteRows } from './targeted-satellite-rows';
+import { listValueGroupPlacements } from './value-group-placement';
 
 /**
  * A MeasureStore backed by an array, keyed as the composite primary key is —
@@ -49,6 +50,7 @@ export function inMemoryMeasures(
       );
       return order(targeted.rows, targeted.steps);
     },
+    listPlacements: (projectId, ids) => listValueGroupPlacements(rows, projectId, ids, workItems),
     set(toSet, _stamp) {
       const kept = rows.filter(
         (row) =>

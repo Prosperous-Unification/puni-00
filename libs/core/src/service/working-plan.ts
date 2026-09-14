@@ -95,33 +95,37 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         }
       },
     );
-    await estimates.replaceGroups(
+    await estimates.replaceGroupsAndPlace(
       requestedIds,
       () => scope.stores.estimates.listByWorkItems(projectId, requestedIds),
+      (newIds) => scope.stores.estimates.listPlacements(projectId, newIds),
       ({ workItemId }) => workItemId,
       ({ workItemId }) => {
         assertRequested('estimate', workItemId, requested);
       },
     );
-    await actuals.replaceGroups(
+    await actuals.replaceGroupsAndPlace(
       requestedIds,
       () => scope.stores.actuals.listByWorkItems(projectId, requestedIds),
+      (newIds) => scope.stores.actuals.listPlacements(projectId, newIds),
       ({ workItemId }) => workItemId,
       ({ workItemId }) => {
         assertRequested('actual', workItemId, requested);
       },
     );
-    await measures.replaceGroups(
+    await measures.replaceGroupsAndPlace(
       requestedIds,
       () => scope.stores.measures.listByWorkItems(projectId, requestedIds),
+      (newIds) => scope.stores.measures.listPlacements(projectId, newIds),
       ({ workItemId }) => workItemId,
       ({ workItemId }) => {
         assertRequested('measure', workItemId, requested);
       },
     );
-    await progress.replaceGroups(
+    await progress.replaceGroupsAndPlace(
       requestedIds,
       () => scope.stores.progress.listByWorkItems(projectId, requestedIds),
+      (newIds) => scope.stores.progress.listPlacements(projectId, newIds),
       ({ workItemId }) => workItemId,
       ({ workItemId }) => {
         assertRequested('progress', workItemId, requested);
@@ -188,6 +192,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         assertProject(requestedProjectId);
         return byWorkItem(await estimates.all(), ids);
       },
+      placements: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return placementsOfGroups(await estimates.all(), ids, ({ workItemId }) => workItemId);
+      },
     },
     assertOpen,
     refreshRows,
@@ -202,6 +210,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       byWorkItems: async (requestedProjectId, ids) => {
         assertProject(requestedProjectId);
         return byWorkItem(await actuals.all(), ids);
+      },
+      placements: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return placementsOfGroups(await actuals.all(), ids, ({ workItemId }) => workItemId);
       },
     },
     assertOpen,
@@ -218,6 +230,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         assertProject(requestedProjectId);
         return byWorkItem(await measures.all(), ids);
       },
+      placements: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return placementsOfGroups(await measures.all(), ids, ({ workItemId }) => workItemId);
+      },
     },
     assertOpen,
     refreshRows,
@@ -232,6 +248,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       byWorkItems: async (requestedProjectId, ids) => {
         assertProject(requestedProjectId);
         return byWorkItem(await progress.all(), ids);
+      },
+      placements: async (requestedProjectId, ids) => {
+        assertProject(requestedProjectId);
+        return placementsOfGroups(await progress.all(), ids, ({ workItemId }) => workItemId);
       },
     },
     assertOpen,
@@ -337,9 +357,12 @@ class RetainedRows<Row> {
     return this.rows.map(this.clone);
   }
 
-  async replaceGroups(
+  async replaceGroupsAndPlace(
     ids: readonly string[],
     load: () => Promise<Row[]>,
+    loadPlacements: (
+      ids: readonly string[],
+    ) => Promise<readonly { id: string; afterId: string | null }[]>,
     groupOf: (row: Row) => string,
     validate: (row: Row) => void,
   ): Promise<void> {
@@ -352,6 +375,7 @@ class RetainedRows<Row> {
     const replacementsByGroup = new Map<string, Row[]>();
     for (const row of replacements) addToGroup(replacementsByGroup, groupOf(row), row);
     const inserted = new Set<string>();
+    const retainedGroups = new Set(this.rows.map(groupOf));
     const retained: Row[] = [];
     for (const row of this.rows) {
       const group = groupOf(row);
@@ -363,12 +387,17 @@ class RetainedRows<Row> {
       retained.push(...(replacementsByGroup.get(group) ?? []));
       inserted.add(group);
     }
-    for (const row of replacements) {
-      const group = groupOf(row);
-      if (inserted.has(group)) continue;
-      retained.push(...(replacementsByGroup.get(group) ?? []));
-      inserted.add(group);
+    const newGroups = [...replacementsByGroup.keys()].filter((group) => !retainedGroups.has(group));
+    if (newGroups.length === 0) {
+      this.rows = retained.map(this.clone);
+      return;
     }
+    const placements = await loadPlacements(newGroups);
+    this.assertOpen();
+    const newReplacements = new Map(
+      newGroups.map((group) => [group, replacementsByGroup.get(group) ?? []] as const),
+    );
+    placeGroups(retained, newReplacements, placements, groupOf, 'value group');
     this.rows = retained.map(this.clone);
   }
 
@@ -414,40 +443,10 @@ class RetainedRows<Row> {
     }
     const placements = await loadPlacements(newIds);
     this.assertOpen();
-    const placed = new Set<string>();
-    const known = new Set(retained.map(groupOf));
-    for (const { id, afterId } of placements) {
-      if (placed.has(id)) {
-        throw new Error(`targeted placement returned duplicate work item ${id}`);
-      }
-      if (!replacementsByIdentity.has(id)) {
-        throw new Error(`targeted placement returned unexpected work item ${id}`);
-      }
-      if (afterId !== null && typeof afterId !== 'string') {
-        throw new Error(`targeted placement for ${id} has malformed predecessor`);
-      }
-      if (afterId === id) {
-        throw new Error(`targeted placement for ${id} cannot follow itself`);
-      }
-      if (afterId !== null && !known.has(afterId)) {
-        throw new Error(`targeted placement for ${id} follows missing work item ${afterId}`);
-      }
-      known.add(id);
-      placed.add(id);
-    }
-    if (placed.size !== newIds.length) {
-      const missing = newIds.find((id) => !placed.has(id));
-      throw new Error(`targeted placement omitted work item ${missing ?? 'unknown'}`);
-    }
-    for (const { id, afterId } of placements) {
-      const row = replacementsByIdentity.get(id);
-      if (row === undefined) throw new Error(`targeted placement omitted work item ${id}`);
-      const index =
-        afterId === null
-          ? 0
-          : retained.findIndex((candidate) => groupOf(candidate) === afterId) + 1;
-      retained.splice(index, 0, row);
-    }
+    const newRows = new Map<string, Row[]>(
+      [...replacementsByIdentity].map(([id, row]) => [id, [row]]),
+    );
+    placeGroups(retained, newRows, placements, groupOf, 'work item');
     this.rows = retained.map(this.clone);
   }
 
@@ -524,6 +523,61 @@ function placementsOf<Row>(
     if (!requested.has(id)) return [];
     return [{ id, afterId: index === 0 ? null : identityOf(rows[index - 1]) }];
   });
+}
+
+function placementsOfGroups<Row>(
+  rows: readonly Row[],
+  ids: readonly string[],
+  groupOf: (row: Row) => string,
+): { id: string; afterId: string | null }[] {
+  const requested = new Set(ids);
+  const groups = [...new Set(rows.map(groupOf))];
+  return groups.flatMap((id, index) =>
+    requested.has(id) ? [{ id, afterId: index === 0 ? null : groups[index - 1] }] : [],
+  );
+}
+
+function placeGroups<Row>(
+  retained: Row[],
+  replacements: ReadonlyMap<string, Row[]>,
+  placements: readonly { id: string; afterId: string | null }[],
+  groupOf: (row: Row) => string,
+  noun: 'value group' | 'work item',
+): void {
+  const expected = new Set(replacements.keys());
+  const placed = new Set<string>();
+  const known = new Set(retained.map(groupOf));
+  for (const { id, afterId } of placements) {
+    if (placed.has(id)) throw new Error(`targeted placement returned duplicate ${noun} ${id}`);
+    if (!expected.has(id)) throw new Error(`targeted placement returned unexpected ${noun} ${id}`);
+    if (afterId !== null && typeof afterId !== 'string') {
+      throw new Error(`targeted placement for ${id} has malformed predecessor`);
+    }
+    if (afterId === id) throw new Error(`targeted placement for ${id} cannot follow itself`);
+    if (afterId !== null && !known.has(afterId)) {
+      throw new Error(`targeted placement for ${id} follows missing ${noun} ${afterId}`);
+    }
+    known.add(id);
+    placed.add(id);
+  }
+  if (placed.size !== expected.size) {
+    const missing = [...expected].find((id) => !placed.has(id));
+    throw new Error(`targeted placement omitted ${noun} ${missing ?? 'unknown'}`);
+  }
+  for (const { id, afterId } of placements) {
+    const rows = replacements.get(id);
+    if (rows === undefined) throw new Error(`targeted placement omitted ${noun} ${id}`);
+    const index = afterId === null ? 0 : lastGroupIndex(retained, afterId, groupOf) + 1;
+    retained.splice(index, 0, ...rows);
+  }
+}
+
+function lastGroupIndex<Row>(
+  rows: readonly Row[],
+  id: string,
+  groupOf: (row: Row) => string,
+): number {
+  return rows.findLastIndex((row) => groupOf(row) === id);
 }
 
 function cloneRecord<Row extends object>(record: Row): Row {

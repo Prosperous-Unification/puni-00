@@ -19,6 +19,34 @@ function byKey(progress: StoredProgress[]): StoredProgress[] {
 /** Shared progress-store cases observed only through complete public reads. */
 export function progressRegistrations(open: OpenCase<'progress'>): readonly CaseRegistration[] {
   return [
+    storeCase('progress', 'progress.listPlacements:source-order', open, async ({ port, seed }) => {
+      const [firstId, secondId] = seed.workItemIds[0];
+      const stepId = seed.stepIds[0][0];
+      await port.set({ workItemId: secondId, stepId, state: 'done', statedAt: 1 }, seed.stamps[0]);
+      await port.set(
+        { workItemId: firstId, stepId, state: 'in_progress', statedAt: 1 },
+        seed.stamps[0],
+      );
+      await port.set(
+        {
+          workItemId: seed.workItemIds[1][0],
+          stepId: seed.stepIds[1][0],
+          state: 'done',
+          statedAt: 1,
+        },
+        seed.stamps[1],
+      );
+      const groups = [
+        ...new Set(
+          (await port.listByProject(seed.projectIds[0])).map(({ workItemId }) => workItemId),
+        ),
+      ];
+      expect(await port.listPlacements(seed.projectIds[0], [secondId, 'missing', firstId])).toEqual(
+        groups.map((id, index) => ({ id, afterId: index === 0 ? null : groups[index - 1] })),
+      );
+      expect(await port.listPlacements(seed.projectIds[0], [seed.workItemIds[1][0]])).toEqual([]);
+      expect(await port.listPlacements(seed.projectIds[0], [])).toEqual([]);
+    }),
     storeCase('progress', 'progress.listByWorkItems:scope-order', open, async ({ port, seed }) => {
       const targetId = seed.workItemIds[0][0];
       const [firstStep, secondStep] = seed.stepIds[0];

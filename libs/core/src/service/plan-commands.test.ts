@@ -2,6 +2,7 @@ import { openMemorySource } from '@wbs/store-memory';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../compose';
+import { clockOf } from '../ports/clock';
 import type { PlanTransactionalStores } from '../ports/stores';
 import type { Decision, Scope, UnitOfWork } from '../ports/unit-of-work';
 import { testClock } from '../testing/clock-fixture';
@@ -187,6 +188,105 @@ function clearAllValues(workItemId: string, stepId: string): PlanCommand[] {
 }
 
 describe('working plan value mutations through runner commands', () => {
+  it('keeps every memory value group in source order after sets populate an earlier group', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const createdProject = await publicGraph.projects.create('Value group ordering', OWNER);
+      const projectId = createdProject.project.id;
+      const stepId = createdProject.steps[0].id;
+      await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
+      for (const id of ['z-existing', 'a-earlier']) {
+        await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
+          at: 2,
+          by: OWNER,
+        });
+      }
+      await source.stores.estimates.set(
+        { workItemId: 'z-existing', stepId, optimistic: 1, realistic: 2, pessimistic: 3 },
+        { at: 2, by: OWNER },
+      );
+      await source.stores.actuals.set(
+        { workItemId: 'z-existing', stepId, days: 1, recordedAt: 1 },
+        { at: 2, by: OWNER },
+      );
+      await source.stores.progress.set(
+        { workItemId: 'z-existing', stepId, state: 'done', statedAt: 1 },
+        { at: 2, by: OWNER },
+      );
+      for (const metric of MEASURE_METRICS) {
+        await source.stores.measures.set(
+          { workItemId: 'z-existing', stepId, metric, value: 1, recordedAt: 1 },
+          { at: 2, by: OWNER },
+        );
+      }
+      let observations = 0;
+      const runner = runnerOver(
+        source,
+        publicGraph,
+        source.uow,
+        (scope, broadcast, workingPlan) => {
+          if (workingPlan === undefined) return compose(scope.stores, broadcast);
+          const loaded = Promise.all([
+            workingPlan.stores.estimates.listByProject(projectId),
+            workingPlan.stores.actuals.listByProject(projectId),
+            workingPlan.stores.progress.listByProject(projectId),
+            workingPlan.stores.measures.listByProject(projectId),
+          ]);
+          const measures = {
+            ...workingPlan.stores.measures,
+            set: async (...parameters: Parameters<PlanTransactionalStores['measures']['set']>) => {
+              await loaded;
+              const written = await workingPlan.stores.measures.set(...parameters);
+              if (parameters[0].metric === 'hours_actual') {
+                const retained = await Promise.all([
+                  workingPlan.stores.estimates.listByProject(projectId),
+                  workingPlan.stores.actuals.listByProject(projectId),
+                  workingPlan.stores.progress.listByProject(projectId),
+                  workingPlan.stores.measures.listByProject(projectId),
+                ]);
+                const authoritative = await Promise.all([
+                  scope.stores.estimates.listByProject(projectId),
+                  scope.stores.actuals.listByProject(projectId),
+                  scope.stores.progress.listByProject(projectId),
+                  scope.stores.measures.listByProject(projectId),
+                ]);
+                expect(retained).toEqual(authoritative);
+                expect(retained.map((rows) => rows.map(({ workItemId }) => workItemId))).toEqual([
+                  ['a-earlier', 'z-existing'],
+                  ['a-earlier', 'z-existing'],
+                  ['a-earlier', 'z-existing'],
+                  ['a-earlier', 'a-earlier', 'a-earlier', 'z-existing', 'z-existing', 'z-existing'],
+                ]);
+                observations += 1;
+              }
+              return written;
+            },
+          };
+          return compose({ ...workingPlan.stores, measures }, broadcast);
+        },
+      );
+
+      expect(
+        (
+          await runner.run(projectId, OWNER, [
+            ...setAllValues('a-earlier', stepId, 2),
+            ...clearAllValues('a-earlier', stepId),
+            ...setAllValues('a-earlier', stepId, 3),
+          ])
+        ).ok,
+      ).toBe(true);
+      expect(observations).toBe(2);
+    } finally {
+      await source.close();
+    }
+  });
+
   it('refreshes every set, hand-down endpoint, and measure metric before later commands', async () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
@@ -277,28 +377,38 @@ describe('working plan value mutations through runner commands', () => {
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add({ id: stepId, projectId, name: 'Build' }, { at: 2, by: OWNER });
-      const parent = await publicGraph.workItems.create(projectId, OWNER, {
-        parentId: null,
-        afterId: null,
-        name: 'Parent',
-      });
-      if (!parent.ok) throw new Error('value move parent creation refused');
+      for (const id of ['z-source', 'm-existing']) {
+        await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
+          at: 2,
+          by: OWNER,
+        });
+      }
       expect(
         (
-          await runnerOver(source, publicGraph).run(
-            projectId,
-            OWNER,
-            setAllValues(parent.value.id, stepId, 1),
-          )
+          await runnerOver(source, publicGraph).run(projectId, OWNER, [
+            ...setAllValues('z-source', stepId, 1),
+            ...setAllValues('m-existing', stepId, 4),
+          ])
         ).ok,
       ).toBe(true);
 
       const staleSources: string[] = [];
-      const runner = runnerOver(
-        source,
-        publicGraph,
-        source.uow,
-        (scope, broadcast, workingPlan) => {
+      const minted = ['a-child', 'move-journal', 'move-event'];
+      const orderedClock = clockOf({
+        now: () => 3,
+        newId: () => {
+          const id = minted.shift();
+          if (id === undefined) throw new Error('value move minted an unexpected identity');
+          return id;
+        },
+      });
+      const orderedCompose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
+        servicesOver(stores, { clock: orderedClock, broadcast, scheduler: fastScheduler });
+      const runner = new PlanCommandRunner({
+        uow: source.uow,
+        announcements: direct,
+        publicServices: publicGraph,
+        batchServices(scope, broadcast, workingPlan) {
           if (workingPlan === undefined) return compose(scope.stores, broadcast);
           const watch = <Store extends 'estimates' | 'actuals' | 'progress' | 'measures'>(
             name: Store,
@@ -312,10 +422,28 @@ describe('working plan value mutations through runner commands', () => {
                 if (remaining.some(({ workItemId }) => workItemId === parameters[0])) {
                   staleSources.push(name);
                 }
+                if (name === 'measures') {
+                  const retained = await Promise.all([
+                    workingPlan.stores.estimates.listByProject(projectId),
+                    workingPlan.stores.actuals.listByProject(projectId),
+                    workingPlan.stores.progress.listByProject(projectId),
+                    workingPlan.stores.measures.listByProject(projectId),
+                  ]);
+                  const authoritative = await Promise.all([
+                    scope.stores.estimates.listByProject(projectId),
+                    scope.stores.actuals.listByProject(projectId),
+                    scope.stores.progress.listByProject(projectId),
+                    scope.stores.measures.listByProject(projectId),
+                  ]);
+                  expect(retained).toEqual(authoritative);
+                  expect(new Set(retained.flat().map(({ workItemId }) => workItemId))).toEqual(
+                    new Set(['a-child', 'm-existing']),
+                  );
+                }
               },
             };
           };
-          return compose(
+          return orderedCompose(
             {
               ...workingPlan.stores,
               estimates: watch('estimates'),
@@ -326,14 +454,14 @@ describe('working plan value mutations through runner commands', () => {
             broadcast,
           );
         },
-      );
+      });
 
       expect(
         (
           await runner.run(projectId, OWNER, [
             {
               kind: 'createWorkItem',
-              parentId: parent.value.id,
+              parentId: 'z-source',
               afterId: null,
               name: 'Child',
             },
@@ -989,3 +1117,178 @@ describe('working plan placement validation rolls back its production unit of wo
     }
   });
 });
+
+type ValueFamily = 'estimates' | 'actuals' | 'progress' | 'measures';
+
+describe('working plan value placement validation rolls back its production unit of work', () => {
+  for (const family of ['estimates', 'actuals', 'progress', 'measures'] as const) {
+    it(`rejects an omitted ${family} group placement`, async () => {
+      const source = openMemorySource();
+      const direct = silentBroadcaster();
+      const publicGraph = compose(source.stores, direct);
+      try {
+        await source.stores.users.create(
+          { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+          { at: 1, by: OWNER },
+        );
+        const createdProject = await publicGraph.projects.create('Value placement fault', OWNER);
+        const projectId = createdProject.project.id;
+        const stepId = createdProject.steps[0].id;
+        await source.stores.steps.add(
+          { id: stepId, projectId, name: 'Build' },
+          { at: 2, by: OWNER },
+        );
+        for (const id of ['z-existing', 'a-earlier']) {
+          await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
+            at: 2,
+            by: OWNER,
+          });
+        }
+        await seedFamily(source.stores, family, 'z-existing', stepId);
+        let placementCalls = 0;
+        const brokenUow: UnitOfWork = {
+          run<T>(act: (scope: Scope) => Promise<Decision<T>>): Promise<T> {
+            return source.uow.run((scope) => {
+              const stores = omitValuePlacements(scope.stores, family, () => {
+                placementCalls += 1;
+              });
+              return act({ stores });
+            });
+          },
+        };
+        const runner = runnerOver(
+          source,
+          publicGraph,
+          brokenUow,
+          (scope, broadcast, workingPlan) => {
+            if (workingPlan === undefined) return compose(scope.stores, broadcast);
+            const loaded = workingPlan.stores[family].listByProject(projectId);
+            return compose(waitForValueLoad(workingPlan.stores, family, loaded), broadcast);
+          },
+        );
+
+        // Proof: omitting this adapter-owned placement used to commit the newly
+        // populated group at the retained array's end instead of rejecting trusted input.
+        expect(
+          runner.run(projectId, OWNER, [setFamilyCommand(family, 'a-earlier', stepId)]),
+        ).rejects.toThrow(/targeted placement omitted value group a-earlier/i);
+        expect(placementCalls).toBe(1);
+        expect(
+          (await source.stores[family].listByProject(projectId)).map(
+            ({ workItemId }) => workItemId,
+          ),
+        ).toEqual(['z-existing']);
+      } finally {
+        await source.close();
+      }
+    });
+  }
+});
+
+function omitValuePlacements(
+  stores: PlanTransactionalStores,
+  family: ValueFamily,
+  observe: () => void,
+): PlanTransactionalStores {
+  const listPlacements = () => {
+    observe();
+    return Promise.resolve([]);
+  };
+  if (family === 'estimates')
+    return { ...stores, estimates: { ...stores.estimates, listPlacements } };
+  if (family === 'actuals') return { ...stores, actuals: { ...stores.actuals, listPlacements } };
+  if (family === 'progress') return { ...stores, progress: { ...stores.progress, listPlacements } };
+  return { ...stores, measures: { ...stores.measures, listPlacements } };
+}
+
+function waitForValueLoad(
+  stores: PlanTransactionalStores,
+  family: ValueFamily,
+  loaded: Promise<unknown>,
+): PlanTransactionalStores {
+  if (family === 'estimates') {
+    return {
+      ...stores,
+      estimates: {
+        ...stores.estimates,
+        set: async (...parameters) => {
+          await loaded;
+          return stores.estimates.set(...parameters);
+        },
+      },
+    };
+  }
+  if (family === 'actuals') {
+    return {
+      ...stores,
+      actuals: {
+        ...stores.actuals,
+        set: async (...parameters) => {
+          await loaded;
+          return stores.actuals.set(...parameters);
+        },
+      },
+    };
+  }
+  if (family === 'progress') {
+    return {
+      ...stores,
+      progress: {
+        ...stores.progress,
+        set: async (...parameters) => {
+          await loaded;
+          return stores.progress.set(...parameters);
+        },
+      },
+    };
+  }
+  return {
+    ...stores,
+    measures: {
+      ...stores.measures,
+      set: async (...parameters) => {
+        await loaded;
+        return stores.measures.set(...parameters);
+      },
+    },
+  };
+}
+
+async function seedFamily(
+  stores: PlanTransactionalStores,
+  family: ValueFamily,
+  workItemId: string,
+  stepId: string,
+): Promise<void> {
+  const stamp = { at: 2, by: OWNER };
+  if (family === 'estimates') {
+    await stores.estimates.set(
+      { workItemId, stepId, optimistic: 1, realistic: 2, pessimistic: 3 },
+      stamp,
+    );
+  } else if (family === 'actuals') {
+    await stores.actuals.set({ workItemId, stepId, days: 1, recordedAt: 1 }, stamp);
+  } else if (family === 'progress') {
+    await stores.progress.set({ workItemId, stepId, state: 'done', statedAt: 1 }, stamp);
+  } else {
+    await stores.measures.set(
+      { workItemId, stepId, metric: 'token_actual', value: 1, recordedAt: 1 },
+      stamp,
+    );
+  }
+}
+
+function setFamilyCommand(family: ValueFamily, workItemId: string, stepId: string): PlanCommand {
+  if (family === 'estimates') {
+    return {
+      kind: 'setEstimate',
+      workItemId,
+      stepId,
+      days: { optimistic: 2, realistic: 3, pessimistic: 4 },
+    };
+  }
+  if (family === 'actuals') return { kind: 'setActual', workItemId, stepId, days: 2 };
+  if (family === 'progress')
+    return { kind: 'setProgress', workItemId, stepId, state: 'in_progress' };
+  return { kind: 'setMeasure', workItemId, stepId, metric: 'token_actual', value: 2 };
+}
