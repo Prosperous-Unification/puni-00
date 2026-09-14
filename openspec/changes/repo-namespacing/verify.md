@@ -671,6 +671,101 @@ The non-destructive setup step had created three ignored `.env` copies byte-iden
 checked-in examples; those files and the run's exact timestamped SQLite database were removed after
 the services stopped. Normal Playwright reports and screenshots remain as ignored gate artifacts.
 
+### Frozen-candidate runtime gate, 2026-09-15
+
+Task 4.2 completed against `5a6bc949302bb3aabc1ac182176feba751a9defe`, not the earlier local
+candidate above. The authorized publication and advertised-ref checks were:
+
+```sh
+git push origin change/repo-namespacing-move
+git ls-remote --heads origin refs/heads/change/repo-namespacing-move
+ssh h2puni 'bash -lc '\''git -C /home/puni1/wbs-t267 fetch origin refs/heads/change/repo-namespacing-move'\'''
+```
+
+The normal, non-force push created the remote branch. Both `ls-remote` and h2puni's fetched
+`FETCH_HEAD` resolved to the exact candidate SHA. `/home/puni1/wbs-t267` was the clean established
+shared gate tree; the separate `/home/puni1/wbs-build` checkout was not used because it held the
+unrelated tracked edit `apps/fe-01/src/components/wbs/plan-cells.test.tsx`.
+
+The canonical host command, with its checkout occurring under the one host-wide lock, was:
+
+```sh
+ssh h2puni 'bash -lc '\''cd /home/puni1/wbs-t267 &&
+  /usr/bin/time -p ./bin/h2puni-gate.sh 5a6bc949302bb3aabc1ac182176feba751a9defe'\'''
+```
+
+It printed `h2puni gate: running on 5a6bc949302bb3aabc1ac182176feba751a9defe` and exited 0 in
+2102.65 seconds. The uncached main matrix completed 101 tasks across 30 projects in 14m23s. The
+dedicated Tool Wiki test/typecheck matrix completed two tasks in 16m54s, and source lint completed
+in 14.8s. External Tool Wiki activation reported its real inactive/non-certified state; no
+activation evidence was created or inferred because release and activation are separately owned.
+
+The candidate gate steps invoked the renamed target with its h2puni-only process proof enabled:
+
+```sh
+WBS_RUN_SOLVER_ORPHAN_PROC=1 bunx nx run wbs-be-01:solver-image-smoke
+```
+
+The target completed in 2m27s. It built `apps/wbs/be-01/Dockerfile`, copied
+`apps/wbs/be-01` and `libs` into the image, ran the moved solver request, published a digest-pinned
+image to its temporary registry and completed the authenticated supervisor launch. The real-Docker
+tail passed 3/3 tests across two files with 15 expectations in 10.82s, including the persistent
+deadline timer firing after supervisor death and the restart sweep removing the stopped orphan.
+A bounded registry probe first printed `curl: (52) Empty reply from server`; the subsequent
+required probe passed. After exit the host lock was absent, the shared tree was clean and detached
+at the exact candidate, and no smoke container or `wbs-solver-deadline-*` timer remained.
+
+Before the browser run, `lsof -nP -iTCP:<port> -sTCP:LISTEN` returned 1 with no output for
+5000/5100/6100/4341, and no pre-existing process was rooted in this worktree. The first restricted
+sandbox launch was retained as a real refusal rather than a candidate verdict: it exited 1 in
+1.98s before Playwright could enumerate tests, and verbose output named
+`EPERM: operation not permitted, listen` from be-01. With host permission, the unchanged command
+was:
+
+```sh
+CI=1 E2E_PORT_SHIFT=1900 NX_DAEMON=false NX_ISOLATE_PLUGINS=false \
+  bunx nx run wbs-fe-01:e2e --skip-nx-cache --output-style=stream
+```
+
+It built 916 modules into `dist/apps/wbs/fe-01`, ran all 411 enumerated cases on one Chromium
+worker with zero retries, and exited 0: 374 passed, 36 opt-in rendering baselines skipped, the one
+existing Gantt `test.fixme` skipped, and zero failed. Playwright reported 19.3m, Nx 19m21s, and
+`time` 1161.20 seconds. Host inspection confirmed the run's Bun/Vite children owned only
+5000/5100/6100. Repeated Vite `EPIPE`/`ECONNRESET` messages accompanied deliberate socket teardown.
+All three ports were unbound afterward. Setup's three ignored `.env` files matched their examples
+byte-for-byte and were removed; no recent SQLite artifact remained.
+
+Serving and packaged output paths changed, so the packaged check was mandatory. The exact command
+was:
+
+```sh
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false \
+  bunx nx run wbs-fe-01:e2e-packaged --skip-nx-cache --output-style=stream
+```
+
+Its first launch rebuilt the 916-module artifact but refused before tests in 2.47s with
+`http://localhost:4341/ is already used`. The initial `lsof` preflight could not see Docker's NAT
+mapping. Read-only inspection identified exact container
+`ab744eec7fb942a095a54a8c3c04876e191824f118b0a7bf86d41c1baccabf0a`, a four-hour-old
+`caddy:2-alpine` test residue mapping only 4341 and mounting only the other
+`repo-namespacing-gates` worktree's frontend dist and Caddyfile read-only. No live process or agent
+owned that worktree. After explicit coordinator authorization, only that container was removed;
+both `docker ps` and `lsof` then showed 4341 free.
+
+The single retry exited 0: it rebuilt the moved 916-module artifact in 605ms, served
+`dist/apps/wbs/fe-01` through the moved read-only Caddyfile mounts, and passed 2/2 Chromium cases in
+3.2s; Nx reported 4.7s and `time` 5.00s. Playwright left its own auto-remove Caddy container
+`4d01e2d50e9db00e02ed5bf2e5681329f12af0fa8551231a64ca896359f542d1` running after the green
+result. Its only mounts resolved inside this worktree and its only host mapping was 4341, so that
+one residue was removed explicitly. Final `docker ps` plus `lsof` checks found no 4341 mapping or
+listener; 5000/5100/6100 were also unbound, the generated env files were absent, and Git remained
+clean at the frozen candidate before this evidence edit.
+
+No production safety check changed in Task 4.2, so it created no new injected R5 fault. All earlier
+injected negatives recorded above were restored before the frozen candidate. The two retained
+refusals here are observed environment/preflight negatives, not synthesized release, activation or
+production-deploy evidence. No live production deploy ran.
+
 ## Section 4.4 Astra live relationship repair
 
 Review of `343ee3bd9aed2e4d2e6192bf6aadd3dcc7106ae9` found a candidate-owned Tool

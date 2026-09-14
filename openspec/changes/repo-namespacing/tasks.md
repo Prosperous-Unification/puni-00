@@ -95,7 +95,7 @@ refer to the old root before slice 3 and its mapped destination afterward.
       complete migration/alias/project manifests and source/config path inventory on the
       actual candidate; `git diff --check` and
       `OPENSPEC_TELEMETRY=0 openspec validate repo-namespacing --strict --json`.
-- [ ] 4.2 On the frozen candidate run `bin/h2puni-gate.sh` under its canonical host lock,
+- [x] 4.2 On the frozen candidate run `bin/h2puni-gate.sh` under its canonical host lock,
       then the complete browser gate with `CI=1 E2E_PORT_SHIFT=1900` on verified owned ports,
       and the packaged frontend check if its serving paths changed. Run the renamed backend
       image-smoke target with its required host prerequisites. Record actual commands,
