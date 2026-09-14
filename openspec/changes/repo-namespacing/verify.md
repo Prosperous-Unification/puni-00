@@ -241,9 +241,6 @@ publication occurred. The contracts/relationship run reached 34 pass with all 19
 selector cases green; its one contract expectation was an accidental edit to a frozen benchmark
 criterion and was restored before final verification.
 
-Tasks 3.4–4, fresh Tool Wiki activation, the whole browser gate, images, deployment/migration
-transition tooling, publication and the h2puni gate remain open.
-
 ## Section 3.3 development and sync consumers
 
 Development setup reads and writes its three managed environments below `apps/wbs`; the port
@@ -288,5 +285,67 @@ tool-dev-setup,tool-devsync --skip-nx-cache --parallel=1 --output-style=stream` 
 - The real `serve-local-solver` task graph listed exactly `wbs-be-01`, `wbs-fe-01`, `wbs-gw-01`
   and `wbs-mcp-01`.
 
-Tasks 3.4–4, recursive Dockerfile/cache mutation proof, production deployment, publication,
-whole-workspace/browser gates and the h2puni gate remain open.
+## Section 3.4 operational paths
+
+Dagger now maps all three image Dockerfiles below `apps/wbs`, launches the Bun tiers from
+their namespaced image workdirs, and validates each selected Dockerfile and repository-local
+`COPY` input before connecting to the Dagger engine. The backend image keeps `./drizzle`
+relative to `/app/apps/wbs/be-01`. The solver smoke script ascends four levels to the workspace
+root, Dagger and heavy-gate Nx selectors use `wbs-*` identities, and CI, corpus, migration-lint,
+lefthook, frontend artifacts and directly owned Dockerfile cache inputs use moved paths.
+
+Migration discovery now asks Git which of exactly `apps/be-01/drizzle` and
+`apps/wbs/be-01/drizzle` is a tree at each requested revision. A fixture history proves a
+rename-only commit adds no migration ID while a later folder requires `--with-migrations`.
+Neither tree, both trees, a blob at the tree path, and an unreadable revision are named
+failures. Migration lint validates an explicit workspace root and resolves its unchanged
+waiver at repository-root `bin/assert-no-prod-release.sh`.
+
+### TDD and R5 observations
+
+- Initial migration RED: `cd tools/tool-deploy && bun test src/migrations.test.ts` — 10 passed,
+  4 failed; the old function treated the repository argument as a migration directory and the
+  neither/both/blob cases did not throw. Restored GREEN: 14 passed, 0 failed, 21 expectations.
+- Always-new-root injection: forcing every revision to
+  `apps/wbs/be-01/drizzle` made the rename-spanning focused test fail 0/1 with legacy IDs
+  expected as `['0001_init']` and received as `[]`; restoring revision-local selection passed.
+- Migration-lint RED: `cd tools/tool-git-hooks && bun test src/hooks/migration-lint.test.ts`
+  reached 10 passed, 3 failed; the moved waiver was falsely absent and an unrelated root was
+  accepted. Explicit validated root handling restored the dedicated suite, and the final
+  migration-focused surface passed 26/26.
+- Dagger RED: the focused image-plan tests failed 0/2 on the legacy entrypoint and missing
+  input validator. Restored GREEN passed 4/4. Mutating the production map back to
+  `apps/be-01/Dockerfile` then failed 0/1 naming that missing Dockerfile. Mutating the real
+  backend Dockerfile `COPY` back to `apps/be-01` failed 0/1 with
+  `apps/wbs/be-01/Dockerfile COPY input does not exist: apps/be-01`; both were restored.
+- The old smoke-script ascent invoked fake Docker with
+  `<workspace>/apps/apps/wbs/be-01/Dockerfile` and context `<workspace>/apps`; the corrected
+  production entrypoint passed. The retained poller target input exited 42 with
+  `missing target file: apps/be-01/Dockerfile`; its moved input passed after restoration.
+- Hook/corpus and CI/gate focused RED runs each failed 0/2 on their received legacy paths.
+  Their restored focused runs passed, and adjacent `Proof:` comments record every injected
+  fault and observed production-path negative.
+
+### Restored verification
+
+- Focused Dagger input/plan/smoke tests: 4 passed, 0 failed, 10 expectations.
+- Tool Deploy migration tests: 17 passed, 0 failed, 25 expectations.
+- Migration lint/corpus/hook tests: 26 passed, 0 failed, 29 expectations.
+- Tool Devsync operational-path/poller tests: 3 passed, 0 failed, 11 expectations.
+- Moved backend migration CLI fixture: 2 passed, 0 failed, 11 expectations.
+- Owning matrix with host permissions: Tool Dagger 61/0. Final complete Tool Deploy and Tool Git
+  Hooks suites passed 91/0 and 114/0 after the malformed-state proof cases were added. Tool
+  Devsync's Task 3.4 poller path is green; its complete run is 170 passed, with only the three
+  Task 3.3-owned `RESTART_PATHS` assertions failing on this Task 3.1/3.2 base.
+- All eight lint/typecheck targets for the four owning tools passed uncached. Shellcheck and
+  the real migration-lint invocation over every tracked SQL file passed.
+- The pre/post-move migration oracle reported `migration_records=92` and
+  `non_identical_records=0`. The authoritative deploy-contract/docker/environment sources
+  are byte-unchanged from `c63e9010`, and runtime assertions confirmed the pinned app/image
+  names, ports, DNS alias, colour names, registry repository names, state paths and env files.
+- `dagger version` exited 127 with `dagger: command not found`; no live Dagger CLI image build
+  was claimed. Production-path candidate input validation, fake-Docker smoke execution,
+  shellcheck and all Dagger unit tests were exhausted instead.
+
+Tasks 3.5 and 4, recursive cache mutation proof, fresh Tool Wiki activation, live images and
+deployment, publication, whole-workspace/browser gates and the h2puni gate remain open.

@@ -625,6 +625,11 @@ printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
     // borrows-an-install probe is what makes the guarantee hold either way,
     // which is the point — the dirty check could never see a symlink.
     //
+    // Proof: retaining the pre-namespace `apps/be-01/Dockerfile` target input
+    // made this production poller path exit 42 with
+    // `missing target file: apps/be-01/Dockerfile` (52 pass / 4 fail).
+    // Observed 2026-09-14.
+    //
     // And `import '@dagger.io/dagger'` committed into sync.ts — the guard
     // refuses before the probe runs, on
     // `error: Could not resolve: "@dagger.io/dagger". Maybe you need to "bun install"?`.
@@ -759,6 +764,6 @@ CONTENT=SAME`),
     // Proof: moving the smoke command into the steps script without following that production
     // call failed here on `Expected to contain: WBS_RUN_SOLVER_ORPHAN_PROC=1`.
     expect(steps).toContain('WBS_RUN_SOLVER_ORPHAN_PROC=1');
-    expect(steps).toContain('bunx nx run be-01:solver-image-smoke');
+    expect(steps).toContain('bunx nx run wbs-be-01:solver-image-smoke');
   });
 });
