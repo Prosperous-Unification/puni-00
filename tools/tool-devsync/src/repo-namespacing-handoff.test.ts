@@ -556,7 +556,11 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // selector of its own and only shifts the `apps/**` and `libs/**` ones below it. Renaming
     // that line later left the digest at `61b47ae3...`, since the line count did not move
     // (2026-09-15).
-    digest: '61b47ae3309642a494eb46ddb3a2729425977a9493182dcbeacd0f8850845875',
+    // Proof: leaving `61b47ae3...` here after `@shared/validation` joined fe-01's two alias
+    // maps and the required-alias assertion failed on the observed digest below at the same
+    // 269/30 — the added entries carry no selector of their own and only shift the legacy
+    // `../../libs/*` and `apps/libs/*` contexts in vite-config.test.ts below them (2026-09-16).
+    digest: 'c29abd13b5ea87751226780d62bf9a444c0ba4b907eddef65d30ac9d7ce1f48d',
     occurrences: 269,
     unclassified: [],
   });
