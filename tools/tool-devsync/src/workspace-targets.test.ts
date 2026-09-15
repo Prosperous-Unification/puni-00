@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
 
 import { describe, expect, it } from 'bun:test';
 import {
@@ -7,6 +7,7 @@ import {
   type ProjectGraph,
 } from 'nx/src/devkit-exports';
 import { filterUsingGlobPatterns, getTargetInputs } from 'nx/src/hasher/task-hasher';
+import ts from 'typescript';
 
 import { readProjects } from '../workspace-projects.mjs';
 
@@ -38,7 +39,13 @@ import { readProjects } from '../workspace-projects.mjs';
 const WORKSPACE = new URL('../../../', import.meta.url);
 
 interface ProjectTarget {
-  readonly options?: Readonly<{ command?: string; commands?: readonly string[] }>;
+  readonly cache?: boolean;
+  readonly options?: Readonly<{
+    command?: string;
+    commands?: readonly string[];
+    cwd?: string;
+    forwardAllArgs?: boolean;
+  }>;
   readonly inputs?: readonly (string | Readonly<Record<string, unknown>>)[];
 }
 
@@ -73,12 +80,103 @@ function commandsOf(target: ProjectTarget): string[] {
   ];
 }
 
-describe('every typecheck target compiles files', () => {
-  it('finds a project.json for every project', async () => {
+describe('source conformance target discovery', () => {
+  it('selects each terminal source file exactly and keeps normal test inclusion', async () => {
     const projects = await projectsOnDisk();
-    expect(projects.length).toBeGreaterThan(20);
-  });
+    const expected = {
+      'wbs-store-memory': {
+        root: 'libs/wbs/adapters/store-memory',
+        file: 'src/testing/source-conformance.test.ts',
+        inputs: ['default', '^production'],
+        certificateTargets: ['test', 'test:conformance', 'test:unit'],
+      },
+      'wbs-store-sqlite': {
+        root: 'libs/wbs/adapters/store-sqlite',
+        file: 'src/testing/source-conformance.db.test.ts',
+        inputs: ['default', '^production', '{workspaceRoot}/apps/wbs/be-01/drizzle'],
+        certificateTargets: ['test', 'test:conformance'],
+      },
+    } as const;
+    const observed = Object.fromEntries(
+      Object.entries(expected).map(([name, contract]) => {
+        const project = projects.find(({ config }) => config.name === name);
+        if (project === undefined) throw new Error(`missing source project ${name}`);
+        const target = project.config.targets['test:conformance'];
+        if (target === undefined) throw new Error(`${name} is missing test:conformance`);
+        const command = commandsOf(target);
+        return [
+          name,
+          {
+            command,
+            cwd: target.options?.cwd,
+            cache: target.cache,
+            inputs: target.inputs,
+            normalIncludes: commandsOf(project.config.targets['test'] ?? {}).some(
+              (candidate) =>
+                candidate === 'bun test src --coverage --coverage-reporter=lcov' ||
+                candidate === 'bun test --coverage --coverage-reporter=lcov',
+            ),
+            certificateTargets: Object.entries(project.config.targets)
+              .filter(([, candidate]) =>
+                commandsOf(candidate ?? {}).some(
+                  (candidateCommand) =>
+                    candidateCommand.includes(contract.file) ||
+                    candidateCommand === 'bun test src --coverage --coverage-reporter=lcov' ||
+                    candidateCommand === 'bun test --coverage --coverage-reporter=lcov',
+                ),
+              )
+              .map(([targetName, candidate]) => ({ name: targetName, cache: candidate?.cache })),
+            filtered: command.some((candidate) =>
+              /(?:^|\s)(?:-t|--test-name-pattern)(?:\s|=)/.test(candidate),
+            ),
+            forwardsCliArgs: target.options?.forwardAllArgs ?? true,
+          },
+        ];
+      }),
+    );
 
+    // Proof: deleting either target, broadening its selector, adding a name
+    // filter, or dropping normal discovery changes this exact two-source map.
+    // Proof: removing historyBatchRegistrations made both the dedicated memory
+    // target and normal memory test fail terminal certification naming exactly
+    // independent-commit, independent-rollback and interleaved-success-survives.
+    // Proof: a string assigned to number in this file failed tool-devsync:typecheck
+    // at this exact path; its unused binding also failed the owning lint target.
+    // Proof: broadening memory to `bun test src/testing` failed this map with
+    // that directory received instead of the exact terminal source test file.
+    // Proof: restoring CLI forwarding made the review command with
+    // `--args='-t configuration-reference'` run one case and filter seventy;
+    // with forwarding disabled, that same command runs all seventy-one.
+    // Proof: restoring cache:true, priming this real Nx target on a clean tree,
+    // then adding an untracked workspace-root probe made the identical second
+    // invocation report `existing outputs match the cache` and replay the clean
+    // revision. With cache:false it reruns and prints that same SHA with -dirty.
+    // Discovery includes every broad target that can select the terminal file;
+    // adding another cacheable broad source target therefore changes this map.
+    expect(observed).toEqual(
+      Object.fromEntries(
+        Object.entries(expected).map(([name, contract]) => [
+          name,
+          {
+            command: [`bun test ${contract.file}`],
+            cwd: contract.root,
+            cache: false,
+            inputs: [...contract.inputs],
+            normalIncludes: true,
+            certificateTargets: contract.certificateTargets.map((targetName) => ({
+              name: targetName,
+              cache: false,
+            })),
+            filtered: false,
+            forwardsCliArgs: false,
+          },
+        ]),
+      ),
+    );
+  });
+});
+
+describe('every typecheck target compiles files', () => {
   it('never runs `tsc -p` against a solution-style config', async () => {
     const offenders: string[] = [];
     for (const { config } of await projectsOnDisk()) {
@@ -107,9 +205,12 @@ describe('every typecheck target compiles files', () => {
     // while its suite stayed green (`d4b62a30`). `tsc --build` on the solution
     // config follows every reference, so the tests are compiled with the code.
     //
-    // Proof: with `apps/gw-01/project.json` put back to
-    // `bunx tsc --build --force apps/gw-01/tsconfig.lib.json`, watched failing
+    // Proof: with `apps/wbs/gw-01/project.json` put back to
+    // `bunx tsc --build --force apps/wbs/gw-01/tsconfig.lib.json`, watched failing
     // on `Expected value to be empty · Received: [ "gw-01" ]` (2026-09-02).
+    // Proof: after the namespace move, assigning a string to a number in
+    // libs/wbs/domain/domain/src/estimate.test.ts made the real renamed
+    // wbs-domain:typecheck target fail with TS2322 (2026-09-14).
     const offenders: string[] = [];
     for (const { dir, config } of await projectsOnDisk()) {
       const target = config.targets['typecheck'];
@@ -129,8 +230,8 @@ describe('every typecheck target compiles files', () => {
     // right.
     //
     // Proof: with the `./tsconfig.spec.json` reference struck from
-    // `apps/gw-01/tsconfig.json`, watched failing on `Expected value to be
-    // empty · Received: [ "apps/gw-01" ]` (2026-09-02).
+    // `apps/wbs/gw-01/tsconfig.json`, watched failing on `Expected value to be
+    // empty · Received: [ "apps/wbs/gw-01" ]` (2026-09-02).
     const orphans: string[] = [];
     for (const { dir } of await projectsOnDisk()) {
       let spec: string;
@@ -166,7 +267,7 @@ describe('every typecheck target compiles files', () => {
  * changes, and reports green over a change no command read.
  *
  * The nine on 2026-09-02: five suites drive shell scripts under `bin/`, three
- * read shipped Caddy and Compose fragments under `deploy/`, and `libs/domain`'s
+ * read shipped Caddy and Compose fragments under `deploy/`, and `libs/wbs/domain/domain`'s
  * `every name it can answer is one the migration seeds` reads a be-01 migration
  * to prove the two lists are one fact — an anti-drift check whose own input was
  * invisible to the thing deciding whether to run it.
@@ -178,21 +279,80 @@ describe('every typecheck target compiles files', () => {
  * Proof: with `inputs` deleted from `tool-devsync`'s `test` target, watched
  * failing on `Expected value to be empty · Received: [ "tool-devsync:test does
  * not declare apps", "tool-devsync:test does not declare bin/dev-be-probe.sh",
- * …`; and with `libs/domain`'s deleted, on `Received: [ "domain:test does not
- * declare apps/be-01/drizzle/20260830020000_add_external_ref/migration.sql" ]`.
+ * …`; and with `libs/wbs/domain/domain`'s deleted, on `Received: [ "domain:test does not
+ * declare apps/wbs/be-01/drizzle/20260830020000_add_external_ref/migration.sql" ]`.
  *
  * The fault itself was watched through Nx the same day: with `tool-devsync`'s
  * declaration removed, an edit to `bin/dev-be-probe.sh` gave `nx run
  * tool-devsync:test  [existing outputs match the cache, left as is]`, and with
  * it restored the same edit ran the suite.
  */
+function outsidePathLiterals(source: string): string[] {
+  const syntax = ts.createSourceFile('outside-read.ts', source, ts.ScriptTarget.Latest, true);
+  const found: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isStringLiteral(node) && /^(?:\.\.\/){3,}[A-Za-z0-9_./-]*$/.test(node.text)) {
+      const parent = node.parent;
+      // Proof: the raw-quote scan reported Tool Wiki fixture literals as real reads of
+      // `tools/outside` and `tools/provider/src/index`; syntax selection removed only those two,
+      // while the production gate still failed on the real undeclared h2puni steps-script read.
+      const isSymlinkTarget =
+        ts.isCallExpression(parent) &&
+        /(?:^|\.)symlinkSync$/.test(parent.expression.getText(syntax));
+      let ancestor = parent;
+      let isExpectedFixture = false;
+      while (!ts.isSourceFile(ancestor)) {
+        if (
+          ts.isCallExpression(ancestor) &&
+          ts.isPropertyAccessExpression(ancestor.expression) &&
+          ['toEqual', 'toStrictEqual'].includes(ancestor.expression.name.text) &&
+          ancestor.arguments.some((argument) => isInertExpectedLiteral(node, argument))
+        ) {
+          isExpectedFixture = true;
+          break;
+        }
+        ancestor = ancestor.parent;
+      }
+      // Unclassified matching paths stay fail-closed. In particular, a literal alias and
+      // namespace-qualified fs/path calls are still real dependencies even though their
+      // immediate AST parents do not identify the eventual reader.
+      if (!isSymlinkTarget && !isExpectedFixture) found.push(node.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(syntax);
+  return found;
+}
+
+/** Whether a path reaches an expected value only through inert literal containers. */
+function isInertExpectedLiteral(literal: ts.StringLiteral, expected: ts.Expression): boolean {
+  let child: ts.Node = literal;
+  while (child !== expected) {
+    const parent = child.parent;
+    if (
+      ts.isParenthesizedExpression(parent) ||
+      ts.isArrayLiteralExpression(parent) ||
+      ts.isObjectLiteralExpression(parent) ||
+      ts.isAsExpression(parent) ||
+      ts.isSatisfiesExpression(parent) ||
+      ts.isTypeAssertionExpression(parent) ||
+      (ts.isPropertyAssignment(parent) && parent.initializer === child)
+    ) {
+      child = parent;
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
 /** Workspace-relative paths a `*.test.ts` reads from outside its own project. */
 async function outsideReads(projectDir: string): Promise<string[]> {
   const found = new Set<string>();
   const glob = new Bun.Glob('src/**/*.test.ts');
   for await (const relative of glob.scan({ cwd: new URL(`${projectDir}/`, WORKSPACE).pathname })) {
     const source = await readFile(new URL(`${projectDir}/${relative}`, WORKSPACE), 'utf8');
-    for (const [, up] of source.matchAll(/'((?:\.\.\/){3,}[A-Za-z0-9_./-]*)'/g)) {
+    for (const up of outsidePathLiterals(source)) {
       // Resolved against the file, then made workspace-relative. An empty
       // result is the workspace root itself or above it — a path being built,
       // not a file being read, and too broad to ask any target to declare.
@@ -206,6 +366,137 @@ async function outsideReads(projectDir: string): Promise<string[]> {
   }
   return [...found].sort();
 }
+
+describe('outside-read syntax', () => {
+  it('distinguishes real workspace reads from fixture-relative strings', () => {
+    const source = `
+      const actual = new URL('../../../bin/real.sh', import.meta.url);
+      const joined = join(import.meta.dir, '../../../docs/real.md');
+      const direct = readFile('../../../config/real.json');
+      expect(readFile('../../../config/asserted.json')).toEqual('contents');
+      const fixture = "import x from '../../../provider/src/index'";
+      symlinkSync('../../../outside', fixtureRoot);
+      expect(value).toEqual({ specifier: '../../../provider/src/index' });
+    `;
+
+    // Proof: treating the whole matcher call as fixture syntax lost the reader-side literal;
+    // the test received the other three reads with `../../../config/asserted.json` absent.
+    expect(outsidePathLiterals(source)).toEqual([
+      '../../../bin/real.sh',
+      '../../../docs/real.md',
+      '../../../config/real.json',
+      '../../../config/asserted.json',
+    ]);
+  });
+
+  it('finds a literal alias used by a real URL read through outsideReads', async () => {
+    const probe = new URL(
+      `tools/tool-devsync/src/outside-read-alias-${crypto.randomUUID()}.probe.test.ts`,
+      WORKSPACE,
+    );
+    const before = await outsideReads('tools/tool-devsync');
+    try {
+      await writeFile(
+        probe,
+        `
+          import { readFileSync } from 'node:fs';
+          const externalPath = '../../../AGENTS.md';
+          export const externalContents = readFileSync(
+            new URL(externalPath, import.meta.url),
+            'utf8',
+          );
+        `,
+      );
+      const loaded = (await import(probe.href)) as { externalContents: string };
+      expect(loaded.externalContents).toContain('# Agent rules');
+
+      const after = await outsideReads('tools/tool-devsync');
+      // Proof: the immediate-parent whitelist returned `[]` here after this exact generated
+      // suite successfully read AGENTS.md through the aliased literal.
+      expect(after.filter((read) => !before.includes(read))).toEqual(['AGENTS.md']);
+    } finally {
+      await rm(probe);
+    }
+  });
+
+  it('finds namespace reader and path calls through outsideReads', async () => {
+    const probe = new URL(
+      `tools/tool-devsync/src/outside-read-namespace-${crypto.randomUUID()}.probe.test.ts`,
+      WORKSPACE,
+    );
+    const before = await outsideReads('tools/tool-devsync');
+    try {
+      await writeFile(
+        probe,
+        `
+          import * as fs from 'node:fs';
+          import * as path from 'node:path';
+          export const readAgentRules = () => fs.readFileSync('../../../AGENTS.md', 'utf8');
+          export const index = fs.readFileSync(
+            path.join(import.meta.dir, '../../../LLM_README.md'),
+            'utf8',
+          );
+        `,
+      );
+      const agentRules = await readFile(new URL('AGENTS.md', WORKSPACE), 'utf8');
+      const loaded = (await import(probe.href)) as { index: string };
+      expect(agentRules).toContain('# Agent rules');
+      expect(loaded.index.length).toBeGreaterThan(0);
+
+      const after = await outsideReads('tools/tool-devsync');
+      // Proof: the immediate-parent whitelist returned `[]` here instead of these two paths
+      // after the namespace path call successfully loaded LLM_README.md.
+      expect(after.filter((read) => !before.includes(read))).toEqual([
+        'AGENTS.md',
+        'LLM_README.md',
+      ]);
+    } finally {
+      await rm(probe);
+    }
+  });
+
+  it('finds a real outside read inside a matcher expected argument', async () => {
+    const identity = crypto.randomUUID();
+    const relative = `../../../bin/outside-read-expected-${identity}.txt`;
+    const sentinel = new URL(`bin/outside-read-expected-${identity}.txt`, WORKSPACE);
+    const probe = new URL(
+      `tools/tool-devsync/src/outside-read-expected-${identity}.probe.test.ts`,
+      WORKSPACE,
+    );
+    const before = await outsideReads('tools/tool-devsync');
+    try {
+      await writeFile(sentinel, 'outside-read-expected\n');
+      await writeFile(
+        probe,
+        `
+          import { readFileSync } from 'node:fs';
+          function expect(actual: string) {
+            return {
+              toEqual(expected: string) {
+                if (actual !== expected) throw new Error('unequal');
+              },
+            };
+          }
+          export let measured = '';
+          expect('outside-read-expected\\n').toEqual(
+            (measured = readFileSync(new URL('${relative}', import.meta.url), 'utf8')),
+          );
+        `,
+      );
+      const loaded = (await import(probe.href)) as { measured: string };
+      expect(loaded.measured).toBe('outside-read-expected\n');
+
+      const after = await outsideReads('tools/tool-devsync');
+      // Proof: excluding every matcher expected argument returned `[]` here after the generated
+      // suite successfully read its UUID-named sentinel in that exact argument.
+      expect(after.filter((read) => !before.includes(read))).toEqual([
+        `bin/outside-read-expected-${identity}.txt`,
+      ]);
+    } finally {
+      await Promise.all([rm(probe, { force: true }), rm(sentinel, { force: true })]);
+    }
+  });
+});
 
 /** Whether Nx hashes `read` through the target's declared dependency inputs. */
 function dependencyInputCovers(
@@ -239,7 +530,18 @@ describe('every cached target declares what it reads', () => {
     ) as NxJsonConfiguration;
     const shared = nxJson.namedInputs?.['sharedGlobals'];
     expect(shared).toBeDefined();
-    const projectGraph = await createProjectGraphAsync({ exitOnError: true });
+    const inheritedDaemon = process.env['NX_DAEMON'];
+    process.env['NX_DAEMON'] = 'false';
+    let projectGraph: ProjectGraph;
+    try {
+      // Proof: without this self-contained daemon selection, the direct production test timed out
+      // at both 5,000ms and 15,000ms while Nx waited on its unavailable daemon; the identical
+      // graph build completed in-process in 783ms with NX_DAEMON=false.
+      projectGraph = await createProjectGraphAsync({ exitOnError: true });
+    } finally {
+      if (inheritedDaemon === undefined) delete process.env['NX_DAEMON'];
+      else process.env['NX_DAEMON'] = inheritedDaemon;
+    }
 
     const undeclared: string[] = [];
     for (const { dir, config } of await projectsOnDisk()) {
@@ -259,7 +561,7 @@ describe('every cached target declares what it reads', () => {
             pattern.startsWith(`${read}/`),
         );
         // Proof: ignoring dependency inputs failed on
-        // `be-01:test does not declare libs/runtime-portable/src/scheduler.ts`,
+        // `be-01:test does not declare libs/wbs/adapters/runtime-portable/src/scheduler.ts`,
         // even though Nx hashes that production file through `^production`.
         if (!covered && !dependencyInputCovers(read, config.name, projectGraph, nxJson)) {
           undeclared.push(`${config.name}:test does not declare ${read}`);
@@ -411,7 +713,8 @@ describe('every project says which ring, scope and runtime it is', () => {
     // the ring from `tools/dev/project.json` likewise failed here with its path.
     // Proof: after the focused Nx target returned a 1/1 cache hit, removing the
     // nested ring forced the target to execute and fail here with that path,
-    // proving the recursive manifest input invalidates its cache. Watched 2026-09-10.
+    // proving the recursive manifest input invalidates its cache: the 2026-09-14
+    // run failed with supervisor-protocol's full path and `found 0`.
     expect(wrong).toEqual([]);
   });
 
@@ -432,7 +735,7 @@ describe('every project says which ring, scope and runtime it is', () => {
 describe('the root fast tier discovers every eligible project', () => {
   it('requires a test:unit target independently of target presence', async () => {
     const projects = await projectsOnDisk();
-    const requiredNonLibraries = new Set(['be-01', 'fe-01']);
+    const requiredNonLibraries = new Set(['wbs-be-01', 'wbs-fe-01']);
     const missing: string[] = [];
     const unexpected: string[] = [];
     for (const { dir, config } of projects) {

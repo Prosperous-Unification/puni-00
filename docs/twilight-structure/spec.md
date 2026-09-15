@@ -136,8 +136,8 @@ specifies transitions, approvals, rework, cancellation, recovery and completion.
 The current repository uses TypeScript, Bun, and Nx; React, Vite, Tailwind, and
 TanStack Router on the frontend; and Elysia, Drizzle, and SQLite on the backend.
 See the root [package manifest](../../package.json),
-[frontend targets](../../apps/fe-01/project.json), and
-[backend targets](../../apps/be-01/project.json).
+[frontend targets](../../apps/wbs/fe-01/project.json), and
+[backend targets](../../apps/wbs/be-01/project.json).
 
 The current [design](../../openspec/changes/twilight-control-plane/design.md) and
 [assumptions](assumptions.md) select proposed reuse boundaries, including shared

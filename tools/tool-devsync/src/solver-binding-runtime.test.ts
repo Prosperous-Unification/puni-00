@@ -1,9 +1,14 @@
+import { chmod, mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import { SOLVER_SUPERVISOR_BUN } from '@wbs/deploy-contract';
+import { scratchAsync } from '@wbs/tool-test-scratch';
 import { describe, expect, it } from 'bun:test';
 
 import { decodeProdContainerImages, prepareTargetSolverBinding } from './solver-binding-host';
 import {
   createTargetSolverBindingRuntime,
+  isGitMetadata,
   type SolverBindingRuntimeInvocation,
 } from './solver-binding-runtime';
 
@@ -16,6 +21,15 @@ const ROOT = '/home/puni1/wbs-dev/bin/sync.target';
 const SOURCE_REPOSITORY = '/home/puni1/wbs-dev/src';
 const BUN = '/home/puni1/wbs-dev/bin/bun';
 const bytes = (value: string): Uint8Array => new TextEncoder().encode(value);
+
+async function rejection(promise: Promise<unknown>): Promise<string> {
+  try {
+    await promise;
+    return '(resolved without throwing)';
+  } catch (error) {
+    return String(error);
+  }
+}
 
 const installed = bytes(
   JSON.stringify({
@@ -61,7 +75,7 @@ describe('the production solver binding runtime', () => {
       },
       {
         exists: (path) => Promise.resolve(path !== `${ROOT}/.git`),
-        isDirectory: () => Promise.resolve(false),
+        isGitMetadata: () => Promise.resolve(false),
         read: (path) => {
           const contents = files.get(path);
           if (contents === undefined) throw new Error(`fixture has no ${path}`);
@@ -90,16 +104,21 @@ describe('the production solver binding runtime', () => {
     );
 
     expect(invocations.map(({ argv }) => argv[0])).toEqual([
+      BUN,
       `${SOURCE_REPOSITORY}/bin/with-heavy-lock.sh`,
+      'docker',
+      'docker',
       BUN,
       BUN,
       BUN,
+      'docker',
       'systemctl',
       'test',
       SOLVER_SUPERVISOR_BUN,
       'git',
     ]);
-    expect(invocations[0]?.argv).toEqual([
+    expect(invocations[0]?.argv).toEqual([BUN, 'install', '--frozen-lockfile']);
+    expect(invocations[1]?.argv).toEqual([
       `${SOURCE_REPOSITORY}/bin/with-heavy-lock.sh`,
       '--',
       'env',
@@ -109,30 +128,34 @@ describe('the production solver binding runtime', () => {
       `${ROOT}/tools/tool-dagger/src/main.ts`,
       'be',
     ]);
-    expect(invocations[0]?.env).toEqual({
+    expect(invocations[1]?.env).toEqual({
       REGISTRY_PASS: 'protected-value',
+      HEAVY_LOCK_WAIT_SECONDS: '900',
       WBS_CLEAN_TREE_REPOSITORY: SOURCE_REPOSITORY,
     });
     expect(invocations.flatMap(({ argv }) => argv)).not.toContain('protected-value');
-    expect(invocations[1]?.argv).toContain(`--blue-image=${BLUE}`);
-    expect(invocations[1]?.argv).toContain(`--green-image=${GREEN}`);
-    expect(invocations[1]?.argv).toContain(`--dev-solver-image=${DEV}`);
-    expect(invocations[2]?.argv).toEqual([BUN, 'x', 'nx', 'run', 'tool-remote-scripts:build']);
-    expect(invocations[3]?.argv).toContain('--execute');
-    expect(invocations[4]?.argv).toEqual([
+    expect(invocations[2]?.argv).toEqual(['docker', 'pull', DEV]);
+    expect(invocations[3]?.argv).toEqual(['docker', 'image', 'inspect', '--format={{.Id}}', DEV]);
+    expect(invocations[4]?.argv).toContain(`--blue-image=${BLUE}`);
+    expect(invocations[4]?.argv).toContain(`--green-image=${GREEN}`);
+    expect(invocations[4]?.argv).toContain(`--dev-solver-image=${DEV}`);
+    expect(invocations[5]?.argv).toEqual([BUN, 'x', 'nx', 'run', 'tool-remote-scripts:build']);
+    expect(invocations[6]?.argv).toContain('--execute');
+    expect(invocations[7]?.argv).toEqual(['docker', 'image', 'inspect', '--format={{.Id}}', DEV]);
+    expect(invocations[8]?.argv).toEqual([
       'systemctl',
       '--user',
       'is-active',
       '--quiet',
       'wbs-solver-supervisor.service',
     ]);
-    expect(invocations[5]?.argv).toEqual([
+    expect(invocations[9]?.argv).toEqual([
       'test',
       '-S',
       '/run/user/1000/wbs-solver/supervisor.sock',
     ]);
-    expect(invocations[6]?.argv).toContain('--preflight=dev');
-    expect(invocations[7]?.argv).toEqual([
+    expect(invocations[10]?.argv).toContain('--preflight=dev');
+    expect(invocations[11]?.argv).toEqual([
       'git',
       '-C',
       SOURCE_REPOSITORY,
@@ -153,6 +176,110 @@ describe('the production solver binding runtime', () => {
     expect(locks).toEqual(['/home/puni1/wbs/state/deploy.lock']);
   });
 
+  it('does not materialize a solver mapping after its host image pull fails', async () => {
+    const invocations: SolverBindingRuntimeInvocation[] = [];
+    const runtime = createTargetSolverBindingRuntime(
+      { root: ROOT, bunPath: BUN, sourceSha: SHA, compatibilityIdentity: IDENTITY },
+      {
+        exists: () => Promise.resolve(true),
+        isGitMetadata: () => Promise.resolve(true),
+        read: () => Promise.resolve(installed),
+        command: (invocation) => {
+          invocations.push(invocation);
+          return Promise.resolve({ exitCode: 1, stderr: 'registry unavailable' });
+        },
+        query: () => Promise.reject(new Error('materialization must not query')),
+        writeAtomic: () => Promise.reject(new Error('materialization must not checkpoint')),
+        withLock: (_path, action) => action(),
+      },
+    );
+
+    expect(
+      await rejection(
+        runtime.dependencies.materialize({
+          blueImage: BLUE,
+          greenImage: GREEN,
+          devSolverImage: DEV,
+          devSourceSha: SHA,
+        }),
+      ),
+    ).toContain('solver host image pull failed (exit 1): registry unavailable');
+    expect(invocations.map(({ argv }) => argv)).toEqual([['docker', 'pull', DEV]]);
+  });
+
+  // Proof: making the post-install image inspection report the incident's
+  // `No such image` fault keeps the durable state at published and prevents
+  // the live checkout reset.
+  it('refuses completion when the supervisor daemon cannot inspect the pinned image', async () => {
+    const checkpoints: string[] = [];
+    const invocations: SolverBindingRuntimeInvocation[] = [];
+    const runtime = createTargetSolverBindingRuntime(
+      {
+        root: ROOT,
+        bunPath: BUN,
+        sourceRepository: SOURCE_REPOSITORY,
+        sourceSha: SHA,
+        compatibilityIdentity: IDENTITY,
+      },
+      {
+        exists: () => Promise.resolve(true),
+        isGitMetadata: () => Promise.resolve(true),
+        read: (path) => {
+          if (path.endsWith('release.json')) {
+            return Promise.resolve(
+              bytes(
+                JSON.stringify({
+                  be: {
+                    sha: SHA,
+                    digest: `sha256:${'e'.repeat(64)}`,
+                    ref: `registry.example/wbs-be:${SHA}`,
+                    image: DEV,
+                  },
+                }),
+              ),
+            );
+          }
+          if (path.endsWith('solver-supervisor.json')) return Promise.resolve(installed);
+          return Promise.resolve(bytes('REGISTRY_PASS=protected-value\n'));
+        },
+        command: (invocation) => {
+          invocations.push(invocation);
+          const imageInspections = invocations.filter(
+            ({ argv }) => argv[0] === 'docker' && argv[1] === 'image',
+          ).length;
+          return Promise.resolve(
+            imageInspections === 2 && invocation.argv[0] === 'docker'
+              ? { exitCode: 1, stderr: `No such image: ${DEV}` }
+              : { exitCode: 0, stderr: '' },
+          );
+        },
+        query: () => Promise.reject(new Error('installed config must avoid inspection')),
+        writeAtomic: (_path, contents) => {
+          checkpoints.push(contents);
+          return Promise.resolve();
+        },
+        withLock: (_path, action) => action(),
+      },
+    );
+
+    expect(
+      await rejection(
+        prepareTargetSolverBinding(
+          { sourceSha: SHA, compatibilityIdentity: IDENTITY },
+          undefined,
+          runtime.dependencies,
+        ),
+      ),
+    ).toContain(`solver host image inspection failed (exit 1): No such image: ${DEV}`);
+    expect(invocations.some(({ argv }) => argv[0] === 'git' && argv.includes('reset'))).toBe(false);
+    expect(
+      checkpoints.map((contents) => {
+        const state = JSON.parse(contents) as Record<string, unknown>;
+        return state['phase'];
+      }),
+    ).toEqual(['published']);
+  });
+
   it('derives a missing config from exact prod container inspection but propagates unreadability', async () => {
     const inspection = [
       { name: '/be-01-blue', running: false, image: BLUE },
@@ -165,7 +292,7 @@ describe('the production solver binding runtime', () => {
       { root: ROOT, bunPath: BUN, sourceSha: SHA, compatibilityIdentity: IDENTITY },
       {
         exists: () => Promise.resolve(false),
-        isDirectory: () => Promise.resolve(false),
+        isGitMetadata: () => Promise.resolve(false),
         read: () => Promise.reject(new Error('missing config must not be read')),
         command: () => Promise.resolve({ exitCode: 0, stderr: '' }),
         withLock: (_path, action) => action(),
@@ -189,7 +316,7 @@ describe('the production solver binding runtime', () => {
       { root: ROOT, bunPath: BUN, sourceSha: SHA, compatibilityIdentity: IDENTITY },
       {
         exists: () => Promise.resolve(true),
-        isDirectory: () => Promise.resolve(false),
+        isGitMetadata: () => Promise.resolve(false),
         read: () => Promise.reject(new Error('EACCES installed config')),
         command: () => Promise.resolve({ exitCode: 0, stderr: '' }),
         withLock: (_path, action) => action(),
@@ -221,7 +348,7 @@ describe('the production solver binding runtime', () => {
       },
       {
         exists: () => Promise.resolve(true),
-        isDirectory: (path) => Promise.resolve(path === `${ROOT}/.git`),
+        isGitMetadata: (path) => Promise.resolve(path === `${ROOT}/.git`),
         read: () => Promise.resolve(bytes('{}')),
         command: (invocation) => {
           invocations.push(invocation);
@@ -234,6 +361,100 @@ describe('the production solver binding runtime', () => {
     );
 
     await runtime.dependencies.publish(SHA, 'protected-value');
-    expect(invocations[0]?.env).toEqual({ REGISTRY_PASS: 'protected-value' });
+    expect(invocations[0]?.argv).toEqual([BUN, 'install', '--frozen-lockfile']);
+    expect(invocations[1]?.env).toEqual({
+      REGISTRY_PASS: 'protected-value',
+      HEAVY_LOCK_WAIT_SECONDS: '900',
+    });
+  });
+
+  // Proof: returning the heavy-lock timeout status keeps the publish result
+  // unread and makes the bounded refusal visible to the deploy-health owner.
+  it('reports a bounded heavy-lock refusal without reading a release manifest', async () => {
+    let reads = 0;
+    const runtime = createTargetSolverBindingRuntime(
+      {
+        root: ROOT,
+        bunPath: BUN,
+        sourceRepository: SOURCE_REPOSITORY,
+        sourceSha: SHA,
+        compatibilityIdentity: IDENTITY,
+      },
+      {
+        exists: () => Promise.resolve(false),
+        isGitMetadata: () => Promise.resolve(true),
+        read: () => {
+          reads += 1;
+          return Promise.resolve(bytes('{}'));
+        },
+        command: (invocation) =>
+          Promise.resolve(
+            invocation.argv[0] === BUN
+              ? { exitCode: 0, stderr: '' }
+              : { exitCode: 75, stderr: 'heavy work lock remained held after 900s' },
+          ),
+        query: () => Promise.reject(new Error('publish must not query')),
+        writeAtomic: () => Promise.resolve(),
+        withLock: (_path, action) => action(),
+      },
+    );
+
+    expect(await rejection(runtime.dependencies.publish(SHA, 'protected-value'))).toMatch(
+      /solver image publish failed \(exit 75\).*remained held after 900s/,
+    );
+    expect(reads).toBe(0);
+  });
+
+  // Proof: failing the exact-lock install keeps the heavy publisher and its
+  // protected credential path untouched.
+  it('refuses a target lock whose dependencies cannot be installed', async () => {
+    const invocations: SolverBindingRuntimeInvocation[] = [];
+    const runtime = createTargetSolverBindingRuntime(
+      {
+        root: ROOT,
+        bunPath: BUN,
+        sourceRepository: SOURCE_REPOSITORY,
+        sourceSha: SHA,
+        compatibilityIdentity: IDENTITY,
+      },
+      {
+        exists: () => Promise.resolve(false),
+        isGitMetadata: () => Promise.resolve(true),
+        read: () => Promise.reject(new Error('failed install must not read host inputs')),
+        command: (invocation) => {
+          invocations.push(invocation);
+          return Promise.resolve({ exitCode: 1, stderr: 'lockfile had no matching package' });
+        },
+        query: () => Promise.reject(new Error('failed install must not query')),
+        writeAtomic: () => Promise.resolve(),
+        withLock: (_path, action) => action(),
+      },
+    );
+
+    expect(await rejection(runtime.dependencies.publish(SHA, 'protected-value'))).toMatch(
+      /solver candidate dependency install failed.*lockfile had no matching package/,
+    );
+    expect(invocations.map(({ argv }) => argv)).toEqual([[BUN, 'install', '--frozen-lockfile']]);
+  });
+
+  it('recognizes clone and worktree Git metadata and fails closed on unreadability', async () => {
+    const root = await scratchAsync('wbs-solver-git-metadata-');
+    const cloneMetadata = join(root, 'clone', '.git');
+    const worktreeMetadata = join(root, 'worktree', '.git');
+    const unreadableParent = join(root, 'unreadable');
+    await mkdir(cloneMetadata, { recursive: true });
+    await mkdir(join(root, 'worktree'), { recursive: true });
+    await writeFile(worktreeMetadata, 'gitdir: /owned/worktree\n');
+    await mkdir(unreadableParent);
+
+    expect(await isGitMetadata(cloneMetadata)).toBe(true);
+    expect(await isGitMetadata(worktreeMetadata)).toBe(true);
+    expect(await isGitMetadata(join(root, 'missing', '.git'))).toBe(false);
+    await chmod(unreadableParent, 0);
+    try {
+      expect(await rejection(isGitMetadata(join(unreadableParent, '.git')))).toMatch(/EACCES/);
+    } finally {
+      await chmod(unreadableParent, 0o700);
+    }
   });
 });

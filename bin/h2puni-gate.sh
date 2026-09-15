@@ -43,8 +43,35 @@ target=${1:-HEAD}
 # on its command line.
 : "${HEAVY_LOCK_WAIT_SECONDS:=1800}"
 
-gate_with_pinned_head "$repo_root" "$(resolve_heavy_lock_path)" "$target" -- bash -c '
-  bunx nx format:check --all &&
-  bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache &&
-  WBS_RUN_SOLVER_ORPHAN_PROC=1 bunx nx run be-01:solver-image-smoke
-'
+trusted_launcher_dir=$(mktemp -d)
+trusted_launcher="$trusted_launcher_dir/tool-wiki-lint.sh"
+trap 'rm -rf -- "$trusted_launcher_dir"' EXIT
+activation_root=${TOOL_WIKI_ACTIVATION_ROOT:-}
+if [[ -n "$activation_root" ]]; then
+  if [[ ! -e "$activation_root/active-v1" ]]; then
+    printf 'h2puni gate: configured activation has no external marker\n' >&2
+    exit 78
+  fi
+  launcher_source=$(resolve_tool_wiki_launcher "$activation_root" "$repo_root")
+  cp "$launcher_source" "$trusted_launcher"
+  chmod 0555 "$trusted_launcher"
+  # Proof: h2puni-gate.test.sh cases 19-21 exercise the production resolver's default,
+  # missing-runtime refusal, and candidate-containment refusal.
+  TOOL_WIKI_TRUSTED_NODE_MODULES=$(resolve_tool_wiki_modules \
+    "$activation_root" "$repo_root" "${TOOL_WIKI_TRUSTED_NODE_MODULES:-}")
+  export TOOL_WIKI_TRUSTED_NODE_MODULES
+  export TOOL_WIKI_REQUIRE_CERTIFIED=1
+else
+  trusted_launcher=
+fi
+
+# The launcher bytes are captured before checkout. Candidate gate steps remain the ordinary
+# repository gate, but cannot run until the preserved external-trust verifier has accepted HEAD.
+# Proof: gate-entrypoints.test.ts commits exit-0 replacements for both candidate scripts and
+# observes the externally selected launcher reject obligation.application before either runs.
+# Positional parameters belong to the preserved inner shell.
+# shellcheck disable=SC2016
+gate_with_pinned_head "$repo_root" "$(resolve_heavy_lock_path)" "$target" -- \
+  bash -c 'set -euo pipefail; if [[ -n "$1" ]]; then bash "$1" committed "$2" "$3"; else printf "%s\n" "{\"schemaVersion\":1,\"status\":\"inactive\",\"certified\":false,\"reason\":\"external activation marker is not provisioned\"}"; fi; exec bash "$4" "$2" "$3"' \
+  h2puni-preserved-wiki "$trusted_launcher" "$repo_root" HEAD \
+  "$repo_root/bin/h2puni-gate-steps.sh"

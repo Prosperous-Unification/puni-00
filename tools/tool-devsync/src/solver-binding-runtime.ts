@@ -17,6 +17,12 @@ const LIVE_SOURCE_ROOT = '/home/puni1/wbs-dev/src';
 const HOST_STATE_ROOT = '/home/puni1/wbs-dev/state';
 const REGISTRY_ENV = '/home/puni1/wbs/.env';
 const PROD_DEPLOY_LOCK = '/home/puni1/wbs/state/deploy.lock';
+/**
+ * Lets an ordinary gate finish ahead of an automatic publish, then refuses.
+ * The heavy-lock wrapper still rejects a stale owner immediately and reports a
+ * live owner after this 15-minute ceiling instead of waiting without bound.
+ */
+const SOLVER_PUBLISH_LOCK_WAIT_SECONDS = '900';
 const HOST_INPUT_MAX_BYTES = 256 * 1024;
 const PROD_CONTAINER_INSPECT_FORMAT =
   '{"name":{{json .Name}},"running":{{json .State.Running}},"image":{{json .Config.Image}}}';
@@ -29,7 +35,7 @@ export interface SolverBindingRuntimeInvocation {
 
 export interface SolverBindingRuntimeIo {
   exists(path: string): Promise<boolean>;
-  isDirectory(path: string): Promise<boolean>;
+  isGitMetadata(path: string): Promise<boolean>;
   read(path: string): Promise<Uint8Array>;
   command(
     invocation: SolverBindingRuntimeInvocation,
@@ -85,15 +91,20 @@ async function query(
   return { exitCode, stdout, stderr };
 }
 
+/** Distinguishes absent Git metadata from unreadable or malformed metadata. */
+export async function isGitMetadata(path: string): Promise<boolean> {
+  try {
+    const metadata = await stat(path);
+    return metadata.isDirectory() || metadata.isFile();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
 const DEFAULT_IO: SolverBindingRuntimeIo = {
   exists: (path) => Bun.file(path).exists(),
-  isDirectory: async (path) => {
-    try {
-      return (await stat(path)).isDirectory();
-    } catch {
-      return false;
-    }
-  },
+  isGitMetadata,
   read: async (path) =>
     new Uint8Array(
       await Bun.file(path)
@@ -199,17 +210,27 @@ export function createTargetSolverBindingRuntime(
           io,
         ),
       publish: async (sourceSha, registryPassword) => {
-        const cleanTreeEnvironment: Readonly<Record<string, string>> = (await io.isDirectory(
+        const cleanTreeEnvironment: Readonly<Record<string, string>> = (await io.isGitMetadata(
           join(target.root, '.git'),
         ))
           ? {}
           : { WBS_CLEAN_TREE_REPOSITORY: sourceRepository };
+        // The recovery candidate owns an install resolved from its own
+        // bun.lock. It is retained and pruned with that candidate, so neither
+        // a changed target lock nor source-checkout install can cross the
+        // target revision boundary.
+        await run('solver candidate dependency install', [
+          target.bunPath,
+          'install',
+          '--frozen-lockfile',
+        ]);
         await run(
           'solver image publish',
           [
-            // The target is an exported, install-free candidate tree. The
+            // The target is a detached, target-lock-installed candidate. The
             // durable lock wrapper belongs to the live checkout; the build
-            // entrypoint below remains pinned to the target candidate.
+            // entrypoint and dependency resolution remain pinned to the
+            // candidate revision.
             join(sourceRepository, 'bin/with-heavy-lock.sh'),
             '--',
             'env',
@@ -221,13 +242,27 @@ export function createTargetSolverBindingRuntime(
           ],
           {
             REGISTRY_PASS: registryPassword,
+            HEAVY_LOCK_WAIT_SECONDS: SOLVER_PUBLISH_LOCK_WAIT_SECONDS,
             ...cleanTreeEnvironment,
           },
         );
         return io.read(releasePath);
       },
-      materialize: (config) =>
-        run('solver config materialization', [
+      materialize: async (config) => {
+        // Dagger publishes into the registry; it does not populate the host
+        // Docker daemon that the supervisor drives. Pull before changing the
+        // shared mapping so the restarted service never points at an absent
+        // image. Proof: solver-binding-runtime.test.ts rejects this pull and
+        // observes that config materialization is never invoked.
+        await run('solver host image pull', ['docker', 'pull', config.devSolverImage]);
+        await run('solver host image inspection', [
+          'docker',
+          'image',
+          'inspect',
+          '--format={{.Id}}',
+          config.devSolverImage,
+        ]);
+        await run('solver config materialization', [
           target.bunPath,
           materializer,
           `--blue-image=${config.blueImage}`,
@@ -236,7 +271,8 @@ export function createTargetSolverBindingRuntime(
           `--dev-source-sha=${config.devSourceSha}`,
           `--output=${configPath}`,
           '--replace',
-        ]),
+        ]);
+      },
       install: async () => {
         await run('solver supervisor bundle build', [
           target.bunPath,
@@ -254,6 +290,15 @@ export function createTargetSolverBindingRuntime(
         ]);
       },
       preflight: async (binding) => {
+        // Proof: solver-binding-runtime.test.ts injects a missing-image
+        // refusal here and observes no complete checkpoint or checkout reset.
+        await run('solver host image inspection', [
+          'docker',
+          'image',
+          'inspect',
+          '--format={{.Id}}',
+          binding.image,
+        ]);
         await run('solver supervisor service preflight', [
           'systemctl',
           '--user',

@@ -140,7 +140,7 @@ export async function runHealthChecks(
  * drift a same-process unit test can never see, because tests inject the
  * secret directly rather than reading it from the two independently
  * assembled env chains gw-01 and be-01 actually load. be-01's `onForward`
- * handler is a no-op today (`apps/be-01/src/app.ts`), so calling it
+ * handler is a no-op today (`apps/wbs/be-01/src/app.ts`), so calling it
  * repeatedly has no side effects.
  */
 export function resolveInternalForwardUrl(env: NodeJS.ProcessEnv = process.env): string {

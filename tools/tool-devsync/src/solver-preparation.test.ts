@@ -33,12 +33,12 @@ describe('the solver compatibility identity', () => {
     const solverTreeB = '2'.repeat(40);
     const dockerfile = '3'.repeat(40);
     const objects = new Map([
-      [`${SOURCE_SHA}:libs/solver-py`, solverTreeA],
-      [`${SOURCE_SHA}:apps/be-01/Dockerfile`, dockerfile],
-      [`${OTHER_SOURCE_SHA}:libs/solver-py`, solverTreeA],
-      [`${OTHER_SOURCE_SHA}:apps/be-01/Dockerfile`, dockerfile],
-      [`${'e'.repeat(40)}:libs/solver-py`, solverTreeB],
-      [`${'e'.repeat(40)}:apps/be-01/Dockerfile`, dockerfile],
+      [`${SOURCE_SHA}:libs/wbs/adapters/solver-py`, solverTreeA],
+      [`${SOURCE_SHA}:apps/wbs/be-01/Dockerfile`, dockerfile],
+      [`${OTHER_SOURCE_SHA}:libs/wbs/adapters/solver-py`, solverTreeA],
+      [`${OTHER_SOURCE_SHA}:apps/wbs/be-01/Dockerfile`, dockerfile],
+      [`${'e'.repeat(40)}:libs/wbs/adapters/solver-py`, solverTreeB],
+      [`${'e'.repeat(40)}:apps/wbs/be-01/Dockerfile`, dockerfile],
     ]);
     const reads: string[] = [];
     const objectIdAt = (sourceSha: string, path: string): Promise<string> => {
@@ -63,13 +63,22 @@ describe('the solver compatibility identity', () => {
     expect(
       await rejection(
         solverCompatibilityIdentityAt(SOURCE_SHA, {
+          repository: '/srv/wbs/source',
           objectIdAt: (_sourceSha, path) =>
-            path === 'libs/solver-py'
+            path === 'libs/wbs/adapters/solver-py'
               ? Promise.resolve('1'.repeat(40))
               : Promise.resolve('(missing)'),
         }),
       ),
     ).toContain('invalid git object id');
+    expect(
+      await rejection(
+        solverCompatibilityIdentityAt(SOURCE_SHA, {
+          repository: '/srv/wbs/source',
+          objectIdAt: () => Promise.resolve('(missing)'),
+        }),
+      ),
+    ).toContain('repository /srv/wbs/source');
   });
 });
 
@@ -510,7 +519,10 @@ describe('solver binding retries', () => {
       stateBytes({ ...STATE, phase: 'complete' }),
       {
         publish: () => Promise.reject(new Error('completed binding must not publish')),
-        checkpoint: () => Promise.resolve(),
+        checkpoint: (state) => {
+          events.push(`checkpoint:${state.phase}`);
+          return Promise.resolve();
+        },
         withHostMutationLock: async (action) => {
           events.push('lock');
           await action();
@@ -539,13 +551,42 @@ describe('solver binding retries', () => {
     );
     expect(events).toEqual([
       'preflight:1',
+      'checkpoint:published',
       'lock',
       'materialize',
       'install',
       'preflight:2',
       'unlock',
+      'checkpoint:complete',
       'reset',
     ]);
+  });
+
+  // Proof: failing the repair install leaves a published checkpoint. Without
+  // that downgrade, retry would trust the stale complete record again.
+  it('checkpoints completed-state repair before retrying installation', async () => {
+    const checkpoints: SolverPreparationState[] = [];
+    expect(
+      await rejection(
+        resumeSolverBindingBeforeReset(
+          { sourceSha: SOURCE_SHA, compatibilityIdentity: IDENTITY },
+          stateBytes({ ...STATE, phase: 'complete' }),
+          {
+            publish: () => Promise.reject(new Error('completed binding must not publish')),
+            checkpoint: (state) => {
+              checkpoints.push(state);
+              return Promise.resolve();
+            },
+            withHostMutationLock: (action) => action(),
+            materialize: () => Promise.resolve(),
+            install: () => Promise.reject(new Error('injected repair interruption')),
+            preflight: () => Promise.reject(new Error('mapping overwritten')),
+            reset: () => Promise.reject(new Error('interrupted repair must not reset')),
+          },
+        ),
+      ),
+    ).toMatch(/injected repair interruption/);
+    expect(checkpoints).toEqual([{ ...STATE, phase: 'published' }]);
   });
 });
 

@@ -7,11 +7,12 @@ interface WorkflowStep {
   name?: string;
   run?: string;
   uses?: string;
-  with?: { name?: string };
+  with?: { name?: string; path?: string };
 }
 
 interface WorkflowJob {
   if?: string;
+  name?: string;
   needs?: string;
   steps?: WorkflowStep[];
   strategy?: { matrix?: { shard?: number[] } };
@@ -45,9 +46,15 @@ describe('the CI pixels gate', () => {
     );
 
     expect(shardJob?.strategy?.matrix?.shard).toEqual([1, 2, 3, 4]);
+    expect(shardJob?.name).toBe('pixels shard ${{ matrix.shard }}/4');
     expect(layoutStep?.run).toBe('bun run e2e -- --shard=${{ matrix.shard }}/4');
     expect(artifactStep?.with?.name).toBe(
       'wbs-table-screenshot-${{ matrix.shard }}-${{ github.run_attempt }}',
+    );
+    // Proof: restoring only the first upload root to `apps/fe-01/test-results/`
+    // failed this production-workflow oracle with the complete legacy path (2026-09-14).
+    expect(artifactStep?.with?.path).toBe(
+      'apps/wbs/fe-01/test-results/\napps/wbs/fe-01/playwright-report/\n',
     );
     expect(summaryJob?.needs).toBe('pixels_shard');
     expect(summaryJob?.if).toBe('${{ always() }}');

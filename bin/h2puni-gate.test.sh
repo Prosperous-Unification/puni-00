@@ -66,6 +66,62 @@ run_gate() {
     bash -c "$inner" h2puni-gate-test "$gate_lib" "$repo" "$lock" "$sha" -- "$@"
 }
 
+run_launcher_resolution() {
+  local activation_root=$1 candidate_root=$2
+  bash -c 'source "$1"; resolve_tool_wiki_launcher "$2" "$3"' \
+    h2puni-launcher-resolution "$gate_lib" "$activation_root" "$candidate_root"
+}
+
+run_modules_resolution() {
+  local activation_root=$1 candidate_root=$2 modules_input=${3:-}
+  bash -c 'source "$1"; resolve_tool_wiki_modules "$2" "$3" "$4"' \
+    h2puni-modules-resolution "$gate_lib" "$activation_root" "$candidate_root" "$modules_input"
+}
+
+prepare_gate_steps_path() {
+  local fixture_root=$1 include_jq=$2 include_tee=${3:-yes}
+  mkdir -p "$fixture_root/bin" "$fixture_root/reports"
+  ln -s "$(type -P mktemp)" "$fixture_root/bin/mktemp"
+  ln -s "$(type -P rm)" "$fixture_root/bin/rm"
+  if [[ $include_jq == yes ]]; then
+    ln -s "$(type -P jq)" "$fixture_root/bin/jq"
+  fi
+  if [[ $include_tee == yes ]]; then
+    ln -s "$(type -P tee)" "$fixture_root/bin/tee"
+  fi
+  # shellcheck disable=SC2016 # These variables belong to the generated fake, not this process.
+  printf '%s\n' \
+    '#!/bin/bash' \
+    'printf '\''%s\n'\'' "$*" >>"$GATE_CALL_LOG"' \
+    'if [[ $1 == @fission-ai/openspec@1.3.0 ]]; then' \
+    '  case $GATE_OPEN_SPEC_MODE in' \
+    '    failed) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":7,"failed":1}}}'\'' ;;' \
+    '    empty) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":0,"failed":0}}}'\'' ;;' \
+    '    string) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":"0","failed":0}}}'\'' ;;' \
+    '    fractional) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":1.5,"failed":0}}}'\'' ;;' \
+    '    multiple) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":7,"failed":1}}}'\'' '\''{"summary":{"totals":{"passed":8,"failed":0}}}'\'' ;;' \
+    '    missing) exit 127 ;;' \
+    '    passed) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":8,"failed":0}}}'\'' ;;' \
+    '    *) exit 64 ;;' \
+    '  esac' \
+    '  exit 0' \
+    'fi' \
+    'printf '\''later\n'\'' >"$GATE_LATER_MARKER"' \
+    >"$fixture_root/bin/bunx"
+  chmod +x "$fixture_root/bin/bunx"
+}
+
+run_gate_steps_fixture() {
+  local fixture_root=$1 mode=$2
+  GATE_CALL_LOG="$fixture_root/calls" \
+    GATE_LATER_MARKER="$fixture_root/later" \
+    GATE_OPEN_SPEC_MODE="$mode" \
+    PATH="$fixture_root/bin" \
+    TMPDIR="$fixture_root/reports" \
+    /bin/bash "$repo_root/bin/h2puni-gate-steps.sh" "$repo_root" HEAD \
+    >"$fixture_root/stdout" 2>"$fixture_root/stderr"
+}
+
 scratch="${TMPDIR:-/tmp}/wbs-h2puni-gate-test.$$"
 rm -rf "$scratch"
 mkdir -p "$scratch"
@@ -187,6 +243,346 @@ if grep -q '^[[:space:]]*export[[:space:]]\+HEAVY_LOCK_WAIT_SECONDS' "$repo_root
   fail 'bin/h2puni-gate.sh exports its wait default into the gate steps'
 else
   pass 'the wait default stops at the lock and never enters the steps environment'
+fi
+
+# 8. A rejected candidate cannot become the checkout the next invocation trusts.
+git -C "$repo" checkout -q main
+status=0
+run_gate "$repo" "$lock" "$sha_a" false 2>"$scratch/rejected-stderr" || status=$?
+expect_status 1 "$status" 'a rejected candidate preserves its command status'
+expect_equal main "$(git -C "$repo" symbolic-ref --short HEAD)" 'a rejected gate restores the pre-gate branch'
+expect_equal "$sha_b" "$(git -C "$repo" rev-parse HEAD)" 'a rejected gate restores the pre-gate commit'
+status=0
+run_gate "$repo" "$lock" "$sha_a" bash -c 'test "$(git rev-parse HEAD)" = "$1"' gate-second "$sha_a" || status=$?
+expect_status 0 "$status" 'a second gate starts from restored trusted checkout state'
+
+git -C "$repo" checkout -q --detach "$sha_b"
+status=0
+run_gate "$repo" "$lock" "$sha_a" false 2>/dev/null || status=$?
+expect_status 1 "$status" 'a rejected candidate from detached state preserves its status'
+if git -C "$repo" symbolic-ref -q HEAD >/dev/null; then
+  fail 'a rejected gate changed the original detached checkout into a branch'
+else
+  pass 'a rejected gate preserves detached checkout shape'
+fi
+expect_equal "$sha_b" "$(git -C "$repo" rev-parse HEAD)" 'a rejected gate restores detached commit'
+
+# 9. A branch may move independently while the gate runs. Recovery must not overwrite that
+# newer ref or silently restore different bytes: it leaves the exact saved commit detached and
+# reports that the original symbolic state could not be reconstructed.
+git -C "$repo" checkout -q main
+status=0
+run_gate "$repo" "$lock" "$sha_a" bash -c 'git update-ref refs/heads/main "$1"; exit 1' \
+  gate-move "$sha_a" 2>"$scratch/ref-move-failure" || status=$?
+expect_status 74 "$status" 'a concurrently moved original branch is a loud restore failure'
+expect_equal "$sha_a" "$(git -C "$repo" rev-parse refs/heads/main)" 'restore does not overwrite the concurrently moved branch'
+expect_equal "$sha_b" "$(git -C "$repo" rev-parse HEAD)" 'restore preserves the exact saved commit after a branch move'
+if git -C "$repo" symbolic-ref -q HEAD >/dev/null; then
+  fail 'a moved branch left the checkout attached to different bytes'
+else
+  pass 'a moved branch leaves the saved commit recoverable in detached state'
+fi
+if grep -q 'original branch moved during gate' "$scratch/ref-move-failure"; then
+  pass 'concurrent ref movement names the failed symbolic restore'
+else
+  fail 'concurrent ref movement did not name the failed symbolic restore'
+fi
+
+# 10. Restore is required state recovery, so losing its ref must replace the candidate failure.
+git -C "$repo" update-ref refs/heads/main "$sha_b"
+git -C "$repo" checkout -q main
+status=0
+run_gate "$repo" "$lock" "$sha_a" bash -c 'git branch -D main >/dev/null; exit 1' \
+  2>"$scratch/restore-failure" || status=$?
+expect_status 74 "$status" 'a failed checkout restore is loud'
+if grep -q 'failed to restore pre-gate checkout' "$scratch/restore-failure"; then
+  pass 'restore failure names the lost safety recovery'
+else
+  fail 'restore failure did not name the lost safety recovery'
+fi
+
+# 11. Activation-package descriptors are relative to their activation root. The transport root
+# holds a preserved bootstrap launcher beside its descriptor, so resolution must not depend on the
+# candidate checkout or the caller's current directory.
+activation_root="$scratch/activation"
+candidate_root="$scratch/candidate"
+mkdir -p "$activation_root" "$candidate_root"
+printf 'tool-wiki-active-v1\n' >"$activation_root/active-v1"
+printf 'bootstrap-launcher.sh\n' >"$activation_root/launcher-path"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$activation_root/bootstrap-launcher.sh"
+chmod 0555 "$activation_root/bootstrap-launcher.sh"
+status=0
+resolved=$(cd "$candidate_root" && run_launcher_resolution "$activation_root" "$candidate_root") || status=$?
+expect_status 0 "$status" 'a relative launcher descriptor resolves from its activation root'
+expect_equal "$(realpath "$activation_root/bootstrap-launcher.sh")" "$resolved" 'launcher resolution is independent of caller cwd'
+
+# 12. Prefixing relative descriptors must retain the existing external-trust boundary: a symlink
+# back into the candidate is refused before any candidate launcher can run.
+printf '#!/usr/bin/env bash\nexit 0\n' >"$candidate_root/candidate-launcher.sh"
+ln -s "$candidate_root/candidate-launcher.sh" "$activation_root/candidate-link.sh"
+printf 'candidate-link.sh\n' >"$activation_root/launcher-path"
+status=0
+run_launcher_resolution "$activation_root" "$candidate_root" >/dev/null 2>"$scratch/launcher-refusal" || status=$?
+expect_status 78 "$status" 'a relative launcher symlink into the candidate is refused'
+if grep -q 'launcher must be outside the candidate checkout' "$scratch/launcher-refusal"; then
+  pass 'candidate-contained launcher refusal names the trust boundary'
+else
+  fail 'candidate-contained launcher refusal did not name the trust boundary'
+fi
+
+# 13. A marker is an exact activation decision, not an existence flag. A malformed marker must
+# fail before any descriptor or launcher is considered.
+printf 'not-active\n' >"$activation_root/active-v1"
+status=0
+run_launcher_resolution "$activation_root" "$candidate_root" >/dev/null 2>"$scratch/marker-refusal" || status=$?
+expect_status 78 "$status" 'a malformed activation marker is refused'
+if grep -q 'marker is missing, unreadable, or malformed' "$scratch/marker-refusal"; then
+  pass 'malformed marker refusal names the invalid activation decision'
+else
+  fail 'malformed marker refusal did not name the invalid activation decision'
+fi
+
+# 14. An unreadable descriptor cannot silently select a default launcher.
+printf 'tool-wiki-active-v1\n' >"$activation_root/active-v1"
+chmod 000 "$activation_root/launcher-path"
+status=0
+run_launcher_resolution "$activation_root" "$candidate_root" >/dev/null 2>"$scratch/descriptor-refusal" || status=$?
+expect_status 78 "$status" 'an unreadable launcher descriptor is refused'
+if grep -q 'no readable launcher descriptor' "$scratch/descriptor-refusal"; then
+  pass 'unreadable descriptor refusal names the missing authority'
+else
+  fail 'unreadable descriptor refusal did not name the missing authority'
+fi
+chmod 0644 "$activation_root/launcher-path"
+
+# 15. A descriptor naming a directory is not an executable authority artifact.
+printf '.\n' >"$activation_root/launcher-path"
+status=0
+run_launcher_resolution "$activation_root" "$candidate_root" >/dev/null 2>"$scratch/file-refusal" || status=$?
+expect_status 78 "$status" 'a launcher descriptor naming a directory is refused'
+if grep -q 'launcher is not a readable regular file' "$scratch/file-refusal"; then
+  pass 'non-file launcher refusal names the invalid artifact shape'
+else
+  fail 'non-file launcher refusal did not name the invalid artifact shape'
+fi
+
+# 16. Trust roots are external state. Even an outward-pointing launcher cannot make a root inside
+# the candidate checkout authoritative.
+candidate_activation="$candidate_root/activation"
+mkdir -p "$candidate_activation"
+printf 'tool-wiki-active-v1\n' >"$candidate_activation/active-v1"
+printf '%s\n' "$activation_root/bootstrap-launcher.sh" >"$candidate_activation/launcher-path"
+status=0
+run_launcher_resolution "$candidate_activation" "$candidate_root" >/dev/null 2>"$scratch/root-refusal" || status=$?
+expect_status 78 "$status" 'an activation root inside the candidate is refused'
+if grep -q 'activation root must be outside the candidate checkout' "$scratch/root-refusal"; then
+  pass 'candidate-contained activation root refusal names the trust boundary'
+else
+  fail 'candidate-contained activation root refusal did not name the trust boundary'
+fi
+
+# 17. The production host entrypoint must propagate resolver refusal before it takes the heavy
+# lock. A candidate-contained launcher is selected through a real external descriptor.
+host_activation="$scratch/host-activation"
+mkdir -p "$host_activation"
+printf 'tool-wiki-active-v1\n' >"$host_activation/active-v1"
+ln -s "$repo_root/bin/h2puni-gate.sh" "$host_activation/candidate-link.sh"
+printf 'candidate-link.sh\n' >"$host_activation/launcher-path"
+status=0
+TOOL_WIKI_ACTIVATION_ROOT="$host_activation" \
+  bash "$repo_root/bin/h2puni-gate.sh" HEAD >"$scratch/host-entrypoint-stdout" \
+  2>"$scratch/host-entrypoint-stderr" || status=$?
+expect_status 78 "$status" 'the host entrypoint propagates a candidate-launcher refusal'
+if grep -q 'launcher must be outside the candidate checkout' "$scratch/host-entrypoint-stderr"; then
+  pass 'the host entrypoint names the external launcher boundary'
+else
+  fail 'the host entrypoint did not name the external launcher boundary'
+fi
+if grep -q 'h2puni gate: running on' "$scratch/host-entrypoint-stderr"; then
+  fail 'the host entrypoint took the heavy gate after resolver refusal'
+else
+  pass 'the host entrypoint refuses before taking the heavy gate'
+fi
+
+# 18. Once an activation root is configured, losing its marker is a provisioning failure rather
+# than permission to silently fall back to an uncertified candidate-only gate.
+missing_marker_activation="$scratch/missing-marker-activation"
+mkdir -p "$missing_marker_activation"
+status=0
+TOOL_WIKI_ACTIVATION_ROOT="$missing_marker_activation" \
+  bash "$repo_root/bin/h2puni-gate.sh" HEAD >"$scratch/missing-marker-stdout" \
+  2>"$scratch/missing-marker-stderr" || status=$?
+expect_status 78 "$status" 'a configured host activation with no marker is refused'
+if grep -q 'configured activation has no external marker' "$scratch/missing-marker-stderr"; then
+  pass 'the missing host marker names the lost provisioning state'
+else
+  fail 'the missing host marker was treated as an inactive rollout'
+fi
+if grep -q 'h2puni gate: running on' "$scratch/missing-marker-stderr"; then
+  fail 'the host entrypoint took the heavy gate after losing its activation marker'
+else
+  pass 'the missing host marker is refused before taking the heavy gate'
+fi
+
+# 19. A relocated archive carries its external TypeScript runtime below the activation root, so
+# the active host gate has a usable default without trusting the candidate checkout's install.
+runtime_root="$scratch/runtime-activation"
+mkdir -p "$runtime_root/trusted-node-modules/typescript"
+printf '{}\n' >"$runtime_root/trusted-node-modules/typescript/package.json"
+status=0
+resolved=$(run_modules_resolution "$runtime_root" "$candidate_root") || status=$?
+expect_status 0 "$status" 'the host runtime defaults below the external activation root'
+expect_equal "$(realpath "$runtime_root/trusted-node-modules")" "$resolved" 'the default runtime is relocatable and external'
+
+# 20. An archive that loses its runtime is incomplete activation state, not permission to fall
+# back to the candidate's node_modules.
+missing_runtime_root="$scratch/missing-runtime-activation"
+mkdir -p "$missing_runtime_root"
+status=0
+run_modules_resolution "$missing_runtime_root" "$candidate_root" >/dev/null \
+  2>"$scratch/missing-runtime-stderr" || status=$?
+expect_status 78 "$status" 'a missing external TypeScript runtime is refused'
+if grep -q 'trusted TypeScript runtime modules are not provisioned' "$scratch/missing-runtime-stderr"; then
+  pass 'the missing runtime refusal names the lost provisioning state'
+else
+  fail 'the missing runtime refusal did not name the lost provisioning state'
+fi
+
+# 21. An explicit override remains external authority; configuration cannot select modules from
+# the candidate checkout and thereby make reviewed relationship extraction execute candidate bytes.
+mkdir -p "$candidate_root/node_modules/typescript"
+printf '{}\n' >"$candidate_root/node_modules/typescript/package.json"
+status=0
+run_modules_resolution "$runtime_root" "$candidate_root" "$candidate_root/node_modules" \
+  >/dev/null 2>"$scratch/candidate-runtime-stderr" || status=$?
+expect_status 78 "$status" 'candidate-owned TypeScript runtime modules are refused'
+if grep -q 'runtime modules must be outside the candidate checkout' "$scratch/candidate-runtime-stderr"; then
+  pass 'the candidate runtime refusal names the trust boundary'
+else
+  fail 'the candidate runtime refusal did not name the trust boundary'
+fi
+
+# 22. OpenSpec reports its contract in JSON even when the process exits zero. A failed spec must
+# stop the real production steps before Nx work begins.
+failed_spec_fixture="$scratch/failed-spec"
+prepare_gate_steps_path "$failed_spec_fixture" yes
+status=0
+run_gate_steps_fixture "$failed_spec_fixture" failed || status=$?
+expect_status 1 "$status" 'an exit-zero OpenSpec report with a failed spec refuses the gate steps'
+expect_equal '@fission-ai/openspec@1.3.0 validate --all --json' \
+  "$(head -n 1 "$failed_spec_fixture/calls" 2>/dev/null)" 'the gate invokes the pinned validator contract'
+if [[ -e $failed_spec_fixture/later ]]; then
+  fail 'the failed OpenSpec report allowed later Nx work'
+else
+  pass 'the failed OpenSpec report stops before later Nx work'
+fi
+if compgen -G "$failed_spec_fixture/reports/*" >/dev/null; then
+  fail 'the failed OpenSpec report left its temporary file behind'
+else
+  pass 'the failed OpenSpec report cleans its temporary file'
+fi
+
+# 23. Zero failures is insufficient when no spec was validated.
+empty_spec_fixture="$scratch/empty-spec"
+prepare_gate_steps_path "$empty_spec_fixture" yes
+status=0
+run_gate_steps_fixture "$empty_spec_fixture" empty || status=$?
+expect_status 1 "$status" 'an OpenSpec report with no passing specs refuses the gate steps'
+if [[ -e $empty_spec_fixture/later ]]; then
+  fail 'the empty OpenSpec report allowed later Nx work'
+else
+  pass 'the empty OpenSpec report stops before later Nx work'
+fi
+
+# 24. A missing validator is a required-tool failure, not permission to continue.
+missing_validator_fixture="$scratch/missing-validator"
+prepare_gate_steps_path "$missing_validator_fixture" yes
+status=0
+run_gate_steps_fixture "$missing_validator_fixture" missing || status=$?
+expect_status 127 "$status" 'a missing OpenSpec validator refuses the gate steps'
+if [[ -e $missing_validator_fixture/later ]]; then
+  fail 'the missing validator allowed later Nx work'
+else
+  pass 'the missing validator stops before later Nx work'
+fi
+
+# 25. JSON is accepted only through jq; losing that parser must fail closed.
+missing_jq_fixture="$scratch/missing-jq"
+prepare_gate_steps_path "$missing_jq_fixture" no
+status=0
+run_gate_steps_fixture "$missing_jq_fixture" passed || status=$?
+expect_status 127 "$status" 'a missing jq refuses the gate steps'
+if [[ -e $missing_jq_fixture/later ]]; then
+  fail 'the missing jq allowed later Nx work'
+else
+  pass 'the missing jq stops before later Nx work'
+fi
+
+# 26. JSON type ordering must not let a string total satisfy numeric acceptance.
+string_spec_fixture="$scratch/string-spec"
+prepare_gate_steps_path "$string_spec_fixture" yes
+status=0
+run_gate_steps_fixture "$string_spec_fixture" string || status=$?
+expect_status 1 "$status" 'a string OpenSpec pass total refuses the gate steps'
+if [[ -e $string_spec_fixture/later ]]; then
+  fail 'the string OpenSpec pass total allowed later Nx work'
+else
+  pass 'the string OpenSpec pass total stops before later Nx work'
+fi
+
+# 27. Totals are counts, so even numeric fractions are malformed.
+fractional_spec_fixture="$scratch/fractional-spec"
+prepare_gate_steps_path "$fractional_spec_fixture" yes
+status=0
+run_gate_steps_fixture "$fractional_spec_fixture" fractional || status=$?
+expect_status 1 "$status" 'a fractional OpenSpec pass total refuses the gate steps'
+if [[ -e $fractional_spec_fixture/later ]]; then
+  fail 'the fractional OpenSpec pass total allowed later Nx work'
+else
+  pass 'the fractional OpenSpec pass total stops before later Nx work'
+fi
+
+# 28. A later passing JSON document cannot overwrite an earlier failed report's jq exit status.
+multiple_spec_fixture="$scratch/multiple-spec"
+prepare_gate_steps_path "$multiple_spec_fixture" yes
+status=0
+run_gate_steps_fixture "$multiple_spec_fixture" multiple || status=$?
+expect_status 1 "$status" 'two sequential OpenSpec reports refuse the gate steps'
+if [[ -e $multiple_spec_fixture/later ]]; then
+  fail 'two sequential OpenSpec reports allowed later Nx work'
+else
+  pass 'two sequential OpenSpec reports stop before later Nx work'
+fi
+
+# 29. Losing the command-output retention tool must fail before validation can be hidden.
+missing_tee_fixture="$scratch/missing-tee"
+prepare_gate_steps_path "$missing_tee_fixture" yes no
+status=0
+run_gate_steps_fixture "$missing_tee_fixture" passed || status=$?
+expect_status 127 "$status" 'a missing tee refuses the gate steps'
+if [[ -e $missing_tee_fixture/later ]]; then
+  fail 'the missing tee allowed later Nx work'
+else
+  pass 'the missing tee stops before later Nx work'
+fi
+
+# 30. A non-empty, failure-free report admits the remaining production steps and remains visible.
+passed_spec_fixture="$scratch/passed-spec"
+prepare_gate_steps_path "$passed_spec_fixture" yes
+status=0
+run_gate_steps_fixture "$passed_spec_fixture" passed || status=$?
+expect_status 0 "$status" 'a passing OpenSpec report admits the remaining gate steps'
+expect_equal '{"summary":{"totals":{"passed":8,"failed":0}}}' \
+  "$(cat "$passed_spec_fixture/stdout")" 'the passing OpenSpec JSON remains in gate output'
+if [[ -e $passed_spec_fixture/later ]]; then
+  pass 'the passing OpenSpec report reaches later Nx work'
+else
+  fail 'the passing OpenSpec report did not reach later Nx work'
+fi
+if compgen -G "$passed_spec_fixture/reports/*" >/dev/null; then
+  fail 'the passing OpenSpec report left its temporary file behind'
+else
+  pass 'the passing OpenSpec report cleans its temporary file'
 fi
 
 if ((failures)); then

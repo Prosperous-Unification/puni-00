@@ -2,7 +2,7 @@
 
 Status: user-directed target; storage protocol below is proposed. Updated
 2026-09-06. Sources: [Backlog.md findings](research/backlog-patterns.md), existing
-[WBS MCP contract](../../apps/mcp-01/README.md), and
+[WBS MCP contract](../../apps/wbs/mcp-01/README.md), and
 [refactor prerequisite](../2026-09-02-refactoring-plan.md).
 
 Every client gets an Nx monorepo containing its projects, OpenSpec, linked domain
@@ -334,7 +334,7 @@ commit/gate evidence rather than treating its historical counts as current:
 | WBS typecheck coverage                                                                       | Source and spec-project targets used by the adapter/FE/MCP contracts compile real files in CI; fix any measured errors and inject a type error to prove each target covers its files. Do not inherit the old handoff's 218-error figure as a fresh measurement. |
 | Stable migration source                                                                      | Record the accepted closure commit, concrete repository/command interfaces, full table/field/history inventory and full WBS gate result against that revision.                                                                                                  |
 
-`apps/be-01/src/repository/` is an existing interface to inspect at that revision,
+`apps/wbs/be-01/src/repository/` is an existing interface to inspect at that revision,
 not a module whose creation must be awaited. The user requested Backlog planning
 after the refactorings land, so the whole of Task 9 — its storage spike first,
 then the adapter — and Task 10's migration start only after this closure is

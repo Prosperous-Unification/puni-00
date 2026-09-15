@@ -10,6 +10,7 @@
       "inputs": [
         "default",
         "^production",
+        "{workspaceRoot}/**/*",
         "{workspaceRoot}/bin/dev.sh",
         "{workspaceRoot}/bin/dev-be-probe.sh",
         "{workspaceRoot}/bin/dev-mcp-preflight.sh",
@@ -18,11 +19,15 @@
         "{workspaceRoot}/bin/dev-poll-sync.sh",
         "{workspaceRoot}/bin/dev-deploy.sh",
         "{workspaceRoot}/bin/h2puni-gate.sh",
+        "{workspaceRoot}/bin/h2puni-gate-steps.sh",
         "{workspaceRoot}/deploy/dev-src/compose.yml",
         "{workspaceRoot}/apps/**/project.json",
         "{workspaceRoot}/libs/**/project.json",
         "{workspaceRoot}/tools/**/project.json",
+        "{workspaceRoot}/apps/**/tsconfig*.json",
+        "{workspaceRoot}/libs/**/tsconfig*.json",
         "{projectRoot}/workspace-projects.mjs",
+        "{projectRoot}/workspace-inventory.mjs",
         "{workspaceRoot}/apps/**/src/**/*.test.ts",
         "{workspaceRoot}/libs/**/src/**/*.test.ts",
         "{workspaceRoot}/tools/**/src/**/*.test.ts",
@@ -31,8 +36,22 @@
         "{workspaceRoot}/libs/**/src/**/*.ts",
         "{workspaceRoot}/tools/**/src/**/*.ts",
         "{workspaceRoot}/.bun-version",
+        "{workspaceRoot}/.dockerignore",
+        "{workspaceRoot}/.gitignore",
         "{workspaceRoot}/.github/workflows/ci.yml",
-        "{workspaceRoot}/apps/*/Dockerfile",
+        "{workspaceRoot}/AGENTS.md",
+        "{workspaceRoot}/HUMAN_README.md",
+        "{workspaceRoot}/LLM_README.md",
+        "{workspaceRoot}/docs/**/*.md",
+        "{workspaceRoot}/docs/wiki-policy/*.json",
+        "{workspaceRoot}/lefthook.yml",
+        "{workspaceRoot}/openspec/changes/automatic-dev-solver-binding/**/*.md",
+        "{workspaceRoot}/openspec/changes/dual-optimized-scheduler/supervisor-amendment.md",
+        "{workspaceRoot}/openspec/changes/repo-namespacing/preflight-inventory.md",
+        "{workspaceRoot}/.prettierignore",
+        "{workspaceRoot}/tsconfig.base.json",
+        "{workspaceRoot}/apps/wbs/be-01/drizzle/**/*",
+        "{workspaceRoot}/apps/**/Dockerfile",
         "{workspaceRoot}/deploy/dev-src/Dockerfile"
       ],
       "options": {
@@ -43,13 +62,13 @@
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint tools/tool-devsync/src tools/tool-devsync/workspace-projects.mjs"
+        "command": "bunx eslint tools/tool-devsync/src tools/tool-devsync/workspace-projects.mjs tools/tool-devsync/workspace-inventory.mjs"
       }
     },
     "lint:fast": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint tools/tool-devsync/src tools/tool-devsync/workspace-projects.mjs --cache --cache-location .nx/eslintcache-tool-devsync"
+        "command": "bunx eslint tools/tool-devsync/src tools/tool-devsync/workspace-projects.mjs tools/tool-devsync/workspace-inventory.mjs --cache --cache-location .nx/eslintcache-tool-devsync"
       }
     },
     "typecheck": {
@@ -74,7 +93,7 @@
       "options": {
         "commands": [
           "command -v shellcheck >/dev/null 2>&1 || { echo '[tool-devsync] shellcheck is required but not installed. macOS: brew install shellcheck. Debian/Ubuntu: apt-get install shellcheck.' >&2; exit 1; }",
-          "shellcheck -s bash bin/dev.sh bin/dev-deploy.sh bin/dev-be-probe.sh bin/dev-mcp-preflight.sh bin/dev-mcp-probe.sh bin/dev-poll.sh bin/dev-poll-sync.sh"
+          "shellcheck -s bash bin/dev.sh bin/dev-ports.sh bin/dev-deploy.sh bin/dev-be-probe.sh bin/dev-mcp-preflight.sh bin/dev-mcp-probe.sh bin/dev-poll.sh bin/dev-poll-sync.sh"
         ],
         "parallel": false
       }

@@ -46,7 +46,7 @@ The existing WBS MCP contract is materially stronger: browser and MCP mutations
 reach the same authenticated backend; ordered plan commands apply all or none,
 resolve intra-batch refs, and produce one personal undo entry. Preserve that
 contract through the new adapter unless a later specification explicitly changes
-it. [Current WBS MCP](../../../apps/mcp-01/README.md).
+it. [Current WBS MCP](../../../apps/wbs/mcp-01/README.md).
 
 ## File model, identity and scope
 
@@ -163,7 +163,7 @@ This table is an analysis of the existing WBS contract against the inspected
 Backlog surfaces. “Adapter” means behavior and repository metadata that must be
 specified, not a second authoritative SQLite store. The WBS side is defined in
 the [domain glossary](../../../CONTEXT.md), [capacity description](../../capacity.md),
-and [command API explanation](../../../apps/mcp-01/README.md).
+and [command API explanation](../../../apps/wbs/mcp-01/README.md).
 
 | WBS capability                    | Reusable part                                       | Required adapter contract                                                                                                                                                                                          |
 | --------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
