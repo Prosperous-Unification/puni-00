@@ -89,10 +89,10 @@ Nothing below has an owning task in the external queue (`backlog/tasks/task-NNN 
       plus two independent-history families, typed broken-source controls and honest
       execution/certification manifests. Does not silently implement every memory gap.
 - [ ] **[repo-namespacing](../../openspec/changes/repo-namespacing/tasks.md)** (D18/D19) —
-      prepared, implementation not started; after core. Preserve aliases and deploy
-      identities while moving project paths/names/tags, migrations and build/gate consumers.
-      Other packets use pre-namespacing paths; finish overlapping moves first or explicitly
-      remap their exact file/target references at landing.
+      implementation is at the landing candidate; Task 4.2 retains the earlier frozen-candidate
+      runtime evidence. Production registry publication and the deploy dry-run remain explicitly
+      deferred under OpenSpec 4.3, and the repaired landing SHA still awaits final exact-SHA gate
+      and integration evidence. Do not claim deployment readiness or archive before both are done.
 - [x] **W4-3 [plan-command-registry](../../openspec/changes/plan-command-registry/tasks.md)** —
       **merged in #430 as `e3c8aac3`, 2026-09-13**, 10/10 tasks. The contracts registry now
       owns all command kinds and structural descriptors; core derives semantic normalizers,

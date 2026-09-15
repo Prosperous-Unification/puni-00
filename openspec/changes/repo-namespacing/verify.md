@@ -604,6 +604,34 @@ and fe; the corrected dry-run must then be repeated to emit and review every tie
 installation is a separate live-execution preflight and was not required or performed by this dry
 run. This local verification did not publish, install or mutate host state.
 
+### Section 4.3 h2puni publication preflight and explicit deferral, 2026-09-15
+
+The reviewed remote branch advertised exact candidate
+`7cebd519b8f0f401aa41479407a7a0c5ced925e5`. Read-only h2puni preflight found
+`/home/puni1/wbs-t267` idle, clean and detached at the prior candidate, with the canonical heavy
+lock free, the pinned v0.21.9 Dagger engine stopped, and required registry credentials configured
+on the host without exposing their values. The separate `/home/puni1/wbs-build` checkout retained
+its unrelated frontend-test edit and was not touched. After fetching the advertised branch, the
+task checkout moved to exact `7cebd519b8f0f401aa41479407a7a0c5ced925e5` under
+`bin/with-heavy-lock.sh`; it remained clean and the lock was released.
+
+Read-only registry inspection found all three exact-SHA be/gw/fe candidate tags unused, and
+`dist/tool-dagger/release.json` absent. The canonical `bin/publish-release.sh` invocation was then
+submitted with `REGISTRY_USER` and `REGISTRY_PASS` sourced only inside the host shell. The execution
+safety reviewer rejected private candidate-image egress before launch and prohibited an indirect
+retry. A post-refusal audit found no publisher or Dagger process, no publish log, a free heavy lock,
+the engine still stopped, all three tags still absent, and the exact candidate checkout still
+clean. No credential value was printed or copied.
+
+Because publication did not create a fresh release manifest, the required
+`bunx nx run tool-deploy:deploy --args='--all --env=prod --dry-run'` was not run. There are no fresh
+image digests, executor-bundle hashes, tier plans, migration decision or runtime CLI-resolution
+observations to claim. The user subsequently chose to land the remaining reviewed repository work
+while explicitly deferring registry image publication and this production dry-run. Task 4.3 stays
+unchecked and unchanged; deployment readiness and archive completion are not claimed. No image or
+release was published, no live deploy or traffic change occurred, and the final h2puni gate was not
+run in this documentation slice.
+
 ## Section 4.2 local production-path verification
 
 The frozen candidate was `7abb72f5107e5c9c03aaa077ce4d9b41549e707c`. Remote reachability
