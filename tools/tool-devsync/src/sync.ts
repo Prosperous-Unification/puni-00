@@ -34,7 +34,7 @@ import {
   SOLVER_SUPERVISOR_CONFIG,
   SOLVER_SUPERVISOR_SERVICE,
   SOLVER_SUPERVISOR_SOCKET,
-} from '@wbs/deploy-contract';
+} from '@tools/deploy-contract';
 import { $ } from 'bun';
 
 import { prepareTargetSolverBinding } from './solver-binding-host';

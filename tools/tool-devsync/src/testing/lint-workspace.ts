@@ -2,7 +2,7 @@ import { mkdir, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { scratchAsync } from '@wbs/tool-test-scratch';
+import { scratchAsync } from '@tools/test-scratch';
 
 /** The repository root the fixtures borrow `node_modules` and the generated policy from. */
 export const CHECKOUT = fileURLToPath(new URL('../../../..', import.meta.url));

@@ -482,20 +482,13 @@ test('every alias has an allowed prefix and resolves to a tracked file', async (
     }
   }
 
-  // The two application entry aliases name an `src/index.ts` no application has and are imported
-  // nowhere; `docs/2026-08-30-sustainability-audit.md` already records them as dead. They are
-  // pinned rather than excused by a looser rule, so a third dead alias still fails here.
-  // Temporary: Task 1.7 deletes `@wbs/be-01` and `@wbs/gw-01` from tsconfig.base.json (both point
-  // at a nonexistent src/index.ts) and restores `toEqual([])`; delete this pin then.
-  // Proof: the two rows below are themselves the observed production failure — the rule found
-  // them in the real tsconfig.base.json (2026-09-15). Injecting `@wbs/config` ->
-  // ./libs/wbs/adapters/config/src/missing.ts added `@wbs/config: ... is not tracked`, and an
-  // `@acme/x` -> ./libs/acme/src/index.ts alias added both `@acme/x: prefix` and its untracked
-  // target (2026-09-15).
-  expect(failures).toEqual([
-    '@wbs/be-01: ./apps/wbs/be-01/src/index.ts is not tracked',
-    '@wbs/gw-01: ./apps/wbs/gw-01/src/index.ts is not tracked',
-  ]);
+  // Proof: on 2026-09-15 this rule found two dead aliases in the real tsconfig.base.json —
+  // `@wbs/be-01` and `@wbs/gw-01`, each naming an `src/index.ts` no application has and imported
+  // nowhere — and stayed red until Task 1.7 deleted them; injecting `@wbs/config` ->
+  // ./libs/wbs/adapters/config/src/missing.ts adds `@wbs/config: ... is not tracked`, and an
+  // `@acme/x` -> ./libs/acme/src/index.ts alias adds both `@acme/x: prefix` and its untracked
+  // target.
+  expect(failures).toEqual([]);
 });
 
 test('every migration keeps its expected namespaced path and Git blob', async () => {

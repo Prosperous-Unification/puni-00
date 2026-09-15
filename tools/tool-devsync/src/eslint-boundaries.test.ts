@@ -172,7 +172,7 @@ describe('the effective production and test boundaries', () => {
     // this case received severity 0 for `example.test.ts` instead of 2
     // (2026-09-10). With the scope constraints omitted from that replacement,
     // the new assertion failed because `scope:app` was absent. Importing
-    // `@wbs/tool-compose` from config's tracked `define-config.test.ts` then
+    // `@tools/compose` from config's tracked `define-config.test.ts` then
     // failed the uncached config lint target with “A project tagged with
     // \"scope:shared\" can only depend on libs tagged with \"scope:shared\"”.
     for (const path of [

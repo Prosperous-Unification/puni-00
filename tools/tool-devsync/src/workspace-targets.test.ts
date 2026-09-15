@@ -613,7 +613,7 @@ async function sourceFilesIn(root: URL, prefix: string): Promise<{ path: string;
  * `Tier` was written out four times and inline twice more, `Color` three times,
  * and the image names, container names and ports twice each — across four
  * projects that have to agree or a deploy pushes an image the server will not
- * run. `@wbs/deploy-contract` is the one declaration since 2026-09-02, and this
+ * run. `@tools/deploy-contract` is the one declaration since 2026-09-02, and this
  * is what stops the copies coming back: a re-declared union reads exactly like
  * the original to anybody who does not go looking for the other three.
  *
