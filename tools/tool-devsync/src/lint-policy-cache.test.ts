@@ -189,6 +189,7 @@ describe('production lint policy cache inputs', () => {
     expect(await productionLintInputs()).toEqual([
       'default',
       '{workspaceRoot}/eslint.config.js',
+      '{workspaceRoot}/tools/tool-devsync/product-policies.mjs',
       '{workspaceRoot}/tools/tool-devsync/workspace-projects.mjs',
       '{workspaceRoot}/apps/*/eslint.product.mjs',
       '{workspaceRoot}/libs/*/eslint.product.mjs',
@@ -199,16 +200,19 @@ describe('production lint policy cache inputs', () => {
     ]);
   });
 
-  it('declares both product lint policy globs', async () => {
-    // A product policy the root config discovers is read at every lint, so a lint cached
-    // before it changed is a lint run against a fence that no longer exists.
+  it('declares the discovery module and both product lint policy globs', async () => {
+    // A product policy the root config discovers, and the module that discovers it, are read
+    // at every lint, so a lint cached before either changed is a lint run against a fence that
+    // no longer exists.
     // Proof: with the two globs removed from nx.json, this case failed on the absent
     // `{workspaceRoot}/apps/*/eslint.product.mjs`, and `wbs-be-01:lint` reported
-    // `[existing outputs match the cache]` after `apps/wbs/eslint.product.mjs` changed
-    // (2026-09-15).
+    // `[existing outputs match the cache]` after `apps/wbs/eslint.product.mjs` changed.
+    // Proof: with the discovery module entry removed, this case failed on the absent
+    // `{workspaceRoot}/tools/tool-devsync/product-policies.mjs` (2026-09-15).
     const inputs = await productionLintInputs();
     expect(inputs).toContain('{workspaceRoot}/apps/*/eslint.product.mjs');
     expect(inputs).toContain('{workspaceRoot}/libs/*/eslint.product.mjs');
+    expect(inputs).toContain('{workspaceRoot}/tools/tool-devsync/product-policies.mjs');
   });
 
   it('reruns cached lint when only the generated policy module changes', async () => {

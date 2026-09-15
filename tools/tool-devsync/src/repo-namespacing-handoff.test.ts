@@ -620,8 +620,11 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // Proof: leaving `1f86dba5.../262/23` here after the product lint policy moved out of
     // the root config failed on the observed `e705fb7a.../269/30` — the seven new
     // `apps/*/eslint.product.mjs` and `libs/*/eslint.product.mjs` selectors in nx.json and
-    // lint-policy-cache.test.ts, all classified, none unclassified (2026-09-15).
-    digest: 'e705fb7a73531e01e375bd8a777490f2e687bf0aec64733b4a02d0fe1c3a1d5d',
+    // lint-policy-cache.test.ts, all classified, none unclassified.
+    // Proof: leaving `e705fb7a...` here after discovery moved into product-policies.mjs failed
+    // on the observed `ae034489...` at the same 269/30 — the new nx.json and cache-test lines
+    // carry no selector of their own and only shift the ones below them (2026-09-15).
+    digest: 'ae034489f277b90068a9d1e3b118f8b336ff97e9b761a1b61ce43cd87ccb7ecf',
     occurrences: 269,
     unclassified: [],
   });

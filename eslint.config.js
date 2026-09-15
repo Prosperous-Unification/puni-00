@@ -1,9 +1,3 @@
-import { readdir } from 'node:fs/promises';
-// `no-undef` governs this file as plain JS, where the global `URL` is undeclared: the
-// recommended config ships no Node globals, and adding them for every `.js` would widen
-// far more than this one use.
-import { URL } from 'node:url';
-
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import unusedImports from 'eslint-plugin-unused-imports';
@@ -13,6 +7,7 @@ import jsdoc from 'eslint-plugin-jsdoc';
 import prettier from 'eslint-config-prettier';
 import nxPlugin from '@nx/eslint-plugin';
 
+import { readProductPolicies } from './tools/tool-devsync/product-policies.mjs';
 import { productConstraints, readProjects } from './tools/tool-devsync/workspace-projects.mjs';
 
 const productRules = productConstraints(await readProjects(import.meta.dirname));
@@ -51,40 +46,13 @@ const testSourceFiles = ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.
 // A product's own lint fences live beside the product: `apps/<product>/eslint.product.mjs`
 // and `libs/<product>/eslint.product.mjs` default-export a function of the shared boundary
 // constants that returns flat-config objects. The function, rather than a plain array, is
-// what keeps a product file out of a circular import with this one — this config loads the
+// what keeps a product file out of a circular import with this one — discovery loads the
 // product file dynamically, so a static import back would close the cycle.
 //
-// Absent is the normal case: most product directories contribute nothing. Every other
-// failure — unreadable, a syntax error, the wrong export shape — stops lint and names the
-// file, because a fence that silently fails to load is a fence that cannot fail.
-async function readProductPolicies(root, shared) {
-  const policies = [];
-  for (const group of ['apps', 'libs']) {
-    for (const product of (await readdir(new URL(`./${group}/`, root))).sort()) {
-      const policy = new URL(`./${group}/${product}/eslint.product.mjs`, root);
-      let loaded;
-      try {
-        loaded = await import(policy.href);
-      } catch (failure) {
-        if (failure?.code === 'ERR_MODULE_NOT_FOUND') continue;
-        throw new Error(`cannot load product lint policy ${policy.pathname}`, { cause: failure });
-      }
-      if (typeof loaded.default !== 'function') {
-        throw new Error(
-          `${policy.pathname} must default-export a function of the shared constants`,
-        );
-      }
-      const configs = loaded.default(shared);
-      if (!Array.isArray(configs)) {
-        throw new Error(`${policy.pathname} must return an array of flat-config objects`);
-      }
-      policies.push(...configs);
-    }
-  }
-  return policies;
-}
-
-const productPolicies = await readProductPolicies(import.meta.url, {
+// `readProductPolicies` passes over a product that ships no policy and stops lint on every
+// other outcome, naming the file. It lives in `tools/tool-devsync/product-policies.mjs` so
+// that its negatives run against this exact code rather than against a fixture's copy.
+const productPolicies = await readProductPolicies(import.meta.dirname, {
   browserAdapterConstraint,
   productRules,
   runtimeConstraints,

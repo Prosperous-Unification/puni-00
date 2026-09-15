@@ -11,6 +11,8 @@ const PROJECT_READER = pathToFileURL(
   join(CHECKOUT, 'tools/tool-devsync/workspace-projects.mjs'),
 ).href;
 
+const POLICY_READER = pathToFileURL(join(CHECKOUT, 'tools/tool-devsync/product-policies.mjs')).href;
+
 /** One real `nx lint` run: its exit code, its merged streams, and stderr on its own. */
 export interface LintAttempt {
   readonly code: number;
@@ -53,11 +55,12 @@ export async function writeProject(
 
 /**
  * A scratch Nx workspace whose flat config carries the generated product constraints and
- * the production product-policy discovery block.
+ * calls the production discovery function.
  *
- * The discovery block is a verbatim copy of the one in the repository's `eslint.config.js`,
- * escaped for the template literal it is written through. The fixture's `shared` argument is
- * empty because the policies a test writes here assert discovery, not the shared constants.
+ * The fixture imports `readProductPolicies` out of the checkout rather than copying it, so a
+ * discovery negative run here exercises the same code the root config runs. The fixture's
+ * `shared` argument is empty because the policies a test writes assert discovery itself, not
+ * the shared constants.
  */
 export async function createLintWorkspace(): Promise<string> {
   const workspace = await scratchAsync('repo-namespacing-product-');
@@ -130,37 +133,11 @@ export async function createLintWorkspace(): Promise<string> {
     writeFile(
       join(workspace, 'eslint.config.mjs'),
       `
-        import { readdir } from 'node:fs/promises';
         import nx from '@nx/eslint-plugin';
         import { productConstraints, readProjects } from '${PROJECT_READER}';
+        import { readProductPolicies } from '${POLICY_READER}';
         const products = productConstraints(await readProjects(import.meta.dirname));
-        async function readProductPolicies(root, shared) {
-          const policies = [];
-          for (const group of ['apps', 'libs']) {
-            for (const product of (await readdir(new URL(\`./\${group}/\`, root))).sort()) {
-              const policy = new URL(\`./\${group}/\${product}/eslint.product.mjs\`, root);
-              let loaded;
-              try {
-                loaded = await import(policy.href);
-              } catch (failure) {
-                if (failure?.code === 'ERR_MODULE_NOT_FOUND') continue;
-                throw new Error(\`cannot load product lint policy \${policy.pathname}\`, { cause: failure });
-              }
-              if (typeof loaded.default !== 'function') {
-                throw new Error(
-                  \`\${policy.pathname} must default-export a function of the shared constants\`,
-                );
-              }
-              const configs = loaded.default(shared);
-              if (!Array.isArray(configs)) {
-                throw new Error(\`\${policy.pathname} must return an array of flat-config objects\`);
-              }
-              policies.push(...configs);
-            }
-          }
-          return policies;
-        }
-        const productPolicies = await readProductPolicies(import.meta.url, {
+        const productPolicies = await readProductPolicies(import.meta.dirname, {
           browserAdapterConstraint: [],
           productRules: [],
           runtimeConstraints: [],

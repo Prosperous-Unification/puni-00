@@ -234,7 +234,8 @@ describe('product lint policy discovery', () => {
     const applied = await runLint(fixture, 'probe-app');
     // Proof: with `...productPolicies` dropped from the fixture's flat config — the state
     // before discovery existed — this uncached Nx lint exited 0 and failed here on
-    // `Expected: 1 · Received: 0` (2026-09-15).
+    // `Expected: 1 · Received: 0` (2026-09-15). The fixture calls the production
+    // `readProductPolicies`, so every negative below runs the code the root config runs.
     expect(applied.code, applied.output).toBe(1);
 
     // Absent is the normal case, and the only failure discovery is allowed to pass over.
@@ -245,7 +246,7 @@ describe('product lint policy discovery', () => {
     await writeFile(join(fixture, 'apps/probe/eslint.product.mjs'), 'export default () => [];\n');
     await chmod(join(fixture, 'apps/probe/eslint.product.mjs'), 0o000);
     const unreadable = await runLint(fixture, 'probe-app');
-    // Proof: replacing the `ERR_MODULE_NOT_FOUND` guard with an unconditional `continue` —
+    // Proof: replacing the rethrow in `product-policies.mjs` with an unconditional `continue` —
     // swallowing every import failure — made this same unreadable policy exit 0, failing on
     // `Expected: not 0 · Received: 0` (2026-09-15). Nx prefixes the child's streams onto its
     // own stdout, so the diagnostic is read from the merged output rather than from stderr.
@@ -264,9 +265,10 @@ describe('product lint policy discovery', () => {
     // reach for first, which the root config cannot hand the shared constants to.
     await writeFile(policy, 'export default [];\n');
     const notAFunction = await runLint(fixture, 'probe-app');
-    // Proof: with the `typeof loaded.default !== 'function'` check removed, this lint still
-    // failed but on `loaded.default is not a function` from inside the root config, so the
-    // `must default-export a function` assertion below failed instead (2026-09-15).
+    // Proof: with the `typeof loaded.default !== 'function'` check removed from
+    // `product-policies.mjs`, this lint still failed but on `TypeError: loaded.default is not a
+    // function`, so the `must default-export a function` assertion below failed instead
+    // (2026-09-15).
     expect(notAFunction.code, notAFunction.output).not.toBe(0);
     expect(notAFunction.output, notAFunction.output).toContain(
       'must default-export a function of the shared constants',
@@ -275,13 +277,31 @@ describe('product lint policy discovery', () => {
 
     await writeFile(policy, 'export default () => ({ files: [] });\n');
     const notAnArray = await runLint(fixture, 'probe-app');
-    // Proof: with the `Array.isArray(configs)` check removed, this lint failed on a raw
-    // `Spread syntax requires ...iterable[Symbol.iterator] to be a function` instead, naming
-    // neither the contract nor the file, so both assertions below failed (2026-09-15).
+    // Proof: with the `Array.isArray(configs)` check removed from `product-policies.mjs`, this
+    // lint failed on a raw `Spread syntax requires ...iterable[Symbol.iterator] to be a function`
+    // instead, naming neither the contract nor the file, so both assertions below failed
+    // (2026-09-15).
     expect(notAnArray.code, notAnArray.output).not.toBe(0);
     expect(notAnArray.output, notAnArray.output).toContain(
       'must return an array of flat-config objects',
     );
     expect(notAnArray.output, notAnArray.output).toContain('apps/probe/eslint.product.mjs');
+  }, 90_000);
+
+  it('refuses a policy whose own imports do not resolve', async () => {
+    const fixture = await createPolicyWorkspace();
+    await writeFile(
+      join(fixture, 'apps/probe/eslint.product.mjs'),
+      "import plugin from 'this-package-does-not-exist';\nexport default () => [plugin];\n",
+    );
+    const unresolved = await runLint(fixture, 'probe-app');
+    // A present policy that names six plugin packages must not read as absent because one of
+    // them is missing: absence is decided on the file, before the import.
+    // Proof: with absence decided by `failure?.code === 'ERR_MODULE_NOT_FOUND'` from the import
+    // instead of by `stat`, this lint exited 0 with every fence silently discarded, failing on
+    // `Expected: not 0 · Received: 0` (2026-09-15).
+    expect(unresolved.code, unresolved.output).not.toBe(0);
+    expect(unresolved.output, unresolved.output).toContain('cannot load product lint policy');
+    expect(unresolved.output, unresolved.output).toContain('apps/probe/eslint.product.mjs');
   }, 90_000);
 });
