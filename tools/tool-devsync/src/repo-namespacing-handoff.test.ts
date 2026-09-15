@@ -24,25 +24,71 @@ const LEGACY_ROOT =
  */
 const ACTIVE_OPENSPEC_PACKET = 'openspec/changes/automatic-dev-solver-binding/';
 
-const LegacyAllowlist = type({
+/** What the three per-document checks need to run: the tracked tree and the real Nx project names. */
+interface DocumentContext {
+  readonly candidates: ReadonlySet<string>;
+  readonly projectNames: ReadonlySet<string>;
+}
+
+async function documentContext(
+  candidates: ReadonlySet<string> = new Set(candidatePaths()),
+): Promise<DocumentContext> {
+  return {
+    candidates,
+    projectNames: new Set((await readProjects(WORKSPACE)).map(({ name }) => name)),
+  };
+}
+
+/**
+ * Every check a current document has to pass, each reporting what it found in **one** document.
+ * An exemption names the checks it excuses, so excusing a stale `nx` selector never also excuses
+ * a pre-move path or a dead link in the same file.
+ */
+const DOCUMENT_CHECKS = {
+  'legacy-root': legacyRootFailures,
+  'nx-selector': staleSelectorFailures,
+  links: localLinkFailures,
+} as const satisfies Record<string, (path: string, context: DocumentContext) => Promise<string[]>>;
+
+type DocumentCheck = keyof typeof DOCUMENT_CHECKS;
+
+const DOCUMENT_CHECK_NAMES = Object.keys(DOCUMENT_CHECKS) as DocumentCheck[];
+
+const CheckExemptions = type({
   expires: /^\d{4}-\d{2}-\d{2}$/,
-  entries: type({ path: 'string>0', reason: 'string>0' }).array(),
+  entries: type({
+    path: 'string>0',
+    reason: 'string>0',
+    excuses: type
+      .enumerated(...DOCUMENT_CHECK_NAMES)
+      .array()
+      .atLeastLength(1),
+  }).array(),
 });
 
 /**
- * The documents excused from naming pre-move roots, each with why it is frozen. Malformed or
- * absent content throws rather than silently excusing nothing — an empty allowlist would let
- * every legacy reference read as current and pass.
+ * The documents exempted from named current-document checks, each with why it is frozen and which
+ * checks it escapes. Malformed or absent content throws rather than silently exempting nothing —
+ * an empty file would let every stale reference read as current and pass. The check names are
+ * taken from {@link DOCUMENT_CHECKS}, so an unknown or empty `excuses` is refused here.
  */
-async function readLegacyAllowlist(): Promise<typeof LegacyAllowlist.infer> {
-  const path = join(WORKSPACE, 'docs/findings/legacy-path-allowlist.json');
+async function readCheckExemptions(): Promise<typeof CheckExemptions.infer> {
+  const path = join(WORKSPACE, 'docs/findings/current-document-check-exemptions.json');
   // Proof: deleting the file failed every consumer here with `ENOENT ... open
-  // '<workspace>/docs/findings/legacy-path-allowlist.json'`; replacing `entries` with `{}` failed
-  // with `Validation failed: entries must be an array (was object)` (2026-09-15).
-  return parseOrThrow(LegacyAllowlist, JSON.parse(await readFile(path, 'utf8')));
+  // '<workspace>/docs/findings/current-document-check-exemptions.json'`; replacing `entries` with
+  // `{}` failed with `Validation failed: entries must be an array (was object)`; an `excuses: []`
+  // failed with `value at [0].excuses must be non-empty` and an `excuses: ['nope']` with
+  // `must be "legacy-root", "links" or "nx-selector" (was "nope")` (2026-09-15).
+  return parseOrThrow(CheckExemptions, JSON.parse(await readFile(path, 'utf8')));
 }
 
-/** Every tracked Markdown a reader is expected to act on today, before the allowlist is removed. */
+/** The documents whose entry excuses `check` — and no document excused only from another check. */
+async function exemptedFrom(check: DocumentCheck): Promise<Set<string>> {
+  const { entries } = await readCheckExemptions();
+  return new Set(entries.filter(({ excuses }) => excuses.includes(check)).map(({ path }) => path));
+}
+
+/** Every tracked Markdown a reader is expected to act on today. */
 function documentCandidates(candidates: Iterable<string>): string[] {
   return [...candidates].filter(
     (path) =>
@@ -94,12 +140,33 @@ async function currentDocuments(
       path.endsWith('/README.md') &&
       (path.startsWith('apps/') || path.startsWith('libs/') || path.startsWith('tools/')),
   );
-  const historical = new Set((await readLegacyAllowlist()).entries.map(({ path }) => path));
-  const discovered = documentCandidates(candidates).filter((path) => !historical.has(path));
-  const rootRouted = (await rootRoutedDocuments(rootRouterSource, candidates)).filter(
-    (path) => candidates.has(path) && !historical.has(path),
+  const rootRouted = (await rootRoutedDocuments(rootRouterSource, candidates)).filter((path) =>
+    candidates.has(path),
   );
-  return [...new Set([...discovered, ...rootRouted, ...readmes])].sort();
+  return [...new Set([...documentCandidates(candidates), ...rootRouted, ...readmes])].sort();
+}
+
+async function legacyRootFailures(path: string): Promise<string[]> {
+  const source = await readFile(join(WORKSPACE, path), 'utf8');
+  return [...source.matchAll(LEGACY_ROOT)].map((match) => `${path}:${match[0]}`);
+}
+
+async function staleSelectorFailures(path: string, context: DocumentContext): Promise<string[]> {
+  const failures: string[] = [];
+  const lines = (await readFile(join(WORKSPACE, path), 'utf8')).split('\n');
+  for (const [offset, line] of lines.entries()) {
+    if (line.includes('historical path)')) continue;
+    const commandSelectors = [
+      ...line.matchAll(/\bnx run ([a-z0-9-]+):/g),
+      ...line.matchAll(/\bnx (?:test|lint|build|typecheck) ([a-z0-9-]+)/g),
+    ];
+    for (const match of commandSelectors) {
+      if (!context.projectNames.has(match[1])) {
+        failures.push(`${path}:${String(offset + 1)}:${match[1]}`);
+      }
+    }
+  }
+  return failures;
 }
 
 async function rootRoutedDocuments(
@@ -164,6 +231,51 @@ function documentAnchors(source: string): Set<string> {
   return anchors;
 }
 
+async function localLinkFailures(sourcePath: string, context: DocumentContext): Promise<string[]> {
+  const { candidates } = context;
+  const failures: string[] = [];
+  const source = await readFile(join(WORKSPACE, sourcePath), 'utf8');
+  for (const destination of localMarkdownDestinations(source)) {
+    const hashAt = destination.indexOf('#');
+    const encodedPath = hashAt === -1 ? destination : destination.slice(0, hashAt);
+    const encodedAnchor = hashAt === -1 ? '' : destination.slice(hashAt + 1);
+    const decodedPath = decodeURIComponent(encodedPath.split('?', 1)[0]);
+    let targetPath =
+      decodedPath.length === 0
+        ? sourcePath
+        : decodedPath.startsWith('/')
+          ? posix.normalize(decodedPath.slice(1))
+          : posix.normalize(posix.join(posix.dirname(sourcePath), decodedPath));
+    if (!candidates.has(targetPath) && candidates.has(`${targetPath}/README.md`)) {
+      targetPath = `${targetPath}/README.md`;
+    }
+    if (!candidates.has(targetPath)) {
+      failures.push(`${sourcePath} -> ${destination} (absent ${targetPath})`);
+      continue;
+    }
+    if (encodedAnchor.length === 0 || !targetPath.endsWith('.md')) continue;
+    const anchors = documentAnchors(await readFile(join(WORKSPACE, targetPath), 'utf8'));
+    const anchor = decodeURIComponent(encodedAnchor);
+    if (!anchors.has(anchor)) failures.push(`${sourcePath} -> ${destination} (absent #${anchor})`);
+  }
+  return failures;
+}
+
+/** Every failure `check` finds across the current documents it is not excused from. */
+async function currentDocumentFailures(
+  check: DocumentCheck,
+  context: DocumentContext,
+  rootRouterSource?: string,
+): Promise<string[]> {
+  const exempted = await exemptedFrom(check);
+  const failures: string[] = [];
+  for (const path of await currentDocuments(rootRouterSource, new Set(context.candidates))) {
+    if (exempted.has(path)) continue;
+    failures.push(...(await DOCUMENT_CHECKS[check](path, context)));
+  }
+  return failures;
+}
+
 async function currentDocumentLinkFailures(
   rootRouterSource?: string,
   candidates = new Set(candidatePaths()),
@@ -174,35 +286,8 @@ async function currentDocumentLinkFailures(
       failures.push(`LLM_README.md -> ${routedPath} (absent ${routedPath})`);
     }
   }
-  for (const sourcePath of await currentDocuments(rootRouterSource, candidates)) {
-    const source = await readFile(join(WORKSPACE, sourcePath), 'utf8');
-    for (const destination of localMarkdownDestinations(source)) {
-      const hashAt = destination.indexOf('#');
-      const encodedPath = hashAt === -1 ? destination : destination.slice(0, hashAt);
-      const encodedAnchor = hashAt === -1 ? '' : destination.slice(hashAt + 1);
-      const decodedPath = decodeURIComponent(encodedPath.split('?', 1)[0]);
-      let targetPath =
-        decodedPath.length === 0
-          ? sourcePath
-          : decodedPath.startsWith('/')
-            ? posix.normalize(decodedPath.slice(1))
-            : posix.normalize(posix.join(posix.dirname(sourcePath), decodedPath));
-      if (!candidates.has(targetPath) && candidates.has(`${targetPath}/README.md`)) {
-        targetPath = `${targetPath}/README.md`;
-      }
-      if (!candidates.has(targetPath)) {
-        failures.push(`${sourcePath} -> ${destination} (absent ${targetPath})`);
-        continue;
-      }
-      if (encodedAnchor.length === 0 || !targetPath.endsWith('.md')) {
-        continue;
-      }
-      const anchors = documentAnchors(await readFile(join(WORKSPACE, targetPath), 'utf8'));
-      const anchor = decodeURIComponent(encodedAnchor);
-      if (!anchors.has(anchor))
-        failures.push(`${sourcePath} -> ${destination} (absent #${anchor})`);
-    }
-  }
+  const context = await documentContext(candidates);
+  failures.push(...(await currentDocumentFailures('links', context, rootRouterSource)));
   return failures;
 }
 
@@ -308,45 +393,23 @@ async function legacySourceOccurrences(): Promise<{
 }
 
 test('current documentation and active solver packets use namespaced roots', async () => {
-  const references: string[] = [];
-  for (const path of await currentDocuments()) {
-    const source = await readFile(join(WORKSPACE, path), 'utf8');
-    for (const match of source.matchAll(LEGACY_ROOT)) references.push(`${path}:${match[0]}`);
-  }
-
-  // The five documents that record a pre-move path as evidence — the root-source block and the
-  // 2026-08-31 runbook incident among them — carry their excuse in the allowlist instead of a
-  // second list here; changing one of them rewrites evidence rather than repairing navigation.
+  // The documents that record a pre-move path as evidence — the root-source block and the
+  // 2026-08-31 runbook incident among them — carry a `legacy-root` exemption instead of a second
+  // list here; changing one of them rewrites evidence rather than repairing navigation.
   // Proof: rewriting the root-source path to its current namespace made root-migration.test.ts
   // fail 14 cases behind the exact router.landmines.001 payload mismatch (2026-09-14).
   // Proof: adding `` see `libs/domain/src/x.ts` `` to docs/capacity.md failed here naming
   // `docs/capacity.md:libs/domain/`, the discovered document that carries no excuse (2026-09-15).
-  expect(references).toEqual([]);
+  expect(await currentDocumentFailures('legacy-root', await documentContext())).toEqual([]);
 });
 
 test('current Nx commands select existing qualified projects', async () => {
-  const projectNames = new Set((await readProjects(WORKSPACE)).map(({ name }) => name));
-  const staleSelectors: string[] = [];
-  for (const path of await currentDocuments()) {
-    const lines = (await readFile(join(WORKSPACE, path), 'utf8')).split('\n');
-    for (const [offset, line] of lines.entries()) {
-      if (line.includes('historical path)')) continue;
-      const commandSelectors = [
-        ...line.matchAll(/\bnx run ([a-z0-9-]+):/g),
-        ...line.matchAll(/\bnx (?:test|lint|build|typecheck) ([a-z0-9-]+)/g),
-      ];
-      for (const match of commandSelectors) {
-        const selector = match[1];
-        if (!projectNames.has(selector)) {
-          staleSelectors.push(`${path}:${String(offset + 1)}:${selector}`);
-        }
-      }
-    }
-  }
-
   // Proof: the pre-review current commands named `be-01`, `gw-01`, `fe-01`, and `validation`;
   // this oracle failed with their five exact locations instead of trusting path-only checks.
-  expect(staleSelectors).toEqual([]);
+  // Proof: appending `` run `bunx nx test fe-01` first. `` to docs/local-dev.md — exempted from
+  // `legacy-root` and nothing else — failed here with `docs/local-dev.md:168:fe-01`, so a
+  // pre-move-path exemption does not also switch this check off for that document (2026-09-15).
+  expect(await currentDocumentFailures('nx-selector', await documentContext())).toEqual([]);
 });
 
 test('the production index checker resolves current Markdown links and anchors', () => {
@@ -368,18 +431,6 @@ test('every routed current document resolves its local links and anchors', async
   // Proof: adding a missing link to newly discovered docs/runbook-prod-deploy.md failed with its
   // exact routed source/destination, proving root discovery feeds this reader (2026-09-14).
   expect(await currentDocumentLinkFailures()).toEqual([]);
-});
-
-test('every root-routed current document participates in handoff checks', async () => {
-  const historical = new Set((await readLegacyAllowlist()).entries.map(({ path }) => path));
-  const current = new Set(await currentDocuments());
-  const omitted = (await rootRoutedDocuments()).filter(
-    (path) => !historical.has(path) && !current.has(path),
-  );
-
-  // Proof: the fixed list omitted six live LLM routes, including all three production runbooks;
-  // this actual root-router comparison failed with their exact paths before discovery was wired.
-  expect(omitted).toEqual([]);
 });
 
 test('absent inline-code root routes survive extraction', async () => {
@@ -434,6 +485,8 @@ test('every alias has an allowed prefix and resolves to a tracked file', async (
   // The two application entry aliases name an `src/index.ts` no application has and are imported
   // nowhere; `docs/2026-08-30-sustainability-audit.md` already records them as dead. They are
   // pinned rather than excused by a looser rule, so a third dead alias still fails here.
+  // Temporary: Task 1.7 deletes `@wbs/be-01` and `@wbs/gw-01` from tsconfig.base.json (both point
+  // at a nonexistent src/index.ts) and restores `toEqual([])`; delete this pin then.
   // Proof: the two rows below are themselves the observed production failure — the rule found
   // them in the real tsconfig.base.json (2026-09-15). Injecting `@wbs/config` ->
   // ./libs/wbs/adapters/config/src/missing.ts added `@wbs/config: ... is not tracked`, and an
@@ -504,44 +557,67 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // Proof: leaving `e705fb7a...` here after discovery moved into product-policies.mjs failed
     // on the observed `ae034489...` at the same 269/30 — the new nx.json and cache-test lines
     // carry no selector of their own and only shift the ones below them (2026-09-15).
-    // Proof: leaving `ae034489...` here after the allowlist input joined this project's test
+    // Proof: leaving `ae034489...` here after the exemptions input joined this project's test
     // inputs failed on the observed `61b47ae3...` at the same 269/30 — the new
-    // `{workspaceRoot}/docs/findings/legacy-path-allowlist.json` line carries no selector of its
-    // own and only shifts the `apps/**` and `libs/**` ones below it (2026-09-15).
+    // `{workspaceRoot}/docs/findings/current-document-check-exemptions.json` line carries no
+    // selector of its own and only shifts the `apps/**` and `libs/**` ones below it. Renaming
+    // that line later left the digest at `61b47ae3...`, since the line count did not move
+    // (2026-09-15).
     digest: '61b47ae3309642a494eb46ddb3a2729425977a9493182dcbeacd0f8850845875',
     occurrences: 269,
     unclassified: [],
   });
 });
 
-test('every legacy documentation reference is classified', async () => {
-  const allowlist = await readLegacyAllowlist();
-  const excused = new Set(allowlist.entries.map(({ path }) => path));
-  const candidates = new Set(candidatePaths());
-  const unclassified: string[] = [];
-  for (const path of documentCandidates(candidates)) {
-    if ((await readFile(join(WORKSPACE, path), 'utf8')).match(LEGACY_ROOT) === null) continue;
-    if (!excused.has(path)) unclassified.push(path);
+test('every current document that trips a check carries an exemption for that check', async () => {
+  const context = await documentContext();
+  const unexcused: string[] = [];
+  for (const check of DOCUMENT_CHECK_NAMES) {
+    const exempted = await exemptedFrom(check);
+    for (const path of await currentDocuments(undefined, new Set(context.candidates))) {
+      if (exempted.has(path)) continue;
+      if ((await DOCUMENT_CHECKS[check](path, context)).length > 0)
+        unexcused.push(`${path}:${check}`);
+    }
   }
 
-  // Proof: adding `` see `libs/domain/src/x.ts` `` to docs/capacity.md failed here naming that
-  // exact document; dropping docs/local-dev.md from the allowlist file failed here naming that
-  // exact path (2026-09-15).
-  expect(unclassified).toEqual([]);
-
-  // An entry for a path that no longer exists excuses nothing and hides that the document was
-  // already repaired or deleted.
-  // Proof: adding an entry for the absent docs/local-dev-gone.md failed here with that exact
-  // path/reason row (2026-09-15).
-  expect(allowlist.entries.filter(({ path }) => !candidates.has(path))).toEqual([]);
+  // Proof: adding `` see `libs/domain/src/x.ts` `` to docs/capacity.md failed here with
+  // `docs/capacity.md:legacy-root`; dropping the docs/local-dev.md entry failed with
+  // `docs/local-dev.md:legacy-root` (2026-09-15).
+  expect(unexcused).toEqual([]);
 });
 
-test('the legacy documentation allowlist has not expired', async () => {
-  const allowlist = await readLegacyAllowlist();
+test('every exemption names a tracked document that still needs each excuse', async () => {
+  const { entries } = await readCheckExemptions();
+  const context = await documentContext();
 
-  // Proof: setting expires to 2020-01-01 while 39 entries were still excused failed here with
+  // An entry for a path that no longer exists exempts nothing and hides that the document was
+  // already repaired or deleted.
+  // Proof: adding an entry for the absent docs/local-dev-gone.md failed here with that exact
+  // row (2026-09-15).
+  expect(entries.filter(({ path }) => !context.candidates.has(path))).toEqual([]);
+
+  const unneeded: string[] = [];
+  for (const { path, excuses } of entries) {
+    if (!context.candidates.has(path)) continue;
+    for (const check of excuses) {
+      if ((await DOCUMENT_CHECKS[check](path, context)).length === 0)
+        unneeded.push(`${path}:${check}`);
+    }
+  }
+
+  // An excuse the document no longer needs is a check silently switched off for it.
+  // Proof: adding `links` to the docs/local-dev.md entry, whose links all resolve, failed here
+  // with `docs/local-dev.md:links` (2026-09-15).
+  expect(unneeded).toEqual([]);
+});
+
+test('the current-document check exemptions have not expired', async () => {
+  const exemptions = await readCheckExemptions();
+
+  // Proof: setting expires to 2020-01-01 while 39 entries were still exempted failed here with
   // received 1577836800000 against the run's own clock (2026-09-15).
-  if (allowlist.entries.length > 0) {
-    expect(new Date(allowlist.expires).getTime()).toBeGreaterThan(Date.now());
+  if (exemptions.entries.length > 0) {
+    expect(new Date(exemptions.expires).getTime()).toBeGreaterThan(Date.now());
   }
 });
