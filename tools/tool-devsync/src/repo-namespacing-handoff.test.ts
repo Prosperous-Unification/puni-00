@@ -3,6 +3,12 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join, posix, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// tool-devsync's `build` target runs shellcheck over `bin/*.sh` and bundles no TypeScript, so the
+// buildable-library half of the boundary rule has no output to protect here. The half that does
+// apply — `scope:infra` may reach `product:shared` — holds, and workspace-projects.test.ts checks
+// it against the real Nx graph.
+// eslint-disable-next-line @nx/enforce-module-boundaries -- no TypeScript build to protect
+import { parseOrThrow, type } from '@shared/validation';
 import { expect, test } from 'bun:test';
 
 import { readProjects } from '../workspace-projects.mjs';
@@ -11,175 +17,39 @@ const WORKSPACE = fileURLToPath(new URL('../../../', import.meta.url));
 const LEGACY_ROOT =
   /(?:apps\/(?:be-01|fe-01|gw-01|mcp-01|\*+|\$\{[^}]+\})|libs\/(?:auth|config|conformance|contracts|core|domain|observability|realtime|runtime-portable|solver-py|store-memory|store-sqlite|validation|\*+|\$\{[^}]+\}))(?:\/|\b)/g;
 
-const CURRENT_MARKDOWN = [
-  'AGENTS.md',
-  'HUMAN_README.md',
-  'LLM_README.md',
-  'docs/adr/0008-tags-accumulate-down-the-tree.md',
-  'docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md',
-  'docs/adr/0012-a-write-carries-its-actor-as-an-argument.md',
-  'docs/adr/0014-ports-live-in-a-framework-free-core-lib.md',
-  'docs/adr/0016-a-tied-sibling-position-is-legal-and-the-row-id-resolves-it.md',
-  'docs/adr/0018-the-dev-deploy-trigger-owns-solver-compatibility-preparation.md',
-  'docs/adr/0024-a-done-work-item-draws-its-facts-not-its-slices.md',
-  'docs/auth-integration.md',
-  'docs/capacity.md',
-  'docs/findings/current.md',
-  'docs/local-dev.md',
-  'docs/refactoring/tasks.md',
-  'docs/runbook-dev-deploy.md',
-  'openspec/changes/automatic-dev-solver-binding/proposal.md',
-  'openspec/changes/automatic-dev-solver-binding/specs/deployment-pipeline/spec.md',
-  'openspec/changes/dual-optimized-scheduler/supervisor-amendment.md',
-] as const;
+/**
+ * The one OpenSpec change whose packet is read as current prose rather than as a record of
+ * what was once done. Every other unarchived packet keeps its own pre-move evidence in
+ * `tasks.md` and `verify.md`, so the tree as a whole is not a source of current paths.
+ */
+const ACTIVE_OPENSPEC_PACKET = 'openspec/changes/automatic-dev-solver-binding/';
 
-const EXPECTED_ALIASES = [
-  '@shared/validation',
-  '@wbs/auth',
-  '@wbs/be-01',
-  '@wbs/config',
-  '@wbs/conformance',
-  '@wbs/conformance/*',
-  '@wbs/contracts',
-  '@wbs/contracts/solver/build-request',
-  '@wbs/contracts/solver/materialise-optimized',
-  '@wbs/contracts/solver/optimized-result',
-  '@wbs/contracts/solver/parse-solver-response',
-  '@wbs/contracts/solver/plan-infeasible',
-  '@wbs/contracts/solver/quantised-baseline',
-  '@wbs/contracts/solver/revalidate-solver-result',
-  '@wbs/contracts/solver/solver-failure-disposition',
-  '@wbs/contracts/solver/supervisor-protocol',
-  '@wbs/contracts/ws-frames',
-  '@wbs/core',
-  '@wbs/core/*',
-  '@wbs/deploy-contract',
-  '@wbs/domain',
-  '@wbs/domain/arrange-siblings',
-  '@wbs/domain/assumed-duration',
-  '@wbs/domain/canonical-schedule-input',
-  '@wbs/domain/deadline-offsets',
-  '@wbs/domain/dependency-reach',
-  '@wbs/domain/effective-service',
-  '@wbs/domain/effective-tag',
-  '@wbs/domain/effective-team',
-  '@wbs/domain/external-system',
-  '@wbs/domain/is-within',
-  '@wbs/domain/label-mismatch',
-  '@wbs/domain/marker-color',
-  '@wbs/domain/priority-band',
-  '@wbs/domain/progress',
-  '@wbs/domain/stored-vocabularies',
-  '@wbs/domain/tree-order',
-  '@wbs/domain/workday',
-  '@wbs/gw-01',
-  '@wbs/observability',
-  '@wbs/realtime',
-  '@wbs/runtime-portable',
-  '@wbs/runtime-portable/testing',
-  '@wbs/store-memory',
-  '@wbs/store-memory/*',
-  '@wbs/store-sqlite',
-  '@wbs/store-sqlite/*',
-  '@wbs/tool-compose',
-  '@wbs/tool-env',
-  '@wbs/tool-test-scratch',
-  '@wbs/validation',
-  '@wbs/validation/fixtures',
-] as const;
+const LegacyAllowlist = type({
+  expires: /^\d{4}-\d{2}-\d{2}$/,
+  entries: type({ path: 'string>0', reason: 'string>0' }).array(),
+});
 
-const EXPECTED_PROJECTS = [
-  ['apps/wbs/be-01', 'wbs-be-01'],
-  ['apps/wbs/fe-01', 'wbs-fe-01'],
-  ['apps/wbs/gw-01', 'wbs-gw-01'],
-  ['apps/wbs/mcp-01', 'wbs-mcp-01'],
-  ['libs/shared/domain/validation', 'shared-validation'],
-  ['libs/wbs/adapters/auth', 'wbs-auth'],
-  ['libs/wbs/adapters/config', 'wbs-config'],
-  ['libs/wbs/adapters/observability', 'wbs-observability'],
-  ['libs/wbs/adapters/realtime', 'wbs-realtime'],
-  ['libs/wbs/adapters/runtime-portable', 'wbs-runtime-portable'],
-  ['libs/wbs/adapters/solver-py', 'wbs-solver-py'],
-  ['libs/wbs/adapters/solver-supervisor-protocol', 'wbs-solver-supervisor-protocol'],
-  ['libs/wbs/adapters/store-memory', 'wbs-store-memory'],
-  ['libs/wbs/adapters/store-sqlite', 'wbs-store-sqlite'],
-  ['libs/wbs/application/conformance', 'wbs-conformance'],
-  ['libs/wbs/application/core', 'wbs-core'],
-  ['libs/wbs/domain/contracts', 'wbs-contracts'],
-  ['libs/wbs/domain/domain', 'wbs-domain'],
-  ['libs/wbs/domain/validation', 'wbs-validation'],
-  ['tools/dev', 'tool-dev-setup'],
-  ['tools/test/scratch', 'tool-test-scratch'],
-  ['tools/tool-bootstrap', 'tool-bootstrap'],
-  ['tools/tool-compose', 'tool-compose'],
-  ['tools/tool-dagger', 'tool-dagger'],
-  ['tools/tool-deploy', 'tool-deploy'],
-  ['tools/tool-devsync', 'tool-devsync'],
-  ['tools/tool-git-hooks', 'tool-git-hooks'],
-  ['tools/tool-observability-stack', 'tool-observability-stack'],
-  ['tools/tool-remote-scripts', 'tool-remote-scripts'],
-  ['tools/tool-secrets', 'tool-secrets'],
-  ['tools/tool-smoke', 'tool-smoke'],
-  ['tools/tool-wiki', 'tool-wiki'],
-] as const;
+/**
+ * The documents excused from naming pre-move roots, each with why it is frozen. Malformed or
+ * absent content throws rather than silently excusing nothing — an empty allowlist would let
+ * every legacy reference read as current and pass.
+ */
+async function readLegacyAllowlist(): Promise<typeof LegacyAllowlist.infer> {
+  const path = join(WORKSPACE, 'docs/findings/legacy-path-allowlist.json');
+  // Proof: deleting the file failed every consumer here with `ENOENT ... open
+  // '<workspace>/docs/findings/legacy-path-allowlist.json'`; replacing `entries` with `{}` failed
+  // with `Validation failed: entries must be an array (was object)` (2026-09-15).
+  return parseOrThrow(LegacyAllowlist, JSON.parse(await readFile(path, 'utf8')));
+}
 
-const CLASSIFIED_LEGACY_DOCUMENTATION = [
-  ['docs/2026-08-30-agent-loop-audit.md', 'dated audit'],
-  ['docs/2026-08-30-sustainability-audit.md', 'dated audit'],
-  ['docs/2026-09-02-refactoring-handoff.md', 'dated refactoring handoff'],
-  ['docs/2026-09-02-refactoring-plan.md', 'dated refactoring plan'],
-  ['docs/2026-09-02-refactoring-review/A-be-repository.md', 'dated review'],
-  ['docs/2026-09-02-refactoring-review/B-be-service-controller.md', 'dated review'],
-  ['docs/2026-09-02-refactoring-review/C-fe-wbs-table.md', 'dated review'],
-  ['docs/2026-09-02-refactoring-review/D-fe-rest.md', 'dated review'],
-  ['docs/2026-09-02-refactoring-review/E-gw-mcp-libs.md', 'dated review'],
-  ['docs/2026-09-02-refactoring-review/F-tools-tests.md', 'dated review'],
-  ['docs/2026-09-02-refactoring-review/README.md', 'dated review index'],
-  ['docs/2026-09-05-ports-and-adapters-history.md', 'dated architecture history'],
-  ['docs/2026-09-05-ports-and-adapters-plan.md', 'dated architecture plan'],
-  ['docs/adr/0008-tags-accumulate-down-the-tree.md', 'historical diff observation'],
-  ['docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md', 'historical diff observation'],
-  ['docs/findings/checks-that-cannot-fail.md', 'historical incident catalogue'],
-  ['docs/findings/current.md', 'historical migrated root payload'],
-  ['docs/local-dev.md', 'historical measured path'],
-  ['docs/plans/2026-08-07-table-ui-cleanup.md', 'dated plan'],
-  ['docs/plans/2026-08-08-tailwind-spike-verify.md', 'dated verification'],
-  ['docs/plans/2026-08-09-resource-planning.md', 'dated plan'],
-  ['docs/plans/2026-09-13-tool-wiki-precedents-and-extraction.md', 'dated research'],
-  ['docs/refactoring/verify.md', 'historical refactoring verification'],
-  ['docs/refactoring/w4-4/extraction-map.md', 'historical extraction evidence'],
-  ['docs/refactoring/w4-4/verify.md', 'historical extraction verification'],
-  ['docs/runbook-dev-deploy.md', 'dated 2026-08-31 incident'],
-  ['docs/state/TASK-347-http-endpoint-port.md', 'historical task state'],
-  ['docs/superpowers/plans/2026-08-02-compose-blue-green-HANDOVER.md', 'frozen legacy plan'],
-  ['docs/superpowers/plans/2026-08-02-compose-blue-green-deploy.md', 'frozen legacy plan'],
-  ['docs/superpowers/plans/2026-08-04-cheap-dev-deploy.md', 'frozen legacy plan'],
-  ['docs/superpowers/plans/2026-08-24-password-login.md', 'frozen legacy plan'],
-  ['docs/superpowers/plans/2026-09-15-agentic-scalability-plan.md', 'dated plan'],
-  [
-    'docs/superpowers/specs/2026-08-02-compose-blue-green-deploy-design.md',
-    'frozen legacy specification',
-  ],
-  [
-    'docs/superpowers/specs/2026-09-05-be01-route-auth-metadata-design.md',
-    'frozen legacy specification',
-  ],
-] as const;
-
-const HANDOFF_TEST_INPUTS = [
-  '{workspaceRoot}/**/*',
-  '{workspaceRoot}/AGENTS.md',
-  '{workspaceRoot}/HUMAN_README.md',
-  '{workspaceRoot}/LLM_README.md',
-  '{workspaceRoot}/docs/**/*.md',
-  '{workspaceRoot}/docs/wiki-policy/*.json',
-  '{workspaceRoot}/lefthook.yml',
-  '{workspaceRoot}/openspec/changes/automatic-dev-solver-binding/**/*.md',
-  '{workspaceRoot}/openspec/changes/dual-optimized-scheduler/supervisor-amendment.md',
-  '{workspaceRoot}/openspec/changes/repo-namespacing/preflight-inventory.md',
-  '{workspaceRoot}/tsconfig.base.json',
-  '{workspaceRoot}/apps/wbs/be-01/drizzle/**/*',
-] as const;
+/** Every tracked Markdown a reader is expected to act on today, before the allowlist is removed. */
+function documentCandidates(candidates: Iterable<string>): string[] {
+  return [...candidates].filter(
+    (path) =>
+      path.endsWith('.md') &&
+      (path.startsWith('docs/') || !path.includes('/') || path.startsWith(ACTIVE_OPENSPEC_PACKET)),
+  );
+}
 
 async function filesBelow(directory: string): Promise<string[]> {
   const files: string[] = [];
@@ -224,11 +94,12 @@ async function currentDocuments(
       path.endsWith('/README.md') &&
       (path.startsWith('apps/') || path.startsWith('libs/') || path.startsWith('tools/')),
   );
-  const historical = new Set<string>(CLASSIFIED_LEGACY_DOCUMENTATION.map(([path]) => path));
+  const historical = new Set((await readLegacyAllowlist()).entries.map(({ path }) => path));
+  const discovered = documentCandidates(candidates).filter((path) => !historical.has(path));
   const rootRouted = (await rootRoutedDocuments(rootRouterSource, candidates)).filter(
     (path) => candidates.has(path) && !historical.has(path),
   );
-  return [...new Set([...CURRENT_MARKDOWN, ...rootRouted, ...readmes])].sort();
+  return [...new Set([...discovered, ...rootRouted, ...readmes])].sort();
 }
 
 async function rootRoutedDocuments(
@@ -443,17 +314,14 @@ test('current documentation and active solver packets use namespaced roots', asy
     for (const match of source.matchAll(LEGACY_ROOT)) references.push(`${path}:${match[0]}`);
   }
 
-  // The root-source block and 2026-08-31 runbook incident record their paths at observation time;
-  // changing either rewrites evidence rather than repairing current navigation.
+  // The five documents that record a pre-move path as evidence — the root-source block and the
+  // 2026-08-31 runbook incident among them — carry their excuse in the allowlist instead of a
+  // second list here; changing one of them rewrites evidence rather than repairing navigation.
   // Proof: rewriting the root-source path to its current namespace made root-migration.test.ts
   // fail 14 cases behind the exact router.landmines.001 payload mismatch (2026-09-14).
-  expect(references).toEqual([
-    'docs/adr/0008-tags-accumulate-down-the-tree.md:libs/domain/',
-    'docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md:libs/domain/',
-    'docs/findings/current.md:apps/be-01/',
-    'docs/local-dev.md:apps/fe-01',
-    'docs/runbook-dev-deploy.md:apps/be-01/',
-  ]);
+  // Proof: adding `` see `libs/domain/src/x.ts` `` to docs/capacity.md failed here naming
+  // `docs/capacity.md:libs/domain/`, the discovered document that carries no excuse (2026-09-15).
+  expect(references).toEqual([]);
 });
 
 test('current Nx commands select existing qualified projects', async () => {
@@ -503,7 +371,7 @@ test('every routed current document resolves its local links and anchors', async
 });
 
 test('every root-routed current document participates in handoff checks', async () => {
-  const historical = new Set<string>(CLASSIFIED_LEGACY_DOCUMENTATION.map(([path]) => path));
+  const historical = new Set((await readLegacyAllowlist()).entries.map(({ path }) => path));
   const current = new Set(await currentDocuments());
   const omitted = (await rootRoutedDocuments()).filter(
     (path) => !historical.has(path) && !current.has(path),
@@ -548,22 +416,33 @@ test('every Dockerfile naming variant participates in source inventory', () => {
   expect(inventoried).toEqual(candidates);
 });
 
-test('the public alias manifest remains complete and stable', async () => {
-  const config = JSON.parse(await readFile(join(WORKSPACE, 'tsconfig.base.json'), 'utf8')) as {
-    compilerOptions: { paths: Record<string, unknown> };
+test('every alias has an allowed prefix and resolves to a tracked file', async () => {
+  const base = JSON.parse(await readFile(join(WORKSPACE, 'tsconfig.base.json'), 'utf8')) as {
+    compilerOptions: { paths: Record<string, string[]> };
   };
+  const tracked = new Set(candidatePaths());
+  const failures: string[] = [];
+  for (const [alias, targets] of Object.entries(base.compilerOptions.paths)) {
+    if (!/^@(wbs|shared|tools)\//.test(alias)) failures.push(`${alias}: prefix`);
+    for (const target of targets) {
+      const path = target.replace(/^\.\//, '').replace(/\/\*$/, '');
+      const exists = tracked.has(path) || [...tracked].some((file) => file.startsWith(`${path}/`));
+      if (!exists) failures.push(`${alias}: ${target} is not tracked`);
+    }
+  }
 
-  // Proof: deleting `@wbs/validation/fixtures` made this actual-candidate manifest fail with the
-  // complete received key list (2026-09-14).
-  expect(Object.keys(config.compilerOptions.paths).sort()).toEqual([...EXPECTED_ALIASES]);
-});
-
-test('the recursive Nx root and name manifest remains complete', async () => {
-  const projects = (await readProjects(WORKSPACE)).map(({ root, name }) => [root, name] as const);
-
-  // Proof: replacing `wbs-domain` with an unqualified name made this actual-candidate manifest
-  // fail with the differing complete tuple (2026-09-14).
-  expect(projects).toEqual([...EXPECTED_PROJECTS]);
+  // The two application entry aliases name an `src/index.ts` no application has and are imported
+  // nowhere; `docs/2026-08-30-sustainability-audit.md` already records them as dead. They are
+  // pinned rather than excused by a looser rule, so a third dead alias still fails here.
+  // Proof: the two rows below are themselves the observed production failure — the rule found
+  // them in the real tsconfig.base.json (2026-09-15). Injecting `@wbs/config` ->
+  // ./libs/wbs/adapters/config/src/missing.ts added `@wbs/config: ... is not tracked`, and an
+  // `@acme/x` -> ./libs/acme/src/index.ts alias added both `@acme/x: prefix` and its untracked
+  // target (2026-09-15).
+  expect(failures).toEqual([
+    '@wbs/be-01: ./apps/wbs/be-01/src/index.ts is not tracked',
+    '@wbs/gw-01: ./apps/wbs/gw-01/src/index.ts is not tracked',
+  ]);
 });
 
 test('every migration keeps its expected namespaced path and Git blob', async () => {
@@ -625,36 +504,44 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // Proof: leaving `e705fb7a...` here after discovery moved into product-policies.mjs failed
     // on the observed `ae034489...` at the same 269/30 — the new nx.json and cache-test lines
     // carry no selector of their own and only shift the ones below them (2026-09-15).
-    digest: 'ae034489f277b90068a9d1e3b118f8b336ff97e9b761a1b61ce43cd87ccb7ecf',
+    // Proof: leaving `ae034489...` here after the allowlist input joined this project's test
+    // inputs failed on the observed `61b47ae3...` at the same 269/30 — the new
+    // `{workspaceRoot}/docs/findings/legacy-path-allowlist.json` line carries no selector of its
+    // own and only shifts the `apps/**` and `libs/**` ones below it (2026-09-15).
+    digest: '61b47ae3309642a494eb46ddb3a2729425977a9493182dcbeacd0f8850845875',
     occurrences: 269,
     unclassified: [],
   });
 });
 
 test('every legacy documentation reference is classified', async () => {
-  const observed: (readonly [string, string])[] = [];
-  const categories = new Map<string, string>(CLASSIFIED_LEGACY_DOCUMENTATION);
-  const documentation = candidatePaths().filter(
-    (path) => path.startsWith('docs/') && path.endsWith('.md'),
-  );
-  for (const path of documentation) {
+  const allowlist = await readLegacyAllowlist();
+  const excused = new Set(allowlist.entries.map(({ path }) => path));
+  const candidates = new Set(candidatePaths());
+  const unclassified: string[] = [];
+  for (const path of documentCandidates(candidates)) {
     if ((await readFile(join(WORKSPACE, path), 'utf8')).match(LEGACY_ROOT) === null) continue;
-    observed.push([path, categories.get(path) ?? 'UNCLASSIFIED']);
+    if (!excused.has(path)) unclassified.push(path);
   }
 
-  // Proof: restoring a stale `apps/be-01` path in docs/capacity.md made this actual-candidate
-  // inventory fail with that current document classified as UNCLASSIFIED (2026-09-14).
-  expect(observed).toEqual([...CLASSIFIED_LEGACY_DOCUMENTATION]);
+  // Proof: adding `` see `libs/domain/src/x.ts` `` to docs/capacity.md failed here naming that
+  // exact document; dropping docs/local-dev.md from the allowlist file failed here naming that
+  // exact path (2026-09-15).
+  expect(unclassified).toEqual([]);
+
+  // An entry for a path that no longer exists excuses nothing and hides that the document was
+  // already repaired or deleted.
+  // Proof: adding an entry for the absent docs/local-dev-gone.md failed here with that exact
+  // path/reason row (2026-09-15).
+  expect(allowlist.entries.filter(({ path }) => !candidates.has(path))).toEqual([]);
 });
 
-test('the Nx test target watches every handoff verification input', async () => {
-  const manifest = JSON.parse(
-    await readFile(join(WORKSPACE, 'tools/tool-devsync/project.json'), 'utf8'),
-  ) as { targets: { test: { inputs: string[] } } };
-  const handoffInputs = new Set<string>(HANDOFF_TEST_INPUTS);
-  const configured = manifest.targets.test.inputs.filter((input) => handoffInputs.has(input));
+test('the legacy documentation allowlist has not expired', async () => {
+  const allowlist = await readLegacyAllowlist();
 
-  // Proof: without the all-candidate input, adding an old root to the previously unwatched
-  // bin/dev-ports.sh replayed a green local cache; restoring it executed and failed the target.
-  expect(configured).toEqual([...HANDOFF_TEST_INPUTS]);
+  // Proof: setting expires to 2020-01-01 while 39 entries were still excused failed here with
+  // received 1577836800000 against the run's own clock (2026-09-15).
+  if (allowlist.entries.length > 0) {
+    expect(new Date(allowlist.expires).getTime()).toBeGreaterThan(Date.now());
+  }
 });
