@@ -119,6 +119,7 @@ const EXPECTED_PROJECTS = [
   ['tools/tool-secrets', 'tool-secrets'],
   ['tools/tool-smoke', 'tool-smoke'],
   ['tools/tool-wiki', 'tool-wiki'],
+  ['tools/tool-workflows', 'tool-workflows'],
 ] as const;
 
 const CLASSIFIED_LEGACY_DOCUMENTATION = [
@@ -161,6 +162,9 @@ const CLASSIFIED_LEGACY_DOCUMENTATION = [
     'docs/superpowers/specs/2026-09-05-be01-route-auth-metadata-design.md',
     'frozen legacy specification',
   ],
+  ['docs/twilight-structure/evidence/claude-followup.md', 'recorded puni-00 review evidence'],
+  ['docs/twilight-structure/evidence/claude-review.md', 'recorded puni-00 review evidence'],
+  ['docs/twilight-structure/evidence/plan-review.md', 'recorded puni-00 review evidence'],
 ] as const;
 
 const HANDOFF_TEST_INPUTS = [
@@ -611,7 +615,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       policyJson: true,
       python: true,
     },
-    digest: 'c3d5e0c4bb0845cfbdda63bb64686893cc181af36a14894899a5e2f73a56d588',
+    digest: '4a03b4a9a9e80c2f9f6eaabfd4162d829953dde35608b6eadccb14d6cb72c6d2',
     occurrences: 262,
     unclassified: [],
   });
