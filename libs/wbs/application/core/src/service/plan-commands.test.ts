@@ -1368,6 +1368,49 @@ describe('working plan row mutations through runner commands', () => {
     }
   });
 
+  it('freezes arranged numbers from the preceding command in the same batch', async () => {
+    const source = openMemorySource();
+    const direct = silentBroadcaster();
+    const publicGraph = compose(source.stores, direct);
+
+    try {
+      await source.stores.users.create(
+        { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
+        { at: 1, by: OWNER },
+      );
+      const projectId = (await publicGraph.projects.create('Arranged row refresh', OWNER)).project
+        .id;
+      for (const [id, position] of [
+        ['a', 10],
+        ['b', 20],
+      ] as const) {
+        await source.stores.workItems.insert(
+          workItemRow({ id, projectId, position, name: id.toUpperCase() }),
+          [],
+          { at: 2, by: OWNER },
+        );
+      }
+      expect((await publicGraph.workItems.addDependency('a', OWNER, 'b')).ok).toBe(true);
+
+      const arranged = await runnerOver(source, publicGraph).run(projectId, OWNER, [
+        { kind: 'arrangeBySchedule' },
+        { kind: 'freezeProject' },
+      ]);
+
+      expect(arranged.ok).toBe(true);
+      expect(
+        (await source.stores.workItems.listByProject(projectId))
+          .sort((left, right) => left.position - right.position)
+          .map(({ id, position, frozenNumber }) => [id, position, frozenNumber]),
+      ).toEqual([
+        ['b', 10, '010'],
+        ['a', 20, '020'],
+      ]);
+    } finally {
+      await source.close();
+    }
+  });
+
   it('refreshes every frozen row before an unfreeze in the same batch', async () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();

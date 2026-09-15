@@ -59,9 +59,12 @@ export function createWorkingPlanRows(
         ...respaced.map(({ id: respacedId }) => respacedId),
       ]);
     }),
-    setPositions: guarded((placements, moved, stamp) =>
-      source().setPositions(placements, moved, stamp),
-    ),
+    setPositions: guarded(async (placements, moved, stamp) => {
+      await source().setPositions(placements, moved, stamp);
+      // Proof: removing this refresh made the runner regression freeze B="020",
+      // A="010" after setPositions had stored B@10, A@20.
+      await refreshRows(placements.map(({ id }) => id));
+    }),
     setFrozenNumbers: guarded(async (updates, stamp) => {
       await source().setFrozenNumbers(updates, stamp);
       await refreshRows(updates.map(({ id }) => id));
