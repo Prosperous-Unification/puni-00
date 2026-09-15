@@ -1,7 +1,7 @@
 import type { Database } from 'bun:sqlite';
 import { describe, expect, it } from 'bun:test';
 
-import { injectedClock, makeFrame, makeTestDb } from './index';
+import { injectedClock, makeFrame, makeTestDb } from './fixtures';
 
 describe('@wbs/validation/fixtures', () => {
   it('makeTestDb returns an in-memory Drizzle instance with migrations applied', async () => {
