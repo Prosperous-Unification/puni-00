@@ -353,7 +353,7 @@ Plus the ignore entry `'apps/wbs/be-01/tools/capture-capacity-oracle.ts'` at lin
 
 **Interfaces:**
 
-- Produces: the convention "`apps/<product>/eslint.product.mjs` and `libs/<product>/eslint.product.mjs` default-export an array of flat-config objects; the root config spreads every one it finds". W6 relies on it for `apps/wiki/eslint.product.mjs`.
+- Produces: the convention "`apps/<product>/eslint.product.mjs` and `libs/<product>/eslint.product.mjs` default-export a function `(shared) => flatConfigArray`, where `shared = { productRules, scopeConstraints, runtimeConstraints, browserAdapterConstraint, testSourceFiles }`; the root config calls every one it finds and spreads what it returns". W6 relies on it for `apps/wiki/eslint.product.mjs`.
 
 - [ ] **Step 0: Share the fixture helpers.** `product-constraints.test.ts` defines `writeProject`, `createLintWorkspace` and `runLint` privately. Move them to a new `tools/tool-devsync/src/testing/lint-workspace.ts` with `export` on each, keep `CHECKOUT` there too, and import them back into `product-constraints.test.ts`. Run `bunx nx test tool-devsync --skip-nx-cache -- --test-name-pattern 'product lint'`: still green. Add a fourth export `createPolicyWorkspace()` that calls `createLintWorkspace()` and additionally writes `apps/probe/app/project.json` (name `probe-app`, tags `scope:app type:app runtime:bun ring:adapter product:probe`, a `lint` target `bunx eslint apps/probe/app/src --no-cache`) and `apps/probe/app/src/main.ts` containing `export const app = true;`.
 
@@ -390,7 +390,7 @@ The fixture's `eslint.config.mjs` must contain the same discovery block as produ
 ```js
 import { readdir } from 'node:fs/promises';
 
-async function readProductPolicies(root) {
+async function readProductPolicies(root, shared) {
   const policies = [];
   for (const group of ['apps', 'libs']) {
     for (const product of (await readdir(new URL(`./${group}/`, root))).sort()) {
@@ -403,18 +403,32 @@ async function readProductPolicies(root) {
         if (failure?.code === 'ERR_MODULE_NOT_FOUND') continue;
         throw new Error(`cannot load product lint policy ${policy.pathname}`, { cause: failure });
       }
-      if (!Array.isArray(loaded.default)) {
-        throw new Error(`${policy.pathname} must default-export an array of flat-config objects`);
+      if (typeof loaded.default !== 'function') {
+        throw new Error(
+          `${policy.pathname} must default-export a function of the shared constants`,
+        );
       }
-      policies.push(...loaded.default);
+      const configs = loaded.default(shared);
+      if (!Array.isArray(configs)) {
+        throw new Error(
+          `${policy.pathname} must return an array of flat-config objects synchronously`,
+        );
+      }
+      policies.push(...configs);
     }
   }
   return policies;
 }
-const productPolicies = await readProductPolicies(import.meta.url);
+const productPolicies = await readProductPolicies(import.meta.url, {
+  productRules,
+  scopeConstraints,
+  runtimeConstraints,
+  browserAdapterConstraint,
+  testSourceFiles,
+});
 ```
 
-Bun/Node throw `ERR_MODULE_NOT_FOUND` for a missing file and `EACCES` for an unreadable one; the test's unreadable case proves the distinction. Then move the nine WBS blocks from the table into `apps/wbs/eslint.product.mjs` as a default-exported array, byte-for-byte except indentation. The product file imports `react`, `eslint-plugin-react-hooks`, `eslint-plugin-jsx-a11y`, `@tanstack/eslint-plugin-router`, `@tanstack/eslint-plugin-query` and `eslint-plugin-drizzle` itself, and declares its own `const testSourceFiles = ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.property.test.ts'];` (copy of the root constant; the two must stay equal, so add to the discovery test an assertion that the product file's list deep-equals the root's, exported from the root config as `export const testSourceFiles`). The block at 623–641 also needs `scopeConstraints`, `runtimeConstraints`, `browserAdapterConstraint` and `productRules`; export those four from the root config and import them in the product file (`import { productRules, ... } from '../../eslint.config.js'`). Spread `...productPolicies` in the root array where the first moved block was. Move the `capture-capacity-oracle.ts` ignore into the product file as its own `{ ignores: [...] }` entry.
+Bun/Node throw `ERR_MODULE_NOT_FOUND` for a missing file and `EACCES` for an unreadable one; the test's unreadable case proves the distinction. Then move the nine WBS blocks from the table into `apps/wbs/eslint.product.mjs` as the array a default-exported `(shared) => flatConfigArray` returns, byte-for-byte except indentation. The product file imports `react`, `eslint-plugin-react-hooks`, `eslint-plugin-jsx-a11y`, `@tanstack/eslint-plugin-router`, `@tanstack/eslint-plugin-query` and `eslint-plugin-drizzle` itself, and declares its own `const testSourceFiles = ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.property.test.ts'];` (copy of the root constant; the two must stay equal, so add to the discovery test an assertion that the product file's list deep-equals the root's, exported from the root config as `export const testSourceFiles`). The block at 623–641 also needs `scopeConstraints`, `runtimeConstraints`, `browserAdapterConstraint` and `productRules`; export those four from the root config and import them in the product file (`import { productRules, ... } from '../../eslint.config.js'`). Spread `...productPolicies` in the root array where the first moved block was. Move the `capture-capacity-oracle.ts` ignore into the product file as its own `{ ignores: [...] }` entry.
 
 - [ ] **Step 4: Prove the move is lossless.** `bunx nx run-many -t lint --skip-nx-cache` green (except the two known scope:infra offenders until 1.5). Then:
 
@@ -975,7 +989,7 @@ The bootstrap policy and mapping still describe the pre-#457 tree and the pre-W6
 
 **Files:**
 
-- Create: `apps/wiki/eslint.product.mjs` exporting `[]` with a comment that the wiki has no product-specific lint rules yet (the file's presence proves discovery for a second product; Task 1.4's test covers absence)
+- Create: `apps/wiki/eslint.product.mjs` spelled `export default () => [];` with a comment that the wiki has no product-specific lint rules yet (the file's presence proves discovery for a second product; Task 1.4's test covers absence)
 - Modify: `LLM_README.md` first paragraph: add `wiki-cli` (the module-wiki validator, `apps/wiki/cli`, a product released separately) to the project list; the "More" table row for `docs/runbook-tool-wiki-activation.md` unchanged
 - Modify: `docs/runbook-tool-wiki-activation.md`: every `tools/tool-wiki` path → `apps/wiki/cli`; the Nx targets `tool-wiki:test|lint:source|typecheck` → `wiki-cli:*`
 - Modify: `docs/plans/2026-09-13-tool-wiki-precedents-and-extraction.md` Part 3: a dated note that the namespace move happened here and extraction to its own repo waits for the second consumer

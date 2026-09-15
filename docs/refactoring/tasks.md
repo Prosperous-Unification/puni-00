@@ -151,6 +151,11 @@ Nothing below has an owning task in the external queue (`backlog/tasks/task-NNN 
       non-buildable `@shared/validation` without the eslint-disable in
       repo-namespacing-handoff.test.ts. Give shared-validation a `build` target or move
       shellcheck off the `build` name; then delete the disable.
+- [ ] Wiki policy rule overlap: a `*.test.ts` under a `fixtures/` segment matches both the `test`
+      (suffix) and `fixture` (segment) `contentRules` in `docs/wiki-policy/policy.json`, and
+      `classify-entries` refuses the whole candidate. Give the `fixture` rule the
+      `.test.ts`/`.test.tsx` exclusions its siblings carry, in a change that re-activates the
+      trusted policy (W5).
 
 ## R1–R9 archival closeout
 
