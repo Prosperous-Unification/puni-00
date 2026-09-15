@@ -135,8 +135,9 @@ Nothing below has an owning task in the external queue (`backlog/tasks/task-NNN 
       `tools/dev/write-*-golden-corpus.ts` are WBS code in infra. Move them under `apps/wbs/`
       (a `wbs-host-tools` project, `ring:adapter`, `product:wbs`), then remove both entries from
       the `allow` list in `eslint.config.js` and the pinning test in eslint-boundaries.test.ts.
-      The tools-scoped `allow` in eslint.config.js is keyed on alias, so any other tool importing
-      one of the two aliases is currently excused too; the relocation closes that.
+      The tools-scoped `allow` in eslint.config.js is keyed on the import specifier — each entry
+      anchored, so it excuses that exact specifier and no subpath of it — which still leaves any
+      other tool importing one of the two aliases excused too; the relocation closes that.
 - [ ] Archive completed OpenSpec packets: ~120 unarchived `openspec/changes/*` directories still
       name pre-move roots; the handoff legacy-path scan therefore covers only the active packet.
       Archive every packet whose tasks are all checked and merged (`opsx:bulk-archive`), then

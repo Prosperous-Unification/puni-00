@@ -24,18 +24,28 @@ const LEGACY_ROOT =
  */
 const ACTIVE_OPENSPEC_PACKET = 'openspec/changes/automatic-dev-solver-binding/';
 
-/** What the three per-document checks need to run: the tracked tree and the real Nx project names. */
+/**
+ * What the three per-document checks need to run: the tracked tree and the real Nx project
+ * names, plus every product those projects declare, which the alias-prefix rule reads.
+ */
 interface DocumentContext {
   readonly candidates: ReadonlySet<string>;
   readonly projectNames: ReadonlySet<string>;
+  readonly products: ReadonlySet<string>;
 }
 
 async function documentContext(
   candidates: ReadonlySet<string> = new Set(candidatePaths()),
 ): Promise<DocumentContext> {
+  const projects = await readProjects(WORKSPACE);
   return {
     candidates,
-    projectNames: new Set((await readProjects(WORKSPACE)).map(({ name }) => name)),
+    projectNames: new Set(projects.map(({ name }) => name)),
+    products: new Set(
+      projects.flatMap(({ tags }) =>
+        tags.filter((tag) => tag.startsWith('product:')).map((tag) => tag.slice('product:'.length)),
+      ),
+    ),
   };
 }
 
@@ -471,10 +481,15 @@ test('every alias has an allowed prefix and resolves to a tracked file', async (
   const base = JSON.parse(await readFile(join(WORKSPACE, 'tsconfig.base.json'), 'utf8')) as {
     compilerOptions: { paths: Record<string, string[]> };
   };
-  const tracked = new Set(candidatePaths());
+  const { candidates: tracked, products } = await documentContext();
+  // The scopes an alias may carry: the two product-less ones plus one per declared product.
+  // Derived rather than listed, so a second product's aliases need no edit here.
+  const scopes = new Set(['shared', 'tools', ...products]);
   const failures: string[] = [];
   for (const [alias, targets] of Object.entries(base.compilerOptions.paths)) {
-    if (!/^@(wbs|shared|tools)\//.test(alias)) failures.push(`${alias}: prefix`);
+    const scope = /^@([a-z0-9-]+)\//.exec(alias)?.[1];
+    if (scope === undefined) failures.push(`${alias}: prefix`);
+    else if (!scopes.has(scope)) failures.push(`${alias}: no product named ${scope}`);
     for (const target of targets) {
       const path = target.replace(/^\.\//, '').replace(/\/\*$/, '');
       const exists = tracked.has(path) || [...tracked].some((file) => file.startsWith(`${path}/`));
@@ -486,8 +501,12 @@ test('every alias has an allowed prefix and resolves to a tracked file', async (
   // `@wbs/be-01` and `@wbs/gw-01`, each naming an `src/index.ts` no application has and imported
   // nowhere — and stayed red until Task 1.7 deleted them; injecting `@wbs/config` ->
   // ./libs/wbs/adapters/config/src/missing.ts adds `@wbs/config: ... is not tracked`, and an
-  // `@acme/x` -> ./libs/acme/src/index.ts alias adds both `@acme/x: prefix` and its untracked
+  // `@acme/x` -> ./libs/acme/src/index.ts alias adds both a scope failure and its untracked
   // target.
+  // Proof: with the scopes derived from the real project tags, injecting that `@acme/x` alias
+  // into tsconfig.base.json failed here with `+ "@acme/x: no product named acme"` and
+  // `+ "@acme/x: ./libs/acme/src/index.ts is not tracked"`; reverting the alias returned the
+  // case to green (2026-09-16).
   expect(failures).toEqual([]);
 });
 
@@ -593,6 +612,14 @@ test('every exemption names a tracked document that still needs each excuse', as
   // Proof: adding an entry for the absent docs/local-dev-gone.md failed here with that exact
   // row (2026-09-15).
   expect(entries.filter(({ path }) => !context.candidates.has(path))).toEqual([]);
+
+  // Only the current documents are checked at all, so an entry for a tracked document outside
+  // that set excuses nothing and reads as a check being held off a document it never covered.
+  // Proof: adding an entry for the tracked but non-current
+  // openspec/changes/repo-namespacing/design.md — which does trip `legacy-root` — failed here
+  // with exactly that path; removing the entry returned the case to green (2026-09-16).
+  const current = new Set(await currentDocuments(undefined, new Set(context.candidates)));
+  expect(entries.filter(({ path }) => !current.has(path)).map(({ path }) => path)).toEqual([]);
 
   const unneeded: string[] = [];
   for (const { path, excuses } of entries) {

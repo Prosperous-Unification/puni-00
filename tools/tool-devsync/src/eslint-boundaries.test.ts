@@ -11,14 +11,20 @@ const workspace = fileURLToPath(new URL('../../..', import.meta.url));
 const lint = new ESLint({ cwd: workspace });
 
 /**
- * The only import specifiers the root config's `allow` list may name, sorted. They are WBS host
- * tooling misfiled under `tools/`, and the exception dies with the relocation that moves them:
- * the case below fails once an entry stops being imported.
+ * The only entries the root config's `allow` list may name, sorted. A bare `allow` entry is an
+ * unanchored regular expression, so each is anchored and excuses its exact specifier alone. They
+ * are WBS host tooling misfiled under `tools/`, and the exception dies with the relocation that
+ * moves them: the case below fails once an entry stops being imported.
  */
 const PENDING_INFRA_TO_PRODUCT_ALIASES = [
-  '@wbs/contracts/solver/supervisor-protocol',
-  '@wbs/domain',
+  '^@wbs/contracts/solver/supervisor-protocol$',
+  '^@wbs/domain$',
 ] as const;
+
+/** The specifier an anchored `allow` entry excuses, which is what the sources are scanned for. */
+function specifierOf(entry: string): string {
+  return entry.replace(/^\^/, '').replace(/\$$/, '');
+}
 
 async function ruleIds(path: string, source: string): Promise<readonly (string | null)[]> {
   const [report] = await lint.lintText(source, { filePath: path });
@@ -272,7 +278,8 @@ describe('the effective production and test boundaries', () => {
         .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
         .map((entry) => readFile(join(entry.parentPath, entry.name), 'utf8')),
     );
-    for (const alias of PENDING_INFRA_TO_PRODUCT_ALIASES) {
+    for (const entry of PENDING_INFRA_TO_PRODUCT_ALIASES) {
+      const alias = specifierOf(entry);
       // Proof: an allow entry nobody imports is dead policy. Repointing the two tools/dev
       // corpus writers at a nonexistent alias failed this case by name —
       // `error: @wbs/domain · Expected: true · Received: false` (2026-09-15).
@@ -281,6 +288,22 @@ describe('the effective production and test boundaries', () => {
         alias,
       ).toBe(true);
     }
+  }, 30_000);
+
+  it('excuses the named specifier alone and refuses its subpaths', async () => {
+    // A bare `allow` entry is matched as an unanchored regular expression, so `@wbs/domain`
+    // would excuse `@wbs/domain/workday` and every other subpath of it as well.
+    // Proof: with the two entries in `eslint.config.js` spelled bare, the subpath import below
+    // produced no boundary diagnostic and this case failed on `Expected to contain:
+    // "@nx/enforce-module-boundaries" · Received: [ "@typescript-eslint/no-unused-vars",
+    // "unused-imports/no-unused-imports" ]` (2026-09-16).
+    const path = 'tools/tool-smoke/src/color.ts';
+    expect(await ruleIds(path, "import { workday } from '@wbs/domain/workday';")).toContain(
+      '@nx/enforce-module-boundaries',
+    );
+    expect(await ruleIds(path, "import { x } from '@wbs/domain';")).not.toContain(
+      '@nx/enforce-module-boundaries',
+    );
   }, 30_000);
 });
 
@@ -347,6 +370,22 @@ describe('product lint policy discovery', () => {
       'must return an array of flat-config objects',
     );
     expect(notAnArray.output, notAnArray.output).toContain('apps/probe/eslint.product.mjs');
+  }, 90_000);
+
+  it('refuses a policy whose function throws', async () => {
+    const fixture = await createPolicyWorkspace();
+    await writeFile(
+      join(fixture, 'apps/probe/eslint.product.mjs'),
+      "export default () => {\n  throw new Error('probe policy refuses to compose');\n};\n",
+    );
+    const throwing = await runLint(fixture, 'probe-app');
+    // Proof: with `loaded.default(shared)` left unwrapped in `product-policies.mjs`, this lint
+    // failed on the policy's own bare `Error: probe policy refuses to compose`, naming the file
+    // only in a stack frame, so the assertion below failed on `Expected to contain: "cannot
+    // evaluate product lint policy"` (2026-09-16).
+    expect(throwing.code, throwing.output).not.toBe(0);
+    expect(throwing.output, throwing.output).toContain('cannot evaluate product lint policy');
+    expect(throwing.output, throwing.output).toContain('apps/probe/eslint.product.mjs');
   }, 90_000);
 
   it('refuses a policy whose own imports do not resolve', async () => {

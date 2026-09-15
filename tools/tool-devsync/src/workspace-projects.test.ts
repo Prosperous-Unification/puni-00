@@ -414,8 +414,10 @@ describe('productConstraints', () => {
           continue;
         }
         // Excused only when the edge is reached through an allowed alias and through no
-        // unlisted subpath of it: another subpath resolves to the same project, so matching
-        // on the project alone would widen the exception past what lint permits.
+        // subpath of it: another subpath resolves to the same project, so matching on the
+        // project alone would widen the exception past what lint permits. The root config's
+        // entries are anchored regular expressions and excuse the exact specifier only, and
+        // this oracle refuses the subpaths independently of that spelling.
         const excusing = ALLOWED_INFRA_TO_PRODUCT_EDGES.filter(
           ([alias, reached]) => reached === target.name && specifiers.includes(alias),
         );

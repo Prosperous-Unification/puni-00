@@ -270,10 +270,17 @@ export default [
   // exception is scoped to `tools/**` rather than named at either `allow: []` above, because
   // `allow` is matched on the import specifier alone: a repository-wide entry would also let
   // `libs/wbs/domain` production reach the supervisor protocol, which `eslint-boundaries.test.ts`
-  // proves must stay refused. Flat config replaces a rule's options per file rather than merging
-  // them, so this block carries the whole option set and has to follow both generic blocks
-  // above. `eslint-boundaries.test.ts` pins the list and fails once an entry stops being
-  // imported.
+  // proves must stay refused.
+  //
+  // An `allow` entry carrying no `*` is an unanchored regular expression — `@nx/eslint-plugin`
+  // tests it with `new RegExp(entry).test(importSpecifier)` — so the bare alias would also excuse
+  // every subpath of it. Both entries are anchored so the excuse is the exact specifier and
+  // nothing else; `workspace-projects.test.ts` refuses the same subpaths against the real Nx
+  // graph independently of this list.
+  //
+  // Flat config replaces a rule's options per file rather than merging them, so this block
+  // carries the whole option set and has to follow both generic blocks above.
+  // `eslint-boundaries.test.ts` pins the list and fails once an entry stops being imported.
   {
     files: ['tools/**/*.{ts,tsx,mts,cts}'],
     rules: {
@@ -281,7 +288,12 @@ export default [
         'error',
         {
           ...nxBoundaryOptions,
-          allow: ['@wbs/contracts/solver/supervisor-protocol', '@wbs/domain'],
+          // Proof: with these two entries spelled bare, a `@wbs/domain/workday` import linted as
+          // `tools/tool-smoke/src/color.ts` produced no boundary diagnostic at all, failing the
+          // subpath negative in `eslint-boundaries.test.ts` on `Expected to contain:
+          // "@nx/enforce-module-boundaries" · Received: [ "@typescript-eslint/no-unused-vars",
+          // "unused-imports/no-unused-imports" ]` (2026-09-16).
+          allow: ['^@wbs/contracts/solver/supervisor-protocol$', '^@wbs/domain$'],
         },
       ],
     },

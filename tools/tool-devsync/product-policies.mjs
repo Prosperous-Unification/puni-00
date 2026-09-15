@@ -73,7 +73,7 @@ async function isPolicyPresent(policyPath) {
  * @param {SharedConstraints} shared Passed to each policy function unchanged.
  * @returns {Promise<FlatConfigObject[]>} The discovered objects, ready to spread.
  * @throws When a group directory cannot be read, or a present policy fails to load, does not
- *   default-export a function, or returns anything but an array.
+ *   default-export a function, throws when called, or returns anything but an array.
  */
 export async function readProductPolicies(workspace, shared) {
   const root = workspacePath(workspace);
@@ -106,12 +106,23 @@ export async function readProductPolicies(workspace, shared) {
         // config, which names neither the contract nor the file (2026-09-15).
         throw new Error(`${policyPath} must default-export a function of the shared constants`);
       }
-      const configs = loaded.default(shared);
+      let configs;
+      try {
+        configs = loaded.default(shared);
+      } catch (failure) {
+        // Proof: with this call left unwrapped, a probe policy throwing
+        // `probe policy refuses to compose` failed `probe-app:lint` with that bare message and
+        // named the file only in a stack frame, so the negative's
+        // `cannot evaluate product lint policy` assertion failed (2026-09-16).
+        throw new Error(`cannot evaluate product lint policy ${policyPath}`, { cause: failure });
+      }
       if (!Array.isArray(configs)) {
+        // An `async` policy lands here too: it returns a promise, not an array, and the message
+        // has to say so rather than read as if the function returned the wrong element type.
         // Proof: with this check removed, a policy returning a bare object failed on
         // `TypeError: Spread syntax requires ...iterable[Symbol.iterator] to be a function`
         // from the push below, naming neither the contract nor the file (2026-09-15).
-        throw new Error(`${policyPath} must return an array of flat-config objects`);
+        throw new Error(`${policyPath} must return an array of flat-config objects synchronously`);
       }
       policies.push(...configs);
     }
