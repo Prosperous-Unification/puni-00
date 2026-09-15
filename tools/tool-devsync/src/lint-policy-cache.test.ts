@@ -190,11 +190,25 @@ describe('production lint policy cache inputs', () => {
       'default',
       '{workspaceRoot}/eslint.config.js',
       '{workspaceRoot}/tools/tool-devsync/workspace-projects.mjs',
+      '{workspaceRoot}/apps/*/eslint.product.mjs',
+      '{workspaceRoot}/libs/*/eslint.product.mjs',
       '{workspaceRoot}/apps/**/project.json',
       '{workspaceRoot}/libs/**/project.json',
       '{workspaceRoot}/tools/**/project.json',
       '{workspaceRoot}/.prettierrc.json',
     ]);
+  });
+
+  it('declares both product lint policy globs', async () => {
+    // A product policy the root config discovers is read at every lint, so a lint cached
+    // before it changed is a lint run against a fence that no longer exists.
+    // Proof: with the two globs removed from nx.json, this case failed on the absent
+    // `{workspaceRoot}/apps/*/eslint.product.mjs`, and `wbs-be-01:lint` reported
+    // `[existing outputs match the cache]` after `apps/wbs/eslint.product.mjs` changed
+    // (2026-09-15).
+    const inputs = await productionLintInputs();
+    expect(inputs).toContain('{workspaceRoot}/apps/*/eslint.product.mjs');
+    expect(inputs).toContain('{workspaceRoot}/libs/*/eslint.product.mjs');
   });
 
   it('reruns cached lint when only the generated policy module changes', async () => {

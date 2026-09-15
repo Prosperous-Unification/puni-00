@@ -593,7 +593,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
   // that exact UNCLASSIFIED context, count 262, and digest 116ba02b... (2026-09-14).
   expect(await legacySourceOccurrences()).toEqual({
     categories: {
-      'current recursive selector': 23,
+      'current recursive selector': 30,
       'frozen migration evidence': 19,
       'historical bootstrap policy or mapping': 65,
       'historical policy selector or baseline': 39,
@@ -617,8 +617,12 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // observed `1f86dba5...` against the same occurrence count, because every
     // context carries its line number and the extraction shifted the recursive
     // selectors in workspace-inventory.test.ts down (2026-09-15).
-    digest: '1f86dba5e8e302c747b7063c06fa22289e8cf6e84e0af0667be794b328632d6b',
-    occurrences: 262,
+    // Proof: leaving `1f86dba5.../262/23` here after the product lint policy moved out of
+    // the root config failed on the observed `e705fb7a.../269/30` — the seven new
+    // `apps/*/eslint.product.mjs` and `libs/*/eslint.product.mjs` selectors in nx.json and
+    // lint-policy-cache.test.ts, all classified, none unclassified (2026-09-15).
+    digest: 'e705fb7a73531e01e375bd8a777490f2e687bf0aec64733b4a02d0fe1c3a1d5d',
+    occurrences: 269,
     unclassified: [],
   });
 });

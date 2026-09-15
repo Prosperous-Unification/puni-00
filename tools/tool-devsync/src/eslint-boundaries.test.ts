@@ -1,7 +1,11 @@
+import { chmod, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'bun:test';
 import { ESLint } from 'eslint';
+
+import { createPolicyWorkspace, runLint } from './testing/lint-workspace';
 
 const workspace = fileURLToPath(new URL('../../..', import.meta.url));
 const lint = new ESLint({ cwd: workspace });
@@ -217,4 +221,67 @@ describe('the effective production and test boundaries', () => {
       ]);
     }
   });
+});
+
+describe('product lint policy discovery', () => {
+  it('applies apps/<product>/eslint.product.mjs and refuses an unreadable one', async () => {
+    const fixture = await createPolicyWorkspace();
+    await writeFile(
+      join(fixture, 'apps/probe/eslint.product.mjs'),
+      "export default () => [{ files: ['apps/probe/**/*.ts'], rules: { 'no-restricted-imports': ['error', { paths: ['left-pad'] }] } }];\n",
+    );
+    await writeFile(join(fixture, 'apps/probe/app/src/main.ts'), "import 'left-pad';\n");
+    const applied = await runLint(fixture, 'probe-app');
+    // Proof: with `...productPolicies` dropped from the fixture's flat config — the state
+    // before discovery existed — this uncached Nx lint exited 0 and failed here on
+    // `Expected: 1 · Received: 0` (2026-09-15).
+    expect(applied.code, applied.output).toBe(1);
+
+    // Absent is the normal case, and the only failure discovery is allowed to pass over.
+    await rm(join(fixture, 'apps/probe/eslint.product.mjs'));
+    const absent = await runLint(fixture, 'probe-app');
+    expect(absent.code, absent.output).toBe(0);
+
+    await writeFile(join(fixture, 'apps/probe/eslint.product.mjs'), 'export default () => [];\n');
+    await chmod(join(fixture, 'apps/probe/eslint.product.mjs'), 0o000);
+    const unreadable = await runLint(fixture, 'probe-app');
+    // Proof: replacing the `ERR_MODULE_NOT_FOUND` guard with an unconditional `continue` —
+    // swallowing every import failure — made this same unreadable policy exit 0, failing on
+    // `Expected: not 0 · Received: 0` (2026-09-15). Nx prefixes the child's streams onto its
+    // own stdout, so the diagnostic is read from the merged output rather than from stderr.
+    expect(unreadable.code, unreadable.output).not.toBe(0);
+    // Pin the diagnostic, not merely the failure: any other way of breaking this lint would
+    // otherwise keep the negative green with the rethrow gone.
+    expect(unreadable.output, unreadable.output).toContain('cannot load product lint policy');
+    expect(unreadable.output, unreadable.output).toContain('apps/probe/eslint.product.mjs');
+  }, 90_000);
+
+  it('refuses a policy that is not a function and one that returns no array', async () => {
+    const fixture = await createPolicyWorkspace();
+    const policy = join(fixture, 'apps/probe/eslint.product.mjs');
+
+    // The shape W6's `apps/wiki/eslint.product.mjs` must not ship: the array a reader would
+    // reach for first, which the root config cannot hand the shared constants to.
+    await writeFile(policy, 'export default [];\n');
+    const notAFunction = await runLint(fixture, 'probe-app');
+    // Proof: with the `typeof loaded.default !== 'function'` check removed, this lint still
+    // failed but on `loaded.default is not a function` from inside the root config, so the
+    // `must default-export a function` assertion below failed instead (2026-09-15).
+    expect(notAFunction.code, notAFunction.output).not.toBe(0);
+    expect(notAFunction.output, notAFunction.output).toContain(
+      'must default-export a function of the shared constants',
+    );
+    expect(notAFunction.output, notAFunction.output).toContain('apps/probe/eslint.product.mjs');
+
+    await writeFile(policy, 'export default () => ({ files: [] });\n');
+    const notAnArray = await runLint(fixture, 'probe-app');
+    // Proof: with the `Array.isArray(configs)` check removed, this lint failed on a raw
+    // `Spread syntax requires ...iterable[Symbol.iterator] to be a function` instead, naming
+    // neither the contract nor the file, so both assertions below failed (2026-09-15).
+    expect(notAnArray.code, notAnArray.output).not.toBe(0);
+    expect(notAnArray.output, notAnArray.output).toContain(
+      'must return an array of flat-config objects',
+    );
+    expect(notAnArray.output, notAnArray.output).toContain('apps/probe/eslint.product.mjs');
+  }, 90_000);
 });
