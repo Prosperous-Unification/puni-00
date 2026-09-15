@@ -23,9 +23,9 @@ import { describe, expect, it } from 'bun:test';
  * cache]` — green, having run nothing. `workspace-targets.test.ts` cannot see
  * these reads (it looks for `'../../../…'` literals), so the list is kept by hand.
  *
- * Proof: with `apps/be-01/Dockerfile`'s first stage put back to
+ * Proof: with `apps/wbs/be-01/Dockerfile`'s first stage put back to
  * `oven/bun:1.3.14-alpine`, `every Bun image tag equals .bun-version` failed
- * on `- []` / `+ [ "apps/be-01/Dockerfile: 1.3.14" ]` (2026-09-06). And with
+ * on `- []` / `+ [ "apps/wbs/be-01/Dockerfile: 1.3.14" ]` (2026-09-06). And with
  * `bun-version: 1.3.14` put back in place of `bun-version-file` in the
  * `pixels` job, `CI reads the file rather than a literal` failed on
  * `Expected: 0 · Received: 1`.
@@ -38,9 +38,9 @@ async function read(path: string): Promise<string> {
 
 /** Every Dockerfile that starts from a Bun image. Listed, so a new one is added here on the day it is written. */
 const BUN_DOCKERFILES = [
-  'apps/be-01/Dockerfile',
-  'apps/gw-01/Dockerfile',
-  'apps/fe-01/Dockerfile',
+  'apps/wbs/be-01/Dockerfile',
+  'apps/wbs/gw-01/Dockerfile',
+  'apps/wbs/fe-01/Dockerfile',
   'deploy/dev-src/Dockerfile',
 ] as const;
 
@@ -72,6 +72,73 @@ describe('the Bun version', () => {
     const fromFile = workflow.match(/^\s*bun-version-file: \.bun-version$/gm) ?? [];
     // Both jobs set Bun up; one reading the file and one floating is the drift this exists to stop.
     expect(fromFile.length).toBe((workflow.match(/uses: oven-sh\/setup-bun@/g) ?? []).length);
+  });
+
+  it('CI and the heavy gate use the moved solver and image paths', async () => {
+    const workflow = await read('.github/workflows/ci.yml');
+    const gateSteps = await read('bin/h2puni-gate-steps.sh');
+    const manifest = await read('tools/tool-devsync/project.json');
+
+    // Proof: the legacy CI solver paths made this production-workflow oracle fail before its
+    // first expected cache path; the heavy-gate companion also failed on its old Nx identity
+    // (0 passed / 2 failed).
+    expect(workflow).toContain(
+      'cache-dependency-path: libs/wbs/adapters/solver-py/requirements.lock',
+    );
+    expect(workflow).toContain(
+      'python3 -m pip install --require-hashes -r libs/wbs/adapters/solver-py/requirements.lock',
+    );
+    expect(workflow).toContain('bunx nx run wbs-be-01:solver-image-smoke');
+    expect(gateSteps).toContain('bunx nx run wbs-be-01:solver-image-smoke');
+    // Proof: on 2026-09-14, removing the recursive app-manifest glob and this
+    // assertion, then warming the real target, let removing `product:wbs` from
+    // apps/wbs/fe-01/project.json replay 1/1 from local cache and exit 0. With
+    // the input restored, it reran and failed 176/2 in the product/layout guards.
+    expect(manifest).toContain('"{workspaceRoot}/apps/**/project.json"');
+    expect(manifest).toContain('"{workspaceRoot}/libs/**/project.json"');
+    expect(manifest).toContain('"{workspaceRoot}/tools/**/project.json"');
+    // Proof: on 2026-09-14, removing this Dockerfile input and assertion, then
+    // warming the real target, let a 1.4.2 -> 0.0.0 backend Bun-tag mutation
+    // replay 1/1 from local cache and exit 0. Restoring the input reran and
+    // failed 177/1 on `apps/wbs/be-01/Dockerfile: 0.0.0`.
+    expect(manifest).toContain('"{workspaceRoot}/apps/**/Dockerfile"');
+  });
+});
+
+describe('namespace-sensitive ignore boundaries', () => {
+  it('keeps the development entrypoint out of production image contexts', async () => {
+    const dockerIgnore = (await read('.dockerignore')).split('\n');
+    // Proof: the pre-move exclusion failed here with the received root file
+    // containing only `apps/be-01/src/dev`; the moved entrypoint was absent.
+    expect(dockerIgnore).toContain('apps/wbs/be-01/src/dev');
+    expect(dockerIgnore).not.toContain('apps/be-01/src/dev');
+  });
+
+  it('keeps generated migration and solver artifacts out of formatting', async () => {
+    const prettierIgnore = (await read('.prettierignore')).split('\n');
+    expect(prettierIgnore).toContain('apps/wbs/be-01/drizzle/**/snapshot.json');
+    // Proof: before these moved solver exclusions were added, the received
+    // production ignore list ended after the migration snapshot and root/tool
+    // exclusions, with neither build-output path present.
+    expect(prettierIgnore).toContain('libs/wbs/adapters/solver-py/build/');
+    expect(prettierIgnore).toContain('libs/wbs/adapters/solver-py/src/*.egg-info/');
+  });
+
+  it('keeps local solver build artifacts under the moved adapter root', async () => {
+    const gitIgnore = (await read('.gitignore')).split('\n');
+    // Proof: the pre-move file failed this assertion with only
+    // `libs/solver-py/build/` and `libs/solver-py/src/*.egg-info/` received.
+    expect(gitIgnore).toContain('libs/wbs/adapters/solver-py/build/');
+    expect(gitIgnore).toContain('libs/wbs/adapters/solver-py/src/*.egg-info/');
+    expect(gitIgnore).not.toContain('libs/solver-py/build/');
+    expect(gitIgnore).not.toContain('libs/solver-py/src/*.egg-info/');
+  });
+
+  it('declares every root ignore file this cached guard reads', async () => {
+    const manifest = await read('tools/tool-devsync/project.json');
+    expect(manifest).toContain('"{workspaceRoot}/.dockerignore"');
+    expect(manifest).toContain('"{workspaceRoot}/.gitignore"');
+    expect(manifest).toContain('"{workspaceRoot}/.prettierignore"');
   });
 });
 

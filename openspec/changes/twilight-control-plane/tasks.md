@@ -295,7 +295,7 @@ client uses, `submitRequest`, `reviseArtifact`, `adoptPlan`, `commandRun`,
 `decideApproval`, `mintDecisionToken`, and event/outbox interfaces used by worker
 and clients.
 
-3.1: extract `apps/be-01/src/repository/migrate.ts`, `migrate-down.ts` and the
+3.1: extract `apps/wbs/be-01/src/repository/migrate.ts`, `migrate-down.ts` and the
 connection-opening pragma assertions into the shared library that both apps and
 the checkpointer call, keeping the `down.sql` rule, migration lint and the
 `bun:sqlite` import lint; its existing `.db.test.ts` cases run unchanged against
@@ -602,7 +602,7 @@ configuration; Observable evidence with focus access (client halves) (A36).
 `apps/twilight-mcp/src/server.test.ts`.
 
 **Depends on:** Tasks 2–4. **Consumes:** the operation contracts from Task 3.
-Read `apps/mcp-01/src/http.ts`, `oauth.ts`, `server.ts` and their request/auth
+Read `apps/wbs/mcp-01/src/http.ts`, `oauth.ts`, `server.ts` and their request/auth
 tests before deciding reuse of the existing Streamable HTTP transport and verifier.
 Do not reuse its per-request bearer forwarding (A36; refusals proven in 3.2). Do
 not carry WBS-specific identity or permission rules into Twilight merely because

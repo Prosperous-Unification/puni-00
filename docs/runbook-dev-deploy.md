@@ -36,6 +36,19 @@ into one container, `wbs-dev-src`, running all three tiers via `bun run dev` —
 gw-01 under `bun --watch`, fe-01 under Vite. **For application code the watchers are the
 deploy**; nothing is built, pushed or restarted.
 
+The public frontend remains Vite's source server, not a production build: keeping transforms
+on demand is what makes a source checkout deploy in seconds. Its public process deliberately
+does not expose HMR. Browser Use Cloud closes the page's long-lived `vite-hmr` WebSocket after
+about ten seconds; Vite interprets a reconnect as evidence that it missed an update and reloads
+the document. The server still watches and invalidates changed modules, so a fresh request serves
+the new source, while an already-open public page stays on the document it is measuring. Local
+development and the isolated browser gate retain HMR.
+
+Browser stability checks must sample inside one uninterrupted page evaluation. A navigation must
+destroy that evaluation and fail the check; catching each individual read can turn a reload into
+a successful empty-string assertion. After the first non-empty sample, every later sample must be
+non-empty as well.
+
 Verified 2026-08-04: a pushed change appeared on dev with the container's `StartedAt`
 unchanged to the nanosecond.
 
@@ -44,14 +57,14 @@ design trades for its speed, not a feature — know which column your change is 
 
 | Change                                                          | What carries it                                                                                                                                                                                                                                                             |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App source under `apps/*/src`                                   | The watchers. Nothing restarts.                                                                                                                                                                                                                                             |
+| App source under `apps/wbs/*/src`                               | The watchers. Nothing restarts.                                                                                                                                                                                                                                             |
 | `bun.lock`                                                      | `tool-devsync` restarts and runs `bun install`.                                                                                                                                                                                                                             |
-| A migration under `apps/be-01/drizzle`                          | `tool-devsync` restarts; be-01 migrates at boot (`MIGRATE_ON_STARTUP=true`). Migrations are imported by no watched module, so nothing else would notice one arrive.                                                                                                         |
+| A migration under `apps/wbs/be-01/drizzle`                      | `tool-devsync` restarts; be-01 migrates at boot (`MIGRATE_ON_STARTUP=true`). Migrations are imported by no watched module, so nothing else would notice one arrive.                                                                                                         |
 | `package.json`, `nx.json`, any `project.json`, `vite.config.ts` | `tool-devsync` restarts. Nx and Vite read these once at startup.                                                                                                                                                                                                            |
-| `libs/solver-py`, `apps/be-01/Dockerfile`                       | The target-revision deployer automatically publishes a digest-pinned `be` image, materializes and installs its host-owned solver binding, preflights it, and only then resets. The directory pathspec is recursive; missing or contradictory host inputs fail before reset. |
+| `libs/wbs/adapters/solver-py`, `apps/wbs/be-01/Dockerfile`      | The target-revision deployer automatically publishes a digest-pinned `be` image, materializes and installs its host-owned solver binding, preflights it, and only then resets. The directory pathspec is recursive; missing or contradictory host inputs fail before reset. |
 | `deploy/dev-src/Dockerfile`                                     | **The deploy fails and names the fix** (`RECREATE_PATHS`, since 2026-08-04). Rebuild the image on h2puni from `deploy/dev-src`, then recreate.                                                                                                                              |
 | `deploy/dev-src/compose.yml`                                    | **The deploy fails and names the fix.** `cd /home/puni1/wbs-dev/src/deploy/dev-src && docker compose up -d`.                                                                                                                                                                |
-| Per-tier `apps/<tier>/.env`                                     | **Nothing** — gitignored, so a push cannot carry it. Edit on h2puni and restart the container.                                                                                                                                                                              |
+| Per-tier `apps/wbs/<tier>/.env`                                 | **Nothing** — gitignored, so a push cannot carry it. Edit on h2puni and restart the container.                                                                                                                                                                              |
 
 `tools/tool-devsync/src/sync.ts` holds both lists: `RESTART_PATHS` (a restart applies it)
 and `RECREATE_PATHS` (a restart cannot — the running container was created from the old
@@ -59,18 +72,23 @@ file, so its mounts, user, limits and image are still the old ones). Until 2026-
 second case was silent, and the deploy reported success for a change that was in effect
 nowhere. The env row is still silent, because a gitignored file cannot arrive in a push.
 
-The host-owned solver supervisor service, config, and Unix socket are deploy prerequisites only
-when `libs/solver-py` or `apps/be-01/Dockerfile` changed between the currently deployed and
-requested commits; the directory pathspec is recursive. Unrelated changes retain the existing
-preflight-then-reset path and do not publish or install anything.
+The host-owned solver supervisor config is optional until the first solver-affecting deploy. Once
+present, every changed target verifies the service, Unix socket, mapping, and exact digest-pinned
+image in the host Docker daemon before reset. A missing image is pulled by digest; an image already
+present does not depend on registry availability. A pull or final
+inspection refusal is therefore visible in the poller deploy log instead of only in the supervisor
+user journal. Only a change to `libs/wbs/adapters/solver-py` or
+`apps/wbs/be-01/Dockerfile` publishes or installs a
+new binding; the directory pathspec is recursive.
 
 For a solver-affecting target, the candidate deployer runs from a clean detached clone of that
 exact revision. Under the deploy exclusion it derives the compatibility-tree identity, validates
 the installed production blue and green mappings, or bootstraps a missing first config from the
 exact digest-pinned images configured on the two prod containers. A present but unreadable config
 never falls back. It publishes only `be` through Dagger from the target clone and accepts only the
-requested full SHA and registry-returned digest in the release manifest. It then materializes a
-replacement config that preserves both production mappings,
+requested full SHA and registry-returned digest in the release manifest. Dagger publication does
+not populate the host Docker daemon, so preparation pulls and inspects that exact digest before it
+materializes a replacement config that preserves both production mappings,
 builds and executes the checked-in supervisor installer, and runs the installed bundle's dev
 preflight. The live checkout reset is last.
 
@@ -157,13 +175,14 @@ version file move together; changing a literal in the loader is neither necessar
 
 Puni1's existing every-minute crontab continues to run `/home/puni1/wbs-dev/bin/poll.sh`. Each tick
 fetches `origin/main`, resolves that named remote ref rather than the process-global `FETCH_HEAD`,
-reads the candidate loader from that exact commit with `git show`, creates a shared detached clone
+reads the candidate loader from that exact commit with `git show`, creates a local detached clone
 at the exact target commit under `bin/`, atomically renames the
 completed candidate, and runs it from that clone with the managed interpreter. Its HEAD must equal
 the requested full SHA and its tracked tree must be clean. The candidate contains the complete
 target build context, including Dockerfiles, publisher, supervisor installer, lockfile, `tools/`,
-`libs/`, and root configs rather than `sync.ts` alone. It carries no `node_modules` at all — not the
-pinned checkout's by link, not anyone's — which is the TASK-376 contract below.
+`libs/`, and root configs rather than `sync.ts` alone. The local clone owns object links rather than
+an alternates pointer into the live source repository, so source `git gc` cannot invalidate a
+retained candidate. Candidates older than 24 hours are pruned before interpreter checks.
 
 The full clone matters twice: the deployer reaches the deploy contract through the `@wbs/*`
 tsconfig paths, and a solver-affecting tick must give Dagger the target revision's build context.
@@ -177,7 +196,7 @@ checkout's. The target tool still performs every solver, restart, recreate, and 
 check, while the outer poll lock and `/health` commit proof remain intact. Do not recover with a raw
 `git reset`; that bypasses the checks whose refusal is the reason the checkout did not move.
 
-**The candidate has no `node_modules`, and a tick that refuses with `the deployer's import graph does
+**The candidate initially has no `node_modules`, and a tick that refuses with `the deployer's import graph does
 not resolve inside the extracted candidate` means someone gave `sync.ts` a third-party import.**
 Until 2026-09-08 the loader linked the pinned checkout's install into the candidate; that install
 belongs to whatever commit the checkout last reset to, so it can never hold a package the target just
@@ -206,11 +225,17 @@ have: the publisher imports `@dagger.io/dagger` and reads its manifest at
 `node_modules`: Bun's default auto-install resolved the static import silently from its global cache,
 and the manifest read then failed on `ENOENT … node_modules/@dagger.io/dagger/package.json` — before
 `with-heavy-lock.sh` ran anything, so nothing was published, installed or reset. That is the
-fail-closed refusal an unrelated tick never meets; a solver-affecting target cannot be deployed by the
-poller until the candidate is given an install of its own (`bun install --frozen-lockfile` from its
-own lockfile, after the guard and before the deployer), which is an open decision, not a symlink to
-restore. The materializer, installer and supervisor bundle need no install: each bundles with
-`--reject-unresolved` from the clone alone.
+fail-closed refusal an unrelated tick never meets. A solver-affecting target now runs `bun install
+--frozen-lockfile` in its own candidate immediately before publication. The resulting install is
+owned and pruned with that candidate; it never borrows the live checkout and therefore follows a
+changed target `bun.lock`. The materializer, installer and supervisor bundle then resolve from that
+same exact-target install.
+
+`WBS_CLEAN_TREE_REPOSITORY` is the narrow compatibility contract for an exported legacy tree that
+has no Git metadata of its own. When set, it must be an absolute normalized path to the repository
+top level; subdirectories are refused rather than letting Git discover an ambient parent. Normal
+detached candidates and worktrees leave it unset and guard their own tree. Missing Git metadata is
+the only fallback condition; unreadable metadata fails closed.
 
 Dev has **no edge password**. It was removed 2026-08-06: it was a second login on top of the
 app's own, and a browser that had cached a wrong credential for the realm could not be talked
@@ -220,14 +245,14 @@ out of it — which cost a real debugging session. The gated config is backed up
 What still guards dev: be-01 applies the configured authentication mode to every
 protected `/api` route. gw-01 accepts the fixed identity only in explicit local
 mode; OIDC mode requires the `__Host-wbs_access` httpOnly cookie and the exact
-configured Origin (`apps/gw-01/src/app.ts`). Query parameters never establish
+configured Origin (`apps/wbs/gw-01/src/app.ts`). Query parameters never establish
 WebSocket identity. **`POST /api/auth/register` is mounted in every mode**
-(`apps/be-01/src/controller/auth.routes.ts`) and answers 404 unless
+(`apps/wbs/be-01/src/controller/auth-password-endpoints.ts`) and answers 404 unless
 `AUTH_PASSWORD_REGISTER=true` — the auth mode does not gate it, and that flag is
 not `AUTH_PASSWORD_LOGIN`. Where the flag is on, registration is open to the
 internet, which is the trade that was made knowingly.
 
-Per-tier env lives in gitignored `apps/<tier>/.env` inside that checkout, **not** in
+Per-tier env lives in gitignored `apps/wbs/<tier>/.env` inside that checkout, **not** in
 compose `env_file`: compose merges every env file into one namespace, so `be-01.env` and
 `gw-01.env` both setting `PORT` put both tiers on 3200.
 

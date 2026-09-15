@@ -1,0 +1,96 @@
+# Tool Wiki trusted activation
+
+The bootstrap policy is `policy.tool-wiki-bootstrap.v1` in
+`docs/wiki-policy/bootstrap-policy.json`. It enforces only
+`boundary.infra.tool-wiki`; the six modules in the historical pilot remain named, non-selected
+review debt. Tasks 6 and 7 remain open.
+
+## Prepare
+
+An operator, outside the candidate checkout, invokes the trusted review harness for the exact
+frozen Tool Wiki module plus the launcher, host gate, trusted workflow, candidate CI workflow,
+hook, and Nx callers declared by `tools/tool-wiki/README.md`. Retain the real review receipt and
+journal entry. Missing usage, reads, raw response, or journal provenance is not a review.
+
+Run the three exact scoped checks selected by the bootstrap obligation:
+
+```sh
+bunx nx run tool-wiki:test --skip-nx-cache
+bunx nx run tool-wiki:lint:source --skip-nx-cache
+bunx nx run tool-wiki:typecheck --skip-nx-cache
+```
+
+Build a closure containing the launcher, snapshotter, a reviewed single-file validator bundle,
+policy, mapping, separate local/CI bindings, lint evidence, trusted authority, and review receipt.
+Pass those ten explicit roles to `prepareActivation`; it copies them into a new versioned directory,
+joins both bindings' policy, authority, validator, and optional mapping references to those exact
+role paths and digests, joins the policy/mapping/validator/review identities to their actual bytes,
+and records every artifact digest.
+`selectActivation` requires the independently expected package identity and atomically replaces the
+small operator-controlled `selected.json`. Never edit an activated file or reuse a per-candidate
+authority snapshot.
+
+## Transport and admission
+
+The transport archive root contains `selected.json`, its selected version directory, a bootstrap
+copy of the reviewed launcher with root-level `active-v1` and `launcher-path` descriptors, and the
+minimal `trusted-node-modules` TypeScript package closure copied from the exact lockfile-pinned
+reviewed checkout (`typescript` and its declared dependency directories). The bootstrap launcher
+resolves the selected package and verifies its manifest,
+checksum-list identity, and artifact checksums before reading any selected role. Root descriptors
+are relative to the archive root so the same bytes relocate between GitHub runner temporary storage
+and h2puni; every consumer resolves a relative descriptor from that root, never from its current
+working directory.
+
+The protected-default push audit downloads, verifies, and extracts that same pinned archive before
+running its launcher and archive-carried TypeScript runtime closure with required certification.
+It never relocates candidate-installed modules into the trust path. With no archive variables it
+reports inactive; partial configuration or a configured activation root that loses its marker
+fails rather than silently auditing nothing.
+
+Set `TOOL_WIKI_ACTIVATION_VERSION` to the exact reviewed source commit, not a display label. The
+target-context workflow checks out that immutable revision, installs its lockfile-pinned runtime
+modules with lifecycle scripts disabled, and passes their external path to the validator. The
+validator refuses runtime modules inside the candidate. Nx relationships are read statically from
+`nx.json` and `project.json`; candidate plugins and inferred plugin targets are never executed or
+admitted by this bootstrap boundary.
+
+The h2puni host gate defaults `TOOL_WIKI_TRUSTED_NODE_MODULES` to the archive's external
+`trusted-node-modules` directory. It refuses a missing TypeScript package and any explicit override
+that resolves inside the candidate checkout. The archive transport SHA-256 authenticates these
+runtime bytes alongside the root descriptors; do not construct or install the host archive without
+that directory.
+
+Copy the same digest-pinned archive to a versioned directory on h2puni. The base-owned
+`trusted-wiki` workflow downloads its operator-configured HTTPS archive into runner temporary
+storage, verifies the configured SHA-256 before extraction, and refuses missing URL, digest, or
+version configuration. The job always runs: with none or only some of the three repository
+variables set, its required configuration guards fail and admission stays red. The archive root contains
+`selected.json` beside its selected version directory; paths in both the selector and the package
+role descriptors are relative so the same archive can be extracted under a host version directory
+or runner temporary storage. The preserved
+launcher verifies the selected manifest identity, checksum-list identity, and every role artifact
+before reading a descriptor. The separately administered required-workflow/ruleset remains an
+external prerequisite; candidate YAML cannot activate it.
+
+Required admission must refuse an inactive, observe-only, absent, unreadable, malformed, or
+wrong-scope activation. Diagnostic local rollout may still report inactive without certification.
+
+## Final binding and recovery
+
+After the exact commit is published and its immutable publication marker exists, emit the canonical
+final binding to an operator-controlled store with `emitIntegrationBinding`. The artifact retains
+the commit/tree/sole-parent tuple, full composition identity, distinct normative content-only
+identity, finite evidence-validation identity, activation identities, exact generations, receipts,
+and journal verifications. Bootstrap alone may use
+`{kind:"not-applicable",reason:"pre-authority bootstrap commit"}`; later integrated bindings must
+name their actual integration and attempt identities.
+
+Emission is compare-and-create and writes outside the candidate, so a crash after Git publication
+can recover from the immutable marker, checked candidate, retained receipts, and selected activation
+without consulting mutable `HEAD` or inventing new checks. `verifyIntegrationBinding` rechecks Git,
+the independent activation/content/evidence inputs, candidate composition, and every receipt.
+
+Copy identical binding bytes to the authenticated workflow artifact channel and the host retention
+store. If either store, the h2puni package, GitHub archive, journal verifier, or required rule is not
+provisioned, admission remains pending rather than certified.

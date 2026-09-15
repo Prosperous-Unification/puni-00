@@ -1,24 +1,28 @@
-import { chmodSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
+import { scratchSync } from '@wbs/tool-test-scratch';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { scratchSync } from '../../test/scratch';
-import { installedDaggerSdkVersion } from './main';
 import {
   applyRunnerHostAlias,
   assertBuildCapacity,
   assertCleanTree,
   assertEngineContract,
+  assertImageBuildInputs,
   type BuildCapacity,
+  cleanTreeRepository,
   createDockerEngineControl,
   type EngineControl,
   engineCreateArgs,
+  installedDaggerSdkVersion,
   readBuildCapacity,
   requireRegistryPassword,
   runAdmittedPublish,
   runEngineLifecycle,
 } from './main';
+
+const WORKSPACE = resolve(new URL('../../../', import.meta.url).pathname);
 
 const sdkVersion = await installedDaggerSdkVersion();
 
@@ -71,6 +75,77 @@ const safeCapacity: BuildCapacity = {
   load1: 7,
   cpuCount: 8,
 };
+
+describe('candidate image inputs', () => {
+  it('resolves every Dockerfile and repository-local COPY source before Dagger starts', () => {
+    expect(() => {
+      assertImageBuildInputs(['be', 'gw', 'fe'], WORKSPACE);
+    }).not.toThrow();
+  });
+
+  it('runs project tests through their namespaced Nx identities', async () => {
+    // Proof: the legacy `nx test be-01` target failed here with that exact received command
+    // (0 passed / 2 failed together with the moved smoke-root case).
+    const manifest: unknown = await Bun.file(new URL('../project.json', import.meta.url)).json();
+    expect(manifest).toHaveProperty('targets.test-be.options.command', 'nx test wbs-be-01');
+    expect(manifest).toHaveProperty('targets.test-gw.options.command', 'nx test wbs-gw-01');
+    expect(manifest).toHaveProperty('targets.test-fe.options.command', 'nx test wbs-fe-01');
+  });
+
+  it('hashes every external build-input assertion into the Nx test cache key', async () => {
+    const manifest: unknown = await Bun.file(new URL('../project.json', import.meta.url)).json();
+    // Proof: after warming the real Nx cache, injecting the legacy backend Dockerfile COPY path
+    // and, separately, the old smoke-script root ascent each made `nx test tool-dagger` execute
+    // again and fail the corresponding production-path assertion (61 passed / 1 failed).
+    expect(manifest).toHaveProperty(
+      'targets.test.inputs',
+      expect.arrayContaining([
+        '{workspaceRoot}/apps/wbs/be-01/**/*',
+        '{workspaceRoot}/apps/wbs/gw-01/**/*',
+        '{workspaceRoot}/apps/wbs/fe-01/**/*',
+        '{workspaceRoot}/libs/**/*',
+        '{workspaceRoot}/nx.json',
+      ]),
+    );
+  });
+
+  it('resolves the solver image smoke repository root after the app move', () => {
+    const root = scratchSync('wbs-solver-smoke-root-');
+    const commands = join(root, 'commands');
+    const socketDirectory = join(root, 'socket');
+    const dockerLog = join(root, 'docker.log');
+    mkdirSync(commands, { recursive: true });
+    writeFileSync(
+      join(commands, 'mktemp'),
+      '#!/usr/bin/env bash\nmkdir -p "$WBS_FAKE_SOCKET_DIRECTORY"\nprintf "%s\\n" "$WBS_FAKE_SOCKET_DIRECTORY"\n',
+    );
+    writeFileSync(
+      join(commands, 'docker'),
+      '#!/usr/bin/env bash\nprintf "%s\\n" "$*" >> "$WBS_DOCKER_LOG"\nexit 86\n',
+    );
+    chmodSync(join(commands, 'mktemp'), 0o755);
+    chmodSync(join(commands, 'docker'), 0o755);
+
+    const script = join(WORKSPACE, 'apps', 'wbs', 'be-01', 'scripts', 'solver-image-smoke.sh');
+    const invocation = Bun.spawnSync(['bash', script], {
+      env: {
+        ...process.env,
+        PATH: `${commands}:${process.env['PATH'] ?? ''}`,
+        WBS_DOCKER_LOG: dockerLog,
+        WBS_FAKE_SOCKET_DIRECTORY: socketDirectory,
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+
+    expect(invocation.exitCode).toBe(86);
+    // Proof: with the old `../../..` ascent, the real script called fake Docker with
+    // `<workspace>/apps/apps/wbs/be-01/Dockerfile` and context `<workspace>/apps`.
+    expect(readFileSync(dockerLog, 'utf8').split('\n')[0]).toBe(
+      `build --file ${WORKSPACE}/apps/wbs/be-01/Dockerfile --tag wbs-be-01:solver-smoke ${WORKSPACE}`,
+    );
+  });
+});
 
 async function captureFailure(work: () => Promise<unknown>): Promise<Error> {
   try {
@@ -534,7 +609,7 @@ describe('assertCleanTree', () => {
   let cwd: string;
 
   const git = (...args: string[]): void => {
-    const p = Bun.spawnSync(['git', ...args], { cwd: repo });
+    const p = Bun.spawnSync(['git', '-c', 'core.hooksPath=/dev/null', ...args], { cwd: repo });
     if (p.exitCode !== 0) throw new Error(`git ${args.join(' ')}: ${p.stderr.toString('utf8')}`);
   };
 
@@ -561,6 +636,46 @@ describe('assertCleanTree', () => {
     }).not.toThrow();
   });
 
+  it('checks an explicit repository while publishing from an exported non-repository tree', () => {
+    const exportedTree = scratchSync('wbs-exported-tree-');
+    process.chdir(exportedTree);
+    try {
+      expect(() => {
+        assertCleanTree(repo);
+      }).not.toThrow();
+    } finally {
+      process.chdir(repo);
+      rmSync(exportedTree, { recursive: true, force: true });
+    }
+  });
+
+  // Proof: before assertCleanTree passed `-C repository`, both cases failed in
+  // the exported tree with exit 128 instead of inspecting the injected fault.
+  it('refuses a dirty explicit repository while cwd is an exported tree', () => {
+    const exportedTree = scratchSync('wbs-exported-tree-');
+    writeFileSync(join(repo, 'tracked.txt'), 'injected dirty source\n');
+    process.chdir(exportedTree);
+    try {
+      expect(() => {
+        assertCleanTree(repo);
+      }).toThrow(/tracked\.txt/);
+    } finally {
+      process.chdir(repo);
+      rmSync(exportedTree, { recursive: true, force: true });
+    }
+  });
+
+  it('fails closed and names an explicit non-repository path', () => {
+    const nonRepository = scratchSync('wbs-non-repository-');
+    try {
+      expect(() => {
+        assertCleanTree(nonRepository);
+      }).toThrow(new RegExp(`git -C ${nonRepository} rev-parse --show-toplevel failed`));
+    } finally {
+      rmSync(nonRepository, { recursive: true, force: true });
+    }
+  });
+
   it('refuses when a tracked file is modified, naming the file', () => {
     writeFileSync(join(repo, 'tracked.txt'), 'uncommitted edit\n');
     expect(() => {
@@ -568,11 +683,37 @@ describe('assertCleanTree', () => {
     }).toThrow(/tracked\.txt/);
   });
 
+  // Proof: without the top-level equality check, git walks upward and accepts
+  // this nested path as though it were the repository named by the caller.
+  it('refuses a directory nested under a repository', () => {
+    const nested = join(repo, 'nested');
+    mkdirSync(nested);
+    expect(() => {
+      assertCleanTree(nested);
+    }).toThrow(/not its Git top level/);
+  });
+
   it('refuses on an untracked migration, which is the fail-open it closes', () => {
     writeFileSync(join(repo, '0002_add_column.sql'), 'ALTER TABLE t ADD COLUMN c;\n');
     expect(() => {
       assertCleanTree();
     }).toThrow(/dirty working tree/);
+  });
+});
+
+describe('cleanTreeRepository', () => {
+  it('uses the devsync contract variable and otherwise keeps the ordinary cwd default', () => {
+    expect(cleanTreeRepository({ WBS_CLEAN_TREE_REPOSITORY: '/real/source' })).toBe('/real/source');
+    expect(cleanTreeRepository({})).toBe('.');
+  });
+
+  it('refuses relative and unnormalized compatibility overrides', () => {
+    expect(() => cleanTreeRepository({ WBS_CLEAN_TREE_REPOSITORY: 'relative/repo' })).toThrow(
+      /absolute normalized/,
+    );
+    expect(() => cleanTreeRepository({ WBS_CLEAN_TREE_REPOSITORY: '/repo/../other' })).toThrow(
+      /absolute normalized/,
+    );
   });
 });
 

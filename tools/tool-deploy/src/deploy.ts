@@ -79,7 +79,7 @@ export interface DeployPlanDeps {
     host: string,
     stateDir: string,
   ) => Promise<Partial<Record<Tier, RemoteTierState>>>;
-  /** Migration folder names present under apps/be-01/drizzle at `sha`. */
+  /** Migration folder names under the legacy or namespaced backend tree at `sha`. */
   listMigrations: (sha: string) => string[];
   readRelease: (path: string) => Promise<ReleaseRecord>;
   /**

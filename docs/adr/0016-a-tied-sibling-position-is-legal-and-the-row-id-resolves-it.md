@@ -7,7 +7,7 @@ status: proposed
 Two siblings may share a `position`. `work_item_siblings`
 (`schema.ts:562`) is a plain `index('work_item_siblings').on(projectId, parentId, position)`
 with no uniqueness, and `placeAfter` appends at `last + POSITION_STEP` from a group it read
-outside any lock (`libs/domain/src/place-sibling.ts:53`), so two appends racing on one parent
+outside any lock (`libs/wbs/domain/domain/src/place-sibling.ts:53`), so two appends racing on one parent
 both compute the same number. That tie is not inert: `deriveNumbers` sorts each sibling group
 with `Array#sort`, which is **stable**, so the order the repository answered in survives into
 the derived number, and the number is the third of `goesFirst`'s four tie-breaks
@@ -41,6 +41,12 @@ current row order disagrees with id order gets different dates on the deploy tha
 path. That movement is measured against the live population and announced before the deploy;
 it is not discovered by a user. Projects with no tie are byte-identical before and after,
 because with distinct positions the labels come off `position` alone.
+
+Two things have moved since, both in the same direction. The resolution is no longer imposed
+only by `listByProject`'s `ORDER BY`: `siblingGroupsOf` sorts on `id` explicitly, so a caller
+holding rows in any other order gets the same project (ADR 0023). And a changed sibling group
+is respaced to `10, 20, 30…` by an arrangement, which retires whatever ties it held — a
+repair where it happens rather than a migration, which is what this decision declined.
 
 Reversing this is cheap: the order is one clause and one index, no stored value changes shape.
 That is why it is an ADR about a tolerated defect rather than a migration.

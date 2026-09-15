@@ -1,9 +1,8 @@
 import { chmod, mkdir, readdir, readFile, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { scratchAsync } from '@wbs/tool-test-scratch';
 import { describe, expect, it } from 'bun:test';
-
-import { scratchAsync } from '../../test/scratch';
 
 interface CommandResult {
   code: number;
@@ -129,6 +128,9 @@ describe('durable dev poller', () => {
     const deploy = await readFile(new URL('../../../bin/dev-deploy.sh', import.meta.url), 'utf8');
     expect(deploy).toContain('< "$(dirname "${BASH_SOURCE[0]}")/dev-poll-sync.sh"');
     expect(deploy).not.toContain('/home/puni1/wbs-dev/bin/dev-poll-sync.sh');
+    // Proof: restoring the remote preflight argument to `src/apps/mcp-01/.env`
+    // failed this oracle on the exact namespaced environment path.
+    expect(deploy).toContain('/home/puni1/wbs-dev/src/apps/wbs/mcp-01/.env');
   });
 
   it('names the managed Bun installation remedy before reading the target', async () => {
@@ -208,7 +210,7 @@ describe('durable dev poller', () => {
       mkdir(freshInterrupted, { recursive: true }),
       writeFile(staleSingleFile, 'a candidate the loader wrote before 2026-09-07'),
     ]);
-    const staleTime = new Date(Date.now() - 9 * 24 * 60 * 60 * 1_000);
+    const staleTime = new Date(Date.now() - 25 * 60 * 60 * 1_000);
     await Promise.all([
       utimes(staleInstalled, staleTime, staleTime),
       utimes(staleInterrupted, staleTime, staleTime),
@@ -245,7 +247,7 @@ describe('durable dev poller', () => {
       mkdir(freshCandidate, { recursive: true }),
       writeFile(fakeBun, '#!/usr/bin/env bash\necho 1.2.20\n'),
     ]);
-    const staleTime = new Date(Date.now() - 9 * 24 * 60 * 60 * 1_000);
+    const staleTime = new Date(Date.now() - 25 * 60 * 60 * 1_000);
     await utimes(staleCandidate, staleTime, staleTime);
     await chmod(fakeBun, 0o755);
 
@@ -587,11 +589,12 @@ if [ "$1" = --version ]; then echo ${Bun.version}; exit 0; fi
 if [ "$1" = build ] || [ "$1" = -e ]; then exec ${process.execPath} "$@"; fi
 target_root=$(cd "$(dirname "$1")/../../.." && pwd)
 [ "$PWD" = "$target_root" ] || { echo "wrong cwd: $PWD" >&2; exit 41; }
-for required in apps/be-01/Dockerfile bin/publish-release.sh deploy/solver-supervisor/wbs-solver-supervisor.service bun.lock; do
+for required in apps/wbs/be-01/Dockerfile bin/publish-release.sh deploy/solver-supervisor/wbs-solver-supervisor.service bun.lock; do
   [ -f "$target_root/$required" ] || { echo "missing target file: $required" >&2; exit 42; }
 done
 [ "$(git -C "$target_root" rev-parse HEAD)" = "$2" ] || { echo 'wrong target HEAD' >&2; exit 43; }
 [ -z "$(git -C "$target_root" status --porcelain)" ] || { echo 'target tree is dirty' >&2; exit 44; }
+[ ! -e "$target_root/.git/objects/info/alternates" ] || { echo 'target objects still borrow source repository' >&2; exit 46; }
 if [ -e "$target_root/node_modules" ] || [ -L "$target_root/node_modules" ]; then
   echo 'target tree borrows an install' >&2; exit 45
 fi
@@ -610,6 +613,8 @@ printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
     // of tools/libs/root configs — `missing target file: apps/be-01/Dockerfile`;
     // `cd "$SRC"` restored before the exec — `wrong cwd: <the source checkout>`;
     // the guard's `rm -rf` of its scratch removed — `target tree is dirty`;
+    // restoring `git clone --shared` — `target objects still borrow source
+    // repository`, because source gc could then invalidate the candidate;
     // the pre-TASK-376 `ln -s "$SRC/node_modules"` restored, with or without
     // the `.git/info/exclude` line that used to hide it — `target tree borrows
     // an install` (watched 2026-09-10, both variants). It reaches that check
@@ -619,6 +624,11 @@ printf '%s\n' "$target_root" > "$POLL_TARGET_PROBE"
     // this failed one check earlier on `target tree is dirty` instead. The
     // borrows-an-install probe is what makes the guarantee hold either way,
     // which is the point — the dirty check could never see a symlink.
+    //
+    // Proof: retaining the pre-namespace `apps/be-01/Dockerfile` target input
+    // made this production poller path exit 42 with
+    // `missing target file: apps/be-01/Dockerfile` (52 pass / 4 fail).
+    // Observed 2026-09-14.
     //
     // And `import '@dagger.io/dagger'` committed into sync.ts — the guard
     // refuses before the probe runs, on
@@ -745,8 +755,15 @@ CONTENT=SAME`),
 
   it('guards the canonical h2puni gate wiring for the real orphan process proof', async () => {
     const gate = await readFile(new URL('../../../bin/h2puni-gate.sh', import.meta.url), 'utf8');
+    const steps = await readFile(
+      new URL('../../../bin/h2puni-gate-steps.sh', import.meta.url),
+      'utf8',
+    );
     expect(gate).toContain('export NX_DAEMON=false');
-    expect(gate).toContain('WBS_RUN_SOLVER_ORPHAN_PROC=1');
-    expect(gate).toContain('bunx nx run be-01:solver-image-smoke');
+    expect(gate).toContain('bin/h2puni-gate-steps.sh');
+    // Proof: moving the smoke command into the steps script without following that production
+    // call failed here on `Expected to contain: WBS_RUN_SOLVER_ORPHAN_PROC=1`.
+    expect(steps).toContain('WBS_RUN_SOLVER_ORPHAN_PROC=1');
+    expect(steps).toContain('bunx nx run wbs-be-01:solver-image-smoke');
   });
 });

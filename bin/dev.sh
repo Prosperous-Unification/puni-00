@@ -11,6 +11,8 @@
 # already records one incident of this tree dying for a smaller reason.
 set -euo pipefail
 
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+
 # `--local-solver` swaps only WHICH entrypoint be-01 starts: `serve-local-solver`
 # runs `src/dev/main.ts`, which builds the local solver spawner, while the other
 # three tiers carry an identically-named alias of their ordinary `serve` so this
@@ -29,8 +31,8 @@ set -euo pipefail
 # expected: 2 · actual: 0` beside `unknown argument never reaches nx · actual:
 # no`. The fake `bunx` proves the shell wiring only — that nx can resolve all
 # four tasks was checked separately with `--graph=stdout`, which listed
-# be-01/fe-01/gw-01/mcp-01 `:serve-local-solver`, and listed **three** with
-# mcp-01's alias deleted.
+# wbs-be-01/wbs-fe-01/wbs-gw-01/wbs-mcp-01 `:serve-local-solver`, and listed
+# **three** with wbs-mcp-01's alias deleted.
 target=serve
 if (( $# > 0 )); then
   if (( $# != 1 )) || [[ $1 != --local-solver ]]; then
@@ -40,7 +42,22 @@ if (( $# > 0 )); then
   target=serve-local-solver
 fi
 
-args=(run-many -t "$target" "--projects=be-01,gw-01,fe-01,mcp-01")
+# Refuse before nx, while there is still one place to say why.
+#
+# A tier whose port is already served does not announce itself as such from the
+# nx summary: vite exits in 710ms under `strictPort` and is listed as a task
+# that completed beside three Continuous ones. The preflight names the port, the
+# tier and the process holding it. Its own reasoning is in bin/dev-ports.sh.
+#
+# Proof: with this line removed and a listener bound to the port under test,
+# `bin/dev.test.sh`'s `a served dev port exits 1 · expected: 1 · actual: 0`
+# failed beside `a served dev port never reaches nx · expected: yes · actual:
+# no` — nx started the whole stack over a port that was already taken.
+"$repo_root/bin/dev-ports.sh"
+
+# Proof: restoring the four pre-move selectors made bin/dev.test.sh report the
+# namespaced tiers missing from the real supervisor command.
+args=(run-many -t "$target" "--projects=wbs-be-01,wbs-gw-01,wbs-fe-01,wbs-mcp-01")
 
 if [[ -z "${WBS_DEV_LOG:-}" ]]; then
   exec bunx nx "${args[@]}"

@@ -68,7 +68,7 @@ Proposed Nx units, created with the behaviour that first needs them:
 
 Do not import WBS app internals to obtain convenient code. Reuse existing shared
 auth/validation/observability only after reading its callers and tests and proving
-the contract. Existing [MCP forwarding](../../../apps/mcp-01/README.md) is a
+the contract. Existing [MCP forwarding](../../../apps/wbs/mcp-01/README.md) is a
 pattern, not permission to reuse a process-wide token.
 
 ### Invariant ownership

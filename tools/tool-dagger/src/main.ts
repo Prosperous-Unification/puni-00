@@ -1,5 +1,6 @@
-import { readFileSync, statfsSync } from 'node:fs';
+import { readFileSync, statfsSync, statSync } from 'node:fs';
 import { availableParallelism, loadavg } from 'node:os';
+import { isAbsolute, join, resolve } from 'node:path';
 
 import type { BuildArg, Platform } from '@dagger.io/dagger';
 import { connect } from '@dagger.io/dagger';
@@ -14,10 +15,60 @@ import {
 } from './lib/publish';
 
 const DOCKERFILE: Record<Tier, string> = {
-  be: 'apps/be-01/Dockerfile',
-  gw: 'apps/gw-01/Dockerfile',
-  fe: 'apps/fe-01/Dockerfile',
+  // Proof: restoring this production map entry to `apps/be-01/Dockerfile` made candidate
+  // construction fail before Dagger with the missing legacy Dockerfile (0 passed / 1 failed).
+  be: 'apps/wbs/be-01/Dockerfile',
+  gw: 'apps/wbs/gw-01/Dockerfile',
+  fe: 'apps/wbs/fe-01/Dockerfile',
 };
+
+function localCopySources(source: string): string[] {
+  const inputs: string[] = [];
+  for (const line of source.split('\n')) {
+    const instruction = /^\s*COPY\s+(.+?)\s*$/.exec(line)?.[1];
+    if (instruction === undefined) continue;
+    const tokens = instruction.split(/\s+/);
+    let firstSource = 0;
+    let copiesFromStage = false;
+    while (tokens[firstSource]?.startsWith('--')) {
+      if (tokens[firstSource]?.startsWith('--from=')) copiesFromStage = true;
+      firstSource += 1;
+    }
+    if (copiesFromStage) continue;
+    inputs.push(...tokens.slice(firstSource, -1));
+  }
+  return inputs;
+}
+
+/** Fails before Dagger starts if a candidate Dockerfile or its local COPY inputs cannot resolve. */
+export function assertImageBuildInputs(
+  tiers: readonly Tier[],
+  workspaceRoot: string = process.cwd(),
+): void {
+  for (const tier of tiers) {
+    const dockerfile = DOCKERFILE[tier];
+    const dockerfilePath = join(workspaceRoot, dockerfile);
+    let source: string;
+    try {
+      source = readFileSync(dockerfilePath, 'utf8');
+    } catch (error: unknown) {
+      throw new Error(`candidate ${tier} Dockerfile could not be read: ${dockerfilePath}`, {
+        cause: error,
+      });
+    }
+    for (const input of localCopySources(source)) {
+      const inputPath = resolve(workspaceRoot, input);
+      try {
+        statSync(inputPath);
+      } catch (error: unknown) {
+        // Proof: restoring the backend's production COPY source to deleted `apps/be-01`
+        // made candidate input resolution fail here with that exact path before any Dagger
+        // engine connection (0 passed / 1 failed).
+        throw new Error(`${dockerfile} COPY input does not exist: ${input}`, { cause: error });
+      }
+    }
+  }
+}
 
 const PUBLIC_URL = process.env['WBS_PUBLIC_URL'] ?? 'https://wbs.bulletpoints.club';
 const REGISTRY = process.env['REGISTRY'] ?? 'registry.infra.bulletpoints.club';
@@ -402,7 +453,7 @@ export async function runAdmittedPublish<T>(
 // linux/amd64 is pinned explicitly so a client running on arm64 (a dev laptop,
 // or a build host) produces the same image the amd64 production host runs.
 // When the engine isn't natively amd64 it builds this under QEMU emulation —
-// that's what apps/fe-01/Dockerfile's BUN_JSC_useJIT=0 works around; that
+// that's what apps/wbs/fe-01/Dockerfile's BUN_JSC_useJIT=0 works around; that
 // workaround lives in the Dockerfile itself, so it carries over unchanged
 // regardless of who invokes the build (docker CLI or Dagger).
 const TARGET_PLATFORM = 'linux/amd64' as Platform;
@@ -454,11 +505,15 @@ export function requireRegistryPassword(env: NodeJS.ProcessEnv): string {
 }
 
 /**
- * Refuses to publish from a dirty working tree.
+ * Refuses to publish while the repository backing the source snapshot is dirty.
  *
- * `publishAll` snapshots `client.host().directory('.')` — the WORKING TREE —
- * while `publish-all` labels the result `WBS_SHA=$(git rev-parse HEAD)`. Those
- * are the same thing only when the tree is clean, and the gap is not cosmetic:
+ * `publishAll` snapshots `client.host().directory('.')` while `publish-all`
+ * labels the result with `WBS_SHA`. Ordinary callers build from the repository
+ * itself, so the default `.` preserves the original clean-tree guard. The
+ * dev recovery normally builds from a detached candidate and guards that
+ * candidate directly. Only a legacy exported tree without Git metadata may
+ * supply its backing repository through the compatibility environment.
+ * A dirty backing repository is not acceptable, and the gap is not cosmetic:
  * `tool-deploy`'s migration gate (tools/tool-deploy/src/migrations.ts) reads
  * the migration set *from git* at that sha, so an uncommitted migration is
  * baked into the image and simultaneously invisible to the gate.
@@ -479,16 +534,35 @@ export function requireRegistryPassword(env: NodeJS.ProcessEnv): string {
  * the gate this exists to close is fully closed; image hygiene generally is a
  * separate concern.
  */
-export function assertCleanTree(): void {
-  const p = Bun.spawnSync(['git', 'status', '--porcelain']);
+export function cleanTreeRepository(env: NodeJS.ProcessEnv = process.env): string {
+  const repository = env['WBS_CLEAN_TREE_REPOSITORY'] ?? '.';
+  if (repository !== '.' && (!isAbsolute(repository) || resolve(repository) !== repository)) {
+    throw new Error('WBS_CLEAN_TREE_REPOSITORY must be an absolute normalized path');
+  }
+  return repository;
+}
+
+export function assertCleanTree(repository = '.'): void {
+  const topLevel = Bun.spawnSync(['git', '-C', repository, 'rev-parse', '--show-toplevel']);
+  if (topLevel.exitCode !== 0) {
+    throw new Error(
+      `git -C ${repository} rev-parse --show-toplevel failed: ${topLevel.stderr.toString('utf8').trim()}`,
+    );
+  }
+  if (resolve(topLevel.stdout.toString('utf8').trim()) !== resolve(repository)) {
+    throw new Error(`clean-tree repository ${repository} is not its Git top level`);
+  }
+  const p = Bun.spawnSync(['git', '-C', repository, 'status', '--porcelain']);
   if (p.exitCode !== 0) {
-    throw new Error(`git status --porcelain failed: ${p.stderr.toString('utf8').trim()}`);
+    throw new Error(
+      `git -C ${repository} status --porcelain failed: ${p.stderr.toString('utf8').trim()}`,
+    );
   }
   const dirty = p.stdout.toString('utf8').trim();
   if (dirty !== '') {
     throw new Error(
-      'refusing to publish from a dirty working tree.\n' +
-        '  The build context is the working tree, but the release is labelled with HEAD,\n' +
+      `refusing to publish from a dirty working tree; repository ${repository} is dirty.\n` +
+        '  The source context is labelled with HEAD,\n' +
         "  and tool-deploy's migration gate reads migrations from git at that sha — so an\n" +
         '  uncommitted migration would ship inside the image and be invisible to the gate.\n' +
         '  Commit or stash first. Uncommitted changes:\n' +
@@ -503,6 +577,7 @@ export function assertCleanTree(): void {
 export async function publishAll(tiers: Tier[], sha: string): Promise<ReleaseRecord> {
   applyRunnerHostAlias(process.env);
   const registryPassword = requireRegistryPassword(process.env);
+  assertImageBuildInputs(tiers);
   const record: ReleaseRecord = {};
   await connect(
     async (client) => {
@@ -511,9 +586,9 @@ export async function publishAll(tiers: Tier[], sha: string): Promise<ReleaseRec
       // up in an error message.
       const registrySecret = client.setSecret('registry-password', registryPassword);
       // A single host directory snapshot is reused as the build context for
-      // every tier so each Dockerfile sees the same source tree. This is the
-      // WORKING tree, not `sha` — `assertCleanTree()` (called by main, before
-      // any of this) is what makes those the same thing.
+      // every tier so each Dockerfile sees the same source tree. Ordinary
+      // callers and detached devsync candidates publish a clean checkout;
+      // only the legacy exported-tree path names a backing repository.
       const src = client
         .host()
         .directory('.', { exclude: ['node_modules', 'dist', '.git', '.nx'] });
@@ -546,7 +621,7 @@ async function main(): Promise<void> {
   if (sha === undefined || sha === '') throw new Error('WBS_SHA must be set');
   // Before any engine connection or push: the label must actually describe
   // what is about to be built.
-  assertCleanTree();
+  assertCleanTree(cleanTreeRepository());
   const arg = process.argv[2] ?? 'be,gw,fe';
   const tiers = arg.split(',').filter((t): t is Tier => t === 'be' || t === 'gw' || t === 'fe');
   const capacity = readBuildCapacity();

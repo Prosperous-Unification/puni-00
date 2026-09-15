@@ -1,6 +1,15 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
 
 import { describe, expect, it } from 'bun:test';
+import {
+  createProjectGraphAsync,
+  type NxJsonConfiguration,
+  type ProjectGraph,
+} from 'nx/src/devkit-exports';
+import { filterUsingGlobPatterns, getTargetInputs } from 'nx/src/hasher/task-hasher';
+import ts from 'typescript';
+
+import { readProjects } from '../workspace-projects.mjs';
 
 /**
  * `tsc -p` on a solution-style config compiles **nothing**.
@@ -30,37 +39,37 @@ import { describe, expect, it } from 'bun:test';
 const WORKSPACE = new URL('../../../', import.meta.url);
 
 interface ProjectTarget {
-  options?: { command?: string; commands?: string[] };
-  inputs?: (string | Record<string, unknown>)[];
+  readonly cache?: boolean;
+  readonly options?: Readonly<{
+    command?: string;
+    commands?: readonly string[];
+    cwd?: string;
+    forwardAllArgs?: boolean;
+  }>;
+  readonly inputs?: readonly (string | Readonly<Record<string, unknown>>)[];
 }
 
 interface ProjectConfig {
-  name?: string;
-  tags?: string[];
-  targets?: Record<string, ProjectTarget>;
+  readonly name: string;
+  readonly tags: readonly string[];
+  readonly targets: Readonly<Record<string, ProjectTarget | undefined>>;
 }
 
-/** Every `<group>/<project>/project.json` on disk, read as JSON. */
+/** Every recursively discovered project, adapted to this file's older call sites. */
 async function projectsOnDisk(): Promise<{ dir: string; config: ProjectConfig }[]> {
-  const found: { dir: string; config: ProjectConfig }[] = [];
-  for (const group of ['apps', 'libs', 'tools']) {
-    const entries = await readdir(new URL(`${group}/`, WORKSPACE), { withFileTypes: true });
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const dir = `${group}/${entry.name}`;
-      const path = new URL(`${dir}/project.json`, WORKSPACE);
-      let raw: string;
-      try {
-        raw = await readFile(path, 'utf8');
-      } catch {
-        // Not every directory under these three is an Nx project; one that
-        // declares no `project.json` declares no targets to get wrong.
-        continue;
-      }
-      found.push({ dir, config: JSON.parse(raw) as ProjectConfig });
-    }
+  return (await readProjects(WORKSPACE)).map((project) => ({
+    dir: project.root,
+    config: project,
+  }));
+}
+
+/** Whether this library owns a tracked `*.test.ts(x)` not filed in the database tier. */
+async function hasUnitSuite(projectDir: string): Promise<boolean> {
+  const tests = new Bun.Glob('src/**/*.test.{ts,tsx}');
+  for await (const path of tests.scan({ cwd: new URL(`${projectDir}/`, WORKSPACE).pathname })) {
+    if (!/\.db\.test\.tsx?$/.test(path)) return true;
   }
-  return found;
+  return false;
 }
 
 /** The shell commands a target runs, whether it spells one or several. */
@@ -71,16 +80,107 @@ function commandsOf(target: ProjectTarget): string[] {
   ];
 }
 
-describe('every typecheck target compiles files', () => {
-  it('finds a project.json for every project', async () => {
+describe('source conformance target discovery', () => {
+  it('selects each terminal source file exactly and keeps normal test inclusion', async () => {
     const projects = await projectsOnDisk();
-    expect(projects.length).toBeGreaterThan(20);
-  });
+    const expected = {
+      'wbs-store-memory': {
+        root: 'libs/wbs/adapters/store-memory',
+        file: 'src/testing/source-conformance.test.ts',
+        inputs: ['default', '^production'],
+        certificateTargets: ['test', 'test:conformance', 'test:unit'],
+      },
+      'wbs-store-sqlite': {
+        root: 'libs/wbs/adapters/store-sqlite',
+        file: 'src/testing/source-conformance.db.test.ts',
+        inputs: ['default', '^production', '{workspaceRoot}/apps/wbs/be-01/drizzle'],
+        certificateTargets: ['test', 'test:conformance'],
+      },
+    } as const;
+    const observed = Object.fromEntries(
+      Object.entries(expected).map(([name, contract]) => {
+        const project = projects.find(({ config }) => config.name === name);
+        if (project === undefined) throw new Error(`missing source project ${name}`);
+        const target = project.config.targets['test:conformance'];
+        if (target === undefined) throw new Error(`${name} is missing test:conformance`);
+        const command = commandsOf(target);
+        return [
+          name,
+          {
+            command,
+            cwd: target.options?.cwd,
+            cache: target.cache,
+            inputs: target.inputs,
+            normalIncludes: commandsOf(project.config.targets['test'] ?? {}).some(
+              (candidate) =>
+                candidate === 'bun test src --coverage --coverage-reporter=lcov' ||
+                candidate === 'bun test --coverage --coverage-reporter=lcov',
+            ),
+            certificateTargets: Object.entries(project.config.targets)
+              .filter(([, candidate]) =>
+                commandsOf(candidate ?? {}).some(
+                  (candidateCommand) =>
+                    candidateCommand.includes(contract.file) ||
+                    candidateCommand === 'bun test src --coverage --coverage-reporter=lcov' ||
+                    candidateCommand === 'bun test --coverage --coverage-reporter=lcov',
+                ),
+              )
+              .map(([targetName, candidate]) => ({ name: targetName, cache: candidate?.cache })),
+            filtered: command.some((candidate) =>
+              /(?:^|\s)(?:-t|--test-name-pattern)(?:\s|=)/.test(candidate),
+            ),
+            forwardsCliArgs: target.options?.forwardAllArgs ?? true,
+          },
+        ];
+      }),
+    );
 
+    // Proof: deleting either target, broadening its selector, adding a name
+    // filter, or dropping normal discovery changes this exact two-source map.
+    // Proof: removing historyBatchRegistrations made both the dedicated memory
+    // target and normal memory test fail terminal certification naming exactly
+    // independent-commit, independent-rollback and interleaved-success-survives.
+    // Proof: a string assigned to number in this file failed tool-devsync:typecheck
+    // at this exact path; its unused binding also failed the owning lint target.
+    // Proof: broadening memory to `bun test src/testing` failed this map with
+    // that directory received instead of the exact terminal source test file.
+    // Proof: restoring CLI forwarding made the review command with
+    // `--args='-t configuration-reference'` run one case and filter seventy;
+    // with forwarding disabled, that same command runs all seventy-one.
+    // Proof: restoring cache:true, priming this real Nx target on a clean tree,
+    // then adding an untracked workspace-root probe made the identical second
+    // invocation report `existing outputs match the cache` and replay the clean
+    // revision. With cache:false it reruns and prints that same SHA with -dirty.
+    // Discovery includes every broad target that can select the terminal file;
+    // adding another cacheable broad source target therefore changes this map.
+    expect(observed).toEqual(
+      Object.fromEntries(
+        Object.entries(expected).map(([name, contract]) => [
+          name,
+          {
+            command: [`bun test ${contract.file}`],
+            cwd: contract.root,
+            cache: false,
+            inputs: [...contract.inputs],
+            normalIncludes: true,
+            certificateTargets: contract.certificateTargets.map((targetName) => ({
+              name: targetName,
+              cache: false,
+            })),
+            filtered: false,
+            forwardsCliArgs: false,
+          },
+        ]),
+      ),
+    );
+  });
+});
+
+describe('every typecheck target compiles files', () => {
   it('never runs `tsc -p` against a solution-style config', async () => {
     const offenders: string[] = [];
-    for (const { dir, config } of await projectsOnDisk()) {
-      const target = config.targets?.['typecheck'];
+    for (const { config } of await projectsOnDisk()) {
+      const target = config.targets['typecheck'];
       if (target === undefined) continue;
       for (const command of commandsOf(target)) {
         const project = /tsc\s[^&|]*?--noEmit[^&|]*?-p\s+(\S+)/.exec(command)?.[1];
@@ -90,7 +190,7 @@ describe('every typecheck target compiles files', () => {
         // references; `-p` reads the former and ignores the latter.
         const compilesNothing =
           /"files"\s*:\s*\[\s*\]/.test(raw) && /"include"\s*:\s*\[\s*\]/.test(raw);
-        if (compilesNothing) offenders.push(config.name ?? dir);
+        if (compilesNothing) offenders.push(config.name);
       }
     }
     expect(offenders).toBeEmpty();
@@ -105,17 +205,20 @@ describe('every typecheck target compiles files', () => {
     // while its suite stayed green (`d4b62a30`). `tsc --build` on the solution
     // config follows every reference, so the tests are compiled with the code.
     //
-    // Proof: with `apps/gw-01/project.json` put back to
-    // `bunx tsc --build --force apps/gw-01/tsconfig.lib.json`, watched failing
+    // Proof: with `apps/wbs/gw-01/project.json` put back to
+    // `bunx tsc --build --force apps/wbs/gw-01/tsconfig.lib.json`, watched failing
     // on `Expected value to be empty · Received: [ "gw-01" ]` (2026-09-02).
+    // Proof: after the namespace move, assigning a string to a number in
+    // libs/wbs/domain/domain/src/estimate.test.ts made the real renamed
+    // wbs-domain:typecheck target fail with TS2322 (2026-09-14).
     const offenders: string[] = [];
     for (const { dir, config } of await projectsOnDisk()) {
-      const target = config.targets?.['typecheck'];
+      const target = config.targets['typecheck'];
       if (target === undefined) continue;
       const builds = commandsOf(target).some((command) =>
         new RegExp(`tsc\\s[^&|]*?--build[^&|]*?\\s${dir}/tsconfig\\.json(\\s|$)`).test(command),
       );
-      if (!builds) offenders.push(config.name ?? dir);
+      if (!builds) offenders.push(config.name);
     }
     expect(offenders).toBeEmpty();
   });
@@ -127,8 +230,8 @@ describe('every typecheck target compiles files', () => {
     // right.
     //
     // Proof: with the `./tsconfig.spec.json` reference struck from
-    // `apps/gw-01/tsconfig.json`, watched failing on `Expected value to be
-    // empty · Received: [ "apps/gw-01" ]` (2026-09-02).
+    // `apps/wbs/gw-01/tsconfig.json`, watched failing on `Expected value to be
+    // empty · Received: [ "apps/wbs/gw-01" ]` (2026-09-02).
     const orphans: string[] = [];
     for (const { dir } of await projectsOnDisk()) {
       let spec: string;
@@ -147,8 +250,8 @@ describe('every typecheck target compiles files', () => {
 
   it('gives every TypeScript project a typecheck target', async () => {
     const missing = (await projectsOnDisk())
-      .filter(({ config }) => !config.tags?.includes('runtime:python'))
-      .filter(({ config }) => config.targets?.['typecheck'] === undefined)
+      .filter(({ config }) => !config.tags.includes('runtime:python'))
+      .filter(({ config }) => config.targets['typecheck'] === undefined)
       .map(({ dir }) => dir);
     expect(missing).toBeEmpty();
   });
@@ -164,7 +267,7 @@ describe('every typecheck target compiles files', () => {
  * changes, and reports green over a change no command read.
  *
  * The nine on 2026-09-02: five suites drive shell scripts under `bin/`, three
- * read shipped Caddy and Compose fragments under `deploy/`, and `libs/domain`'s
+ * read shipped Caddy and Compose fragments under `deploy/`, and `libs/wbs/domain/domain`'s
  * `every name it can answer is one the migration seeds` reads a be-01 migration
  * to prove the two lists are one fact — an anti-drift check whose own input was
  * invisible to the thing deciding whether to run it.
@@ -176,15 +279,72 @@ describe('every typecheck target compiles files', () => {
  * Proof: with `inputs` deleted from `tool-devsync`'s `test` target, watched
  * failing on `Expected value to be empty · Received: [ "tool-devsync:test does
  * not declare apps", "tool-devsync:test does not declare bin/dev-be-probe.sh",
- * …`; and with `libs/domain`'s deleted, on `Received: [ "domain:test does not
- * declare apps/be-01/drizzle/20260830020000_add_external_ref/migration.sql" ]`.
+ * …`; and with `libs/wbs/domain/domain`'s deleted, on `Received: [ "domain:test does not
+ * declare apps/wbs/be-01/drizzle/20260830020000_add_external_ref/migration.sql" ]`.
  *
  * The fault itself was watched through Nx the same day: with `tool-devsync`'s
  * declaration removed, an edit to `bin/dev-be-probe.sh` gave `nx run
  * tool-devsync:test  [existing outputs match the cache, left as is]`, and with
  * it restored the same edit ran the suite.
  */
-const GROUPS = ['apps', 'libs', 'tools'];
+function outsidePathLiterals(source: string): string[] {
+  const syntax = ts.createSourceFile('outside-read.ts', source, ts.ScriptTarget.Latest, true);
+  const found: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isStringLiteral(node) && /^(?:\.\.\/){3,}[A-Za-z0-9_./-]*$/.test(node.text)) {
+      const parent = node.parent;
+      // Proof: the raw-quote scan reported Tool Wiki fixture literals as real reads of
+      // `tools/outside` and `tools/provider/src/index`; syntax selection removed only those two,
+      // while the production gate still failed on the real undeclared h2puni steps-script read.
+      const isSymlinkTarget =
+        ts.isCallExpression(parent) &&
+        /(?:^|\.)symlinkSync$/.test(parent.expression.getText(syntax));
+      let ancestor = parent;
+      let isExpectedFixture = false;
+      while (!ts.isSourceFile(ancestor)) {
+        if (
+          ts.isCallExpression(ancestor) &&
+          ts.isPropertyAccessExpression(ancestor.expression) &&
+          ['toEqual', 'toStrictEqual'].includes(ancestor.expression.name.text) &&
+          ancestor.arguments.some((argument) => isInertExpectedLiteral(node, argument))
+        ) {
+          isExpectedFixture = true;
+          break;
+        }
+        ancestor = ancestor.parent;
+      }
+      // Unclassified matching paths stay fail-closed. In particular, a literal alias and
+      // namespace-qualified fs/path calls are still real dependencies even though their
+      // immediate AST parents do not identify the eventual reader.
+      if (!isSymlinkTarget && !isExpectedFixture) found.push(node.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(syntax);
+  return found;
+}
+
+/** Whether a path reaches an expected value only through inert literal containers. */
+function isInertExpectedLiteral(literal: ts.StringLiteral, expected: ts.Expression): boolean {
+  let child: ts.Node = literal;
+  while (child !== expected) {
+    const parent = child.parent;
+    if (
+      ts.isParenthesizedExpression(parent) ||
+      ts.isArrayLiteralExpression(parent) ||
+      ts.isObjectLiteralExpression(parent) ||
+      ts.isAsExpression(parent) ||
+      ts.isSatisfiesExpression(parent) ||
+      ts.isTypeAssertionExpression(parent) ||
+      (ts.isPropertyAssignment(parent) && parent.initializer === child)
+    ) {
+      child = parent;
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
 
 /** Workspace-relative paths a `*.test.ts` reads from outside its own project. */
 async function outsideReads(projectDir: string): Promise<string[]> {
@@ -192,7 +352,7 @@ async function outsideReads(projectDir: string): Promise<string[]> {
   const glob = new Bun.Glob('src/**/*.test.ts');
   for await (const relative of glob.scan({ cwd: new URL(`${projectDir}/`, WORKSPACE).pathname })) {
     const source = await readFile(new URL(`${projectDir}/${relative}`, WORKSPACE), 'utf8');
-    for (const [, up] of source.matchAll(/'((?:\.\.\/){3,}[A-Za-z0-9_./-]*)'/g)) {
+    for (const up of outsidePathLiterals(source)) {
       // Resolved against the file, then made workspace-relative. An empty
       // result is the workspace root itself or above it — a path being built,
       // not a file being read, and too broad to ask any target to declare.
@@ -207,46 +367,204 @@ async function outsideReads(projectDir: string): Promise<string[]> {
   return [...found].sort();
 }
 
+describe('outside-read syntax', () => {
+  it('distinguishes real workspace reads from fixture-relative strings', () => {
+    const source = `
+      const actual = new URL('../../../bin/real.sh', import.meta.url);
+      const joined = join(import.meta.dir, '../../../docs/real.md');
+      const direct = readFile('../../../config/real.json');
+      expect(readFile('../../../config/asserted.json')).toEqual('contents');
+      const fixture = "import x from '../../../provider/src/index'";
+      symlinkSync('../../../outside', fixtureRoot);
+      expect(value).toEqual({ specifier: '../../../provider/src/index' });
+    `;
+
+    // Proof: treating the whole matcher call as fixture syntax lost the reader-side literal;
+    // the test received the other three reads with `../../../config/asserted.json` absent.
+    expect(outsidePathLiterals(source)).toEqual([
+      '../../../bin/real.sh',
+      '../../../docs/real.md',
+      '../../../config/real.json',
+      '../../../config/asserted.json',
+    ]);
+  });
+
+  it('finds a literal alias used by a real URL read through outsideReads', async () => {
+    const probe = new URL(
+      `tools/tool-devsync/src/outside-read-alias-${crypto.randomUUID()}.probe.test.ts`,
+      WORKSPACE,
+    );
+    const before = await outsideReads('tools/tool-devsync');
+    try {
+      await writeFile(
+        probe,
+        `
+          import { readFileSync } from 'node:fs';
+          const externalPath = '../../../AGENTS.md';
+          export const externalContents = readFileSync(
+            new URL(externalPath, import.meta.url),
+            'utf8',
+          );
+        `,
+      );
+      const loaded = (await import(probe.href)) as { externalContents: string };
+      expect(loaded.externalContents).toContain('# Agent rules');
+
+      const after = await outsideReads('tools/tool-devsync');
+      // Proof: the immediate-parent whitelist returned `[]` here after this exact generated
+      // suite successfully read AGENTS.md through the aliased literal.
+      expect(after.filter((read) => !before.includes(read))).toEqual(['AGENTS.md']);
+    } finally {
+      await rm(probe);
+    }
+  });
+
+  it('finds namespace reader and path calls through outsideReads', async () => {
+    const probe = new URL(
+      `tools/tool-devsync/src/outside-read-namespace-${crypto.randomUUID()}.probe.test.ts`,
+      WORKSPACE,
+    );
+    const before = await outsideReads('tools/tool-devsync');
+    try {
+      await writeFile(
+        probe,
+        `
+          import * as fs from 'node:fs';
+          import * as path from 'node:path';
+          export const readAgentRules = () => fs.readFileSync('../../../AGENTS.md', 'utf8');
+          export const index = fs.readFileSync(
+            path.join(import.meta.dir, '../../../LLM_README.md'),
+            'utf8',
+          );
+        `,
+      );
+      const agentRules = await readFile(new URL('AGENTS.md', WORKSPACE), 'utf8');
+      const loaded = (await import(probe.href)) as { index: string };
+      expect(agentRules).toContain('# Agent rules');
+      expect(loaded.index.length).toBeGreaterThan(0);
+
+      const after = await outsideReads('tools/tool-devsync');
+      // Proof: the immediate-parent whitelist returned `[]` here instead of these two paths
+      // after the namespace path call successfully loaded LLM_README.md.
+      expect(after.filter((read) => !before.includes(read))).toEqual([
+        'AGENTS.md',
+        'LLM_README.md',
+      ]);
+    } finally {
+      await rm(probe);
+    }
+  });
+
+  it('finds a real outside read inside a matcher expected argument', async () => {
+    const identity = crypto.randomUUID();
+    const relative = `../../../bin/outside-read-expected-${identity}.txt`;
+    const sentinel = new URL(`bin/outside-read-expected-${identity}.txt`, WORKSPACE);
+    const probe = new URL(
+      `tools/tool-devsync/src/outside-read-expected-${identity}.probe.test.ts`,
+      WORKSPACE,
+    );
+    const before = await outsideReads('tools/tool-devsync');
+    try {
+      await writeFile(sentinel, 'outside-read-expected\n');
+      await writeFile(
+        probe,
+        `
+          import { readFileSync } from 'node:fs';
+          function expect(actual: string) {
+            return {
+              toEqual(expected: string) {
+                if (actual !== expected) throw new Error('unequal');
+              },
+            };
+          }
+          export let measured = '';
+          expect('outside-read-expected\\n').toEqual(
+            (measured = readFileSync(new URL('${relative}', import.meta.url), 'utf8')),
+          );
+        `,
+      );
+      const loaded = (await import(probe.href)) as { measured: string };
+      expect(loaded.measured).toBe('outside-read-expected\n');
+
+      const after = await outsideReads('tools/tool-devsync');
+      // Proof: excluding every matcher expected argument returned `[]` here after the generated
+      // suite successfully read its UUID-named sentinel in that exact argument.
+      expect(after.filter((read) => !before.includes(read))).toEqual([
+        `bin/outside-read-expected-${identity}.txt`,
+      ]);
+    } finally {
+      await Promise.all([rm(probe, { force: true }), rm(sentinel, { force: true })]);
+    }
+  });
+});
+
+/** Whether Nx hashes `read` through the target's declared dependency inputs. */
+function dependencyInputCovers(
+  read: string,
+  projectName: string,
+  projectGraph: ProjectGraph,
+  nxJson: NxJsonConfiguration,
+): boolean {
+  if (!(projectName in projectGraph.nodes))
+    throw new Error(`Nx graph has no project ${projectName}`);
+  const project = projectGraph.nodes[projectName];
+  const owner = Object.values(projectGraph.nodes)
+    .filter(({ data: { root } }) => read === root || read.startsWith(`${root}/`))
+    .sort((left, right) => right.data.root.length - left.data.root.length)
+    .at(0);
+  if (owner === undefined) return false;
+  if (!(projectGraph.dependencies[projectName] ?? []).some(({ target }) => target === owner.name)) {
+    return false;
+  }
+  const patterns = getTargetInputs(nxJson, project, 'test').dependencyInputs;
+  return (
+    filterUsingGlobPatterns(owner.data.root, [{ file: read, hash: 'coverage-probe' }], patterns)
+      .length === 1
+  );
+}
+
 describe('every cached target declares what it reads', () => {
   it('names every file a suite reads from outside its own project', async () => {
-    const shared = (
-      JSON.parse(await readFile(new URL('nx.json', WORKSPACE), 'utf8')) as {
-        namedInputs?: Record<string, string[]>;
-      }
-    ).namedInputs?.['sharedGlobals'];
+    const nxJson = JSON.parse(
+      await readFile(new URL('nx.json', WORKSPACE), 'utf8'),
+    ) as NxJsonConfiguration;
+    const shared = nxJson.namedInputs?.['sharedGlobals'];
     expect(shared).toBeDefined();
+    const inheritedDaemon = process.env['NX_DAEMON'];
+    process.env['NX_DAEMON'] = 'false';
+    let projectGraph: ProjectGraph;
+    try {
+      // Proof: without this self-contained daemon selection, the direct production test timed out
+      // at both 5,000ms and 15,000ms while Nx waited on its unavailable daemon; the identical
+      // graph build completed in-process in 783ms with NX_DAEMON=false.
+      projectGraph = await createProjectGraphAsync({ exitOnError: true });
+    } finally {
+      if (inheritedDaemon === undefined) delete process.env['NX_DAEMON'];
+      else process.env['NX_DAEMON'] = inheritedDaemon;
+    }
 
     const undeclared: string[] = [];
-    for (const group of GROUPS) {
-      const entries = await readdir(new URL(`${group}/`, WORKSPACE), { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        const dir = `${group}/${entry.name}`;
-        const reads = await outsideReads(dir);
-        if (reads.length === 0) continue;
-        let config: ProjectConfig;
-        try {
-          config = JSON.parse(
-            await readFile(new URL(`${dir}/project.json`, WORKSPACE), 'utf8'),
-          ) as ProjectConfig;
-        } catch {
-          continue;
-        }
-        const declared = [...(config.targets?.['test']?.inputs ?? []), ...(shared ?? [])]
-          .filter(
-            (each): each is string =>
-              typeof each === 'string' && each.startsWith('{workspaceRoot}/'),
-          )
-          .map((each) => each.slice('{workspaceRoot}/'.length));
-        for (const read of reads) {
-          const covered = declared.some(
-            (pattern) =>
-              new Bun.Glob(pattern).match(read) ||
-              // A directory read is covered by any declared input inside it:
-              // that is what makes the directory's contents part of the hash.
-              pattern.startsWith(`${read}/`),
-          );
-          if (!covered) undeclared.push(`${config.name ?? dir}:test does not declare ${read}`);
+    for (const { dir, config } of await projectsOnDisk()) {
+      const reads = await outsideReads(dir);
+      if (reads.length === 0) continue;
+      const declared = [...(config.targets['test']?.inputs ?? []), ...(shared ?? [])]
+        .filter(
+          (each): each is string => typeof each === 'string' && each.startsWith('{workspaceRoot}/'),
+        )
+        .map((each) => each.slice('{workspaceRoot}/'.length));
+      for (const read of reads) {
+        const covered = declared.some(
+          (pattern) =>
+            new Bun.Glob(pattern).match(read) ||
+            // A directory read is covered by any declared input inside it:
+            // that is what makes the directory's contents part of the hash.
+            pattern.startsWith(`${read}/`),
+        );
+        // Proof: ignoring dependency inputs failed on
+        // `be-01:test does not declare libs/wbs/adapters/runtime-portable/src/scheduler.ts`,
+        // even though Nx hashes that production file through `^production`.
+        if (!covered && !dependencyInputCovers(read, config.name, projectGraph, nxJson)) {
+          undeclared.push(`${config.name}:test does not declare ${read}`);
         }
       }
     }
@@ -318,23 +636,19 @@ describe('the deploy contract', () => {
 
   it('is the only place a tier or a colour is spelled out', async () => {
     const copies: string[] = [];
-    for (const group of ['apps', 'libs', 'tools']) {
-      const projects = await readdir(new URL(`${group}/`, WORKSPACE), { withFileTypes: true });
-      for (const project of projects) {
-        if (!project.isDirectory()) continue;
-        const root = new URL(`${group}/${project.name}/src/`, WORKSPACE);
-        for (const file of await sourceFilesIn(root, `${group}/${project.name}/src`)) {
-          if (file.path === CONTRACT) continue;
-          // Assembled rather than written out, so this file is not a copy of
-          // the thing it refuses. Exempting itself instead would have exempted
-          // every future test in it too.
-          const unions = [
-            ['be', 'gw', 'fe'].map((tier) => `'${tier}'`).join(' | '),
-            ['blue', 'green'].map((color) => `'${color}'`).join(' | '),
-          ];
-          for (const union of unions) {
-            if (file.text.includes(union)) copies.push(`${file.path} re-declares ${union}`);
-          }
+    for (const project of await readProjects(WORKSPACE)) {
+      const root = new URL(`${project.root}/src/`, WORKSPACE);
+      for (const file of await sourceFilesIn(root, `${project.root}/src`)) {
+        if (file.path === CONTRACT) continue;
+        // Assembled rather than written out, so this file is not a copy of
+        // the thing it refuses. Exempting itself instead would have exempted
+        // every future test in it too.
+        const unions = [
+          ['be', 'gw', 'fe'].map((tier) => `'${tier}'`).join(' | '),
+          ['blue', 'green'].map((color) => `'${color}'`).join(' | '),
+        ];
+        for (const union of unions) {
+          if (file.text.includes(union)) copies.push(`${file.path} re-declares ${union}`);
         }
       }
     }
@@ -372,19 +686,35 @@ describe('every project says which ring, scope and runtime it is', () => {
   const AXES = ['scope:', 'ring:', 'runtime:'] as const;
 
   it('carries exactly one tag on each axis', async () => {
-    // Proof: `ring:adapter` removed from `libs/observability/project.json`,
-    // watched failing on `Expected: [] · Received: [ "observability: no ring:" ]`;
-    // a second `ring:domain` added beside it, on
-    // `[ "observability: two ring: tags" ]`. Watched 2026-09-08.
     const wrong: string[] = [];
-    for (const { dir, config } of await projectsOnDisk()) {
-      const name = config.name ?? dir;
-      for (const axis of AXES) {
-        const held = (config.tags ?? []).filter((tag) => tag.startsWith(axis));
-        if (held.length === 0) wrong.push(`${name}: no ${axis}`);
-        if (held.length > 1) wrong.push(`${name}: two ${axis} tags`);
+    try {
+      for (const { config } of await projectsOnDisk()) {
+        const name = config.name;
+        for (const axis of AXES) {
+          const held = config.tags.filter((tag) => tag.startsWith(axis));
+          if (held.length === 0) wrong.push(`${name}: no ${axis}`);
+          if (held.length > 1) wrong.push(`${name}: two ${axis} tags`);
+        }
       }
+    } catch (failure) {
+      if (
+        !(failure instanceof Error) ||
+        !/\.json must carry exactly one (?:scope:|ring:|runtime:) tag; found \d+$/.test(
+          failure.message,
+        )
+      ) {
+        throw failure;
+      }
+      wrong.push(failure.message);
     }
+    // Proof: removing `ring:adapter` from the discovered nested supervisor-protocol
+    // project failed this assertion with its manifest path and `found 0`; adding
+    // `ring:domain` beside it failed with the same path and `found 2`. Removing
+    // the ring from `tools/dev/project.json` likewise failed here with its path.
+    // Proof: after the focused Nx target returned a 1/1 cache hit, removing the
+    // nested ring forced the target to execute and fail here with that path,
+    // proving the recursive manifest input invalidates its cache: the 2026-09-14
+    // run failed with supervisor-protocol's full path and `found 0`.
     expect(wrong).toEqual([]);
   });
 
@@ -396,8 +726,52 @@ describe('every project says which ring, scope and runtime it is', () => {
     const wrong: string[] = [];
     for (const { dir, config } of await projectsOnDisk()) {
       if (!dir.startsWith('tools/')) continue;
-      if (!(config.tags ?? []).includes('ring:adapter')) wrong.push(config.name ?? dir);
+      if (!config.tags.includes('ring:adapter')) wrong.push(config.name);
     }
     expect(wrong).toEqual([]);
+  });
+});
+
+describe('the root fast tier discovers every eligible project', () => {
+  it('requires a test:unit target independently of target presence', async () => {
+    const projects = await projectsOnDisk();
+    const requiredNonLibraries = new Set(['wbs-be-01', 'wbs-fe-01']);
+    const missing: string[] = [];
+    const unexpected: string[] = [];
+    for (const { dir, config } of projects) {
+      const declared = config.targets['test:unit'] !== undefined;
+      if (!dir.startsWith('libs/')) {
+        if (requiredNonLibraries.has(config.name) && !declared) missing.push(config.name);
+        if (!requiredNonLibraries.has(config.name) && declared) unexpected.push(config.name);
+        continue;
+      }
+      const eligible = !config.tags.includes('runtime:python') && (await hasUnitSuite(dir));
+      if (eligible && !declared) missing.push(config.name);
+      if (!eligible && declared) unexpected.push(config.name);
+    }
+    // Proof: removing `test:unit` from the recursively discovered nested
+    // supervisor-protocol project failed this assertion with `missing:
+    // ["solver-supervisor-protocol"]` and `unexpected: []` (2026-09-10).
+    // Adding `test:unit` to the discovered tool-devsync project failed here
+    // with `missing: []` and `unexpected: ["tool-devsync"]` (2026-09-10).
+    expect({ missing, unexpected }).toEqual({ missing: [], unexpected: [] });
+  });
+
+  it('selects the discovered target rather than naming projects', async () => {
+    const root: unknown = JSON.parse(await readFile(new URL('package.json', WORKSPACE), 'utf8'));
+    if (
+      typeof root !== 'object' ||
+      root === null ||
+      !('scripts' in root) ||
+      typeof root.scripts !== 'object' ||
+      root.scripts === null
+    ) {
+      throw new Error('package.json has no scripts object');
+    }
+    // Proof: a temporary eligible project nested at
+    // `libs/fast-tier-proof/nested` appeared in the real root run's 16-project
+    // inventory, and its deliberate assertion failed on Expected: false,
+    // Received: true. Watched through `bun run test:unit` on 2026-09-10.
+    expect(Reflect.get(root.scripts, 'test:unit')).toBe('nx run-many -t test:unit');
   });
 });

@@ -1,6 +1,6 @@
 # Planned refactoring execution
 
-**Implementation ledger last reconciled at `main` @ `14cc7367`, 2026-09-08.**
+**Implementation ledger last reconciled at `main` @ `e3c8aac3`, 2026-09-13.**
 R10's completed PR #353 packet is preserved unchanged during integration.
 Design preparation completed 2026-09-08, inspecting `339708fa` through `aca7a5c9`;
 see [execution readiness](execution-readiness.md) for scope, assumptions and evidence limits.
@@ -22,10 +22,10 @@ state is in [`verify.md`](verify.md) § "Merged state".
 
 | Item                                             | Where it is now                                                                                                                         | Evidence                                                                                                                                                                                     |
 | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| W4-4 `WbsTable` split into fourteen modules      | `apps/fe-01/src/components/wbs/{use-plan-*,plan-columns/*,plan-cell-props,plan-live,…}.ts`, on `main` since `cbad68af`                  | 10/10 tasks; [independent review](w4-4/verify.md#independent-review-2026-09-08) recorded 2026-09-08; 601 concept tests at merge; current `main` gate + four pixel shards green at `153c830a` |
+| W4-4 `WbsTable` split into fourteen modules      | `apps/wbs/fe-01/src/components/wbs/{use-plan-*,plan-columns/*,plan-cell-props,plan-live,…}.ts`, on `main` since `cbad68af`              | 10/10 tasks; [independent review](w4-4/verify.md#independent-review-2026-09-08) recorded 2026-09-08; 601 concept tests at merge; current `main` gate + four pixel shards green at `153c830a` |
 | HTTP Wave 0, collision gate                      | [`collisions.md`](collisions.md)                                                                                                        | inventory at base `f89ebf56`, feature integration recorded 2026-09-06                                                                                                                        |
-| HTTP Wave 1, `http-endpoint-port`                | `libs/contracts/src/http/*`, be-01's `http/` binders and Elysia mount, typed clients; `openapi.json` no longer tracked                  | change archived `openspec/changes/archive/2026-09-07-http-endpoint-port`, spec synced to `openspec/specs/http-endpoint-port`; TASK-347                                                       |
-| R1 `plan-refresh`                                | `apps/fe-01/src/lib/` invalidation coordinator, `use-plan-read`                                                                         | 25/28 tasks; 5.2 is a distinct real-browser scenario, 5.4 the full gate, and 5.5b integration/evidence reconciliation; historical CI does not establish 5.2                                  |
+| HTTP Wave 1, `http-endpoint-port`                | `libs/wbs/domain/contracts/src/http/*`, be-01's `http/` binders and Elysia mount, typed clients; `openapi.json` no longer tracked       | change archived `openspec/changes/archive/2026-09-07-http-endpoint-port`, spec synced to `openspec/specs/http-endpoint-port`; TASK-347                                                       |
+| R1 `plan-refresh`                                | `apps/wbs/fe-01/src/lib/` invalidation coordinator, `use-plan-read`                                                                     | 28/28 tasks; archived after the real two-browser peer rename and marker checks, complete Chromium, integration reconciliation, and explicit Darwin workspace-gate limits                     |
 | R2 `team-removal-revisions`                      | be-01 service/repository                                                                                                                | 4/5 tasks; open 1.5 is touched suites/lint/typecheck and the parent verification report                                                                                                      |
 | R3 `account-store-failures`                      | auth / be-01                                                                                                                            | 8/8 tasks                                                                                                                                                                                    |
 | R4 `websocket-ingress`                           | gw-01                                                                                                                                   | 9/9 tasks                                                                                                                                                                                    |
@@ -34,7 +34,7 @@ state is in [`verify.md`](verify.md) § "Merged state".
 | R7 `scoped-presence`                             | gw-01                                                                                                                                   | 12/12 tasks                                                                                                                                                                                  |
 | R8 `bounded-replay-sweep`                        | gw-01 / realtime                                                                                                                        | 4/4 tasks                                                                                                                                                                                    |
 | R9 `gateway-request-deadlines`                   | gw-01, be-01 cancellation                                                                                                               | 14/15 tasks; open 4.1 includes full gates, restoration, validation and review evidence                                                                                                       |
-| The spec projects' type errors                   | in the gate: `typecheck` runs `tsc --build --force apps/<app>/tsconfig.json`, whose references include `tsconfig.spec.json`             | measured 2026-09-07 at `3e17fb01`: **0** errors across all 23 spec projects; a deliberate `const deliberatelyWrong: number = 'not a number'` in a test fails both                            |
+| The spec projects' type errors                   | in the gate: `typecheck` runs `tsc --build --force apps/wbs/<app>/tsconfig.json`, whose references include `tsconfig.spec.json`         | measured 2026-09-07 at `3e17fb01`: **0** errors across all 23 spec projects; a deliberate `const deliberatelyWrong: number = 'not a number'` in a test fails both                            |
 | Toolchain (`toolchain-2026-09`, not a plan item) | Bun 1.4.2, Nx 23.2, TS 7 for `tsc`, Vite 8, Vitest 5, React 19.2, Table 9, drizzle 1.0.0-rc.4, ESLint 10, Prettier 3.9.6, dagger 0.21.9 | PR #248 merged as `98093d2d`; TASK-348                                                                                                                                                       |
 
 Historical merged-state CI at `a0c7cada` (run `34148109854`) and `7aa61b09` (run
@@ -62,41 +62,44 @@ Nothing below has an owning task in the external queue (`backlog/tasks/task-NNN 
       archived after recording the exact historical revisions, the later review-merge failure,
       and the receiving R1/R10 column-dependency, `PlanLive` and editor-identity obligations.
       No historical CI was relabelled as a pass on the current tree.
-- [ ] **Archive R1–R9** — the bounded [closeout order below](#r1r9-archival-closeout)
-      includes evidence reconciliation, R1's scenario gap and shared-capability spec unions.
-      Within this refactoring programme, only `http-endpoint-port` is already archived.
+- [x] **Archive R1–R9** — completed 2026-09-09 in the bounded
+      [closeout order below](#r1r9-archival-closeout), including R1's two real-browser scenarios,
+      evidence reconciliation and preservation of the shared-capability spec unions.
 - [x] **Ports Wave 2 `store-port-and-unit-of-work`** — **done, 2026-09-08**, in six numbered
       slices plus the 3b ports/history follow-up; see [What Wave 2 landed](#what-wave-2-landed) below. The change is
       `openspec/changes/store-port-and-unit-of-work`; its `verify.md` carries the failure-proof
       table and the three checks-that-could-not-fail this wave caught. Nothing moved into
       `libs/` — that is Wave 3, and this wave's non-goal.
-- [ ] **Ports Wave 3 [core-lib-extraction](../../openspec/changes/core-lib-extraction/tasks.md)** — started: its tasks 1.1–1.4 and 2.1–2.2a
-      are checked, and `libs/core/src/ports/{clock,runtime,write-stamp}.ts` exists at
-      `339708fa`. `conformance`, `store-sqlite` and `store-memory` have not been extracted.
-      Plan §3.3, §3.5. Wave 2 left it more moveable than it found it:
-      the ports are declared (`repository/index.ts`, `service/{unit-of-work,runtime-ports}.ts`),
-      the composition is two functions (`buildStores`, `servicesOver`), and the kits are already
-      a file of their own under `testing/kits/`. Next is recursive project discovery 2.0,
-      then neutral contracts/runtime and admitted-scope composition. Pause after
-      2.2b–2.2b.4 for the scheduler packet before moving its consumers in 2.2c onward.
-- [ ] **[scheduler-runtime-port](../../openspec/changes/scheduler-runtime-port/tasks.md)** —
-      the explicit Wave 2 tail, after core's neutral contracts/runtime prerequisites and
-      active optimizer interfaces settle; before core consumer moves/boundary closeout
-      and JSON import. Includes D23 typed unavailable live reads/publication and faithful
-      detached capture; not a new scheduler algorithm or version bump.
+- [x] **Ports Wave 3 [core-lib-extraction](../../openspec/changes/archive/2026-09-10-core-lib-extraction/tasks.md)** —
+      completed 2026-09-10. `libs/wbs/application/core`, `libs/wbs/adapters/store-sqlite`,
+      `libs/wbs/adapters/store-memory` and `libs/wbs/application/conformance`
+      now carry the application, adapter and certification boundaries; `be-01` retains its
+      runtime binders, composition root and stable migration entrypoints. The fast-tier count
+      moved with the code: 238 cases left `be-01` for `core`, and all 693 SQLite test nodes
+      survived their 57-file relocation. The staged memory source certifies only its declared
+      families and keeps one explicit estimate-capability skip; the remaining source families
+      still belong to `source-conformance-completion`. ADR 0014 and ADR 0015 are accepted.
+- [x] **[scheduler-runtime-port](../../openspec/changes/archive/2026-09-10-scheduler-runtime-port/tasks.md)** —
+      completed on the same branch before the core consumer moves. Missing selected engines
+      produce typed 409 reads and `plan_unavailable` publication; detached capture preserves
+      the selected schedule or named absence without admitting a solve; the SQLite adapter
+      retains the existing hash bytes and scheduler contract version.
 - [ ] **[source-conformance-completion](../../openspec/changes/source-conformance-completion/tasks.md)** —
       after core's source composition/staged memory. Complete the named 17 transactional
       plus two independent-history families, typed broken-source controls and honest
       execution/certification manifests. Does not silently implement every memory gap.
 - [ ] **[repo-namespacing](../../openspec/changes/repo-namespacing/tasks.md)** (D18/D19) —
-      prepared, implementation not started; after core. Preserve aliases and deploy
-      identities while moving project paths/names/tags, migrations and build/gate consumers.
-      Other packets use pre-namespacing paths; finish overlapping moves first or explicitly
-      remap their exact file/target references at landing.
-- [ ] **W4-3 [plan-command-registry](../../openspec/changes/plan-command-registry/tasks.md)** —
-      after core. Shared `SchemaShape` already pairs ArkType validation with generated
-      JSON Schema; the historical Elysia-export probe is no longer a blocker. Preserve
-      structural/semantic parsing order and generated MCP/client contracts.
+      implementation is at the landing candidate; Task 4.2 retains the earlier frozen-candidate
+      runtime evidence. Production registry publication and the deploy dry-run remain explicitly
+      deferred under OpenSpec 4.3, and the repaired landing SHA still awaits final exact-SHA gate
+      and integration evidence. Do not claim deployment readiness or archive before both are done.
+- [x] **W4-3 [plan-command-registry](../../openspec/changes/plan-command-registry/tasks.md)** —
+      **merged in #430 as `e3c8aac3`, 2026-09-13**, 10/10 tasks. The contracts registry now
+      owns all command kinds and structural descriptors; core derives semantic normalizers,
+      normalized commands and kind-correlated bindings from it. HTTP refusal shapes and MCP
+      tool generation consume the same registry while independently pinned kind inventories
+      detect omissions and duplicates. The exact implementation head passed the provisioned
+      h2puni workspace gate; PR checks recorded CodeQL and all four pixel shards green.
 - [ ] **W2-3 [live-plan-snapshot](../../openspec/changes/live-plan-snapshot/tasks.md)** —
       after core and command registry. One `WorkingPlan` belongs to the admitted batch;
       refresh affected projections after each mutation, including same-command reads.
@@ -115,10 +118,13 @@ Nothing below has an owning task in the external queue (`backlog/tasks/task-NNN 
       approved, unimplemented; existing owner Dany. After core and scheduler capability,
       preserving atomic import, authored settings/directory closure and generated bindings.
 - [ ] **[agent-scalable-llm-wiki](../../openspec/changes/agent-scalable-llm-wiki/tasks.md)** —
-      Radical Modularity is separate additive scope, all five phases: measured module
-      indexes, finite trusted evidence, full-tree lint, shared-Git admission and multi-model
-      trials at 1/2/4/8 workers. Capture baselines before policy rollout; reconcile stable
-      module identities across namespacing. Experimental benefit remains unestablished.
+      19/29 tasks are checked through combined integration and recovery 5.2. Measured module
+      indexes, finite trusted evidence, full-tree lint and shared-Git fenced admission are in
+      place; trusted external binding, exhaustive catch-up and multi-model trials at 1/2/4/8
+      workers remain. Reconcile stable module identities across namespacing. Experimental
+      benefit remains unestablished.
+      Precedents, Drift anchors and the extraction trigger:
+      [plan](../plans/2026-09-13-tool-wiki-precedents-and-extraction.md).
 
 ## R1–R9 archival closeout
 
@@ -131,35 +137,37 @@ evidence as historical, including dead branch hashes carried by squash `cbad68af
 any missing raw logs. Current-head checks, if needed, require fresh output and owned ports.
 
 Before the first sync, record the exact requirement-heading/scenario sets from all nine
-deltas and any existing main specs. `authentication` and `realtime` contain overlapping
+deltas and any existing main specs in [the preservation inventory](r1-r9-spec-inventory.md).
+`authentication` and `realtime` contain overlapping
 **ADDED** capabilities, not replacement documents. Sync sequentially; after each sync
 assert the accumulated union and unrelated existing requirements are intact, validate
 the resulting specs, then archive without a second destructive overwrite. Keep the
 archive's original evidence limits. The bounded order is:
 
-- [ ] **A1 — R3 `account-store-failures`**: reconcile 8/8 and introduce/merge
+- [x] **A1 — R3 [`account-store-failures`](../../openspec/changes/archive/2026-09-08-account-store-failures/tasks.md)**: reconciled 8/8 and introduced
       `authentication` requirement “Account resolution failures remain server failures”.
-- [ ] **A2 — R5 `login-admission`**: reconcile 5/5 and append “Password login reserves
+- [x] **A2 — R5 [`login-admission`](../../openspec/changes/archive/2026-09-08-login-admission/tasks.md)**: reconciled 5/5 and appended “Password login reserves
       bounded verification capacity” and “Login reservations end with their attempts”.
       Assert all three authentication requirements and all their scenarios survive.
-- [ ] **A3 — R4 `websocket-ingress`**: reconcile 9/9 and introduce/merge `realtime`
+- [x] **A3 — R4 [`websocket-ingress`](../../openspec/changes/archive/2026-09-08-websocket-ingress/tasks.md)**: reconciled 9/9 and introduced `realtime`
       requirements “Gateway validates client frames before dispatch” and
       “Refused input does not disable a connection”.
-- [ ] **A4 — R7 `scoped-presence`**: reconcile 12/12 and append “Presence changes identify
+- [x] **A4 — R7 [`scoped-presence`](../../openspec/changes/archive/2026-09-08-scoped-presence/tasks.md)**: reconciled 12/12 and appended “Presence changes identify
       affected projects”, “Initial and reset rosters are connection-specific”, and
       “Scoped presence preserves connection identity and isolation”. Assert all five
       realtime requirements and all their scenarios survive.
-- [ ] **A5 — R2 `team-removal-revisions`**: reconcile open 1.5's touched suites,
+- [x] **A5 — R2 [`team-removal-revisions`](../../openspec/changes/archive/2026-09-08-team-removal-revisions/tasks.md)**: reconciled open 1.5's touched suites,
       lint/typecheck and parent report before syncing its distinct capability.
-- [ ] **A6 — R6 `project-assignment-reads`**: reconcile open 1.4's touched checks and
+- [x] **A6 — R6 [`project-assignment-reads`](../../openspec/changes/archive/2026-09-08-project-assignment-reads/tasks.md)**: reconciled open 1.4's touched checks and
       parent report before syncing its distinct capability.
-- [ ] **A7 — R8 `bounded-replay-sweep`**: reconcile 4/4 and sync its distinct capability.
-- [ ] **A8 — R9 `gateway-request-deadlines`**: reconcile open 4.1's integrated full gates,
+- [x] **A7 — R8 [`bounded-replay-sweep`](../../openspec/changes/archive/2026-09-08-bounded-replay-sweep/tasks.md)**: reconciled 4/4 and synced its distinct capability.
+- [x] **A8 — R9 [`gateway-request-deadlines`](../../openspec/changes/archive/2026-09-08-gateway-request-deadlines/tasks.md)**: reconciled open 4.1's integrated full gates,
       restoration evidence, OpenSpec validation and independent review before sync.
-- [ ] **A9 — R1 `plan-refresh`**: map or collect the actual 5.2 real-browser peer/marker
-      scenario evidence, then reconcile 5.4 full gates and 5.5b merged integration record.
-      A generic green browser job alone cannot complete 5.2. Sync its distinct capability
-      only when these obligations are met, then verify the complete nine-delta union.
+- [x] **A9 — R1 [`plan-refresh`](../../openspec/changes/archive/2026-09-08-plan-refresh/tasks.md)**:
+      added real two-browser peer rename and marker evidence, reconciled the full Chromium and
+      workspace-gate results, recorded the original squash merge and synced its distinct
+      capability. The preservation inventory and strict validation cover the complete nine-delta
+      union.
 
 W4-4 is a separate closeout: after its existing task 3.5 is satisfied, sync/archive its
 own `wbs-table-modules` capability. Its review is not a missing tenth implementation task.
@@ -186,7 +194,7 @@ caller was told it worked. Watched on `main` before the fix existed:
 **Deliberately out, by the Wave 0 gate:** `Scheduler`, `engine_unavailable` and the
 `scheduleInputHash` move now belong to `scheduler-runtime-port`. Current inspected code
 already exports `SCHEDULER_CONTRACT_VERSION = 8` and `contractVersionOf`, with tests in
-`libs/domain/src/contract-version.test.ts`; an unchecked combined feature task is not
+`libs/wbs/domain/domain/src/contract-version.test.ts`; an unchecked combined feature task is not
 evidence that these are absent. Recheck the active optimizer/drain interfaces at landing,
 not an obsolete claim that the version constant still needs implementing. The thirteen
 remaining transactional port families, two history families, and named

@@ -2,20 +2,24 @@ import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 
+import { scratchSync } from '@wbs/tool-test-scratch';
 import { describe, expect, it } from 'bun:test';
 
-import { scratchSync } from '../test/scratch';
 import {
   assertLocksAgree,
   lockPins,
+  solveGoldenRequest,
   solverEnvironment,
   verifySolverEnvironment,
 } from './solver-environment';
 
 const repoRoot = resolve(import.meta.dir, '../..');
-const linuxLock = readFileSync(resolve(repoRoot, 'libs/solver-py/requirements.lock'), 'utf8');
+const linuxLock = readFileSync(
+  resolve(repoRoot, 'libs/wbs/adapters/solver-py/requirements.lock'),
+  'utf8',
+);
 const macLock = readFileSync(
-  resolve(repoRoot, 'libs/solver-py/requirements.macos-arm64.lock'),
+  resolve(repoRoot, 'libs/wbs/adapters/solver-py/requirements.macos-arm64.lock'),
   'utf8',
 );
 
@@ -72,9 +76,74 @@ describe('solverEnvironment', () => {
     const environment = solverEnvironment('/repo');
     expect(environment.python).toBe('/repo/.venv-solver/bin/python');
     expect(environment.bin).toBe('/repo/.venv-solver/bin');
+    expect(environment.lock).toBe(
+      '/repo/libs/wbs/adapters/solver-py/requirements.macos-arm64.lock',
+    );
+    // Proof: restoring the pre-move lock root returned the deleted
+    // `/repo/libs/solver-py/requirements.macos-arm64.lock` here.
     // The launcher execs `wbs-solver` through PATH, so `bin` is not a
     // convenience: it is what the local solver must put first.
     expect(environment.bin.endsWith('/bin')).toBe(true);
+  });
+});
+
+describe('solveGoldenRequest', () => {
+  it('reads the request corpus from the namespaced contracts root', () => {
+    const root = scratchSync('solver-golden-');
+    const bin = join(root, 'bin');
+    mkdirSync(bin, { recursive: true });
+    const solver = join(bin, 'wbs-solver');
+    writeFileSync(solver, '#!/bin/sh\ncat >/dev/null\nprintf solved\n');
+    chmodSync(solver, 0o755);
+
+    // Proof: restoring the reader to `libs/contracts/solver/fixtures` made
+    // this real caller throw ENOENT before the fake solver received a request.
+    expect(
+      solveGoldenRequest(repoRoot, {
+        root,
+        python: join(bin, 'python'),
+        bin,
+        lock: 'unused',
+      }),
+    ).toBe('solved');
+  });
+});
+
+describe('the cached development test target', () => {
+  it('declares the moved source trees its tests read', () => {
+    const project = JSON.parse(readFileSync(resolve(import.meta.dir, 'project.json'), 'utf8')) as {
+      targets: { test: { inputs?: string[] } };
+    };
+    const inputs = project.targets.test.inputs;
+    expect(inputs).toContain('^production');
+    expect(inputs).toContain('{workspaceRoot}/apps/wbs/*/.env.example');
+    // Proof: with this assertion and input restored to the pre-move path, a
+    // moved Linux numpy mutation returned `[local cache]`, 1/1 hit and exit 0.
+    expect(inputs).toContain('{workspaceRoot}/libs/wbs/adapters/solver-py/requirements*.lock');
+    expect(inputs).toContain(
+      '{workspaceRoot}/libs/wbs/domain/contracts/solver/fixtures/request/valid-quantised-baseline.json',
+    );
+  });
+});
+
+describe('golden corpus writers', () => {
+  it('write to the moved domain fixture root', () => {
+    const fastWriter = readFileSync(
+      resolve(import.meta.dir, 'write-fast-golden-corpus.ts'),
+      'utf8',
+    );
+    const quantumWriter = readFileSync(
+      resolve(import.meta.dir, 'write-solver-quantum-golden-corpus.ts'),
+      'utf8',
+    );
+
+    // Proof: before the active-script sweep repaired both targets, this failed
+    // with the complete fast writer source showing the deleted
+    // `../../libs/domain/fixtures/fast-golden-corpus.json` destination.
+    expect(fastWriter).toContain('../../libs/wbs/domain/domain/fixtures/fast-golden-corpus.json');
+    expect(quantumWriter).toContain(
+      '../../libs/wbs/domain/domain/fixtures/solver-quantum-golden-corpus.json',
+    );
   });
 });
 
