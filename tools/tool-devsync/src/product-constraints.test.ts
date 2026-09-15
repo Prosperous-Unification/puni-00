@@ -85,6 +85,12 @@ async function createLintWorkspace(): Promise<string> {
       'runtime:isomorphic',
       'product:wbs',
     ]),
+    writeProject(workspace, 'tools/probe-tool', 'probe-tool', [
+      'scope:infra',
+      'type:scripts',
+      'runtime:bun',
+      'ring:adapter',
+    ]),
   ]);
   await Promise.all([
     writeFile(
@@ -94,6 +100,14 @@ async function createLintWorkspace(): Promise<string> {
     writeFile(join(workspace, 'libs/probe/own/src/index.ts'), 'export const own = true;\n'),
     writeFile(join(workspace, 'libs/shared/utility/src/index.ts'), 'export const shared = true;\n'),
     writeFile(join(workspace, 'libs/wbs/core/src/index.ts'), 'export const wbs = true;\n'),
+    writeFile(
+      join(workspace, 'tools/probe-tool/src/forbidden.ts'),
+      "import { wbs } from '@wbs/core';\nexport const tool = wbs;\n",
+    ),
+    writeFile(
+      join(workspace, 'tools/probe-tool/src/allowed.ts'),
+      "import { shared } from '@shared/utility';\nexport const tool = shared;\n",
+    ),
     writeFile(
       join(workspace, 'eslint.config.mjs'),
       `
@@ -115,6 +129,14 @@ async function createLintWorkspace(): Promise<string> {
                 {
                   sourceTag: 'ring:adapter',
                   onlyDependOnLibsWithTags: ['ring:domain', 'ring:adapter'],
+                },
+                {
+                  sourceTag: 'scope:app',
+                  onlyDependOnLibsWithTags: ['scope:shared'],
+                },
+                {
+                  sourceTag: 'scope:shared',
+                  onlyDependOnLibsWithTags: ['scope:shared'],
                 },
                 ...products,
               ],
@@ -176,5 +198,16 @@ describe('generated product lint constraints', () => {
 
     const shared = await runLint(workspace, 'shared-utility');
     expect(shared.code, shared.output).not.toBe(0);
+  }, 30_000);
+
+  it('refuses a product import from a product-less tool and admits shared', async () => {
+    const workspace = await createLintWorkspace();
+    const attempt = await runLint(workspace, 'probe-tool');
+    // Proof: before the generated scope:infra rule existed, this uncached Nx lint accepted
+    // the tool's `@wbs/core` import and exited 0, failing the assertion below on
+    // `Expected: 1 · Received: 0` (2026-09-15).
+    expect(attempt.code).toBe(1);
+    expect(attempt.output).toContain('forbidden.ts');
+    expect(attempt.output).not.toContain('allowed.ts');
   }, 30_000);
 });

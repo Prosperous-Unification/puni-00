@@ -38,10 +38,12 @@ const runtimeConstraints = [
   { sourceTag: 'runtime:isomorphic', onlyDependOnLibsWithTags: ['runtime:isomorphic'] },
 ];
 
+// `scope:infra` is absent on purpose: `productConstraints` generates the one
+// rule that governs it, holding a product-less tool to infra and the shared
+// product instead of to every product's `scope:shared` library.
 const scopeConstraints = [
   { sourceTag: 'scope:app', onlyDependOnLibsWithTags: ['scope:shared'] },
   { sourceTag: 'scope:shared', onlyDependOnLibsWithTags: ['scope:shared'] },
-  { sourceTag: 'scope:infra', onlyDependOnLibsWithTags: ['scope:shared', 'scope:infra'] },
 ];
 
 const testSourceFiles = ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.property.test.ts'];

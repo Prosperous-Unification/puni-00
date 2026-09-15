@@ -175,10 +175,17 @@ describe('the effective production and test boundaries', () => {
         sourceTag: 'scope:shared',
         onlyDependOnLibsWithTags: ['scope:shared'],
       });
-      expect(options['depConstraints'], path).toContainEqual({
-        sourceTag: 'scope:infra',
-        onlyDependOnLibsWithTags: ['scope:shared', 'scope:infra'],
-      });
+      // The sole `scope:infra` rule is the generated one, so a product-less tool reaches
+      // infra and the shared product but never another product's `scope:shared` library.
+      expect(
+        options['depConstraints'].filter(
+          (constraint: unknown) =>
+            isRecord(constraint) && constraint['sourceTag'] === 'scope:infra',
+        ),
+        path,
+      ).toEqual([
+        { sourceTag: 'scope:infra', onlyDependOnLibsWithTags: ['scope:infra', 'product:shared'] },
+      ]);
       expect(options['depConstraints'], path).not.toContainEqual(
         expect.objectContaining({ sourceTag: 'ring:application' }),
       );

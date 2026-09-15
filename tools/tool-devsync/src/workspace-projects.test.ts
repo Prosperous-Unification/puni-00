@@ -324,7 +324,7 @@ describe('readProjects', () => {
 });
 
 describe('productConstraints', () => {
-  it('generates one sorted same-or-shared rule for every discovered product', () => {
+  it('generates a sorted same-or-shared rule per product, then one infra rule', () => {
     const project = (name: string, tags: readonly string[]) => ({
       root: `libs/${name}`,
       name,
@@ -350,6 +350,8 @@ describe('productConstraints', () => {
         sourceTag: 'product:wbs',
         onlyDependOnLibsWithTags: ['product:wbs', 'product:shared'],
       },
+      // One trailing infra rule, after every per-product rule and never repeated.
+      { sourceTag: 'scope:infra', onlyDependOnLibsWithTags: ['scope:infra', 'product:shared'] },
     ]);
   });
 
