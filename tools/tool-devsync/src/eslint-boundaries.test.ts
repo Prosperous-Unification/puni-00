@@ -175,17 +175,6 @@ describe('the effective production and test boundaries', () => {
         sourceTag: 'scope:shared',
         onlyDependOnLibsWithTags: ['scope:shared'],
       });
-      // The sole `scope:infra` rule is the generated one, so a product-less tool reaches
-      // infra and the shared product but never another product's `scope:shared` library.
-      expect(
-        options['depConstraints'].filter(
-          (constraint: unknown) =>
-            isRecord(constraint) && constraint['sourceTag'] === 'scope:infra',
-        ),
-        path,
-      ).toEqual([
-        { sourceTag: 'scope:infra', onlyDependOnLibsWithTags: ['scope:infra', 'product:shared'] },
-      ]);
       expect(options['depConstraints'], path).not.toContainEqual(
         expect.objectContaining({ sourceTag: 'ring:application' }),
       );
@@ -209,6 +198,23 @@ describe('the effective production and test boundaries', () => {
         sourceTag: 'product:wbs',
         onlyDependOnLibsWithTags: ['product:wbs', 'product:shared'],
       });
+      // The sole `scope:infra` rule is the generated one, at the production `nxRules` site
+      // and in every test override alike: a product-less tool reaches infra and the shared
+      // product, never another product's `scope:shared` library.
+      // Proof: restoring the old `{ sourceTag: 'scope:infra', onlyDependOnLibsWithTags:
+      // ['scope:shared', 'scope:infra'] }` entry in `scopeConstraints` failed this case on
+      // `libs/wbs/application/core/src/index.ts` with `Expected - 0 · Received + 7`, the
+      // second infra entry. While this check sat in the test-override case above, that
+      // production path went unchecked and the duplicate passed (2026-09-15).
+      expect(
+        options['depConstraints'].filter(
+          (constraint: unknown) =>
+            isRecord(constraint) && constraint['sourceTag'] === 'scope:infra',
+        ),
+        path,
+      ).toEqual([
+        { sourceTag: 'scope:infra', onlyDependOnLibsWithTags: ['scope:infra', 'product:shared'] },
+      ]);
     }
   });
 });

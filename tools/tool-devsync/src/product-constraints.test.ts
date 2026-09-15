@@ -206,8 +206,17 @@ describe('generated product lint constraints', () => {
     // Proof: before the generated scope:infra rule existed, this uncached Nx lint accepted
     // the tool's `@wbs/core` import and exited 0, failing the assertion below on
     // `Expected: 1 · Received: 0` (2026-09-15).
-    expect(attempt.code).toBe(1);
-    expect(attempt.output).toContain('forbidden.ts');
-    expect(attempt.output).not.toContain('allowed.ts');
+    expect(attempt.code, attempt.output).toBe(1);
+    expect(attempt.output, attempt.output).toContain('forbidden.ts');
+    // Pin the diagnostic, not merely the failure: any other rule erroring on `forbidden.ts`
+    // would otherwise keep this negative green with the generated rule gone.
+    // Proof: narrowing the generated rule to `['scope:infra']` left the exit code 1 and
+    // `forbidden.ts` assertions passing and failed only here, on the reported
+    // `A project tagged with "scope:infra" can only depend on libs tagged with
+    // "scope:infra"` (2026-09-15).
+    expect(attempt.output, attempt.output).toContain(
+      'can only depend on libs tagged with "scope:infra", "product:shared"',
+    );
+    expect(attempt.output, attempt.output).not.toContain('allowed.ts');
   }, 30_000);
 });
