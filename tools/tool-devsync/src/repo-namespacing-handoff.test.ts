@@ -155,6 +155,7 @@ const CLASSIFIED_LEGACY_DOCUMENTATION = [
   ['docs/superpowers/plans/2026-08-02-compose-blue-green-deploy.md', 'frozen legacy plan'],
   ['docs/superpowers/plans/2026-08-04-cheap-dev-deploy.md', 'frozen legacy plan'],
   ['docs/superpowers/plans/2026-08-24-password-login.md', 'frozen legacy plan'],
+  ['docs/superpowers/plans/2026-09-15-agentic-scalability-plan.md', 'dated plan'],
   [
     'docs/superpowers/specs/2026-08-02-compose-blue-green-deploy-design.md',
     'frozen legacy specification',
