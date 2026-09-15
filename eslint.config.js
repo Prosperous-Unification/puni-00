@@ -266,7 +266,7 @@ export default [
 
   // `tool-remote-scripts`' supervisor host tooling and `tools/dev`'s corpus writers are WBS
   // code misfiled as infra; relocating them under `apps/wbs` is queued in
-  // `docs/superpowers/plans/2026-09-15-agentic-scalability-plan.md` (Task 1.8). Until then the
+  // `docs/refactoring/tasks.md` as "Solver host tooling relocation". Until then the
   // exception is scoped to `tools/**` rather than named at either `allow: []` above, because
   // `allow` is matched on the import specifier alone: a repository-wide entry would also let
   // `libs/wbs/domain` production reach the supervisor protocol, which `eslint-boundaries.test.ts`
