@@ -57,14 +57,14 @@ design trades for its speed, not a feature — know which column your change is 
 
 | Change                                                          | What carries it                                                                                                                                                                                                                                                             |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App source under `apps/*/src`                                   | The watchers. Nothing restarts.                                                                                                                                                                                                                                             |
+| App source under `apps/wbs/*/src`                               | The watchers. Nothing restarts.                                                                                                                                                                                                                                             |
 | `bun.lock`                                                      | `tool-devsync` restarts and runs `bun install`.                                                                                                                                                                                                                             |
-| A migration under `apps/be-01/drizzle`                          | `tool-devsync` restarts; be-01 migrates at boot (`MIGRATE_ON_STARTUP=true`). Migrations are imported by no watched module, so nothing else would notice one arrive.                                                                                                         |
+| A migration under `apps/wbs/be-01/drizzle`                      | `tool-devsync` restarts; be-01 migrates at boot (`MIGRATE_ON_STARTUP=true`). Migrations are imported by no watched module, so nothing else would notice one arrive.                                                                                                         |
 | `package.json`, `nx.json`, any `project.json`, `vite.config.ts` | `tool-devsync` restarts. Nx and Vite read these once at startup.                                                                                                                                                                                                            |
-| `libs/solver-py`, `apps/be-01/Dockerfile`                       | The target-revision deployer automatically publishes a digest-pinned `be` image, materializes and installs its host-owned solver binding, preflights it, and only then resets. The directory pathspec is recursive; missing or contradictory host inputs fail before reset. |
+| `libs/wbs/adapters/solver-py`, `apps/wbs/be-01/Dockerfile`      | The target-revision deployer automatically publishes a digest-pinned `be` image, materializes and installs its host-owned solver binding, preflights it, and only then resets. The directory pathspec is recursive; missing or contradictory host inputs fail before reset. |
 | `deploy/dev-src/Dockerfile`                                     | **The deploy fails and names the fix** (`RECREATE_PATHS`, since 2026-08-04). Rebuild the image on h2puni from `deploy/dev-src`, then recreate.                                                                                                                              |
 | `deploy/dev-src/compose.yml`                                    | **The deploy fails and names the fix.** `cd /home/puni1/wbs-dev/src/deploy/dev-src && docker compose up -d`.                                                                                                                                                                |
-| Per-tier `apps/<tier>/.env`                                     | **Nothing** — gitignored, so a push cannot carry it. Edit on h2puni and restart the container.                                                                                                                                                                              |
+| Per-tier `apps/wbs/<tier>/.env`                                 | **Nothing** — gitignored, so a push cannot carry it. Edit on h2puni and restart the container.                                                                                                                                                                              |
 
 `tools/tool-devsync/src/sync.ts` holds both lists: `RESTART_PATHS` (a restart applies it)
 and `RECREATE_PATHS` (a restart cannot — the running container was created from the old
@@ -77,7 +77,8 @@ present, every changed target verifies the service, Unix socket, mapping, and ex
 image in the host Docker daemon before reset. A missing image is pulled by digest; an image already
 present does not depend on registry availability. A pull or final
 inspection refusal is therefore visible in the poller deploy log instead of only in the supervisor
-user journal. Only a change to `libs/solver-py` or `apps/be-01/Dockerfile` publishes or installs a
+user journal. Only a change to `libs/wbs/adapters/solver-py` or
+`apps/wbs/be-01/Dockerfile` publishes or installs a
 new binding; the directory pathspec is recursive.
 
 For a solver-affecting target, the candidate deployer runs from a clean detached clone of that
@@ -244,14 +245,14 @@ out of it — which cost a real debugging session. The gated config is backed up
 What still guards dev: be-01 applies the configured authentication mode to every
 protected `/api` route. gw-01 accepts the fixed identity only in explicit local
 mode; OIDC mode requires the `__Host-wbs_access` httpOnly cookie and the exact
-configured Origin (`apps/gw-01/src/app.ts`). Query parameters never establish
+configured Origin (`apps/wbs/gw-01/src/app.ts`). Query parameters never establish
 WebSocket identity. **`POST /api/auth/register` is mounted in every mode**
-(`apps/be-01/src/controller/auth.routes.ts`) and answers 404 unless
+(`apps/wbs/be-01/src/controller/auth-password-endpoints.ts`) and answers 404 unless
 `AUTH_PASSWORD_REGISTER=true` — the auth mode does not gate it, and that flag is
 not `AUTH_PASSWORD_LOGIN`. Where the flag is on, registration is open to the
 internet, which is the trade that was made knowingly.
 
-Per-tier env lives in gitignored `apps/<tier>/.env` inside that checkout, **not** in
+Per-tier env lives in gitignored `apps/wbs/<tier>/.env` inside that checkout, **not** in
 compose `env_file`: compose merges every env file into one namespace, so `be-01.env` and
 `gw-01.env` both setting `PORT` put both tiers on 3200.
 

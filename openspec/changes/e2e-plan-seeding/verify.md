@@ -255,3 +255,105 @@ The performance matrix was not repeated: the merge changes rendered plan,
 status, deadline and solver behavior, while Playwright worker/retry settings,
 fixture write coordination and accepted recipe compilation paths are unchanged.
 The workers=1 refusal therefore continues to use the preserved frozen matrix.
+
+## Task 3.4 closeout on current main
+
+The branch was clean and `a9a19aa6` was an ancestor of fetched `origin/main`
+`8779208a`; it was fast-forwarded to that exact main commit before the closeout
+checks. The performance matrix and fault-injection output above are the actual
+change evidence and were preserved without claiming new runs. The worker
+decision remains one because the recorded six-attempt acceptance matrix did not
+produce six green samples.
+
+- `bunx nx run-many -t test lint typecheck -p fe-01 contracts` — all 6 targets
+  passed outside the process sandbox in 7m 6s, with 0 cache hits. A preceding
+  sandboxed invocation exited zero after Unix-socket `EPERM` warnings without
+  scheduling targets; that non-execution is explicitly rejected as evidence.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json`
+  — 83/83 items passed: 72 changes and 11 specs.
+
+The canonical full workspace gate is recorded below after this evidence is
+committed, because `bin/h2puni-gate.sh` accepts an exact commit SHA.
+
+## Whole-change review repairs
+
+The review repairs keep the change's observable scope unchanged. `design.md`
+now describes the implemented contract: the recipe authors rows, estimates,
+tags and tag references; `SeededPlan` returns created identities. Project
+settings were removed from the design description because neither the delta
+spec nor callers require the fixture to author them, and returning duplicated
+authored values would weaken the recipe as the independent expectation source.
+
+Fresh R5 proofs for the repaired boundaries:
+
+- The new explicit-placement case authors `[a, b-after-a, c-after-a]`. Before
+  replacing the recipe-array oracle, it failed with stored `[a, c, b]` versus
+  expected `[a, b, c]`; the placement-derived calculation now passes. The full
+  fixture suite retained both 201-row and 201-tag boundary cases: 20 passed in
+  37.4s.
+- The tag-identity negative swaps the first two successful directory command
+  IDs. Before the directory readback check it resolved; restored code refuses
+  at `stored tag identity for first-tag`, before any project command or plan
+  measurement (`projectCommands === 0`).
+- Removing each recipe preflight guard made its permanent negative observe one
+  project POST instead of zero before refusal: unavailable predecessor,
+  duplicate tag ref and unknown tag ref each failed `Expected: 0, Received: 1`.
+  Restoring the guards made all three pass without backend fault interception.
+- The controlled mobile interleaving captures the selected fixture ID, creates
+  and opens two separate rival projects, then reads the global list and the
+  captured fixture tree.
+  Replacing the captured selected ID with the global first project's ID made
+  the test return `[]` instead of `["010", "020"]`; restored code passes and
+  asserts only that the global first ID is non-null and differs from the
+  selected fixture. The interleaving case and its owning dependency-sheet case
+  both passed (2/2 in 14.4s).
+
+Fresh owning checks after the repairs:
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p fe-01 contracts --parallel=2 --skip-nx-cache --output-style=static`
+  — all four uncached targets passed in 1m 16s. Its first run exposed one
+  `no-unnecessary-condition` violation in the tag readback; removing the
+  unreachable branch restored green while preserving the command-result ID
+  invariant.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx test fe-01 --skip-nx-cache --output-style=static`
+  — 108 UTC files / 2,745 tests and 2 zoned files / 3 tests passed in 6m 50s.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx test contracts --skip-nx-cache --output-style=static`
+  — 392 tests passed across 41 files in 1.5s.
+- A preceding combined interactive Nx wrapper was interrupted after its status
+  remained at 5/6 targets; it is not claimed as passing evidence. The remaining
+  frontend target was rerun uncached with static output above.
+- Strict `e2e-plan-seeding` validation passed 1/1, and `validate --all --json`
+  passed all 83 workspace items.
+
+The recorded six-run performance matrix and production fault injections above
+were preserved as the actual task evidence and were not fabricated or rerun.
+Task 3.4 remains open until this committed SHA passes the canonical h2puni gate
+and receives whole-change re-review.
+
+## Independent row-order oracle repair
+
+The final row-order verification now derives omitted and explicit placements
+directly from the original `recipe.rows`. It does not consume the normalized
+rows used to compile backend commands. The explicit sibling recipe remains
+`[a, b-after-a, c-after-a]` with stored order `[a, c, b]`. The implicit two-row
+and 201-row browser cases independently reread the public project tree and
+compare its exact ID sequence with the caller-authored recipe order.
+
+R5 mutation and restored evidence:
+
+- Changing production normalization from ordered omitted predecessors to
+  `afterRef ?? null` made both implicit-order cases fail. The two-row tree was
+  reversed, and the 201-row tree was returned in reverse insertion order; both
+  failures were at the tests' independent exact persisted-ID comparisons.
+- Restoring ordered normalization and using the original-recipe oracle made the
+  same focused command pass 2/2 in 11.7s. The complete
+  `plan-fixture.spec.ts` suite then passed 20/20 in 32.6s, retaining the
+  explicit sibling and both 201-entry boundary cases.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx test contracts --skip-nx-cache --output-style=static`
+  passed 394 tests across 42 files in 1.7s.
+- The first FE/contracts lint/typecheck run found TS4111 on dot access through
+  the test's `rowIds` index signature. After changing those two accesses to
+  bracket notation, the complete uncached four-target lint/typecheck matrix
+  passed in 44.7s.
+
+Task 3.4 remains unchecked pending the canonical gate and final re-review.

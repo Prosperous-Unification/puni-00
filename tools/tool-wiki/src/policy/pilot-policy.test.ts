@@ -33,9 +33,9 @@ const pilotPaths = [
   'docs/wiki-policy/bootstrap-policy.json',
   'docs/wiki-policy/relationships.json',
   'docs/wiki-policy/relationships.bootstrap.json',
-  'libs/core/src/use-cases/README.md',
-  'libs/domain/src/saved-plan/README.md',
-  'libs/store-memory/src/README.md',
+  'libs/wbs/application/core/src/use-cases/README.md',
+  'libs/wbs/domain/domain/src/saved-plan/README.md',
+  'libs/wbs/adapters/store-memory/src/README.md',
   'openspec/changes/archive/2026-09-08-bounded-replay-sweep/README.md',
   'tools/tool-dagger/src/lib/README.md',
   'tools/tool-wiki/README.md',
@@ -313,19 +313,27 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       readFileSync(join(candidate.repository, 'docs/wiki-policy/policy.json'), 'utf8'),
     ) as {
       pilot: { sourceRevision: string; coverage: string; exclusions: object[] };
-      boundaries: { selector: { value: string }; baselineEntries: ExactTuple[] }[];
+      boundaries: {
+        selector: { value: string };
+        sourceSelector?: { value: string };
+        baselineEntries: ExactTuple[];
+      }[];
     };
     expect(policy.pilot).toMatchObject({
       sourceRevision: '7851161bf96312750d07b933ca5d42b75ce575c7',
       coverage: 'selected-boundaries-only',
     });
     expect(policy.pilot.exclusions.length).toBeGreaterThan(0);
+    expect(policy.boundaries.at(0)).toMatchObject({
+      selector: { value: 'libs/wbs/domain/domain/src/saved-plan' },
+      sourceSelector: { value: 'libs/domain/src/saved-plan' },
+    });
     const baseline = entriesAt(repositoryRoot, policy.pilot.sourceRevision);
     for (const boundary of policy.boundaries) {
+      const selector = boundary.sourceSelector ?? boundary.selector;
       expect(boundary.baselineEntries).toEqual(
         baseline.filter(
-          ({ path }) =>
-            path === boundary.selector.value || path.startsWith(`${boundary.selector.value}/`),
+          ({ path }) => path === selector.value || path.startsWith(`${selector.value}/`),
         ),
       );
     }
@@ -377,6 +385,8 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     );
     const trust = createExternalTrust(candidate);
     const invocation = lint(candidate, trust);
+    // Proof: omitting the five namespaced Dagger target inputs from the live relationship
+    // declaration made this production CLI report the exact authority-selector mismatch (0/1).
     expect(invocation.exitCode, output(invocation)).toBe(0);
     expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
       mode: 'observe',
@@ -482,7 +492,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
   test('fails observe lint when one actual pilot member leaves its index', () => {
     const candidate = createCandidate();
     const trust = createExternalTrust(candidate);
-    const readme = join(candidate.repository, 'libs/domain/src/saved-plan/README.md');
+    const readme = join(candidate.repository, 'libs/wbs/domain/domain/src/saved-plan/README.md');
     write(
       readme,
       readFileSync(readme, 'utf8').replace('{"kind":"path","path":"canonical-plan-input.ts"},', ''),
@@ -495,9 +505,9 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     const observed = output(invocation);
     expect(invocation.exitCode, observed).toBe(1);
     // Proof: removing canonical-plan-input.ts from the production pilot index failed here with
-    // `unindexed candidate path in libs/domain/src/saved-plan/README.md: ...`.
+    // `unindexed candidate path in libs/wbs/domain/domain/src/saved-plan/README.md: ...`.
     expect(observed).toContain(
-      'unindexed candidate path in libs/domain/src/saved-plan/README.md: libs/domain/src/saved-plan/canonical-plan-input.ts',
+      'unindexed candidate path in libs/wbs/domain/domain/src/saved-plan/README.md: libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts',
     );
   }, 120_000);
 
@@ -534,14 +544,14 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
 
   test('refuses an owned README declared as its own external consumer', () => {
     const candidate = createCandidate();
-    const readme = join(candidate.repository, 'libs/domain/src/saved-plan/README.md');
+    const readme = join(candidate.repository, 'libs/wbs/domain/domain/src/saved-plan/README.md');
     const source = readFileSync(readme, 'utf8');
     const block = /<!-- wbs-index ([\s\S]+) -->/.exec(source);
     if (block === null) throw new Error('saved-plan index metadata absent');
     const metadata = JSON.parse(block[1]) as Record<string, unknown>;
     metadata['externalConsumers'] = {
       kind: 'declared',
-      memberships: [{ kind: 'path', path: 'libs/domain/src/saved-plan/README.md' }],
+      memberships: [{ kind: 'path', path: 'libs/wbs/domain/domain/src/saved-plan/README.md' }],
       knowledgeLimit: 'The boundary index is not an external consumer.',
     };
     write(readme, source.replace(block[0], `<!-- wbs-index ${JSON.stringify(metadata)} -->`));
@@ -555,7 +565,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(invocation.exitCode, observed).toBe(1);
     // Proof: naming the saved-plan README as its own consumer failed at this ownership assertion.
     expect(observed).toContain(
-      'external consumer is owned by libs/domain/src/saved-plan/README.md: libs/domain/src/saved-plan/README.md',
+      'external consumer is owned by libs/wbs/domain/domain/src/saved-plan/README.md: libs/wbs/domain/domain/src/saved-plan/README.md',
     );
   }, 120_000);
 
@@ -589,7 +599,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
 
   test('refuses a missing mapped pilot index with current candidate evidence', () => {
     const candidate = createCandidate();
-    const readme = join(candidate.repository, 'libs/domain/src/saved-plan/README.md');
+    const readme = join(candidate.repository, 'libs/wbs/domain/domain/src/saved-plan/README.md');
     rmSync(readme);
     git(candidate.repository, ['add', '--all']);
     git(candidate.repository, ['commit', '--quiet', '--message', 'delete mapped index']);
@@ -602,7 +612,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // Proof: before mapping reconciliation, deleting this required index returned accepted true
     // with regenerated candidate authority and evidence.
     expect(observed).toContain(
-      'pilot module index absent for module.domain.saved-plan: libs/domain/src/saved-plan/README.md',
+      'pilot module index absent for module.domain.saved-plan: libs/wbs/domain/domain/src/saved-plan/README.md',
     );
   }, 120_000);
 
@@ -614,7 +624,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
           module.moduleId = 'module.domain.saved-plan.renamed';
         },
         expected:
-          'pilot module identity disagrees with index libs/domain/src/saved-plan/README.md: module.domain.saved-plan.renamed != module.domain.saved-plan',
+          'pilot module identity disagrees with index libs/wbs/domain/domain/src/saved-plan/README.md: module.domain.saved-plan.renamed != module.domain.saved-plan',
       },
       {
         name: 'change mapped ownership',
@@ -622,13 +632,13 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
           module.memberships = [
             {
               kind: 'directory-prefix',
-              prefix: 'libs/core/src/use-cases',
+              prefix: 'libs/wbs/application/core/src/use-cases',
               exclusions: [],
             },
           ];
         },
         expected:
-          'pilot module ownership disagrees with index libs/domain/src/saved-plan/README.md: module.domain.saved-plan',
+          'pilot module ownership disagrees with index libs/wbs/domain/domain/src/saved-plan/README.md: module.domain.saved-plan',
       },
     ];
     for (const mutation of mutations) {
@@ -679,7 +689,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(invocation.exitCode, observed).toBe(1);
     // Proof: without mapping-consumer reconciliation this candidate returned accepted true.
     expect(observed).toContain(
-      'pilot module external consumers disagree with index libs/domain/src/saved-plan/README.md: module.domain.saved-plan',
+      'pilot module external consumers disagree with index libs/wbs/domain/domain/src/saved-plan/README.md: module.domain.saved-plan',
     );
   }, 120_000);
 
@@ -703,20 +713,48 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(invocation.exitCode, observed).toBe(1);
     // Proof: without mapping completeness this omitted module returned accepted true.
     expect(observed).toContain(
-      'pilot index has no module mapping: libs/domain/src/saved-plan/README.md',
+      'pilot index has no module mapping: libs/wbs/domain/domain/src/saved-plan/README.md',
     );
   }, 120_000);
 
-  test('refuses an empty or selector-escaping pre-index tuple manifest', () => {
+  test('refuses an empty, unmapped, incompatible, or escaping pre-index tuple manifest', () => {
     const mutations = [
       {
-        mutate(boundary: { baselineEntries: ExactTuple[] }): void {
+        mutate(boundary: {
+          baselineEntries: ExactTuple[];
+          sourceSelector?: { kind: string };
+        }): void {
           boundary.baselineEntries = [];
         },
         expected: 'trusted boundary baseline is empty: boundary.domain.saved-plan',
       },
       {
-        mutate(boundary: { baselineEntries: ExactTuple[] }): void {
+        mutate(boundary: {
+          baselineEntries: ExactTuple[];
+          sourceSelector?: { kind: string };
+        }): void {
+          delete boundary.sourceSelector;
+        },
+        expected:
+          'trusted boundary baseline escapes selector boundary.domain.saved-plan: libs/domain/src/saved-plan/canonical-plan-input.test.ts',
+      },
+      {
+        mutate(boundary: {
+          baselineEntries: ExactTuple[];
+          sourceSelector?: { kind: string };
+        }): void {
+          if (boundary.sourceSelector === undefined) {
+            throw new Error('pilot source selector unexpectedly absent');
+          }
+          boundary.sourceSelector.kind = 'path';
+        },
+        expected: 'trusted boundary source selector kind differs: boundary.domain.saved-plan',
+      },
+      {
+        mutate(boundary: {
+          baselineEntries: ExactTuple[];
+          sourceSelector?: { kind: string };
+        }): void {
           const entry = boundary.baselineEntries.at(0);
           if (entry === undefined) throw new Error('pilot baseline unexpectedly empty');
           entry.path = 'libs/core/src/use-cases/replay.ts';
@@ -729,7 +767,11 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       const candidate = createCandidate();
       const trust = createExternalTrust(candidate);
       const policy = JSON.parse(readFileSync(trust.policyPath, 'utf8')) as {
-        boundaries: { boundaryId: string; baselineEntries: ExactTuple[] }[];
+        boundaries: {
+          boundaryId: string;
+          baselineEntries: ExactTuple[];
+          sourceSelector?: { kind: string };
+        }[];
       };
       const boundary = policy.boundaries.find(
         ({ boundaryId }) => boundaryId === 'boundary.domain.saved-plan',

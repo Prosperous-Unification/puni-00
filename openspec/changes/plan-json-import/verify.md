@@ -388,3 +388,274 @@ tests failed on their generated module paths. The explicit source-file suite
 above supersedes that invocation.
 
 At the Task 4.1 checkpoint, Tasks 4.2–5.2 remain unimplemented and unchecked.
+
+## Section 4.2 — generated OpenAPI and MCP import input
+
+Task 4.2 continued from merged `origin/main` at
+`c83219128f840f725ff80c6f49dd6e1a9a67b188`. The mounted OpenAPI document and
+the production-derived MCP tool table now locate `postApiProjectsImport` by its
+operation id instead of accepting an incremented global operation/tool count.
+Both boundaries assert an inline JSON object request; the MCP assertion pins the
+eight top-level document fields and verifies that no `$ref` survives derivation.
+The generated client response type also refuses a `created` summary that omits
+one directory kind.
+
+| Check                           | Fault injected                               | Test that observed it                                                | Observed failure                                                                                       |
+| ------------------------------- | -------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Shared-shape MCP publication    | Removed `importProject` from `httpShapes`    | `exposes the import document tool`                                   | exact production-generated lookup threw `no tool named postApiProjectsImport was derived` (1/1 failed) |
+| Complete created-summary typing | Made `createdNames.externalSystems` optional | compile-only `importSummaryTypeFixtures` under `contracts:typecheck` | TS2578: the incomplete-summary `@ts-expect-error` became unused                                        |
+
+Both production mutations were applied separately, observed red, restored, and
+recorded beside the assertions they protect.
+
+Fresh green evidence:
+
+- `bun test libs/contracts/src/http/import-shapes.test.ts libs/contracts/src/http/document-from-shapes.test.ts apps/mcp-01/src/openapi-tools.test.ts apps/mcp-01/src/generated-document.test.ts apps/mcp-01/src/shape-document.test.ts apps/be-01/src/openapi/openapi-document.test.ts` — 59 passed, 0 failed, 332 assertions.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p contracts mcp-01 be-01 --skip-nx-cache --parallel=2 --output-style=static` — all six targets passed.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --json` — 83 items passed, 0 failed.
+- `bunx prettier --check apps/be-01/src/openapi/openapi-document.test.ts apps/mcp-01/src/generated-document.test.ts apps/mcp-01/src/openapi-tools.test.ts libs/contracts/src/http/import-shapes.test.ts openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
+
+At the Task 4.2 checkpoint, Tasks 4.3–5.2 remain unimplemented and unchecked.
+
+## Section 5.1 — SQLite import measurement
+
+The production `ImportService` imported exactly 500 root rows into a migrated
+SQLite file. The UTF-8 JSON request was 381,862 bytes. A direct call to pure
+`prepareImport` took 7.702 ms and issued 0 SQL statements or native transaction
+controls. The separately timed admitted `UnitOfWork.run` interval took 223.086
+ms. Drizzle logged 7,065 statements from `BEGIN IMMEDIATE` through `COMMIT`,
+inclusive. The same production connection observed 507 successful native
+transaction wrappers nested inside that interval; their 507 `SAVEPOINT` and
+507 `RELEASE` controls bypass Drizzle's logger. The admitted total is therefore
+7,065 logged statements + 1,014 native controls = 8,079 SQL statements. These
+observed times are evidence, not pass/fail budgets.
+
+An ordinary public directory write was started synchronously from inside the
+admitted act, so the production `WriteCoordinator` queued it behind the import.
+It completed after admission in 224.695 ms from queueing; the logger placed its
+first `tag` insert after the import's `COMMIT`. The imported project contained
+all 500 rows, and the queued tag was readable after settlement.
+
+| Check                         | Fault injected                                        | Test that observed it                                                           | Observed failure                                                    |
+| ----------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Real SQL statement accounting | Omitted the logger when opening the closable database | `measures preparation and admitted SQLite work separately for exactly 500 rows` | expected a logged `BEGIN IMMEDIATE` index at least 0, received `-1` |
+| Native transaction accounting | Omitted the native transaction observer               | same production-path measurement test                                           | expected 507 native wrappers, received 0                            |
+
+Both faults were watched and restored. The adjacent `Proof:` comments guard
+against reporting either a fake zero statement count or a Drizzle-only count
+that silently omits native controls. The row-count, stored-row,
+transaction-boundary and post-commit queued-write assertions prevent a fast
+refusal or empty import from masquerading as a measurement.
+
+Fresh green evidence:
+
+- `bun test src/import-performance.db.test.ts src/import.service.db.test.ts src/db.db.test.ts` from `libs/store-sqlite` — 19 passed, 0 failed, 90 assertions. Measurement output: `{"measurement":"plan-json-import-500","rows":500,"inputBytes":381862,"prepareMs":7.702,"prepareStatements":{"drizzle":0,"nativeControls":0,"total":0},"admittedMs":223.086,"admittedStatements":{"drizzle":7065,"nativeTransactionWrappers":507,"nativeControls":1014,"total":8079},"queuedWrite":{"completed":true,"elapsedMs":224.695,"completedAfterAdmission":true}}`.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t lint typecheck -p store-sqlite --skip-nx-cache --parallel=1 --output-style=static` — both targets passed.
+
+At the Task 5.1 checkpoint, Tasks 4.3–4.5 and 5.2 remain unimplemented and
+unchecked.
+
+## Section 4.3 — generated-client facade and plan transfer controls
+
+`ProjectApi` now exposes only `exportPlan(projectId)` and
+`importPlan(document)` for archival transfer, with both methods backed by the
+shared generated client. The plan toolbar names the combined menu
+`Export / Import`, downloads the complete server JSON under `planFileName`, and
+contains an `application/json` file input hidden behind the `Import JSON`
+label. File reading, submission state, selection and import outcomes remain in
+Task 4.4.
+
+The production `WbsTable` test makes one download after collapsing a parent and
+a second after filtering out a root. Both downloaded documents retain the
+hidden rows by exact id and name. The initial TDD run failed four new assertions:
+the facade methods were absent, the summary still read `Export`, and no
+`Download JSON` control existed; the other 145 focused assertions passed.
+
+Review repair added a persistent error toast for rejected downloads and a
+`PlanImportRefusalError` that retains the generated client's validated refusal
+object. Its focused 400 response names `unknown_ref`,
+`workItems[12].dependsOn[0]`, and the exact missing-reference detail. Before
+production repair, both new tests failed and the unhandled download rejection
+was also reported by Vitest.
+
+| Check                            | Fault injected                                                       | Test that observed it                                      | Observed failure                                                                                                 |
+| -------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Complete server JSON download    | Replaced the server document's workItems with production `shownRows` | `downloads JSON with collapsed and filtered-out rows`      | exact collapsed row `{ id: "w2", name: "Collapsed child exact" }` was absent; 1 failed, 28 skipped               |
+| Visible rejected-download report | Removed the production promise rejection handler                     | `reports a rejected JSON download and creates no file`     | toast list stayed empty and Vitest reported unhandled `network unavailable exact`; 1 failed, 29 skipped, 1 error |
+| Structured import refusal        | Replaced `PlanImportRefusalError(reply.body)` with `Error(error)`    | `retains a validated import refusal code, path and detail` | expected the named structured refusal and received only `Error: unknown_ref`; 1 failed, 55 skipped               |
+
+Each production mutation was observed red independently, restored, and
+recorded in its adjacent `Proof:` comment.
+
+Fresh green evidence:
+
+- `TZ=UTC bunx vitest run src/lib/wbs-api.test.ts src/components/wbs/plan-export.test.ts src/components/wbs/plan-toolbar.test.tsx --no-file-parallelism --maxWorkers=1` from `apps/fe-01` — 3 files passed, 151 tests passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx typecheck fe-01 --outputStyle=static` — target passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx lint fe-01 --outputStyle=static` — target passed.
+- `bunx prettier --check apps/fe-01/src/lib/wbs-api.ts apps/fe-01/src/lib/wbs-api.test.ts apps/fe-01/src/components/wbs/wbs-table.tsx apps/fe-01/src/components/wbs/plan-toolbar.test.tsx openspec/changes/plan-json-import/verify.md` — all named files matched.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
+
+At the Task 4.3 checkpoint, Tasks 4.4–4.5 and 5.2 remain unimplemented and
+unchecked.
+
+## Section 4.4 — interactive JSON import
+
+`ProjectPage` now owns the import attempt and production toast API outside the
+project-keyed `WbsTable`. Its synchronous admission ref blocks a second file
+read as well as a second request. An API-lifetime token ignores settlement from
+a replaced page dependency; the captured source project prevents a valid old
+completion navigating away from a project selected while it was pending.
+
+Success installs a freshly read project catalogue, verifies that it contains
+the created id, then uses the existing picker selection path. The one summary
+toast is held by the page and rendered by the remounted table, so its lifetime
+survives the project key. Cancellation remains inert; read, syntax, schema and
+server failures retain the prior selection. The archival request is parsed once
+as JSON and normalized by the existing shared Standard Schema declaration. Its
+first issue is preserved as `invalid_body` with the exact document path and
+validator detail rather than collapsed to generated preflight's
+`invalid_request` code.
+
+The repair TDD run was 4 failed / 52 passed: the picker value was empty after
+success, two rapid changes invoked `readAsText` twice, the stale-completion
+resolver had not yet been reached by the first async read, and the malformed
+row produced no stable page toast. After the first implementation, the added
+API-lifetime assertion was separately red because the replacement input
+remained disabled; tying busy/admission state to the API token made the new
+lifetime usable without allowing the old completion to report.
+
+A subsequent ownership review found two earlier async boundaries were still
+open. A file read or schema validation could settle after `api` changed and
+still call the departed facade, and a catalogue fetched for the old facade
+could install after replacement. Import now checks its lifetime after each
+await and immediately before the write. Catalogue fetching and installation
+are separate operations, with ownership checked after fetch and before install,
+selection, and reporting. The new tests were first observed red together: the
+held-reader case called the old `importPlan` once instead of zero, and the held
+catalogue selected `Imported exact` instead of retaining `Rewire the shed`.
+
+| Check                      | Fault injected                                                           | Production-path test                                                                  | Observed RED                                                                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stable success report      | Omitted the page-owned toast API passed into the keyed table             | `refreshes the picker catalogue and keeps one success toast across the table remount` | expected the exact 40-row/one-tag summary; received `[]`                                                                                                 |
+| Installed catalogue        | Read `api.listProjects()` without installing it through `reloadProjects` | same success case                                                                     | picker expected `Imported exact`; received an empty value while the imported tree opened                                                                 |
+| Synchronous admission      | Removed the `admittedLifetime` early return                              | `admits only one asynchronous file read and request at a time`                        | `readAsText` expected 1 call; received 2                                                                                                                 |
+| Departed-project ownership | Removed the source/current project comparison                            | `does not navigate when an import completes after its project was departed`           | picker expected `Paint the fence`; received `Imported exact`                                                                                             |
+| API-lifetime ownership     | Removed the lifetime guards from success, failure and settlement         | `ignores an import completion from a replaced API lifetime`                           | expected no toast; received `Plan JSON import failed (imported_project_missing).`                                                                        |
+| Actionable schema issue    | Replaced `PlanDocumentSchemaError` with `Error('invalid_request')`       | `reports a malformed row with its exact schema path and detail`                       | expected `invalid_body` at `workItems[0].priority` with `must be a number or null (was a string)`; received `Plan JSON import failed (invalid_request).` |
+| File read failure          | Removed `FileReader.onerror` rejection                                   | `reports an asynchronous file read failure without submitting`                        | expected `file_read_failed`; received no toast                                                                                                           |
+| Same-file reselection      | Removed `input.value = ''` settlement reset                              | `clears the file control so the same file can complete twice`                         | expected empty input value; retained exact `C:\\fakepath\\plan.json`                                                                                     |
+| Refusal keeps selection    | Injected `openProject('p2')` into the request-refusal path               | `keeps the selected project when the request returns a structured refusal`            | picker expected `Rewire the shed`; received `Paint the fence`                                                                                            |
+| Pre-write lifetime         | Removed both post-read and pre-write lifetime checks                     | `does not submit a file whose read finishes after the API lifetime is replaced`       | old `importPlan` expected 0 calls; received 1                                                                                                            |
+| Pre-install lifetime       | Installed the fetched catalogue before its post-fetch lifetime check     | `does not install a catalogue fetched by a replaced API lifetime`                     | expected no `project-option-p3`; received the exact stale `Imported exact` option                                                                        |
+| Busy file control          | Replaced `disabled={importBusy}` with `disabled={false}`                 | `disables the import file control while an import is in flight`                       | expected the input disabled; received an enabled input                                                                                                   |
+
+Each fault was applied separately, observed red, restored and named by an
+adjacent `Proof:` comment. The success case also asserts one `data-toasts`
+region, the exact selected name and the imported option. Request-phase admission
+is independently held after the async read and asserts one read and one request;
+the toolbar test separately proves the rendered disabled state.
+
+Fresh green evidence:
+
+- `TZ=UTC bunx vitest run src/lib/wbs-api.test.ts src/components/wbs/plan-toolbar.test.tsx src/components/wbs/project-page.test.tsx --no-file-parallelism --maxWorkers=1` from `apps/fe-01` — 3 files passed, 153 tests passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:lint --skip-nx-cache --output-style=stream` — passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:typecheck --skip-nx-cache --output-style=stream` — passed.
+- `bunx prettier --check apps/fe-01/src/lib/wbs-api.ts apps/fe-01/src/components/wbs/use-plan-read.ts apps/fe-01/src/components/wbs/use-plan-import.ts apps/fe-01/src/components/wbs/plan-toolbar.tsx apps/fe-01/src/components/wbs/wbs-table.tsx apps/fe-01/src/components/wbs/plan-toolbar.test.tsx apps/fe-01/src/components/wbs/project-page.tsx apps/fe-01/src/components/wbs/project-page.test.tsx openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
+
+At the Task 4.4 checkpoint, Tasks 4.5 and 5.2 remain unimplemented and
+unchecked. The full h2puni gate and browser gate remain Task 5.2 and were not
+run here.
+
+## Section 4.5 — owned-stack browser import
+
+`apps/fe-01/e2e/plan-import.spec.ts` uses the shared `seedPlan` and
+`openSeededPlan` fixture against public HTTP and the real picker. The success
+case downloads a real 13-row document, checks every exported row id, validates
+it through generated `importProject` preflight, gives the copy a unique name,
+and adds one unique file-local tag to its first row. The hidden file chooser
+imports that document; the picker selects and offers the exact new name, and
+one toast reports 13 rows and the one created tag.
+
+The refusal case downloads at least 13 rows and completes generated preflight
+before injecting `missing-file-row` at `workItems[12].dependsOn[0]`. The
+fixture's generated client was extended only with `listProjects`, which proves
+the backend project count before and after. The browser receives exact
+`unknown_ref` at that path, retains the seeded project, and the backend count
+does not change.
+
+The run used `E2E_PORT_SHIFT=8700`: be-01 `11800`, gw-01 `11900`, fe-01
+`12900`. A privileged `ss -ltn` check immediately before each browser run found
+no listener on any port. `CI=1` made reuse impossible, and the final green run
+owned `tmp/e2e-1789380828433.db` through the Playwright config.
+
+R5 proof: `firstDependencyRefusal(document.workItems)` was replaced with a null
+refusal, then only the dangling-dependency browser case ran on the same isolated
+ports with its own `tmp/e2e-1789380439296.db`. It failed after 32.9 seconds:
+the toast expected `Plan JSON import refused: unknown_ref at
+workItems[12].dependsOn[0].` and received exact `Plan JSON import failed
+(http_500).` The production guard was restored; the adjacent `Proof:` comment
+is on the browser assertion.
+
+Fresh green evidence:
+
+- `CI=1 NX_DAEMON=false NX_ISOLATE_PLUGINS=false E2E_PORT_SHIFT=8700 bunx playwright test --config apps/fe-01/playwright.config.ts apps/fe-01/e2e/plan-import.spec.ts` — 2 passed in 13.5 seconds against the owned ports/database above. Vite logged websocket-proxy `EPIPE` while a page was replaced; neither case nor server readiness failed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:test:unit --skip-nx-cache --output-style=stream` — 34 files and 552 tests passed in 4.6 seconds when run with permission for its documented Bun subprocess probes. The sandboxed attempt failed 3 probes with `spawnSync bun EPERM`; no assertion or code fault was involved.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:typecheck --skip-nx-cache --output-style=stream` — passed in 2.5 seconds.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run fe-01:lint --skip-nx-cache --output-style=stream` — passed in 42.1 seconds. Before repair, direct ESLint exposed the wrapper's otherwise silent `no-unnecessary-condition` on a null check forbidden by Playwright's precise download-path type.
+- `bunx prettier --check apps/fe-01/e2e/plan-import.spec.ts apps/fe-01/e2e/plan-fixture.ts openspec/changes/plan-json-import/tasks.md openspec/changes/plan-json-import/verify.md` — all named files matched.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate plan-json-import --strict --json` — 1 change passed, 0 failed.
+- `git diff --check` — passed.
+
+At the Task 4.5 checkpoint, only Task 5.2 remains unchecked.
+
+## Section 5.2 — final verification (in progress)
+
+The affected-project matrix was run uncached with
+`NX_CLOUD=false NX_NO_CLOUD=true NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test lint typecheck -p contracts core store-sqlite store-memory conformance be-01 fe-01 mcp-01 --skipNxCache --parallel=2 --outputStyle=static`.
+Every requested lint and typecheck target passed. The first sandboxed test pass
+also passed every test target except three environment-bound targets: be-01
+could not bind loopback (`EPERM`), fe-01 subprocess probes could not run, and
+contracts could not find the worktree-local `node_modules/.bin/tsc`.
+
+The exact failed test targets were then rerun outside the network/process
+sandbox. The combined rerun began before the worktree dependency link was
+present, so its backend and frontend results were green while contracts was
+superseded by a contracts-only rerun after adding that link. Fresh terminal
+evidence:
+
+- `NX_CLOUD=false NX_NO_CLOUD=true NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run contracts:test --skipNxCache --outputStyle=static` — 394 passed, 0 failed.
+- `NX_CLOUD=false NX_NO_CLOUD=true NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t test -p contracts be-01 fe-01 --skipNxCache --parallel=1 --outputStyle=static` — be-01 passed 1,075 tests with one pre-existing skip; fe-01 passed 107 files and 2,778 tests plus 2 zoned files and 3 zoned tests. Contracts in this earlier rerun still lacked the worktree dependency link and was superseded by the green contracts-only command above.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx format:check --all --outputStyle=static` — passed.
+- `OPENSPEC_TELEMETRY=0 bunx @fission-ai/openspec@1.3.0 validate --all --strict --json` — every reported spec and change was valid; exit 0.
+- `git diff --check origin/main...HEAD` — the committed branch was clean before
+  the browser-discovered repair below; this result does not cover that
+  uncommitted repair.
+
+The first whole-browser run used
+`CI=1 NX_DAEMON=false NX_ISOLATE_PLUGINS=false E2E_PORT_SHIFT=9700 bun run e2e`
+against be-01 `12800`, gw-01 `12900`, fe-01 `13900` and its fresh Playwright
+database. It completed 370 passed and 37 skipped in 19.3 minutes, with four
+failures. Both phone sweeps measured the new Import JSON label at 32px rather
+than the required 44px. Both 1280px toolbar budgets measured about 42px of
+unbudgeted width after the Export summary became Export / Import.
+
+The repair keeps the required exact menu name but wraps its summary inside the
+old width budget, and includes the visible file-input label in the existing
+phone-surface tap-target floor. The four failed production-path cases were then
+rerun together with
+`CI=1 NX_DAEMON=false NX_ISOLATE_PLUGINS=false E2E_PORT_SHIFT=9700 bunx playwright test --config apps/fe-01/playwright.config.ts apps/fe-01/e2e/mobile.spec.ts apps/fe-01/e2e/optimization-cue.spec.ts apps/fe-01/e2e/project-settings.spec.ts --grep "gives every control on the phone’s own surfaces at least 44px|is still cards, at a finger’s size, and still does not scroll sideways|lays the 1280 toolbar out inside its budget with the cue on it|the toolbar keeps its 1280 budget with one settings control"`:
+4 passed in 13.3 seconds. The same repaired frontend then passed 552 unit tests,
+lint, typecheck and named-file Prettier checks. An Astra xhigh review found no
+production-code issue and independently passed the 39 toolbar/style tests.
+
+A fresh whole-browser rerun used
+`CI=1 NX_DAEMON=false NX_ISOLATE_PLUGINS=false E2E_PORT_SHIFT=9900 bun run e2e`
+on separately owned ports be-01 `13000`, gw-01 `13100` and fe-01 `14100`, with
+fresh database `tmp/e2e-1789383780717.db`. It completed 374 passed, 37
+intentionally skipped and 0 failed in 19.3 minutes. Vite's websocket proxy
+logged `EPIPE` as test pages disconnected; server readiness and the terminal
+Playwright result remained green.
+
+The h2puni exact-SHA gate has not run. Task 5.2 therefore remains unchecked.

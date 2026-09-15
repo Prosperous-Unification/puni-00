@@ -3387,3 +3387,83 @@ all owned siblings on evidence failure, waits for every launch wrapper to settle
 export tests passed 21 tests with 88 assertions. Fresh uncached Tool Wiki source lint and forced
 typecheck, repository-wide format check, strict change validation, and `git diff --check` passed.
 Tasks 7.3–7.5 remain unchanged.
+
+### Slice 5.3 sole-parent proof completion
+
+The production-path negative constructs a real two-parent Git commit whose tree equals the checked
+candidate tree and whose first parent equals the independently expected base. Its immutable marker,
+serialized binding publication tuple, and separately retained publication tuple all name that commit,
+so verification reaches the Git sole-parent count check rather than failing on an earlier tuple join.
+
+After adding the test, the focused baseline run passed 6 tests with 24 assertions. Removing only
+`parents.length !== 1 ||` from `assertCommit` then made `trusted verification refuses a publication
+commit with a second parent` fail with `Received function did not throw`; 5 tests passed and 1 failed.
+Restoring the guard and adding the adjacent observed `Proof:` comment returned the same focused command
+to 6 passed, 0 failed, and 24 assertions:
+`bun test --preload ../test/scratch/preload.ts src/admission/attestation.test.ts` from
+`tools/tool-wiki`.
+
+Fresh proportional checks on the restored tree:
+
+- uncached `tool-wiki:lint:source` exited 0;
+- uncached forced `tool-wiki:typecheck` exited 0;
+- uncached `tool-wiki:lint` exited 0 with
+  `{status:"inactive",certified:false,reason:"external activation root is not provisioned"}`; this is
+  diagnostic only and is not admission evidence;
+- strict pinned OpenSpec validation passed 1 of 1 change with no issues; and
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx format:check --all` exited 0.
+
+The unfiltered Tool Wiki suite, h2puni gate, browser suite, CI, external trusted review and receipts,
+activation administration, ruleset, authority snapshot, and external binding publication were not
+run or created. The operational obligations remain pending, so Task 5.3 stays unchecked.
+
+### Repo namespace pilot mapping repair
+
+The repository namespace move had mechanically rewritten the live pilot policy's historical
+baseline paths while retaining reviewed source revision `7851161bf96312750d07b933ca5d42b75ce575c7`.
+The exact source-tree comparison consequently failed with an empty old-revision selection against
+eight renamed saved-plan tuples. The repair retains the original path/mode/blob packets and models
+each moved boundary with an old `sourceSelector` and current `selector`; the live module mapping
+keeps current ownership paths and advances to `pilot-layout-namespaced-v2`. Bootstrap policy,
+bootstrap mapping, and external activation archives remain unchanged.
+
+The production-path source-selector negative independently removed the saved-plan source selector
+and observed exit 1 with `trusted boundary baseline escapes selector`; changing its kind from
+`prefix` to `path` independently observed exit 1 with `trusted boundary source selector kind
+differs`. The restored combined negative passed 1 test with 40 assertions. The original focused
+positive then passed 1 test with 27 assertions, including exact tuples from `7851161b`, current
+index reconciliation, and observe lint through external local-operator trust.
+
+The final combined pilot-policy, trusted-policy, and contract-decoder run passed 85 tests with 1,760
+assertions. Fresh uncached Tool Wiki source lint and forced typecheck exited 0. Strict pinned OpenSpec
+validation passed the change. The isolated worktree initially lacked its ignored `node_modules`
+link, producing `trusted TypeScript runtime modules are unreadable`; linking the repository's
+existing dependency tree restored the established test environment before the successful runs.
+
+#### Exact-path compatibility correction
+
+A production `lint-local ratchet` negative then exposed that the relocation helper also rewrote a
+path-selector baseline when `sourceSelector` was absent. Renaming byte-identical `validator.ts` to
+`renamed-validator.ts`, updating only the current selector, and leaving the original exact baseline
+incorrectly exited 0 with `accepted:true`, `changedBoundaryIds:[]`, and no refusals. The corrected
+helper preserves every baseline tuple exactly unless the policy explicitly supplies a validated
+source selector. The restored focused negative exited 1, named `boundary.validator`, and reported
+both activation and ratchet refusals; it passed 1 test with 22 assertions. The explicit namespaced
+pilot relocation positive remained green with 1 test and 27 assertions. The final combined
+trusted-policy, pilot-policy, and contract-decoder run passed 86 tests with 1,782 assertions. Fresh
+uncached Tool Wiki source lint and forced typecheck, repository-wide format check, strict pinned
+OpenSpec validation, and `git diff --check` exited 0.
+
+#### Non-pilot source-selector correction
+
+A second production `lint-local ratchet` negative supplied baseline `validator.ts`, explicit source
+selector `not-the-baseline.ts`, current selector `renamed-validator.ts`, and a byte-identical
+candidate rename under a non-pilot policy. Before the guard it incorrectly exited 0 with
+`accepted:true`, `changedBoundaryIds:[]`, and no refusals. Because a non-pilot policy has no reviewed
+`pilot.sourceRevision` to anchor the source location, policy validation now refuses any such source
+selector. The restored negative exited 1 with `trusted boundary source selector requires pilot
+policy` and passed 1 test with 22 assertions. The no-source exact-path negative also passed 1 test
+with 22 assertions, and the explicit pilot relocation positive passed 1 test with 27 assertions.
+The final combined trusted-policy, pilot-policy, and contract-decoder run passed 87 tests with 1,804
+assertions. Fresh uncached Tool Wiki source lint and forced typecheck, repository-wide format check,
+strict pinned OpenSpec validation, and `git diff --check` exited 0.

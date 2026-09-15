@@ -858,7 +858,7 @@ describe('declared relationship selectors through the production CLI', () => {
       '..',
       '..',
       '..',
-      'apps/be-01/drizzle/20260806190000_add_teams_and_assignees/migration.sql',
+      'apps/wbs/be-01/drizzle/20260806190000_add_teams_and_assignees/migration.sql',
     );
     write(repository, migrationPath, readFileSync(realMigration, 'utf8'));
     const tables = ['service_team', 'person', 'person_team', 'assignment'];
