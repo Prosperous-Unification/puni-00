@@ -10,11 +10,15 @@ import { productConstraints, readProjects } from '../workspace-projects.mjs';
 
 const WORKSPACE = new URL('../../../', import.meta.url);
 
-const EXPECTED_WBS_PROJECTS = [
+// Every app and library, each one qualified by the product directory it sits
+// in. The product is read back off the root below rather than spelled out per
+// row, so a second product cannot be added here without its directory agreeing.
+const EXPECTED_PRODUCT_PROJECTS = [
   ['apps/wbs/be-01', 'wbs-be-01'],
   ['apps/wbs/fe-01', 'wbs-fe-01'],
   ['apps/wbs/gw-01', 'wbs-gw-01'],
   ['apps/wbs/mcp-01', 'wbs-mcp-01'],
+  ['libs/shared/domain/validation', 'shared-validation'],
   ['libs/wbs/adapters/auth', 'wbs-auth'],
   ['libs/wbs/adapters/config', 'wbs-config'],
   ['libs/wbs/adapters/observability', 'wbs-observability'],
@@ -132,18 +136,18 @@ describe('readProjects', () => {
     expect(pairs).toEqual(await nxProjectPairs());
   });
 
-  it('pins every moved WBS root and qualified Nx identity in the destination map', async () => {
+  it('pins every product root and qualified Nx identity in the destination map', async () => {
     const projects = await readProjects(WORKSPACE);
-    const wbsProjects = projects
+    const productProjects = projects
       .filter(({ root }) => root.startsWith('apps/') || root.startsWith('libs/'))
       .map(({ root, name }) => [root, name] as const);
 
     // Proof: before the coordinated move this owning Nx target returned all 18
     // unqualified roots and names against this exact destination oracle.
-    expect(wbsProjects).toEqual([...EXPECTED_WBS_PROJECTS]);
+    expect(productProjects).toEqual([...EXPECTED_PRODUCT_PROJECTS]);
   });
 
-  it('activates the WBS product axis on every pre-move app and library', async () => {
+  it('activates the product axis of its own directory on every app and library', async () => {
     const projects = await readProjects(WORKSPACE);
     const products = projects
       .filter(({ root }) => root.startsWith('apps/') || root.startsWith('libs/'))
@@ -151,7 +155,11 @@ describe('readProjects', () => {
 
     // Proof: removing product:wbs from libs/wbs/domain/contracts made the owning Nx target
     // report its exact root with an empty product-tag collection (2026-09-14).
-    expect(products).toEqual(EXPECTED_WBS_PROJECTS.map(([root]) => [root, ['product:wbs']]));
+    // Proof: removing product:shared from libs/shared/domain/validation made it
+    // report that root with an empty product-tag collection (2026-09-15).
+    expect(products).toEqual(
+      EXPECTED_PRODUCT_PROJECTS.map(([root]) => [root, [`product:${root.split('/')[1]}`]]),
+    );
   });
 
   it('discovers projects below another project and ignores only named generated trees', async () => {

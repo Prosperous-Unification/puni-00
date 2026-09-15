@@ -34,6 +34,7 @@ const CURRENT_MARKDOWN = [
 ] as const;
 
 const EXPECTED_ALIASES = [
+  '@shared/validation',
   '@wbs/auth',
   '@wbs/be-01',
   '@wbs/config',
@@ -92,6 +93,7 @@ const EXPECTED_PROJECTS = [
   ['apps/wbs/fe-01', 'wbs-fe-01'],
   ['apps/wbs/gw-01', 'wbs-gw-01'],
   ['apps/wbs/mcp-01', 'wbs-mcp-01'],
+  ['libs/shared/domain/validation', 'shared-validation'],
   ['libs/wbs/adapters/auth', 'wbs-auth'],
   ['libs/wbs/adapters/config', 'wbs-config'],
   ['libs/wbs/adapters/observability', 'wbs-observability'],
@@ -599,7 +601,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'test fixture or proof': 98,
     },
     coverage: {
-      applicationLibraryToolReadmes: 16,
+      applicationLibraryToolReadmes: 17,
       dockerfiles: [
         'apps/wbs/be-01/Dockerfile',
         'apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile',
@@ -611,7 +613,11 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       policyJson: true,
       python: true,
     },
-    digest: 'c3d5e0c4bb0845cfbdda63bb64686893cc181af36a14894899a5e2f73a56d588',
+    // Proof: leaving the pre-extraction digest here failed this test with the
+    // observed `1f86dba5...` against the same occurrence count, because every
+    // context carries its line number and the extraction shifted the recursive
+    // selectors in workspace-inventory.test.ts down (2026-09-15).
+    digest: '1f86dba5e8e302c747b7063c06fa22289e8cf6e84e0af0667be794b328632d6b',
     occurrences: 262,
     unclassified: [],
   });

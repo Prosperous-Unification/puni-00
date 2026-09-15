@@ -92,6 +92,7 @@
       "@wbs/tool-compose": ["./tools/tool-compose/src/index.ts"],
       "@wbs/tool-test-scratch": ["./tools/test/scratch/index.ts"],
       "@wbs/tool-env": ["./tools/tool-remote-scripts/src/lib/env.ts"],
+      "@shared/validation": ["./libs/shared/domain/validation/src/index.ts"],
       "@wbs/validation": ["./libs/wbs/domain/validation/src/index.ts"],
       "@wbs/validation/fixtures": ["./libs/wbs/domain/validation/src/fixtures/index.ts"]
     }
