@@ -247,6 +247,10 @@
           {
             "kind": "name",
             "value": ".prettierignore"
+          },
+          {
+            "kind": "path",
+            "value": ".agents/skills/.openspec-target"
           }
         ],
         "exclude": [
