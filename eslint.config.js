@@ -60,41 +60,40 @@ const productPolicies = await readProductPolicies(import.meta.dirname, {
   testSourceFiles,
 });
 
-const nxRules = {
-  '@nx/enforce-module-boundaries': [
-    'error',
+const nxBoundaryOptions = {
+  enforceBuildableLibDependency: true,
+  allow: [],
+  // Core's tests execute its ports over the memory adapter. Nx builds one
+  // project graph across production and tests, so that permitted test edge
+  // otherwise makes the adapter's required production edge back to core
+  // look circular. Production core imports remain blocked by the ring rule.
+  ignoredCircularDependencies: [['wbs-core', 'wbs-store-memory']],
+  depConstraints: [
+    // The rings, and the direction the whole ports-and-adapters split is
+    // for: a domain lib may reach nothing but another domain lib, an
+    // application lib may reach the domain and its peers, and an adapter
+    // may reach anything because reaching for the world is what an adapter
+    // is. `@nx/enforce-module-boundaries` matches on tags, so a project
+    // carrying no `ring:` is not constrained by any of these — which is why
+    // `workspace-targets.test.ts` fails on one.
+    { sourceTag: 'ring:domain', onlyDependOnLibsWithTags: ['ring:domain'] },
     {
-      enforceBuildableLibDependency: true,
-      allow: [],
-      // Core's tests execute its ports over the memory adapter. Nx builds one
-      // project graph across production and tests, so that permitted test edge
-      // otherwise makes the adapter's required production edge back to core
-      // look circular. Production core imports remain blocked by the ring rule.
-      ignoredCircularDependencies: [['wbs-core', 'wbs-store-memory']],
-      depConstraints: [
-        // The rings, and the direction the whole ports-and-adapters split is
-        // for: a domain lib may reach nothing but another domain lib, an
-        // application lib may reach the domain and its peers, and an adapter
-        // may reach anything because reaching for the world is what an adapter
-        // is. `@nx/enforce-module-boundaries` matches on tags, so a project
-        // carrying no `ring:` is not constrained by any of these — which is why
-        // `workspace-targets.test.ts` fails on one.
-        { sourceTag: 'ring:domain', onlyDependOnLibsWithTags: ['ring:domain'] },
-        {
-          sourceTag: 'ring:application',
-          onlyDependOnLibsWithTags: ['ring:domain', 'ring:application'],
-        },
-        {
-          sourceTag: 'ring:adapter',
-          onlyDependOnLibsWithTags: ['ring:domain', 'ring:application', 'ring:adapter'],
-        },
-        browserAdapterConstraint,
-        ...productRules,
-        ...scopeConstraints,
-        ...runtimeConstraints,
-      ],
+      sourceTag: 'ring:application',
+      onlyDependOnLibsWithTags: ['ring:domain', 'ring:application'],
     },
+    {
+      sourceTag: 'ring:adapter',
+      onlyDependOnLibsWithTags: ['ring:domain', 'ring:application', 'ring:adapter'],
+    },
+    browserAdapterConstraint,
+    ...productRules,
+    ...scopeConstraints,
+    ...runtimeConstraints,
   ],
+};
+
+const nxRules = {
+  '@nx/enforce-module-boundaries': ['error', nxBoundaryOptions],
 };
 
 export default [
@@ -260,6 +259,29 @@ export default [
             ...scopeConstraints,
             ...runtimeConstraints,
           ],
+        },
+      ],
+    },
+  },
+
+  // `tool-remote-scripts`' supervisor host tooling and `tools/dev`'s corpus writers are WBS
+  // code misfiled as infra; relocating them under `apps/wbs` is queued in
+  // `docs/superpowers/plans/2026-09-15-agentic-scalability-plan.md` (Task 1.8). Until then the
+  // exception is scoped to `tools/**` rather than named at either `allow: []` above, because
+  // `allow` is matched on the import specifier alone: a repository-wide entry would also let
+  // `libs/wbs/domain` production reach the supervisor protocol, which `eslint-boundaries.test.ts`
+  // proves must stay refused. Flat config replaces a rule's options per file rather than merging
+  // them, so this block carries the whole option set and has to follow both generic blocks
+  // above. `eslint-boundaries.test.ts` pins the list and fails once an entry stops being
+  // imported.
+  {
+    files: ['tools/**/*.{ts,tsx,mts,cts}'],
+    rules: {
+      '@nx/enforce-module-boundaries': [
+        'error',
+        {
+          ...nxBoundaryOptions,
+          allow: ['@wbs/contracts/solver/supervisor-protocol', '@wbs/domain'],
         },
       ],
     },

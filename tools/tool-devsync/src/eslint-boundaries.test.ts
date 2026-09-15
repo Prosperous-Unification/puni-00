@@ -1,4 +1,4 @@
-import { chmod, rm, writeFile } from 'node:fs/promises';
+import { chmod, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -10,6 +10,16 @@ import { createPolicyWorkspace, runLint } from './testing/lint-workspace';
 const workspace = fileURLToPath(new URL('../../..', import.meta.url));
 const lint = new ESLint({ cwd: workspace });
 
+/**
+ * The only import specifiers the root config's `allow` list may name, sorted. They are WBS host
+ * tooling misfiled under `tools/`, and the exception dies with the relocation that moves them:
+ * the case below fails once an entry stops being imported.
+ */
+const PENDING_INFRA_TO_PRODUCT_ALIASES = [
+  '@wbs/contracts/solver/supervisor-protocol',
+  '@wbs/domain',
+] as const;
+
 async function ruleIds(path: string, source: string): Promise<readonly (string | null)[]> {
   const [report] = await lint.lintText(source, { filePath: path });
   return report.messages.map((message) => message.ruleId);
@@ -17,6 +27,18 @@ async function ruleIds(path: string, source: string): Promise<readonly (string |
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Whether `source` ends an import statement on `alias`. Matched on a whole line rather than
+ * anywhere in the file, and never on a comment line, so that prose naming an alias — the Proof
+ * below included — cannot keep a dead `allow` entry alive. The last line is what is tested
+ * because the repository's imports of these aliases are multi-line.
+ */
+function importsAlias(source: string, alias: string): boolean {
+  return source
+    .split('\n')
+    .some((line) => !/^\s*(?:\/\/|\*|\/\*)/.test(line) && line.endsWith(`from '${alias}';`));
 }
 
 function boundaryOf(config: unknown): readonly unknown[] {
@@ -221,6 +243,45 @@ describe('the effective production and test boundaries', () => {
       ]);
     }
   });
+
+  it('names exactly the two pending infra-to-product exceptions and each is still used', async () => {
+    // Production and test alike: the generic test override carries its own `allow: []`, so the
+    // tools block only reaches the supervisor tests while it follows that override.
+    for (const path of [
+      'tools/tool-remote-scripts/src/lib/docker.ts',
+      'tools/tool-remote-scripts/src/lib/solver-supervisor-channel.test.ts',
+    ]) {
+      const config: unknown = await lint.calculateConfigForFile(join(workspace, path));
+      const options = boundaryOf(config)[1];
+      if (!isRecord(options) || !Array.isArray(options['allow'])) {
+        throw new Error(`ESLint returned malformed boundary options for ${path}`);
+      }
+      const named = options['allow'].filter(
+        (entry: unknown): entry is string => typeof entry === 'string',
+      );
+      // Proof: with the tools block's `allow` emptied, this case failed on
+      // `Expected - 4 · Received + 1` — the two aliases against `[]`. Moving the block above the
+      // generic test override left the `.test.ts` path with `[]` for the same failure
+      // (2026-09-15).
+      expect([...named].sort(), path).toEqual([...PENDING_INFRA_TO_PRODUCT_ALIASES]);
+    }
+
+    const tools = join(workspace, 'tools');
+    const sources = await Promise.all(
+      (await readdir(tools, { recursive: true, withFileTypes: true }))
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
+        .map((entry) => readFile(join(entry.parentPath, entry.name), 'utf8')),
+    );
+    for (const alias of PENDING_INFRA_TO_PRODUCT_ALIASES) {
+      // Proof: an allow entry nobody imports is dead policy. Repointing the two tools/dev
+      // corpus writers at a nonexistent alias failed this case by name —
+      // `error: @wbs/domain · Expected: true · Received: false` (2026-09-15).
+      expect(
+        sources.some((source) => importsAlias(source, alias)),
+        alias,
+      ).toBe(true);
+    }
+  }, 30_000);
 });
 
 describe('product lint policy discovery', () => {
