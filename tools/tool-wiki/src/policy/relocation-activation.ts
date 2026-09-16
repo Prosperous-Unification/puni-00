@@ -15,8 +15,13 @@ const GitIdentity = type(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/);
 
 /**
  * Every way this command refuses to prepare a relocation activation, in the order the
- * preparation reaches them. `R21` extends the design's list: the base authority must already
- * stratify every review the candidate policy names, because the stratum is copied, never invented.
+ * preparation reaches them. Three codes cover more ground than the design named for them:
+ * `R3` is a candidate that is not the committed tree the receipts will claim, so it refuses a
+ * dirty checkout and equally a `--work` or `--destination` inside the candidate repository;
+ * `R16` is a check that did not fully measure the candidate, so it refuses a non-zero exit and
+ * equally a receipt carrying skips, which `validateEvidence` would reject later and dearer;
+ * `R21` requires the base authority to already stratify every review the candidate policy names,
+ * because the risk stratum is copied, never invented.
  */
 export type RelocationRefusalCode =
   | 'R1'

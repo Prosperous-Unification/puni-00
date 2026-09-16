@@ -45,7 +45,8 @@ line citations: `.superpowers/sdd/2026-09-15-agentic-scalability-plan/w5-design.
 - **Checks are run, not copied.** Commands come from the `nx-target` facts named by the pinned
   policy's `relationshipRequest.declarationPaths` at the SHA (`bunx nx run <project>:<target>
 --skip-nx-cache`, the live commands); the receipt records exit code, timestamps, stdout/stderr
-  digests and `candidateManifest`; a failing check refuses (R16). Labels (`resourceLane`,
+  digests and `candidateManifest`; a check that exits non-zero or reports a skip refuses (R16),
+  since a receipt carrying skips could never discharge its obligation. Labels (`resourceLane`,
   `cwdIdentity`, `toolIdentity`) are attestation and are printed as such.
 - **`reviewed` is the tree at `pilot.sourceRevision`.** Every baseline tuple lives there
   (verified at 364cc0f8, not at d3342da5) and `reviewedBinds` looks them up by old path
@@ -70,6 +71,10 @@ line citations: `.superpowers/sdd/2026-09-15-agentic-scalability-plan/w5-design.
   `planRelocationChecks`, `planRelocationActivation`), `prepare-relocation-activation-cli.ts`
   (git, spawn, fs, tar, the launcher self-check), `relocation-activation.test.ts`. Not a `cli.ts`
   subcommand: `cli.ts` + `trust.ts` are the validator closure (`cli.ts:348-353`).
+- **The candidate is measured, never written to.** `R3` refuses a dirty checkout and equally a
+  `--work` or `--destination` inside the candidate repository: this command's own writes would
+  otherwise make every receipt describe a tree that is no longer the committed one. The whole
+  code table lives on `RelocationRefusalCode` in `relocation-activation.ts`.
 - **Archive root** is assembled by the shell: `prepareActivation` + `selectActivation`, then
   `bootstrap-launcher.sh` (0555), `launcher-path`, `active-v1`, `trusted-node-modules/` copied
   from the candidate's lockfile-pinned `node_modules` (`typescript` and its dependencies,

@@ -76,6 +76,61 @@ external prerequisite; candidate YAML cannot activate it.
 Required admission must refuse an inactive, observe-only, absent, unreadable, malformed, or
 wrong-scope activation. Diagnostic local rollout may still report inactive without certification.
 
+## Relocation
+
+A candidate that moves files under a trusted boundary is refused with `trusted boundary selector
+selects no candidate input`, because the activation's policy still selects the old path. The policy
+models a move: `selector` names the new path and `sourceSelector` the old one, and the baselines stay
+at the old paths. Landing a move takes two steps: activate from the candidate head, then merge.
+
+1. The candidate ships, at its head SHA: `selector` new and `sourceSelector` old for every moved
+   boundary in `docs/wiki-policy/bootstrap-policy.json` (nothing else in the policy changes except
+   `relationshipRequest`); `docs/wiki-policy/modules.bootstrap.json` with the new prefixes, index
+   paths and `externalConsumers`, `predecessorModuleIds` for any renamed module id, and a bumped
+   `mappingVersion`; `docs/wiki-policy/relationships.bootstrap.json` facts pointing at the renamed
+   Nx projects. Keep `pilot.sourceRevision` and the mapping `sourceRevision` unchanged: the
+   baselines are reviewed tuples at that revision, and the command refuses a revision that lacks
+   them. The mapping file's own path is the one thing a relocation cannot move — the command reads
+   it from the base activation's CI binding (`pilotModuleMapping.candidatePath`), so moving
+   `modules.bootstrap.json` itself needs a hand-assembled activation instead.
+2. Run the trusted review harness for that exact SHA and keep its `AuditReview` record. The harness
+   is operator-run and lives outside this repository; the command never writes a review record and
+   refuses one that does not bind the candidate (`candidateIdentity`, `sourceBase`, the reviewed
+   subject, generation and both completed phases). Any commit after the review invalidates it.
+   Then, from a clean checkout at that SHA with its lockfile-pinned modules installed:
+
+   ```sh
+   bun tools/tool-wiki/src/policy/prepare-relocation-activation-cli.ts \
+     --candidate-repository <clean checkout whose HEAD is the SHA> \
+     --candidate-sha <40-hex candidate SHA> \
+     --base-activation <extracted current release>/activation-<base sha> \
+     --review-record <AuditReview record for that SHA>.json \
+     --destination <new archive root, outside the candidate> \
+     --work <retention directory, outside the candidate> \
+     --resource-lane <lane the checks ran in> \
+     --cwd-identity <identity of that working directory>
+   ```
+
+   Every flag above is required. `--resource-lane` and `--cwd-identity` have no default on purpose:
+   they are the operator attestation the check receipts carry, and a tool that invented them would
+   attest on the operator's behalf. `--candidate-policy`, `--candidate-launcher` and
+   `--validator-entry` default to this repository's layout. The command runs the three bootstrap
+   checks, regenerates policy, mapping, launcher, snapshotter, validator, evidence, authority,
+   receipt and both bindings, assembles the archive root, proves the archive certifies its own
+   candidate by running the produced launcher to `certified: true`, and prints the release and
+   variable commands.
+
+3. Publish the tar as release `tool-wiki-activation-<sha8>` and set `TOOL_WIKI_ACTIVATION_VERSION`,
+   `TOOL_WIKI_ACTIVATION_ARCHIVE_URL` and `TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256` together.
+4. Re-run `trusted-wiki` on the candidate. It is green for that head and for no other commit: one
+   authority certifies one commit, so the push audit of the merge commit and every later candidate
+   stay red until each gets its own activation.
+5. Merge with a merge commit, never a squash. The activation version is then an ancestor of `main`
+   and nothing else changes; a squash leaves it reachable only through `refs/pull/N/head`.
+
+The three variables hold one SHA, so two concurrent move candidates serialize: the second is
+prepared only after the first has merged, from a head that contains it.
+
 ## Final binding and recovery
 
 After the exact commit is published and its immutable publication marker exists, emit the canonical
