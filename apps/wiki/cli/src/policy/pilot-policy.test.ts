@@ -1014,10 +1014,17 @@ describe('on-disk bootstrap policy, mapping and relationship files', () => {
     };
     const targets = declarations.facts.filter(({ kind }) => kind === 'nx-target');
     expect(targets.length).toBeGreaterThan(0);
+    const workspace = mkdtempSync(join(tmpdir(), 'tool-wiki-bootstrap-head-'));
+    scratch.push(workspace);
+    const clone = run(['git', 'clone', '--quiet', '--no-hardlinks', repositoryRoot, workspace]);
+    expect(clone.exitCode, output(clone)).toBe(0);
+    // Proof: tool-git-hooks:typecheck emitted dist/out-tsc/tools/tool-git-hooks/project.json;
+    // extracting the live checkout then failed with `duplicate tool-git-hooks`. A clean HEAD
+    // checkout excludes generated files without weakening the extractor's duplicate refusal.
     const projects = new Set(
-      extractNxRelationships(repositoryRoot).relationships.projects.map(({ name }) => name),
+      extractNxRelationships(workspace).relationships.projects.map(({ name }) => name),
     );
-    const headPaths = entriesAt(repositoryRoot, 'HEAD').map(({ path }) => path);
+    const headPaths = entriesAt(workspace, 'HEAD').map(({ path }) => path);
 
     // Proof: pointing `check.core.test` at project `core` — the pre-move name — made this
     // assertion observe `["check.core.test -> core"]` against `[]` (2026-09-16).
