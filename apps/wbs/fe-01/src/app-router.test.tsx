@@ -150,7 +150,7 @@ describe('the signed-in region, routed', () => {
       expect(directoryBar.textContent).toContain('account menu');
       expect(screen.getByRole('navigation', { name: 'Pages' })).toBeDefined();
       expect(screen.queryByRole('combobox', { name: 'Project' })).toBeNull();
-      expect(screen.queryByRole('button', { name: 'Rename' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Rename project' })).toBeNull();
     },
   );
 

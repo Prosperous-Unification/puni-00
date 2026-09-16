@@ -95,7 +95,7 @@ async function openChromeControl(page: Page): Promise<void> {
   // without it this waited sixty seconds for a `Rename` a create had just
   // taken off the bar.
   await createProject(page);
-  await page.getByRole('button', { name: 'Rename' }).click();
+  await page.getByRole('button', { name: 'Rename project' }).click();
   await expect(page.getByLabel('Project name')).toBeVisible();
 }
 
