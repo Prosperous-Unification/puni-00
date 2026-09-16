@@ -841,6 +841,48 @@ run_suite() {
   expect_status 0 "$status" "25a: a holder file that vanishes mid-read does not kill the report"
   expect_line 'heavy lock: holder claiming' "$queue_report" \
     "25b: it reports a lock whose holder file has gone as one being claimed"
+  # The other end of that race: the holder does not merely rewrite its files, it
+  # takes the whole lock directory with it on release. A report reading through
+  # that has no holder to name, and `none` is the truth rather than `claiming`.
+  local vanishing_lock_bin
+  vanishing_lock_bin="${TMPDIR:-/tmp}/wbs-heavy-lock-vanishing-dir.$$.$(basename "$sh")"
+  rm -rf "$vanishing_lock_bin"
+  mkdir -p "$vanishing_lock_bin"
+  for racing_tool in bash mkdir dirname rm mv sleep date sed; do
+    racing_tool_path=$(type -P "$racing_tool")
+    if [[ -z $racing_tool_path ]]; then
+      fail "25: this image has no $racing_tool"
+    else
+      ln -s "$racing_tool_path" "$vanishing_lock_bin/$racing_tool"
+    fi
+  done
+  # shellcheck disable=SC2016 # Single quotes are the point: `$arg` and `$@`
+  # belong to the generated shim, not to this process.
+  printf '#!/bin/sh\nfor arg do\n  case "$arg" in\n    *.d/holder) rm -rf "${arg%%/holder}" ;;\n  esac\ndone\nexec %s "$@"\n' \
+    "$real_cat" >"$vanishing_lock_bin/cat"
+  chmod 755 "$vanishing_lock_bin/cat"
+  mkdir -p "$lock.d"
+  printf 'held\n' >"$lock.d/label"
+  printf '%s\n' "$$" >"$lock.d/holder"
+  status=0
+  queue_report=$(PATH="$vanishing_lock_bin" run_status "$sh" "$lock" 2>"$stderr_log") || status=$?
+  expect_status 0 "$status" "25c: a lock released mid-report does not kill the report"
+  expect_line 'heavy lock: holder none' "$queue_report" \
+    "25d: a lock whose directory has gone is reported as free, not as being claimed"
+  rm -rf "$vanishing_lock_bin"
+
+  # And the instant `claim_heavy_lock` answers with 75 in case 24c, seen from the
+  # report's side: the holder file exists but has not been written yet.
+  rm -rf "$lock.d"
+  mkdir -p "$lock.d"
+  printf 'held\n' >"$lock.d/label"
+  printf '' >"$lock.d/holder"
+  status=0
+  queue_report=$(run_status "$sh" "$lock" 2>"$stderr_log") || status=$?
+  expect_status 0 "$status" "25e: an empty holder file does not fail the report"
+  expect_line 'heavy lock: holder claiming' "$queue_report" \
+    "25f: an empty holder file is reported as a claim in progress, not as a holder with no pid"
+
   rm -rf "$racing_bin" "$lock.d"
 
   # Case 26 — `HEAVY_LOCK_POLL_SECONDS` is validated at the boundary, because the
@@ -861,6 +903,26 @@ run_suite() {
   status=0
   HEAVY_LOCK_POLL_SECONDS=30 run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
   expect_status 0 "$status" "26d: the longest safe poll interval is still allowed"
+  # Bash arithmetic reads a leading zero as octal, so a bound written `((x > 30))`
+  # lets `031` through as 25 and then hands `sleep` the string `031`, which is 31
+  # seconds — the bound defeated by the notation. `08` is worse: it is not a legal
+  # octal number at all, so the comparison errors out and the guard passes.
+  status=0
+  HEAVY_LOCK_POLL_SECONDS=031 run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 64 "$status" "26e: a poll interval written with a leading zero is refused"
+  status=0
+  HEAVY_LOCK_POLL_SECONDS=08 run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 64 "$status" "26f: a poll interval that is not a legal octal number is still refused"
+  if grep -q 'HEAVY_LOCK_POLL_SECONDS' "$stderr_log"; then
+    pass "26g: the leading-zero refusal names the variable too"
+  else
+    fail "26g: the leading-zero refusal did not name the variable: $(cat "$stderr_log")"
+  fi
+  # A zero poll is not a fast queue, it is a busy spin on the lock directory for
+  # the whole wait budget — half an hour of `mkdir` for a gate.
+  status=0
+  HEAVY_LOCK_POLL_SECONDS=0 run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 64 "$status" "26h: a zero poll interval is refused"
 
   # Case 15 — the other half of `prepare_ticket_queue`: a queue path that is not a
   # directory. 15b is the assertion with teeth. Removing the refusal does not let

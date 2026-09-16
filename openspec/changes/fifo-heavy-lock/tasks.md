@@ -90,15 +90,23 @@ denied` and exit 1 (18e, 18f).
 - [x] 5.1 `report_heavy_lock_status` reads holder and label before deciding anything about them —
       test: case 25, the case-24 `cat` shim against `status`; negative: testing before reading
       kills the report outright (`25a … want exit 0, got 1`, `cat: …/holder: No such file`).
-- [x] 5.2 Validate `HEAVY_LOCK_POLL_SECONDS` at the boundary — a whole number no greater than 30,
-      because a ticket is reclaimed 60s past its deadline and that is only safe while the owner's
-      last claim lands within one poll — test: case 26; negative: with the check absent both `abc`
-      and `300` are accepted in silence (`26a`, `26c … want exit 64, got 0`).
+- [x] 5.2 Validate `HEAVY_LOCK_POLL_SECONDS` at the boundary — 1 to 30 whole seconds, read as
+      decimal and written without a leading zero, because a ticket is reclaimed 60s past its
+      deadline and that is only safe while the owner's last claim lands within one poll, and
+      because a zero interval spins on the lock directory for the whole budget — test: case 26;
+      negatives: with the check absent `abc` and `300` are accepted in silence (`26a`, `26c`), and
+      with the bound written without `10#`, `031` passes as octal 25 and then sleeps 31 while `08`
+      errors the comparison into a pass (`26e`, `26f`); `0` passed until this refused it (`26h`).
 - [x] 5.3 Sync the artifacts and the docs to what shipped: `tasks.md` and `verify.md` cover every
       case, `CONTEXT.md`'s **Ticket** carries its deadline, the suite header's proof list reaches
       case 26, the delta spec gains scenarios for the draft sweep, the named refusal and the
       vanishing read, item 12 of the agent-loop audit points at this change, and the four
       pre-existing lock shapes the review found are queued in `docs/refactoring/tasks.md`.
+- [x] 5.4 Report the two states a `status` racing a release can find: a lock whose directory has
+      gone is `holder none`, and a holder file that is present but empty is `holder claiming` — the
+      instant `claim_heavy_lock` already answers with 75 — test: cases 25c-25f; negatives: with the
+      released-lock branch removed the report says `holder claiming` about a lock nobody holds, and
+      without the empty-file half it says `holder pid  label held`.
 
 ## 6. Verification
 

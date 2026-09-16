@@ -433,10 +433,26 @@ report_heavy_lock_status() {
       return 70
     fi
     if [[ $holder_status -ne 0 || $label_status -ne 0 ]] && [[ ! -d $lock_dir ]]; then
-      # The holder released while this was reading it. There is no holder now,
-      # and saying so is the whole truth available.
+      # The holder released while this was reading it — the whole lock directory
+      # is gone, not just the file. There is no holder now, and saying so is the
+      # whole truth available.
+      #
+      # Proof (observed 2026-09-16): with this branch removed, a `cat` shim that
+      # removes the lock directory it is asked to read from left the report
+      # saying `heavy lock: holder claiming` about a lock nobody holds and nobody
+      # is claiming — `25d: a lock whose directory has gone is reported as free,
+      # not as being claimed` (bin/heavy-lock.test.sh, case 25c-25d).
       printf 'heavy lock: holder none\n'
-    elif [[ $holder_status -ne 0 ]]; then
+    elif [[ $holder_status -ne 0 || -z $holder_pid ]]; then
+      # Either the file is not there yet or it is there and still empty. Both are
+      # the same instant, and it is the one {@link claim_heavy_lock} answers with
+      # 75 rather than calling the lock corrupt — this now matches it on both
+      # halves rather than only on the missing file.
+      #
+      # Proof (observed 2026-09-16): without the `-z` half, a present but empty
+      # holder file was reported as `heavy lock: holder pid  label held` — a
+      # holder with no pid, from the report, at an instant the claim path already
+      # models (bin/heavy-lock.test.sh, case 25f).
       printf 'heavy lock: holder claiming\n'
     else
       if [[ $label_status -ne 0 ]]; then
@@ -705,14 +721,27 @@ with_heavy_lock() {
   # considers its ticket expired, and two runs would each believe they were next.
   # 30 is that grace halved.
   #
-  # Proof (observed 2026-09-16): with this check absent, `HEAVY_LOCK_POLL_SECONDS`
-  # of `abc` and of `300` were both accepted in silence — `26a … want exit 64,
-  # got 0` and `26c … want exit 64, got 0` — the first surviving only until the
-  # run actually had to wait, where `sleep abc` ends it with an unnamed 1
-  # (bin/heavy-lock.test.sh, case 26).
+  # `10#` on the comparison, and it is the whole guard rather than a nicety: bash
+  # arithmetic reads a leading zero as OCTAL, so a plain `((poll_seconds > 30))`
+  # lets `031` past as 25 and then hands `sleep` the string `031`, which every
+  # `sleep` reads as 31 — the bound defeated by notation. `08` is worse: it is not
+  # a legal octal number, the comparison errors out, and an errored comparison is
+  # a false one, so the guard passes.
+  #
+  # Zero is refused as well, and not for tidiness: a zero interval turns the wait
+  # loop into a busy spin on the lock directory for the whole budget — half an
+  # hour of `mkdir` and `date` per gate on a host that is already contended.
+  #
+  # Proof (observed 2026-09-16): with the check absent, `abc` and `300` were both
+  # accepted in silence — `26a`/`26c … want exit 64, got 0`, the first surviving
+  # only until the run had to wait, where `sleep abc` ends it with an unnamed 1.
+  # With the check present but without `10#`, `031` and `08` were watched passing
+  # too — `26e`/`26f … want exit 64, got 0`, the latter printing
+  # `((: 08: value too great for base` on its way through — and `0` was accepted
+  # before this refused it (`26h`) (bin/heavy-lock.test.sh, case 26).
   local poll_seconds=${HEAVY_LOCK_POLL_SECONDS:-5}
-  if [[ ! $poll_seconds =~ ^[0-9]+$ ]] || ((poll_seconds > 30)); then
-    printf 'heavy lock: HEAVY_LOCK_POLL_SECONDS is %q; it must be a whole number of seconds no greater than 30, because a queued ticket is reclaimed 60s past its deadline\n' \
+  if [[ ! $poll_seconds =~ ^[1-9][0-9]*$ ]] || ((10#$poll_seconds > 30)); then
+    printf 'heavy lock: HEAVY_LOCK_POLL_SECONDS is %q; it must be a whole number of seconds from 1 to 30, written without a leading zero, because a queued ticket is reclaimed 60s past its deadline and a zero interval spins\n' \
       "$poll_seconds" >&2
     return 64
   fi
