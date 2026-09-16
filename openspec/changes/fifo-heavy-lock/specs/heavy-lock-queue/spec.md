@@ -42,6 +42,12 @@ when it is refused, and when it exits, is interrupted or is terminated.
 - **THEN** it leaves no ticket in the queue, so nothing queues behind a run that is no longer
   waiting
 
+#### Scenario: A run is killed while writing its ticket
+
+- **WHEN** a half-written ticket is left behind by a run that no longer exists
+- **THEN** the next run removes it, naming it, rather than leaving a file no queue reader will
+  ever look at again
+
 ### Requirement: The queue reports who holds the lock and who waits
 
 `bin/with-heavy-lock.sh status` SHALL print the holder's pid and lane label and then every queued
@@ -66,6 +72,8 @@ it gates.
 - **WHEN** a run is refused because a live ticket that arrived earlier is still queued
 - **THEN** the refusal names how many tickets were ahead and their lane labels, rather than
   reporting a holder the free lock does not have
+- **AND** a ticket ahead that cannot be named is reported as unknown, distinct from one that has
+  left the queue
 
 #### Scenario: The report races a claim it cannot be sure about
 
@@ -101,3 +109,9 @@ is complete.
 
 - **WHEN** a run enqueues while another reads the queue
 - **THEN** the reader sees the ticket either not at all or complete, never half-written
+
+#### Scenario: State a reader is holding disappears under it
+
+- **WHEN** a ticket, or the holder's own record, is removed between being listed and being read
+- **THEN** the reader treats it as gone and carries on, and reports exit 70 only for state that is
+  present and unreadable

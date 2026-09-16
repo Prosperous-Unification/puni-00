@@ -64,7 +64,43 @@ denied` and exit 1 (18e, 18f).
       the free lock does not have — test: case 20; negative: the unconditional holder line that
       shipped reports `is held by pid ?`.
 
-## 4. Verification
+## 4. Survive a queue that is moving
 
-- [ ] 4.1 Run the full gate on h2puni at the change head and record commands, results and the R5
+- [x] 4.1 Treat state that disappears mid-read as gone rather than as unknown: `read_ticket_label`
+      and `read_ticket_deadline` read first and classify after, returning 66 for a ticket that has
+      left the queue, and both call sites skip it — test: case 21, a `sed` shim that deletes the
+      ticket it is asked to read; negative: with the `-r` test in front, both the waiting run and
+      the report exit 70 (`21a`, `21b`).
+- [x] 4.2 The same shape for the holder file, which had the same window and was watched losing the
+      race in the suite with nothing injected — test: case 24, a `cat` shim that deletes the
+      holder file; negative: with the pre-fix order, a released lock is reported as corrupt
+      (`24a … want exit 0, got 70`) and an empty holder file is refused 70 rather than retried
+      (`24c`).
+- [x] 4.3 Sweep drafts left by runs killed mid-write, by the pid in their name — test: case 23;
+      negative: with the sweep absent the draft survives every run.
+- [x] 4.4 Isolate the release trap's steps and keep the run's exit status — test: case 22, whose
+      lock directory cannot be removed; negative: the unisolated list turns exit 42 into 1 and
+      skips the caller's chained EXIT trap.
+- [x] 4.5 Report a ticket ahead that cannot be named as `unknown` rather than `gone` — test: case
+      20d; negative: the single `gone` describes a ticket that is still in front as one that has
+      left.
+
+## 5. Read the status files first, and bound the poll
+
+- [x] 5.1 `report_heavy_lock_status` reads holder and label before deciding anything about them —
+      test: case 25, the case-24 `cat` shim against `status`; negative: testing before reading
+      kills the report outright (`25a … want exit 0, got 1`, `cat: …/holder: No such file`).
+- [x] 5.2 Validate `HEAVY_LOCK_POLL_SECONDS` at the boundary — a whole number no greater than 30,
+      because a ticket is reclaimed 60s past its deadline and that is only safe while the owner's
+      last claim lands within one poll — test: case 26; negative: with the check absent both `abc`
+      and `300` are accepted in silence (`26a`, `26c … want exit 64, got 0`).
+- [x] 5.3 Sync the artifacts and the docs to what shipped: `tasks.md` and `verify.md` cover every
+      case, `CONTEXT.md`'s **Ticket** carries its deadline, the suite header's proof list reaches
+      case 26, the delta spec gains scenarios for the draft sweep, the named refusal and the
+      vanishing read, item 12 of the agent-loop audit points at this change, and the four
+      pre-existing lock shapes the review found are queued in `docs/refactoring/tasks.md`.
+
+## 6. Verification
+
+- [ ] 6.1 Run the full gate on h2puni at the change head and record commands, results and the R5
       proof table in `verify.md`.

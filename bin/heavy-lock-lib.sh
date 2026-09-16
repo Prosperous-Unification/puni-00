@@ -298,7 +298,9 @@ remove_dead_tickets() {
     # A minute past its owner's own deadline. The grace is not politeness: the
     # owner may be inside the `sleep` of its final poll, and reclaiming a ticket
     # from a process that is about to claim with it is how two runs end up
-    # believing they are next. 60s is twelve default poll intervals.
+    # believing they are next. 60s is twelve default poll intervals, and
+    # {@link with_heavy_lock} refuses a `HEAVY_LOCK_POLL_SECONDS` above 30 so
+    # that this stays at least two polls wide.
     #
     # Proof (observed 2026-09-16): with this branch removed, a ticket from a LIVE
     # pid whose deadline had passed two minutes earlier kept the next run out —
@@ -397,30 +399,48 @@ report_heavy_lock_status() {
     # file grew a queue has no label file at all. Neither is unknown state; both
     # were being reported as `is unreadable`, exit 70, to a caller whose only
     # crime was running `status` at the wrong microsecond.
-    # Proof (observed 2026-09-16), both directions of the distinction:
-    #   - reading absent as unreadable, which is what shipped, was watched
-    #     refusing a lock directory whose holder had not been written yet and one
-    #     with no label file — `18a … want exit 0, got 70` and `18c … want exit
-    #     0, got 70`, a report unusable at exactly the moment it is interesting;
-    #   - replacing the two `-r` branches with `false` was watched turning the
-    #     refusal into `cat: …/holder: Permission denied` and exit 1, with no
-    #     report line at all — `18e … want exit 70, got 1`, `18f … want exit 70,
-    #     got 1` (bin/heavy-lock.test.sh, cases 18a-18f).
-    local holder_pid holder_label
-    if [[ ! -e $lock_dir/holder ]]; then
-      printf 'heavy lock: holder claiming\n'
-    elif [[ ! -r $lock_dir/holder ]]; then
+    # **Both files are read BEFORE anything is decided about them**, the way
+    # {@link claim_heavy_lock} and {@link read_ticket_label} read theirs. A
+    # holder that releases between a test and a `cat` takes both files with it,
+    # and testing first made the report die on the read — `cat: …/holder: No such
+    # file or directory`, exit 1 under `set -e`, from the one command whose whole
+    # job is to be safe to run at any moment.
+    #
+    # Absent is then still not unreadable, which is the other half: an absent
+    # holder is a claim in progress (or a release that just happened), an absent
+    # label is a holder that predates the queue, and either file present but
+    # unreadable is unknown state.
+    #
+    # Proof (observed 2026-09-16), three faults:
+    #   - reading absent as unreadable, which the first cut did, was watched
+    #     refusing a lock whose holder had not been written yet and one with no
+    #     label file — `18a … want exit 0, got 70`, `18c … want exit 0, got 70`;
+    #   - replacing the two unreadable branches with `false` was watched turning
+    #     the refusal into `cat: …/holder: Permission denied` and exit 1 with no
+    #     report at all — `18e`, `18f … want exit 70, got 1`;
+    #   - testing before reading was watched, against a `cat` shim that removes
+    #     the file it is asked to read, killing the report outright — `25a … want
+    #     exit 0, got 1` (bin/heavy-lock.test.sh, cases 18a-18f and 25).
+    local holder_pid='' holder_label='' holder_status=0 label_status=0
+    holder_pid=$(cat "$lock_dir/holder" 2>/dev/null) || holder_status=$?
+    holder_label=$(cat "$lock_dir/label" 2>/dev/null) || label_status=$?
+    if [[ $holder_status -ne 0 && -e $lock_dir/holder ]]; then
       printf 'heavy lock: %s is unreadable; refusing to report a holder it cannot name\n' "$lock_dir/holder" >&2
       return 70
+    fi
+    if [[ $label_status -ne 0 && -e $lock_dir/label ]]; then
+      printf 'heavy lock: %s is unreadable; refusing to report a holder it cannot name\n' "$lock_dir/label" >&2
+      return 70
+    fi
+    if [[ $holder_status -ne 0 || $label_status -ne 0 ]] && [[ ! -d $lock_dir ]]; then
+      # The holder released while this was reading it. There is no holder now,
+      # and saying so is the whole truth available.
+      printf 'heavy lock: holder none\n'
+    elif [[ $holder_status -ne 0 ]]; then
+      printf 'heavy lock: holder claiming\n'
     else
-      holder_pid=$(cat "$lock_dir/holder")
-      if [[ ! -e $lock_dir/label ]]; then
+      if [[ $label_status -ne 0 ]]; then
         holder_label='unlabeled (pre-queue holder)'
-      elif [[ ! -r $lock_dir/label ]]; then
-        printf 'heavy lock: %s is unreadable; refusing to report a holder it cannot name\n' "$lock_dir/label" >&2
-        return 70
-      else
-        holder_label=$(cat "$lock_dir/label")
       fi
       printf 'heavy lock: holder pid %s label %s\n' "$holder_pid" "$holder_label"
     fi
@@ -677,6 +697,26 @@ with_heavy_lock() {
   fi
   shift
 
+  # Validated here, at the boundary, and bounded by more than taste: a ticket is
+  # reclaimed 60 seconds past its owner's deadline
+  # ({@link remove_dead_tickets}), which is only safe while the owner's own last
+  # claim attempt lands within one poll of that deadline. A 300-second poll would
+  # put a live waiter's final attempt four minutes past the instant everyone else
+  # considers its ticket expired, and two runs would each believe they were next.
+  # 30 is that grace halved.
+  #
+  # Proof (observed 2026-09-16): with this check absent, `HEAVY_LOCK_POLL_SECONDS`
+  # of `abc` and of `300` were both accepted in silence — `26a … want exit 64,
+  # got 0` and `26c … want exit 64, got 0` — the first surviving only until the
+  # run actually had to wait, where `sleep abc` ends it with an unnamed 1
+  # (bin/heavy-lock.test.sh, case 26).
+  local poll_seconds=${HEAVY_LOCK_POLL_SECONDS:-5}
+  if [[ ! $poll_seconds =~ ^[0-9]+$ ]] || ((poll_seconds > 30)); then
+    printf 'heavy lock: HEAVY_LOCK_POLL_SECONDS is %q; it must be a whole number of seconds no greater than 30, because a queued ticket is reclaimed 60s past its deadline\n' \
+      "$poll_seconds" >&2
+    return 64
+  fi
+
   # Captured BEFORE this function installs any trap of its own, so that both of
   # its traps chain the CALLER's trap rather than each other.
   local caller_exit_trap
@@ -802,8 +842,9 @@ with_heavy_lock() {
     fi
     # `HEAVY_LOCK_POLL_SECONDS` exists so a test can make two waiters poll at
     # different rates and pin WHO gets the lock rather than who woke up first.
-    # Production leaves it at 5.
-    sleep "${HEAVY_LOCK_POLL_SECONDS:-5}"
+    # Production leaves it at 5; the value was validated and bounded at the top of
+    # this function, where the reason for the bound is written down.
+    sleep "$poll_seconds"
   done
 
   # Out of the queue the moment the lock is ours: the ticket's only job is to

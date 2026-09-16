@@ -3,10 +3,10 @@
 #
 # Every case here has been watched FAILING with its guard deliberately broken;
 # the injected fault and what it printed are recorded in the `Proof:` comment
-# beside the guard in `heavy-lock-lib.sh`. Cases 2, 5, 6 and 8-14 carry a proof —
-# the rest are contract checks. Case 8 is the odd one: its fault is not an
-# injected one but the code that shipped, which served whichever waiter polled
-# first.
+# beside the guard in `heavy-lock-lib.sh`. Cases 2, 5, 6 and 8-26 carry a proof —
+# the rest are contract checks. Several of those faults are not injected ones but
+# the code that shipped: case 8's lottery, case 17's pid-only liveness, case 21's
+# and 25's test-before-read, case 22's unisolated release trap.
 #
 # Runs the whole suite under bash 3.2 (macOS `/bin/bash`) as well as whatever
 # `bash` resolves to, because the first two bugs in this file were a trap that
@@ -165,6 +165,17 @@ run_suite() {
   local lock
   lock="${TMPDIR:-/tmp}/wbs-heavy-lock-test.$$.$(basename "$sh")"
   rm -rf "$lock"*
+
+  # A pid that is certainly dead, spawned and reaped here rather than written as
+  # a big constant. `999999` was the constant, and on these hosts
+  # `kernel.pid_max` is 4194304: the pids in this suite's own output are already
+  # past a million, so `999999` is a pid the kernel may well have handed to
+  # something. Every case that needs "the owner is gone" would then quietly
+  # become a case about a live process.
+  local dead_pid
+  "$sh" -c 'exit 0' &
+  dead_pid=$!
+  wait "$dead_pid"
   printf '\n== %s\n' "$("$sh" --version | head -1)"
 
   local status
@@ -229,7 +240,7 @@ run_suite() {
   expect_status 70 "$status" "6: a holder file that is not a pid throws"
   rm -rf "$lock.d"
 
-  mkdir -p "$lock.d" && printf '999999\n' >"$lock.d/holder"
+  mkdir -p "$lock.d" && printf '%s\n' "$dead_pid" >"$lock.d/holder"
   status=0
   run_locked "$sh" "$lock" true || status=$?
   expect_status 0 "$status" "7: a lock held by a dead pid is reclaimed"
@@ -273,11 +284,11 @@ run_suite() {
   # in a worse form. The stamp is 19 digits and older than any real one, so this
   # ticket is unambiguously ahead of the run below.
   local stderr_log="$lock.stderr"
-  local dead_ticket_name=1000000000000000000-999999
+  local dead_ticket_name="1000000000000000000-$dead_pid"
   mkdir -p "$lock.queue"
   # An hour of budget left, so what gets this ticket reclaimed is unambiguously
   # the dead pid rather than the expiry case 17 covers.
-  write_ticket_fixture "$lock.queue/$dead_ticket_name" 999999 dead "$(epoch_seconds_from_now 3600)"
+  write_ticket_fixture "$lock.queue/$dead_ticket_name" "$dead_pid" dead "$(epoch_seconds_from_now 3600)"
   status=0
   run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
   expect_status 0 "$status" "9a: a dead waiter's ticket does not hold the queue"
@@ -286,7 +297,7 @@ run_suite() {
   else
     pass "9b: the dead ticket was removed"
   fi
-  if grep -q "removing ticket $dead_ticket_name from dead pid 999999" "$stderr_log"; then
+  if grep -q "removing ticket $dead_ticket_name from dead pid $dead_pid" "$stderr_log"; then
     pass "9c: the removal named the ticket it removed"
   else
     fail "9c: the removal did not name the ticket: $(cat "$stderr_log")"
@@ -402,24 +413,24 @@ run_suite() {
   # or a blank label for a waiter it could not read, is the one answer worse than
   # an error.
   rm -rf "$lock.d"
-  mkdir -p "$lock.d" && printf '999999\n' >"$lock.d/holder" && printf 'held\n' >"$lock.d/label"
+  mkdir -p "$lock.d" && printf '%s\n' "$dead_pid" >"$lock.d/holder" && printf 'held\n' >"$lock.d/label"
   chmod 000 "$lock.d"
   status=0
   run_status "$sh" "$lock" >/dev/null 2>"$stderr_log" || status=$?
   expect_status 70 "$status" "13a: status throws on a lock directory it cannot read"
   chmod 700 "$lock.d" && rm -rf "$lock.d"
-  printf 'pid 999999\nstarted 2001-09-09T01:46:40Z\ndeadline 4102444800\ncommand sleep\n' \
+  printf 'pid %s\nstarted 2001-09-09T01:46:40Z\ndeadline 4102444800\ncommand sleep\n' "$dead_pid" \
     >"$lock.queue/$dead_ticket_name"
   status=0
   run_status "$sh" "$lock" >/dev/null 2>"$stderr_log" || status=$?
   expect_status 70 "$status" "13b: status throws on a ticket that records no lane label"
-  write_ticket_fixture "$lock.queue/$dead_ticket_name" 999999 dead 4102444800
+  write_ticket_fixture "$lock.queue/$dead_ticket_name" "$dead_pid" dead 4102444800
   chmod 000 "$lock.queue/$dead_ticket_name"
   status=0
   run_status "$sh" "$lock" >/dev/null 2>"$stderr_log" || status=$?
   expect_status 70 "$status" "13c: status throws on a ticket it cannot read"
   chmod 600 "$lock.queue/$dead_ticket_name" && rm -f "$lock.queue/$dead_ticket_name"
-  write_ticket_fixture "$lock.queue/$dead_ticket_name" 999999 dead 4102444800
+  write_ticket_fixture "$lock.queue/$dead_ticket_name" "$dead_pid" dead 4102444800
   chmod 000 "$lock.queue"
   status=0
   run_status "$sh" "$lock" >/dev/null 2>"$stderr_log" || status=$?
@@ -742,9 +753,9 @@ run_suite() {
   # is all the sweep needs.
   rm -rf "$lock.queue"
   mkdir -p "$lock.queue"
-  local stale_draft=".draft-1000000000000000000-999999"
+  local stale_draft=".draft-1000000000000000000-$dead_pid"
   local live_draft=".draft-1000000000000000000-$$"
-  printf 'pid 999999\n' >"$lock.queue/$stale_draft"
+  printf 'pid %s\n' "$dead_pid" >"$lock.queue/$stale_draft"
   printf 'pid %s\n' "$$" >"$lock.queue/$live_draft"
   status=0
   run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
@@ -754,7 +765,7 @@ run_suite() {
   else
     pass "23b: the draft from a dead pid was swept"
   fi
-  if grep -q "removing draft ticket $stale_draft from dead pid 999999" "$stderr_log"; then
+  if grep -q "removing draft ticket $stale_draft from dead pid $dead_pid" "$stderr_log"; then
     pass "23c: the sweep named the draft it removed"
   else
     fail "23c: the sweep did not name the draft: $(cat "$stderr_log")"
@@ -792,7 +803,7 @@ run_suite() {
   real_cat=$(type -P cat)
   # shellcheck disable=SC2016 # Single quotes are the point: `$arg` and `$@`
   # belong to the generated shim, not to this process.
-  printf '#!/bin/sh\nfor arg do\n  case "$arg" in\n    *.d/holder) rm -f "$arg" ;;\n  esac\ndone\nexec %s "$@"\n' \
+  printf '#!/bin/sh\nfor arg do\n  case "$arg" in\n    *.d/holder|*.d/label) rm -f "$arg" ;;\n  esac\ndone\nexec %s "$@"\n' \
     "$real_cat" >"$racing_bin/cat"
   chmod 755 "$racing_bin/cat"
   run_locked "$sh" "$lock" sleep 3 &
@@ -803,7 +814,6 @@ run_suite() {
     run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
   expect_status 0 "$status" "24a: a holder file that vanishes mid-read is retried, not called corrupt"
   wait "$holder_job"
-  rm -rf "$racing_bin"
   # The guards either side of that window, which the retry must not have eaten: a
   # holder file that is there and unreadable is still unknown state, and one that
   # is there and empty is a claim in progress rather than a corrupt lock.
@@ -818,6 +828,39 @@ run_suite() {
   run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
   expect_status 75 "$status" "24c: a holder file that is created but not yet written is a claim in progress"
   rm -rf "$lock.d"
+
+  # Case 25 — `status` reads those same two files, and had the same window. It
+  # tested and then `cat`ed, so a holder releasing in between killed the report
+  # itself: `cat: …/holder: No such file or directory` and exit 1 under `set -e`,
+  # from a command whose whole job is to be safe to run at any moment.
+  mkdir -p "$lock.d"
+  printf 'held\n' >"$lock.d/label"
+  printf '%s\n' "$$" >"$lock.d/holder"
+  status=0
+  queue_report=$(PATH="$racing_bin" run_status "$sh" "$lock" 2>"$stderr_log") || status=$?
+  expect_status 0 "$status" "25a: a holder file that vanishes mid-read does not kill the report"
+  expect_line 'heavy lock: holder claiming' "$queue_report" \
+    "25b: it reports a lock whose holder file has gone as one being claimed"
+  rm -rf "$racing_bin" "$lock.d"
+
+  # Case 26 — `HEAVY_LOCK_POLL_SECONDS` is validated at the boundary, because the
+  # expiry grace in `remove_dead_tickets` depends on it: a ticket is reclaimed 60s
+  # past its owner's deadline, which is only safe while the owner's last claim
+  # attempt lands within one poll of that deadline.
+  status=0
+  HEAVY_LOCK_POLL_SECONDS=abc run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 64 "$status" "26a: a poll interval that is not a number is refused"
+  if grep -q 'HEAVY_LOCK_POLL_SECONDS' "$stderr_log"; then
+    pass "26b: the refusal names the variable"
+  else
+    fail "26b: the refusal did not name the variable: $(cat "$stderr_log")"
+  fi
+  status=0
+  HEAVY_LOCK_POLL_SECONDS=300 run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 64 "$status" "26c: a poll interval longer than the expiry grace is refused"
+  status=0
+  HEAVY_LOCK_POLL_SECONDS=30 run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 0 "$status" "26d: the longest safe poll interval is still allowed"
 
   # Case 15 — the other half of `prepare_ticket_queue`: a queue path that is not a
   # directory. 15b is the assertion with teeth. Removing the refusal does not let

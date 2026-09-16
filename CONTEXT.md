@@ -1360,8 +1360,9 @@ _Avoid_: slot state, pending, provisional
 
 **Ticket**:
 One waiting run's place in the host-wide heavy lock's queue: a file under `<lock path>.queue`
-named `<nanoseconds>-<pid>` that holds the run's pid, lane label, command and start time. The
-oldest live one is served next.
+named `<nanoseconds>-<pid>` that holds the run's pid, lane label, start time, the deadline it
+stops waiting at, and its command. The oldest live one is served next; one whose pid is gone or
+whose deadline passed over a minute ago is removed by whoever sees it.
 _Avoid_: queue entry, slot, place in line
 
 **Lane label**:

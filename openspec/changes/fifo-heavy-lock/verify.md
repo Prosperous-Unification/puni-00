@@ -35,7 +35,7 @@
 
 | Task                        | Reason incomplete                                                   | Blocks archive? |
 | --------------------------- | ------------------------------------------------------------------- | --------------- |
-| 4.1 h2puni gate + this file | The gate runs on h2puni under the canonical lock; controller's step | Yes             |
+| 6.1 h2puni gate + this file | The gate runs on h2puni under the canonical lock; controller's step | Yes             |
 
 ---
 
@@ -53,29 +53,32 @@
 > path, and the same fault and output are recorded in the `Proof:` comment beside
 > the check. Faults were reverted from a byte copy and the suite re-run green.
 
-| Check (file:line)                                        | Fault injected                                         | Test that observed the failure | Result                                                                       |
-| -------------------------------------------------------- | ------------------------------------------------------ | ------------------------------ | ---------------------------------------------------------------------------- |
-| `heavy-lock-lib.sh` arrival-order branch                 | `if [[ $tickets_ahead -eq 0 ]]` → `if true`            | heavy-lock case 8              | `want 'a b ', got 'b a '`                                                    |
-| `remove_dead_tickets` dead-pid reclaim                   | reclaim body → `:`                                     | heavy-lock case 9              | `9a … want exit 0, got 75`; stderr `is held by pid ?`                        |
-| `remove_dead_tickets` budget expiry                      | branch absent (pre-fix code)                           | heavy-lock case 17a–c          | `17a … want exit 0, got 75`; ticket from a live pid kept the queue           |
-| `remove_dead_tickets` draft sweep                        | loop absent (pre-fix code)                             | heavy-lock case 23             | `23b: the draft from a dead pid was left behind for ever`                    |
-| `prepare_ticket_queue` readability                       | both conditions → `false`                              | heavy-lock cases 10a–10d       | claimed ahead of a live ticket, marker written, exit 0; mode-500 → exit 1    |
-| `prepare_ticket_queue` creation                          | first refusal → `false`                                | heavy-lock case 15b            | 10 checks failed, every diagnosis naming the wrong thing                     |
-| `read_ticket_pid` name check                             | condition → `false`                                    | heavy-lock case 12             | `removing ticket note from dead pid note`, file deleted, exit 0              |
-| `read_ticket_deadline` epoch check                       | missing deadline defaulted to `0`                      | heavy-lock cases 17d–17e       | `17d … want exit 70, got 0`; deleted a ticket it could not read              |
-| `read_ticket_label` / `read_ticket_deadline` vanish (66) | `-r` test in front of the read (pre-fix)               | heavy-lock case 21             | `21a … want exit 0, got 70`, `21b … want exit 0, got 70`                     |
-| `read_epoch_nanoseconds` 19-digit check                  | drop it; then drop the name check too                  | heavy-lock case 14             | wrong diagnosis; then `14b: it ran on a ticket it could not order`, exit 0   |
-| `report_heavy_lock_status` lock-dir read                 | condition → `false`                                    | heavy-lock case 13a            | `holder pid  label `, exit 0 for a mode-000 lock directory                   |
-| `report_heavy_lock_status` absent vs unreadable          | absent read as unreadable (pre-fix); then `-r`→`false` | heavy-lock cases 18a–18f       | `18a/18c … want exit 0, got 70`; then `cat: … Permission denied`, exit 1     |
-| `report_heavy_lock_status` queue read                    | condition → `false`                                    | heavy-lock case 13d            | holder printed, no waiters, exit 0 over a mode-000 queue holding two tickets |
-| `read_ticket_label` ticket guards                        | both refusals → `unlabeled` default                    | heavy-lock cases 13b–13c       | `waiter pid 999999 label unlabeled age …`, exit 0                            |
-| claim-time ticket delete                                 | line removed                                           | heavy-lock case 16e            | `tickets while held: 1 -> …-1922461` — the holder queued behind itself       |
-| waiting trap ticket removal                              | `true` in place of the removal                         | heavy-lock case 16d            | `16d: a refused run left 1 ticket(s) in the queue`                           |
-| `install_release_trap` caller chaining                   | plain `trap … EXIT` (pre-fix)                          | gate case 33                   | `a gate refused while queued leaked its trusted-launcher directory`          |
-| `release_heavy_lock` isolation                           | unisolated `rm; rm; eval` list                         | heavy-lock case 22             | `22a … want exit 42, got 1`; caller trap skipped; nothing said               |
-| deadline refusal names the queue                         | unconditional holder line (pre-fix)                    | heavy-lock case 20b            | `heavy lock: …bash.d is held by pid ?` about a free lock                     |
-| `describe_tickets_ahead` unknown vs gone                 | single `gone` (pre-fix)                                | heavy-lock case 20d            | `behind 1 tickets: gone (pid 2404329)` for a ticket still in front           |
-| ticket published by `mv`                                 | redirect-only publish (pre-fix)                        | heavy-lock case 19d            | `19d: the ticket is not published by rename`                                 |
+| Check (file:line)                                        | Fault injected                                         | Test that observed the failure | Result                                                                                                                                           |
+| -------------------------------------------------------- | ------------------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `heavy-lock-lib.sh` arrival-order branch                 | `if [[ $tickets_ahead -eq 0 ]]` → `if true`            | heavy-lock case 8              | `want 'a b ', got 'b a '`                                                                                                                        |
+| `remove_dead_tickets` dead-pid reclaim                   | reclaim body → `:`                                     | heavy-lock case 9              | `9a … want exit 0, got 75`; stderr `is held by pid ?`                                                                                            |
+| `remove_dead_tickets` budget expiry                      | branch absent (pre-fix code)                           | heavy-lock case 17a–c          | `17a … want exit 0, got 75`; ticket from a live pid kept the queue                                                                               |
+| `remove_dead_tickets` draft sweep                        | loop absent (pre-fix code)                             | heavy-lock case 23             | `23b: the draft from a dead pid was left behind for ever`                                                                                        |
+| `prepare_ticket_queue` readability                       | both conditions → `false`                              | heavy-lock cases 10a–10d       | claimed ahead of a live ticket, marker written, exit 0; mode-500 → exit 1                                                                        |
+| `prepare_ticket_queue` creation                          | first refusal → `false`                                | heavy-lock case 15b            | 10 checks failed, every diagnosis naming the wrong thing                                                                                         |
+| `read_ticket_pid` name check                             | condition → `false`                                    | heavy-lock case 12             | `removing ticket note from dead pid note`, file deleted, exit 0                                                                                  |
+| `read_ticket_deadline` epoch check                       | missing deadline defaulted to `0`                      | heavy-lock cases 17d–17e       | `17d … want exit 70, got 0`; deleted a ticket it could not read                                                                                  |
+| `read_ticket_label` / `read_ticket_deadline` vanish (66) | `-r` test in front of the read (pre-fix)               | heavy-lock case 21             | `21a … want exit 0, got 70`, `21b … want exit 0, got 70`                                                                                         |
+| `read_epoch_nanoseconds` 19-digit check                  | drop it; then drop the name check too                  | heavy-lock case 14             | wrong diagnosis; then `14b: it ran on a ticket it could not order`, exit 0                                                                       |
+| `report_heavy_lock_status` lock-dir read                 | condition → `false`                                    | heavy-lock case 13a            | `holder pid  label `, exit 0 for a mode-000 lock directory                                                                                       |
+| `report_heavy_lock_status` absent vs unreadable          | absent read as unreadable (pre-fix); then `-r`→`false` | heavy-lock cases 18a–18f       | `18a/18c … want exit 0, got 70`; then `cat: … Permission denied`, exit 1                                                                         |
+| `report_heavy_lock_status` queue read                    | condition → `false`                                    | heavy-lock case 13d            | holder printed, no waiters, exit 0 over a mode-000 queue holding two tickets                                                                     |
+| `read_ticket_label` ticket guards                        | both refusals → `unlabeled` default                    | heavy-lock cases 13b–13c       | `waiter pid 999999 label unlabeled age …`, exit 0                                                                                                |
+| claim-time ticket delete                                 | line removed                                           | heavy-lock case 16e            | `tickets while held: 1 -> …-1922461` — the holder queued behind itself                                                                           |
+| waiting trap ticket removal                              | `true` in place of the removal                         | heavy-lock case 16d            | `16d: a refused run left 1 ticket(s) in the queue`                                                                                               |
+| `install_release_trap` caller chaining                   | plain `trap … EXIT` (pre-fix)                          | gate case 33                   | `a gate refused while queued leaked its trusted-launcher directory`                                                                              |
+| `release_heavy_lock` isolation                           | unisolated `rm; rm; eval` list                         | heavy-lock case 22             | `22a … want exit 42, got 1`; caller trap skipped; nothing said                                                                                   |
+| deadline refusal names the queue                         | unconditional holder line (pre-fix)                    | heavy-lock case 20b            | `heavy lock: …bash.d is held by pid ?` about a free lock                                                                                         |
+| `describe_tickets_ahead` unknown vs gone                 | single `gone` (pre-fix)                                | heavy-lock case 20d            | `behind 1 tickets: gone (pid 2404329)` for a ticket still in front                                                                               |
+| ticket published by `mv`                                 | redirect-only publish (pre-fix)                        | heavy-lock case 19d            | `19d: the ticket is not published by rename`                                                                                                     |
+| `claim_heavy_lock` holder read-first                     | pre-fix order: `-r` test, then `cat`                   | heavy-lock case 24             | `24a … want exit 0, got 70` (a released lock called corrupt); `24c … want exit 75, got 70`; also observed unforced as `3a … want exit 0, got 70` |
+| `report_heavy_lock_status` holder read-first             | pre-fix order: test, then `cat`                        | heavy-lock case 25             | `25a … want exit 0, got 1`, `cat: …/holder: No such file or directory`                                                                           |
+| `HEAVY_LOCK_POLL_SECONDS` validation                     | check absent (pre-fix)                                 | heavy-lock case 26             | `abc` and `300` both accepted in silence — `26a`, `26c … want exit 64, got 0`                                                                    |
 
 - [x] Every check in this change has a row
 - [x] Each negative test reaches the production call path, not a copy of it
@@ -89,7 +92,7 @@
 
 ## 5. Gate Output
 
-- [x] `bash bin/heavy-lock.test.sh` (×3 on the final commit, ×11 over the change)
+- [x] `bash bin/heavy-lock.test.sh` (×3 on the final commit, ×17 over the change)
 - [x] `bash bin/h2puni-gate.test.sh`
 - [x] `shellcheck bin/heavy-lock-lib.sh bin/with-heavy-lock.sh bin/h2puni-gate.sh bin/heavy-lock.test.sh bin/h2puni-gate.test.sh`
 - [x] `bunx nx test tool-dagger --skip-nx-cache`
@@ -98,7 +101,7 @@
 - [ ] `bunx nx run-many -t test lint typecheck build` — covered by the gate above
 
 ```
-all heavy-lock checks passed          (71 ok, exit 0, three consecutive runs)
+all heavy-lock checks passed          (78 ok, exit 0, three consecutive runs)
 all cases passed                      (bin/h2puni-gate.test.sh, 85 ok, exit 0)
 shellcheck: exit 0, no output         (all five scripts)
 62 pass, 0 fail                       (tool-dagger, --skip-nx-cache)
