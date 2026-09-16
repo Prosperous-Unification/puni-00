@@ -65,16 +65,52 @@ count_queued_tickets() {
   printf '%s\n' "$queued"
 }
 
-# Block until the lock at $1 is held, or fail saying it never was.
+# A ticket file in the shape `with_heavy_lock` writes one, for a case that needs
+# a ticket it controls: `$1` path, `$2` pid, `$3` lane label, `$4` deadline.
 #
-# `claim_heavy_lock` writes its pid AFTER `mkdir`, so waiting on the directory
-# alone would let the next waiter queue against a holder that has not recorded
-# itself yet.
-await_lock_held() {
+# The line ORDER is the contract, not decoration: the library reads the label off
+# line 2 and the deadline off line 4, so that a queued command containing a line
+# of its own beginning `label ` cannot contribute a second one.
+write_ticket_fixture() {
+  local path=$1 pid=$2 label=$3 deadline=$4
+  printf 'pid %s\nlabel %s\nstarted 2001-09-09T01:46:40Z\ndeadline %s\ncommand sleep\n' \
+    "$pid" "$label" "$deadline" >"$path"
+}
+
+# An epoch second $1 seconds from now, for a fixture's deadline.
+epoch_seconds_from_now() {
+  printf '%s\n' "$(($(date +%s) + $1))"
+}
+
+# Block until the lock at $1 is held AND its holder has left the queue, or fail
+# saying it never was.
+#
+# Both halves are load-bearing. `claim_heavy_lock` writes its pid AFTER `mkdir`,
+# so waiting on the directory alone would let the next waiter queue against a
+# holder that has not recorded itself yet — and the holder deletes its own ticket
+# AFTER writing that pid, so a poll landing in between leaves the holder's ticket
+# in the queue, where `await_queued_tickets … 1` counts it as the first waiter's.
+# The next waiter then starts before the first has enqueued and the two stamps
+# race: watched as `8: waiters are served in arrival order: want 'a b ', got
+# 'b a '` on a suite whose only fault was that window.
+await_holder_recorded() {
   local lock=$1 polls=0
   while [[ ! -s $lock.d/holder ]]; do
     if [[ $polls -ge 100 ]]; then
       fail "no holder appeared at $lock.d in 10s"
+      return 1
+    fi
+    sleep 0.1
+    polls=$((polls + 1))
+  done
+}
+
+await_lock_held() {
+  local lock=$1 polls=0
+  await_holder_recorded "$lock" || return 1
+  while [[ $(count_queued_tickets "$lock") -ne 0 ]]; do
+    if [[ $polls -ge 100 ]]; then
+      fail "the holder of $lock.d never left the queue in 10s"
       return 1
     fi
     sleep 0.1
@@ -107,6 +143,17 @@ fail() {
 }
 
 pass() { printf '  ok: %s\n' "$1"; }
+
+# One exact line somewhere in $2, which is how the report's format is pinned
+# without pinning the order of lines around it.
+expect_line() {
+  local want=$1 got=$2 what=$3
+  if printf '%s\n' "$got" | grep -qxF "$want"; then
+    pass "$what"
+  else
+    fail "$what: no line '$want' in: $got"
+  fi
+}
 
 expect_status() {
   local want=$1 got=$2 what=$3
@@ -198,12 +245,15 @@ run_suite() {
   local order_log="$lock.order"
   rm -f "$order_log"
   run_locked "$sh" "$lock" sleep 4 &
-  holder_job=$!
+  local holder_job=$!
   await_lock_held "$lock"
+  # shellcheck disable=SC2016 # Single quotes are the point: `$1` and `$2` are
+  # the inner shell's own arguments, passed after it.
   HEAVY_LOCK_WAIT_SECONDS=60 HEAVY_LOCK_LABEL=a \
     run_locked "$sh" "$lock" bash -c 'printf "%s\n" "$1" >>"$2"' arrival-a a "$order_log" &
   local first_waiter=$!
   await_queued_tickets "$lock" 1
+  # shellcheck disable=SC2016 # Single quotes are the point: see waiter a above.
   HEAVY_LOCK_WAIT_SECONDS=60 HEAVY_LOCK_POLL_SECONDS=1 HEAVY_LOCK_LABEL=b \
     run_locked "$sh" "$lock" bash -c 'printf "%s\n" "$1" >>"$2"' arrival-b b "$order_log" &
   local second_waiter=$!
@@ -225,8 +275,9 @@ run_suite() {
   local stderr_log="$lock.stderr"
   local dead_ticket_name=1000000000000000000-999999
   mkdir -p "$lock.queue"
-  printf 'pid 999999\nlabel dead\nstarted 2001-09-09T01:46:40Z\ncommand sleep\n' \
-    >"$lock.queue/$dead_ticket_name"
+  # An hour of budget left, so what gets this ticket reclaimed is unambiguously
+  # the dead pid rather than the expiry case 17 covers.
+  write_ticket_fixture "$lock.queue/$dead_ticket_name" 999999 dead "$(epoch_seconds_from_now 3600)"
   status=0
   run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
   expect_status 0 "$status" "9a: a dead waiter's ticket does not hold the queue"
@@ -252,10 +303,11 @@ run_suite() {
   local ahead_marker="$lock.ahead-marker"
   local live_ticket_name="1000000000000000000-$$"
   rm -f "$ahead_marker"
-  printf 'pid %s\nlabel planted\nstarted 2001-09-09T01:46:40Z\ncommand sleep\n' "$$" \
-    >"$lock.queue/$live_ticket_name"
+  write_ticket_fixture "$lock.queue/$live_ticket_name" "$$" planted "$(epoch_seconds_from_now 3600)"
   chmod 300 "$lock.queue"
   status=0
+  # shellcheck disable=SC2016 # Single quotes are the point: `$0` is the marker
+  # path this passes to the inner shell, not a variable of this one.
   run_locked "$sh" "$lock" bash -c 'printf "RAN AHEAD OF THE QUEUE\n" >"$0"' "$ahead_marker" \
     2>"$stderr_log" || status=$?
   expect_status 70 "$status" "10a: an unreadable queue directory throws"
@@ -295,8 +347,8 @@ run_suite() {
   local queue_report
   queue_report=$(run_status "$sh" "$lock")
   local holder_pattern='^heavy lock: holder pid [0-9]+ label holder$'
-  local first_pattern='^heavy lock: waiter pid [0-9]+ label first age [0-9]+s$'
-  local second_pattern='^heavy lock: waiter pid [0-9]+ label second age [0-9]+s$'
+  local first_pattern='^heavy lock: waiter pid [0-9]+ label first age [0-9]+s budget [0-9]+s left$'
+  local second_pattern='^heavy lock: waiter pid [0-9]+ label second age [0-9]+s budget [0-9]+s left$'
   if [[ $(printf '%s\n' "$queue_report" | sed -n 1p) =~ $holder_pattern ]]; then
     pass "11a: status names the holder and its lane"
   else
@@ -323,6 +375,8 @@ run_suite() {
   # The wiring, read off the wrapper: production takes no lock path, so the only
   # thing this suite can check about it is that `status` reaches the report with
   # the canonical path and nothing else.
+  # shellcheck disable=SC2016 # Single quotes are the point: this is the literal
+  # text being searched for in another file, not an expansion.
   if grep -qF 'report_heavy_lock_status "$(resolve_heavy_lock_path)"' "$repo_root/bin/with-heavy-lock.sh"; then
     pass "11e: bin/with-heavy-lock.sh status reports on the canonical lock"
   else
@@ -354,20 +408,18 @@ run_suite() {
   run_status "$sh" "$lock" >/dev/null 2>"$stderr_log" || status=$?
   expect_status 70 "$status" "13a: status throws on a lock directory it cannot read"
   chmod 700 "$lock.d" && rm -rf "$lock.d"
-  printf 'pid 999999\nstarted 2001-09-09T01:46:40Z\ncommand sleep\n' \
+  printf 'pid 999999\nstarted 2001-09-09T01:46:40Z\ndeadline 4102444800\ncommand sleep\n' \
     >"$lock.queue/$dead_ticket_name"
   status=0
   run_status "$sh" "$lock" >/dev/null 2>"$stderr_log" || status=$?
   expect_status 70 "$status" "13b: status throws on a ticket that records no lane label"
-  printf 'pid 999999\nlabel dead\nstarted 2001-09-09T01:46:40Z\ncommand sleep\n' \
-    >"$lock.queue/$dead_ticket_name"
+  write_ticket_fixture "$lock.queue/$dead_ticket_name" 999999 dead 4102444800
   chmod 000 "$lock.queue/$dead_ticket_name"
   status=0
   run_status "$sh" "$lock" >/dev/null 2>"$stderr_log" || status=$?
   expect_status 70 "$status" "13c: status throws on a ticket it cannot read"
   chmod 600 "$lock.queue/$dead_ticket_name" && rm -f "$lock.queue/$dead_ticket_name"
-  printf 'pid 999999\nlabel dead\nstarted 2001-09-09T01:46:40Z\ncommand sleep\n' \
-    >"$lock.queue/$dead_ticket_name"
+  write_ticket_fixture "$lock.queue/$dead_ticket_name" 999999 dead 4102444800
   chmod 000 "$lock.queue"
   status=0
   run_status "$sh" "$lock" >/dev/null 2>"$stderr_log" || status=$?
@@ -378,7 +430,8 @@ run_suite() {
   # `date` does not fail on `+%N`; it prints a literal `N`. A ticket named
   # `1758012345N-<pid>` sorts before every real ticket, so that host would hold
   # the head of the queue for ever while every check here still passed.
-  local clockless_bin="${TMPDIR:-/tmp}/wbs-heavy-lock-clockless.$$.$(basename "$sh")"
+  local clockless_bin
+  clockless_bin="${TMPDIR:-/tmp}/wbs-heavy-lock-clockless.$$.$(basename "$sh")"
   rm -rf "$clockless_bin"
   mkdir -p "$clockless_bin"
   local clockless_tool clockless_tool_path
@@ -393,11 +446,22 @@ run_suite() {
       ln -s "$clockless_tool_path" "$clockless_bin/$clockless_tool"
     fi
   done
-  printf '#!/bin/sh\nprintf "1758012345N\\n"\n' >"$clockless_bin/date"
+  # Only `+%s%N` is broken, because only `+%s%N` is what BSD `date` gets wrong: it
+  # answers every other format correctly. A fake that broke them all would refuse
+  # for reasons this case is not about, and would hide it if the library grew a
+  # second clock reading.
+  local real_date
+  real_date=$(type -P date)
+  # shellcheck disable=SC2016 # Single quotes are the point: `$1` and `$@` belong
+  # to the generated fake, not to this process.
+  printf '#!/bin/sh\ncase "$1" in\n  +%%s%%N) printf "1758012345N\\n" ;;\n  *) exec %s "$@" ;;\nesac\n' \
+    "$real_date" >"$clockless_bin/date"
   chmod 755 "$clockless_bin/date"
   local clockless_marker="$lock.clockless-marker"
   rm -f "$clockless_marker"
   status=0
+  # shellcheck disable=SC2016 # Single quotes are the point: `$0` is the marker
+  # path passed to the inner shell.
   PATH="$clockless_bin" run_locked "$sh" "$lock" \
     bash -c 'printf "RAN ON AN UNORDERABLE TICKET\n" >"$0"' "$clockless_marker" \
     2>"$stderr_log" || status=$?
@@ -413,6 +477,153 @@ run_suite() {
     pass "14c: it queued no ticket it could not order"
   fi
   rm -rf "$clockless_bin"
+
+  # Case 16 — the two leak paths, which are the queue's own failure mode: a
+  # ticket that outlives the run that wrote it holds up every lane behind it
+  # until something notices its pid is gone.
+  rm -rf "$lock.queue"
+  status=0
+  run_locked "$sh" "$lock" true || status=$?
+  expect_status 0 "$status" "16a: a successful run succeeds"
+  if [[ $(count_queued_tickets "$lock") -eq 0 ]]; then
+    pass "16b: a successful run leaves no ticket behind"
+  else
+    fail "16b: a successful run left $(count_queued_tickets "$lock") ticket(s) in the queue"
+  fi
+  run_locked "$sh" "$lock" sleep 3 &
+  holder_job=$!
+  # Only that the holder has recorded itself, NOT that the queue has drained:
+  # what 16e asserts is the draining, so waiting for it here would assert it
+  # against itself.
+  await_holder_recorded "$lock"
+  if [[ $(count_queued_tickets "$lock") -eq 0 ]]; then
+    pass "16e: a run holding the lock is out of the queue it waited in"
+  else
+    fail "16e: a run holding the lock kept its own ticket, which blocks every waiter behind it"
+  fi
+  status=0
+  HEAVY_LOCK_WAIT_SECONDS=0 run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 75 "$status" "16c: a run refused at its wait budget is refused"
+  if [[ $(count_queued_tickets "$lock") -eq 0 ]]; then
+    pass "16d: a refused run takes its ticket with it"
+  else
+    fail "16d: a refused run left $(count_queued_tickets "$lock") ticket(s) in the queue"
+  fi
+  wait "$holder_job"
+
+  # Case 17 — `kill -0` alone cannot decide a ticket is live, because pids are
+  # recycled: a waiter killed with SIGKILL leaves a ticket whose pid the kernel
+  # may hand to something unrelated minutes later, after which every lane queues
+  # behind a ghost for ever. The fixture is the worst case — a pid that is
+  # definitely alive (this suite's own) with a deadline that has passed.
+  rm -rf "$lock.queue"
+  mkdir -p "$lock.queue"
+  local expired_ticket_name="1000000000000000000-$$"
+  write_ticket_fixture "$lock.queue/$expired_ticket_name" "$$" ghost "$(epoch_seconds_from_now -120)"
+  status=0
+  run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 0 "$status" "17a: a ticket past its wait budget does not hold the queue"
+  if [[ -e $lock.queue/$expired_ticket_name ]]; then
+    fail "17b: the expired ticket was left in the queue"
+  else
+    pass "17b: the expired ticket was removed"
+  fi
+  if grep -q "removing ticket $expired_ticket_name from pid $$, whose wait budget expired" "$stderr_log"; then
+    pass "17c: the removal named the ticket and why it went"
+  else
+    fail "17c: the removal did not name the expired ticket: $(cat "$stderr_log")"
+  fi
+  # And the guard that reads it: a ticket with no deadline to read is unknown
+  # state, not an expired one and not a live one.
+  printf 'pid %s\nlabel ghost\nstarted 2001-09-09T01:46:40Z\ncommand sleep\n' "$$" \
+    >"$lock.queue/$expired_ticket_name"
+  status=0
+  run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 70 "$status" "17d: a ticket that records no deadline throws"
+  if [[ -e $lock.queue/$expired_ticket_name ]]; then
+    pass "17e: it left the ticket it could not read alone"
+  else
+    fail "17e: it deleted a ticket whose deadline it could not read"
+  fi
+  rm -f "$lock.queue/$expired_ticket_name"
+
+  # Case 18 — what `status` must NOT refuse. Both windows below are ordinary:
+  # `claim_heavy_lock` writes the holder pid after its `mkdir`, and a lock taken
+  # by a build that predates the queue has no label file at all. A report that
+  # exits 70 over either is a report nobody can leave running.
+  rm -rf "$lock.d"
+  mkdir -p "$lock.d"
+  status=0
+  local queue_report
+  queue_report=$(run_status "$sh" "$lock" 2>"$stderr_log") || status=$?
+  expect_status 0 "$status" "18a: status tolerates a lock dir whose holder is not written yet"
+  expect_line 'heavy lock: holder claiming' "$queue_report" "18b: it says the holder is still claiming"
+  printf '4321\n' >"$lock.d/holder"
+  status=0
+  queue_report=$(run_status "$sh" "$lock" 2>"$stderr_log") || status=$?
+  expect_status 0 "$status" "18c: status tolerates a holder that recorded no lane label"
+  expect_line 'heavy lock: holder pid 4321 label unlabeled (pre-queue holder)' "$queue_report" \
+    "18d: it says the lane is unknown rather than refusing"
+  # Unreadable is still unknown state, and each file is named separately.
+  chmod 000 "$lock.d/holder"
+  status=0
+  run_status "$sh" "$lock" >/dev/null 2>"$stderr_log" || status=$?
+  expect_status 70 "$status" "18e: status throws on a holder file it cannot read"
+  chmod 600 "$lock.d/holder"
+  printf 'held\n' >"$lock.d/label" && chmod 000 "$lock.d/label"
+  status=0
+  run_status "$sh" "$lock" >/dev/null 2>"$stderr_log" || status=$?
+  expect_status 70 "$status" "18f: status throws on a label file it cannot read"
+  chmod 600 "$lock.d/label" && rm -rf "$lock.d"
+
+  # Case 19 — a ticket appears under its real name only once it is complete.
+  # `> "$ticket"` creates the file and `printf` fills it, so a `status` landing
+  # between the two read an empty ticket and refused it as malformed — a refusal
+  # triggered by nothing but timing. The library now writes a dot-named draft and
+  # renames it, and `*` does not match a dotfile: the draft below stands for one
+  # left by a run killed mid-write, and nothing may see it.
+  rm -rf "$lock.queue"
+  mkdir -p "$lock.queue"
+  printf '' >"$lock.queue/.draft-1000000000000000000-$$"
+  status=0
+  queue_report=$(run_status "$sh" "$lock" 2>"$stderr_log") || status=$?
+  expect_status 0 "$status" "19a: status ignores a half-written draft ticket"
+  if [[ $(count_queued_tickets "$lock") -eq 0 ]]; then
+    pass "19b: a draft ticket is not counted as queued"
+  else
+    fail "19b: a draft ticket was counted as queued"
+  fi
+  status=0
+  run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 0 "$status" "19c: a draft ticket neither blocks a run nor throws"
+  # The wiring, read off the library: production cannot be raced deterministically
+  # here, so what this pins is that the visible name is published by `mv` rather
+  # than by the redirect that produced the transient.
+  # shellcheck disable=SC2016 # Single quotes are the point: this is the literal
+  # text being searched for in another file, not an expansion.
+  if grep -qF 'mv "$ticket_draft" "$ticket_path"' "$lock_lib"; then
+    pass "19d: the ticket is published by rename, not by the redirect that writes it"
+  else
+    fail "19d: the ticket is not published by rename"
+  fi
+  rm -f "$lock.queue/.draft-1000000000000000000-$$"
+
+  # Case 20 — the refusal has to name the reason it refused. A waiter that gives
+  # up because someone was ahead of it used to report `is held by pid ?`: the
+  # lock is free, nobody holds it, and the one fact that explains the refusal —
+  # who was in front — was the fact the message did not carry.
+  rm -rf "$lock.d" "$lock.queue"
+  mkdir -p "$lock.queue"
+  write_ticket_fixture "$lock.queue/$live_ticket_name" "$$" ahead-of-me "$(epoch_seconds_from_now 3600)"
+  status=0
+  run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 75 "$status" "20a: a waiter behind a live ticket is refused"
+  if grep -q "gave up after [0-9]*s behind 1 tickets: ahead-of-me (pid $$)" "$stderr_log"; then
+    pass "20b: the refusal names the tickets ahead and their lanes"
+  else
+    fail "20b: the refusal did not name the tickets ahead: $(cat "$stderr_log")"
+  fi
+  rm -f "$lock.queue/$live_ticket_name"
 
   # Case 15 — the other half of `prepare_ticket_queue`: a queue path that is not a
   # directory. 15b is the assertion with teeth. Removing the refusal does not let

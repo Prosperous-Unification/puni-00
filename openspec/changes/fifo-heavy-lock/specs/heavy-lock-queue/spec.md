@@ -19,15 +19,28 @@ A run that claims the lock SHALL delete its own ticket.
 
 ### Requirement: A dead waiter never holds the queue
 
-A ticket whose pid no longer exists SHALL be removed by whichever run sees it first, naming the
-ticket on stderr, and a waiter SHALL remove its own ticket when it exits, is interrupted or is
-terminated.
+A ticket SHALL record the instant its owner stops waiting. A ticket whose pid no longer exists, or
+whose recorded deadline passed more than a minute ago, SHALL be removed by whichever run sees it
+first, naming the ticket on stderr. A waiter SHALL remove its own ticket when it claims the lock,
+when it is refused, and when it exits, is interrupted or is terminated.
 
 #### Scenario: A waiter is killed while queued
 
 - **WHEN** a ticket that arrived earlier names a pid that has exited
 - **THEN** the next run removes that ticket, names it on stderr, and takes the lock rather than
   queueing behind a process that will never release it
+
+#### Scenario: A killed waiter's pid is reused by an unrelated process
+
+- **WHEN** a ticket names a live pid but its own wait budget expired more than a minute ago
+- **THEN** the next run removes that ticket, saying how long ago the budget expired, rather than
+  queueing behind a ghost for ever
+
+#### Scenario: A run gives up or claims
+
+- **WHEN** a run takes the lock, or is refused at its wait budget
+- **THEN** it leaves no ticket in the queue, so nothing queues behind a run that is no longer
+  waiting
 
 ### Requirement: The queue reports who holds the lock and who waits
 
@@ -48,11 +61,24 @@ it gates.
 - **WHEN** the gate takes the lock after waiting for a holder
 - **THEN** it reports its wait in whole seconds before it reports the commit it runs on
 
+#### Scenario: A run gives up behind someone else
+
+- **WHEN** a run is refused because a live ticket that arrived earlier is still queued
+- **THEN** the refusal names how many tickets were ahead and their lane labels, rather than
+  reporting a holder the free lock does not have
+
+#### Scenario: The report races a claim it cannot be sure about
+
+- **WHEN** a lock directory has no holder file yet, or a holder recorded no lane label
+- **THEN** status says so and exits 0, and refuses with exit 70 only for state it cannot read
+
 ### Requirement: Unknown queue state refuses rather than guessing
 
 A run SHALL refuse with exit 70, naming the path, when the queue directory cannot be read or
-written, and when a queued name is not `<nanoseconds>-<pid>`. A run SHALL refuse with exit 70 when
-no nanosecond clock is available, rather than enqueue a ticket that cannot be ordered.
+written, when a queued name is not `<nanoseconds>-<pid>`, and when a ticket records no lane label
+or no deadline. A run SHALL refuse with exit 70 when no nanosecond clock is available, rather than
+enqueue a ticket that cannot be ordered. A ticket SHALL become visible in the queue only once it
+is complete.
 
 #### Scenario: The queue directory is unreadable
 
@@ -70,3 +96,8 @@ no nanosecond clock is available, rather than enqueue a ticket that cannot be or
 
 - **WHEN** status finds a lock directory whose holder or label it cannot read
 - **THEN** it refuses with exit 70 naming the file, instead of reporting a lock with no holder
+
+#### Scenario: A ticket is read while it is still being written
+
+- **WHEN** a run enqueues while another reads the queue
+- **THEN** the reader sees the ticket either not at all or complete, never half-written
