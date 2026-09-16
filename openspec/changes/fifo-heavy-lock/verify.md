@@ -35,7 +35,7 @@
 
 | Task                        | Reason incomplete                                                   | Blocks archive? |
 | --------------------------- | ------------------------------------------------------------------- | --------------- |
-| 6.1 h2puni gate + this file | The gate runs on h2puni under the canonical lock; controller's step | Yes             |
+| 7.1 h2puni gate + this file | The gate runs on h2puni under the canonical lock; controller's step | Yes             |
 
 ---
 
@@ -81,6 +81,8 @@
 | `HEAVY_LOCK_POLL_SECONDS` validation                     | check absent; then the bound written without `10#`     | heavy-lock case 26             | `abc` and `300` accepted in silence — `26a`, `26c … want exit 64, got 0`; then `031` (read as octal 25, then slept 31) and `08` (`((: 08: value too great for base`) — `26e`, `26f … want exit 64, got 0`; `0` accepted as a busy spin — `26h` |
 | `report_heavy_lock_status` released-lock branch          | branch → `false`                                       | heavy-lock case 25d            | `no line 'heavy lock: holder none' in: heavy lock: holder claiming` — a lock nobody holds reported as one being claimed                                                                                                                        |
 | `report_heavy_lock_status` empty holder file             | `-z $holder_pid` half absent                           | heavy-lock case 25f            | `heavy lock: holder pid  label held` — a holder with no pid, at the instant `claim_heavy_lock` answers 75                                                                                                                                      |
+| `install_release_trap` INT/TERM exit                     | release-only handler (shipped)                         | heavy-lock case 27             | `27a … want exit 143, got 0`, `27b: it took 5s to leave`, `27d: the signalled waiter claimed the lock after it was told to stop` — observed live on h2puni first (pid 4049358)                                                                 |
+| `install_release_trap` EXIT cleared in the handler       | `trap - EXIT` absent                                   | heavy-lock case 27j            | `the caller's own EXIT trap ran 2 times`                                                                                                                                                                                                       |
 
 - [x] Every check in this change has a row
 - [x] Each negative test reaches the production call path, not a copy of it
@@ -94,7 +96,7 @@
 
 ## 5. Gate Output
 
-- [x] `bash bin/heavy-lock.test.sh` (×2 on the final commit, ×19 over the change)
+- [x] `bash bin/heavy-lock.test.sh` (×2 on the final commit, ×21 over the change)
 - [x] `bash bin/h2puni-gate.test.sh`
 - [x] `shellcheck bin/heavy-lock-lib.sh bin/with-heavy-lock.sh bin/h2puni-gate.sh bin/heavy-lock.test.sh bin/h2puni-gate.test.sh`
 - [x] `bunx nx test tool-dagger --skip-nx-cache`
@@ -103,7 +105,7 @@
 - [ ] `bunx nx run-many -t test lint typecheck build` — covered by the gate above
 
 ```
-all heavy-lock checks passed          (86 ok, exit 0, consecutive runs)
+all heavy-lock checks passed          (96 ok, exit 0, consecutive runs)
 all cases passed                      (bin/h2puni-gate.test.sh, 85 ok, exit 0)
 shellcheck: exit 0, no output         (all five scripts)
 62 pass, 0 fail                       (tool-dagger, --skip-nx-cache)

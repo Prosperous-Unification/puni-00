@@ -108,7 +108,16 @@ denied` and exit 1 (18e, 18f).
       released-lock branch removed the report says `holder claiming` about a lock nobody holds, and
       without the empty-file half it says `holder pid  label held`.
 
-## 6. Verification
+## 6. A signalled run stops
 
-- [ ] 6.1 Run the full gate on h2puni at the change head and record commands, results and the R5
+- [x] 6.1 INT and TERM release and then exit 130/143, clearing the EXIT trap first so the release
+      and the caller's inherited trap run exactly once; a holder's command is deliberately not cut
+      short, because it is the work the lock exists to serialise — test: case 27; negatives: with
+      the release-only handler that shipped, a TERM'd waiter survives, keeps polling without a
+      ticket and claims the lock the holder released (`27a … want exit 143, got 0`, `27d`), and
+      the caller's own EXIT trap runs twice (`27j`).
+
+## 7. Verification
+
+- [ ] 7.1 Run the full gate on h2puni at the change head and record commands, results and the R5
       proof table in `verify.md`.

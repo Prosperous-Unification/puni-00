@@ -42,6 +42,13 @@ when it is refused, and when it exits, is interrupted or is terminated.
 - **THEN** it leaves no ticket in the queue, so nothing queues behind a run that is no longer
   waiting
 
+#### Scenario: A signalled run stops
+
+- **WHEN** a run is sent INT or TERM
+- **THEN** it leaves no ticket, runs once the exit trap it inherited, and exits 130 or 143 rather
+  than cleaning up and carrying on as a waiter with no ticket
+- **AND** a run that already holds the lock lets its command finish first, then releases and exits
+
 #### Scenario: A run is killed while writing its ticket
 
 - **WHEN** a half-written ticket is left behind by a run that no longer exists

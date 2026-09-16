@@ -57,6 +57,24 @@ run_status() {
   "$sh" -c "$inner" heavy-lock-status-test "$lock_lib" "$lock"
 }
 
+# Start a run in the background and leave `$!` pointing at the shell that is
+# actually running `with_heavy_lock`, which is what a signal has to reach.
+#
+# `run_locked` is a function, and a backgrounded function call is a subshell that
+# may or may not exec its last command in place — so `$!` there is a pid a
+# signalling case cannot reason about. Here the shell IS the background process.
+start_signalable_run() {
+  local sh=$1 lock=$2 wait_seconds=$3 poll_seconds=$4 label=$5
+  shift 5
+  # shellcheck disable=SC2016 # Single quotes are the point: this string is a
+  # script for the inner shell, whose `$1` and `$@` are its own arguments.
+  HEAVY_LOCK_WAIT_SECONDS="$wait_seconds" \
+    HEAVY_LOCK_POLL_SECONDS="$poll_seconds" \
+    HEAVY_LOCK_LABEL="$label" \
+    "$sh" -c 'source "$1"; shift; with_heavy_lock "$@"' \
+    heavy-lock-signal-test "$lock_lib" "$lock" -- "$@" &
+}
+
 count_queued_tickets() {
   local lock=$1 queued=0 ticket
   for ticket in "$lock.queue"/*; do
@@ -942,6 +960,142 @@ run_suite() {
     fail "15b: the refusal did not name the path: $(cat "$stderr_log")"
   fi
   rm -f "$lock.queue"
+
+  # Case 27 — a signalled run releases AND EXITS.
+  #
+  # Watched on h2puni, not reasoned about: pid 4049358 survived `kill -TERM` and
+  # stayed in the wait loop. Bash defers a trapped signal until the foreground
+  # child returns, runs the handler, and then CONTINUES the script — so a waiter
+  # sent TERM ran its release, deleted its own ticket, and kept polling as a
+  # waiter with no ticket. It can then claim ahead of everyone who does have one:
+  # the FIFO guarantee broken by the mechanism that was supposed to clean up
+  # after it, and `kill` not stopping a run for any caller.
+  local signal_marker="$lock.signal-marker"
+  rm -f "$signal_marker"
+  run_locked "$sh" "$lock" sleep 5 &
+  holder_job=$!
+  await_lock_held "$lock"
+  # shellcheck disable=SC2016 # Single quotes are the point: `$0` is the marker
+  # path passed to the inner shell.
+  start_signalable_run "$sh" "$lock" 60 1 signalled \
+    bash -c 'printf claimed >"$0"' "$signal_marker"
+  local signalled_run=$!
+  await_queued_tickets "$lock" 1
+  local signalled_at=$SECONDS
+  kill -TERM "$signalled_run"
+  status=0
+  wait "$signalled_run" || status=$?
+  local signalled_for=$((SECONDS - signalled_at))
+  expect_status 143 "$status" "27a: a queued waiter sent TERM exits 143"
+  if [[ $signalled_for -le 3 ]]; then
+    pass "27b: it left within one poll (${signalled_for}s)"
+  else
+    fail "27b: it took ${signalled_for}s to leave, which is not one poll"
+  fi
+  if [[ $(count_queued_tickets "$lock") -eq 0 ]]; then
+    pass "27c: it took its ticket with it"
+  else
+    fail "27c: it left its ticket in the queue"
+  fi
+  wait "$holder_job"
+  # The holder has released by now. A waiter that merely cleaned up and carried
+  # on would take the free lock here, which is the observation that matters.
+  sleep 2
+  if [[ -e $signal_marker ]]; then
+    fail "27d: the signalled waiter claimed the lock after it was told to stop"
+  else
+    pass "27d: the signalled waiter never claimed the lock"
+  fi
+  rm -f "$signal_marker"
+
+  # A HOLDER is the other half, and the decision is that its command is not cut
+  # short: the command is the work the lock exists to serialise, and killing it
+  # from in here would leave whatever it was doing — a checkout, a build — in a
+  # state nobody chose. Bash defers the trap until the command returns anyway; a
+  # caller that wants the command dead signals the process group. What this
+  # case pins is that the release and the exit still happen afterwards.
+  local finished_marker="$lock.finished-marker"
+  rm -f "$finished_marker"
+  # shellcheck disable=SC2016 # Single quotes are the point: see above.
+  start_signalable_run "$sh" "$lock" 0 5 term-holder \
+    bash -c 'sleep 2; printf finished >"$0"' "$finished_marker"
+  local signalled_holder=$!
+  await_lock_held "$lock"
+  kill -TERM "$signalled_holder"
+  status=0
+  wait "$signalled_holder" || status=$?
+  expect_status 143 "$status" "27e: a holder sent TERM exits 143 once its command has finished"
+  if [[ -e $finished_marker ]]; then
+    pass "27f: the command the lock was protecting ran to completion"
+  else
+    fail "27f: the command was cut short by a signal aimed at the lock"
+  fi
+  if [[ -d $lock.d ]]; then
+    fail "27g: the signalled holder leaked the lock"
+  else
+    pass "27g: the signalled holder released the lock"
+  fi
+  rm -f "$finished_marker"
+
+  # INT gets the conventional 130, for the same reason TERM gets 143: a caller
+  # reading an exit status can tell a signalled run from a refused one.
+  #
+  # **Job control on for this case, and the case is meaningless without it.** A
+  # shell without job control sets SIGINT to IGNORE for every `&` job, and a
+  # signal ignored on entry cannot be trapped — so `kill -INT` to a background
+  # run is a no-op and this case would be testing the harness, not the lock.
+  # Measured: the same run exits 0 after its sleep without `set -m` and 130 with
+  # it. Monitor mode puts the run in its own process group with default
+  # dispositions, which is the shape a person pressing Ctrl+C actually produces.
+  run_locked "$sh" "$lock" sleep 5 &
+  holder_job=$!
+  await_lock_held "$lock"
+  set -m
+  start_signalable_run "$sh" "$lock" 60 1 interrupted true
+  local interrupted_run=$!
+  set +m
+  await_queued_tickets "$lock" 1
+  kill -INT "$interrupted_run"
+  status=0
+  wait "$interrupted_run" || status=$?
+  expect_status 130 "$status" "27h: a queued waiter sent INT exits 130"
+  wait "$holder_job"
+
+  # And the caller's own EXIT trap runs EXACTLY once on a signal: the handler has
+  # to run it (it exits, so the EXIT trap would never fire) without letting the
+  # EXIT trap run it a second time. Counted rather than asserted by shape.
+  local caller_log="$lock.caller-log"
+  rm -f "$caller_log"
+  # shellcheck disable=SC2016 # Single quotes are the point: every line is source
+  # for the generated fixture, whose `$1`-`$3` are its own arguments.
+  printf '%s\n' \
+    '#!/bin/bash' \
+    'set -euo pipefail' \
+    'source "$1"' \
+    'caller_log=$2' \
+    'trap '\''printf "ran\n" >>"$caller_log"'\'' EXIT' \
+    'with_heavy_lock "$3" -- sleep 30' \
+    >"$lock.signalled-caller.sh"
+  run_locked "$sh" "$lock" sleep 5 &
+  holder_job=$!
+  await_lock_held "$lock"
+  HEAVY_LOCK_WAIT_SECONDS=60 HEAVY_LOCK_POLL_SECONDS=1 \
+    "$sh" "$lock.signalled-caller.sh" "$lock_lib" "$caller_log" "$lock" &
+  local signalled_caller=$!
+  await_queued_tickets "$lock" 1
+  kill -TERM "$signalled_caller"
+  status=0
+  wait "$signalled_caller" || status=$?
+  expect_status 143 "$status" "27i: a signalled caller exits 143 through its own script"
+  local caller_runs
+  caller_runs=$(grep -c '^ran$' "$caller_log" 2>/dev/null || printf '0\n')
+  if [[ $caller_runs -eq 1 ]]; then
+    pass "27j: the caller's own EXIT trap ran exactly once"
+  else
+    fail "27j: the caller's own EXIT trap ran $caller_runs times"
+  fi
+  wait "$holder_job"
+  rm -f "$caller_log" "$lock.signalled-caller.sh"
 
   rm -rf "$lock"*
 }

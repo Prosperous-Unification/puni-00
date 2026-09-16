@@ -651,9 +651,41 @@ release_heavy_lock() {
 # passed through as one word, so this never re-parses a quoting bash already got
 # right. `trap -p` exists in bash 3.2.
 #
-# INT and TERM get the release only. A handled signal does not end the shell by
-# itself, so the caller's EXIT trap still runs when it finally exits; running it
-# from here as well would run it twice.
+# **INT and TERM release and then EXIT**, and the exit is the whole point.
+#
+# A trap handler that only cleans up does not stop a run: bash defers a trapped
+# signal until the foreground child returns, runs the handler, and then CONTINUES
+# the script. Watched on h2puni on 2026-09-16, pid 4049358: a waiter sent
+# `kill -TERM` ran its release, deleted its own ticket, and went straight back
+# into the wait loop as a waiter with no ticket — free to claim ahead of everyone
+# who still had one. The cleanup mechanism broke the ordering it exists to
+# protect, and `kill` stopped nothing. `bin/heavy-lock.test.sh` case 27a-27d is
+# that observation, made deterministic.
+#
+# The conventional statuses, 128 + the signal number, because a caller reading an
+# exit status has to be able to tell a signalled run from a refused one (75) or a
+# broken one (70).
+#
+# The EXIT trap is cleared first. The handler runs the release INCLUDING the
+# caller's chained command and then exits, so leaving EXIT armed would run both a
+# second time — `rm` twice is harmless, but a caller's own cleanup is not ours to
+# run twice.
+#
+# A HOLDER's command is not cut short, and that is a decision rather than an
+# accident of bash's deferral: the command is the work the lock exists to
+# serialise, and killing it from in here would abandon a checkout or a build in a
+# state nobody chose. A caller that wants the command dead signals the process
+# group. Case 27e-27g pins that the release and the exit still follow it.
+#
+# Proof (observed 2026-09-16): with the handler that shipped — release, no exit —
+# a TERM'd waiter was watched surviving and taking the lock the holder released:
+# `27a … want exit 143, got 0`, `27b: it took 5s to leave, which is not one
+# poll`, and `27d: the signalled waiter claimed the lock after it was told to
+# stop`. Also `27e`/`27h`/`27i … got 0` for a holder, an INT and a caller script.
+# The same fault leaves the EXIT trap armed behind the handler, and the caller's
+# own cleanup was watched running twice — `27j: the caller's own EXIT trap ran 2
+# times`, which is what `trap - EXIT` above prevents
+# (bin/heavy-lock.test.sh, case 27).
 #
 # Proof (observed 2026-09-16): replacing the chain with the plain
 # `trap "rm -rf …" EXIT INT TERM` that shipped was watched leaving the gate
@@ -665,19 +697,21 @@ install_release_trap() {
   local release
   release="release_heavy_lock $(printf '%q' "$lock_dir") $(printf '%q' "$ticket_path")"
   release="$release $(printf '%q' "$ticket_draft")"
-  # shellcheck disable=SC2064 # Expanded now, deliberately: the paths are
-  # function-locals that are out of scope by the time the trap runs, and under
-  # `set -u` a deferred expansion aborts the trap and leaks what it was to
-  # remove. `printf %q` rather than `${var@Q}`, which is a syntax error on the
-  # bash 3.2 macOS ships.
-  trap "$release" INT TERM
   if [[ -n $caller_exit_trap ]]; then
     local caller_exit_command=${caller_exit_trap#trap -- }
     caller_exit_command=${caller_exit_command% EXIT}
     release="$release $caller_exit_command"
   fi
-  # shellcheck disable=SC2064 # Expanded now, deliberately: see above.
+  # shellcheck disable=SC2064 # Expanded now, deliberately: the paths are
+  # function-locals that are out of scope by the time the trap runs, and under
+  # `set -u` a deferred expansion aborts the trap and leaks what it was to
+  # remove. `printf %q` rather than `${var@Q}`, which is a syntax error on the
+  # bash 3.2 macOS ships.
   trap "$release" EXIT
+  # shellcheck disable=SC2064 # Expanded now, deliberately: see above.
+  trap "trap - EXIT; $release; exit 130" INT
+  # shellcheck disable=SC2064 # Expanded now, deliberately: see above.
+  trap "trap - EXIT; $release; exit 143" TERM
 }
 
 # Run `command [arg ...]` while holding the host-wide heavy-work lock.
