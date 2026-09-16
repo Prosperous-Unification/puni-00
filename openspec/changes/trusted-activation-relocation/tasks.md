@@ -22,7 +22,7 @@ operator work on the real repository.
       snapshotter, validator, evidence), how the archive root is assembled, and how the
       candidate identity is computed. No executable test — it is the artifact 2.2 consumes,
       reviewed against `w5-activation-research.md`'s role disposition.
-- [ ] 2.2 `tools/tool-wiki/src/policy/relocation-activation.ts` prepares an activation from a
+- [x] 2.2 `tools/tool-wiki/src/policy/relocation-activation.ts` prepares an activation from a
       candidate SHA and a base activation root, and
       `tools/tool-wiki/src/policy/prepare-relocation-activation-cli.ts` exposes it, printing
       the version directory and digest. It reads the candidate's `docs/wiki-policy` policy and
@@ -32,7 +32,7 @@ operator work on the real repository.
       `tools/tool-wiki/src/policy/relocation-activation.test.ts` over two fixture commits
       spanning a directory rename — a rename with a matching `sourceSelector` prepares, and
       production admission for that candidate against the prepared activation accepts.
-- [ ] 2.3 Each refusal of 2.2 is exercised on the production path — a moved boundary without
+- [x] 2.3 Each refusal of 2.2 is exercised on the production path — a moved boundary without
       `sourceSelector`, an unknown SHA, a dirty working tree, an unresolved
       `predecessorModuleIds` chain, and a candidate selector that still selects nothing.
       Test: the fixture cases in `relocation-activation.test.ts`; negative: each check removed
