@@ -634,7 +634,19 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // metadata-less index mutation pushed pilot-policy.test.ts's ten contexts down 16 then 26.
     // Verified green at `84a4fd63` before these edits, so nothing else contributes; every
     // context's text and category is unchanged (2026-09-16).
-    digest: '2f9b04adebea99273dba95ea64ffff5504a821a125689f44daeb9316d6e5efa4',
+    // Proof: leaving `c29abd13...` here after the CI pixels scope joined
+    // pixels-workflow.test.ts failed on the observed digest below at the same 269/30 — the
+    // added interface fields and scope cases carry no legacy selector of their own and only
+    // shift the `apps/fe-01/test-results/` context in that file's own proof comment below
+    // them (2026-09-16).
+    // Proof: merging W3's `15cb68e9.../269` into this branch's `2f9b04ad.../257` failed on
+    // either side's digest and, for W3's, on its count. The merged total stays at this branch's
+    // 257 with every category unchanged: W3's added contexts sit in files this scan skips — its
+    // own `apps/fe-01/test-results/` note in the proof chain above (this file excludes itself)
+    // and `openspec/changes/affected-pr-gate/verify.md` (every `.md` is excluded). The one
+    // context W3 does move is `pixels-workflow.test.ts`'s `apps/fe-01/test-results/` proof
+    // comment, pushed from line 54 to 57, which is what changes the digest (2026-09-16).
+    digest: '80ba00b5a8e566af0e71b155c82ccbd7f6e207e3d094db394f73c7bf0fad85f4',
     occurrences: 257,
     unclassified: [],
   });
