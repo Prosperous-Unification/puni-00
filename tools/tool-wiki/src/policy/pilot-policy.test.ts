@@ -829,4 +829,75 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       expect(observed).toContain(mutation.expected);
     }
   }, 120_000);
+  test('the bootstrap policy and mapping select the moved pilot boundaries at HEAD', () => {
+    const bootstrapPolicy = JSON.parse(
+      readFileSync(join(repositoryRoot, 'docs/wiki-policy/bootstrap-policy.json'), 'utf8'),
+    ) as {
+      pilot: { sourceRevision: string };
+      boundaries: {
+        boundaryId: string;
+        selector: { kind: string; value: string };
+        sourceSelector?: { kind: string; value: string };
+        baselineEntries: ExactTuple[];
+      }[];
+    };
+    const bootstrapMapping = JSON.parse(
+      readFileSync(join(repositoryRoot, 'docs/wiki-policy/modules.bootstrap.json'), 'utf8'),
+    ) as {
+      modules: {
+        moduleId: string;
+        indexPath: string;
+        memberships: { kind: string; prefix?: string; path?: string }[];
+      }[];
+    };
+    const headPaths = entriesAt(repositoryRoot, 'HEAD').map(({ path }) => path);
+    const under = (prefix: string, path: string): boolean =>
+      path === prefix || path.startsWith(`${prefix}/`);
+
+    // The baselines are reviewed tuples at this revision; the relocation command refuses a
+    // revision that lacks them, so a bump here is a policy change, not a maintenance detail.
+    expect(bootstrapPolicy.pilot.sourceRevision).toBe('364cc0f8ef901cbfc574c6391c385e7f79bf27b4');
+    // Proof: with the three moved boundaries still selecting `libs/domain/src/saved-plan`,
+    // `libs/core/src/use-cases` and `libs/store-memory/src`, this assertion failed with exactly
+    // those three boundary ids received against `[]` (2026-09-16).
+    expect(
+      bootstrapPolicy.boundaries
+        .filter(({ selector }) => !headPaths.some((path) => under(selector.value, path)))
+        .map(({ boundaryId }) => boundaryId),
+    ).toEqual([]);
+    // Proof: moving one baseline path of `boundary.domain.saved-plan` to the post-move prefix
+    // while its `sourceSelector` named the pre-move one failed here with that boundary id.
+    expect(
+      bootstrapPolicy.boundaries
+        .filter(({ selector, sourceSelector, baselineEntries }) =>
+          baselineEntries.some(({ path }) => !under((sourceSelector ?? selector).value, path)),
+        )
+        .map(({ boundaryId }) => boundaryId),
+    ).toEqual([]);
+    // Proof: with `modules.bootstrap.json` still mapping the three moved modules to their
+    // pre-move prefixes, this assertion failed with their index paths and membership prefixes
+    // listed as strays under the new selectors (2026-09-16).
+    expect(
+      bootstrapPolicy.boundaries
+        .map(({ boundaryId, selector }) => {
+          const moduleId = boundaryId.replace('boundary.', 'module.');
+          const mapped = bootstrapMapping.modules.find((entry) => entry.moduleId === moduleId);
+          if (mapped === undefined) {
+            throw new Error(`bootstrap mapping has no module for ${boundaryId}`);
+          }
+          const claimed = [
+            mapped.indexPath,
+            ...mapped.memberships.map((membership) => {
+              const path = membership.prefix ?? membership.path;
+              if (path === undefined) {
+                throw new Error(`membership of ${moduleId} names neither prefix nor path`);
+              }
+              return path;
+            }),
+          ];
+          return { moduleId, strays: claimed.filter((path) => !under(selector.value, path)) };
+        })
+        .filter(({ strays }) => strays.length > 0),
+    ).toEqual([]);
+  }, 30_000);
 });

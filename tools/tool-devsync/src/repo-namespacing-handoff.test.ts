@@ -538,12 +538,12 @@ test('every legacy source occurrence and relevant text family is pinned', async 
   // that exact UNCLASSIFIED context, count 262, and digest 116ba02b... (2026-09-14).
   expect(await legacySourceOccurrences()).toEqual({
     categories: {
-      'current recursive selector': 30,
+      'current recursive selector': 31,
       'frozen migration evidence': 19,
-      'historical bootstrap policy or mapping': 65,
+      'historical bootstrap policy or mapping': 44,
       'historical policy selector or baseline': 39,
       'production proof or revision transition': 18,
-      'test fixture or proof': 99,
+      'test fixture or proof': 102,
     },
     coverage: {
       applicationLibraryToolReadmes: 17,
@@ -583,8 +583,14 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // pilot-policy.test.ts pinned the refusal text `... (selector prefix libs/domain/src/saved-plan)`
     // failed on the observed digest below at 270/99 — one more classified `test fixture or proof`
     // context, none unclassified (2026-09-16).
-    digest: '0bc684748263216ff171af8ed6522ef524b853a923d346e6c79bbe87069b7879',
-    occurrences: 270,
+    // Proof: leaving `0bc68474.../270/99` here after the three bootstrap wiki-policy files were
+    // re-pointed at the moved pilot boundaries failed on the observed digest below at 253/102 —
+    // 21 `historical bootstrap policy or mapping` contexts left bootstrap-policy.json,
+    // modules.bootstrap.json and relationships.bootstrap.json, while the new on-disk bootstrap
+    // oracle in pilot-policy.test.ts added three `test fixture or proof` contexts and one
+    // `current recursive selector`, none unclassified (2026-09-16).
+    digest: 'd0b341712487090ac3cc4eef39079104983c9e0f37274d2f9c5144428338a4c0',
+    occurrences: 253,
     unclassified: [],
   });
 });
