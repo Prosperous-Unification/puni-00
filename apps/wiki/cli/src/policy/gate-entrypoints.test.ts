@@ -185,7 +185,7 @@ function realFixture(): RealFixture {
   };
   write(
     join(repository, 'README.md'),
-    `# Fixture\n\n<!-- wbs-index ${JSON.stringify(metadata)} -->\n`,
+    `# Fixture\n\n<!-- module-index ${JSON.stringify(metadata)} -->\n`,
   );
   write(join(repository, 'src', 'app.ts'), 'export const value = 1;\n');
   write(join(repository, 'bin', 'tool-wiki-lint.sh'), '#!/usr/bin/env bash\nexit 1\n');

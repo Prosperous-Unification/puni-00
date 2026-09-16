@@ -12,7 +12,7 @@ import { IndexMetadata, type IndexMetadata as IndexMetadataRecord } from '../con
 import { hashCanonical } from '../evidence/content-manifest';
 import type { CandidateSnapshot } from '../inventory/read-candidate';
 
-const MetadataPattern = /^<!--\s*wbs-index\s+([\s\S]*?)-->$/;
+const MetadataPattern = /^<!--\s*module-index\s+([\s\S]*?)-->$/;
 
 export interface MarkdownLink {
   destination: string;
@@ -41,7 +41,7 @@ function readBlob(repository: string, path: string, blob: string): Uint8Array {
   if (invocation.exitCode !== 0) {
     const detail = invocation.stderr.toString('utf8').trim();
     // Proof: returning the failed invocation's empty stdout moved the unreadable-index CLI
-    // failure to `selected candidate contains no wbs indexes`, hiding the unreadable blob.
+    // failure to `selected candidate contains no module indexes`, hiding the unreadable blob.
     throw new Error(
       `cannot read selected index ${path}: ${detail.length === 0 ? `git exited ${String(invocation.exitCode)}` : detail}`,
     );
@@ -70,7 +70,7 @@ function decodeMarkdown(path: string, bytes: Uint8Array): string {
 function parseMetadata(indexPath: string, syntax: Root): IndexMetadataRecord | undefined {
   const comments: string[] = [];
   visit(syntax, 'html', (html) => {
-    if (html.value.includes('wbs-index')) comments.push(html.value.trim());
+    if (html.value.includes('module-index')) comments.push(html.value.trim());
   });
   if (comments.length === 0) return undefined;
   const matches = comments.map((comment) => MetadataPattern.exec(comment));
@@ -223,10 +223,13 @@ function headingHtml(children: readonly PhrasingContent[]): string {
 }
 
 function headingMarker(source: string): string {
-  let marker = 'wbs-index-heading';
+  let marker = 'module-index-heading';
   const foldedSource = source.toLocaleLowerCase('en-US');
-  // Proof: case-sensitive collision detection let raw `<WBS-INDEX-HEADING>Forged` source be
+  // Proof: case-sensitive collision detection let raw `<MODULE-INDEX-HEADING>Forged` source be
   // normalized by HTML parsing into the internal marker and exit 0 (expected exit 1).
+  // Re-observed against the renamed marker: comparing `source` instead of `foldedSource` made
+  // `does not let source HTML forge an internal Markdown-heading marker` receive exit 0
+  // (2026-09-16).
   while (foldedSource.includes(marker)) marker += '-x';
   return marker;
 }

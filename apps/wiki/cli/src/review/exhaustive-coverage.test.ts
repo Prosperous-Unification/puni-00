@@ -145,7 +145,7 @@ function runFreezeCli(fixture: RepositoryFixture, paths = fixture.paths) {
       ...paths,
     ],
     {
-      cwd: join(import.meta.dir, '..', '..', '..'),
+      cwd: join(import.meta.dir, '..', '..'),
       stdout: 'pipe',
       stderr: 'pipe',
     },
@@ -177,7 +177,7 @@ function runCoverageCli(
       ...fixture.paths,
     ],
     {
-      cwd: join(import.meta.dir, '..', '..', '..'),
+      cwd: join(import.meta.dir, '..', '..'),
       stdout: 'pipe',
       stderr: 'pipe',
     },

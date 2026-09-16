@@ -347,7 +347,7 @@ function requireTargetRef(repository: string, targetRef: string): string {
 }
 
 function markerRef(integrationId: string, targetRef: string): string {
-  return `refs/wbs-wiki/publications/${hashCanonical({ integrationId, targetRef })}`;
+  return `refs/module-wiki/publications/${hashCanonical({ integrationId, targetRef })}`;
 }
 
 function assertGenerationMatches(

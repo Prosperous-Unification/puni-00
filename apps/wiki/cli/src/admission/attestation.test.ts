@@ -141,7 +141,7 @@ function fixture() {
     reviewReceipts: [],
     status: 'checked',
   };
-  const markerRef = 'refs/wbs-wiki/publications/fixture';
+  const markerRef = 'refs/module-wiki/publications/fixture';
   git(repository, ['update-ref', markerRef, commit]);
   const activation: IntegrationBindingActivation = {
     activationIdentity: '8'.repeat(64),
@@ -363,7 +363,7 @@ test('trusted verification refuses invented provenance, mismatched binding kind,
   git(subject.repository, ['add', '.']);
   git(subject.repository, ['commit', '--quiet', '--message', 'same tree, different commit']);
   const impostorCommit = git(subject.repository, ['rev-parse', 'HEAD']);
-  const impostorMarker = 'refs/wbs-wiki/publications/impostor';
+  const impostorMarker = 'refs/module-wiki/publications/impostor';
   git(subject.repository, ['update-ref', impostorMarker, impostorCommit]);
   expect(git(subject.repository, ['rev-parse', 'HEAD^{tree}'])).toBe(subject.tree);
   expect(() =>
@@ -396,7 +396,7 @@ test('trusted verification refuses a publication commit with a second parent', (
     '-m',
     'merge publication',
   ]);
-  const mergeMarker = 'refs/wbs-wiki/publications/merge';
+  const mergeMarker = 'refs/module-wiki/publications/merge';
   git(subject.repository, ['update-ref', mergeMarker, mergeCommit]);
   const publication = {
     commit: mergeCommit,

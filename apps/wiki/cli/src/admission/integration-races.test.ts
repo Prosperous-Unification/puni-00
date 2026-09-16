@@ -774,7 +774,11 @@ test('the complete candidate submission set must match the durable queue before 
   ).toThrow('integration candidate submissions differ from the durable queue');
   expect(git(subject.repository, ['rev-parse', 'refs/heads/main'])).toBe(subject.base.commit);
   expect(
-    git(subject.repository, ['for-each-ref', '--format=%(refname)', 'refs/wbs-wiki/publications']),
+    git(subject.repository, [
+      'for-each-ref',
+      '--format=%(refname)',
+      'refs/module-wiki/publications',
+    ]),
   ).toBe('');
   expect(
     subject.store
@@ -903,7 +907,11 @@ test('publishing recovery checks an immutable marker before enforcing the refres
   });
   expect(git(expired.repository, ['rev-parse', 'refs/heads/main'])).toBe(expired.base.commit);
   expect(
-    git(expired.repository, ['for-each-ref', '--format=%(refname)', 'refs/wbs-wiki/publications']),
+    git(expired.repository, [
+      'for-each-ref',
+      '--format=%(refname)',
+      'refs/module-wiki/publications',
+    ]),
   ).toBe('');
   expired.store.close();
 
@@ -1154,7 +1162,11 @@ test('an eligible publisher retains its exact attempt across Git ref contention'
   });
   expect(git(subject.repository, ['rev-parse', 'refs/heads/main'])).toBe(subject.base.commit);
   expect(
-    git(subject.repository, ['for-each-ref', '--format=%(refname)', 'refs/wbs-wiki/publications']),
+    git(subject.repository, [
+      'for-each-ref',
+      '--format=%(refname)',
+      'refs/module-wiki/publications',
+    ]),
   ).toBe('');
 
   rmSync(targetLock);
@@ -1421,7 +1433,7 @@ test('a preexisting private publication marker cannot collide with a new reserva
     queue,
     options('marker-collision').commit,
   );
-  const publicationMarker = `refs/wbs-wiki/publications/${hashCanonical({
+  const publicationMarker = `refs/module-wiki/publications/${hashCanonical({
     integrationId: 'marker-collision',
     targetRef: 'refs/heads/main',
   })}`;
@@ -1621,18 +1633,26 @@ test('three failed certifications terminate with exact submissions retained', as
   subject.store.close();
 });
 
-test('existing v3 authority state is refused instead of silently defaulting queue history', () => {
-  const subject = fixture();
-  subject.store.close();
-  const database = new Database(resolveAuthorityDatabasePath(subject.repository), { strict: true });
-  database
-    .query<never, [string]>('UPDATE authority_meta SET schema_version = ? WHERE singleton = 1')
-    .run('wbs-wiki-authority.v3');
-  database.close();
-  expect(() => openAuthorityStore(subject.repository)).toThrow(
-    'authority database version is incompatible',
-  );
-});
+test.each(['wbs-wiki-authority.v3', 'wbs-wiki-authority.v4'])(
+  'existing %s authority state is refused instead of silently defaulting queue history',
+  (superseded) => {
+    const subject = fixture();
+    subject.store.close();
+    const database = new Database(resolveAuthorityDatabasePath(subject.repository), {
+      strict: true,
+    });
+    database
+      .query<never, [string]>('UPDATE authority_meta SET schema_version = ? WHERE singleton = 1')
+      .run(superseded);
+    database.close();
+    // Proof: pinning `AUTHORITY_SCHEMA_VERSION` back at `wbs-wiki-authority.v4` made the v4 row
+    // open without throwing, and this case failed on `Received function did not throw` — the v5
+    // bump is what refuses an authority written under the old `.git/wbs-wiki` name (2026-09-16).
+    expect(() => openAuthorityStore(subject.repository)).toThrow(
+      'authority database version is incompatible',
+    );
+  },
+);
 
 test('memory authority refuses partial or mismatched durable integration records', () => {
   const subject = fixture();
@@ -1759,10 +1779,14 @@ test('a wrong-tree or extra-parent candidate commit is refused before refs or li
   expect(git(subject.repository, ['rev-parse', 'refs/heads/main'])).toBe(targetBefore);
   expect(subject.store.inspect().integrations[0]?.status).toBe('checking');
   expect(
-    git(subject.repository, ['for-each-ref', '--format=%(refname)', 'refs/wbs-wiki/publications']),
+    git(subject.repository, [
+      'for-each-ref',
+      '--format=%(refname)',
+      'refs/module-wiki/publications',
+    ]),
   ).toBe('');
 
-  const publicationMarker = `refs/wbs-wiki/publications/${hashCanonical({
+  const publicationMarker = `refs/module-wiki/publications/${hashCanonical({
     integrationId: 'wrong-commit',
     targetRef: 'refs/heads/main',
   })}`;
@@ -1798,7 +1822,11 @@ test('a wrong-tree or extra-parent candidate commit is refused before refs or li
   expect(git(subject.repository, ['rev-parse', 'refs/heads/main'])).toBe(targetBefore);
   expect(subject.store.inspect().integrations[0]?.status).toBe('publishing');
   expect(
-    git(subject.repository, ['for-each-ref', '--format=%(refname)', 'refs/wbs-wiki/publications']),
+    git(subject.repository, [
+      'for-each-ref',
+      '--format=%(refname)',
+      'refs/module-wiki/publications',
+    ]),
   ).toBe('');
   subject.store.close();
 });

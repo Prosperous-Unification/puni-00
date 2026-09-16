@@ -174,7 +174,7 @@ function indexSource(moduleId: string, memberships: object[]): string {
       knowledgeLimit: 'Only the fixture repository was considered.',
     },
   };
-  return `# Relocation fixture\n\n<!-- wbs-index ${JSON.stringify(metadata)} -->\n`;
+  return `# Relocation fixture\n\n<!-- module-index ${JSON.stringify(metadata)} -->\n`;
 }
 
 export function fixturePolicy(

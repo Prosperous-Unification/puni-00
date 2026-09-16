@@ -21,11 +21,14 @@ export {
 } from './authority-identities';
 
 /**
- * v4 adds durable integration/recovery history. Existing v3 files are intentionally refused:
- * inventing an empty queue could erase an in-flight publication fact. This authority remains
- * unactivated until the separately reviewed production bootstrap in slice 5.3.
+ * v4 added durable integration/recovery history; v5 renames the on-disk authority from
+ * `.git/wbs-wiki` to `.git/module-wiki`, which is a schema change because the file the version
+ * describes moves with it. Existing v3 and v4 files are intentionally refused: inventing an
+ * empty queue could erase an in-flight publication fact, and adopting a file found under the
+ * old directory name would be adopting state this version cannot claim to have written. This
+ * authority remains unactivated until the separately reviewed production bootstrap in slice 5.3.
  */
-export const AUTHORITY_SCHEMA_VERSION = 'wbs-wiki-authority.v4' as const;
+export const AUTHORITY_SCHEMA_VERSION = 'module-wiki-authority.v5' as const;
 
 export type PathAccess = 'read' | 'write';
 
@@ -401,7 +404,7 @@ function assertMemoryState(state: AuthorityState): void {
       (integration.candidateCommit !== undefined &&
         !GIT_OBJECT.test(integration.candidateCommit)) ||
       (integration.markerRef !== undefined &&
-        !integration.markerRef.startsWith('refs/wbs-wiki/publications/'))
+        !integration.markerRef.startsWith('refs/module-wiki/publications/'))
     ) {
       throw new Error(
         `invalid authority integration publication identity: ${integration.integrationId}`,
@@ -789,9 +792,9 @@ function runGitCommonDirectory(worktreePath: string): string {
 /** Resolves the one authority file shared by every linked or symlinked worktree. */
 export function resolveAuthorityDatabasePath(worktreePath: string): string {
   const commonDirectory = runGitCommonDirectory(worktreePath);
-  const authorityDirectory = join(commonDirectory, 'wbs-wiki');
+  const authorityDirectory = join(commonDirectory, 'module-wiki');
   mkdirSync(authorityDirectory, { recursive: true });
-  // Proof: omitting this comparison let `.git/wbs-wiki` redirect the authority outside the
+  // Proof: omitting this comparison let `.git/module-wiki` redirect the authority outside the
   // common Git directory; the symlink test observed that resolution did not throw.
   if (realpathSync(authorityDirectory) !== authorityDirectory) {
     throw new Error(`authority directory is not canonical: ${authorityDirectory}`);

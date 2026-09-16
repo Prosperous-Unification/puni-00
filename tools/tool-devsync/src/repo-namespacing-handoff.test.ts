@@ -608,7 +608,13 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // contexts, so pinning either side's digest here failed on the observed digest below at 257 —
     // W5's four new `test fixture or proof` contexts report under the moved `apps/wiki/cli`
     // paths, which re-sorts them (2026-09-16).
-    digest: 'b118a4b8e841182e32448abf60576de03221f71f6d744c5b53bd0d57d5d7d0c7',
+    // Proof: leaving `b118a4b8...` here after the product-neutral marker, refs and authority
+    // schema rename failed on the observed digest below, still at 257 — the only context that
+    // moved is `apps/wiki/cli/src/admission/authority-store.ts`'s `libs/contracts` proof comment,
+    // pushed from line 816 to 819 by the three JSDoc lines that explain the v5 bump; every other
+    // context in every file this commit touched is byte-identical, checked line by line
+    // (2026-09-16).
+    digest: '46db251d98c8826b310f2cdb3f8c64b79f2a4e29a5117db98c4b4246453c3372',
     occurrences: 257,
     unclassified: [],
   });

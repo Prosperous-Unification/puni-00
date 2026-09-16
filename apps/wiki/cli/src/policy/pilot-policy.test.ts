@@ -555,7 +555,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     const candidate = createCandidate();
     const readme = join(candidate.repository, 'libs/wbs/domain/domain/src/saved-plan/README.md');
     const source = readFileSync(readme, 'utf8');
-    const block = /<!-- wbs-index ([\s\S]+) -->/.exec(source);
+    const block = /<!-- module-index ([\s\S]+) -->/.exec(source);
     if (block === null) throw new Error('saved-plan index metadata absent');
     const metadata = JSON.parse(block[1]) as Record<string, unknown>;
     metadata['externalConsumers'] = {
@@ -563,7 +563,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       memberships: [{ kind: 'path', path: 'libs/wbs/domain/domain/src/saved-plan/README.md' }],
       knowledgeLimit: 'The boundary index is not an external consumer.',
     };
-    write(readme, source.replace(block[0], `<!-- wbs-index ${JSON.stringify(metadata)} -->`));
+    write(readme, source.replace(block[0], `<!-- module-index ${JSON.stringify(metadata)} -->`));
     git(candidate.repository, ['add', readme]);
     git(candidate.repository, ['commit', '--quiet', '--message', 'claim owned README as consumer']);
     candidate.revision = git(candidate.repository, ['rev-parse', 'HEAD']);

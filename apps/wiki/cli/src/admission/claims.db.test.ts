@@ -147,7 +147,7 @@ test('resolves linked and symlinked worktrees to one canonical common-Git author
     resolveAuthorityDatabasePath,
   );
   expect(new Set(paths).size).toBe(1);
-  expect(paths[0]).toEndWith('/.git/wbs-wiki/authority.sqlite');
+  expect(paths[0]).toEndWith('/.git/module-wiki/authority.sqlite');
 
   const first = openAuthorityStore(fixture.worktreeA);
   expect(acquireClaims(first, claim('session-a', fixture.worktreeA, 'libs/contracts'))).toEqual({
@@ -166,7 +166,7 @@ test('refuses an authority-directory symlink outside the canonical common Git di
   const fixture = fixtureRepository();
   const external = join(fixture.root, '..', 'external-authority');
   mkdirSync(external);
-  symlinkSync(external, join(fixture.root, '.git', 'wbs-wiki'), 'dir');
+  symlinkSync(external, join(fixture.root, '.git', 'module-wiki'), 'dir');
 
   expect(() => resolveAuthorityDatabasePath(fixture.root)).toThrow(
     'authority directory is not canonical',

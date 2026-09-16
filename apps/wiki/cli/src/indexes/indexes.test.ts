@@ -74,7 +74,7 @@ function indexSource(
   indexMetadata: IndexMetadataFixture,
   links: string[],
 ): string {
-  return `# ${heading}\n\n<!-- wbs-index ${JSON.stringify(indexMetadata)} -->\n\n${links.join('\n')}\n`;
+  return `# ${heading}\n\n<!-- module-index ${JSON.stringify(indexMetadata)} -->\n\n${links.join('\n')}\n`;
 }
 
 function createRepository(): string {
@@ -525,7 +525,7 @@ describe('index production CLI', () => {
     const first = runCheck(repository, revision);
     expect(first.exitCode, outputOf(first)).toBe(0);
 
-    write(repository, 'README.md', '<!-- wbs-index {"schemaVersion":99} -->\n');
+    write(repository, 'README.md', '<!-- module-index {"schemaVersion":99} -->\n');
     rmSync(join(repository, 'docs/guide.md'));
     const second = runCheck(repository, revision);
 
@@ -560,7 +560,7 @@ describe('index production CLI', () => {
 
     expectRefusal(
       runCheck(repository, commit(repository, 'missing index metadata')),
-      'selected candidate contains no wbs indexes',
+      'selected candidate contains no module indexes',
     );
   });
 
@@ -673,12 +673,12 @@ describe('index production CLI', () => {
 
   test('does not treat a fenced metadata example as an index envelope', () => {
     const repository = createRepository();
-    const envelope = `<!-- wbs-index ${JSON.stringify(metadata('module.example', []))} -->`;
+    const envelope = `<!-- module-index ${JSON.stringify(metadata('module.example', []))} -->`;
     write(repository, 'README.md', `# Example\n\n\`\`\`md\n${envelope}\n\`\`\`\n`);
 
     expectRefusal(
       runCheck(repository, commit(repository, 'fenced metadata example')),
-      'selected candidate contains no wbs indexes',
+      'selected candidate contains no module indexes',
     );
   });
 
@@ -971,7 +971,7 @@ describe('index production CLI', () => {
     write(
       repository,
       'guide.md',
-      '# Real\n\n<div><WBS-INDEX-HEADING>Forged</WBS-INDEX-HEADING></div>\n',
+      '# Real\n\n<div><MODULE-INDEX-HEADING>Forged</MODULE-INDEX-HEADING></div>\n',
     );
 
     expectRefusal(
@@ -992,7 +992,7 @@ describe('index production CLI', () => {
     write(
       repository,
       'guide.md',
-      '# Real\n\n## &lt;wbs-index-**heading**>Forged&lt;/wbs-index-**heading**>\n',
+      '# Real\n\n## &lt;module-index-**heading**>Forged&lt;/module-index-**heading**>\n',
     );
 
     expectRefusal(

@@ -99,7 +99,7 @@ function indexSource(
       knowledgeLimit: 'Only consumers visible in the selected fixture were considered.',
     },
   };
-  return `# Fixture\n\n<!-- wbs-index ${JSON.stringify(metadata)} -->\n`;
+  return `# Fixture\n\n<!-- module-index ${JSON.stringify(metadata)} -->\n`;
 }
 
 function classificationPolicy(): object {
@@ -1393,7 +1393,7 @@ describe('trusted policy production CLI', () => {
     );
     write(
       join(fixture.repository, 'tools/candidate-plugin.ts'),
-      "import { writeFileSync } from 'node:fs';\nwriteFileSync(process.env['WBS_WIKI_PLUGIN_SENTINEL'] ?? '', 'executed');\nexport const createNodesV2 = ['project.json', () => []] as const;\n",
+      "import { writeFileSync } from 'node:fs';\nwriteFileSync(process.env['MODULE_WIKI_PLUGIN_SENTINEL'] ?? '', 'executed');\nexport const createNodesV2 = ['project.json', () => []] as const;\n",
     );
     write(
       join(fixture.repository, 'nx.json'),
@@ -1436,11 +1436,11 @@ describe('trusted policy production CLI', () => {
     binding.policy.sha256 = sha256(readFileSync(fixture.policyPath));
     write(fixture.bindingPath, `${JSON.stringify(binding)}\n`);
 
-    const environmentSentinel = process.env['WBS_WIKI_PLUGIN_SENTINEL'];
-    process.env['WBS_WIKI_PLUGIN_SENTINEL'] = sentinel;
+    const environmentSentinel = process.env['MODULE_WIKI_PLUGIN_SENTINEL'];
+    process.env['MODULE_WIKI_PLUGIN_SENTINEL'] = sentinel;
     const invocation = runCi(fixture);
-    if (environmentSentinel === undefined) delete process.env['WBS_WIKI_PLUGIN_SENTINEL'];
-    else process.env['WBS_WIKI_PLUGIN_SENTINEL'] = environmentSentinel;
+    if (environmentSentinel === undefined) delete process.env['MODULE_WIKI_PLUGIN_SENTINEL'];
+    else process.env['MODULE_WIKI_PLUGIN_SENTINEL'] = environmentSentinel;
     const output = outputOf(invocation);
     // Proof: executing the configured plugin from relationship extraction wrote this sentinel and
     // failed the assertion before trusted lint could accept the static project declarations.
@@ -1872,7 +1872,7 @@ describe('trusted policy production CLI', () => {
         [...mutation.metadata.applicableChecks],
       );
       const metadata = JSON.parse(
-        /<!-- wbs-index ([\s\S]+) -->/.exec(metadataSource)?.[1] ?? '{}',
+        /<!-- module-index ([\s\S]+) -->/.exec(metadataSource)?.[1] ?? '{}',
       ) as Record<string, unknown>;
       metadata['externalConsumers'] = mutation.metadata.externalConsumers;
       if ('omitCheckDisposition' in mutation) {
@@ -1882,7 +1882,7 @@ describe('trusted policy production CLI', () => {
       }
       write(
         join(fixture.repository, 'README.md'),
-        `# Fixture\n\n<!-- wbs-index ${JSON.stringify(metadata)} -->\n`,
+        `# Fixture\n\n<!-- module-index ${JSON.stringify(metadata)} -->\n`,
       );
       write(
         join(fixture.repository, 'relationships.json'),

@@ -330,7 +330,7 @@ const validateViaCli = (kind: RecordKind, record: object, name: string) => {
       kind,
       recordPath,
     ],
-    cwd: join(import.meta.dir, '..', '..', '..'),
+    cwd: join(import.meta.dir, '..', '..'),
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -720,7 +720,7 @@ describe('production CLI validation boundary', () => {
       writeFileSync(recordPath, `${JSON.stringify(validationCase.record)}\n`, 'utf8');
       const child = Bun.spawnSync({
         cmd: [process.execPath, 'run', cliPath, 'validate', validationCase.kind, recordPath],
-        cwd: join(import.meta.dir, '..', '..', '..'),
+        cwd: join(import.meta.dir, '..', '..'),
         stdout: 'pipe',
         stderr: 'pipe',
       });

@@ -1067,7 +1067,7 @@ test('reads static Nx configuration without executing candidate plugins', () => 
   write(
     repository,
     'tools/candidate-plugin.cjs',
-    "require('node:fs').writeFileSync(process.env.WBS_WIKI_PLUGIN_SENTINEL, 'executed');\nmodule.exports = { name: 'candidate-plugin', createNodesV2: ['project.json', () => []] };\n",
+    "require('node:fs').writeFileSync(process.env.MODULE_WIKI_PLUGIN_SENTINEL, 'executed');\nmodule.exports = { name: 'candidate-plugin', createNodesV2: ['project.json', () => []] };\n",
   );
   write(
     repository,
@@ -1077,7 +1077,7 @@ test('reads static Nx configuration without executing candidate plugins', () => 
   const revision = commitAll(repository, 'candidate Nx plugin');
 
   const invocation = invoke(repository, revision, writeRequest(repository), {
-    WBS_WIKI_PLUGIN_SENTINEL: sentinel,
+    MODULE_WIKI_PLUGIN_SENTINEL: sentinel,
   });
 
   // Proof: executing the configured plugin from the production extractor wrote this sentinel and
@@ -1103,12 +1103,12 @@ test('reads static Nx configuration without executing a candidate-local wrapper'
   write(
     repository,
     '.nx/nxw.js',
-    "require('node:fs').writeFileSync(process.env.WBS_WIKI_NX_SENTINEL, 'executed');\n",
+    "require('node:fs').writeFileSync(process.env.MODULE_WIKI_NX_SENTINEL, 'executed');\n",
   );
   const revision = commitAll(repository, 'candidate-local Nx wrapper');
 
   const invocation = invoke(repository, revision, writeRequest(repository), {
-    WBS_WIKI_NX_SENTINEL: sentinel,
+    MODULE_WIKI_NX_SENTINEL: sentinel,
   });
 
   // Proof: executing the candidate-local wrapper from the production extractor wrote this sentinel

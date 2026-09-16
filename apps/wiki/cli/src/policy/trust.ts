@@ -1181,7 +1181,7 @@ function validatePilotModuleMapping(
     }
     const index = indexReport.indexes.find(({ indexPath }) => indexPath === module.indexPath);
     if (index === undefined) {
-      throw new Error(`pilot module index is not a wbs index: ${module.indexPath}`);
+      throw new Error(`pilot module index has no module-index metadata: ${module.indexPath}`);
     }
     // Proof: renaming only the externally pinned saved-plan module made production observe lint
     // accept valid regenerated evidence; the oracle expected exit 1 and received accepted.

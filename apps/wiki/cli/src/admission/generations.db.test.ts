@@ -161,7 +161,7 @@ test('SQLite refuses malformed lifecycle state before it can be treated as avail
       conflictGroups: [],
     });
     store.close();
-    const database = new Database(join(root, '.git', 'wbs-wiki', 'authority.sqlite'));
+    const database = new Database(join(root, '.git', 'module-wiki', 'authority.sqlite'));
     database.run('PRAGMA ignore_check_constraints = ON');
     database.run(mutation);
     database.close();

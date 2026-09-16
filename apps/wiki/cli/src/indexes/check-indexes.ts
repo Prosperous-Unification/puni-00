@@ -410,7 +410,7 @@ export function checkIndexes(repository: string, candidate: CandidateSnapshot) {
   const read = readIndexes(repository, candidate);
   // Proof: without this guard a candidate containing only an ordinary README exited 0 with
   // `indexes: []` and `reviewDebt: []` (expected exit 1, received 0).
-  if (read.indexes.length === 0) throw new Error('selected candidate contains no wbs indexes');
+  if (read.indexes.length === 0) throw new Error('selected candidate contains no module indexes');
   const paths = candidate.entries.map(({ path }) => path);
   const candidatePaths = new Set(paths);
   const entries = new Map(candidate.entries.map((entry) => [entry.path, entry]));
