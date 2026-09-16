@@ -1070,7 +1070,8 @@ function sameTuple(left: CandidateEntry, right: typeof ExactTuple.infer): boolea
   return left.path === right.path && left.mode === right.mode && left.blob === right.blob;
 }
 
-function selectedMembers(
+/** Selects exactly the candidate tuples one boundary selector covers, by path or path prefix. */
+export function selectedMembers(
   candidate: CandidateSnapshot,
   selector: typeof BoundarySelector.infer,
 ): CandidateEntry[] {
