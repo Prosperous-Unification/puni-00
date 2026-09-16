@@ -1,8 +1,12 @@
 # Verification Report
 
 **Change**: `wiki-release`
-**Verified at**: `2026-09-16 — branch change/wiki-release, at the whole-branch review fold`
-**Verifier**: Claude Fable 5.1, under the W7 controller
+**Verified at**: `2026-09-16 — branch change/wiki-release, tree of d7a0f14e (base 84a4fd63)`
+
+> The evidence below was produced against the tree of `d7a0f14e`. These three head references were
+> amended into that same commit afterwards, so the commit this file ships in differs from the
+> verified tree only in these documentation lines.
+> **Verifier**: Claude Fable 5.1, under the W7 controller
 
 > Partial. Slices 1-5 are implemented and verified here. Slice 6 is operator work Dany runs against
 > a real consumer repository; its rows stay empty until then. This change is not archivable until
@@ -98,19 +102,26 @@ executes it from an empty cwd with only `PATH` and `HOME`.
 
 CI is the merge gate; locally the wiki project's own targets plus the entrypoint suites were run.
 
-The `wiki-cli` suite was run as five batches covering all 32 test files, each read at completion,
-because background log files in this environment were repeatedly truncated and one such log
-produced a false green earlier in this change. Every batch reports zero failures and exit 0.
+Background log files in this environment are truncated to their first few lines within seconds of
+a command completing, and an earlier partial read of one produced a false green in this change. So
+every figure below comes either from a foreground run whose output was read in full, or from a
+watcher gated on the command's own literal last line (`NX_EXIT=` / `BUN_EXIT=`), which cannot fire
+against a partially written file. Nothing here rests on a piped exit code: a failing `nx` inside a
+pipeline without `pipefail` reports the exit status of `tail`.
 
 ```
-bunx nx test wiki-cli --skip-nx-cache  → whole suite, foreground, 0 fail (the run's own printed
-                                        head, count and duration are in the report)
+bunx nx test wiki-cli --skip-nx-cache   673 pass, 0 fail, Ran 673 tests across 32 files [949.52s]
+  (at d7a0f14e)                         NX   Successfully ran target test for project wiki-cli
+                                        NX_EXIT=0
 
-# and, as an independent cross-check, the same 32 files as five directly-read batches:
-src/policy/{release,relocation-activation,activation}.test.ts  → 53 pass, 0 fail (3 files)
+bun test ./src/ (one process)           673 pass, 0 fail, Ran 673 tests across 32 files [946.32s]
+                                        BUN_EXIT=0
+
+# and, read in full in the foreground, the same 32 files as three invocations:
+src/policy/                                                    → 183 pass, 0 fail (6 files), exit 0
 src/{admission,contracts,evidence,experiments,indexes,inventory}, src/cli.test.ts
-                                                               → 0 fail, exit 0 (20 files)
-src/{relationships,review}                                     → 0 fail, exit 0 (6 files)
+                                                               → 335 pass, 0 fail (20 files), exit 0
+src/{relationships,review}                                     → 119 pass, 0 fail (6 files), exit 0
 src/policy/{gate-entrypoints,pilot-policy}.test.ts             → 0 fail (2 files)
 src/policy/trusted-policy.test.ts                              → 55 pass, 0 fail (1 file)
 
@@ -138,7 +149,7 @@ Every command with its result line is in
 - [x] No unstaged files in the worktree at each commit
 - [ ] Relevant commits pushed — the controller pushes and opens the PR
 
-**Commit range**: `84a4fd63..HEAD` on `change/wiki-release`
+**Commit range**: `84a4fd63..d7a0f14e` on `change/wiki-release`
 
 ---
 

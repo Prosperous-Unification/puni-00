@@ -260,6 +260,10 @@ function selfCheck(destination: string, repository: string, sha: string): string
     ['bash', join(destination, 'bootstrap-launcher.sh'), 'committed', repository, sha],
     {
       env: {
+        // The toolkit preparer scrubs this variable so its self-check exercises the launcher's
+        // archive-root default. Here it stays: W5's proof table was written against this exact
+        // environment, and changing it would retire negatives this change cannot re-witness. The
+        // archive root carries the same directory either way, so the two agree on what is loaded.
         ...process.env,
         TOOL_WIKI_ACTIVATION_ROOT: destination,
         TOOL_WIKI_TRUSTED_NODE_MODULES: join(destination, 'trusted-node-modules'),
