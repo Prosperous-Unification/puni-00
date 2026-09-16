@@ -623,7 +623,201 @@ run_suite() {
   else
     fail "20b: the refusal did not name the tickets ahead: $(cat "$stderr_log")"
   fi
+  # A ticket that scans clean — live pid, readable deadline — but whose label
+  # line is not there. `gone` and `unknown` are different facts about a ticket
+  # ahead, and a reader deciding whether to wait for it needs to know which.
+  printf 'pid %s\nstarted 2001-09-09T01:46:40Z\nunnamed\ndeadline %s\ncommand sleep\n' \
+    "$$" "$(epoch_seconds_from_now 3600)" >"$lock.queue/$live_ticket_name"
+  status=0
+  run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 75 "$status" "20c: a waiter behind a ticket it cannot name is still refused"
+  if grep -q "gave up after [0-9]*s behind 1 tickets: unknown (pid $$)" "$stderr_log"; then
+    pass "20d: a ticket that is there but cannot be named is reported unknown"
+  else
+    fail "20d: a ticket that cannot be named is not reported unknown: $(cat "$stderr_log")"
+  fi
   rm -f "$lock.queue/$live_ticket_name"
+
+  # Case 21 — a ticket that leaves the queue while it is being READ.
+  #
+  # Every scan reads each ticket, and a ticket is claimed or reclaimed by someone
+  # else at any moment: the file is simply gone by the time `sed` opens it. That
+  # is ordinary, and it was being read as unknown state — exit 70, from a run
+  # whose only misfortune was scanning a queue that was moving. Testing `-e`
+  # first cannot close the window, because the command substitution forks before
+  # its own test runs; the shim below makes the window certain instead of rare by
+  # deleting the ticket it is asked to read and then reading it.
+  rm -rf "$lock.d" "$lock.queue"
+  mkdir -p "$lock.queue"
+  local vanishing_bin
+  vanishing_bin="${TMPDIR:-/tmp}/wbs-heavy-lock-vanishing.$$.$(basename "$sh")"
+  rm -rf "$vanishing_bin"
+  mkdir -p "$vanishing_bin"
+  local vanishing_tool vanishing_tool_path
+  for vanishing_tool in bash mkdir dirname cat rm mv sleep date; do
+    vanishing_tool_path=$(type -P "$vanishing_tool")
+    if [[ -z $vanishing_tool_path ]]; then
+      fail "21: this image has no $vanishing_tool, so the vanishing PATH cannot be built"
+    else
+      ln -s "$vanishing_tool_path" "$vanishing_bin/$vanishing_tool"
+    fi
+  done
+  local real_sed
+  real_sed=$(type -P sed)
+  # shellcheck disable=SC2016 # Single quotes are the point: `$arg` and `$@`
+  # belong to the generated shim, not to this process.
+  printf '#!/bin/sh\nfor arg do\n  case "$arg" in\n    *.queue/*) rm -f "$arg" ;;\n  esac\ndone\nexec %s "$@"\n' \
+    "$real_sed" >"$vanishing_bin/sed"
+  chmod 755 "$vanishing_bin/sed"
+  write_ticket_fixture "$lock.queue/$live_ticket_name" "$$" vanishing "$(epoch_seconds_from_now 3600)"
+  status=0
+  PATH="$vanishing_bin" run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 0 "$status" "21a: a ticket that vanishes mid-read does not fail the run"
+  write_ticket_fixture "$lock.queue/$live_ticket_name" "$$" vanishing "$(epoch_seconds_from_now 3600)"
+  status=0
+  queue_report=$(PATH="$vanishing_bin" run_status "$sh" "$lock" 2>"$stderr_log") || status=$?
+  expect_status 0 "$status" "21b: a ticket that vanishes mid-read does not fail status"
+  if [[ $queue_report == *waiter* ]]; then
+    fail "21c: status reported a waiter whose ticket had gone: $queue_report"
+  else
+    pass "21c: status leaves out the waiter whose ticket had gone"
+  fi
+  rm -rf "$vanishing_bin" "$lock.queue"
+
+  # Case 22 — the release trap must eat neither the run's exit status nor the
+  # caller's own cleanup.
+  #
+  # The trap runs `rm -rf` on the lock directory, and under `set -e` a failing
+  # `rm` aborts the whole trap: the caller's chained EXIT trap never runs and the
+  # shell exits 1 instead of with the status the run actually produced. The
+  # fixture makes the removal fail the way a shared host does — the lock's parent
+  # loses write permission while the run holds it — and asserts both halves.
+  local stuck_root
+  stuck_root="${TMPDIR:-/tmp}/wbs-heavy-lock-stuck.$$.$(basename "$sh")"
+  rm -rf "$stuck_root"
+  # The lock's parent is what the payload makes unwritable; the caller's cleanup
+  # lives OUTSIDE it, because a fixture that also breaks the caller's own `rm`
+  # proves nothing about whether it was reached.
+  local stuck_parent="$stuck_root/locks"
+  local caller_cleanup_dir="$stuck_root/caller-cleanup"
+  mkdir -p "$stuck_parent" "$caller_cleanup_dir"
+  # bin/h2puni-gate.sh's shape: an EXIT trap of its own, installed before the
+  # lock, and a payload with an exit status worth keeping.
+  # shellcheck disable=SC2016 # Single quotes are the point: every line is source
+  # for the generated fixture, whose `$1`-`$4` are its own arguments.
+  printf '%s\n' \
+    '#!/bin/bash' \
+    'set -euo pipefail' \
+    'source "$1"' \
+    'caller_cleanup_dir=$2' \
+    'lock_parent=$4' \
+    'trap '\''rm -rf -- "$caller_cleanup_dir"'\'' EXIT' \
+    'payload() { chmod 500 "$lock_parent"; return 42; }' \
+    'payload_status=0' \
+    'with_heavy_lock "$3" -- payload || payload_status=$?' \
+    'exit $payload_status' \
+    >"$stuck_root/caller.sh"
+  status=0
+  "$sh" "$stuck_root/caller.sh" \
+    "$lock_lib" "$caller_cleanup_dir" "$stuck_parent/stuck.lock" "$stuck_parent" \
+    2>"$stderr_log" || status=$?
+  expect_status 42 "$status" "22a: the run's exit status survives a release that could not finish"
+  chmod 700 "$stuck_parent"
+  if [[ -d $caller_cleanup_dir ]]; then
+    fail "22b: a release that could not finish skipped the caller's EXIT trap"
+  else
+    pass "22b: the caller's EXIT trap ran even though the release could not finish"
+  fi
+  if grep -q "could not remove" "$stderr_log"; then
+    pass "22c: the release said out loud what it could not remove"
+  else
+    fail "22c: the release did not say what it could not remove: $(cat "$stderr_log")"
+  fi
+  rm -rf "$stuck_root"
+
+  # Case 23 — drafts from runs that were killed mid-write. A SIGKILLed run leaves
+  # its `.draft-` file behind and runs no trap, and no ticket glob matches a
+  # dotfile, so nothing would ever look at it again: one file per killed run, for
+  # ever, on a host that is never cleaned by hand. The pid is in the name, which
+  # is all the sweep needs.
+  rm -rf "$lock.queue"
+  mkdir -p "$lock.queue"
+  local stale_draft=".draft-1000000000000000000-999999"
+  local live_draft=".draft-1000000000000000000-$$"
+  printf 'pid 999999\n' >"$lock.queue/$stale_draft"
+  printf 'pid %s\n' "$$" >"$lock.queue/$live_draft"
+  status=0
+  run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 0 "$status" "23a: a stale draft does not fail a run"
+  if [[ -e $lock.queue/$stale_draft ]]; then
+    fail "23b: the draft from a dead pid was left behind for ever"
+  else
+    pass "23b: the draft from a dead pid was swept"
+  fi
+  if grep -q "removing draft ticket $stale_draft from dead pid 999999" "$stderr_log"; then
+    pass "23c: the sweep named the draft it removed"
+  else
+    fail "23c: the sweep did not name the draft: $(cat "$stderr_log")"
+  fi
+  if [[ -e $lock.queue/$live_draft ]]; then
+    pass "23d: a draft from a live pid is left alone, because it is being written"
+  else
+    fail "23d: it swept a draft whose owner is still writing it"
+  fi
+  rm -f "$lock.queue/$live_draft"
+
+  # Case 24 — the holder file read the same way, because it has the same window.
+  #
+  # `claim_heavy_lock` tested `-r` and then read: between the two, the holder can
+  # release and `rm -rf` takes the file with it, so the read comes back empty and
+  # the pid check calls a RELEASED lock corrupt. This was watched happening in
+  # this suite with nothing injected — case 3a, `cat: …/holder: No such file or
+  # directory`, `holder holds '', not a pid`, exit 70 where the queueing run
+  # should simply have tried again. The `cat` shim makes that window certain.
+  rm -rf "$lock.d" "$lock.queue"
+  local racing_bin
+  racing_bin="${TMPDIR:-/tmp}/wbs-heavy-lock-racing.$$.$(basename "$sh")"
+  rm -rf "$racing_bin"
+  mkdir -p "$racing_bin"
+  local racing_tool racing_tool_path
+  for racing_tool in bash mkdir dirname rm mv sleep date sed; do
+    racing_tool_path=$(type -P "$racing_tool")
+    if [[ -z $racing_tool_path ]]; then
+      fail "24: this image has no $racing_tool, so the racing PATH cannot be built"
+    else
+      ln -s "$racing_tool_path" "$racing_bin/$racing_tool"
+    fi
+  done
+  local real_cat
+  real_cat=$(type -P cat)
+  # shellcheck disable=SC2016 # Single quotes are the point: `$arg` and `$@`
+  # belong to the generated shim, not to this process.
+  printf '#!/bin/sh\nfor arg do\n  case "$arg" in\n    *.d/holder) rm -f "$arg" ;;\n  esac\ndone\nexec %s "$@"\n' \
+    "$real_cat" >"$racing_bin/cat"
+  chmod 755 "$racing_bin/cat"
+  run_locked "$sh" "$lock" sleep 3 &
+  holder_job=$!
+  await_lock_held "$lock"
+  status=0
+  HEAVY_LOCK_WAIT_SECONDS=60 HEAVY_LOCK_POLL_SECONDS=1 PATH="$racing_bin" \
+    run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 0 "$status" "24a: a holder file that vanishes mid-read is retried, not called corrupt"
+  wait "$holder_job"
+  rm -rf "$racing_bin"
+  # The guards either side of that window, which the retry must not have eaten: a
+  # holder file that is there and unreadable is still unknown state, and one that
+  # is there and empty is a claim in progress rather than a corrupt lock.
+  rm -rf "$lock.d"
+  mkdir -p "$lock.d" && printf '4321\n' >"$lock.d/holder" && chmod 000 "$lock.d/holder"
+  status=0
+  run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 70 "$status" "24b: an unreadable holder file still throws"
+  chmod 600 "$lock.d/holder"
+  printf '' >"$lock.d/holder"
+  status=0
+  run_locked "$sh" "$lock" true 2>"$stderr_log" || status=$?
+  expect_status 75 "$status" "24c: a holder file that is created but not yet written is a claim in progress"
+  rm -rf "$lock.d"
 
   # Case 15 — the other half of `prepare_ticket_queue`: a queue path that is not a
   # directory. 15b is the assertion with teeth. Removing the refusal does not let

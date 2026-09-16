@@ -116,16 +116,29 @@ read_ticket_pid() {
 # (bin/heavy-lock.test.sh, cases 13b and 13c).
 read_ticket_label() {
   local ticket=$1
-  if [[ ! -r $ticket ]]; then
-    printf 'heavy lock: ticket %s is unreadable; refusing to report a waiter it cannot name\n' "$ticket" >&2
-    return 70
-  fi
   # Line 2 and only line 2. A ticket also records the command it queued for, and
   # a command containing a line of its own that begins `label ` would otherwise
   # contribute a second label and put a newline through the middle of a `status`
   # line.
+  #
+  # **The read comes first and its failure is classified afterwards**, because a
+  # `-r` test cannot tell a ticket that is GONE from one that is unreadable — it
+  # is false for both — and the two are opposites here. A ticket claimed or
+  # reclaimed by someone else while this scan runs is what a moving queue looks
+  # like; refusing 70 over it made a run fail for having read a queue that was
+  # working. Exit 66 says gone, and every caller skips that ticket.
+  #
+  # Proof (observed 2026-09-16): with the `-r` test in front, a `sed` shim that
+  # deletes the ticket it is asked to read — the race made certain rather than
+  # rare — was watched failing both the waiting run and the report:
+  # `21a … want exit 0, got 70` and `21b … want exit 0, got 70`
+  # (bin/heavy-lock.test.sh, case 21).
   local label
-  label=$(sed -n '2s/^label //p' "$ticket")
+  if ! label=$(sed -n '2s/^label //p' "$ticket" 2>/dev/null); then
+    [[ -e $ticket ]] || return 66
+    printf 'heavy lock: ticket %s is unreadable; refusing to report a waiter it cannot name\n' "$ticket" >&2
+    return 70
+  fi
   if [[ -z $label ]]; then
     printf 'heavy lock: ticket %s records no lane label; refusing to report a waiter it cannot name\n' "$ticket" >&2
     return 70
@@ -156,12 +169,17 @@ read_ticket_label() {
 # waiting (bin/heavy-lock.test.sh, cases 17d-17e).
 read_ticket_deadline() {
   local ticket=$1
-  if [[ ! -r $ticket ]]; then
+  # Read first, classify after, and 66 for a ticket that has gone: see
+  # {@link read_ticket_label}. This reader is the one every waiting run calls on
+  # every ticket on every poll, so it meets a vanishing ticket most often — and
+  # refusing 70 there killed the run doing the scanning rather than the queue it
+  # was scanning.
+  local deadline
+  if ! deadline=$(sed -n '4s/^deadline //p' "$ticket" 2>/dev/null); then
+    [[ -e $ticket ]] || return 66
     printf 'heavy lock: ticket %s is unreadable; refusing to guess when its owner stops waiting\n' "$ticket" >&2
     return 70
   fi
-  local deadline
-  deadline=$(sed -n '4s/^deadline //p' "$ticket")
   if [[ ! $deadline =~ ^[0-9]+$ ]]; then
     printf 'heavy lock: ticket %s records %q as its deadline, not an epoch second; refusing to guess\n' "$ticket" "$deadline" >&2
     return 70
@@ -183,8 +201,23 @@ describe_tickets_ahead() {
     [[ -e $ticket ]] || continue
     ticket_name_ahead=${ticket##*/}
     [[ $ticket_name_ahead < $ticket_name ]] || continue
-    ticket_label=$(sed -n '2s/^label //p' "$ticket" 2>/dev/null)
-    [[ -n $ticket_label ]] || ticket_label=gone
+    # `gone` and `unknown` are different facts about a ticket ahead, and the
+    # reader of this line is deciding whether to wait for it: one says it has
+    # left the queue, the other that it is still in front and cannot be named.
+    #
+    # Proof (observed 2026-09-16): the single `gone` this replaced was watched
+    # describing a ticket that was present, live and simply had no label line —
+    # `gave up after 0s behind 1 tickets: gone (pid 2404329)`, which reads as a
+    # queue that has emptied rather than one this run is still behind
+    # (bin/heavy-lock.test.sh, case 20d).
+    ticket_label=$(sed -n '2s/^label //p' "$ticket" 2>/dev/null) || ticket_label=''
+    if [[ -z $ticket_label ]]; then
+      if [[ -e $ticket ]]; then
+        ticket_label=unknown
+      else
+        ticket_label=gone
+      fi
+    fi
     if [[ -n $described ]]; then
       described="$described, "
     fi
@@ -239,7 +272,7 @@ prepare_ticket_queue() {
 # (bin/heavy-lock.test.sh, case 9).
 remove_dead_tickets() {
   local queue_dir=$1
-  local now ticket ticket_name ticket_pid ticket_deadline
+  local now ticket ticket_name ticket_pid ticket_deadline read_status
   now=$(date +%s)
   for ticket in "$queue_dir"/*; do
     # A glob that matches nothing expands to itself; an already-claimed ticket
@@ -252,8 +285,16 @@ remove_dead_tickets() {
       rm -f "$ticket"
       continue
     fi
-    [[ -e $ticket ]] || continue
-    ticket_deadline=$(read_ticket_deadline "$ticket") || return $?
+    read_status=0
+    ticket_deadline=$(read_ticket_deadline "$ticket") || read_status=$?
+    # 66: someone claimed or reclaimed this ticket while the scan was reading it.
+    # The queue moved, which is the queue working.
+    if [[ $read_status -eq 66 ]]; then
+      continue
+    fi
+    if [[ $read_status -ne 0 ]]; then
+      return "$read_status"
+    fi
     # A minute past its owner's own deadline. The grace is not politeness: the
     # owner may be inside the `sleep` of its final poll, and reclaiming a ticket
     # from a process that is about to claim with it is how two runs end up
@@ -266,6 +307,26 @@ remove_dead_tickets() {
     if ((now > ticket_deadline + 60)); then
       printf 'heavy lock: removing ticket %s from pid %s, whose wait budget expired %ss ago\n' \
         "$ticket_name" "$ticket_pid" "$((now - ticket_deadline))" >&2
+      rm -f "$ticket"
+    fi
+  done
+
+  # Drafts from runs killed mid-write. A SIGKILLed run runs no trap, and no
+  # ticket glob matches a dotfile, so without this nothing would ever look at one
+  # again: one file per killed run, for ever, on a host nobody cleans by hand.
+  # The pid in the name is all this needs — a draft whose owner is alive is a
+  # ticket being written right now, and removing it would delete a live run's
+  # place in the queue before it took it.
+  #
+  # Proof (observed 2026-09-16): with this loop absent, a `.draft-` file from an
+  # exited pid survived every run — `23b: the draft from a dead pid was left
+  # behind for ever` (bin/heavy-lock.test.sh, case 23).
+  for ticket in "$queue_dir"/.draft-*; do
+    [[ -e $ticket ]] || continue
+    ticket_name=${ticket##*/}
+    ticket_pid=$(read_ticket_pid "${ticket_name#.draft-}") || return $?
+    if ! is_process_alive "$ticket_pid"; then
+      printf 'heavy lock: removing draft ticket %s from dead pid %s\n' "$ticket_name" "$ticket_pid" >&2
       rm -f "$ticket"
     fi
   done
@@ -375,14 +436,32 @@ report_heavy_lock_status() {
     return 70
   fi
 
-  local now ticket ticket_name ticket_pid ticket_label ticket_deadline ticket_budget
+  local now ticket ticket_name ticket_pid ticket_label ticket_deadline ticket_budget read_status
   now=$(date +%s)
   for ticket in "$queue_dir"/*; do
     [[ -e $ticket ]] || continue
     ticket_name=${ticket##*/}
     ticket_pid=$(read_ticket_pid "$ticket_name") || return $?
-    ticket_label=$(read_ticket_label "$ticket") || return $?
-    ticket_deadline=$(read_ticket_deadline "$ticket") || return $?
+    # 66 from either reader: the waiter took the lock, or its ticket was
+    # reclaimed, between the listing and the read. It is not in the queue any
+    # more, so it does not belong in a report of the queue — and a report that
+    # exits 70 because the thing it was reporting on went away is a report nobody
+    # can leave running.
+    read_status=0
+    ticket_label=$(read_ticket_label "$ticket") || read_status=$?
+    if [[ $read_status -eq 66 ]]; then
+      continue
+    fi
+    if [[ $read_status -ne 0 ]]; then
+      return "$read_status"
+    fi
+    ticket_deadline=$(read_ticket_deadline "$ticket") || read_status=$?
+    if [[ $read_status -eq 66 ]]; then
+      continue
+    fi
+    if [[ $read_status -ne 0 ]]; then
+      return "$read_status"
+    fi
     # The budget is what says whether a waiter is still waiting or is a ticket
     # {@link remove_dead_tickets} is about to reclaim, which is the difference
     # between a queue that is moving and one that is stuck.
@@ -414,17 +493,37 @@ claim_heavy_lock() {
 
   # R5: the lock exists but is unreadable — that is an unknown state, not a free
   # lock and not a held one. Throw rather than guess in either direction.
-  if [[ ! -r $holder_file ]]; then
+  #
+  # **Read first, classify after**, the same way {@link read_ticket_label} does
+  # and for the same reason: `-r` cannot tell a holder file that is GONE from one
+  # that is unreadable, and testing it before the read leaves a window in which
+  # the holder releases the lock — `rm -rf` takes the file with it — between the
+  # test and the `cat`. The read then comes back empty and the pid check below
+  # calls a released lock corrupt.
+  #
+  # Proof (observed 2026-09-16): with the `-r` test in front, a queueing run was
+  # watched losing that race in the ordinary suite, with no fault injected at
+  # all — `cat: …bash.d/holder: No such file or directory`, then
+  # `holder holds '', not a pid; refusing to guess` and
+  # `3a: a queueing run gets its turn: want exit 0, got 70`. Case 24 makes the
+  # same window certain with a `cat` shim that removes the holder file before
+  # reading it.
+  local holder
+  if ! holder=$(cat "$holder_file" 2>/dev/null); then
     if [[ -e $holder_file ]]; then
       printf 'heavy lock: %s exists but is unreadable; refusing to guess\n' "$holder_file" >&2
       return 70
     fi
-    # No holder file yet: the winner is between its mkdir and its write.
+    # Gone, or never written: either the winner is between its `mkdir` and its
+    # write, or the holder released while this was reading. Both mean nobody is
+    # recorded here now, and both are answered by trying again.
     return 75
   fi
-
-  local holder
-  holder=$(cat "$holder_file")
+  if [[ -z $holder ]]; then
+    # Created but not yet written — the same instant as the branch above, seen
+    # from the other side of `record_lock_holder`'s redirect.
+    return 75
+  fi
   # Proof: replacing this condition with `false` was watched reclaiming a lock
   # whose holder file read `not-a-pid` — "reclaiming … from dead pid not-a-pid",
   # then `RAN ON CORRUPT LOCK`, exit 0 where the guard gives 70
@@ -451,8 +550,56 @@ claim_heavy_lock() {
   return 75
 }
 
-# Install `$1` as the EXIT/INT/TERM action, running the caller's own EXIT trap
-# `$2` after it on exit.
+# Release what a run took, then run the caller's own EXIT trap `$4`, reporting
+# every failure and letting none of them stop the rest.
+#
+# **Isolation is the whole point, and it is what `set -e` takes away.** The trap
+# used to be one list — `rm -rf <lock>; rm -f <tickets>; eval <caller>` — so a
+# failing `rm` aborted the trap where it stood: the caller's cleanup never ran
+# AND the shell exited 1 instead of with the status the run had produced. Watched
+# turning a real 75 into a 1. A trap is the last chance to clean up; a step of it
+# that fails is a fact to report, not a reason to skip the other steps.
+#
+# This is the one place in this file that reports and continues instead of
+# refusing, and the alternatives are worse rather than merely inconvenient: there
+# is no caller left to hand an error to, and exiting non-zero here would destroy
+# the run's own verdict. A lock directory that could not be removed is recovered
+# by the next run through {@link claim_heavy_lock}'s dead-pid reclaim, and a
+# ticket that could not be removed expires on its own budget, so both failures
+# have an owner. Returns 0 so that bash exits with the status it was already
+# exiting with (measured: a trap that returns 0 keeps the 75; one that fails
+# under `set -e` replaces it with 1).
+#
+# The release runs BEFORE the caller's trap, not after: a caller trap that calls
+# `exit` would otherwise skip the lock release entirely, and the lock is the part
+# of this that other processes on the host are waiting for.
+#
+# Proof (observed 2026-09-16): restoring the unisolated list
+# (`rm -rf <lock>; rm -f <tickets>; eval <caller>`) was watched, against a run
+# whose lock directory could not be removed because its parent had lost write
+# permission, turning the run's own exit 42 into 1, skipping the caller's EXIT
+# trap, and saying nothing at all — `22a … want exit 42, got 1`,
+# `22b: a release that could not finish skipped the caller's EXIT trap`,
+# `22c: the release did not say what it could not remove`
+# (bin/heavy-lock.test.sh, case 22).
+release_heavy_lock() {
+  local lock_dir=$1 ticket_path=$2 ticket_draft=$3 caller_exit_command=${4:-}
+  if [[ -n $lock_dir ]] && ! rm -rf "$lock_dir"; then
+    printf 'heavy lock: could not remove %s; the next run reclaims it from this pid\n' "$lock_dir" >&2
+  fi
+  if ! rm -f "$ticket_path" "$ticket_draft"; then
+    printf 'heavy lock: could not remove ticket %s; it expires on its own budget\n' "$ticket_path" >&2
+  fi
+  if [[ -n $caller_exit_command ]]; then
+    eval "$caller_exit_command" ||
+      printf 'heavy lock: the exit trap this run inherited failed (status %s)\n' "$?" >&2
+  fi
+  return 0
+}
+
+# Trap the release of `$1` (empty while still queueing), ticket `$2` and draft
+# `$3`, chaining on exit the caller's own EXIT trap `$4` as `trap -p EXIT`
+# printed it.
 #
 # **The caller's EXIT trap is not ours to throw away.** `bin/h2puni-gate.sh`
 # installs `trap 'rm -rf -- "$trusted_launcher_dir"' EXIT` before it ever reaches
@@ -463,9 +610,9 @@ claim_heavy_lock() {
 # 30-minute budget — or is interrupted while queued — leaves an mktemp directory
 # behind on a host several lanes share, for ever.
 #
-# `$2` arrives exactly as `trap -p EXIT` printed it: `trap -- 'CMD' EXIT`, with
+# `$4` arrives exactly as `trap -p EXIT` printed it: `trap -- 'CMD' EXIT`, with
 # CMD quoted by bash itself. The wrapper is stripped back to that quoted CMD and
-# re-run through `eval`, so this never re-parses a quoting bash already got
+# passed through as one word, so this never re-parses a quoting bash already got
 # right. `trap -p` exists in bash 3.2.
 #
 # INT and TERM get the release only. A handled signal does not end the shell by
@@ -473,26 +620,28 @@ claim_heavy_lock() {
 # from here as well would run it twice.
 #
 # Proof (observed 2026-09-16): replacing the chain with the plain
-# `trap "$release_command" EXIT INT TERM` that shipped was watched leaving the
-# gate fixture's mktemp directory behind after a gate refused 75 while queued —
+# `trap "rm -rf …" EXIT INT TERM` that shipped was watched leaving the gate
+# fixture's mktemp directory behind after a gate refused 75 while queued —
 # `FAIL: a gate refused while queued leaked its trusted-launcher directory`
 # (bin/h2puni-gate.test.sh, case 33).
 install_release_trap() {
-  local release_command=$1 caller_exit_trap=$2
-  if [[ -z $caller_exit_trap ]]; then
-    # shellcheck disable=SC2064 # Expanded now, deliberately: the paths are
-    # function-locals that are out of scope by the time the trap runs, and under
-    # `set -u` a deferred expansion aborts the trap and leaks what it was to
-    # remove. See the note in with_heavy_lock.
-    trap "$release_command" EXIT INT TERM
-    return 0
+  local lock_dir=$1 ticket_path=$2 ticket_draft=$3 caller_exit_trap=$4
+  local release
+  release="release_heavy_lock $(printf '%q' "$lock_dir") $(printf '%q' "$ticket_path")"
+  release="$release $(printf '%q' "$ticket_draft")"
+  # shellcheck disable=SC2064 # Expanded now, deliberately: the paths are
+  # function-locals that are out of scope by the time the trap runs, and under
+  # `set -u` a deferred expansion aborts the trap and leaks what it was to
+  # remove. `printf %q` rather than `${var@Q}`, which is a syntax error on the
+  # bash 3.2 macOS ships.
+  trap "$release" INT TERM
+  if [[ -n $caller_exit_trap ]]; then
+    local caller_exit_command=${caller_exit_trap#trap -- }
+    caller_exit_command=${caller_exit_command% EXIT}
+    release="$release $caller_exit_command"
   fi
-  local caller_exit_command=${caller_exit_trap#trap -- }
-  caller_exit_command=${caller_exit_command% EXIT}
   # shellcheck disable=SC2064 # Expanded now, deliberately: see above.
-  trap "$release_command; eval $caller_exit_command" EXIT
-  # shellcheck disable=SC2064 # Expanded now, deliberately: see above.
-  trap "$release_command" INT TERM
+  trap "$release" EXIT
 }
 
 # Run `command [arg ...]` while holding the host-wide heavy-work lock.
@@ -599,9 +748,7 @@ with_heavy_lock() {
   # `16d: a refused run left 1 ticket(s) in the queue`, where it would have gone
   # on ordering waiters behind a process that had already given up
   # (bin/heavy-lock.test.sh, case 16d).
-  local quoted_ticket_paths
-  quoted_ticket_paths="$(printf '%q' "$ticket_path") $(printf '%q' "$ticket_draft")"
-  install_release_trap "rm -f $quoted_ticket_paths" "$caller_exit_trap"
+  install_release_trap '' "$ticket_path" "$ticket_draft" "$caller_exit_trap"
   printf 'pid %s\nlabel %s\nstarted %s\ndeadline %s\ncommand %s\n' \
     "$$" "${HEAVY_LOCK_LABEL:-unlabeled}" "$ticket_started" "$ticket_deadline" "$*" >"$ticket_draft"
   mv "$ticket_draft" "$ticket_path"
@@ -683,14 +830,12 @@ with_heavy_lock() {
   #
   # `printf %q` rather than `${lock_dir@Q}`: macOS ships bash 3.2 as /bin/bash,
   # where `@Q` is a syntax error that likewise leaks the lock on every run.
-  local quoted_lock_dir
-  quoted_lock_dir=$(printf '%q' "$lock_dir")
-  # The ticket paths are removed here too, although the claim above already
+  # The ticket paths are passed here too, although the claim above already
   # removed the ticket: this trap replaces the waiting one, and leaving them out
-  # would mean a run interrupted between the two `rm`s keeps its place in a queue
-  # it has already left. The caller's own EXIT trap is chained by
+  # would mean a run interrupted between the two removals keeps its place in a
+  # queue it has already left. The caller's own EXIT trap is chained by
   # {@link install_release_trap} rather than replaced.
-  install_release_trap "rm -rf $quoted_lock_dir; rm -f $quoted_ticket_paths" "$caller_exit_trap"
+  install_release_trap "$lock_dir" "$ticket_path" "$ticket_draft" "$caller_exit_trap"
 
   local run_status=0
   "$@" || run_status=$?
