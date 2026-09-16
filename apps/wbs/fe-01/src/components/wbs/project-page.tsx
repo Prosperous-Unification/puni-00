@@ -277,7 +277,7 @@ function ProjectNameField({
 
 /**
  * The saved-plan shelf: a disclosure in the app header's project row, beside
- * the picker, Rename and New project.
+ * the picker, Rename project and Create new project.
  *
  * **Its own component, after a bug this had.** Held on {@link ProjectPage}
  * (which renders first with no project selected and therefore no shelf), the
@@ -871,7 +871,13 @@ export function ProjectPage({
    * header to one row at every laptop width").
    */
   const projectControls = (
-    <div className="flex min-w-0 flex-1 items-center gap-1">
+    // `basis-full` below `md`: two worded buttons and a picker are wider than
+    // a 390px phone leaves beside the brand and the nav, so on a phone the
+    // header (which wraps there, see `AppHeader`) gives this group a row of its
+    // own. Proof: without it `grows page links to phone touch targets only
+    // below the card breakpoint` failed on `the larger phone targets make the
+    // page scroll sideways`, Received: 95. Watched 2026-09-16.
+    <div className="flex min-w-0 flex-1 basis-full items-center gap-1 md:basis-auto">
       {rename === null ? (
         <>
           <span className="relative inline-block max-w-72 min-w-0 flex-1">
@@ -1068,13 +1074,12 @@ export function ProjectPage({
           {selectedProject !== undefined && (
             <Button
               variant="outline"
-              size="square"
+              size="sm"
               type="button"
-              // The name every test knows this control by, kept exactly while
-              // the label it used to carry left the bar: an icon button in a
-              // one-row header is a smaller thing with the same accessible
-              // name, and `aria-label` is what makes those two facts one.
-              aria-label="Rename"
+              // Words, not a glyph: the pen and the plus were read as decoration
+              // once drawn (2026-09-16), so the visible text is the accessible
+              // name and every test finds the control by it. `sm` keeps the
+              // bar at its `h-8` row height.
               data-hint="Rename this project"
               onClick={() => {
                 setRename({
@@ -1084,7 +1089,7 @@ export function ProjectPage({
                 });
               }}
             >
-              ✎
+              Rename project
             </Button>
           )}
         </>
@@ -1107,14 +1112,8 @@ export function ProjectPage({
           }}
         />
       )}
-      <Button
-        size="square"
-        type="button"
-        aria-label="New project"
-        data-hint="Start a new project"
-        onClick={create}
-      >
-        +
+      <Button size="sm" type="button" data-hint="Start a new project" onClick={create}>
+        Create new project
       </Button>
       {/*
         The project's history, on a table viewport only — on a cards one it is
