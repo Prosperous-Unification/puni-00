@@ -18,6 +18,10 @@ const EXPECTED_PRODUCT_PROJECTS = [
   ['apps/wbs/fe-01', 'wbs-fe-01'],
   ['apps/wbs/gw-01', 'wbs-gw-01'],
   ['apps/wbs/mcp-01', 'wbs-mcp-01'],
+  // Proof: leaving this row out after tool-wiki moved to apps/wiki/cli failed the owning
+  // Nx target on the exact extra `['apps/wiki/cli', 'wiki-cli']` tuple, and the product-axis
+  // case below on its `['apps/wiki/cli', ['product:wiki']]` companion (2026-09-16).
+  ['apps/wiki/cli', 'wiki-cli'],
   ['libs/shared/domain/validation', 'shared-validation'],
   ['libs/wbs/adapters/auth', 'wbs-auth'],
   ['libs/wbs/adapters/config', 'wbs-config'],

@@ -103,7 +103,8 @@ resolve_tool_wiki_modules() {
   # before the heavy gate can run.
   if ! trusted_modules=$(realpath -- "$modules_input") || [[ ! -d $trusted_modules ]] ||
     [[ ! -f $trusted_modules/typescript/package.json ]]; then
-    printf 'h2puni gate: trusted TypeScript runtime modules are not provisioned\n' >&2
+    printf 'h2puni gate: trusted TypeScript runtime modules are not provisioned: %s\n' \
+      "$modules_input" >&2
     return 78
   fi
   # Proof: h2puni-gate.test.sh case 21 selects candidate-owned modules explicitly and observes

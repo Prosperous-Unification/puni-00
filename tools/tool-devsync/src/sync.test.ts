@@ -125,7 +125,11 @@ describe('RESTART_PATHS coverage', () => {
     expect(RESTART_PATHS).toContain('tsconfig.base.json');
   });
 
-  it('names every app project.json, whose serve target the supervisor reads once', async () => {
+  // Every app manifest, serve target or not: the supervisor reads the project graph once at
+  // startup, and `wiki-cli` — an app on disk with no serve target — is still a manifest that
+  // graph is built from. Narrowing this to apps that declare a serve target would let the next
+  // serve-less app's manifest drift past a running stack unnoticed.
+  it('names every app project.json, which the supervisor reads once at startup', async () => {
     const apps = (await readProjects(WORKSPACE))
       .filter((project) => project.root.startsWith('apps/'))
       .map((project) => ({ name: project.name, manifest: `${project.root}/project.json` }));

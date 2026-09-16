@@ -402,13 +402,10 @@ describe('the CI gate scope', () => {
     // Both branches keep the same three parts: the workspace run without Tool Wiki, Tool
     // Wiki's own targets, and its explicit source lint. Counting rather than containing,
     // because one branch quietly losing a part is exactly what this is here to see.
-    expect(occurrences(script, '--exclude=tool-wiki')).toBe(2);
-    expect(occurrences(script, 'bunx nx run-many -t test typecheck build -p tool-wiki')).toBe(2);
+    expect(occurrences(script, '--exclude=wiki-cli')).toBe(2);
+    expect(occurrences(script, 'bunx nx run-many -t test typecheck build -p wiki-cli')).toBe(2);
     expect(
-      occurrences(
-        script,
-        'bunx nx run tool-wiki:lint:source --skip-nx-cache --output-style=stream',
-      ),
+      occurrences(script, 'bunx nx run wiki-cli:lint:source --skip-nx-cache --output-style=stream'),
     ).toBe(2);
   });
 
@@ -417,12 +414,12 @@ describe('the CI gate scope', () => {
     // `true` in the affected arm of the production workflow, this case failed on
     // `Expected to contain: "if [ \"$GATE_TOOL_WIKI\" = run ]; then"` and the case above
     // failed on `Expected: 2 · Received: 1` for
-    // `bunx nx run-many -t test typecheck build -p tool-wiki` — 2 failed / 14 passed. A
+    // `bunx nx run-many -t test typecheck build -p wiki-cli` — 2 failed / 14 passed. A
     // pull request touching Tool Wiki would have gated everything except Tool Wiki.
     // The `not.toContain('grep')` is the second fault this pins: measured on Nx 23.2.0,
     // 2026-09-16, `bunx nx show projects --affected --base=HEAD~1 --head=HEAD` prints a
     // ONE-LINE JSON array on a non-TTY runner whatever `--sep` asks for, so a
-    // `grep -qx tool-wiki` over it can never match and would drop Tool Wiki from every
+    // `grep -qx wiki-cli` over it can never match and would drop Tool Wiki from every
     // pull request while exiting 0.
     const workflow = await readCiWorkflow();
     const mode = commandsOf(gateStep(workflow, 'Gate mode').run ?? '');
@@ -431,7 +428,7 @@ describe('the CI gate scope', () => {
     expect(mode).toContain(
       'bunx nx show projects --affected --base="$PR_BASE_SHA" --head=HEAD --json',
     );
-    expect(mode).toContain(`jq -s -e '.[0] | index("tool-wiki") != null'`);
+    expect(mode).toContain(`jq -s -e '.[0] | index("wiki-cli") != null'`);
     expect(mode).not.toContain('grep');
     expect(mode).toContain(`printf 'tool_wiki=run\\n' >> "$GITHUB_OUTPUT"`);
     expect(mode).toContain(`printf 'tool_wiki=skip\\n' >> "$GITHUB_OUTPUT"`);
@@ -477,7 +474,7 @@ describe('the CI gate scope', () => {
     expect(mode).toContain('|| tool_wiki_status=$?');
     expect(mode).toContain('exit "$tool_wiki_status"');
     expect(mode.indexOf(`jq -s -e 'length == 1 and (.[0] | type == "array")'`)).toBeLessThan(
-      mode.indexOf(`jq -s -e '.[0] | index("tool-wiki") != null'`),
+      mode.indexOf(`jq -s -e '.[0] | index("wiki-cli") != null'`),
     );
   });
 

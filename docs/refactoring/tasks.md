@@ -88,21 +88,23 @@ Nothing below has an owning task in the external queue (`backlog/tasks/task-NNN 
       by a `check.*` fact in `docs/wiki-policy/relationships.json` and
       `relationships.bootstrap.json` carries its WHOLE configuration in that fact, `inputs`
       included, and the declarations extractor refuses any drift. Changing a pinned target
-      without updating both facts therefore breaks `tool-wiki:test`, and nothing says so until
+      without updating both facts therefore breaks `wiki-cli:test`, and nothing says so until
       that ~15-minute suite runs: on 2026-09-16 the `affected-pr-gate` work added two workflow
-      inputs to `tool-wiki:test` and the h2puni smoke gate was what caught it, one round after
-      the change had been reviewed. A tool-devsync oracle reading every `check.*` fact and
+      inputs to that target — then still named `tool-wiki:test` — and the h2puni smoke gate was
+      what caught it, one round after the change had been reviewed. A tool-devsync oracle reading every `check.*` fact and
       comparing `expectedConfiguration` with the real manifest would fail in seconds instead,
       beside the other manifest oracles in `workspace-targets.test.ts`. Until it exists, any
       change to a fact-pinned target MUST update the fact in both files in the same commit.
-- [ ] **Narrow `tool-wiki:lint` and `tool-devsync:test` inputs** — both declare
+- [ ] **Narrow `wiki-cli:lint` and `tool-devsync:test` inputs** — both declare
       `{workspaceRoot}/**/*`, so `nx show projects --affected` names them for EVERY file:
-      measured 2026-09-16, `--files=LLM_README.md` answers `["tool-devsync","tool-wiki"]`.
+      measured 2026-09-16 before the wiki moved, `--files=LLM_README.md` answered
+      `["tool-devsync","tool-wiki"]`; re-measured on this branch after the move, it answers
+      `["tool-devsync","wiki-cli"]` — the same two projects under the new name.
       Two consequences for the affected PR gate (`openspec/changes/affected-pr-gate`): its
       `tool_wiki=skip` branch is unreachable today, and the per-PR saving is bounded well
       under the 38 minutes its proposal cites. Narrowing them is a wiki-policy decision about
-      what Tool Wiki lint is really allowed to read, not a change the gate work may make on
-      its own — `tool-wiki:lint`'s catch-all is what its admission model rests on. Needs its
+      what the wiki's lint is really allowed to read, not a change the gate work may make on
+      its own — `wiki-cli:lint`'s catch-all is what its admission model rests on. Needs its
       own change with the usual negatives before either input moves.
 - [ ] **[source-conformance-completion](../../openspec/changes/source-conformance-completion/tasks.md)** —
       after core's source composition/staged memory. Complete the named 17 transactional

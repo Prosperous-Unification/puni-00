@@ -110,13 +110,13 @@
       }
     },
     {
-      "factId": "check.tool-wiki.test",
+      "factId": "check.wiki-cli.test",
       "family": "targets",
       "at": {
         "kind": "current"
       },
       "kind": "nx-target",
-      "project": "tool-wiki",
+      "project": "wiki-cli",
       "target": "test",
       "expectedConfiguration": {
         "cache": true,
@@ -124,12 +124,14 @@
           "default",
           "^production",
           "{workspaceRoot}/.github/workflows/ci.yml",
-          "{workspaceRoot}/.github/workflows/trusted-wiki.yml"
+          "{workspaceRoot}/.github/workflows/trusted-wiki.yml",
+          "{workspaceRoot}/.github/workflows/wiki-release.yml",
+          "{workspaceRoot}/apps/wiki/consumer/**/*"
         ],
         "executor": "nx:run-commands",
         "options": {
-          "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../node_modules bun test --preload ../test/scratch/preload.ts",
-          "cwd": "tools/tool-wiki"
+          "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --preload ../../../tools/test/scratch/preload.ts",
+          "cwd": "apps/wiki/cli"
         },
         "outputs": ["{projectRoot}/coverage"],
         "configurations": {},
@@ -137,37 +139,37 @@
       }
     },
     {
-      "factId": "check.tool-wiki.lint-source",
+      "factId": "check.wiki-cli.lint-source",
       "family": "targets",
       "at": {
         "kind": "current"
       },
       "kind": "nx-target",
-      "project": "tool-wiki",
+      "project": "wiki-cli",
       "target": "lint:source",
       "expectedConfiguration": {
         "cache": false,
         "executor": "nx:run-commands",
         "options": {
-          "command": "bunx eslint tools/tool-wiki/src"
+          "command": "bunx eslint apps/wiki/cli/src"
         },
         "configurations": {},
         "parallelism": true
       }
     },
     {
-      "factId": "check.tool-wiki.typecheck",
+      "factId": "check.wiki-cli.typecheck",
       "family": "targets",
       "at": {
         "kind": "current"
       },
       "kind": "nx-target",
-      "project": "tool-wiki",
+      "project": "wiki-cli",
       "target": "typecheck",
       "expectedConfiguration": {
         "executor": "nx:run-commands",
         "options": {
-          "command": "bunx tsc --build --force tools/tool-wiki/tsconfig.json"
+          "command": "bunx tsc --build --force apps/wiki/cli/tsconfig.json"
         },
         "configurations": {},
         "parallelism": true,

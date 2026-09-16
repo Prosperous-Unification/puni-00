@@ -364,13 +364,13 @@ async function legacySourceOccurrences(): Promise<{
                   : [
                         '.dockerignore',
                         '.github/workflows/ci.yml',
+                        'apps/wiki/cli/src/admission/authority-store.ts',
+                        'apps/wiki/cli/src/admission/claims.ts',
+                        'apps/wiki/cli/src/contracts/records.ts',
                         'lefthook.yml',
                         'tools/tool-dagger/src/main.ts',
                         'tools/tool-deploy/src/migrations.ts',
                         'tools/tool-git-hooks/src/hooks/corpus-version-lint.ts',
-                        'tools/tool-wiki/src/admission/authority-store.ts',
-                        'tools/tool-wiki/src/admission/claims.ts',
-                        'tools/tool-wiki/src/contracts/records.ts',
                       ].includes(path)
                     ? 'production proof or revision transition'
                     : 'UNCLASSIFIED';
@@ -423,7 +423,7 @@ test('current Nx commands select existing qualified projects', async () => {
 });
 
 test('the production index checker resolves current Markdown links and anchors', () => {
-  const cli = fileURLToPath(new URL('../../tool-wiki/src/cli.ts', import.meta.url));
+  const cli = fileURLToPath(new URL('../../../apps/wiki/cli/src/cli.ts', import.meta.url));
   const invocation = Bun.spawnSync(
     [process.execPath, 'run', cli, 'check-indexes', 'working', WORKSPACE, 'HEAD'],
     { cwd: WORKSPACE, env: process.env, stdout: 'pipe', stderr: 'pipe' },
@@ -538,15 +538,17 @@ test('every legacy source occurrence and relevant text family is pinned', async 
   // that exact UNCLASSIFIED context, count 262, and digest 116ba02b... (2026-09-14).
   expect(await legacySourceOccurrences()).toEqual({
     categories: {
-      'current recursive selector': 30,
+      'current recursive selector': 31,
       'frozen migration evidence': 19,
-      'historical bootstrap policy or mapping': 65,
+      'historical bootstrap policy or mapping': 44,
       'historical policy selector or baseline': 39,
       'production proof or revision transition': 18,
-      'test fixture or proof': 98,
+      'test fixture or proof': 106,
     },
     coverage: {
-      applicationLibraryToolReadmes: 17,
+      // Re-pinned 17 -> 18 when `apps/wiki/consumer/README.md` landed: the consumer template's
+      // README is a real application README the sweep must cover, not an exemption.
+      applicationLibraryToolReadmes: 18,
       dockerfiles: [
         'apps/wbs/be-01/Dockerfile',
         'apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile',
@@ -579,13 +581,83 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // maps and the required-alias assertion failed on the observed digest below at the same
     // 269/30 — the added entries carry no selector of their own and only shift the legacy
     // `../../libs/*` and `apps/libs/*` contexts in vite-config.test.ts below them (2026-09-16).
+    // Proof: leaving `c29abd13.../269/98` here after the Tool Wiki relocation negative in
+    // pilot-policy.test.ts pinned the refusal text `... (selector prefix libs/domain/src/saved-plan)`
+    // failed on the observed digest below at 270/99 — one more classified `test fixture or proof`
+    // context, none unclassified (2026-09-16).
+    // Proof: leaving `0bc68474.../270/99` here after the three bootstrap wiki-policy files were
+    // re-pointed at the moved pilot boundaries failed on the observed digest below at 253/102 —
+    // 21 `historical bootstrap policy or mapping` contexts left bootstrap-policy.json,
+    // modules.bootstrap.json and relationships.bootstrap.json, while the new on-disk bootstrap
+    // oracle in pilot-policy.test.ts added three `test fixture or proof` contexts and one
+    // `current recursive selector`, none unclassified (2026-09-16).
+    // Proof: leaving `d0b34171.../253/102` here after tool-wiki became apps/wiki/cli failed on
+    // `ab3010e6...` at the same 253/102 — every context that project carries kept its match and
+    // its category and only changed the path it is reported under, which re-sorted the list.
+    // Pinning `ab3010e6...` then failed on the observed digest below, still at 253/102, because
+    // re-pinning the moved project's inventory counts in workspace-inventory.test.ts shifted the
+    // four `apps/**`/`libs/**` selector contexts at the foot of that file.
+    // Proof: pinning `fb328664...` then failed on the observed digest below, still at 253/102,
+    // because re-pinning the moved project's own refusal text in pilot-policy.test.ts shifted
+    // the seven `libs/domain/`, `libs/core/` and `libs/store-memory/` contexts below it; each
+    // context carries its line number (2026-09-16).
+    // Proof: leaving `d0b34171.../253/102` here after the standing bootstrap oracles pinned the
+    // pre-move project, cwd and consumer prefixes they refuse (`core`, `libs/core`,
+    // `libs/core/src`, `libs/domain/src/saved-plan`) in their `Proof:` comments failed on the
+    // observed digest below at 257/106 — four more classified `test fixture or proof` contexts,
+    // none unclassified (2026-09-16).
+    // Proof: merging W5's `fe5c29e2.../257` into this branch's `3816d95b.../253` kept both sides'
+    // contexts, so pinning either side's digest here failed on the observed digest below at 257 —
+    // W5's four new `test fixture or proof` contexts report under the moved `apps/wiki/cli`
+    // paths, which re-sorts them (2026-09-16).
+    // Proof: leaving `b118a4b8...` here after the product-neutral marker, refs and authority
+    // schema rename failed on the observed digest below, still at 257 — the only context that
+    // moved is `apps/wiki/cli/src/admission/authority-store.ts`'s `libs/contracts` proof comment,
+    // pushed from line 816 to 819 by the three JSDoc lines that explain the v5 bump; every other
+    // context in every file this commit touched is byte-identical, checked line by line
+    // (2026-09-16).
+    // Proof: leaving `46db251d...` here after the wiki move's relocation selectors failed on the
+    // observed digest below, still at 257 — the new obligation oracle pushed
+    // pilot-policy.test.ts's four `libs/core` proof contexts from lines 962/963/990/991 to
+    // 1003/1004/1031/1032. bootstrap-policy.json moved none of its five: the four
+    // `sourceSelector` lines added there are cancelled exactly by the four Prettier removes when
+    // the renamed `checkIds` collapsed onto one line, so its contexts sit where they did, checked
+    // line by line. An intermediate pin of `9e192e79...`, taken before that reformat, failed
+    // (2026-09-16).
+    // Proof: leaving `e7919151...` here after the wiki product was routed failed on the observed
+    // digest below, still at 257 — the four comment lines added above the RESTART_PATHS app
+    // oracle pushed sync.test.ts's one `apps/mcp-01` proof context from line 314 to 318, and
+    // nothing else moved; `apps/wiki/eslint.product.mjs` carries no legacy root of its own
+    // (2026-09-16).
+    // Proof: leaving `4c062320...` here after the legacy-authority refusal failed on the observed
+    // digest below, still at 257 — the guard and its JSDoc pushed authority-store.ts's
+    // `libs/contracts` proof context from line 819 to 840, the new refusal test pushed
+    // claims.db.test.ts's eleven claim-path contexts down 18 lines, and the selector pin and the
+    // metadata-less index mutation pushed pilot-policy.test.ts's ten contexts down 16 then 26.
+    // Verified green at `84a4fd63` before these edits, so nothing else contributes; every
+    // context's text and category is unchanged (2026-09-16).
     // Proof: leaving `c29abd13...` here after the CI pixels scope joined
     // pixels-workflow.test.ts failed on the observed digest below at the same 269/30 — the
     // added interface fields and scope cases carry no legacy selector of their own and only
     // shift the `apps/fe-01/test-results/` context in that file's own proof comment below
     // them (2026-09-16).
-    digest: '15cb68e96242e18bd73ed5d0bc96f82f4c68f0ad2e071ec82afbe79481c45eef',
-    occurrences: 269,
+    // Proof: merging W3's `15cb68e9.../269` into this branch's `2f9b04ad.../257` failed on
+    // either side's digest and, for W3's, on its count. The merged total stays at this branch's
+    // 257 with every category unchanged: W3's added contexts sit in files this scan skips — its
+    // own `apps/fe-01/test-results/` note in the proof chain above (this file excludes itself)
+    // and `openspec/changes/affected-pr-gate/verify.md` (every `.md` is excluded). The one
+    // context W3 does move is `pixels-workflow.test.ts`'s `apps/fe-01/test-results/` proof
+    // comment, pushed from line 54 to 57, which is what changes the digest (2026-09-16).
+    // Proof: leaving `80ba00b5...` here after the affected gate was renamed and the legacy
+    // authority guard moved to `lstatSync` failed on the observed digest below, still at 257 —
+    // the guard's comment and try/catch pushed authority-store.ts's `libs/contracts` context
+    // from line 840 to 855, and the second legacy-store test pushed eleven of the thirteen
+    // claim-path contexts in claims.db.test.ts down 33 lines, from 217-503 to 250-536, leaving
+    // the two above it where they were. The renamed gate pins in toolchain-pins.test.ts, the
+    // re-measured list in pixels-workflow.test.ts and ci.yml itself moved none of theirs,
+    // checked line by line (2026-09-16).
+    digest: 'e1e6f5c008eae349a7e3fcc3a0be28ede6c0e42281700ba1e1ba8d0731137edb',
+    occurrences: 257,
     unclassified: [],
   });
 });

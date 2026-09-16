@@ -305,6 +305,55 @@ jobs:
           mkdir -m 0700 -p "$activation_root"
           tar --extract --file "$archive" --directory "$activation_root" --no-same-owner --no-same-permissions
           test -s "$activation_root/selected.json"
+          activation_root=$(realpath -- "$activation_root")
+          # Proof: `jq --raw-output` prints the literal `null` for an absent or non-string key, so a
+          # malformed selection reached the manifest read as `<root>/null/manifest.json` (rc 2) and
+          # a malformed manifest certified a revision named `null`. Refuse the malformed state by
+          # name instead of reporting it as a missing file.
+          if ! selected_directory=$(jq --exit-status --raw-output \
+            'if (.directory|type) == "string" then .directory else empty end' \
+            "$activation_root/selected.json"); then
+            printf 'activation selection has no string directory: %s\n' \
+              "$activation_root/selected.json" >&2
+            exit 78
+          fi
+          # Proof: gate-entrypoints.test.ts points the selection at a manifest beside the
+          # extraction directory that names the configured version; without this shape refusal the
+          # step joined a manifest the pinned archive never carried and exported the root.
+          if [[ ! "$selected_directory" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*(/[0-9A-Za-z][0-9A-Za-z._-]*)*$ ]]; then
+            printf 'activation selection names no version directory: %s\n' "$selected_directory" >&2
+            exit 78
+          fi
+          # Proof: a symlinked version directory passes any textual check; with containment textual
+          # only, the step read a manifest outside the extracted archive, matched the configured
+          # version and exported the root at exit 0. The launcher canonicalises the same way.
+          if ! version_directory=$(realpath -- "$activation_root/$selected_directory") ||
+            [[ "$version_directory" != "$activation_root"/* ]]; then
+            printf 'activation selection escapes the extracted archive root: %s\n' \
+              "$selected_directory" >&2
+            exit 78
+          fi
+          if ! certified_revision=$(jq --exit-status --raw-output \
+            'if (.sourceRevision|type) == "string" then .sourceRevision else empty end' \
+            "$version_directory/manifest.json"); then
+            printf 'activation manifest has no string sourceRevision: %s\n' \
+              "$version_directory/manifest.json" >&2
+            exit 78
+          fi
+          # Proof: gate-entrypoints.test.ts provisions an archive certifying 4444... with the
+          # version set to 5555...; without this join the step exited 0 and made an archive that
+          # certifies no configured commit the admission authority.
+          if [[ "$certified_revision" != "$ACTIVATION_VERSION" ]]; then
+            printf 'activation archive certifies %s, not the configured version %s\n' \
+              "$certified_revision" "$ACTIVATION_VERSION" >&2
+            exit 78
+          fi
+          # Provenance for whoever reads this log. Nothing on the admission path reads the
+          # descriptor, so its absence or contents change no decision.
+          if [[ -r "$activation_root/toolkit-release" ]]; then
+            printf 'toolkit release: %s\n' \
+              "$(head -c 200 -- "$activation_root/toolkit-release" | tr -dc '[:print:]')"
+          fi
           printf 'TOOL_WIKI_ACTIVATION_ROOT=%s\n' "$activation_root" >> "$GITHUB_ENV"
 
       # A protected-default push is already admitted. Its audit still refuses candidate authority:
@@ -375,7 +424,7 @@ jobs:
       #
       # `nx show projects` prints a ONE-LINE JSON array on a non-TTY runner whatever
       # `--sep` asks for — measured on Nx 23.2.0, 2026-09-16 — so membership is read
-      # with `jq` and not with `grep`. A `grep -qx tool-wiki` over that array can never
+      # with `jq` and not with `grep`. A `grep -qx wiki-cli` over that array can never
       # match, which would have dropped Tool Wiki from every pull request while exiting
       # 0: a check that cannot fail, wearing the exclusion's hat.
       #
@@ -427,7 +476,7 @@ jobs:
                 exit 1
               }
               tool_wiki_status=0
-              jq -s -e '.[0] | index("tool-wiki") != null' <<< "$affected" > /dev/null || tool_wiki_status=$?
+              jq -s -e '.[0] | index("wiki-cli") != null' <<< "$affected" > /dev/null || tool_wiki_status=$?
               case "$tool_wiki_status" in
                 0) printf 'tool_wiki=run\n' >> "$GITHUB_OUTPUT" ;;
                 1) printf 'tool_wiki=skip\n' >> "$GITHUB_OUTPUT" ;;
@@ -457,7 +506,7 @@ jobs:
         run: |
           set +e
           # Proof: dropping this exclusion made gate-entrypoints.test.ts fail at
-          # `Expected to contain: --exclude=tool-wiki`; source lint remains explicit below.
+          # `Expected to contain: --exclude=wiki-cli`; source lint remains explicit below.
           #
           # Both branches keep the same three parts — the workspace run without Tool
           # Wiki, Tool Wiki's own targets, its explicit source lint — and the pin suite
@@ -469,26 +518,26 @@ jobs:
           if [ "$GATE_MODE" = affected ]; then
             {
               bunx nx affected -t test lint typecheck build --base="$GATE_BASE" --head=HEAD \
-                --parallel=2 --output-style=stream --exclude=tool-wiki &&
+                --parallel=2 --output-style=stream --exclude=wiki-cli &&
               # Proof (2026-09-16): with this branch replaced by `true`, `the CI gate scope >
               # keeps Tool Wiki in the pull-request gate, read as JSON rather than grepped`
               # failed on the missing `if [ "$GATE_TOOL_WIKI" = run ]; then`, and its
-              # neighbour on `Expected: 2 · Received: 1` for the tool-wiki run-many —
+              # neighbour on `Expected: 2 · Received: 1` for the wiki-cli run-many —
               # 14 passed / 2 failed. A pull request touching Tool Wiki would then have
               # gated everything except Tool Wiki.
               if [ "$GATE_TOOL_WIKI" = run ]; then
-                bunx nx run-many -t test typecheck build -p tool-wiki --parallel=2 \
+                bunx nx run-many -t test typecheck build -p wiki-cli --parallel=2 \
                   --output-style=stream &&
-                bunx nx run tool-wiki:lint:source --skip-nx-cache --output-style=stream
+                bunx nx run wiki-cli:lint:source --skip-nx-cache --output-style=stream
               fi
             } > nx-gate.log 2>&1
           else
             {
               bunx nx run-many -t test lint typecheck build --parallel=2 --output-style=stream \
-                --exclude=tool-wiki &&
-              bunx nx run-many -t test typecheck build -p tool-wiki --parallel=2 \
+                --exclude=wiki-cli &&
+              bunx nx run-many -t test typecheck build -p wiki-cli --parallel=2 \
                 --output-style=stream &&
-              bunx nx run tool-wiki:lint:source --skip-nx-cache --output-style=stream
+              bunx nx run wiki-cli:lint:source --skip-nx-cache --output-style=stream
             } > nx-gate.log 2>&1
           fi
           gate_status=$?
@@ -658,7 +707,7 @@ jobs:
   # break the rendered table while `wbs-fe-01` is not affected at all. Measured
   # 2026-09-16 on Nx 23.2.0, `bunx nx show projects --affected
   # --files=apps/wbs/be-01/src/main.ts` answers
-  # `["wbs-be-01","tool-devsync","tool-wiki","tool-dagger"]` — no `wbs-fe-01`. A
+  # `["wbs-be-01","tool-devsync","wiki-cli","tool-dagger"]` — no `wbs-fe-01`. A
   # switch keyed on the frontend alone would have skipped the eyes for exactly the
   # changes they exist to catch.
   #
