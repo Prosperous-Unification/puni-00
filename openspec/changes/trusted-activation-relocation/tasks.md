@@ -73,6 +73,7 @@ operator work on the real repository.
       `TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256` together, and observe `trusted-wiki` green on the
       next candidate. Operator work: it needs repository admin. Test: the observed
       `trusted-wiki` run, recorded with its run id.
-- [x] 4.3 This change's `verify.md` records every command, its result, and the failure-proof
-      table for slices 1 to 4 — for each new or changed check, the fault injected, the test
-      that observed it failing, and the result.
+- [x] 4.3 This change's `verify.md` records every command, its result, the canonical h2puni gate
+      output for the branch head, and the failure-proof table for slices 1 to 4 — for each new or
+      changed check, the fault injected, the test that observed it failing, and the result. It
+      stays PASS WITH WARNINGS while 4.2 is open.

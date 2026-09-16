@@ -182,6 +182,9 @@ function packageDirectory(modulesRoot: string, name: string): string {
   try {
     stats = lstatSync(path);
   } catch (cause) {
+    // Proof: rethrowing this `lstat` failure unwrapped let the absent-module negative observe
+    // `ENOENT: no such file or directory, lstat '<candidate>/node_modules/typescript'` instead of
+    // the named refusal, so the operator was sent to Node's message and not to the missing install.
     throw new RelocationRefusal('R19', `trusted node module is absent or a symlink: ${path}`, {
       cause,
     });

@@ -30,28 +30,30 @@
 Slice 4 was renumbered when the policy-file edits landed: the old 4.1 (the operator run) is now
 4.2 and the old 4.2 (this report) is now 4.3.
 
-| Task                               | Reason incomplete                                                                                                                                                                                                                                                                                                                                                                                                 | Blocks archive? |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| 4.2 operator activation run        | The command takes an `AuditReview` record produced by the trusted review harness for the exact candidate SHA. That harness is operator-run and lives outside this repository; no run for this branch head is reachable from this session, and the command refuses a record that does not bind the candidate (R17). Publishing the release and setting the three repository variables also needs repository admin. | Yes             |
-| h2puni gate (`bin/h2puni-gate.sh`) | Not run: it is the controller's call and takes the host-wide heavy lock.                                                                                                                                                                                                                                                                                                                                          | Yes             |
+| Task                        | Reason incomplete                                                                                                                                                                                                                                                                                                                                                                                                 | Blocks archive? |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| 4.2 operator activation run | The command takes an `AuditReview` record produced by the trusted review harness for the exact candidate SHA. That harness is operator-run and lives outside this repository; no run for this branch head is reachable from this session, and the command refuses a record that does not bind the candidate (R17). Publishing the release and setting the three repository variables also needs repository admin. | Yes             |
 
 ---
 
 ## 3. Delta Spec Sync
 
-| Capability                      | Sync status | Note                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `trusted-activation-relocation` | ✓ synced    | All three requirements are implemented: the selector-miss refusal (1.1), the preparation command and its refusals (2.2, 2.3), and the runbook `Relocation` section with its anchor and serialization limit (3.1). The spec's "the repository's link check resolves that anchor" is met by the production refusal case, which resolves the anchor it just printed with `markdownAnchors`, the reader `check-indexes` uses, because no Markdown document links the anchor for the link check to see. |
+| Capability                      | Sync status | Note                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `trusted-activation-relocation` | ✓ synced    | All three requirements are implemented: the selector-miss refusal (1.1), the preparation command and its refusals (2.2, 2.3), and the runbook `Relocation` section with its anchor and serialization limit (3.1). The spec's "a production test derives that anchor from the refusal text it observed and resolves it against the runbook's own headings" is the case beside the refusal-string pin in `pilot-policy.test.ts`, which resolves the anchor with `markdownAnchors`, the reader `check-indexes` uses. No Markdown document links the anchor, so the repository link check never sees it and the spec no longer claims it does. |
 
 ---
 
 ## 4. Failure Proofs
 
-> Rows 1–2 are slice 1's (task 5.1 report), rows R1–R21 and the three review findings are slice
-> 2's (task 5.2 report), and the last seven rows are slice 4's: the three on-disk policy-oracle
-> assertions, the runbook-anchor pin beside the production refusal, and the three standing pins on
-> the relationship facts and external consumers. Every row was observed failing with the check
-> broken or the fault injected.
+> Rows 1–2 are slice 1's (task 5.1 report). Everything from R1 to the four CLI-argument refusals
+> is slice 2's (task 5.2 report): the R1–R21 refusals, R19's Bun-pin and absent-module branches,
+> the reviewed-snapshot refusal, the toolchain-pin and validator-rebuild refusals, the four
+> CLI-argument refusals and the three review findings (skips, required attestation flags,
+> `--work`/`--destination` containment). The last seven rows are slice 4's: the three on-disk
+> policy-oracle assertions, the runbook-anchor pin beside the production refusal, and the three
+> standing pins on the relationship facts and external consumers. Every row was observed failing
+> with the check broken or the fault injected.
 
 | Check (file:line)                                                                                        | Fault injected                                                           | Test that observed the failure                                                                             | Result                                                                                                                                                                        |
 | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -129,7 +131,7 @@ Slice 4 was renumbered when the policy-file edits landed: the old 4.1 (the opera
 | `bun test --preload ../test/scratch/preload.ts src/policy/pilot-policy.test.ts` (target form, after the standing oracles) | `20 pass, 0 fail, 273 expect() calls, Ran 20 tests across 1 file [219.78s]`                                                                                                          |
 | `bunx nx test tool-devsync --skip-nx-cache` (after the standing oracles)                                                  | re-pinned to 257/106 with digest `fe5c29e2…`, then `201 pass, 0 fail, 565 expect() calls`                                                                                            |
 | `bunx @fission-ai/openspec@1.3.0 validate --all --json`                                                                   | 84 items, 84 passed, 0 failed                                                                                                                                                        |
-| `bin/h2puni-gate.sh <sha>`                                                                                                | **not run** — the controller's call                                                                                                                                                  |
+| `bin/h2puni-gate.sh 56b591f4e723322a8b0a8db6e36bdf78b1d18631` (on h2puni)                                                 | exit 0 — output below                                                                                                                                                                |
 
 The observe-mode experiment from the design's Q5, reproduced through the production CLI with the
 `pilot-policy.test.ts` harness (`createCandidate` + `createExternalTrust` over the bootstrap policy,
@@ -152,6 +154,19 @@ So all three edits are load-bearing and C8–C12 pass with them; the single rema
 expected `observe cannot lower enforce policy`, which is the mode the harness runs in and not a
 policy defect.
 
+The canonical h2puni gate ran on the branch head `56b591f4` and exited 0 (log `~/gate-56b591f4.log`,
+exit file `~/gate-56b591f4.exit` = 0 on h2puni):
+
+```
+h2puni gate: running on 56b591f4e723322a8b0a8db6e36bdf78b1d18631
+openspec 84 valid
+format:check clean
+Successfully ran targets test, lint, typecheck, build for 31 projects
+Successfully ran targets test, typecheck for project tool-wiki
+Successfully ran target lint:source for project tool-wiki
+Successfully ran target solver-image-smoke for project wbs-be-01
+```
+
 ---
 
 ## 6. Implementation Signal
@@ -160,25 +175,30 @@ policy defect.
 - [ ] Relevant commits pushed — the branch is local to `/home/df/wd/puni/wbs-tool-v1-w5`; pushing
       is the controller's call.
 
-**Commit range**: `4dc797cb..50021ae3`, plus the commit carrying this report.
+**Commit range**: `4dc797cb..56b591f4`, plus the commit carrying this gate record — documentation
+and one `Proof:` comment beside the R19 absent branch, so it needs its own gate run before archive.
 
 | Commit     | What                                                                                                    |
 | ---------- | ------------------------------------------------------------------------------------------------------- |
 | `9f65eb42` | `docs(tool-wiki): relocation activation procedure` — slice 3                                            |
 | `50021ae3` | `docs(wiki-policy): relocation selectors, mapping and facts for the moved pilot boundaries` — slice 4.1 |
+| `3afd09e0` | `docs(openspec): trusted-activation-relocation verify` — slice 4.3                                      |
+| `a17ca7cd` | `test(tool-wiki): pin the relocation anchor and the bootstrap facts` — review fixes                     |
+| `56b591f4` | `docs(openspec): trusted-activation-relocation spec and verify match the pins` — the gated head         |
 
 ---
 
 ## Decision
 
 - [ ] ✅ PASS
-- [x] ⚠️ PASS WITH WARNINGS — the committed half of the change is verified, but three items stay
-      open: (1) task 4.2, the operator activation run, because the `AuditReview` record must come
+- [x] ⚠️ PASS WITH WARNINGS — the committed work is verified and the canonical h2puni gate
+      passed on `56b591f4`, but three items stay open: (1) task 4.2, the operator activation run, because the `AuditReview` record must come
       from a trusted review harness run for this exact branch head, that harness is operator-run
       and outside this repository, and the command refuses any record that does not bind the
-      candidate; (2) the h2puni gate, which is the controller's call; (3) `trusted-wiki` stays red
-      on this branch until 4.2 lands, and by design it will then be green only for the exact SHA
-      the activation was prepared from.
+      candidate; (2) `trusted-wiki` stays red on this branch until 4.2 lands, and because one
+      authority certifies one commit it will then be green only for the exact SHA the activation
+      was prepared from — every other head, the merge commit included, stays red; (3) this gate
+      record is itself an ungated commit on top of `56b591f4`.
 - [ ] ❌ FAIL
 
 Four reviewer observations are parked rather than fixed here, recorded so they are not lost:
