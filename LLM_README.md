@@ -119,4 +119,6 @@ The historical R5 failures and their observed proof details live in the linked c
 
 Harness prototype: `tools/harness-example/src/harness.ts`; `bunx nx run harness-example:run -- --fake x` exercises its ACP session loop.
 
+Delivery planning: [Twilight Bureaucrat and dynamic k3s fleet](docs/superpowers/plans/2026-09-17-twilight-bureaucrat-and-fleet.md), building on [the infrastructure proposal](docs/plans/2026-09-15-infra-evolution-plan.md).
+
 Conventions: pure planners + thin IO shell; strict types; comments say **why** and what was verified; never print secrets.

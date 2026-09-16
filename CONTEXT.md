@@ -1052,6 +1052,25 @@ The approach to scaling model-assisted work by making responsibility boundaries
 explicit and their granularity adjustable, with quality, time and cost measured.
 _Avoid_: LLM wiki (for the whole approach), agent-scalable wiki (for the whole approach)
 
+**Twilight Bureaucrat**:
+The reusable toolkit for module knowledge, review evidence and trusted repository
+admission that supports Radical Modularity.
+_Avoid_: tool-wiki (as the product name), LLM wiki (as the product name)
+
+**Fleet**:
+The managed set of hosts and their assigned cluster memberships and capabilities,
+independent of which machines currently provide them.
+_Avoid_: server list, fixed host topology
+
+**Platform cluster**:
+The fleet's cluster for product services and their supporting platform services.
+_Avoid_: worker cluster (for product hosting)
+
+**Worker cluster**:
+The fleet's separate cluster for isolated Twilight activity attempts; it does not
+own the durable authority for those attempts.
+_Avoid_: platform cluster (for activity execution)
+
 **Granularity policy**:
 One identified arrangement of the knowledge, review, ownership, task and integration
 boundaries used for model-assisted work. Different policies can organize the same work.

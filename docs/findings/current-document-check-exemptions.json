@@ -2,6 +2,21 @@
   "expires": "2026-12-31",
   "entries": [
     {
+      "path": "docs/superpowers/plans/2026-09-17-k3s-fleet.md",
+      "reason": "implementation plan defines future tool-fleet targets; remove exemption when they exist",
+      "excuses": ["nx-selector"]
+    },
+    {
+      "path": "docs/superpowers/plans/2026-09-17-twilight-bureaucrat-package.md",
+      "reason": "implementation plan defines future twilight-bureaucrat targets; remove exemption when they exist",
+      "excuses": ["nx-selector"]
+    },
+    {
+      "path": "docs/plans/2026-09-15-infra-evolution-plan-review-codex.md",
+      "reason": "dated review cites backup evidence in the external Claire checkout",
+      "excuses": ["links"]
+    },
+    {
       "path": "docs/twilight-structure/evidence/claude-followup.md",
       "reason": "recorded puni-00 review evidence predating namespacing",
       "excuses": ["legacy-root"]
