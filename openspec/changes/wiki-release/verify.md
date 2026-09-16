@@ -1,7 +1,7 @@
 # Verification Report
 
 **Change**: `wiki-release`
-**Verified at**: `2026-09-16 (branch `change/wiki-release`, base 84a4fd63)`
+**Verified at**: `2026-09-16 — branch change/wiki-release, head after the dispatch-B review fold`
 **Verifier**: Claude Fable 5.1, under the W7 controller
 
 > Partial. Slices 1-5 are implemented and verified here. Slice 6 is operator work Dany runs against
@@ -44,27 +44,36 @@
 
 ## 4. Failure Proofs
 
-| Check (file:line)                                               | Fault injected                                                                   | Test that observed the failure                                                       | Result                                                     |
-| --------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| manifest join, `trusted-wiki.yml` / `ci.yml` provisioning       | join `if` deleted from both steps                                                | `activation provisioning refuses an archive the configured version does not name`    | exit 0, root exported for a foreign archive                |
-| selection shape, both provisioning steps                        | shape `if` deleted; `selected.json` directory `../decoy` with a planted manifest | `activation provisioning refuses a selection that leaves the extracted archive root` | exit 0, joined a manifest the pinned archive never carried |
-| `bin/tool-wiki-lint.sh:38` runtime absence                      | refusal replaced by a non-failing assignment                                     | `the archived runtime closure is the launcher default and its absence is refused`    | exit 0, route ran with no TypeScript closure               |
-| `trusted-wiki.yml` `Install archived launcher` descriptor shape | shape `if` deleted; descriptor `../decoy-launcher.sh` with a real decoy          | `the trusted workflow installs the launcher its archive root names`                  | exit 0, installed the decoy as the admission entrypoint    |
-| `release.ts` `assertReleaseTag` (T1)                            | `if (false && …)`                                                                | `refuses a tag that is not at HEAD, unknown, or malformed`                           | packed an archive at exit 0                                |
-| `release.ts` `assertTagAtHead` T2                               | `if (false && …)`                                                                | same case                                                                            | refused as `not at HEAD: undefined != <head>`              |
-| `release.ts` `assertTagAtHead` T3                               | `if (false && …)`                                                                | same case                                                                            | packed the wrong commit's bytes at exit 0                  |
-| `release.ts` `assertCleanCheckout` T4                           | `if (false && …)`                                                                | `refuses a checkout whose bytes are not the ones the tag names`                      | packed an edited launcher at exit 0                        |
-| `release.ts` `assertReleaseRuntime` T5                          | `if (false && …)`                                                                | `refuses an operator runtime and a destination it cannot honestly use`               | packed under a drifted `bunVersion` at exit 0              |
-| `release.ts` `assertDestinationFree` T8                         | `if (false && …)`                                                                | same case                                                                            | second run wrote into an occupied destination at exit 0    |
-| `release-cli.ts` T6 non-standalone bundle                       | none — see the comment at the throw site                                         | none                                                                                 | **no observed negative**; `Bun.build` cannot reach it here |
-| `relocation-activation.ts` R21 toolkit message                  | `riskStratum ?? 'risk.public-admission'`                                         | `a strata file that stratifies no policy review refuses by name`                     | invented the stratum and prepared an activation            |
-| `prepare-activation-cli.ts` toolkit role digest                 | `if (false && …)`                                                                | `a toolkit role altered after packing refuses before anything is prepared`           | reached a later, unrelated failure instead of the name     |
-| `gate-entrypoints.test.ts` consumer template byte identity      | a comment appended to the template                                               | `Nx, host gate, CI and lefthook select the whole tree without caching`               | the two texts printed side by side                         |
-| same, `wiki-release.yml` `contents: write` scope                | narrowed to `contents: read`                                                     | same case                                                                            | permission pin failed                                      |
-| same, release action refs 40-hex                                | `softprops/action-gh-release@v2`                                                 | same case                                                                            | ref pin failed                                             |
-| five rewritten `trusted-wiki.yml` pins                          | the pre-7.2 workflow text                                                        | same case                                                                            | each literal failed                                        |
-| step-order pin                                                  | guard step moved after provisioning                                              | evaluated against the mutated text                                                   | FAIL as required                                           |
-| `bun-version` equals `.bun-version`                             | compared against a drifted `1.3.9`                                               | evaluated against the mutated value                                                  | FAIL as required                                           |
+| Check (file:line)                                               | Fault injected                                                                   | Test that observed the failure                                                                                                         | Result                                                                |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| manifest join, `trusted-wiki.yml` / `ci.yml` provisioning       | join `if` deleted from both steps                                                | `activation provisioning refuses an archive the configured version does not name`                                                      | exit 0, root exported for a foreign archive                           |
+| selection shape, both provisioning steps                        | shape `if` deleted; `selected.json` directory `../decoy` with a planted manifest | `activation provisioning refuses a selection that leaves the extracted archive root`                                                   | exit 0, joined a manifest the pinned archive never carried            |
+| `bin/tool-wiki-lint.sh:38` runtime absence                      | refusal replaced by a non-failing assignment                                     | `the archived runtime closure is the launcher default and its absence is refused`                                                      | exit 0, route ran with no TypeScript closure                          |
+| `trusted-wiki.yml` `Install archived launcher` descriptor shape | shape `if` deleted; descriptor `../decoy-launcher.sh` with a real decoy          | `the trusted workflow installs the launcher its archive root names`                                                                    | exit 0, installed the decoy as the admission entrypoint               |
+| `release.ts` `assertReleaseTag` (T1)                            | `if (false && …)`                                                                | `refuses a tag that is not at HEAD, unknown, or malformed`                                                                             | packed an archive at exit 0                                           |
+| `release.ts` `assertTagAtHead` T2                               | `if (false && …)`                                                                | same case                                                                                                                              | refused as `not at HEAD: undefined != <head>`                         |
+| `release.ts` `assertTagAtHead` T3                               | `if (false && …)`                                                                | same case                                                                                                                              | packed the wrong commit's bytes at exit 0                             |
+| `release.ts` `assertCleanCheckout` T4                           | `if (false && …)`                                                                | `refuses a checkout whose bytes are not the ones the tag names`                                                                        | packed an edited launcher at exit 0                                   |
+| `release.ts` `assertReleaseRuntime` T5                          | `if (false && …)`                                                                | `refuses an operator runtime and a destination it cannot honestly use`                                                                 | packed under a drifted `bunVersion` at exit 0                         |
+| `release.ts` `assertDestinationFree` T8                         | `if (false && …)`                                                                | same case                                                                                                                              | second run wrote into an occupied destination at exit 0               |
+| `release-cli.ts` T6 non-standalone bundle                       | none — see the comment at the throw site                                         | none                                                                                                                                   | **no observed negative**; `Bun.build` cannot reach it here            |
+| `relocation-activation.ts` R21 toolkit message                  | `riskStratum ?? 'risk.public-admission'`                                         | `a strata file that stratifies no policy review refuses by name`                                                                       | invented the stratum and prepared an activation                       |
+| `prepare-activation-cli.ts` toolkit role digest                 | `if (false && …)`                                                                | `a toolkit role altered after packing refuses before anything is prepared`                                                             | reached a later, unrelated failure instead of the name                |
+| `gate-entrypoints.test.ts` consumer template byte identity      | a comment appended to the template                                               | `Nx, host gate, CI and lefthook select the whole tree without caching`                                                                 | the two texts printed side by side                                    |
+| same, `wiki-release.yml` `contents: write` scope                | narrowed to `contents: read`                                                     | same case                                                                                                                              | permission pin failed                                                 |
+| same, release action refs 40-hex                                | `softprops/action-gh-release@v2`                                                 | same case                                                                                                                              | ref pin failed                                                        |
+| five rewritten `trusted-wiki.yml` pins                          | the pre-7.2 workflow text                                                        | same case                                                                                                                              | each literal failed                                                   |
+| step-order pin                                                  | guard step moved after provisioning                                              | evaluated against the mutated text                                                                                                     | FAIL as required                                                      |
+| `bun-version` equals `.bun-version`                             | compared against a drifted `1.3.9`                                               | evaluated against the mutated value                                                                                                    | FAIL as required                                                      |
+| `jq --exit-status` type test, both provisioning steps           | `jq --raw-output` restored                                                       | `activation provisioning refuses a malformed selection or manifest by name`                                                            | rc 2 "Could not open …/null/manifest.json", not a named 78            |
+| canonical containment, both provisioning steps                  | textual containment only                                                         | `activation provisioning refuses a selection that resolves outside the archive root`                                                   | exit 0, root exported for a manifest outside the archive              |
+| `bin/tool-wiki-push-audit.sh` launcher-root rule                | descriptor joined only when relative, refusal limited to the candidate           | `push audit refuses a launcher descriptor that leaves its activation root`                                                             | `../outside-launcher.sh` ran, exit 0 (captured directly)              |
+| `assertMappingOwnership` in toolkit mode (R14)                  | re-guarded behind the base arm                                                   | `toolkit mode keeps the refusals that measure the candidate alone`                                                                     | a mapping covering no boundary reached the review join                |
+| `readToolkit` closure identity                                  | `if (false && …)`                                                                | `a toolkit whose runtime closure or Bun drifted refuses before anything is prepared`                                                   | an altered `typescript/package.json` was copied in and self-certified |
+| `readToolkit` Bun comparison                                    | `if (false && …)`                                                                | same case                                                                                                                              | bound a bundle digest the consumer's runner cannot reproduce          |
+| `assertDestinationOutside` (T7)                                 | `if (false && …)`                                                                | `refuses an operator runtime and a destination it cannot honestly use`                                                                 | wrote the toolkit inside the checkout it had verified clean           |
+| `assertDestinationFree` archive path (T8)                       | `if (false && …)`                                                                | same case                                                                                                                              | overwrote an existing `wiki-v0.0.1.tar` at exit 0                     |
+| refusal order in `planRelocationChecks`                         | R14 before R11-R13; and lineage before R10                                       | `refuses a module lineage the base activation cannot resolve`, `refuses a candidate whose selector still names the pre-move directory` | each earned the opaque R14 instead of its own named refusal           |
 
 - [x] Every check in this change has a row
 - [x] Each negative test reaches the production call path, not a copy of it
@@ -83,19 +92,34 @@ bundle that reaches the check. It is recorded as a contract guard at its throw s
 
 CI is the merge gate; locally the wiki project's own targets plus the entrypoint suites were run.
 
+The `wiki-cli` suite was run as five batches covering all 32 test files, each read at completion,
+because background log files in this environment were repeatedly truncated and one such log
+produced a false green earlier in this change. Every batch reports zero failures and exit 0.
+
 ```
-bunx nx test wiki-cli --skip-nx-cache        → 619 pass, 0 fail (dispatch A final, commit f6cf72f6)
-bunx nx run wiki-cli:lint:source             → Successfully ran
-bunx nx run wiki-cli:typecheck               → Successfully ran
-bunx nx test tool-devsync --skip-nx-cache    → Successfully ran
-bash bin/h2puni-gate.test.sh                 → all cases passed (19-21 included)
-bunx nx format:check --all                   → exit 0
-bunx @fission-ai/openspec@1.3.0 validate --all --json → 85/85
+src/policy/{release,relocation-activation,activation}.test.ts  → 53 pass, 0 fail (3 files)
+src/{admission,contracts,evidence,experiments,indexes,inventory}, src/cli.test.ts
+                                                               → 0 fail, exit 0 (20 files)
+src/{relationships,review}                                     → 0 fail, exit 0 (6 files)
+src/policy/{gate-entrypoints,pilot-policy}.test.ts             → 0 fail (2 files)
+src/policy/trusted-policy.test.ts                              → 55 pass, 0 fail (1 file)
+
+bunx nx run wiki-cli:lint:source --skip-nx-cache → Successfully ran
+bunx nx run wiki-cli:typecheck --skip-nx-cache   → Successfully ran
+bunx nx test tool-devsync --skip-nx-cache        → Successfully ran
+bunx nx test tool-git-hooks --skip-nx-cache      → Successfully ran
+bash bin/h2puni-gate.test.sh                     → all cases passed
+bunx nx format:check --all                       → exit 0
+git diff --check                                 → exit 0
+bunx @fission-ai/openspec@1.3.0 validate --all --json → 86/86
+nx show projects --affected --files=apps/wiki/consumer/README.md        → includes wiki-cli
+nx show projects --affected --files=.github/workflows/wiki-release.yml  → includes wiki-cli
+nx show projects --affected --files=.github/workflows/ci.yml            → includes wiki-cli
+diff .github/workflows/trusted-wiki.yml apps/wiki/consumer/trusted-wiki.yml → empty
 ```
 
-The final full-suite numbers for the dispatch-B commits are in
-`.superpowers/sdd/2026-09-15-agentic-scalability-plan/task-7.1-report.md`, which records every
-command with its result line.
+Every command with its result line is in
+`.superpowers/sdd/2026-09-15-agentic-scalability-plan/task-7.1-report.md`.
 
 ---
 

@@ -711,37 +711,31 @@ export function planRelocationChecks(sources: RelocationSources): CheckPlan {
   );
   // Toolkit mode has no earlier activation, so the lineage refusals have nothing to compare the
   // candidate against; every refusal that measures the candidate itself is below and still runs.
-  const lineageChecks =
-    sources.base.kind === 'base'
-      ? ((source: Extract<RelocationBase, { kind: 'base' }>) => {
-          const base = policyOf(source.policyBytes, 'base trusted policy JSON');
-          const baseMapping = parseOrThrow(
-            ModuleMapping,
-            parseJson(source.mappingBytes, 'base module mapping JSON'),
-          );
-          assertRelocationPolicy(
-            base.view,
-            base.json,
-            candidate.view,
-            candidate.json,
-            sources.candidate.reviewed,
-            candidateMapping,
-          );
-          // Runs after `assertSelectorsResolve` below: a candidate whose selector still names the
-          // pre-move directory must earn the selector-miss refusal that points at the runbook, not
-          // the membership refusal that miss also produces.
-          return (): void => {
-            assertMappingLineage(baseMapping, candidateMapping);
-            assertValidatorEntry(candidate.view, source.validatorEntry);
-          };
-        })(sources.base)
-      : (): void => {
-          /* Toolkit mode has no earlier activation, so lineage has nothing to compare against. */
-        };
+  // The order below is the order of the refusals' own Proof comments, and each one depends on it:
+  // a selector that still names the pre-move directory must earn R10's runbook-pointing refusal
+  // rather than the R14 membership refusal that miss also produces, and a module with no lineage
+  // must earn R12 rather than the R14 refusal its absence also produces.
+  const base = sources.base.kind === 'base' ? sources.base : undefined;
+  const baseMapping =
+    base === undefined
+      ? undefined
+      : parseOrThrow(ModuleMapping, parseJson(base.mappingBytes, 'base module mapping JSON'));
+  if (base !== undefined) {
+    const basePolicy = policyOf(base.policyBytes, 'base trusted policy JSON');
+    assertRelocationPolicy(
+      basePolicy.view,
+      basePolicy.json,
+      candidate.view,
+      candidate.json,
+      sources.candidate.reviewed,
+      candidateMapping,
+    );
+  }
   assertSelectorsResolve(candidate.view, sources.candidate.tree);
+  if (baseMapping !== undefined) assertMappingLineage(baseMapping, candidateMapping);
   // R14 compares the candidate's mapping with its own policy and tree, so it runs in both modes.
   assertMappingOwnership(candidateMapping, candidate.view, sources.candidate.tree);
-  lineageChecks();
+  if (base !== undefined) assertValidatorEntry(candidate.view, base.validatorEntry);
   return {
     checks: deriveCheckCommands(candidate.view, sources.candidate.declarations),
     candidateIdentity: candidateIdentityOf(sources.candidate.tree),
