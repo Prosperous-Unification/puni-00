@@ -658,7 +658,9 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // checked line by line (2026-09-16).
     // Proof: after staging the resolved merge, the pin failed with the digest below at 257
     // occurrences; puni-00's retained OpenSpec CI step shifts the upstream workflow contexts.
-    digest: 'f81caf68c0e25498aa7b4f6b313bfae80b5970cabd1d98553f7e9bf44d92af2e',
+    // Proof: the committed-tree bootstrap test fix changed this digest to f3d9a822...;
+    // the old pin failed with the same 257 classified occurrences and no unclassified entries.
+    digest: 'f3d9a8220acf9fce737e6a3bf47cc73d4f396800d62bc69758af617c3f9d652b',
     occurrences: 257,
     unclassified: [],
   });
