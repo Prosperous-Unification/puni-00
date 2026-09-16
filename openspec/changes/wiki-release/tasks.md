@@ -4,7 +4,7 @@ consumes it, slice 5 the template, README and runbook. Slice 6 is operator work 
 
 ## 1. The activation version names the archive it provisions
 
-- [ ] 1.1 Both provisioning steps — `.github/workflows/trusted-wiki.yml` "Provision immutable
+- [x] 1.1 Both provisioning steps — `.github/workflows/trusted-wiki.yml` "Provision immutable
       external activation" and `.github/workflows/ci.yml` "Provision immutable external activation
       for push audit" — read the extracted root's `selected.json`, then that version directory's
       `manifest.json`, and exit 78 naming the manifest revision and the configured version when they
@@ -15,11 +15,11 @@ consumes it, slice 5 the template, README and runbook. Slice 6 is operator work 
       captured `GITHUB_ENV`; negative: the same archive with a different 40-hex version observes
       exit 78 and both revisions in stderr, watched failing with the join deleted — the step then
       exports a root for an archive certifying another commit.
-- [ ] 1.2 The selection directory the step reads is refused when it is absent, empty, absolute or
+- [x] 1.2 The selection directory the step reads is refused when it is absent, empty, absolute or
       escapes the root, before any manifest is read. Test: `gate-entrypoints.test.ts` rewrites
       `selected.json` with `../escape` and observes exit 78 naming the selection; negative: with the
       containment check removed the same case reads a manifest outside the extracted root.
-- [ ] 1.3 The `main` refusal stays: a non-40-hex version exits 78 before the archive is fetched.
+- [x] 1.3 The `main` refusal stays: a non-40-hex version exits 78 before the archive is fetched.
       Test: the existing `activation workflows refuse a mutable activation version` case, unchanged.
 
 ## 2. The consumer never checks out the wiki's source

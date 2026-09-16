@@ -285,6 +285,30 @@ jobs:
           mkdir -m 0700 -p "$activation_root"
           tar --extract --file "$archive" --directory "$activation_root" --no-same-owner --no-same-permissions
           test -s "$activation_root/selected.json"
+          selected_directory=$(jq --raw-output '.directory' "$activation_root/selected.json")
+          # Proof: gate-entrypoints.test.ts points the selection at a manifest beside the
+          # extraction directory that names the configured version; without this shape refusal the
+          # step joined a manifest the pinned archive never carried and exported the root.
+          if [[ ! "$selected_directory" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*(/[0-9A-Za-z][0-9A-Za-z._-]*)*$ ]]; then
+            printf 'activation selection names no version directory: %s\n' "$selected_directory" >&2
+            exit 78
+          fi
+          certified_revision=$(jq --raw-output '.sourceRevision' \
+            "$activation_root/$selected_directory/manifest.json")
+          # Proof: gate-entrypoints.test.ts provisions an archive certifying 4444... with the
+          # version set to 5555...; without this join the step exited 0 and made an archive that
+          # certifies no configured commit the admission authority.
+          if [[ "$certified_revision" != "$ACTIVATION_VERSION" ]]; then
+            printf 'activation archive certifies %s, not the configured version %s\n' \
+              "$certified_revision" "$ACTIVATION_VERSION" >&2
+            exit 78
+          fi
+          # Provenance for whoever reads this log. Nothing on the admission path reads the
+          # descriptor, so its absence or contents change no decision.
+          if [[ -r "$activation_root/toolkit-release" ]]; then
+            printf 'toolkit release: %s\n' \
+              "$(head -c 200 -- "$activation_root/toolkit-release" | tr -dc '[:print:]')"
+          fi
           printf 'TOOL_WIKI_ACTIVATION_ROOT=%s\n' "$activation_root" >> "$GITHUB_ENV"
 
       # A protected-default push is already admitted. Its audit still refuses candidate authority:

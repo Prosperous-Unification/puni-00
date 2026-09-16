@@ -100,6 +100,129 @@ function fixture(): {
   return { directory, repository, activationRoot, cliPath, bindingPath, evidencePath };
 }
 
+function activationArchiveRoot(sourceRevision: string): string {
+  const paths = fixture();
+  const sources = join(paths.directory, 'provision-sources');
+  const validator = join(sources, 'validator.mjs');
+  write(validator, 'process.stdout.write("{}\\n");\n');
+  const binding = join(sources, 'binding.json');
+  const roleSources = {
+    authority: join(sources, 'authority.json'),
+    ciBinding: binding,
+    evidence: join(sources, 'evidence.json'),
+    launcher: adapterPath,
+    localBinding: binding,
+    mapping: join(sources, 'mapping.json'),
+    policy: join(sources, 'policy.json'),
+    reviewReceipt: join(sources, 'review.json'),
+    snapshotter: join(workspace, 'apps/wiki/cli/src/policy/snapshot-validator.ts'),
+    validator,
+  };
+  for (const role of ['authority', 'evidence', 'mapping', 'policy', 'reviewReceipt'] as const)
+    write(roleSources[role], '{}\n');
+  write(
+    binding,
+    `${JSON.stringify({
+      policy: { path: 'policy.json', sha256: hashBytes(readFileSync(roleSources.policy)) },
+      authority: {
+        artifact: {
+          path: 'authority.json',
+          sha256: hashBytes(readFileSync(roleSources.authority)),
+        },
+      },
+      validator: {
+        artifacts: [{ path: 'validator.mjs', sha256: hashBytes(readFileSync(validator)) }],
+      },
+    })}\n`,
+  );
+  const prepared = prepareActivation({
+    candidateRepository: paths.repository,
+    destination: join(paths.activationRoot, 'v1'),
+    mappingIdentity: hashBytes(readFileSync(roleSources.mapping)),
+    policyIdentity: hashBytes(readFileSync(roleSources.policy)),
+    reviewReceiptIdentity: hashBytes(readFileSync(roleSources.reviewReceipt)),
+    roleSources,
+    sourceRevision,
+    validatorIdentity: hashBytes(readFileSync(validator)),
+  });
+  selectActivation(paths.activationRoot, prepared.directory, prepared.identity);
+  write(join(paths.activationRoot, 'toolkit-release'), `wiki-v0.0.1 ${'7'.repeat(64)}\n`);
+  return paths.activationRoot;
+}
+
+function selectArchiveDirectory(activationRoot: string, directory: string): void {
+  const descriptor = join(activationRoot, 'selected.json');
+  const selection = JSON.parse(readFileSync(descriptor, 'utf8')) as Record<string, unknown>;
+  chmodSync(descriptor, 0o600);
+  writeFileSync(descriptor, `${JSON.stringify({ ...selection, directory })}\n`, 'utf8');
+}
+
+function packActivationArchive(activationRoot: string): { path: string; digest: string } {
+  const transport = mkdtempSync(join(tmpdir(), 'tool-wiki-provision-transport-'));
+  scratchPaths.push(transport);
+  const path = join(transport, 'tool-wiki-activation.tar');
+  const pack = Bun.spawnSync(
+    ['tar', '--create', '--file', path, '--directory', activationRoot, '.'],
+    { stderr: 'pipe', stdout: 'pipe' },
+  );
+  if (pack.exitCode !== 0) throw new Error(streamText(pack.stderr, 'tar stderr'));
+  return { path, digest: sha256(readFileSync(path)) };
+}
+
+/**
+ * Runs a provisioning step's own production bash offline. Only the runner's network fetch is
+ * substituted — a `curl` shim on PATH copies the `file://` archive — so the pinned digest, the
+ * extraction and the manifest join all execute against real bytes.
+ */
+function runActivationProvisioning(
+  workflowPath: string,
+  stepName: string,
+  archive: { path: string; digest: string },
+  version: string,
+  prepareRunner?: (runnerTemporary: string) => void,
+): { invocation: ReturnType<typeof Bun.spawnSync>; environmentFile: string } {
+  const runnerTemporary = mkdtempSync(join(tmpdir(), 'tool-wiki-provision-runner-'));
+  const harness = mkdtempSync(join(tmpdir(), 'tool-wiki-provision-harness-'));
+  scratchPaths.push(runnerTemporary, harness);
+  const environmentFile = join(harness, 'github-env');
+  writeFileSync(environmentFile, '', 'utf8');
+  const transportShim = join(harness, 'bin', 'curl');
+  write(
+    transportShim,
+    [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      'destination=',
+      'origin=',
+      'while (( $# )); do',
+      '  case "$1" in',
+      '    --output) destination=$2; shift 2 ;;',
+      '    file://*) origin=${1#file://}; shift ;;',
+      '    *) shift ;;',
+      '  esac',
+      'done',
+      '[[ -n "$destination" && -n "$origin" ]]',
+      'cp -- "$origin" "$destination"',
+      '',
+    ].join('\n'),
+  );
+  chmodSync(transportShim, 0o755);
+  prepareRunner?.(runnerTemporary);
+  const invocation = Bun.spawnSync(['bash', '-c', workflowStep(workflowPath, stepName)], {
+    env: {
+      ACTIVATION_ARCHIVE_SHA256: archive.digest,
+      ACTIVATION_ARCHIVE_URL: `file://${archive.path}`,
+      ACTIVATION_VERSION: version,
+      GITHUB_ENV: environmentFile,
+      PATH: `${join(harness, 'bin')}:${process.env['PATH'] ?? ''}`,
+      RUNNER_TEMP: runnerTemporary,
+    },
+    stderr: 'pipe',
+    stdout: 'pipe',
+  });
+  return { invocation, environmentFile };
+}
+
 interface RealFixture {
   repository: string;
   revision: string;
@@ -1076,6 +1199,17 @@ await import(${JSON.stringify(productionSnapshotter)});
     );
   });
 
+  const provisioningSteps = [
+    {
+      path: join(workspace, '.github', 'workflows', 'trusted-wiki.yml'),
+      step: 'Provision immutable external activation',
+    },
+    {
+      path: join(workspace, '.github', 'workflows', 'ci.yml'),
+      step: 'Provision immutable external activation for push audit',
+    },
+  ];
+
   test('activation workflows refuse a mutable activation version before using it as authority', () => {
     const workflows = [
       {
@@ -1102,6 +1236,71 @@ await import(${JSON.stringify(productionSnapshotter)});
       '0123456789abcdef0123456789abcdef01234567',
     );
     expect(immutable.exitCode, streamText(immutable.stderr, 'activation guard stderr')).toBe(0);
+  });
+
+  test('activation provisioning refuses an archive the configured version does not name', () => {
+    const certifiedRevision = '4'.repeat(40);
+    const configuredRevision = '5'.repeat(40);
+    for (const workflow of provisioningSteps) {
+      const archive = packActivationArchive(activationArchiveRoot(certifiedRevision));
+      // Proof: with the manifest join deleted this case exited 0 and exported an activation root
+      // for an archive certifying a commit the repository variables never named.
+      const foreign = runActivationProvisioning(
+        workflow.path,
+        workflow.step,
+        archive,
+        configuredRevision,
+      );
+      const detail = streamText(foreign.invocation.stderr, 'provisioning stderr');
+      expect(foreign.invocation.exitCode, detail).toBe(78);
+      expect(detail).toContain(certifiedRevision);
+      expect(detail).toContain(configuredRevision);
+      expect(readFileSync(foreign.environmentFile, 'utf8')).toBe('');
+
+      const named = runActivationProvisioning(
+        workflow.path,
+        workflow.step,
+        archive,
+        certifiedRevision,
+      );
+      expect(
+        named.invocation.exitCode,
+        streamText(named.invocation.stderr, 'provisioning stderr'),
+      ).toBe(0);
+      expect(readFileSync(named.environmentFile, 'utf8')).toContain(`TOOL_WIKI_ACTIVATION_ROOT=`);
+      expect(readFileSync(named.environmentFile, 'utf8')).toContain(certifiedRevision);
+      expect(streamText(named.invocation.stdout, 'provisioning stdout')).toContain(
+        'toolkit release: wiki-v0.0.1',
+      );
+    }
+  });
+
+  test('activation provisioning refuses a selection that leaves the extracted archive root', () => {
+    const decoyRevision = '6'.repeat(40);
+    for (const workflow of provisioningSteps) {
+      const activationRoot = activationArchiveRoot('4'.repeat(40));
+      selectArchiveDirectory(activationRoot, '../decoy');
+      const archive = packActivationArchive(activationRoot);
+      // Proof: with the selection shape refused only by the launcher, this case read
+      // `<extraction parent>/decoy/manifest.json`, matched the configured version and exited 0 —
+      // the step joined a manifest the pinned archive never carried.
+      const escaped = runActivationProvisioning(
+        workflow.path,
+        workflow.step,
+        archive,
+        decoyRevision,
+        (runnerTemporary) => {
+          write(
+            join(runnerTemporary, 'tool-wiki-activation', 'decoy', 'manifest.json'),
+            `${JSON.stringify({ sourceRevision: decoyRevision })}\n`,
+          );
+        },
+      );
+      const detail = streamText(escaped.invocation.stderr, 'provisioning stderr');
+      expect(escaped.invocation.exitCode, detail).toBe(78);
+      expect(detail).toContain('../decoy');
+      expect(readFileSync(escaped.environmentFile, 'utf8')).toBe('');
+    }
   });
 
   test('push audit reports inactive external activation without certifying', () => {
