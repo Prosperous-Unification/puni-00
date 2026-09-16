@@ -585,6 +585,69 @@ else
   pass 'the passing OpenSpec report cleans its temporary file'
 fi
 
+# 31. The gate reports what it QUEUED FOR, before it reports what it runs on.
+#
+# A lane waiting behind another lane's gate is indistinguishable from a wedged
+# one from the outside, which is how a 50-minute starvation went unnoticed long
+# enough to reach an audit. Only the library knows how long it queued and how
+# many tickets were ahead, so the line is printed there and the gate's own
+# `running on` line — printed inside the locked payload — necessarily follows it.
+# Order is the assertion, not mere presence: a wait reported after the verdict is
+# a wait nobody reads.
+wait_lock="$scratch/lock-queue-wait"
+wait_stderr="$scratch/queue-wait-stderr"
+# The dummy holder takes the lock through the library rather than by hand: a
+# hand-made lock directory holding a dead pid is RECLAIMED as stale, and this
+# case needs the gate to actually wait.
+bash -c 'source "$1"; shift; with_heavy_lock "$@"' \
+  h2puni-gate-dummy-holder "$repo_root/bin/heavy-lock-lib.sh" "$wait_lock" -- sleep 3 &
+dummy_holder=$!
+# The hold is OBSERVED. `claim_heavy_lock` writes its pid after `mkdir`, so
+# waiting on the directory alone would let the gate race past an unclaimed lock
+# and the case would assert a wait that never happened.
+for _ in $(seq 1 50); do
+  [[ -s $wait_lock.d/holder ]] && break
+  sleep 0.1
+done
+git -C "$repo" checkout -q --detach "$sha_b"
+status=0
+HEAVY_LOCK_WAIT_SECONDS=30 run_gate "$repo" "$wait_lock" "$sha_a" true 2>"$wait_stderr" || status=$?
+wait "$dummy_holder"
+expect_status 0 "$status" 'a gate queued behind a holder runs once the holder releases'
+waited_line=$(grep -n '^heavy lock: waited [0-9][0-9]*s behind [0-9][0-9]* tickets$' "$wait_stderr" | head -1 | cut -d: -f1)
+running_line=$(grep -n '^h2puni gate: running on ' "$wait_stderr" | head -1 | cut -d: -f1)
+if [[ -n $waited_line && -n $running_line && $waited_line -lt $running_line ]]; then
+  pass 'the queue wait is reported before the head being gated'
+else
+  fail "the queue wait is not reported before the head being gated (wait line '$waited_line', running line '$running_line')"
+fi
+# Whole seconds, and at least one of them: the holder above held for three, so a
+# `0s` here would mean the gate never queued and the case asserted nothing.
+waited_seconds=$(sed -n 's/^heavy lock: waited \([0-9][0-9]*\)s behind [0-9][0-9]* tickets$/\1/p' "$wait_stderr" | head -1)
+if [[ $waited_seconds =~ ^[0-9]+$ ]] && [[ $waited_seconds -ge 1 ]]; then
+  pass "the wait is reported in whole seconds (${waited_seconds}s behind a 3s holder)"
+else
+  fail "the wait is not reported as a whole number of seconds: '$waited_seconds'"
+fi
+
+# 32. Contract check, in the shape cases 5 and 7 use: the shipped gate names its
+# lane after the commit it gates, so `bin/with-heavy-lock.sh status` says which
+# sha is holding the host up rather than a bare pid. Read off the script because
+# the production gate cannot be run here — it takes the canonical host lock and
+# runs the real steps. The label must come from the RESOLVED commit: a caller
+# that typed `HEAD` would otherwise label its lane `gate:HEAD`, which names every
+# lane identically and is exactly what the label exists to distinguish.
+if grep -q 'export HEAVY_LOCK_LABEL="gate:\${gate_sha:0:8}"' "$repo_root/bin/h2puni-gate.sh"; then
+  pass 'bin/h2puni-gate.sh labels its heavy-lock lane with the gated sha'
+else
+  fail 'bin/h2puni-gate.sh does not label its heavy-lock lane with the gated sha'
+fi
+if grep -q 'gate_sha=\$(git -C "\$repo_root" rev-parse --verify --quiet' "$repo_root/bin/h2puni-gate.sh"; then
+  pass 'the lane label is built from the resolved commit, not the caller argument'
+else
+  fail 'the lane label is not built from a resolved commit'
+fi
+
 if ((failures)); then
   printf '\n%d failing case(s)\n' "$failures" >&2
   exit 1
