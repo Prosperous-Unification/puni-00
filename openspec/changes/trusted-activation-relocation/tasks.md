@@ -1,5 +1,5 @@
 Ordered slices for one relocation candidate. Slice 1 lands alone; slice 2 consumes the
-`design.md` written in 2.1; slices 3 and 4 land after the command exists, and 4.1 is
+`design.md` written in 2.1; slices 3 and 4 land after the command exists, and 4.2 is
 operator work on the real repository.
 
 ## 1. The refusal names the procedure
@@ -42,7 +42,7 @@ operator work on the real repository.
 
 ## 3. Document the landing
 
-- [ ] 3.1 `docs/runbook-tool-wiki-activation.md` gains `## Relocation`: the candidate ships
+- [x] 3.1 `docs/runbook-tool-wiki-activation.md` gains `## Relocation`: the candidate ships
       `selector` new, `sourceSelector` old and predecessor ids for renamed modules; the
       operator runs 2.2's command against the candidate head; publishes the archive and sets
       the three activation repository variables to the candidate SHA; `trusted-wiki` reruns
@@ -55,11 +55,22 @@ operator work on the real repository.
 
 ## 4. Clear the debt on the real repository
 
-- [ ] 4.1 Run 2.2's command for the current `main` head, publish the archive release, set
+- [x] 4.1 `docs/wiki-policy/bootstrap-policy.json`, `modules.bootstrap.json` and
+      `relationships.bootstrap.json` select the moved pilot boundaries: `selector` new and
+      `sourceSelector` old for the three moved boundaries, `relationshipRequest.typescript`
+      namespaced, the three modules' memberships, index paths and `externalConsumers` at the new
+      prefixes with a bumped `mappingVersion`, and the four stale `nx-target` facts re-pointed at
+      the renamed projects. `pilot.sourceRevision` and the mapping `sourceRevision` stay at
+      364cc0f8. Test: the `pilot-policy.test.ts` case over the on-disk bootstrap files asserting
+      that every boundary selector names a path present at HEAD, that baselines stay under
+      `sourceSelector`, and that each module's memberships lie under its boundary's new selector;
+      negative: the same case observed all three boundary ids, then all three module id/stray
+      pairs, before the edits landed.
+- [ ] 4.2 Run 2.2's command for the current `main` head, publish the archive release, set
       `TOOL_WIKI_ACTIVATION_VERSION`, `TOOL_WIKI_ACTIVATION_ARCHIVE_URL` and
       `TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256` together, and observe `trusted-wiki` green on the
       next candidate. Operator work: it needs repository admin. Test: the observed
       `trusted-wiki` run, recorded with its run id.
-- [ ] 4.2 This change's `verify.md` records every command, its result, and the failure-proof
-      table for slices 1 to 3 — for each new or changed check, the fault injected, the test
+- [x] 4.3 This change's `verify.md` records every command, its result, and the failure-proof
+      table for slices 1 to 4 — for each new or changed check, the fault injected, the test
       that observed it failing, and the result.
