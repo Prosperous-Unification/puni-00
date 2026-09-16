@@ -84,6 +84,17 @@ Nothing below has an owning task in the external queue (`backlog/tasks/task-NNN 
       produce typed 409 reads and `plan_unavailable` publication; detached capture preserves
       the selected schedule or named absence without admitting a solve; the SQLite adapter
       retains the existing hash bytes and scheduler contract version.
+- [ ] **A devsync oracle comparing `check.*` facts to their Nx manifests** — a target pinned
+      by a `check.*` fact in `docs/wiki-policy/relationships.json` and
+      `relationships.bootstrap.json` carries its WHOLE configuration in that fact, `inputs`
+      included, and the declarations extractor refuses any drift. Changing a pinned target
+      without updating both facts therefore breaks `tool-wiki:test`, and nothing says so until
+      that ~15-minute suite runs: on 2026-09-16 the `affected-pr-gate` work added two workflow
+      inputs to `tool-wiki:test` and the h2puni smoke gate was what caught it, one round after
+      the change had been reviewed. A tool-devsync oracle reading every `check.*` fact and
+      comparing `expectedConfiguration` with the real manifest would fail in seconds instead,
+      beside the other manifest oracles in `workspace-targets.test.ts`. Until it exists, any
+      change to a fact-pinned target MUST update the fact in both files in the same commit.
 - [ ] **Narrow `tool-wiki:lint` and `tool-devsync:test` inputs** — both declare
       `{workspaceRoot}/**/*`, so `nx show projects --affected` names them for EVERY file:
       measured 2026-09-16, `--files=LLM_README.md` answers `["tool-devsync","tool-wiki"]`.

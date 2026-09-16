@@ -82,6 +82,14 @@ through `Bun.YAML.parse` or as text; there is no copy of the workflow to assert 
       is what makes its first `test` a refusal; negative: remove that line and observe the
       pin fail.
 
+- [x] 3.8 The `check.tool-wiki.test` fact in `docs/wiki-policy/relationships.json` and
+      `relationships.bootstrap.json` declares the target's real `inputs` — a fact pins a
+      target's whole configuration and the declarations extractor refuses drift. Test:
+      `bunx nx test tool-wiki --skip-nx-cache`; negative: with the fact left at
+      `["default", "^production"]` the production CLI reported
+      `fact check.tool-wiki.test authority-selector mismatch` and the pilot-policy case
+      failed `Expected: 0 · Received: 1`.
+
 ## 4. Evidence
 
 - [ ] 4.1 `verify.md` records every command with its result line, both failure proofs with the
