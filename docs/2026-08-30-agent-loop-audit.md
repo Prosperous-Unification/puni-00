@@ -1,5 +1,11 @@
 # The agent loop, audited — 2026-08-30
 
+**2026-09-16.** What this audit calls lanes is Claire's first-version SDLC
+mechanism, stated as three repository contracts in
+[lanes are Claire's v1 mechanism](lanes-are-claire-v1.md). Read the rest as
+history: the findings are what was watched on those dates, not a description of
+how the loop runs today.
+
 Written while landing the five outstanding items of
 `openspec/DANY-REQUEST-AUDIT-2026-08-30.md` with a second Claude session and its
 five agents working the same repository at the same time.

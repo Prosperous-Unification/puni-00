@@ -276,6 +276,11 @@ To skip the path prefix, symlink it once —
 Good things to hand it: run the gate; investigate a red CI run; open a PR for a
 small fix; summarise what changed on main; dry-run a deploy and report.
 
+When several of those run at once, Claire works in lanes — one worker session
+per worktree, gating the exact SHA — and
+[lanes are Claire's v1 mechanism](./docs/lanes-are-claire-v1.md) records what a
+lane owes this repository.
+
 ---
 
 ## Making a change
