@@ -16,7 +16,7 @@ operator work on the real repository.
 
 ## 2. Prepare an activation from the candidate SHA
 
-- [ ] 2.1 Write this change's `design.md`: which of the ten activation roles a relocation
+- [x] 2.1 Write this change's `design.md`: which of the ten activation roles a relocation
       activation regenerates from the candidate SHA (policy, mapping, authority, both
       bindings, review receipt) and which it copies from the base activation (launcher,
       snapshotter, validator, evidence), how the archive root is assembled, and how the
