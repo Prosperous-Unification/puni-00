@@ -73,6 +73,9 @@ function readArguments(argv: readonly string[]): Record<Flag, string> {
     if (selected.has(flag)) throw new Error(`repeated flag: ${name}`);
     selected.set(flag, value);
   }
+  // The empty object is not yet a `Record<Flag, string>`; the loop below assigns every member
+  // of `flags` or throws, and `flags` is the key set of that record, so the cast is discharged
+  // before the value escapes this function.
   const resolved = {} as Record<Flag, string>;
   for (const flag of flags) {
     const value = selected.get(flag) ?? defaults[flag];

@@ -1,6 +1,6 @@
 ## Why
 
-The base-owned `trusted-wiki` check extracts an activation pinned to one main SHA, whose policy selects `libs/domain/src/saved-plan` — a directory the namespace move relocated. Every candidate is now refused with `trusted boundary selector selects no candidate input`, so the check is red on main. The policy format already models a move: a boundary carries `selector` for the new path and `sourceSelector` for the old. Missing is a way to activate a candidate's own policy before that candidate merges, and a refusal that names it. Every later boundary move hits this wall.
+The base-owned `trusted-wiki` check extracts an activation pinned to one main SHA, whose policy selects `libs/domain/src/saved-plan` — a directory the namespace move relocated. Every candidate is refused with `trusted boundary selector selects no candidate input`, so the check is red on main. The policy format already models a move: `selector` names the new path, `sourceSelector` the old. Missing is a way to activate a candidate's own policy before it merges, and a refusal that names it. Every later boundary move hits this wall.
 
 ## What Changes
 
@@ -12,8 +12,8 @@ The base-owned `trusted-wiki` check extracts an activation pinned to one main SH
 
 **Relocation activation**
 
-- From: nothing produces an activation from a candidate's own policy, so an operator cannot land a move
-- To: one command takes a candidate SHA and a base activation and writes an activation root, refusing an unknown or dirty SHA, a moved boundary without `sourceSelector`, an unresolved `predecessorModuleIds` chain, and a selector that still selects nothing
+- From: nothing produces an activation from a candidate's own policy, so a move cannot land
+- To: one command takes a candidate SHA and a base activation and writes an activation root, refusing an unknown or dirty SHA, a moved boundary without `sourceSelector`, an unresolved `predecessorModuleIds` chain, and a selector that selects nothing
 - Impact: new operator command; admission is unchanged
 
 **Landing a move**
@@ -23,11 +23,11 @@ The base-owned `trusted-wiki` check extracts an activation pinned to one main SH
 
 ## Non-Goals
 
-Selectors resolving through untrusted candidate files. Weakening the digest pins tying an activation to one candidate. Changing what admission accepts. No release automation, no change to the operator-only compatible-activation gate.
+Selectors resolving through untrusted candidate files. Weakening the digest pins that tie an activation to one candidate. Changing what admission accepts. Release automation. Changing the operator-only compatible-activation gate.
 
 ## Constraints
 
-Candidate policy and mapping are read at a committed SHA, never a working tree. One authority snapshot certifies one candidate identity, so an activation is per-candidate. Bun and Nx only. No design interview was held; this intent assumes:
+Candidate policy and mapping are read at a committed SHA, never a working tree. One authority snapshot certifies one candidate identity, so an activation is per-candidate. No design interview was held; this intent assumes:
 
 - assumed: the activation regenerates policy, mapping, authority, both bindings and the review receipt from the candidate SHA, and copies launcher, snapshotter, validator and evidence.
 - assumed: `manifest.sourceRevision` stays informational; the tie remains the authority's `candidateIdentity`.
@@ -50,7 +50,7 @@ None.
 
 ## Decisions Recorded
 
-None yet; the command's role disposition is settled in this change's `design.md`.
+None yet; see `design.md`.
 
 ## Impact
 

@@ -543,7 +543,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'historical bootstrap policy or mapping': 44,
       'historical policy selector or baseline': 39,
       'production proof or revision transition': 18,
-      'test fixture or proof': 102,
+      'test fixture or proof': 106,
     },
     coverage: {
       applicationLibraryToolReadmes: 17,
@@ -599,8 +599,17 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // because re-pinning the moved project's own refusal text in pilot-policy.test.ts shifted
     // the seven `libs/domain/`, `libs/core/` and `libs/store-memory/` contexts below it; each
     // context carries its line number (2026-09-16).
-    digest: '3816d95bea47c29347cb0034420f3427e14246ec9eaa9544a2a5545a70f354d1',
-    occurrences: 253,
+    // Proof: leaving `d0b34171.../253/102` here after the standing bootstrap oracles pinned the
+    // pre-move project, cwd and consumer prefixes they refuse (`core`, `libs/core`,
+    // `libs/core/src`, `libs/domain/src/saved-plan`) in their `Proof:` comments failed on the
+    // observed digest below at 257/106 — four more classified `test fixture or proof` contexts,
+    // none unclassified (2026-09-16).
+    // Proof: merging W5's `fe5c29e2.../257` into this branch's `3816d95b.../253` kept both sides'
+    // contexts, so pinning either side's digest here failed on the observed digest below at 257 —
+    // W5's four new `test fixture or proof` contexts report under the moved `apps/wiki/cli`
+    // paths, which re-sorts them (2026-09-16).
+    digest: 'b118a4b8e841182e32448abf60576de03221f71f6d744c5b53bd0d57d5d7d0c7',
+    occurrences: 257,
     unclassified: [],
   });
 });

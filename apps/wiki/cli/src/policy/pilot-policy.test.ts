@@ -15,6 +15,8 @@ import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import { hashCanonical } from '../evidence/content-manifest';
+import { markdownAnchors } from '../indexes/read-indexes';
+import { extractNxRelationships } from '../relationships/nx';
 import { loadTrustedPolicy, resolveValidatorArtifactPaths } from './trust';
 
 interface ExactTuple {
@@ -64,6 +66,11 @@ function git(repository: string, argv: string[]): string {
 function write(path: string, source: string): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, source, 'utf8');
+}
+
+/** Whether `path` is `prefix` itself or lies beneath it, the containment every selector uses. */
+function underPrefix(prefix: string, path: string): boolean {
+  return path === prefix || path.startsWith(`${prefix}/`);
 }
 
 function sha256(bytes: Uint8Array | string): string {
@@ -755,6 +762,21 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     );
     // The trusted policy is intact; only its selector missed.
     expect(observed).not.toContain('trusted policy digest does not match binding');
+
+    // The refusal sends an operator to a runbook section, and no Markdown document links that
+    // anchor, so the repository link check never resolves it. Take the destination out of the
+    // message itself rather than repeating it, and resolve it with the same production anchor
+    // reader `check-indexes` uses, so renaming the heading breaks this test and not only the
+    // operator's day.
+    const named = /see (docs\/[^\s#]+\.md)#([^\s.,)]+)/.exec(observed);
+    if (named === null) throw new Error(`refusal names no runbook anchor: ${observed}`);
+    const [, runbook, anchor] = named;
+    // Proof: renaming the runbook heading to `## Relocating the boundary` left this assertion
+    // observing `["tool-wiki-trusted-activation", "prepare", "transport-and-admission",
+    // "relocating-the-boundary", "final-binding-and-recovery"]` with no `relocation` (2026-09-16).
+    expect([...markdownAnchors(readFileSync(join(repositoryRoot, runbook), 'utf8'))]).toContain(
+      anchor,
+    );
   }, 120_000);
 
   test('refuses an empty, unmapped, incompatible, or escaping pre-index tuple manifest', () => {
@@ -831,6 +853,16 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       expect(observed).toContain(mutation.expected);
     }
   }, 120_000);
+});
+
+/**
+ * These cases read the committed `docs/wiki-policy` bootstrap files and the repository at `HEAD`
+ * directly. They are not admission: they are the standing oracle that keeps the trusted policy,
+ * its module mapping and its relationship declarations pointing at paths and projects that still
+ * exist, so a move that forgets one of the three files is red here instead of in CI's
+ * `trusted-wiki` job.
+ */
+describe('on-disk bootstrap policy, mapping and relationship files', () => {
   test('the bootstrap policy and mapping select the moved pilot boundaries at HEAD', () => {
     const bootstrapPolicy = JSON.parse(
       readFileSync(join(repositoryRoot, 'docs/wiki-policy/bootstrap-policy.json'), 'utf8'),
@@ -853,9 +885,6 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       }[];
     };
     const headPaths = entriesAt(repositoryRoot, 'HEAD').map(({ path }) => path);
-    const under = (prefix: string, path: string): boolean =>
-      path === prefix || path.startsWith(`${prefix}/`);
-
     // The baselines are reviewed tuples at this revision; the relocation command refuses a
     // revision that lacks them, so a bump here is a policy change, not a maintenance detail.
     expect(bootstrapPolicy.pilot.sourceRevision).toBe('364cc0f8ef901cbfc574c6391c385e7f79bf27b4');
@@ -864,7 +893,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // those three boundary ids received against `[]` (2026-09-16).
     expect(
       bootstrapPolicy.boundaries
-        .filter(({ selector }) => !headPaths.some((path) => under(selector.value, path)))
+        .filter(({ selector }) => !headPaths.some((path) => underPrefix(selector.value, path)))
         .map(({ boundaryId }) => boundaryId),
     ).toEqual([]);
     // Proof: moving one baseline path of `boundary.domain.saved-plan` to the post-move prefix
@@ -872,7 +901,9 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     expect(
       bootstrapPolicy.boundaries
         .filter(({ selector, sourceSelector, baselineEntries }) =>
-          baselineEntries.some(({ path }) => !under((sourceSelector ?? selector).value, path)),
+          baselineEntries.some(
+            ({ path }) => !underPrefix((sourceSelector ?? selector).value, path),
+          ),
         )
         .map(({ boundaryId }) => boundaryId),
     ).toEqual([]);
@@ -897,9 +928,80 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
               return path;
             }),
           ];
-          return { moduleId, strays: claimed.filter((path) => !under(selector.value, path)) };
+          return { moduleId, strays: claimed.filter((path) => !underPrefix(selector.value, path)) };
         })
         .filter(({ strays }) => strays.length > 0),
+    ).toEqual([]);
+  }, 30_000);
+
+  test('every bootstrap nx-target fact names a workspace project whose cwd exists at HEAD', () => {
+    const declarations = JSON.parse(
+      readFileSync(join(repositoryRoot, 'docs/wiki-policy/relationships.bootstrap.json'), 'utf8'),
+    ) as {
+      facts: {
+        factId: string;
+        kind: string;
+        project: string;
+        expectedConfiguration: { options?: { cwd?: string } };
+      }[];
+    };
+    const targets = declarations.facts.filter(({ kind }) => kind === 'nx-target');
+    expect(targets.length).toBeGreaterThan(0);
+    const projects = new Set(
+      extractNxRelationships(repositoryRoot).relationships.projects.map(({ name }) => name),
+    );
+    const headPaths = entriesAt(repositoryRoot, 'HEAD').map(({ path }) => path);
+
+    // Proof: pointing `check.core.test` at project `core` — the pre-move name — made this
+    // assertion observe `["check.core.test -> core"]` against `[]` (2026-09-16).
+    expect(
+      targets
+        .filter(({ project }) => !projects.has(project))
+        .map(({ factId, project }) => `${factId} -> ${project}`),
+    ).toEqual([]);
+    // Proof: pointing the same fact's `options.cwd` at `libs/core` observed
+    // `["check.core.test -> libs/core"]` against `[]` (2026-09-16).
+    expect(
+      targets
+        .filter(({ expectedConfiguration }) => {
+          const cwd = expectedConfiguration.options?.cwd;
+          return cwd !== undefined && !headPaths.some((path) => underPrefix(cwd, path));
+        })
+        .map(({ factId, expectedConfiguration }) => {
+          const cwd = expectedConfiguration.options?.cwd;
+          if (cwd === undefined) throw new Error(`${factId} lost its cwd between filters`);
+          return `${factId} -> ${cwd}`;
+        }),
+    ).toEqual([]);
+  }, 60_000);
+
+  test('every bootstrap module declares external consumers that exist at HEAD', () => {
+    const bootstrapMapping = JSON.parse(
+      readFileSync(join(repositoryRoot, 'docs/wiki-policy/modules.bootstrap.json'), 'utf8'),
+    ) as {
+      modules: {
+        moduleId: string;
+        externalConsumers?: { memberships: { prefix?: string; path?: string }[] };
+      }[];
+    };
+    const headPaths = entriesAt(repositoryRoot, 'HEAD').map(({ path }) => path);
+
+    // Proof: rewriting `module.domain.saved-plan`'s consumer prefix `libs/wbs/application/core/src`
+    // back to `libs/core/src` made this assertion observe
+    // `["module.domain.saved-plan -> libs/core/src"]` against `[]` (2026-09-16).
+    expect(
+      bootstrapMapping.modules.flatMap(({ moduleId, externalConsumers }) =>
+        (externalConsumers?.memberships ?? [])
+          .map((membership) => {
+            const claimed = membership.prefix ?? membership.path;
+            if (claimed === undefined) {
+              throw new Error(`external consumer of ${moduleId} names neither prefix nor path`);
+            }
+            return claimed;
+          })
+          .filter((claimed) => !headPaths.some((path) => underPrefix(claimed, path)))
+          .map((claimed) => `${moduleId} -> ${claimed}`),
+      ),
     ).toEqual([]);
   }, 30_000);
 });

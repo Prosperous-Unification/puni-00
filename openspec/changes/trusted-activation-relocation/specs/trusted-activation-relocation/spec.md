@@ -65,4 +65,4 @@ that the single-valued activation variables serialize concurrent move candidates
 
 - **WHEN** an operator opens the runbook anchor named in the refusal
 - **THEN** the section states the five ordered steps and the serialization limit
-- **AND** the repository's link check resolves that anchor
+- **AND** a production test derives that anchor from the refusal text it observed and resolves it against the runbook's own headings, so renaming the heading makes the test red
