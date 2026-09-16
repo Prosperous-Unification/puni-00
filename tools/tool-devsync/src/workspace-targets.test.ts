@@ -800,3 +800,67 @@ describe('lint:fast cache locations', () => {
     expect(unqualified).toEqual([]);
   });
 });
+
+/**
+ * The one file every workflow oracle reads is the one file `outsideReads` cannot see.
+ *
+ * Both spellings in this workspace slip past that walk. `join(import.meta.dir, '..', '..',
+ * '..', '..', '.github', 'workflows', 'ci.yml')` is not a single `../../../…` literal, and
+ * `read('.github/workflows/ci.yml')` beneath a `new URL('../../../', import.meta.url)`
+ * resolves to the workspace root, which that walk skips as too broad. So a suite whose whole
+ * subject is `.github/workflows/ci.yml` could read it while no target declared it.
+ *
+ * That was not hypothetical. Until 2026-09-16 `tool-git-hooks:test` declared
+ * `["default", "^production", "{workspaceRoot}/lefthook.yml"]` while
+ * `pixels-workflow.test.ts` and `corpus-lint-workflow.test.ts` both read the workflow, and
+ * `tool-wiki:test` declared no inputs at all while `gate-entrypoints.test.ts` and
+ * `selectors.test.ts` read it. With the gate now running `nx affected` on pull requests,
+ * that is worse than a stale cache: a pull request whose only edit is `ci.yml` never
+ * schedules the suite that is entirely about `ci.yml`, and reports green. An oracle is only
+ * as reachable as its Nx inputs.
+ */
+const CI_WORKFLOW = '.github/workflows/ci.yml';
+
+/** Whether a source names the CI workflow, with its path written either way. */
+function readsCiWorkflow(source: string): boolean {
+  return source.replace(/["'`,\s\\/]+/g, '').includes(CI_WORKFLOW.replaceAll('/', ''));
+}
+
+describe('every suite that reads the CI workflow declares it', () => {
+  it('names the workflow in the test target that runs it', async () => {
+    const readers: string[] = [];
+    const undeclared: string[] = [];
+    for (const project of await readProjects(WORKSPACE)) {
+      const sources = new Bun.Glob('src/**/*.test.{ts,tsx}');
+      let reads = false;
+      for await (const path of sources.scan({
+        cwd: new URL(`${project.root}/`, WORKSPACE).pathname,
+      })) {
+        const source = await readFile(new URL(`${project.root}/${path}`, WORKSPACE), 'utf8');
+        if (readsCiWorkflow(source)) {
+          reads = true;
+          break;
+        }
+      }
+      if (!reads) continue;
+      readers.push(project.name);
+      const declared = (project.targets['test']?.inputs ?? [])
+        .filter(
+          (each): each is string => typeof each === 'string' && each.startsWith('{workspaceRoot}/'),
+        )
+        .map((each) => each.slice('{workspaceRoot}/'.length));
+      if (!declared.some((pattern) => new Bun.Glob(pattern).match(CI_WORKFLOW)))
+        undeclared.push(`${project.name}:test does not declare ${CI_WORKFLOW}`);
+    }
+
+    // Non-vacuity, and it is self-proving: THIS file names the workflow, so a detector that
+    // stopped matching would empty `readers` and fail here rather than pass having scanned
+    // nothing.
+    expect(readers).toContain('tool-devsync');
+    // Proof: watched red on 2026-09-16 against the real manifests, before either input was
+    // added — `Received: ["tool-git-hooks:test does not declare .github/workflows/ci.yml",
+    // "tool-wiki:test does not declare .github/workflows/ci.yml"]`. Reverting
+    // `tool-git-hooks/project.json` alone reproduces the first line.
+    expect(undeclared).toEqual([]);
+  });
+});
