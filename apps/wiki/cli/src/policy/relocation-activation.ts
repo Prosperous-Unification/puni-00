@@ -109,13 +109,41 @@ export interface CandidateFile {
   readonly bytes: Uint8Array;
 }
 
+/**
+ * Where the lineage a preparation reasons against comes from.
+ *
+ * `base` is a relocation: an activation of an earlier commit of this repository exists, so the
+ * candidate's policy and mapping are compared against it (`R4`-`R9`, `R11`-`R14`), its validator
+ * entry must stay inside an enforced boundary (`R18`), and the audit strata are copied from its
+ * authority (`R21`).
+ *
+ * `toolkit` is a consumer's FIRST activation, produced from a released toolkit
+ * ({@link docs/adr/0026-a-wiki-release-is-a-toolkit-not-a-certification.md}). There is no earlier
+ * activation to compare against, so those refusals have nothing to measure and are skipped; the
+ * validator is the toolkit's reviewed bundle rather than a rebuild of the consumer's entry, and
+ * the audit strata are an operator-supplied file this tool validates by join and never invents.
+ * Everything that measures the candidate itself still applies: `R1`-`R3`, `R10`, `R15`-`R17`,
+ * `R19` and `R20`.
+ */
+export type RelocationBase =
+  | {
+      readonly kind: 'base';
+      readonly policyBytes: Uint8Array;
+      readonly mappingBytes: Uint8Array;
+      readonly authorityBytes: Uint8Array;
+      readonly validatorIdentity: string;
+    }
+  | {
+      readonly kind: 'toolkit';
+      readonly validatorIdentity: string;
+      /** The operator's audit stratum table, carried into the authority unchanged. */
+      readonly strata: typeof AuditEvaluation.infer.strata;
+      /** Risk stratum per review id; a review absent here refuses (`R21`). */
+      readonly obligationStrata: Readonly<Record<string, string>>;
+    };
+
 export interface RelocationSources {
-  readonly base: {
-    readonly policyBytes: Uint8Array;
-    readonly mappingBytes: Uint8Array;
-    readonly authorityBytes: Uint8Array;
-    readonly validatorIdentity: string;
-  };
+  readonly base: RelocationBase;
   readonly candidate: {
     readonly sha: string;
     /** `readCandidate` at the candidate revision. */
@@ -651,27 +679,31 @@ function candidateIdentityOf(snapshot: CandidateSnapshot): string {
  * @throws {@link RelocationRefusal} `R4`-`R15` and `R18`.
  */
 export function planRelocationChecks(sources: RelocationSources): CheckPlan {
-  const base = policyOf(sources.base.policyBytes, 'base trusted policy JSON');
   const candidate = policyOf(sources.candidate.policyBytes, 'candidate trusted policy JSON');
-  const baseMapping = parseOrThrow(
-    ModuleMapping,
-    parseJson(sources.base.mappingBytes, 'base module mapping JSON'),
-  );
   const candidateMapping = parseOrThrow(
     ModuleMapping,
     parseJson(sources.candidate.mappingBytes, 'candidate module mapping JSON'),
   );
-  assertRelocationPolicy(
-    base.view,
-    base.json,
-    candidate.view,
-    candidate.json,
-    sources.candidate.reviewed,
-    candidateMapping,
-  );
+  // Toolkit mode has no earlier activation, so the lineage refusals have nothing to compare the
+  // candidate against; every refusal that measures the candidate itself is below and still runs.
+  if (sources.base.kind === 'base') {
+    const base = policyOf(sources.base.policyBytes, 'base trusted policy JSON');
+    const baseMapping = parseOrThrow(
+      ModuleMapping,
+      parseJson(sources.base.mappingBytes, 'base module mapping JSON'),
+    );
+    assertRelocationPolicy(
+      base.view,
+      base.json,
+      candidate.view,
+      candidate.json,
+      sources.candidate.reviewed,
+      candidateMapping,
+    );
+    assertMappingLineage(baseMapping, candidateMapping, candidate.view, sources.candidate.tree);
+    assertValidatorEntry(candidate.view, sources.candidate.validatorEntry);
+  }
   assertSelectorsResolve(candidate.view, sources.candidate.tree);
-  assertMappingLineage(baseMapping, candidateMapping, candidate.view, sources.candidate.tree);
-  assertValidatorEntry(candidate.view, sources.candidate.validatorEntry);
   return {
     checks: deriveCheckCommands(candidate.view, sources.candidate.declarations),
     candidateIdentity: candidateIdentityOf(sources.candidate.tree),
@@ -891,10 +923,27 @@ export function planRelocationActivation(
   assertReviewBinds(review, policy, sha, identity);
   const reviewReceipt = encode(review.evidence.receipt);
   const reviewIdentity = hashBytes(reviewReceipt);
-  const baseAuthority = parseOrThrow(
-    BaseAuthorityView,
-    parseJson(sources.base.authorityBytes, 'base trusted authority JSON'),
-  );
+  const lineage = ((
+    source: RelocationBase,
+  ): {
+    strata: typeof AuditEvaluation.infer.strata;
+    stratumOf: (id: string) => string | undefined;
+  } => {
+    if (source.kind === 'toolkit') {
+      const { obligationStrata } = source;
+      return { strata: source.strata, stratumOf: (id) => obligationStrata[id] };
+    }
+    const baseAuthority = parseOrThrow(
+      BaseAuthorityView,
+      parseJson(source.authorityBytes, 'base trusted authority JSON'),
+    );
+    return {
+      strata: baseAuthority.audit.strata,
+      stratumOf: (id) =>
+        baseAuthority.audit.obligations.find(({ obligationId }) => obligationId === id)
+          ?.riskStratum,
+    };
+  })(sources.base);
   const reviewedInputs = contentInputs(sources.candidate.reviewed);
   const currentInputs = contentInputs(
     sources.candidate.tree,
@@ -993,20 +1042,23 @@ export function planRelocationActivation(
     generation: 1,
     seed: `seed.tool-wiki.bootstrap.${sha12}`,
     coverage: 'exhaustive',
-    strata: baseAuthority.audit.strata,
+    strata: lineage.strata,
     obligations: reviewIds.map((reviewId) => {
-      const previous = baseAuthority.audit.obligations.find(
-        ({ obligationId }) => obligationId === reviewId,
-      );
-      // Proof: replacing this refusal with `previous?.riskStratum ?? 'risk.public-admission'`
-      // invented a stratum for a review the base activation never stratified; the R21 negative
-      // received `Received function did not throw`.
-      if (previous === undefined) {
-        refuse('R21', `base authority has no obligation for review: ${reviewId}`);
+      const riskStratum = lineage.stratumOf(reviewId);
+      // Proof: replacing this refusal with `riskStratum ?? 'risk.public-admission'` invented a
+      // stratum for a review neither the base activation nor the operator's strata file
+      // stratified; the R21 negative received `Received function did not throw`.
+      if (riskStratum === undefined) {
+        refuse(
+          'R21',
+          sources.base.kind === 'base'
+            ? `base authority has no obligation for review: ${reviewId}`
+            : `audit strata name no stratum for review: ${reviewId}`,
+        );
       }
       return {
         obligationId: reviewId,
-        riskStratum: previous.riskStratum,
+        riskStratum,
         subject: review.evidence.protocolEvidence.subject,
       };
     }),

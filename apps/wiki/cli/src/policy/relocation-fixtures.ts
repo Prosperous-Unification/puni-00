@@ -752,6 +752,7 @@ export function relocationSources(
   const reviewedRevision = overrides.reviewedRevision ?? fixture.reviewedRevision;
   return {
     base: {
+      kind: 'base',
       policyBytes:
         overrides.basePolicyBytes ?? readFileSync(join(base.directory, 'artifacts/policy.json')),
       mappingBytes:

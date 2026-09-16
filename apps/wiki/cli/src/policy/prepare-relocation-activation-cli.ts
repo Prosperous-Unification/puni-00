@@ -1,13 +1,4 @@
-import {
-  chmodSync,
-  cpSync,
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  writeFileSync,
-} from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
@@ -27,6 +18,12 @@ import {
   RelocationRefusal,
   type RelocationSources,
 } from './relocation-activation';
+import {
+  buildValidatorBundle,
+  copyTrustedModules,
+  trustedModuleNames,
+  writeBytes,
+} from './trusted-modules';
 
 const flags = [
   'candidate-repository',
@@ -176,51 +173,6 @@ function assertOutsideCandidate(repository: string, path: string, flag: string):
   return resolved;
 }
 
-function packageDirectory(modulesRoot: string, name: string): string {
-  const path = join(modulesRoot, ...name.split('/'));
-  let stats: ReturnType<typeof lstatSync>;
-  try {
-    stats = lstatSync(path);
-  } catch (cause) {
-    // Proof: rethrowing this `lstat` failure unwrapped let the absent-module negative observe
-    // `ENOENT: no such file or directory, lstat '<candidate>/node_modules/typescript'` instead of
-    // the named refusal, so the operator was sent to Node's message and not to the missing install.
-    throw new RelocationRefusal('R19', `trusted node module is absent or a symlink: ${path}`, {
-      cause,
-    });
-  }
-  // Proof: forcing this refusal false let the archive copy symlinked packages out of the
-  // candidate's installed tree; the R19 negative expected exit 1 and received 0 with a complete
-  // archive.
-  if (!stats.isDirectory()) {
-    throw new RelocationRefusal('R19', `trusted node module is absent or a symlink: ${path}`);
-  }
-  return path;
-}
-
-function trustedModuleNames(modulesRoot: string): string[] {
-  const names = new Set<string>();
-  const pending = ['typescript'];
-  while (pending.length > 0) {
-    const name = pending.pop();
-    if (name === undefined || names.has(name)) continue;
-    names.add(name);
-    // The installed manifest is the candidate's own lockfile-pinned bytes; only its dependency
-    // names are read, and an absent or malformed file throws rather than widening the closure.
-    const manifest = JSON.parse(
-      readFileSync(join(packageDirectory(modulesRoot, name), 'package.json'), 'utf8'),
-    ) as { dependencies?: Record<string, string> };
-    for (const dependency of Object.keys(manifest.dependencies ?? {})) pending.push(dependency);
-  }
-  return [...names].sort();
-}
-
-function writeBytes(path: string, bytes: Uint8Array | string): string {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, bytes);
-  return path;
-}
-
 function runCheck(
   repository: string,
   check: { checkId: string; command: string[] },
@@ -247,35 +199,6 @@ function runCheck(
     stdoutPath,
     stderrPath,
   };
-}
-
-async function buildValidator(
-  repository: string,
-  entry: string,
-  outputPath: string,
-): Promise<Uint8Array> {
-  let built: Awaited<ReturnType<typeof Bun.build>>;
-  try {
-    built = await Bun.build({
-      entrypoints: [join(repository, entry)],
-      target: 'bun',
-      format: 'esm',
-    });
-  } catch (cause) {
-    // Proof: letting Bun's own `Bundle failed` escape named neither the entry nor the candidate;
-    // the unbuildable-entry negative expected this message and received `Bundle failed`.
-    throw new Error(`cannot rebuild the candidate validator from ${entry}`, { cause });
-  }
-  // A build that reports failure without throwing is not reachable from the fixture entries, so
-  // this guard carries no observed negative; it keeps an unsuccessful build out of the archive.
-  if (!built.success || built.outputs.length !== 1) {
-    throw new Error(
-      `cannot rebuild the candidate validator from ${entry}: ${built.logs.map(String).join('; ')}`,
-    );
-  }
-  const bytes = new Uint8Array(await built.outputs[0].arrayBuffer());
-  writeBytes(outputPath, bytes);
-  return bytes;
 }
 
 interface BaseActivation {
@@ -329,13 +252,7 @@ function assembleArchiveRoot(
   chmodSync(launcherPath, 0o555);
   writeBytes(join(destination, 'launcher-path'), 'bootstrap-launcher.sh\n');
   writeBytes(join(destination, 'active-v1'), 'tool-wiki-active-v1\n');
-  const trusted = join(destination, 'trusted-node-modules');
-  mkdirSync(trusted, { recursive: true });
-  for (const name of names) {
-    const target = join(trusted, ...name.split('/'));
-    mkdirSync(dirname(target), { recursive: true });
-    cpSync(packageDirectory(modulesRoot, name), target, { dereference: false, recursive: true });
-  }
+  copyTrustedModules(join(destination, 'trusted-node-modules'), modulesRoot, names);
 }
 
 function selfCheck(destination: string, repository: string, sha: string): string {
@@ -450,9 +367,11 @@ export async function prepareRelocationActivation(argv: readonly string[]): Prom
     revision: policy.pilot.sourceRevision,
   });
   const roles = join(work, 'roles');
-  const validatorBytes = await buildValidator(repository, entry, join(roles, 'validator.mjs'));
+  const validatorBytes = await buildValidatorBundle(join(repository, entry));
+  writeBytes(join(roles, 'validator.mjs'), validatorBytes);
   const sources: RelocationSources = {
     base: {
+      kind: 'base',
       policyBytes: base.policyBytes,
       mappingBytes: base.mappingBytes,
       authorityBytes: base.authorityBytes,

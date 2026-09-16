@@ -33,6 +33,14 @@
         "command": "bunx eslint apps/wiki/cli/src --cache --cache-location .nx/eslintcache-wiki-cli"
       }
     },
+    "release": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun src/policy/release-cli.ts",
+        "cwd": "apps/wiki/cli"
+      }
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {

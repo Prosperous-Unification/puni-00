@@ -50,31 +50,31 @@ consumes it, slice 5 the template, README and runbook. Slice 6 is operator work 
 
 ## 3. `wiki-cli:release` packs a toolkit
 
-- [ ] 3.1 `apps/wiki/cli/src/policy/release-toolkit.ts` plans a toolkit — canonical `toolkit.json`
+- [x] 3.1 `apps/wiki/cli/src/policy/release-toolkit.ts` plans a toolkit — canonical `toolkit.json`
       bytes, role list, digests — and refuses T1 malformed tag, T2 unknown tag, T3 tag not at HEAD,
       T4 dirty checkout, T5 operator Bun other than `.bun-version`, T6 non-standalone bundle, T7
       absent or symlinked trusted module, T8 occupied destination. Test:
       `release-toolkit.test.ts` on a one-commit fixture repository tagged `wiki-v0.0.1` covers
       T1 (`wiki-v1`), T3 (tag on the parent), T4 (touched file) and T5 (edited `.bun-version`);
       negative: each refusal removed in turn lets its case pack an archive instead.
-- [ ] 3.2 `release-toolkit-cli.ts` runs git, `Bun.build` and tar and prints `toolkit: <tag> <sha>`
+- [x] 3.2 `release-toolkit-cli.ts` runs git, `Bun.build` and tar and prints `toolkit: <tag> <sha>`
       and `archive: <path> sha256: <digest>`; `project.json` gains an uncached `release` target.
       `trusted-modules.ts` holds the module names and package directory both CLIs use. Test: the
       happy-path case asserts the tar lists exactly the seven members, the printed digest equals the
       file's SHA-256, and each `toolkit.json` role digest equals its member; negative: a member
       added to the tar without a `toolkit.json` entry is observed failing the member assertion.
-- [ ] 3.3 The `check.wiki-cli.*` facts in both relationships files still pin only `test`,
+- [x] 3.3 The `check.wiki-cli.*` facts in both relationships files still pin only `test`,
       `lint:source` and `typecheck`. Test: the existing relationships conformance test, re-run.
 
 ## 4. A consumer prepares its own activation
 
-- [ ] 4.1 `relocation-activation.ts` widens `RelocationSources.base` to a
+- [x] 4.1 `relocation-activation.ts` widens `RelocationSources.base` to a
       `{ kind: 'base' } | { kind: 'toolkit' }` union; toolkit mode skips R4-R9, R11-R13 and R18,
       keeps R1-R3, R10, R14-R17 and R19-R20, and R21 reads the operator strata file. Test:
       `prepare-activation.test.ts` case (g) a review record binding another identity observes R17,
       case (h) a strata file naming no stratum for a policy review observes the R21 text; negative:
       each refusal removed lets its case prepare an activation.
-- [ ] 4.2 `prepare-activation-cli.ts` prepares from a toolkit, a consumer SHA, its policy and
+- [x] 4.2 `prepare-activation-cli.ts` prepares from a toolkit, a consumer SHA, its policy and
       mapping, a review record and a strata file, digest-checks every toolkit role against
       `toolkit.json`, writes the `toolkit-release` root descriptor, and proves the root by running
       the toolkit's launcher to `certified: true` before tarring. Test: case (f) on the relocation

@@ -153,7 +153,13 @@ function source(
   return { identity: hashBytes(readFileSync(canonical)), path: canonical, role };
 }
 
-function assertStandaloneValidator(path: string): void {
+/**
+ * Refuses a bundle that would load bytes outside itself at runtime. An activation binds the
+ * validator by one digest, so an import the digest does not cover is unreviewed code on the
+ * admission path; the release target applies the same rule to every bundle it packs.
+ * @throws Error naming the first external specifier.
+ */
+export function assertStandaloneValidator(path: string): void {
   const imports = new Bun.Transpiler({ loader: path.endsWith('.ts') ? 'ts' : 'js' }).scanImports(
     readFileSync(path, 'utf8'),
   );
