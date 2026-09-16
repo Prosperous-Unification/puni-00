@@ -1,11 +1,11 @@
 # Verification Report
 
 **Change**: `wiki-release`
-**Verified at**: `2026-09-16 — branch change/wiki-release, tree of d7a0f14e (base 84a4fd63)`
+**Verified at**: `2026-09-16 — branch change/wiki-release, head cbbee6a0 (base 84a4fd63)`
 
-> The evidence below was produced against the tree of `d7a0f14e`. These three head references were
-> amended into that same commit afterwards, so the commit this file ships in differs from the
-> verified tree only in these documentation lines.
+> The whole-suite run above was made at `cbbee6a0` itself. The three foreground runs and the other
+> checks were made at `d7a0f14e`, whose tree differs from `cbbee6a0` only in this file's head
+> references.
 > **Verifier**: Claude Fable 5.1, under the W7 controller
 
 > Partial. Slices 1-5 are implemented and verified here. Slice 6 is operator work Dany runs against
@@ -110,18 +110,17 @@ against a partially written file. Nothing here rests on a piped exit code: a fai
 pipeline without `pipefail` reports the exit status of `tail`.
 
 ```
-bunx nx test wiki-cli --skip-nx-cache   673 pass, 0 fail, Ran 673 tests across 32 files [949.52s]
-  (at d7a0f14e)                         NX   Successfully ran target test for project wiki-cli
-                                        NX_EXIT=0
-
-bun test ./src/ (one process)           673 pass, 0 fail, Ran 673 tests across 32 files [946.32s]
-                                        BUN_EXIT=0
+bunx nx test wiki-cli --skip-nx-cache   head=cbbee6a0  nx_exit=0
+  (one canonical line carrying head,    637 pass, 0 fail, Ran 637 tests across 32 files
+   exit code and summary together,
+   written only after nx exited)
 
 # and, read in full in the foreground, the same 32 files as three invocations:
 src/policy/                                                    → 183 pass, 0 fail (6 files), exit 0
 src/{admission,contracts,evidence,experiments,indexes,inventory}, src/cli.test.ts
                                                                → 335 pass, 0 fail (20 files), exit 0
 src/{relationships,review}                                     → 119 pass, 0 fail (6 files), exit 0
+                                        183 + 335 + 119 = 637, the single run's own total
 src/policy/{gate-entrypoints,pilot-policy}.test.ts             → 0 fail (2 files)
 src/policy/trusted-policy.test.ts                              → 55 pass, 0 fail (1 file)
 
@@ -149,7 +148,7 @@ Every command with its result line is in
 - [x] No unstaged files in the worktree at each commit
 - [ ] Relevant commits pushed — the controller pushes and opens the PR
 
-**Commit range**: `84a4fd63..d7a0f14e` on `change/wiki-release`
+**Commit range**: `84a4fd63..HEAD` on `change/wiki-release`; the suite was verified at `cbbee6a0`
 
 ---
 
