@@ -744,12 +744,15 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
 
     const invocation = lint(candidate, trust);
     const observed = output(invocation);
-    expect(invocation.exitCode, observed).toBe(1);
     // Proof: leaving this boundary's selector at the candidate's post-move path made production
-    // observe lint report `accepted: true` here and fail on `Expected: 1 / Received: 0`.
+    // observe lint report `accepted: true`, and this exit-code assertion failed on
+    // `Expected: 1 / Received: 0`.
+    expect(invocation.exitCode, observed).toBe(1);
     expect(observed).toContain(
       'trusted boundary selector selects no candidate input: boundary.domain.saved-plan (selector prefix libs/domain/src/saved-plan); if the candidate moved these files, prepare a relocation activation from the candidate SHA: see docs/runbook-tool-wiki-activation.md#relocation',
     );
+    // The trusted policy is intact; only its selector missed.
+    expect(observed).not.toContain('trusted policy digest does not match binding');
   }, 120_000);
 
   test('refuses an empty, unmapped, incompatible, or escaping pre-index tuple manifest', () => {

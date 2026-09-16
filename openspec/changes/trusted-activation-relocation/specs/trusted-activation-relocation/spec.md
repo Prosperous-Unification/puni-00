@@ -1,6 +1,6 @@
 ## ADDED Requirements
 
-### Requirement: A selector miss names the boundary its selector and the relocation procedure
+### Requirement: A selector miss names the boundary, its selector and the relocation procedure
 
 When a trusted boundary selects no candidate input, admission SHALL refuse naming that
 boundary id, the selector kind and value that selected nothing, and the runbook section
