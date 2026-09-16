@@ -85,18 +85,18 @@ consumes it, slice 5 the template, README and runbook. Slice 6 is operator work 
 
 ## 5. Consumer template, README and runbook
 
-- [ ] 5.1 `apps/wiki/consumer/trusted-wiki.yml` is a byte copy of the post-slice-2 workflow and
+- [x] 5.1 `apps/wiki/consumer/trusted-wiki.yml` is a byte copy of the post-slice-2 workflow and
       `apps/wiki/consumer/README.md` states the three variables, the authored policy, mapping and
       relationship files, the first-activation recipe, one `module-index` example, the runbook link
       and the operator-attestation rule. Test: `gate-entrypoints.test.ts` compares the two workflow
       files byte-for-byte and asserts the template's `bun-version` equals `.bun-version`; negative:
       the identity assertion watched failing against an unedited copy.
-- [ ] 5.2 `.github/workflows/wiki-release.yml` runs the three uncached `wiki-cli` checks, then
+- [x] 5.2 `.github/workflows/wiki-release.yml` runs the three uncached `wiki-cli` checks, then
       `wiki-cli:release`, then uploads the tar and `SHA256SUMS`; it is the only workflow with
       `contents: write` and pins every action by 40-hex SHA. Test: the existing action-ref pin
       extended to this file, plus a permissions assertion that `ci.yml` and `trusted-wiki.yml` stay
       `contents: read`; negative: a tag-form action ref watched failing the 40-hex pin.
-- [ ] 5.3 The runbook's "Prepare" becomes "Release" (the target and the consumer preparer) and
+- [x] 5.3 The runbook's "Prepare" becomes "Release" (the target and the consumer preparer) and
       "Transport" states that the toolkit is a release asset of this repository and an activation a
       release asset of the consumer's. No executable test.
 

@@ -1280,6 +1280,53 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(hostSteps).toContain('bunx nx run wiki-cli:lint:source --skip-nx-cache');
     expect(ci).toContain('--exclude=wiki-cli');
     expect(ci).toContain('bunx nx run wiki-cli:lint:source --skip-nx-cache');
+    const consumerTemplate = readFileSync(
+      join(workspace, 'apps', 'wiki', 'consumer', 'trusted-wiki.yml'),
+      'utf8',
+    );
+    // Proof: an edited copy of the template failed here with the two texts printed side by side.
+    // A consumer that must diff this file against ours cannot copy it unchanged, and every
+    // divergence becomes a repository whose admission workflow is not the reviewed one.
+    expect(consumerTemplate).toBe(trustedCi);
+    const consumerReadme = readFileSync(
+      join(workspace, 'apps', 'wiki', 'consumer', 'README.md'),
+      'utf8',
+    );
+    for (const required of [
+      'TOOL_WIKI_ACTIVATION_VERSION',
+      'TOOL_WIKI_ACTIVATION_ARCHIVE_URL',
+      'TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256',
+      'module-index',
+      'prepare-activation.mjs',
+      '#relocation',
+      'never writes them',
+    ]) {
+      expect(consumerReadme).toContain(required);
+    }
+
+    const releaseWorkflow = readFileSync(
+      join(workspace, '.github', 'workflows', 'wiki-release.yml'),
+      'utf8',
+    );
+    // Proof: `contents: write` in ci.yml or trusted-wiki.yml failed here. A release token reachable
+    // from the admission workflow would let a candidate publish the archive that judges it.
+    expect(releaseWorkflow).toContain('permissions:\n  contents: write');
+    expect(ci).toContain('permissions:\n  contents: read');
+    expect(trustedCi).toContain('permissions:\n  contents: read');
+    expect(releaseWorkflow.match(/contents: write/g)).toHaveLength(1);
+    const releaseActionRefs = [...releaseWorkflow.matchAll(/uses:\s+[^\s@]+@([^\s#]+)/g)].map(
+      (match) => match[1],
+    );
+    expect(releaseActionRefs.length).toBeGreaterThan(0);
+    expect(releaseActionRefs.every((ref) => /^[0-9a-f]{40}$/.test(ref))).toBe(true);
+    expect(releaseWorkflow).toContain('wiki-cli:release');
+    expect(releaseWorkflow).toContain(`bun-version: ${pinnedRuntime}`);
+    for (const check of ['wiki-cli:test', 'wiki-cli:lint:source', 'wiki-cli:typecheck']) {
+      expect(releaseWorkflow).toContain(`bunx nx run ${check} --skip-nx-cache`);
+    }
+    expect(releaseWorkflow.indexOf('Bootstrap checks for the tagged commit')).toBeLessThan(
+      releaseWorkflow.indexOf('name: Pack the toolkit'),
+    );
     expect(workspacePackage.scripts['lint']).toBe(
       'nx run-many -t lint --exclude=wiki-cli && nx run wiki-cli:lint:source',
     );

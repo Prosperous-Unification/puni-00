@@ -5,12 +5,34 @@ The bootstrap policy is `policy.tool-wiki-bootstrap.v1` in
 `boundary.infra.tool-wiki`; the six modules in the historical pilot remain named, non-selected
 review debt. Tasks 6 and 7 remain open.
 
-## Prepare
+## Release
 
-An operator, outside the candidate checkout, invokes the trusted review harness for the exact
-frozen Tool Wiki module plus the launcher, host gate, trusted workflow, candidate CI workflow,
-hook, and Nx callers declared by `apps/wiki/cli/README.md`. Retain the real review receipt and
-journal entry. Missing usage, reads, raw response, or journal provenance is not a review.
+A **release is a toolkit**, not a certification: it carries the roles that are identical for every
+repository and every commit — `launcher.sh`, `snapshotter.ts`, `validator.mjs`, the standalone
+`prepare-activation.mjs` and `trusted-node-modules/` — with `toolkit.json` and `SHA256SUMS`. It
+certifies no commit, because an activation binds one candidate identity and a consumer's candidates
+are its own commits. The decision is
+[ADR 0026](adr/0026-a-wiki-release-is-a-toolkit-not-a-certification.md).
+
+Tag the reviewed commit `wiki-vMAJOR.MINOR.PATCH` and push it; `.github/workflows/wiki-release.yml`
+runs the three uncached bootstrap checks, then the target, then uploads the assets. It is the only
+workflow in this repository with `contents: write`. To pack one by hand from a clean checkout whose
+HEAD the tag names:
+
+```sh
+bunx nx run wiki-cli:release -- --tag wiki-vX.Y.Z --destination <dir outside the checkout>
+```
+
+It refuses a malformed tag, a tag no commit resolves, a tag that is not at HEAD, a dirty checkout,
+an operator Bun other than `.bun-version`, a bundle that is not standalone, an absent or symlinked
+trusted module, and a destination that already holds a toolkit — and writes no archive on refusal.
+It prints the tag, the commit and the archive's SHA-256.
+
+A consumer then produces its **own** per-commit activation from that toolkit with
+`prepare-activation.mjs`, supplying its policy, mapping, review record and audit strata. The whole
+consumer procedure is `apps/wiki/consumer/README.md`, beside the workflow template it copies.
+
+### This repository's own activation
 
 Run the three exact scoped checks selected by the bootstrap obligation:
 
@@ -20,6 +42,11 @@ bunx nx run wiki-cli:lint:source --skip-nx-cache
 bunx nx run wiki-cli:typecheck --skip-nx-cache
 ```
 
+An operator, outside the candidate checkout, invokes the trusted review harness for the exact
+frozen Tool Wiki module plus the launcher, host gate, trusted workflow, candidate CI workflow,
+hook, and Nx callers declared by `apps/wiki/cli/README.md`. Retain the real review receipt and
+journal entry. Missing usage, reads, raw response, or journal provenance is not a review.
+
 Build a closure containing the launcher, snapshotter, a reviewed single-file validator bundle,
 policy, mapping, separate local/CI bindings, lint evidence, trusted authority, and review receipt.
 Pass those ten explicit roles to `prepareActivation`; it copies them into a new versioned directory,
@@ -28,7 +55,8 @@ role paths and digests, joins the policy/mapping/validator/review identities to 
 and records every artifact digest.
 `selectActivation` requires the independently expected package identity and atomically replaces the
 small operator-controlled `selected.json`. Never edit an activated file or reuse a per-candidate
-authority snapshot.
+authority snapshot. In practice `prepare-relocation-activation-cli.ts` does all of this — see
+[Relocation](#relocation).
 
 ## Transport and admission
 
@@ -63,6 +91,12 @@ The h2puni host gate resolves `TOOL_WIKI_TRUSTED_NODE_MODULES` the same way. It 
 TypeScript package and any explicit override that resolves inside the candidate checkout. The
 archive transport SHA-256 authenticates these runtime bytes alongside the root descriptors; do not
 construct or install the host archive without that directory.
+
+The toolkit tar is published as a release asset of **this** repository, under its `wiki-v*` tag.
+An activation tar is published as a release asset of the repository whose commit it certifies — for
+a consumer, its own. The two never mix: a consumer's three variables always point at the consumer's
+own archive, and a root `toolkit-release` descriptor records which toolkit produced it as
+provenance that nothing on the admission path reads.
 
 Copy the same digest-pinned archive to a versioned directory on h2puni. The base-owned
 `trusted-wiki` workflow downloads its operator-configured HTTPS archive into runner temporary
