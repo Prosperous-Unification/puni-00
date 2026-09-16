@@ -12,13 +12,16 @@ import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
  *      produces and a consumer's runner pins the same version;
  * `T6` a validator bundle that is not standalone, which would load unreviewed bytes at admission
  *      (a contract guard with no observed negative — see the comment at its throw site);
- * `T7` a destination that is inside the checkout being released, or whose archive path already
- *      exists — the tar may already be published under that digest. A trusted node module that is
- *      absent or a symlink is raised by `trusted-modules.ts` as `R19` and surfaced unchanged,
- *      because it is the same fact about the same role;
- * `T8` a destination that already holds a toolkit.
+ * `T7` a destination inside the checkout being released: the toolkit is read from that tree and
+ *      the clean-tree check has already measured it. A trusted node module that is absent or a
+ *      symlink is raised by `trusted-modules.ts` as `R19` and surfaced unchanged, because it is the
+ *      same fact about the same role;
+ * `T9` an installed `typescript` whose version is not the one the checkout's `package.json` pins —
+ *      `node_modules/` is git-ignored, so the clean-tree check cannot see it at all;
+ * `T8` a destination that already holds a toolkit, or an archive path that already exists — the
+ *      tar may already be published under that digest;
  */
-export type ReleaseRefusalCode = 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'T6' | 'T7' | 'T8';
+export type ReleaseRefusalCode = 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'T6' | 'T7' | 'T8' | 'T9';
 
 /** A named refusal to pack a toolkit; the message always names the offending tag, path or value. */
 export class ReleaseRefusal extends Error {
@@ -37,9 +40,10 @@ const CommitIdentity = /^[0-9a-f]{40}$/;
 
 /**
  * The toolkit members, in the order `SHA256SUMS` lists them. `trusted-node-modules/` is a
- * directory rather than a member: its bytes are pinned by the archive's transport digest and by
- * the names `toolkit.json` records, not file by file, because the closure is 24 MB of vendored
- * TypeScript whose per-file list would dwarf the descriptor it lives in.
+ * directory rather than a member: `toolkit.json`'s `trustedNodeModulesIdentity` — one digest over
+ * every file in the copied closure, from `hashTrustedModules` in `trusted-modules.ts` — is what
+ * pins its bytes, because the closure is 24 MB of vendored TypeScript whose per-file list would
+ * dwarf the descriptor it lives in.
  */
 export const toolkitRoles = [
   'launcher.sh',
@@ -56,7 +60,7 @@ export interface ToolkitPlanRequest {
   readonly bunVersion: string;
   readonly roleBytes: Readonly<Record<ToolkitRole, Uint8Array>>;
   readonly trustedNodeModules: readonly string[];
-  /** {@link hashTrustedModules} over the copied closure, the only thing that pins its 24 MB. */
+  /** `hashTrustedModules` over the copied closure, the only thing that pins its 24 MB. */
   readonly trustedNodeModulesIdentity: string;
 }
 
@@ -169,7 +173,8 @@ export function assertDestinationFree(
 export function assertDestinationOutside(repository: string, destination: string): void {
   // Proof: forcing this refusal false wrote the whole toolkit, including 24 MB of vendored
   // TypeScript, inside the checkout it had just verified clean; the negative packed an archive at
-  // exit 0 and left the release tree dirty for every later run.
+  // exit 0 and left the release tree dirty for every later run. `destination` is the canonical
+  // path of its nearest existing ancestor, so a symlink pointing into the checkout is caught too.
   if (destination === repository || destination.startsWith(`${repository}/`)) {
     throw new ReleaseRefusal(
       'T7',
@@ -179,10 +184,43 @@ export function assertDestinationOutside(repository: string, destination: string
 }
 
 /**
+ * The version a `package.json` dependency pin names, including npm aliases: `6.0.2` out of both
+ * `6.0.2` and `npm:@typescript/typescript6@6.0.2`.
+ */
+function pinnedVersion(specifier: string): string {
+  return specifier.startsWith('npm:') ? (specifier.split('@').pop() ?? specifier) : specifier;
+}
+
+/**
+ * Refuses an installed `typescript` that is not the version the checkout pins. `node_modules/` is
+ * git-ignored, so {@link assertCleanCheckout} cannot see it and nothing else joins the closure the
+ * toolkit ships to the lockfile the tag committed — yet `toolkit.json` claims that closure is the
+ * tag's.
+ * @throws {@link ReleaseRefusal} `T9` naming both versions.
+ */
+export function assertPinnedTypeScript(pinSpecifier: string | undefined, installed: string): void {
+  // Proof: forcing this refusal false packed a `trusted-node-modules` built from a stale install
+  // under a `toolkit.json` claiming the tag's commit; the negative received a complete archive at
+  // exit 0, and every consumer preparing from it would load a TypeScript the tag never pinned.
+  if (pinSpecifier === undefined) {
+    throw new ReleaseRefusal('T9', 'checkout pins no typescript dependency to release against');
+  }
+  const pinned = pinnedVersion(pinSpecifier);
+  if (pinned !== installed) {
+    throw new ReleaseRefusal(
+      'T9',
+      `installed typescript is not the pinned one: ${installed} != ${pinned}`,
+    );
+  }
+}
+
+/**
  * Derives the two descriptors a toolkit carries. Pure: every byte comes from the request, so the
  * same tag, commit, Bun and role bytes always produce the same `toolkit.json` and `SHA256SUMS`.
  */
 export function planToolkit(request: ToolkitPlanRequest): ToolkitPlan {
+  // `Object.fromEntries` widens to `Record<string, string>`; the entries are exactly `toolkitRoles`
+  // mapped one-to-one, which is the key set of the asserted type, so the cast is discharged here.
   const digests = Object.fromEntries(
     toolkitRoles.map((role) => [role, hashBytes(request.roleBytes[role])]),
   ) as Record<ToolkitRole, string>;

@@ -53,7 +53,9 @@ consumes it, slice 5 the template, README and runbook. Slice 6 is operator work 
 - [x] 3.1 `apps/wiki/cli/src/policy/release.ts` plans a toolkit — canonical `toolkit.json`
       bytes, role list, digests — and refuses T1 malformed tag, T2 unknown tag, T3 tag not at HEAD,
       T4 dirty checkout, T5 operator Bun other than `.bun-version`, T6 non-standalone bundle, T7
-      absent or symlinked trusted module, T8 occupied destination. Test:
+      destination inside the checkout being released, T8 occupied destination or existing archive
+      path, T9 installed `typescript` that is not the pinned version (an absent or symlinked
+      trusted module stays `R19`, raised by `trusted-modules.ts`). Test:
       `release.test.ts` on a one-commit fixture repository tagged `wiki-v0.0.1` covers
       T1 (`wiki-v1`), T3 (tag on the parent), T4 (touched file) and T5 (edited `.bun-version`);
       negative: each refusal removed in turn lets its case pack an archive instead.
@@ -81,8 +83,10 @@ consumes it, slice 5 the template, README and runbook. Slice 6 is operator work 
       `toolkit.json`, writes the `toolkit-release` root descriptor, and proves the root by running
       the toolkit's launcher to `certified: true` before tarring. Test: case (f) on the relocation
       fixtures prepares, `verifyActivation` accepts, and the toolkit's launcher run with
-      `TOOL_WIKI_ACTIVATION_ROOT` and no modules override exits 0 with `certified: true` — this is
-      also the production proof of 2.1's default; negatives: a toolkit member altered after packing,
+      `TOOL_WIKI_ACTIVATION_ROOT` and no modules override exits 0 with `certified: true`. The
+      command's self-check scrubs `TOOL_WIKI_TRUSTED_NODE_MODULES` rather than setting it, so that
+      run is the production proof of 2.1's default: with the default removed from the launcher the
+      whole command fails. The test re-runs the produced launcher with only `PATH` to say so; negatives: a toolkit member altered after packing,
       a file altered inside the extracted runtime closure, and a `toolkit.json` naming another Bun
       each observe their named refusal, watched failing with the corresponding check removed.
 

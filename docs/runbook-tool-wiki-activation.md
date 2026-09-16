@@ -16,17 +16,25 @@ are its own commits. The decision is
 
 Tag the reviewed commit `wiki-vMAJOR.MINOR.PATCH` and push it; `.github/workflows/wiki-release.yml`
 runs the three uncached bootstrap checks, then the target, then uploads the assets. It is the only
-workflow in this repository with `contents: write`. To pack one by hand from a clean checkout whose
-HEAD the tag names:
+workflow in this repository with `contents: write`. Before the first tag, a `wiki-v*` tag ruleset
+restricting who may push one is an administrative prerequisite — that workflow publishes, and no
+repository file can restrict who triggers it.
+
+To pack one by hand, from a clean checkout whose HEAD the tag names, after a fresh install so the
+runtime closure the toolkit ships is the one the tag's lockfile pins:
 
 ```sh
+bun install --frozen-lockfile
 bunx nx run wiki-cli:release -- --tag wiki-vX.Y.Z --destination <dir outside the checkout>
 ```
 
-It refuses a malformed tag, a tag no commit resolves, a tag that is not at HEAD, a dirty checkout,
-an operator Bun other than `.bun-version`, a bundle that is not standalone, an absent or symlinked
-trusted module, and a destination that already holds a toolkit — and writes no archive on refusal.
-It prints the tag, the commit and the archive's SHA-256.
+It refuses a malformed tag (`T1`), a tag no commit resolves (`T2`), a tag that is not at HEAD
+(`T3`), a dirty checkout (`T4`), an operator Bun other than `.bun-version` (`T5`), a bundle that is
+not standalone (`T6`), a destination inside the checkout being released (`T7`), a destination that
+already holds a toolkit or an archive path that already exists (`T8`), and an installed `typescript`
+that is not the version `package.json` pins (`T9`) — `node_modules/` is git-ignored, so `T4` cannot
+see it. An absent or symlinked trusted node module is the same `R19` the relocation command raises.
+It writes no archive on refusal, and prints the tag, the commit and the archive's SHA-256.
 
 A consumer then produces its **own** per-commit activation from that toolkit with
 `prepare-activation.mjs`, supplying its policy, mapping, review record and audit strata. The whole

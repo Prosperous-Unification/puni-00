@@ -1,4 +1,12 @@
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -73,7 +81,14 @@ function releaseCheckout(): { repository: string; destinationParent: string } {
     join(repository, 'apps/wiki/cli/src/policy/prepare-activation-cli.ts'),
     'process.stdout.write("prepare\\n");\n',
   );
-  write(join(repository, 'node_modules/typescript/package.json'), '{"name":"typescript"}\n');
+  write(
+    join(repository, 'package.json'),
+    `${JSON.stringify({ name: 'release-fixture', private: true, devDependencies: { typescript: 'npm:@typescript/typescript6@6.0.2' } })}\n`,
+  );
+  write(
+    join(repository, 'node_modules/typescript/package.json'),
+    '{"name":"@typescript/typescript6","version":"6.0.2"}\n',
+  );
   git(repository, ['add', '--all']);
   git(repository, ['commit', '--message', 'release layout']);
   return { repository, destinationParent: join(parent, 'out') };
@@ -311,6 +326,31 @@ describe('wiki-cli release target', () => {
       ),
     ).toContain('destination must be outside the checkout being released');
 
+    const linked = releaseCheckout();
+    git(linked.repository, ['tag', '--annotate', 'wiki-v0.0.1', '--message', 'toolkit']);
+    mkdirSync(linked.destinationParent, { recursive: true });
+    // A symlink whose name is outside the checkout but whose target is inside it.
+    symlinkSync(
+      join(linked.repository, 'inside'),
+      join(linked.destinationParent, 'toolkit'),
+      'dir',
+    );
+    mkdirSync(join(linked.repository, 'inside'), { recursive: true });
+    // Proof: comparing a realpath'd repository with a merely resolved destination accepted this —
+    // the target packed the whole toolkit into the checkout through the link, at exit 0.
+    expect(
+      await refusalMessage(
+        releaseToolkit([
+          '--tag',
+          'wiki-v0.0.1',
+          '--destination',
+          join(linked.destinationParent, 'toolkit'),
+          '--repository',
+          linked.repository,
+        ]),
+      ),
+    ).toContain('destination must be outside the checkout being released');
+
     const occupiedArchive = releaseCheckout();
     git(occupiedArchive.repository, ['tag', '--annotate', 'wiki-v0.0.1', '--message', 'toolkit']);
     write(join(occupiedArchive.destinationParent, 'wiki-v0.0.1.tar'), 'already published\n');
@@ -350,6 +390,34 @@ describe('wiki-cli release target', () => {
         ]),
       ),
     ).toContain(`operator Bun differs from .bun-version: ${Bun.version} != 1.3.9`);
+  });
+
+  test('refuses an installed TypeScript that is not the one the tag pins', async () => {
+    const { repository, destinationParent } = releaseCheckout();
+    git(repository, ['tag', '--annotate', 'wiki-v0.0.1', '--message', 'toolkit']);
+    // `node_modules/` is git-ignored, so this drift leaves the checkout clean: `git status
+    // --porcelain` is empty and T4 sees nothing.
+    write(
+      join(repository, 'node_modules/typescript/package.json'),
+      '{"name":"@typescript/typescript6","version":"5.9.9"}\n',
+    );
+    expect(git(repository, ['status', '--porcelain'])).toBe('');
+
+    // Proof: with the pin join removed the target packed a `trusted-node-modules` built from this
+    // stale install under a `toolkit.json` claiming the tag's commit, at exit 0 — and every
+    // consumer preparing from that toolkit would load a TypeScript the tag never pinned.
+    expect(
+      await refusalMessage(
+        releaseToolkit([
+          '--tag',
+          'wiki-v0.0.1',
+          '--destination',
+          join(destinationParent, 'toolkit'),
+          '--repository',
+          repository,
+        ]),
+      ),
+    ).toContain('installed typescript is not the pinned one: 5.9.9 != 6.0.2');
   });
 
   test('the toolkit descriptor is a pure function of the bytes it describes', () => {
@@ -481,9 +549,119 @@ describe('consumer activation from a toolkit', () => {
     const verified = verifyActivation(versionDirectory);
     expect(verified.manifest.sourceRevision).toBe(fixture.candidateRevision);
     expect(lines.find((line) => line.startsWith('self-check: '))).toContain('"certified":true');
+
+    // The command's own self-check scrubs `TOOL_WIKI_TRUSTED_NODE_MODULES`, so the launcher had to
+    // default the closure to `<root>/trusted-node-modules`. Re-run the produced launcher here with
+    // an environment that carries only `PATH`, so the default is the only thing that can resolve
+    // it — this is the production proof of the launcher default, on a real archive.
+    // Proof: with the default removed from `bin/tool-wiki-lint.sh` this exits 78 naming
+    // `trusted-node-modules`; with the self-check's old explicit override it proved nothing.
+    const defaulted = Bun.spawnSync(
+      [
+        'bash',
+        join(out, 'activation', 'bootstrap-launcher.sh'),
+        'committed',
+        fixture.repository,
+        fixture.candidateRevision,
+      ],
+      {
+        env: {
+          PATH: process.env['PATH'] ?? '',
+          TOOL_WIKI_ACTIVATION_ROOT: join(out, 'activation'),
+          TOOL_WIKI_REQUIRE_CERTIFIED: '1',
+        },
+        stderr: 'pipe',
+        stdout: 'pipe',
+      },
+    );
+    expect(defaulted.exitCode, defaulted.stderr.toString('utf8')).toBe(0);
+    expect(JSON.parse(defaulted.stdout.toString('utf8'))).toMatchObject({ certified: true });
     expect(readFileSync(join(out, 'activation', 'toolkit-release'), 'utf8')).toContain(
       'wiki-v0.0.1 ',
     );
+  }, 300_000);
+
+  test('the bundled preparer runs standalone from a neutral cwd', async () => {
+    const fixture = createRelocationCandidate();
+    const toolkit = await realToolkit();
+    const out = scratch('tool-wiki-bundled-preparer-');
+    const neutral = scratch('tool-wiki-neutral-cwd-');
+    write(
+      join(out, 'audit-strata.json'),
+      `${JSON.stringify({
+        strata: [
+          {
+            stratumId: 'risk.public-admission',
+            sampleRateBps: 10000,
+            disagreementTriggerBps: 10000,
+          },
+        ],
+        obligations: { 'review.fixture.module': 'risk.public-admission' },
+      })}\n`,
+    );
+    write(
+      join(out, 'review.json'),
+      `${JSON.stringify(
+        auditReview(
+          'review.fixture.module',
+          fixture.candidateRevision,
+          candidateIdentityAt(fixture.repository, fixture.candidateRevision),
+        ),
+      )}\n`,
+    );
+    // The toolkit ships `prepare-activation.mjs`, and a consumer runs THAT, not this source tree.
+    // Proof: `assertStandaloneValidator` only scans the bundle's imports; a bundle that resolved
+    // anything at runtime — a workspace alias, a relative sibling, a bare package — would pass that
+    // scan and fail only in the consumer's hands. Executing it is the check that cannot be faked.
+    const bundle = join(out, 'prepare-activation.mjs');
+    writeBytes(
+      bundle,
+      await buildValidatorBundle(
+        join(workspace, 'apps/wiki/cli/src/policy/prepare-activation-cli.ts'),
+      ),
+    );
+
+    const invocation = Bun.spawnSync(
+      [
+        'bun',
+        bundle,
+        '--candidate-repository',
+        fixture.repository,
+        '--candidate-sha',
+        fixture.candidateRevision,
+        '--toolkit',
+        toolkit,
+        '--candidate-policy',
+        'docs/wiki-policy/policy.json',
+        '--candidate-mapping',
+        'docs/wiki-policy/modules.json',
+        '--review-record',
+        join(out, 'review.json'),
+        '--audit-strata',
+        join(out, 'audit-strata.json'),
+        '--destination',
+        join(out, 'activation'),
+        '--work',
+        join(out, 'work'),
+        '--resource-lane',
+        'lane.consumer-fixture',
+        '--cwd-identity',
+        'cwd.consumer-fixture',
+      ],
+      {
+        // A neutral cwd and an environment with nothing but `PATH` and `HOME`: no workspace root,
+        // no `node_modules` above it, no `TOOL_WIKI_*` left over from this repository's own gates.
+        cwd: neutral,
+        env: { PATH: process.env['PATH'] ?? '', HOME: process.env['HOME'] ?? '' },
+        stderr: 'pipe',
+        stdout: 'pipe',
+      },
+    );
+
+    const output = `${invocation.stdout.toString('utf8')}${invocation.stderr.toString('utf8')}`;
+    expect(invocation.exitCode, output).toBe(0);
+    expect(output).toContain(`toolkit activation: ${fixture.candidateRevision}`);
+    expect(output).toContain('"certified":true');
   }, 300_000);
 
   test('a strata file that stratifies no policy review refuses by name', async () => {

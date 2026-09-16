@@ -157,15 +157,18 @@ interface Toolkit {
   readonly directory: string;
   readonly tag: string;
   readonly sourceRevision: string;
-  readonly bunVersion: string;
   readonly digest: string;
   readonly roleBytes: Readonly<Record<string, Uint8Array>>;
   readonly trustedNodeModules: readonly string[];
 }
 
 /**
- * Reads a released toolkit and re-hashes every role against its own `toolkit.json`.
- * @throws {@link RelocationRefusal} `R19` naming the role whose bytes differ.
+ * Reads a released toolkit and joins everything it will hand a consumer back to its own
+ * `toolkit.json`: each role's bytes, the whole runtime closure's digest, and the Bun that built
+ * the bundles. `SHA256SUMS` covers the roles and the descriptor but no file below
+ * `trusted-node-modules/`, so the closure digest is the only thing that pins those 24 MB.
+ * @throws {@link RelocationRefusal} `R19` naming the role whose bytes differ, the closure whose
+ * digest differs, or the Bun version the toolkit was built with.
  */
 function readToolkit(directory: string): Toolkit {
   const canonical = realpathSync(directory);
@@ -216,7 +219,6 @@ function readToolkit(directory: string): Toolkit {
     directory: canonical,
     tag: descriptor.tag,
     sourceRevision: descriptor.sourceRevision,
-    bunVersion: descriptor.bunVersion,
     digest: hashBytes(descriptorBytes),
     roleBytes,
     trustedNodeModules: descriptor.trustedNodeModules,
@@ -250,13 +252,18 @@ function runCheck(
 }
 
 function selfCheck(destination: string, repository: string, sha: string): string {
+  // The runtime override is scrubbed, not set: a consumer's `trusted-wiki.yml` sets only the
+  // activation root and lets the launcher default the closure to `<root>/trusted-node-modules`, so
+  // a self-check that supplied the path would prove a configuration no consumer ever runs. The
+  // operator's own environment is scrubbed too, because it may carry one from an unrelated gate.
+  const inherited = { ...process.env };
+  delete inherited['TOOL_WIKI_TRUSTED_NODE_MODULES'];
   const invocation = Bun.spawnSync(
     ['bash', join(destination, 'bootstrap-launcher.sh'), 'committed', repository, sha],
     {
       env: {
-        ...process.env,
+        ...inherited,
         TOOL_WIKI_ACTIVATION_ROOT: destination,
-        TOOL_WIKI_TRUSTED_NODE_MODULES: join(destination, 'trusted-node-modules'),
         TOOL_WIKI_REQUIRE_CERTIFIED: '1',
       },
       stderr: 'pipe',
@@ -323,7 +330,7 @@ function archive(
  *
  * A release certifies nothing for a consumer — see
  * `docs/adr/0026-a-wiki-release-is-a-toolkit-not-a-certification.md`.
- * @throws {@link RelocationRefusal} `R1`-`R3`, `R10`, `R15`-`R17`, `R19`-`R21`.
+ * @throws {@link RelocationRefusal} `R1`-`R3`, `R10`, `R14`-`R17` and `R19`-`R21`.
  */
 export function prepareToolkitActivation(argv: readonly string[]): string[] {
   const options = readArguments(argv);

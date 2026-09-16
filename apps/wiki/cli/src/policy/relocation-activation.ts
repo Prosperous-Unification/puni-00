@@ -114,17 +114,18 @@ export interface CandidateFile {
  * Where the lineage a preparation reasons against comes from.
  *
  * `base` is a relocation: an activation of an earlier commit of this repository exists, so the
- * candidate's policy and mapping are compared against it (`R4`-`R9`, `R11`-`R14`), its validator
- * entry must stay inside an enforced boundary (`R18`), and the audit strata are copied from its
- * authority (`R21`).
+ * candidate's policy and its module lineage are compared against it (`R4`-`R9`, `R11`-`R13`), its
+ * validator entry must stay inside an enforced boundary (`R18`), and the audit strata are copied
+ * from its authority (`R21`).
  *
  * `toolkit` is a consumer's FIRST activation, produced from a released toolkit
  * ({@link docs/adr/0026-a-wiki-release-is-a-toolkit-not-a-certification.md}). There is no earlier
  * activation to compare against, so those refusals have nothing to measure and are skipped; the
  * validator is the toolkit's reviewed bundle rather than a rebuild of the consumer's entry, and
  * the audit strata are an operator-supplied file this tool validates by join and never invents.
- * Everything that measures the candidate itself still applies: `R1`-`R3`, `R10`, `R15`-`R17`,
- * `R19` and `R20`.
+ * Everything that measures the candidate itself still applies: `R1`-`R3`, `R10`, `R14`
+ * ({@link assertMappingOwnership} — the mapping must cover the candidate's own boundaries),
+ * `R15`-`R17`, `R19` and `R20`.
  */
 export type RelocationBase =
   | {

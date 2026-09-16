@@ -110,16 +110,23 @@ jobs:
       - name: Install archived launcher
         run: |
           set -euo pipefail
-          activation_root=${TOOL_WIKI_ACTIVATION_ROOT:?activation root was not provisioned}
+          activation_root=$(realpath -- "${TOOL_WIKI_ACTIVATION_ROOT:?activation root was not provisioned}")
           launcher_path=$(<"$activation_root/launcher-path")
           # Proof: gate-entrypoints.test.ts runs this production block with an absolute and with a
-          # `..`-bearing descriptor and observes exit 78; unguarded, the step installed a file the
-          # digest-pinned archive root does not contain.
+          # `..`-bearing descriptor and observes exit 78; unguarded, the step installed a decoy
+          # launcher from beside the extraction directory as the admission entrypoint.
           if [[ ! "$launcher_path" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*(/[0-9A-Za-z][0-9A-Za-z._-]*)*$ ]]; then
             printf 'activation launcher descriptor names no archive path: %s\n' "$launcher_path" >&2
             exit 78
           fi
-          install -m 0555 "$activation_root/$launcher_path" "$RUNNER_TEMP/tool-wiki-lint.sh"
+          # A symlinked launcher passes any textual check; the provisioning step and
+          # bin/tool-wiki-push-audit.sh canonicalise the same way, so this one does too.
+          if ! launcher=$(realpath -- "$activation_root/$launcher_path") ||
+            [[ "$launcher" != "$activation_root"/* ]]; then
+            printf 'activation launcher resolves outside the archive root: %s\n' "$launcher_path" >&2
+            exit 78
+          fi
+          install -m 0555 "$launcher" "$RUNNER_TEMP/tool-wiki-lint.sh"
 
       - name: Check out exact candidate
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

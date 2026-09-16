@@ -1,5 +1,5 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { hashBytes } from '../evidence/content-manifest';
 import { assertStandaloneValidator } from './activation';
@@ -7,6 +7,7 @@ import {
   assertCleanCheckout,
   assertDestinationFree,
   assertDestinationOutside,
+  assertPinnedTypeScript,
   assertReleaseRuntime,
   assertReleaseTag,
   assertTagAtHead,
@@ -19,6 +20,7 @@ import {
   buildValidatorBundle,
   copyTrustedModules,
   hashTrustedModules,
+  packageDirectory,
   trustedModuleNames,
   writeBytes,
 } from './trusted-modules';
@@ -68,6 +70,23 @@ function readArguments(argv: readonly string[]): Record<Flag, string> {
     resolved[flag] = value;
   }
   return resolved;
+}
+
+/**
+ * The canonical path of `path`'s nearest existing ancestor, with the not-yet-created tail appended.
+ * A destination that does not exist yet still has to be judged against the checkout, and a symlink
+ * anywhere along the existing part would otherwise hide where it really lands.
+ */
+function existingRealPath(path: string): string {
+  let ancestor = path;
+  const tail: string[] = [];
+  while (!existsSync(ancestor)) {
+    const parent = dirname(ancestor);
+    if (parent === ancestor) return path;
+    tail.unshift(ancestor.slice(parent.length + 1));
+    ancestor = parent;
+  }
+  return [realpathSync(ancestor), ...tail].join('/');
 }
 
 function git(repository: string, argv: string[], subject: string): Uint8Array {
@@ -126,7 +145,7 @@ export async function releaseToolkit(argv: readonly string[]): Promise<string[]>
   );
   assertReleaseRuntime(Bun.version, readFileSync(join(repository, '.bun-version'), 'utf8'));
   const destination = resolve(options.destination);
-  assertDestinationOutside(repository, destination);
+  assertDestinationOutside(repository, existingRealPath(destination));
   // The design wrote `wiki-<tag>.tar`; the tag already starts with `wiki-`, so the archive is
   // `<tag>.tar` rather than `wiki-wiki-v0.0.1.tar`.
   const path = resolve(destination, '..', `${tag}.tar`);
@@ -169,6 +188,19 @@ export async function releaseToolkit(argv: readonly string[]): Promise<string[]>
     }
   }
   const modulesRoot = join(repository, 'node_modules');
+  // `node_modules/` is git-ignored, so the clean-tree check above never saw it. Join the closure
+  // the toolkit is about to ship to the pin the tag committed, before copying 24 MB of it.
+  const manifest = JSON.parse(readFileSync(join(repository, 'package.json'), 'utf8')) as {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
+  const installed = JSON.parse(
+    readFileSync(join(packageDirectory(modulesRoot, 'typescript'), 'package.json'), 'utf8'),
+  ) as { version?: string };
+  assertPinnedTypeScript(
+    manifest.devDependencies?.['typescript'] ?? manifest.dependencies?.['typescript'],
+    installed.version ?? '(absent)',
+  );
   const trustedNodeModules = trustedModuleNames(modulesRoot);
   const closure = join(destination, 'trusted-node-modules');
   copyTrustedModules(closure, modulesRoot, trustedNodeModules);

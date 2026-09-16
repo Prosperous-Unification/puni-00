@@ -981,7 +981,13 @@ describe('tool-wiki production entrypoint adapter', () => {
     // archive never carried — as the admission entrypoint. An absolute descriptor is refused by
     // the same shape.
     write(join(paths.directory, 'decoy-launcher.sh'), '#!/usr/bin/env bash\nexit 0\n');
-    for (const escape of ['../decoy-launcher.sh', '/usr/bin/env']) {
+    // A symlink inside the root pointing at that decoy: textually a plain version path, so only
+    // canonicalisation sees where it lands.
+    symlinkSync(
+      join(paths.directory, 'decoy-launcher.sh'),
+      join(paths.activationRoot, 'linked-launcher.sh'),
+    );
+    for (const escape of ['../decoy-launcher.sh', '/usr/bin/env', 'linked-launcher.sh']) {
       const refused = runArchivedLauncherInstall(paths.activationRoot, escape);
       const detail = streamText(refused.invocation.stderr, 'launcher install stderr');
       expect(refused.invocation.exitCode, detail).toBe(78);
@@ -1405,6 +1411,26 @@ await import(${JSON.stringify(productionSnapshotter)});
       expect(streamText(named.invocation.stdout, 'provisioning stdout')).toContain(
         'toolkit release: wiki-v0.0.1',
       );
+    }
+  });
+
+  test('activation provisioning refuses a composite source revision the variable cannot spell', () => {
+    // The manifest schema admits a 64-hex composite identity; `TOOL_WIKI_ACTIVATION_VERSION` is a
+    // 40-hex git SHA, so such an archive can never satisfy the join and must say so, not be
+    // accepted on a prefix or a shortened comparison.
+    const composite = 'a'.repeat(64);
+    for (const workflow of provisioningSteps) {
+      const archive = packActivationArchive(activationArchiveRoot(composite));
+      const refused = runActivationProvisioning(
+        workflow.path,
+        workflow.step,
+        archive,
+        composite.slice(0, 40),
+      );
+      const detail = streamText(refused.invocation.stderr, 'provisioning stderr');
+      expect(refused.invocation.exitCode, detail).toBe(78);
+      expect(detail).toContain(composite);
+      expect(readFileSync(refused.environmentFile, 'utf8')).toBe('');
     }
   });
 

@@ -11,9 +11,17 @@ on:
 permissions:
   contents: write
 
+# One release per tag, and never cancelled part-way: a cancelled run can leave a release created
+# with only some of its assets, which an operator would then have to notice.
+concurrency:
+  group: wiki-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
+    # The three uncached bootstrap checks dominate; this is a ceiling, not a budget.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:

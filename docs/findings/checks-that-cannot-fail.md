@@ -37,6 +37,7 @@ incidents; those IDs deliberately share one preserved payload anchor.
 | R5-25    | [r5.catalogue.047](#r5-catalogue-047) |
 | R5-26    | [r5.catalogue.048](#r5-catalogue-048) |
 | R5-27    | [r5.catalogue.049](#r5-catalogue-049) |
+| R5-28    | [r5.catalogue.052](#r5-catalogue-052) |
 
 <a id="r5-catalogue-heading"></a>
 <!-- root-source:r5.catalogue.heading -->
@@ -719,3 +720,17 @@ believed — not after it has been written down as a finding in three files.
 
 Prove your check fails when the thing is broken, and say so in the comment. A check whose
 failure mode has never been observed is a claim, not a gate.
+
+<a id="r5-catalogue-052"></a>
+<!-- root-source:r5.catalogue.052 -->
+
+**A contract guard with no reachable negative, kept deliberately and labelled as such.**
+`release-cli.ts` runs `assertStandaloneValidator` over each bundle it packs (`T6`). `Bun.build`
+with no `external` configuration either inlines every bare specifier or fails the build, so this
+repository cannot currently emit a bundle that reaches the refusal: the fault cannot be injected on
+the production path, and the check has never been watched failing. It is not deleted, because an
+`external` entry or a loader change would silently reintroduce the case and a consumer would then
+load unreviewed bytes at admission — `prepareActivation` applies the same rule where it _does_ have
+an observed negative. The rule this records is the labelling, not the exception: a check whose
+negative cannot be reached says so at its throw site and in this catalogue, and is never counted in
+a verify.md proof table as though it had been watched. Claiming it green would be the incident.
