@@ -201,9 +201,10 @@ on:
 # TASK-386 peer review I1, `queue/reviews/t386-r1-sol.txt`, openai/gpt-5.6-sol.
 #
 # Overlapping runs are safe here for a reason that was checked rather than
-# assumed: this workflow has no deploy job. `gate` and `pixels_shard` read the
-# tree and validate — `docker compose config -q` parses the deploy files, it
-# does not apply them — so two `main` runs share nothing but the actions cache,
+# assumed: this workflow has no deploy job. `gate`, `pixels_mode` and
+# `pixels_shard` read the tree and validate — `docker compose config -q` parses
+# the deploy files, it does not apply them, and `pixels_mode` only asks Nx which
+# projects a diff reaches — so two `main` runs share nothing but the actions cache,
 # where a concurrent write is a "cache already exists" warning and not a
 # corruption. If a job that mutates anything outside its own runner is ever
 # added to this file, that job needs its own serialising `concurrency:` block
@@ -607,6 +608,67 @@ jobs:
           jq -e '.summary.totals.failed == 0 and .summary.totals.passed > 0' \
             "$RUNNER_TEMP/openspec-validate.json" > /dev/null
 
+  # Whether a pull request can reach the browser stack at all — the shards' half of
+  # the switch `Gate mode` makes for the Nx gate, with the same refusal arm and the
+  # same JSON read.
+  #
+  # The boot set is read from `playwright.config.ts`, not from this job's name:
+  # `webServer` starts be-01, gw-01 AND fe-01, so a backend-only pull request can
+  # break the rendered table while `wbs-fe-01` is not affected at all. Measured
+  # 2026-09-16 on Nx 23.2.0, `bunx nx show projects --affected
+  # --files=apps/wbs/be-01/src/main.ts` answers
+  # `["wbs-be-01","tool-devsync","tool-wiki","tool-dagger"]` — no `wbs-fe-01`. A
+  # switch keyed on the frontend alone would have skipped the eyes for exactly the
+  # changes they exist to catch.
+  #
+  # This job pays one checkout and one install to save up to four ~10-minute shards,
+  # and it cannot itself skip: `pixels` below reads its result, so a scope job that
+  # failed is never mistaken for a deliberate skip.
+  pixels_mode:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      stack: ${{ steps.stack.outputs.stack }}
+    steps:
+      # Full history for the same reason the `gate` job takes it: `--base` cannot
+      # resolve a payload SHA against a depth-1 clone.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Browser stack scope
+        id: stack
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            pull_request)
+              : "${PR_BASE_SHA:?pull_request payload carries no base SHA}"
+              affected="$(bunx nx show projects --affected --base="$PR_BASE_SHA" --head=HEAD --json)"
+              if jq -e 'any(.[]; . == "wbs-fe-01" or . == "wbs-be-01" or . == "wbs-gw-01")' <<< "$affected" > /dev/null; then
+                printf 'stack=affected\n' >> "$GITHUB_OUTPUT"
+              else
+                printf 'stack=unaffected\n' >> "$GITHUB_OUTPUT"
+              fi
+              ;;
+            push | merge_group | workflow_dispatch)
+              printf 'stack=affected\n' >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              printf 'no browser-stack rule for event %s\n' "$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+
   # The eyes. Everything the `gate` job runs sees this table through jsdom,
   # which lays nothing out: the overlap that prompted this job passed 450 unit
   # tests while a pinned Name painted over "Depends on" on screen. One chromium,
@@ -625,6 +687,8 @@ jobs:
   pixels_shard:
     name: pixels shard ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
+    needs: pixels_mode
+    if: ${{ needs.pixels_mode.outputs.stack == 'affected' }}
     # FOUR shards since 2026-09-08, because two were measured badly unbalanced.
     # Playwright shards by file, not by duration, so the split is only as even
     # as the files happen to be. Over the last 8 runs, per job:
@@ -730,11 +794,39 @@ jobs:
   # hiding a failed or cancelled shard.
   # Proof: changing `needs` to `gate` made pixels-workflow.test.ts fail with
   # expected "pixels_shard", received "gate".
+  #
+  # Since 2026-09-16 the shards can legitimately not run, and `skipped` is the
+  # result this job then reads. Accepting `skipped` on its own would have been the
+  # whole point thrown away: `pixels_shard` is also skipped when `pixels_mode`
+  # FAILS, so a broken scope job would have reported the required check green
+  # having booted nothing and decided nothing. Hence both jobs in `needs` and the
+  # scope job's own verdict asserted first, before its answer is read at all.
+  # Proof: reduced to its previous `test "${{ needs.pixels_shard.result }}" = success`,
+  # `the required check refuses a skip it cannot explain` failed on the exact
+  # environment and script (2026-09-16).
   pixels:
     if: ${{ always() }}
-    needs: pixels_shard
+    needs: [pixels_mode, pixels_shard]
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
       - name: Require every browser shard
-        run: test "${{ needs.pixels_shard.result }}" = success
+        env:
+          STACK: ${{ needs.pixels_mode.outputs.stack }}
+          STACK_RESULT: ${{ needs.pixels_mode.result }}
+          SHARD_RESULT: ${{ needs.pixels_shard.result }}
+        run: |
+          set -euo pipefail
+          test "$STACK_RESULT" = success
+          case "$STACK" in
+            affected)
+              test "$SHARD_RESULT" = success
+              ;;
+            unaffected)
+              test "$SHARD_RESULT" = skipped
+              ;;
+            *)
+              printf 'pixels mode reported no browser-stack verdict: %s\n' "$STACK" >&2
+              exit 1
+              ;;
+          esac
