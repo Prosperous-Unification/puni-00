@@ -21,6 +21,8 @@
  * production's guarantees would be the same class of untruth as the stale seat
  * that reported `retrying` with nothing running.
  */
+import { join, resolve } from 'node:path';
+
 import type {
   ReservedSolverChild,
   ReservedSpawner,
@@ -52,8 +54,20 @@ export const LOCAL_SOLVER_CAPABILITIES: LocalSolverCapabilities = Object.freeze(
   deadline: 'child-alarm-only',
 });
 
+/**
+ * The provisioned environment's `bin`, from be-01's project directory — the
+ * `cwd` both serve targets give it.
+ *
+ * `.venv-solver` sits at the repo root, where `tools/dev/solver-environment.ts`
+ * builds it, so the depth here is the project's depth in the tree and must move
+ * with it.
+ */
+export function solverBinDirectory(projectDirectory: string): string {
+  return join(resolve(projectDirectory, '../../..'), '.venv-solver', 'bin');
+}
+
 export interface LocalSolverOptions {
-  /** Absolute `bin` of the provisioned environment; `solver-py:setup-macos` makes it. */
+  /** Absolute `bin` of the provisioned environment; `wbs-solver-py:setup-macos` makes it. */
   readonly binDirectory: string;
   /** CP-SAT search workers, matching the supervised path's configuration knob. */
   readonly searchWorkers: number;
