@@ -579,7 +579,12 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // maps and the required-alias assertion failed on the observed digest below at the same
     // 269/30 — the added entries carry no selector of their own and only shift the legacy
     // `../../libs/*` and `apps/libs/*` contexts in vite-config.test.ts below them (2026-09-16).
-    digest: 'c29abd13b5ea87751226780d62bf9a444c0ba4b907eddef65d30ac9d7ce1f48d',
+    // Proof: leaving `c29abd13...` here after the CI pixels scope joined
+    // pixels-workflow.test.ts failed on the observed digest below at the same 269/30 — the
+    // added interface fields and scope cases carry no legacy selector of their own and only
+    // shift the `apps/fe-01/test-results/` context in that file's own proof comment below
+    // them (2026-09-16).
+    digest: '15cb68e96242e18bd73ed5d0bc96f82f4c68f0ad2e071ec82afbe79481c45eef',
     occurrences: 269,
     unclassified: [],
   });
