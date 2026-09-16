@@ -185,7 +185,12 @@ test('a landed take keeps the focus, and the panel closes when the focus leaves'
   // this one is reached at all — `Expected: false / Received: true`, a panel
   // standing over the rows below that no click could take away, which is
   // Dany's report in one line. Watched in Chromium, 2026-08-31.
-  await page.mouse.click(700, 8);
+  //
+  // The brand rather than a coordinate: `(700, 8)` was empty header at 1280
+  // until the project buttons got words, and then it was `Create new project`
+  // — this test timed out on a page that had moved to a new project (pixels
+  // shard 4/4, PR 468, 2026-09-16). The heading is inert at every width.
+  await page.getByRole('heading', { name: 'WBS tool v2' }).click();
   expect(
     await panelIsOpen(page, 'Tags for 020'),
     'the add popover was still standing after a click outside it',

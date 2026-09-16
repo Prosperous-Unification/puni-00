@@ -834,8 +834,8 @@ describe('the header bar', () => {
 
     const bar = screen.getByRole('banner');
     expect(bar.contains(picker())).toBe(true);
-    expect(bar.contains(screen.getByRole('button', { name: 'Rename' }))).toBe(true);
-    expect(bar.contains(screen.getByRole('button', { name: 'New project' }))).toBe(true);
+    expect(bar.contains(screen.getByRole('button', { name: 'Rename project' }))).toBe(true);
+    expect(bar.contains(screen.getByRole('button', { name: 'Create new project' }))).toBe(true);
   });
 
   itDom('gives the header the slots the app fills, in the bar itself', async () => {
@@ -977,7 +977,7 @@ itDom('starts a created project without the previous project’s row anchors', a
     'Departed project row',
   );
 
-  fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
   const field = await screen.findByLabelText('Project name');
   fireEvent.keyDown(field, { key: 'Escape' });
   await waitFor(() => {
@@ -1048,11 +1048,11 @@ describe('the saved-plan shelf is on the project page', () => {
     expect(shelfDisclosure?.closest('[data-toolbar], [data-toolbar-sheet]')).toBeNull();
     expect(shelfDisclosure?.closest('header')).not.toBeNull();
     // Beside the project's own controls, in one row, rather than merely
-    // somewhere in the bar: `New project` is the nearest of them and the only
+    // somewhere in the bar: `Create new project` is the nearest of them and the only
     // one that is there whether a rename is armed or not.
     expect(
       within(shelfDisclosure?.parentElement ?? document.body).getByRole('button', {
-        name: 'New project',
+        name: 'Create new project',
       }),
     ).toBeDefined();
 
@@ -1198,7 +1198,9 @@ describe('the saved-plan shelf is on the project page', () => {
 
       // The project's own controls are still there — this is the shelf leaving
       // the row, not the row leaving the header.
-      expect(screen.getByRole('button', { name: 'New project' }).closest('header')).not.toBeNull();
+      expect(
+        screen.getByRole('button', { name: 'Create new project' }).closest('header'),
+      ).not.toBeNull();
       expect(document.querySelectorAll('header [data-saved-plans]')).toHaveLength(0);
       expect(document.querySelectorAll('[data-saved-plans]')).toHaveLength(0);
     } finally {
@@ -1233,7 +1235,7 @@ describe('the chosen project survives a refresh', () => {
       expect(localStorage.getItem('wbs.project')).toBeNull();
     });
     expect(picker().value).toBe('');
-    expect(screen.queryByRole('button', { name: 'Rename' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Rename project' })).toBeNull();
     expect(asked).toEqual([]);
   });
 });
@@ -1444,7 +1446,7 @@ describe('creating a project', () => {
       expect(screen.getByLabelText('Project')).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
 
     // The name field stands in place of the picker while the rename a create
     // arms is open; leaving it is what shows the picker the selection.
@@ -1505,7 +1507,7 @@ describe('renaming a project', () => {
     pageWith(api);
     await selectProject('p2');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rename project' }));
     const name = screen.getByLabelText<HTMLInputElement>('Project name');
     expect(name.value).toBe('Paint the fence');
     fireEvent.change(name, { target: { value: 'Stain the fence' } });
@@ -1522,7 +1524,7 @@ describe('renaming a project', () => {
     pageWith(api);
     await selectProject('p2');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rename project' }));
     const name = screen.getByLabelText<HTMLInputElement>('Project name');
     fireEvent.change(name, { target: { value: 'Never this' } });
     fireEvent.keyDown(name, { key: 'Escape' });
@@ -1538,7 +1540,7 @@ describe('renaming a project', () => {
     pageWith(api);
     await selectProject('p2');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rename project' }));
     const name = screen.getByLabelText<HTMLInputElement>('Project name');
     fireEvent.change(name, { target: { value: 'Not allowed' } });
     fireEvent.keyDown(name, { key: 'Enter' });
@@ -1563,7 +1565,7 @@ describe('renaming a project', () => {
     pageWith(api);
     await selectProject('p2');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rename project' }));
     const name = screen.getByLabelText<HTMLInputElement>('Project name');
     fireEvent.change(name, { target: { value: 'Stain the fence' } });
     fireEvent.blur(name);
@@ -1579,7 +1581,7 @@ describe('renaming a project', () => {
     pageWith(api);
     await selectProject('p2');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rename project' }));
     fireEvent.blur(screen.getByLabelText('Project name'));
 
     expect(api.renamed).toEqual([]);
@@ -1592,7 +1594,7 @@ describe('renaming a project', () => {
     pageWith(api);
     await selectProject('p2');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rename project' }));
     const name = screen.getByLabelText<HTMLInputElement>('Project name');
     fireEvent.change(name, { target: { value: '   ' } });
     fireEvent.keyDown(name, { key: 'Enter' });
@@ -1612,7 +1614,7 @@ describe('the selection is a claim too', () => {
     // p2 vanishes behind our back; the next load is triggered by a rename
     // commit, which is one of the two paths that refetch the list.
     api.drop('p2');
-    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rename project' }));
     const name = screen.getByLabelText<HTMLInputElement>('Project name');
     fireEvent.change(name, { target: { value: 'Too late' } });
     fireEvent.keyDown(name, { key: 'Enter' });
@@ -1622,7 +1624,7 @@ describe('the selection is a claim too', () => {
     await waitFor(() => {
       expect(picker().value).toBe('Rewire the shed');
     });
-    expect(screen.getByRole('button', { name: 'Rename' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Rename project' })).toBeDefined();
   });
 });
 
@@ -2015,7 +2017,7 @@ describe('a pick leaves the picker at rest', () => {
     });
     expect(screen.queryByLabelText('Project name')).toBeNull();
     // The rename is reachable, and only through its own control.
-    expect(screen.getByRole('button', { name: 'Rename' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Rename project' })).toBeDefined();
   });
 
   itDom('the picker still searches after a pick', async () => {
@@ -2055,7 +2057,7 @@ describe('a new project opens with its name ready to be typed', () => {
       expect(screen.getByLabelText('Project')).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
 
     const name = await screen.findByLabelText<HTMLInputElement>('Project name');
     expect(name.value).toBe('New project');
@@ -2072,7 +2074,7 @@ describe('a new project opens with its name ready to be typed', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Project')).toBeDefined();
     });
-    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
     const name = await screen.findByLabelText<HTMLInputElement>('Project name');
 
     fireEvent.change(name, { target: { value: 'A' } });
@@ -2089,7 +2091,7 @@ describe('a new project opens with its name ready to be typed', () => {
       expect(screen.getByLabelText('Project')).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
 
     const name = await screen.findByLabelText<HTMLInputElement>('Project name');
     // Selected rather than emptied: `commitOrCancelRename` reads an empty
@@ -2123,7 +2125,7 @@ describe('a new project opens with its name ready to be typed', () => {
       expect(screen.getByLabelText('Project')).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
 
     await waitFor(() => {
       expect(listCalls).toBe(2);
@@ -2147,12 +2149,12 @@ describe('a new project opens with its name ready to be typed', () => {
     };
     pageWith(api);
     await selectProject('p2');
-    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rename project' }));
     fireEvent.change(screen.getByLabelText('Project name'), {
       target: { value: 'Meant for p2' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
 
     // Asserted in the window the fault lives in: with the create held, a draft
     // that was not cancelled is still on screen and still aimed at p2. Once
@@ -2183,7 +2185,7 @@ describe('a new project opens with its name ready to be typed', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Project')).toBeDefined();
     });
-    fireEvent.click(screen.getByRole('button', { name: 'New project' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create new project' }));
     const name = await screen.findByLabelText<HTMLInputElement>('Project name');
 
     fireEvent.keyDown(name, { key: 'Escape' });

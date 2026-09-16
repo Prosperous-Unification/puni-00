@@ -198,7 +198,7 @@ test.describe('the project picker, driven by a browser', () => {
   test('creating a project puts the caret in its name, whole', async ({ page }) => {
     await signIn(page);
 
-    await page.getByRole('button', { name: 'New project' }).click();
+    await page.getByRole('button', { name: 'Create new project' }).click();
 
     const field = page.getByLabel('Project name');
     await expect(field).toBeFocused();
@@ -222,7 +222,7 @@ test.describe('the project picker, driven by a browser', () => {
   test('abandoning the new project’s rename keeps the project', async ({ page }) => {
     await signIn(page);
 
-    await page.getByRole('button', { name: 'New project' }).click();
+    await page.getByRole('button', { name: 'Create new project' }).click();
     await page.getByLabel('Project name').press('Escape');
 
     // The project was created before the rename was ever offered; Escape is

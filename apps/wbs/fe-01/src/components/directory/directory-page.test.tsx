@@ -432,8 +432,8 @@ describe('the directory page', () => {
     // Absent rather than drawn dead: a project picker on a page with no project
     // is a control that can only disappoint.
     expect(within(bar).queryByRole('combobox', { name: 'Project' })).toBeNull();
-    expect(within(bar).queryByRole('button', { name: 'Rename' })).toBeNull();
-    expect(within(bar).queryByRole('button', { name: 'New project' })).toBeNull();
+    expect(within(bar).queryByRole('button', { name: 'Rename project' })).toBeNull();
+    expect(within(bar).queryByRole('button', { name: 'Create new project' })).toBeNull();
   });
 });
 

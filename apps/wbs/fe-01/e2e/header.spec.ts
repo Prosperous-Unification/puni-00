@@ -173,7 +173,7 @@ async function switchToAccountWithAProject(
 
 /** Renames the selected project, through the ✎ the bar offers for it. */
 async function renameSelectedProject(page: Page, to: string): Promise<void> {
-  await page.getByRole('button', { name: 'Rename' }).click();
+  await page.getByRole('button', { name: 'Rename project' }).click();
   await page.getByLabel('Project name').fill(to);
   await page.getByLabel('Project name').press('Enter');
   await expect(page.getByRole('combobox', { name: 'Project' })).toHaveValue(to);
