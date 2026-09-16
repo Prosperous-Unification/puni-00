@@ -1067,6 +1067,11 @@ A recorded, scoped judgment about repository content and relationships, carrying
 the evidence and limits of the review that produced it.
 _Avoid_: certificate of correctness, proof of completeness
 
+**Relocation activation**:
+An activation prepared from a candidate commit whose policy carries `sourceSelector` for the
+boundaries that moved, activated before that candidate merges.
+_Avoid_: rebase activation, migration activation, move policy
+
 **Port**:
 An interface core owns and an adapter satisfies: every store, the unit of work, the gate, the
 clock, the broadcaster, the identity resolver, and every runtime concern — password hashing,
