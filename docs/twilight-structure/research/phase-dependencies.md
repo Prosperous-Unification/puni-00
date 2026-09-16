@@ -93,7 +93,7 @@ K3s is not an open simplification choice in this exercise. The accepted ADR puts
 one dedicated server and at least two real worker nodes in M1, with manual join
 and drain and durable state outside the cluster. The audience split does not
 authorize replacing it with local processes or postponing it wholesale.
-[Accepted worker-pool decision](../../adr/0016-k3s-schedules-the-expandable-worker-pool.md)
+[Accepted worker-pool decision](../../adr/0028-k3s-schedules-the-expandable-worker-pool.md)
 
 ## Claire lessons grounded in the current checkout
 

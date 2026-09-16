@@ -88,7 +88,7 @@ effect on quality tracked (TS-27). Same owner and reopen rules.
 ## Worker infrastructure
 
 Recorded 2026-09-06 after the user selected K3s and asked for it in the delivery
-plan. The technology choice is accepted in ADR 0016; the topology below is the
+plan. The technology choice is accepted in ADR 0028; the topology below is the
 proposed M1 acceptance shape and remains subject to its production-path probes.
 
 | ID  | Working answer                                                                                                                                                                                                                                                                                                                                                                    | Revisit condition / affected work                                                                                                                                                             |

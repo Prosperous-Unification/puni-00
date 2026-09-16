@@ -361,7 +361,7 @@ transactional admission to pass races.
 
 ### K3s worker topology
 
-[ADR 0016](../../../docs/adr/0016-k3s-schedules-the-expandable-worker-pool.md)
+[ADR 0028](../../../docs/adr/0028-k3s-schedules-the-expandable-worker-pool.md)
 selects K3s as the M1 worker substrate. The dogfood acceptance topology is one
 dedicated K3s server, tainted so it schedules no Twilight attempt Pods, and at
 least two K3s agent nodes. `h3mon` remains outside the cluster and observes it;

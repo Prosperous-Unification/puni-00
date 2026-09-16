@@ -77,6 +77,6 @@ No migration is performed by this trial.
 ADR 0014 no longer exists. The OpenSpec/wiki authority boundary it recorded is an
 already-accepted direction rather than a surprising decision, and it now lives in
 [requirements and the wiki](knowledge.md#requirements-and-the-wiki-the-boundary).
-[ADR 0015](../adr/0015-planning-commits-are-the-transaction-boundary.md) proposes
-the planning transaction boundary. [ADR 0016](../adr/0016-k3s-schedules-the-expandable-worker-pool.md)
+[ADR 0027](../adr/0027-planning-commits-are-the-transaction-boundary.md) proposes
+the planning transaction boundary. [ADR 0028](../adr/0028-k3s-schedules-the-expandable-worker-pool.md)
 records the accepted K3s worker-pool decision.

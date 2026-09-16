@@ -59,6 +59,6 @@ plan proves one dedicated, unscheduled K3s server and two K3s agent nodes, with
 manual node join and drain. `h3mon` remains the external monitoring host;
 `h4claw` carries OpenClaw, Twilight's user-facing control services and application
 deployment, and runs no untrusted worker activity. Direct Kubernetes Jobs are the
-first provisioner; OpenSandbox is a measured follow-on candidate. ADR 0016 records
+first provisioner; OpenSandbox is a measured follow-on candidate. ADR 0028 records
 the choice and alternatives, and the
 [worker-pool research](research/worker-pools.md) records upstream evidence.

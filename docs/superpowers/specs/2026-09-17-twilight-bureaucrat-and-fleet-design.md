@@ -74,7 +74,7 @@ An unavailable API, unreadable state file or partial inventory is an error, neve
 
 Start with a platform cluster and a separate Twilight worker cluster. Platform capabilities are `control-plane`, `product`, `ingress`, `observability`, and `forge`; more than one may be assigned to a node. Worker capabilities are `control-plane` and `execution`. Labels/taints express capabilities; stable forge-shard identity is used only for source worktrees that cannot freely move.
 
-The worker cluster follows ADR 0016: one dedicated server schedules no activity attempts and at least two real agents prove the production pool. A laptop's k3d cluster is a functional rehearsal, not evidence of host-loss isolation. Twilight's authority remains outside the worker cluster. Joining platform nodes does not enroll them as workers.
+The worker cluster follows ADR 0028: one dedicated server schedules no activity attempts and at least two real agents prove the production pool. A laptop's k3d cluster is a functional rehearsal, not evidence of host-loss isolation. Twilight's authority remains outside the worker cluster. Joining platform nodes does not enroll them as workers.
 
 A single-server platform profile is allowed but explicitly has maintenance downtime. Three-server HA needs a stable API endpoint and quorum-aware lifecycle; two servers are not an HA profile. Capacity/placement must be checked against requests, taints, volume topology and required capability counts, not only node count.
 

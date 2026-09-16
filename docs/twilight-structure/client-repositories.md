@@ -111,7 +111,7 @@ Markdown conventions or unknown frontmatter that an upstream edit may discard.
 Use one designated planning broker per repo and an accepted Git ref such as
 `refs/heads/twilight-planning`. The server reads a complete immutable Git tree at
 that ref. A materialized Backlog checkout is a view; readers never combine files
-from different revisions. [Proposed transaction ADR](../adr/0015-planning-commits-are-the-transaction-boundary.md).
+from different revisions. [Proposed transaction ADR](../adr/0027-planning-commits-are-the-transaction-boundary.md).
 
 1. A command carries `repositoryId`, `planId`, stable command ID, expected planning
    revision, actor, typed WBS operations and `reconciliation: exact | disjoint`.

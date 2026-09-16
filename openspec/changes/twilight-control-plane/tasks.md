@@ -1129,7 +1129,7 @@ Adopts the M2 delta's requirements from
 [client repositories](../../../docs/twilight-structure/client-repositories.md#contract-for-the-m2-storage-delta)
 (A31, A33, A44).
 
-- [ ] 9.1 Run the storage spike at the client's declared scale and record the go/no-go on ADR 0015.
+- [ ] 9.1 Run the storage spike at the client's declared scale and record the go/no-go on ADR 0027.
 - [ ] 9.2 Specify and prove a lossless revisioned planning adapter against the landed WBS repository contract.
 
 **Entry:** the concrete [refactor closure checklist](../../../docs/twilight-structure/client-repositories.md#cutover-after-the-refactors-land),
@@ -1147,7 +1147,7 @@ exact WBS integration paths are selected from that landing revision.
 at the repository's declared scale through actual broker/native adapter/WBS paths,
 retaining timing samples and conflict counts. Inject receiver delay above the
 single-edit budget and watch acceptance refuse; a full-field round trip cannot
-compensate for an exceeded latency or restart budget. ADR 0015 becomes accepted
+compensate for an exceeded latency or restart budget. ADR 0027 becomes accepted
 only after this proof.
 
 9.2: use the [client planning design](../../../docs/twilight-structure/client-repositories.md)
@@ -1590,7 +1590,7 @@ User requirement to delivery location:
 | TS-26: autonomous assumptions and Claude Fable 5.1 review                     | M0 assumption ledger and review/evidence record                       |
 | TS-27: cost, model, review-depth and parallelism levers with quality tracking | Execution profile; Tasks 4, 6–8, 11                                   |
 | TS-28: money buys shorter accepted delivery at fixed quality                  | Tasks 1–8; Task 9 for planning contention                             |
-| TS-29–30: operated client installations and expandable K3s worker pool        | Discovery/ADR 0016; Tasks 4, 6, 8                                     |
+| TS-29–30: operated client installations and expandable K3s worker pool        | Discovery/ADR 0028; Tasks 4, 6, 8                                     |
 | TS-31: personal assistant-to-production loop, then customer discovery         | Personal phase route; Tasks 13, 15–16                                 |
 | TS-32–35: exhaustive scenarios, layered tests, publication and reports        | Every implementation slice; Tasks 13.2–13.4                           |
 | TS-36–37: branch devs, dev-main and production-like staging                   | Task 13                                                               |

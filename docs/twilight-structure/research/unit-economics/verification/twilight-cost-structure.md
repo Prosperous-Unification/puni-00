@@ -355,7 +355,7 @@ All 68 claims confirmed against the cited files; every quoted number, model name
 - verdict: confirmed
 - original: One dedicated K3s server scheduling no attempt Pods + at least two agent nodes; h3mon monitoring outside; h4claw runs OpenClaw/control services/app deployment; manual join/drain; VPS provisioning later Terragrunt scope
 - corrected: same
-- evidence: docs/adr/0016-k3s-schedules-the-expandable-worker-pool.md:5-9; docs/twilight-structure/assumptions.md:96-97
+- evidence: docs/adr/0028-k3s-schedules-the-expandable-worker-pool.md:5-9; docs/twilight-structure/assumptions.md:96-97
 - note: worker-pools.md:47-51 names the operating costs (control plane, Pod security, networking, image distribution, storage, telemetry, upgrades, cleanup) as stated.
 
 ### 45. One sandbox (Kubernetes Job) per admitted attempt with resource bounds and no privileges
