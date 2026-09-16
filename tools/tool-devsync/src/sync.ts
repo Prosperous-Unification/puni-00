@@ -400,11 +400,11 @@ export const RESTART_PATHS: readonly string[] = [
   'apps/wbs/gw-01/project.json',
   'apps/wbs/fe-01/project.json',
   'apps/wbs/mcp-01/project.json',
-  // The Tool Wiki CLI has no serve target, but it is an app on disk and
-  // `sync.test.ts` walks apps rather than trusting this list; a manifest the
-  // supervisor's project graph reads at startup belongs here either way.
-  // Proof: omitting it failed `names every app project.json, whose serve target the
-  // supervisor reads once` on `Expected to contain: "apps/wiki/cli/project.json"`
+  // The wiki CLI has no serve target, but it is an app on disk and `sync.test.ts`
+  // walks apps rather than trusting this list; a manifest the supervisor's project
+  // graph reads at startup belongs here either way.
+  // Proof: omitting it failed `names every app project.json, which the supervisor
+  // reads once at startup` on `Expected to contain: "apps/wiki/cli/project.json"`
   // (2026-09-16).
   'apps/wiki/cli/project.json',
   'apps/wbs/fe-01/vite.config.ts',

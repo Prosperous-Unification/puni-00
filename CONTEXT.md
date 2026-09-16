@@ -1164,6 +1164,7 @@ _Avoid_: contract tests (alone), shared tests, test harness
 **Product**:
 One application family in this repository — WBS is the first — named by a top-level directory,
 a project-name prefix and a `product:` tag that keeps one product's code out of another's.
+`wiki` is the second: one CLI, `apps/wiki/cli`, released separately from the WBS tool.
 Tools belong to no product.
 _Avoid_: app (that is one deployable), workspace, scope (that is an Nx tag axis already in use)
 

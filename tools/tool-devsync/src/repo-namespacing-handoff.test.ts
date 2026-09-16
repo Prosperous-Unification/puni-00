@@ -622,7 +622,12 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // the renamed `checkIds` collapsed onto one line, so its contexts sit where they did, checked
     // line by line. An intermediate pin of `9e192e79...`, taken before that reformat, failed
     // (2026-09-16).
-    digest: 'e791915193532370bfb25f291e7364590b52a5636d0f535977e5cf36320430de',
+    // Proof: leaving `e7919151...` here after the wiki product was routed failed on the observed
+    // digest below, still at 257 — the four comment lines added above the RESTART_PATHS app
+    // oracle pushed sync.test.ts's one `apps/mcp-01` proof context from line 314 to 318, and
+    // nothing else moved; `apps/wiki/eslint.product.mjs` carries no legacy root of its own
+    // (2026-09-16).
+    digest: '4c062320abd0a2ac96da8b83425e99ea9e7e2ff1fa60d6753cf0a31940148e66',
     occurrences: 257,
     unclassified: [],
   });
