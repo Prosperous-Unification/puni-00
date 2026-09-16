@@ -543,7 +543,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'historical bootstrap policy or mapping': 65,
       'historical policy selector or baseline': 39,
       'production proof or revision transition': 18,
-      'test fixture or proof': 98,
+      'test fixture or proof': 99,
     },
     coverage: {
       applicationLibraryToolReadmes: 17,
@@ -579,8 +579,12 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // maps and the required-alias assertion failed on the observed digest below at the same
     // 269/30 — the added entries carry no selector of their own and only shift the legacy
     // `../../libs/*` and `apps/libs/*` contexts in vite-config.test.ts below them (2026-09-16).
-    digest: 'c29abd13b5ea87751226780d62bf9a444c0ba4b907eddef65d30ac9d7ce1f48d',
-    occurrences: 269,
+    // Proof: leaving `c29abd13.../269/98` here after the Tool Wiki relocation negative in
+    // pilot-policy.test.ts pinned the refusal text `... (selector prefix libs/domain/src/saved-plan)`
+    // failed on the observed digest below at 270/99 — one more classified `test fixture or proof`
+    // context, none unclassified (2026-09-16).
+    digest: '0bc684748263216ff171af8ed6522ef524b853a923d346e6c79bbe87069b7879',
+    occurrences: 270,
     unclassified: [],
   });
 });
