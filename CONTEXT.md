@@ -1072,6 +1072,18 @@ An activation prepared from a candidate commit whose policy carries `sourceSelec
 boundaries that moved, activated before that candidate merges.
 _Avoid_: rebase activation, migration activation, move policy
 
+**Toolkit release**:
+The tagged archive of the wiki roles that are identical for every repository and commit —
+launcher, snapshotter, validator bundle, trusted runtime modules, root descriptor constants —
+plus the preparer that turns them into an activation. It certifies no commit.
+_Avoid_: release archive, activation release, distribution
+
+**Toolkit activation**:
+An activation a consumer prepares from a toolkit release and its own commit, sourcing the
+reusable roles from the toolkit by digest and every per-commit role from that commit. Named by
+the consumer's own `TOOL_WIKI_ACTIVATION_VERSION`.
+_Avoid_: consumer activation, downstream activation, bootstrap activation
+
 **Port**:
 An interface core owns and an adapter satisfies: every store, the unit of work, the gate, the
 clock, the broadcaster, the identity resolver, and every runtime concern — password hashing,
