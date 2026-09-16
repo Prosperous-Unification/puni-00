@@ -6,6 +6,7 @@ import { assertStandaloneValidator } from './activation';
 import {
   assertCleanCheckout,
   assertDestinationFree,
+  assertDestinationOutside,
   assertReleaseRuntime,
   assertReleaseTag,
   assertTagAtHead,
@@ -17,6 +18,7 @@ import {
 import {
   buildValidatorBundle,
   copyTrustedModules,
+  hashTrustedModules,
   trustedModuleNames,
   writeBytes,
 } from './trusted-modules';
@@ -124,7 +126,16 @@ export async function releaseToolkit(argv: readonly string[]): Promise<string[]>
   );
   assertReleaseRuntime(Bun.version, readFileSync(join(repository, '.bun-version'), 'utf8'));
   const destination = resolve(options.destination);
-  assertDestinationFree(destination, existsSync(join(destination, 'toolkit.json')));
+  assertDestinationOutside(repository, destination);
+  // The design wrote `wiki-<tag>.tar`; the tag already starts with `wiki-`, so the archive is
+  // `<tag>.tar` rather than `wiki-wiki-v0.0.1.tar`.
+  const path = resolve(destination, '..', `${tag}.tar`);
+  assertDestinationFree(
+    destination,
+    existsSync(join(destination, 'toolkit.json')),
+    path,
+    existsSync(path),
+  );
 
   const roleBytes = {
     'launcher.sh': readFileSync(join(repository, 'bin/tool-wiki-lint.sh')),
@@ -159,7 +170,8 @@ export async function releaseToolkit(argv: readonly string[]): Promise<string[]>
   }
   const modulesRoot = join(repository, 'node_modules');
   const trustedNodeModules = trustedModuleNames(modulesRoot);
-  copyTrustedModules(join(destination, 'trusted-node-modules'), modulesRoot, trustedNodeModules);
+  const closure = join(destination, 'trusted-node-modules');
+  copyTrustedModules(closure, modulesRoot, trustedNodeModules);
 
   const plan = planToolkit({
     tag,
@@ -167,6 +179,8 @@ export async function releaseToolkit(argv: readonly string[]): Promise<string[]>
     bunVersion: Bun.version,
     roleBytes,
     trustedNodeModules,
+    // Hashed after the copy, so the descriptor pins the bytes the archive actually carries.
+    trustedNodeModulesIdentity: hashTrustedModules(closure),
   });
   writeBytes(join(destination, 'toolkit.json'), plan.descriptor);
   writeBytes(join(destination, 'SHA256SUMS'), plan.checksums);
@@ -176,9 +190,6 @@ export async function releaseToolkit(argv: readonly string[]): Promise<string[]>
     ['show', '--no-patch', '--format=%ct', head],
     'cannot read committer time',
   );
-  // The design wrote `wiki-<tag>.tar`; the tag already starts with `wiki-`, so the archive is
-  // `<tag>.tar` rather than `wiki-wiki-v0.0.1.tar`.
-  const path = resolve(destination, '..', `${tag}.tar`);
   const packed = Bun.spawnSync(
     [
       'tar',

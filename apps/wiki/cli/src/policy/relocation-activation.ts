@@ -24,8 +24,9 @@ const GitIdentity = type(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/);
  * other than the candidate's `.bun-version` ({@link assertPinnedRuntime}) and equally a trusted
  * node module that is absent, unreadable or a symlink rather than a real directory (the CLI's
  * `packageDirectory`);
- * `R21` requires the base authority to already stratify every review the candidate policy names,
- * because the risk stratum is copied, never invented.
+ * `R21` requires the lineage source to already stratify every review the candidate policy names,
+ * because the risk stratum is copied, never invented: the base activation's authority in base mode,
+ * the operator's audit strata file in toolkit mode.
  */
 export type RelocationRefusalCode =
   | 'R1'
@@ -132,6 +133,12 @@ export type RelocationBase =
       readonly mappingBytes: Uint8Array;
       readonly authorityBytes: Uint8Array;
       readonly validatorIdentity: string;
+      /**
+       * The candidate entry the validator is rebuilt from. It exists only here: toolkit mode
+       * copies the toolkit's reviewed bundle instead of rebuilding, so there is no entry to place
+       * inside a boundary and `R18` has nothing to measure.
+       */
+      readonly validatorEntry: string;
     }
   | {
       readonly kind: 'toolkit';
@@ -154,7 +161,6 @@ export interface RelocationSources {
     readonly mappingBytes: Uint8Array;
     readonly mappingPath: string;
     readonly declarations: readonly CandidateFile[];
-    readonly validatorEntry: string;
     readonly validatorIdentity: string;
   };
 }
@@ -465,15 +471,14 @@ function mappedPaths(
 
 /**
  * Refuses a candidate mapping whose module lineage does not account for the base activation's
- * modules, and whose memberships do not land exactly on one relocated boundary each — the same
- * ownership rule admission applies (`trust.ts` `validatePilotModuleMapping`).
- * @throws {@link RelocationRefusal} `R11`-`R14`.
+ * modules. Purely base-relative, so only a relocation reaches it; the ownership rule admission
+ * applies (`trust.ts` `validatePilotModuleMapping`) is {@link assertMappingOwnership}, which runs
+ * in both modes.
+ * @throws {@link RelocationRefusal} `R11`-`R13`.
  */
 export function assertMappingLineage(
   baseMapping: typeof ModuleMapping.infer,
   candidateMapping: typeof ModuleMapping.infer,
-  policy: RelocationPolicy,
-  tree: CandidateSnapshot,
 ): void {
   const baseModuleIds = new Set(baseMapping.modules.map(({ moduleId }) => moduleId));
   const candidateModuleIds = new Set(candidateMapping.modules.map(({ moduleId }) => moduleId));
@@ -505,6 +510,22 @@ export function assertMappingLineage(
       refuse('R13', `base module has no successor in the candidate mapping: ${moduleId}`);
     }
   }
+}
+
+/**
+ * Refuses a mapping that does not exactly cover its own policy's boundaries in its own tree: every
+ * module owns the selected members of exactly one boundary, and every boundary has a module.
+ *
+ * This compares the candidate's mapping with the candidate's policy and the candidate's tree, so it
+ * needs no earlier activation and applies to a consumer's first, toolkit-sourced activation as much
+ * as to a relocation.
+ * @throws {@link RelocationRefusal} `R14`.
+ */
+export function assertMappingOwnership(
+  candidateMapping: typeof ModuleMapping.infer,
+  policy: RelocationPolicy,
+  tree: CandidateSnapshot,
+): void {
   const claimedBoundaryIds = new Set<string>();
   for (const module of candidateMapping.modules) {
     const ownedPaths = mappedPaths(tree, module.memberships, module.moduleId);
@@ -676,6 +697,10 @@ function candidateIdentityOf(snapshot: CandidateSnapshot): string {
 /**
  * Reads the candidate policy, mapping and declarations at the candidate revision and returns the
  * commands whose receipts the activation will carry.
+ *
+ * Base mode reaches every refusal below. Toolkit mode ({@link RelocationBase}) has no earlier
+ * activation, so the base-relative ones (`R4`-`R9`, `R11`-`R13`, `R18`) have nothing to compare
+ * against and are skipped; `R10`, `R14` and `R15` measure the candidate alone and always run.
  * @throws {@link RelocationRefusal} `R4`-`R15` and `R18`.
  */
 export function planRelocationChecks(sources: RelocationSources): CheckPlan {
@@ -706,19 +731,16 @@ export function planRelocationChecks(sources: RelocationSources): CheckPlan {
           // pre-move directory must earn the selector-miss refusal that points at the runbook, not
           // the membership refusal that miss also produces.
           return (): void => {
-            assertMappingLineage(
-              baseMapping,
-              candidateMapping,
-              candidate.view,
-              sources.candidate.tree,
-            );
-            assertValidatorEntry(candidate.view, sources.candidate.validatorEntry);
+            assertMappingLineage(baseMapping, candidateMapping);
+            assertValidatorEntry(candidate.view, source.validatorEntry);
           };
         })(sources.base)
       : (): void => {
           /* Toolkit mode has no earlier activation, so lineage has nothing to compare against. */
         };
   assertSelectorsResolve(candidate.view, sources.candidate.tree);
+  // R14 compares the candidate's mapping with its own policy and tree, so it runs in both modes.
+  assertMappingOwnership(candidateMapping, candidate.view, sources.candidate.tree);
   lineageChecks();
   return {
     checks: deriveCheckCommands(candidate.view, sources.candidate.declarations),

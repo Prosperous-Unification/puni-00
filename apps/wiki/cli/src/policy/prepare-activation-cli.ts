@@ -20,7 +20,7 @@ import {
   RelocationRefusal,
   type RelocationSources,
 } from './relocation-activation';
-import { copyTrustedModules, trustedModuleNames, writeBytes } from './trusted-modules';
+import { copyTrustedModules, hashTrustedModules, writeBytes } from './trusted-modules';
 
 const flags = [
   'candidate-repository',
@@ -82,6 +82,7 @@ const ToolkitDescriptor = type({
   bunVersion: 'string>=1',
   roles: type({ '[string]': /^[0-9a-f]{64}$/ }),
   trustedNodeModules: 'string[]',
+  trustedNodeModulesIdentity: /^[0-9a-f]{64}$/,
 }).onUndeclaredKey('reject');
 
 function git(repository: string, argv: string[], subject: string): Uint8Array {
@@ -159,6 +160,7 @@ interface Toolkit {
   readonly bunVersion: string;
   readonly digest: string;
   readonly roleBytes: Readonly<Record<string, Uint8Array>>;
+  readonly trustedNodeModules: readonly string[];
 }
 
 /**
@@ -188,6 +190,28 @@ function readToolkit(directory: string): Toolkit {
     }
     roleBytes[role] = bytes;
   }
+  // Proof: forcing this refusal false prepared an activation whose Bun was not the one that built
+  // the toolkit's `validator.mjs`, so the bundle digest the consumer binds could not be reproduced
+  // by its own runner; the drifted-toolkit negative expected this message and received a prepared
+  // activation at exit 0.
+  if (descriptor.bunVersion !== Bun.version) {
+    throw new RelocationRefusal(
+      'R19',
+      `toolkit was built with another Bun: ${descriptor.bunVersion} != ${Bun.version}`,
+    );
+  }
+  const closure = join(canonical, 'trusted-node-modules');
+  const closureIdentity = hashTrustedModules(closure);
+  // Proof: forcing this refusal false copied an altered `typescript/package.json` out of the
+  // toolkit into the consumer's archive as the validator's runtime; `SHA256SUMS` lists no file
+  // below `trusted-node-modules`, so nothing else in the chain would have noticed. The negative
+  // expected this message and received a prepared, self-certified activation at exit 0.
+  if (closureIdentity !== descriptor.trustedNodeModulesIdentity) {
+    throw new RelocationRefusal(
+      'R19',
+      `toolkit runtime closure differs from toolkit.json: ${closureIdentity} != ${descriptor.trustedNodeModulesIdentity}`,
+    );
+  }
   return {
     directory: canonical,
     tag: descriptor.tag,
@@ -195,6 +219,7 @@ function readToolkit(directory: string): Toolkit {
     bunVersion: descriptor.bunVersion,
     digest: hashBytes(descriptorBytes),
     roleBytes,
+    trustedNodeModules: descriptor.trustedNodeModules,
   };
 }
 
@@ -343,9 +368,6 @@ export function prepareToolkitActivation(argv: readonly string[]): string[] {
       mappingBytes,
       mappingPath: options['candidate-mapping'],
       declarations,
-      // The toolkit's bundle is the validator; nothing is rebuilt from this repository's entry, so
-      // the entry is the one the toolkit was built from and `R18` has nothing to measure here.
-      validatorEntry: 'apps/wiki/cli/src/cli.ts',
       validatorIdentity: hashBytes(toolkit.roleBytes['validator.mjs']),
     },
   };
@@ -394,10 +416,13 @@ export function prepareToolkitActivation(argv: readonly string[]): string[] {
   // Provenance only. Nothing on the admission path reads this descriptor; the transport digest
   // authenticates it exactly as it authenticates every other root file.
   writeBytes(join(destination, 'toolkit-release'), `${toolkit.tag} ${toolkit.digest}\n`);
+  // The names come from `toolkit.json`, not from walking the directory: re-deriving them would let
+  // an added package into the copy that the descriptor never named. `readToolkit` has already
+  // proven the closure's bytes against that same descriptor.
   copyTrustedModules(
     join(destination, 'trusted-node-modules'),
     join(toolkit.directory, 'trusted-node-modules'),
-    trustedModuleNames(join(toolkit.directory, 'trusted-node-modules')),
+    toolkit.trustedNodeModules,
   );
   const report = selfCheck(destination, repository, sha);
   const tarball = archive(

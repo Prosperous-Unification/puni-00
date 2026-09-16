@@ -761,6 +761,7 @@ export function relocationSources(
         overrides.baseAuthorityBytes ??
         readFileSync(join(base.directory, 'artifacts/authority.json')),
       validatorIdentity: hashBytes(readFileSync(join(base.directory, 'artifacts/validator.mjs'))),
+      validatorEntry: overrides.validatorEntry ?? 'src/new/cli.ts',
     },
     candidate: {
       sha: fixture.candidateRevision,
@@ -783,7 +784,6 @@ export function relocationSources(
           bytes: show(fixture.candidateRevision, 'docs/wiki-policy/relationships.json'),
         },
       ],
-      validatorEntry: overrides.validatorEntry ?? 'src/new/cli.ts',
       validatorIdentity: 'f'.repeat(64),
     },
   };

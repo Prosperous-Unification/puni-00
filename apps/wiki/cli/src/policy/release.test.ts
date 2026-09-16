@@ -1,4 +1,4 @@
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync } from 'node:fs';
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -14,9 +14,17 @@ import {
   candidateIdentityAt,
   createRelocationCandidate,
   disposeRelocationFixtures,
+  encodeJson,
+  fixtureMapping,
   write,
 } from './relocation-fixtures';
-import { buildValidatorBundle, writeBytes } from './trusted-modules';
+import {
+  buildValidatorBundle,
+  copyTrustedModules,
+  hashTrustedModules,
+  trustedModuleNames,
+  writeBytes,
+} from './trusted-modules';
 
 const workspace = resolve(import.meta.dir, '..', '..', '..', '..', '..');
 const scratchPaths: string[] = [];
@@ -154,6 +162,7 @@ describe('wiki-cli release target', () => {
       bunVersion: string;
       roles: Record<string, string>;
       trustedNodeModules: string[];
+      trustedNodeModulesIdentity: string;
     };
     expect(descriptor).toMatchObject({
       tag: 'wiki-v0.0.1',
@@ -161,6 +170,11 @@ describe('wiki-cli release target', () => {
       bunVersion: Bun.version,
       trustedNodeModules: ['typescript'],
     });
+    // Proof: `SHA256SUMS` lists no file below `trusted-node-modules`, so before this identity the
+    // 24 MB the validator loads was authenticated by nothing the consumer could check.
+    expect(descriptor.trustedNodeModulesIdentity).toBe(
+      hashTrustedModules(join(destination, 'trusted-node-modules')),
+    );
     for (const role of toolkitRoles) {
       expect(descriptor.roles[role]).toBe(hashBytes(readFileSync(join(destination, role))));
     }
@@ -279,6 +293,43 @@ describe('wiki-cli release target', () => {
       ),
     ).toContain(`destination already holds a toolkit: ${destination}`);
 
+    const inside = releaseCheckout();
+    git(inside.repository, ['tag', '--annotate', 'wiki-v0.0.1', '--message', 'toolkit']);
+    // Proof: with the containment refusal removed the target wrote the whole toolkit, including the
+    // vendored TypeScript closure, inside the checkout it had just verified clean; the negative
+    // packed an archive at exit 0 and left the release tree dirty for every later run.
+    expect(
+      await refusalMessage(
+        releaseToolkit([
+          '--tag',
+          'wiki-v0.0.1',
+          '--destination',
+          join(inside.repository, 'toolkit'),
+          '--repository',
+          inside.repository,
+        ]),
+      ),
+    ).toContain('destination must be outside the checkout being released');
+
+    const occupiedArchive = releaseCheckout();
+    git(occupiedArchive.repository, ['tag', '--annotate', 'wiki-v0.0.1', '--message', 'toolkit']);
+    write(join(occupiedArchive.destinationParent, 'wiki-v0.0.1.tar'), 'already published\n');
+    // Proof: with the archive refusal removed a second run replaced a tar an operator may already
+    // have published under its digest; the negative printed a fresh digest at exit 0 for a path
+    // whose old bytes no one could recover.
+    expect(
+      await refusalMessage(
+        releaseToolkit([
+          '--tag',
+          'wiki-v0.0.1',
+          '--destination',
+          join(occupiedArchive.destinationParent, 'toolkit'),
+          '--repository',
+          occupiedArchive.repository,
+        ]),
+      ),
+    ).toContain('toolkit archive already exists');
+
     const drifted = releaseCheckout();
     write(join(drifted.repository, '.bun-version'), '1.3.9\n');
     git(drifted.repository, ['add', '--all']);
@@ -310,6 +361,7 @@ describe('wiki-cli release target', () => {
         toolkitRoles.map((role) => [role, new TextEncoder().encode(`${role}\n`)]),
       ) as Record<(typeof toolkitRoles)[number], Uint8Array>,
       trustedNodeModules: ['typescript', '@typescript/old'],
+      trustedNodeModulesIdentity: 'c'.repeat(64),
     };
     const first = planToolkit(request);
     const second = planToolkit({
@@ -344,13 +396,18 @@ async function realToolkit(): Promise<string> {
   };
   for (const role of toolkitRoles) writeBytes(join(directory, role), roleBytes[role]);
   chmodSync(join(directory, 'launcher.sh'), 0o555);
-  symlinkSync(join(workspace, 'node_modules'), join(directory, 'trusted-node-modules'), 'dir');
+  // A real closure, copied rather than symlinked, so `hashTrustedModules` pins the bytes the
+  // preparer will read — the toolkit a consumer extracts carries files, not a link.
+  const closure = join(directory, 'trusted-node-modules');
+  const names = trustedModuleNames(join(workspace, 'node_modules'));
+  copyTrustedModules(closure, join(workspace, 'node_modules'), names);
   const plan = planToolkit({
     tag: 'wiki-v0.0.1',
     sourceRevision: 'b'.repeat(40),
     bunVersion: Bun.version,
     roleBytes,
-    trustedNodeModules: ['typescript'],
+    trustedNodeModules: names,
+    trustedNodeModulesIdentity: hashTrustedModules(closure),
   });
   writeBytes(join(directory, 'toolkit.json'), plan.descriptor);
   writeBytes(join(directory, 'SHA256SUMS'), plan.checksums);
@@ -487,6 +544,193 @@ describe('consumer activation from a toolkit', () => {
         'cwd.consumer-fixture',
       ]),
     ).toThrow('audit strata name no stratum for review: review.fixture.module');
+  }, 300_000);
+
+  test('a toolkit whose runtime closure or Bun drifted refuses before anything is prepared', async () => {
+    const out = scratch('tool-wiki-consumer-closure-');
+    const candidate = join(out, 'candidate');
+    mkdirSync(candidate, { recursive: true });
+    const preparerArguments = (toolkit: string): string[] => [
+      '--candidate-repository',
+      candidate,
+      '--candidate-sha',
+      'a'.repeat(40),
+      '--toolkit',
+      toolkit,
+      '--candidate-policy',
+      'policy.json',
+      '--candidate-mapping',
+      'modules.json',
+      '--review-record',
+      join(out, 'absent-review.json'),
+      '--audit-strata',
+      join(out, 'absent-strata.json'),
+      '--destination',
+      join(out, 'activation'),
+      '--work',
+      join(out, 'work'),
+      '--resource-lane',
+      'lane.consumer-fixture',
+      '--cwd-identity',
+      'cwd.consumer-fixture',
+    ];
+
+    const altered = await realToolkit();
+    const victim = join(altered, 'trusted-node-modules', 'typescript', 'package.json');
+    chmodSync(victim, 0o644);
+    writeFileSync(victim, `${readFileSync(victim, 'utf8')}\n`, 'utf8');
+    // Proof: with the closure identity removed, the preparer copied the altered TypeScript out of
+    // the toolkit into the consumer's archive as the validator's runtime and prepared a
+    // self-certified activation at exit 0 — nothing else in the chain reads those bytes.
+    expect(() => prepareToolkitActivation(preparerArguments(altered))).toThrow(
+      'toolkit runtime closure differs from toolkit.json',
+    );
+
+    const drifted = await realToolkit();
+    const descriptorPath = join(drifted, 'toolkit.json');
+    const descriptor = JSON.parse(readFileSync(descriptorPath, 'utf8')) as Record<string, unknown>;
+    writeFileSync(
+      descriptorPath,
+      `${JSON.stringify({ ...descriptor, bunVersion: '1.3.9' })}\n`,
+      'utf8',
+    );
+    // Proof: with the runtime comparison removed the preparer bound a `validator.mjs` digest that
+    // the consumer's own pinned Bun could not reproduce, and prepared at exit 0.
+    expect(() => prepareToolkitActivation(preparerArguments(drifted))).toThrow(
+      'toolkit was built with another Bun: 1.3.9',
+    );
+  }, 300_000);
+
+  test('toolkit mode keeps the refusals that measure the candidate alone', async () => {
+    const toolkit = await realToolkit();
+
+    const uncovered = createRelocationCandidate();
+    const uncoveredOut = scratch('tool-wiki-consumer-r14-');
+    write(
+      join(uncoveredOut, 'audit-strata.json'),
+      `${JSON.stringify({
+        strata: [
+          {
+            stratumId: 'risk.public-admission',
+            sampleRateBps: 10000,
+            disagreementTriggerBps: 10000,
+          },
+        ],
+        obligations: { 'review.fixture.module': 'risk.public-admission' },
+      })}\n`,
+    );
+    write(
+      join(uncoveredOut, 'review.json'),
+      `${JSON.stringify(
+        auditReview(
+          'review.fixture.module',
+          uncovered.candidateRevision,
+          candidateIdentityAt(uncovered.repository, uncovered.candidateRevision),
+        ),
+      )}\n`,
+    );
+    // The consumer's mapping still names the pre-move prefix, so it covers no boundary of its own
+    // policy. Nothing about that needs an earlier activation to see.
+    const strandedMapping = join(uncoveredOut, 'stranded-modules.json');
+    write(
+      strandedMapping,
+      new TextDecoder().decode(
+        encodeJson(fixtureMapping(uncovered.reviewedRevision, 'src/old', 'v2')),
+      ),
+    );
+    git(uncovered.repository, ['config', 'user.email', 'consumer@example.test']);
+    git(uncovered.repository, ['config', 'user.name', 'Consumer Fixture']);
+    cpSync(strandedMapping, join(uncovered.repository, 'docs/wiki-policy/modules.json'));
+    git(uncovered.repository, ['add', '--all']);
+    git(uncovered.repository, ['commit', '--message', 'mapping that covers no boundary']);
+    const strandedRevision = git(uncovered.repository, ['rev-parse', 'HEAD']);
+
+    // Proof: with `assertMappingOwnership` guarded behind the base arm, toolkit mode skipped R14
+    // entirely and this mapping — which owns nothing in the candidate's own tree — reached
+    // `prepareActivation` and the self-check. R14 compares the candidate's mapping with its own
+    // policy and tree, so a consumer's first activation needs it exactly as a relocation does.
+    expect(() =>
+      prepareToolkitActivation([
+        '--candidate-repository',
+        uncovered.repository,
+        '--candidate-sha',
+        strandedRevision,
+        '--toolkit',
+        toolkit,
+        '--candidate-policy',
+        'docs/wiki-policy/policy.json',
+        '--candidate-mapping',
+        'docs/wiki-policy/modules.json',
+        '--review-record',
+        join(uncoveredOut, 'review.json'),
+        '--audit-strata',
+        join(uncoveredOut, 'audit-strata.json'),
+        '--destination',
+        join(uncoveredOut, 'activation'),
+        '--work',
+        join(uncoveredOut, 'work'),
+        '--resource-lane',
+        'lane.consumer-fixture',
+        '--cwd-identity',
+        'cwd.consumer-fixture',
+      ]),
+    ).toThrow('module membership selects no candidate input: module.fixture.module');
+  }, 300_000);
+
+  test('a review record binding another candidate refuses through the toolkit preparer', async () => {
+    const fixture = createRelocationCandidate();
+    const toolkit = await realToolkit();
+    const out = scratch('tool-wiki-consumer-review-');
+    write(
+      join(out, 'audit-strata.json'),
+      `${JSON.stringify({
+        strata: [
+          {
+            stratumId: 'risk.public-admission',
+            sampleRateBps: 10000,
+            disagreementTriggerBps: 10000,
+          },
+        ],
+        obligations: { 'review.fixture.module': 'risk.public-admission' },
+      })}\n`,
+    );
+    // A well-formed review of a DIFFERENT candidate identity: the shape passes, only the join fails.
+    write(
+      join(out, 'review.json'),
+      `${JSON.stringify(
+        auditReview('review.fixture.module', fixture.candidateRevision, 'a'.repeat(64)),
+      )}\n`,
+    );
+
+    // Proof: admission checks a review only for shape and joins, so a consistent record for
+    // another tree would certify. Removing this join let the preparer bind someone else's review
+    // to this candidate's authority.
+    expect(() =>
+      prepareToolkitActivation([
+        '--candidate-repository',
+        fixture.repository,
+        '--candidate-sha',
+        fixture.candidateRevision,
+        '--toolkit',
+        toolkit,
+        '--candidate-policy',
+        'docs/wiki-policy/policy.json',
+        '--candidate-mapping',
+        'docs/wiki-policy/modules.json',
+        '--review-record',
+        join(out, 'review.json'),
+        '--audit-strata',
+        join(out, 'audit-strata.json'),
+        '--destination',
+        join(out, 'activation'),
+        '--work',
+        join(out, 'work'),
+        '--resource-lane',
+        'lane.consumer-fixture',
+        '--cwd-identity',
+        'cwd.consumer-fixture',
+      ]),
+    ).toThrow('review');
   }, 300_000);
 
   test('a toolkit role altered after packing refuses before anything is prepared', async () => {

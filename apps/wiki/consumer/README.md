@@ -90,9 +90,23 @@ Both are **operator attestation**. The preparer validates them and never writes 
 
   A policy review with no stratum here is refused by name rather than given a default.
 
-## 5. Prepare your activation
+## 5. Verify the toolkit, then prepare your activation
 
-From a clean checkout at the reviewed commit, with the toolkit extracted:
+Verify the release asset before you run anything out of it. The toolkit's own digests are inside
+the archive, so they prove nothing about the archive you downloaded:
+
+```sh
+sha256sum wiki-vX.Y.Z.tar          # compare with the SHA-256 on the release page
+mkdir toolkit && tar -xf wiki-vX.Y.Z.tar -C toolkit
+(cd toolkit && sha256sum -c SHA256SUMS)
+```
+
+`SHA256SUMS` covers `toolkit.json` and the four role files. It does **not** list the ~24 MB of
+vendored TypeScript under `trusted-node-modules/`; `toolkit.json` carries a single
+`trustedNodeModulesIdentity` over that whole closure instead, and the preparer checks it — along
+with every role digest and the Bun version — before it copies anything.
+
+From a clean checkout at the reviewed commit, with the toolkit extracted and verified:
 
 ```sh
 bun <toolkit>/prepare-activation.mjs \

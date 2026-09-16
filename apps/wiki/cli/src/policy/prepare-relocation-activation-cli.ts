@@ -376,6 +376,7 @@ export async function prepareRelocationActivation(argv: readonly string[]): Prom
       mappingBytes: base.mappingBytes,
       authorityBytes: base.authorityBytes,
       validatorIdentity: base.validatorIdentity,
+      validatorEntry: entry,
     },
     candidate: {
       sha,
@@ -385,7 +386,6 @@ export async function prepareRelocationActivation(argv: readonly string[]): Prom
       mappingBytes,
       mappingPath: base.mappingPath,
       declarations,
-      validatorEntry: entry,
       validatorIdentity: hashBytes(validatorBytes),
     },
   };

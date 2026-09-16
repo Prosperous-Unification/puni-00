@@ -1,14 +1,8 @@
-import { cpSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
+import { hashBytes } from '../evidence/content-manifest';
 import { RelocationRefusal } from './relocation-activation';
-
-/**
- * The role sources a relocation activation and a toolkit release both derive from an installed
- * tree: the TypeScript runtime closure the validator loads, and the validator bundle itself.
- * Both producers must agree byte-for-byte, because a toolkit's `trusted-node-modules` and a
- * relocation archive's are the same role and a consumer's launcher cannot tell them apart.
- */
 
 /**
  * Resolves one installed package directory, refusing anything that is not a real directory.
@@ -38,6 +32,11 @@ export function packageDirectory(modulesRoot: string, name: string): string {
 
 /**
  * The transitive `dependencies` closure of `typescript` as the tree installed it, sorted.
+ *
+ * This closure is a role a relocation activation and a toolkit release both derive from an
+ * installed tree, and both must derive it identically: a toolkit's `trusted-node-modules` and a
+ * relocation archive's are the same role, and a consumer's launcher cannot tell them apart.
+ * {@link hashTrustedModules} is what pins the bytes once they are copied.
  * @throws {@link RelocationRefusal} `R19` for a member that is absent or not a directory.
  */
 export function trustedModuleNames(modulesRoot: string): string[] {
@@ -71,6 +70,32 @@ export function copyTrustedModules(
   }
 }
 
+/**
+ * One digest over a copied closure: every regular file below `root`, as sorted
+ * `<relative path>:<sha256>` lines. A toolkit records it so a consumer can prove the 24 MB of
+ * vendored TypeScript it is about to load is the reviewed copy, which `SHA256SUMS` cannot do
+ * file-by-file without dwarfing the descriptor it lives in.
+ * @throws Error when `root` is not a readable directory.
+ */
+export function hashTrustedModules(root: string): string {
+  const lines: string[] = [];
+  const walk = (directory: string, prefix: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true }).sort((left, right) =>
+      left.name < right.name ? -1 : 1,
+    )) {
+      const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) walk(path, relative);
+      // A symlink inside the closure is not a file this digest can pin; `packageDirectory` already
+      // refuses a symlinked package, and a symlinked file below one would resolve outside the copy.
+      else if (entry.isFile()) lines.push(`${relative}:${hashBytes(readFileSync(path))}`);
+      else throw new Error(`trusted node modules carry a non-regular entry: ${relative}`);
+    }
+  };
+  walk(root, '');
+  return hashBytes(new TextEncoder().encode(`${lines.sort().join('\n')}\n`));
+}
+
 export function writeBytes(path: string, bytes: Uint8Array | string): string {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, bytes);
@@ -79,7 +104,8 @@ export function writeBytes(path: string, bytes: Uint8Array | string): string {
 
 /**
  * Bundles one entry into a standalone ESM module with the running Bun. The caller pins that Bun
- * first ({@link assertPinnedRuntime}), because the bundle's digest is what the activation binds.
+ * first (`assertPinnedRuntime` in `relocation-activation.ts`, `assertReleaseRuntime` in
+ * `release.ts`), because the bundle's digest is what the activation binds.
  * @throws Error naming the entry when the bundle cannot be produced.
  */
 export async function buildValidatorBundle(

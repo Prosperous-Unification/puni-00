@@ -1,5 +1,4 @@
-import { serializeCanonical } from '../evidence/content-manifest';
-import { hashBytes } from '../evidence/content-manifest';
+import { hashBytes, serializeCanonical } from '../evidence/content-manifest';
 
 /**
  * Every way the release target refuses to pack a toolkit, in the order it reaches them. A toolkit
@@ -13,11 +12,13 @@ import { hashBytes } from '../evidence/content-manifest';
  *      produces and a consumer's runner pins the same version;
  * `T6` a validator bundle that is not standalone, which would load unreviewed bytes at admission
  *      (a contract guard with no observed negative — see the comment at its throw site);
- * `T7` a trusted node module that is absent or a symlink (raised by `trusted-modules.ts` as `R19`
- *      and surfaced unchanged, because it is the same fact about the same role);
+ * `T7` a destination that is inside the checkout being released, or whose archive path already
+ *      exists — the tar may already be published under that digest. A trusted node module that is
+ *      absent or a symlink is raised by `trusted-modules.ts` as `R19` and surfaced unchanged,
+ *      because it is the same fact about the same role;
  * `T8` a destination that already holds a toolkit.
  */
-export type ReleaseRefusalCode = 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'T6' | 'T8';
+export type ReleaseRefusalCode = 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'T6' | 'T7' | 'T8';
 
 /** A named refusal to pack a toolkit; the message always names the offending tag, path or value. */
 export class ReleaseRefusal extends Error {
@@ -55,6 +56,8 @@ export interface ToolkitPlanRequest {
   readonly bunVersion: string;
   readonly roleBytes: Readonly<Record<ToolkitRole, Uint8Array>>;
   readonly trustedNodeModules: readonly string[];
+  /** {@link hashTrustedModules} over the copied closure, the only thing that pins its 24 MB. */
+  readonly trustedNodeModulesIdentity: string;
 }
 
 export interface ToolkitPlan {
@@ -133,16 +136,45 @@ export function assertReleaseRuntime(actual: string, pinned: string): void {
 }
 
 /**
- * Refuses a destination that already holds a toolkit, so a second run never half-overwrites one
- * whose digest an operator may already have published.
+ * Refuses a destination that already holds a toolkit, and an archive path that already exists, so a
+ * second run never half-overwrites either one — the tar may already be published under its digest.
  * @throws {@link ReleaseRefusal} `T8`.
  */
-export function assertDestinationFree(destination: string, occupied: boolean): void {
+export function assertDestinationFree(
+  destination: string,
+  occupied: boolean,
+  archivePath: string,
+  archiveExists: boolean,
+): void {
   // Proof: forcing this refusal false wrote a second `toolkit.json` beside the first run's
   // `trusted-node-modules`, and the printed sha256 described an archive mixing both; the T8
   // negative received a printed archive path at exit 0.
   if (occupied) {
     throw new ReleaseRefusal('T8', `destination already holds a toolkit: ${destination}`);
+  }
+  // Proof: forcing this refusal false overwrote an existing `wiki-v0.0.1.tar` beside a fresh
+  // destination; the negative received a printed archive path at exit 0, so a tar an operator may
+  // already have published under its digest was replaced in place.
+  if (archiveExists) {
+    throw new ReleaseRefusal('T8', `toolkit archive already exists: ${archivePath}`);
+  }
+}
+
+/**
+ * Refuses a destination inside the checkout being released: the toolkit is read from that tree and
+ * `assertCleanCheckout` has already measured it, so writing into it makes the archive describe a
+ * tree that no longer matches the commit `toolkit.json` names.
+ * @throws {@link ReleaseRefusal} `T7`.
+ */
+export function assertDestinationOutside(repository: string, destination: string): void {
+  // Proof: forcing this refusal false wrote the whole toolkit, including 24 MB of vendored
+  // TypeScript, inside the checkout it had just verified clean; the negative packed an archive at
+  // exit 0 and left the release tree dirty for every later run.
+  if (destination === repository || destination.startsWith(`${repository}/`)) {
+    throw new ReleaseRefusal(
+      'T7',
+      `destination must be outside the checkout being released: ${destination}`,
+    );
   }
 }
 
@@ -162,6 +194,7 @@ export function planToolkit(request: ToolkitPlanRequest): ToolkitPlan {
       bunVersion: request.bunVersion,
       roles: digests,
       trustedNodeModules: [...request.trustedNodeModules].sort(),
+      trustedNodeModulesIdentity: request.trustedNodeModulesIdentity,
     }),
   );
   const lines = [

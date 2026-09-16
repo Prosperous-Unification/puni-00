@@ -11,7 +11,9 @@
         "default",
         "^production",
         "{workspaceRoot}/.github/workflows/ci.yml",
-        "{workspaceRoot}/.github/workflows/trusted-wiki.yml"
+        "{workspaceRoot}/.github/workflows/trusted-wiki.yml",
+        "{workspaceRoot}/.github/workflows/wiki-release.yml",
+        "{workspaceRoot}/apps/wiki/consumer/**/*"
       ],
       "options": {
         "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --preload ../../../tools/test/scratch/preload.ts",

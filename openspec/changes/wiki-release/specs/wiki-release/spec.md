@@ -4,14 +4,15 @@
 
 The release target SHALL pack, from a clean checkout whose HEAD the tag `wiki-vMAJOR.MINOR.PATCH`
 names, exactly `toolkit.json`, `SHA256SUMS`, `launcher.sh`, `snapshotter.ts`, `validator.mjs`,
-`prepare-activation.mjs` and `trusted-node-modules/` into `wiki-<tag>.tar`, and SHALL print that
+`prepare-activation.mjs` and `trusted-node-modules/` into `<tag>.tar`, and SHALL print that
 archive's SHA-256. `toolkit.json` SHALL carry the tag, the tag's commit, the pinned Bun version, a
-SHA-256 for every role member and the trusted module names.
+SHA-256 for every role member, the trusted module names and one digest over the whole copied
+runtime closure, because `SHA256SUMS` lists no file below `trusted-node-modules/`.
 
 #### Scenario: A tag at HEAD of a clean checkout
 
 - **WHEN** the target runs against a checkout with no uncommitted or untracked paths whose HEAD the named tag resolves to
-- **THEN** it writes `wiki-<tag>.tar` holding exactly those members and prints the tag, the commit and the archive digest
+- **THEN** it writes `<tag>.tar` holding exactly those members and prints the tag, the commit and the archive digest
 - **AND** the printed digest equals the archive file's SHA-256, and every `toolkit.json` role digest equals its member's bytes
 
 #### Scenario: The toolkit carries nothing that certifies a commit
@@ -23,8 +24,8 @@ SHA-256 for every role member and the trusted module names.
 
 The release target SHALL refuse, naming the cause, a malformed tag, a tag no commit resolves, a tag
 that is not at HEAD, a dirty checkout, an operator Bun other than `.bun-version`, a bundle that is
-not standalone and a destination that already holds a toolkit. On any refusal it SHALL write no
-archive.
+not standalone, a destination inside the checkout being released, a destination that already holds
+a toolkit, and an archive path that already exists. On any refusal it SHALL write no archive.
 
 #### Scenario: The checkout is dirty
 
@@ -45,6 +46,11 @@ archive.
 
 - **WHEN** the running Bun differs from `.bun-version`
 - **THEN** the target refuses naming both versions and writes no archive
+
+#### Scenario: The destination would overwrite the checkout or a published archive
+
+- **WHEN** the destination is inside the checkout being released, or its `<tag>.tar` already exists
+- **THEN** the target refuses naming the path, because writing into the tree it just measured clean, or over a tar an operator may already have published under its digest, cannot be undone
 
 ### Requirement: A consumer prepares its own activation from the toolkit
 
@@ -86,6 +92,11 @@ selector that selects nothing, a membership mismatch, and a failed or skipped ch
 
 - **WHEN** a toolkit member's bytes differ from its `toolkit.json` digest
 - **THEN** the preparer refuses naming that role and writes no activation
+
+#### Scenario: The toolkit's runtime closure or Bun drifted
+
+- **WHEN** any file below the toolkit's `trusted-node-modules/` differs from the descriptor's closure digest, or `toolkit.json` names a Bun other than the running one
+- **THEN** the preparer refuses naming both values and copies nothing, because that closure is what the consumer's validator loads and the bundle digest is what its runner must reproduce
 
 ### Requirement: The trusted workflow runs the archived launcher and runtime
 
