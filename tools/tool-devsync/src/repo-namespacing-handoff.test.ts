@@ -627,7 +627,14 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // oracle pushed sync.test.ts's one `apps/mcp-01` proof context from line 314 to 318, and
     // nothing else moved; `apps/wiki/eslint.product.mjs` carries no legacy root of its own
     // (2026-09-16).
-    digest: '4c062320abd0a2ac96da8b83425e99ea9e7e2ff1fa60d6753cf0a31940148e66',
+    // Proof: leaving `4c062320...` here after the legacy-authority refusal failed on the observed
+    // digest below, still at 257 — the guard and its JSDoc pushed authority-store.ts's
+    // `libs/contracts` proof context from line 819 to 840, the new refusal test pushed
+    // claims.db.test.ts's eleven claim-path contexts down 18 lines, and the selector pin and the
+    // metadata-less index mutation pushed pilot-policy.test.ts's ten contexts down 16 then 26.
+    // Verified green at `84a4fd63` before these edits, so nothing else contributes; every
+    // context's text and category is unchanged (2026-09-16).
+    digest: '2f9b04adebea99273dba95ea64ffff5504a821a125689f44daeb9316d6e5efa4',
     occurrences: 257,
     unclassified: [],
   });

@@ -789,9 +789,30 @@ function runGitCommonDirectory(worktreePath: string): string {
   return realpathSync(isAbsolute(common) ? common : resolve(worktreePath, common));
 }
 
-/** Resolves the one authority file shared by every linked or symlinked worktree. */
+/**
+ * Resolves the one authority file shared by every linked or symlinked worktree.
+ *
+ * Refuses outright while the superseded `wbs-wiki` directory is still present. The v5 version
+ * check can only fire on a row it finds at the new path, and a rename produces no such row, so
+ * without this guard a clone carrying a pre-rename authority would start from an empty one and
+ * lose whatever it recorded — silently, which is the harm the version check exists to prevent.
+ * Nothing is migrated: the operator decides what happens to the old store.
+ *
+ * @throws When `<common-git-dir>/wbs-wiki` exists, or when the authority directory does not
+ *   resolve to itself.
+ */
 export function resolveAuthorityDatabasePath(worktreePath: string): string {
   const commonDirectory = runGitCommonDirectory(worktreePath);
+  const legacyDirectory = join(commonDirectory, 'wbs-wiki');
+  // Proof: without this check, a fixture carrying `.git/wbs-wiki/authority.sqlite` resolved to
+  // `.git/module-wiki/authority.sqlite` without throwing, and `refuses a legacy authority store
+  // left under the pre-rename directory` failed on `Received function did not throw`
+  // (2026-09-16).
+  if (existsSync(legacyDirectory)) {
+    throw new Error(
+      `legacy authority store present at ${legacyDirectory}: this version keeps its authority in ${join(commonDirectory, 'module-wiki')} and migrates nothing, so remove or archive the legacy directory deliberately before continuing`,
+    );
+  }
   const authorityDirectory = join(commonDirectory, 'module-wiki');
   mkdirSync(authorityDirectory, { recursive: true });
   // Proof: omitting this comparison let `.git/module-wiki` redirect the authority outside the

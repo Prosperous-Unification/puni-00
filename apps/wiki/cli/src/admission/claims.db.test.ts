@@ -173,6 +173,24 @@ test('refuses an authority-directory symlink outside the canonical common Git di
   );
 });
 
+test('refuses a legacy authority store left under the pre-rename directory', () => {
+  const fixture = fixtureRepository();
+  const legacy = join(fixture.root, '.git', 'wbs-wiki');
+  mkdirSync(legacy);
+  new Database(join(legacy, 'authority.sqlite'), { create: true }).close();
+
+  // Proof: with the `existsSync(legacyDirectory)` guard removed from
+  // `resolveAuthorityDatabasePath`, this case observed `Received function did not throw` and the
+  // returned `.../.git/module-wiki/authority.sqlite` — the empty authority the guard exists to
+  // prevent (2026-09-16).
+  expect(() => resolveAuthorityDatabasePath(fixture.root)).toThrow(
+    'legacy authority store present',
+  );
+  // The refusal has to come before the new directory is created, or an operator who removes the
+  // legacy store afterwards cannot tell an untouched clone from one this call already emptied.
+  expect(existsSync(join(fixture.root, '.git', 'module-wiki'))).toBe(false);
+});
+
 test('refuses an existing authority database symlink', () => {
   const fixture = fixtureRepository();
   const databasePath = resolveAuthorityDatabasePath(fixture.root);
