@@ -5,6 +5,7 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -178,27 +179,45 @@ function runPreparation(
   sha = prepared.fixture.candidateRevision,
   entry = 'src/new/cli.ts',
 ): CommandInvocation {
-  return runCommand([
-    '--candidate-repository',
-    prepared.fixture.repository,
-    '--candidate-sha',
-    sha,
-    '--base-activation',
-    prepared.base.directory,
-    '--review-record',
-    prepared.reviewPath,
-    '--destination',
-    prepared.destination,
-    '--work',
-    join(prepared.fixture.workspace, 'relocation-work'),
-    '--candidate-policy',
-    'docs/wiki-policy/policy.json',
-    '--validator-entry',
-    entry,
-    '--resource-lane',
-    'fixture.lane',
-    ...overrides,
-  ]);
+  return runCommand(
+    withOverrides(
+      [
+        '--candidate-repository',
+        prepared.fixture.repository,
+        '--candidate-sha',
+        sha,
+        '--base-activation',
+        prepared.base.directory,
+        '--review-record',
+        prepared.reviewPath,
+        '--destination',
+        prepared.destination,
+        '--work',
+        join(prepared.fixture.workspace, 'relocation-work'),
+        '--candidate-policy',
+        'docs/wiki-policy/policy.json',
+        '--validator-entry',
+        entry,
+        '--resource-lane',
+        'fixture.lane',
+        '--cwd-identity',
+        'fixture.repository',
+      ],
+      overrides,
+    ),
+  );
+}
+
+/** Applies `--flag value` pairs over the default argv, replacing a flag rather than repeating it. */
+function withOverrides(argv: readonly string[], overrides: readonly string[]): string[] {
+  const applied = [...argv];
+  for (let index = 0; index < overrides.length; index += 2) {
+    const flag = overrides[index];
+    const at = applied.indexOf(flag);
+    if (at < 0) applied.push(flag, overrides[index + 1]);
+    else applied[at + 1] = overrides[index + 1];
+  }
+  return applied;
 }
 
 function archivePath(fixture: RelocationFixture): string {
@@ -229,11 +248,26 @@ describe('relocation activation prepared from a candidate SHA', () => {
     // activation was prepared from. Proof: forcing the self-check's refusal false (see the
     // observe-mode negative below) tarred an activation the same launcher had just refused.
     expect(invocation.output).toContain('"certified":true');
-    expect(existsSync(join(prepared.destination, 'bootstrap-launcher.sh'))).toBe(true);
+    // Proof: removing the comparison against the base `launcher` role left the output with no
+    // launcher disposition at all, and this assertion observed the validator line alone.
+    expect(invocation.output).toContain('launcher: unchanged');
+    const launcher = join(prepared.destination, 'bootstrap-launcher.sh');
+    expect(statSync(launcher).mode & 0o777).toBe(0o555);
     expect(
       existsSync(join(prepared.destination, 'trusted-node-modules', 'typescript', 'package.json')),
     ).toBe(true);
-    expect(existsSync(archivePath(prepared.fixture))).toBe(true);
+    expect(
+      existsSync(join(prepared.destination, 'trusted-node-modules', '@typescript', 'old')),
+    ).toBe(true);
+    const archive = archivePath(prepared.fixture);
+    expect(existsSync(archive)).toBe(true);
+    const digest = Buffer.from(Bun.spawnSync(['sha256sum', archive], { stdout: 'pipe' }).stdout)
+      .toString('utf8')
+      .slice(0, 64);
+    // Proof: hashing the archive's path instead of its bytes printed a digest this comparison
+    // did not match — the digest an operator pastes into the release notes and the
+    // TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256 variable.
+    expect(invocation.output).toContain(`sha256: ${digest}`);
   }, 300_000);
 
   test('refuses a boundary the candidate moved without a source selector', () => {
@@ -270,6 +304,10 @@ describe('relocation activation prepared from a candidate SHA', () => {
       'docs/wiki-policy/policy.json',
       '--validator-entry',
       'src/new/cli.ts',
+      '--resource-lane',
+      'fixture.lane',
+      '--cwd-identity',
+      'fixture.repository',
     ]);
 
     expect(invocation.exitCode, invocation.output).toBe(1);
@@ -475,7 +513,6 @@ describe('relocation activation prepared from a candidate SHA', () => {
   }, 300_000);
 
   test('refuses a check the candidate declares no executable target for', () => {
-    const { fixture } = sharedRelocation();
     const declarations = {
       schemaVersion: 1,
       declarationId: 'declaration.relocation-fixture',
@@ -500,7 +537,15 @@ describe('relocation activation prepared from a candidate SHA', () => {
     expect(() => planRelocationChecks(withoutFacts)).toThrow(
       'check has no executable nx-target fact: check.fixture.module',
     );
-    expect(fixture.candidateRevision).toHaveLength(40);
+    // The same derivation with the fact present: one check, the Nx command the candidate declares,
+    // and no skip channel, because `printf` reports none.
+    expect(planRelocationChecks(sources()).checks).toEqual([
+      {
+        checkId: 'check.fixture.module',
+        command: ['bunx', 'nx', 'run', 'fixture:check', '--skip-nx-cache'],
+        skipChannel: 'none',
+      },
+    ]);
   }, 300_000);
 
   test('refuses a membership that selects nothing at the candidate revision', () => {
@@ -675,7 +720,11 @@ describe('relocation activation prepared from a candidate SHA', () => {
         evidence.receipt.trust.scope = 'local-cooperative';
       });
     }).toThrow('review record does not bind the candidate: trust.scope');
-    expect(fixture.candidateRevision).toHaveLength(40);
+    // The unmutated record of the same fixture binds, so the refusals above are the mutations
+    // rather than the fixture.
+    expect(() => {
+      planWithReview();
+    }).not.toThrow();
   }, 300_000);
 
   test('refuses a review the base authority never stratified', () => {
@@ -770,6 +819,139 @@ describe('relocation activation prepared from a candidate SHA', () => {
     expect(existsSync(archivePath(prepared.fixture))).toBe(false);
   }, 300_000);
 
+  test('measures the skips a bun test check reports instead of claiming none', () => {
+    const prepared = commandFixture({
+      fixture: createRelocationCandidate({ skippingCheck: true }),
+    });
+
+    const invocation = runPreparation(prepared);
+
+    expect(invocation.exitCode, invocation.output).toBe(1);
+    // Proof: deriving the skip channel as `'none'` for every command left this Nx `bun test`
+    // target's one skipped test unmeasured and the command prepared, certified and tarred a
+    // complete activation (`Expected: 1 / Received: 0`); recording the measured skips but not
+    // refusing them moved the failure to `prepared activation is not certified by its own
+    // launcher`, which is admission refusing the same receipt later.
+    expect(invocation.output).toContain(
+      'check skipped work: check.fixture.module (bun test: 1 skip); stdout ',
+    );
+    expect(existsSync(archivePath(prepared.fixture))).toBe(false);
+  }, 300_000);
+
+  test('refuses a reviewed snapshot that is not a committed selection', () => {
+    const { base, fixture } = sharedRelocation();
+    const committed = relocationSources(fixture, base);
+    const working: RelocationSources = {
+      base: committed.base,
+      candidate: {
+        ...committed.candidate,
+        reviewed: {
+          ...committed.candidate.reviewed,
+          selection: {
+            kind: 'working',
+            base: fixture.reviewedRevision,
+            trackedSnapshot: 'a'.repeat(64),
+            untrackedSnapshot: 'b'.repeat(64),
+          },
+        },
+      },
+    };
+
+    // Proof: forcing the committed-selection refusal false read `revision` off a working
+    // selection that has none; this negative observed `canonical JSON cannot serialize undefined`
+    // instead of the named refusal.
+    expect(() =>
+      planRelocationActivation(
+        working,
+        [checkRun()],
+        auditReview(
+          'review.fixture.module',
+          fixture.candidateRevision,
+          candidateIdentityAt(fixture.repository, fixture.candidateRevision),
+        ),
+        attestation,
+      ),
+    ).toThrow('reviewed snapshot is not a committed selection: working');
+  }, 300_000);
+
+  test('refuses a work or destination path inside the candidate repository', () => {
+    const prepared = commandFixture({ fixture: sharedRelocation().fixture });
+    const inside = join(prepared.fixture.repository, 'relocation-inside');
+
+    const work = runPreparation(prepared, ['--work', inside]);
+    expect(work.exitCode, work.output).toBe(1);
+    // Proof: forcing the containment refusal false wrote the rebuilt validator and every role
+    // into the candidate tree and ran the checks against it; the refusal arrived only afterwards
+    // from `prepareActivation`'s role-source guard — this negative observed `activation authority
+    // source must be outside the candidate repository`.
+    expect(work.output).toContain(`--work must be outside the candidate repository: ${inside}`);
+
+    const destination = runPreparation(prepared, ['--destination', inside]);
+    expect(destination.exitCode, destination.output).toBe(1);
+    expect(destination.output).toContain(
+      `--destination must be outside the candidate repository: ${inside}`,
+    );
+    expect(existsSync(inside)).toBe(false);
+  }, 300_000);
+
+  test('refuses a trusted node module the candidate has not installed', () => {
+    const prepared = commandFixture();
+    const empty = join(prepared.fixture.workspace, 'empty-modules');
+    mkdirSync(empty, { recursive: true });
+    Bun.spawnSync(['rm', join(prepared.fixture.repository, 'node_modules')]);
+    symlinkSync(empty, join(prepared.fixture.repository, 'node_modules'), 'dir');
+
+    const invocation = runPreparation(prepared);
+
+    expect(invocation.exitCode, invocation.output).toBe(1);
+    // Proof: rethrowing the lstat failure unwrapped reported a bare `ENOENT: no such file or
+    // directory, lstat '<candidate>/node_modules/typescript'`, naming neither the refusal nor why
+    // the archive wanted that package.
+    expect(invocation.output).toContain('trusted node module is absent or a symlink:');
+    expect(invocation.output).toContain('typescript');
+    expect(existsSync(archivePath(prepared.fixture))).toBe(false);
+  }, 300_000);
+
+  test('refuses a preparation that attests to no resource lane or cwd identity', () => {
+    const prepared = commandFixture({ fixture: sharedRelocation().fixture });
+    const complete = [
+      '--candidate-repository',
+      prepared.fixture.repository,
+      '--candidate-sha',
+      prepared.fixture.candidateRevision,
+      '--base-activation',
+      prepared.base.directory,
+      '--review-record',
+      prepared.reviewPath,
+      '--destination',
+      prepared.destination,
+      '--work',
+      join(prepared.fixture.workspace, 'attestation-work'),
+      '--candidate-policy',
+      'docs/wiki-policy/policy.json',
+      '--validator-entry',
+      'src/new/cli.ts',
+      '--resource-lane',
+      'fixture.lane',
+      '--cwd-identity',
+      'fixture.repository',
+    ];
+    const without = (flag: string): string[] => {
+      const index = complete.indexOf(flag);
+      return [...complete.slice(0, index), ...complete.slice(index + 2)];
+    };
+
+    // Proof: restoring the `operator.tool-wiki-bootstrap` and `repository.candidate-checkout`
+    // defaults let the tool write the operator's own attestation into every check receipt; each
+    // negative observed `relocation activation: ...` at exit 0 instead of this refusal.
+    expect(runCommand(without('--resource-lane')).output).toContain(
+      'missing required flag: --resource-lane',
+    );
+    expect(runCommand(without('--cwd-identity')).output).toContain(
+      'missing required flag: --cwd-identity',
+    );
+  }, 300_000);
+
   test('refuses unknown flags, missing flags and an already selected destination', () => {
     const prepared = commandFixture({ fixture: sharedRelocation().fixture });
     // Proof: forcing the unknown-flag refusal false let `--candidate-revision` pass unread and
@@ -803,6 +985,10 @@ describe('relocation activation prepared from a candidate SHA', () => {
       'docs/wiki-policy/policy.json',
       '--validator-entry',
       'src/new/cli.ts',
+      '--resource-lane',
+      'fixture.lane',
+      '--cwd-identity',
+      'fixture.repository',
     ]);
     // Proof: forcing this refusal false prepared a second version into a root that already
     // carried `selected.json`, silently repointing it; this negative observed

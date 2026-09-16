@@ -16,12 +16,13 @@ operator work on the real repository.
 
 ## 2. Prepare an activation from the candidate SHA
 
-- [x] 2.1 Write this change's `design.md`: which of the ten activation roles a relocation
-      activation regenerates from the candidate SHA (policy, mapping, authority, both
-      bindings, review receipt) and which it copies from the base activation (launcher,
-      snapshotter, validator, evidence), how the archive root is assembled, and how the
-      candidate identity is computed. No executable test — it is the artifact 2.2 consumes,
-      reviewed against `w5-activation-research.md`'s role disposition.
+- [x] 2.1 Write this change's `design.md`: how each of the ten activation roles is produced —
+      all ten from the candidate SHA (policy and mapping byte-for-byte, launcher and
+      snapshotter from the candidate's own files, `validator.mjs` rebuilt from the candidate
+      entry, authority, evidence, review receipt and both bindings derived), with only the
+      audit stratum table copied from the base activation — how the archive root is
+      assembled, and how the candidate identity is computed. No executable test — it is the
+      artifact 2.2 consumes, reviewed against `w5-activation-research.md`'s role disposition.
 - [x] 2.2 `tools/tool-wiki/src/policy/relocation-activation.ts` prepares an activation from a
       candidate SHA and a base activation root, and
       `tools/tool-wiki/src/policy/prepare-relocation-activation-cli.ts` exposes it, printing

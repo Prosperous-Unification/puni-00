@@ -122,9 +122,18 @@ export interface RelocationSources {
   };
 }
 
+/**
+ * Whether the resolved command reports skipped work on a channel this tool can read. `bun test`
+ * prints a `N skip` / `N todo` summary and still exits 0; every other command family this policy
+ * can name emits no skip channel at all, so an empty `skips` list is a contract-level claim about
+ * the command rather than an observation — see docs/findings/checks-that-cannot-fail.md.
+ */
+export type SkipChannel = 'bun-test' | 'none';
+
 export interface CheckCommand {
   readonly checkId: string;
   readonly command: string[];
+  readonly skipChannel: SkipChannel;
 }
 
 export interface CheckPlan {
@@ -530,8 +539,46 @@ export function deriveCheckCommands(
     return {
       checkId,
       command: ['bunx', 'nx', 'run', `${fact.project}:${fact.target}`, '--skip-nx-cache'],
+      skipChannel: skipChannelOf(fact.expectedConfiguration),
     };
   });
+}
+
+/**
+ * Reads the skip channel out of the target configuration the pinned declarations file states.
+ * The declaration is the reviewed record of what `nx run <project>:<target>` executes, and the
+ * relationship extractor refuses a declaration that disagrees with the candidate's `project.json`.
+ */
+// Proof: returning `'none'` for every command left the skips unmeasured, and the Nx `bun test`
+// target that reported one skipped test prepared, certified and tarred a complete activation;
+// the skip negative expected exit 1 and received 0.
+function skipChannelOf(expectedConfiguration: unknown): SkipChannel {
+  const options = isPlainObject(expectedConfiguration)
+    ? expectedConfiguration['options']
+    : undefined;
+  const command = isPlainObject(options) ? options['command'] : undefined;
+  return typeof command === 'string' && /(?:^|\s|\/)bun\s+test(?:\s|$)/.test(command)
+    ? 'bun-test'
+    : 'none';
+}
+
+/**
+ * The skipped work the command reported, as its own summary states it. `bun test` exits 0 with a
+ * `N skip` / `N todo` line, so a receipt that claimed `skips: []` for it would make admission's
+ * `receipt.skips.length === 0` rule (trust.ts `validateEvidence`) unfalsifiable for this tool.
+ * @throws nothing; a command with no skip channel returns `[]`, which is a claim about the
+ * command's contract, not a measurement — docs/findings/checks-that-cannot-fail.md.
+ */
+export function observedSkips(run: CheckRun, channel: SkipChannel): string[] {
+  if (channel === 'none') return [];
+  const plain = `${new TextDecoder().decode(run.stdout)}\n${new TextDecoder().decode(run.stderr)}`
+    // Bun colours its summary, so the counts sit inside SGR escapes. The escape character is
+    // built from its code point: a literal one in a regex is a lint error, and eslint constant-
+    // folds the string form too.
+    .replaceAll(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g'), '');
+  return [...plain.matchAll(/^\s*(\d+)\s+(skip|todo)\b/gm)]
+    .filter(([, count]) => Number(count) > 0)
+    .map(([, count, kind]) => `bun test: ${count} ${kind}`);
 }
 
 /**
@@ -729,6 +776,7 @@ export function assertReviewBinds(
 
 function receiptOf(
   run: CheckRun,
+  channel: SkipChannel,
   sha12: string,
   identity: string,
   attestation: RelocationAttestation,
@@ -740,6 +788,19 @@ function receiptOf(
     refuse(
       'R16',
       `check failed: ${run.checkId} exit ${String(run.exitCode)}; stdout ${run.stdoutPath} stderr ${run.stderrPath}`,
+    );
+  }
+  const skips = observedSkips(run, channel);
+  // A receipt carrying skips can never discharge its obligation (trust.ts `validateEvidence`
+  // requires `skips.length === 0`), so recording one only moves this refusal to the launcher
+  // self-check after the archive root has been assembled.
+  // Proof: forcing this refusal false wrote the measured `skips: ["bun test: 1 skip"]` into the
+  // authority and the skip negative then observed `prepared activation is not certified by its
+  // own launcher` — admission refusing the very receipt this check refuses earlier and cheaper.
+  if (skips.length > 0) {
+    refuse(
+      'R16',
+      `check skipped work: ${run.checkId} (${skips.join(', ')}); stdout ${run.stdoutPath} stderr ${run.stderrPath}`,
     );
   }
   return {
@@ -758,14 +819,14 @@ function receiptOf(
     resourceLane: attestation.resourceLane,
     stdoutArtifact: hashBytes(run.stdout),
     stderrArtifact: hashBytes(run.stderr),
-    skips: [],
+    skips,
   };
 }
 
 function bindingRecord(
   scope: 'ci' | 'local-operator',
   bindingId: string,
-  plan: {
+  references: {
     authorityId: string;
     journalId: string;
     trustScope: string;
@@ -781,20 +842,20 @@ function bindingRecord(
     schemaVersion: 1,
     bindingId,
     trustScope: scope,
-    policy: { path: 'policy.json', sha256: plan.policyIdentity },
+    policy: { path: 'policy.json', sha256: references.policyIdentity },
     pilotModuleMapping: {
-      candidatePath: plan.mappingPath,
-      artifact: { path: 'mapping.json', sha256: plan.mappingIdentity },
+      candidatePath: references.mappingPath,
+      artifact: { path: 'mapping.json', sha256: references.mappingIdentity },
     },
     authority: {
-      authorityId: plan.authorityId,
-      journalId: plan.journalId,
-      trustScope: plan.trustScope,
-      artifact: { path: 'authority.json', sha256: plan.authorityIdentity },
+      authorityId: references.authorityId,
+      journalId: references.journalId,
+      trustScope: references.trustScope,
+      artifact: { path: 'authority.json', sha256: references.authorityIdentity },
     },
     validator: {
-      validatorId: plan.validatorId,
-      artifacts: [{ path: 'validator.mjs', sha256: plan.validatorIdentity }],
+      validatorId: references.validatorId,
+      artifacts: [{ path: 'validator.mjs', sha256: references.validatorIdentity }],
     },
   };
 }
@@ -836,16 +897,22 @@ export function planRelocationActivation(
   const receipts = checkIds.map((checkId) => {
     const run = runs.find((candidateRun) => candidateRun.checkId === checkId);
     if (run === undefined) throw new Error(`check run is missing for ${checkId}`);
+    const planned = plan.checks.find((check) => check.checkId === checkId);
+    if (planned === undefined) throw new Error(`check command is missing for ${checkId}`);
     return {
       observationId: `observation.${checkId}`,
-      receipt: receiptOf(run, sha12, identity, attestation),
+      receipt: receiptOf(run, planned.skipChannel, sha12, identity, attestation),
     };
   });
   const reviewedIdentity = candidateIdentityOf(sources.candidate.reviewed);
-  const reviewedSourceBase =
-    sources.candidate.reviewed.selection.kind === 'committed'
-      ? sources.candidate.reviewed.selection.revision
-      : policy.pilot.sourceRevision;
+  const reviewedSelection = sources.candidate.reviewed.selection;
+  // Proof: forcing this refusal false read `revision` off a working selection that has none; the
+  // working-selection negative observed `canonical JSON cannot serialize undefined` from the
+  // obligation request instead of this named refusal.
+  if (reviewedSelection.kind !== 'committed') {
+    throw new Error(`reviewed snapshot is not a committed selection: ${reviewedSelection.kind}`);
+  }
+  const reviewedSourceBase = reviewedSelection.revision;
   const obligationRequest = {
     reviewed: {
       sourceBase: reviewedSourceBase,

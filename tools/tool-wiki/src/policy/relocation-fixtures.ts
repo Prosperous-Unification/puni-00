@@ -252,7 +252,16 @@ export function fixtureMapping(
   };
 }
 
-function declarations(target: 'check' | 'fail'): object {
+/** The fixture's three Nx targets, as their `project.json` declares them. */
+const fixtureTargets = {
+  check: { command: "printf 'relocation fixture check\\n'" },
+  fail: { command: 'exit 3' },
+  skip: { command: 'bun test {projectRoot}/skip.test.ts' },
+} as const;
+
+type FixtureTarget = keyof typeof fixtureTargets;
+
+function declarations(target: FixtureTarget): object {
   return {
     schemaVersion: 1,
     declarationId: 'declaration.relocation-fixture',
@@ -266,7 +275,10 @@ function declarations(target: 'check' | 'fail'): object {
         kind: 'nx-target',
         project: 'fixture',
         target,
-        expectedConfiguration: { executor: 'nx:run-commands' },
+        expectedConfiguration: {
+          executor: 'nx:run-commands',
+          options: { command: fixtureTargets[target].command },
+        },
       },
     ],
     edges: [],
@@ -289,7 +301,13 @@ function buildValidatorInto(entry: string, output: string): void {
  * honest way to observe the refusal on the production path.
  */
 export function createRelocationCandidate(
-  options: { failingCheck?: boolean; minimumMode?: 'observe' | 'enforce' } = {},
+  options: {
+    /** Point the declared boundary check at a target that exits non-zero. */
+    failingCheck?: boolean;
+    /** Point it at a `bun test` target that reports one skipped test and still exits 0. */
+    skippingCheck?: boolean;
+    minimumMode?: 'observe' | 'enforce';
+  } = {},
 ): RelocationFixture {
   const parent = mkdtempSync(join(tmpdir(), 'tool-wiki-relocation-'));
   scratchPaths.push(parent);
@@ -329,20 +347,26 @@ export function createRelocationCandidate(
     join(repository, 'src/old/project.json'),
     `${JSON.stringify({
       name: 'fixture',
-      targets: {
-        check: {
-          executor: 'nx:run-commands',
-          options: { command: "printf 'relocation fixture check\\n'" },
-        },
-        fail: { executor: 'nx:run-commands', options: { command: 'exit 3' } },
-      },
+      targets: Object.fromEntries(
+        Object.entries(fixtureTargets).map(([target, { command }]) => [
+          target,
+          { executor: 'nx:run-commands', options: { command } },
+        ]),
+      ),
     })}\n`,
+  );
+  write(
+    join(repository, 'src/old/skip.test.ts'),
+    "import { expect, test } from 'bun:test';\n\n" +
+      "test('runs', () => {\n  expect(1).toBe(1);\n});\n\n" +
+      "test.skip('is skipped', () => {\n  expect(1).toBe(2);\n});\n",
   );
   write(
     join(repository, 'src/old/README.md'),
     indexSource('module.fixture.module', [
       { kind: 'path', path: 'cli.ts' },
       { kind: 'path', path: 'project.json' },
+      { kind: 'path', path: 'skip.test.ts' },
       { kind: 'path', path: 'policy/snapshot-validator.ts' },
     ]),
   );
@@ -368,10 +392,12 @@ export function createRelocationCandidate(
   git(repository, ['commit', '--quiet', '--message', 'base activation policy']);
   const baseRevision = git(repository, ['rev-parse', 'HEAD']);
   git(repository, ['mv', 'src/old', 'src/new']);
-  if (options.failingCheck === true) {
+  const candidateTarget: FixtureTarget =
+    options.failingCheck === true ? 'fail' : options.skippingCheck === true ? 'skip' : 'check';
+  if (candidateTarget !== 'check') {
     write(
       join(repository, 'docs/wiki-policy/relationships.json'),
-      serializeCanonical(declarations('fail')),
+      serializeCanonical(declarations(candidateTarget)),
     );
   }
   write(

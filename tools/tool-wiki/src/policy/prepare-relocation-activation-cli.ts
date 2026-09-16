@@ -5,10 +5,14 @@ import {
   lstatSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
+import { parseOrThrow, type } from '@shared/validation';
+
+import { RelativePath } from '../contracts/records';
 import { hashBytes } from '../evidence/content-manifest';
 import { readCandidate } from '../inventory/read-candidate';
 import { prepareActivation, selectActivation, verifyActivation } from './activation';
@@ -39,13 +43,15 @@ const flags = [
 ] as const;
 type Flag = (typeof flags)[number];
 
-/** A flag with no default is required; the candidate's own layout supplies the rest. */
+/**
+ * A flag with no default is required; the candidate's own layout supplies the rest. `resource-lane`
+ * and `cwd-identity` deliberately have no default: they are operator attestation the check receipts
+ * carry, and a tool that invented them would be attesting on the operator's behalf.
+ */
 const defaults: Partial<Record<Flag, string>> = {
   'candidate-policy': 'docs/wiki-policy/bootstrap-policy.json',
   'candidate-launcher': 'bin/tool-wiki-lint.sh',
   'validator-entry': 'tools/tool-wiki/src/cli.ts',
-  'resource-lane': 'operator.tool-wiki-bootstrap',
-  'cwd-identity': 'repository.candidate-checkout',
 };
 
 function readArguments(argv: readonly string[]): Record<Flag, string> {
@@ -54,9 +60,10 @@ function readArguments(argv: readonly string[]): Record<Flag, string> {
     const name = argv[index];
     const value = argv[index + 1];
     if (!name.startsWith('--') || index + 1 >= argv.length) {
-      throw new Error(
-        `usage: prepare-relocation-activation ${flags.map((flag) => `--${flag} <value>`).join(' ')}`,
-      );
+      const usage = flags
+        .map((flag) => (flag in defaults ? `[--${flag} <value>]` : `--${flag} <value>`))
+        .join(' ');
+      throw new Error(`usage: prepare-relocation-activation ${usage}`);
     }
     const flag = name.slice(2);
     // Proof: forcing this refusal false let `--candidate-revision` pass unread and the command
@@ -97,7 +104,6 @@ function showFile(repository: string, sha: string, path: string): Uint8Array {
 }
 
 function assertCommittedCandidate(repository: string, sha: string): void {
-  let head: string;
   try {
     // Proof: removing this resolution let an unknown revision reach the HEAD comparison; the R1
     // negative observed `candidate checkout is not at the candidate revision: HEAD <head> !=
@@ -107,10 +113,12 @@ function assertCommittedCandidate(repository: string, sha: string): void {
       ['rev-parse', '--verify', '--end-of-options', `${sha}^{commit}`],
       'unknown',
     );
-    head = gitText(repository, ['rev-parse', 'HEAD'], 'cannot resolve candidate HEAD');
   } catch (cause) {
     throw new RelocationRefusal('R1', `candidate revision is unknown: ${sha}`, { cause });
   }
+  // An unreadable repository or an unborn HEAD is not an unknown revision, and saying so would
+  // send the operator to the wrong fix; this failure keeps its own cause.
+  const head = gitText(repository, ['rev-parse', 'HEAD'], 'cannot resolve candidate HEAD');
   // Proof: forcing this refusal false let the command read a checkout whose working files were
   // the parent commit's while every role came from the named SHA; the R2 negative observed
   // `ENOENT: failed to open root directory: <candidate>/src/new` from the validator rebuild.
@@ -134,6 +142,35 @@ function assertCommittedCandidate(repository: string, sha: string): void {
       .join(', ');
     throw new RelocationRefusal('R3', `candidate checkout is dirty: ${paths}`);
   }
+}
+
+/**
+ * Keeps this command's own writes out of the tree it is about to measure: the rebuilt validator
+ * lands in `--work` before the checks spawn, so a `--work` inside the candidate would make every
+ * receipt describe a tree that is no longer the committed one.
+ * @throws {@link RelocationRefusal} `R3`, the refusal a dirtied candidate would earn anyway.
+ */
+function assertOutsideCandidate(repository: string, path: string, flag: string): string {
+  const resolved = resolve(path);
+  const existing = ((): string => {
+    let ancestor = resolved;
+    while (!existsSync(ancestor)) {
+      const parent = dirname(ancestor);
+      if (parent === ancestor) return ancestor;
+      ancestor = parent;
+    }
+    return realpathSync(ancestor);
+  })();
+  const offset = relative(repository, existing);
+  const escapes = offset === '..' || offset.startsWith(`..${sep}`);
+  // Proof: forcing this refusal false wrote the rebuilt validator and every JSON role into the
+  // candidate tree and ran the checks against it; the refusal only arrived afterwards, from
+  // `prepareActivation`'s own role-source guard — the negative observed `activation authority
+  // source must be outside the candidate repository`.
+  if (offset === '' || (!escapes && !isAbsolute(offset))) {
+    throw new RelocationRefusal('R3', `${flag} must be outside the candidate repository: ${path}`);
+  }
+  return resolved;
 }
 
 function packageDirectory(modulesRoot: string, name: string): string {
@@ -162,6 +199,8 @@ function trustedModuleNames(modulesRoot: string): string[] {
     const name = pending.pop();
     if (name === undefined || names.has(name)) continue;
     names.add(name);
+    // The installed manifest is the candidate's own lockfile-pinned bytes; only its dependency
+    // names are read, and an absent or malformed file throws rather than widening the closure.
     const manifest = JSON.parse(
       readFileSync(join(packageDirectory(modulesRoot, name), 'package.json'), 'utf8'),
     ) as { dependencies?: Record<string, string> };
@@ -238,30 +277,36 @@ interface BaseActivation {
   policyBytes: Uint8Array;
   mappingBytes: Uint8Array;
   authorityBytes: Uint8Array;
+  launcherBytes: Uint8Array;
   validatorIdentity: string;
   mappingPath: string;
   sourceRevision: string;
   identity: string;
 }
 
+/** The one field this command reads out of the base activation's own CI binding. */
+const BaseBindingMapping = type({
+  pilotModuleMapping: type({ candidatePath: RelativePath }),
+});
+
 function readBaseActivation(directory: string): BaseActivation {
   const verified = verifyActivation(directory);
   const roleBytes = (role: keyof typeof verified.manifest.roles): Uint8Array =>
     readFileSync(join(verified.directory, verified.manifest.roles[role]));
-  const binding = JSON.parse(new TextDecoder().decode(roleBytes('ciBinding'))) as {
-    pilotModuleMapping?: { candidatePath?: string };
-  };
-  const mappingPath = binding.pilotModuleMapping?.candidatePath;
-  if (mappingPath === undefined) {
-    throw new Error(`base activation binds no pilot module mapping: ${directory}`);
-  }
+  // The base binding is trusted bytes `verifyActivation` has just re-hashed, but the candidate
+  // mapping path it names selects a candidate file, so it is decoded rather than cast.
+  const binding = parseOrThrow(
+    BaseBindingMapping,
+    JSON.parse(new TextDecoder().decode(roleBytes('ciBinding'))) as unknown,
+  );
   return {
     directory: verified.directory,
     policyBytes: roleBytes('policy'),
     mappingBytes: roleBytes('mapping'),
     authorityBytes: roleBytes('authority'),
+    launcherBytes: roleBytes('launcher'),
     validatorIdentity: verified.manifest.validatorIdentity,
-    mappingPath,
+    mappingPath: binding.pilotModuleMapping.candidatePath,
     sourceRevision: verified.manifest.sourceRevision,
     identity: verified.identity,
   };
@@ -357,14 +402,19 @@ function archive(
  * boundaries: it runs the candidate's own checks, derives every per-candidate role by hash,
  * records the operator's review record as the attestation it is, and proves the result by
  * running the produced launcher to `certified: true` before it writes the archive.
- * @throws {@link RelocationRefusal} `R1`-`R21`; nothing is written outside `--work` when it does.
+ *
+ * A refusal before `prepareActivation` leaves only `--work`; a refusal at or after it (`R20`, a
+ * failed `tar`) leaves the version directory and `selected.json` under `--destination`. That
+ * destination is then poisoned on purpose: re-running against it refuses, so an operator picks a
+ * fresh destination rather than publishing a root whose selection was never certified.
+ * @throws {@link RelocationRefusal} `R1`-`R21`.
  */
 export async function prepareRelocationActivation(argv: readonly string[]): Promise<string[]> {
   const options = readArguments(argv);
-  const repository = resolve(options['candidate-repository']);
+  const repository = realpathSync(resolve(options['candidate-repository']));
   const sha = options['candidate-sha'];
-  const destination = resolve(options.destination);
-  const work = resolve(options.work);
+  const destination = assertOutsideCandidate(repository, options.destination, '--destination');
+  const work = assertOutsideCandidate(repository, options.work, '--work');
   // Proof: forcing this refusal false prepared a second version into a root that already carried
   // `selected.json`, silently repointing it; the destination negative expected this message and
   // received `relocation activation: ...` at exit 0.
@@ -470,7 +520,7 @@ export async function prepareRelocationActivation(argv: readonly string[]): Prom
     `base activation: ${base.sourceRevision} (${base.identity})`,
     `version directory: ${prepared.directory}`,
     `manifest identity: ${prepared.identity}            checksums identity: ${checksums}`,
-    `validator identity: ${plan.identities.validator} (${plan.changedValidator ? 'changed' : 'unchanged'} vs base)`,
+    `validator identity: ${plan.identities.validator} (${plan.changedValidator ? 'changed' : 'unchanged'} vs base)   launcher: ${hashBytes(launcherBytes) === hashBytes(base.launcherBytes) ? 'unchanged' : 'changed'}`,
     `review: ${plan.ids.receiptId} scope ${plan.ids.trustScope} journal ${plan.ids.journalId} — operator attestation, not re-derived`,
     `checks: ${runs.map((run) => `${run.checkId} exit ${String(run.exitCode)} ${String(Date.parse(run.endedAt) - Date.parse(run.startedAt))}ms`).join('; ') || '(none)'}`,
     `self-check: ${report}`,
