@@ -124,7 +124,7 @@ $ bunx nx run-many -t lint typecheck -p tool-devsync tool-git-hooks --skip-nx-ca
   Output of 4 successful tasks
 
 $ bunx nx run tool-wiki:test --skip-nx-cache          # gate-entrypoints.test.ts reads ci.yml
-  Ran 579 tests across 30 files [795.11s]
+  Ran 579 tests across 30 files [803.03s] — final tree; 795.11s on the 3.1 tree, same 579
   NX   Successfully ran target test for project tool-wiki
 
 $ bunx nx format:check --all                          rc=0
@@ -171,7 +171,7 @@ blob` and `the real Nx target reruns an omitted-input mutation…`. This is PRE-
 - [x] No unstaged files in the worktree
 - [ ] Relevant commits pushed — the branch is local; pushing is the controller's step
 
-**Commit range**: `73730b66..4b956c2c` on `change/affected-pr-gate`
+**Commit range**: `73730b66..1a7385e9` on `change/affected-pr-gate`
 
 | Commit     | Subject                                                               |
 | ---------- | --------------------------------------------------------------------- |
