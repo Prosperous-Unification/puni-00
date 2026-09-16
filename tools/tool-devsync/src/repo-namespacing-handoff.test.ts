@@ -543,7 +543,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'historical bootstrap policy or mapping': 44,
       'historical policy selector or baseline': 39,
       'production proof or revision transition': 18,
-      'test fixture or proof': 102,
+      'test fixture or proof': 106,
     },
     coverage: {
       applicationLibraryToolReadmes: 17,
@@ -589,8 +589,13 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // modules.bootstrap.json and relationships.bootstrap.json, while the new on-disk bootstrap
     // oracle in pilot-policy.test.ts added three `test fixture or proof` contexts and one
     // `current recursive selector`, none unclassified (2026-09-16).
-    digest: 'd0b341712487090ac3cc4eef39079104983c9e0f37274d2f9c5144428338a4c0',
-    occurrences: 253,
+    // Proof: leaving `d0b34171.../253/102` here after the standing bootstrap oracles pinned the
+    // pre-move project, cwd and consumer prefixes they refuse (`core`, `libs/core`,
+    // `libs/core/src`, `libs/domain/src/saved-plan`) in their `Proof:` comments failed on the
+    // observed digest below at 257/106 — four more classified `test fixture or proof` contexts,
+    // none unclassified (2026-09-16).
+    digest: 'fe5c29e275599795f012ea1c2e75d2a72987b064dbb8bbd6f22fc401161e675d',
+    occurrences: 257,
     unclassified: [],
   });
 });

@@ -50,8 +50,10 @@ operator work on the real repository.
       It states the hard limit: the variables hold one SHA, so two concurrent move candidates
       serialize. `openspec/changes/repo-namespacing/verify.md` gains a dated line recording
       that PR #457 merged with the trusted check red for this reason and that the relocation
-      activation is owed here. Test: the repository link check resolves the `#relocation`
-      anchor the refusal names.
+      activation is owed here. Test: the production selector-miss case in
+      `src/policy/pilot-policy.test.ts` takes the runbook path and anchor out of the refusal it
+      just observed and resolves that anchor with `markdownAnchors`, the reader the index check
+      uses; negative: renaming the `## Relocation` heading leaves the anchor unresolved.
 
 ## 4. Clear the debt on the real repository
 
