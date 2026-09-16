@@ -166,9 +166,11 @@ describe('the CI pixels scope', () => {
 
   test('asks Nx about every app the browser stack boots, as JSON', () => {
     // Proof (2026-09-16): `bunx nx show projects --affected --files=apps/wbs/be-01/src/main.ts`
-    // answers `["wbs-be-01","tool-devsync","tool-wiki","tool-dagger"]` on Nx 23.2.0 — no
-    // `wbs-fe-01`. With the production membership narrowed to a single project, this failed
-    // on the missing three-project expression — 1 failed / 4 passed. That is the backend
+    // answers `["wbs-be-01","tool-devsync","wiki-cli","tool-dagger"]` on Nx 23.2.0 — no
+    // `wbs-fe-01`. Re-measured on this tree after W6 renamed the project; W3 measured the
+    // same list with `tool-wiki` in it. With the production membership narrowed to a single
+    // project, this failed on the missing three-project expression — 1 failed / 4 passed.
+    // That is the backend
     // change which breaks the rendered table while the frontend project is untouched.
     // (The fault was watched before `-s` landed, so the expectation it printed then named
     // the unslurped form; the assertion below is the current text, which is what the pin

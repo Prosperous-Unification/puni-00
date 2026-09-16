@@ -658,7 +658,7 @@ jobs:
   # break the rendered table while `wbs-fe-01` is not affected at all. Measured
   # 2026-09-16 on Nx 23.2.0, `bunx nx show projects --affected
   # --files=apps/wbs/be-01/src/main.ts` answers
-  # `["wbs-be-01","tool-devsync","tool-wiki","tool-dagger"]` — no `wbs-fe-01`. A
+  # `["wbs-be-01","tool-devsync","wiki-cli","tool-dagger"]` — no `wbs-fe-01`. A
   # switch keyed on the frontend alone would have skipped the eyes for exactly the
   # changes they exist to catch.
   #

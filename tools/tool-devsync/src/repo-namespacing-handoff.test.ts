@@ -646,7 +646,15 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // and `openspec/changes/affected-pr-gate/verify.md` (every `.md` is excluded). The one
     // context W3 does move is `pixels-workflow.test.ts`'s `apps/fe-01/test-results/` proof
     // comment, pushed from line 54 to 57, which is what changes the digest (2026-09-16).
-    digest: '80ba00b5a8e566af0e71b155c82ccbd7f6e207e3d094db394f73c7bf0fad85f4',
+    // Proof: leaving `80ba00b5...` here after the affected gate was renamed and the legacy
+    // authority guard moved to `lstatSync` failed on the observed digest below, still at 257 —
+    // the guard's comment and try/catch pushed authority-store.ts's `libs/contracts` context
+    // from line 840 to 855, and the second legacy-store test pushed eleven of the thirteen
+    // claim-path contexts in claims.db.test.ts down 33 lines, from 217-503 to 250-536, leaving
+    // the two above it where they were. The renamed gate pins in toolchain-pins.test.ts, the
+    // re-measured list in pixels-workflow.test.ts and ci.yml itself moved none of theirs,
+    // checked line by line (2026-09-16).
+    digest: 'e1e6f5c008eae349a7e3fcc3a0be28ede6c0e42281700ba1e1ba8d0731137edb',
     occurrences: 257,
     unclassified: [],
   });

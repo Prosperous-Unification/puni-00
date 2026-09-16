@@ -804,11 +804,26 @@ function runGitCommonDirectory(worktreePath: string): string {
 export function resolveAuthorityDatabasePath(worktreePath: string): string {
   const commonDirectory = runGitCommonDirectory(worktreePath);
   const legacyDirectory = join(commonDirectory, 'wbs-wiki');
-  // Proof: without this check, a fixture carrying `.git/wbs-wiki/authority.sqlite` resolved to
-  // `.git/module-wiki/authority.sqlite` without throwing, and `refuses a legacy authority store
-  // left under the pre-rename directory` failed on `Received function did not throw`
+  // `lstatSync`, not `existsSync`: the question is whether the path is there, not whether it
+  // leads anywhere. `existsSync` follows a symlink and swallows every error, so a legacy store
+  // moved away behind a link, or one this process cannot read, both read as absent — the one
+  // answer that must never be guessed here.
+  // Proof: without this check at all, a fixture carrying `.git/wbs-wiki/authority.sqlite`
+  // resolved to `.git/module-wiki/authority.sqlite` without throwing, and `refuses a legacy
+  // authority store left under the pre-rename directory` failed on `Received function did not
+  // throw`. With the check spelled `existsSync`, the dangling-symlink half of `refuses a legacy
+  // authority store the process cannot read, and one that dangles` failed the same way
   // (2026-09-16).
-  if (existsSync(legacyDirectory)) {
+  let legacyPresent = true;
+  try {
+    lstatSync(legacyDirectory);
+  } catch (error) {
+    if (errorCode(error) !== 'ENOENT') {
+      throw new Error(`cannot read legacy authority store at ${legacyDirectory}`, { cause: error });
+    }
+    legacyPresent = false;
+  }
+  if (legacyPresent) {
     throw new Error(
       `legacy authority store present at ${legacyDirectory}: this version keeps its authority in ${join(commonDirectory, 'module-wiki')} and migrates nothing, so remove or archive the legacy directory deliberately before continuing`,
     );

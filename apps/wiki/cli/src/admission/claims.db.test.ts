@@ -179,16 +179,49 @@ test('refuses a legacy authority store left under the pre-rename directory', () 
   mkdirSync(legacy);
   new Database(join(legacy, 'authority.sqlite'), { create: true }).close();
 
-  // Proof: with the `existsSync(legacyDirectory)` guard removed from
-  // `resolveAuthorityDatabasePath`, this case observed `Received function did not throw` and the
-  // returned `.../.git/module-wiki/authority.sqlite` — the empty authority the guard exists to
-  // prevent (2026-09-16).
+  // Proof: with the legacy check removed from `resolveAuthorityDatabasePath`, this case observed
+  // `Received function did not throw` and the returned `.../.git/module-wiki/authority.sqlite` —
+  // the empty authority the check exists to prevent (2026-09-16).
+  // The whole message is pinned, not its prefix: an operator who cannot see both directory names
+  // and the step they are expected to take has been told to stop and nothing else.
   expect(() => resolveAuthorityDatabasePath(fixture.root)).toThrow(
-    'legacy authority store present',
+    `legacy authority store present at ${legacy}: this version keeps its authority in ${join(fixture.root, '.git', 'module-wiki')} and migrates nothing, so remove or archive the legacy directory deliberately before continuing`,
   );
   // The refusal has to come before the new directory is created, or an operator who removes the
   // legacy store afterwards cannot tell an untouched clone from one this call already emptied.
   expect(existsSync(join(fixture.root, '.git', 'module-wiki'))).toBe(false);
+});
+
+test('refuses a legacy authority store the process cannot read, and one that dangles', () => {
+  const unreadable = fixtureRepository();
+  const unreadableLegacy = join(unreadable.root, '.git', 'wbs-wiki');
+  mkdirSync(unreadableLegacy);
+  new Database(join(unreadableLegacy, 'authority.sqlite'), { create: true }).close();
+  chmodSync(unreadableLegacy, 0o000);
+  try {
+    // Permissions on the directory itself do not hide it from `lstat`, and must not: a store
+    // this process cannot open is still a store it must not step over.
+    expect(() => resolveAuthorityDatabasePath(unreadable.root)).toThrow(
+      'legacy authority store present',
+    );
+  } finally {
+    chmodSync(unreadableLegacy, 0o700);
+  }
+
+  const dangling = fixtureRepository();
+  symlinkSync(
+    join(dangling.root, '..', 'moved-authority'),
+    join(dangling.root, '.git', 'wbs-wiki'),
+  );
+
+  // Proof: with the check spelled `existsSync(legacyDirectory)`, this half observed `Received
+  // function did not throw` — `existsSync` follows the link and reads a moved-away store as
+  // absent, which is the silent empty authority again, one `mv` further along. `lstatSync` with
+  // an ENOENT-only swallow sees the link itself and refuses (2026-09-16).
+  expect(() => resolveAuthorityDatabasePath(dangling.root)).toThrow(
+    'legacy authority store present',
+  );
+  expect(existsSync(join(dangling.root, '.git', 'module-wiki'))).toBe(false);
 });
 
 test('refuses an existing authority database symlink', () => {
