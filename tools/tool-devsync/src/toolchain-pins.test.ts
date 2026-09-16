@@ -364,15 +364,32 @@ describe('the CI gate scope', () => {
       GATE_BASE: '${{ steps.gate_mode.outputs.base }}',
       GATE_TOOL_WIKI: '${{ steps.gate_mode.outputs.tool_wiki }}',
     });
-    // The SELECTOR, not only the two command lines. Nothing pinned this predicate until
-    // 2026-09-16: `if true`, `if [ -n "$GATE_MODE" ]`, or the two branch bodies swapped all
-    // left the whole suite green while `push` and `merge_group` ran
-    // `nx affected --base=""` — the silent narrowing this change exists to avoid, on the two
-    // events that must never narrow.
+    // The SELECTOR and the BRANCH BODIES, not only the two command lines. Until 2026-09-16
+    // nothing pinned either, and each gap has its own way of narrowing `push` and
+    // `merge_group` to `nx affected --base=""` — the silent narrowing this change exists to
+    // avoid, on the two events that must never narrow.
     //
-    // Proof (2026-09-16): with the predicate flipped to `if true; then`, this failed on
-    // `Expected to contain: "if [ \"$GATE_MODE\" = affected ]; then"` — 16 passed / 1 failed.
+    // Pinning the predicate alone is not enough, and this file claimed otherwise for one
+    // commit: with the predicate intact and the `then`/`else` BODIES exchanged, every
+    // assertion here passed — the predicate text is present, both command lines are present,
+    // and all three occurrence counts are unchanged, because a swap moves commands without
+    // adding or removing any. Watched 2026-09-16: 17 passed / 0 failed on that fault. So the
+    // branch and its body are pinned together, as one normalised string each.
+    //
+    // Proof (2026-09-16), each fault watched separately against the production workflow:
+    //   predicate -> `if true; then`   fails on `Expected to contain: "if [ \"$GATE_MODE\" =
+    //                                  affected ]; then"`, 16 passed / 1 failed
+    //   bodies exchanged               fails on `Expected to contain: "if [ \"$GATE_MODE\" =
+    //                                  affected ]; then { bunx nx affected -t test lint
+    //                                  typecheck build --base=\"$GATE_BASE\" --head=HEAD"`,
+    //                                  16 passed / 1 failed
+    const branches = oneLine(commandsOf(step.run ?? ''));
     expect(script).toContain('if [ "$GATE_MODE" = affected ]; then');
+    expect(branches).toContain(
+      'if [ "$GATE_MODE" = affected ]; then { ' +
+        'bunx nx affected -t test lint typecheck build --base="$GATE_BASE" --head=HEAD',
+    );
+    expect(branches).toContain('else { bunx nx run-many -t test lint typecheck build --parallel=2');
     expect(script).toContain(
       'bunx nx affected -t test lint typecheck build --base="$GATE_BASE" --head=HEAD',
     );
@@ -437,7 +454,8 @@ describe('the CI gate scope', () => {
     // The behaviour, both forms run in a real shell on
     // `affected='Nx read error: could not find project graph'`: the two-branch form printed
     // `tool_wiki=skip` and exited 0 — the silent drop — while this one printed
-    // `nx show projects did not return a JSON array: Nx read error…` and exited 1.
+    // `nx show projects did not return one JSON array: Nx read error…` and exited 1. (That
+    // measurement predates `-s`; the message it quotes is the current one.)
     //
     // Stated at the strength it is known: once the output IS a validated array, the
     // membership filter returns true or false and never errors — `[1,2]`, `[{"a":1}]`,

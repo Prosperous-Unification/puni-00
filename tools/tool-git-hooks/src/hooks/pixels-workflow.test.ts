@@ -165,26 +165,30 @@ describe('the CI pixels scope', () => {
   test('asks Nx about every app the browser stack boots, as JSON', () => {
     // Proof (2026-09-16): `bunx nx show projects --affected --files=apps/wbs/be-01/src/main.ts`
     // answers `["wbs-be-01","tool-devsync","tool-wiki","tool-dagger"]` on Nx 23.2.0 — no
-    // `wbs-fe-01`. With the production membership narrowed to
-    // `jq -e 'index("wbs-fe-01") != null'`, this failed on
-    // `Expected to contain: "jq -e 'any(.[]; . == \"wbs-fe-01\" or . == \"wbs-be-01\" or
-    // . == \"wbs-gw-01\")'"` — 1 failed / 4 passed. That is the backend change which
-    // breaks the rendered table while the frontend project is untouched.
+    // `wbs-fe-01`. With the production membership narrowed to a single project, this failed
+    // on the missing three-project expression — 1 failed / 4 passed. That is the backend
+    // change which breaks the rendered table while the frontend project is untouched.
+    // (The fault was watched before `-s` landed, so the expectation it printed then named
+    // the unslurped form; the assertion below is the current text, which is what the pin
+    // holds today.)
     const step = jobStep(readWorkflow(), 'pixels_mode', 'Browser stack scope');
 
     expect(step.env).toEqual({
       EVENT_NAME: '${{ github.event_name }}',
       PR_BASE_SHA: '${{ github.event.pull_request.base.sha }}',
     });
-    expect(step.run).toContain(
+    // Through `commandsOf`, like its tool-devsync twins: a `Proof:` comment beside this step
+    // quotes these literals, so a pin that read comments could be satisfied by the note.
+    const commands = commandsOf(step.run ?? '');
+    expect(commands).toContain(
       'bunx nx show projects --affected --base="$PR_BASE_SHA" --head=HEAD --json',
     );
     // One expression naming all three, so narrowing the set moves this assertion. `grep`
     // cannot be used here: `nx show projects` prints a one-line JSON array on a non-TTY.
-    expect(step.run).toContain(
+    expect(commands).toContain(
       `jq -s -e 'any(.[0][]; . == "wbs-fe-01" or . == "wbs-be-01" or . == "wbs-gw-01")'`,
     );
-    expect(step.run).not.toContain('grep');
+    expect(commands).not.toContain('grep');
     expect(readWorkflow().jobs?.['pixels_mode']?.outputs).toEqual({
       stack: '${{ steps.stack.outputs.stack }}',
     });
@@ -208,7 +212,9 @@ describe('the CI pixels scope', () => {
     // the unslurped form exited 0 and wrote a `stack=` decision from a partially errored
     // read, while this one printed `nx show projects did not return one JSON array: …` and
     // exited 1. Without `-s`, jq judges only the LAST document it is given.
-    const script = jobStep(readWorkflow(), 'pixels_mode', 'Browser stack scope').run ?? '';
+    const script = commandsOf(
+      jobStep(readWorkflow(), 'pixels_mode', 'Browser stack scope').run ?? '',
+    );
 
     expect(script).toContain(`jq -s -e 'length == 1 and (.[0] | type == "array")'`);
     expect(script).toContain('stack_status=0');
@@ -248,9 +254,10 @@ describe('the CI pixels scope', () => {
     expect(summary.run?.startsWith('set -euo pipefail\n')).toBe(true);
     // The scope job's own verdict first: a skip is only ever read as a pass when the job
     // that decided to skip actually succeeded.
-    expect(summary.run).toContain('test "$STACK_RESULT" = success');
-    expect(summary.run).toContain('test "$SHARD_RESULT" = success');
-    expect(summary.run).toContain('test "$SHARD_RESULT" = skipped');
+    const aggregate = commandsOf(summary.run ?? '');
+    expect(aggregate).toContain('test "$STACK_RESULT" = success');
+    expect(aggregate).toContain('test "$SHARD_RESULT" = success');
+    expect(aggregate).toContain('test "$SHARD_RESULT" = skipped');
     expect(caseArmEvents(summary.run ?? '')).toContain('*');
   });
 });

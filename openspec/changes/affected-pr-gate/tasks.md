@@ -65,10 +65,13 @@ through `Bun.YAML.parse` or as text; there is no copy of the workflow to assert 
       pin pass on its own comment.
 
 - [x] 3.5 Safety check: the selector between the two gate arms is pinned — the predicate
-      `if [ "$GATE_MODE" = affected ]; then`, and each event arm paired with the mode it
-      writes as one normalised string — test: `toolchain-pins.test.ts`; negative: flip the
-      predicate to `if true` and observe it fail, then exchange the two arm bodies and
-      observe the pairing fail.
+      `if [ "$GATE_MODE" = affected ]; then`, each event arm paired with the mode it writes,
+      and each gate BRANCH paired with the command its body runs, all as normalised strings
+      — test: `toolchain-pins.test.ts`; negative: flip the predicate to `if true` and observe
+      it fail; exchange the two event arm bodies and observe the pairing fail; exchange the
+      gate step's `then` and `else` bodies and observe the branch pairing fail — that last
+      one passed 17/0 until the branch pairing was pinned, because a swap moves commands
+      without adding or removing any.
 - [x] 3.6 Safety check: both membership reads slurp, so a document printed ahead of the
       project array cannot be skipped — test: both pin suites require `jq -s` with
       `length == 1`; negative: drive the extracted production step script with a `bunx`
