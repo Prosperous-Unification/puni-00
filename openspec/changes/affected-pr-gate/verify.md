@@ -171,7 +171,8 @@ blob` and `the real Nx target reruns an omitted-input mutation…`. This is PRE-
 - [x] No unstaged files in the worktree
 - [ ] Relevant commits pushed — the branch is local; pushing is the controller's step
 
-**Commit range**: `73730b66..1a7385e9` on `change/affected-pr-gate`
+**Commit range**: `73730b66..` the tip of `change/affected-pr-gate`. The five commits below are
+the change; any later commit on this branch is documentation of it.
 
 | Commit     | Subject                                                               |
 | ---------- | --------------------------------------------------------------------- |
