@@ -56,10 +56,13 @@ through `Bun.YAML.parse` or as text; there is no copy of the workflow to assert 
       non-array in a real shell.
 
 - [x] 3.4 Safety check: the refusal-arm pins are breakable — the arm extractor matches only
-      outer `case` arms, the arms hold exactly one `*`, and the refusal is pinned as its
-      message and `exit` together — test: both pin suites; negative: delete the whole `*)`
-      arm and observe the star assertion fail, then delete only its `exit 1` and observe the
-      normalised-pair assertion fail, in each of `Gate mode` and `Browser stack scope`.
+      outer `case` arms, the arms hold exactly one `*`, the refusal is pinned as its message
+      and `exit` together, and both suites strip comment lines first so a pin cannot be
+      satisfied by the `Proof:` note about it — test: both pin suites; negative: in each
+      scope step delete the whole `*)` arm and observe the star assertion fail, then delete
+      only its `exit 1` and observe the normalised-pair assertion fail; and reflow the
+      in-script Proof comment onto one line with that `exit 1` gone and observe the pre-fix
+      pin pass on its own comment.
 
 ## 4. Evidence
 

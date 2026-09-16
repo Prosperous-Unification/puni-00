@@ -92,6 +92,21 @@ const caseArmEvents = (script: string): string[] =>
   );
 
 /**
+ * A shell script's commands, with its comment lines dropped.
+ *
+ * Not tidiness: a `Proof:` comment beside a pinned arm quotes the literal the pin asserts,
+ * so a pin that reads comments can be satisfied by the note ABOUT it. Watched on
+ * 2026-09-16 — reflowing that comment onto one line and deleting the arm's own `exit 1`
+ * left all six cases in this file green. The note now lives outside the `run:` block as
+ * well, but stripping here is what makes the pin independent of where anyone puts it.
+ */
+const commandsOf = (script: string): string =>
+  script
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('#'))
+    .join('\n');
+
+/**
  * A script with every run of whitespace collapsed to one space.
  *
  * A refusal is two lines — say what happened, then stop — and a `toContain` on either line
@@ -142,7 +157,7 @@ describe('the CI pixels scope', () => {
     const arms = caseArmEvents(script);
     expect(arms.filter((event) => event === '*')).toEqual(['*']);
     expect(arms.filter((event) => event !== '*').sort()).toEqual(subscribedEvents(workflow).sort());
-    expect(oneLine(script)).toContain(
+    expect(oneLine(commandsOf(script))).toContain(
       `printf 'no browser-stack rule for event %s\\n' "$EVENT_NAME" >&2 exit 1`,
     );
   });

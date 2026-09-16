@@ -814,10 +814,15 @@ describe('lint:fast cache locations', () => {
  * `["default", "^production", "{workspaceRoot}/lefthook.yml"]` while
  * `pixels-workflow.test.ts` and `corpus-lint-workflow.test.ts` both read the workflow, and
  * `tool-wiki:test` declared no inputs at all while `gate-entrypoints.test.ts` and
- * `selectors.test.ts` read it. With the gate now running `nx affected` on pull requests,
- * that is worse than a stale cache: a pull request whose only edit is `ci.yml` never
- * schedules the suite that is entirely about `ci.yml`, and reports green. An oracle is only
- * as reachable as its Nx inputs.
+ * `selectors.test.ts` read it — and `gate-entrypoints.test.ts` reads
+ * `.github/workflows/trusted-wiki.yml`, which nothing declared either. With the gate now
+ * running `nx affected` on pull requests, that is worse than a stale cache: a pull request
+ * whose only edit is `ci.yml` never schedules the suite that is entirely about `ci.yml`, and
+ * reports green. An oracle is only as reachable as its Nx inputs.
+ *
+ * The list is data, so adding a workflow here is the whole change — but a name in it is not
+ * evidence that anything reads it. See the two non-vacuity assertions below for why that
+ * takes an assertion of its own, and why the obvious one cannot supply it.
  */
 const TRACKED_WORKFLOWS = [
   '.github/workflows/ci.yml',
@@ -831,7 +836,7 @@ function readsWorkflow(source: string, workflow: string): boolean {
 
 describe('every suite that reads a CI workflow declares it', () => {
   it('names each workflow in the test target that runs it', async () => {
-    const readers: string[] = [];
+    const readersOf = new Map<string, string[]>(TRACKED_WORKFLOWS.map((each) => [each, []]));
     const undeclared: string[] = [];
     for (const project of await readProjects(WORKSPACE)) {
       const sources = new Bun.Glob('src/**/*.test.{ts,tsx}');
@@ -844,7 +849,6 @@ describe('every suite that reads a CI workflow declares it', () => {
           if (readsWorkflow(source, workflow)) read.add(workflow);
       }
       if (read.size === 0) continue;
-      readers.push(project.name);
       const declared = (project.targets['test']?.inputs ?? [])
         .filter(
           (each): each is string => typeof each === 'string' && each.startsWith('{workspaceRoot}/'),
@@ -852,15 +856,33 @@ describe('every suite that reads a CI workflow declares it', () => {
         .map((each) => each.slice('{workspaceRoot}/'.length));
       for (const workflow of TRACKED_WORKFLOWS) {
         if (!read.has(workflow)) continue;
+        readersOf.get(workflow)?.push(project.name);
         if (!declared.some((pattern) => new Bun.Glob(pattern).match(workflow)))
           undeclared.push(`${project.name}:test does not declare ${workflow}`);
       }
     }
 
-    // Non-vacuity, and it is self-proving: THIS file names both workflows, so a detector
-    // that stopped matching would empty `readers` and fail here rather than pass having
-    // scanned nothing.
-    expect(readers).toContain('tool-devsync');
+    // Non-vacuity, per workflow, and it takes TWO assertions because they prove different
+    // things and the obvious single one proves neither on its own.
+    //
+    // The first is self-proving that the DETECTOR runs: this file names every tracked path,
+    // so a `readsWorkflow` that stopped matching finds nothing at all and fails here rather
+    // than passing over an empty scan.
+    //
+    // The second is that each ENTRY is real. The first cannot do that job, and neither can
+    // the flattened reader list it replaced: `TRACKED_WORKFLOWS` lives in this file, so
+    // whatever string is in it self-matches and `tool-devsync` is a reader of a typo too.
+    // Watched 2026-09-16 — with the second entry misspelled `trusted-wikii.yml`, asserting
+    // only `toContain('tool-devsync')` stayed GREEN, checking nothing. A tracked workflow
+    // some real suite reads has a reader that is not this file's own project.
+    for (const workflow of TRACKED_WORKFLOWS) {
+      const readers = readersOf.get(workflow) ?? [];
+      expect(readers, `the detector matched nothing for ${workflow}`).toContain('tool-devsync');
+      expect(
+        readers.filter((name) => name !== 'tool-devsync'),
+        `${workflow} is read by no suite but the list that names it`,
+      ).not.toBeEmpty();
+    }
     // Proof, watched red on 2026-09-16 against the real manifests. Before any input was
     // added: `["tool-git-hooks:test does not declare .github/workflows/ci.yml",
     // "tool-wiki:test does not declare .github/workflows/ci.yml"]`. With `ci.yml` declared

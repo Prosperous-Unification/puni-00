@@ -259,6 +259,10 @@ function caseArmEvents(script: string): string[] {
  * alone pins neither. `exit 1` in particular appears more than once in this script now, so
  * asserting it bare is an assertion that cannot fail; asserting the pair as one normalised
  * string is what makes deleting the `exit` visible.
+ *
+ * Always applied to `commandsOf(...)`, never to the raw script: a `Proof:` comment beside a
+ * pinned arm quotes the literal the pin asserts, and on 2026-09-16 the pixels twin was
+ * watched passing on its own comment after one reflow with the arm's `exit 1` deleted.
  */
 function oneLine(script: string): string {
   return script.replace(/\s+/g, ' ');
@@ -313,7 +317,7 @@ describe('the CI gate scope', () => {
     // order and neither is a contract.
     expect(arms.filter((event) => event === '*')).toEqual(['*']);
     expect(arms.filter((event) => event !== '*').sort()).toEqual(subscribedEvents(workflow).sort());
-    expect(oneLine(script)).toContain(
+    expect(oneLine(commandsOf(script))).toContain(
       `printf 'no gate mode for event %s\\n' "$EVENT_NAME" >&2 exit 1`,
     );
   });

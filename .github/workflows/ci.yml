@@ -683,6 +683,20 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
+      # Proof for the `*)` arm below (2026-09-16), re-observed after the nested
+      # `case "$stack_status"` landed. `the CI pixels scope > decides the browser scope from
+      # the event, and refuses one it has no rule for`:
+      #   whole arm deleted         -> `Expected: ["*"] · Received: []`, 5 passed / 1 failed
+      #   only its `exit 1` deleted -> the normalised message-and-exit pair absent,
+      #                                5 passed / 1 failed
+      # Without the arm a newly subscribed event would scope the browser gate by falling
+      # through rather than by a rule; without its `exit` it would do the same after printing
+      # a warning nobody reads.
+      #
+      # This note lives OUTSIDE the `run:` block on purpose. Inside it, the pin's own literal
+      # would be part of the script the pin reads: on 2026-09-16 a one-line reflow of this
+      # comment plus deleting the arm's `exit 1` left all six cases green. The suites now
+      # strip comment lines before normalising, and this keeps the script commands-only.
       - name: Browser stack scope
         id: stack
         env:
@@ -718,16 +732,6 @@ jobs:
             push | merge_group | workflow_dispatch)
               printf 'stack=affected\n' >> "$GITHUB_OUTPUT"
               ;;
-            # Proof (2026-09-16), re-observed after the nested `case "$stack_status"` landed.
-            # `the CI pixels scope > decides the browser scope from the event, and refuses
-            # one it has no rule for`:
-            #   whole arm deleted         -> `Expected: ["*"] · Received: []`, 5 passed / 1 failed
-            #   only its `exit 1` deleted -> `Expected to contain: "printf 'no browser-stack
-            #                                rule for event %s\n' "$EVENT_NAME" >&2 exit 1"`,
-            #                                5 passed / 1 failed
-            # Without this arm a newly subscribed event would scope the browser gate by
-            # falling through rather than by a rule; without its `exit` it would do the same
-            # after printing a warning nobody reads.
             *)
               printf 'no browser-stack rule for event %s\n' "$EVENT_NAME" >&2
               exit 1
