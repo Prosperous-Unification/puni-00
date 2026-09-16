@@ -5,7 +5,7 @@ import { describe, expect, it } from 'bun:test';
 
 import {
   createSolverChildEnvironment,
-  LOCAL_SOLVER_CAPABILITIES,
+  localSolverCapabilities,
   solverBinDirectory,
 } from './local-solver-spawner';
 
@@ -72,9 +72,9 @@ describe('createSolverChildEnvironment', () => {
   });
 });
 
-describe('LOCAL_SOLVER_CAPABILITIES', () => {
-  it('states the three guarantees this profile does not have', () => {
-    expect(LOCAL_SOLVER_CAPABILITIES).toEqual({
+describe('localSolverCapabilities', () => {
+  it('states the three guarantees the Darwin profile does not have', () => {
+    expect(localSolverCapabilities('darwin')).toEqual({
       kind: 'local-solver',
       parentDeath: 'no-immediate-termination',
       memoryEnforcement: 'none',
@@ -83,7 +83,35 @@ describe('LOCAL_SOLVER_CAPABILITIES', () => {
     });
   });
 
+  /**
+   * On Linux the launcher arms `PR_SET_PDEATHSIG` and its `RLIMIT_AS` backstop
+   * (`launcher.py`), so reporting Darwin's absences there would understate the
+   * profile, while a cgroup ceiling and OOM evidence are still absent.
+   *
+   * Proof: returning the Darwin record for every platform failed this case on
+   * `- "parentDeath": "kernel-signal",` / `+ "parentDeath":
+   * "no-immediate-termination",`.
+   */
+  it('states what the launcher arms on Linux and what is still absent', () => {
+    expect(localSolverCapabilities('linux')).toEqual({
+      kind: 'local-solver',
+      parentDeath: 'kernel-signal',
+      memoryEnforcement: 'address-space-backstop',
+      oomEvidence: 'unavailable',
+      deadline: 'child-alarm-only',
+    });
+  });
+
+  /**
+   * Proof: returning the Darwin record for every platform failed this case on
+   * `Received function did not throw`.
+   */
+  it('refuses a platform whose launcher guarantees were never examined', () => {
+    expect(() => localSolverCapabilities('win32')).toThrow('win32');
+  });
+
   it('cannot be edited into claiming a guarantee it lacks', () => {
-    expect(Object.isFrozen(LOCAL_SOLVER_CAPABILITIES)).toBe(true);
+    expect(Object.isFrozen(localSolverCapabilities('linux'))).toBe(true);
+    expect(Object.isFrozen(localSolverCapabilities('darwin'))).toBe(true);
   });
 });

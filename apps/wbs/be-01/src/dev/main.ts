@@ -19,7 +19,7 @@ import { oidcRouteOptionsFromEnv } from '../controller/oidc-options';
 import { readRuntimeSolverVersion } from '../service/solver-launcher-process';
 import {
   createLocalSolverSpawner,
-  LOCAL_SOLVER_CAPABILITIES,
+  localSolverCapabilities,
   solverBinDirectory,
 } from './local-solver-spawner';
 
@@ -36,13 +36,13 @@ try {
   // whole line of work exists to stop reporting as progress.
   if (!existsSync(join(binDirectory, 'wbs-solver-launcher'))) {
     throw new Error(
-      `no solver environment at ${binDirectory}; run \`bunx nx run wbs-solver-py:setup-macos\` first`,
+      `no solver environment at ${binDirectory}; run \`bunx nx run wbs-solver-py:setup-local-solver\` first`,
     );
   }
 
   logger.warn(
-    { optimizer: LOCAL_SOLVER_CAPABILITIES },
-    'be-01 starting with the local solver (development only): no memory ceiling, no parent-death signal, no durable deadline owner',
+    { optimizer: localSolverCapabilities(process.platform) },
+    'be-01 starting with the local solver (development only): no cgroup memory ceiling, no durable deadline owner',
   );
 
   running = bootBe01({
