@@ -8,6 +8,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -61,6 +62,39 @@ function runActivationConfigurationGuard(workflowPath: string, stepName: string,
     stderr: 'pipe',
     stdout: 'pipe',
   });
+}
+
+/**
+ * Runs the trusted workflow's `Install archived launcher` step against a prepared archive root.
+ * The step reads the root's own `launcher-path` descriptor, so nothing here supplies the launcher.
+ */
+function runArchivedLauncherInstall(
+  activationRoot: string,
+  descriptor: string,
+): { invocation: ReturnType<typeof Bun.spawnSync>; installed: string } {
+  const runnerTemporary = mkdtempSync(join(tmpdir(), 'tool-wiki-launcher-runner-'));
+  scratchPaths.push(runnerTemporary);
+  writeFileSync(join(activationRoot, 'launcher-path'), `${descriptor}\n`, 'utf8');
+  const invocation = Bun.spawnSync(
+    [
+      'bash',
+      '-c',
+      workflowStep(
+        join(workspace, '.github', 'workflows', 'trusted-wiki.yml'),
+        'Install archived launcher',
+      ),
+    ],
+    {
+      env: {
+        PATH: process.env['PATH'] ?? '',
+        RUNNER_TEMP: runnerTemporary,
+        TOOL_WIKI_ACTIVATION_ROOT: activationRoot,
+      },
+      stderr: 'pipe',
+      stdout: 'pipe',
+    },
+  );
+  return { invocation, installed: join(runnerTemporary, 'tool-wiki-lint.sh') };
 }
 
 function fixture(): {
@@ -911,6 +945,51 @@ describe('tool-wiki production entrypoint adapter', () => {
     expect(existsSync(marker)).toBe(false);
   });
 
+  test('the archived runtime closure is the launcher default and its absence is refused', () => {
+    const provisioned = fixture();
+    symlinkSync(
+      join(workspace, 'node_modules'),
+      join(provisioned.activationRoot, 'trusted-node-modules'),
+      'dir',
+    );
+    // Proof: without the archive-root default the unset override refused a root that carries its
+    // own runtime, so only a workflow that knew the archive's layout could run this launcher.
+    const archived = runAdapter('committed', provisioned, { TOOL_WIKI_TRUSTED_NODE_MODULES: '' });
+    expect(archived.exitCode, streamText(archived.stderr, 'adapter stderr')).toBe(0);
+
+    const bare = fixture();
+    // Proof: with the absence unguarded the launcher ran its route against an archive root that
+    // carries no TypeScript closure at all.
+    const unprovisioned = runAdapter('committed', bare, { TOOL_WIKI_TRUSTED_NODE_MODULES: '' });
+    expect(unprovisioned.exitCode).toBe(78);
+    expect(streamText(unprovisioned.stderr, 'adapter stderr')).toContain('trusted-node-modules');
+  });
+
+  test('the trusted workflow installs the launcher its archive root names', () => {
+    const paths = fixture();
+    write(join(paths.activationRoot, 'bootstrap-launcher.sh'), readFileSync(adapterPath, 'utf8'));
+    const archived = runArchivedLauncherInstall(paths.activationRoot, 'bootstrap-launcher.sh');
+    expect(
+      archived.invocation.exitCode,
+      streamText(archived.invocation.stderr, 'launcher install stderr'),
+    ).toBe(0);
+    expect(readFileSync(archived.installed, 'utf8')).toBe(readFileSync(adapterPath, 'utf8'));
+    expect(statSync(archived.installed).mode & 0o777).toBe(0o555);
+
+    // Proof: with the descriptor shape unguarded this escaping descriptor exited 0 and installed
+    // `decoy-launcher.sh` from beside the extraction directory — a launcher the digest-pinned
+    // archive never carried — as the admission entrypoint. An absolute descriptor is refused by
+    // the same shape.
+    write(join(paths.directory, 'decoy-launcher.sh'), '#!/usr/bin/env bash\nexit 0\n');
+    for (const escape of ['../decoy-launcher.sh', '/usr/bin/env']) {
+      const refused = runArchivedLauncherInstall(paths.activationRoot, escape);
+      const detail = streamText(refused.invocation.stderr, 'launcher install stderr');
+      expect(refused.invocation.exitCode, detail).toBe(78);
+      expect(detail).toContain(escape);
+      expect(existsSync(refused.installed)).toBe(false);
+    }
+  });
+
   test('candidate-contained runtime modules are refused before validator execution', () => {
     const paths = fixture();
     const candidateModules = join(paths.repository, 'node_modules');
@@ -1167,15 +1246,22 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(ciActionRefs.every((ref) => /^[0-9a-f]{40}$/.test(ref))).toBe(true);
     expect(trustedCi).not.toContain('if: ${{ vars.TOOL_WIKI_ACTIVATION_');
     expect(trustedCi.indexOf('name: Require immutable activation configuration')).toBeLessThan(
-      trustedCi.indexOf('name: Check out trusted launcher'),
+      trustedCi.indexOf('name: Provision immutable external activation'),
     );
-    expect(trustedCi.match(/persist-credentials: false/g)).toHaveLength(2);
-    expect(trustedCi).toContain('ref: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}');
-    expect(trustedCi).toContain('bun install --frozen-lockfile --ignore-scripts');
-    expect(trustedCi).toContain(
-      'TOOL_WIKI_TRUSTED_NODE_MODULES: ${{ github.workspace }}/trusted/node_modules',
-    );
+    // Proof: the admission job checked out this repository at the activation version to get the
+    // launcher and ran `bun install` for its runtime — which no consumer repository can reproduce.
+    // These five were watched failing against that workflow text before it was rewritten.
+    expect(trustedCi.match(/persist-credentials: false/g)).toHaveLength(1);
+    expect(trustedCi).not.toContain('ref: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}');
+    expect(trustedCi).not.toContain('bun install');
+    expect(trustedCi).not.toContain('TOOL_WIKI_TRUSTED_NODE_MODULES');
+    expect(trustedCi).toContain('launcher-path');
     expect(trustedCi).toContain('ref: ${{ github.event.pull_request.head.sha }}');
+    // Proof: this pin held before the rewrite because both values already read 1.4.2, so it was
+    // watched failing against a drifted `.bun-version` instead. A runner Bun other than the one
+    // that built the activation's validator bundle and module closure is what it refuses.
+    const pinnedRuntime = readFileSync(join(workspace, '.bun-version'), 'utf8').trim();
+    expect(trustedCi).toContain(`bun-version: ${pinnedRuntime}`);
     expect(trustedCi).toContain('$RUNNER_TEMP/tool-wiki-lint.sh');
     // Proof: removing the selected-package check and required-certification environment from the
     // production workflow failed here with each missing literal instead of accepting exit 0.

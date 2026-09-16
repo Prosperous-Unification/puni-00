@@ -24,7 +24,7 @@ consumes it, slice 5 the template, README and runbook. Slice 6 is operator work 
 
 ## 2. The consumer never checks out the wiki's source
 
-- [ ] 2.1 `bin/tool-wiki-lint.sh` defaults `TOOL_WIKI_TRUSTED_NODE_MODULES` to
+- [x] 2.1 `bin/tool-wiki-lint.sh` defaults `TOOL_WIKI_TRUSTED_NODE_MODULES` to
       `<activation root>/trusted-node-modules`, computed from the configured root before the
       selected version directory replaces it, keeping the absent-directory and
       inside-the-candidate refusals. Test: `gate-entrypoints.test.ts` production-entrypoint case
@@ -32,15 +32,18 @@ consumes it, slice 5 the template, README and runbook. Slice 6 is operator work 
       runs the route; negative: neither an override nor that directory observes a non-zero exit
       naming `trusted-node-modules`, watched failing with the default left unguarded — the launcher
       then runs its route with no TypeScript closure.
-- [ ] 2.2 `.github/workflows/trusted-wiki.yml` drops "Check out trusted launcher", "Preserve trusted
+- [x] 2.2 `.github/workflows/trusted-wiki.yml` drops "Check out trusted launcher", "Preserve trusted
       launcher", "Install trusted validator runtime modules" and the modules override, and installs
       `$activation_root/<launcher-path>` to `$RUNNER_TEMP/tool-wiki-lint.sh` at mode 0555 after
       extraction, refusing an absolute or `..`-bearing descriptor. Bun stays, pinned to
       `.bun-version`. Test: `gate-entrypoints.test.ts` workflow pins — `launcher-path` present, one
       `persist-credentials: false`, `bun install` and the version checkout ref absent, the
       configuration guard still before provisioning, `bun-version` equal to `.bun-version`; negative:
-      each pin watched failing against the pre-edit workflow text.
-- [ ] 2.3 `docs/runbook-tool-wiki-activation.md` "Transport and admission" states that the archive
+      the five rewritten pins watched failing against the pre-edit workflow text, the step-order pin
+      against a workflow with the guard moved after provisioning, and the runtime pin against a
+      drifted `.bun-version`; the launcher-install step's descriptor refusal watched installing a
+      decoy launcher from beside the extraction directory with the shape check removed.
+- [x] 2.3 `docs/runbook-tool-wiki-activation.md` "Transport and admission" states that the archive
       carries launcher and runtime and that no workflow checks out the activation version, and
       "Relocation" states that editing `bin/tool-wiki-lint.sh` makes the next activation carry the
       new launcher and print `launcher: changed`. No executable test — prose the operator follows.

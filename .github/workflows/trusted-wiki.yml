@@ -30,26 +30,12 @@ jobs:
             exit 78
           }
 
-      - name: Check out trusted launcher
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          # Repository variables are target-context authority. Pin both launcher and runtime
-          # modules to the same reviewed source revision that produced the activation archive.
-          ref: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}
-          path: trusted
-          persist-credentials: false
-
-      - name: Preserve trusted launcher
-        run: install -m 0555 trusted/bin/tool-wiki-lint.sh "$RUNNER_TEMP/tool-wiki-lint.sh"
-
+      # gate-entrypoints.test.ts pins this version equal to `.bun-version`, so the runner's Bun is
+      # the one the activation's validator bundle and trusted-node-modules were produced with.
       - name: Install pinned Bun runtime
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.4.2
-
-      - name: Install trusted validator runtime modules
-        working-directory: trusted
-        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Provision immutable external activation
         env:
@@ -94,6 +80,22 @@ jobs:
           fi
           printf 'TOOL_WIKI_ACTIVATION_ROOT=%s\n' "$activation_root" >> "$GITHUB_ENV"
 
+      # The archive root names its own launcher, so this job installs the reviewed launcher bytes
+      # the digest-pinned archive carries instead of checking out this repository's source.
+      - name: Install archived launcher
+        run: |
+          set -euo pipefail
+          activation_root=${TOOL_WIKI_ACTIVATION_ROOT:?activation root was not provisioned}
+          launcher_path=$(<"$activation_root/launcher-path")
+          # Proof: gate-entrypoints.test.ts runs this production block with an absolute and with a
+          # `..`-bearing descriptor and observes exit 78; unguarded, the step installed a file the
+          # digest-pinned archive root does not contain.
+          if [[ ! "$launcher_path" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*(/[0-9A-Za-z][0-9A-Za-z._-]*)*$ ]]; then
+            printf 'activation launcher descriptor names no archive path: %s\n' "$launcher_path" >&2
+            exit 78
+          fi
+          install -m 0555 "$activation_root/$launcher_path" "$RUNNER_TEMP/tool-wiki-lint.sh"
+
       - name: Check out exact candidate
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -101,8 +103,8 @@ jobs:
           path: candidate
           persist-credentials: false
 
-      # This target-context job runs only the launcher preserved from the operator-pinned
-      # activation-version revision.
+      # This target-context job runs only the launcher the digest-pinned activation archive
+      # carries, with that archive's own trusted-node-modules as the validator's runtime.
       # The launcher runs its externally activated validator with an empty environment and
       # treats candidate bytes solely as the immutable committed selection being inspected.
       # Proof: gate-entrypoints.test.ts replaces both candidate scripts with exit 0 and the
@@ -111,5 +113,4 @@ jobs:
         env:
           CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
           TOOL_WIKI_REQUIRE_CERTIFIED: '1'
-          TOOL_WIKI_TRUSTED_NODE_MODULES: ${{ github.workspace }}/trusted/node_modules
         run: bash "$RUNNER_TEMP/tool-wiki-lint.sh" committed "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"

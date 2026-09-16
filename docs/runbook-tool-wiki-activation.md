@@ -48,18 +48,21 @@ It never relocates candidate-installed modules into the trust path. With no arch
 reports inactive; partial configuration or a configured activation root that loses its marker
 fails rather than silently auditing nothing.
 
-Set `TOOL_WIKI_ACTIVATION_VERSION` to the exact reviewed source commit, not a display label. The
-target-context workflow checks out that immutable revision, installs its lockfile-pinned runtime
-modules with lifecycle scripts disabled, and passes their external path to the validator. The
-validator refuses runtime modules inside the candidate. Nx relationships are read statically from
+Set `TOOL_WIKI_ACTIVATION_VERSION` to the exact reviewed source commit, not a display label. No
+workflow checks that revision out. Provisioning refuses an archive whose selected manifest
+`sourceRevision` differs from the variable, naming both, then installs the launcher the archive
+root's `launcher-path` names and runs it against the archive's own `trusted-node-modules`. The
+launcher, the push audit and the h2puni host gate all default `TOOL_WIKI_TRUSTED_NODE_MODULES` to
+that directory and refuse when it is absent; the validator refuses runtime modules inside the
+candidate. A consumer repository therefore needs the three variables and this workflow, never a
+checkout of the wiki's source. Nx relationships are read statically from
 `nx.json` and `project.json`; candidate plugins and inferred plugin targets are never executed or
 admitted by this bootstrap boundary.
 
-The h2puni host gate defaults `TOOL_WIKI_TRUSTED_NODE_MODULES` to the archive's external
-`trusted-node-modules` directory. It refuses a missing TypeScript package and any explicit override
-that resolves inside the candidate checkout. The archive transport SHA-256 authenticates these
-runtime bytes alongside the root descriptors; do not construct or install the host archive without
-that directory.
+The h2puni host gate resolves `TOOL_WIKI_TRUSTED_NODE_MODULES` the same way. It refuses a missing
+TypeScript package and any explicit override that resolves inside the candidate checkout. The
+archive transport SHA-256 authenticates these runtime bytes alongside the root descriptors; do not
+construct or install the host archive without that directory.
 
 Copy the same digest-pinned archive to a versioned directory on h2puni. The base-owned
 `trusted-wiki` workflow downloads its operator-configured HTTPS archive into runner temporary
@@ -130,6 +133,12 @@ at the old paths. Landing a move takes two steps: activate from the candidate he
 
 The three variables hold one SHA, so two concurrent move candidates serialize: the second is
 prepared only after the first has merged, from a head that contains it.
+
+`bin/tool-wiki-lint.sh` is the launcher role: an activation copies its bytes, and every consumer of
+the archive runs that copy rather than the file in any checkout. A candidate that edits the launcher
+therefore ships a new launcher in the next activation prepared from it, and the command's report
+prints `launcher: changed` beside the validator identity. That is the designed path — review the
+launcher diff as trusted code, because the archive's bytes become the admission entrypoint.
 
 ## Final binding and recovery
 

@@ -28,11 +28,17 @@ fi
 
 candidate_root=$(cd -- "$repository" && pwd -P)
 trusted_root=$(cd -- "$activation_root" && pwd -P)
-trusted_modules_input=${TOOL_WIKI_TRUSTED_NODE_MODULES:-}
-if [[ -z "$trusted_modules_input" ]] ||
-  ! trusted_modules=$(realpath -- "$trusted_modules_input") ||
+# The archive root carries the TypeScript closure the validator loads, so a consumer that runs this
+# launcher from an activation needs neither an override nor a checkout of the wiki's source. The
+# default is taken from the configured root, before a selected version directory replaces it below.
+trusted_modules_input=${TOOL_WIKI_TRUSTED_NODE_MODULES:-$trusted_root/trusted-node-modules}
+# Proof: gate-entrypoints.test.ts runs the production launcher with the override unset against a
+# root carrying no closure and observes exit 78; unguarded, the launcher ran its route with no
+# trusted TypeScript at all.
+if ! trusted_modules=$(realpath -- "$trusted_modules_input") ||
   [[ ! -d "$trusted_modules" ]] || [[ ! -f "$trusted_modules/typescript/package.json" ]]; then
-  printf 'tool-wiki lint: trusted TypeScript runtime modules are not provisioned\n' >&2
+  printf 'tool-wiki lint: trusted TypeScript runtime modules are not provisioned: %s\n' \
+    "$trusted_modules_input" >&2
   exit 78
 fi
 case "$trusted_modules/" in
