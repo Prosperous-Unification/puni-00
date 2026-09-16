@@ -383,11 +383,17 @@ jobs:
       # and runs its targets separately; `nx affected` would otherwise exclude it and
       # nothing would put it back.
       #
-      # Proof (2026-09-16): with the `*)` arm deleted, `the CI gate scope > maps every
-      # subscribed event and refuses one it has no rule for` in
-      # `tools/tool-devsync/src/toolchain-pins.test.ts` failed on
-      # `expect(received).toContain("*")`, received
-      # `["pull_request", "push", "merge_group", "workflow_dispatch"]`.
+      # Proof (2026-09-16), re-observed after the nested `case "$tool_wiki_status"` landed —
+      # the first version of this note claimed a failure that had stopped reproducing. In
+      # `tools/tool-devsync/src/toolchain-pins.test.ts`, `the CI gate scope > maps every
+      # subscribed event and refuses one it has no rule for`:
+      #   whole `*)` arm deleted    -> `Expected: ["*"] · Received: []`, 16 passed / 1 failed
+      #   only its `exit 1` deleted -> `Expected to contain: "printf 'no gate mode for event
+      #                                %s\n' "$EVENT_NAME" >&2 exit 1"`, 16 passed / 1 failed
+      # The second fault is the one worth the two lines: an arm that says what happened and
+      # then falls through is log-and-continue, and until that pin was tightened it left the
+      # whole suite green, because the `type == "array"` guard below supplies a second
+      # `exit 1` for a bare `toContain('exit 1')` to find.
       - name: Gate mode
         id: gate_mode
         env:
@@ -712,12 +718,16 @@ jobs:
             push | merge_group | workflow_dispatch)
               printf 'stack=affected\n' >> "$GITHUB_OUTPUT"
               ;;
-            # Proof (2026-09-16): with this arm deleted, `the CI pixels scope > decides the
-            # browser scope from the event, and refuses one it has no rule for` failed on
-            # `expect(received).toContain("*")`, received
-            # `["pull_request", "push", "merge_group", "workflow_dispatch"]` — 4 passed /
-            # 1 failed. Without it a newly subscribed event would scope the browser gate by
-            # falling through rather than by a rule.
+            # Proof (2026-09-16), re-observed after the nested `case "$stack_status"` landed.
+            # `the CI pixels scope > decides the browser scope from the event, and refuses
+            # one it has no rule for`:
+            #   whole arm deleted         -> `Expected: ["*"] · Received: []`, 5 passed / 1 failed
+            #   only its `exit 1` deleted -> `Expected to contain: "printf 'no browser-stack
+            #                                rule for event %s\n' "$EVENT_NAME" >&2 exit 1"`,
+            #                                5 passed / 1 failed
+            # Without this arm a newly subscribed event would scope the browser gate by
+            # falling through rather than by a rule; without its `exit` it would do the same
+            # after printing a warning nobody reads.
             *)
               printf 'no browser-stack rule for event %s\n' "$EVENT_NAME" >&2
               exit 1

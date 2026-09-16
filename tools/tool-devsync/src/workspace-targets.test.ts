@@ -819,48 +819,54 @@ describe('lint:fast cache locations', () => {
  * schedules the suite that is entirely about `ci.yml`, and reports green. An oracle is only
  * as reachable as its Nx inputs.
  */
-const CI_WORKFLOW = '.github/workflows/ci.yml';
+const TRACKED_WORKFLOWS = [
+  '.github/workflows/ci.yml',
+  '.github/workflows/trusted-wiki.yml',
+] as const;
 
-/** Whether a source names the CI workflow, with its path written either way. */
-function readsCiWorkflow(source: string): boolean {
-  return source.replace(/["'`,\s\\/]+/g, '').includes(CI_WORKFLOW.replaceAll('/', ''));
+/** Whether a source names this workflow, with its path written either way. */
+function readsWorkflow(source: string, workflow: string): boolean {
+  return source.replace(/["'`,\s\\/]+/g, '').includes(workflow.replaceAll('/', ''));
 }
 
-describe('every suite that reads the CI workflow declares it', () => {
-  it('names the workflow in the test target that runs it', async () => {
+describe('every suite that reads a CI workflow declares it', () => {
+  it('names each workflow in the test target that runs it', async () => {
     const readers: string[] = [];
     const undeclared: string[] = [];
     for (const project of await readProjects(WORKSPACE)) {
       const sources = new Bun.Glob('src/**/*.test.{ts,tsx}');
-      let reads = false;
+      const read = new Set<string>();
       for await (const path of sources.scan({
         cwd: new URL(`${project.root}/`, WORKSPACE).pathname,
       })) {
         const source = await readFile(new URL(`${project.root}/${path}`, WORKSPACE), 'utf8');
-        if (readsCiWorkflow(source)) {
-          reads = true;
-          break;
-        }
+        for (const workflow of TRACKED_WORKFLOWS)
+          if (readsWorkflow(source, workflow)) read.add(workflow);
       }
-      if (!reads) continue;
+      if (read.size === 0) continue;
       readers.push(project.name);
       const declared = (project.targets['test']?.inputs ?? [])
         .filter(
           (each): each is string => typeof each === 'string' && each.startsWith('{workspaceRoot}/'),
         )
         .map((each) => each.slice('{workspaceRoot}/'.length));
-      if (!declared.some((pattern) => new Bun.Glob(pattern).match(CI_WORKFLOW)))
-        undeclared.push(`${project.name}:test does not declare ${CI_WORKFLOW}`);
+      for (const workflow of TRACKED_WORKFLOWS) {
+        if (!read.has(workflow)) continue;
+        if (!declared.some((pattern) => new Bun.Glob(pattern).match(workflow)))
+          undeclared.push(`${project.name}:test does not declare ${workflow}`);
+      }
     }
 
-    // Non-vacuity, and it is self-proving: THIS file names the workflow, so a detector that
-    // stopped matching would empty `readers` and fail here rather than pass having scanned
-    // nothing.
+    // Non-vacuity, and it is self-proving: THIS file names both workflows, so a detector
+    // that stopped matching would empty `readers` and fail here rather than pass having
+    // scanned nothing.
     expect(readers).toContain('tool-devsync');
-    // Proof: watched red on 2026-09-16 against the real manifests, before either input was
-    // added — `Received: ["tool-git-hooks:test does not declare .github/workflows/ci.yml",
-    // "tool-wiki:test does not declare .github/workflows/ci.yml"]`. Reverting
-    // `tool-git-hooks/project.json` alone reproduces the first line.
+    // Proof, watched red on 2026-09-16 against the real manifests. Before any input was
+    // added: `["tool-git-hooks:test does not declare .github/workflows/ci.yml",
+    // "tool-wiki:test does not declare .github/workflows/ci.yml"]`. With `ci.yml` declared
+    // and `trusted-wiki.yml` not — `gate-entrypoints.test.ts` reads both — it failed again
+    // on `["tool-wiki:test does not declare .github/workflows/trusted-wiki.yml"]`.
+    // Reverting `tool-git-hooks/project.json` alone reproduces the first line.
     expect(undeclared).toEqual([]);
   });
 });

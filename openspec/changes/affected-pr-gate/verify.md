@@ -34,10 +34,11 @@ new refusals by editing the production workflow and watching the pins go red, an
 
 | Task                        | Reason incomplete                                                                                           | Blocks archive? |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------- |
-| 3.1 live-run rows           | Needs a pushed branch, a pull request and a `push` to `main`; the throwaway negative PR is the controller's | Yes             |
-| 3.1 first `merge_group` row | Needs Dany's `main` ruleset; `merge_group` cannot fire until it exists                                      | Yes             |
+| 4.1 live-run rows           | Needs a pushed branch, a pull request and a `push` to `main`; the throwaway negative PR is the controller's | Yes             |
+| 4.1 first `merge_group` row | Needs Dany's `main` ruleset; `merge_group` cannot fire until it exists                                      | Yes             |
 
-Slices 1.1–1.4 and 2.1–2.3 are complete.
+Slices 1.1–1.4, 2.1–2.3 and 3.1–3.3 are complete. 4.1 is the only open slice, and every
+reason it is open is in section 7.
 
 ---
 
@@ -54,16 +55,19 @@ Slices 1.1–1.4 and 2.1–2.3 are complete.
 Each fault was injected into the real `.github/workflows/ci.yml` — not a fixture, not a
 copy — and the pin suite was watched failing on it before the file was restored.
 
-| Check (file:line)                                                        | Fault injected                                                                    | Test that observed the failure                                                                                                          | Result                                                                                                                                                 |
-| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ci.yml` `Gate mode`, the `*)` arm                                       | Deleted the whole `*)` arm from the production step                               | `toolchain-pins.test.ts` › `the CI gate scope > maps every subscribed event and refuses one it has no rule for`                         | Red: `Expected to contain: "*"`, received `["pull_request", "push", "merge_group", "workflow_dispatch"]`. 15 pass / 1 fail                             |
-| `ci.yml` gate step, the tool-wiki-affected switch                        | Replaced `if [ "$GATE_TOOL_WIKI" = run ]; then …` with `true` in the affected arm | Same file, `keeps Tool Wiki in the pull-request gate…` and `runs affected on a pull request…`                                           | Red: missing `if [ "$GATE_TOOL_WIKI" = run ]; then`, and `Expected: 2 · Received: 1` for the tool-wiki run-many. 14/2                                  |
-| `ci.yml` `Browser stack scope`, the `*)` arm                             | Deleted the whole `*)` arm from the production step                               | `pixels-workflow.test.ts` › `the CI pixels scope > decides the browser scope from the event, and refuses one…`                          | Red: `Expected to contain: "*"`, received the four subscribed events. 4 pass / 1 fail                                                                  |
-| `ci.yml` `Browser stack scope`, the boot-set membership                  | Narrowed `jq` to `index("wbs-fe-01") != null`                                     | `pixels-workflow.test.ts` › `asks Nx about every app the browser stack boots, as JSON`                                                  | Red: the three-project `any(.[]; …)` expression absent from the received script. 4 pass / 1 fail                                                       |
-| `ci.yml` `pixels` › `Require every browser shard`                        | Reduced to the previous `test "${{ needs.pixels_shard.result }}" = success`       | `pixels-workflow.test.ts` › `the required check refuses a skip it cannot explain`                                                       | Red: expected the three `needs` env values, received `undefined`. 4 pass / 1 fail                                                                      |
-| `tool-git-hooks/project.json` and `tool-wiki/project.json` `test` inputs | Ran the new oracle against the real manifests before either input was added       | `workspace-targets.test.ts` › `every suite that reads the CI workflow declares it > names the workflow in the test target that runs it` | Red: `["tool-git-hooks:test does not declare .github/workflows/ci.yml", "tool-wiki:test does not declare .github/workflows/ci.yml"]`. 17 pass / 1 fail |
-| `ci.yml` `Gate mode`, the jq three-way status                            | Returned the switch to its two-branch `if jq -e …; then; else; fi`                | `toolchain-pins.test.ts` › `refuses a jq failure instead of reading it as Tool Wiki being unaffected`                                   | Red: `Expected to contain: "jq -e 'type == \"array\"'"`. 16 pass / 1 fail. Behaviour below.                                                            |
-| `ci.yml` `Browser stack scope`, the jq three-way status                  | Same, in the pixels switch                                                        | `pixels-workflow.test.ts` › `refuses a jq failure instead of reading it as the stack being unaffected`                                  | Red: same missing literal. 5 pass / 1 fail                                                                                                             |
+| Check (file:line)                                                        | Fault injected                                                                    | Test that observed the failure                                                                                                          | Result                                                                                                                                                                                     |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ci.yml` `Gate mode`, the `*)` arm                                       | Deleted the whole `*)` arm                                                        | `toolchain-pins.test.ts` › `maps every subscribed event and refuses one it has no rule for`                                             | Red: `Expected: ["*"] · Received: []`. 16 pass / 1 fail. **Re-observed after the extractor was tightened**; the original `toContain("*")` reading is not reproducible on the shipped tree. |
+| `ci.yml` `Gate mode`, the `*)` arm's `exit 1`                            | Deleted only the `exit 1`, leaving the message — log-and-continue                 | Same case                                                                                                                               | Red: `Expected to contain: "printf 'no gate mode for event %s\n' \"$EVENT_NAME\" >&2 exit 1"`. 16 pass / 1 fail. Green before the tightening.                                              |
+| `ci.yml` gate step, the tool-wiki-affected switch                        | Replaced `if [ "$GATE_TOOL_WIKI" = run ]; then …` with `true` in the affected arm | Same file, `keeps Tool Wiki in the pull-request gate…` and `runs affected on a pull request…`                                           | Red: missing `if [ "$GATE_TOOL_WIKI" = run ]; then`, and `Expected: 2 · Received: 1` for the tool-wiki run-many. 14/2                                                                      |
+| `ci.yml` `Browser stack scope`, the `*)` arm                             | Deleted the whole `*)` arm                                                        | `pixels-workflow.test.ts` › `decides the browser scope from the event, and refuses one…`                                                | Red: `Expected: ["*"] · Received: []`. 5 pass / 1 fail. **Re-observed**, same reason as the first row.                                                                                     |
+| `ci.yml` `Browser stack scope`, the `*)` arm's `exit 1`                  | Deleted only the `exit 1`                                                         | Same case                                                                                                                               | Red: `Expected to contain: "printf 'no browser-stack rule for event %s\n' \"$EVENT_NAME\" >&2 exit 1"`. 5 pass / 1 fail. Green before the tightening — all SIX cases passed.               |
+| `tool-wiki/project.json` `test` inputs, `trusted-wiki.yml`               | Ran the oracle with `ci.yml` declared and `trusted-wiki.yml` not                  | `workspace-targets.test.ts` › `every suite that reads a CI workflow declares it`                                                        | Red: `["tool-wiki:test does not declare .github/workflows/trusted-wiki.yml"]`. 17 pass / 1 fail                                                                                            |
+| `ci.yml` `Browser stack scope`, the boot-set membership                  | Narrowed `jq` to `index("wbs-fe-01") != null`                                     | `pixels-workflow.test.ts` › `asks Nx about every app the browser stack boots, as JSON`                                                  | Red: the three-project `any(.[]; …)` expression absent from the received script. 4 pass / 1 fail                                                                                           |
+| `ci.yml` `pixels` › `Require every browser shard`                        | Reduced to the previous `test "${{ needs.pixels_shard.result }}" = success`       | `pixels-workflow.test.ts` › `the required check refuses a skip it cannot explain`                                                       | Red: expected the three `needs` env values, received `undefined`. 4 pass / 1 fail                                                                                                          |
+| `tool-git-hooks/project.json` and `tool-wiki/project.json` `test` inputs | Ran the new oracle against the real manifests before either input was added       | `workspace-targets.test.ts` › `every suite that reads the CI workflow declares it > names the workflow in the test target that runs it` | Red: `["tool-git-hooks:test does not declare .github/workflows/ci.yml", "tool-wiki:test does not declare .github/workflows/ci.yml"]`. 17 pass / 1 fail                                     |
+| `ci.yml` `Gate mode`, the jq three-way status                            | Returned the switch to its two-branch `if jq -e …; then; else; fi`                | `toolchain-pins.test.ts` › `refuses a jq failure instead of reading it as Tool Wiki being unaffected`                                   | Red: `Expected to contain: "jq -e 'type == \"array\"'"`. 16 pass / 1 fail. Behaviour below.                                                                                                |
+| `ci.yml` `Browser stack scope`, the jq three-way status                  | Same, in the pixels switch                                                        | `pixels-workflow.test.ts` › `refuses a jq failure instead of reading it as the stack being unaffected`                                  | Red: same missing literal. 5 pass / 1 fail                                                                                                                                                 |
 
 - [x] Every check in this change has a row
 - [x] Each negative test reaches the production call path — every oracle reads
@@ -104,16 +108,41 @@ $ bunx nx show projects --affected --files=.github/workflows/ci.yml --json
 ["tool-git-hooks","tool-devsync","tool-wiki"]
 ```
 
-`workspace-targets.test.ts` › `every suite that reads the CI workflow declares it` now keeps
+`workspace-targets.test.ts` › `every suite that reads a CI workflow declares it` now keeps
 it that way: it greps every project's test sources for the workflow path — in both spellings,
 the single literal and the `join(…, '.github', 'workflows', 'ci.yml')` segments, neither of
 which `outsideReads` can see — and requires the reading project's `test` target to declare it.
 Its non-vacuity assertion is self-proving: that file itself names the path, so a detector that
 stopped matching empties the reader list and fails rather than passing over an empty scan.
 
+The oracle is parametrised over a list of workflows, not hard-coded to one, and the second
+entry immediately earned its place: `gate-entrypoints.test.ts` also reads
+`.github/workflows/trusted-wiki.yml`, which no `test` target declared either. With `ci.yml`
+declared and that one not, the oracle failed on
+`["tool-wiki:test does not declare .github/workflows/trusted-wiki.yml"]`; it is declared now.
+
 The general lesson belongs beside the switch, not only in this row: **anything a check reads
 that is not inside its own project must be in that target's `inputs`, or the affected gate
 cannot schedule the check at all.**
+
+### A pin is only as breakable as its weakest assertion
+
+The first version of these refusal-arm pins asserted `toContain('exit 1')` and
+`toContain('*')`, and both stopped being able to fail inside the same round that wrote them.
+`exit 1` because the `type == "array"` guard put a SECOND `exit 1` in the same script, so
+deleting the arm's own left every case green — the log-and-continue shape AGENTS.md forbids,
+pinned by nothing. `toContain('*')` because the arm-extractor's character class contained a
+space, so `^ {2}` plus the class swallowed the indentation of the NESTED `case
+"$tool_wiki_status"` and harvested its `*)` as an outer event; the real production script
+yielded `["pull_request", "*", "push", "merge_group", "workflow_dispatch", "*"]`, and the
+star assertion passed with the outer arm gone.
+
+Both are fixed by pinning the thing rather than a token of it: the extractor matches only
+outer arms (`/^ {2}([a-z_]+(?: \| [a-z_]+)*|\*)\)$/`), the arms are asserted to hold exactly
+one `*` beside exactly the subscribed events, and the refusal is pinned as its two lines
+normalised into one string, so removing the `exit` is visible. Every `Proof:` text touching
+these arms — two in `ci.yml`, one in each suite, and the rows above — was rewritten with what
+was re-observed on the shipped tree rather than with what was true when first watched.
 
 ### The check that could not have failed, caught before it shipped
 

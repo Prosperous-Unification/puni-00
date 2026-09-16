@@ -236,11 +236,32 @@ function subscribedEvents(workflow: CiWorkflow): string[] {
   return Object.keys(block ?? {});
 }
 
-/** The event labels of a `case "$EVENT_NAME" in` script, `*` included, one per alternative. */
+/**
+ * The event labels of the OUTER `case` in a script, `*` included, one per alternative.
+ *
+ * The class deliberately excludes the space that used to be in it. With ` ` inside,
+ * `^ {2}` consumed two spaces of a SIX-space nested arm and the class ate the other four,
+ * so the inner `case "$tool_wiki_status"`'s own `*)` was harvested as an outer event: the
+ * real script yielded `["pull_request", "*", "push", "merge_group", "workflow_dispatch",
+ * "*"]` and `toContain('*')` passed with the outer refusal arm deleted. Alternatives are
+ * matched as an explicit ` | ` list instead, which only the outer arms are written as.
+ */
 function caseArmEvents(script: string): string[] {
-  return [...script.matchAll(/^ {2}([a-z_ |*]+)\)$/gm)].flatMap((match) =>
+  return [...script.matchAll(/^ {2}([a-z_]+(?: \| [a-z_]+)*|\*)\)$/gm)].flatMap((match) =>
     match[1].split('|').map((event) => event.trim()),
   );
+}
+
+/**
+ * A script with every run of whitespace collapsed to one space.
+ *
+ * A refusal is two lines — say what happened, then stop — and a `toContain` on either line
+ * alone pins neither. `exit 1` in particular appears more than once in this script now, so
+ * asserting it bare is an assertion that cannot fail; asserting the pair as one normalised
+ * string is what makes deleting the `exit` visible.
+ */
+function oneLine(script: string): string {
+  return script.replace(/\s+/g, ' ');
 }
 
 /** A shell script's commands, with its comment lines dropped so counting commands counts commands. */
@@ -267,19 +288,34 @@ function occurrences(haystack: string, needle: string): number {
  */
 describe('the CI gate scope', () => {
   it('maps every subscribed event and refuses one it has no rule for', async () => {
-    // Proof (2026-09-16): with the `*)` arm deleted from the production workflow, this
-    // failed on `expect(received).toContain("*")` — received
-    // `["pull_request", "push", "merge_group", "workflow_dispatch"]`. Restored, it passes.
-    // The equality beside it is the other half: adding a trigger to `on:` without a case
-    // arm fails on the two sets rather than choosing a scope by accident.
+    // Proofs re-observed 2026-09-16 on the shipped tree, because the first pair of them was
+    // written before the nested `case "$tool_wiki_status"` existed and stopped reproducing
+    // when it landed — see `caseArmEvents` above:
+    //
+    // 1. Whole `*)` arm deleted from `Gate mode`: fails on the star assertion below with
+    //    `Expected: ["*"] · Received: []` — 16 passed / 1 failed. It could not fail before:
+    //    the old extractor harvested the nested `case "$tool_wiki_status"`'s `*)` too, so
+    //    `arms` was `["pull_request", "*", "push", "merge_group", "workflow_dispatch", "*"]`
+    //    and a `toContain('*')` passed with this arm gone.
+    // 2. Only the arm's `exit 1` deleted, leaving the message — the log-and-continue shape
+    //    AGENTS.md forbids: fails on `Expected to contain: "printf 'no gate mode for event
+    //    %s\\n' \"$EVENT_NAME\" >&2 exit 1"` — 16 passed / 1 failed. Before this fix that
+    //    fault left every case green, because the `type == "array"` guard in the same script
+    //    supplies a second `exit 1` for a bare `toContain('exit 1')` to find.
+    //
+    // The set equality is the other half: adding a trigger to `on:` without a case arm
+    // fails on the two sets rather than choosing a scope by accident.
     const workflow = await readCiWorkflow();
     const script = gateStep(workflow, 'Gate mode').run ?? '';
     const arms = caseArmEvents(script);
 
-    expect(arms).toContain('*');
+    // Exactly one `*`, sorted rather than positional — the `on:` key order is not the arm
+    // order and neither is a contract.
+    expect(arms.filter((event) => event === '*')).toEqual(['*']);
     expect(arms.filter((event) => event !== '*').sort()).toEqual(subscribedEvents(workflow).sort());
-    expect(script).toContain(`printf 'no gate mode for event %s\\n' "$EVENT_NAME" >&2`);
-    expect(script).toContain('exit 1');
+    expect(oneLine(script)).toContain(
+      `printf 'no gate mode for event %s\\n' "$EVENT_NAME" >&2 exit 1`,
+    );
   });
 
   it('takes the pull-request boundary from the immutable payload', async () => {

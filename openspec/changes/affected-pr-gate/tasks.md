@@ -44,14 +44,22 @@ through `Bun.YAML.parse` or as text; there is no copy of the workflow to assert 
       `bunx nx show projects --affected --files=.github/workflows/ci.yml --json` lists
       `tool-git-hooks`.
 - [x] 3.2 Safety check: `workspace-targets.test.ts` requires that declaration of every project
-      whose test sources name the workflow, in either spelling — test: the oracle, with a
-      self-proving non-vacuity assertion; negative: run it against the manifests before the
-      inputs are added and observe both project names listed.
+      whose test sources name a tracked workflow, in either spelling, over a parametrised
+      list rather than one hard-coded path — test: the oracle, with a self-proving
+      non-vacuity assertion; negative: run it against the manifests before the inputs are
+      added and observe both project names listed, then with `trusted-wiki.yml` undeclared
+      and observe `tool-wiki:test` listed again.
 - [x] 3.3 Safety check: both scope switches distinguish jq's `false` from jq failing — test:
       both pin suites require the `type == "array"` assertion, the explicit status capture and
       the `*)` exit arm; negative: return either switch to its two-branch form and observe the
       pin fail, and watch the two-branch form print `skip`/`unaffected` and exit 0 on a
       non-array in a real shell.
+
+- [x] 3.4 Safety check: the refusal-arm pins are breakable — the arm extractor matches only
+      outer `case` arms, the arms hold exactly one `*`, and the refusal is pinned as its
+      message and `exit` together — test: both pin suites; negative: delete the whole `*)`
+      arm and observe the star assertion fail, then delete only its `exit 1` and observe the
+      normalised-pair assertion fail, in each of `Gate mode` and `Browser stack scope`.
 
 ## 4. Evidence
 

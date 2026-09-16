@@ -76,11 +76,30 @@ const subscribedEvents = (workflow: Workflow): string[] => {
   return Object.keys(block ?? {});
 };
 
-/** The event labels of a `case "$EVENT_NAME" in` script, `*` included, one per alternative. */
+/**
+ * The event labels of the OUTER `case` in a script, `*` included, one per alternative.
+ *
+ * The class deliberately excludes the space that used to be in it. With ` ` inside,
+ * `^ {2}` consumed two spaces of a SIX-space nested arm and the class ate the other four,
+ * so the inner `case "$stack_status"`'s own `*)` was harvested as an outer event: the real
+ * script yielded `["pull_request", "*", "push", "merge_group", "workflow_dispatch", "*"]`
+ * and `toContain('*')` passed with the outer refusal arm deleted. Alternatives are matched
+ * as an explicit ` | ` list instead, which only the outer arms are written as.
+ */
 const caseArmEvents = (script: string): string[] =>
-  [...script.matchAll(/^ {2}([a-z_ |*]+)\)$/gm)].flatMap((match) =>
+  [...script.matchAll(/^ {2}([a-z_]+(?: \| [a-z_]+)*|\*)\)$/gm)].flatMap((match) =>
     match[1].split('|').map((event) => event.trim()),
   );
+
+/**
+ * A script with every run of whitespace collapsed to one space.
+ *
+ * A refusal is two lines — say what happened, then stop — and a `toContain` on either line
+ * alone pins neither. `exit 1` in particular appears more than once in these scripts now,
+ * so asserting it bare is an assertion that cannot fail; asserting the pair as one
+ * normalised string is what makes deleting the `exit` visible.
+ */
+const oneLine = (script: string): string => script.replace(/\s+/g, ' ');
 
 const jobStep = (workflow: Workflow, job: string, name: string): WorkflowStep => {
   const step = workflow.jobs?.[job]?.steps?.find((candidate) => candidate.name === name);
@@ -100,19 +119,32 @@ const jobStep = (workflow: Workflow, job: string, name: string): WorkflowStep =>
  */
 describe('the CI pixels scope', () => {
   test('decides the browser scope from the event, and refuses one it has no rule for', () => {
-    // Proof (2026-09-16): with the `*)` arm deleted from `Browser stack scope`, this
-    // failed on `expect(received).toContain("*")` — received
-    // `["pull_request", "push", "merge_group", "workflow_dispatch"]`.
+    // Proofs re-observed 2026-09-16 on the shipped tree, because the first pair of them was
+    // written before the nested `case "$stack_status"` existed and stopped reproducing when
+    // it landed — see `caseArmEvents` above:
+    //
+    // 1. Whole `*)` arm deleted from `Browser stack scope`: fails on the star assertion
+    //    below with `Expected: ["*"] · Received: []` — 5 passed / 1 failed. It could not
+    //    fail before: the old extractor harvested the nested `case "$stack_status"`'s `*)`
+    //    too, so `arms` was `["pull_request", "*", "push", "merge_group",
+    //    "workflow_dispatch", "*"]` and a `toContain('*')` passed with this arm gone.
+    // 2. Only the arm's `exit 1` deleted, leaving the message — the log-and-continue shape
+    //    AGENTS.md forbids: fails on `Expected to contain: "printf 'no browser-stack rule
+    //    for event %s\\n' \"$EVENT_NAME\" >&2 exit 1"` — 5 passed / 1 failed. Before this
+    //    fix that fault left all SIX cases green, because the `type == "array"` guard in the
+    //    same script supplies a second `exit 1` for a bare `toContain('exit 1')` to find.
     const workflow = readWorkflow();
     const script = jobStep(workflow, 'pixels_mode', 'Browser stack scope').run ?? '';
-    const arms = caseArmEvents(script);
 
-    expect(arms).toContain('*');
+    // Exactly one `*`, and exactly the subscribed events beside it. `toContain('*')` alone
+    // passed while a nested arm supplied the star. Sorted rather than positional, because
+    // the `on:` block's key order is not the arm order and neither is a contract.
+    const arms = caseArmEvents(script);
+    expect(arms.filter((event) => event === '*')).toEqual(['*']);
     expect(arms.filter((event) => event !== '*').sort()).toEqual(subscribedEvents(workflow).sort());
-    expect(script).toContain(`printf 'no browser-stack rule for event %s\\n' "$EVENT_NAME" >&2`);
-    // The stderr line alone is not the refusal: an arm that names the event and then falls
-    // through would pass a `toContain` on the printf and still scope the run by accident.
-    expect(script).toContain('exit 1');
+    expect(oneLine(script)).toContain(
+      `printf 'no browser-stack rule for event %s\\n' "$EVENT_NAME" >&2 exit 1`,
+    );
   });
 
   test('asks Nx about every app the browser stack boots, as JSON', () => {
