@@ -333,9 +333,26 @@ describe('the CI gate scope', () => {
     });
     expect(step.env).not.toHaveProperty('PR_BASE_REF');
     expect(step.run).toContain(`: "\${PR_BASE_SHA:?pull_request payload carries no base SHA}"`);
-    expect(step.run).toContain(`printf 'mode=affected\\n' >> "$GITHUB_OUTPUT"`);
-    expect(step.run).toContain(`printf 'base=%s\\n' "$PR_BASE_SHA" >> "$GITHUB_OUTPUT"`);
-    expect(step.run).toContain(`printf 'mode=full\\n' >> "$GITHUB_OUTPUT"`);
+    // Pinned as the ARM, not as three loose literals. `toContain` on each printf says only
+    // that the strings exist somewhere in the script — it is equally happy with the two arm
+    // bodies swapped, which is `mode=full` on pull requests and `mode=affected`, with no
+    // base, on everything else.
+    //
+    // Proof (2026-09-16): with the `pull_request` and `push | merge_group |
+    // workflow_dispatch` bodies exchanged in the production workflow, this failed on
+    // `Expected to contain: "pull_request) : \"${PR_BASE_SHA:?pull_request payload carries
+    // no base SHA}\" printf 'mode=affected\\n' >> \"$GITHUB_OUTPUT\""` — 16 passed /
+    // 1 failed.
+    const mode = oneLine(commandsOf(step.run ?? ''));
+    expect(mode).toContain(
+      `pull_request) : "\${PR_BASE_SHA:?pull_request payload carries no base SHA}" ` +
+        `printf 'mode=affected\\n' >> "$GITHUB_OUTPUT"`,
+    );
+    expect(mode).toContain(`printf 'base=%s\\n' "$PR_BASE_SHA" >> "$GITHUB_OUTPUT"`);
+    expect(mode).toContain(
+      `push | merge_group | workflow_dispatch) printf 'mode=full\\n' >> "$GITHUB_OUTPUT" ` +
+        `printf 'tool_wiki=run\\n' >> "$GITHUB_OUTPUT" ;;`,
+    );
   });
 
   it('runs affected on a pull request and the unchanged full gate everywhere else', async () => {
@@ -347,6 +364,15 @@ describe('the CI gate scope', () => {
       GATE_BASE: '${{ steps.gate_mode.outputs.base }}',
       GATE_TOOL_WIKI: '${{ steps.gate_mode.outputs.tool_wiki }}',
     });
+    // The SELECTOR, not only the two command lines. Nothing pinned this predicate until
+    // 2026-09-16: `if true`, `if [ -n "$GATE_MODE" ]`, or the two branch bodies swapped all
+    // left the whole suite green while `push` and `merge_group` ran
+    // `nx affected --base=""` — the silent narrowing this change exists to avoid, on the two
+    // events that must never narrow.
+    //
+    // Proof (2026-09-16): with the predicate flipped to `if true; then`, this failed on
+    // `Expected to contain: "if [ \"$GATE_MODE\" = affected ]; then"` — 16 passed / 1 failed.
+    expect(script).toContain('if [ "$GATE_MODE" = affected ]; then');
     expect(script).toContain(
       'bunx nx affected -t test lint typecheck build --base="$GATE_BASE" --head=HEAD',
     );
@@ -383,7 +409,7 @@ describe('the CI gate scope', () => {
     expect(mode).toContain(
       'bunx nx show projects --affected --base="$PR_BASE_SHA" --head=HEAD --json',
     );
-    expect(mode).toContain(`jq -e 'index("tool-wiki") != null'`);
+    expect(mode).toContain(`jq -s -e '.[0] | index("tool-wiki") != null'`);
     expect(mode).not.toContain('grep');
     expect(mode).toContain(`printf 'tool_wiki=run\\n' >> "$GITHUB_OUTPUT"`);
     expect(mode).toContain(`printf 'tool_wiki=skip\\n' >> "$GITHUB_OUTPUT"`);
@@ -400,7 +426,14 @@ describe('the CI gate scope', () => {
     //
     // Proof (2026-09-16), two halves. The oracle: with the production switch returned to its
     // two-branch `if jq -e 'index("tool-wiki") != null' … then … else … fi`, this failed on
-    // `Expected to contain: "jq -e 'type == \"array\"'"` — 16 passed / 1 failed.
+    // the missing array guard — 16 passed / 1 failed.
+    //
+    // `-s` is the second half of the guard and it is load-bearing. Without it jq judges only
+    // the LAST document in its input. Watched through this production step script, driven
+    // with a `bunx` stub printing `"tool-wiki"` and then `["wbs-be-01","tool-devsync"]`:
+    // the unslurped form wrote `tool_wiki=skip` and exited 0 — with `tool-wiki` right there
+    // in the output — while this one printed `nx show projects did not return one JSON
+    // array: …` and exited 1. Same form as `bin/h2puni-gate-steps.sh`.
     // The behaviour, both forms run in a real shell on
     // `affected='Nx read error: could not find project graph'`: the two-branch form printed
     // `tool_wiki=skip` and exited 0 — the silent drop — while this one printed
@@ -416,12 +449,12 @@ describe('the CI gate scope', () => {
     const mode = commandsOf(gateStep(await readCiWorkflow(), 'Gate mode').run ?? '');
 
     // The shape is: assert the output IS an array, then branch on the explicit status.
-    expect(mode).toContain(`jq -e 'type == "array"'`);
+    expect(mode).toContain(`jq -s -e 'length == 1 and (.[0] | type == "array")'`);
     expect(mode).toContain('tool_wiki_status=0');
     expect(mode).toContain('|| tool_wiki_status=$?');
     expect(mode).toContain('exit "$tool_wiki_status"');
-    expect(mode.indexOf(`jq -e 'type == "array"'`)).toBeLessThan(
-      mode.indexOf(`jq -e 'index("tool-wiki") != null'`),
+    expect(mode.indexOf(`jq -s -e 'length == 1 and (.[0] | type == "array")'`)).toBeLessThan(
+      mode.indexOf(`jq -s -e '.[0] | index("tool-wiki") != null'`),
     );
   });
 

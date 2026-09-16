@@ -84,6 +84,15 @@ Nothing below has an owning task in the external queue (`backlog/tasks/task-NNN 
       produce typed 409 reads and `plan_unavailable` publication; detached capture preserves
       the selected schedule or named absence without admitting a solve; the SQLite adapter
       retains the existing hash bytes and scheduler contract version.
+- [ ] **Narrow `tool-wiki:lint` and `tool-devsync:test` inputs** — both declare
+      `{workspaceRoot}/**/*`, so `nx show projects --affected` names them for EVERY file:
+      measured 2026-09-16, `--files=LLM_README.md` answers `["tool-devsync","tool-wiki"]`.
+      Two consequences for the affected PR gate (`openspec/changes/affected-pr-gate`): its
+      `tool_wiki=skip` branch is unreachable today, and the per-PR saving is bounded well
+      under the 38 minutes its proposal cites. Narrowing them is a wiki-policy decision about
+      what Tool Wiki lint is really allowed to read, not a change the gate work may make on
+      its own — `tool-wiki:lint`'s catch-all is what its admission model rests on. Needs its
+      own change with the usual negatives before either input moves.
 - [ ] **[source-conformance-completion](../../openspec/changes/source-conformance-completion/tasks.md)** —
       after core's source composition/staged memory. Complete the named 17 transactional
       plus two independent-history families, typed broken-source controls and honest

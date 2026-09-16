@@ -182,7 +182,7 @@ describe('the CI pixels scope', () => {
     // One expression naming all three, so narrowing the set moves this assertion. `grep`
     // cannot be used here: `nx show projects` prints a one-line JSON array on a non-TTY.
     expect(step.run).toContain(
-      `jq -e 'any(.[]; . == "wbs-fe-01" or . == "wbs-be-01" or . == "wbs-gw-01")'`,
+      `jq -s -e 'any(.[0][]; . == "wbs-fe-01" or . == "wbs-be-01" or . == "wbs-gw-01")'`,
     );
     expect(step.run).not.toContain('grep');
     expect(readWorkflow().jobs?.['pixels_mode']?.outputs).toEqual({
@@ -197,19 +197,25 @@ describe('the CI pixels scope', () => {
     // shards skip, and the REQUIRED `pixels` check goes green having booted no browser at all.
     //
     // Proof (2026-09-16): with the production switch returned to its two-branch form, this
-    // failed on `Expected to contain: "jq -e 'type == \"array\"'"` — 5 passed / 1 failed.
-    // Behaviourally, the two-branch form fed a non-array printed `unaffected` and exited 0;
-    // this one refuses naming the output. The `*)` arm guards jq itself failing rather than
-    // any input shape — see the companion proof in `toolchain-pins.test.ts`, where a `jq`
-    // stub that breaks on the second call was watched reaching it.
+    // failed on the missing array guard — 5 passed / 1 failed. Behaviourally, the two-branch
+    // form fed a non-array printed `unaffected` and exited 0; this one refuses naming the
+    // output. The `*)` arm guards jq itself failing rather than any input shape — see the
+    // companion proof in `toolchain-pins.test.ts`, where a `jq` stub that breaks on the
+    // second call was watched reaching it.
+    //
+    // `-s` and `length == 1` are the other half, and they were watched through THIS step's
+    // extracted script: with a `bunx` stub printing a warning document ahead of the array,
+    // the unslurped form exited 0 and wrote a `stack=` decision from a partially errored
+    // read, while this one printed `nx show projects did not return one JSON array: …` and
+    // exited 1. Without `-s`, jq judges only the LAST document it is given.
     const script = jobStep(readWorkflow(), 'pixels_mode', 'Browser stack scope').run ?? '';
 
-    expect(script).toContain(`jq -e 'type == "array"'`);
+    expect(script).toContain(`jq -s -e 'length == 1 and (.[0] | type == "array")'`);
     expect(script).toContain('stack_status=0');
     expect(script).toContain('|| stack_status=$?');
     expect(script).toContain('exit "$stack_status"');
-    expect(script.indexOf(`jq -e 'type == "array"'`)).toBeLessThan(
-      script.indexOf('any(.[]; . == "wbs-fe-01"'),
+    expect(script.indexOf(`jq -s -e 'length == 1 and (.[0] | type == "array")'`)).toBeLessThan(
+      script.indexOf('any(.[0][]; . == "wbs-fe-01"'),
     );
   });
 
@@ -234,6 +240,12 @@ describe('the CI pixels scope', () => {
       STACK_RESULT: '${{ needs.pixels_mode.result }}',
       SHARD_RESULT: '${{ needs.pixels_shard.result }}',
     });
+    // `set -euo pipefail` is what makes the first `test` a REFUSAL rather than a line whose
+    // status is discarded. Without it the script runs on to the `case` and the aggregate
+    // reports on the shards alone, which is the hole this whole step exists to close — so it
+    // is pinned here rather than assumed, and pinned FIRST because everything below depends
+    // on it.
+    expect(summary.run?.startsWith('set -euo pipefail\n')).toBe(true);
     // The scope job's own verdict first: a skip is only ever read as a pass when the job
     // that decided to skip actually succeeded.
     expect(summary.run).toContain('test "$STACK_RESULT" = success');

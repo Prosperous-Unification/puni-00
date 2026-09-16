@@ -64,6 +64,21 @@ through `Bun.YAML.parse` or as text; there is no copy of the workflow to assert 
       in-script Proof comment onto one line with that `exit 1` gone and observe the pre-fix
       pin pass on its own comment.
 
+- [x] 3.5 Safety check: the selector between the two gate arms is pinned — the predicate
+      `if [ "$GATE_MODE" = affected ]; then`, and each event arm paired with the mode it
+      writes as one normalised string — test: `toolchain-pins.test.ts`; negative: flip the
+      predicate to `if true` and observe it fail, then exchange the two arm bodies and
+      observe the pairing fail.
+- [x] 3.6 Safety check: both membership reads slurp, so a document printed ahead of the
+      project array cannot be skipped — test: both pin suites require `jq -s` with
+      `length == 1`; negative: drive the extracted production step script with a `bunx`
+      stub printing two documents and watch the unslurped form answer `tool_wiki=skip`,
+      exit 0, with `tool-wiki` present in its own output.
+- [x] 3.7 Safety check: the `pixels` aggregate refuses rather than continues — test:
+      `pixels-workflow.test.ts` requires the script to open with `set -euo pipefail`, which
+      is what makes its first `test` a refusal; negative: remove that line and observe the
+      pin fail.
+
 ## 4. Evidence
 
 - [ ] 4.1 `verify.md` records every command with its result line, both failure proofs with the
