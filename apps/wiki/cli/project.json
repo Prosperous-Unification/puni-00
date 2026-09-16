@@ -7,6 +7,12 @@
   "targets": {
     "test": {
       "executor": "nx:run-commands",
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/.github/workflows/ci.yml",
+        "{workspaceRoot}/.github/workflows/trusted-wiki.yml"
+      ],
       "options": {
         "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --preload ../../../tools/test/scratch/preload.ts",
         "cwd": "apps/wiki/cli"

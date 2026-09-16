@@ -37,9 +37,12 @@ out first: lanes share the gate tree, and a checkout outside the lock is how one
 **Rules: `AGENTS.md`** (symlinked to CLAUDE.md/GEMINI.md) — read it, it governs every change.
 
 `.github/workflows/ci.yml` runs the gate above plus the secrets scan, migration lint and
-`openspec validate` on every push and PR; job `pixels` runs `bun run e2e`, one chromium
-measuring the WBS table against the real stack. lefthook runs a subset pre-commit and
-`--no-verify` skips it; CI is not. Format uses `--all`: the base-ref default checks nothing.
+`openspec validate`. Scope is chosen per event and never inferred: a PR runs `nx affected`
+from its payload base SHA, `merge_group`/`push`/`workflow_dispatch` run the full gate, an
+unmapped event is refused. Job `pixels` runs `bun run e2e`, one chromium measuring the WBS
+table against the real stack, and its shards run only when a PR reaches fe-01, be-01 or
+gw-01. lefthook runs a subset pre-commit and `--no-verify` skips it; CI is not. Format uses
+`--all`: the base-ref default checks nothing.
 
 ## Deploy
 

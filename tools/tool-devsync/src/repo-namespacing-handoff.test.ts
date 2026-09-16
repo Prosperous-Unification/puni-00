@@ -629,7 +629,34 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // oracle pushed sync.test.ts's one `apps/mcp-01` proof context from line 314 to 318, and
     // nothing else moved; `apps/wiki/eslint.product.mjs` carries no legacy root of its own
     // (2026-09-16).
-    digest: '4c062320abd0a2ac96da8b83425e99ea9e7e2ff1fa60d6753cf0a31940148e66',
+    // Proof: leaving `4c062320...` here after the legacy-authority refusal failed on the observed
+    // digest below, still at 257 — the guard and its JSDoc pushed authority-store.ts's
+    // `libs/contracts` proof context from line 819 to 840, the new refusal test pushed
+    // claims.db.test.ts's eleven claim-path contexts down 18 lines, and the selector pin and the
+    // metadata-less index mutation pushed pilot-policy.test.ts's ten contexts down 16 then 26.
+    // Verified green at `84a4fd63` before these edits, so nothing else contributes; every
+    // context's text and category is unchanged (2026-09-16).
+    // Proof: leaving `c29abd13...` here after the CI pixels scope joined
+    // pixels-workflow.test.ts failed on the observed digest below at the same 269/30 — the
+    // added interface fields and scope cases carry no legacy selector of their own and only
+    // shift the `apps/fe-01/test-results/` context in that file's own proof comment below
+    // them (2026-09-16).
+    // Proof: merging W3's `15cb68e9.../269` into this branch's `2f9b04ad.../257` failed on
+    // either side's digest and, for W3's, on its count. The merged total stays at this branch's
+    // 257 with every category unchanged: W3's added contexts sit in files this scan skips — its
+    // own `apps/fe-01/test-results/` note in the proof chain above (this file excludes itself)
+    // and `openspec/changes/affected-pr-gate/verify.md` (every `.md` is excluded). The one
+    // context W3 does move is `pixels-workflow.test.ts`'s `apps/fe-01/test-results/` proof
+    // comment, pushed from line 54 to 57, which is what changes the digest (2026-09-16).
+    // Proof: leaving `80ba00b5...` here after the affected gate was renamed and the legacy
+    // authority guard moved to `lstatSync` failed on the observed digest below, still at 257 —
+    // the guard's comment and try/catch pushed authority-store.ts's `libs/contracts` context
+    // from line 840 to 855, and the second legacy-store test pushed eleven of the thirteen
+    // claim-path contexts in claims.db.test.ts down 33 lines, from 217-503 to 250-536, leaving
+    // the two above it where they were. The renamed gate pins in toolchain-pins.test.ts, the
+    // re-measured list in pixels-workflow.test.ts and ci.yml itself moved none of theirs,
+    // checked line by line (2026-09-16).
+    digest: 'e1e6f5c008eae349a7e3fcc3a0be28ede6c0e42281700ba1e1ba8d0731137edb',
     occurrences: 257,
     unclassified: [],
   });

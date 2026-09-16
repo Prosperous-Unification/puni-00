@@ -626,14 +626,30 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
   }, 120_000);
 
   test('refuses externally pinned module and ownership claims that disagree with indexes', () => {
-    const mutations = [
+    const mutations: {
+      name: string;
+      mutate: (module: { moduleId: string; memberships: unknown[]; indexPath: string }) => void;
+      expected: string;
+    }[] = [
       {
         name: 'change mapped module identity',
-        mutate(module: { moduleId: string; memberships: unknown[] }): void {
+        mutate(module: { moduleId: string }): void {
           module.moduleId = 'module.domain.saved-plan.renamed';
         },
         expected:
           'pilot module identity disagrees with index libs/wbs/domain/domain/src/saved-plan/README.md: module.domain.saved-plan.renamed != module.domain.saved-plan',
+      },
+      {
+        name: 'point the mapped index at a file that carries no index metadata',
+        mutate(module: { indexPath: string }): void {
+          module.indexPath = 'libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts';
+        },
+        // This refusal's text had no assertion anywhere until now.
+        // Proof: rewording the throw in `trust.ts` to `pilot module index is not an index:`
+        // failed this case on `Expected substring: "pilot module index has no module-index
+        // metadata: ..."`; the production message is what is pinned, not the branch (2026-09-16).
+        expected:
+          'pilot module index has no module-index metadata: libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts',
       },
       {
         name: 'change mapped ownership',
@@ -654,7 +670,7 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
       const candidate = createCandidate();
       const mappingPath = join(candidate.repository, 'docs/wiki-policy/modules.json');
       const mapping = JSON.parse(readFileSync(mappingPath, 'utf8')) as {
-        modules: { moduleId: string; memberships: unknown[] }[];
+        modules: { moduleId: string; memberships: unknown[]; indexPath: string }[];
       };
       const savedPlan = mapping.modules.find(
         ({ moduleId }) => moduleId === 'module.domain.saved-plan',
@@ -888,6 +904,16 @@ describe('on-disk bootstrap policy, mapping and relationship files', () => {
     // The baselines are reviewed tuples at this revision; the relocation command refuses a
     // revision that lacks them, so a bump here is a policy change, not a maintenance detail.
     expect(bootstrapPolicy.pilot.sourceRevision).toBe('364cc0f8ef901cbfc574c6391c385e7f79bf27b4');
+    const wiki = bootstrapPolicy.boundaries.find(
+      ({ boundaryId }) => boundaryId === 'boundary.infra.tool-wiki',
+    );
+    // The selector pair of the boundary W6 moved, pinned literally. The HEAD assertions below
+    // only ask that a selector match something, which a widened `apps` would also do.
+    // Proof: widening the boundary's selector to `apps` in the real policy file left every
+    // assertion below green — `apps` matches at HEAD and every mapped path still lies under it —
+    // and failed here alone on `- "value": "apps/wiki/cli" · + "value": "apps"` (2026-09-16).
+    expect(wiki?.selector).toEqual({ kind: 'prefix', value: 'apps/wiki/cli' });
+    expect(wiki?.sourceSelector).toEqual({ kind: 'prefix', value: 'tools/tool-wiki' });
     // Proof: with the three moved boundaries still selecting `libs/domain/src/saved-plan`,
     // `libs/core/src/use-cases` and `libs/store-memory/src`, this assertion failed with exactly
     // those three boundary ids received against `[]` (2026-09-16).
