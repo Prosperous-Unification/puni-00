@@ -23,6 +23,7 @@ Three facts explain most decisions:
 bun install                                     # first, on a fresh clone
 bun run dev:setup                               # writes the .env files dev needs
 bin/h2puni-gate.sh <sha>                        # full h2puni gate; checks <sha> out under the lock
+bin/with-heavy-lock.sh status                   # who holds the host lock, and who is queued behind it
 bun run dev                                     # be + gw + fe locally; `bun run e2e` for the browser gate
 bun run test:unit                               # the fast tier: be-01 + every lib, ~17s
 bunx nx run <project>:lint:fast                 # editing only, ~4s; `lint` is uncached and is the gate

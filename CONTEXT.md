@@ -1355,3 +1355,18 @@ pid. A `starting` row counts against the 4-per-project and 16-fleet ceilings exa
 `running` one — it _is_ the reservation — and is reclaimed by the same
 `now > admittedDeadlineAt` rule.
 _Avoid_: slot state, pending, provisional
+
+### Host tooling
+
+**Ticket**:
+One waiting run's place in the host-wide heavy lock's queue: a file under `<lock path>.queue`
+named `<nanoseconds>-<pid>` that holds the run's pid, lane label, start time, the deadline it
+stops waiting at, and its command. The oldest live one is served next; one whose pid is gone or
+whose deadline passed over a minute ago is removed by whoever sees it.
+_Avoid_: queue entry, slot, place in line
+
+**Lane label**:
+The name a run gives itself in that queue, from `HEAVY_LOCK_LABEL` — `gate:<sha>` for an h2puni
+gate, `unlabeled` for a run that names none. It identifies the run to a human reading `status`,
+never to the lock itself.
+_Avoid_: job name, tag, owner

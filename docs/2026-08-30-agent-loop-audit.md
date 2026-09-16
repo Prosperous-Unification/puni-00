@@ -257,6 +257,9 @@ answers, and both run in under a second.
 
 ## 12. The "queue" is a lottery, and a long job can starve behind short ones
 
+**Resolved 2026-09-16 by the `fifo-heavy-lock` change** (`openspec/changes/fifo-heavy-lock/`):
+the loop takes a ticket and waiters are served in arrival order.
+
 `HEAVY_LOCK_WAIT_SECONDS` reads as queueing, and `bin/with-heavy-lock.sh`'s own
 docstring calls it "queue instead of refusing — that is what several agents
 sharing one Mac want". It is not a queue. The loop is:
