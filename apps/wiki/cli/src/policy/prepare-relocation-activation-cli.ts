@@ -51,7 +51,7 @@ type Flag = (typeof flags)[number];
 const defaults: Partial<Record<Flag, string>> = {
   'candidate-policy': 'docs/wiki-policy/bootstrap-policy.json',
   'candidate-launcher': 'bin/tool-wiki-lint.sh',
-  'validator-entry': 'tools/tool-wiki/src/cli.ts',
+  'validator-entry': 'apps/wiki/cli/src/cli.ts',
 };
 
 function readArguments(argv: readonly string[]): Record<Flag, string> {

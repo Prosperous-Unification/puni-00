@@ -364,13 +364,13 @@ async function legacySourceOccurrences(): Promise<{
                   : [
                         '.dockerignore',
                         '.github/workflows/ci.yml',
+                        'apps/wiki/cli/src/admission/authority-store.ts',
+                        'apps/wiki/cli/src/admission/claims.ts',
+                        'apps/wiki/cli/src/contracts/records.ts',
                         'lefthook.yml',
                         'tools/tool-dagger/src/main.ts',
                         'tools/tool-deploy/src/migrations.ts',
                         'tools/tool-git-hooks/src/hooks/corpus-version-lint.ts',
-                        'tools/tool-wiki/src/admission/authority-store.ts',
-                        'tools/tool-wiki/src/admission/claims.ts',
-                        'tools/tool-wiki/src/contracts/records.ts',
                       ].includes(path)
                     ? 'production proof or revision transition'
                     : 'UNCLASSIFIED';
@@ -423,7 +423,7 @@ test('current Nx commands select existing qualified projects', async () => {
 });
 
 test('the production index checker resolves current Markdown links and anchors', () => {
-  const cli = fileURLToPath(new URL('../../tool-wiki/src/cli.ts', import.meta.url));
+  const cli = fileURLToPath(new URL('../../../apps/wiki/cli/src/cli.ts', import.meta.url));
   const invocation = Bun.spawnSync(
     [process.execPath, 'run', cli, 'check-indexes', 'working', WORKSPACE, 'HEAD'],
     { cwd: WORKSPACE, env: process.env, stdout: 'pipe', stderr: 'pipe' },
@@ -589,7 +589,17 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // modules.bootstrap.json and relationships.bootstrap.json, while the new on-disk bootstrap
     // oracle in pilot-policy.test.ts added three `test fixture or proof` contexts and one
     // `current recursive selector`, none unclassified (2026-09-16).
-    digest: 'd0b341712487090ac3cc4eef39079104983c9e0f37274d2f9c5144428338a4c0',
+    // Proof: leaving `d0b34171.../253/102` here after tool-wiki became apps/wiki/cli failed on
+    // `ab3010e6...` at the same 253/102 — every context that project carries kept its match and
+    // its category and only changed the path it is reported under, which re-sorted the list.
+    // Pinning `ab3010e6...` then failed on the observed digest below, still at 253/102, because
+    // re-pinning the moved project's inventory counts in workspace-inventory.test.ts shifted the
+    // four `apps/**`/`libs/**` selector contexts at the foot of that file.
+    // Proof: pinning `fb328664...` then failed on the observed digest below, still at 253/102,
+    // because re-pinning the moved project's own refusal text in pilot-policy.test.ts shifted
+    // the seven `libs/domain/`, `libs/core/` and `libs/store-memory/` contexts below it; each
+    // context carries its line number (2026-09-16).
+    digest: '3816d95bea47c29347cb0034420f3427e14246ec9eaa9544a2a5545a70f354d1',
     occurrences: 253,
     unclassified: [],
   });

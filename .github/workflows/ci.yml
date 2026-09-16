@@ -351,13 +351,13 @@ jobs:
         run: |
           set +e
           # Proof: dropping this exclusion made gate-entrypoints.test.ts fail at
-          # `Expected to contain: --exclude=tool-wiki`; source lint remains explicit below.
+          # `Expected to contain: --exclude=wiki-cli`; source lint remains explicit below.
           {
             bunx nx run-many -t test lint typecheck build --parallel=2 --output-style=stream \
-              --exclude=tool-wiki &&
-            bunx nx run-many -t test typecheck build -p tool-wiki --parallel=2 \
+              --exclude=wiki-cli &&
+            bunx nx run-many -t test typecheck build -p wiki-cli --parallel=2 \
               --output-style=stream &&
-            bunx nx run tool-wiki:lint:source --skip-nx-cache --output-style=stream
+            bunx nx run wiki-cli:lint:source --skip-nx-cache --output-style=stream
           } > nx-gate.log 2>&1
           gate_status=$?
           annotation_status=0

@@ -38,7 +38,7 @@ export interface ExactTuple {
   blob: string;
 }
 
-const workspaceRoot = resolve(import.meta.dir, '..', '..', '..', '..');
+const workspaceRoot = resolve(import.meta.dir, '..', '..', '..', '..', '..');
 const scratchPaths: string[] = [];
 
 export function disposeRelocationFixtures(): void {
@@ -336,11 +336,11 @@ export function createRelocationCandidate(
     join(repository, 'bin/tool-wiki-lint.sh'),
   );
   cpSync(
-    join(workspaceRoot, 'tools/tool-wiki/src/policy/snapshot-validator.ts'),
+    join(workspaceRoot, 'apps/wiki/cli/src/policy/snapshot-validator.ts'),
     join(repository, 'src/old/policy/snapshot-validator.ts'),
   );
   buildValidatorInto(
-    join(workspaceRoot, 'tools/tool-wiki/src/cli.ts'),
+    join(workspaceRoot, 'apps/wiki/cli/src/cli.ts'),
     join(repository, 'src/old/cli.ts'),
   );
   write(

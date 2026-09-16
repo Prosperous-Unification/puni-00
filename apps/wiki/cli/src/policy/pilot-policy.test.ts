@@ -23,7 +23,7 @@ interface ExactTuple {
   blob: string;
 }
 
-const repositoryRoot = resolve(import.meta.dir, '../../../..');
+const repositoryRoot = resolve(import.meta.dir, '../../../../..');
 const cliPath = join(import.meta.dir, '..', 'cli.ts');
 const pilotPaths = [
   'docs/refactoring/w4-4/README.md',
@@ -38,7 +38,7 @@ const pilotPaths = [
   'libs/wbs/adapters/store-memory/src/README.md',
   'openspec/changes/archive/2026-09-08-bounded-replay-sweep/README.md',
   'tools/tool-dagger/src/lib/README.md',
-  'tools/tool-wiki/README.md',
+  'apps/wiki/cli/README.md',
 ] as const;
 const scratch: string[] = [];
 
@@ -536,9 +536,11 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     const observed = output(invocation);
     expect(invocation.exitCode, observed).toBe(1);
     // Proof: replacing every executable check with external-consumer prose was refused at
-    // `docs/findings/README.md: check.tool-wiki.test (external-consumer)`.
+    // `apps/wiki/cli/README.md: check.wiki-cli.test (external-consumer)`. The refusal names the
+    // first offending index in path order, which moved from `docs/findings/README.md` to this
+    // one when tool-wiki became `apps/wiki/cli` (2026-09-16).
     expect(observed).toContain(
-      'applicable check has no executable authority in docs/findings/README.md: check.tool-wiki.test (external-consumer)',
+      'applicable check has no executable authority in apps/wiki/cli/README.md: check.wiki-cli.test (external-consumer)',
     );
   }, 120_000);
 

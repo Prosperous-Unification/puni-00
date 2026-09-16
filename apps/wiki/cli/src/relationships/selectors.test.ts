@@ -858,6 +858,7 @@ describe('declared relationship selectors through the production CLI', () => {
       '..',
       '..',
       '..',
+      '..',
       'apps/wbs/be-01/drizzle/20260806190000_add_teams_and_assignees/migration.sql',
     );
     write(repository, migrationPath, readFileSync(realMigration, 'utf8'));

@@ -9,15 +9,15 @@ review debt. Tasks 6 and 7 remain open.
 
 An operator, outside the candidate checkout, invokes the trusted review harness for the exact
 frozen Tool Wiki module plus the launcher, host gate, trusted workflow, candidate CI workflow,
-hook, and Nx callers declared by `tools/tool-wiki/README.md`. Retain the real review receipt and
+hook, and Nx callers declared by `apps/wiki/cli/README.md`. Retain the real review receipt and
 journal entry. Missing usage, reads, raw response, or journal provenance is not a review.
 
 Run the three exact scoped checks selected by the bootstrap obligation:
 
 ```sh
-bunx nx run tool-wiki:test --skip-nx-cache
-bunx nx run tool-wiki:lint:source --skip-nx-cache
-bunx nx run tool-wiki:typecheck --skip-nx-cache
+bunx nx run wiki-cli:test --skip-nx-cache
+bunx nx run wiki-cli:lint:source --skip-nx-cache
+bunx nx run wiki-cli:typecheck --skip-nx-cache
 ```
 
 Build a closure containing the launcher, snapshotter, a reviewed single-file validator bundle,
@@ -100,7 +100,7 @@ at the old paths. Landing a move takes two steps: activate from the candidate he
    Then, from a clean checkout at that SHA with its lockfile-pinned modules installed:
 
    ```sh
-   bun tools/tool-wiki/src/policy/prepare-relocation-activation-cli.ts \
+   bun apps/wiki/cli/src/policy/prepare-relocation-activation-cli.ts \
      --candidate-repository <clean checkout whose HEAD is the SHA> \
      --candidate-sha <40-hex candidate SHA> \
      --base-activation <extracted current release>/activation-<base sha> \

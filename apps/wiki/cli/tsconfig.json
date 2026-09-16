@@ -1,9 +1,9 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "outDir": "../../dist/tools/tool-wiki",
+    "outDir": "../../../dist/apps/wiki/cli",
     "declaration": true
   },
   "files": [],

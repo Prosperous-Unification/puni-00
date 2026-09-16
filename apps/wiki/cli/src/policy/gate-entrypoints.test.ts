@@ -21,11 +21,11 @@ import { hashBytes, hashCanonical } from '../evidence/content-manifest';
 import { prepareActivation, selectActivation, verifyActivation } from './activation';
 import { resolveValidatorArtifactPaths } from './trust';
 
-const workspace = join(import.meta.dir, '..', '..', '..', '..');
+const workspace = join(import.meta.dir, '..', '..', '..', '..', '..');
 const adapterPath = join(workspace, 'bin', 'tool-wiki-lint.sh');
 const gateLibraryPath = join(workspace, 'bin', 'h2puni-gate-lib.sh');
 const pushAuditPath = join(workspace, 'bin', 'tool-wiki-push-audit.sh');
-const trustedCliPath = join(workspace, 'tools', 'tool-wiki', 'src', 'cli.ts');
+const trustedCliPath = join(workspace, 'apps', 'wiki', 'cli', 'src', 'cli.ts');
 const scratchPaths: string[] = [];
 
 function streamText(stream: Uint8Array | undefined, subject: string): string {
@@ -92,7 +92,7 @@ function fixture(): {
   write(join(activationRoot, 'validator-path'), `${cliPath}\n`);
   write(
     join(activationRoot, 'snapshotter-path'),
-    `${join(workspace, 'tools', 'tool-wiki', 'src', 'policy', 'snapshot-validator.ts')}\n`,
+    `${join(workspace, 'apps', 'wiki', 'cli', 'src', 'policy', 'snapshot-validator.ts')}\n`,
   );
   write(join(activationRoot, 'local-binding-path'), `${bindingPath}\n`);
   write(join(activationRoot, 'ci-binding-path'), `${bindingPath}\n`);
@@ -358,7 +358,7 @@ function realFixture(): RealFixture {
   write(join(trust, 'validator-path'), `${realpathSync(trustedCliPath)}\n`);
   write(
     join(trust, 'snapshotter-path'),
-    `${join(workspace, 'tools', 'tool-wiki', 'src', 'policy', 'snapshot-validator.ts')}\n`,
+    `${join(workspace, 'apps', 'wiki', 'cli', 'src', 'policy', 'snapshot-validator.ts')}\n`,
   );
   write(join(trust, 'local-binding-path'), `${bindingPath}\n`);
   write(join(trust, 'ci-binding-path'), `${bindingPath}\n`);
@@ -404,7 +404,7 @@ function runNxLint(
     [
       join(workspace, 'node_modules', '.bin', 'nx'),
       'run',
-      'tool-wiki:lint',
+      'wiki-cli:lint',
       `--command=${command}`,
       '--output-style=stream',
     ],
@@ -430,7 +430,7 @@ function nxFixture(cache: boolean, inputs: string[]): string {
   write(
     join(nxWorkspace, 'project.json'),
     `${JSON.stringify({
-      name: 'tool-wiki',
+      name: 'wiki-cli',
       root: '.',
       targets: {
         lint: {
@@ -580,7 +580,7 @@ describe('tool-wiki production entrypoint adapter', () => {
       mapping: join(sources, 'mapping.json'),
       policy: join(sources, 'policy.json'),
       reviewReceipt: join(sources, 'review.json'),
-      snapshotter: join(workspace, 'tools/tool-wiki/src/policy/snapshot-validator.ts'),
+      snapshotter: join(workspace, 'apps/wiki/cli/src/policy/snapshot-validator.ts'),
       validator,
     };
     for (const role of ['authority', 'evidence', 'mapping', 'policy', 'reviewReceipt'] as const)
@@ -695,7 +695,7 @@ describe('tool-wiki production entrypoint adapter', () => {
         mapping,
         policy,
         reviewReceipt,
-        snapshotter: join(workspace, 'tools/tool-wiki/src/policy/snapshot-validator.ts'),
+        snapshotter: join(workspace, 'apps/wiki/cli/src/policy/snapshot-validator.ts'),
         validator,
       },
       sourceRevision: '4'.repeat(40),
@@ -902,8 +902,9 @@ exec "$real_bun" "$@"
     const raceSnapshotter = join(paths.directory, 'snapshotter', 'during-build-race.ts');
     const productionSnapshotter = join(
       workspace,
-      'tools',
-      'tool-wiki',
+      'apps',
+      'wiki',
+      'cli',
       'src',
       'policy',
       'snapshot-validator.ts',
@@ -980,7 +981,7 @@ await import(${JSON.stringify(productionSnapshotter)});
 
   test('Nx, host gate, CI and lefthook select the whole tree without caching', () => {
     const project = JSON.parse(
-      readFileSync(join(workspace, 'tools', 'tool-wiki', 'project.json'), 'utf8'),
+      readFileSync(join(workspace, 'apps', 'wiki', 'cli', 'project.json'), 'utf8'),
     ) as {
       targets: Partial<
         Record<string, { cache?: boolean; inputs?: string[]; options?: { command?: string } }>
@@ -1005,9 +1006,7 @@ await import(${JSON.stringify(productionSnapshotter)});
       inputs: ['{workspaceRoot}/**/*'],
       options: { command: 'bash bin/tool-wiki-lint.sh working . HEAD' },
     });
-    expect(project.targets['lint:source']?.options?.command).toBe(
-      'bunx eslint tools/tool-wiki/src',
-    );
+    expect(project.targets['lint:source']?.options?.command).toBe('bunx eslint apps/wiki/cli/src');
     expect(hostGate).not.toContain('cp "$repo_root/bin/tool-wiki-lint.sh"');
     expect(hostGate).toContain(
       'launcher_source=$(resolve_tool_wiki_launcher "$activation_root" "$repo_root")',
@@ -1068,12 +1067,12 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(trustedCi).toContain('committed "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"');
     expect(trustedCi).not.toContain('"${{ github.event.pull_request.head.sha }}"');
     expect(lefthook).toContain('run: bash bin/tool-wiki-lint.sh staged . HEAD');
-    expect(hostSteps).toContain('--exclude=tool-wiki');
-    expect(hostSteps).toContain('bunx nx run tool-wiki:lint:source --skip-nx-cache');
-    expect(ci).toContain('--exclude=tool-wiki');
-    expect(ci).toContain('bunx nx run tool-wiki:lint:source --skip-nx-cache');
+    expect(hostSteps).toContain('--exclude=wiki-cli');
+    expect(hostSteps).toContain('bunx nx run wiki-cli:lint:source --skip-nx-cache');
+    expect(ci).toContain('--exclude=wiki-cli');
+    expect(ci).toContain('bunx nx run wiki-cli:lint:source --skip-nx-cache');
     expect(workspacePackage.scripts['lint']).toBe(
-      'nx run-many -t lint --exclude=tool-wiki && nx run tool-wiki:lint:source',
+      'nx run-many -t lint --exclude=wiki-cli && nx run wiki-cli:lint:source',
     );
   });
 
@@ -1471,7 +1470,7 @@ await import(${JSON.stringify(productionSnapshotter)});
     git(paths.repository, 'commit', '--message', 'mutate would-be omitted input');
     paths.revision = git(paths.repository, 'rev-parse', 'HEAD');
     const afterMutation = runNxLint(paths);
-    // Proof: the production tool-wiki:lint target reran and failed on obligation.application;
+    // Proof: the production wiki-cli:lint target reran and failed on obligation.application;
     // the cache-enabled target below returned its warmed success for this same omitted mutation.
     expect(afterMutation.exitCode, streamText(afterMutation.stderr, 'mutated stderr')).toBe(1);
 

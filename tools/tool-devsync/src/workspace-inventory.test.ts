@@ -97,8 +97,12 @@ it('pins the complete moved depth-sensitive configuration inventory', async () =
   // Proof: adding the `@shared/validation` path mapping to fe-01's four tsconfigs without
   // raising the row count failed with `Received length: 156` against the pinned 152; the file
   // count stayed at 76 because all four were already inventoried (2026-09-16).
-  expect(paths).toHaveLength(156);
-  expect(new Set(paths.map(({ file }) => file))).toHaveLength(76);
+  // Proof: leaving 156/76 here after tool-wiki became the app apps/wiki/cli failed with
+  // `Received length: 162` rows, then `Received length: 80` files — this inventory reads apps
+  // and libraries only, so the project's four configuration files entered it for the first time
+  // with six parent-relative values between them (2026-09-16).
+  expect(paths).toHaveLength(162);
+  expect(new Set(paths.map(({ file }) => file))).toHaveLength(80);
   expect(paths).toContainEqual({
     file: 'apps/wbs/be-01/tsconfig.json',
     propertyPath: 'extends',
@@ -118,6 +122,13 @@ it('pins the complete moved depth-sensitive configuration inventory', async () =
     file: 'apps/wbs/fe-01/tsconfig.e2e.json',
     propertyPath: 'compilerOptions.paths.@wbs/domain/workday.0',
     value: '../../../libs/wbs/domain/domain/src/workday.ts',
+  });
+  // Proof: pinning the pre-move `../../dist/tools/tool-wiki` here failed this oracle with the
+  // moved project's actual three-deep outDir (2026-09-16).
+  expect(paths).toContainEqual({
+    file: 'apps/wiki/cli/tsconfig.lib.json',
+    propertyPath: 'compilerOptions.outDir',
+    value: '../../../dist/apps/wiki/cli',
   });
 });
 

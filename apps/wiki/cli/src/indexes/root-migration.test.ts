@@ -27,7 +27,7 @@ interface RootMigrationFixture {
 
 const repositories: string[] = [];
 const cliPath = join(import.meta.dir, '..', 'cli.ts');
-const sourceRepository = join(import.meta.dir, '..', '..', '..', '..');
+const sourceRepository = join(import.meta.dir, '..', '..', '..', '..', '..');
 
 function git(repository: string, argv: string[]): string {
   const invocation = Bun.spawnSync(['git', '-C', repository, ...argv], {
