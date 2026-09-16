@@ -15,11 +15,15 @@ const GitIdentity = type(/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/);
 
 /**
  * Every way this command refuses to prepare a relocation activation, in the order the
- * preparation reaches them. Three codes cover more ground than the design named for them:
+ * preparation reaches them. Four codes cover more ground than the design named for them:
  * `R3` is a candidate that is not the committed tree the receipts will claim, so it refuses a
  * dirty checkout and equally a `--work` or `--destination` inside the candidate repository;
  * `R16` is a check that did not fully measure the candidate, so it refuses a non-zero exit and
  * equally a receipt carrying skips, which `validateEvidence` would reject later and dearer;
+ * `R19` is a build environment that is not the candidate's own, so it refuses an operator Bun
+ * other than the candidate's `.bun-version` ({@link assertPinnedRuntime}) and equally a trusted
+ * node module that is absent, unreadable or a symlink rather than a real directory (the CLI's
+ * `packageDirectory`);
  * `R21` requires the base authority to already stratify every review the candidate policy names,
  * because the risk stratum is copied, never invented.
  */
