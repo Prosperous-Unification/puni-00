@@ -423,6 +423,20 @@ mode` step logged `mode=full`.
    `docs(wiki-policy): the tool-wiki test fact declares the workflow inputs`; the full
    `bunx nx test tool-wiki --skip-nx-cache` was run this round rather than skipped.
 
+### Integrated into W6, where the project has a different name
+
+This gate now runs on `change/wiki-product-namespace`, where `tools/tool-wiki` is
+`apps/wiki/cli` and the Nx project is `wiki-cli`. Merge `58a88452` carried the switch across
+with every Nx selector renamed — `--exclude=wiki-cli`, `-p wiki-cli`, `wiki-cli:lint:source`
+and the `jq … index("wiki-cli")` membership predicate, which git merged cleanly against the old
+name and would otherwise have left the wiki permanently unaffected while exiting 0 — and
+`e3c8e311` renamed the pins that hold them. The four `test` inputs this change added live on
+`apps/wiki/cli/project.json` and on the `check.wiki-cli.test` fact in both relationships files;
+`bunx nx show projects --affected --files=.github/workflows/ci.yml --json` answers
+`["tool-git-hooks","tool-devsync","wiki-cli"]` there, so the inputs still reach the project.
+The h2puni gate on `e3c8e311` **exited 0, every stage green**. The rows above are unchanged:
+they were observed on this change's own branch, under the name the project had then.
+
 ---
 
 ## Decision

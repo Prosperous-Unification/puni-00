@@ -33,20 +33,20 @@ job naming that event, and the mapped set SHALL equal the events this workflow s
 
 ### Requirement: Tool Wiki stays in the pull-request gate when it is affected
 
-The gate SHALL keep running Tool Wiki's own targets and `tool-wiki:lint:source`, which the
+The gate SHALL keep running Tool Wiki's own targets and `wiki-cli:lint:source`, which the
 workspace `run-many` excludes, whenever Tool Wiki is affected by the pull request. Membership
 SHALL be read from `nx show projects --affected --json` through a JSON reader, because the
 command emits JSON on a non-TTY runner whatever separator is requested.
 
 #### Scenario: A pull request changes Tool Wiki
 
-- **WHEN** `nx show projects --affected` for the pull request's base includes `tool-wiki`
-- **THEN** the gate runs `tool-wiki`'s test, typecheck and build targets and
-  `tool-wiki:lint:source`, exactly as a full run does
+- **WHEN** `nx show projects --affected` for the pull request's base includes `wiki-cli`
+- **THEN** the gate runs `wiki-cli`'s test, typecheck and build targets and
+  `wiki-cli:lint:source`, exactly as a full run does
 
 #### Scenario: A pull request cannot reach Tool Wiki
 
-- **WHEN** that project list does not include `tool-wiki`
+- **WHEN** that project list does not include `wiki-cli`
 - **THEN** those targets do not run, and the full gate on `merge_group` and `push` still runs them
 
 #### Scenario: The affected project list cannot be computed
