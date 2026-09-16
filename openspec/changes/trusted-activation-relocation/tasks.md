@@ -4,7 +4,7 @@ operator work on the real repository.
 
 ## 1. The refusal names the procedure
 
-- [ ] 1.1 `validateSelectedInputs` in `tools/tool-wiki/src/policy/trust.ts` refuses a selector
+- [x] 1.1 `validateSelectedInputs` in `tools/tool-wiki/src/policy/trust.ts` refuses a selector
       that selects no candidate input by naming the boundary id, the selector kind and value,
       and `docs/runbook-tool-wiki-activation.md#relocation`. Test: the existing production-CLI
       case in `src/policy/trusted-policy.test.ts` asserts the whole new text, watched failing

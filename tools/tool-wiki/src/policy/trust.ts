@@ -1252,10 +1252,15 @@ function validateSelectedInputs(
   const policy = trust.policy;
   for (const boundary of policy.boundaries) {
     // Proof: replacing this validation with the selector digest made a nonexistent selector
-    // certify on production CI after its trusted policy digest was correctly updated.
+    // certify on production CI after its trusted policy digest was correctly updated; and
+    // leaving a relocated boundary's selector at the candidate's post-move path made the pilot
+    // relocation case report `accepted: true`, failing on `Expected: 1 / Received: 0`.
     if (selectedMembers(candidate, boundary.selector).length === 0) {
       throw new Error(
-        `trusted boundary selector selects no candidate input: ${boundary.boundaryId}`,
+        `trusted boundary selector selects no candidate input: ${boundary.boundaryId} ` +
+          `(selector ${boundary.selector.kind} ${boundary.selector.value}); if the candidate ` +
+          `moved these files, prepare a relocation activation from the candidate SHA: ` +
+          `see docs/runbook-tool-wiki-activation.md#relocation`,
       );
     }
   }

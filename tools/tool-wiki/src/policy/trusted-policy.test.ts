@@ -1333,7 +1333,7 @@ describe('trusted policy production CLI', () => {
     const output = outputOf(invocation);
     expect(invocation.exitCode, output).toBe(1);
     expect(output).toContain(
-      'trusted boundary selector selects no candidate input: boundary.application',
+      'trusted boundary selector selects no candidate input: boundary.application (selector path selector.does-not-exist); if the candidate moved these files, prepare a relocation activation from the candidate SHA: see docs/runbook-tool-wiki-activation.md#relocation',
     );
     expect(output).not.toContain('trusted policy digest does not match binding');
   });

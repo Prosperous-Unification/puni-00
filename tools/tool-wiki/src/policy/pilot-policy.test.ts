@@ -717,6 +717,41 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     );
   }, 120_000);
 
+  test('refuses a trusted selector left at the pre-move directory of a relocated boundary', () => {
+    const candidate = createCandidate();
+    const trust = createExternalTrust(candidate);
+    const policy = JSON.parse(readFileSync(trust.policyPath, 'utf8')) as {
+      boundaries: {
+        boundaryId: string;
+        selector: { kind: string; value: string };
+        sourceSelector?: { kind: string; value: string };
+      }[];
+    };
+    const relocated = policy.boundaries.find(
+      ({ boundaryId }) => boundaryId === 'boundary.domain.saved-plan',
+    );
+    if (relocated === undefined) throw new Error('pilot domain boundary absent');
+    const preMove = relocated.sourceSelector;
+    if (preMove === undefined) throw new Error('pilot source selector unexpectedly absent');
+    relocated.selector = preMove;
+    delete relocated.sourceSelector;
+    write(trust.policyPath, `${JSON.stringify(policy)}\n`);
+    const binding = JSON.parse(readFileSync(trust.bindingPath, 'utf8')) as {
+      policy: { sha256: string };
+    };
+    binding.policy.sha256 = sha256(readFileSync(trust.policyPath));
+    write(trust.bindingPath, `${JSON.stringify(binding)}\n`);
+
+    const invocation = lint(candidate, trust);
+    const observed = output(invocation);
+    expect(invocation.exitCode, observed).toBe(1);
+    // Proof: leaving this boundary's selector at the candidate's post-move path made production
+    // observe lint report `accepted: true` here and fail on `Expected: 1 / Received: 0`.
+    expect(observed).toContain(
+      'trusted boundary selector selects no candidate input: boundary.domain.saved-plan (selector prefix libs/domain/src/saved-plan); if the candidate moved these files, prepare a relocation activation from the candidate SHA: see docs/runbook-tool-wiki-activation.md#relocation',
+    );
+  }, 120_000);
+
   test('refuses an empty, unmapped, incompatible, or escaping pre-index tuple manifest', () => {
     const mutations = [
       {
