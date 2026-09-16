@@ -138,6 +138,9 @@ status=0
 # 1. The steps run on the sha the caller asked for, not on whatever head the
 # shared tree happened to be left on. This is the whole point: the tree is at B,
 # the gate was asked for A, and the steps must see A.
+# shellcheck disable=SC2016 # Single quotes are the point: `$0` is the path this
+# passes to the inner shell, not a variable of this one. Every such payload below
+# carries the same directive for the same reason.
 run_gate "$repo" "$lock" "$sha_a" bash -c 'git rev-parse HEAD >"$0"' "$scratch/seen-1" || status=$?
 expect_status 0 "$status" 'gate on a pinned sha succeeds'
 expect_equal "$sha_a" "$(cat "$scratch/seen-1" 2>/dev/null)" 'steps run on the requested sha, not the tree head'
@@ -161,6 +164,7 @@ rm -rf "$lock.d"
 # steps see its own sha. The second queues rather than refusing, which is what
 # `HEAVY_LOCK_WAIT_SECONDS` buys.
 (
+  # shellcheck disable=SC2016 # Single quotes are the point: see case 1.
   run_gate "$repo" "$lock" "$sha_a" bash -c 'git rev-parse HEAD >"$0"; sleep 3' "$scratch/seen-first"
 ) &
 first=$!
@@ -171,6 +175,7 @@ for _ in $(seq 1 50); do
   sleep 0.1
 done
 status=0
+# shellcheck disable=SC2016 # Single quotes are the point: see case 1.
 HEAVY_LOCK_WAIT_SECONDS=30 run_gate "$repo" "$lock" "$sha_b" bash -c 'git rev-parse HEAD >"$0"' "$scratch/seen-second" || status=$?
 wait "$first"
 expect_status 0 "$status" 'the second gate queues behind the first and runs'
@@ -200,6 +205,7 @@ fi
 git -C "$repo" checkout -q --detach "$sha_b"
 printf 'local edit\n' >>"$repo/f"
 status=0
+# shellcheck disable=SC2016 # Single quotes are the point: see case 1.
 run_gate "$repo" "$lock" "$sha_b" bash -c 'echo ran >"$0"' "$scratch/ran-dirty" 2>/dev/null || status=$?
 expect_status 65 "$status" 'a tracked edit surviving the checkout is refused'
 if [[ -e $scratch/ran-dirty ]]; then fail 'the steps ran over a modified tracked file'; else pass 'the steps never ran over a modified tracked file'; fi
@@ -224,6 +230,7 @@ git -C "$repo" checkout -q -- f
 long_name=$(printf 'u%.0s' $(seq 1 200))
 for i in $(seq 1 400); do printf 'stray\n' >"$repo/untracked-$i-$long_name.ts"; done
 status=0
+# shellcheck disable=SC2016 # Single quotes are the point: see case 1.
 run_gate "$repo" "$lock" "$sha_b" bash -c 'echo ran >"$0"' "$scratch/ran-untracked" 2>"$scratch/refusal-stderr" || status=$?
 expect_status 65 "$status" 'an untracked file the commit does not contain is refused'
 if [[ -e $scratch/ran-untracked ]]; then fail 'the steps ran over an untracked file'; else pass 'the steps never ran over an untracked file'; fi
@@ -253,6 +260,7 @@ expect_status 1 "$status" 'a rejected candidate preserves its command status'
 expect_equal main "$(git -C "$repo" symbolic-ref --short HEAD)" 'a rejected gate restores the pre-gate branch'
 expect_equal "$sha_b" "$(git -C "$repo" rev-parse HEAD)" 'a rejected gate restores the pre-gate commit'
 status=0
+# shellcheck disable=SC2016 # Single quotes are the point: see case 1.
 run_gate "$repo" "$lock" "$sha_a" bash -c 'test "$(git rev-parse HEAD)" = "$1"' gate-second "$sha_a" || status=$?
 expect_status 0 "$status" 'a second gate starts from restored trusted checkout state'
 
@@ -272,6 +280,7 @@ expect_equal "$sha_b" "$(git -C "$repo" rev-parse HEAD)" 'a rejected gate restor
 # reports that the original symbolic state could not be reconstructed.
 git -C "$repo" checkout -q main
 status=0
+# shellcheck disable=SC2016 # Single quotes are the point: see case 1.
 run_gate "$repo" "$lock" "$sha_a" bash -c 'git update-ref refs/heads/main "$1"; exit 1' \
   gate-move "$sha_a" 2>"$scratch/ref-move-failure" || status=$?
 expect_status 74 "$status" 'a concurrently moved original branch is a loud restore failure'
@@ -584,6 +593,111 @@ if compgen -G "$passed_spec_fixture/reports/*" >/dev/null; then
 else
   pass 'the passing OpenSpec report cleans its temporary file'
 fi
+
+# 31. The gate reports what it QUEUED FOR, before it reports what it runs on.
+#
+# A lane waiting behind another lane's gate is indistinguishable from a wedged
+# one from the outside, which is how a 50-minute starvation went unnoticed long
+# enough to reach an audit. Only the library knows how long it queued and how
+# many tickets were ahead, so the line is printed there and the gate's own
+# `running on` line — printed inside the locked payload — necessarily follows it.
+# Order is the assertion, not mere presence: a wait reported after the verdict is
+# a wait nobody reads.
+wait_lock="$scratch/lock-queue-wait"
+wait_stderr="$scratch/queue-wait-stderr"
+# The dummy holder takes the lock through the library rather than by hand: a
+# hand-made lock directory holding a dead pid is RECLAIMED as stale, and this
+# case needs the gate to actually wait.
+bash -c 'source "$1"; shift; with_heavy_lock "$@"' \
+  h2puni-gate-dummy-holder "$repo_root/bin/heavy-lock-lib.sh" "$wait_lock" -- sleep 3 &
+dummy_holder=$!
+# The hold is OBSERVED. `claim_heavy_lock` writes its pid after `mkdir`, so
+# waiting on the directory alone would let the gate race past an unclaimed lock
+# and the case would assert a wait that never happened.
+for _ in $(seq 1 50); do
+  [[ -s $wait_lock.d/holder ]] && break
+  sleep 0.1
+done
+git -C "$repo" checkout -q --detach "$sha_b"
+status=0
+HEAVY_LOCK_WAIT_SECONDS=30 run_gate "$repo" "$wait_lock" "$sha_a" true 2>"$wait_stderr" || status=$?
+wait "$dummy_holder"
+expect_status 0 "$status" 'a gate queued behind a holder runs once the holder releases'
+waited_line=$(grep -n '^heavy lock: waited [0-9][0-9]*s behind [0-9][0-9]* tickets$' "$wait_stderr" | head -1 | cut -d: -f1)
+running_line=$(grep -n '^h2puni gate: running on ' "$wait_stderr" | head -1 | cut -d: -f1)
+if [[ -n $waited_line && -n $running_line && $waited_line -lt $running_line ]]; then
+  pass 'the queue wait is reported before the head being gated'
+else
+  fail "the queue wait is not reported before the head being gated (wait line '$waited_line', running line '$running_line')"
+fi
+# Whole seconds, and at least one of them: the holder above held for three, so a
+# `0s` here would mean the gate never queued and the case asserted nothing.
+waited_seconds=$(sed -n 's/^heavy lock: waited \([0-9][0-9]*\)s behind [0-9][0-9]* tickets$/\1/p' "$wait_stderr" | head -1)
+if [[ $waited_seconds =~ ^[0-9]+$ ]] && [[ $waited_seconds -ge 1 ]]; then
+  pass "the wait is reported in whole seconds (${waited_seconds}s behind a 3s holder)"
+else
+  fail "the wait is not reported as a whole number of seconds: '$waited_seconds'"
+fi
+
+# 32. Contract check, in the shape cases 5 and 7 use: the shipped gate names its
+# lane after the commit it gates, so `bin/with-heavy-lock.sh status` says which
+# sha is holding the host up rather than a bare pid. Read off the script because
+# the production gate cannot be run here — it takes the canonical host lock and
+# runs the real steps. The label must come from the RESOLVED commit: a caller
+# that typed `HEAD` would otherwise label its lane `gate:HEAD`, which names every
+# lane identically and is exactly what the label exists to distinguish.
+# shellcheck disable=SC2016 # Single quotes are the point: this is the literal
+# text being searched for in another file, not an expansion.
+if grep -q 'export HEAVY_LOCK_LABEL="gate:\${gate_sha:0:8}"' "$repo_root/bin/h2puni-gate.sh"; then
+  pass 'bin/h2puni-gate.sh labels its heavy-lock lane with the gated sha'
+else
+  fail 'bin/h2puni-gate.sh does not label its heavy-lock lane with the gated sha'
+fi
+# shellcheck disable=SC2016 # Single quotes are the point: see above.
+if grep -q 'gate_sha=\$(git -C "\$repo_root" rev-parse --verify --quiet' "$repo_root/bin/h2puni-gate.sh"; then
+  pass 'the lane label is built from the resolved commit, not the caller argument'
+else
+  fail 'the lane label is not built from a resolved commit'
+fi
+
+# 33. A gate refused while it was queued still cleans up after itself.
+#
+# `bin/h2puni-gate.sh` copies the trusted wiki launcher into an mktemp directory
+# and installs `trap 'rm -rf -- "$trusted_launcher_dir"' EXIT` before it calls the
+# gate. `with_heavy_lock` installs its own EXIT trap, and a plain `trap … EXIT`
+# REPLACES that one. Before the queue existed the damage was bounded — the lock's
+# trap went in only after the lock was claimed, so a refused gate still ran its
+# own cleanup — but a queueing run traps before it waits, so every gate that
+# exits 75 at its 30-minute budget would leave a directory behind on a host
+# several lanes share.
+#
+# The fixture below is `bin/h2puni-gate.sh`'s shape, not a paraphrase: the same
+# trap string, installed before the same call.
+launcher_dir="$scratch/trusted-launcher"
+mkdir -p "$launcher_dir"
+# shellcheck disable=SC2016 # Single quotes are the point: every line below is
+# source for the generated fixture, whose `$1`-`$5` are its own arguments.
+printf '%s\n' \
+  '#!/bin/bash' \
+  'set -euo pipefail' \
+  'source "$1"' \
+  'trusted_launcher_dir=$2' \
+  'trap '\''rm -rf -- "$trusted_launcher_dir"'\'' EXIT' \
+  'gate_with_pinned_head "$3" "$4" "$5" -- true' \
+  >"$scratch/queued-gate.sh"
+mkdir -p "$lock.d"
+printf '%s\n' "$$" >"$lock.d/holder" # this test process is alive, so not stale
+printf 'test-holder\n' >"$lock.d/label"
+status=0
+HEAVY_LOCK_WAIT_SECONDS=0 bash "$scratch/queued-gate.sh" \
+  "$gate_lib" "$launcher_dir" "$repo" "$lock" "$sha_a" 2>/dev/null || status=$?
+expect_status 75 "$status" 'a gate refused for a held lock exits 75 while queued'
+if [[ -d $launcher_dir ]]; then
+  fail 'a gate refused while queued leaked its trusted-launcher directory'
+else
+  pass 'a gate refused while queued still ran its own EXIT trap'
+fi
+rm -rf "$lock.d" "$lock.queue"
 
 if ((failures)); then
   printf '\n%d failing case(s)\n' "$failures" >&2

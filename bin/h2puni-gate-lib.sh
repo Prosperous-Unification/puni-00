@@ -10,7 +10,9 @@ set -euo pipefail
 # tree whose head lane Y moved a second ago, and the gate reports green or red
 # about a head nobody asked it about. Watched on 2026-09-07 — lane b checked
 # 9235c40d into that tree 26 seconds into another lane's already-running gate,
-# and nothing failed loudly. That is the whole problem.
+# and nothing failed loudly. That is the whole problem. Lanes are Claire's v1
+# mechanism (docs/lanes-are-claire-v1.md); the exact-sha-under-the-lock contract
+# this file enforces is what any replacement for it still owes the gate.
 #
 # The fix is to make the checkout the first thing that happens INSIDE the mutex,
 # so there is no window between choosing the head and reading it that another
@@ -101,7 +103,8 @@ resolve_tool_wiki_modules() {
   # before the heavy gate can run.
   if ! trusted_modules=$(realpath -- "$modules_input") || [[ ! -d $trusted_modules ]] ||
     [[ ! -f $trusted_modules/typescript/package.json ]]; then
-    printf 'h2puni gate: trusted TypeScript runtime modules are not provisioned\n' >&2
+    printf 'h2puni gate: trusted TypeScript runtime modules are not provisioned: %s\n' \
+      "$modules_input" >&2
     return 78
   fi
   # Proof: h2puni-gate.test.sh case 21 selects candidate-owned modules explicitly and observes

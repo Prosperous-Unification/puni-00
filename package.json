@@ -1,5 +1,5 @@
 {
-  "name": "@wbs/source",
+  "name": "@puni/workspace",
   "version": "0.0.0",
   "license": "MIT",
   "private": true,
@@ -10,7 +10,7 @@
     "test": "nx run-many -t test",
     "test:unit": "nx run-many -t test:unit",
     "test:queued": "bin/with-heavy-lock.sh -- nx run-many -t test",
-    "lint": "nx run-many -t lint --exclude=tool-wiki && nx run tool-wiki:lint:source",
+    "lint": "nx run-many -t lint --exclude=wiki-cli && nx run wiki-cli:lint:source",
     "format": "nx format:write",
     "format:check": "nx format:check",
     "typecheck": "nx run-many -t typecheck",

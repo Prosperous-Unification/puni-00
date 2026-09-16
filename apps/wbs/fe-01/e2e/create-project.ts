@@ -58,7 +58,7 @@ const PLACEHOLDER_PROJECT_NAME = 'New project';
  * @param name What to call it, or omitted to keep the placeholder name.
  */
 export async function createProject(page: Page, name?: string): Promise<void> {
-  await page.getByRole('button', { name: 'New project' }).click();
+  await page.getByRole('button', { name: 'Create new project' }).click();
   const field = page.getByLabel('Project name');
   await expect(field, 'the create did not arm a rename on the new project').toBeVisible();
   const picker = page.getByRole('combobox', { name: 'Project' });

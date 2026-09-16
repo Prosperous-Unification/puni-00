@@ -22,8 +22,10 @@ import { createLocalSolverSpawner, LOCAL_SOLVER_CAPABILITIES } from './local-sol
 const cfg = loadConfig();
 const logger = createLogger({ service: 'be-01', level: cfg.LOG_LEVEL });
 
-// `cwd` is `apps/wbs/be-01` under the serve target, matching the supervised target.
-const repoRoot = resolve(process.cwd(), '../..');
+// `cwd` is `apps/wbs/be-01` under the serve target, matching the supervised target,
+// so the repo root is three levels up. `wbs-solver-py:setup-macos` provisions the
+// venv at that root (see `tools/dev/solver-environment.ts`).
+const repoRoot = resolve(process.cwd(), '../../..');
 const binDirectory = join(repoRoot, '.venv-solver', 'bin');
 
 let running;
@@ -34,7 +36,7 @@ try {
   // whole line of work exists to stop reporting as progress.
   if (!existsSync(join(binDirectory, 'wbs-solver-launcher'))) {
     throw new Error(
-      `no solver environment at ${binDirectory}; run \`bunx nx run solver-py:setup-macos\` first`,
+      `no solver environment at ${binDirectory}; run \`bunx nx run wbs-solver-py:setup-macos\` first`,
     );
   }
 

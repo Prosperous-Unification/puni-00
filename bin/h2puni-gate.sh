@@ -5,6 +5,10 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
 
 # shellcheck source=bin/h2puni-gate-lib.sh
+# shellcheck disable=SC1091 # The `source=` directive above names the file; SC1091
+# is shellcheck saying it will only FOLLOW it under `-x`, which is a fact about
+# the invocation, not about this script. Without this, `shellcheck bin/*.sh` on
+# any set that omits the library exits 1 on an info.
 source "$repo_root/bin/h2puni-gate-lib.sh"
 
 # Remote gates must not leave Nx daemon children behind when SSH disconnects.
@@ -22,6 +26,38 @@ export NX_DAEMON=false
 # runbooks working, and they lose nothing: the head is resolved here, once, and
 # that resolved sha is what gets checked out under the lock.
 target=${1:-HEAD}
+
+# The lane's name in the heavy lock's queue, which `bin/with-heavy-lock.sh
+# status` prints beside its pid. A pid alone says a lane is holding the host; it
+# does not say WHICH gate, and on a box where several lanes gate all day that is
+# the only thing the next lane needs to know.
+#
+# Resolved here rather than left to `gate_with_pinned_head`, because the label
+# has to exist before `with_heavy_lock` runs and the resolution lives inside it.
+# It must be the resolved commit: every caller that types `HEAD` would otherwise
+# label its lane `gate:HEAD`, naming every lane identically.
+#
+# Exported, unlike HEAVY_LOCK_WAIT_SECONDS below, and for the opposite reason: a
+# nested heavy run started by a gate step should queue under the gate's own name
+# rather than as `unlabeled`. It is a name, not a budget, so nothing downstream
+# can act on it.
+#
+# A target that names no commit is NOT refused here. `gate_with_pinned_head`
+# owns that refusal — before the lock is taken, exit 64, with the path and the
+# sha named — and two places refusing the same thing is how one of them drifts.
+# Resolved ONCE, and the resolved sha is what gets gated. `gate_with_pinned_head`
+# resolves its argument the same way and before the same lock, so handing it the
+# sha rather than the caller's `HEAD` changes no timing — what it removes is the
+# possibility of the label naming one commit and the gate pinning another,
+# because a branch that moves between the two resolutions would give exactly
+# that. An unresolvable target keeps its ORIGINAL spelling here, so the refusal
+# that follows names what the caller actually typed.
+if gate_sha=$(git -C "$repo_root" rev-parse --verify --quiet "${target}^{commit}"); then
+  export HEAVY_LOCK_LABEL="gate:${gate_sha:0:8}"
+  target=$gate_sha
+else
+  export HEAVY_LOCK_LABEL="gate:unresolved"
+fi
 
 # Queue rather than refuse. `heavy-lock-lib.sh` defaults to refusing with exit 75
 # to preserve the contract this script was written against, and documents
