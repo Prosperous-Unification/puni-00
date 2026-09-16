@@ -110,7 +110,7 @@ Provide both k3d for fast application/platform rehearsals and disposable Ubuntu 
 
 ## Corrections to the earlier infra draft
 
-- Built-in Pod Security `restricted` forbids hostPath; a ValidatingAdmissionPolicy cannot grant an exception to that admission check. Use restricted app/worker namespaces. For trusted source-run forge only, use a dedicated namespace with explicit admission/RBAC/path restrictions and document the weaker boundary, or switch to PVC-backed synchronization. This plan chooses the dedicated trusted forge namespace.
+- Built-in Pod Security `restricted` and `baseline` forbid hostPath; a ValidatingAdmissionPolicy cannot grant an exception to those admission checks. Use restricted ordinary app/worker namespaces. Trusted source-run forge and the backend's existing host-owned solver runtime mount require separate dedicated trusted namespaces with explicit admission/RBAC/path restrictions. This plan chooses those narrow exceptions, not a broadly privileged product namespace. Keep other WBS tiers restricted, configure cross-namespace connectivity explicitly, and prove solver admission/operation plus denial of alternate host paths and unapproved workloads. A later PVC-synchronized forge or portable solver service may remove these exceptions.
 - Cordon prevents new placement; it does not reserve CPU/memory from already running workloads. Keep host builds separate until measured resource reservations and isolation exist.
 - Flux `dependsOn` supplies reconciliation ordering, not transactional migration rollback. Implement the release coordinator and recovery journal.
 - Draining a backend does not drain the gateway's WebSockets. Reuse the actual gateway control path.

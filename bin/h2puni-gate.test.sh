@@ -93,7 +93,7 @@ prepare_gate_steps_path() {
   printf '%s\n' \
     '#!/bin/bash' \
     'printf '\''%s\n'\'' "$*" >>"$GATE_CALL_LOG"' \
-    'if [[ $1 == @fission-ai/openspec@1.3.0 ]]; then' \
+    'if [[ $1 == @fission-ai/openspec@1.12.0 ]]; then' \
     '  case $GATE_OPEN_SPEC_MODE in' \
     '    failed) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":7,"failed":1}}}'\'' ;;' \
     '    empty) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":0,"failed":0}}}'\'' ;;' \
@@ -478,7 +478,7 @@ prepare_gate_steps_path "$failed_spec_fixture" yes
 status=0
 run_gate_steps_fixture "$failed_spec_fixture" failed || status=$?
 expect_status 1 "$status" 'an exit-zero OpenSpec report with a failed spec refuses the gate steps'
-expect_equal '@fission-ai/openspec@1.3.0 validate --all --json' \
+expect_equal '@fission-ai/openspec@1.12.0 validate --all --json' \
   "$(head -n 1 "$failed_spec_fixture/calls" 2>/dev/null)" 'the gate invokes the pinned validator contract'
 if [[ -e $failed_spec_fixture/later ]]; then
   fail 'the failed OpenSpec report allowed later Nx work'
