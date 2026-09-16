@@ -268,7 +268,12 @@ function oneLine(script: string): string {
   return script.replace(/\s+/g, ' ');
 }
 
-/** A shell script's commands, with its comment lines dropped so counting commands counts commands. */
+/**
+ * A shell script's commands, with its WHOLE-LINE comments dropped — a line whose first
+ * non-space character is `#` — so counting commands counts commands. A trailing comment on a
+ * command line survives, so the guarantee is "a standalone comment cannot satisfy a pin",
+ * not "no comment can".
+ */
 function commandsOf(script: string): string {
   return script
     .split('\n')

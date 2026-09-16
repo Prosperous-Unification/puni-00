@@ -30,15 +30,17 @@ new refusals by editing the production workflow and watching the pins go red, an
 
 ## 2. Task Completion
 
-- [ ] Every `- [ ]` in tasks.md is now `- [x]`
+- [ ] Every `- [ ]` in tasks.md is now `- [x]` — one open, 4.1, for the reasons below
 
-| Task                        | Reason incomplete                                                                                           | Blocks archive? |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------- |
-| 4.1 live-run rows           | Needs a pushed branch, a pull request and a `push` to `main`; the throwaway negative PR is the controller's | Yes             |
-| 4.1 first `merge_group` row | Needs Dany's `main` ruleset; `merge_group` cannot fire until it exists                                      | Yes             |
+| Task                        | Reason incomplete                                                        | Blocks archive? |
+| --------------------------- | ------------------------------------------------------------------------ | --------------- |
+| 4.1 `push` to `main` row    | Needs this branch merged; merge is Dany's call                           | Yes             |
+| 4.1 first `merge_group` row | Needs Dany's `main` ruleset; `merge_group` cannot fire until it exists   | Yes             |
+| 4.1 docs-only PR row        | Not exercised — no docs-only pull request was opened. Blocked by nothing | Yes             |
 
-Slices 1.1–1.4, 2.1–2.3 and 3.1–3.7 are complete. 4.1 is the only open slice, and every
-reason it is open is in section 7.
+Slices 1.1–1.4, 2.1–2.3 and 3.1–3.8 are complete. 4.1 is the only open slice: its PR-only,
+negative-PR and h2puni-gate rows are observed, and the three rows above are not. Every reason
+is in section 7.
 
 ---
 
@@ -56,9 +58,10 @@ Each fault was injected into the real `.github/workflows/ci.yml` — not a fixtu
 copy — and the pin suite was watched failing on it before the file was restored.
 
 Every pass/fail count below — and in section 5 — and every expectation literal a row quotes,
-is **as observed when that row was watched**, not as the suite reads today. Rows 81-82 quote
-the pre-`-s` form of the jq guard for that reason: the fault was watched before `-s` landed,
-and re-quoting it with today's text would be a claim nobody made. Totals differ between rows
+is **as observed when that row was watched**, not as the suite reads today. The rows whose Check cell names the
+`Browser stack scope` boot-set membership (`any(.[]; …)`) and the `Gate mode` array guard
+(`jq -e 'type == "array"'`) quote the pre-`-s` form for that reason: those faults were watched
+before `-s` landed, and re-quoting them with today's text would be a claim nobody made. Totals differ between rows
 for the same reason: cases were added to both suites across three rounds, and two rows were
 re-observed after a later change stopped their original reading from reproducing. A count that
 does not match today's suite size is the record of when it was seen, not a stale claim — the
@@ -192,6 +195,21 @@ that breaks the rendered table.
 
 ## 5. Gate Output
 
+- [x] `bin/h2puni-gate.sh f379e3dd` — the exact-head gate, run by the controller on h2puni.
+      Exit file = 0; log `~/gate-f379e3dd.log`.
+
+```
+h2puni gate: running on f379e3ddfa474e01c558d594ad57d25369abad96
+openspec 84 valid
+format:check clean
+Successfully ran targets test, lint, typecheck, build for 31 projects
+Successfully ran targets test, typecheck for project tool-wiki
+Successfully ran target lint:source for project tool-wiki
+Successfully ran target solver-image-smoke for project wbs-be-01
+```
+
+Trust the printed SHA, not the intent: it names `f379e3dd`, the branch tip this report covers.
+
 Local commands, each with the result line as printed. The `--skip-nx-cache` runs are the
 ones whose verdict matters; the cached ones are not quoted as evidence.
 
@@ -270,30 +288,36 @@ blob` and `the real Nx target reruns an omitted-input mutation…`. This is PRE-
 - [x] No unstaged files in the worktree
 - [ ] Relevant commits pushed — the branch is local; pushing is the controller's step
 
-**Commit range**: `73730b66..` the tip of `change/affected-pr-gate` — twelve commits in the
-eleven rows below (`815372c2` and `db8972e0` share a row). Eight of the twelve change code;
-the four marked **docs** do not. The review rounds moved `ci.yml`, both `project.json` files
-and three test files, so no round after the first is "documentation of the change".
+**Commit range**: `73730b66..f379e3dd` — fourteen commits, listed by SHA below, plus this
+evidence commit, which is the fifteenth. Nine of the fourteen change code; five are docs-only.
+No commit is "documentation of the change" in the sense of adding nothing: five review rounds
+moved `ci.yml`, two `project.json` files, two wiki-policy documents and three test files.
 
-| Commit                 | Subject                                                               | Code                                                                                 |
-| ---------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `0b93f8d6`             | docs(openspec): affected-pr-gate intent, specs and tasks              | docs                                                                                 |
-| `51b746de`             | ci: affected gate on pull requests, full gate on merge queue and main | `ci.yml`, `toolchain-pins.test.ts`                                                   |
-| `4b956c2c`             | ci: pixels shards run when the frontend is affected                   | `ci.yml`, `pixels-workflow.test.ts`, `repo-namespacing-handoff.test.ts`              |
-| `61b8173e`             | docs(openspec): affected-pr-gate local verification evidence          | docs                                                                                 |
-| `243ad1b1`             | docs: the index describes the gate that now runs                      | docs (`LLM_README.md`)                                                               |
-| `815372c2`, `db8972e0` | docs(openspec): tool-wiki run, verified commit range                  | docs                                                                                 |
-| `b86d834e`             | test(devsync): every suite that reads the CI workflow declares it     | `workspace-targets.test.ts`, `tool-git-hooks/project.json`, `tool-wiki/project.json` |
-| `c6aaca85`             | fix(ci): refuse a jq failure instead of reading it as unaffected      | `ci.yml`, both pin suites                                                            |
-| `2782ee67`             | test(ci): make the refusal-arm pins breakable again                   | `ci.yml`, both pin suites, `workspace-targets.test.ts`, `tool-wiki/project.json`     |
-| `5fc1a304`             | test(ci): pin commands, not comments                                  | `ci.yml`, both pin suites, `workspace-targets.test.ts`                               |
-| the tip                | test(ci): pin the gate-mode predicate and the arm-to-mode pairing     | `ci.yml`, both pin suites, `proposal.md`, `docs/refactoring/tasks.md`                |
+| Commit     | Subject                                                                 | Changes                                                                                                     |
+| ---------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `0b93f8d6` | docs(openspec): affected-pr-gate intent, specs and tasks                | docs                                                                                                        |
+| `51b746de` | ci: affected gate on pull requests, full gate on merge queue and main   | code — `ci.yml`, `toolchain-pins.test.ts`                                                                   |
+| `4b956c2c` | ci: pixels shards run when the frontend is affected                     | code — `ci.yml`, `pixels-workflow.test.ts`, `repo-namespacing-handoff.test.ts`                              |
+| `61b8173e` | docs(openspec): affected-pr-gate local verification evidence            | docs                                                                                                        |
+| `243ad1b1` | docs: the index describes the gate that now runs                        | docs — `LLM_README.md`                                                                                      |
+| `815372c2` | docs(openspec): record the tool-wiki run against the final tree         | docs                                                                                                        |
+| `db8972e0` | docs(openspec): pin the verified commit range                           | docs                                                                                                        |
+| `b86d834e` | test(devsync): every suite that reads the CI workflow declares it       | code — `workspace-targets.test.ts`, `tool-git-hooks/project.json`, `tool-wiki/project.json`                 |
+| `c6aaca85` | fix(ci): refuse a jq failure instead of reading it as unaffected        | code — `ci.yml`, both pin suites                                                                            |
+| `2782ee67` | test(ci): make the refusal-arm pins breakable again                     | code — `ci.yml`, both pin suites, `workspace-targets.test.ts`, `tool-wiki/project.json`                     |
+| `5fc1a304` | test(ci): pin commands, not comments                                    | code — `ci.yml`, both pin suites, `workspace-targets.test.ts`                                               |
+| `f1ca7fe9` | test(ci): pin the gate-mode predicate and the arm-to-mode pairing       | code — `ci.yml`, both pin suites, `proposal.md`, `docs/refactoring/tasks.md`                                |
+| `ee11f9e3` | test(ci): pin the gate branches to their bodies                         | code — both pin suites                                                                                      |
+| `f379e3dd` | docs(wiki-policy): the tool-wiki test fact declares the workflow inputs | code — both `docs/wiki-policy/relationships*.json`, which the declarations extractor reads as configuration |
 
+`f379e3dd` is the head the h2puni gate and PR #460 both ran on. This evidence commit changes
+only this file, `tasks.md` and two test COMMENTS, so it moves no checked behaviour.
 ---
 
-## 7. Live-Run Evidence — PENDING, owned by the controller
+## 7. Live-Run Evidence — two rows OBSERVED, three PENDING; all owned by the controller
 
-None of the rows below can be produced from a local worktree. Exact steps, in order:
+None of the rows below can be produced from a local worktree. Rows 1, 2 and 6 are now
+observed; rows 3, 4 and 5 are not. Exact steps, in order:
 
 1. **Push the branch and open a pull request.** Record the `gate` job's Nx task list from
    `nx-gate.log` (artifact `nx-gate-log-1`) and its elapsed time. It MUST be a strict
@@ -310,9 +334,21 @@ None of the rows below can be produced from a local worktree. Exact steps, in or
    long pole and they always run. Narrowing those two inputs is a wiki-policy decision, not
    this change's, and is queued in `docs/refactoring/tasks.md`.
 
-   | PR  | Run | Task list | Elapsed | Subset of full? |
-   | --- | --- | --------- | ------- | --------------- |
-   | —   | —   | —         | —       | —               |
+   **OBSERVED.** PR #460, run `35082668992` on `f379e3dd`, event `pull_request`.
+
+   | PR   | Run           | Scheduled               | Elapsed                                                                                                     | Subset of full?     |
+   | ---- | ------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------- |
+   | #460 | `35082668992` | 30 projects / 105 tasks | `nx affected` 19m01s; tool-wiki test+typecheck 17m31s; lint:source 19.6s; wall 10:01:17Z→10:41:17Z (40 min) | Yes — strict by one |
+
+   `Gate mode` logged `mode=affected` and `tool_wiki=run`; the gate job succeeded. The full
+   gate is 31 projects and this run scheduled 30: the only project NOT scheduled was
+   `wbs-solver-py`. A subset of one is exactly what the note above predicts for a change that
+   touches `ci.yml` and two manifests — `tool-wiki:lint` and `tool-devsync:test` pull in
+   everything else. `tool_wiki=run` is likewise not evidence the switch is broken; the
+   `tool_wiki=skip` branch is unreachable until those inputs are narrowed.
+
+   Pixels on the same run: `pixels_mode` success with `stack=affected`, all four shards
+   success, the required `pixels` check success.
 
 2. **The throwaway negative pull request** — Task 3.1 Step 3, NOT run locally. Open a
    branch touching only `libs/shared/domain/validation/src/core.ts` with a deliberate type
@@ -321,12 +357,28 @@ None of the rows below can be produced from a local worktree. Exact steps, in or
    graph in `nx-gate.log`. Both halves matter: a red run that also built the frontend
    proves nothing about narrowing. Close the PR without merging and record its link.
 
-   | PR link | Failed target | `wbs-fe-01:build` absent? |
-   | ------- | ------------- | ------------------------- |
-   | —       | —             | —                         |
+   **OBSERVED, and the plan's second expectation was WRONG.** PR #461, closed, branch
+   deleted; head `8d9bbdcc` = `5fc1a304` plus one deliberate fault in
+   `libs/shared/domain/validation/src/core.ts`:
+   `export const affectedGateProbe: number = 'not a number';`
+
+   | PR   | Run           | Scheduled                                       | Result      | Failure                                                                                                                                                    |
+   | ---- | ------------- | ----------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | #461 | `35075074824` | 30 projects / 84 tasks, 18m51s, `mode=affected` | gate FAILED | `shared-validation:typecheck` — `core.ts:64:14 - error TS2322: Type 'string' is not assignable to type 'number'`, plus 18 dependent typechecks red with it |
+
+   `wbs-fe-01:build` **WAS** scheduled. Task 3.1 Step 3 asked for its absence as the proof of
+   narrowing; that expectation was stale when it was written. `fe-01` has imported
+   `@shared/validation` since W1, so a fault in `core.ts` reaches the frontend through the
+   real project graph and `nx affected` is right to build it. Recording what the run proves
+   rather than what the plan hoped for: the scheduled set was a strict subset (84 tasks, not
+   the full gate's) and the injected fault turned the PR gate red in the project that owns it.
+   An absence assertion against a project that genuinely depends on the changed file would
+   have been a check that must fail for the wrong reason.
 
 3. **A `push` to `main`.** Record the full task list and elapsed time from the same
    artifact, as the control the subset in row 1 is a subset OF.
+
+   **PENDING** — needs this branch merged.
 
    | Run | Task list | Elapsed |
    | --- | --------- | ------- |
@@ -335,6 +387,9 @@ None of the rows below can be produced from a local worktree. Exact steps, in or
 4. **`pixels` on a pull request that reaches nothing in the browser stack** (docs- or
    tools-only). `pixels_mode` must report `stack=unaffected`, the four shards must show
    `skipped`, and the required `pixels` check must still be green.
+
+   **PENDING, and not blocked by anything** — no docs-only pull request was opened, so this
+   path has simply not been exercised. It is the only row that could be observed today.
 
    | PR  | `pixels_mode` output | Shard results | `pixels` verdict |
    | --- | -------------------- | ------------- | ---------------- |
@@ -345,6 +400,8 @@ None of the rows below can be produced from a local worktree. Exact steps, in or
    exists, `merge_group` fires never and both `merge_group` arms are unexercised in
    production. After the first queue entry, record its run link and confirm the `Gate
 mode` step logged `mode=full`.
+
+   **PENDING on Dany's ruleset** — `merge_group` cannot fire until it exists.
 
    | Merge-queue run | `Gate mode` output | Verdict |
    | --------------- | ------------------ | ------- |
@@ -371,15 +428,21 @@ mode` step logged `mode=full`.
 ## Decision
 
 - [ ] ✅ PASS
-- [x] ⚠️ PASS WITH WARNINGS — every local obligation is met and every safety check in this
-      change was watched failing. The change is NOT verified end to end: its whole point is
-      behaviour that only a real event produces, and section 7 is empty. Do not archive on
-      this report.
+- [x] ⚠️ PASS WITH WARNINGS — the change is proven on the events that exist today. The
+      exact-head h2puni gate is green on `f379e3dd`; a real pull request ran `mode=affected`
+      over a strict subset and passed; a deliberate type error turned that same path red in
+      the project that owns it. What is NOT proven, and each reason: - **push to `main`** — needs this branch merged. - **first `merge_group` run** — needs Dany's ruleset; `merge_group` cannot fire without
+      it, so the full-gate arm is unexercised in production. - **docs-only PR with skipped shards** — simply not exercised; no docs-only pull request
+      was opened. Blocked by nothing, and it is the one remaining row observable today.
+      Also carried forward, not defects but limits: `tool-wiki:lint` and `tool-devsync:test`
+      declare `{workspaceRoot}/**/*`, so `tool_wiki=skip` is unreachable and the saving is
+      bounded well under the 38 minutes the proposal cites (queued in
+      `docs/refactoring/tasks.md`).
 - [ ] ❌ FAIL
 
 **Next step**:
 
-Controller pushes the branch, runs section 7 rows 1–4 and 6, and asks Dany for the ruleset
-before row 5. Land the workflow first and enable the queue second, as `w3-workstream-context.md`
-requires: until the ruleset exists nothing requires these checks, so landing them changes
-no merge's admission.
+Merge is Dany's call, never a background job's. On merge, fill §7 row 3 from the `push` run.
+Ask Dany for the `main` ruleset with a merge queue and required `gate` and `pixels`, then fill
+row 5 from the first queue entry. Row 4 can be filled at any time with one docs-only pull
+request. Archive only when §7 has no PENDING row left.

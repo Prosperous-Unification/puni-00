@@ -92,7 +92,9 @@ const caseArmEvents = (script: string): string[] =>
   );
 
 /**
- * A shell script's commands, with its comment lines dropped.
+ * A shell script with its WHOLE-LINE comments dropped — a line whose first non-space
+ * character is `#`. A trailing comment on a command line survives, so the guarantee this
+ * gives is exactly "a standalone comment cannot satisfy a pin", not "no comment can".
  *
  * Not tidiness: a `Proof:` comment beside a pinned arm quotes the literal the pin asserts,
  * so a pin that reads comments can be satisfied by the note ABOUT it. Watched on
@@ -177,8 +179,10 @@ describe('the CI pixels scope', () => {
       EVENT_NAME: '${{ github.event_name }}',
       PR_BASE_SHA: '${{ github.event.pull_request.base.sha }}',
     });
-    // Through `commandsOf`, like its tool-devsync twins: a `Proof:` comment beside this step
-    // quotes these literals, so a pin that read comments could be satisfied by the note.
+    // Through `commandsOf`, like its tool-devsync twins. No comment beside this step quotes
+    // these literals today; the point is that none ever can. A `Proof:` note naturally
+    // quotes the thing it is about, and one written here later must not be able to satisfy
+    // the pin it explains.
     const commands = commandsOf(step.run ?? '');
     expect(commands).toContain(
       'bunx nx show projects --affected --base="$PR_BASE_SHA" --head=HEAD --json',

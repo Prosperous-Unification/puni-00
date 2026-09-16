@@ -93,6 +93,10 @@ through `Bun.YAML.parse` or as text; there is no copy of the workflow to assert 
 ## 4. Evidence
 
 - [ ] 4.1 `verify.md` records every command with its result line, both failure proofs with the
-      observed expectations, and the live-run rows — a pull-request run's task list as a strict
-      subset, a `push` run's full list, the throwaway negative pull request, and the first
-      `merge_group` run — left pending with their exact steps until the ruleset exists.
+      observed expectations, and the live-run rows. OBSERVED: the h2puni exact-head gate on
+      `f379e3dd` (exit 0, 31 projects); PR #460's `mode=affected` run over a strict subset
+      (30 projects / 105 tasks, gate green, pixels green); and the throwaway negative PR #461,
+      red in `shared-validation:typecheck` on the injected `TS2322`. OPEN: the `push` to `main`
+      row, which needs the merge; the first `merge_group` row, which needs Dany's ruleset; and
+      a docs-only PR showing skipped shards, which is blocked by nothing and simply has not
+      been opened.
