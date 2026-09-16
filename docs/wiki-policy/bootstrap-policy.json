@@ -729,6 +729,10 @@
       "boundaryId": "boundary.infra.tool-wiki",
       "selector": {
         "kind": "prefix",
+        "value": "apps/wiki/cli"
+      },
+      "sourceSelector": {
+        "kind": "prefix",
         "value": "tools/tool-wiki"
       },
       "baselineEntries": [
@@ -1085,11 +1089,7 @@
     {
       "obligationId": "obligation.tool-wiki.bootstrap",
       "boundaryId": "boundary.infra.tool-wiki",
-      "checkIds": [
-        "check.tool-wiki.test",
-        "check.tool-wiki.lint-source",
-        "check.tool-wiki.typecheck"
-      ],
+      "checkIds": ["check.wiki-cli.test", "check.wiki-cli.lint-source", "check.wiki-cli.typecheck"],
       "reviewIds": ["review.tool-wiki.bootstrap"]
     }
   ],

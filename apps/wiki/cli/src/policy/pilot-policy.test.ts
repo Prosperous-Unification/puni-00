@@ -299,9 +299,9 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
         {
           boundaryId: 'boundary.infra.tool-wiki',
           checkIds: [
-            'check.tool-wiki.test',
-            'check.tool-wiki.lint-source',
-            'check.tool-wiki.typecheck',
+            'check.wiki-cli.test',
+            'check.wiki-cli.lint-source',
+            'check.wiki-cli.typecheck',
           ],
           obligationId: 'obligation.tool-wiki.bootstrap',
           reviewIds: ['review.tool-wiki.bootstrap'],
@@ -933,6 +933,47 @@ describe('on-disk bootstrap policy, mapping and relationship files', () => {
         .filter(({ strays }) => strays.length > 0),
     ).toEqual([]);
   }, 30_000);
+
+  test('every obligation check id resolves to a fact its policy declares', () => {
+    const unresolved: string[] = [];
+    let resolved = 0;
+    for (const policyPath of [
+      'docs/wiki-policy/bootstrap-policy.json',
+      'docs/wiki-policy/policy.json',
+    ]) {
+      const policy = JSON.parse(readFileSync(join(repositoryRoot, policyPath), 'utf8')) as {
+        relationshipRequest: { declarationPaths: string[] };
+        obligations: { obligationId: string; checkIds: string[] }[];
+      };
+      const declared = new Set(
+        policy.relationshipRequest.declarationPaths.flatMap((declarationPath) => {
+          const declarations = JSON.parse(
+            readFileSync(join(repositoryRoot, declarationPath), 'utf8'),
+          ) as { facts: { factId: string }[] };
+          return declarations.facts.map(({ factId }) => factId);
+        }),
+      );
+      // A policy whose declarations were empty would satisfy nothing below by resolving nothing.
+      expect(declared.size).toBeGreaterThan(0);
+      for (const { obligationId, checkIds } of policy.obligations) {
+        for (const checkId of checkIds) {
+          if (declared.has(checkId)) resolved += 1;
+          else unresolved.push(`${policyPath}: ${obligationId} -> ${checkId}`);
+        }
+      }
+    }
+    // Proof: with `obligation.tool-wiki.bootstrap` still naming `check.tool-wiki.test`,
+    // `.lint-source` and `.typecheck` while `relationships.bootstrap.json` declared only the
+    // renamed `check.wiki-cli.*`, this assertion observed exactly those three
+    // `bootstrap-policy.json: obligation.tool-wiki.bootstrap -> check.tool-wiki.*` entries
+    // against `[]`. Nothing else in the repository resolved an obligation's check ids against
+    // the facts its `declarationPaths` declare, so that disagreement was silent until the
+    // enforcing path (2026-09-16).
+    expect(unresolved).toEqual([]);
+    // Two obligation-free policies would pass the assertion above without resolving anything,
+    // so the enforced obligation has to still be there for this oracle to mean something.
+    expect(resolved).toBeGreaterThan(0);
+  });
 
   test('every bootstrap nx-target fact names a workspace project whose cwd exists at HEAD', () => {
     const declarations = JSON.parse(

@@ -614,7 +614,15 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // pushed from line 816 to 819 by the three JSDoc lines that explain the v5 bump; every other
     // context in every file this commit touched is byte-identical, checked line by line
     // (2026-09-16).
-    digest: '46db251d98c8826b310f2cdb3f8c64b79f2a4e29a5117db98c4b4246453c3372',
+    // Proof: leaving `46db251d...` here after the wiki move's relocation selectors failed on the
+    // observed digest below, still at 257 — the new obligation oracle pushed
+    // pilot-policy.test.ts's four `libs/core` proof contexts from lines 962/963/990/991 to
+    // 1003/1004/1031/1032. bootstrap-policy.json moved none of its five: the four
+    // `sourceSelector` lines added there are cancelled exactly by the four Prettier removes when
+    // the renamed `checkIds` collapsed onto one line, so its contexts sit where they did, checked
+    // line by line. An intermediate pin of `9e192e79...`, taken before that reformat, failed
+    // (2026-09-16).
+    digest: 'e791915193532370bfb25f291e7364590b52a5636d0f535977e5cf36320430de',
     occurrences: 257,
     unclassified: [],
   });
