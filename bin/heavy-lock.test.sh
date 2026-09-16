@@ -1087,8 +1087,12 @@ run_suite() {
   status=0
   wait "$signalled_caller" || status=$?
   expect_status 143 "$status" "27i: a signalled caller exits 143 through its own script"
+  # No `|| printf 0` fallback: `grep -c` exits 1 when it counts zero, so on the
+  # red path the fallback ran too and the substitution held `0` twice — the
+  # comparison below then failed on its own operand rather than on the count.
+  # Zero is an answer here, and grep has already printed it.
   local caller_runs
-  caller_runs=$(grep -c '^ran$' "$caller_log" 2>/dev/null || printf '0\n')
+  caller_runs=$(grep -c '^ran$' "$caller_log" 2>/dev/null)
   if [[ $caller_runs -eq 1 ]]; then
     pass "27j: the caller's own EXIT trap ran exactly once"
   else

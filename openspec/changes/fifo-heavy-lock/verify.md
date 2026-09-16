@@ -31,11 +31,11 @@
 
 ## 2. Task Completion
 
-- [ ] Every `- [ ]` in tasks.md is now `- [x]`
+- [ ] Every `- [ ]` in tasks.md is now `- [x]` — 7.1 stays open for its last clause, the rollout drain check
 
-| Task                        | Reason incomplete                                                   | Blocks archive? |
-| --------------------------- | ------------------------------------------------------------------- | --------------- |
-| 7.1 h2puni gate + this file | The gate runs on h2puni under the canonical lock; controller's step | Yes             |
+| Task                    | Reason incomplete                                                                                                                                                 | Blocks archive? |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| 7.1 rollout drain check | Everything else in 7.1 is done: the gate is green on `5f9551b8` and this file records it. The drain check belongs to whoever runs the first post-merge heavy run. | No              |
 
 ---
 
@@ -101,8 +101,8 @@
 - [x] `shellcheck bin/heavy-lock-lib.sh bin/with-heavy-lock.sh bin/h2puni-gate.sh bin/heavy-lock.test.sh bin/h2puni-gate.test.sh`
 - [x] `bunx nx test tool-dagger --skip-nx-cache`
 - [x] `bunx nx format:check --all`, `git diff --check`
-- [ ] `bin/h2puni-gate.sh <sha>` on h2puni — pending, controller's step
-- [ ] `bunx nx run-many -t test lint typecheck build` — covered by the gate above
+- [x] `bin/h2puni-gate.sh 5f9551b8` on h2puni — exit 0
+- [x] `bunx nx run-many -t test lint typecheck build` — inside that gate
 
 ```
 all heavy-lock checks passed          (96 ok, exit 0, consecutive runs)
@@ -112,6 +112,43 @@ shellcheck: exit 0, no output         (all five scripts)
 format:check --all: exit 0            git diff --check: exit 0
 ```
 
+The h2puni gate, run by the controller on `5f9551b8`
+(log `~/gate-5f9551b8.log`, `~/gate-5f9551b8.exit` = 0):
+
+```
+h2puni gate: running on 5f9551b83d4777d1dbbb476c3047ec1767a81a93
+openspec 84 valid; format:check clean
+Successfully ran targets test, lint, typecheck, build for 31 projects
+Successfully ran targets test, typecheck for project tool-wiki
+Successfully ran target lint:source for project tool-wiki
+Successfully ran target solver-image-smoke for project wbs-be-01
+```
+
+### The queue in production (task 2.3's observed evidence)
+
+Earlier the same day, the gate for `010cabe3` queued behind the gate for `348f7fb7` and reported
+its wait as its FIRST line, before the head it was gating:
+
+```
+heavy lock: waited 372s behind 0 tickets
+h2puni gate: running on 010cabe3…
+```
+
+and `bin/with-heavy-lock.sh status` on h2puni, with three lanes live:
+
+```
+heavy lock: holder pid 2998238 label gate:010cabe3
+heavy lock: waiter pid 3291912 label gate:5fc1a304 age 1297s budget 503s left
+heavy lock: waiter pid 3417020 label gate:218e890d age 1070s budget 730s left
+```
+
+That is the whole change working on the host it was written for: arrival order, the lane labels
+naming which commit holds the box, and each waiter's remaining budget. It also produced the first
+operational finding the queue makes visible at all — **the 1800-second default budget in
+`bin/h2puni-gate.sh` cannot cover a second waiter behind a full gate**. Both waiters above expired
+before their turn. Queued in `docs/refactoring/tasks.md`; it is a budget, not a correctness defect,
+and raising it is a one-line change that deserves its own evidence.
+
 ---
 
 ## 6. Implementation Signal
@@ -119,7 +156,10 @@ format:check --all: exit 0            git diff --check: exit 0
 - [x] No unstaged files in the worktree
 - [ ] Relevant commits pushed — branch is local; the controller integrates
 
-**Commit range**: `73730b66..HEAD` on `change/fifo-heavy-lock`
+**Commit range**: `73730b66..5f9551b8` on `change/fifo-heavy-lock` — the range the h2puni gate
+above ran on. The commit that adds this section is documentation plus one line in
+`bin/heavy-lock.test.sh` (a `grep -c` fallback that produced `0\n0` on the red path), and is gated
+again rather than claimed under `5f9551b8`'s result.
 
 ---
 
@@ -146,13 +186,21 @@ pre-fix code never reads.
 ## Decision
 
 - [ ] ✅ PASS
-- [x] ⚠️ PASS WITH WARNINGS — every local check is green and every safety check
-      has a watched negative, but the h2puni gate has not run and bash 3.2 and
-      the Darwin `python3` clock fallback are unexercised on this host
-      (`/bin/bash` is 5.2.21; the suite's second pass is skipped).
+- [x] ⚠️ PASS WITH WARNINGS — the h2puni gate is green on `5f9551b8` and every
+      safety check has a watched negative. Four things are still worth a reader's
+      attention: 1. bash 3.2 and the Darwin `python3` clock fallback are unexercised —
+      `/bin/bash` here is 5.2.21, so the suite's second pass is skipped, and
+      `trap -p`, `${var#trap -- }` and the `cat`/`sed` status classification
+      are 3.2-safe by documentation rather than by observation. 2. INT is a no-op for a run started asynchronously without job control
+      (`nohup … &`), because such a shell inherits SIGINT ignored and an
+      ignored signal cannot be trapped. TERM works everywhere and is what
+      automation should send; case 27h documents the measurement. 3. The 1800-second default budget in `bin/h2puni-gate.sh` is too short for
+      a second waiter behind a full gate — observed above, two waiters
+      expired. Queued, not fixed here. 4. The rollout drain check below has to happen before the first post-merge
+      heavy run.
 - [ ] ❌ FAIL
 
 **Next step**:
 
-The controller runs `bin/h2puni-gate.sh <sha>` on h2puni at this head, fills in
-section 5's pending rows and task 4.1, then integrates.
+The controller integrates. The only step left before the first post-merge heavy
+run is the Rollout drain check above, which belongs to whoever is at the host.

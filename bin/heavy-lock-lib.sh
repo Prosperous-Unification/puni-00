@@ -394,9 +394,12 @@ report_heavy_lock_status() {
   else
     # **Absent is not unreadable**, and reading them as the same thing made this
     # report refuse over two ordinary states. `claim_heavy_lock` makes exactly
-    # this distinction and this now matches it: the winner between its `mkdir`
-    # and its holder write has no holder file YET, and a lock taken before this
-    # file grew a queue has no label file at all. Neither is unknown state; both
+    # this distinction and this matches it on the transient states: the winner
+    # between its `mkdir` and its holder write has no holder file YET, and a lock
+    # taken before this file grew a queue has no label file at all. It does not
+    # match on the corrupt one — a holder file whose contents are not a pid stops
+    # `claim_heavy_lock` with exit 70, while this reports it verbatim, because a
+    # human reading a report is better served by the bytes than by a refusal. Neither is unknown state; both
     # were being reported as `is unreadable`, exit 70, to a caller whose only
     # crime was running `status` at the wrong microsecond.
     # **Both files are read BEFORE anything is decided about them**, the way
@@ -734,6 +737,16 @@ install_release_trap() {
 # including `waited 0s behind 0 tickets`: only this function knows either number,
 # and a line that appears exactly when a run was delayed is a line nobody can
 # grep for to find the runs that were not.
+#
+# **The exit codes a caller can see**, because scripts branch on them:
+#   - the command's own status when it ran,
+#   - `75` another run holds the lock, or a live ticket is ahead of this one,
+#   - `70` state this cannot make sense of — an unwritable lock parent, an
+#     unusable queue, a holder or ticket that is present and unreadable, no
+#     nanosecond clock,
+#   - `64` usage: no `--`, or a `HEAVY_LOCK_POLL_SECONDS` outside 1-30,
+#   - `130` and `143` this run was sent INT or TERM; the lock and ticket are
+#     released before it goes.
 #
 # Throws (does not run unlocked) when the lock's parent directory is not
 # writable: a heavy run that believes it is serialised while it is not is the

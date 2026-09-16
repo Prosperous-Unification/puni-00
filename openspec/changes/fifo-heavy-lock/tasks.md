@@ -120,4 +120,8 @@ denied` and exit 1 (18e, 18f).
 ## 7. Verification
 
 - [ ] 7.1 Run the full gate on h2puni at the change head and record commands, results and the R5
-      proof table in `verify.md`.
+      proof table in `verify.md`. **Done except its last clause**: the gate is green on `5f9551b8`
+      (`h2puni gate: running on 5f9551b83d4777d1dbbb476c3047ec1767a81a93`, exit 0) and `verify.md`
+      records it along with the queue observed running in production. What remains is the rollout
+      drain check — `bin/with-heavy-lock.sh status` empty before the first post-merge heavy run —
+      which belongs to whoever is at the host at deploy.

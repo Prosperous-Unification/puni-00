@@ -162,8 +162,13 @@ Nothing below has an owning task in the external queue (`backlog/tasks/task-NNN 
       that won the rename proceeds. (3) A holder has no deadline, only a pid, so a SIGKILLed
       holder whose pid the kernel reuses holds the lock for the whole life of the unrelated
       process; tickets already carry a deadline for exactly this reason. (4)
-      `install_release_trap` sets `trap "$release" INT TERM`, which replaces any INT/TERM trap the
-      caller installed — the EXIT trap is chained, these two are not.
+      `install_release_trap` replaces any INT/TERM trap the caller installed — the EXIT trap is
+      chained, these two are not. Two operational items from the same lock, observed once it became
+      visible: (5) `bin/h2puni-gate.sh`'s default `HEAVY_LOCK_WAIT_SECONDS` of 1800 cannot cover a
+      second waiter behind a full gate — on 2026-09-16 two queued gates expired behind a 40-minute
+      holder — so raise it to cover two gates and say what the number is derived from; (6)
+      `bin/with-heavy-lock.sh status` could mark a waiter whose budget has run out as expired in
+      its own right, since such a ticket is reclaimable and its owner has already given up.
 - [ ] Wiki policy rule overlap: a `*.test.ts` under a `fixtures/` segment matches both the `test`
       (suffix) and `fixture` (segment) `contentRules` in `docs/wiki-policy/policy.json`, and
       `classify-entries` refuses the whole candidate. Give the `fixture` rule the
