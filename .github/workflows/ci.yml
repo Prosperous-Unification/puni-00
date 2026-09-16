@@ -25,10 +25,25 @@
 # All three were run against the real scripts before this file was committed. See
 # AGENTS.md, "Non-vacuous checks".
 #
-# Deliberately run-many, not affected: at ~10k LOC the whole suite is cheap, and
-# `nx affected` needs a base ref that is wrong or missing often enough to make
-# the gate silently narrow. A gate that skips work it should have run is the
+# Run-many everywhere except `pull_request`, which runs `nx affected` against
+# its own merge base. This paragraph said "deliberately run-many, not affected"
+# until 2026-09-16, and the reason it gave has not been retired — it has been
+# answered. `nx affected` with a base ref that is wrong or missing is a gate
+# that silently narrows, and a gate that skips work it should have run is the
 # exact failure this repo keeps hitting.
+#
+# What changed is that the base is no longer guessed. `Gate mode` below takes
+# it from the pull request's immutable payload SHA, refuses an empty one, and
+# refuses outright any event it has no rule for; `merge_group`, `push` and
+# `workflow_dispatch` keep the unchanged full run, so nothing narrows for the
+# merge queue or for `main`, and the h2puni exact-head gate is still the final
+# proof. What a pull-request run no longer proves is composition across
+# projects it did not touch — that proof moves to the merge queue, which is the
+# only place a merged tree exists to prove it on, and it is why the queue is a
+# prerequisite of this change rather than a follow-up to it.
+#
+# The cost it buys back: the full run was 38 minutes at PR #457, and the merged
+# tree then ran all of it again.
 
 name: ci
 
@@ -346,19 +361,94 @@ jobs:
       # TASK-289 control: CI 34056520601 completed the unchanged Nx command for
       # all 24 projects, then an unexpected helper argument made this gate red;
       # the always-run nx-gate-log-1 upload still passed.
+      # The scope, chosen from the event and never inferred from whether a base ref
+      # happens to resolve — the same shape `Corpus version lint` below already uses,
+      # for the same reason. Payload values arrive as environment variables rather than
+      # interpolated into the shell, an empty pull-request base SHA is a refusal rather
+      # than a fallback to a mutable ref, and the `*)` arm means subscribing this
+      # workflow to a new event fails loudly instead of picking a scope by accident.
+      #
+      # `nx show projects` prints a ONE-LINE JSON array on a non-TTY runner whatever
+      # `--sep` asks for — measured on Nx 23.2.0, 2026-09-16 — so membership is read
+      # with `jq` and not with `grep`. A `grep -qx tool-wiki` over that array can never
+      # match, which would have dropped Tool Wiki from every pull request while exiting
+      # 0: a check that cannot fail, wearing the exclusion's hat.
+      #
+      # Tool Wiki needs its own arm at all because the workspace run below excludes it
+      # and runs its targets separately; `nx affected` would otherwise exclude it and
+      # nothing would put it back.
+      #
+      # Proof (2026-09-16): with the `*)` arm deleted, `the CI gate scope > maps every
+      # subscribed event and refuses one it has no rule for` in
+      # `tools/tool-devsync/src/toolchain-pins.test.ts` failed on
+      # `expect(received).toContain("*")`, received
+      # `["pull_request", "push", "merge_group", "workflow_dispatch"]`.
+      - name: Gate mode
+        id: gate_mode
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            pull_request)
+              : "${PR_BASE_SHA:?pull_request payload carries no base SHA}"
+              printf 'mode=affected\n' >> "$GITHUB_OUTPUT"
+              printf 'base=%s\n' "$PR_BASE_SHA" >> "$GITHUB_OUTPUT"
+              affected="$(bunx nx show projects --affected --base="$PR_BASE_SHA" --head=HEAD --json)"
+              if jq -e 'index("tool-wiki") != null' <<< "$affected" > /dev/null; then
+                printf 'tool_wiki=run\n' >> "$GITHUB_OUTPUT"
+              else
+                printf 'tool_wiki=skip\n' >> "$GITHUB_OUTPUT"
+              fi
+              ;;
+            push | merge_group | workflow_dispatch)
+              printf 'mode=full\n' >> "$GITHUB_OUTPUT"
+              printf 'tool_wiki=run\n' >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              printf 'no gate mode for event %s\n' "$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+
       - name: Gate — test, lint, typecheck, build
         id: nx_gate
+        env:
+          GATE_MODE: ${{ steps.gate_mode.outputs.mode }}
+          GATE_BASE: ${{ steps.gate_mode.outputs.base }}
+          GATE_TOOL_WIKI: ${{ steps.gate_mode.outputs.tool_wiki }}
         run: |
           set +e
           # Proof: dropping this exclusion made gate-entrypoints.test.ts fail at
           # `Expected to contain: --exclude=tool-wiki`; source lint remains explicit below.
-          {
-            bunx nx run-many -t test lint typecheck build --parallel=2 --output-style=stream \
-              --exclude=tool-wiki &&
-            bunx nx run-many -t test typecheck build -p tool-wiki --parallel=2 \
-              --output-style=stream &&
-            bunx nx run tool-wiki:lint:source --skip-nx-cache --output-style=stream
-          } > nx-gate.log 2>&1
+          #
+          # Both branches keep the same three parts — the workspace run without Tool
+          # Wiki, Tool Wiki's own targets, its explicit source lint — and the pin suite
+          # counts them rather than containing them, because one branch quietly losing a
+          # part is exactly the narrowing this switch could introduce.
+          #
+          # The `else` is the full gate, so an unset or unrecognised mode runs MORE work
+          # rather than less. This is the one direction it is safe to fail in.
+          if [ "$GATE_MODE" = affected ]; then
+            {
+              bunx nx affected -t test lint typecheck build --base="$GATE_BASE" --head=HEAD \
+                --parallel=2 --output-style=stream --exclude=tool-wiki &&
+              if [ "$GATE_TOOL_WIKI" = run ]; then
+                bunx nx run-many -t test typecheck build -p tool-wiki --parallel=2 \
+                  --output-style=stream &&
+                bunx nx run tool-wiki:lint:source --skip-nx-cache --output-style=stream
+              fi
+            } > nx-gate.log 2>&1
+          else
+            {
+              bunx nx run-many -t test lint typecheck build --parallel=2 --output-style=stream \
+                --exclude=tool-wiki &&
+              bunx nx run-many -t test typecheck build -p tool-wiki --parallel=2 \
+                --output-style=stream &&
+              bunx nx run tool-wiki:lint:source --skip-nx-cache --output-style=stream
+            } > nx-gate.log 2>&1
+          fi
           gate_status=$?
           annotation_status=0
           bun run tools/tool-git-hooks/src/hooks/ci-gate-annotations.ts nx-gate.log --tail 200 || annotation_status=$?

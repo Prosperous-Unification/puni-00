@@ -195,3 +195,168 @@ describe('the React version ESLint is told', () => {
     expect(told).toBe(version);
   });
 });
+
+interface WorkflowStep {
+  name?: string;
+  id?: string;
+  env?: Record<string, string>;
+  run?: string;
+  uses?: string;
+  with?: { 'fetch-depth'?: number };
+}
+
+/**
+ * `jobs` names `gate` rather than being a `Record`, for the reason
+ * `corpus-lint-workflow.test.ts` gives: an index signature types every lookup as
+ * present and `no-unnecessary-condition` then rejects the `?.` a missing job needs.
+ */
+interface CiWorkflow {
+  jobs?: { gate?: { steps?: WorkflowStep[] } };
+}
+
+async function readCiWorkflow(): Promise<CiWorkflow> {
+  return Bun.YAML.parse(await read('.github/workflows/ci.yml')) as CiWorkflow;
+}
+
+function gateStep(workflow: CiWorkflow, name: string): WorkflowStep {
+  const step = workflow.jobs?.gate?.steps?.find((candidate) => candidate.name === name);
+  expect(step, `the gate job has no \`${name}\` step`).toBeDefined();
+  return step ?? {};
+}
+
+/**
+ * `on` is the one key YAML 1.1 reads as a boolean, so `workflow.on` is undefined and a
+ * suite that read it would pass by checking nothing — see `corpus-lint-workflow.test.ts`.
+ */
+function subscribedEvents(workflow: CiWorkflow): string[] {
+  const record = workflow as unknown as Record<string, unknown>;
+  // Bracketed because both come from an index signature (TS4111), not style.
+  const block = (record['on'] ?? record['true']) as Record<string, unknown> | undefined;
+  expect(block, 'the workflow has no `on:` block under either key').toBeDefined();
+  return Object.keys(block ?? {});
+}
+
+/** The event labels of a `case "$EVENT_NAME" in` script, `*` included, one per alternative. */
+function caseArmEvents(script: string): string[] {
+  return [...script.matchAll(/^ {2}([a-z_ |*]+)\)$/gm)].flatMap((match) =>
+    match[1].split('|').map((event) => event.trim()),
+  );
+}
+
+/** A shell script's commands, with its comment lines dropped so counting commands counts commands. */
+function commandsOf(script: string): string {
+  return script
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('#'))
+    .join('\n');
+}
+
+function occurrences(haystack: string, needle: string): number {
+  return haystack.split(needle).length - 1;
+}
+
+/**
+ * The gate's scope, which is chosen from the event and never inferred.
+ *
+ * The header of `ci.yml` used to say "deliberately run-many, not affected", and the
+ * reason it gave is still the right one: `nx affected` with a wrong or missing base is a
+ * gate that silently narrows. What changed is where the base comes from — the pull
+ * request's own immutable payload SHA, refused when empty — and that `merge_group` and
+ * `push` keep the full run, so nothing narrows for `main`. This suite is what holds the
+ * workflow to that, because a scope that moves without saying so is the whole hazard.
+ */
+describe('the CI gate scope', () => {
+  it('maps every subscribed event and refuses one it has no rule for', async () => {
+    // Proof (2026-09-16): with the `*)` arm deleted from the production workflow, this
+    // failed on `expect(received).toContain("*")` — received
+    // `["pull_request", "push", "merge_group", "workflow_dispatch"]`. Restored, it passes.
+    // The equality beside it is the other half: adding a trigger to `on:` without a case
+    // arm fails on the two sets rather than choosing a scope by accident.
+    const workflow = await readCiWorkflow();
+    const script = gateStep(workflow, 'Gate mode').run ?? '';
+    const arms = caseArmEvents(script);
+
+    expect(arms).toContain('*');
+    expect(arms.filter((event) => event !== '*').sort()).toEqual(subscribedEvents(workflow).sort());
+    expect(script).toContain(`printf 'no gate mode for event %s\\n' "$EVENT_NAME" >&2`);
+    expect(script).toContain('exit 1');
+  });
+
+  it('takes the pull-request boundary from the immutable payload', async () => {
+    const step = gateStep(await readCiWorkflow(), 'Gate mode');
+
+    // The same shape `Corpus version lint` uses: payload values arrive as environment
+    // variables, never interpolated into the shell, and a mutable ref is not a fallback.
+    expect(step.env).toEqual({
+      EVENT_NAME: '${{ github.event_name }}',
+      PR_BASE_SHA: '${{ github.event.pull_request.base.sha }}',
+    });
+    expect(step.env).not.toHaveProperty('PR_BASE_REF');
+    expect(step.run).toContain(`: "\${PR_BASE_SHA:?pull_request payload carries no base SHA}"`);
+    expect(step.run).toContain(`printf 'mode=affected\\n' >> "$GITHUB_OUTPUT"`);
+    expect(step.run).toContain(`printf 'base=%s\\n' "$PR_BASE_SHA" >> "$GITHUB_OUTPUT"`);
+    expect(step.run).toContain(`printf 'mode=full\\n' >> "$GITHUB_OUTPUT"`);
+  });
+
+  it('runs affected on a pull request and the unchanged full gate everywhere else', async () => {
+    const step = gateStep(await readCiWorkflow(), 'Gate — test, lint, typecheck, build');
+    const script = commandsOf(step.run ?? '');
+
+    expect(step.env).toEqual({
+      GATE_MODE: '${{ steps.gate_mode.outputs.mode }}',
+      GATE_BASE: '${{ steps.gate_mode.outputs.base }}',
+      GATE_TOOL_WIKI: '${{ steps.gate_mode.outputs.tool_wiki }}',
+    });
+    expect(script).toContain(
+      'bunx nx affected -t test lint typecheck build --base="$GATE_BASE" --head=HEAD',
+    );
+    expect(script).toContain('bunx nx run-many -t test lint typecheck build --parallel=2');
+    // Both branches keep the same three parts: the workspace run without Tool Wiki, Tool
+    // Wiki's own targets, and its explicit source lint. Counting rather than containing,
+    // because one branch quietly losing a part is exactly what this is here to see.
+    expect(occurrences(script, '--exclude=tool-wiki')).toBe(2);
+    expect(occurrences(script, 'bunx nx run-many -t test typecheck build -p tool-wiki')).toBe(2);
+    expect(
+      occurrences(
+        script,
+        'bunx nx run tool-wiki:lint:source --skip-nx-cache --output-style=stream',
+      ),
+    ).toBe(2);
+  });
+
+  it('keeps Tool Wiki in the pull-request gate, read as JSON rather than grepped', async () => {
+    // Proof (2026-09-16): with the `if [ "$GATE_TOOL_WIKI" = run ]` branch replaced by
+    // `true` in the affected arm of the production workflow, this case failed on
+    // `Expected to contain: "if [ \"$GATE_TOOL_WIKI\" = run ]; then"` and the case above
+    // failed on `Expected: 2 · Received: 1` for
+    // `bunx nx run-many -t test typecheck build -p tool-wiki` — 2 failed / 14 passed. A
+    // pull request touching Tool Wiki would have gated everything except Tool Wiki.
+    // The `not.toContain('grep')` is the second fault this pins: measured on Nx 23.2.0,
+    // 2026-09-16, `bunx nx show projects --affected --base=HEAD~1 --head=HEAD` prints a
+    // ONE-LINE JSON array on a non-TTY runner whatever `--sep` asks for, so a
+    // `grep -qx tool-wiki` over it can never match and would drop Tool Wiki from every
+    // pull request while exiting 0.
+    const workflow = await readCiWorkflow();
+    const mode = commandsOf(gateStep(workflow, 'Gate mode').run ?? '');
+    const gate = commandsOf(gateStep(workflow, 'Gate — test, lint, typecheck, build').run ?? '');
+
+    expect(mode).toContain(
+      'bunx nx show projects --affected --base="$PR_BASE_SHA" --head=HEAD --json',
+    );
+    expect(mode).toContain(`jq -e 'index("tool-wiki") != null'`);
+    expect(mode).not.toContain('grep');
+    expect(mode).toContain(`printf 'tool_wiki=run\\n' >> "$GITHUB_OUTPUT"`);
+    expect(mode).toContain(`printf 'tool_wiki=skip\\n' >> "$GITHUB_OUTPUT"`);
+    expect(gate).toContain('if [ "$GATE_TOOL_WIKI" = run ]; then');
+  });
+
+  it('checks the gate job out at full depth, which --base cannot resolve without', async () => {
+    const workflow = await readCiWorkflow();
+    const checkout = workflow.jobs?.gate?.steps?.find(({ uses }) =>
+      uses?.startsWith('actions/checkout@'),
+    );
+
+    expect(checkout, 'the gate job has no checkout step').toBeDefined();
+    expect(checkout?.with?.['fetch-depth']).toBe(0);
+  });
+});
