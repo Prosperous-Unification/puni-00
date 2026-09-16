@@ -36,9 +36,26 @@ through `Bun.YAML.parse` or as text; there is no copy of the workflow to assert 
       negative: reduce the script to `test "${{ needs.pixels_shard.result }}" = success`,
       observe the pin suite fail, restore.
 
-## 3. Evidence
+## 3. Reachability of the oracles under the affected gate
 
-- [ ] 3.1 `verify.md` records every command with its result line, both failure proofs with the
+- [x] 3.1 Declare `{workspaceRoot}/.github/workflows/ci.yml` in the `test` inputs of every
+      project whose suites read it (`tool-git-hooks`, `tool-wiki`) — without it a pull request
+      editing only `ci.yml` never schedules the suite that is entirely about `ci.yml`. Test:
+      `bunx nx show projects --affected --files=.github/workflows/ci.yml --json` lists
+      `tool-git-hooks`.
+- [x] 3.2 Safety check: `workspace-targets.test.ts` requires that declaration of every project
+      whose test sources name the workflow, in either spelling — test: the oracle, with a
+      self-proving non-vacuity assertion; negative: run it against the manifests before the
+      inputs are added and observe both project names listed.
+- [x] 3.3 Safety check: both scope switches distinguish jq's `false` from jq failing — test:
+      both pin suites require the `type == "array"` assertion, the explicit status capture and
+      the `*)` exit arm; negative: return either switch to its two-branch form and observe the
+      pin fail, and watch the two-branch form print `skip`/`unaffected` and exit 0 on a
+      non-array in a real shell.
+
+## 4. Evidence
+
+- [ ] 4.1 `verify.md` records every command with its result line, both failure proofs with the
       observed expectations, and the live-run rows — a pull-request run's task list as a strict
       subset, a `push` run's full list, the throwaway negative pull request, and the first
       `merge_group` run — left pending with their exact steps until the ruleset exists.

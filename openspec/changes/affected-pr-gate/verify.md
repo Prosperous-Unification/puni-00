@@ -54,13 +54,16 @@ Slices 1.1–1.4 and 2.1–2.3 are complete.
 Each fault was injected into the real `.github/workflows/ci.yml` — not a fixture, not a
 copy — and the pin suite was watched failing on it before the file was restored.
 
-| Check (file:line)                                       | Fault injected                                                                    | Test that observed the failure                                                                                  | Result                                                                                                                     |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `ci.yml` `Gate mode`, the `*)` arm                      | Deleted the whole `*)` arm from the production step                               | `toolchain-pins.test.ts` › `the CI gate scope > maps every subscribed event and refuses one it has no rule for` | Red: `Expected to contain: "*"`, received `["pull_request", "push", "merge_group", "workflow_dispatch"]`. 15 pass / 1 fail |
-| `ci.yml` gate step, the tool-wiki-affected switch       | Replaced `if [ "$GATE_TOOL_WIKI" = run ]; then …` with `true` in the affected arm | Same file, `keeps Tool Wiki in the pull-request gate…` and `runs affected on a pull request…`                   | Red: missing `if [ "$GATE_TOOL_WIKI" = run ]; then`, and `Expected: 2 · Received: 1` for the tool-wiki run-many. 14/2      |
-| `ci.yml` `Browser stack scope`, the `*)` arm            | Deleted the whole `*)` arm from the production step                               | `pixels-workflow.test.ts` › `the CI pixels scope > decides the browser scope from the event, and refuses one…`  | Red: `Expected to contain: "*"`, received the four subscribed events. 4 pass / 1 fail                                      |
-| `ci.yml` `Browser stack scope`, the boot-set membership | Narrowed `jq` to `index("wbs-fe-01") != null`                                     | `pixels-workflow.test.ts` › `asks Nx about every app the browser stack boots, as JSON`                          | Red: the three-project `any(.[]; …)` expression absent from the received script. 4 pass / 1 fail                           |
-| `ci.yml` `pixels` › `Require every browser shard`       | Reduced to the previous `test "${{ needs.pixels_shard.result }}" = success`       | `pixels-workflow.test.ts` › `the required check refuses a skip it cannot explain`                               | Red: expected the three `needs` env values, received `undefined`. 4 pass / 1 fail                                          |
+| Check (file:line)                                                        | Fault injected                                                                    | Test that observed the failure                                                                                                          | Result                                                                                                                                                 |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ci.yml` `Gate mode`, the `*)` arm                                       | Deleted the whole `*)` arm from the production step                               | `toolchain-pins.test.ts` › `the CI gate scope > maps every subscribed event and refuses one it has no rule for`                         | Red: `Expected to contain: "*"`, received `["pull_request", "push", "merge_group", "workflow_dispatch"]`. 15 pass / 1 fail                             |
+| `ci.yml` gate step, the tool-wiki-affected switch                        | Replaced `if [ "$GATE_TOOL_WIKI" = run ]; then …` with `true` in the affected arm | Same file, `keeps Tool Wiki in the pull-request gate…` and `runs affected on a pull request…`                                           | Red: missing `if [ "$GATE_TOOL_WIKI" = run ]; then`, and `Expected: 2 · Received: 1` for the tool-wiki run-many. 14/2                                  |
+| `ci.yml` `Browser stack scope`, the `*)` arm                             | Deleted the whole `*)` arm from the production step                               | `pixels-workflow.test.ts` › `the CI pixels scope > decides the browser scope from the event, and refuses one…`                          | Red: `Expected to contain: "*"`, received the four subscribed events. 4 pass / 1 fail                                                                  |
+| `ci.yml` `Browser stack scope`, the boot-set membership                  | Narrowed `jq` to `index("wbs-fe-01") != null`                                     | `pixels-workflow.test.ts` › `asks Nx about every app the browser stack boots, as JSON`                                                  | Red: the three-project `any(.[]; …)` expression absent from the received script. 4 pass / 1 fail                                                       |
+| `ci.yml` `pixels` › `Require every browser shard`                        | Reduced to the previous `test "${{ needs.pixels_shard.result }}" = success`       | `pixels-workflow.test.ts` › `the required check refuses a skip it cannot explain`                                                       | Red: expected the three `needs` env values, received `undefined`. 4 pass / 1 fail                                                                      |
+| `tool-git-hooks/project.json` and `tool-wiki/project.json` `test` inputs | Ran the new oracle against the real manifests before either input was added       | `workspace-targets.test.ts` › `every suite that reads the CI workflow declares it > names the workflow in the test target that runs it` | Red: `["tool-git-hooks:test does not declare .github/workflows/ci.yml", "tool-wiki:test does not declare .github/workflows/ci.yml"]`. 17 pass / 1 fail |
+| `ci.yml` `Gate mode`, the jq three-way status                            | Returned the switch to its two-branch `if jq -e …; then; else; fi`                | `toolchain-pins.test.ts` › `refuses a jq failure instead of reading it as Tool Wiki being unaffected`                                   | Red: `Expected to contain: "jq -e 'type == \"array\"'"`. 16 pass / 1 fail. Behaviour below.                                                            |
+| `ci.yml` `Browser stack scope`, the jq three-way status                  | Same, in the pixels switch                                                        | `pixels-workflow.test.ts` › `refuses a jq failure instead of reading it as the stack being unaffected`                                  | Red: same missing literal. 5 pass / 1 fail                                                                                                             |
 
 - [x] Every check in this change has a row
 - [x] Each negative test reaches the production call path — every oracle reads
@@ -70,6 +73,47 @@ copy — and the pin suite was watched failing on it before the file was restore
       watched failing when removed, and the `grep`-vs-JSON distinction is measured rather
       than reasoned (below)
 - [x] No row relies on an exit code
+
+### An oracle is only as reachable as its Nx inputs
+
+This is the general risk the affected switch introduces, and it caught this change itself.
+Every oracle in section 4 reads `.github/workflows/ci.yml`. Under `run-many` that was enough:
+the suite ran on every event whatever its declared inputs said. Under `nx affected` it is not
+— a project is scheduled only when the diff reaches it, and `ci.yml` belongs to no project, so
+it reaches a project only through that project's declared `inputs`.
+
+Measured on 2026-09-16, before the fix:
+
+```
+$ bunx nx show projects --affected --files=.github/workflows/ci.yml --json
+["tool-devsync","tool-wiki"]
+```
+
+`tool-git-hooks` is absent, and `tools/tool-git-hooks/src/hooks/pixels-workflow.test.ts` is
+where the ENTIRE pixels oracle lives — rows 3, 4 and 5 above. A pull request whose only edit
+was `ci.yml`, deleting the browser-stack `*)` arm or reverting the `pixels` aggregate to its
+vacuous form, would have run `nx affected`, never scheduled `tool-git-hooks:test`, and reported
+green. Each of those faults was watched by hand; none of them was reachable through `affected`.
+`tool-wiki` was affected only by accident, through its `lint` target's `{workspaceRoot}/**/*`
+catch-all, while `tool-wiki:test` declared no inputs at all.
+
+After adding `{workspaceRoot}/.github/workflows/ci.yml` to both `test` targets:
+
+```
+$ bunx nx show projects --affected --files=.github/workflows/ci.yml --json
+["tool-git-hooks","tool-devsync","tool-wiki"]
+```
+
+`workspace-targets.test.ts` › `every suite that reads the CI workflow declares it` now keeps
+it that way: it greps every project's test sources for the workflow path — in both spellings,
+the single literal and the `join(…, '.github', 'workflows', 'ci.yml')` segments, neither of
+which `outsideReads` can see — and requires the reading project's `test` target to declare it.
+Its non-vacuity assertion is self-proving: that file itself names the path, so a detector that
+stopped matching empties the reader list and fails rather than passing over an empty scan.
+
+The general lesson belongs beside the switch, not only in this row: **anything a check reads
+that is not inside its own project must be in that target's `inputs`, or the affected gate
+cannot schedule the check at all.**
 
 ### The check that could not have failed, caught before it shipped
 
@@ -115,7 +159,7 @@ $ bunx nx test tool-devsync --skip-nx-cache          # GREEN, final
 $ bun test src/hooks/pixels-workflow.test.ts          # RED, before the pixels jobs moved
   0 pass / 5 fail — Ran 5 tests across 1 file
 $ bunx nx test tool-git-hooks --skip-nx-cache         # GREEN, final
-  Ran 123 tests across 9 files [1381.00ms]
+  Ran 124 tests across 9 files [2.27s]
   NX   Successfully ran target test for project tool-git-hooks
 
 $ bunx nx run tool-git-hooks:lint --skip-nx-cache
@@ -127,6 +171,8 @@ $ bunx nx run tool-wiki:test --skip-nx-cache          # gate-entrypoints.test.ts
   Ran 579 tests across 30 files [803.03s] — final tree; 795.11s on the 3.1 tree, same 579
   NX   Successfully ran target test for project tool-wiki
 
+$ bunx nx run-many -t lint typecheck -p tool-devsync tool-git-hooks --skip-nx-cache
+  NX   Successfully ran targets lint, typecheck for 2 projects
 $ bunx nx format:check --all                          rc=0
 $ git diff --check                                    rc=0
 $ bunx @fission-ai/openspec@1.3.0 validate --all --json   84 items / 84 passed / 0 failed
@@ -171,8 +217,8 @@ blob` and `the real Nx target reruns an omitted-input mutation…`. This is PRE-
 - [x] No unstaged files in the worktree
 - [ ] Relevant commits pushed — the branch is local; pushing is the controller's step
 
-**Commit range**: `73730b66..` the tip of `change/affected-pr-gate`. The five commits below are
-the change; any later commit on this branch is documentation of it.
+**Commit range**: `73730b66..` the tip of `change/affected-pr-gate`. The table below lists the
+commits that carry the change; any later commit on this branch is documentation of it.
 
 | Commit     | Subject                                                               |
 | ---------- | --------------------------------------------------------------------- |

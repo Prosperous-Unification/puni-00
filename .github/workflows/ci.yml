@@ -230,8 +230,12 @@ jobs:
     # "CI gate budget repair after 6234d1c1".
     steps:
       # Full history: with the default depth of 1 the `main` ref is absent, and
-      # nx falls back to a different file scope rather than failing. Depth 0
-      # also keeps `nx affected` usable if this ever moves off run-many.
+      # nx falls back to a different file scope rather than failing. Since
+      # 2026-09-16 depth 0 is load-bearing rather than precautionary — this said
+      # it kept `nx affected` usable "if this ever moves off run-many", and it
+      # has: `Gate mode` below resolves a `pull_request` payload base SHA against
+      # this clone, which a depth-1 checkout does not contain. Pinned by
+      # `toolchain-pins.test.ts`, `checks the gate job out at full depth`.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
@@ -397,11 +401,29 @@ jobs:
               printf 'mode=affected\n' >> "$GITHUB_OUTPUT"
               printf 'base=%s\n' "$PR_BASE_SHA" >> "$GITHUB_OUTPUT"
               affected="$(bunx nx show projects --affected --base="$PR_BASE_SHA" --head=HEAD --json)"
-              if jq -e 'index("tool-wiki") != null' <<< "$affected" > /dev/null; then
-                printf 'tool_wiki=run\n' >> "$GITHUB_OUTPUT"
-              else
-                printf 'tool_wiki=skip\n' >> "$GITHUB_OUTPUT"
-              fi
+              # jq answers THREE things, not two: 0 for true, 1 for false, and 2 or more for
+              # an error. An `if/else` reads the last of those as `false` and quietly drops
+              # Tool Wiki from the gate while exiting 0. Watched in a real shell on
+              # 2026-09-16 with `affected='Nx read error: could not find project graph'`: the
+              # if/else printed `tool_wiki=skip`, rc 0; this shape refuses, rc 1. The `*)`
+              # arm below guards jq ITSELF failing — with the output already a validated
+              # array the membership filter returns true or false and never errors — and it
+              # was watched firing against a `jq` stub that breaks on the second call.
+              jq -e 'type == "array"' <<< "$affected" > /dev/null || {
+                printf 'nx show projects did not return a JSON array: %s\n' "$affected" >&2
+                exit 1
+              }
+              tool_wiki_status=0
+              jq -e 'index("tool-wiki") != null' <<< "$affected" > /dev/null || tool_wiki_status=$?
+              case "$tool_wiki_status" in
+                0) printf 'tool_wiki=run\n' >> "$GITHUB_OUTPUT" ;;
+                1) printf 'tool_wiki=skip\n' >> "$GITHUB_OUTPUT" ;;
+                *)
+                  printf 'jq failed reading the affected project list (status %s)\n' \
+                    "$tool_wiki_status" >&2
+                  exit "$tool_wiki_status"
+                  ;;
+              esac
               ;;
             push | merge_group | workflow_dispatch)
               printf 'mode=full\n' >> "$GITHUB_OUTPUT"
@@ -435,6 +457,12 @@ jobs:
             {
               bunx nx affected -t test lint typecheck build --base="$GATE_BASE" --head=HEAD \
                 --parallel=2 --output-style=stream --exclude=tool-wiki &&
+              # Proof (2026-09-16): with this branch replaced by `true`, `the CI gate scope >
+              # keeps Tool Wiki in the pull-request gate, read as JSON rather than grepped`
+              # failed on the missing `if [ "$GATE_TOOL_WIKI" = run ]; then`, and its
+              # neighbour on `Expected: 2 · Received: 1` for the tool-wiki run-many —
+              # 14 passed / 2 failed. A pull request touching Tool Wiki would then have
+              # gated everything except Tool Wiki.
               if [ "$GATE_TOOL_WIKI" = run ]; then
                 bunx nx run-many -t test typecheck build -p tool-wiki --parallel=2 \
                   --output-style=stream &&
@@ -624,6 +652,12 @@ jobs:
   # This job pays one checkout and one install to save up to four ~10-minute shards,
   # and it cannot itself skip: `pixels` below reads its result, so a scope job that
   # failed is never mistaken for a deliberate skip.
+  #
+  # It runs unconditionally, including on `push`, `merge_group` and `workflow_dispatch`
+  # where it only prints `stack=affected`. An `if:` skipping it on those events would be
+  # cheaper and wrong: a skipped job's `result` is `skipped`, so the `pixels` aggregate's
+  # `needs.pixels_mode.result == success` would be false on exactly the events whose
+  # browser gate matters most. The checkout and install are the price of one honest verdict.
   pixels_mode:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -654,15 +688,36 @@ jobs:
             pull_request)
               : "${PR_BASE_SHA:?pull_request payload carries no base SHA}"
               affected="$(bunx nx show projects --affected --base="$PR_BASE_SHA" --head=HEAD --json)"
-              if jq -e 'any(.[]; . == "wbs-fe-01" or . == "wbs-be-01" or . == "wbs-gw-01")' <<< "$affected" > /dev/null; then
-                printf 'stack=affected\n' >> "$GITHUB_OUTPUT"
-              else
-                printf 'stack=unaffected\n' >> "$GITHUB_OUTPUT"
-              fi
+              # Three answers, not two — see the same guard in `Gate mode`. Here the stakes
+              # are higher: reading a jq ERROR as `false` sets `stack=unaffected`, skips all
+              # four shards, and turns the REQUIRED `pixels` check green having booted no
+              # browser at all.
+              jq -e 'type == "array"' <<< "$affected" > /dev/null || {
+                printf 'nx show projects did not return a JSON array: %s\n' "$affected" >&2
+                exit 1
+              }
+              stack_status=0
+              jq -e 'any(.[]; . == "wbs-fe-01" or . == "wbs-be-01" or . == "wbs-gw-01")' \
+                <<< "$affected" > /dev/null || stack_status=$?
+              case "$stack_status" in
+                0) printf 'stack=affected\n' >> "$GITHUB_OUTPUT" ;;
+                1) printf 'stack=unaffected\n' >> "$GITHUB_OUTPUT" ;;
+                *)
+                  printf 'jq failed reading the affected project list (status %s)\n' \
+                    "$stack_status" >&2
+                  exit "$stack_status"
+                  ;;
+              esac
               ;;
             push | merge_group | workflow_dispatch)
               printf 'stack=affected\n' >> "$GITHUB_OUTPUT"
               ;;
+            # Proof (2026-09-16): with this arm deleted, `the CI pixels scope > decides the
+            # browser scope from the event, and refuses one it has no rule for` failed on
+            # `expect(received).toContain("*")`, received
+            # `["pull_request", "push", "merge_group", "workflow_dispatch"]` — 4 passed /
+            # 1 failed. Without it a newly subscribed event would scope the browser gate by
+            # falling through rather than by a rule.
             *)
               printf 'no browser-stack rule for event %s\n' "$EVENT_NAME" >&2
               exit 1

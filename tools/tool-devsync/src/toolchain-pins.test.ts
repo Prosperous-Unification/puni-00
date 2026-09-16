@@ -350,6 +350,41 @@ describe('the CI gate scope', () => {
     expect(gate).toContain('if [ "$GATE_TOOL_WIKI" = run ]; then');
   });
 
+  it('refuses a jq failure instead of reading it as Tool Wiki being unaffected', async () => {
+    // `if jq -e … ; then run; else skip; fi` conflates two different answers. jq exits 1 for
+    // `false` and 2 or more for an error — a parse failure on polluted stdout, a type error —
+    // and the `else` swallowed both, so a broken read would have dropped Tool Wiki from the
+    // pull-request gate while the step exited 0. That is the exact shape this repo's incident
+    // catalogue is made of, and it contradicted this change's own spec scenario: "the affected
+    // project list cannot be computed → the gate-mode step fails".
+    //
+    // Proof (2026-09-16), two halves. The oracle: with the production switch returned to its
+    // two-branch `if jq -e 'index("tool-wiki") != null' … then … else … fi`, this failed on
+    // `Expected to contain: "jq -e 'type == \"array\"'"` — 16 passed / 1 failed.
+    // The behaviour, both forms run in a real shell on
+    // `affected='Nx read error: could not find project graph'`: the two-branch form printed
+    // `tool_wiki=skip` and exited 0 — the silent drop — while this one printed
+    // `nx show projects did not return a JSON array: Nx read error…` and exited 1.
+    //
+    // Stated at the strength it is known: once the output IS a validated array, the
+    // membership filter returns true or false and never errors — `[1,2]`, `[{"a":1}]`,
+    // `["a","b"]` and `[[1],[2]]` all exit 1, checked. So the `*)` arm guards jq ITSELF
+    // failing, not a shape the guard above already caught, and it was watched doing that:
+    // with a `jq` stub that works once and then exits 2, the step printed
+    // `jq failed reading the affected project list (status 2)` and exited 2, where the
+    // two-branch form would have recorded Tool Wiki as unaffected.
+    const mode = commandsOf(gateStep(await readCiWorkflow(), 'Gate mode').run ?? '');
+
+    // The shape is: assert the output IS an array, then branch on the explicit status.
+    expect(mode).toContain(`jq -e 'type == "array"'`);
+    expect(mode).toContain('tool_wiki_status=0');
+    expect(mode).toContain('|| tool_wiki_status=$?');
+    expect(mode).toContain('exit "$tool_wiki_status"');
+    expect(mode.indexOf(`jq -e 'type == "array"'`)).toBeLessThan(
+      mode.indexOf(`jq -e 'index("tool-wiki") != null'`),
+    );
+  });
+
   it('checks the gate job out at full depth, which --base cannot resolve without', async () => {
     const workflow = await readCiWorkflow();
     const checkout = workflow.jobs?.gate?.steps?.find(({ uses }) =>

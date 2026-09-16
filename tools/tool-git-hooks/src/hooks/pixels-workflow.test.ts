@@ -110,6 +110,9 @@ describe('the CI pixels scope', () => {
     expect(arms).toContain('*');
     expect(arms.filter((event) => event !== '*').sort()).toEqual(subscribedEvents(workflow).sort());
     expect(script).toContain(`printf 'no browser-stack rule for event %s\\n' "$EVENT_NAME" >&2`);
+    // The stderr line alone is not the refusal: an arm that names the event and then falls
+    // through would pass a `toContain` on the printf and still scope the run by accident.
+    expect(script).toContain('exit 1');
   });
 
   test('asks Nx about every app the browser stack boots, as JSON', () => {
@@ -138,6 +141,29 @@ describe('the CI pixels scope', () => {
     expect(readWorkflow().jobs?.['pixels_mode']?.outputs).toEqual({
       stack: '${{ steps.stack.outputs.stack }}',
     });
+  });
+
+  test('refuses a jq failure instead of reading it as the stack being unaffected', () => {
+    // Same fault as the gate's Tool Wiki switch, with a worse blast radius: `if jq -e … then
+    // affected; else unaffected; fi` treats jq's 2-or-more (parse error on polluted stdout, a
+    // type error) exactly like its `false`, so a broken read sets `stack=unaffected`, all four
+    // shards skip, and the REQUIRED `pixels` check goes green having booted no browser at all.
+    //
+    // Proof (2026-09-16): with the production switch returned to its two-branch form, this
+    // failed on `Expected to contain: "jq -e 'type == \"array\"'"` — 5 passed / 1 failed.
+    // Behaviourally, the two-branch form fed a non-array printed `unaffected` and exited 0;
+    // this one refuses naming the output. The `*)` arm guards jq itself failing rather than
+    // any input shape — see the companion proof in `toolchain-pins.test.ts`, where a `jq`
+    // stub that breaks on the second call was watched reaching it.
+    const script = jobStep(readWorkflow(), 'pixels_mode', 'Browser stack scope').run ?? '';
+
+    expect(script).toContain(`jq -e 'type == "array"'`);
+    expect(script).toContain('stack_status=0');
+    expect(script).toContain('|| stack_status=$?');
+    expect(script).toContain('exit "$stack_status"');
+    expect(script.indexOf(`jq -e 'type == "array"'`)).toBeLessThan(
+      script.indexOf('any(.[]; . == "wbs-fe-01"'),
+    );
   });
 
   test('runs the shards only when the browser stack is in scope', () => {
