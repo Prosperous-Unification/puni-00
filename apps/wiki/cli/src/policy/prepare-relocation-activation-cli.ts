@@ -367,7 +367,7 @@ export async function prepareRelocationActivation(argv: readonly string[]): Prom
     revision: policy.pilot.sourceRevision,
   });
   const roles = join(work, 'roles');
-  const validatorBytes = await buildValidatorBundle(join(repository, entry));
+  const validatorBytes = await buildValidatorBundle(join(repository, entry), entry);
   writeBytes(join(roles, 'validator.mjs'), validatorBytes);
   const sources: RelocationSources = {
     base: {

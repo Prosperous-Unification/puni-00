@@ -82,20 +82,25 @@ export function writeBytes(path: string, bytes: Uint8Array | string): string {
  * first ({@link assertPinnedRuntime}), because the bundle's digest is what the activation binds.
  * @throws Error naming the entry when the bundle cannot be produced.
  */
-export async function buildValidatorBundle(entryPath: string): Promise<Uint8Array> {
+export async function buildValidatorBundle(
+  entryPath: string,
+  entryLabel = entryPath,
+): Promise<Uint8Array> {
   let built: Awaited<ReturnType<typeof Bun.build>>;
   try {
     built = await Bun.build({ entrypoints: [entryPath], target: 'bun', format: 'esm' });
   } catch (cause) {
     // Proof: letting Bun's own `Bundle failed` escape named neither the entry nor the candidate;
     // the unbuildable-entry negative expected this message and received `Bundle failed`.
-    throw new Error(`cannot rebuild the candidate validator from ${entryPath}`, { cause });
+    // `entryLabel` keeps that message the caller's own repository-relative entry rather than a
+    // scratch-directory absolute path the operator never wrote.
+    throw new Error(`cannot rebuild the candidate validator from ${entryLabel}`, { cause });
   }
   // A build that reports failure without throwing is not reachable from the fixture entries, so
   // this guard carries no observed negative; it keeps an unsuccessful build out of the archive.
   if (!built.success || built.outputs.length !== 1) {
     throw new Error(
-      `cannot rebuild the candidate validator from ${entryPath}: ${built.logs.map(String).join('; ')}`,
+      `cannot rebuild the candidate validator from ${entryLabel}: ${built.logs.map(String).join('; ')}`,
     );
   }
   return new Uint8Array(await built.outputs[0].arrayBuffer());

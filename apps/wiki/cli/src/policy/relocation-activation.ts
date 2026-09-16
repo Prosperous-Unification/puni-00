@@ -686,24 +686,40 @@ export function planRelocationChecks(sources: RelocationSources): CheckPlan {
   );
   // Toolkit mode has no earlier activation, so the lineage refusals have nothing to compare the
   // candidate against; every refusal that measures the candidate itself is below and still runs.
-  if (sources.base.kind === 'base') {
-    const base = policyOf(sources.base.policyBytes, 'base trusted policy JSON');
-    const baseMapping = parseOrThrow(
-      ModuleMapping,
-      parseJson(sources.base.mappingBytes, 'base module mapping JSON'),
-    );
-    assertRelocationPolicy(
-      base.view,
-      base.json,
-      candidate.view,
-      candidate.json,
-      sources.candidate.reviewed,
-      candidateMapping,
-    );
-    assertMappingLineage(baseMapping, candidateMapping, candidate.view, sources.candidate.tree);
-    assertValidatorEntry(candidate.view, sources.candidate.validatorEntry);
-  }
+  const lineageChecks =
+    sources.base.kind === 'base'
+      ? ((source: Extract<RelocationBase, { kind: 'base' }>) => {
+          const base = policyOf(source.policyBytes, 'base trusted policy JSON');
+          const baseMapping = parseOrThrow(
+            ModuleMapping,
+            parseJson(source.mappingBytes, 'base module mapping JSON'),
+          );
+          assertRelocationPolicy(
+            base.view,
+            base.json,
+            candidate.view,
+            candidate.json,
+            sources.candidate.reviewed,
+            candidateMapping,
+          );
+          // Runs after `assertSelectorsResolve` below: a candidate whose selector still names the
+          // pre-move directory must earn the selector-miss refusal that points at the runbook, not
+          // the membership refusal that miss also produces.
+          return (): void => {
+            assertMappingLineage(
+              baseMapping,
+              candidateMapping,
+              candidate.view,
+              sources.candidate.tree,
+            );
+            assertValidatorEntry(candidate.view, sources.candidate.validatorEntry);
+          };
+        })(sources.base)
+      : (): void => {
+          /* Toolkit mode has no earlier activation, so lineage has nothing to compare against. */
+        };
   assertSelectorsResolve(candidate.view, sources.candidate.tree);
+  lineageChecks();
   return {
     checks: deriveCheckCommands(candidate.view, sources.candidate.declarations),
     candidateIdentity: candidateIdentityOf(sources.candidate.tree),
