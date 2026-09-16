@@ -105,9 +105,9 @@ version configuration. The job always runs: with none or only some of the three 
 variables set, its required configuration guards fail and admission stays red. The archive root contains
 `selected.json` beside its selected version directory; paths in both the selector and the package
 role descriptors are relative so the same archive can be extracted under a host version directory
-or runner temporary storage. The preserved
-launcher verifies the selected manifest identity, checksum-list identity, and every role artifact
-before reading a descriptor. The separately administered required-workflow/ruleset remains an
+or runner temporary storage. The launcher installed from the
+archive's own `launcher-path` verifies the selected manifest identity, checksum-list identity, and
+every role artifact before reading a descriptor. The separately administered required-workflow/ruleset remains an
 external prerequisite; candidate YAML cannot activate it.
 
 Required admission must refuse an inactive, observe-only, absent, unreadable, malformed, or

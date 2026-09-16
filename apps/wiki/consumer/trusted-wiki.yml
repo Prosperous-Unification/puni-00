@@ -54,7 +54,18 @@ jobs:
           mkdir -m 0700 -p "$activation_root"
           tar --extract --file "$archive" --directory "$activation_root" --no-same-owner --no-same-permissions
           test -s "$activation_root/selected.json"
-          selected_directory=$(jq --raw-output '.directory' "$activation_root/selected.json")
+          activation_root=$(realpath -- "$activation_root")
+          # Proof: `jq --raw-output` prints the literal `null` for an absent or non-string key, so a
+          # malformed selection reached the manifest read as `<root>/null/manifest.json` (rc 2) and
+          # a malformed manifest certified a revision named `null`. Refuse the malformed state by
+          # name instead of reporting it as a missing file.
+          if ! selected_directory=$(jq --exit-status --raw-output \
+            'if (.directory|type) == "string" then .directory else empty end' \
+            "$activation_root/selected.json"); then
+            printf 'activation selection has no string directory: %s\n' \
+              "$activation_root/selected.json" >&2
+            exit 78
+          fi
           # Proof: gate-entrypoints.test.ts points the selection at a manifest beside the
           # extraction directory that names the configured version; without this shape refusal the
           # step joined a manifest the pinned archive never carried and exported the root.
@@ -62,8 +73,22 @@ jobs:
             printf 'activation selection names no version directory: %s\n' "$selected_directory" >&2
             exit 78
           fi
-          certified_revision=$(jq --raw-output '.sourceRevision' \
-            "$activation_root/$selected_directory/manifest.json")
+          # Proof: a symlinked version directory passes any textual check; with containment textual
+          # only, the step read a manifest outside the extracted archive, matched the configured
+          # version and exported the root at exit 0. The launcher canonicalises the same way.
+          if ! version_directory=$(realpath -- "$activation_root/$selected_directory") ||
+            [[ "$version_directory" != "$activation_root"/* ]]; then
+            printf 'activation selection escapes the extracted archive root: %s\n' \
+              "$selected_directory" >&2
+            exit 78
+          fi
+          if ! certified_revision=$(jq --exit-status --raw-output \
+            'if (.sourceRevision|type) == "string" then .sourceRevision else empty end' \
+            "$version_directory/manifest.json"); then
+            printf 'activation manifest has no string sourceRevision: %s\n' \
+              "$version_directory/manifest.json" >&2
+            exit 78
+          fi
           # Proof: gate-entrypoints.test.ts provisions an archive certifying 4444... with the
           # version set to 5555...; without this join the step exited 0 and made an archive that
           # certifies no configured commit the admission authority.

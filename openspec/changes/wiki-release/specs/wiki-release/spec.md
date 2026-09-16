@@ -131,8 +131,12 @@ and SHALL keep refusing an override that resolves inside the candidate.
 
 Both provisioning steps SHALL read the extracted archive's `selected.json`, then that version
 directory's `manifest.json`, and SHALL refuse with exit 78 — naming the manifest's source revision
-and the configured version — when they differ. They SHALL keep refusing a version that is not
-40 hexadecimal characters, and SHALL export the activation root only when both hold.
+and the configured version — when they differ. `TOOL_WIKI_ACTIVATION_VERSION` is a 40-hexadecimal
+git commit SHA; the manifest schema also admits a 64-hexadecimal composite identity, which can
+never satisfy the join, so such an archive is refused loudly rather than accepted. The steps SHALL
+refuse a malformed selection or manifest by naming the file and the missing key, SHALL refuse a
+selected directory that does not canonically resolve inside the extracted root, and SHALL export
+the activation root only when all of these hold.
 
 #### Scenario: The archive certifies another commit
 
@@ -148,6 +152,16 @@ and the configured version — when they differ. They SHALL keep refusing a vers
 
 - **WHEN** `TOOL_WIKI_ACTIVATION_VERSION` is `main`
 - **THEN** provisioning exits 78 before downloading or extracting anything
+
+#### Scenario: The manifest names a revision the variable cannot spell
+
+- **WHEN** the selected manifest's `sourceRevision` is a 64-hexadecimal composite identity, which the 40-hexadecimal git SHA the variable holds can never equal
+- **THEN** provisioning exits 78 naming both, rather than accepting the archive on a prefix or a shortened comparison
+
+#### Scenario: The selection or the manifest is malformed
+
+- **WHEN** `selected.json` has no string `directory`, or the selected manifest has no string `sourceRevision`
+- **THEN** provisioning refuses naming that file and the missing key, rather than reporting a missing directory or a revision named `null`
 
 ### Requirement: The tag-push workflow is the only writer of releases
 

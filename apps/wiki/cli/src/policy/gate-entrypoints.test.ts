@@ -184,7 +184,7 @@ function activationArchiveRoot(sourceRevision: string): string {
   return paths.activationRoot;
 }
 
-function selectArchiveDirectory(activationRoot: string, directory: string): void {
+function selectArchiveDirectory(activationRoot: string, directory: string | number): void {
   const descriptor = join(activationRoot, 'selected.json');
   const selection = JSON.parse(readFileSync(descriptor, 'utf8')) as Record<string, unknown>;
   chmodSync(descriptor, 0o600);
@@ -1408,6 +1408,85 @@ await import(${JSON.stringify(productionSnapshotter)});
     }
   });
 
+  test('activation provisioning refuses a malformed selection or manifest by name', () => {
+    const certifiedRevision = '4'.repeat(40);
+    const cases = [
+      {
+        name: 'selected.json carries no directory',
+        mutate: (root: string): void => {
+          chmodSync(join(root, 'selected.json'), 0o600);
+          writeFileSync(join(root, 'selected.json'), '{"schemaVersion":1}\n', 'utf8');
+        },
+        detail: 'activation selection has no string directory',
+      },
+      {
+        name: 'selected.json directory is a number',
+        mutate: (root: string): void => {
+          selectArchiveDirectory(root, 7);
+        },
+        detail: 'activation selection has no string directory',
+      },
+      {
+        name: 'manifest.json carries no sourceRevision',
+        mutate: (root: string): void => {
+          const manifest = join(root, 'v1', 'manifest.json');
+          chmodSync(manifest, 0o600);
+          writeFileSync(manifest, '{"schemaVersion":3}\n', 'utf8');
+        },
+        detail: 'activation manifest has no string sourceRevision',
+      },
+    ];
+    for (const workflow of provisioningSteps) {
+      for (const subject of cases) {
+        const activationRoot = activationArchiveRoot(certifiedRevision);
+        subject.mutate(activationRoot);
+        // Proof: `jq --raw-output` prints the literal `null` for an absent or non-string key, which
+        // passed the shape check and then failed only as `Could not open <root>/null/manifest.json`
+        // (rc 2) or as `certifies null, not the configured version <v>` — malformed trusted state
+        // reported as a missing file or as a revision named `null`.
+        const refused = runActivationProvisioning(
+          workflow.path,
+          workflow.step,
+          packActivationArchive(activationRoot),
+          certifiedRevision,
+        );
+        const detail = streamText(refused.invocation.stderr, 'provisioning stderr');
+        expect(refused.invocation.exitCode, `${subject.name}: ${detail}`).toBe(78);
+        expect(detail, subject.name).toContain(subject.detail);
+        expect(readFileSync(refused.environmentFile, 'utf8')).toBe('');
+      }
+    }
+  });
+
+  test('activation provisioning refuses a selection that resolves outside the archive root', () => {
+    const certifiedRevision = '4'.repeat(40);
+    for (const workflow of provisioningSteps) {
+      const activationRoot = activationArchiveRoot(certifiedRevision);
+      const outside = mkdtempSync(join(tmpdir(), 'tool-wiki-outside-manifest-'));
+      scratchPaths.push(outside);
+      write(
+        join(outside, 'manifest.json'),
+        `${JSON.stringify({ sourceRevision: certifiedRevision })}\n`,
+      );
+      // A symlinked version directory passes any textual shape check; only canonicalisation sees it.
+      symlinkSync(outside, join(activationRoot, 'escape'), 'dir');
+      selectArchiveDirectory(activationRoot, 'escape');
+      // Proof: with the containment check textual only, this read a manifest outside the extracted
+      // archive, matched the configured version and exported the activation root at exit 0 — the
+      // launcher's own canonical containment check (lint.sh) was the only thing that saw it.
+      const refused = runActivationProvisioning(
+        workflow.path,
+        workflow.step,
+        packActivationArchive(activationRoot),
+        certifiedRevision,
+      );
+      const detail = streamText(refused.invocation.stderr, 'provisioning stderr');
+      expect(refused.invocation.exitCode, detail).toBe(78);
+      expect(detail).toContain('activation selection escapes the extracted archive root');
+      expect(readFileSync(refused.environmentFile, 'utf8')).toBe('');
+    }
+  });
+
   test('activation provisioning refuses a selection that leaves the extracted archive root', () => {
     const decoyRevision = '6'.repeat(40);
     for (const workflow of provisioningSteps) {
@@ -1509,6 +1588,43 @@ await import(${JSON.stringify(productionSnapshotter)});
     );
   });
 
+  test('push audit refuses a launcher descriptor that leaves its activation root', () => {
+    for (const descriptor of ['/bin/sh', '../outside-launcher.sh']) {
+      const directory = mkdtempSync(join(tmpdir(), 'tool-wiki-push-escape-'));
+      scratchPaths.push(directory);
+      const candidate = join(directory, 'candidate');
+      const activation = join(directory, 'activation');
+      mkdirSync(candidate);
+      mkdirSync(activation);
+      write(join(activation, 'active-v1'), 'tool-wiki-active-v1\n');
+      write(join(activation, 'launcher-path'), `${descriptor}\n`);
+      write(join(activation, 'trusted-node-modules/typescript/package.json'), '{}\n');
+      // A launcher beside the archive root: outside it, but outside the candidate too, so the
+      // existing inside-the-candidate refusal never sees it.
+      write(join(directory, 'outside-launcher.sh'), '#!/usr/bin/env bash\nprintf ran\n');
+      chmodSync(join(directory, 'outside-launcher.sh'), 0o555);
+
+      const invocation = Bun.spawnSync(['bash', pushAuditPath, candidate, 'abc123'], {
+        cwd: candidate,
+        env: { PATH: process.env['PATH'] ?? '', TOOL_WIKI_ACTIVATION_ROOT: activation },
+        stderr: 'pipe',
+        stdout: 'pipe',
+      });
+
+      // Proof: the descriptor was only refused when it resolved inside the candidate, so an
+      // absolute `/bin/sh` and a `..` path beside the root both ran as the audit's launcher — the
+      // archive's transport digest authenticates only what is inside the archive.
+      const detail = streamText(invocation.stderr, 'push audit stderr');
+      expect(invocation.exitCode, `${descriptor}: ${detail}`).toBe(78);
+      expect(detail, descriptor).toContain(
+        descriptor.startsWith('/')
+          ? // An absolute descriptor is now joined to the root, so it names no file at all.
+            'external launcher is not a readable regular file'
+          : 'external launcher resolved outside its activation root',
+      );
+    }
+  });
+
   test('push audit refuses an activation archive without trusted runtime modules', () => {
     const directory = mkdtempSync(join(tmpdir(), 'tool-wiki-push-runtime-missing-'));
     scratchPaths.push(directory);
@@ -1530,7 +1646,7 @@ await import(${JSON.stringify(productionSnapshotter)});
 
     expect(invocation.exitCode).toBe(78);
     expect(streamText(invocation.stderr, 'push audit stderr')).toContain(
-      'no trusted TypeScript runtime modules',
+      'trusted TypeScript runtime modules are not provisioned:',
     );
   });
 

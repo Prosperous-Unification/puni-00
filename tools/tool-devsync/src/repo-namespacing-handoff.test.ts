@@ -546,7 +546,9 @@ test('every legacy source occurrence and relevant text family is pinned', async 
       'test fixture or proof': 106,
     },
     coverage: {
-      applicationLibraryToolReadmes: 17,
+      // Re-pinned 17 -> 18 when `apps/wiki/consumer/README.md` landed: the consumer template's
+      // README is a real application README the sweep must cover, not an exemption.
+      applicationLibraryToolReadmes: 18,
       dockerfiles: [
         'apps/wbs/be-01/Dockerfile',
         'apps/wbs/be-01/scripts/solver-orphan-fixture.Dockerfile',
