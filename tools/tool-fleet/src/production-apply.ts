@@ -14,11 +14,13 @@ import {
   reconcileProvisioningOwnership,
   type TerraformProvisioningExpectation,
 } from './terraform';
+import { buildTerragruntRequest, lockTerragruntRequest, readTerragruntConfig } from './terragrunt';
 
 const commandTimeoutMs = 120_000;
 const leaseDurationSeconds = 300;
 
 export interface TerraformPlanEvidence {
+  readonly terragruntConfigSha256: string;
   readonly terraformPlanSha256: string;
   readonly terraformVariablesSha256: string;
   readonly terraformBackendEvidenceSha256: string;
@@ -31,6 +33,7 @@ export interface CommandRequest {
   readonly arguments: readonly string[];
   readonly cwd?: string;
   readonly stdin?: string;
+  readonly environment?: Readonly<Record<string, string | undefined>>;
 }
 
 export interface CommandResponse {
@@ -142,6 +145,7 @@ export async function runBoundedCommand(
     stdout: 'pipe',
     stderr: 'pipe',
     detached: true,
+    env: request.environment,
   });
   const completed = Promise.all([
     child.exited,
@@ -229,17 +233,8 @@ export function controllerRequest(
 function createProductionCommandRunner(root: string): RunCommand {
   return async (request) => {
     const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
-    if (request.executable === 'terraform') {
-      const executable = Bun.which('terraform');
-      if (executable === null) throw new Error('Locked Terraform executable is unavailable');
-      const digest = createHash('sha256')
-        .update(await readFile(executable))
-        .digest('hex');
-      if (digest !== toolchain.binaries.terraform.executableSha256) {
-        // Proof: the wrong-Terraform-binary production negative reaches no init, plan, or apply.
-        throw new Error('Terraform executable differs from the locked SHA-256');
-      }
-      return runBoundedCommand({ ...request, executable });
+    if (request.executable === 'terragrunt') {
+      return runBoundedCommand(await lockTerragruntRequest(root, request));
     }
     return runBoundedCommand(
       controllerRequest(root, toolchain.controller.image, toolchain.controller.digest, request),
@@ -286,7 +281,7 @@ async function removePlanCandidate(path: string, prior?: unknown): Promise<void>
 }
 
 /** Create and inspect the saved plan later bound into an immutable fleet operation plan. */
-export async function prepareTerraformPlan(
+export async function prepareTerragruntPlan(
   root: string,
   expected: TerraformProvisioningExpectation,
   cloudAccount: string,
@@ -304,16 +299,16 @@ export async function prepareTerraformPlan(
     cloudAccount,
     run === undefined,
   );
-  const terraformRoot = join(root, 'infra/terraform');
+  const terragruntConfigSha256 = await readTerragruntConfig(root);
   const candidatePath = `${outputPath}.${randomBytes(8).toString('hex')}.new`;
   const reviewedVariablesPath = outputPath.endsWith('.tfplan')
     ? `${outputPath.slice(0, -'.tfplan'.length)}.tfvars.json`
     : `${outputPath}.tfvars.json`;
   let wroteReviewedVariables = false;
-  const terraform = (arguments_: readonly string[]) =>
+  const runTerraform = async (arguments_: readonly string[]) =>
     requireCommand(
       commandRunner,
-      { executable: 'terraform', arguments: arguments_, cwd: terraformRoot },
+      await buildTerragruntRequest(root, arguments_, terragruntConfigSha256),
       'Terraform planning command',
     );
   try {
@@ -326,16 +321,16 @@ export async function prepareTerraformPlan(
       await variablesDestination.close();
     }
     wroteReviewedVariables = true;
-    await terraform(['init', '-input=false', '-lockfile=readonly']);
+    await runTerraform(['init', '-input=false', '-lockfile=readonly']);
     const validation = requireRecord(
-      parseJson(await terraform(['validate', '-json']), 'Terraform validation'),
+      parseJson(await runTerraform(['validate', '-json']), 'Terraform validation'),
       'Terraform validation',
     );
     if (validation['valid'] !== true) {
       // Proof: the invalid-validation production adapter negative stops before Terraform plan.
       throw new Error(`Terraform validation failed: ${JSON.stringify(validation['diagnostics'])}`);
     }
-    await terraform([
+    await runTerraform([
       'plan',
       '-input=false',
       '-lock=true',
@@ -343,7 +338,7 @@ export async function prepareTerraformPlan(
       `-out=${candidatePath}`,
     ]);
     const shown = parseJson(
-      await terraform(['show', '-json', candidatePath]),
+      await runTerraform(['show', '-json', candidatePath]),
       'Terraform saved plan',
     );
     decodeTerraformPlan(
@@ -352,7 +347,7 @@ export async function prepareTerraformPlan(
       expected,
     );
     const state = decodeTerraformState(
-      await terraform(['state', 'pull']),
+      await runTerraform(['state', 'pull']),
       expected.nodeId,
     ).identity;
     const savedPlan = await readFile(candidatePath);
@@ -365,6 +360,7 @@ export async function prepareTerraformPlan(
     }
     await chmod(outputPath, 0o600);
     const evidence = {
+      terragruntConfigSha256,
       terraformPlanSha256: createHash('sha256').update(savedPlan).digest('hex'),
       terraformVariablesSha256: createHash('sha256').update(variables).digest('hex'),
       terraformBackendEvidenceSha256,
@@ -381,7 +377,7 @@ export async function prepareTerraformPlan(
 }
 
 /** Create a saved destroy plan that can delete only one retired server and its attachment edges. */
-export async function prepareTerraformDestroyPlan(
+export async function prepareTerragruntDestroyPlan(
   root: string,
   nodeId: string,
   providerIdentity: string,
@@ -400,16 +396,16 @@ export async function prepareTerraformDestroyPlan(
     cloudAccount,
     run === undefined,
   );
-  const terraformRoot = join(root, 'infra/terraform');
+  const terragruntConfigSha256 = await readTerragruntConfig(root);
   const candidatePath = `${outputPath}.${randomBytes(8).toString('hex')}.new`;
   const reviewedVariablesPath = outputPath.endsWith('.tfplan')
     ? `${outputPath.slice(0, -'.tfplan'.length)}.tfvars.json`
     : `${outputPath}.tfvars.json`;
   let wroteReviewedVariables = false;
-  const terraform = (arguments_: readonly string[]) =>
+  const runTerraform = async (arguments_: readonly string[]) =>
     requireCommand(
       commandRunner,
-      { executable: 'terraform', arguments: arguments_, cwd: terraformRoot },
+      await buildTerragruntRequest(root, arguments_, terragruntConfigSha256),
       'Terraform destroy planning command',
     );
   try {
@@ -422,9 +418,9 @@ export async function prepareTerraformDestroyPlan(
       await variablesDestination.close();
     }
     wroteReviewedVariables = true;
-    await terraform(['init', '-input=false', '-lockfile=readonly']);
+    await runTerraform(['init', '-input=false', '-lockfile=readonly']);
     const validation = requireRecord(
-      parseJson(await terraform(['validate', '-json']), 'Terraform destroy validation'),
+      parseJson(await runTerraform(['validate', '-json']), 'Terraform destroy validation'),
       'Terraform destroy validation',
     );
     if (validation['valid'] !== true) {
@@ -432,12 +428,12 @@ export async function prepareTerraformDestroyPlan(
         `Terraform destroy validation failed: ${JSON.stringify(validation['diagnostics'])}`,
       );
     }
-    const stateSource = await terraform(['state', 'pull']);
+    const stateSource = await runTerraform(['state', 'pull']);
     const state = decodeTerraformState(stateSource, nodeId);
     if (state.managedInstance?.instanceId !== providerIdentity) {
       throw new Error('Terraform state does not own the exact provider destroy target');
     }
-    await terraform([
+    await runTerraform([
       'plan',
       '-input=false',
       '-lock=true',
@@ -445,7 +441,10 @@ export async function prepareTerraformDestroyPlan(
       `-out=${candidatePath}`,
     ]);
     decodeTerraformDestroyPlan(
-      parseJson(await terraform(['show', '-json', candidatePath]), 'Terraform destroy saved plan'),
+      parseJson(
+        await runTerraform(['show', '-json', candidatePath]),
+        'Terraform destroy saved plan',
+      ),
       nodeId,
     );
     const savedPlan = await readFile(candidatePath);
@@ -459,6 +458,7 @@ export async function prepareTerraformDestroyPlan(
     await chmod(outputPath, 0o600);
     await removePlanCandidate(candidatePath);
     return {
+      terragruntConfigSha256,
       terraformPlanSha256: createHash('sha256').update(savedPlan).digest('hex'),
       terraformVariablesSha256: createHash('sha256').update(variables).digest('hex'),
       terraformBackendEvidenceSha256,
@@ -1076,6 +1076,111 @@ async function requireEnrollmentAllowed(root: string, nodeId: string): Promise<v
   }
 }
 
+async function requireReplacementProvisioningAuthorization(
+  root: string,
+  plan: OperationPlan,
+  request: Extract<OperationPlan['request'], { kind: 'provision' }>,
+  planPath: string,
+  run: RunCommand,
+): Promise<void> {
+  const expectedSha256 = request.replacementAuthorizationSha256;
+  if (expectedSha256 === undefined) return;
+  const oldNodeId = requirePlanIdentity(plan, 'replacement-of:');
+  const oldProviderIdentity = requirePlanIdentity(plan, 'replaced-provider:');
+  const path = `${planPath}.replacement-authorization.json`;
+  const source = await readFile(path);
+  if (createHash('sha256').update(source).digest('hex') !== expectedSha256) {
+    throw new Error('Replacement authorization differs from the reviewed SHA-256');
+  }
+  if (((await stat(path)).mode & 0o077) !== 0) {
+    throw new Error('Replacement authorization must be owner-only');
+  }
+  const authorization = requireRecord(
+    parseJson(source.toString('utf8'), 'Replacement authorization'),
+    'Replacement authorization',
+  );
+  const fenceState = authorization['fenceState'];
+  if (
+    Object.keys(authorization).sort().join('\0') !==
+      [
+        'fenceId',
+        'fenceState',
+        'nodeId',
+        'planSha256',
+        'providerIdentity',
+        'schemaVersion',
+        'state',
+      ]
+        .sort()
+        .join('\0') ||
+    authorization['schemaVersion'] !== 1 ||
+    authorization['nodeId'] !== oldNodeId ||
+    authorization['providerIdentity'] !== oldProviderIdentity ||
+    authorization['state'] !== 'replacement-authorized' ||
+    typeof authorization['fenceId'] !== 'string' ||
+    authorization['fenceId'].length === 0 ||
+    typeof authorization['planSha256'] !== 'string' ||
+    !/^[0-9a-f]{64}$/.test(authorization['planSha256']) ||
+    (fenceState !== 'powered-off' && fenceState !== 'deleted')
+  ) {
+    throw new Error('Replacement authorization differs from reviewed replacement identity');
+  }
+  const exclusion = requireRecord(
+    parseJson(
+      await readFile(retirementExclusionPath(root, oldNodeId), 'utf8'),
+      'Replaced membership exclusion',
+    ),
+    'Replaced membership exclusion',
+  );
+  if (
+    exclusion['schemaVersion'] !== 1 ||
+    exclusion['nodeId'] !== oldNodeId ||
+    exclusion['providerIdentity'] !== oldProviderIdentity ||
+    exclusion['state'] !== 'retired'
+  ) {
+    throw new Error('Replacement requires the exact retired membership exclusion');
+  }
+  if (oldProviderIdentity.startsWith('hcloud:')) {
+    const cluster = requirePlanIdentity(plan, 'cluster:');
+    const inventory = requireRecord(
+      parseJson(
+        await requireCommand(
+          run,
+          {
+            executable: 'ansible-inventory',
+            arguments: [
+              '--inventory',
+              join(root, `infra/ansible/inventory/${cluster}.hcloud.yml`),
+              '--list',
+            ],
+            cwd: join(root, 'infra/ansible'),
+          },
+          'Recheck replacement fence before provisioning',
+        ),
+        'Replacement provisioning inventory',
+      ),
+      'Replacement provisioning inventory',
+    );
+    const meta = requireRecord(inventory['_meta'], 'Replacement provisioning inventory _meta');
+    const hosts = requireRecord(meta['hostvars'], 'Replacement provisioning inventory hosts');
+    const matches = Object.values(hosts)
+      .map((host) => requireRecord(host, 'Replacement provisioning host'))
+      .filter((host) => host['puni_logical_node'] === oldNodeId);
+    const oldInstanceId = oldProviderIdentity.slice('hcloud:'.length);
+    if (
+      (fenceState === 'deleted' && matches.length !== 0) ||
+      (fenceState === 'powered-off' &&
+        (matches.length !== 1 ||
+          matches[0]?.['puni_instance_id'] !== oldInstanceId ||
+          matches[0]?.['puni_provider_state'] !== 'off'))
+    ) {
+      // Proof: changing an authorized old instance from off/absent to running stops replacement
+      // provisioning before Terraform/Terragrunt can create the new writer.
+      throw new Error('Replacement fence no longer holds for the old provider identity');
+    }
+  }
+}
+
 function createRetirementApplyDependencies(
   root: string,
   plan: OperationPlan,
@@ -1127,7 +1232,7 @@ function createRetirementApplyDependencies(
     ['remove embedded etcd membership', 'etcd-membership'],
     ['remove Kubernetes membership', 'kubernetes-membership'],
   ]);
-  const retirementVariables = JSON.stringify({
+  const retirementVariables = {
     puni_api_endpoint_host: new URL(apiEndpoint).hostname,
     puni_backup_receipt: request.backupReceipt,
     puni_control_plane_target: plan.affectedCapabilities.includes('control-plane'),
@@ -1142,9 +1247,9 @@ function createRetirementApplyDependencies(
     puni_provider_identity: reviewedProviderIdentity.startsWith('hcloud:')
       ? `hcloud://${reviewedProviderIdentity.slice('hcloud:'.length)}`
       : reviewedProviderIdentity,
-  });
+  };
 
-  const play = (tag: string): CommandRequest => ({
+  const play = (tag: string, etcdMembershipRemoved = false): CommandRequest => ({
     executable: 'ansible-playbook',
     arguments: [
       '--inventory',
@@ -1156,7 +1261,10 @@ function createRetirementApplyDependencies(
       '--tags',
       tag,
       '--extra-vars',
-      retirementVariables,
+      JSON.stringify({
+        ...retirementVariables,
+        puni_etcd_membership_removed: etcdMembershipRemoved,
+      }),
       join(root, 'infra/ansible/playbooks/retire.yml'),
     ],
     cwd: join(root, 'infra/ansible'),
@@ -1287,9 +1395,10 @@ function createRetirementApplyDependencies(
         throw new Error('Live hcloud identity differs from reviewed retirement target');
       }
     }
+    const etcdMembershipRemoved = await persistedStateExists(etcdRemovalPath, 'etcd-removed');
     const preflight = await requireCommand(
       run,
-      play('preflight'),
+      play('preflight', etcdMembershipRemoved),
       `Refresh retirement capacity and storage safety for ${request.nodeId}`,
     );
     requireAnsibleRecap(preflight, request.nodeId);
@@ -1358,6 +1467,17 @@ function createRetirementApplyDependencies(
     }
   }
 
+  async function persistedStateExists(path: string, state: string): Promise<boolean> {
+    try {
+      await stat(path);
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return false;
+      throw new Error(`Cannot inspect retirement ${state} evidence`, { cause });
+    }
+    await requirePersistedState(path, state);
+    return true;
+  }
+
   return {
     now,
     acquireLease: (operationPlan) => acquireLease(run, operationPlan, executionOwner, now()),
@@ -1379,15 +1499,22 @@ function createRetirementApplyDependencies(
     },
     applyEffect: async (_operationPlan, effect, _stepId, beforeMutation) => {
       const nodePresent = await inspect();
+      // Proof: the response-lost membership test removes the Node after the etcd receipt; this
+      // branch completes recovery without issuing a second deletion against a future same-name Node.
+      if (effect === 'remove Kubernetes membership' && !nodePresent) return {};
       const tag = playbookTags.get(effect);
       if (tag !== undefined) {
+        const etcdMembershipRemoved = await persistedStateExists(etcdRemovalPath, 'etcd-removed');
         await beforeMutation();
         const stdout = await requireCommand(
           run,
-          play(tag),
+          play(tag, etcdMembershipRemoved),
           `Retirement ${tag} for ${request.nodeId}`,
         );
         requireAnsibleRecap(stdout, request.nodeId);
+        if (effect === 'remove embedded etcd membership') {
+          await persist(etcdRemovalPath, 'etcd-removed');
+        }
         if (effect === 'remove Kubernetes membership') {
           const removed = await run({
             executable: 'kubectl',
@@ -1406,7 +1533,6 @@ function createRetirementApplyDependencies(
         await persist(etcdRemovalPath, 'etcd-removed');
         return {};
       }
-      if (effect === 'remove Kubernetes membership' && !nodePresent) return {};
       if (effect === 'persist authoritative enrollment exclusion') {
         await beforeMutation();
         await persist(retiredNodePath, 'retired');
@@ -1514,7 +1640,11 @@ function createReplacementApplyDependencies(
     return state;
   }
 
-  async function persist(path: string, state: string): Promise<void> {
+  async function persist(
+    path: string,
+    state: string,
+    fenceState?: 'powered-off' | 'deleted',
+  ): Promise<void> {
     const source = `${JSON.stringify({
       schemaVersion: 1,
       nodeId: request.nodeId,
@@ -1522,6 +1652,7 @@ function createReplacementApplyDependencies(
       fenceId,
       planSha256: plan.planSha256,
       state,
+      ...(fenceState === undefined ? {} : { fenceState }),
     })}\n`;
     await mkdir(dirname(path), { recursive: true, mode: 0o700 });
     try {
@@ -1562,7 +1693,7 @@ function createReplacementApplyDependencies(
       };
     },
     applyEffect: async (_operationPlan, effect, _stepId, beforeMutation) => {
-      await readFence();
+      const fenceState = await readFence();
       if (effect === 'record verified external fence') return {};
       if (effect === 'persist authoritative enrollment exclusion') {
         await beforeMutation();
@@ -1571,7 +1702,7 @@ function createReplacementApplyDependencies(
       }
       if (effect === 'record replacement authorization for a distinct provisioning plan') {
         await beforeMutation();
-        await persist(authorizationPath, 'replacement-authorized');
+        await persist(authorizationPath, 'replacement-authorized', fenceState);
         return {};
       }
       throw new Error(`Unsupported replacement effect: ${effect}`);
@@ -1792,10 +1923,13 @@ function createUpgradeApplyDependencies(
         providerState: 'ready',
       };
     },
-    applyEffect: async (_operationPlan, effect, _stepId, beforeMutation) => {
+    applyEffect: async (_operationPlan, effect, _stepId, beforeMutation, recoveringActiveStep) => {
       const installed = await inspect();
       if (effect !== plan.effects[0]) throw new Error(`Unsupported upgrade effect: ${effect}`);
-      if (installed === request.version) return {};
+      if (installed === request.version && !recoveringActiveStep) {
+        // Proof: an already-changed target cannot turn a fresh reviewed operation into a no-op.
+        throw new Error('Upgrade target version changed outside the reviewed operation');
+      }
       const recovery = await evidence();
       const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
       await beforeMutation();
@@ -1828,6 +1962,12 @@ function createUpgradeApplyDependencies(
         `Upgrade ${request.nodeId}`,
       );
       requireAnsibleRecap(stdout, request.nodeId);
+      const verifiedVersion = await inspect();
+      if (verifiedVersion !== request.version) {
+        // Proof: the successful-play-with-old-version production negative remains recoverable and
+        // cannot produce a completion receipt for an upgrade that did not install the target.
+        throw new Error(`Upgrade did not install reviewed k3s version ${request.version}`);
+      }
       return {};
     },
   };
@@ -1849,12 +1989,12 @@ function createDestroyApplyDependencies(
   const savedPlanPath = `${planPath}.tfplan`;
   const variablesPath = `${planPath}.tfvars.json`;
   const backendEvidencePath = `${planPath}.backend.json`;
-  const terraformRoot = join(root, 'infra/terraform');
+  const terragruntConfigSha256 = request.terragruntConfigSha256;
   const providerInventoryPath = join(root, `infra/ansible/inventory/${cluster}.hcloud.yml`);
-  const terraform = (arguments_: readonly string[]) =>
+  const runTerraform = async (arguments_: readonly string[]) =>
     requireCommand(
       run,
-      { executable: 'terraform', arguments: arguments_, cwd: terraformRoot },
+      await buildTerragruntRequest(root, arguments_, terragruntConfigSha256),
       'Terraform destroy command',
     );
 
@@ -1920,12 +2060,15 @@ function createDestroyApplyDependencies(
       request.cloudAccount,
       enforceBackendEnvironment,
     );
-    await terraform(['init', '-input=false', '-lockfile=readonly']);
+    await runTerraform(['init', '-input=false', '-lockfile=readonly']);
     decodeTerraformDestroyPlan(
-      parseJson(await terraform(['show', '-json', savedPlanPath]), 'Terraform destroy saved plan'),
+      parseJson(
+        await runTerraform(['show', '-json', savedPlanPath]),
+        'Terraform destroy saved plan',
+      ),
       request.nodeId,
     );
-    const stateSource = await terraform(['state', 'pull']);
+    const stateSource = await runTerraform(['state', 'pull']);
     const stateInput = parseJson(stateSource, 'Terraform destroy state');
     const terraformState = decodeTerraformStateIdentity(stateInput);
     if (
@@ -1997,7 +2140,7 @@ function createDestroyApplyDependencies(
           throw new Error('Provider instance disappeared outside the reviewed destroy effect');
         }
         await beforeMutation();
-        await terraform(['apply', '-input=false', '-lock=true', savedPlanPath]);
+        await runTerraform(['apply', '-input=false', '-lock=true', savedPlanPath]);
         const after = await inspect();
         if (after.providerPresent || after.terraformState.serial <= live.terraformState.serial) {
           // Proof: a false-success Terraform apply cannot complete while the exact provider still
@@ -2092,17 +2235,17 @@ export function createProductionApplyDependencies(
     k3sRole: request.k3sRole,
     budgetCapEur: request.budgetCapEur,
   };
-  const terraformRoot = join(root, 'infra/terraform');
+  const terragruntConfigSha256 = request.terragruntConfigSha256;
   const savedPlanPath = `${planPath}.tfplan`;
   const terraformVariablesPath = `${planPath}.tfvars.json`;
   const backendEvidencePath = `${planPath}.backend.json`;
   const ansibleVariablesPath = `${planPath}.ansible-vars.json`;
   const desiredNodePath = `${planPath}.desired-node.json`;
   const machineIdentityPath = `${planPath}.machine-id`;
-  const terraform = (arguments_: readonly string[]) =>
+  const runTerraform = async (arguments_: readonly string[]) =>
     requireCommand(
       commandRunner,
-      { executable: 'terraform', arguments: arguments_, cwd: terraformRoot },
+      await buildTerragruntRequest(root, arguments_, terragruntConfigSha256),
       'Terraform provisioning command',
     );
   const providerOwnership =
@@ -2125,6 +2268,7 @@ export function createProductionApplyDependencies(
       ));
 
   async function observe(): Promise<ApplyObservation> {
+    await requireReplacementProvisioningAuthorization(root, plan, request, planPath, commandRunner);
     await requireEnrollmentAllowed(root, request.nodeId);
     const savedPlan = await readFile(savedPlanPath);
     const digest = createHash('sha256').update(savedPlan).digest('hex');
@@ -2139,8 +2283,8 @@ export function createProductionApplyDependencies(
       request.cloudAccount,
       run === undefined,
     );
-    await terraform(['init', '-input=false', '-lockfile=readonly']);
-    const state = decodeTerraformState(await terraform(['state', 'pull']), request.nodeId);
+    await runTerraform(['init', '-input=false', '-lockfile=readonly']);
+    const state = decodeTerraformState(await runTerraform(['state', 'pull']), request.nodeId);
     const ownership = reconcileProvisioningOwnership(
       request.nodeId,
       request.providerOwnershipId,
@@ -2190,7 +2334,7 @@ export function createProductionApplyDependencies(
           await providerOwnership(),
         );
         if (ownership.kind === 'import') {
-          const state = decodeTerraformState(await terraform(['state', 'pull']), request.nodeId);
+          const state = decodeTerraformState(await runTerraform(['state', 'pull']), request.nodeId);
           if (state.managedInstance === undefined) {
             const variables = await readFile(terraformVariablesPath);
             if (
@@ -2207,7 +2351,7 @@ export function createProductionApplyDependencies(
               throw new Error('Terraform import variables must be owner-only');
             }
             await beforeMutation();
-            await terraform([
+            await runTerraform([
               'import',
               '-input=false',
               `-var-file=${terraformVariablesPath}`,
@@ -2228,7 +2372,7 @@ export function createProductionApplyDependencies(
           }
         }
         const shown = parseJson(
-          await terraform(['show', '-json', savedPlanPath]),
+          await runTerraform(['show', '-json', savedPlanPath]),
           'Terraform saved plan',
         );
         decodeTerraformPlan(
@@ -2237,9 +2381,9 @@ export function createProductionApplyDependencies(
           terraformExpectation,
         );
         await beforeMutation();
-        await terraform(['apply', '-input=false', '-lock=true', savedPlanPath]);
+        await runTerraform(['apply', '-input=false', '-lock=true', savedPlanPath]);
         const { instanceId } = outputNodeIdentity(
-          await terraform(['output', '-json', 'node_identities']),
+          await runTerraform(['output', '-json', 'node_identities']),
           request.nodeId,
         );
         const observed = reconcileProvisioningOwnership(
@@ -2254,7 +2398,7 @@ export function createProductionApplyDependencies(
       }
       if (effect === 'record provider identity') {
         const { instanceId } = outputNodeIdentity(
-          await terraform(['output', '-json', 'node_identities']),
+          await runTerraform(['output', '-json', 'node_identities']),
           request.nodeId,
         );
         const observed = reconcileProvisioningOwnership(
@@ -2269,7 +2413,7 @@ export function createProductionApplyDependencies(
       }
       if (effect === 'record desired membership') {
         const { instanceId } = outputNodeIdentity(
-          await terraform(['output', '-json', 'node_identities']),
+          await runTerraform(['output', '-json', 'node_identities']),
           request.nodeId,
         );
         const source = `${JSON.stringify(
@@ -2304,7 +2448,7 @@ export function createProductionApplyDependencies(
       }
       if (effect === 'enroll configured host') {
         const { instanceId, privateAddress } = outputNodeIdentity(
-          await terraform(['output', '-json', 'node_identities']),
+          await runTerraform(['output', '-json', 'node_identities']),
           request.nodeId,
         );
         const desiredNode = decodeFleetNode(

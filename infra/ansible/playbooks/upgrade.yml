@@ -79,12 +79,14 @@
         dest: /usr/local/bin/k3s
         checksum: 'sha256:{{ puni_k3s_sha256 }}'
         mode: '0755'
-      notify: Restart upgraded k3s service
       when: puni_k3s_from_version != puni_k3s_version
 
-    - name: Apply service restart before health proof
-      ansible.builtin.meta: flush_handlers
-      when: puni_k3s_from_version != puni_k3s_version
+    # Proof: the interrupted-upgrade production test leaves the binary at the target version after
+    # a failed play; recovery still restarts the service and reaches the health gates below.
+    - name: Restart k3s service before health proof
+      ansible.builtin.systemd_service:
+        name: '{{ "k3s" if puni_k3s_role == "server" else "k3s-agent" }}'
+        state: restarted
 
     - name: Wait for exact node to become Ready
       ansible.builtin.command:
@@ -99,17 +101,64 @@
       delegate_to: localhost
       become: false
       changed_when: false
-      when: puni_k3s_from_version != puni_k3s_version
+
+    - name: Read unhealthy non-terminal workloads
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --context
+          - '{{ puni_kube_context }}'
+          - get
+          - pods
+          - --all-namespaces
+          - --field-selector=status.phase!=Running,status.phase!=Succeeded
+          - --output=name
+      register: puni_unhealthy_workloads
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Read unattached persistent volumes
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --context
+          - '{{ puni_kube_context }}'
+          - get
+          - volumeattachments.storage.k8s.io
+          - --output=jsonpath={range .items[?(@.status.attached==false)]}{.metadata.name}{"\n"}{end}
+      register: puni_unattached_volumes
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Read server etcd voter health
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --context
+          - '{{ puni_kube_context }}'
+          - get
+          - node/{{ puni_node_name }}
+          - --output=jsonpath={.status.conditions[?(@.type=="EtcdIsVoter")].status}
+      register: puni_etcd_voter
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      when: puni_k3s_role == 'server'
+
+    - name: Require workload, storage, and etcd health
+      ansible.builtin.assert:
+        that:
+          - puni_unhealthy_workloads.stdout | trim | length == 0
+          - puni_unattached_volumes.stdout | trim | length == 0
+          - puni_k3s_role != 'server' or puni_etcd_voter.stdout | trim == 'True'
+        fail_msg: Upgrade health proof found unhealthy workloads, storage, or etcd membership
+      delegate_to: localhost
+      become: false
 
     - name: Uncordon node after health proof
       ansible.builtin.command:
         argv: [kubectl, --context, '{{ puni_kube_context }}', uncordon, '{{ puni_node_name }}']
       delegate_to: localhost
       become: false
-      when: puni_k3s_from_version != puni_k3s_version
-
-  handlers:
-    - name: Restart upgraded k3s service
-      ansible.builtin.systemd_service:
-        name: '{{ "k3s" if puni_k3s_role == "server" else "k3s-agent" }}'
-        state: restarted

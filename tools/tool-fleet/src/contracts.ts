@@ -58,6 +58,8 @@ const ToolchainSchema = type({
     .atLeastLength(1),
   binaries: {
     terraform: TerraformBinaryLock,
+    // Proof: making this optional made the absent-Terragrunt production-reader negative fail.
+    terragrunt: BinaryLock,
     // Proof: making k3s optional made the missing-lock production-reader
     // negative fail on 2026-09-17.
     k3s: BinaryLock,

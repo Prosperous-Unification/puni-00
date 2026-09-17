@@ -165,6 +165,88 @@ test('the production plan command selects the next serial upgrade from exact evi
   ]);
 });
 
+test('the production plan command binds distinct replacement capacity to its authorization', async () => {
+  const fixture = await createPlanFixture();
+  const authorizationSource = `${JSON.stringify({
+    schemaVersion: 1,
+    nodeId: 'workers-agent-a',
+    providerIdentity: 'ssh:local-workers-agent-a',
+    fenceId: 'fence-local-workers-agent-a',
+    fenceState: 'powered-off',
+    planSha256: 'a'.repeat(64),
+    state: 'replacement-authorized',
+  })}\n`;
+  await writeFile(`${fixture.output}.replacement-authorization.json`, authorizationSource, {
+    mode: 0o600,
+  });
+  const authorizationSha256 = createHash('sha256').update(authorizationSource).digest('hex');
+  const arguments_ = [
+    ...buildBaseArguments(fixture),
+    '--operation',
+    'provision',
+    '--node',
+    'workers-c',
+    '--cluster',
+    'workers',
+    '--cloud-account',
+    'puni-production',
+    '--region',
+    'fsn1',
+    '--machine-type',
+    'cx33',
+    '--image',
+    'ubuntu-24.04',
+    '--network',
+    'puni-private',
+    '--ssh-key-ids',
+    'admin-primary',
+    '--retained-storage',
+    'false',
+    '--k3s-role',
+    'agent',
+    '--capabilities',
+    'execution',
+    '--budget-cap-eur',
+    '20',
+    '--provider-ownership-id',
+    'provision-workers-c-20260917',
+    '--terragrunt-config-sha256',
+    'c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f',
+    '--terraform-plan-sha256',
+    'b'.repeat(64),
+    '--terraform-variables-sha256',
+    'c'.repeat(64),
+    '--terraform-backend-evidence-sha256',
+    'd'.repeat(64),
+    '--ansible-variables-sha256',
+    'e'.repeat(64),
+    '--terraform-state-lineage',
+    'lineage-1',
+    '--terraform-state-serial',
+    '7',
+    '--replacement-authorization-sha256',
+    authorizationSha256,
+  ];
+  const invocation = invokePlan(arguments_);
+  expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+  const plan = JSON.parse(await readFile(fixture.output, 'utf8')) as {
+    targetIdentities: string[];
+  };
+  expect(plan.targetIdentities).toContain('replacement-of:workers-agent-a');
+  expect(plan.targetIdentities).toContain('replaced-provider:ssh:local-workers-agent-a');
+
+  await writeFile(
+    `${fixture.output}.replacement-authorization.json`,
+    authorizationSource.replace('workers-agent-a', 'workers-agent-b'),
+    { mode: 0o600 },
+  );
+  const changed = invokePlan(arguments_);
+  expect(changed.exitCode).not.toBe(0);
+  expect(changed.stderr.toString()).toContain('differs from its reviewed SHA-256');
+  // Proof: changing the consumed authorization bytes prevents a replacement provisioning plan
+  // from carrying the old logical and provider identities into production apply.
+});
+
 describe('production plan input boundary', () => {
   test('binds destroy to an owner-only completed retirement receipt for the exact provider', async () => {
     const fixture = await createPlanFixture();
@@ -190,6 +272,8 @@ describe('production plan input boundary', () => {
     const evidenceArguments = [
       '--cloud-account',
       'puni-production',
+      '--terragrunt-config-sha256',
+      'c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f',
       '--terraform-plan-sha256',
       'b'.repeat(64),
       '--terraform-variables-sha256',
@@ -365,6 +449,8 @@ describe('production plan input boundary', () => {
       '20',
       '--provider-ownership-id',
       'provision-workers-c-20260917',
+      '--terragrunt-config-sha256',
+      'c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f',
       '--terraform-plan-sha256',
       'f'.repeat(64),
       '--terraform-state-lineage',

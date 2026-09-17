@@ -250,20 +250,3 @@ export function decodeTerraformPlan(
   }
   return { terraformVersion: input['terraform_version'], addresses };
 }
-
-/** Build the only Terraform command sequence accepted by the fleet adapter. */
-export function planTerraformCommands(
-  terraformRoot: string,
-  savedPlanPath: string,
-): readonly (readonly string[])[] {
-  if (terraformRoot.length === 0 || savedPlanPath.length === 0) {
-    throw new Error('Terraform root and saved plan path are required');
-  }
-  return [
-    ['init', '-input=false', '-lockfile=readonly'],
-    ['validate', '-json'],
-    ['plan', '-input=false', '-lock=true', `-out=${savedPlanPath}`],
-    ['show', '-json', savedPlanPath],
-    ['apply', '-input=false', '-lock=true', savedPlanPath],
-  ];
-}

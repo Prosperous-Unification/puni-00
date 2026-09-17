@@ -12,7 +12,7 @@ import {
   type CommandResponse,
   controllerRequest,
   createProductionApplyDependencies,
-  prepareTerraformPlan,
+  prepareTerragruntPlan,
   runBoundedCommand,
 } from './production-apply';
 
@@ -34,6 +34,10 @@ const ansibleVariablesSource = `${JSON.stringify({
   puni_node_capabilities: ['execution'],
 })}\n`;
 const terraformVariablesSource = '{"nodes":{}}\n';
+
+function engineArguments(request: CommandRequest): readonly string[] {
+  return request.arguments.slice(request.arguments.indexOf('--') + 1);
+}
 
 function operationPlan(
   terraformPlanSha256: string,
@@ -60,6 +64,7 @@ function operationPlan(
       capabilities: ['execution'],
       budgetCapEur: 20,
       providerOwnershipId: 'provision-workers-c-20260917',
+      terragruntConfigSha256: 'c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f',
       terraformPlanSha256,
       terraformVariablesSha256,
       terraformBackendEvidenceSha256: createHash('sha256')
@@ -215,11 +220,16 @@ async function rejectionMessage(promise: Promise<unknown>): Promise<string> {
 
 describe('production apply adapter', () => {
   it('keeps controller stdin attached for Kubernetes Lease manifests', () => {
-    const request = controllerRequest('/repo', 'controller', 'sha256:abc', {
-      executable: 'kubectl',
-      arguments: ['replace', '-f', '-'],
-      stdin: '{"kind":"Lease"}',
-    });
+    const request = controllerRequest(
+      join(import.meta.dir, '../../..'),
+      'controller',
+      'sha256:abc',
+      {
+        executable: 'kubectl',
+        arguments: ['replace', '-f', '-'],
+        stdin: '{"kind":"Lease"}',
+      },
+    );
     // Proof: removing --interactive made the locked Docker controller deliver zero bytes to
     // kubectl even though the subprocess adapter supplied the Lease manifest.
     expect(request.arguments).toContain('--interactive');
@@ -263,7 +273,7 @@ describe('production apply adapter', () => {
       return Promise.resolve(leaseMutation(request, holder));
     };
     const first = createProductionApplyDependencies(
-      '/repo',
+      join(import.meta.dir, '../../..'),
       plan,
       planPath,
       run,
@@ -271,7 +281,7 @@ describe('production apply adapter', () => {
       'execution-one',
     );
     const second = createProductionApplyDependencies(
-      '/repo',
+      join(import.meta.dir, '../../..'),
       plan,
       planPath,
       run,
@@ -376,7 +386,7 @@ describe('production apply adapter', () => {
       expectedSha256: plan.planSha256,
       journalPath: `${planPath}.journal.json`,
       dependencies: createProductionApplyDependencies(
-        '/repo',
+        join(import.meta.dir, '../../..'),
         plan,
         planPath,
         run,
@@ -400,30 +410,30 @@ describe('production apply adapter', () => {
     const calls: CommandRequest[] = [];
     const run = async (request: CommandRequest): Promise<CommandResponse> => {
       calls.push(request);
-      if (request.arguments[0] === 'validate') {
+      if (engineArguments(request)[0] === 'validate') {
         return {
           exitCode: 0,
           stdout: JSON.stringify({ valid: true, diagnostics: [] }),
           stderr: '',
         };
       }
-      if (request.arguments[0] === 'plan') {
-        const output = request.arguments.find((argument) => argument.startsWith('-out='));
+      if (engineArguments(request)[0] === 'plan') {
+        const output = engineArguments(request).find((argument) => argument.startsWith('-out='));
         if (output === undefined) throw new Error('Test plan request has no output');
         await writeFile(output.slice('-out='.length), 'saved plan bytes');
         return { exitCode: 0, stdout: '', stderr: '' };
       }
-      if (request.arguments[0] === 'show') {
+      if (engineArguments(request)[0] === 'show') {
         return { exitCode: 0, stdout: terraformShow(), stderr: '' };
       }
-      if (request.arguments[0] === 'state') {
+      if (engineArguments(request)[0] === 'state') {
         return { exitCode: 0, stdout: terraformState(), stderr: '' };
       }
       return { exitCode: 0, stdout: '', stderr: '' };
     };
 
-    const evidence = await prepareTerraformPlan(
-      '/repo',
+    const evidence = await prepareTerragruntPlan(
+      join(import.meta.dir, '../../..'),
       {
         nodeId: 'workers-c',
         clusterId: 'workers',
@@ -445,6 +455,7 @@ describe('production apply adapter', () => {
     );
 
     expect(evidence).toEqual({
+      terragruntConfigSha256: 'c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f',
       terraformPlanSha256: createHash('sha256').update('saved plan bytes').digest('hex'),
       terraformVariablesSha256: createHash('sha256').update('{"nodes":{}}\n').digest('hex'),
       terraformBackendEvidenceSha256: createHash('sha256')
@@ -457,10 +468,10 @@ describe('production apply adapter', () => {
     expect(await Bun.file(join(directory, 'operation.json.tfvars.json')).text()).toBe(
       '{"nodes":{}}\n',
     );
-    expect(calls.find((request) => request.arguments[0] === 'plan')?.arguments).toContain(
+    expect(calls.find((request) => engineArguments(request)[0] === 'plan')?.arguments).toContain(
       `-var-file=${join(directory, 'operation.json.tfvars.json')}`,
     );
-    expect(calls.map((request) => request.arguments[0])).toEqual([
+    expect(calls.map((request) => engineArguments(request)[0])).toEqual([
       'init',
       'validate',
       'plan',
@@ -477,21 +488,21 @@ describe('production apply adapter', () => {
     await writeFile(variablesPath, terraformVariablesSource, { mode: 0o600 });
     let planCalls = 0;
     const run = (request: CommandRequest): Promise<CommandResponse> => {
-      if (request.arguments[0] === 'validate') {
+      if (engineArguments(request)[0] === 'validate') {
         return Promise.resolve({
           exitCode: 0,
           stdout: JSON.stringify({ valid: false, diagnostics: [{ summary: 'invalid module' }] }),
           stderr: '',
         });
       }
-      if (request.arguments[0] === 'plan') planCalls += 1;
+      if (engineArguments(request)[0] === 'plan') planCalls += 1;
       return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
     };
 
     expect(
       await rejectionMessage(
-        prepareTerraformPlan(
-          '/repo',
+        prepareTerragruntPlan(
+          join(import.meta.dir, '../../..'),
           {
             nodeId: 'workers-c',
             clusterId: 'workers',
@@ -540,20 +551,20 @@ describe('production apply adapter', () => {
         leaseExists = true;
         return Promise.resolve(leaseMutation(request, 'execution-owner'));
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'state') {
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'state') {
         return Promise.resolve({
           exitCode: 0,
           stdout: terraformState('running', providerExists),
           stderr: '',
         });
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'show') {
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'show') {
         return Promise.resolve({ exitCode: 0, stdout: terraformShow(), stderr: '' });
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'output') {
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'output') {
         return Promise.resolve({ exitCode: 0, stdout: output(), stderr: '' });
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'apply') {
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'apply') {
         providerExists = true;
         return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
       }
@@ -581,7 +592,7 @@ describe('production apply adapter', () => {
       expectedSha256: plan.planSha256,
       journalPath: `${planPath}.journal.json`,
       dependencies: createProductionApplyDependencies(
-        '/repo',
+        join(import.meta.dir, '../../..'),
         plan,
         planPath,
         run,
@@ -594,7 +605,7 @@ describe('production apply adapter', () => {
     expect(receipt.completedSteps[0]?.externalResourceId).toBe('4815162342');
     expect(
       calls.some(
-        (request) => request.executable === 'terraform' && request.arguments[0] === 'apply',
+        (request) => request.executable === 'terragrunt' && engineArguments(request)[0] === 'apply',
       ),
     ).toBe(true);
     expect(calls.some((request) => request.executable === 'ansible-playbook')).toBe(true);
@@ -626,8 +637,8 @@ describe('production apply adapter', () => {
     const variablesPath = join(directory, 'nodes.tfvars.json');
     const variablesSource = '{"nodes":{"workers-c":{"name":"workers-c"}}}\n';
     await writeFile(variablesPath, variablesSource, { mode: 0o600 });
-    await prepareTerraformPlan(
-      '/repo',
+    await prepareTerragruntPlan(
+      join(import.meta.dir, '../../..'),
       {
         nodeId: 'workers-c',
         clusterId: 'workers',
@@ -646,20 +657,20 @@ describe('production apply adapter', () => {
       variablesPath,
       `${planPath}.tfplan`,
       async (request) => {
-        if (request.arguments[0] === 'validate') {
+        if (engineArguments(request)[0] === 'validate') {
           return { exitCode: 0, stdout: '{"valid":true,"diagnostics":[]}', stderr: '' };
         }
-        if (request.arguments[0] === 'plan') {
-          const outputPath = request.arguments
+        if (engineArguments(request)[0] === 'plan') {
+          const outputPath = engineArguments(request)
             .find((argument) => argument.startsWith('-out='))
             ?.slice('-out='.length);
           if (outputPath === undefined) throw new Error('Test plan request has no output');
           await writeFile(outputPath, savedPlan);
         }
-        if (request.arguments[0] === 'show') {
+        if (engineArguments(request)[0] === 'show') {
           return { exitCode: 0, stdout: terraformShow(), stderr: '' };
         }
-        if (request.arguments[0] === 'state') {
+        if (engineArguments(request)[0] === 'state') {
           return { exitCode: 0, stdout: terraformState('running', false), stderr: '' };
         }
         return { exitCode: 0, stdout: '', stderr: '' };
@@ -684,14 +695,14 @@ describe('production apply adapter', () => {
         leaseExists = true;
         return Promise.resolve(leaseMutation(request, 'execution-owner'));
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'state') {
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'state') {
         return Promise.resolve({
           exitCode: 0,
           stdout: terraformState('running', false),
           stderr: '',
         });
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'import') {
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'import') {
         imports += 1;
         const reviewedVariables = request.arguments
           .find((argument) => argument.startsWith('-var-file='))
@@ -699,7 +710,8 @@ describe('production apply adapter', () => {
         if (reviewedVariables === undefined) throw new Error('Import has no reviewed variables');
         expect(await Bun.file(reviewedVariables).text()).toBe(variablesSource);
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'apply') applies += 1;
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'apply')
+        applies += 1;
       if (request.executable === 'ansible-inventory') {
         return Promise.resolve({ exitCode: 0, stdout: providerInventory(true), stderr: '' });
       }
@@ -714,7 +726,7 @@ describe('production apply adapter', () => {
           expectedSha256: plan.planSha256,
           journalPath: `${planPath}.journal.json`,
           dependencies: createProductionApplyDependencies(
-            '/repo',
+            join(import.meta.dir, '../../..'),
             plan,
             planPath,
             run,
@@ -735,7 +747,7 @@ describe('production apply adapter', () => {
           expectedSha256: plan.planSha256,
           journalPath: `${planPath}.journal.json`,
           dependencies: createProductionApplyDependencies(
-            '/repo',
+            join(import.meta.dir, '../../..'),
             plan,
             planPath,
             run,
@@ -755,7 +767,7 @@ describe('production apply adapter', () => {
           expectedSha256: plan.planSha256,
           journalPath: `${planPath}.journal.json`,
           dependencies: createProductionApplyDependencies(
-            '/repo',
+            join(import.meta.dir, '../../..'),
             plan,
             planPath,
             run,
@@ -788,21 +800,23 @@ describe('production apply adapter', () => {
         leaseExists = true;
         return Promise.resolve(leaseMutation(request, 'execution-owner'));
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'state') {
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'state') {
         return Promise.resolve({
           exitCode: 0,
           stdout: terraformState('running', true),
           stderr: '',
         });
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'show') {
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'show') {
         return Promise.resolve({ exitCode: 0, stdout: terraformShow(), stderr: '' });
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'output') {
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'output') {
         return Promise.resolve({ exitCode: 0, stdout: output(), stderr: '' });
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'import') imports += 1;
-      if (request.executable === 'terraform' && request.arguments[0] === 'apply') applies += 1;
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'import')
+        imports += 1;
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'apply')
+        applies += 1;
       if (request.executable === 'ansible-inventory') {
         return Promise.resolve({ exitCode: 0, stdout: providerInventory(true), stderr: '' });
       }
@@ -827,7 +841,7 @@ describe('production apply adapter', () => {
           expectedSha256: plan.planSha256,
           journalPath: `${freshPlanPath}.journal.json`,
           dependencies: createProductionApplyDependencies(
-            '/repo',
+            join(import.meta.dir, '../../..'),
             plan,
             freshPlanPath,
             recoveredRun,
@@ -846,7 +860,7 @@ describe('production apply adapter', () => {
           expectedSha256: plan.planSha256,
           journalPath: `${freshPlanPath}.journal.json`,
           dependencies: createProductionApplyDependencies(
-            '/repo',
+            join(import.meta.dir, '../../..'),
             plan,
             freshPlanPath,
             recoveredRun,
@@ -863,7 +877,7 @@ describe('production apply adapter', () => {
       expectedSha256: plan.planSha256,
       journalPath: `${freshPlanPath}.journal.json`,
       dependencies: createProductionApplyDependencies(
-        '/repo',
+        join(import.meta.dir, '../../..'),
         plan,
         freshPlanPath,
         recoveredRun,
@@ -900,14 +914,15 @@ describe('production apply adapter', () => {
         leaseExists = true;
         return Promise.resolve(leaseMutation(request, 'execution-owner'));
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'state') {
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'state') {
         return Promise.resolve({
           exitCode: 0,
           stdout: terraformState('running', false),
           stderr: '',
         });
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'apply') applies += 1;
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'apply')
+        applies += 1;
       if (request.executable === 'ansible-inventory') {
         return Promise.resolve({
           exitCode: 0,
@@ -924,7 +939,7 @@ describe('production apply adapter', () => {
           expectedSha256: plan.planSha256,
           journalPath: `${planPath}.journal.json`,
           dependencies: createProductionApplyDependencies(
-            '/repo',
+            join(import.meta.dir, '../../..'),
             plan,
             planPath,
             run,
@@ -961,7 +976,7 @@ describe('production apply adapter', () => {
           expectedSha256: plan.planSha256,
           journalPath: `${planPath}.concurrent.json`,
           dependencies: createProductionApplyDependencies(
-            '/repo',
+            join(import.meta.dir, '../../..'),
             plan,
             planPath,
             concurrent,
@@ -996,7 +1011,7 @@ describe('production apply adapter', () => {
           expectedSha256: plan.planSha256,
           journalPath: `${planPath}.changed.json`,
           dependencies: createProductionApplyDependencies(
-            '/repo',
+            join(import.meta.dir, '../../..'),
             plan,
             planPath,
             changedPlan,
@@ -1015,10 +1030,10 @@ describe('production apply adapter', () => {
       if (request.executable === 'kubectl') {
         return Promise.resolve(leaseMutation(request, 'execution-owner'));
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'state') {
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'state') {
         return Promise.resolve({ exitCode: 0, stdout: terraformState('deleting'), stderr: '' });
       }
-      if (request.executable === 'terraform') {
+      if (request.executable === 'terragrunt') {
         return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
       }
       if (request.executable === 'ansible-inventory') {
@@ -1034,7 +1049,7 @@ describe('production apply adapter', () => {
           expectedSha256: exactPlan.planSha256,
           journalPath: `${planPath}.deleting.json`,
           dependencies: createProductionApplyDependencies(
-            '/repo',
+            join(import.meta.dir, '../../..'),
             exactPlan,
             planPath,
             deleting,

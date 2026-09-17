@@ -24,7 +24,7 @@ cluster mutation.
 
 tool-fleet:check validates the committed lock and its tests. The
 tool-fleet:build entrypoint builds the pinned controller OCI artifact locally.
-`tool-fleet:apply` consumes only a persisted plan and its reviewed digest. Provisioning additionally consumes same-prefix saved Terraform plan, backend evidence, and Ansible variables artifacts. Existing-host enrollment consumes hash-bound static inventory, Ansible variables, and SSH known-hosts artifacts. Production Ansible and Kubernetes commands run through the digest-locked controller; Terraform runs only when its executable hash matches the toolchain lock.
+`tool-fleet:apply` consumes only a persisted plan and its reviewed digest. Provisioning additionally consumes same-prefix saved Terraform plan, backend evidence, and Ansible variables artifacts. Existing-host enrollment consumes hash-bound static inventory, Ansible variables, and SSH known-hosts artifacts. Production Ansible and Kubernetes commands run through the digest-locked controller; Terragrunt 1.1.5 invokes Terraform 1.16.3 only after both executable hashes match the toolchain lock. The source-free unit runs in place, with its configuration digest bound into provision and destroy plans; backend and Terraform state identity remain unchanged. See [the infrastructure operation runbook](../../infra/terraform/README.md).
 
 ## Disposable Ubuntu VM lab
 

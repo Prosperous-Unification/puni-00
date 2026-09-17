@@ -46,18 +46,21 @@ export type OperationRequest =
       readonly capabilities: readonly Capability[];
       readonly budgetCapEur: number;
       readonly providerOwnershipId: string;
+      readonly terragruntConfigSha256: string;
       readonly terraformPlanSha256: string;
       readonly terraformVariablesSha256: string;
       readonly terraformBackendEvidenceSha256: string;
       readonly ansibleVariablesSha256: string;
       readonly terraformStateLineage: string;
       readonly terraformStateSerial: number;
+      readonly replacementAuthorizationSha256?: string;
     }
   | {
       readonly kind: 'destroy';
       readonly nodeId: string;
       readonly retirementReceiptSha256: string;
       readonly cloudAccount: string;
+      readonly terragruntConfigSha256: string;
       readonly terraformPlanSha256: string;
       readonly terraformVariablesSha256: string;
       readonly terraformBackendEvidenceSha256: string;
@@ -166,10 +169,14 @@ function requireProvisioningRequest(
     request.sshKeyIds.some((key) => key.length === 0) ||
     !Number.isFinite(request.budgetCapEur) ||
     request.budgetCapEur <= 0 ||
+    // Proof: removing this predicate made the invalid Terragrunt digest planner negative fail.
+    !/^[0-9a-f]{64}$/.test(request.terragruntConfigSha256) ||
     !/^[0-9a-f]{64}$/.test(request.terraformPlanSha256) ||
     !/^[0-9a-f]{64}$/.test(request.terraformVariablesSha256) ||
     !/^[0-9a-f]{64}$/.test(request.terraformBackendEvidenceSha256) ||
     !/^[0-9a-f]{64}$/.test(request.ansibleVariablesSha256) ||
+    (request.replacementAuthorizationSha256 !== undefined &&
+      !/^[0-9a-f]{64}$/.test(request.replacementAuthorizationSha256)) ||
     request.terraformStateLineage.length === 0 ||
     !Number.isSafeInteger(request.terraformStateSerial) ||
     request.terraformStateSerial < 0
@@ -216,6 +223,7 @@ function requireProvisioningRequest(
   if (
     cluster.controlPlane === 'single' &&
     request.k3sRole === 'server' &&
+    request.replacementAuthorizationSha256 === undefined &&
     fleet.nodes.some(
       (node) =>
         node.cluster === cluster.id &&
@@ -224,7 +232,8 @@ function requireProvisioningRequest(
     )
   ) {
     // Proof: the single-server provisioning negative prevents a second server from being bought
-    // for a topology whose contract permits exactly one control-plane member.
+    // without the replacement authorization that the production boundary and apply adapter bind
+    // to the old member and its provider fence.
     throw new Error(`Cluster ${cluster.id} has single-server topology`);
   }
   if (fleet.nodes.some(({ id }) => id === request.nodeId)) {
@@ -316,6 +325,8 @@ export function planOperation(
       request.kind === 'destroy' &&
       (!/^[0-9a-f]{64}$/.test(request.retirementReceiptSha256) ||
         request.cloudAccount.length === 0 ||
+        // Proof: removing this predicate made the invalid Terragrunt digest planner negative fail.
+        !/^[0-9a-f]{64}$/.test(request.terragruntConfigSha256) ||
         !/^[0-9a-f]{64}$/.test(request.terraformPlanSha256) ||
         !/^[0-9a-f]{64}$/.test(request.terraformVariablesSha256) ||
         !/^[0-9a-f]{64}$/.test(request.terraformBackendEvidenceSha256) ||

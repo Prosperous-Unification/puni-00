@@ -14,6 +14,7 @@
           - puni_backup_receipt is defined
           - puni_backup_receipt | length > 0
           - puni_control_plane_target is defined
+          - puni_etcd_membership_removed is defined
           - puni_api_endpoint_host is defined
           - puni_minimum_surviving_control_planes | int >= 1
           - puni_required_capability_floors is defined
@@ -59,9 +60,13 @@
             selectattr('type', 'equalto', 'EtcdIsVoter') |
             selectattr('status', 'equalto', 'True') | list | length) == 1
         fail_msg: Retiring server is not an identified healthy etcd voter
-      when: puni_control_plane_target | bool
+      when:
+        - puni_control_plane_target | bool
+        - not (puni_etcd_membership_removed | bool)
       tags: [always]
 
+    # Proof: a seven-member fixture with only three healthy survivors previously passed the fixed
+    # floor; deriving quorum from all annotated members makes it fail before server shutdown.
     - name: Require a healthy surviving etcd majority
       ansible.builtin.shell:
         cmd: >-
@@ -69,20 +74,26 @@
           kubectl --context '{{ puni_kube_context }}' get nodes -o json |
           jq -e --arg target '{{ puni_node_name }}'
           --argjson minimum '{{ puni_minimum_surviving_control_planes | int }}'
-          '[.items[] | select(.metadata.name != $target) | select(
-          ([.status.conditions[] | select(.type == "Ready" and .status == "True")] | length) == 1 and
-          ([.status.conditions[] | select(.type == "EtcdIsVoter" and .status == "True")] | length) == 1 and
-          (.metadata.annotations["etcd.k3s.cattle.io/node-name"] | length > 0) and
-          (.metadata.annotations["etcd.k3s.cattle.io/node-address"] | length > 0))] |
-          length >= $minimum'
+          '.items as $nodes |
+          [$nodes[] | select((.metadata.annotations["etcd.k3s.cattle.io/node-name"] // "") | length > 0)] as $members |
+          [$members[] | select(.metadata.name != $target) | select(
+          ([.status.conditions[]? | select(.type == "Ready" and .status == "True")] | length) == 1 and
+          ([.status.conditions[]? | select(.type == "EtcdIsVoter" and .status == "True")] | length) == 1 and
+          ((.metadata.annotations["etcd.k3s.cattle.io/node-address"] // "") | length > 0))] as $healthy |
+          ($healthy | length) >= $minimum and
+          ($healthy | length) >= ((($members | length) / 2 | floor) + 1)'
       args:
         executable: /bin/bash
       delegate_to: localhost
       become: false
       changed_when: false
-      when: puni_control_plane_target | bool
+      when:
+        - puni_control_plane_target | bool
+        - not (puni_etcd_membership_removed | bool)
       tags: [always]
 
+    # Proof: the healthy-survivor probe failed with jq exit 5 when the floor entry replaced the
+    # nodes document in scope; binding the input as $nodes makes the same production filter pass.
     - name: Require live Ready capacity for every cluster capability floor
       ansible.builtin.shell:
         cmd: >-
@@ -90,8 +101,8 @@
           kubectl --context '{{ puni_kube_context }}' get nodes -o json |
           jq -e --arg target '{{ puni_node_name }}'
           --argjson floors '{{ puni_required_capability_floors | to_json }}'
-          'all($floors | to_entries[]; . as $floor |
-          ([.items[] | select(.metadata.name != $target) |
+          '. as $nodes | all($floors | to_entries[]; . as $floor |
+          ([$nodes.items[] | select(.metadata.name != $target) |
           select(([.status.conditions[]? | select(.type == "Ready" and .status == "True")] | length) == 1) |
           select(.metadata.labels["puni.dev/capability-" + $floor.key] == "true")] | length) >= $floor.value)'
       args:
@@ -104,7 +115,7 @@
     - name: Prove the registration endpoint survives server retirement
       ansible.builtin.shell:
         cmd: >-
-          set -o pipefail;
+          set -euo pipefail;
           getent ahostsv4 '{{ puni_api_endpoint_host }}' |
           awk '{print $1}' | sort -u | grep -vxF '{{ ansible_host }}' | grep -q .
       args:
@@ -182,6 +193,8 @@
       become: false
       tags: [drain]
 
+    # Proof: a Pending workload followed by an empty attachment list previously returned exit 0;
+    # errexit now preserves the first failed required check.
     - name: Require workloads healthy elsewhere and all volume attachments detached
       ansible.builtin.shell:
         cmd: >-
@@ -218,6 +231,8 @@
       when: (service_name + '.service') in ansible_facts.services
       tags: [deconfigure]
 
+    # Proof: injecting generated server/token and server/agent-token files previously let verify
+    # pass; both generated authority paths now participate in removal and absence verification.
     - name: Remove node enrollment configuration and credentials
       ansible.builtin.file:
         path: '{{ credential_path }}'
@@ -226,6 +241,8 @@
         - /etc/rancher/k3s/agent-token
         - /etc/rancher/k3s/server-token
         - /etc/rancher/k3s/config.yaml
+        - /var/lib/rancher/k3s/server/token
+        - /var/lib/rancher/k3s/server/agent-token
       loop_control:
         loop_var: credential_path
       tags: [deconfigure]
@@ -238,6 +255,8 @@
         - /etc/rancher/k3s/agent-token
         - /etc/rancher/k3s/server-token
         - /etc/rancher/k3s/config.yaml
+        - /var/lib/rancher/k3s/server/token
+        - /var/lib/rancher/k3s/server/agent-token
       loop_control:
         loop_var: credential_path
       tags: [verify]

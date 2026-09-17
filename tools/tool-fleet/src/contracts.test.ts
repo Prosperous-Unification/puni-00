@@ -20,6 +20,13 @@ const validToolchain = {
   schemaVersion: 1,
   supportedHosts: [{ distribution: 'ubuntu', version: '24.04', arch: 'amd64' }],
   binaries: {
+    terragrunt: {
+      version: '1.1.5',
+      url: 'https://example.test/terragrunt',
+      sha256,
+      os: 'linux',
+      arch: 'amd64',
+    },
     terraform: {
       version: '1.0.0',
       url: 'https://example.test/terraform',
@@ -148,6 +155,13 @@ describe('readToolchain', () => {
     const { k3s: _removed, ...binaries } = validToolchain.binaries;
     const path = await writeToolchain({ ...validToolchain, binaries });
     expect(readToolchain(path)).rejects.toThrow(/k3s/);
+  });
+
+  it('rejects a missing Terragrunt lock', async () => {
+    const { terragrunt: _removed, ...binaries } = validToolchain.binaries;
+    expect(readToolchain(await writeToolchain({ ...validToolchain, binaries }))).rejects.toThrow(
+      /terragrunt/,
+    );
   });
 
   it('requires a separately locked Terraform executable digest', async () => {

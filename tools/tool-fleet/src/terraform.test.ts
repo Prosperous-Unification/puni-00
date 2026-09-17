@@ -7,7 +7,6 @@ import {
   decodeTerraformDestroyPlan,
   decodeTerraformPlan,
   decodeTerraformStateIdentity,
-  planTerraformCommands,
   reconcileProvisioningOwnership,
 } from './terraform';
 
@@ -175,16 +174,6 @@ describe('Terraform provisioning boundary', () => {
         ['hcloud_server.node["workers-c"]'],
       ),
     ).not.toThrow();
-  });
-
-  it('builds the locked init, validate, saved-plan, show, and exact-plan apply commands', () => {
-    expect(planTerraformCommands('/repo/infra/terraform', '/state/reviewed.tfplan')).toEqual([
-      ['init', '-input=false', '-lockfile=readonly'],
-      ['validate', '-json'],
-      ['plan', '-input=false', '-lock=true', '-out=/state/reviewed.tfplan'],
-      ['show', '-json', '/state/reviewed.tfplan'],
-      ['apply', '-input=false', '-lock=true', '/state/reviewed.tfplan'],
-    ]);
   });
 
   it('imports the exact operation-owned server after a lost create response', () => {

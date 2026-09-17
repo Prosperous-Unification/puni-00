@@ -17,4 +17,4 @@ Provide a typed fleet planner and journaled apply path for provisioning, enrollm
 
 ## Constraints
 
-Plans bind desired revision, observation digest/time, provider and Kubernetes identities, preconditions, ordered effects, expiry, and SHA-256. Apply accepts only a persisted reviewed plan and re-observes before each mutation. Terraform owns cloud resources; Ansible owns host configuration. Production inputs may remain absent while local fixtures work.
+Plans bind desired revision, observation digest/time, provider and Kubernetes identities, preconditions, ordered effects, expiry, and SHA-256. Apply accepts only a persisted reviewed plan and re-observes before each mutation. Terragrunt 1.1.5 is the sole fleet infrastructure execution entry point, using the locked Terraform 1.16.3 engine and the existing state/backend. Reviewed plans also bind the source-free Terragrunt configuration. Terraform owns cloud resources; Ansible owns host configuration. Production inputs may remain absent while local fixtures work.

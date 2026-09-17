@@ -53,6 +53,10 @@ function state(serial: number, present: boolean): string {
   });
 }
 
+function engineArguments(request: CommandRequest): readonly string[] {
+  return request.arguments.slice(request.arguments.indexOf('--') + 1);
+}
+
 test('production destroy consumes retirement and a saved non-storage Terraform deletion', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'fleet-destroy-'));
   const planPath = join(directory, 'destroy.json');
@@ -82,6 +86,7 @@ test('production destroy consumes retirement and a saved non-storage Terraform d
       nodeId: 'workers-agent-a',
       retirementReceiptSha256: createHash('sha256').update(receipt).digest('hex'),
       cloudAccount: 'production',
+      terragruntConfigSha256: 'c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f',
       terraformPlanSha256: createHash('sha256').update(savedPlan).digest('hex'),
       terraformVariablesSha256: createHash('sha256').update(variables).digest('hex'),
       terraformBackendEvidenceSha256: createHash('sha256').update(backend).digest('hex'),
@@ -152,7 +157,7 @@ test('production destroy consumes retirement and a saved non-storage Terraform d
           stderr: '',
         };
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'show') {
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'show') {
         return {
           exitCode: 0,
           stdout: JSON.stringify({
@@ -170,10 +175,10 @@ test('production destroy consumes retirement and a saved non-storage Terraform d
           stderr: '',
         };
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'state') {
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'state') {
         return { exitCode: 0, stdout: state(serial, providerPresent), stderr: '' };
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'apply') {
+      if (request.executable === 'terragrunt' && engineArguments(request)[0] === 'apply') {
         providerPresent = false;
         serial = 8;
       }
@@ -185,7 +190,7 @@ test('production destroy consumes retirement and a saved non-storage Terraform d
     expectedSha256: plan.planSha256,
     journalPath: `${planPath}.journal.json`,
     dependencies: createProductionApplyDependencies(
-      directory,
+      join(import.meta.dir, '../../..'),
       plan,
       planPath,
       run,

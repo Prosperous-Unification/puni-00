@@ -14,5 +14,7 @@ compose:
   puni_instance_id: hcloud_id | string
   puni_logical_node: hcloud_labels['puni-logical-node']
   puni_operation_id: hcloud_labels['puni-operation']
-  puni_provider_state: "'pending-deletion' if hcloud_status == 'deleting' else 'running'"
+  puni_provider_state: >-
+    'pending-deletion' if hcloud_status == 'deleting' else
+    ('off' if hcloud_status == 'off' else 'running')
   puni_private_ipv4: hcloud_private_ipv4

@@ -66,6 +66,7 @@ playwright-report/
 # Terraform downloads signed providers and writes local state/plan artifacts; reviewed locks and
 # configuration stay tracked while runtime state remains in the encrypted remote backend.
 **/.terraform/
+**/.terragrunt-cache/
 *.tfstate
 *.tfstate.*
 *.tfplan

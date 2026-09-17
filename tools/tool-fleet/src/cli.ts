@@ -19,7 +19,7 @@ import {
   planOperation,
   sealOperationPlan,
 } from './plan';
-import { prepareTerraformDestroyPlan, prepareTerraformPlan } from './production-apply';
+import { prepareTerragruntDestroyPlan, prepareTerragruntPlan } from './production-apply';
 import { type FenceEvidence, planReplacement } from './replace';
 import { planRetirement } from './retire';
 import { planUpgrade, type UpgradeEvidence } from './upgrade';
@@ -133,6 +133,7 @@ function decodeRequest(flags: ReadonlyMap<string, string>): OperationRequest {
       requireExactFlags(flags, [
         '--cloud-account',
         '--retirement-receipt-sha256',
+        '--terragrunt-config-sha256',
         '--terraform-plan-sha256',
         '--terraform-variables-sha256',
         '--terraform-backend-evidence-sha256',
@@ -144,6 +145,7 @@ function decodeRequest(flags: ReadonlyMap<string, string>): OperationRequest {
         nodeId,
         retirementReceiptSha256: requireFlag(flags, '--retirement-receipt-sha256'),
         cloudAccount: requireFlag(flags, '--cloud-account'),
+        terragruntConfigSha256: requireFlag(flags, '--terragrunt-config-sha256'),
         terraformPlanSha256: requireFlag(flags, '--terraform-plan-sha256'),
         terraformVariablesSha256: requireFlag(flags, '--terraform-variables-sha256'),
         terraformBackendEvidenceSha256: requireFlag(flags, '--terraform-backend-evidence-sha256'),
@@ -197,12 +199,14 @@ function decodeRequest(flags: ReadonlyMap<string, string>): OperationRequest {
         '--k3s-role',
         '--capabilities',
         '--ssh-key-ids',
+        '--terragrunt-config-sha256',
         '--terraform-plan-sha256',
         '--terraform-variables-sha256',
         '--terraform-backend-evidence-sha256',
         '--ansible-variables-sha256',
         '--terraform-state-lineage',
         '--terraform-state-serial',
+        '--replacement-authorization-sha256',
       ]);
       const keySource = requireFlag(flags, '--ssh-key-ids');
       const sshKeyIds = keySource.split(',');
@@ -212,6 +216,7 @@ function decodeRequest(flags: ReadonlyMap<string, string>): OperationRequest {
         throw new Error('--ssh-key-ids contains an empty identity');
       }
       const budgetCapEur = Number(requireFlag(flags, '--budget-cap-eur'));
+      const replacementAuthorizationSha256 = flags.get('--replacement-authorization-sha256');
       return {
         kind,
         nodeId,
@@ -231,12 +236,14 @@ function decodeRequest(flags: ReadonlyMap<string, string>): OperationRequest {
         capabilities: decodeCapabilities(requireFlag(flags, '--capabilities')),
         budgetCapEur,
         providerOwnershipId: requireFlag(flags, '--provider-ownership-id'),
+        terragruntConfigSha256: requireFlag(flags, '--terragrunt-config-sha256'),
         terraformPlanSha256: requireFlag(flags, '--terraform-plan-sha256'),
         terraformVariablesSha256: requireFlag(flags, '--terraform-variables-sha256'),
         terraformBackendEvidenceSha256: requireFlag(flags, '--terraform-backend-evidence-sha256'),
         ansibleVariablesSha256: requireFlag(flags, '--ansible-variables-sha256'),
         terraformStateLineage: requireFlag(flags, '--terraform-state-lineage'),
         terraformStateSerial: Number(requireFlag(flags, '--terraform-state-serial')),
+        ...(replacementAuthorizationSha256 === undefined ? {} : { replacementAuthorizationSha256 }),
       };
     }
     default:
@@ -411,6 +418,75 @@ async function requireUpgradeEvidence(
   };
 }
 
+async function requireReplacementAuthorization(
+  outputPath: string,
+  fleet: ReturnType<typeof decodeFleet>,
+  request: Extract<OperationRequest, { kind: 'provision' }>,
+): Promise<{ readonly nodeId: string; readonly providerIdentity: string } | undefined> {
+  const expectedSha256 = request.replacementAuthorizationSha256;
+  if (expectedSha256 === undefined) return undefined;
+  const path = `${outputPath}.replacement-authorization.json`;
+  const source = await readRequiredState(path, 'replacement authorization');
+  if (createHash('sha256').update(source).digest('hex') !== expectedSha256) {
+    throw new Error('Replacement authorization differs from its reviewed SHA-256');
+  }
+  if (((await stat(path)).mode & 0o077) !== 0) {
+    throw new Error('Replacement authorization must be owner-only');
+  }
+  let input: unknown;
+  try {
+    input = JSON.parse(source) as unknown;
+  } catch (cause) {
+    throw new Error(`Replacement authorization at ${path} is malformed JSON`, { cause });
+  }
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+    throw new Error('Replacement authorization is not an object');
+  }
+  const authorization: Record<string, unknown> = Object.fromEntries(Object.entries(input));
+  const oldNodeId = authorization['nodeId'];
+  const oldNode =
+    typeof oldNodeId === 'string' ? fleet.nodes.find(({ id }) => id === oldNodeId) : undefined;
+  const providerIdentity =
+    oldNode?.provider.kind === 'hcloud'
+      ? `hcloud:${oldNode.provider.instanceId}`
+      : oldNode?.provider.kind === 'ssh'
+        ? `ssh:${oldNode.provider.machineId}`
+        : undefined;
+  if (
+    Object.keys(authorization).sort().join('\0') !==
+      [
+        'fenceId',
+        'fenceState',
+        'nodeId',
+        'planSha256',
+        'providerIdentity',
+        'schemaVersion',
+        'state',
+      ]
+        .sort()
+        .join('\0') ||
+    authorization['schemaVersion'] !== 1 ||
+    authorization['state'] !== 'replacement-authorized' ||
+    (authorization['fenceState'] !== 'powered-off' && authorization['fenceState'] !== 'deleted') ||
+    typeof authorization['fenceId'] !== 'string' ||
+    authorization['fenceId'].length === 0 ||
+    typeof authorization['planSha256'] !== 'string' ||
+    !/^[0-9a-f]{64}$/.test(authorization['planSha256']) ||
+    oldNode === undefined ||
+    providerIdentity === undefined ||
+    authorization['providerIdentity'] !== providerIdentity ||
+    request.nodeId === oldNode.id ||
+    request.clusterId !== oldNode.cluster ||
+    [...request.capabilities].sort().join('\0') !== [...oldNode.capabilities].sort().join('\0') ||
+    request.k3sRole !== (oldNode.capabilities.includes('control-plane') ? 'server' : 'agent')
+  ) {
+    // Proof: changing the old identity, cluster, capabilities, role, or replacement node ID makes
+    // the production planner refuse before new provider capacity can be purchased.
+    throw new Error('Replacement authorization does not match the requested replacement capacity');
+  }
+  return { nodeId: oldNode.id, providerIdentity };
+}
+
 /** Run the fleet planning command and persist the exact digest-bearing JSON. */
 export async function runPlan(argv: readonly string[]): Promise<void> {
   const flags = readFlags(argv);
@@ -443,7 +519,22 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
     request.kind === 'replace' ? await requireFenceReceipt(outputPath, fleet, request) : undefined;
   const upgradeEvidence =
     request.kind === 'upgrade' ? await requireUpgradeEvidence(outputPath, request) : undefined;
+  const replacementAuthorization =
+    request.kind === 'provision'
+      ? await requireReplacementAuthorization(outputPath, fleet, request)
+      : undefined;
   let plan = planOperation(fleet, observation, request);
+  if (request.kind === 'provision' && replacementAuthorization !== undefined) {
+    const { planSha256: _planSha256, ...body } = plan;
+    plan = sealOperationPlan({
+      ...body,
+      targetIdentities: [
+        ...plan.targetIdentities,
+        `replacement-of:${replacementAuthorization.nodeId}`,
+        `replaced-provider:${replacementAuthorization.providerIdentity}`,
+      ],
+    });
+  }
   if (request.kind === 'retire') {
     const retirement = planRetirement(
       fleet,
@@ -574,7 +665,7 @@ function requireExactFlagsForApply(flags: ReadonlyMap<string, string>): void {
 }
 
 /** Prepare the exact saved Terraform artifact and print its immutable operation bindings. */
-export async function runTerraformPlan(argv: readonly string[], root: string): Promise<void> {
+export async function runTerragruntPlan(argv: readonly string[], root: string): Promise<void> {
   const flags = readFlags(argv);
   const allowed = new Set([
     '--node',
@@ -596,7 +687,7 @@ export async function runTerraformPlan(argv: readonly string[], root: string): P
   for (const flag of flags.keys()) {
     if (!allowed.has(flag)) throw new Error(`Unexpected Terraform plan flag: ${flag}`);
   }
-  const evidence = await prepareTerraformPlan(
+  const evidence = await prepareTerragruntPlan(
     root,
     {
       nodeId: requireFlag(flags, '--node'),
@@ -624,7 +715,7 @@ export async function runTerraformPlan(argv: readonly string[], root: string): P
 }
 
 /** Prepare the exact saved Terraform destroy artifact for a separately reviewed retired node. */
-export async function runTerraformDestroyPlan(
+export async function runTerragruntDestroyPlan(
   argv: readonly string[],
   root: string,
 ): Promise<void> {
@@ -640,7 +731,7 @@ export async function runTerraformDestroyPlan(
   for (const flag of flags.keys()) {
     if (!allowed.has(flag)) throw new Error(`Unexpected Terraform destroy plan flag: ${flag}`);
   }
-  const evidence = await prepareTerraformDestroyPlan(
+  const evidence = await prepareTerragruntDestroyPlan(
     root,
     requireFlag(flags, '--node'),
     requireFlag(flags, '--provider-identity'),

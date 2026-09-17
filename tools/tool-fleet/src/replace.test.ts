@@ -30,6 +30,19 @@ function missingObservation(): FleetObservation {
 }
 
 describe('planReplacement', () => {
+  it('preserves the live powered-off provider state used by the fence recheck', async () => {
+    const root = join(import.meta.dir, '../../..');
+    for (const cluster of ['platform', 'workers']) {
+      const inventory = await readFile(
+        join(root, `infra/ansible/inventory/${cluster}.hcloud.yml`),
+        'utf8',
+      );
+      expect(inventory).toContain("'off' if hcloud_status == 'off'");
+    }
+    // Proof: mapping every non-deleting provider to running made a real powered-off fence fail the
+    // production recheck; both dynamic inventories now preserve the provider's off state.
+  });
+
   it('requires an exact external fence before replacing a missing writer', () => {
     const fleet = fleetFixture();
     const observation = missingObservation();

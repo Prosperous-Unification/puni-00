@@ -30,6 +30,7 @@ function operationPlan(): OperationPlan {
       capabilities: ['execution'],
       budgetCapEur: 20,
       providerOwnershipId: 'provision-workers-c-20260917',
+      terragruntConfigSha256: 'c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f',
       terraformPlanSha256: 'f'.repeat(64),
       terraformVariablesSha256: 'c'.repeat(64),
       terraformBackendEvidenceSha256: 'd'.repeat(64),

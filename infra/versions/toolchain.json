@@ -1,6 +1,12 @@
 {
   "schemaVersion": 1,
-  "supportedHosts": [{ "distribution": "ubuntu", "version": "24.04", "arch": "amd64" }],
+  "supportedHosts": [
+    {
+      "distribution": "ubuntu",
+      "version": "24.04",
+      "arch": "amd64"
+    }
+  ],
   "binaries": {
     "terraform": {
       "version": "1.16.3",
@@ -49,6 +55,13 @@
       "version": "1.16.4+snap.18737",
       "url": "https://api.snapcraft.io/api/v1/snaps/download/mA11087v6dR3IEcQLgICQVjuvhUUBUKM_18737.snap",
       "sha256": "1502aed73351c5463e3fcec16e7c9a3621621bdffd61387b54e5d60e45b2242b",
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "terragrunt": {
+      "version": "1.1.5",
+      "url": "https://github.com/gruntwork-io/terragrunt/releases/download/v1.1.5/terragrunt_linux_amd64",
+      "sha256": "ffc9a19a2eeb5bd9d8dcf8fb7ce3f2a51754a815fecfbdd4aaa35e526dd1d352",
       "os": "linux",
       "arch": "amd64"
     }

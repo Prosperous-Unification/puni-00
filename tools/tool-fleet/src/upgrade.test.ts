@@ -56,6 +56,10 @@ describe('planUpgrade', () => {
     expect(playbook).toContain('etcd-snapshot');
     expect(playbook).toContain("checksum: 'sha256:{{ puni_k3s_sha256 }}'");
     expect(playbook).toContain('--for=condition=Ready');
+    expect(playbook).toContain('Restart k3s service before health proof');
+    expect(playbook).toContain('status.phase!=Running,status.phase!=Succeeded');
+    expect(playbook).toContain('volumeattachments.storage.k8s.io');
+    expect(playbook).toContain('EtcdIsVoter');
     expect(playbook).not.toContain('--force');
     expect(playbook).not.toContain('--delete-emptydir-data');
   });
@@ -107,7 +111,7 @@ describe('planUpgrade', () => {
     ).toThrow(/Ready/i);
   });
 
-  it('applies one exact version transition and verifies the installed result', async () => {
+  it('recovers an interrupted exact version transition and verifies the installed result', async () => {
     const fleet = fleetFixture();
     const observation = observationFixture(fleet);
     const directory = await mkdtemp(join(tmpdir(), 'fleet-upgrade-'));
@@ -168,6 +172,7 @@ describe('planUpgrade', () => {
     });
     let leaseHolder: string | undefined;
     let installedVersion = 'v1.36.3+k3s1';
+    let upgradeAttempts = 0;
     const run = (request: CommandRequest): Promise<CommandResponse> =>
       Promise.resolve().then(() => {
         if (request.executable === 'kubectl') {
@@ -238,7 +243,15 @@ describe('planUpgrade', () => {
               stderr: '',
             };
           }
-          if (!request.arguments.includes('--tags')) installedVersion = 'v1.36.4+k3s1';
+          if (!request.arguments.includes('--tags')) {
+            upgradeAttempts += 1;
+            installedVersion = 'v1.36.4+k3s1';
+            if (upgradeAttempts === 1) {
+              // Proof: simulate interruption after the binary changed but before health proof; the
+              // next apply must run the complete recovery play despite observing the target version.
+              return { exitCode: 1, stdout: '', stderr: 'interrupted after artifact install' };
+            }
+          }
           return {
             exitCode: 0,
             stdout: `PUNI_K3S_VERSION=${installedVersion}\nPLAY RECAP\nplatform-a : ok=3 changed=0 unreachable=0 failed=0`,
@@ -256,13 +269,27 @@ describe('planUpgrade', () => {
       'upgrade-test',
     );
 
-    const receipt = await applyOperation({
-      plan,
-      expectedSha256: plan.planSha256,
-      journalPath: `${planPath}.journal.json`,
-      dependencies,
-    });
+    const apply = () =>
+      applyOperation({
+        plan,
+        expectedSha256: plan.planSha256,
+        journalPath: `${planPath}.journal.json`,
+        dependencies,
+      });
+    expect(apply()).rejects.toThrow(/interrupted after artifact install/);
+    expect(installedVersion).toBe('v1.36.4+k3s1');
+    const receipt = await apply();
     expect(receipt.state).toBe('complete');
     expect(installedVersion).toBe('v1.36.4+k3s1');
+    expect(upgradeAttempts).toBe(2);
+    expect(
+      applyOperation({
+        plan,
+        expectedSha256: plan.planSha256,
+        journalPath: `${planPath}.fresh-journal.json`,
+        dependencies,
+      }),
+    ).rejects.toThrow(/changed outside the reviewed operation/);
+    expect(upgradeAttempts).toBe(2);
   });
 });

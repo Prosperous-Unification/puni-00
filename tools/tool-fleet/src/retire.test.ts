@@ -341,10 +341,48 @@ function retirementRunner(failingTag: string) {
       }
       throw new Error(`Unexpected command ${request.executable}`);
     });
-  return { calls, run };
+  return { calls, removeNode: () => (nodePresent = false), run };
 }
 
 describe('production retirement', () => {
+  it('recovers a lost Kubernetes deletion response without deleting membership twice', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-retirement-delete-recovery-'));
+    const { planPath, plan } = await prepareRetirement(directory);
+    const controlled = retirementRunner('never');
+    const dependencies = createProductionApplyDependencies(
+      directory,
+      plan,
+      planPath,
+      controlled.run,
+      () => new Date('2026-09-17T09:00:00.000Z'),
+      'retirement-test',
+    );
+    const beforeMutation = () => Promise.resolve();
+    await dependencies.applyEffect(
+      plan,
+      'remove embedded etcd membership',
+      'effect-9',
+      beforeMutation,
+      false,
+    );
+    controlled.removeNode();
+    await dependencies.applyEffect(
+      plan,
+      'remove Kubernetes membership',
+      'effect-11',
+      beforeMutation,
+      true,
+    );
+    expect(
+      controlled.calls.filter(
+        ({ executable, arguments: commandArguments }) =>
+          executable === 'ansible-playbook' && commandArguments.includes('kubernetes-membership'),
+      ),
+    ).toHaveLength(0);
+    // Proof: an exact prior etcd-removal record plus live Node absence recovers a lost deletion
+    // response without replaying the membership mutation.
+  });
+
   it('uses hash-bound static enrollment evidence for an external SSH node', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'fleet-retirement-ssh-'));
     const prepared = await prepareRetirement(directory, 'ssh:0123456789abcdef0123456789abcdef');

@@ -85,6 +85,7 @@ const provisionRequest = {
   capabilities: ['execution'] as const,
   budgetCapEur: 20,
   providerOwnershipId: 'provision-workers-c-20260917',
+  terragruntConfigSha256: 'c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f',
   terraformPlanSha256: 'f'.repeat(64),
   terraformVariablesSha256: 'c'.repeat(64),
   terraformBackendEvidenceSha256: 'd'.repeat(64),
@@ -270,6 +271,7 @@ describe('planOperation', () => {
   const destroyEvidence = {
     retirementReceiptSha256: 'a'.repeat(64),
     cloudAccount: 'puni-production',
+    terragruntConfigSha256: 'c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f',
     terraformPlanSha256: 'b'.repeat(64),
     terraformVariablesSha256: 'c'.repeat(64),
     terraformBackendEvidenceSha256: 'd'.repeat(64),
@@ -315,6 +317,7 @@ describe('planOperation', () => {
         capabilities: ['execution'],
         budgetCapEur: 20,
         providerOwnershipId: 'provision-workers-c-20260917',
+        terragruntConfigSha256: 'c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f',
         terraformPlanSha256: 'f'.repeat(64),
         terraformVariablesSha256: 'c'.repeat(64),
         terraformBackendEvidenceSha256: 'd'.repeat(64),
@@ -336,6 +339,19 @@ describe('planOperation', () => {
       expect(plan.downtimeImplication.length).toBeGreaterThan(0);
       expect(plan.summary).toContain(request.kind);
       expect(planOperation(fleet, observation, request)).toEqual(plan);
+      if (request.kind === 'provision' || request.kind === 'destroy') {
+        expect(() =>
+          planOperation(fleet, observation, { ...request, terragruntConfigSha256: 'invalid' }),
+        ).toThrow();
+        expect(
+          planOperation(fleet, observation, { ...request, terragruntConfigSha256: 'e'.repeat(64) })
+            .planSha256,
+        ).not.toBe(plan.planSha256);
+        const { terragruntConfigSha256: _removed, ...unboundRequest } = request;
+        expect(() => decodeOperationPlan({ ...plan, request: unboundRequest })).toThrow(
+          /validation failed/i,
+        );
+      }
     }
   });
 
@@ -404,6 +420,7 @@ describe('planOperation', () => {
         capabilities: ['execution'],
         budgetCapEur: 0,
         providerOwnershipId: 'provision-workers-c-20260917',
+        terragruntConfigSha256: 'c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f',
         terraformPlanSha256: 'f'.repeat(64),
         terraformVariablesSha256: 'c'.repeat(64),
         terraformBackendEvidenceSha256: 'd'.repeat(64),
@@ -428,6 +445,7 @@ describe('planOperation', () => {
         capabilities: ['execution'],
         budgetCapEur: 20,
         providerOwnershipId: 'provision-workers-c-20260917',
+        terragruntConfigSha256: 'c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f',
         terraformPlanSha256: 'unreviewed',
         terraformVariablesSha256: 'unreviewed',
         terraformBackendEvidenceSha256: 'unreviewed',
@@ -478,6 +496,7 @@ describe('planOperation', () => {
         capabilities: ['execution'],
         budgetCapEur: 20,
         providerOwnershipId: 'provision-workers-c-20260917',
+        terragruntConfigSha256: 'c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f',
         terraformPlanSha256: 'f'.repeat(64),
         terraformVariablesSha256: 'c'.repeat(64),
         terraformBackendEvidenceSha256: 'd'.repeat(64),
@@ -502,6 +521,7 @@ describe('planOperation', () => {
         capabilities: ['execution'],
         budgetCapEur: 20,
         providerOwnershipId: 'provision-workers-c-20260917',
+        terragruntConfigSha256: 'c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f',
         terraformPlanSha256: 'f'.repeat(64),
         terraformVariablesSha256: 'c'.repeat(64),
         terraformBackendEvidenceSha256: 'd'.repeat(64),
@@ -526,6 +546,7 @@ describe('planOperation', () => {
         capabilities: ['control-plane', 'execution'],
         budgetCapEur: 20,
         providerOwnershipId: 'provision-workers-c-20260917',
+        terragruntConfigSha256: 'c8dc0be5a5c4b9c6ae5b76c2d1a33c41bc4b61859340a5759758de08f921015f',
         terraformPlanSha256: 'f'.repeat(64),
         terraformVariablesSha256: 'c'.repeat(64),
         terraformBackendEvidenceSha256: 'd'.repeat(64),

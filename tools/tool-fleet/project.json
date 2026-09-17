@@ -54,15 +54,15 @@
       "cache": false,
       "options": { "command": "bun tools/tool-fleet/src/entrypoint.ts plan" }
     },
-    "terraform-plan": {
+    "terragrunt-plan": {
       "executor": "nx:run-commands",
       "cache": false,
-      "options": { "command": "bun tools/tool-fleet/src/entrypoint.ts terraform-plan" }
+      "options": { "command": "bun tools/tool-fleet/src/entrypoint.ts terragrunt-plan" }
     },
-    "terraform-destroy-plan": {
+    "terragrunt-destroy-plan": {
       "executor": "nx:run-commands",
       "cache": false,
-      "options": { "command": "bun tools/tool-fleet/src/entrypoint.ts terraform-destroy-plan" }
+      "options": { "command": "bun tools/tool-fleet/src/entrypoint.ts terragrunt-destroy-plan" }
     },
     "discover": {
       "executor": "nx:run-commands",
