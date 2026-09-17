@@ -22,6 +22,7 @@ const installedVersions = {
   'workers-agent-a': 'v1.36.4+k3s1',
   'workers-agent-b': 'v1.36.4+k3s1',
 } as const;
+const recoveryTokenSha256s = { platform: 'a'.repeat(64), workers: 'b'.repeat(64) } as const;
 
 describe('planUpgrade', () => {
   it('orders servers before agents and requires a snapshot for every server', () => {
@@ -31,14 +32,26 @@ describe('planUpgrade', () => {
       planUpgrade(fleet, observation, 'v1.36.5+k3s1', {
         installedVersions,
         snapshotIds: {},
+        recoveryTokenSha256s,
       }),
     ).toThrow(/snapshot/i);
+    expect(() =>
+      planUpgrade(fleet, observation, 'v1.36.5+k3s1', {
+        installedVersions,
+        snapshotIds: {
+          platform: 'etcd-platform-snapshot',
+          workers: 'etcd-workers-snapshot',
+        },
+        recoveryTokenSha256s: {},
+      }),
+    ).toThrow(/retained recovery token/i);
     const plan = planUpgrade(fleet, observation, 'v1.36.5+k3s1', {
       installedVersions,
       snapshotIds: {
         platform: 'etcd-platform-snapshot',
         workers: 'etcd-workers-snapshot',
       },
+      recoveryTokenSha256s,
     });
     expect(plan.nodes.map(({ nodeId }) => nodeId)).toEqual([
       'platform-a',
@@ -57,11 +70,45 @@ describe('planUpgrade', () => {
     expect(playbook).toContain("checksum: 'sha256:{{ puni_k3s_sha256 }}'");
     expect(playbook).toContain('--for=condition=Ready');
     expect(playbook).toContain('Restart k3s service before health proof');
-    expect(playbook).toContain('status.phase!=Running,status.phase!=Succeeded');
+    expect(playbook).toContain('.status.phase != "Running"');
+    expect(playbook).toContain('.status.attached == true');
     expect(playbook).toContain('volumeattachments.storage.k8s.io');
     expect(playbook).toContain('EtcdIsVoter');
     expect(playbook).not.toContain('--force');
     expect(playbook).not.toContain('--delete-emptydir-data');
+
+    const workloadFilter = /get pods[\s\S]+?jq -e '([\s\S]+?)'\n/.exec(playbook)?.[1];
+    const storageFilter = /get volumeattachments[\s\S]+?jq -e '([\s\S]+?)'\n/.exec(playbook)?.[1];
+    if (workloadFilter === undefined || storageFilter === undefined) {
+      throw new Error('Upgrade playbook health predicates are absent');
+    }
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-upgrade-health-'));
+    const workloadPath = join(directory, 'workloads.json');
+    const attachmentPath = join(directory, 'attachments.json');
+    await writeFile(
+      workloadPath,
+      JSON.stringify({
+        items: [
+          {
+            status: {
+              phase: 'Running',
+              conditions: [{ type: 'Ready', status: 'False' }],
+            },
+          },
+        ],
+      }),
+    );
+    await writeFile(attachmentPath, JSON.stringify({ items: [{ status: {} }] }));
+    const unhealthyWorkload = Bun.spawnSync(['jq', '-e', workloadFilter], {
+      stdin: Bun.file(workloadPath),
+    });
+    const unknownAttachment = Bun.spawnSync(['jq', '-e', storageFilter], {
+      stdin: Bun.file(attachmentPath),
+    });
+    expect(unhealthyWorkload.exitCode).not.toBe(0);
+    expect(unknownAttachment.exitCode).not.toBe(0);
+    // Proof: the exact production jq predicates fail for Running/Ready=False workloads and
+    // VolumeAttachments whose attached state is unknown.
   });
 
   it('refuses channels, downgrades, and an unhealthy node', () => {
@@ -71,24 +118,28 @@ describe('planUpgrade', () => {
       planUpgrade(fleet, observation, 'latest', {
         installedVersions,
         snapshotIds: {},
+        recoveryTokenSha256s,
       }),
     ).toThrow(/version/i);
     expect(() =>
       planUpgrade(fleet, observation, 'v1.35.9+k3s1', {
         installedVersions,
         snapshotIds: {},
+        recoveryTokenSha256s,
       }),
     ).toThrow(/downgrade/i);
     expect(() =>
       planUpgrade(fleet, observation, 'v1.36.4+k3s1', {
         installedVersions,
         snapshotIds: {},
+        recoveryTokenSha256s,
       }),
     ).toThrow(/already installed/i);
     expect(() =>
       planUpgrade(fleet, { ...observation, desiredRevision: 'stale-revision' }, 'v1.36.5+k3s1', {
         installedVersions,
         snapshotIds: {},
+        recoveryTokenSha256s,
       }),
     ).toThrow(/current fleet observation/i);
     const target = observation.nodes[0];
@@ -107,6 +158,7 @@ describe('planUpgrade', () => {
           platform: 'etcd-platform-snapshot',
           workers: 'etcd-workers-snapshot',
         },
+        recoveryTokenSha256s,
       }),
     ).toThrow(/Ready/i);
   });
@@ -135,6 +187,7 @@ describe('planUpgrade', () => {
       },
     })}\n`;
     const knownHostsSource = '10.0.0.11 ssh-ed25519 AAAAC3NzaUpgradeKey\n';
+    const recoveryTokenSource = 'retained-recovery-token';
     const evidenceSource = `${JSON.stringify({
       schemaVersion: 1,
       installedVersions: {
@@ -144,10 +197,14 @@ describe('planUpgrade', () => {
         'workers-agent-b': 'v1.36.4+k3s1',
       },
       snapshotIds: { platform: 'snapshot-platform-20260917' },
+      recoveryTokenSha256s: {
+        platform: createHash('sha256').update(recoveryTokenSource).digest('hex'),
+      },
     })}\n`;
     await writeFile(`${planPath}.inventory.json`, inventorySource, { mode: 0o600 });
     await writeFile(knownHostsPath, knownHostsSource, { mode: 0o600 });
     await writeFile(`${planPath}.upgrade-evidence.json`, evidenceSource, { mode: 0o600 });
+    await writeFile(`${planPath}.recovery-token`, recoveryTokenSource, { mode: 0o600 });
     const plan = sealOperationPlan({
       schemaVersion: 1,
       desiredRevision: fleet.revision,
@@ -282,6 +339,16 @@ describe('planUpgrade', () => {
     expect(receipt.state).toBe('complete');
     expect(installedVersion).toBe('v1.36.4+k3s1');
     expect(upgradeAttempts).toBe(2);
+    await writeFile(`${planPath}.recovery-token`, 'changed-recovery-token', { mode: 0o600 });
+    expect(
+      applyOperation({
+        plan,
+        expectedSha256: plan.planSha256,
+        journalPath: `${planPath}.changed-token-journal.json`,
+        dependencies,
+      }),
+    ).rejects.toThrow(/retained recovery token differs/);
+    await writeFile(`${planPath}.recovery-token`, recoveryTokenSource, { mode: 0o600 });
     expect(
       applyOperation({
         plan,

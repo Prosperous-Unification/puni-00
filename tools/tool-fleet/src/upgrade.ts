@@ -17,6 +17,7 @@ export interface UpgradePlan {
 export interface UpgradeEvidence {
   readonly installedVersions: Readonly<Partial<Record<string, string>>>;
   readonly snapshotIds: Readonly<Partial<Record<string, string>>>;
+  readonly recoveryTokenSha256s: Readonly<Partial<Record<string, string>>>;
 }
 
 function versionTuple(version: string): readonly [number, number, number, number] {
@@ -80,9 +81,17 @@ export function planUpgrade(
   const servers = pending.filter(({ capabilities }) => capabilities.includes('control-plane'));
   for (const clusterId of new Set(servers.map(({ cluster }) => cluster))) {
     const snapshotId = evidence.snapshotIds[clusterId];
-    if (snapshotId === undefined || snapshotId.trim().length === 0) {
-      // Proof: the missing-snapshot planner negative refuses before changing a server binary.
-      throw new Error(`Upgrade requires an etcd snapshot and token for ${clusterId}`);
+    const tokenSha256 = evidence.recoveryTokenSha256s[clusterId];
+    if (
+      snapshotId === undefined ||
+      snapshotId.trim().length === 0 ||
+      tokenSha256 === undefined ||
+      !/^[0-9a-f]{64}$/.test(tokenSha256)
+    ) {
+      // Proof: the missing-snapshot/token planner negative refuses before changing a server binary.
+      throw new Error(
+        `Upgrade requires an etcd snapshot and retained recovery token for ${clusterId}`,
+      );
     }
   }
   const ordered = [

@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
-import { access, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'bun:test';
+import { parse } from 'yaml';
 
 import { applyOperation } from './apply';
 import { digestObservation, type FleetObservation } from './observation';
@@ -42,9 +43,88 @@ describe('planRetirement', () => {
     expect(playbook).toContain('puni.dev/forge-worktree');
     expect(playbook).toContain('puni.dev/singleton-sqlite');
     expect(playbook).toContain('volumeattachments.storage.k8s.io');
+    expect(playbook).toContain('set -euo pipefail;');
+    expect(playbook).toContain('/v3/cluster/member/list');
+    expect(playbook).toContain('/health?serializable=false');
+    expect(playbook).toContain("'etcd.k3s.cattle.io/removed-node-name'");
+    expect(playbook).toContain('- /etc/rancher/k3s');
+    expect(playbook).toContain('- /var/lib/rancher/k3s/server/tls');
+    expect(playbook).toContain('/var/lib/rancher/k3s/server/agent-token');
     expect(playbook).toContain('state: absent');
     expect(playbook).not.toContain('--force');
     expect(playbook).not.toContain('--delete-emptydir-data');
+
+    const plays = parse(playbook) as {
+      tasks: {
+        name: string;
+        'ansible.builtin.shell'?: { cmd: string };
+      }[];
+    }[];
+    const shell = (name: string): string => {
+      const command = plays[0]?.tasks.find((task) => task.name === name)?.['ansible.builtin.shell']
+        ?.cmd;
+      if (command === undefined) throw new Error(`Missing retirement shell task ${name}`);
+      return command;
+    };
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-retirement-shell-'));
+    const kubectl = join(directory, 'kubectl');
+    await writeFile(
+      kubectl,
+      `#!/bin/bash
+if [[ "$*" == *"volumeattachments"* || "$*" == *"--field-selector"* ]]; then
+  printf '%s\\n' '{"items":[]}'
+else
+  printf '%s\\n' '{"items":[{"status":{"phase":"Pending"}}]}'
+fi
+`,
+    );
+    await chmod(kubectl, 0o700);
+    const detach = Bun.spawnSync(
+      [
+        '/bin/bash',
+        '-c',
+        shell('Require workloads healthy elsewhere and all volume attachments detached'),
+      ],
+      {
+        env: { ...process.env, PATH: `${directory}:${process.env['PATH'] ?? ''}` },
+      },
+    );
+    expect(detach.exitCode).not.toBe(0);
+
+    const curl = join(directory, 'curl');
+    const members = {
+      members: [
+        { name: 'target', isLearner: false, clientURLs: ['https://target:2379'] },
+        ...Array.from({ length: 6 }, (_, position) => ({
+          name: `survivor-${String(position + 1)}`,
+          isLearner: false,
+          clientURLs: [`https://survivor-${String(position + 1)}:2379`],
+        })),
+      ],
+    };
+    await writeFile(
+      curl,
+      `#!/bin/bash
+endpoint="\${!#}"
+if [[ "$endpoint" == *"/v3/cluster/member/list" ]]; then
+  printf '%s\\n' '${JSON.stringify(members)}'
+elif [[ "$endpoint" =~ survivor-[123]:2379/health ]]; then
+  printf '%s\\n' '{"health":true}'
+else
+  exit 22
+fi
+`,
+    );
+    await chmod(curl, 0o700);
+    const quorumCommand = shell('Require a healthy surviving majority from actual etcd membership')
+      .replace(/target='{{.*?}}';/, "target='target';")
+      .replace("'{{ puni_minimum_surviving_control_planes | int }}'", '3');
+    const quorum = Bun.spawnSync(['/bin/bash', '-c', quorumCommand], {
+      env: { ...process.env, PATH: `${directory}:${process.env['PATH'] ?? ''}` },
+    });
+    expect(quorum.exitCode).not.toBe(0);
+    // Proof: the exact production shells fail when a later empty attachment query follows a
+    // Pending workload and when only three survivors of seven actual etcd voters are healthy.
   });
 
   it('refuses the last required capability and sole control-plane server', () => {

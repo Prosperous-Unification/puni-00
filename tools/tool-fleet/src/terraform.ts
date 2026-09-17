@@ -84,7 +84,7 @@ export interface ProvisioningInstance {
   readonly instanceId: string;
   readonly nodeId: string;
   readonly operationId: string;
-  readonly state: 'running' | 'pending-deletion';
+  readonly state: 'running' | 'off' | 'pending-deletion';
 }
 
 export type ProvisioningReconciliation =

@@ -389,32 +389,44 @@ async function requireUpgradeEvidence(
   const document: Record<string, unknown> = Object.fromEntries(Object.entries(input));
   if (
     Object.keys(document).sort().join('\0') !==
-      ['installedVersions', 'schemaVersion', 'snapshotIds'].sort().join('\0') ||
+      ['installedVersions', 'recoveryTokenSha256s', 'schemaVersion', 'snapshotIds']
+        .sort()
+        .join('\0') ||
     document['schemaVersion'] !== 1 ||
     typeof document['installedVersions'] !== 'object' ||
     document['installedVersions'] === null ||
     Array.isArray(document['installedVersions']) ||
     typeof document['snapshotIds'] !== 'object' ||
     document['snapshotIds'] === null ||
-    Array.isArray(document['snapshotIds'])
+    Array.isArray(document['snapshotIds']) ||
+    typeof document['recoveryTokenSha256s'] !== 'object' ||
+    document['recoveryTokenSha256s'] === null ||
+    Array.isArray(document['recoveryTokenSha256s'])
   ) {
-    throw new Error('Upgrade evidence lacks exact installed-version and snapshot maps');
+    throw new Error(
+      'Upgrade evidence lacks exact installed-version, snapshot, and recovery-token maps',
+    );
   }
   const installedVersions = Object.fromEntries(Object.entries(document['installedVersions']));
   const snapshotIds = Object.fromEntries(Object.entries(document['snapshotIds']));
+  const recoveryTokenSha256s = Object.fromEntries(Object.entries(document['recoveryTokenSha256s']));
   if (
     Object.values(installedVersions).some(
       (version) => typeof version !== 'string' || !/^v\d+\.\d+\.\d+\+k3s\d+$/.test(version),
     ) ||
     Object.values(snapshotIds).some(
       (snapshotId) => typeof snapshotId !== 'string' || snapshotId.length === 0,
+    ) ||
+    Object.values(recoveryTokenSha256s).some(
+      (sha256) => typeof sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(sha256),
     )
   ) {
-    throw new Error('Upgrade evidence contains an invalid version or snapshot identity');
+    throw new Error('Upgrade evidence contains an invalid version, snapshot, or recovery token');
   }
   return {
     installedVersions,
     snapshotIds,
+    recoveryTokenSha256s,
   };
 }
 

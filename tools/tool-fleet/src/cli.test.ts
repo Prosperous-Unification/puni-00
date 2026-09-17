@@ -141,6 +141,10 @@ test('the production plan command selects the next serial upgrade from exact evi
       platform: 'snapshot-platform-20260917',
       workers: 'snapshot-workers-20260917',
     },
+    recoveryTokenSha256s: {
+      platform: 'a'.repeat(64),
+      workers: 'b'.repeat(64),
+    },
   })}\n`;
   await writeFile(`${fixture.output}.upgrade-evidence.json`, evidenceSource, { mode: 0o600 });
   const invocation = invokePlan([

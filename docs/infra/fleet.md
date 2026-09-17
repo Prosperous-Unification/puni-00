@@ -100,11 +100,12 @@ to match.
 
 Apply requires the printed digest and runs each step under the cluster Lease.
 The playbook checks the explicit Kubernetes context, live provider ID,
-Kubernetes UID, Ready capability floors, etcd voter majority, registration
+Kubernetes UID, Ready capability floors, a linearizable etcd MemberList and
+surviving endpoint health, registration
 endpoint placement, hostPath and local-PV topology before each mutation. It
-honors PDB failures, waits for workload recovery and volume detach, disables
-k3s, removes its credentials, and asks k3s to remove the exact embedded-etcd
-member before deleting the Node. The adapter persists an authoritative
+honors PDB failures, waits for workload recovery and volume detach, asks k3s to
+remove the exact embedded-etcd member, then disables k3s and removes its
+configuration, kubeconfig, tokens, and TLS credentials before deleting the Node. The adapter persists an authoritative
 enrollment exclusion before writing the owner-only retirement receipt. Any
 failed step leaves a recoverable journal and no receipt.
 
@@ -121,12 +122,14 @@ against the live provider before writing the enrollment exclusion and a
 replacement authorization consumed by a distinct provisioning plan.
 
 Upgrade planning reads `<plan>.upgrade-evidence.json`, binds every installed
-node version and the server-cluster snapshot identities, accepts only the exact
+node version, server-cluster snapshot identities, and SHA-256s of owner-only
+`<plan>.recovery-token` artifacts, accepts only the exact
 locked k3s version, and orders servers before agents. The production adapter
 binds static inventory and host keys, rechecks the Kubernetes UID and Ready
 condition in the explicit context, and applies one serial transition. The
 playbook is checksum-bound, drains without universal force flags, snapshots
-etcd on servers, and proves Ready before uncordoning.
+etcd on servers, and proves node, workload, volume-attachment, and etcd voter
+health before uncordoning.
 
 Provider deletion is a separate saved Terraform plan after a completed
 retirement receipt. The destroy decoder allows only the exact retired server,

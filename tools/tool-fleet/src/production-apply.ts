@@ -791,7 +791,7 @@ function decodeProviderOwnership(source: string): readonly ProvisioningInstance[
       nodeId.length === 0 ||
       typeof operationId !== 'string' ||
       operationId.length === 0 ||
-      (state !== 'running' && state !== 'pending-deletion')
+      (state !== 'running' && state !== 'off' && state !== 'pending-deletion')
     ) {
       // Proof: the malformed direct-provider production negative cannot authorize Terraform from
       // Terraform's own expected labels or a display name.
@@ -1736,6 +1736,7 @@ function createUpgradeApplyDependencies(
   async function evidence(): Promise<{
     readonly fromVersion: string;
     readonly snapshotId: string;
+    readonly recoveryTokenSha256: string;
   }> {
     const source = await readFile(evidencePath);
     if (createHash('sha256').update(source).digest('hex') !== request.upgradeEvidenceSha256) {
@@ -1750,7 +1751,9 @@ function createUpgradeApplyDependencies(
     );
     if (
       Object.keys(document).sort().join('\0') !==
-      ['installedVersions', 'schemaVersion', 'snapshotIds'].sort().join('\0')
+      ['installedVersions', 'recoveryTokenSha256s', 'schemaVersion', 'snapshotIds']
+        .sort()
+        .join('\0')
     ) {
       throw new Error('Upgrade evidence contains unreviewed fields');
     }
@@ -1759,8 +1762,14 @@ function createUpgradeApplyDependencies(
       'Upgrade installed versions',
     );
     const snapshotIds = requireRecord(document['snapshotIds'], 'Upgrade snapshot receipts');
+    const recoveryTokenSha256s = requireRecord(
+      document['recoveryTokenSha256s'],
+      'Upgrade retained recovery tokens',
+    );
     const fromVersion = installedVersions[request.nodeId];
     const snapshotId = role === 'server' ? snapshotIds[cluster] : 'not-applicable';
+    const recoveryTokenSha256 =
+      role === 'server' ? recoveryTokenSha256s[cluster] : 'not-applicable';
     if (
       document['schemaVersion'] !== 1 ||
       Object.values(installedVersions).some(
@@ -1769,14 +1778,38 @@ function createUpgradeApplyDependencies(
       Object.values(snapshotIds).some(
         (snapshot) => typeof snapshot !== 'string' || snapshot.length === 0,
       ) ||
+      Object.values(recoveryTokenSha256s).some(
+        (sha256) => typeof sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(sha256),
+      ) ||
       typeof fromVersion !== 'string' ||
       !/^v\d+\.\d+\.\d+\+k3s\d+$/.test(fromVersion) ||
       typeof snapshotId !== 'string' ||
-      snapshotId.length === 0
+      snapshotId.length === 0 ||
+      typeof recoveryTokenSha256 !== 'string' ||
+      (role === 'server' && !/^[0-9a-f]{64}$/.test(recoveryTokenSha256))
     ) {
-      throw new Error('Upgrade evidence lacks exact node version or server snapshot');
+      throw new Error(
+        'Upgrade evidence lacks exact node version, server snapshot, or retained recovery token',
+      );
     }
-    return { fromVersion, snapshotId };
+    if (role === 'server') {
+      const tokenPath = `${planPath}.recovery-token`;
+      let token: Buffer;
+      try {
+        token = await readFile(tokenPath);
+      } catch (cause) {
+        throw new Error(`Cannot read required upgrade recovery token at ${tokenPath}`, { cause });
+      }
+      if (
+        createHash('sha256').update(token).digest('hex') !== recoveryTokenSha256 ||
+        ((await stat(tokenPath)).mode & 0o077) !== 0 ||
+        token.length === 0
+      ) {
+        // Proof: changing or exposing the retained recovery token stops before drain or upgrade.
+        throw new Error('Upgrade retained recovery token differs from reviewed private evidence');
+      }
+    }
+    return { fromVersion, snapshotId, recoveryTokenSha256 };
   }
 
   async function inspect(): Promise<string> {
@@ -1874,6 +1907,7 @@ function createUpgradeApplyDependencies(
       puni_k3s_sha256: toolchain.binaries.k3s.sha256,
       puni_k3s_role: role,
       puni_etcd_snapshot_receipt: recovery.snapshotId,
+      puni_recovery_token_sha256: recovery.recoveryTokenSha256,
     });
     const versionOutput = await requireCommand(
       run,
@@ -1954,6 +1988,7 @@ function createUpgradeApplyDependencies(
               puni_k3s_sha256: toolchain.binaries.k3s.sha256,
               puni_k3s_role: role,
               puni_etcd_snapshot_receipt: recovery.snapshotId,
+              puni_recovery_token_sha256: recovery.recoveryTokenSha256,
             }),
             join(root, 'infra/ansible/playbooks/upgrade.yml'),
           ],

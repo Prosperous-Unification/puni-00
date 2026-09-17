@@ -76,6 +76,34 @@ Retirement SHALL refuse lost required capability, unsafe storage/workload moveme
 - **WHEN** replacement is planned
 - **THEN** the old node remains faulted and storage/writer reassignment is blocked
 
+#### Scenario: Embedded etcd member retires
+
+- **GIVEN** an HA server retirement with actual etcd members and endpoint health
+- **WHEN** removing the target would leave fewer than a majority of the MemberList healthy
+- **THEN** retirement refuses before stopping the target or removing its membership
+
+#### Scenario: Etcd removal response is lost
+
+- **GIVEN** k3s removed the exact member and recorded its removed-node marker but the play response was lost
+- **WHEN** the recoverable journal resumes
+- **THEN** the idempotent membership step records removal without requiring the deleted member annotations
+
+### Requirement: Serial upgrade recovery is independently restorable
+
+Each server upgrade SHALL bind an etcd snapshot receipt and an owner-only retained recovery-token artifact. Completion SHALL require the exact target version plus Ready node, workload, volume-attachment, and etcd-voter health, including after an interrupted attempt.
+
+#### Scenario: Recovery token is absent or changed
+
+- **GIVEN** a reviewed server upgrade whose private recovery-token artifact is absent, exposed, or differs from its bound SHA-256
+- **WHEN** apply reaches observation before drain
+- **THEN** it refuses without changing the server
+
+#### Scenario: Target binary was installed before interruption
+
+- **GIVEN** an active upgrade step whose target binary is present but restart or health proof was interrupted
+- **WHEN** the journal resumes
+- **THEN** it reruns service restart and every health gate before uncordoning or completing
+
 ### Requirement: Terragrunt preserves reviewed Terraform execution
 
 Fleet infrastructure SHALL execute through checksum-locked Terragrunt 1.1.5 with explicitly selected checksum-locked Terraform 1.16.3. It SHALL preserve existing backend, provider lock, saved-plan, state, ownership, and retirement authority. The source-free unit configuration SHALL be bound into each infrastructure operation plan. Unexpected execution overrides, changed binaries/configuration, implicit retries, and multi-unit execution SHALL NOT authorize effects.

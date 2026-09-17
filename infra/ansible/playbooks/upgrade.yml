@@ -15,6 +15,7 @@
           - puni_k3s_sha256 is match('^[0-9a-f]{64}$')
           - puni_k3s_role in ['server', 'agent']
           - puni_k3s_role != 'server' or (puni_etcd_snapshot_receipt | default('') | length > 0)
+          - puni_k3s_role != 'server' or puni_recovery_token_sha256 is match('^[0-9a-f]{64}$')
         fail_msg: Upgrade requires a locked version, checksum, role, and server snapshot receipt
       tags: [always]
 
@@ -102,32 +103,32 @@
       become: false
       changed_when: false
 
-    - name: Read unhealthy non-terminal workloads
-      ansible.builtin.command:
-        argv:
-          - kubectl
-          - --context
-          - '{{ puni_kube_context }}'
-          - get
-          - pods
-          - --all-namespaces
-          - --field-selector=status.phase!=Running,status.phase!=Succeeded
-          - --output=name
-      register: puni_unhealthy_workloads
+    # Proof: a Running/Ready=False pod passed the phase-only selector; the complete pod predicate
+    # now fails for every non-terminal pod that lacks Ready=True.
+    - name: Require every non-terminal workload Ready
+      ansible.builtin.shell:
+        cmd: >-
+          set -euo pipefail;
+          kubectl --context '{{ puni_kube_context }}' get pods --all-namespaces --output=json |
+          jq -e '[.items[] | select(.status.phase != "Succeeded") |
+          select(.status.phase != "Running" or
+          ([.status.conditions[]? | select(.type == "Ready" and .status == "True")] | length) != 1)] |
+          length == 0'
+        executable: /bin/bash
       delegate_to: localhost
       become: false
       changed_when: false
 
-    - name: Read unattached persistent volumes
-      ansible.builtin.command:
-        argv:
-          - kubectl
-          - --context
-          - '{{ puni_kube_context }}'
-          - get
-          - volumeattachments.storage.k8s.io
-          - --output=jsonpath={range .items[?(@.status.attached==false)]}{.metadata.name}{"\n"}{end}
-      register: puni_unattached_volumes
+    # Proof: a VolumeAttachment without status.attached passed the false-only selector; requiring
+    # attached=true for every observed attachment makes unknown storage health fail closed.
+    - name: Require every persistent volume attachment healthy
+      ansible.builtin.shell:
+        cmd: >-
+          set -euo pipefail;
+          kubectl --context '{{ puni_kube_context }}'
+          get volumeattachments.storage.k8s.io --output=json |
+          jq -e 'all(.items[]; .status.attached == true)'
+        executable: /bin/bash
       delegate_to: localhost
       become: false
       changed_when: false
@@ -147,13 +148,11 @@
       changed_when: false
       when: puni_k3s_role == 'server'
 
-    - name: Require workload, storage, and etcd health
+    - name: Require etcd health
       ansible.builtin.assert:
         that:
-          - puni_unhealthy_workloads.stdout | trim | length == 0
-          - puni_unattached_volumes.stdout | trim | length == 0
           - puni_k3s_role != 'server' or puni_etcd_voter.stdout | trim == 'True'
-        fail_msg: Upgrade health proof found unhealthy workloads, storage, or etcd membership
+        fail_msg: Upgrade health proof found unhealthy etcd membership
       delegate_to: localhost
       become: false
 
