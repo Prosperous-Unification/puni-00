@@ -314,6 +314,49 @@ const ObservationSchema = type({
   '+': 'reject',
 });
 
+const DiscoverySourceSchema = type(
+  /^(?:provider|kubernetes-nodes|kubernetes-pvcs|kubernetes-pvs|kubernetes-volumeattachments):[^/\s]+$|^ssh-facts:[^/\s]+\/[^/\s]+$/,
+);
+const ObservedNodeStateSchema = type(
+  "'enrolled' | 'discovered-unenrolled' | 'missing' | 'ready' | 'not-ready' | 'retiring'",
+);
+const ObservationSourceSchema = type({
+  name: DiscoverySourceSchema,
+  observedAt: IsoInstantSchema,
+  '+': 'reject',
+});
+const ObservedClusterSchema = type({
+  id: 'string>0',
+  state: "'ready' | 'not-bootstrapped'",
+  '+': 'reject',
+});
+const ObservedNodeSchema = type({
+  clusterId: 'string>0',
+  'desiredNodeId?': 'string>0',
+  displayName: 'string>0',
+  providerIdentity: 'string>0',
+  'privateAddress?': 'string>0',
+  'machineId?': 'string>0',
+  'kubernetesNodeUid?': 'string>0',
+  'kubernetesProviderId?': 'string>0',
+  capabilities: CapabilitySchema.array(),
+  capabilitiesObserved: 'boolean',
+  states: ObservedNodeStateSchema.array().atLeastLength(1),
+  storageAttachments: 'string[]',
+  '+': 'reject',
+});
+const DetailedObservationSchema = type({
+  schemaVersion: '1',
+  desiredRevision: 'string>0',
+  observedAt: IsoInstantSchema,
+  digest: sha256,
+  complete: 'true',
+  sources: ObservationSourceSchema.array().atLeastLength(1),
+  clusters: ObservedClusterSchema.array().atLeastLength(1),
+  nodes: ObservedNodeSchema.array(),
+  '+': 'reject',
+});
+
 function isUnknownRecord(input: unknown): input is Record<string, unknown> {
   return typeof input === 'object' && input !== null && !Array.isArray(input);
 }
@@ -322,30 +365,84 @@ function isUnknownRecord(input: unknown): input is Record<string, unknown> {
 export function decodeObservation(input: unknown): Observation {
   let identityInput = input;
   if (isUnknownRecord(input) && 'desiredRevision' in input) {
-    const allowed = new Set([
-      'schemaVersion',
-      'desiredRevision',
-      'observedAt',
-      'digest',
-      'complete',
-      'sources',
-      'clusters',
-      'nodes',
-    ]);
-    const unexpected = Object.keys(input).find((key) => !allowed.has(key));
-    if (unexpected !== undefined) {
-      throw new Error(`Observation validation failed: unexpected ${unexpected}`);
+    const detailed = DetailedObservationSchema(input);
+    if (detailed instanceof type.errors) {
+      // Proof: bypassing this schema made recomputed observations containing null sources,
+      // numeric clusters, and arbitrary node objects pass the production decoder.
+      throw new Error(`Observation validation failed: ${detailed.summary}`, { cause: detailed });
     }
-    if (
-      typeof input['desiredRevision'] !== 'string' ||
-      input['desiredRevision'].length === 0 ||
-      !Array.isArray(input['sources']) ||
-      !Array.isArray(input['clusters']) ||
-      !Array.isArray(input['nodes'])
-    ) {
-      throw new Error('Observation validation failed: detailed observation is incomplete');
+    // Proof: disabling these uniqueness checks made recomputed detailed observations with duplicate
+    // sources, clusters, provider identities, states, capabilities, and attachments pass decoding.
+    const unique = (values: readonly string[], label: string): void => {
+      if (new Set(values).size !== values.length) {
+        throw new Error(`Observation validation failed: duplicate ${label}`);
+      }
+    };
+    unique(
+      detailed.sources.map(({ name }) => name),
+      'source',
+    );
+    unique(
+      detailed.clusters.map(({ id }) => id),
+      'cluster',
+    );
+    unique(
+      detailed.nodes.map(({ providerIdentity }) => providerIdentity),
+      'provider identity',
+    );
+    unique(
+      detailed.nodes.flatMap(({ desiredNodeId }) =>
+        desiredNodeId === undefined ? [] : [desiredNodeId],
+      ),
+      'desired node identity',
+    );
+    unique(
+      detailed.nodes.flatMap(({ kubernetesNodeUid }) =>
+        kubernetesNodeUid === undefined ? [] : [kubernetesNodeUid],
+      ),
+      'Kubernetes node UID',
+    );
+    const clusterIds = new Set(detailed.clusters.map(({ id }) => id));
+    const sourceNames = new Set(detailed.sources.map(({ name }) => name));
+    for (const source of detailed.sources) {
+      const clusterId = source.name.slice(source.name.indexOf(':') + 1).split('/')[0];
+      if (!clusterIds.has(clusterId)) {
+        // Proof: accepting an unknown source cluster let recomputed external evidence escape the
+        // observed cluster set in the production decoder negative.
+        throw new Error(
+          `Observation validation failed: source references unknown cluster ${clusterId}`,
+        );
+      }
     }
-    const { digest: claimedDigest, ...body } = input;
+    for (const cluster of detailed.clusters) {
+      const requiredSources =
+        cluster.state === 'not-bootstrapped'
+          ? [`provider:${cluster.id}`]
+          : [
+              `provider:${cluster.id}`,
+              `kubernetes-nodes:${cluster.id}`,
+              `kubernetes-pvcs:${cluster.id}`,
+              `kubernetes-pvs:${cluster.id}`,
+              `kubernetes-volumeattachments:${cluster.id}`,
+            ];
+      if (requiredSources.some((source) => !sourceNames.has(source))) {
+        // Proof: omitting one required source let a recomputed partial detailed observation claim
+        // completeness until the production decoder negative restored this source closure.
+        throw new Error(`Observation validation failed: incomplete sources for ${cluster.id}`);
+      }
+    }
+    for (const node of detailed.nodes) {
+      if (!clusterIds.has(node.clusterId)) {
+        // Proof: accepting an unknown cluster let a recomputed node escape the observed cluster set.
+        throw new Error(
+          `Observation validation failed: node references unknown cluster ${node.clusterId}`,
+        );
+      }
+      unique(node.states, `state for ${node.providerIdentity}`);
+      unique(node.capabilities, `capability for ${node.providerIdentity}`);
+      unique(node.storageAttachments, `storage attachment for ${node.providerIdentity}`);
+    }
+    const { digest: claimedDigest, ...body } = detailed;
     const actualDigest = createHash('sha256').update(serializeObservation(body)).digest('hex');
     if (claimedDigest !== actualDigest) {
       // Proof: disabling this comparison made a changed node identity with the old digest pass the
@@ -353,10 +450,10 @@ export function decodeObservation(input: unknown): Observation {
       throw new Error('Observation validation failed: detailed observation digest differs');
     }
     identityInput = {
-      schemaVersion: input['schemaVersion'],
-      observedAt: input['observedAt'],
-      digest: input['digest'],
-      complete: input['complete'],
+      schemaVersion: detailed.schemaVersion,
+      observedAt: detailed.observedAt,
+      digest: detailed.digest,
+      complete: detailed.complete,
     };
   }
   const decoded = ObservationSchema(identityInput);
@@ -469,7 +566,10 @@ export function decodeFleet(input: unknown): Fleet {
     const validTopology = cluster.controlPlane === 'single' ? serverCount === 1 : serverCount >= 3;
     // Proof: removing the bootstrap exemption made the explicit empty-bootstrap production
     // observation negative fail before provider inspection with a zero-server topology error.
-    if (cluster.bootstrap === 'complete' && !validTopology) {
+    const clusterNodeCount = decoded.nodes.filter(
+      (node) => node.cluster === cluster.id && node.lifecycle !== 'retired',
+    ).length;
+    if ((cluster.bootstrap === 'complete' || clusterNodeCount > 0) && !validTopology) {
       // Proof: disabling this guard made the zero-server production decoder negative pass.
       throw new Error(
         `${cluster.id} ${cluster.controlPlane} control plane has ${String(serverCount)} servers`,
@@ -486,7 +586,7 @@ export function decodeFleet(input: unknown): Fleet {
       ).length;
       // Proof: removing the bootstrap exemption made the explicit empty-bootstrap production
       // observation negative fail on the future capability floor before discovery.
-      if (cluster.bootstrap === 'complete' && actual < floor) {
+      if ((cluster.bootstrap === 'complete' || clusterNodeCount > 0) && actual < floor) {
         // Proof: disabling this guard made the retired-last-capability production decoder negative
         // pass even though desired state could not satisfy its explicit floor.
         throw new Error(

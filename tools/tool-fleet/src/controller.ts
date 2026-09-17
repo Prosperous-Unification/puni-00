@@ -17,6 +17,11 @@ export interface CommandOutput {
 
 export type RunCommand = (command: readonly string[]) => CommandOutput;
 
+export interface ControllerBinaryLock {
+  readonly url: string;
+  readonly sha256: string;
+}
+
 const runCommand: RunCommand = (command) => Bun.spawnSync([...command]);
 const decode = (bytes: Uint8Array): string => new TextDecoder().decode(bytes);
 
@@ -28,6 +33,7 @@ export async function buildController(
   root: string,
   expectedDigest: string,
   run: RunCommand = runCommand,
+  kubectl?: ControllerBinaryLock,
 ): Promise<void> {
   const destination = join(root, 'dist/tool-fleet/controller.oci');
   await mkdir(join(root, 'dist/tool-fleet'), { recursive: true });
@@ -37,6 +43,14 @@ export async function buildController(
     'build',
     '--file',
     join(root, 'infra/controller/Containerfile'),
+    ...(kubectl === undefined
+      ? []
+      : [
+          '--build-arg',
+          `KUBECTL_URL=${kubectl.url}`,
+          '--build-arg',
+          `KUBECTL_SHA256=${kubectl.sha256}`,
+        ]),
     '--output',
     `type=oci,dest=${destination}`,
     root,

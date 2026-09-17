@@ -159,6 +159,16 @@ describe('fleet contracts', () => {
     topologyNodes[2] = { ...topologyNodes[2], capabilities: ['execution'] };
     expect(() => decodeFleet(invalidTopology)).toThrow(/control plane has 0 servers/i);
 
+    const populatedBootstrap = structuredClone(fleetInput) as unknown as Record<string, unknown>;
+    const populatedBootstrapClusters = populatedBootstrap['clusters'] as Record<string, unknown>[];
+    const bootstrapNodes = populatedBootstrap['nodes'] as Record<string, unknown>[];
+    populatedBootstrapClusters[0] = {
+      ...populatedBootstrapClusters[0],
+      bootstrap: 'required',
+    };
+    bootstrapNodes[0] = { ...bootstrapNodes[0], capabilities: ['product', 'ingress'] };
+    expect(() => decodeFleet(populatedBootstrap)).toThrow(/control plane has 0 servers/i);
+
     const unmetFloor = structuredClone(fleetInput) as unknown as Record<string, unknown>;
     const floorNodes = unmetFloor['nodes'] as Record<string, unknown>[];
     floorNodes[4] = { ...floorNodes[4], lifecycle: 'retired' };

@@ -80,4 +80,21 @@ describe('buildController', () => {
       /OCI index is invalid.*manifests/,
     );
   });
+
+  it('passes the locked kubectl artifact into the controller build', async () => {
+    const root = await scratchAsync('tool-fleet-controller-');
+    const commands: string[][] = [];
+    const runCommand: RunCommand = (command) => {
+      commands.push([...command]);
+      return commands.length === 1
+        ? output(0)
+        : output(0, JSON.stringify({ schemaVersion: 2, manifests: [{ digest: expectedDigest }] }));
+    };
+    await buildController(root, expectedDigest, runCommand, {
+      url: 'https://example.test/kubectl',
+      sha256: 'b'.repeat(64),
+    });
+    expect(commands[0]).toContain('KUBECTL_URL=https://example.test/kubectl');
+    expect(commands[0]).toContain(`KUBECTL_SHA256=${'b'.repeat(64)}`);
+  });
 });

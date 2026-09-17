@@ -9,6 +9,7 @@ import {
   decodeFleet,
   type Fleet,
   type FleetNode,
+  readToolchain,
 } from './contracts';
 import {
   digestObservation,
@@ -34,6 +35,8 @@ export interface DiscoveryResponse {
 
 export type RunDiscoveryCommand = (command: DiscoveryCommand) => Promise<DiscoveryResponse>;
 
+class DiscoveryCommandFailure extends Error {}
+
 interface ProviderHost {
   readonly clusterId: string;
   readonly displayName: string;
@@ -54,6 +57,17 @@ interface KubernetesNode {
   readonly machineId?: string;
   readonly ready: boolean;
   readonly capabilities: readonly Capability[];
+  readonly capabilitiesObserved: boolean;
+}
+
+interface PersistentVolumeClaim {
+  readonly key: string;
+  readonly volumeName?: string;
+}
+
+interface PersistentVolume {
+  readonly name: string;
+  readonly claimKey?: string;
 }
 
 interface ObserveOptions {
@@ -62,6 +76,48 @@ interface ObserveOptions {
   readonly now?: () => Date;
   readonly maxSourceAgeMs?: number;
   readonly timeoutMs?: number;
+}
+
+function buildControllerCommand(
+  command: DiscoveryCommand,
+  root: string,
+  image: string,
+  digest: string,
+): DiscoveryCommand {
+  // Proof: invoking the logical executable directly made the production CLI fixture bypass the
+  // digest-locked controller; its Docker invocation assertion failed under that mutation.
+  const controllerArguments: string[] = [
+    'run',
+    '--rm',
+    '--network',
+    'host',
+    '--volume',
+    `${root}:${root}:ro`,
+    '--workdir',
+    root,
+  ];
+  for (const name of ['HCLOUD_TOKEN', 'KUBECONFIG', 'SSH_AUTH_SOCK'] as const) {
+    const value = process.env[name];
+    if (value === undefined || value.length === 0) continue;
+    controllerArguments.push('--env', name);
+    if (name === 'KUBECONFIG') {
+      for (const path of value.split(':'))
+        controllerArguments.push('--volume', `${path}:${path}:ro`);
+    }
+    if (name === 'SSH_AUTH_SOCK') controllerArguments.push('--volume', `${value}:${value}`);
+  }
+  // Proof: omitting the in-container timeout made the production Docker invocation assertion fail;
+  // it bounds the workload even if killing a disconnected Docker client cannot stop the container.
+  controllerArguments.push(
+    `${image}@${digest}`,
+    'timeout',
+    '--signal=TERM',
+    '--kill-after=0.1s',
+    `${String(command.timeoutMs / 1000)}s`,
+    command.executable,
+    ...command.arguments,
+  );
+  return { ...command, executable: 'docker', arguments: controllerArguments };
 }
 
 function isRecord(input: unknown): input is Record<string, unknown> {
@@ -134,7 +190,7 @@ async function readSource(
   if (response.exitCode !== 0) {
     // Proof: disabling this status refusal made provider exit 42 decode as an empty fleet in the
     // production observer negative; restored handling names the source and stderr.
-    throw new Error(
+    throw new DiscoveryCommandFailure(
       `${command.source} failed with exit ${String(response.exitCode)}: ${response.stderr}`,
     );
   }
@@ -232,11 +288,14 @@ function parseSshOutput(stdout: string, source: DiscoverySource): readonly SshHo
   }
 }
 
-function parseCapabilities(labelsInput: unknown, source: DiscoverySource): readonly Capability[] {
-  if (labelsInput === undefined) return [];
+function parseCapabilities(
+  labelsInput: unknown,
+  source: DiscoverySource,
+): { readonly values: readonly Capability[]; readonly observed: boolean } {
+  if (labelsInput === undefined) return { values: [], observed: false };
   const labels = requireRecord(labelsInput, source, 'metadata.labels');
   const encoded = labels['puni.dev/capabilities'];
-  if (encoded === undefined) return [];
+  if (encoded === undefined) return { values: [], observed: false };
   const values = requireString(encoded, source, 'metadata.labels[puni.dev/capabilities]').split(
     ',',
   );
@@ -257,7 +316,7 @@ function parseCapabilities(labelsInput: unknown, source: DiscoverySource): reado
         throw new Error(`${source} has unknown observed capability: ${value}`);
     }
   }
-  return decoded;
+  return { values: decoded, observed: true };
 }
 
 function parseKubernetesNodes(input: unknown, source: DiscoverySource): readonly KubernetesNode[] {
@@ -287,6 +346,7 @@ function parseKubernetesNodes(input: unknown, source: DiscoverySource): readonly
     );
     const providerId = spec['providerID'];
     const machineId = nodeInfo['machineID'];
+    const capabilities = parseCapabilities(metadata['labels'], source);
     return {
       displayName: requireString(
         metadata['name'],
@@ -313,7 +373,8 @@ function parseKubernetesNodes(input: unknown, source: DiscoverySource): readonly
             ),
           }),
       ready,
-      capabilities: parseCapabilities(metadata['labels'], source),
+      capabilities: capabilities.values,
+      capabilitiesObserved: capabilities.observed,
     };
   });
 }
@@ -321,8 +382,11 @@ function parseKubernetesNodes(input: unknown, source: DiscoverySource): readonly
 function parseAttachments(
   input: unknown,
   source: DiscoverySource,
+  volumes: ReadonlyMap<string, PersistentVolume>,
+  claims: ReadonlyMap<string, PersistentVolumeClaim>,
 ): ReadonlyMap<string, readonly string[]> {
   const attachments = new Map<string, string[]>();
+  const names = new Set<string>();
   for (const [position, attachmentInput] of requireItems(input, source).entries()) {
     const attachment = requireRecord(attachmentInput, source, `items[${String(position)}]`);
     const metadata = requireRecord(
@@ -331,6 +395,11 @@ function parseAttachments(
       `items[${String(position)}].metadata`,
     );
     const spec = requireRecord(attachment['spec'], source, `items[${String(position)}].spec`);
+    const attachmentSource = requireRecord(
+      spec['source'],
+      source,
+      `items[${String(position)}].spec.source`,
+    );
     const nodeName = requireString(
       spec['nodeName'],
       source,
@@ -341,25 +410,118 @@ function parseAttachments(
       source,
       `items[${String(position)}].metadata.name`,
     );
+    // Proof: allowing a duplicate attachment name made two source rows masquerade as distinct
+    // storage evidence in the production observer negative.
+    if (names.has(name)) throw new Error(`${source} duplicates volume attachment ${name}`);
+    names.add(name);
+    const volumeName = requireString(
+      attachmentSource['persistentVolumeName'],
+      source,
+      `items[${String(position)}].spec.source.persistentVolumeName`,
+    );
+    const volume = volumes.get(volumeName);
+    if (volume === undefined) {
+      // Proof: accepting an unobserved PV let a partial storage response become a complete node
+      // attachment in the production observer negative.
+      throw new Error(`${source} references unobserved persistent volume ${volumeName}`);
+    }
+    const claim = volume.claimKey === undefined ? undefined : claims.get(volume.claimKey);
+    if (volume.claimKey !== undefined && claim?.volumeName !== volumeName) {
+      // Proof: accepting a missing or mismatched PVC let an attachment discard its claim owner in
+      // the production observer negative.
+      throw new Error(`${source} cannot verify bound claim ${volume.claimKey} for ${volumeName}`);
+    }
     const held = attachments.get(nodeName) ?? [];
-    held.push(name);
+    held.push(
+      volume.claimKey === undefined
+        ? `pv:${volume.name}#volumeattachment:${name}`
+        : `pvc:${volume.claimKey}@pv:${volume.name}#volumeattachment:${name}`,
+    );
     attachments.set(nodeName, held);
   }
   return attachments;
 }
 
-function providerIdentity(node: FleetNode): string {
+function parseClaims(
+  input: unknown,
+  source: DiscoverySource,
+): ReadonlyMap<string, PersistentVolumeClaim> {
+  const claims = new Map<string, PersistentVolumeClaim>();
+  for (const [position, claimInput] of requireItems(input, source).entries()) {
+    const claim = requireRecord(claimInput, source, `items[${String(position)}]`);
+    const metadata = requireRecord(
+      claim['metadata'],
+      source,
+      `items[${String(position)}].metadata`,
+    );
+    const spec = requireRecord(claim['spec'], source, `items[${String(position)}].spec`);
+    const key = `${requireString(metadata['namespace'], source, `items[${String(position)}].metadata.namespace`)}/${requireString(metadata['name'], source, `items[${String(position)}].metadata.name`)}`;
+    if (claims.has(key)) {
+      // Proof: allowing map overwrite made a duplicate PVC identity hide one storage observation.
+      throw new Error(`${source} duplicates persistent volume claim ${key}`);
+    }
+    const volumeName = spec['volumeName'];
+    claims.set(key, {
+      key,
+      ...(volumeName === undefined
+        ? {}
+        : {
+            volumeName: requireString(
+              volumeName,
+              source,
+              `items[${String(position)}].spec.volumeName`,
+            ),
+          }),
+    });
+  }
+  return claims;
+}
+
+function parseVolumes(
+  input: unknown,
+  source: DiscoverySource,
+): ReadonlyMap<string, PersistentVolume> {
+  const volumes = new Map<string, PersistentVolume>();
+  for (const [position, volumeInput] of requireItems(input, source).entries()) {
+    const volume = requireRecord(volumeInput, source, `items[${String(position)}]`);
+    const metadata = requireRecord(
+      volume['metadata'],
+      source,
+      `items[${String(position)}].metadata`,
+    );
+    const spec = requireRecord(volume['spec'], source, `items[${String(position)}].spec`);
+    const name = requireString(
+      metadata['name'],
+      source,
+      `items[${String(position)}].metadata.name`,
+    );
+    if (volumes.has(name)) {
+      // Proof: allowing map overwrite made a duplicate PV identity hide one storage observation.
+      throw new Error(`${source} duplicates persistent volume ${name}`);
+    }
+    const claimInput = spec['claimRef'];
+    let claimKey: string | undefined;
+    if (claimInput !== undefined) {
+      const claim = requireRecord(claimInput, source, `items[${String(position)}].spec.claimRef`);
+      claimKey = `${requireString(claim['namespace'], source, `items[${String(position)}].spec.claimRef.namespace`)}/${requireString(claim['name'], source, `items[${String(position)}].spec.claimRef.name`)}`;
+    }
+    volumes.set(name, { name, ...(claimKey === undefined ? {} : { claimKey }) });
+  }
+  return volumes;
+}
+
+function identifyProvider(node: FleetNode): string {
   return node.provider.kind === 'hcloud'
     ? `hcloud:${node.provider.instanceId}`
     : `ssh:${node.provider.machineId}`;
 }
 
-function kubernetesIdentity(node: KubernetesNode): string | undefined {
+function identifyKubernetesProvider(node: KubernetesNode): string | undefined {
   if (node.providerId?.startsWith('hcloud://')) return `hcloud:${node.providerId.slice(9)}`;
   return node.machineId === undefined ? undefined : `ssh:${node.machineId}`;
 }
 
-function commandOf(
+function buildDiscoveryCommand(
   root: string,
   cluster: Cluster,
   kind: 'provider' | 'nodes' | 'pvcs' | 'pvs' | 'volumeattachments',
@@ -391,7 +553,7 @@ function commandOf(
   };
 }
 
-function sshCommandOf(
+function buildSshDiscoveryCommand(
   root: string,
   cluster: Cluster,
   nodeId: string,
@@ -416,31 +578,38 @@ function sshCommandOf(
 export async function runDiscoveryCommand(command: DiscoveryCommand): Promise<DiscoveryResponse> {
   const observedAt = new Date().toISOString();
   const child = Bun.spawn([command.executable, ...command.arguments], {
+    detached: true,
     stdout: 'pipe',
     stderr: 'pipe',
   });
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  const outcome = await Promise.race([
-    child.exited.then((exitCode) => ({ kind: 'exit' as const, exitCode })),
-    new Promise<{ readonly kind: 'timeout' }>((resolve) => {
-      timeout = setTimeout(() => {
-        resolve({ kind: 'timeout' });
-      }, command.timeoutMs);
-    }),
-  ]);
-  if (timeout !== undefined) clearTimeout(timeout);
-  if (outcome.kind === 'timeout') {
-    // Proof: disabling this refusal made the sleeping-provider production CLI negative wait for
-    // output beyond its one-millisecond bound and then emit an observation.
-    child.kill();
-    await child.exited;
-    throw new Error(`${command.source} timed out after ${String(command.timeoutMs)}ms`);
-  }
-  const [stdout, stderr] = await Promise.all([
+  const completed = Promise.all([
+    child.exited,
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
-  ]);
-  return { exitCode: outcome.exitCode, stdout, stderr, observedAt };
+  ]).then(([exitCode, stdout, stderr]) => ({ exitCode, stdout, stderr, observedAt }));
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      try {
+        // Proof: killing only the direct shell let a signal-ignoring descendant retain the output
+        // pipes for over one second after a 100ms production timeout.
+        process.kill(-child.pid, 'SIGKILL');
+      } catch (cause) {
+        reject(
+          new Error(`${command.source} timed out and its process group could not be killed`, {
+            cause,
+          }),
+        );
+        return;
+      }
+      reject(new Error(`${command.source} timed out after ${String(command.timeoutMs)}ms`));
+    }, command.timeoutMs);
+  });
+  try {
+    return await Promise.race([completed, expired]);
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
 }
 
 /** Observe every required provider, Kubernetes, storage, and machine-identity source. */
@@ -448,16 +617,30 @@ export async function observeFleet(
   fleet: Fleet,
   options: ObserveOptions,
 ): Promise<FleetObservation> {
-  const run = options.run ?? runDiscoveryCommand;
+  let run = options.run;
+  if (run === undefined) {
+    const toolchain = await readToolchain(join(options.root, 'infra/versions/toolchain.json'));
+    run = (command) =>
+      runDiscoveryCommand(
+        buildControllerCommand(
+          command,
+          options.root,
+          toolchain.controller.image,
+          toolchain.controller.digest,
+        ),
+      );
+  }
   const now = options.now ?? (() => new Date());
   const maxSourceAgeMs = options.maxSourceAgeMs ?? 30_000;
   const timeoutMs = options.timeoutMs ?? 30_000;
   const sources: { name: DiscoverySource; observedAt: string }[] = [];
   const observedNodes: ObservedNode[] = [];
   const observedClusters: { id: string; state: 'ready' | 'not-bootstrapped' }[] = [];
+  const providerOwners = new Map<string, string>();
+  const kubernetesOwners = new Map<string, string>();
 
   for (const cluster of fleet.clusters) {
-    const providerCommand = commandOf(options.root, cluster, 'provider', timeoutMs);
+    const providerCommand = buildDiscoveryCommand(options.root, cluster, 'provider', timeoutMs);
     const providerSource = await readJsonSource(providerCommand, run, now, maxSourceAgeMs);
     sources.push({ name: providerCommand.source, observedAt: providerSource.observedAt });
     const providerHosts = parseProviderHosts(providerSource.input, providerCommand.source);
@@ -469,12 +652,26 @@ export async function observeFleet(
           `${providerCommand.source} returned host ${host.displayName} for ${host.clusterId}`,
         );
       }
+      const identity = `hcloud:${host.instanceId}`;
+      const owner = providerOwners.get(identity);
+      if (owner !== undefined) {
+        // Proof: allowing map overwrite made duplicate provider identities silently select the
+        // last display name in a complete production observation.
+        throw new Error(
+          `${providerCommand.source} duplicates provider identity ${identity} from ${owner}`,
+        );
+      }
+      providerOwners.set(identity, `${cluster.id}/${host.displayName}`);
     }
 
-    const nodeCommand = commandOf(options.root, cluster, 'nodes', timeoutMs);
+    const nodeCommand = buildDiscoveryCommand(options.root, cluster, 'nodes', timeoutMs);
     let kubernetesNodes: readonly KubernetesNode[];
     try {
-      const nodeSource = await readJsonSource(nodeCommand, run, now, maxSourceAgeMs);
+      const nodeResponse = await readSource(nodeCommand, run, now, maxSourceAgeMs);
+      const nodeSource = {
+        input: parseJson(nodeResponse, nodeCommand.source),
+        observedAt: nodeResponse.observedAt,
+      };
       sources.push({ name: nodeCommand.source, observedAt: nodeSource.observedAt });
       kubernetesNodes = parseKubernetesNodes(nodeSource.input, nodeCommand.source);
     } catch (cause) {
@@ -482,7 +679,8 @@ export async function observeFleet(
       if (
         cluster.bootstrap === 'required' &&
         desiredNodes.length === 0 &&
-        providerHosts.length === 0
+        providerHosts.length === 0 &&
+        cause instanceof DiscoveryCommandFailure
       ) {
         // Proof: widening this recovery to an established or nonempty cluster made the failed-API
         // negative become not-bootstrapped; restored recovery requires all three facts.
@@ -492,9 +690,14 @@ export async function observeFleet(
       throw cause;
     }
 
-    const pvcCommand = commandOf(options.root, cluster, 'pvcs', timeoutMs);
-    const pvCommand = commandOf(options.root, cluster, 'pvs', timeoutMs);
-    const attachmentCommand = commandOf(options.root, cluster, 'volumeattachments', timeoutMs);
+    const pvcCommand = buildDiscoveryCommand(options.root, cluster, 'pvcs', timeoutMs);
+    const pvCommand = buildDiscoveryCommand(options.root, cluster, 'pvs', timeoutMs);
+    const attachmentCommand = buildDiscoveryCommand(
+      options.root,
+      cluster,
+      'volumeattachments',
+      timeoutMs,
+    );
     const [pvcSource, pvSource, attachmentSource] = await Promise.all([
       readJsonSource(pvcCommand, run, now, maxSourceAgeMs),
       readJsonSource(pvCommand, run, now, maxSourceAgeMs),
@@ -505,13 +708,24 @@ export async function observeFleet(
       { name: pvCommand.source, observedAt: pvSource.observedAt },
       { name: attachmentCommand.source, observedAt: attachmentSource.observedAt },
     );
-    requireItems(pvcSource.input, pvcCommand.source);
-    requireItems(pvSource.input, pvCommand.source);
-    const attachments = parseAttachments(attachmentSource.input, attachmentCommand.source);
+    const claims = parseClaims(pvcSource.input, pvcCommand.source);
+    const volumes = parseVolumes(pvSource.input, pvCommand.source);
+    const attachments = parseAttachments(
+      attachmentSource.input,
+      attachmentCommand.source,
+      volumes,
+      claims,
+    );
     const sshHosts: SshHost[] = [];
     for (const node of fleet.nodes) {
       if (node.cluster !== cluster.id || node.provider.kind !== 'ssh') continue;
-      const sshCommand = sshCommandOf(options.root, cluster, node.id, node.provider, timeoutMs);
+      const sshCommand = buildSshDiscoveryCommand(
+        options.root,
+        cluster,
+        node.id,
+        node.provider,
+        timeoutMs,
+      );
       const sshSource = await readSource(sshCommand, run, now, maxSourceAgeMs);
       sources.push({ name: sshCommand.source, observedAt: sshSource.observedAt });
       sshHosts.push(...parseSshOutput(sshSource.stdout, sshCommand.source));
@@ -519,28 +733,65 @@ export async function observeFleet(
 
     const providers = new Map<string, ProviderHost | SshHost>();
     for (const host of providerHosts) providers.set(`hcloud:${host.instanceId}`, host);
-    for (const host of sshHosts) providers.set(`ssh:${host.machineId}`, host);
+    for (const host of sshHosts) {
+      const identity = `ssh:${host.machineId}`;
+      const owner = providerOwners.get(identity);
+      if (owner !== undefined)
+        throw new Error(`${cluster.id} duplicates provider identity ${identity} from ${owner}`);
+      providerOwners.set(identity, `${cluster.id}/${host.displayName}`);
+      providers.set(identity, host);
+    }
     const nodesByProvider = new Map<string, KubernetesNode>();
     for (const node of kubernetesNodes) {
-      const identity = kubernetesIdentity(node);
-      if (identity !== undefined) nodesByProvider.set(identity, node);
+      const identity = identifyKubernetesProvider(node);
+      if (identity === undefined) {
+        // Proof: omitting this refusal made an identity-free Kubernetes node disappear from an
+        // otherwise complete production observation.
+        throw new Error(
+          `${nodeCommand.source} node ${node.displayName} has no provider or machine identity`,
+        );
+      }
+      const owner = kubernetesOwners.get(identity);
+      if (owner !== undefined)
+        // Proof: allowing map overwrite made duplicate Kubernetes identities silently select the
+        // final node in the production observer negative.
+        throw new Error(
+          `${nodeCommand.source} duplicates Kubernetes identity ${identity} from ${owner}`,
+        );
+      kubernetesOwners.set(identity, `${cluster.id}/${node.displayName}`);
+      nodesByProvider.set(identity, node);
     }
 
     const desiredNodes = fleet.nodes.filter(({ cluster: clusterId }) => clusterId === cluster.id);
     const enrolled = new Set<string>();
     for (const desiredNode of desiredNodes) {
-      const identity = providerIdentity(desiredNode);
+      const identity = identifyProvider(desiredNode);
       const provider = providers.get(identity);
       const kubernetesNode = nodesByProvider.get(identity);
       if (provider === undefined) {
+        const missingStates: ObservedNodeState[] =
+          desiredNode.lifecycle === 'draining' ? ['retiring', 'missing'] : ['missing'];
+        if (kubernetesNode !== undefined) {
+          missingStates.push(kubernetesNode.ready ? 'ready' : 'not-ready');
+        }
         observedNodes.push({
           clusterId: cluster.id,
           desiredNodeId: desiredNode.id,
           displayName: desiredNode.id,
           providerIdentity: identity,
-          capabilities: desiredNode.capabilities,
-          states: desiredNode.lifecycle === 'draining' ? ['retiring', 'missing'] : ['missing'],
-          storageAttachments: [],
+          ...(kubernetesNode === undefined
+            ? {}
+            : {
+                kubernetesNodeUid: kubernetesNode.uid,
+                ...(kubernetesNode.providerId === undefined
+                  ? {}
+                  : { kubernetesProviderId: kubernetesNode.providerId }),
+              }),
+          capabilities: kubernetesNode?.capabilities ?? [],
+          capabilitiesObserved: kubernetesNode?.capabilitiesObserved ?? false,
+          states: missingStates,
+          storageAttachments:
+            kubernetesNode === undefined ? [] : (attachments.get(kubernetesNode.displayName) ?? []),
         });
         continue;
       }
@@ -568,10 +819,8 @@ export async function observeFleet(
                 ? {}
                 : { kubernetesProviderId: kubernetesNode.providerId }),
             }),
-        capabilities:
-          kubernetesNode?.capabilities.length === 0 || kubernetesNode === undefined
-            ? desiredNode.capabilities
-            : kubernetesNode.capabilities,
+        capabilities: kubernetesNode?.capabilities ?? [],
+        capabilitiesObserved: kubernetesNode?.capabilitiesObserved ?? false,
         states,
         storageAttachments:
           kubernetesNode === undefined ? [] : (attachments.get(kubernetesNode.displayName) ?? []),
@@ -587,12 +836,23 @@ export async function observeFleet(
           ? { privateAddress: provider.privateAddress }
           : { privateAddress: provider.address, machineId: provider.machineId }),
         capabilities: [],
+        capabilitiesObserved: false,
         states: ['discovered-unenrolled'],
         storageAttachments: [],
       });
     }
     observedClusters.push({ id: cluster.id, state: 'ready' });
   }
+
+  // Proof: omitting final revalidation let early provider evidence age past the source budget
+  // while later sequential discovery still emitted a fresh complete snapshot.
+  for (const source of sources)
+    requireFresh(
+      { exitCode: 0, stdout: '', stderr: '', observedAt: source.observedAt },
+      source.name,
+      now(),
+      maxSourceAgeMs,
+    );
 
   const body = {
     schemaVersion: 1 as const,

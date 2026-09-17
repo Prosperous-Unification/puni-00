@@ -23,6 +23,7 @@ export interface ObservedNode {
   readonly kubernetesNodeUid?: string;
   readonly kubernetesProviderId?: string;
   readonly capabilities: readonly Capability[];
+  readonly capabilitiesObserved: boolean;
   readonly states: readonly ObservedNodeState[];
   readonly storageAttachments: readonly string[];
 }

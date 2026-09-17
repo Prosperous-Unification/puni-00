@@ -71,7 +71,7 @@
   },
   "controller": {
     "image": "ghcr.io/prosperous-unification/fleet-controller:0.1.0",
-    "digest": "sha256:1969d0074e2dded270bb38af87171cf789b0f38842ef2cd741182b64b963a42d",
+    "digest": "sha256:58926be24296929f29d833da7cf18436f981a9b28e3bc42650d03f29fbe13933",
     "python": "3.14.6",
     "pythonPackages": {
       "certifi": "2026.7.22",

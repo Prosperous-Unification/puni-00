@@ -6,6 +6,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { decodeFleet, decodeObservation, type Fleet } from './contracts';
 import { type DiscoveryCommand, type DiscoveryResponse, observeFleet } from './discover';
+import { digestObservation, type FleetObservationBody } from './observation';
 
 const now = new Date('2026-09-17T12:00:00.000Z');
 
@@ -84,7 +85,34 @@ function successfulRunner(instanceId = '1001') {
           items: [
             {
               metadata: { name: 'attachment-platform-a' },
-              spec: { nodeName: 'platform-a' },
+              spec: {
+                nodeName: 'platform-a',
+                source: { persistentVolumeName: 'pv-platform-a' },
+              },
+            },
+          ],
+        }),
+      );
+    }
+    if (command.source === 'kubernetes-pvs:platform') {
+      return Promise.resolve(
+        response({
+          items: [
+            {
+              metadata: { name: 'pv-platform-a' },
+              spec: { claimRef: { namespace: 'default', name: 'claim-platform-a' } },
+            },
+          ],
+        }),
+      );
+    }
+    if (command.source === 'kubernetes-pvcs:platform') {
+      return Promise.resolve(
+        response({
+          items: [
+            {
+              metadata: { namespace: 'default', name: 'claim-platform-a' },
+              spec: { volumeName: 'pv-platform-a' },
             },
           ],
         }),
@@ -114,7 +142,9 @@ describe('observeFleet', () => {
         providerIdentity: 'hcloud:1001',
         kubernetesNodeUid: 'uid-platform-a',
         states: ['enrolled', 'ready'],
-        storageAttachments: ['attachment-platform-a'],
+        storageAttachments: [
+          'pvc:default/claim-platform-a@pv:pv-platform-a#volumeattachment:attachment-platform-a',
+        ],
       }),
     ]);
     expect(observation.digest).toMatch(/^[0-9a-f]{64}$/);
@@ -130,6 +160,46 @@ describe('observeFleet', () => {
         nodes: [{ ...observation.nodes[0], providerIdentity: 'hcloud:replaced' }],
       }),
     ).toThrow(/digest differs/i);
+
+    const { digest: _digest, ...body } = observation;
+    for (const malformedBody of [
+      { ...body, sources: [null] },
+      { ...body, clusters: [7] },
+      { ...body, nodes: [{}] },
+      { ...body, sources: body.sources.slice(0, -1) },
+      {
+        ...body,
+        sources: [...body.sources, { name: 'provider:unknown', observedAt: body.observedAt }],
+      },
+      { ...body, sources: [body.sources[0], body.sources[0]] },
+      { ...body, clusters: [body.clusters[0], body.clusters[0]] },
+      { ...body, nodes: [body.nodes[0], body.nodes[0]] },
+      { ...body, nodes: [{ ...body.nodes[0], clusterId: 'unknown' }] },
+      {
+        ...body,
+        nodes: [{ ...body.nodes[0], states: ['enrolled', 'enrolled'] }],
+      },
+      {
+        ...body,
+        nodes: [
+          {
+            ...body.nodes[0],
+            storageAttachments: [
+              body.nodes[0]?.storageAttachments[0],
+              body.nodes[0]?.storageAttachments[0],
+            ],
+          },
+        ],
+      },
+    ]) {
+      const malformedObservation = {
+        ...malformedBody,
+        digest: digestObservation(malformedBody as unknown as FleetObservationBody),
+      };
+      expect(() => decodeObservation(malformedObservation)).toThrow(
+        /Observation validation failed/,
+      );
+    }
   });
 
   it('reports provider-only desired nodes as discovered but not enrolled', async () => {
@@ -181,6 +251,24 @@ describe('observeFleet', () => {
         displayName: 'platform-a',
         providerIdentity: 'hcloud:9999',
         states: ['discovered-unenrolled'],
+      }),
+    ]);
+  });
+
+  it('preserves Kubernetes and storage evidence when the provider host is missing', async () => {
+    const run = (command: DiscoveryCommand): Promise<DiscoveryResponse> =>
+      command.source === 'provider:platform'
+        ? Promise.resolve(response({ _meta: { hostvars: {} } }))
+        : successfulRunner()(command);
+    const observation = await observeFleet(fleetOf(), { now: () => now, run, root: '/repo' });
+    expect(observation.nodes).toEqual([
+      expect.objectContaining({
+        states: ['missing', 'ready'],
+        kubernetesNodeUid: 'uid-platform-a',
+        capabilities: [],
+        storageAttachments: [
+          'pvc:default/claim-platform-a@pv:pv-platform-a#volumeattachment:attachment-platform-a',
+        ],
       }),
     ]);
   });
@@ -250,6 +338,23 @@ PLAY RECAP *********************************************************************
         root: '/repo',
       }),
     ).rejects.toThrow(/ssh-facts:platform\/platform-a.*controlled machine identity fact/i);
+
+    expect(
+      observeFleet(fleetOf('complete', 'ssh'), {
+        now: () => now,
+        run: (command) =>
+          command.source.startsWith('ssh-facts:')
+            ? Promise.resolve({
+                exitCode: 0,
+                stderr: '',
+                observedAt: now.toISOString(),
+                stdout:
+                  'TASK [Emit fleet machine fact]\nok: [host] => {\n    "msg": {bad}\n}\nPLAY RECAP',
+              })
+            : run(command),
+        root: '/repo',
+      }),
+    ).rejects.toThrow(/malformed machine identity fact/i);
   });
 
   it('distinguishes an intentional empty bootstrap cluster from a failed established API', async () => {
@@ -286,6 +391,22 @@ PLAY RECAP *********************************************************************
         maxSourceAgeMs: 30_000,
       }),
     ).rejects.toThrow(/kubernetes-nodes:platform.*connection refused/i);
+
+    expect(
+      observeFleet(fleetOf('required'), {
+        now: () => now,
+        run: (command) =>
+          command.source === 'kubernetes-nodes:platform'
+            ? Promise.resolve({
+                exitCode: 0,
+                stdout: '{',
+                stderr: '',
+                observedAt: now.toISOString(),
+              })
+            : bootstrapRunner(command),
+        root: '/repo',
+      }),
+    ).rejects.toThrow(/kubernetes-nodes:platform.*malformed JSON/i);
   });
 
   it('refuses failed, malformed, partial, and stale sources while accepting a valid empty list', async () => {
@@ -354,6 +475,29 @@ PLAY RECAP *********************************************************************
         /provider:platform.*platform-a.*workers/i,
       ],
       [
+        'duplicate provider identity',
+        async (command) =>
+          command.source === 'provider:platform'
+            ? response({
+                _meta: {
+                  hostvars: {
+                    'platform-a': {
+                      puni_cluster: 'platform',
+                      puni_instance_id: '1001',
+                      puni_private_ipv4: '10.0.0.11',
+                    },
+                    'platform-copy': {
+                      puni_cluster: 'platform',
+                      puni_instance_id: '1001',
+                      puni_private_ipv4: '10.0.0.12',
+                    },
+                  },
+                },
+              })
+            : successfulRunner()(command),
+        /provider:platform.*duplicates provider identity hcloud:1001/i,
+      ],
+      [
         'partial',
         async (command) =>
           command.source === 'kubernetes-nodes:platform'
@@ -386,6 +530,43 @@ PLAY RECAP *********************************************************************
         /kubernetes-nodes:platform.*status.conditions/i,
       ],
       [
+        'node identity',
+        async (command) =>
+          command.source === 'kubernetes-nodes:platform'
+            ? response({
+                items: [
+                  {
+                    metadata: { name: 'platform-a', uid: 'uid-platform-a' },
+                    spec: {},
+                    status: { conditions: [], nodeInfo: {} },
+                  },
+                ],
+              })
+            : successfulRunner()(command),
+        /kubernetes-nodes:platform.*no provider or machine identity/i,
+      ],
+      [
+        'duplicate node identity',
+        async (command) =>
+          command.source === 'kubernetes-nodes:platform'
+            ? response({
+                items: [
+                  {
+                    metadata: { name: 'platform-a', uid: 'uid-a' },
+                    spec: { providerID: 'hcloud://1001' },
+                    status: { conditions: [], nodeInfo: {} },
+                  },
+                  {
+                    metadata: { name: 'platform-copy', uid: 'uid-b' },
+                    spec: { providerID: 'hcloud://1001' },
+                    status: { conditions: [], nodeInfo: {} },
+                  },
+                ],
+              })
+            : successfulRunner()(command),
+        /kubernetes-nodes:platform.*duplicates Kubernetes identity hcloud:1001/i,
+      ],
+      [
         'capability',
         async (command) =>
           command.source === 'kubernetes-nodes:platform'
@@ -414,10 +595,106 @@ PLAY RECAP *********************************************************************
         /kubernetes-pvcs:platform.*array field items/i,
       ],
       [
+        'claim member',
+        async (command) =>
+          command.source === 'kubernetes-pvcs:platform'
+            ? response({ items: [{}] })
+            : successfulRunner()(command),
+        /kubernetes-pvcs:platform.*metadata/i,
+      ],
+      [
+        'volume member',
+        async (command) =>
+          command.source === 'kubernetes-pvs:platform'
+            ? response({ items: [{}] })
+            : successfulRunner()(command),
+        /kubernetes-pvs:platform.*metadata/i,
+      ],
+      [
+        'duplicate claim',
+        async (command) =>
+          command.source === 'kubernetes-pvcs:platform'
+            ? response({
+                items: [
+                  {
+                    metadata: { namespace: 'default', name: 'claim-platform-a' },
+                    spec: { volumeName: 'pv-platform-a' },
+                  },
+                  {
+                    metadata: { namespace: 'default', name: 'claim-platform-a' },
+                    spec: { volumeName: 'pv-platform-a' },
+                  },
+                ],
+              })
+            : successfulRunner()(command),
+        /duplicates persistent volume claim/i,
+      ],
+      [
+        'duplicate volume',
+        async (command) =>
+          command.source === 'kubernetes-pvs:platform'
+            ? response({
+                items: [
+                  { metadata: { name: 'pv-platform-a' }, spec: {} },
+                  { metadata: { name: 'pv-platform-a' }, spec: {} },
+                ],
+              })
+            : successfulRunner()(command),
+        /duplicates persistent volume pv-platform-a/i,
+      ],
+      [
+        'duplicate attachment',
+        async (command) =>
+          command.source === 'kubernetes-volumeattachments:platform'
+            ? response({
+                items: [
+                  {
+                    metadata: { name: 'attachment-platform-a' },
+                    spec: {
+                      nodeName: 'platform-a',
+                      source: { persistentVolumeName: 'pv-platform-a' },
+                    },
+                  },
+                  {
+                    metadata: { name: 'attachment-platform-a' },
+                    spec: {
+                      nodeName: 'platform-a',
+                      source: { persistentVolumeName: 'pv-platform-a' },
+                    },
+                  },
+                ],
+              })
+            : successfulRunner()(command),
+        /duplicates volume attachment attachment-platform-a/i,
+      ],
+      [
+        'unobserved attachment volume',
+        async (command) =>
+          command.source === 'kubernetes-pvs:platform'
+            ? response({ items: [] })
+            : successfulRunner()(command),
+        /references unobserved persistent volume pv-platform-a/i,
+      ],
+      [
+        'unverified attachment claim',
+        async (command) =>
+          command.source === 'kubernetes-pvcs:platform'
+            ? response({ items: [] })
+            : successfulRunner()(command),
+        /cannot verify bound claim default\/claim-platform-a/i,
+      ],
+      [
         'attachment identity',
         async (command) =>
           command.source === 'kubernetes-volumeattachments:platform'
-            ? response({ items: [{ metadata: { name: 'attachment-a' }, spec: {} }] })
+            ? response({
+                items: [
+                  {
+                    metadata: { name: 'attachment-a' },
+                    spec: { source: { persistentVolumeName: 'pv-platform-a' } },
+                  },
+                ],
+              })
             : successfulRunner()(command),
         /kubernetes-volumeattachments:platform.*nodeName/i,
       ],
@@ -447,7 +724,17 @@ PLAY RECAP *********************************************************************
       root: '/repo',
       maxSourceAgeMs: 30_000,
     });
-    expect(observation.nodes[0]?.states).toEqual(['missing']);
+    expect(observation.nodes[0]?.states).toEqual(['missing', 'ready']);
+
+    let clockReads = 0;
+    expect(
+      observeFleet(fleetOf(), {
+        now: () => (clockReads++ < 5 ? now : new Date(now.getTime() + 31_000)),
+        run: successfulRunner(),
+        root: '/repo',
+        maxSourceAgeMs: 30_000,
+      }),
+    ).rejects.toThrow(/provider:platform.*stale/i);
   });
 });
 
@@ -461,7 +748,8 @@ describe('the production discover command', () => {
 if [ "$PUNI_FAULT" = "exit" ]; then echo "provider unavailable" >&2; exit 42; fi
 if [ "$PUNI_FAULT" = "malformed" ]; then printf '{'; exit 0; fi
 if [ "$PUNI_FAULT" = "warning" ]; then printf '{"_meta":{"hostvars":{}}}'; echo '[WARNING]: Failed to parse inventory with hetzner.hcloud.hcloud plugin' >&2; exit 0; fi
-if [ "$PUNI_FAULT" = "stale" ] || [ "$PUNI_FAULT" = "timeout" ]; then sleep 1; fi
+if [ "$PUNI_FAULT" = "stale" ]; then sleep 1; fi
+if [ "$PUNI_FAULT" = "timeout" ]; then trap '' TERM; (sleep 0.2; printf survived > "$PUNI_TIMEOUT_SENTINEL") & wait; fi
 if [ "$PUNI_FAULT" = "empty" ]; then printf '{"_meta":{"hostvars":{}}}'; exit 0; fi
 instance=1001
 if [ "$PUNI_FAULT" = "replaced" ]; then instance=9999; fi
@@ -481,16 +769,34 @@ esac
     const playbook = `#!/bin/sh
 printf '{"hosts":[]}'
 `;
+    const docker = `#!/bin/sh
+printf '%s\n' "$*" >> "$PUNI_DOCKER_LOG"
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    ansible-inventory|kubectl|ansible-playbook)
+      executable="$1"
+      shift
+      exec "$PUNI_FAKE_BIN/$executable" "$@"
+      ;;
+  esac
+  shift
+done
+echo 'controller command missing' >&2
+exit 98
+`;
     for (const [name, source] of [
       ['ansible-inventory', provider],
       ['kubectl', kubectl],
       ['ansible-playbook', playbook],
+      ['docker', docker],
     ] as const) {
       const path = join(binaries, name);
       await writeFile(path, source);
       await chmod(path, 0o700);
     }
     const mutationSentinel = join(directory, 'apply-called');
+    const timeoutSentinel = join(directory, 'timeout-survived');
+    const dockerLog = join(directory, 'docker.log');
     const applyPath = join(binaries, 'tool-fleet-apply');
     await writeFile(applyPath, `#!/bin/sh\nprintf called > "${mutationSentinel}"\nexit 99\n`);
     await chmod(applyPath, 0o700);
@@ -532,6 +838,9 @@ printf '{"hosts":[]}'
             ...process.env,
             PATH: `${binaries}:${process.env['PATH'] ?? ''}`,
             PUNI_FAULT: fault,
+            PUNI_FAKE_BIN: binaries,
+            PUNI_DOCKER_LOG: dockerLog,
+            PUNI_TIMEOUT_SENTINEL: timeoutSentinel,
           },
           stdout: 'pipe',
           stderr: 'pipe',
@@ -556,6 +865,9 @@ printf '{"hosts":[]}'
             ...process.env,
             PATH: `${binaries}:${process.env['PATH'] ?? ''}`,
             PUNI_FAULT: 'empty',
+            PUNI_FAKE_BIN: binaries,
+            PUNI_DOCKER_LOG: dockerLog,
+            PUNI_TIMEOUT_SENTINEL: timeoutSentinel,
           },
           stdout: 'pipe',
           stderr: 'pipe',
@@ -605,6 +917,15 @@ printf '{"hosts":[]}'
     expect(malformed.exitCode).not.toBe(0);
     expect(malformed.stderr.toString()).toContain('malformed YAML');
 
+    const unreadable = invoke([
+      '--fleet',
+      directory,
+      '--output',
+      join(directory, 'unreadable-output.json'),
+    ]);
+    expect(unreadable.exitCode).not.toBe(0);
+    expect(unreadable.stderr.toString()).toContain('Cannot read required fleet');
+
     const occupiedOutput = join(directory, 'empty.json');
     const existingBytes = await readFile(occupiedOutput, 'utf8');
     const occupied = invoke(['--fleet', join(directory, 'fleet.json'), '--output', occupiedOutput]);
@@ -612,6 +933,14 @@ printf '{"hosts":[]}'
     expect(occupied.stderr.toString()).toContain('Cannot create new fleet observation');
     expect(await readFile(occupiedOutput, 'utf8')).toBe(existingBytes);
     expect(Bun.file(mutationSentinel).size).toBe(0);
+    await Bun.sleep(300);
+    expect(Bun.file(timeoutSentinel).size).toBe(0);
+    const controllerInvocations = await readFile(dockerLog, 'utf8');
+    expect(controllerInvocations).toContain(
+      'ghcr.io/prosperous-unification/fleet-controller:0.1.0@sha256:',
+    );
+    expect(controllerInvocations).toContain('--network host');
+    expect(controllerInvocations).toContain('timeout --signal=TERM --kill-after=0.1s');
   });
 });
 

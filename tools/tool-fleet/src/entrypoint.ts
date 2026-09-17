@@ -14,7 +14,15 @@ switch (command) {
     await readToolchain(toolchainPath);
     break;
   case 'build':
-    await buildController(root, (await readToolchain(toolchainPath)).controller.digest);
+    {
+      const toolchain = await readToolchain(toolchainPath);
+      await buildController(
+        root,
+        toolchain.controller.digest,
+        undefined,
+        toolchain.binaries.kubectl,
+      );
+    }
     break;
   case 'lab':
     throw new Error('Fleet lab is unavailable until F3 supplies the VM and k3d harness');
