@@ -75,6 +75,9 @@ describe('fleet contracts', () => {
     expect(() => decodeObservation({ ...observation, observedAt: 'yesterday' })).toThrow(
       /observedAt/i,
     );
+    expect(() =>
+      decodeObservation({ ...observation, observedAt: '2026-99-99T99:99:99.000Z' }),
+    ).toThrow(/observedAt/i);
     expect(() => decodeObservation({ ...observation, candidateHint: 'ignore-me' })).toThrow(
       /candidateHint/i,
     );
@@ -130,6 +133,12 @@ describe('fleet contracts', () => {
     const productNodes = misplacedProduct['nodes'] as Record<string, unknown>[];
     productNodes[3] = { ...productNodes[3], capabilities: ['execution', 'product'] };
     expect(() => decodeFleet(misplacedProduct)).toThrow(/platform capability.*platform/i);
+
+    const executingServer = structuredClone(fleetInput) as unknown as Record<string, unknown>;
+    const serverNodes = executingServer['nodes'] as Record<string, unknown>[];
+    serverNodes[2] = { ...serverNodes[2], capabilities: ['control-plane', 'execution'] };
+    serverNodes[4] = { ...serverNodes[4], lifecycle: 'retired' };
+    expect(() => decodeFleet(executingServer)).toThrow(/control-plane.*execution/i);
   });
 
   it('rejects duplicate clusters, unknown cluster references, invalid topology, and unmet floors', () => {
@@ -210,9 +219,25 @@ describe('planOperation', () => {
       expect(plan.planSha256).toMatch(/^[0-9a-f]{64}$/);
       expect(plan.targetIdentities.length).toBeGreaterThan(0);
       expect(plan.effects.length).toBeGreaterThan(0);
+      expect(plan.storageImplication).not.toBe('unchanged');
+      expect(plan.downtimeImplication.length).toBeGreaterThan(0);
       expect(plan.summary).toContain(request.kind);
       expect(planOperation(fleet, observation, request)).toEqual(plan);
     }
+  });
+
+  it('reports destructive storage and single-server downtime explicitly', () => {
+    const destroyed = planOperation(fleet, observation, { kind: 'destroy', nodeId: 'workers-a' });
+    expect(destroyed.storageImplication).toContain('system-disk-destruction');
+    expect(destroyed.downtimeImplication).toContain('cluster-api-unavailable');
+    expect(destroyed.summary).toContain(destroyed.storageImplication);
+    expect(destroyed.summary).toContain(destroyed.downtimeImplication);
+
+    const replacement = planOperation(fleet, observation, {
+      kind: 'replace',
+      nodeId: 'workers-b',
+    });
+    expect(replacement.storageImplication).toContain('transfer-or-explicit-loss-required');
   });
 
   it('refuses incomplete observation and implicit or invalid targets', () => {

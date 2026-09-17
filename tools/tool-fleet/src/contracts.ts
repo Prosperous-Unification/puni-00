@@ -274,10 +274,20 @@ export interface Observation {
   readonly complete: boolean;
 }
 
+const IsoInstantSchema = type(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/).narrow(
+  (value, context) => {
+    const milliseconds = Date.parse(value);
+    return !Number.isNaN(milliseconds) && new Date(milliseconds).toISOString() === value
+      ? true
+      : context.mustBe('a real UTC calendar instant');
+  },
+);
+
 const ObservationSchema = type({
   schemaVersion: '1',
-  // Proof: widening this to string made the malformed-time production decoder negative fail.
-  observedAt: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/,
+  // Proof: removing the calendar narrow made `2026-99-99T99:99:99.000Z` pass the production
+  // observation decoder and become part of a signed plan; restored validation rejects it.
+  observedAt: IsoInstantSchema,
   // Proof: widening this to string made the invalid-digest production decoder negative fail.
   digest: sha256,
   complete: 'boolean',
@@ -294,7 +304,7 @@ export function decodeObservation(input: unknown): Observation {
   return decoded;
 }
 
-function providerIdentity(node: FleetNode): string {
+function identifyProvider(node: FleetNode): string {
   return node.provider.kind === 'hcloud'
     ? `hcloud:${node.provider.instanceId}`
     : `ssh:${node.provider.machineId}`;
@@ -354,7 +364,7 @@ export function decodeFleet(input: unknown): Fleet {
       // Proof: disabling this guard made the duplicate-capability production decoder negative pass.
       throw new Error(`Node ${node.id} has a duplicate capability`);
     }
-    const identity = providerIdentity(node);
+    const identity = identifyProvider(node);
     const owner = providers.get(identity);
     if (owner !== undefined) {
       // Proof: reusing one cloud identity across clusters made the cross-cluster duplicate
@@ -365,6 +375,15 @@ export function decodeFleet(input: unknown): Fleet {
     if (node.capabilities.includes('execution') && cluster.purpose !== 'workers') {
       // Proof: allowing execution on the platform cluster made the placement negative fail.
       throw new Error(`Execution capability for ${node.id} must belong to workers`);
+    }
+    if (
+      cluster.purpose === 'workers' &&
+      node.capabilities.includes('control-plane') &&
+      node.capabilities.includes('execution')
+    ) {
+      // Proof: disabling this guard made the dedicated-server production decoder negative pass and
+      // let one server plus one real agent satisfy an execution floor of two.
+      throw new Error(`Worker node ${node.id} cannot combine control-plane and execution`);
     }
     if (
       cluster.purpose === 'workers' &&

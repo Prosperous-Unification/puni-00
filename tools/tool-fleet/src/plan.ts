@@ -32,20 +32,22 @@ export interface OperationPlan {
   readonly preconditions: readonly string[];
   readonly effects: readonly string[];
   readonly affectedCapabilities: readonly Capability[];
+  readonly storageImplication: string;
+  readonly downtimeImplication: string;
   readonly summary: string;
   readonly planSha256: string;
 }
 
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+function serializeCanonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(serializeCanonical).join(',')}]`;
   if (value !== null && typeof value === 'object') {
     const entries = Object.entries(value).sort(([left], [right]) => left.localeCompare(right));
-    return `{${entries.map(([key, member]) => `${JSON.stringify(key)}:${canonicalJson(member)}`).join(',')}}`;
+    return `{${entries.map(([key, member]) => `${JSON.stringify(key)}:${serializeCanonical(member)}`).join(',')}}`;
   }
   return JSON.stringify(value);
 }
 
-function identityOf(node: FleetNode): string {
+function identifyNodeProvider(node: FleetNode): string {
   return node.provider.kind === 'hcloud'
     ? `hcloud:${node.provider.instanceId}`
     : `ssh:${node.provider.machineId}`;
@@ -116,13 +118,22 @@ export function planOperation(
   let targetIdentities: readonly string[];
   let affectedCapabilities: readonly Capability[];
   let effects: readonly string[];
+  let storageImplication: string;
+  let downtimeImplication: string;
   if (request.kind === 'provision') {
     requireProvisioningRequest(fleet, request);
     targetIdentities = [`pending:${request.nodeId}`, `cluster:${request.clusterId}`];
     affectedCapabilities = [];
     effects = ['create provider instance', 'record provider identity', 'enroll configured host'];
+    storageImplication = request.retainedStorage
+      ? 'retained-volume-requested-and-unverified'
+      : 'system-disk-only-with-no-retention';
+    downtimeImplication = 'none-new-capacity';
   } else {
     const node = requireNode(fleet, request.nodeId);
+    const cluster = fleet.clusters.find(({ id }) => id === node.cluster);
+    if (cluster === undefined)
+      throw new Error(`Desired node names unknown cluster: ${node.cluster}`);
     if (request.kind === 'enroll' && request.clusterId !== node.cluster) {
       // Proof: disabling this guard made the wrong-cluster enrollment production negative pass.
       throw new Error(`Enroll request cluster differs from desired node cluster: ${node.cluster}`);
@@ -131,7 +142,7 @@ export function planOperation(
       // Proof: disabling this guard made the release-channel upgrade production negative pass.
       throw new Error(`Upgrade request has invalid k3s version: ${request.version}`);
     }
-    targetIdentities = [`node:${node.id}`, identityOf(node), `cluster:${node.cluster}`];
+    targetIdentities = [`node:${node.id}`, identifyNodeProvider(node), `cluster:${node.cluster}`];
     affectedCapabilities = [...node.capabilities].sort();
     effects =
       request.kind === 'enroll'
@@ -143,6 +154,25 @@ export function planOperation(
             : request.kind === 'upgrade'
               ? ['verify cluster health', 'drain node', `install k3s ${request.version}`]
               : ['require completed retirement receipt', 'destroy provider instance'];
+    storageImplication =
+      request.kind === 'enroll'
+        ? 'attachments-must-be-verified-before-scheduling'
+        : request.kind === 'retire'
+          ? 'volume-detach-and-retention-must-converge'
+          : request.kind === 'replace'
+            ? 'storage-transfer-or-explicit-loss-required'
+            : request.kind === 'upgrade'
+              ? 'attached-storage-preserved-and-verified'
+              : 'system-disk-destruction-requires-retirement-receipt';
+    const isSingleServer =
+      cluster.controlPlane === 'single' && node.capabilities.includes('control-plane');
+    downtimeImplication = isSingleServer
+      ? 'cluster-api-unavailable-during-server-effect'
+      : request.kind === 'retire' || request.kind === 'replace' || request.kind === 'upgrade'
+        ? 'workload-reschedule-required'
+        : request.kind === 'destroy'
+          ? 'none-after-verified-retirement'
+          : 'none-before-schedulable';
   }
 
   const planBody = {
@@ -159,8 +189,10 @@ export function planOperation(
     ],
     effects,
     affectedCapabilities,
-    summary: `${request.kind} ${request.nodeId}; capabilities=${affectedCapabilities.join(',') || 'pending'}; storage=${request.kind === 'provision' && request.retainedStorage ? 'retained' : 'unchanged'}; downtime=possible`,
+    storageImplication,
+    downtimeImplication,
+    summary: `${request.kind} ${request.nodeId}; capabilities=${affectedCapabilities.join(',') || 'pending'}; storage=${storageImplication}; downtime=${downtimeImplication}`,
   };
-  const planSha256 = createHash('sha256').update(canonicalJson(planBody)).digest('hex');
+  const planSha256 = createHash('sha256').update(serializeCanonical(planBody)).digest('hex');
   return { ...planBody, planSha256 };
 }
