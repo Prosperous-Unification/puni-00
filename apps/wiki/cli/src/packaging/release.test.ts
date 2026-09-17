@@ -137,6 +137,10 @@ describe('package release planner', () => {
     expect(workflow).toContain(
       'git fetch --no-tags origin "+refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"',
     );
+    expect(workflow).toContain('sudo apt-get install --yes --no-install-recommends bubblewrap');
+    expect(workflow).toContain(
+      'bwrap --die-with-parent --new-session --ro-bind / / --dev /dev --proc /proc true',
+    );
     expect(workflow).toContain('github-release-absent --status "$status"');
     expect(workflow).toContain('verify-registry --record "$record"');
     expect(workflow).toContain('bun add --exact --ignore-scripts twilight-bureaucrat@0.1.0');

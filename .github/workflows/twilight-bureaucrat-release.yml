@@ -26,6 +26,15 @@ jobs:
         with:
           bun-version: 1.4.2
 
+      - name: Install the package isolation boundary
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap
+          # Proof: removing this provisioning made the package suite refuse because bwrap was
+          # absent; this probe also refuses runners that install it but disable mount namespaces.
+          bwrap --die-with-parent --new-session --ro-bind / / --dev /dev --proc /proc true
+
       - name: Fetch the event tag without moving the checkout
         run: |
           set -euo pipefail
