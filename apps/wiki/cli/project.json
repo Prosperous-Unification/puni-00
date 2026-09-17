@@ -18,7 +18,7 @@
         "{projectRoot}/NOTICE"
       ],
       "options": {
-        "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --preload ../../../tools/test/scratch/preload.ts",
+        "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --path-ignore-patterns '**/packaging/install.test.ts' --preload ../../../tools/test/scratch/preload.ts",
         "cwd": "apps/wiki/cli"
       }
     },
@@ -83,6 +83,7 @@
     "test:package": {
       "executor": "nx:run-commands",
       "cache": false,
+      "dependsOn": ["pack"],
       "options": {
         "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --preload ../../../tools/test/scratch/preload.ts src/packaging",
         "cwd": "apps/wiki/cli"

@@ -183,7 +183,14 @@ function readToolkit(directory: string): Toolkit {
   const digests = new Map(Object.entries(descriptor.roles));
   const roleBytes: Record<string, Uint8Array> = {};
   for (const role of toolkitRoles) {
-    const bytes = readFileSync(join(canonical, role));
+    let bytes: Uint8Array;
+    try {
+      bytes = readFileSync(join(canonical, role));
+    } catch (cause) {
+      // Proof: renaming the installed validator made the packed-install negative observe a raw
+      // ENOENT until this boundary named the unreadable toolkit role the operator must restore.
+      throw new RelocationRefusal('R19', `toolkit role is unreadable: ${role}`, { cause });
+    }
     const expected = digests.get(role);
     // Proof: forcing this refusal false prepared an activation whose `launcher.sh` had been
     // replaced after packing while `toolkit.json` still named the reviewed digest; the altered-role

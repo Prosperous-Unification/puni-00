@@ -129,7 +129,11 @@ export function extractNxRelationships(workspace: string): {
 } {
   const extractor = extractorIdentity();
   const nxPath = join(workspace, 'nx.json');
-  const nx = existsSync(nxPath) ? parseJson(nxPath, 'nx.json') : {};
+  // Proof: renaming `nx.json` in the packed-install candidate let static extraction continue and
+  // fail only during the later launcher self-check until this boundary refused the absent Nx
+  // workspace explicitly.
+  if (!existsSync(nxPath)) throw new Error('Nx workspace configuration is absent: nx.json');
+  const nx = parseJson(nxPath, 'nx.json');
   const targetDefaults =
     nx['targetDefaults'] === undefined
       ? {}
