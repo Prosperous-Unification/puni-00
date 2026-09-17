@@ -35,7 +35,14 @@ export interface DiscoveryResponse {
 
 export type RunDiscoveryCommand = (command: DiscoveryCommand) => Promise<DiscoveryResponse>;
 
-class DiscoveryCommandFailure extends Error {}
+class DiscoveryCommandFailure extends Error {
+  public constructor(
+    message: string,
+    public readonly stderr: string,
+  ) {
+    super(message);
+  }
+}
 
 interface ProviderHost {
   readonly clusterId: string;
@@ -192,6 +199,7 @@ async function readSource(
     // production observer negative; restored handling names the source and stderr.
     throw new DiscoveryCommandFailure(
       `${command.source} failed with exit ${String(response.exitCode)}: ${response.stderr}`,
+      response.stderr,
     );
   }
   if (
@@ -273,6 +281,8 @@ function parseSshOutput(stdout: string, source: DiscoverySource): readonly SshHo
     try {
       factInput = JSON.parse(encoded);
     } catch (parseCause) {
+      // Proof: bypassing this contextual refusal made a malformed controlled Ansible fact surface
+      // as raw JSON syntax instead of naming the SSH discovery source.
       throw new Error(`${source} emitted a malformed machine identity fact`, {
         cause: parseCause,
       });
@@ -636,6 +646,12 @@ export async function observeFleet(
   const sources: { name: DiscoverySource; observedAt: string }[] = [];
   const observedNodes: ObservedNode[] = [];
   const observedClusters: { id: string; state: 'ready' | 'not-bootstrapped' }[] = [];
+  const observedStorage: {
+    clusterId: string;
+    claims: string[];
+    volumes: string[];
+    attachments: string[];
+  }[] = [];
   const providerOwners = new Map<string, string>();
   const kubernetesOwners = new Map<string, string>();
 
@@ -680,11 +696,16 @@ export async function observeFleet(
         cluster.bootstrap === 'required' &&
         desiredNodes.length === 0 &&
         providerHosts.length === 0 &&
-        cause instanceof DiscoveryCommandFailure
+        cause instanceof DiscoveryCommandFailure &&
+        /(?:connection refused|no such host|i\/o timeout|context deadline exceeded)/i.test(
+          cause.stderr,
+        )
       ) {
-        // Proof: widening this recovery to an established or nonempty cluster made the failed-API
-        // negative become not-bootstrapped; restored recovery requires all three facts.
+        // Proof: widening this recovery to every nonzero command made Kubernetes Forbidden become
+        // complete/not-bootstrapped; recovery requires an explicit reachability absence plus all
+        // three empty-bootstrap facts.
         observedClusters.push({ id: cluster.id, state: 'not-bootstrapped' });
+        observedStorage.push({ clusterId: cluster.id, claims: [], volumes: [], attachments: [] });
         continue;
       }
       throw cause;
@@ -716,6 +737,16 @@ export async function observeFleet(
       volumes,
       claims,
     );
+    observedStorage.push({
+      clusterId: cluster.id,
+      claims: [...claims.values()]
+        .map(({ key, volumeName }) => `${key}->${volumeName ?? 'unbound'}`)
+        .sort(),
+      volumes: [...volumes.values()]
+        .map(({ name, claimKey }) => `${name}->${claimKey ?? 'unclaimed'}`)
+        .sort(),
+      attachments: [...attachments.values()].flat().sort(),
+    });
     const sshHosts: SshHost[] = [];
     for (const node of fleet.nodes) {
       if (node.cluster !== cluster.id || node.provider.kind !== 'ssh') continue;
@@ -736,8 +767,11 @@ export async function observeFleet(
     for (const host of sshHosts) {
       const identity = `ssh:${host.machineId}`;
       const owner = providerOwners.get(identity);
-      if (owner !== undefined)
+      if (owner !== undefined) {
+        // Proof: disabling this SSH identity refusal made two controlled fact sources overwrite one
+        // machine identity in the production observer negative.
         throw new Error(`${cluster.id} duplicates provider identity ${identity} from ${owner}`);
+      }
       providerOwners.set(identity, `${cluster.id}/${host.displayName}`);
       providers.set(identity, host);
     }
@@ -763,9 +797,10 @@ export async function observeFleet(
     }
 
     const desiredNodes = fleet.nodes.filter(({ cluster: clusterId }) => clusterId === cluster.id);
-    const enrolled = new Set<string>();
+    const reported = new Set<string>();
     for (const desiredNode of desiredNodes) {
       const identity = identifyProvider(desiredNode);
+      reported.add(identity);
       const provider = providers.get(identity);
       const kubernetesNode = nodesByProvider.get(identity);
       if (provider === undefined) {
@@ -795,7 +830,6 @@ export async function observeFleet(
         });
         continue;
       }
-      enrolled.add(identity);
       const displayName = provider.displayName;
       const states: ObservedNodeState[] = desiredNode.lifecycle === 'draining' ? ['retiring'] : [];
       if (kubernetesNode === undefined) {
@@ -826,19 +860,37 @@ export async function observeFleet(
           kubernetesNode === undefined ? [] : (attachments.get(kubernetesNode.displayName) ?? []),
       });
     }
-    for (const [identity, provider] of providers) {
-      if (enrolled.has(identity)) continue;
+    for (const identity of new Set([...providers.keys(), ...nodesByProvider.keys()])) {
+      if (reported.has(identity)) continue;
+      const provider = providers.get(identity);
+      const kubernetesNode = nodesByProvider.get(identity);
+      if (provider === undefined && kubernetesNode === undefined) continue;
+      const states: ObservedNodeState[] = [];
+      if (provider === undefined) states.push('missing');
+      if (kubernetesNode === undefined) states.push('discovered-unenrolled');
+      else states.push('enrolled', kubernetesNode.ready ? 'ready' : 'not-ready');
       observedNodes.push({
         clusterId: cluster.id,
-        displayName: provider.displayName,
+        displayName: provider?.displayName ?? kubernetesNode?.displayName ?? identity,
         providerIdentity: identity,
-        ...('privateAddress' in provider
-          ? { privateAddress: provider.privateAddress }
-          : { privateAddress: provider.address, machineId: provider.machineId }),
-        capabilities: [],
-        capabilitiesObserved: false,
-        states: ['discovered-unenrolled'],
-        storageAttachments: [],
+        ...(provider === undefined
+          ? {}
+          : 'privateAddress' in provider
+            ? { privateAddress: provider.privateAddress }
+            : { privateAddress: provider.address, machineId: provider.machineId }),
+        ...(kubernetesNode === undefined
+          ? {}
+          : {
+              kubernetesNodeUid: kubernetesNode.uid,
+              ...(kubernetesNode.providerId === undefined
+                ? {}
+                : { kubernetesProviderId: kubernetesNode.providerId }),
+            }),
+        capabilities: kubernetesNode?.capabilities ?? [],
+        capabilitiesObserved: kubernetesNode?.capabilitiesObserved ?? false,
+        states,
+        storageAttachments:
+          kubernetesNode === undefined ? [] : (attachments.get(kubernetesNode.displayName) ?? []),
       });
     }
     observedClusters.push({ id: cluster.id, state: 'ready' });
@@ -861,6 +913,7 @@ export async function observeFleet(
     complete: true as const,
     sources: sources.sort((left, right) => left.name.localeCompare(right.name)),
     clusters: observedClusters,
+    storage: observedStorage,
     nodes: observedNodes,
   };
   const digest = digestObservation(body);

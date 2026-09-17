@@ -135,6 +135,16 @@ describe('observeFleet', () => {
     expect(observation.complete).toBe(true);
     expect(observation.desiredRevision).toBe('fleet-discovery-v1');
     expect(observation.sources).toHaveLength(5);
+    expect(observation.storage).toEqual([
+      {
+        clusterId: 'platform',
+        claims: ['default/claim-platform-a->pv-platform-a'],
+        volumes: ['pv-platform-a->default/claim-platform-a'],
+        attachments: [
+          'pvc:default/claim-platform-a@pv:pv-platform-a#volumeattachment:attachment-platform-a',
+        ],
+      },
+    ]);
     expect(observation.clusters).toEqual([{ id: 'platform', state: 'ready' }]);
     expect(observation.nodes).toEqual([
       expect.objectContaining({
@@ -162,11 +172,20 @@ describe('observeFleet', () => {
     ).toThrow(/digest differs/i);
 
     const { digest: _digest, ...body } = observation;
+    const { kubernetesNodeUid: _kubernetesNodeUid, ...nodeWithoutKubernetesUid } = body.nodes[0];
     for (const malformedBody of [
       { ...body, sources: [null] },
       { ...body, clusters: [7] },
       { ...body, nodes: [{}] },
       { ...body, sources: body.sources.slice(0, -1) },
+      { ...body, storage: [] },
+      {
+        ...body,
+        storage: [
+          ...body.storage,
+          { clusterId: 'unknown', claims: [], volumes: [], attachments: [] },
+        ],
+      },
       {
         ...body,
         sources: [...body.sources, { name: 'provider:unknown', observedAt: body.observedAt }],
@@ -178,6 +197,20 @@ describe('observeFleet', () => {
       {
         ...body,
         nodes: [{ ...body.nodes[0], states: ['enrolled', 'enrolled'] }],
+      },
+      {
+        ...body,
+        nodes: [nodeWithoutKubernetesUid],
+      },
+      {
+        ...body,
+        nodes: [
+          {
+            ...body.nodes[0],
+            providerIdentity: 'ssh:machine-a',
+            machineId: 'machine-a',
+          },
+        ],
       },
       {
         ...body,
@@ -250,7 +283,8 @@ describe('observeFleet', () => {
       expect.objectContaining({
         displayName: 'platform-a',
         providerIdentity: 'hcloud:9999',
-        states: ['discovered-unenrolled'],
+        kubernetesNodeUid: 'uid-platform-a',
+        states: ['enrolled', 'ready'],
       }),
     ]);
   });
@@ -271,6 +305,63 @@ describe('observeFleet', () => {
         ],
       }),
     ]);
+  });
+
+  it('preserves enrolled nodes outside desired/provider state and unattached storage', async () => {
+    const run = async (command: DiscoveryCommand): Promise<DiscoveryResponse> => {
+      if (command.source === 'provider:platform') {
+        return response({
+          _meta: {
+            hostvars: {
+              'platform-a': {
+                puni_cluster: 'platform',
+                puni_instance_id: '1001',
+                puni_private_ipv4: '10.0.0.11',
+              },
+              'outside-desired': {
+                puni_cluster: 'platform',
+                puni_instance_id: '2002',
+                puni_private_ipv4: '10.0.0.22',
+              },
+            },
+          },
+        });
+      }
+      if (command.source === 'kubernetes-nodes:platform') {
+        return response({
+          items: ['1001', '2002', '3003'].map((instanceId) => ({
+            metadata: { name: `node-${instanceId}`, uid: `uid-${instanceId}`, labels: {} },
+            spec: { providerID: `hcloud://${instanceId}` },
+            status: { conditions: [{ type: 'Ready', status: 'True' }], nodeInfo: {} },
+          })),
+        });
+      }
+      if (command.source === 'kubernetes-pvs:platform') {
+        const base = await successfulRunner()(command);
+        const document = JSON.parse(base.stdout) as { items: unknown[] };
+        document.items.push({ metadata: { name: 'local-unattached' }, spec: {} });
+        return response(document);
+      }
+      return successfulRunner()(command);
+    };
+    const observation = await observeFleet(fleetOf(), { now: () => now, run, root: '/repo' });
+    const outsideDesired = observation.nodes.find(
+      ({ providerIdentity }) => providerIdentity === 'hcloud:2002',
+    );
+    expect(outsideDesired?.states).toEqual(['enrolled', 'ready']);
+    expect(outsideDesired?.kubernetesNodeUid).toBe('uid-2002');
+    const kubernetesOnly = observation.nodes.find(
+      ({ providerIdentity }) => providerIdentity === 'hcloud:3003',
+    );
+    expect(kubernetesOnly?.states).toEqual(['missing', 'enrolled', 'ready']);
+    expect(kubernetesOnly?.kubernetesNodeUid).toBe('uid-3003');
+    expect(observation.storage[0]?.volumes).toContain('local-unattached->unclaimed');
+    const baseline = await observeFleet(fleetOf(), {
+      now: () => now,
+      run: successfulRunner(),
+      root: '/repo',
+    });
+    expect(observation.digest).not.toBe(baseline.digest);
   });
 
   it('joins an external host by machine identity rather than its address or name', async () => {
@@ -407,6 +498,74 @@ PLAY RECAP *********************************************************************
         root: '/repo',
       }),
     ).rejects.toThrow(/kubernetes-nodes:platform.*malformed JSON/i);
+
+    expect(
+      observeFleet(fleetOf('required'), {
+        now: () => now,
+        run: (command) =>
+          command.source === 'kubernetes-nodes:platform'
+            ? Promise.resolve({
+                exitCode: 1,
+                stdout: '',
+                stderr: 'Error from server (Forbidden)',
+                observedAt: now.toISOString(),
+              })
+            : bootstrapRunner(command),
+        root: '/repo',
+      }),
+    ).rejects.toThrow(/kubernetes-nodes:platform.*Forbidden/i);
+  });
+
+  it('refuses duplicate machine identity emitted by distinct SSH fact sources', () => {
+    const fleet = decodeFleet({
+      schemaVersion: 1,
+      revision: 'ssh-duplicate-v1',
+      clusters: [
+        {
+          id: 'platform',
+          purpose: 'platform',
+          apiEndpoint: 'https://platform.example.test:6443',
+          controlPlane: 'single',
+          bootstrap: 'complete',
+          requiredCapabilities: { product: 1, ingress: 1 },
+        },
+      ],
+      nodes: [
+        {
+          id: 'platform-a',
+          cluster: 'platform',
+          capabilities: ['control-plane', 'product', 'ingress'],
+          lifecycle: 'present',
+          provider: { kind: 'ssh', machineId: 'desired-a', address: '10.0.0.11' },
+        },
+        {
+          id: 'platform-b',
+          cluster: 'platform',
+          capabilities: ['observability'],
+          lifecycle: 'present',
+          provider: { kind: 'ssh', machineId: 'desired-b', address: '10.0.0.12' },
+        },
+      ],
+    });
+    const run = (command: DiscoveryCommand): Promise<DiscoveryResponse> => {
+      if (command.source === 'provider:platform')
+        return Promise.resolve(response({ _meta: { hostvars: {} } }));
+      if (command.source === 'kubernetes-nodes:platform')
+        return Promise.resolve(response({ items: [] }));
+      if (command.source.startsWith('ssh-facts:')) {
+        return Promise.resolve(
+          response({
+            hosts: [
+              { name: 'same-machine', machineId: 'observed-duplicate', address: '10.0.0.99' },
+            ],
+          }),
+        );
+      }
+      return Promise.resolve(response({ items: [] }));
+    };
+    expect(observeFleet(fleet, { now: () => now, run, root: '/repo' })).rejects.toThrow(
+      /duplicates provider identity ssh:observed-duplicate/i,
+    );
   });
 
   it('refuses failed, malformed, partial, and stale sources while accepting a valid empty list', async () => {

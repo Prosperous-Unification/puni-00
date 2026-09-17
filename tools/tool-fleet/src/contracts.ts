@@ -353,6 +353,13 @@ const DetailedObservationSchema = type({
   complete: 'true',
   sources: ObservationSourceSchema.array().atLeastLength(1),
   clusters: ObservedClusterSchema.array().atLeastLength(1),
+  storage: type({
+    clusterId: 'string>0',
+    claims: 'string[]',
+    volumes: 'string[]',
+    attachments: 'string[]',
+    '+': 'reject',
+  }).array(),
   nodes: ObservedNodeSchema.array(),
   '+': 'reject',
 });
@@ -402,6 +409,10 @@ export function decodeObservation(input: unknown): Observation {
       ),
       'Kubernetes node UID',
     );
+    unique(
+      detailed.storage.map(({ clusterId }) => clusterId),
+      'storage cluster',
+    );
     const clusterIds = new Set(detailed.clusters.map(({ id }) => id));
     const sourceNames = new Set(detailed.sources.map(({ name }) => name));
     for (const source of detailed.sources) {
@@ -430,6 +441,22 @@ export function decodeObservation(input: unknown): Observation {
         // completeness until the production decoder negative restored this source closure.
         throw new Error(`Observation validation failed: incomplete sources for ${cluster.id}`);
       }
+      if (!detailed.storage.some(({ clusterId }) => clusterId === cluster.id)) {
+        // Proof: omitting storage closure let a recomputed detailed observation claim completeness
+        // without any PVC/PV/attachment evidence for its ready cluster.
+        throw new Error(`Observation validation failed: missing storage state for ${cluster.id}`);
+      }
+    }
+    for (const storage of detailed.storage) {
+      if (!clusterIds.has(storage.clusterId)) {
+        // Proof: accepting unknown storage clusters detached evidence from the observed fleet.
+        throw new Error(
+          `Observation validation failed: storage references unknown cluster ${storage.clusterId}`,
+        );
+      }
+      unique(storage.claims, `claim for ${storage.clusterId}`);
+      unique(storage.volumes, `volume for ${storage.clusterId}`);
+      unique(storage.attachments, `attachment for ${storage.clusterId}`);
     }
     for (const node of detailed.nodes) {
       if (!clusterIds.has(node.clusterId)) {
@@ -441,6 +468,30 @@ export function decodeObservation(input: unknown): Observation {
       unique(node.states, `state for ${node.providerIdentity}`);
       unique(node.capabilities, `capability for ${node.providerIdentity}`);
       unique(node.storageAttachments, `storage attachment for ${node.providerIdentity}`);
+      const enrolled = node.states.includes('enrolled');
+      if (
+        (enrolled || node.states.includes('ready') || node.states.includes('not-ready')) &&
+        node.kubernetesNodeUid === undefined
+      ) {
+        // Proof: accepting enrollment/readiness without a Kubernetes UID let a recomputed SSH
+        // observation claim complete provenance without Kubernetes identity evidence.
+        throw new Error(
+          `Observation validation failed: ${node.providerIdentity} enrollment lacks Kubernetes UID`,
+        );
+      }
+      if (node.providerIdentity.startsWith('ssh:')) {
+        const sshSource =
+          node.desiredNodeId === undefined
+            ? undefined
+            : `ssh-facts:${node.clusterId}/${node.desiredNodeId}`;
+        if (sshSource === undefined || !sourceNames.has(sshSource)) {
+          // Proof: accepting an SSH node without its controlled facts source let recomputed detail
+          // claim provider identity without attributable machine evidence.
+          throw new Error(
+            `Observation validation failed: ${node.providerIdentity} lacks SSH facts source`,
+          );
+        }
+      }
     }
     const { digest: claimedDigest, ...body } = detailed;
     const actualDigest = createHash('sha256').update(serializeObservation(body)).digest('hex');

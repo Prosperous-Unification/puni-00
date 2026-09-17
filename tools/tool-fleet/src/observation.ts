@@ -41,6 +41,12 @@ export interface FleetObservationBody {
     readonly id: string;
     readonly state: 'ready' | 'not-bootstrapped';
   }[];
+  readonly storage: readonly {
+    readonly clusterId: string;
+    readonly claims: readonly string[];
+    readonly volumes: readonly string[];
+    readonly attachments: readonly string[];
+  }[];
   readonly nodes: readonly ObservedNode[];
 }
 
