@@ -44,6 +44,8 @@ class DiscoveryCommandFailure extends Error {
   }
 }
 
+class ControllerCommandFailure extends Error {}
+
 interface ProviderHost {
   readonly clusterId: string;
   readonly displayName: string;
@@ -55,6 +57,7 @@ interface SshHost {
   readonly displayName: string;
   readonly machineId: string;
   readonly address: string;
+  readonly source: DiscoverySource;
 }
 
 interface KubernetesNode {
@@ -258,6 +261,7 @@ function parseSshHosts(input: unknown, source: DiscoverySource): readonly SshHos
       displayName: requireString(host['name'], source, `hosts[${String(position)}].name`),
       machineId: requireString(host['machineId'], source, `hosts[${String(position)}].machineId`),
       address: requireString(host['address'], source, `hosts[${String(position)}].address`),
+      source,
     };
   });
 }
@@ -293,6 +297,7 @@ function parseSshOutput(stdout: string, source: DiscoverySource): readonly SshHo
         displayName: requireString(fact['name'], source, 'machine identity fact.name'),
         machineId: requireString(fact['machineId'], source, 'machine identity fact.machineId'),
         address: requireString(fact['address'], source, 'machine identity fact.address'),
+        source,
       },
     ];
   }
@@ -630,8 +635,8 @@ export async function observeFleet(
   let run = options.run;
   if (run === undefined) {
     const toolchain = await readToolchain(join(options.root, 'infra/versions/toolchain.json'));
-    run = (command) =>
-      runDiscoveryCommand(
+    run = async (command) => {
+      const response = await runDiscoveryCommand(
         buildControllerCommand(
           command,
           options.root,
@@ -639,6 +644,15 @@ export async function observeFleet(
           toolchain.controller.digest,
         ),
       );
+      if ([125, 126, 127].includes(response.exitCode)) {
+        // Proof: treating Docker exit 125 with a registry i/o timeout as a Kubernetes API absence
+        // made the production bootstrap command emit a complete not-bootstrapped observation.
+        throw new ControllerCommandFailure(
+          `Controller failed while reading ${command.source} with exit ${String(response.exitCode)}: ${response.stderr}`,
+        );
+      }
+      return response;
+    };
   }
   const now = options.now ?? (() => new Date());
   const maxSourceAgeMs = options.maxSourceAgeMs ?? 30_000;
@@ -814,6 +828,12 @@ export async function observeFleet(
           desiredNodeId: desiredNode.id,
           displayName: desiredNode.id,
           providerIdentity: identity,
+          identitySource:
+            kubernetesNode === undefined
+              ? desiredNode.provider.kind === 'hcloud'
+                ? providerCommand.source
+                : `ssh-facts:${cluster.id}/${desiredNode.id}`
+              : nodeCommand.source,
           ...(kubernetesNode === undefined
             ? {}
             : {
@@ -842,6 +862,7 @@ export async function observeFleet(
         desiredNodeId: desiredNode.id,
         displayName,
         providerIdentity: identity,
+        identitySource: 'privateAddress' in provider ? providerCommand.source : provider.source,
         ...('privateAddress' in provider
           ? { privateAddress: provider.privateAddress }
           : { privateAddress: provider.address, machineId: provider.machineId }),
@@ -873,6 +894,12 @@ export async function observeFleet(
         clusterId: cluster.id,
         displayName: provider?.displayName ?? kubernetesNode?.displayName ?? identity,
         providerIdentity: identity,
+        identitySource:
+          provider === undefined
+            ? nodeCommand.source
+            : 'privateAddress' in provider
+              ? providerCommand.source
+              : provider.source,
         ...(provider === undefined
           ? {}
           : 'privateAddress' in provider

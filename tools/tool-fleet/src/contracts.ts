@@ -335,6 +335,7 @@ const ObservedNodeSchema = type({
   'desiredNodeId?': 'string>0',
   displayName: 'string>0',
   providerIdentity: 'string>0',
+  identitySource: DiscoverySourceSchema,
   'privateAddress?': 'string>0',
   'machineId?': 'string>0',
   'kubernetesNodeUid?': 'string>0',
@@ -468,6 +469,23 @@ export function decodeObservation(input: unknown): Observation {
       unique(node.states, `state for ${node.providerIdentity}`);
       unique(node.capabilities, `capability for ${node.providerIdentity}`);
       unique(node.storageAttachments, `storage attachment for ${node.providerIdentity}`);
+      if (!sourceNames.has(node.identitySource)) {
+        // Proof: accepting an unrecorded identity source let a recomputed replacement SSH node
+        // claim machine evidence that no discovery command supplied.
+        throw new Error(
+          `Observation validation failed: ${node.providerIdentity} identity source is absent`,
+        );
+      }
+      const identitySourceCluster = node.identitySource
+        .slice(node.identitySource.indexOf(':') + 1)
+        .split('/')[0];
+      if (identitySourceCluster !== node.clusterId) {
+        // Proof: accepting a cross-cluster identity source let one cluster lend machine evidence to
+        // a recomputed node in another cluster.
+        throw new Error(
+          `Observation validation failed: ${node.providerIdentity} identity source belongs to ${identitySourceCluster}`,
+        );
+      }
       const enrolled = node.states.includes('enrolled');
       if (
         (enrolled || node.states.includes('ready') || node.states.includes('not-ready')) &&
@@ -479,18 +497,12 @@ export function decodeObservation(input: unknown): Observation {
           `Observation validation failed: ${node.providerIdentity} enrollment lacks Kubernetes UID`,
         );
       }
-      if (node.providerIdentity.startsWith('ssh:')) {
-        const sshSource =
-          node.desiredNodeId === undefined
-            ? undefined
-            : `ssh-facts:${node.clusterId}/${node.desiredNodeId}`;
-        if (sshSource === undefined || !sourceNames.has(sshSource)) {
-          // Proof: accepting an SSH node without its controlled facts source let recomputed detail
-          // claim provider identity without attributable machine evidence.
-          throw new Error(
-            `Observation validation failed: ${node.providerIdentity} lacks SSH facts source`,
-          );
-        }
+      if (node.machineId !== undefined && !node.identitySource.startsWith('ssh-facts:')) {
+        // Proof: accepting controlled SSH machine facts attributed to Kubernetes let a recomputed
+        // provider observation bypass its exact playbook source.
+        throw new Error(
+          `Observation validation failed: ${node.providerIdentity} machine fact lacks SSH source`,
+        );
       }
     }
     const { digest: claimedDigest, ...body } = detailed;

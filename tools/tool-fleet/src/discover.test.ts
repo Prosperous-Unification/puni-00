@@ -150,6 +150,7 @@ describe('observeFleet', () => {
       expect.objectContaining({
         desiredNodeId: 'platform-a',
         providerIdentity: 'hcloud:1001',
+        identitySource: 'provider:platform',
         kubernetesNodeUid: 'uid-platform-a',
         states: ['enrolled', 'ready'],
         storageAttachments: [
@@ -157,6 +158,7 @@ describe('observeFleet', () => {
         ],
       }),
     ]);
+    expect(() => decodeObservation(observation)).not.toThrow();
     expect(observation.digest).toMatch(/^[0-9a-f]{64}$/);
     expect(decodeObservation(observation)).toEqual({
       schemaVersion: 1,
@@ -194,6 +196,23 @@ describe('observeFleet', () => {
       { ...body, clusters: [body.clusters[0], body.clusters[0]] },
       { ...body, nodes: [body.nodes[0], body.nodes[0]] },
       { ...body, nodes: [{ ...body.nodes[0], clusterId: 'unknown' }] },
+      {
+        ...body,
+        nodes: [{ ...body.nodes[0], identitySource: 'ssh-facts:platform/unrecorded' }],
+      },
+      {
+        ...body,
+        sources: [
+          ...body.sources,
+          { name: 'provider:workers' as const, observedAt: body.observedAt },
+        ],
+        clusters: [...body.clusters, { id: 'workers', state: 'not-bootstrapped' as const }],
+        storage: [
+          ...body.storage,
+          { clusterId: 'workers', claims: [], volumes: [], attachments: [] },
+        ],
+        nodes: [{ ...body.nodes[0], identitySource: 'provider:workers' }],
+      },
       {
         ...body,
         nodes: [{ ...body.nodes[0], states: ['enrolled', 'enrolled'] }],
@@ -298,6 +317,7 @@ describe('observeFleet', () => {
     expect(observation.nodes).toEqual([
       expect.objectContaining({
         states: ['missing', 'ready'],
+        identitySource: 'kubernetes-nodes:platform',
         kubernetesNodeUid: 'uid-platform-a',
         capabilities: [],
         storageAttachments: [
@@ -349,11 +369,13 @@ describe('observeFleet', () => {
       ({ providerIdentity }) => providerIdentity === 'hcloud:2002',
     );
     expect(outsideDesired?.states).toEqual(['enrolled', 'ready']);
+    expect(outsideDesired?.identitySource).toBe('provider:platform');
     expect(outsideDesired?.kubernetesNodeUid).toBe('uid-2002');
     const kubernetesOnly = observation.nodes.find(
       ({ providerIdentity }) => providerIdentity === 'hcloud:3003',
     );
     expect(kubernetesOnly?.states).toEqual(['missing', 'enrolled', 'ready']);
+    expect(kubernetesOnly?.identitySource).toBe('kubernetes-nodes:platform');
     expect(kubernetesOnly?.kubernetesNodeUid).toBe('uid-3003');
     expect(observation.storage[0]?.volumes).toContain('local-unattached->unclaimed');
     const baseline = await observeFleet(fleetOf(), {
@@ -446,6 +468,63 @@ PLAY RECAP *********************************************************************
         root: '/repo',
       }),
     ).rejects.toThrow(/malformed machine identity fact/i);
+  });
+
+  it('round-trips replaced and unenrolled SSH identities with their actual source', async () => {
+    const replacementRunner =
+      (enrolled: boolean) =>
+      (command: DiscoveryCommand): Promise<DiscoveryResponse> => {
+        if (command.source === 'provider:platform')
+          return Promise.resolve(response({ _meta: { hostvars: {} } }));
+        if (command.source === 'kubernetes-nodes:platform') {
+          return Promise.resolve(
+            response({
+              items: enrolled
+                ? [
+                    {
+                      metadata: { name: 'replacement', uid: 'uid-replacement', labels: {} },
+                      spec: {},
+                      status: {
+                        conditions: [{ type: 'Ready', status: 'True' }],
+                        nodeInfo: { machineID: 'machine-replacement' },
+                      },
+                    },
+                  ]
+                : [],
+            }),
+          );
+        }
+        if (command.source.startsWith('ssh-facts:')) {
+          return Promise.resolve(
+            response({
+              hosts: [
+                {
+                  name: 'replacement',
+                  machineId: 'machine-replacement',
+                  address: '10.0.0.99',
+                },
+              ],
+            }),
+          );
+        }
+        return Promise.resolve(response({ items: [] }));
+      };
+
+    for (const enrolled of [true, false]) {
+      const observation = await observeFleet(fleetOf('complete', 'ssh'), {
+        now: () => now,
+        run: replacementRunner(enrolled),
+        root: '/repo',
+      });
+      const replacement = observation.nodes.find(
+        ({ providerIdentity }) => providerIdentity === 'ssh:machine-replacement',
+      );
+      expect(replacement?.identitySource).toBe('ssh-facts:platform/platform-a');
+      expect(replacement?.states).toEqual(
+        enrolled ? ['enrolled', 'ready'] : ['discovered-unenrolled'],
+      );
+      expect(() => decodeObservation(observation)).not.toThrow();
+    }
   });
 
   it('distinguishes an intentional empty bootstrap cluster from a failed established API', async () => {
@@ -909,7 +988,7 @@ if [ "$PUNI_FAULT" = "malformed" ]; then printf '{'; exit 0; fi
 if [ "$PUNI_FAULT" = "warning" ]; then printf '{"_meta":{"hostvars":{}}}'; echo '[WARNING]: Failed to parse inventory with hetzner.hcloud.hcloud plugin' >&2; exit 0; fi
 if [ "$PUNI_FAULT" = "stale" ]; then sleep 1; fi
 if [ "$PUNI_FAULT" = "timeout" ]; then trap '' TERM; (sleep 0.2; printf survived > "$PUNI_TIMEOUT_SENTINEL") & wait; fi
-if [ "$PUNI_FAULT" = "empty" ]; then printf '{"_meta":{"hostvars":{}}}'; exit 0; fi
+if [ "$PUNI_FAULT" = "empty" ] || [ "$PUNI_FAULT" = "dockerfail" ]; then printf '{"_meta":{"hostvars":{}}}'; exit 0; fi
 instance=1001
 if [ "$PUNI_FAULT" = "replaced" ]; then instance=9999; fi
 printf '{"_meta":{"hostvars":{"platform-a":{"puni_cluster":"platform","puni_instance_id":"%s","puni_private_ipv4":"10.0.0.11"}}}}' "$instance"
@@ -930,6 +1009,11 @@ printf '{"hosts":[]}'
 `;
     const docker = `#!/bin/sh
 printf '%s\n' "$*" >> "$PUNI_DOCKER_LOG"
+if [ "$PUNI_FAULT" = "dockerfail" ]; then
+  for argument in "$@"; do
+    if [ "$argument" = "kubectl" ]; then echo 'registry request failed: i/o timeout' >&2; exit 125; fi
+  done
+fi
 while [ "$#" -gt 0 ]; do
   case "$1" in
     ansible-inventory|kubectl|ansible-playbook)
@@ -1015,6 +1099,38 @@ exit 98
       }
       expect(Bun.file(mutationSentinel).size).toBe(0);
     }
+
+    const bootstrapFleet = join(directory, 'bootstrap-fleet.json');
+    const dockerFailureOutput = join(directory, 'docker-failure.json');
+    await Bun.write(bootstrapFleet, JSON.stringify(fleetOf('required')));
+    const dockerFailure = Bun.spawnSync(
+      [
+        process.execPath,
+        join(import.meta.dir, 'entrypoint.ts'),
+        'discover',
+        '--fleet',
+        bootstrapFleet,
+        '--output',
+        dockerFailureOutput,
+      ],
+      {
+        env: {
+          ...process.env,
+          PATH: `${binaries}:${process.env['PATH'] ?? ''}`,
+          PUNI_FAULT: 'dockerfail',
+          PUNI_FAKE_BIN: binaries,
+          PUNI_DOCKER_LOG: dockerLog,
+          PUNI_TIMEOUT_SENTINEL: timeoutSentinel,
+        },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
+    expect(dockerFailure.exitCode).not.toBe(0);
+    expect(dockerFailure.stderr.toString()).toMatch(
+      /Controller failed while reading kubernetes-nodes:platform.*exit 125.*i\/o timeout/i,
+    );
+    expect(Bun.file(dockerFailureOutput).size).toBe(0);
 
     const invoke = (argv: readonly string[]) =>
       Bun.spawnSync(

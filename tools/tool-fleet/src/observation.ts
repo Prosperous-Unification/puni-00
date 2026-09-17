@@ -18,6 +18,8 @@ export interface ObservedNode {
   readonly desiredNodeId?: string;
   readonly displayName: string;
   readonly providerIdentity: string;
+  /** Exact discovery source that supplied or disproved this stable identity. */
+  readonly identitySource: DiscoverySource;
   readonly privateAddress?: string;
   readonly machineId?: string;
   readonly kubernetesNodeUid?: string;
