@@ -557,7 +557,14 @@ describe('relocation activation prepared from a candidate SHA', () => {
     expect(planRelocationChecks(sources()).checks).toEqual([
       {
         checkId: 'check.fixture.module',
-        command: ['bunx', 'nx', 'run', 'fixture:check', '--skip-nx-cache'],
+        command: [
+          'bunx',
+          'nx',
+          'run',
+          'fixture:check',
+          '--skip-nx-cache',
+          '--outputStyle=stream-without-prefixes',
+        ],
         skipChannel: 'none',
       },
     ]);
