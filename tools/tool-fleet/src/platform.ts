@@ -118,31 +118,47 @@ const ImageValues = type({
   repository: 'string>0',
   tag: 'string>0',
   digest: 'string>0',
-  '+': 'delete',
+  '+': 'reject',
 });
+// Proof: changing Traefik's top-level unknown-key policy to delete admitted the operative
+// `oci_meta` image override in the production validator on 2026-09-17.
 const TraefikValues = type({
   image: {
     registry: 'string>0',
     repository: 'string>0',
     tag: 'string>0',
     digest: 'string>0',
-    '+': 'delete',
+    '+': 'reject',
   },
-  '+': 'delete',
+  versionOverride: 'string>0',
+  deployment: {
+    kind: "'DaemonSet'",
+    dnsPolicy: "'ClusterFirstWithHostNet'",
+    '+': 'reject',
+  },
+  hostNetwork: 'true',
+  updateStrategy: {
+    type: "'RollingUpdate'",
+    rollingUpdate: { maxUnavailable: 'number', maxSurge: 'number', '+': 'reject' },
+    '+': 'reject',
+  },
+  nodeSelector: { 'puni.dev/capability-ingress': "'true'", '+': 'reject' },
+  '+': 'reject',
 });
 const CertManagerValues = type({
+  crds: { enabled: 'true', '+': 'reject' },
   image: ImageValues,
-  webhook: { image: ImageValues, '+': 'delete' },
-  cainjector: { image: ImageValues, '+': 'delete' },
-  acmesolver: { image: ImageValues, '+': 'delete' },
-  startupapicheck: { image: ImageValues, '+': 'delete' },
-  '+': 'delete',
+  webhook: { image: ImageValues, '+': 'reject' },
+  cainjector: { image: ImageValues, '+': 'reject' },
+  acmesolver: { image: ImageValues, '+': 'reject' },
+  startupapicheck: { image: ImageValues, '+': 'reject' },
+  '+': 'reject',
 });
 const HcloudCcmValues = type({
-  image: { repository: 'string>0', tag: 'string>0', '+': 'delete' },
-  '+': 'delete',
+  image: { repository: 'string>0', tag: 'string>0', '+': 'reject' },
+  '+': 'reject',
 });
-const HcloudCsiImage = type({ name: 'string>0', tag: "''", '+': 'delete' });
+const HcloudCsiImage = type({ name: 'string>0', tag: "''", '+': 'reject' });
 const HcloudCsiValues = type({
   controller: {
     image: {
@@ -151,20 +167,20 @@ const HcloudCsiValues = type({
       csiProvisioner: HcloudCsiImage,
       livenessProbe: HcloudCsiImage,
       hcloudCSIDriver: HcloudCsiImage,
-      '+': 'delete',
+      '+': 'reject',
     },
-    '+': 'delete',
+    '+': 'reject',
   },
   node: {
     image: {
       csiNodeDriverRegistrar: HcloudCsiImage,
       livenessProbe: HcloudCsiImage,
       hcloudCSIDriver: HcloudCsiImage,
-      '+': 'delete',
+      '+': 'reject',
     },
-    '+': 'delete',
+    '+': 'reject',
   },
-  '+': 'delete',
+  '+': 'reject',
 });
 
 function imageReference(repository: string, tag: string, digest: string): string {

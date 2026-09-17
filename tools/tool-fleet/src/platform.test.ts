@@ -104,6 +104,17 @@ describe('validatePlatform', () => {
     expect(validatePlatform(root)).rejects.toThrow(/traefik.*locked controller image reference/);
   });
 
+  it('rejects an unmodeled chart branch that overrides the locked image', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/networking/traefik.yaml',
+      '  values:\n    image:',
+      '  values:\n    oci_meta:\n      enabled: true\n      repo: docker.io\n      images:\n        proxy:\n          image: library/traefik\n          tag: v3.7.13\n    image:',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/traefik values.*oci_meta.*must be removed/i);
+  });
+
   it('rejects changed vendored chart bytes', async () => {
     const root = await mutablePlatform();
     const path = join(root, 'infra/platform/charts/traefik-41.6.0.tgz');

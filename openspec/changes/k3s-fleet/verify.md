@@ -330,3 +330,22 @@ unchanged; the enclosing test budget is now 10 seconds. A fresh uncached
 --skip-nx-cache` then passed 145 tests with 747 assertions, lint, typecheck, the
 toolchain lock reader and the platform validator. The formerly flaky integration
 test completed in 5.33 seconds during that passing run.
+
+The exact-SHA Astra review of `9176a40d` closed the admission finding: both live
+positives passed, all 22 committed negatives and five extra init-container
+variants were denied. It found one remaining image branch in the vendored
+Traefik chart: `oci_meta.enabled` takes precedence over `image.digest`. Helm
+v4.3.0 rendered that mutation as unpinned
+`docker.io/library/traefik:v3.7.13`, while the validator had silently deleted the
+unmodeled input.
+
+Every chart release now decodes its complete checked-in values shape with
+unknown keys rejected at each modeled object boundary. This makes new chart
+configuration an explicit review event and prevents hidden image-selection
+branches. The exact `oci_meta` mutation is rejected. Weakening only Traefik's
+top-level unknown-key policy from reject to delete made the named production
+negative resolve instead of reject; the strict policy was restored before the
+14-test, 25-assertion focused platform suite passed.
+
+The final uncached tool-fleet check after this repair passed 146 tests with 749
+assertions, lint, typecheck, the toolchain lock reader and platform validation.
