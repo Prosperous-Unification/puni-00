@@ -145,6 +145,14 @@
       ansible.builtin.shell:
         cmd: >-
           set -euo pipefail;
+          status="$(curl --fail --silent --show-error
+          --cacert /var/lib/rancher/k3s/server/tls/etcd/server-ca.crt
+          --cert /var/lib/rancher/k3s/server/tls/etcd/server-client.crt
+          --key /var/lib/rancher/k3s/server/tls/etcd/server-client.key
+          --header 'Content-Type: application/json' --data '{}'
+          https://127.0.0.1:2382/v3/maintenance/status)";
+          jq -e --arg member_id '{{ puni_surviving_etcd_node.memberId }}'
+          '(.header.member_id | tostring) == $member_id' <<<"$status" >/dev/null;
           curl --fail --silent --show-error
           --cacert /var/lib/rancher/k3s/server/tls/etcd/server-ca.crt
           --cert /var/lib/rancher/k3s/server/tls/etcd/server-client.crt

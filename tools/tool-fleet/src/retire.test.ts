@@ -175,11 +175,32 @@ fi
       );
     expect(runQuorum(4).exitCode).toBe(0);
     expect(runQuorum(3).exitCode).not.toBe(0);
-    expect(shell('Probe fresh linearizable health on every surviving etcd voter')).toContain(
-      'https://127.0.0.1:2382/health?serializable=false',
+    await writeFile(
+      curl,
+      `#!/bin/bash
+endpoint="\${!#}"
+if [[ "$endpoint" == *"/v3/maintenance/status" ]]; then
+  printf '%s\\n' '{"header":{"member_id":"2"}}'
+else
+  printf '%s\\n' '{"health":true}'
+fi
+`,
     );
+    const healthCommand = shell('Probe fresh linearizable health on every surviving etcd voter');
+    const runHealth = (memberId: string) =>
+      Bun.spawnSync(
+        [
+          '/bin/bash',
+          '-c',
+          healthCommand.replace("'{{ puni_surviving_etcd_node.memberId }}'", `'${memberId}'`),
+        ],
+        { env: { ...process.env, PATH: `${directory}:${process.env['PATH'] ?? ''}` } },
+      );
+    expect(runHealth('2').exitCode).toBe(0);
+    expect(runHealth('3').exitCode).not.toBe(0);
     // Proof: the exact production shells fail when a later empty attachment query follows a
-    // Pending workload and when only three survivors of seven actual etcd voters are healthy.
+    // Pending workload, a delegated endpoint serves another voter, or only three survivors of
+    // seven actual etcd voters are freshly healthy.
   });
 
   it('refuses the last required capability and sole control-plane server', () => {
