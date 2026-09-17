@@ -313,6 +313,14 @@ describe('the Ansible host and k3s contract', () => {
       join(root, 'infra/ansible/roles/network/templates/puni-k3s-firewall.service.j2'),
       'utf8',
     );
+    const serverService = await readFile(
+      join(root, 'infra/ansible/roles/k3s_server/templates/k3s.service.j2'),
+      'utf8',
+    );
+    const agentService = await readFile(
+      join(root, 'infra/ansible/roles/k3s_agent/templates/k3s-agent.service.j2'),
+      'utf8',
+    );
     const server = await readFile(
       join(root, 'infra/ansible/roles/k3s_server/tasks/main.yml'),
       'utf8',
@@ -334,11 +342,15 @@ describe('the Ansible host and k3s contract', () => {
     expect(base).toContain("ansible_distribution_version == '24.04'");
     expect(network).toContain('nft -c -f');
     expect(network).toContain('puni-k3s-firewall');
+    expect(network).toContain('notify: Restart fleet firewall');
     expect(network).toContain('-M do');
     expect(firewall).toContain('destroy table inet puni_k3s');
+    expect(firewall).toContain('ip saddr @cluster_ipv4 tcp dport 6443 accept');
     expect(firewall).toContain('tcp dport { 6443, 2379, 2380, 10250 } reject');
     expect(firewall).toContain('udp dport 8472 drop');
     expect(firewallService).toContain('WantedBy=multi-user.target');
+    expect(serverService).toContain('Requires=puni-k3s-firewall.service');
+    expect(agentService).toContain('Requires=puni-k3s-firewall.service');
     expect(server).toContain("checksum: 'sha256:{{ puni_k3s_sha256 }}'");
     expect(server).toContain('no_log: true');
     expect(agent).toContain("checksum: 'sha256:{{ puni_k3s_sha256 }}'");
@@ -377,7 +389,9 @@ describe('the Ansible host and k3s contract', () => {
     expect(validation).toContain('deployment/coredns');
     expect(validation).toContain('kubectl patch deployment coredns');
     expect(validation).toContain('"key":"puni.io/enrollment"');
-    expect(validation).toContain('hostvars[item.item].puni_machine_id');
+    expect(validation.match(/key: puni\.io\/worker-control-plane/g)).toHaveLength(2);
+    expect(validation).toContain('../tasks/require-enrollment-identity.yml');
+    expect(validation).toContain('hostvars[puni_node_identity.item].puni_machine_id');
     expect(validation).toContain(
       'dns-network-{{ ansible_loop.index }}-{{ puni_validation_run_id }}',
     );

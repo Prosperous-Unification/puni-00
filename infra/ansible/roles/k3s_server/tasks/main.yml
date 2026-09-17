@@ -12,6 +12,8 @@
       - puni_node_name is defined
       - puni_node_ip is defined
       - puni_private_interface is defined
+      - puni_cluster_cidr is defined
+      - puni_service_cidr is defined
       - puni_tls_sans is defined
       - puni_disable_cloud_controller is defined
       - puni_node_capabilities is defined

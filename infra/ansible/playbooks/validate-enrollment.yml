@@ -31,15 +31,18 @@
       changed_when: false
 
     - name: Require stable Kubernetes and machine identities
-      # Proof: accepting nonempty identity instead of the independently observed value made the enrollment contract test fail.
-      ansible.builtin.assert:
-        that:
-          - item.stdout.split('|') | length == 3
-          - item.stdout.split('|')[0] | length > 0
-          - item.stdout.split('|')[1] == hostvars[item.item].puni_machine_id
-          - item.stdout.split('|')[2] == hostvars[item.item].puni_node_ip
-        fail_msg: 'Node {{ item.item }} does not match its independently observed machine identity and address'
+      # Proof: the pinned-controller negative supplies a different intended machine ID to this exact
+      # included assertion and exits 2 before enrollment taints can be removed.
+      ansible.builtin.include_tasks: ../tasks/require-enrollment-identity.yml
       loop: '{{ puni_node_identities.results }}'
+      loop_control:
+        loop_var: puni_node_identity
+      vars:
+        puni_enrollment_uid: "{{ puni_node_identity.stdout.split('|')[0] }}"
+        puni_enrollment_machine_id: "{{ puni_node_identity.stdout.split('|')[1] }}"
+        puni_enrollment_address: "{{ puni_node_identity.stdout.split('|')[2] }}"
+        puni_expected_machine_id: '{{ hostvars[puni_node_identity.item].puni_machine_id }}'
+        puni_expected_address: '{{ hostvars[puni_node_identity.item].puni_node_ip }}'
 
     - name: Wait for the packaged CoreDNS deployment to exist
       ansible.builtin.command: >-
@@ -85,6 +88,8 @@
             nodeName: {{ groups['k3s_bootstrap_servers'][0] }}
             tolerations:
               - key: puni.io/enrollment
+                operator: Exists
+              - key: puni.io/worker-control-plane
                 operator: Exists
             containers:
               - name: receiver

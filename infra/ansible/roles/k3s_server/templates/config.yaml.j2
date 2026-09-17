@@ -3,6 +3,8 @@ node-name: {{ puni_node_name }}
 node-ip: {{ puni_node_ip }}
 flannel-iface: {{ puni_private_interface }}
 flannel-backend: vxlan
+cluster-cidr: {{ puni_cluster_cidr }}
+service-cidr: {{ puni_service_cidr }}
 secrets-encryption: true
 disable:
   - traefik

@@ -567,6 +567,8 @@ async function writeLabState(
         puni_operator_authorized_keys: [bootstrap.publicKey],
         puni_swap_enabled: false,
         puni_private_mtu: 1400,
+        puni_cluster_cidr: '10.42.0.0/16',
+        puni_service_cidr: '10.43.0.0/16',
         puni_enrolled_private_addresses: enrolledAddresses,
         puni_required_mounts: [{ path: '/', minimum_bytes: 8_000_000_000 }],
         puni_k3s_version: toolchain.binaries.k3s.version,

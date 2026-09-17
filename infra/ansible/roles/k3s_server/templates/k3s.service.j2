@@ -1,7 +1,9 @@
 [Unit]
 Description=Lightweight Kubernetes
 After=network-online.target puni-k3s-firewall.service
-Wants=network-online.target puni-k3s-firewall.service
+Wants=network-online.target
+# Proof: weakening this to Wants made the required-firewall dependency contract test fail.
+Requires=puni-k3s-firewall.service
 
 [Service]
 Type=notify
