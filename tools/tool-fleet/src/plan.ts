@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
 
+import operationPlanSchema from '@infra/fleet-operation-plan-schema' with { type: 'json' };
+import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
+
 import type { Capability, Fleet, FleetNode, Observation } from './contracts';
 
 export type OperationRequest =
@@ -19,6 +22,10 @@ export type OperationRequest =
       readonly sshKeyIds: readonly string[];
       readonly retainedStorage: boolean;
       readonly budgetCapEur: number;
+      readonly providerOwnershipId: string;
+      readonly terraformPlanSha256: string;
+      readonly terraformStateLineage: string;
+      readonly terraformStateSerial: number;
     }
   | { readonly kind: 'destroy'; readonly nodeId: string };
 
@@ -27,6 +34,7 @@ export interface OperationPlan {
   readonly desiredRevision: string;
   readonly observationDigest: string;
   readonly observedAt: string;
+  readonly expiresAt: string;
   readonly request: OperationRequest;
   readonly targetIdentities: readonly string[];
   readonly preconditions: readonly string[];
@@ -45,6 +53,42 @@ function serializeCanonical(value: unknown): string {
     return `{${entries.map(([key, member]) => `${JSON.stringify(key)}:${serializeCanonical(member)}`).join(',')}}`;
   }
   return JSON.stringify(value);
+}
+
+type OperationPlanBody = Omit<OperationPlan, 'planSha256'>;
+
+let persistedPlanValidator: ValidateFunction<OperationPlan> | undefined;
+
+function operationPlanValidator(): ValidateFunction<OperationPlan> {
+  persistedPlanValidator ??= new Ajv2020({
+    allErrors: true,
+    strict: true,
+    formats: { 'date-time': true },
+  }).compile<OperationPlan>(operationPlanSchema);
+  return persistedPlanValidator;
+}
+
+/** Decode exact persisted operation-plan bytes before they can authorize an effect. */
+export function decodeOperationPlan(input: unknown): OperationPlan {
+  const validate = operationPlanValidator();
+  if (!validate(input)) {
+    // Proof: the persisted-plan production CLI negative injects an unknown property and reaches no
+    // adapter mutation before this exact schema boundary rejects it.
+    throw new Error(`Operation plan validation failed: ${JSON.stringify(validate.errors)}`);
+  }
+  const candidate = input;
+  const observedAt = Date.parse(candidate.observedAt);
+  const expiresAt = Date.parse(candidate.expiresAt);
+  if (!Number.isFinite(observedAt) || !Number.isFinite(expiresAt)) {
+    throw new Error('Operation plan contains an invalid calendar instant');
+  }
+  return candidate;
+}
+
+/** Bind every operation field to the SHA-256 reviewed by apply. */
+export function sealOperationPlan(plan: OperationPlanBody): OperationPlan {
+  const planSha256 = createHash('sha256').update(serializeCanonical(plan)).digest('hex');
+  return { ...plan, planSha256 };
 }
 
 function identifyNodeProvider(node: FleetNode): string {
@@ -73,13 +117,18 @@ function requireProvisioningRequest(
     request.machineType,
     request.image,
     request.network,
+    request.providerOwnershipId,
   ];
   if (
     strings.some((value) => value.length === 0) ||
     request.sshKeyIds.length === 0 ||
     request.sshKeyIds.some((key) => key.length === 0) ||
     !Number.isFinite(request.budgetCapEur) ||
-    request.budgetCapEur <= 0
+    request.budgetCapEur <= 0 ||
+    !/^[0-9a-f]{64}$/.test(request.terraformPlanSha256) ||
+    request.terraformStateLineage.length === 0 ||
+    !Number.isSafeInteger(request.terraformStateSerial) ||
+    request.terraformStateSerial < 0
   ) {
     // Proof: disabling this boundary made the invalid-budget/empty-key production planner negative
     // emit provisioning effects; restored validation refuses before an external identity exists.
@@ -183,6 +232,7 @@ export function planOperation(
     desiredRevision: fleet.revision,
     observationDigest: observation.digest,
     observedAt: observation.observedAt,
+    expiresAt: new Date(Date.parse(observation.observedAt) + 30 * 60 * 1000).toISOString(),
     request,
     targetIdentities,
     preconditions: [
@@ -196,6 +246,5 @@ export function planOperation(
     downtimeImplication,
     summary: `${request.kind} ${request.nodeId}; capabilities=${affectedCapabilities.join(',') || 'pending'}; storage=${storageImplication}; downtime=${downtimeImplication}`,
   };
-  const planSha256 = createHash('sha256').update(serializeCanonical(planBody)).digest('hex');
-  return { ...planBody, planSha256 };
+  return sealOperationPlan(planBody);
 }

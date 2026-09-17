@@ -62,6 +62,13 @@ playwright-report/
 .superpowers/
 .puni/fleet-labs/
 
+# Terraform downloads signed providers and writes local state/plan artifacts; reviewed locks and
+# configuration stay tracked while runtime state remains in the encrypted remote backend.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+
 # Reviewer transcripts and one-off prompts. Ephemeral by design: the codex
 # transcript for one review ran to 4,460 lines of tool traffic, and it was
 # staged for commit once before anyone noticed. Findings worth keeping go in

@@ -23,6 +23,7 @@
     "resolveJsonModule": true,
     "types": ["bun-types"],
     "paths": {
+      "@infra/fleet-operation-plan-schema": ["./infra/fleet/schemas/operation-plan.json"],
       "@wbs/auth": ["./libs/wbs/adapters/auth/src/index.ts"],
       "@wbs/config": ["./libs/wbs/adapters/config/src/index.ts"],
       "@wbs/contracts": ["./libs/wbs/domain/contracts/src/index.ts"],

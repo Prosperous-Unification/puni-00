@@ -169,6 +169,14 @@ describe('production plan input boundary', () => {
       'false',
       '--budget-cap-eur',
       '20',
+      '--provider-ownership-id',
+      'provision-workers-c-20260917',
+      '--terraform-plan-sha256',
+      'f'.repeat(64),
+      '--terraform-state-lineage',
+      'lineage-1',
+      '--terraform-state-serial',
+      '7',
     ];
     const invalidBoolean = [...provision];
     invalidBoolean[invalidBoolean.indexOf('false')] = 'tru';

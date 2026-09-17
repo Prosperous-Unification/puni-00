@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import { decodeFleet, decodeObservation, type Fleet, type Observation } from './contracts';
-import { planOperation } from './plan';
+import { decodeOperationPlan, planOperation } from './plan';
 
 const fleetInput = {
   schemaVersion: 1,
@@ -207,6 +207,19 @@ describe('fleet contracts', () => {
 describe('planOperation', () => {
   const fleet: Fleet = decodeFleet(fleetInput);
 
+  it('decodes only exact persisted operation plans', () => {
+    const plan = planOperation(fleet, observation, {
+      kind: 'enroll',
+      nodeId: 'workers-b',
+      clusterId: 'workers',
+    });
+    expect(decodeOperationPlan(plan)).toEqual(plan);
+    expect(() => decodeOperationPlan({ ...plan, unreviewed: true })).toThrow(/validation failed/i);
+    expect(() => decodeOperationPlan({ ...plan, expiresAt: '2026-99-99T99:99:99.000Z' })).toThrow(
+      /calendar instant/i,
+    );
+  });
+
   it('emits deterministic JSON-ready plans for every explicit operation kind', () => {
     const requests = [
       { kind: 'enroll', nodeId: 'workers-b', clusterId: 'workers' },
@@ -225,6 +238,10 @@ describe('planOperation', () => {
         sshKeyIds: ['admin-primary'],
         retainedStorage: false,
         budgetCapEur: 20,
+        providerOwnershipId: 'provision-workers-c-20260917',
+        terraformPlanSha256: 'f'.repeat(64),
+        terraformStateLineage: 'lineage-1',
+        terraformStateSerial: 7,
       },
       { kind: 'destroy', nodeId: 'workers-b' },
     ] as const;
@@ -287,6 +304,29 @@ describe('planOperation', () => {
         sshKeyIds: [],
         retainedStorage: false,
         budgetCapEur: 0,
+        providerOwnershipId: 'provision-workers-c-20260917',
+        terraformPlanSha256: 'f'.repeat(64),
+        terraformStateLineage: 'lineage-1',
+        terraformStateSerial: 7,
+      }),
+    ).toThrow(/provision/i);
+    expect(() =>
+      planOperation(fleet, observation, {
+        kind: 'provision',
+        nodeId: 'workers-c',
+        clusterId: 'workers',
+        cloudAccount: 'puni-production',
+        region: 'fsn1',
+        machineType: 'cx33',
+        image: 'ubuntu-24.04',
+        network: 'puni-private',
+        sshKeyIds: ['admin-primary'],
+        retainedStorage: false,
+        budgetCapEur: 20,
+        providerOwnershipId: 'provision-workers-c-20260917',
+        terraformPlanSha256: 'unreviewed',
+        terraformStateLineage: '',
+        terraformStateSerial: -1,
       }),
     ).toThrow(/provision/i);
   });
@@ -326,6 +366,10 @@ describe('planOperation', () => {
         sshKeyIds: ['admin-primary'],
         retainedStorage: false,
         budgetCapEur: 20,
+        providerOwnershipId: 'provision-workers-c-20260917',
+        terraformPlanSha256: 'f'.repeat(64),
+        terraformStateLineage: 'lineage-1',
+        terraformStateSerial: 7,
       }),
     ).toThrow(/unknown cluster/i);
     expect(() =>
@@ -341,6 +385,10 @@ describe('planOperation', () => {
         sshKeyIds: ['admin-primary'],
         retainedStorage: false,
         budgetCapEur: 20,
+        providerOwnershipId: 'provision-workers-c-20260917',
+        terraformPlanSha256: 'f'.repeat(64),
+        terraformStateLineage: 'lineage-1',
+        terraformStateSerial: 7,
       }),
     ).toThrow(/reuses fleet node id/i);
   });

@@ -2,8 +2,15 @@ import { readFile, writeFile } from 'node:fs/promises';
 
 import { parse } from 'yaml';
 
+import { type ApplyDependencies, applyOperation } from './apply';
 import { decodeFleet, decodeObservation } from './contracts';
-import { type OperationRequest, planOperation } from './plan';
+import {
+  decodeOperationPlan,
+  type OperationPlan,
+  type OperationRequest,
+  planOperation,
+} from './plan';
+import { prepareTerraformPlan } from './production-apply';
 
 function readFlags(argv: readonly string[]): ReadonlyMap<string, string> {
   const flags = new Map<string, string>();
@@ -92,9 +99,13 @@ function decodeRequest(flags: ReadonlyMap<string, string>): OperationRequest {
         '--image',
         '--machine-type',
         '--network',
+        '--provider-ownership-id',
         '--region',
         '--retained-storage',
         '--ssh-key-ids',
+        '--terraform-plan-sha256',
+        '--terraform-state-lineage',
+        '--terraform-state-serial',
       ]);
       const keySource = requireFlag(flags, '--ssh-key-ids');
       const sshKeyIds = keySource.split(',');
@@ -116,6 +127,10 @@ function decodeRequest(flags: ReadonlyMap<string, string>): OperationRequest {
         sshKeyIds,
         retainedStorage: decodeBooleanFlag(flags, '--retained-storage'),
         budgetCapEur,
+        providerOwnershipId: requireFlag(flags, '--provider-ownership-id'),
+        terraformPlanSha256: requireFlag(flags, '--terraform-plan-sha256'),
+        terraformStateLineage: requireFlag(flags, '--terraform-state-lineage'),
+        terraformStateSerial: Number(requireFlag(flags, '--terraform-state-serial')),
       };
     }
     default:
@@ -172,4 +187,67 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
     throw new Error(`Cannot create new operation plan at ${outputPath}`, { cause });
   }
   process.stdout.write(`${plan.summary}\nplan sha256: ${plan.planSha256}\n`);
+}
+
+export type CreateApplyDependencies = (plan: OperationPlan, planPath: string) => ApplyDependencies;
+
+/** Run apply from only an exact persisted plan and the operator-reviewed digest. */
+export async function runApply(
+  argv: readonly string[],
+  createDependencies: CreateApplyDependencies,
+): Promise<void> {
+  const flags = readFlags(argv);
+  requireExactFlagsForApply(flags);
+  const planPath = requireFlag(flags, '--plan');
+  const expectedSha256 = requireFlag(flags, '--expect-sha256');
+  const source = await readRequiredState(planPath, 'operation plan');
+  let input: unknown;
+  try {
+    input = JSON.parse(source) as unknown;
+  } catch (cause) {
+    // Proof: the malformed persisted-plan production CLI negative reaches no dependency factory.
+    throw new Error(`Required operation plan at ${planPath} is malformed JSON`, { cause });
+  }
+  const plan = decodeOperationPlan(input);
+  const receipt = await applyOperation({
+    plan,
+    expectedSha256,
+    journalPath: `${planPath}.journal.json`,
+    dependencies: createDependencies(plan, planPath),
+  });
+  process.stdout.write(`${JSON.stringify(receipt)}\n`);
+}
+
+function requireExactFlagsForApply(flags: ReadonlyMap<string, string>): void {
+  const allowed = new Set(['--plan', '--expect-sha256']);
+  for (const flag of flags.keys()) {
+    if (!allowed.has(flag)) {
+      // Proof: the apply CLI unknown-flag negative cannot inject a mutable path or precondition.
+      throw new Error(`Unexpected fleet apply flag: ${flag}`);
+    }
+  }
+}
+
+/** Prepare the exact saved Terraform artifact and print its immutable operation bindings. */
+export async function runTerraformPlan(argv: readonly string[], root: string): Promise<void> {
+  const flags = readFlags(argv);
+  const allowed = new Set([
+    '--node',
+    '--cluster',
+    '--provider-ownership-id',
+    '--variables',
+    '--output',
+  ]);
+  for (const flag of flags.keys()) {
+    if (!allowed.has(flag)) throw new Error(`Unexpected Terraform plan flag: ${flag}`);
+  }
+  const evidence = await prepareTerraformPlan(
+    root,
+    requireFlag(flags, '--node'),
+    requireFlag(flags, '--cluster'),
+    requireFlag(flags, '--provider-ownership-id'),
+    requireFlag(flags, '--variables'),
+    requireFlag(flags, '--output'),
+  );
+  process.stdout.write(`${JSON.stringify(evidence)}\n`);
 }

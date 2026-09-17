@@ -1,21 +1,22 @@
 import { join } from 'node:path';
 
-import { runPlan } from './cli';
-import { readToolchain } from './contracts';
-import { buildController } from './controller';
-import { runDiscover } from './discover';
-import { runVmLab } from './lab';
-
 const command = process.argv[2];
 const root = join(import.meta.dir, '../../..');
 const toolchainPath = join(root, 'infra/versions/toolchain.json');
 
 switch (command) {
   case 'check':
-    await readToolchain(toolchainPath);
+    {
+      const { readToolchain } = await import('./contracts');
+      await readToolchain(toolchainPath);
+    }
     break;
   case 'build':
     {
+      const [{ readToolchain }, { buildController }] = await Promise.all([
+        import('./contracts'),
+        import('./controller'),
+      ]);
       const toolchain = await readToolchain(toolchainPath);
       await buildController(
         root,
@@ -26,16 +27,27 @@ switch (command) {
     }
     break;
   case 'lab':
-    await runVmLab(process.argv.slice(3), root);
+    await (await import('./lab')).runVmLab(process.argv.slice(3), root);
     break;
   case 'plan':
-    await runPlan(process.argv.slice(3));
+    await (await import('./cli')).runPlan(process.argv.slice(3));
+    break;
+  case 'terraform-plan':
+    await (await import('./cli')).runTerraformPlan(process.argv.slice(3), root);
     break;
   case 'discover':
-    await runDiscover(process.argv.slice(3), root);
+    await (await import('./discover')).runDiscover(process.argv.slice(3), root);
     break;
-  case 'apply':
-    throw new Error('Fleet apply is unavailable until F4 supplies persisted operation plans');
+  case 'apply': {
+    const [{ runApply }, { createProductionApplyDependencies }] = await Promise.all([
+      import('./cli'),
+      import('./production-apply'),
+    ]);
+    await runApply(process.argv.slice(3), (plan, planPath) =>
+      createProductionApplyDependencies(root, plan, planPath),
+    );
+    break;
+  }
   default:
     throw new Error(`Unknown tool-fleet command: ${command}`);
 }
