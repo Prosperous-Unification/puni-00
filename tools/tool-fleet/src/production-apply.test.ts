@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -12,7 +12,27 @@ import {
   type CommandResponse,
   createProductionApplyDependencies,
   prepareTerraformPlan,
+  runBoundedCommand,
 } from './production-apply';
+
+const backendEvidenceSource = `${JSON.stringify({
+  schemaVersion: 1,
+  cloudAccount: 'production',
+  address: 'https://state.example/fleet',
+  lockAddress: 'https://state.example/fleet/lock',
+  unlockAddress: 'https://state.example/fleet/lock',
+  encryptedAtRest: true,
+  accessControlled: true,
+  versioned: true,
+  verifiedAt: '2026-09-17T08:55:00.000Z',
+})}\n`;
+const ansibleVariablesSource = `${JSON.stringify({
+  puni_node_name: 'workers-c',
+  puni_cluster_id: 'workers',
+  puni_node_ip: '10.0.0.23',
+  puni_machine_id: '0123456789abcdef0123456789abcdef',
+  puni_node_capabilities: ['execution'],
+})}\n`;
 
 function operationPlan(terraformPlanSha256: string): OperationPlan {
   return sealOperationPlan({
@@ -32,15 +52,26 @@ function operationPlan(terraformPlanSha256: string): OperationPlan {
       network: 'private',
       sshKeyIds: ['operator'],
       retainedStorage: false,
+      k3sRole: 'agent',
+      capabilities: ['execution'],
       budgetCapEur: 20,
       providerOwnershipId: 'provision-workers-c-20260917',
       terraformPlanSha256,
+      terraformBackendEvidenceSha256: createHash('sha256')
+        .update(backendEvidenceSource)
+        .digest('hex'),
+      ansibleVariablesSha256: createHash('sha256').update(ansibleVariablesSource).digest('hex'),
       terraformStateLineage: 'lineage-1',
       terraformStateSerial: 7,
     },
     targetIdentities: ['pending:workers-c', 'cluster:workers'],
     preconditions: ['observation remains current', 'operation lease is owned'],
-    effects: ['create provider instance', 'record provider identity', 'enroll configured host'],
+    effects: [
+      'create provider instance',
+      'record provider identity',
+      'record desired membership',
+      'enroll configured host',
+    ],
     affectedCapabilities: [],
     storageImplication: 'system-disk-only-with-no-retention',
     downtimeImplication: 'none-new-capacity',
@@ -59,23 +90,41 @@ function lease(holder: string): string {
   });
 }
 
-function terraformState(status = 'running'): string {
+function terraformState(status = 'running', present = true): string {
   return JSON.stringify({
     lineage: 'lineage-1',
     serial: 7,
-    resources: [
-      {
-        type: 'hcloud_server',
-        name: 'node',
-        instances: [{ index_key: 'workers-c', attributes: { status } }],
-      },
-    ],
+    resources: present
+      ? [
+          {
+            type: 'hcloud_server',
+            name: 'node',
+            instances: [
+              {
+                index_key: 'workers-c',
+                attributes: {
+                  id: '4815162342',
+                  status,
+                  labels: {
+                    'puni-logical-node': 'workers-c',
+                    'puni-operation': 'provision-workers-c-20260917',
+                  },
+                },
+              },
+            ],
+          },
+        ]
+      : [],
   });
 }
 
 function terraformShow(): string {
   return JSON.stringify({
     terraform_version: '1.16.3',
+    variables: {
+      budget_cap_eur: { value: 20 },
+      estimated_monthly_cost_eur: { value: 12 },
+    },
     resource_changes: [
       {
         address: 'hcloud_server.node["workers-c"]',
@@ -85,7 +134,14 @@ function terraformShow(): string {
             labels: {
               'puni-logical-node': 'workers-c',
               'puni-operation': 'provision-workers-c-20260917',
+              'puni-cluster': 'workers',
+              'puni-network': 'private',
+              'puni-k3s-role': 'agent',
             },
+            location: 'fsn1',
+            server_type: 'cx33',
+            image: 'ubuntu-24.04',
+            ssh_keys: ['operator'],
           },
         },
       },
@@ -95,7 +151,24 @@ function terraformShow(): string {
 
 function output(): string {
   return JSON.stringify({
-    node_identities: { value: { 'workers-c': { instance_id: '4815162342' } } },
+    'workers-c': { instance_id: '4815162342', private_ip: '10.0.0.23' },
+  });
+}
+
+function providerInventory(present: boolean): string {
+  return JSON.stringify({
+    _meta: {
+      hostvars: present
+        ? {
+            'workers-c': {
+              puni_instance_id: '4815162342',
+              puni_logical_node: 'workers-c',
+              puni_operation_id: 'provision-workers-c-20260917',
+              puni_provider_state: 'running',
+            },
+          }
+        : {},
+    },
   });
 }
 
@@ -109,9 +182,173 @@ async function rejectionMessage(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('production apply adapter', () => {
+  it('kills a signal-ignoring process group at the production command deadline', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-command-timeout-'));
+    const sentinel = join(directory, 'survived');
+    const script = join(directory, 'descendant.ts');
+    await writeFile(
+      script,
+      `process.on('SIGTERM', () => {}); const child = Bun.spawn([process.execPath, '-e', ${JSON.stringify(`await Bun.sleep(300); await Bun.write(${JSON.stringify(sentinel)}, 'survived')`)}]); await child.exited;`,
+    );
+    expect(
+      runBoundedCommand({ executable: process.execPath, arguments: [script] }, 50),
+    ).rejects.toThrow(/timed out/i);
+    await Bun.sleep(400);
+    expect(access(sentinel)).rejects.toThrow();
+  });
+
+  it('gives concurrent executions of the same plan distinct Lease ownership', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-production-lease-'));
+    const planPath = join(directory, 'operation.json');
+    const plan = operationPlan('f'.repeat(64));
+    let holder: string | undefined;
+    const run = (request: CommandRequest): Promise<CommandResponse> => {
+      if (request.arguments.includes('get')) {
+        return Promise.resolve(
+          holder === undefined
+            ? { exitCode: 1, stdout: '', stderr: 'NotFound' }
+            : { exitCode: 0, stdout: lease(holder), stderr: '' },
+        );
+      }
+      const manifest = JSON.parse(request.stdin ?? '{}') as {
+        spec?: { holderIdentity?: unknown };
+      };
+      if (typeof manifest.spec?.holderIdentity !== 'string') {
+        throw new Error('Test Lease manifest has no holder');
+      }
+      holder = manifest.spec.holderIdentity;
+      return Promise.resolve({ exitCode: 0, stdout: lease(holder), stderr: '' });
+    };
+    const first = createProductionApplyDependencies(
+      '/repo',
+      plan,
+      planPath,
+      run,
+      () => new Date('2026-09-17T09:01:00.000Z'),
+      'execution-one',
+    );
+    const second = createProductionApplyDependencies(
+      '/repo',
+      plan,
+      planPath,
+      run,
+      () => new Date('2026-09-17T09:01:00.000Z'),
+      'execution-two',
+    );
+
+    expect((await first.acquireLease(plan)).owner).toBe('execution-one');
+    expect(await rejectionMessage(second.acquireLease(plan))).toMatch(/active operation Lease/i);
+  });
+
+  it('enrolls an existing SSH host only from reviewed identity and host-key artifacts', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-existing-enroll-'));
+    const planPath = join(directory, 'operation.json');
+    const knownHostsPath = `${planPath}.known_hosts`;
+    const inventorySource = `${JSON.stringify({
+      _meta: {
+        hostvars: {
+          'external-c': {
+            ansible_host: '10.0.0.44',
+            puni_machine_id: 'abcdefabcdefabcdefabcdefabcdefab',
+            puni_provider_identity: 'abcdefabcdefabcdefabcdefabcdefab',
+            ansible_ssh_common_args: `-o UserKnownHostsFile=${knownHostsPath} -o StrictHostKeyChecking=yes`,
+          },
+        },
+      },
+      k3s_agents: { hosts: ['external-c'] },
+      k3s_join_servers: { hosts: [] },
+    })}\n`;
+    const variablesSource = `${JSON.stringify({
+      puni_node_name: 'external-c',
+      puni_cluster_id: 'workers',
+      puni_node_ip: '10.0.0.44',
+      puni_machine_id: 'abcdefabcdefabcdefabcdefabcdefab',
+      puni_node_capabilities: ['execution'],
+    })}\n`;
+    const knownHostsSource = '10.0.0.44 ssh-ed25519 AAAAC3NzaReviewedKey\n';
+    await writeFile(`${planPath}.inventory.json`, inventorySource, { mode: 0o600 });
+    await writeFile(`${planPath}.ansible-vars.json`, variablesSource, { mode: 0o600 });
+    await writeFile(knownHostsPath, knownHostsSource, { mode: 0o600 });
+    const plan = sealOperationPlan({
+      schemaVersion: 1,
+      desiredRevision: 'fleet-2026-09-17',
+      observationDigest: 'a'.repeat(64),
+      observedAt: '2026-09-17T09:00:00.000Z',
+      expiresAt: '2026-09-17T09:30:00.000Z',
+      request: {
+        kind: 'enroll',
+        nodeId: 'external-c',
+        clusterId: 'workers',
+        inventorySha256: createHash('sha256').update(inventorySource).digest('hex'),
+        ansibleVariablesSha256: createHash('sha256').update(variablesSource).digest('hex'),
+        knownHostsSha256: createHash('sha256').update(knownHostsSource).digest('hex'),
+      },
+      targetIdentities: [
+        'node:external-c',
+        'ssh:abcdefabcdefabcdefabcdefabcdefab',
+        'cluster:workers',
+      ],
+      preconditions: ['observation remains current', 'operation lease is owned'],
+      effects: ['verify provider identity', 'configure host', 'join cluster'],
+      affectedCapabilities: ['execution'],
+      storageImplication: 'attachments-must-be-verified-before-scheduling',
+      downtimeImplication: 'none-before-schedulable',
+      summary: 'enroll external-c',
+    });
+    let leaseExists = false;
+    const calls: CommandRequest[] = [];
+    const run = (request: CommandRequest): Promise<CommandResponse> => {
+      calls.push(request);
+      if (request.executable === 'kubectl' && request.arguments.includes('get')) {
+        return Promise.resolve(
+          leaseExists
+            ? { exitCode: 0, stdout: lease('execution-owner'), stderr: '' }
+            : { exitCode: 1, stdout: '', stderr: 'NotFound' },
+        );
+      }
+      if (request.executable === 'kubectl') {
+        leaseExists = true;
+        return Promise.resolve({ exitCode: 0, stdout: lease('execution-owner'), stderr: '' });
+      }
+      if (request.arguments.some((argument) => argument.endsWith('/discover.yml'))) {
+        return Promise.resolve({
+          exitCode: 0,
+          stdout:
+            'ok: [external-c] => {"msg":{"name":"external-c","machineId":"abcdefabcdefabcdefabcdefabcdefab","address":"10.0.0.44"}}\nPLAY RECAP\nexternal-c : ok=3 changed=0 unreachable=0 failed=0',
+          stderr: '',
+        });
+      }
+      return Promise.resolve({
+        exitCode: 0,
+        stdout: 'PLAY RECAP\nexternal-c : ok=12 changed=1 unreachable=0 failed=0',
+        stderr: '',
+      });
+    };
+
+    const receipt = await applyOperation({
+      plan,
+      expectedSha256: plan.planSha256,
+      journalPath: `${planPath}.journal.json`,
+      dependencies: createProductionApplyDependencies(
+        '/repo',
+        plan,
+        planPath,
+        run,
+        () => new Date('2026-09-17T09:01:00.000Z'),
+        'execution-owner',
+      ),
+    });
+    expect(receipt.state).toBe('complete');
+    expect(
+      calls.some((request) => request.arguments.some((arg) => arg.endsWith('/join.yml'))),
+    ).toBe(true);
+  });
+
   it('prepares a private saved plan and emits its exact state bindings', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'fleet-terraform-plan-'));
     const outputPath = join(directory, 'operation.json.tfplan');
+    const backendPath = join(directory, 'backend.json');
+    await writeFile(backendPath, backendEvidenceSource, { mode: 0o600 });
     const calls: CommandRequest[] = [];
     const run = async (request: CommandRequest): Promise<CommandResponse> => {
       calls.push(request);
@@ -139,9 +376,21 @@ describe('production apply adapter', () => {
 
     const evidence = await prepareTerraformPlan(
       '/repo',
-      'workers-c',
-      'workers',
-      'provision-workers-c-20260917',
+      {
+        nodeId: 'workers-c',
+        clusterId: 'workers',
+        operationId: 'provision-workers-c-20260917',
+        region: 'fsn1',
+        machineType: 'cx33',
+        image: 'ubuntu-24.04',
+        network: 'private',
+        sshKeyIds: ['operator'],
+        retainedStorage: false,
+        k3sRole: 'agent',
+        budgetCapEur: 20,
+      },
+      'production',
+      backendPath,
       '/reviewed/nodes.tfvars',
       outputPath,
       run,
@@ -149,6 +398,9 @@ describe('production apply adapter', () => {
 
     expect(evidence).toEqual({
       terraformPlanSha256: createHash('sha256').update('saved plan bytes').digest('hex'),
+      terraformBackendEvidenceSha256: createHash('sha256')
+        .update(backendEvidenceSource)
+        .digest('hex'),
       terraformStateLineage: 'lineage-1',
       terraformStateSerial: 7,
     });
@@ -164,6 +416,8 @@ describe('production apply adapter', () => {
 
   it('stops Terraform preparation when validation reports invalid', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'fleet-terraform-invalid-'));
+    const backendPath = join(directory, 'backend.json');
+    await writeFile(backendPath, backendEvidenceSource, { mode: 0o600 });
     let planCalls = 0;
     const run = (request: CommandRequest): Promise<CommandResponse> => {
       if (request.arguments[0] === 'validate') {
@@ -181,9 +435,21 @@ describe('production apply adapter', () => {
       await rejectionMessage(
         prepareTerraformPlan(
           '/repo',
-          'workers-c',
-          'workers',
-          'provision-workers-c-20260917',
+          {
+            nodeId: 'workers-c',
+            clusterId: 'workers',
+            operationId: 'provision-workers-c-20260917',
+            region: 'fsn1',
+            machineType: 'cx33',
+            image: 'ubuntu-24.04',
+            network: 'private',
+            sshKeyIds: ['operator'],
+            retainedStorage: false,
+            k3sRole: 'agent',
+            budgetCapEur: 20,
+          },
+          'production',
+          backendPath,
           '/reviewed/nodes.tfvars',
           join(directory, 'operation.tfplan'),
           run,
@@ -198,30 +464,55 @@ describe('production apply adapter', () => {
     const planPath = join(directory, 'operation.json');
     const savedPlan = new TextEncoder().encode('reviewed terraform plan');
     await writeFile(`${planPath}.tfplan`, savedPlan);
+    await writeFile(`${planPath}.backend.json`, backendEvidenceSource, { mode: 0o600 });
+    await writeFile(`${planPath}.ansible-vars.json`, ansibleVariablesSource, { mode: 0o600 });
     const plan = operationPlan(createHash('sha256').update(savedPlan).digest('hex'));
     let leaseExists = false;
+    let providerExists = false;
     const calls: CommandRequest[] = [];
     const run = (request: CommandRequest): Promise<CommandResponse> => {
       calls.push(request);
       if (request.executable === 'kubectl' && request.arguments.includes('get')) {
         return Promise.resolve(
           leaseExists
-            ? { exitCode: 0, stdout: lease(plan.planSha256), stderr: '' }
+            ? { exitCode: 0, stdout: lease('execution-owner'), stderr: '' }
             : { exitCode: 1, stdout: '', stderr: 'NotFound' },
         );
       }
       if (request.executable === 'kubectl' && request.arguments.includes('create')) {
         leaseExists = true;
-        return Promise.resolve({ exitCode: 0, stdout: lease(plan.planSha256), stderr: '' });
+        return Promise.resolve({ exitCode: 0, stdout: lease('execution-owner'), stderr: '' });
       }
       if (request.executable === 'terraform' && request.arguments[0] === 'state') {
-        return Promise.resolve({ exitCode: 0, stdout: terraformState(), stderr: '' });
+        return Promise.resolve({
+          exitCode: 0,
+          stdout: terraformState('running', providerExists),
+          stderr: '',
+        });
       }
       if (request.executable === 'terraform' && request.arguments[0] === 'show') {
         return Promise.resolve({ exitCode: 0, stdout: terraformShow(), stderr: '' });
       }
       if (request.executable === 'terraform' && request.arguments[0] === 'output') {
         return Promise.resolve({ exitCode: 0, stdout: output(), stderr: '' });
+      }
+      if (request.executable === 'terraform' && request.arguments[0] === 'apply') {
+        providerExists = true;
+        return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
+      }
+      if (request.executable === 'ansible-inventory') {
+        return Promise.resolve({
+          exitCode: 0,
+          stdout: providerInventory(providerExists),
+          stderr: '',
+        });
+      }
+      if (request.executable === 'ansible-playbook') {
+        return Promise.resolve({
+          exitCode: 0,
+          stdout: 'PLAY RECAP\nworkers-c : ok=12 changed=1 unreachable=0 failed=0 skipped=0',
+          stderr: '',
+        });
       }
       return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
     };
@@ -236,6 +527,7 @@ describe('production apply adapter', () => {
         planPath,
         run,
         () => new Date('2026-09-17T09:01:00.000Z'),
+        'execution-owner',
       ),
     });
 
@@ -249,10 +541,70 @@ describe('production apply adapter', () => {
     expect(calls.some((request) => request.executable === 'ansible-playbook')).toBe(true);
   });
 
+  it('imports an operation-owned server after a lost response and requires a fresh plan', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-response-lost-'));
+    const planPath = join(directory, 'operation.json');
+    const savedPlan = new TextEncoder().encode('reviewed terraform plan');
+    await writeFile(`${planPath}.tfplan`, savedPlan);
+    await writeFile(`${planPath}.backend.json`, backendEvidenceSource, { mode: 0o600 });
+    const plan = operationPlan(createHash('sha256').update(savedPlan).digest('hex'));
+    let leaseExists = false;
+    let imports = 0;
+    let applies = 0;
+    const run = (request: CommandRequest): Promise<CommandResponse> => {
+      if (request.executable === 'kubectl' && request.arguments.includes('get')) {
+        return Promise.resolve(
+          leaseExists
+            ? { exitCode: 0, stdout: lease('execution-owner'), stderr: '' }
+            : { exitCode: 1, stdout: '', stderr: 'NotFound' },
+        );
+      }
+      if (request.executable === 'kubectl') {
+        leaseExists = true;
+        return Promise.resolve({ exitCode: 0, stdout: lease('execution-owner'), stderr: '' });
+      }
+      if (request.executable === 'terraform' && request.arguments[0] === 'state') {
+        return Promise.resolve({
+          exitCode: 0,
+          stdout: terraformState('running', false),
+          stderr: '',
+        });
+      }
+      if (request.executable === 'terraform' && request.arguments[0] === 'import') imports += 1;
+      if (request.executable === 'terraform' && request.arguments[0] === 'apply') applies += 1;
+      if (request.executable === 'ansible-inventory') {
+        return Promise.resolve({ exitCode: 0, stdout: providerInventory(true), stderr: '' });
+      }
+      return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
+    };
+
+    expect(
+      await rejectionMessage(
+        applyOperation({
+          plan,
+          expectedSha256: plan.planSha256,
+          journalPath: `${planPath}.journal.json`,
+          dependencies: createProductionApplyDependencies(
+            '/repo',
+            plan,
+            planPath,
+            run,
+            () => new Date('2026-09-17T09:01:00.000Z'),
+            'execution-owner',
+          ),
+        }),
+      ),
+    ).toMatch(/create provider instance/i);
+    expect(imports).toBe(1);
+    expect(applies).toBe(0);
+  });
+
   it('refuses concurrent ownership, changed plan bytes, and pending deletion before effects', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'fleet-production-refusal-'));
     const planPath = join(directory, 'operation.json');
     await writeFile(`${planPath}.tfplan`, 'changed bytes');
+    await writeFile(`${planPath}.backend.json`, backendEvidenceSource, { mode: 0o600 });
+    await writeFile(`${planPath}.ansible-vars.json`, ansibleVariablesSource, { mode: 0o600 });
     const plan = operationPlan('f'.repeat(64));
     let mutations = 0;
     const concurrent = (request: CommandRequest): Promise<CommandResponse> => {
@@ -274,6 +626,7 @@ describe('production apply adapter', () => {
             planPath,
             concurrent,
             () => new Date('2026-09-17T09:01:00.000Z'),
+            'execution-owner',
           ),
         }),
       ),
@@ -287,11 +640,11 @@ describe('production apply adapter', () => {
         return Promise.resolve(
           leaseReads === 1
             ? { exitCode: 1, stdout: '', stderr: 'NotFound' }
-            : { exitCode: 0, stdout: lease(plan.planSha256), stderr: '' },
+            : { exitCode: 0, stdout: lease('execution-owner'), stderr: '' },
         );
       }
       if (request.executable === 'kubectl') {
-        return Promise.resolve({ exitCode: 0, stdout: lease(plan.planSha256), stderr: '' });
+        return Promise.resolve({ exitCode: 0, stdout: lease('execution-owner'), stderr: '' });
       }
       mutations += 1;
       return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
@@ -308,6 +661,7 @@ describe('production apply adapter', () => {
             planPath,
             changedPlan,
             () => new Date('2026-09-17T09:01:00.000Z'),
+            'execution-owner',
           ),
         }),
       ),
@@ -319,13 +673,16 @@ describe('production apply adapter', () => {
     );
     const deleting = (request: CommandRequest): Promise<CommandResponse> => {
       if (request.executable === 'kubectl') {
-        return Promise.resolve({ exitCode: 0, stdout: lease(exactPlan.planSha256), stderr: '' });
+        return Promise.resolve({ exitCode: 0, stdout: lease('execution-owner'), stderr: '' });
       }
       if (request.executable === 'terraform' && request.arguments[0] === 'state') {
         return Promise.resolve({ exitCode: 0, stdout: terraformState('deleting'), stderr: '' });
       }
       if (request.executable === 'terraform') {
         return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
+      }
+      if (request.executable === 'ansible-inventory') {
+        return Promise.resolve({ exitCode: 0, stdout: providerInventory(false), stderr: '' });
       }
       mutations += 1;
       return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
@@ -342,6 +699,7 @@ describe('production apply adapter', () => {
             planPath,
             deleting,
             () => new Date('2026-09-17T09:01:00.000Z'),
+            'execution-owner',
           ),
         }),
       ),

@@ -10,6 +10,20 @@ import {
   reconcileProvisioningOwnership,
 } from './terraform';
 
+const provisioningExpectation = {
+  nodeId: 'workers-c',
+  operationId: 'provision-workers-c-20260917',
+  clusterId: 'workers',
+  region: 'fsn1',
+  machineType: 'cx33',
+  image: 'ubuntu-24.04',
+  network: 'private',
+  sshKeyIds: ['operator'],
+  retainedStorage: false,
+  k3sRole: 'agent',
+  budgetCapEur: 20,
+} as const;
+
 describe('Terraform provisioning boundary', () => {
   it('accepts only the reviewed create addresses and exact state identity', () => {
     const plan = decodeTerraformPlan(
@@ -69,6 +83,10 @@ describe('Terraform provisioning boundary', () => {
       decodeTerraformPlan(
         {
           terraform_version: '1.16.3',
+          variables: {
+            budget_cap_eur: { value: 20 },
+            estimated_monthly_cost_eur: { value: 12 },
+          },
           resource_changes: [
             {
               address: 'hcloud_server.node["workers-c"]',
@@ -78,16 +96,41 @@ describe('Terraform provisioning boundary', () => {
                   labels: {
                     'puni-logical-node': 'workers-c',
                     'puni-operation': 'different-operation',
+                    'puni-cluster': 'workers',
+                    'puni-network': 'private',
+                    'puni-k3s-role': 'agent',
                   },
+                  location: 'fsn1',
+                  server_type: 'cx33',
+                  image: 'ubuntu-24.04',
+                  ssh_keys: ['operator'],
                 },
               },
             },
           ],
         },
         ['hcloud_server.node["workers-c"]'],
-        { nodeId: 'workers-c', operationId: 'provision-workers-c-20260917' },
+        provisioningExpectation,
       ),
-    ).toThrow(/ownership labels/i);
+    ).toThrow(/attributes differ/i);
+    expect(() =>
+      decodeTerraformPlan(
+        {
+          terraform_version: '1.16.3',
+          resource_changes: [
+            {
+              address: 'hcloud_server.node["workers-a"]',
+              change: { actions: ['no-op'] },
+            },
+            {
+              address: 'hcloud_server.node["workers-c"]',
+              change: { actions: ['create'] },
+            },
+          ],
+        },
+        ['hcloud_server.node["workers-c"]'],
+      ),
+    ).not.toThrow();
   });
 
   it('builds the locked init, validate, saved-plan, show, and exact-plan apply commands', () => {

@@ -1,13 +1,17 @@
-import { createHash, randomBytes } from 'node:crypto';
-import { chmod, open, readFile, unlink } from 'node:fs/promises';
-import { join } from 'node:path';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { chmod, open, readFile, stat, unlink } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 
 import type { ApplyDependencies, ApplyObservation, OperationLease } from './apply';
+import { readToolchain } from './contracts';
 import type { OperationPlan } from './plan';
 import {
   decodeTerraformPlan,
   decodeTerraformStateIdentity,
+  type ProvisioningInstance,
   provisioningTerraformAddresses,
+  reconcileProvisioningOwnership,
+  type TerraformProvisioningExpectation,
 } from './terraform';
 
 const commandTimeoutMs = 120_000;
@@ -15,6 +19,7 @@ const leaseDurationSeconds = 300;
 
 export interface TerraformPlanEvidence {
   readonly terraformPlanSha256: string;
+  readonly terraformBackendEvidenceSha256: string;
   readonly terraformStateLineage: string;
   readonly terraformStateSerial: number;
 }
@@ -33,6 +38,7 @@ export interface CommandResponse {
 }
 
 export type RunCommand = (request: CommandRequest) => Promise<CommandResponse>;
+export type ObserveProviderOwnership = () => Promise<readonly ProvisioningInstance[]>;
 
 interface KubernetesLeaseDocument {
   readonly resourceVersion: string;
@@ -56,7 +62,77 @@ function parseJson(source: string, context: string): unknown {
   }
 }
 
-async function runBoundedCommand(request: CommandRequest): Promise<CommandResponse> {
+async function readBackendEvidence(
+  path: string,
+  expectedSha256: string,
+  cloudAccount: string,
+  enforceEnvironment: boolean,
+): Promise<void> {
+  const source = await readFile(path);
+  if (createHash('sha256').update(source).digest('hex') !== expectedSha256) {
+    // Proof: changing one backend-evidence byte makes the production apply negative stop before
+    // Terraform init or any provider mutation.
+    throw new Error('Terraform backend evidence differs from the reviewed SHA-256');
+  }
+  if (((await stat(path)).mode & 0o077) !== 0) {
+    throw new Error('Terraform backend evidence must be owner-only');
+  }
+  const evidence = requireRecord(
+    parseJson(source.toString('utf8'), 'Terraform backend evidence'),
+    'Terraform backend evidence',
+  );
+  const exactKeys = [
+    'schemaVersion',
+    'cloudAccount',
+    'address',
+    'lockAddress',
+    'unlockAddress',
+    'encryptedAtRest',
+    'accessControlled',
+    'versioned',
+    'verifiedAt',
+  ];
+  if (
+    Object.keys(evidence).sort().join('\0') !== [...exactKeys].sort().join('\0') ||
+    evidence['schemaVersion'] !== 1 ||
+    evidence['cloudAccount'] !== cloudAccount ||
+    evidence['encryptedAtRest'] !== true ||
+    evidence['accessControlled'] !== true ||
+    evidence['versioned'] !== true
+  ) {
+    throw new Error('Terraform backend evidence is incomplete or names another cloud account');
+  }
+  const address = evidence['address'];
+  const lockAddress = evidence['lockAddress'];
+  const unlockAddress = evidence['unlockAddress'];
+  const verifiedAt = evidence['verifiedAt'];
+  if (
+    typeof address !== 'string' ||
+    typeof lockAddress !== 'string' ||
+    typeof unlockAddress !== 'string' ||
+    ![address, lockAddress, unlockAddress].every((url) => url.startsWith('https://')) ||
+    typeof verifiedAt !== 'string' ||
+    !Number.isFinite(Date.parse(verifiedAt)) ||
+    new Date(Date.parse(verifiedAt)).toISOString() !== verifiedAt
+  ) {
+    throw new Error('Terraform backend evidence lacks exact TLS endpoints or verification time');
+  }
+  if (
+    enforceEnvironment &&
+    (process.env['TF_HTTP_ADDRESS'] !== address ||
+      process.env['TF_HTTP_LOCK_ADDRESS'] !== lockAddress ||
+      process.env['TF_HTTP_UNLOCK_ADDRESS'] !== unlockAddress ||
+      !process.env['TF_HTTP_USERNAME'] ||
+      !process.env['TF_HTTP_PASSWORD'])
+  ) {
+    throw new Error('Terraform HTTP backend environment differs from verified evidence');
+  }
+}
+
+export async function runBoundedCommand(
+  request: CommandRequest,
+  timeoutMs: number = commandTimeoutMs,
+): Promise<CommandResponse> {
   const child = Bun.spawn([request.executable, ...request.arguments], {
     ...(request.cwd === undefined ? {} : { cwd: request.cwd }),
     stdin: request.stdin === undefined ? 'ignore' : new Blob([request.stdin]),
@@ -80,14 +156,91 @@ async function runBoundedCommand(request: CommandRequest): Promise<CommandRespon
       }
       // Proof: the production command-runner negative leaves a signal-ignoring descendant alive
       // when this process-group kill is disabled.
-      reject(new Error(`${request.executable} timed out after ${String(commandTimeoutMs)}ms`));
-    }, commandTimeoutMs);
+      reject(new Error(`${request.executable} timed out after ${String(timeoutMs)}ms`));
+    }, timeoutMs);
   });
   try {
     return await Promise.race([completed, expired]);
   } finally {
     if (timeout !== undefined) clearTimeout(timeout);
   }
+}
+
+function controllerRequest(
+  root: string,
+  image: string,
+  digest: string,
+  request: CommandRequest,
+): CommandRequest {
+  const arguments_: string[] = [
+    'run',
+    '--rm',
+    '--network',
+    'host',
+    '--volume',
+    `${root}:${root}:ro`,
+    '--workdir',
+    request.cwd ?? root,
+  ];
+  const mounted = new Set<string>([root]);
+  for (const name of ['HCLOUD_TOKEN', 'KUBECONFIG', 'SSH_AUTH_SOCK'] as const) {
+    const value = process.env[name];
+    if (!value) continue;
+    arguments_.push('--env', name);
+    if (name === 'KUBECONFIG') {
+      for (const path of value.split(':')) {
+        if (!mounted.has(path)) arguments_.push('--volume', `${path}:${path}:ro`);
+        mounted.add(path);
+      }
+    }
+    if (name === 'SSH_AUTH_SOCK' && !mounted.has(value)) {
+      arguments_.push('--volume', `${value}:${value}`);
+      mounted.add(value);
+    }
+  }
+  for (const argument of request.arguments) {
+    const path = argument.startsWith('@')
+      ? argument.slice(1)
+      : argument.startsWith('/')
+        ? argument
+        : undefined;
+    if (path !== undefined && path.startsWith('/') && !path.startsWith(`${root}/`)) {
+      const directory = dirname(path);
+      if (!mounted.has(directory)) arguments_.push('--volume', `${directory}:${directory}:ro`);
+      mounted.add(directory);
+    }
+  }
+  arguments_.push(
+    `${image}@${digest}`,
+    'timeout',
+    '--signal=TERM',
+    '--kill-after=0.1s',
+    `${String(commandTimeoutMs / 1000)}s`,
+    request.executable,
+    ...request.arguments,
+  );
+  return { executable: 'docker', arguments: arguments_, stdin: request.stdin };
+}
+
+function createProductionCommandRunner(root: string): RunCommand {
+  return async (request) => {
+    const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
+    if (request.executable === 'terraform') {
+      const executable = Bun.which('terraform');
+      if (executable === null) throw new Error('Locked Terraform executable is unavailable');
+      const digest = createHash('sha256')
+        .update(await readFile(executable))
+        .digest('hex');
+      if (digest !== toolchain.binaries.terraform.sha256) {
+        // Proof: the wrong-Terraform-binary production negative reaches no init, plan, or apply.
+        throw new Error('Terraform executable differs from the locked SHA-256');
+      }
+      return runBoundedCommand({ ...request, executable });
+    }
+    return runBoundedCommand(
+      controllerRequest(root, toolchain.controller.image, toolchain.controller.digest, request),
+    );
+  };
 }
 
 async function requireCommand(
@@ -126,18 +279,27 @@ async function removePlanCandidate(path: string, prior?: unknown): Promise<void>
 /** Create and inspect the saved plan later bound into an immutable fleet operation plan. */
 export async function prepareTerraformPlan(
   root: string,
-  nodeId: string,
-  clusterId: string,
-  providerOwnershipId: string,
+  expected: TerraformProvisioningExpectation,
+  cloudAccount: string,
+  backendEvidencePath: string,
   variablesPath: string,
   outputPath: string,
-  run: RunCommand = runBoundedCommand,
+  run?: RunCommand,
 ): Promise<TerraformPlanEvidence> {
+  const commandRunner = run ?? createProductionCommandRunner(root);
+  const backendSource = await readFile(backendEvidencePath);
+  const terraformBackendEvidenceSha256 = createHash('sha256').update(backendSource).digest('hex');
+  await readBackendEvidence(
+    backendEvidencePath,
+    terraformBackendEvidenceSha256,
+    cloudAccount,
+    run === undefined,
+  );
   const terraformRoot = join(root, 'infra/terraform');
   const candidatePath = `${outputPath}.${randomBytes(8).toString('hex')}.new`;
   const terraform = (arguments_: readonly string[]) =>
     requireCommand(
-      run,
+      commandRunner,
       { executable: 'terraform', arguments: arguments_, cwd: terraformRoot },
       'Terraform planning command',
     );
@@ -162,11 +324,15 @@ export async function prepareTerraformPlan(
       await terraform(['show', '-json', candidatePath]),
       'Terraform saved plan',
     );
-    decodeTerraformPlan(shown, provisioningTerraformAddresses(nodeId, clusterId), {
-      nodeId,
-      operationId: providerOwnershipId,
-    });
-    const state = decodeTerraformState(await terraform(['state', 'pull']), nodeId).identity;
+    decodeTerraformPlan(
+      shown,
+      provisioningTerraformAddresses(expected.nodeId, expected.clusterId),
+      expected,
+    );
+    const state = decodeTerraformState(
+      await terraform(['state', 'pull']),
+      expected.nodeId,
+    ).identity;
     const savedPlan = await readFile(candidatePath);
     const destination = await open(outputPath, 'wx', 0o600);
     try {
@@ -178,6 +344,7 @@ export async function prepareTerraformPlan(
     await chmod(outputPath, 0o600);
     const evidence = {
       terraformPlanSha256: createHash('sha256').update(savedPlan).digest('hex'),
+      terraformBackendEvidenceSha256,
       terraformStateLineage: state.lineage,
       terraformStateSerial: state.serial,
     };
@@ -228,7 +395,12 @@ function leaseExpiresAt(lease: KubernetesLeaseDocument): string {
   return new Date(Date.parse(lease.renewedAt) + lease.durationSeconds * 1000).toISOString();
 }
 
-function leaseManifest(plan: OperationPlan, renewedAt: string, resourceVersion?: string): string {
+function leaseManifest(
+  plan: OperationPlan,
+  holder: string,
+  renewedAt: string,
+  resourceVersion?: string,
+): string {
   return JSON.stringify({
     apiVersion: 'coordination.k8s.io/v1',
     kind: 'Lease',
@@ -238,7 +410,7 @@ function leaseManifest(plan: OperationPlan, renewedAt: string, resourceVersion?:
       ...(resourceVersion === undefined ? {} : { resourceVersion }),
     },
     spec: {
-      holderIdentity: plan.planSha256,
+      holderIdentity: holder,
       leaseDurationSeconds,
       acquireTime: renewedAt,
       renewTime: renewedAt,
@@ -277,12 +449,13 @@ async function readLease(
 async function acquireLease(
   run: RunCommand,
   plan: OperationPlan,
+  holder: string,
   now: Date,
 ): Promise<OperationLease> {
   const existing = await readLease(run, plan);
   if (
     existing !== undefined &&
-    existing.holder !== plan.planSha256 &&
+    existing.holder !== holder &&
     now.getTime() < Date.parse(leaseExpiresAt(existing))
   ) {
     // Proof: the concurrent-operation production adapter negative supplies an unexpired Lease for
@@ -290,7 +463,7 @@ async function acquireLease(
     throw new Error(`Cluster ${clusterId(plan)} has an active operation Lease`);
   }
   const renewedAt = now.toISOString();
-  const manifest = leaseManifest(plan, renewedAt, existing?.resourceVersion);
+  const manifest = leaseManifest(plan, holder, renewedAt, existing?.resourceVersion);
   const verb = existing === undefined ? 'create' : 'replace';
   const source = await requireCommand(
     run,
@@ -298,7 +471,7 @@ async function acquireLease(
     `Acquire operation Lease for ${clusterId(plan)}`,
   );
   const acquired = decodeLease(source);
-  if (acquired.holder !== plan.planSha256) {
+  if (acquired.holder !== holder) {
     throw new Error('Kubernetes returned a Lease for a different operation');
   }
   return { owner: acquired.holder, expiresAt: leaseExpiresAt(acquired) };
@@ -310,6 +483,11 @@ function decodeTerraformState(
 ): {
   readonly identity: { readonly lineage: string; readonly serial: number };
   readonly providerState: 'ready' | 'pending-deletion';
+  readonly managedInstance?: {
+    readonly instanceId: string;
+    readonly nodeId: string;
+    readonly operationId: string;
+  };
 } {
   const state = requireRecord(parseJson(source, 'Terraform state'), 'Terraform state');
   const identity = decodeTerraformStateIdentity({
@@ -335,22 +513,338 @@ function decodeTerraformState(
   const instance = matches.at(0);
   if (instance === undefined) return { identity, providerState: 'ready' };
   const attributes = requireRecord(instance['attributes'], 'Terraform server attributes');
+  const labels = requireRecord(attributes['labels'], 'Terraform server state labels');
+  const instanceId = attributes['id'];
+  const logicalNode = labels['puni-logical-node'];
+  const operationId = labels['puni-operation'];
+  if (
+    typeof instanceId !== 'string' ||
+    instanceId.length === 0 ||
+    logicalNode !== nodeId ||
+    typeof operationId !== 'string' ||
+    operationId.length === 0
+  ) {
+    // Proof: the wrong-instance Terraform-state production negative stops before provider apply.
+    throw new Error(`Terraform state lacks exact ownership for logical node ${nodeId}`);
+  }
   return {
     identity,
     providerState: attributes['status'] === 'deleting' ? 'pending-deletion' : 'ready',
+    managedInstance: { instanceId, nodeId, operationId },
   };
 }
 
-function outputInstanceId(source: string, nodeId: string): string {
-  const document = requireRecord(parseJson(source, 'Terraform output'), 'Terraform output');
-  const output = requireRecord(document['node_identities'], 'Terraform node_identities output');
-  const identities = requireRecord(output['value'], 'Terraform node identities');
+function outputNodeIdentity(
+  source: string,
+  nodeId: string,
+): { readonly instanceId: string; readonly privateAddress: string } {
+  const identities = requireRecord(
+    parseJson(source, 'Terraform node_identities output'),
+    'Terraform node identities',
+  );
   const node = requireRecord(identities[nodeId], `Terraform identity ${nodeId}`);
   const instanceId = node['instance_id'];
-  if (typeof instanceId !== 'string' || instanceId.length === 0) {
-    throw new Error(`Terraform identity ${nodeId} has no provider instance ID`);
+  const privateAddress = node['private_ip'];
+  if (
+    typeof instanceId !== 'string' ||
+    instanceId.length === 0 ||
+    typeof privateAddress !== 'string' ||
+    privateAddress.length === 0
+  ) {
+    throw new Error(`Terraform identity ${nodeId} lacks provider ID or private address`);
   }
-  return instanceId;
+  return { instanceId, privateAddress };
+}
+
+async function readAnsibleVariables(
+  path: string,
+  expectedSha256: string,
+  expected: {
+    readonly nodeId: string;
+    readonly clusterId: string;
+    readonly capabilities: readonly string[];
+  },
+  expectedAddress: string,
+): Promise<void> {
+  const source = await readFile(path);
+  if (createHash('sha256').update(source).digest('hex') !== expectedSha256) {
+    // Proof: changing one enrollment-variable byte makes the production apply negative reach no
+    // Ansible playbook, including when the changed byte is a secret.
+    throw new Error('Ansible enrollment variables differ from the reviewed SHA-256');
+  }
+  if (((await stat(path)).mode & 0o077) !== 0) {
+    throw new Error('Ansible enrollment variables must be owner-only');
+  }
+  const variables = requireRecord(
+    parseJson(source.toString('utf8'), 'Ansible enrollment variables'),
+    'Ansible enrollment variables',
+  );
+  const capabilities = variables['puni_node_capabilities'];
+  if (
+    variables['puni_node_name'] !== expected.nodeId ||
+    variables['puni_cluster_id'] !== expected.clusterId ||
+    variables['puni_node_ip'] !== expectedAddress ||
+    typeof variables['puni_machine_id'] !== 'string' ||
+    !/^[0-9a-f]{32}$/.test(variables['puni_machine_id']) ||
+    !Array.isArray(capabilities) ||
+    !capabilities.every((capability) => typeof capability === 'string') ||
+    [...capabilities].sort().join('\0') !== [...expected.capabilities].sort().join('\0')
+  ) {
+    throw new Error('Ansible enrollment variables differ from reviewed node identity');
+  }
+}
+
+function requireAnsibleRecap(stdout: string, expectedHost?: string): void {
+  if (/no hosts matched/i.test(stdout) || !stdout.includes('PLAY RECAP')) {
+    // Proof: the zero-host Ansible production negative exits zero but cannot advance enrollment.
+    throw new Error('Ansible completed without a controlled host recap');
+  }
+  if (
+    expectedHost !== undefined &&
+    !new RegExp(`^${expectedHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:.*failed=0`, 'm').test(
+      stdout,
+    )
+  ) {
+    throw new Error(`Ansible did not successfully configure ${expectedHost}`);
+  }
+}
+
+function decodeProviderOwnership(source: string): readonly ProvisioningInstance[] {
+  const document = requireRecord(parseJson(source, 'hcloud inventory'), 'hcloud inventory');
+  const meta = requireRecord(document['_meta'], 'hcloud inventory _meta');
+  const hostvars = requireRecord(meta['hostvars'], 'hcloud inventory hostvars');
+  return Object.entries(hostvars).map(([hostname, hostInput]) => {
+    const host = requireRecord(hostInput, `hcloud inventory host ${hostname}`);
+    const instanceId = host['puni_instance_id'];
+    const nodeId = host['puni_logical_node'];
+    const operationId = host['puni_operation_id'];
+    const state = host['puni_provider_state'];
+    if (
+      typeof instanceId !== 'string' ||
+      instanceId.length === 0 ||
+      typeof nodeId !== 'string' ||
+      nodeId.length === 0 ||
+      typeof operationId !== 'string' ||
+      operationId.length === 0 ||
+      (state !== 'running' && state !== 'pending-deletion')
+    ) {
+      // Proof: the malformed direct-provider production negative cannot authorize Terraform from
+      // Terraform's own expected labels or a display name.
+      throw new Error(`hcloud inventory host ${hostname} lacks exact ownership evidence`);
+    }
+    return { instanceId, nodeId, operationId, state };
+  });
+}
+
+interface EnrollmentInventory {
+  readonly address: string;
+  readonly machineId: string;
+  readonly providerIdentity: string;
+}
+
+async function readEnrollmentInventory(
+  path: string,
+  expectedSha256: string,
+  knownHostsPath: string,
+  nodeId: string,
+): Promise<EnrollmentInventory> {
+  const source = await readFile(path);
+  if (createHash('sha256').update(source).digest('hex') !== expectedSha256) {
+    throw new Error('Enrollment inventory differs from the reviewed SHA-256');
+  }
+  if (((await stat(path)).mode & 0o077) !== 0) {
+    throw new Error('Enrollment inventory must be owner-only');
+  }
+  const document = requireRecord(
+    parseJson(source.toString('utf8'), 'Enrollment inventory'),
+    'Enrollment inventory',
+  );
+  const meta = requireRecord(document['_meta'], 'Enrollment inventory _meta');
+  const hostvars = requireRecord(meta['hostvars'], 'Enrollment inventory hostvars');
+  const host = requireRecord(hostvars[nodeId], `Enrollment inventory host ${nodeId}`);
+  const agentGroup = requireRecord(document['k3s_agents'], 'Enrollment inventory k3s_agents');
+  const serverGroup = requireRecord(
+    document['k3s_join_servers'],
+    'Enrollment inventory k3s_join_servers',
+  );
+  const agentHosts = agentGroup['hosts'];
+  const serverHosts = serverGroup['hosts'];
+  const groupMemberships =
+    (Array.isArray(agentHosts) ? agentHosts.filter((hostName) => hostName === nodeId).length : 0) +
+    (Array.isArray(serverHosts) ? serverHosts.filter((hostName) => hostName === nodeId).length : 0);
+  const address = host['ansible_host'];
+  const machineId = host['puni_machine_id'];
+  const providerIdentity = host['puni_provider_identity'];
+  const sshArguments = host['ansible_ssh_common_args'];
+  if (
+    Object.keys(hostvars).length !== 1 ||
+    !Array.isArray(agentHosts) ||
+    !Array.isArray(serverHosts) ||
+    groupMemberships !== 1 ||
+    typeof address !== 'string' ||
+    address.length === 0 ||
+    typeof machineId !== 'string' ||
+    !/^[0-9a-f]{32}$/.test(machineId) ||
+    typeof providerIdentity !== 'string' ||
+    providerIdentity.length === 0 ||
+    sshArguments !== `-o UserKnownHostsFile=${knownHostsPath} -o StrictHostKeyChecking=yes`
+  ) {
+    // Proof: a changed machine ID, address, provider identity, or host-key path in the reviewed
+    // inventory stops the existing-host enrollment path before SSH configuration.
+    throw new Error('Enrollment inventory lacks exact host identity or SSH host-key policy');
+  }
+  return { address, machineId, providerIdentity };
+}
+
+async function readKnownHosts(
+  path: string,
+  expectedSha256: string,
+  expectedAddress: string,
+): Promise<void> {
+  const source = await readFile(path);
+  if (
+    createHash('sha256').update(source).digest('hex') !== expectedSha256 ||
+    !source
+      .toString('utf8')
+      .split('\n')
+      .some((line) => line.startsWith(`${expectedAddress} `))
+  ) {
+    // Proof: changing the pinned SSH host key or binding it to another address makes existing-host
+    // enrollment reach no Ansible mutation.
+    throw new Error('SSH known-hosts evidence differs from the reviewed identity');
+  }
+  if (((await stat(path)).mode & 0o077) !== 0)
+    throw new Error('SSH known hosts must be owner-only');
+}
+
+function requireMachineFact(stdout: string, inventory: EnrollmentInventory): void {
+  requireAnsibleRecap(stdout);
+  if (!stdout.includes(inventory.machineId) || !stdout.includes(inventory.address)) {
+    throw new Error('Controlled SSH fact differs from reviewed machine identity');
+  }
+}
+
+function createEnrollmentApplyDependencies(
+  root: string,
+  plan: OperationPlan,
+  request: Extract<OperationPlan['request'], { kind: 'enroll' }>,
+  planPath: string,
+  run: RunCommand,
+  now: () => Date,
+  executionOwner: string,
+): ApplyDependencies {
+  const inventoryPath = `${planPath}.inventory.json`;
+  const variablesPath = `${planPath}.ansible-vars.json`;
+  const knownHostsPath = `${planPath}.known_hosts`;
+  const playbook = (name: string, limit = true) => ({
+    executable: 'ansible-playbook',
+    arguments: [
+      '--inventory',
+      inventoryPath,
+      ...(limit ? ['--limit', request.nodeId] : []),
+      '--extra-vars',
+      `@${variablesPath}`,
+      join(root, `infra/ansible/playbooks/${name}.yml`),
+    ],
+    cwd: join(root, 'infra/ansible'),
+  });
+
+  async function inspect(): Promise<EnrollmentInventory> {
+    const inventory = await readEnrollmentInventory(
+      inventoryPath,
+      request.inventorySha256,
+      knownHostsPath,
+      request.nodeId,
+    );
+    await readKnownHosts(knownHostsPath, request.knownHostsSha256, inventory.address);
+    await readAnsibleVariables(
+      variablesPath,
+      request.ansibleVariablesSha256,
+      {
+        nodeId: request.nodeId,
+        clusterId: request.clusterId,
+        capabilities: plan.affectedCapabilities,
+      },
+      inventory.address,
+    );
+    const fact = await requireCommand(
+      run,
+      playbook('discover'),
+      `Verify identity of ${request.nodeId}`,
+    );
+    requireMachineFact(fact, inventory);
+    if (
+      !plan.targetIdentities.includes(`ssh:${inventory.machineId}`) &&
+      !plan.targetIdentities.includes(`hcloud:${inventory.providerIdentity}`)
+    ) {
+      throw new Error('Enrollment provider identity differs from the reviewed plan');
+    }
+    if (plan.targetIdentities.includes(`hcloud:${inventory.providerIdentity}`)) {
+      const live = decodeProviderOwnership(
+        await requireCommand(
+          run,
+          {
+            executable: 'ansible-inventory',
+            arguments: [
+              '--inventory',
+              join(root, `infra/ansible/inventory/${request.clusterId}.hcloud.yml`),
+              '--list',
+            ],
+            cwd: join(root, 'infra/ansible'),
+          },
+          'Observe enrollment provider identity',
+        ),
+      ).filter((instance) => instance.nodeId === request.nodeId);
+      if (
+        live.length !== 1 ||
+        live[0]?.instanceId !== inventory.providerIdentity ||
+        live[0].state !== 'running'
+      ) {
+        // Proof: the same-name replacement enrollment negative reaches no host configuration when
+        // live hcloud identity differs from the reviewed inventory and desired instance ID.
+        throw new Error('Live hcloud identity differs from reviewed enrollment target');
+      }
+    }
+    return inventory;
+  }
+
+  return {
+    now,
+    acquireLease: (operationPlan) => acquireLease(run, operationPlan, executionOwner, now()),
+    ownsLease: async (lease) => {
+      const current = await readLease(run, plan);
+      return (
+        current?.holder === lease.owner && now().getTime() < Date.parse(leaseExpiresAt(current))
+      );
+    },
+    observe: async () => {
+      await inspect();
+      return {
+        digest: plan.observationDigest,
+        targetIdentities: plan.targetIdentities,
+        providerState: 'ready',
+      };
+    },
+    applyEffect: async (_operationPlan, effect) => {
+      await inspect();
+      if (effect === 'verify provider identity') return {};
+      if (effect === 'configure host') {
+        const stdout = await requireCommand(run, playbook('join'), `Configure ${request.nodeId}`);
+        requireAnsibleRecap(stdout, request.nodeId);
+        return {};
+      }
+      if (effect === 'join cluster') {
+        const stdout = await requireCommand(
+          run,
+          playbook('validate-enrollment', false),
+          `Validate enrollment of ${request.nodeId}`,
+        );
+        requireAnsibleRecap(stdout);
+        return {};
+      }
+      throw new Error(`Unsupported enrollment effect: ${effect}`);
+    },
+  };
 }
 
 /** Build the fixed production adapters used by the persisted-plan apply CLI. */
@@ -358,23 +852,71 @@ export function createProductionApplyDependencies(
   root: string,
   plan: OperationPlan,
   planPath: string,
-  run: RunCommand = runBoundedCommand,
+  run?: RunCommand,
   now: () => Date = () => new Date(),
+  executionOwner: string = randomUUID(),
+  observeProvider?: ObserveProviderOwnership,
 ): ApplyDependencies {
+  const commandRunner = run ?? createProductionCommandRunner(root);
+  if (plan.request.kind === 'enroll') {
+    return createEnrollmentApplyDependencies(
+      root,
+      plan,
+      plan.request,
+      planPath,
+      commandRunner,
+      now,
+      executionOwner,
+    );
+  }
   if (plan.request.kind !== 'provision') {
     throw new Error(
       `Production apply for ${plan.request.kind} is introduced by its lifecycle task`,
     );
   }
   const request = plan.request;
+  const terraformExpectation: TerraformProvisioningExpectation = {
+    nodeId: request.nodeId,
+    operationId: request.providerOwnershipId,
+    clusterId: request.clusterId,
+    region: request.region,
+    machineType: request.machineType,
+    image: request.image,
+    network: request.network,
+    sshKeyIds: request.sshKeyIds,
+    retainedStorage: request.retainedStorage,
+    k3sRole: request.k3sRole,
+    budgetCapEur: request.budgetCapEur,
+  };
   const terraformRoot = join(root, 'infra/terraform');
   const savedPlanPath = `${planPath}.tfplan`;
+  const backendEvidencePath = `${planPath}.backend.json`;
+  const ansibleVariablesPath = `${planPath}.ansible-vars.json`;
+  const desiredNodePath = `${planPath}.desired-node.json`;
   const terraform = (arguments_: readonly string[]) =>
     requireCommand(
-      run,
+      commandRunner,
       { executable: 'terraform', arguments: arguments_, cwd: terraformRoot },
       'Terraform provisioning command',
     );
+  const providerOwnership =
+    observeProvider ??
+    (async () =>
+      decodeProviderOwnership(
+        await requireCommand(
+          commandRunner,
+          {
+            executable: 'ansible-inventory',
+            arguments: [
+              '--inventory',
+              join(root, `infra/ansible/inventory/${request.clusterId}.hcloud.yml`),
+              '--list',
+            ],
+            cwd: join(root, 'infra/ansible'),
+          },
+          'Observe direct hcloud ownership',
+        ),
+      ));
 
   async function observe(): Promise<ApplyObservation> {
     const savedPlan = await readFile(savedPlanPath);
@@ -384,11 +926,37 @@ export function createProductionApplyDependencies(
       // reaches neither Terraform apply nor Ansible enrollment.
       throw new Error('Saved Terraform plan differs from the reviewed SHA-256');
     }
+    await readBackendEvidence(
+      backendEvidencePath,
+      request.terraformBackendEvidenceSha256,
+      request.cloudAccount,
+      run === undefined,
+    );
     await terraform(['init', '-input=false', '-lockfile=readonly']);
     const state = decodeTerraformState(await terraform(['state', 'pull']), request.nodeId);
+    const ownership = reconcileProvisioningOwnership(
+      request.nodeId,
+      request.providerOwnershipId,
+      await providerOwnership(),
+    );
+    if (
+      state.providerState === 'ready' &&
+      state.managedInstance !== undefined &&
+      (state.managedInstance.operationId !== request.providerOwnershipId ||
+        ownership.kind !== 'import' ||
+        state.managedInstance.instanceId !== ownership.instanceId)
+    ) {
+      throw new Error('Terraform state differs from direct provider ownership evidence');
+    }
     return {
-      digest: plan.observationDigest,
-      targetIdentities: plan.targetIdentities,
+      digest:
+        ownership.kind === 'create'
+          ? plan.observationDigest
+          : createHash('sha256').update(`hcloud:${ownership.instanceId}`).digest('hex'),
+      targetIdentities:
+        ownership.kind === 'create'
+          ? [`pending:${request.nodeId}`, `cluster:${request.clusterId}`]
+          : [`hcloud:${ownership.instanceId}`, `cluster:${request.clusterId}`],
       providerState: state.providerState,
       terraformState: state.identity,
     };
@@ -396,9 +964,10 @@ export function createProductionApplyDependencies(
 
   return {
     now,
-    acquireLease: (operationPlan) => acquireLease(run, operationPlan, now()),
+    acquireLease: (operationPlan) =>
+      acquireLease(commandRunner, operationPlan, executionOwner, now()),
     ownsLease: async (lease) => {
-      const current = await readLease(run, plan);
+      const current = await readLease(commandRunner, plan);
       return (
         current?.holder === lease.owner && now().getTime() < Date.parse(leaseExpiresAt(current))
       );
@@ -406,6 +975,23 @@ export function createProductionApplyDependencies(
     observe: () => observe(),
     applyEffect: async (_operationPlan, effect) => {
       if (effect === 'create provider instance') {
+        const ownership = reconcileProvisioningOwnership(
+          request.nodeId,
+          request.providerOwnershipId,
+          await providerOwnership(),
+        );
+        if (ownership.kind === 'import') {
+          await terraform([
+            'import',
+            `hcloud_server.node[${JSON.stringify(request.nodeId)}]`,
+            ownership.instanceId,
+          ]);
+          // Proof: the response-lost production negative imports the exact operation-owned server
+          // and refuses the stale saved create plan before a second purchase.
+          throw new Error(
+            `Imported operation-owned provider instance ${ownership.instanceId}; create and review a fresh Terraform plan`,
+          );
+        }
         const shown = parseJson(
           await terraform(['show', '-json', savedPlanPath]),
           'Terraform saved plan',
@@ -413,25 +999,86 @@ export function createProductionApplyDependencies(
         decodeTerraformPlan(
           shown,
           provisioningTerraformAddresses(request.nodeId, request.clusterId),
-          { nodeId: request.nodeId, operationId: request.providerOwnershipId },
+          terraformExpectation,
         );
         await terraform(['apply', '-input=false', '-lock=true', savedPlanPath]);
-        const instanceId = outputInstanceId(
+        const { instanceId } = outputNodeIdentity(
           await terraform(['output', '-json', 'node_identities']),
           request.nodeId,
         );
+        const observed = reconcileProvisioningOwnership(
+          request.nodeId,
+          request.providerOwnershipId,
+          await providerOwnership(),
+        );
+        if (observed.kind !== 'import' || observed.instanceId !== instanceId) {
+          throw new Error('Terraform output differs from direct provider ownership evidence');
+        }
         return { externalResourceId: instanceId };
       }
       if (effect === 'record provider identity') {
-        const instanceId = outputInstanceId(
+        const { instanceId } = outputNodeIdentity(
           await terraform(['output', '-json', 'node_identities']),
           request.nodeId,
         );
+        const observed = reconcileProvisioningOwnership(
+          request.nodeId,
+          request.providerOwnershipId,
+          await providerOwnership(),
+        );
+        if (observed.kind !== 'import' || observed.instanceId !== instanceId) {
+          throw new Error('Recorded provider identity lacks matching direct provider evidence');
+        }
+        return { externalResourceId: instanceId };
+      }
+      if (effect === 'record desired membership') {
+        const { instanceId, privateAddress } = outputNodeIdentity(
+          await terraform(['output', '-json', 'node_identities']),
+          request.nodeId,
+        );
+        const source = `${JSON.stringify(
+          {
+            id: request.nodeId,
+            cluster: request.clusterId,
+            capabilities: [...request.capabilities].sort(),
+            lifecycle: 'present',
+            provider: { kind: 'hcloud', instanceId },
+            privateAddress,
+          },
+          undefined,
+          2,
+        )}\n`;
+        try {
+          const destination = await open(desiredNodePath, 'wx', 0o600);
+          try {
+            await destination.writeFile(source);
+            await destination.sync();
+          } finally {
+            await destination.close();
+          }
+        } catch (cause) {
+          if (
+            !(cause instanceof Error && 'code' in cause && cause.code === 'EEXIST') ||
+            (await readFile(desiredNodePath, 'utf8')) !== source
+          ) {
+            throw new Error('Cannot persist exact desired membership candidate', { cause });
+          }
+        }
         return { externalResourceId: instanceId };
       }
       if (effect === 'enroll configured host') {
-        await requireCommand(
-          run,
+        const { privateAddress } = outputNodeIdentity(
+          await terraform(['output', '-json', 'node_identities']),
+          request.nodeId,
+        );
+        await readAnsibleVariables(
+          ansibleVariablesPath,
+          request.ansibleVariablesSha256,
+          request,
+          privateAddress,
+        );
+        const joinOutput = await requireCommand(
+          commandRunner,
           {
             executable: 'ansible-playbook',
             arguments: [
@@ -439,12 +1086,31 @@ export function createProductionApplyDependencies(
               join(root, `infra/ansible/inventory/${request.clusterId}.hcloud.yml`),
               '--limit',
               request.nodeId,
+              '--extra-vars',
+              `@${ansibleVariablesPath}`,
               join(root, 'infra/ansible/playbooks/join.yml'),
             ],
             cwd: join(root, 'infra/ansible'),
           },
           `Enroll ${request.nodeId}`,
         );
+        requireAnsibleRecap(joinOutput, request.nodeId);
+        const validationOutput = await requireCommand(
+          commandRunner,
+          {
+            executable: 'ansible-playbook',
+            arguments: [
+              '--inventory',
+              join(root, `infra/ansible/inventory/${request.clusterId}.hcloud.yml`),
+              '--extra-vars',
+              `@${ansibleVariablesPath}`,
+              join(root, 'infra/ansible/playbooks/validate-enrollment.yml'),
+            ],
+            cwd: join(root, 'infra/ansible'),
+          },
+          `Validate enrollment of ${request.nodeId}`,
+        );
+        requireAnsibleRecap(validationOutput);
         return {};
       }
       throw new Error(`Unsupported provisioning effect: ${effect}`);

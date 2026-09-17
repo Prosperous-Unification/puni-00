@@ -31,11 +31,21 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["kind", "nodeId", "clusterId"],
+          "required": [
+            "kind",
+            "nodeId",
+            "clusterId",
+            "inventorySha256",
+            "ansibleVariablesSha256",
+            "knownHostsSha256"
+          ],
           "properties": {
             "kind": { "const": "enroll" },
             "nodeId": { "$ref": "#/$defs/name" },
-            "clusterId": { "$ref": "#/$defs/name" }
+            "clusterId": { "$ref": "#/$defs/name" },
+            "inventorySha256": { "$ref": "#/$defs/sha256" },
+            "ansibleVariablesSha256": { "$ref": "#/$defs/sha256" },
+            "knownHostsSha256": { "$ref": "#/$defs/sha256" }
           }
         },
         {
@@ -71,9 +81,13 @@
             "network",
             "sshKeyIds",
             "retainedStorage",
+            "k3sRole",
+            "capabilities",
             "budgetCapEur",
             "providerOwnershipId",
             "terraformPlanSha256",
+            "terraformBackendEvidenceSha256",
+            "ansibleVariablesSha256",
             "terraformStateLineage",
             "terraformStateSerial"
           ],
@@ -93,9 +107,27 @@
               "items": { "$ref": "#/$defs/name" }
             },
             "retainedStorage": { "type": "boolean" },
+            "k3sRole": { "enum": ["server", "agent"] },
+            "capabilities": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "control-plane",
+                  "product",
+                  "ingress",
+                  "observability",
+                  "forge",
+                  "execution"
+                ]
+              }
+            },
             "budgetCapEur": { "type": "number", "exclusiveMinimum": 0 },
             "providerOwnershipId": { "$ref": "#/$defs/name" },
             "terraformPlanSha256": { "$ref": "#/$defs/sha256" },
+            "terraformBackendEvidenceSha256": { "$ref": "#/$defs/sha256" },
+            "ansibleVariablesSha256": { "$ref": "#/$defs/sha256" },
             "terraformStateLineage": { "$ref": "#/$defs/name" },
             "terraformStateSerial": { "type": "integer", "minimum": 0 }
           }
@@ -109,7 +141,7 @@
       "type": "array",
       "uniqueItems": true,
       "items": {
-        "enum": ["control-plane", "product", "ingress", "observability", "execution"]
+        "enum": ["control-plane", "product", "ingress", "observability", "forge", "execution"]
       }
     },
     "storageImplication": { "$ref": "#/$defs/name" },

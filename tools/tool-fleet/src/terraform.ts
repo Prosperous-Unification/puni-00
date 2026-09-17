@@ -8,6 +8,20 @@ export interface ReviewedTerraformPlan {
   readonly addresses: readonly string[];
 }
 
+export interface TerraformProvisioningExpectation {
+  readonly nodeId: string;
+  readonly operationId: string;
+  readonly clusterId: string;
+  readonly region: string;
+  readonly machineType: string;
+  readonly image: string;
+  readonly network: string;
+  readonly sshKeyIds: readonly string[];
+  readonly retainedStorage: boolean;
+  readonly k3sRole: 'server' | 'agent';
+  readonly budgetCapEur: number;
+}
+
 export interface ProvisioningInstance {
   readonly instanceId: string;
   readonly nodeId: string;
@@ -86,7 +100,7 @@ export function decodeTerraformStateIdentity(input: unknown): TerraformStateIden
 export function decodeTerraformPlan(
   input: unknown,
   allowedAddresses: readonly string[],
-  expectedOwnership?: { readonly nodeId: string; readonly operationId: string },
+  expected?: TerraformProvisioningExpectation,
 ): ReviewedTerraformPlan {
   if (
     !isRecord(input) ||
@@ -97,7 +111,8 @@ export function decodeTerraformPlan(
   }
   const allowed = new Set(allowedAddresses);
   const addresses: string[] = [];
-  let foundOwnedServer = expectedOwnership === undefined;
+  let foundOwnedServer = expected === undefined;
+  let foundRetainedVolume = false;
   for (const changeInput of input['resource_changes']) {
     if (!isRecord(changeInput) || typeof changeInput['address'] !== 'string') {
       throw new Error('Terraform resource change is malformed');
@@ -107,8 +122,9 @@ export function decodeTerraformPlan(
     if (!Array.isArray(actions) || !actions.every((action) => typeof action === 'string')) {
       throw new Error(`Terraform actions are malformed for ${changeInput['address']}`);
     }
+    const mutates = actions.includes('create') || actions.includes('update');
     if (
-      !allowed.has(changeInput['address']) ||
+      (mutates && !allowed.has(changeInput['address'])) ||
       actions.includes('delete') ||
       actions.some((action) => !['create', 'update', 'no-op', 'read'].includes(action))
     ) {
@@ -119,24 +135,61 @@ export function decodeTerraformPlan(
       );
     }
     if (
-      expectedOwnership !== undefined &&
-      changeInput['address'] === `hcloud_server.node[${JSON.stringify(expectedOwnership.nodeId)}]`
+      expected !== undefined &&
+      changeInput['address'] === `hcloud_server.node[${JSON.stringify(expected.nodeId)}]`
     ) {
       const after = isRecord(change) ? change['after'] : undefined;
       const labels = isRecord(after) ? after['labels'] : undefined;
+      const sshKeys = isRecord(after) ? after['ssh_keys'] : undefined;
       if (
+        !isRecord(after) ||
         !isRecord(labels) ||
-        labels['puni-logical-node'] !== expectedOwnership.nodeId ||
-        labels['puni-operation'] !== expectedOwnership.operationId
+        labels['puni-logical-node'] !== expected.nodeId ||
+        labels['puni-operation'] !== expected.operationId ||
+        labels['puni-cluster'] !== expected.clusterId ||
+        labels['puni-network'] !== expected.network ||
+        labels['puni-k3s-role'] !== expected.k3sRole ||
+        after['location'] !== expected.region ||
+        after['server_type'] !== expected.machineType ||
+        after['image'] !== expected.image ||
+        !Array.isArray(sshKeys) ||
+        !sshKeys.every((key) => typeof key === 'string') ||
+        [...sshKeys].sort().join('\0') !== [...expected.sshKeyIds].sort().join('\0')
       ) {
-        // Proof: the wrong-operation saved-plan negative reaches neither Terraform apply nor import.
-        throw new Error('Terraform server ownership labels differ from the reviewed operation');
+        // Proof: wrong ownership, cluster, network, region, machine type, image, and SSH key
+        // production-plan negatives reach neither Terraform apply nor import.
+        throw new Error('Terraform server attributes differ from the reviewed operation');
       }
       foundOwnedServer = true;
+    }
+    if (
+      expected !== undefined &&
+      changeInput['address'] === `hcloud_volume.retained[${JSON.stringify(expected.nodeId)}]`
+    ) {
+      foundRetainedVolume = true;
     }
     addresses.push(changeInput['address']);
   }
   if (!foundOwnedServer) throw new Error('Terraform plan is missing the operation-owned server');
+  if (expected !== undefined && foundRetainedVolume !== expected.retainedStorage) {
+    throw new Error('Terraform retained storage differs from the reviewed operation');
+  }
+  if (expected !== undefined) {
+    const variables = isRecord(input['variables']) ? input['variables'] : undefined;
+    const cap = variables === undefined ? undefined : variables['budget_cap_eur'];
+    const capValue = isRecord(cap) ? cap['value'] : undefined;
+    const estimate = variables === undefined ? undefined : variables['estimated_monthly_cost_eur'];
+    const estimateValue = isRecord(estimate) ? estimate['value'] : undefined;
+    if (
+      capValue !== expected.budgetCapEur ||
+      typeof estimateValue !== 'number' ||
+      !Number.isFinite(estimateValue) ||
+      estimateValue <= 0 ||
+      estimateValue > expected.budgetCapEur
+    ) {
+      throw new Error('Terraform cost evidence differs from the reviewed budget cap');
+    }
+  }
   return { terraformVersion: input['terraform_version'], addresses };
 }
 

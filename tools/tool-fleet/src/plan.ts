@@ -6,7 +6,14 @@ import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 import type { Capability, Fleet, FleetNode, Observation } from './contracts';
 
 export type OperationRequest =
-  | { readonly kind: 'enroll'; readonly nodeId: string; readonly clusterId: string }
+  | {
+      readonly kind: 'enroll';
+      readonly nodeId: string;
+      readonly clusterId: string;
+      readonly inventorySha256: string;
+      readonly ansibleVariablesSha256: string;
+      readonly knownHostsSha256: string;
+    }
   | { readonly kind: 'retire'; readonly nodeId: string }
   | { readonly kind: 'replace'; readonly nodeId: string }
   | { readonly kind: 'upgrade'; readonly nodeId: string; readonly version: string }
@@ -21,9 +28,13 @@ export type OperationRequest =
       readonly network: string;
       readonly sshKeyIds: readonly string[];
       readonly retainedStorage: boolean;
+      readonly k3sRole: 'server' | 'agent';
+      readonly capabilities: readonly Capability[];
       readonly budgetCapEur: number;
       readonly providerOwnershipId: string;
       readonly terraformPlanSha256: string;
+      readonly terraformBackendEvidenceSha256: string;
+      readonly ansibleVariablesSha256: string;
       readonly terraformStateLineage: string;
       readonly terraformStateSerial: number;
     }
@@ -79,7 +90,12 @@ export function decodeOperationPlan(input: unknown): OperationPlan {
   const candidate = input;
   const observedAt = Date.parse(candidate.observedAt);
   const expiresAt = Date.parse(candidate.expiresAt);
-  if (!Number.isFinite(observedAt) || !Number.isFinite(expiresAt)) {
+  if (
+    !Number.isFinite(observedAt) ||
+    !Number.isFinite(expiresAt) ||
+    new Date(observedAt).toISOString() !== candidate.observedAt ||
+    new Date(expiresAt).toISOString() !== candidate.expiresAt
+  ) {
     throw new Error('Operation plan contains an invalid calendar instant');
   }
   return candidate;
@@ -126,6 +142,8 @@ function requireProvisioningRequest(
     !Number.isFinite(request.budgetCapEur) ||
     request.budgetCapEur <= 0 ||
     !/^[0-9a-f]{64}$/.test(request.terraformPlanSha256) ||
+    !/^[0-9a-f]{64}$/.test(request.terraformBackendEvidenceSha256) ||
+    !/^[0-9a-f]{64}$/.test(request.ansibleVariablesSha256) ||
     request.terraformStateLineage.length === 0 ||
     !Number.isSafeInteger(request.terraformStateSerial) ||
     request.terraformStateSerial < 0
@@ -133,6 +151,13 @@ function requireProvisioningRequest(
     // Proof: disabling this boundary made the invalid-budget/empty-key production planner negative
     // emit provisioning effects; restored validation refuses before an external identity exists.
     throw new Error('Provision request is incomplete or has an invalid budget cap');
+  }
+  if (
+    request.capabilities.length === 0 ||
+    new Set(request.capabilities).size !== request.capabilities.length ||
+    (request.k3sRole === 'agent' && request.capabilities.includes('control-plane'))
+  ) {
+    throw new Error('Provision request has invalid role or capability intent');
   }
   if (!fleet.clusters.some(({ id }) => id === request.clusterId)) {
     // Proof: disabling this guard let the provisioning production planner emit effects for an
@@ -172,13 +197,26 @@ export function planOperation(
   if (request.kind === 'provision') {
     requireProvisioningRequest(fleet, request);
     targetIdentities = [`pending:${request.nodeId}`, `cluster:${request.clusterId}`];
-    affectedCapabilities = [];
-    effects = ['create provider instance', 'record provider identity', 'enroll configured host'];
+    affectedCapabilities = [...request.capabilities].sort();
+    effects = [
+      'create provider instance',
+      'record provider identity',
+      'record desired membership',
+      'enroll configured host',
+    ];
     storageImplication = request.retainedStorage
       ? 'retained-volume-requested-and-unverified'
       : 'system-disk-only-with-no-retention';
     downtimeImplication = 'none-new-capacity';
   } else {
+    if (
+      request.kind === 'enroll' &&
+      (!/^[0-9a-f]{64}$/.test(request.inventorySha256) ||
+        !/^[0-9a-f]{64}$/.test(request.ansibleVariablesSha256) ||
+        !/^[0-9a-f]{64}$/.test(request.knownHostsSha256))
+    ) {
+      throw new Error('Enroll request lacks reviewed inventory, variables, or host keys');
+    }
     const node = requireNode(fleet, request.nodeId);
     const cluster = fleet.clusters.find(({ id }) => id === node.cluster);
     if (cluster === undefined) {

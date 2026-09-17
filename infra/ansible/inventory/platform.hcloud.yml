@@ -3,7 +3,13 @@ strict: true
 cache: false
 label_selector: puni-fleet=puni,puni-cluster=platform
 connect_with: private_ipv4
+groups:
+  k3s_agents: "hcloud_labels['puni-k3s-role'] == 'agent'"
+  k3s_join_servers: "hcloud_labels['puni-k3s-role'] == 'server'"
 compose:
   puni_cluster: hcloud_labels['puni-cluster']
   puni_instance_id: hcloud_id | string
+  puni_logical_node: hcloud_labels['puni-logical-node']
+  puni_operation_id: hcloud_labels['puni-operation']
+  puni_provider_state: "'pending-deletion' if hcloud_status == 'deleting' else 'running'"
   puni_private_ipv4: hcloud_private_ipv4

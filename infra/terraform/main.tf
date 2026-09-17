@@ -11,6 +11,8 @@ locals {
       "puni-cluster"      = node.cluster
       "puni-logical-node" = node_id
       "puni-operation"    = node.operation_id
+      "puni-network"      = node.network
+      "puni-k3s-role"     = node.k3s_role
     })
   }
 }

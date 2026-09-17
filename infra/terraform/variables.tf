@@ -11,6 +11,7 @@ variable "nodes" {
   description = "Reviewed nodes keyed by stable logical node ID; map position never carries identity."
   type = map(object({
     cluster            = string
+    k3s_role           = string
     operation_id       = string
     location           = string
     server_type        = string
@@ -28,6 +29,7 @@ variable "nodes" {
       for node_id, node in var.nodes :
       length(node_id) > 0 &&
       length(node.cluster) > 0 &&
+      contains(["server", "agent"], node.k3s_role) &&
       length(node.operation_id) > 0 &&
       contains(keys(var.networks), node.network) &&
       length(node.ssh_key_ids) > 0 &&

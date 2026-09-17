@@ -10,7 +10,16 @@ const instant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const CompletedStepSchema = type({
   stepId: 'string>0',
   effect: 'string>0',
+  beforeObservationSha256: sha256,
+  afterObservationSha256: sha256,
   'externalResourceId?': 'string>0',
+  '+': 'reject',
+});
+
+const ActiveStepSchema = type({
+  stepId: 'string>0',
+  effect: 'string>0',
+  beforeObservationSha256: sha256,
   '+': 'reject',
 });
 
@@ -20,6 +29,7 @@ const OperationJournalSchema = type({
   planSha256: sha256,
   state: "'running'|'recoverable'|'complete'",
   leaseOwner: 'string>0',
+  'activeStep?': ActiveStepSchema,
   completedSteps: CompletedStepSchema.array(),
   updatedAt: instant,
   '+': 'reject',

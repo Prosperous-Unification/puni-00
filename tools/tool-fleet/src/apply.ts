@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 
 import {
@@ -75,6 +76,21 @@ function requireKnownProgress(plan: OperationPlan, journal: OperationJournal): v
   if (journal.completedSteps.length > plan.effects.length) {
     throw new Error('Operation journal contains more steps than the reviewed plan');
   }
+  if (journal.state === 'complete' && journal.completedSteps.length !== plan.effects.length) {
+    // Proof: a forged complete journal with zero reviewed steps is refused before returning a
+    // completion receipt or issuing another mutation.
+    throw new Error('Complete operation journal does not cover every reviewed effect');
+  }
+  if (
+    journal.activeStep !== undefined &&
+    (journal.state === 'complete' ||
+      journal.activeStep.stepId !== stepId(journal.completedSteps.length) ||
+      journal.activeStep.effect !== plan.effects[journal.completedSteps.length])
+  ) {
+    // Proof: the forged-active-step production negative cannot redirect recovery to an unreviewed
+    // effect or coexist with a completed receipt.
+    throw new Error('Operation journal contains an unknown active step');
+  }
 }
 
 async function readExistingJournal(path: string): Promise<OperationJournal | undefined> {
@@ -93,9 +109,39 @@ function sameIdentities(left: readonly string[], right: readonly string[]): bool
   );
 }
 
+function matchesProvisioningIdentity(
+  observation: ApplyObservation,
+  plan: OperationPlan,
+  position: number,
+  journal: OperationJournal,
+): boolean {
+  if (plan.request.kind !== 'provision') return false;
+  const clusterIdentity = `cluster:${plan.request.clusterId}`;
+  if (!observation.targetIdentities.includes(clusterIdentity)) return false;
+  const providerIdentity = observation.targetIdentities.find((identity) =>
+    identity.startsWith('hcloud:'),
+  );
+  if (position === 0) {
+    return (
+      observation.targetIdentities.includes(`pending:${plan.request.nodeId}`) ||
+      providerIdentity !== undefined
+    );
+  }
+  const recordedId = journal.completedSteps[0]?.externalResourceId;
+  return (
+    providerIdentity !== undefined &&
+    recordedId !== undefined &&
+    providerIdentity === `hcloud:${recordedId}`
+  );
+}
+
 function completedReceipt(journal: OperationJournal): OperationReceipt {
   if (journal.state !== 'complete') throw new Error('Operation receipt requires complete state');
   return { ...journal, state: 'complete' };
+}
+
+function observationSha256(observation: ApplyObservation): string {
+  return createHash('sha256').update(JSON.stringify(observation)).digest('hex');
 }
 
 /** Apply only the ordered effects in a reviewed plan, journaling durable progress before and after each mutation. */
@@ -146,12 +192,22 @@ export async function applyOperation(request: ApplyRequest): Promise<OperationRe
       throw new Error('Operation lease is no longer owned');
     }
     const observation = await dependencies.observe(plan);
-    if (position === 0 && observation.digest !== plan.observationDigest) {
+    if (
+      position === 0 &&
+      observation.digest !== plan.observationDigest &&
+      !(
+        plan.request.kind === 'provision' &&
+        observation.targetIdentities.some((identity) => identity.startsWith('hcloud:'))
+      )
+    ) {
       // Proof: the stale-observation production-path negative changes only the observed digest and
       // records zero adapter mutations.
       throw new Error('Operation observation digest is stale');
     }
-    if (!sameIdentities(observation.targetIdentities, plan.targetIdentities)) {
+    if (
+      !sameIdentities(observation.targetIdentities, plan.targetIdentities) &&
+      !matchesProvisioningIdentity(observation, plan, position, journal)
+    ) {
       // Proof: the wrong-instance production-path negative records zero adapter mutations.
       throw new Error('Operation target identities changed after review');
     }
@@ -167,8 +223,21 @@ export async function applyOperation(request: ApplyRequest): Promise<OperationRe
       // Proof: the wrong-lineage and stale-serial production-path negatives stop before mutation.
       throw new Error('Terraform state lineage or serial differs from the reviewed operation');
     }
+    if (!(await dependencies.ownsLease(lease))) {
+      journal = { ...journal, state: 'recoverable', updatedAt: dependencies.now().toISOString() };
+      await writeOperationJournal(journalPath, journal);
+      // Proof: the slow-observation negative loses its Lease during the read and reaches no effect.
+      throw new Error('Operation lease expired during precondition observation');
+    }
     const effect = plan.effects[position];
     const currentStepId = stepId(position);
+    const beforeObservationSha256 = observationSha256(observation);
+    journal = {
+      ...journal,
+      activeStep: { stepId: currentStepId, effect, beforeObservationSha256 },
+      updatedAt: dependencies.now().toISOString(),
+    };
+    await writeOperationJournal(journalPath, journal);
     let effectEvidence: { readonly externalResourceId?: string };
     try {
       effectEvidence = await dependencies.applyEffect(plan, effect, currentStepId);
@@ -179,15 +248,28 @@ export async function applyOperation(request: ApplyRequest): Promise<OperationRe
       // effect failure reaches the caller.
       throw new Error(`Operation effect failed: ${effect}`, { cause });
     }
+    let afterObservation: ApplyObservation;
+    try {
+      afterObservation = await dependencies.observe(plan);
+    } catch (cause) {
+      journal = { ...journal, state: 'recoverable', updatedAt: dependencies.now().toISOString() };
+      await writeOperationJournal(journalPath, journal);
+      // Proof: the post-effect observation negative leaves the active step durable and recoverable,
+      // so a successful external mutation cannot be mistaken for an unstarted step.
+      throw new Error(`Cannot observe completed operation effect: ${effect}`, { cause });
+    }
     const completedStep: CompletedOperationStep = {
       stepId: currentStepId,
       effect,
+      beforeObservationSha256,
+      afterObservationSha256: observationSha256(afterObservation),
       ...(effectEvidence.externalResourceId === undefined
         ? {}
         : { externalResourceId: effectEvidence.externalResourceId }),
     };
+    const { activeStep: _completedActiveStep, ...journalWithoutActiveStep } = journal;
     journal = {
-      ...journal,
+      ...journalWithoutActiveStep,
       completedSteps: [...journal.completedSteps, completedStep],
       updatedAt: dependencies.now().toISOString(),
     };

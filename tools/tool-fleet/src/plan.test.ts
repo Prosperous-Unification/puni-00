@@ -206,23 +206,32 @@ describe('fleet contracts', () => {
 
 describe('planOperation', () => {
   const fleet: Fleet = decodeFleet(fleetInput);
+  const enrollEvidence = {
+    inventorySha256: 'b'.repeat(64),
+    ansibleVariablesSha256: 'c'.repeat(64),
+    knownHostsSha256: 'd'.repeat(64),
+  } as const;
 
   it('decodes only exact persisted operation plans', () => {
     const plan = planOperation(fleet, observation, {
       kind: 'enroll',
       nodeId: 'workers-b',
       clusterId: 'workers',
+      ...enrollEvidence,
     });
     expect(decodeOperationPlan(plan)).toEqual(plan);
     expect(() => decodeOperationPlan({ ...plan, unreviewed: true })).toThrow(/validation failed/i);
     expect(() => decodeOperationPlan({ ...plan, expiresAt: '2026-99-99T99:99:99.000Z' })).toThrow(
       /calendar instant/i,
     );
+    expect(() => decodeOperationPlan({ ...plan, expiresAt: '2026-02-30T09:30:00.000Z' })).toThrow(
+      /calendar instant/i,
+    );
   });
 
   it('emits deterministic JSON-ready plans for every explicit operation kind', () => {
     const requests = [
-      { kind: 'enroll', nodeId: 'workers-b', clusterId: 'workers' },
+      { kind: 'enroll', nodeId: 'workers-b', clusterId: 'workers', ...enrollEvidence },
       { kind: 'retire', nodeId: 'workers-b' },
       { kind: 'replace', nodeId: 'workers-b' },
       { kind: 'upgrade', nodeId: 'workers-b', version: 'v1.36.5+k3s1' },
@@ -237,9 +246,13 @@ describe('planOperation', () => {
         network: 'puni-private',
         sshKeyIds: ['admin-primary'],
         retainedStorage: false,
+        k3sRole: 'agent',
+        capabilities: ['execution'],
         budgetCapEur: 20,
         providerOwnershipId: 'provision-workers-c-20260917',
         terraformPlanSha256: 'f'.repeat(64),
+        terraformBackendEvidenceSha256: 'd'.repeat(64),
+        ansibleVariablesSha256: 'e'.repeat(64),
         terraformStateLineage: 'lineage-1',
         terraformStateSerial: 7,
       },
@@ -303,9 +316,13 @@ describe('planOperation', () => {
         network: 'puni-private',
         sshKeyIds: [],
         retainedStorage: false,
+        k3sRole: 'agent',
+        capabilities: ['execution'],
         budgetCapEur: 0,
         providerOwnershipId: 'provision-workers-c-20260917',
         terraformPlanSha256: 'f'.repeat(64),
+        terraformBackendEvidenceSha256: 'd'.repeat(64),
+        ansibleVariablesSha256: 'e'.repeat(64),
         terraformStateLineage: 'lineage-1',
         terraformStateSerial: 7,
       }),
@@ -322,9 +339,13 @@ describe('planOperation', () => {
         network: 'puni-private',
         sshKeyIds: ['admin-primary'],
         retainedStorage: false,
+        k3sRole: 'agent',
+        capabilities: ['execution'],
         budgetCapEur: 20,
         providerOwnershipId: 'provision-workers-c-20260917',
         terraformPlanSha256: 'unreviewed',
+        terraformBackendEvidenceSha256: 'unreviewed',
+        ansibleVariablesSha256: 'unreviewed',
         terraformStateLineage: '',
         terraformStateSerial: -1,
       }),
@@ -337,6 +358,7 @@ describe('planOperation', () => {
         kind: 'enroll',
         nodeId: 'workers-b',
         clusterId: 'platform',
+        ...enrollEvidence,
       }),
     ).toThrow(/cluster differs/i);
     expect(() =>
@@ -365,9 +387,13 @@ describe('planOperation', () => {
         network: 'puni-private',
         sshKeyIds: ['admin-primary'],
         retainedStorage: false,
+        k3sRole: 'agent',
+        capabilities: ['execution'],
         budgetCapEur: 20,
         providerOwnershipId: 'provision-workers-c-20260917',
         terraformPlanSha256: 'f'.repeat(64),
+        terraformBackendEvidenceSha256: 'd'.repeat(64),
+        ansibleVariablesSha256: 'e'.repeat(64),
         terraformStateLineage: 'lineage-1',
         terraformStateSerial: 7,
       }),
@@ -384,9 +410,13 @@ describe('planOperation', () => {
         network: 'puni-private',
         sshKeyIds: ['admin-primary'],
         retainedStorage: false,
+        k3sRole: 'agent',
+        capabilities: ['execution'],
         budgetCapEur: 20,
         providerOwnershipId: 'provision-workers-c-20260917',
         terraformPlanSha256: 'f'.repeat(64),
+        terraformBackendEvidenceSha256: 'd'.repeat(64),
+        ansibleVariablesSha256: 'e'.repeat(64),
         terraformStateLineage: 'lineage-1',
         terraformStateSerial: 7,
       }),

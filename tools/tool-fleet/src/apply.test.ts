@@ -26,9 +26,13 @@ function operationPlan(): OperationPlan {
       network: 'private',
       sshKeyIds: ['operator'],
       retainedStorage: false,
+      k3sRole: 'agent',
+      capabilities: ['execution'],
       budgetCapEur: 20,
       providerOwnershipId: 'provision-workers-c-20260917',
       terraformPlanSha256: 'f'.repeat(64),
+      terraformBackendEvidenceSha256: 'd'.repeat(64),
+      ansibleVariablesSha256: 'e'.repeat(64),
       terraformStateLineage: 'lineage-1',
       terraformStateSerial: 7,
     },
@@ -175,7 +179,7 @@ describe('applyOperation', () => {
     const directory = await mkdtemp(join(tmpdir(), 'fleet-apply-lease-'));
     const journalPath = join(directory, 'journal.json');
     const plan = operationPlan();
-    const leaseChecks = [true, false];
+    const leaseChecks = [true, true, false];
     const effects: string[] = [];
 
     expect(
@@ -199,6 +203,33 @@ describe('applyOperation', () => {
     const journal = await readOperationJournal(journalPath);
     expect(journal.state).toBe('recoverable');
     expect(journal.completedSteps).toHaveLength(1);
+  });
+
+  it('rechecks Lease ownership after a slow observation and before mutation', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-apply-slow-observation-'));
+    const journalPath = join(directory, 'journal.json');
+    const plan = operationPlan();
+    const leaseChecks = [true, false];
+    let mutations = 0;
+
+    expect(
+      await rejectionMessage(
+        applyOperation({
+          plan,
+          expectedSha256: plan.planSha256,
+          journalPath,
+          dependencies: dependencies({
+            ownsLease: () => Promise.resolve(leaseChecks.shift() ?? false),
+            applyEffect: () => {
+              mutations += 1;
+              return Promise.resolve({});
+            },
+          }),
+        }),
+      ),
+    ).toMatch(/lease expired during/i);
+    expect(mutations).toBe(0);
+    expect((await readOperationJournal(journalPath)).state).toBe('recoverable');
   });
 
   it('refuses an already expired lease and stale observation before mutation', async () => {
@@ -279,7 +310,14 @@ describe('applyOperation', () => {
       planSha256: plan.planSha256,
       state: 'recoverable',
       leaseOwner: 'operation-owner',
-      completedSteps: [{ stepId: 'unreviewed-step', effect: 'unknown effect' }],
+      completedSteps: [
+        {
+          stepId: 'unreviewed-step',
+          effect: 'unknown effect',
+          beforeObservationSha256: 'b'.repeat(64),
+          afterObservationSha256: 'c'.repeat(64),
+        },
+      ],
       updatedAt: '2026-09-17T09:02:00.000Z',
     });
     let mutations = 0;
@@ -301,5 +339,31 @@ describe('applyOperation', () => {
     ).toMatch(/unknown completed step/i);
     expect(mutations).toBe(0);
     expect(await readFile(journalPath, 'utf8')).toContain('unreviewed-step');
+  });
+
+  it('refuses an incomplete journal marked complete', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-apply-incomplete-complete-'));
+    const journalPath = join(directory, 'journal.json');
+    const plan = operationPlan();
+    await writeOperationJournal(journalPath, {
+      schemaVersion: 1,
+      operationId: plan.planSha256,
+      planSha256: plan.planSha256,
+      state: 'complete',
+      leaseOwner: 'operation-owner',
+      completedSteps: [],
+      updatedAt: '2026-09-17T09:02:00.000Z',
+    });
+
+    expect(
+      await rejectionMessage(
+        applyOperation({
+          plan,
+          expectedSha256: plan.planSha256,
+          journalPath,
+          dependencies: dependencies(),
+        }),
+      ),
+    ).toMatch(/does not cover every reviewed effect/i);
   });
 });

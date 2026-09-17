@@ -24,7 +24,7 @@ cluster mutation.
 
 tool-fleet:check validates the committed lock and its tests. The
 tool-fleet:build entrypoint builds the pinned controller OCI artifact locally.
-tool-fleet:apply still refuses until F4 supplies persisted operation plans.
+`tool-fleet:apply` consumes only a persisted plan and its reviewed digest. Provisioning additionally consumes same-prefix saved Terraform plan, backend evidence, and Ansible variables artifacts. Existing-host enrollment consumes hash-bound static inventory, Ansible variables, and SSH known-hosts artifacts. Production Ansible and Kubernetes commands run through the digest-locked controller; Terraform runs only when its executable hash matches the toolchain lock.
 
 ## Disposable Ubuntu VM lab
 

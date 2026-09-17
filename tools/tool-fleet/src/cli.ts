@@ -3,7 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { parse } from 'yaml';
 
 import { type ApplyDependencies, applyOperation } from './apply';
-import { decodeFleet, decodeObservation } from './contracts';
+import { type Capability, decodeFleet, decodeObservation } from './contracts';
 import {
   decodeOperationPlan,
   type OperationPlan,
@@ -73,13 +73,41 @@ function decodeBooleanFlag(flags: ReadonlyMap<string, string>, name: string): bo
   return value === 'true';
 }
 
+function decodeCapabilities(source: string): readonly Capability[] {
+  return source.split(',').map((capability) => {
+    switch (capability) {
+      case 'control-plane':
+      case 'product':
+      case 'ingress':
+      case 'observability':
+      case 'forge':
+      case 'execution':
+        return capability;
+      default:
+        throw new Error(`Unknown provision capability: ${capability}`);
+    }
+  });
+}
+
 function decodeRequest(flags: ReadonlyMap<string, string>): OperationRequest {
   const kind = requireFlag(flags, '--operation');
   const nodeId = requireFlag(flags, '--node');
   switch (kind) {
     case 'enroll': {
-      requireExactFlags(flags, ['--cluster']);
-      return { kind, nodeId, clusterId: requireFlag(flags, '--cluster') };
+      requireExactFlags(flags, [
+        '--cluster',
+        '--inventory-sha256',
+        '--ansible-variables-sha256',
+        '--known-hosts-sha256',
+      ]);
+      return {
+        kind,
+        nodeId,
+        clusterId: requireFlag(flags, '--cluster'),
+        inventorySha256: requireFlag(flags, '--inventory-sha256'),
+        ansibleVariablesSha256: requireFlag(flags, '--ansible-variables-sha256'),
+        knownHostsSha256: requireFlag(flags, '--known-hosts-sha256'),
+      };
     }
     case 'retire':
     case 'replace':
@@ -102,8 +130,12 @@ function decodeRequest(flags: ReadonlyMap<string, string>): OperationRequest {
         '--provider-ownership-id',
         '--region',
         '--retained-storage',
+        '--k3s-role',
+        '--capabilities',
         '--ssh-key-ids',
         '--terraform-plan-sha256',
+        '--terraform-backend-evidence-sha256',
+        '--ansible-variables-sha256',
         '--terraform-state-lineage',
         '--terraform-state-serial',
       ]);
@@ -126,9 +158,17 @@ function decodeRequest(flags: ReadonlyMap<string, string>): OperationRequest {
         network: requireFlag(flags, '--network'),
         sshKeyIds,
         retainedStorage: decodeBooleanFlag(flags, '--retained-storage'),
+        k3sRole: (() => {
+          const role = requireFlag(flags, '--k3s-role');
+          if (role !== 'server' && role !== 'agent') throw new Error('--k3s-role is invalid');
+          return role;
+        })(),
+        capabilities: decodeCapabilities(requireFlag(flags, '--capabilities')),
         budgetCapEur,
         providerOwnershipId: requireFlag(flags, '--provider-ownership-id'),
         terraformPlanSha256: requireFlag(flags, '--terraform-plan-sha256'),
+        terraformBackendEvidenceSha256: requireFlag(flags, '--terraform-backend-evidence-sha256'),
+        ansibleVariablesSha256: requireFlag(flags, '--ansible-variables-sha256'),
         terraformStateLineage: requireFlag(flags, '--terraform-state-lineage'),
         terraformStateSerial: Number(requireFlag(flags, '--terraform-state-serial')),
       };
@@ -234,7 +274,17 @@ export async function runTerraformPlan(argv: readonly string[], root: string): P
   const allowed = new Set([
     '--node',
     '--cluster',
+    '--region',
+    '--machine-type',
+    '--image',
+    '--network',
+    '--ssh-key-ids',
+    '--retained-storage',
+    '--k3s-role',
+    '--budget-cap-eur',
     '--provider-ownership-id',
+    '--cloud-account',
+    '--backend-evidence',
     '--variables',
     '--output',
   ]);
@@ -243,9 +293,25 @@ export async function runTerraformPlan(argv: readonly string[], root: string): P
   }
   const evidence = await prepareTerraformPlan(
     root,
-    requireFlag(flags, '--node'),
-    requireFlag(flags, '--cluster'),
-    requireFlag(flags, '--provider-ownership-id'),
+    {
+      nodeId: requireFlag(flags, '--node'),
+      clusterId: requireFlag(flags, '--cluster'),
+      operationId: requireFlag(flags, '--provider-ownership-id'),
+      region: requireFlag(flags, '--region'),
+      machineType: requireFlag(flags, '--machine-type'),
+      image: requireFlag(flags, '--image'),
+      network: requireFlag(flags, '--network'),
+      sshKeyIds: requireFlag(flags, '--ssh-key-ids').split(','),
+      retainedStorage: decodeBooleanFlag(flags, '--retained-storage'),
+      k3sRole: (() => {
+        const role = requireFlag(flags, '--k3s-role');
+        if (role !== 'server' && role !== 'agent') throw new Error('--k3s-role is invalid');
+        return role;
+      })(),
+      budgetCapEur: Number(requireFlag(flags, '--budget-cap-eur')),
+    },
+    requireFlag(flags, '--cloud-account'),
+    requireFlag(flags, '--backend-evidence'),
     requireFlag(flags, '--variables'),
     requireFlag(flags, '--output'),
   );
