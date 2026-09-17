@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
@@ -6,6 +7,7 @@ import { parseOrThrow, type } from '@shared/validation';
 import { OpaqueId } from '../contracts/records';
 import { hashBytes } from '../evidence/content-manifest';
 import { readCandidate } from '../inventory/read-candidate';
+import { extractNxRelationships } from '../relationships/nx';
 import { AuditStratum } from '../review/audit';
 import { prepareActivation, selectActivation } from './activation';
 import { toolkitRoles } from './release';
@@ -19,6 +21,7 @@ import {
   readRelocationPolicy,
   RelocationRefusal,
   type RelocationSources,
+  resolveSkipProbe,
 } from './relocation-activation';
 import { copyTrustedModules, hashTrustedModules, writeBytes } from './trusted-modules';
 
@@ -227,27 +230,45 @@ function readToolkit(directory: string): Toolkit {
 
 function runCheck(
   repository: string,
-  check: { checkId: string; command: string[] },
+  check: { checkId: string; command: string[]; skipProbe?: string[] },
   work: string,
 ): CheckRun {
   const startedAt = new Date().toISOString();
+  // Proof: inheriting a neutral environment unchanged made the standalone package test fail
+  // with Nx plugin workers exiting before their sandbox-denied sockets could connect.
   const invocation = Bun.spawnSync(check.command, {
     cwd: repository,
-    env: process.env,
+    env: {
+      ...process.env,
+      NX_DAEMON: 'false',
+      NX_ISOLATE_PLUGINS: 'false',
+      NX_NO_CLOUD: 'true',
+    },
     stderr: 'pipe',
     stdout: 'pipe',
   });
+  const skipProbe =
+    invocation.exitCode === 0 && check.skipProbe !== undefined
+      ? Bun.spawnSync(check.skipProbe, {
+          cwd: repository,
+          env: process.env,
+          stderr: 'pipe',
+          stdout: 'pipe',
+        })
+      : undefined;
   const endedAt = new Date().toISOString();
+  const stdout = Buffer.concat([invocation.stdout, skipProbe?.stdout ?? new Uint8Array()]);
+  const stderr = Buffer.concat([invocation.stderr, skipProbe?.stderr ?? new Uint8Array()]);
   return {
     checkId: check.checkId,
     command: check.command,
     startedAt,
     endedAt,
-    exitCode: invocation.exitCode,
-    stdout: invocation.stdout,
-    stderr: invocation.stderr,
-    stdoutPath: writeBytes(join(work, 'checks', `${check.checkId}.stdout`), invocation.stdout),
-    stderrPath: writeBytes(join(work, 'checks', `${check.checkId}.stderr`), invocation.stderr),
+    exitCode: skipProbe?.exitCode ?? invocation.exitCode,
+    stdout,
+    stderr,
+    stdoutPath: writeBytes(join(work, 'checks', `${check.checkId}.stdout`), stdout),
+    stderrPath: writeBytes(join(work, 'checks', `${check.checkId}.stderr`), stderr),
   };
 }
 
@@ -379,7 +400,10 @@ export function prepareToolkitActivation(argv: readonly string[]): string[] {
     },
   };
   const checks = planRelocationChecks(sources);
-  const runs = checks.checks.map((check) => runCheck(repository, check, work));
+  const projects = extractNxRelationships(repository).relationships.projects;
+  const runs = checks.checks.map((check) =>
+    runCheck(repository, { ...check, skipProbe: resolveSkipProbe(check, projects) }, work),
+  );
   const plan = planRelocationActivation(
     sources,
     runs,

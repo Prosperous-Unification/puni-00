@@ -1969,7 +1969,7 @@ describe('trusted policy production CLI', () => {
     satisfyApplication(fixture);
     const withMode = runCi(fixture, fixture.bindingPath, ['observe']);
     expect(withMode.exitCode, outputOf(withMode)).toBe(1);
-    expect(outputOf(withMode)).toContain('usage: tool-wiki');
+    expect(outputOf(withMode)).toContain('usage: twilight-bureaucrat');
 
     const evidence = JSON.parse(readFileSync(fixture.evidencePath, 'utf8')) as object;
     write(

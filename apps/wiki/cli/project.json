@@ -1,9 +1,9 @@
 {
-  "name": "wiki-cli",
+  "name": "twilight-bureaucrat",
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "apps/wiki/cli/src",
   "projectType": "application",
-  "tags": ["scope:app", "type:app", "runtime:bun", "ring:adapter", "product:wiki"],
+  "tags": ["scope:app", "type:app", "runtime:bun", "ring:adapter", "product:twilight-bureaucrat"],
   "targets": {
     "test": {
       "executor": "nx:run-commands",
@@ -13,7 +13,9 @@
         "{workspaceRoot}/.github/workflows/ci.yml",
         "{workspaceRoot}/.github/workflows/trusted-wiki.yml",
         "{workspaceRoot}/.github/workflows/wiki-release.yml",
-        "{workspaceRoot}/apps/wiki/consumer/**/*"
+        "{workspaceRoot}/apps/wiki/consumer/**/*",
+        "{projectRoot}/package.json",
+        "{projectRoot}/NOTICE"
       ],
       "options": {
         "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --preload ../../../tools/test/scratch/preload.ts",
@@ -38,7 +40,7 @@
     "lint:fast": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "bunx eslint apps/wiki/cli/src --cache --cache-location .nx/eslintcache-wiki-cli"
+        "command": "bunx eslint apps/wiki/cli/src --cache --cache-location .nx/eslintcache-twilight-bureaucrat"
       }
     },
     "release": {
@@ -46,6 +48,43 @@
       "cache": false,
       "options": {
         "command": "bun src/policy/release-cli.ts",
+        "cwd": "apps/wiki/cli"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": [
+        "{projectRoot}/src/**/*",
+        "{projectRoot}/package.json",
+        "{projectRoot}/README.md",
+        "{projectRoot}/NOTICE",
+        "{workspaceRoot}/libs/shared/domain/validation/src/**/*",
+        "{workspaceRoot}/package.json",
+        "{workspaceRoot}/bun.lock",
+        "{workspaceRoot}/.bun-version"
+      ],
+      "outputs": ["{projectRoot}/dist"],
+      "options": {
+        "command": "bun src/packaging/build.ts",
+        "cwd": "apps/wiki/cli"
+      }
+    },
+    "pack": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": ["build"],
+      "outputs": ["{workspaceRoot}/dist/twilight-bureaucrat-pack"],
+      "options": {
+        "command": "bun src/packaging/pack.ts",
+        "cwd": "apps/wiki/cli"
+      }
+    },
+    "test:package": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/../../../node_modules bun test --preload ../../../tools/test/scratch/preload.ts src/packaging",
         "cwd": "apps/wiki/cli"
       }
     },

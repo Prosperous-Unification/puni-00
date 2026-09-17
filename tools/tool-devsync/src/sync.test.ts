@@ -126,7 +126,7 @@ describe('RESTART_PATHS coverage', () => {
   });
 
   // Every app manifest, serve target or not: the supervisor reads the project graph once at
-  // startup, and `wiki-cli` — an app on disk with no serve target — is still a manifest that
+  // startup, and `twilight-bureaucrat` — an app on disk with no serve target — is still a manifest that
   // graph is built from. Narrowing this to apps that declare a serve target would let the next
   // serve-less app's manifest drift past a running stack unnoticed.
   it('names every app project.json, which the supervisor reads once at startup', async () => {

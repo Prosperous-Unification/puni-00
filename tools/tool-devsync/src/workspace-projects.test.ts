@@ -19,9 +19,10 @@ const EXPECTED_PRODUCT_PROJECTS = [
   ['apps/wbs/gw-01', 'wbs-gw-01'],
   ['apps/wbs/mcp-01', 'wbs-mcp-01'],
   // Proof: leaving this row out after tool-wiki moved to apps/wiki/cli failed the owning
-  // Nx target on the exact extra `['apps/wiki/cli', 'wiki-cli']` tuple, and the product-axis
-  // case below on its `['apps/wiki/cli', ['product:wiki']]` companion (2026-09-16).
-  ['apps/wiki/cli', 'wiki-cli'],
+  // Nx target on the exact extra `['apps/wiki/cli', 'twilight-bureaucrat']` tuple, and the
+  // product-axis case below on its `['apps/wiki/cli', ['product:twilight-bureaucrat']]`
+  // companion (2026-09-16).
+  ['apps/wiki/cli', 'twilight-bureaucrat'],
   ['libs/shared/domain/validation', 'shared-validation'],
   ['libs/wbs/adapters/auth', 'wbs-auth'],
   ['libs/wbs/adapters/config', 'wbs-config'],
@@ -192,7 +193,14 @@ describe('readProjects', () => {
     // Proof: removing product:shared from libs/shared/domain/validation made it
     // report that root with an empty product-tag collection (2026-09-15).
     expect(products).toEqual(
-      EXPECTED_PRODUCT_PROJECTS.map(([root]) => [root, [`product:${root.split('/')[1]}`]]),
+      EXPECTED_PRODUCT_PROJECTS.map(([root]) => [
+        root,
+        [
+          root === 'apps/wiki/cli'
+            ? 'product:twilight-bureaucrat'
+            : `product:${root.split('/')[1]}`,
+        ],
+      ]),
     );
   });
 

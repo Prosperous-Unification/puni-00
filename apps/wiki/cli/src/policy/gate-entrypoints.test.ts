@@ -561,7 +561,7 @@ function runNxLint(
     [
       join(workspace, 'node_modules', '.bin', 'nx'),
       'run',
-      'wiki-cli:lint',
+      'twilight-bureaucrat:lint',
       `--command=${command}`,
       '--output-style=stream',
     ],
@@ -587,7 +587,7 @@ function nxFixture(cache: boolean, inputs: string[]): string {
   write(
     join(nxWorkspace, 'project.json'),
     `${JSON.stringify({
-      name: 'wiki-cli',
+      name: 'twilight-bureaucrat',
       root: '.',
       targets: {
         lint: {
@@ -1282,10 +1282,10 @@ await import(${JSON.stringify(productionSnapshotter)});
     expect(trustedCi).toContain('committed "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"');
     expect(trustedCi).not.toContain('"${{ github.event.pull_request.head.sha }}"');
     expect(lefthook).toContain('run: bash bin/tool-wiki-lint.sh staged . HEAD');
-    expect(hostSteps).toContain('--exclude=wiki-cli');
-    expect(hostSteps).toContain('bunx nx run wiki-cli:lint:source --skip-nx-cache');
-    expect(ci).toContain('--exclude=wiki-cli');
-    expect(ci).toContain('bunx nx run wiki-cli:lint:source --skip-nx-cache');
+    expect(hostSteps).toContain('--exclude=twilight-bureaucrat');
+    expect(hostSteps).toContain('bunx nx run twilight-bureaucrat:lint:source --skip-nx-cache');
+    expect(ci).toContain('--exclude=twilight-bureaucrat');
+    expect(ci).toContain('bunx nx run twilight-bureaucrat:lint:source --skip-nx-cache');
     const consumerTemplate = readFileSync(
       join(workspace, 'apps', 'wiki', 'consumer', 'trusted-wiki.yml'),
       'utf8',
@@ -1325,16 +1325,20 @@ await import(${JSON.stringify(productionSnapshotter)});
     );
     expect(releaseActionRefs.length).toBeGreaterThan(0);
     expect(releaseActionRefs.every((ref) => /^[0-9a-f]{40}$/.test(ref))).toBe(true);
-    expect(releaseWorkflow).toContain('wiki-cli:release');
+    expect(releaseWorkflow).toContain('twilight-bureaucrat:release');
     expect(releaseWorkflow).toContain(`bun-version: ${pinnedRuntime}`);
-    for (const check of ['wiki-cli:test', 'wiki-cli:lint:source', 'wiki-cli:typecheck']) {
+    for (const check of [
+      'twilight-bureaucrat:test',
+      'twilight-bureaucrat:lint:source',
+      'twilight-bureaucrat:typecheck',
+    ]) {
       expect(releaseWorkflow).toContain(`bunx nx run ${check} --skip-nx-cache`);
     }
     expect(releaseWorkflow.indexOf('Bootstrap checks for the tagged commit')).toBeLessThan(
       releaseWorkflow.indexOf('name: Pack the toolkit'),
     );
     expect(workspacePackage.scripts['lint']).toBe(
-      'nx run-many -t lint --exclude=wiki-cli && nx run wiki-cli:lint:source',
+      'nx run-many -t lint --exclude=twilight-bureaucrat && nx run twilight-bureaucrat:lint:source',
     );
   });
 
@@ -1944,7 +1948,7 @@ await import(${JSON.stringify(productionSnapshotter)});
     git(paths.repository, 'commit', '--message', 'mutate would-be omitted input');
     paths.revision = git(paths.repository, 'rev-parse', 'HEAD');
     const afterMutation = runNxLint(paths);
-    // Proof: the production wiki-cli:lint target reran and failed on obligation.application;
+    // Proof: the production twilight-bureaucrat:lint target reran and failed on obligation.application;
     // the cache-enabled target below returned its warmed success for this same omitted mutation.
     expect(afterMutation.exitCode, streamText(afterMutation.stderr, 'mutated stderr')).toBe(1);
 

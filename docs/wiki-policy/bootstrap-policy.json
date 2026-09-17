@@ -247,6 +247,10 @@
           {
             "kind": "name",
             "value": ".prettierignore"
+          },
+          {
+            "kind": "name",
+            "value": "Containerfile"
           }
         ],
         "exclude": [
@@ -381,6 +385,10 @@
           {
             "kind": "suffix",
             "value": ".txt"
+          },
+          {
+            "kind": "name",
+            "value": "NOTICE"
           }
         ],
         "exclude": [

@@ -25,7 +25,7 @@ runtime closure the toolkit ships is the one the tag's lockfile pins:
 
 ```sh
 bun install --frozen-lockfile
-bunx nx run wiki-cli:release -- --tag wiki-vX.Y.Z --destination <dir outside the checkout>
+bunx nx run twilight-bureaucrat:release -- --tag wiki-vX.Y.Z --destination <dir outside the checkout>
 ```
 
 It refuses a malformed tag (`T1`), a tag no commit resolves (`T2`), a tag that is not at HEAD
@@ -45,9 +45,9 @@ consumer procedure is `apps/wiki/consumer/README.md`, beside the workflow templa
 Run the three exact scoped checks selected by the bootstrap obligation:
 
 ```sh
-bunx nx run wiki-cli:test --skip-nx-cache
-bunx nx run wiki-cli:lint:source --skip-nx-cache
-bunx nx run wiki-cli:typecheck --skip-nx-cache
+bunx nx run twilight-bureaucrat:test --skip-nx-cache
+bunx nx run twilight-bureaucrat:lint:source --skip-nx-cache
+bunx nx run twilight-bureaucrat:typecheck --skip-nx-cache
 ```
 
 An operator, outside the candidate checkout, invokes the trusted review harness for the exact

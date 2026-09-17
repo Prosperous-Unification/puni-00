@@ -40,12 +40,12 @@ jobs:
       - name: Bootstrap checks for the tagged commit
         run: |
           set -euo pipefail
-          bunx nx run wiki-cli:test --skip-nx-cache
-          bunx nx run wiki-cli:lint:source --skip-nx-cache
-          bunx nx run wiki-cli:typecheck --skip-nx-cache
+          bunx nx run twilight-bureaucrat:test --skip-nx-cache
+          bunx nx run twilight-bureaucrat:lint:source --skip-nx-cache
+          bunx nx run twilight-bureaucrat:typecheck --skip-nx-cache
 
       - name: Pack the toolkit
-        run: bunx nx run wiki-cli:release -- --tag "$GITHUB_REF_NAME" --destination "$RUNNER_TEMP/toolkit"
+        run: bunx nx run twilight-bureaucrat:release -- --tag "$GITHUB_REF_NAME" --destination "$RUNNER_TEMP/toolkit"
 
       - name: Publish the toolkit
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2

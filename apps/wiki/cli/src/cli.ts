@@ -352,72 +352,75 @@ function validatorEntryPaths(): string[] | { artifactManifest: string } {
   return [join(import.meta.dir, 'cli.ts'), join(import.meta.dir, 'policy', 'trust.ts')];
 }
 
-function run(argv: string[]): Promise<void> | void {
-  if (argv.length === 3 && argv[0] === 'validate') {
-    validateRecord(argv);
+export function runCli(argv: readonly string[]): Promise<void> | void {
+  const args = [...argv];
+  if (args.length === 3 && (args[0] === 'validate' || args[0] === 'validate-record')) {
+    validateRecord(args);
     return;
   }
-  if (argv.length === 4 && argv[0] === 'read-candidate') {
-    readSelectedCandidate(argv);
+  if (args.length === 4 && args[0] === 'read-candidate') {
+    readSelectedCandidate(args);
     return;
   }
-  if (argv.length === 5 && argv[0] === 'classify-candidate') {
-    classifyCandidate(argv);
+  if (args.length === 5 && args[0] === 'classify-candidate') {
+    classifyCandidate(args);
     return;
   }
-  if ((argv.length === 6 || argv.length === 7) && argv[0] === 'content-manifest') {
-    writeContentManifest(argv);
+  if ((args.length === 6 || args.length === 7) && args[0] === 'content-manifest') {
+    writeContentManifest(args);
     return;
   }
-  if (argv.length === 6 && argv[0] === 'validate-artifacts') {
-    writeArtifactValidation(argv);
+  if (args.length === 6 && args[0] === 'validate-artifacts') {
+    writeArtifactValidation(args);
     return;
   }
-  if (argv.length === 5 && argv[0] === 'extract-relationships') {
-    writeRelationships(argv);
+  if (args.length === 5 && args[0] === 'extract-relationships') {
+    writeRelationships(args);
     return;
   }
-  if (argv.length === 4 && argv[0] === 'check-indexes') {
-    writeIndexChecks(argv);
+  if (args.length === 4 && args[0] === 'check-indexes') {
+    writeIndexChecks(args);
     return;
   }
-  if (argv.length === 5 && argv[0] === 'check-root-migration') {
-    writeRootMigrationCheck(argv);
+  if (args.length === 5 && args[0] === 'check-root-migration') {
+    writeRootMigrationCheck(args);
     return;
   }
-  if (argv.length === 4 && argv[0] === 'validate-review-provenance') {
-    writeReviewProvenance(argv);
+  if (args.length === 4 && args[0] === 'validate-review-provenance') {
+    writeReviewProvenance(args);
     return;
   }
-  if (argv.length === 15 && argv[0] === 'freeze-exhaustive') {
-    return writeExhaustiveFreeze(argv);
+  if (args.length === 15 && args[0] === 'freeze-exhaustive') {
+    return writeExhaustiveFreeze(args);
   }
-  if (argv.length === 16 && argv[0] === 'verify-exhaustive') {
-    return writeExhaustiveVerification(argv);
+  if (args.length === 16 && args[0] === 'verify-exhaustive') {
+    return writeExhaustiveVerification(args);
   }
-  if (argv.length === 17 && argv[0] === 'evaluate-exhaustive-coverage') {
-    return writeExhaustiveCoverage(argv);
+  if (args.length === 17 && args[0] === 'evaluate-exhaustive-coverage') {
+    return writeExhaustiveCoverage(args);
   }
-  if (argv.length === 5 && argv[0] === 'submit-admission') {
-    return writeAdmissionSubmission(argv);
+  if (args.length === 5 && args[0] === 'submit-admission') {
+    return writeAdmissionSubmission(args);
   }
-  if (argv.length === 7 && argv[0] === 'lint-local') {
+  if (args.length === 7 && args[0] === 'lint-local') {
     return import('./policy/trust').then(({ writeLocalLintCommand }) => {
-      writeLocalLintCommand(argv, validatorEntryPaths());
+      writeLocalLintCommand(args, validatorEntryPaths());
     });
   }
-  if (argv.length === 5 && argv[0] === 'lint-ci') {
+  if (args.length === 5 && args[0] === 'lint-ci') {
     return import('./policy/trust').then(({ writeCiLintCommand }) => {
-      writeCiLintCommand(argv, validatorEntryPaths());
+      writeCiLintCommand(args, validatorEntryPaths());
     });
   }
-  if (argv.length === 4 && argv[0] === 'validate-policy-activation') {
+  if (args.length === 4 && args[0] === 'validate-policy-activation') {
     return import('./policy/trust').then(({ writePolicyActivationCommand }) => {
-      writePolicyActivationCommand(argv, validatorEntryPaths());
+      writePolicyActivationCommand(args, validatorEntryPaths());
     });
   }
+  // Proof: replacing this refusal with a successful return made the external package test
+  // accept `not-a-command` with exit 0 instead of rejecting the unknown command.
   throw new Error(
-    'usage: tool-wiki <validate|read-candidate|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|submit-admission|lint-local|lint-ci|validate-policy-activation> ...',
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-bureaucrat <validate-record|read-candidate|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|submit-admission|lint-local|lint-ci|validate-policy-activation> ...`,
   );
 }
 
@@ -427,9 +430,11 @@ function fail(cause: unknown): void {
   process.exitCode = 1;
 }
 
-try {
-  const pending = run(process.argv.slice(2));
-  if (pending !== undefined) void pending.catch(fail);
-} catch (cause) {
-  fail(cause);
+if (import.meta.main) {
+  try {
+    const pending = runCli(process.argv.slice(2));
+    if (pending !== undefined) void pending.catch(fail);
+  } catch (cause) {
+    fail(cause);
+  }
 }

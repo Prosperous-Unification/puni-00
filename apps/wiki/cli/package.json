@@ -1,0 +1,22 @@
+{
+  "name": "twilight-bureaucrat",
+  "version": "0.1.0",
+  "description": "Module knowledge and trusted repository admission toolkit",
+  "type": "module",
+  "bin": {
+    "twilight-bureaucrat": "dist/bin.mjs"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "NOTICE"
+  ],
+  "engines": {
+    "bun": "1.4.2"
+  },
+  "license": "UNLICENSED",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
+}

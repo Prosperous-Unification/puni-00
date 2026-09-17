@@ -251,6 +251,10 @@
           {
             "kind": "path",
             "value": ".agents/skills/.openspec-target"
+          },
+          {
+            "kind": "name",
+            "value": "Containerfile"
           }
         ],
         "exclude": [
@@ -385,6 +389,10 @@
           {
             "kind": "suffix",
             "value": ".txt"
+          },
+          {
+            "kind": "name",
+            "value": "NOTICE"
           }
         ],
         "exclude": [

@@ -1,5 +1,13 @@
 import { Buffer } from 'node:buffer';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -612,6 +620,43 @@ describe('entry classification production CLI', () => {
       },
     ]);
   });
+
+  test.each(['policy.json', 'bootstrap-policy.json'])(
+    'classifies fleet Containerfiles and package NOTICE with docs/wiki-policy/%s',
+    (policyName) => {
+      const repository = createRepository();
+      const containerfile = 'infra/controller/Containerfile';
+      const notice = 'apps/wiki/cli/NOTICE';
+      write(repository, containerfile, 'FROM scratch\n');
+      write(repository, notice, 'Third-party notices\n');
+      const revision = commitAll(repository);
+      const trustedPolicy = JSON.parse(
+        readFileSync(
+          join(import.meta.dir, '../../../../..', 'docs/wiki-policy', policyName),
+          'utf8',
+        ),
+      ) as { classificationPolicy: object };
+      const invocation = classify(
+        repository,
+        revision,
+        writePolicy(repository, trustedPolicy.classificationPolicy),
+      );
+
+      // Proof: before the explicit names were added, the production CLI refused the fleet
+      // candidate at `ordinary content infra/controller/Containerfile matched 0 classification
+      // rules`; removing NOTICE then moves the same refusal to `apps/wiki/cli/NOTICE`.
+      expect(invocation.exitCode, output(invocation)).toBe(0);
+      const classified = JSON.parse(standardOutput(invocation)) as {
+        entries: { path: string; classification: { contentClass: string } }[];
+      };
+      expect(
+        classified.entries.map(({ path, classification }) => [path, classification.contentClass]),
+      ).toEqual([
+        [notice, 'document'],
+        [containerfile, 'config'],
+      ]);
+    },
+  );
 
   test('refuses an ordinary path that matches no selector', () => {
     const repository = createRepository();

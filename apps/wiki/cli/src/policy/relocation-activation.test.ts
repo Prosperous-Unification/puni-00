@@ -21,6 +21,7 @@ import {
   planRelocationActivation,
   planRelocationChecks,
   type RelocationSources,
+  resolveSkipProbe,
 } from './relocation-activation';
 import {
   auditReview,
@@ -230,6 +231,20 @@ function archivePath(fixture: RelocationFixture): string {
 afterAll(disposeRelocationFixtures);
 
 describe('relocation activation prepared from a candidate SHA', () => {
+  test('refuses a skip probe whose declared project is absent', () => {
+    expect(() =>
+      resolveSkipProbe(
+        {
+          checkId: 'check.fixture.module',
+          command: ['bunx', 'nx', 'run', 'missing:test'],
+          skipChannel: 'bun-test',
+          skipProbe: { command: 'bun test {projectRoot}', project: 'missing' },
+        },
+        [],
+      ),
+    ).toThrow('check skip probe project unresolved: check.fixture.module (missing)');
+  });
+
   test('prepares an activation the candidate certifies through its own launcher', () => {
     const prepared = commandFixture();
     const invocation = runPreparation(prepared);

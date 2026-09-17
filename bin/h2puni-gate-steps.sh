@@ -24,8 +24,8 @@ trap - EXIT
 
 bunx nx format:check --all
 # Proof: dropping this exclusion made gate-entrypoints.test.ts lose the exact-once split and fail
-# at `Expected to contain: --exclude=wiki-cli`; wiki-cli source lint is invoked below.
-bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache --exclude=wiki-cli
-bunx nx run-many -t test typecheck build -p wiki-cli --parallel=2 --skip-nx-cache
-bunx nx run wiki-cli:lint:source --skip-nx-cache
+# at `Expected to contain: --exclude=twilight-bureaucrat`; source lint is invoked below.
+bunx nx run-many -t test lint typecheck build --parallel=2 --skip-nx-cache --exclude=twilight-bureaucrat
+bunx nx run-many -t test typecheck build -p twilight-bureaucrat --parallel=2 --skip-nx-cache
+bunx nx run twilight-bureaucrat:lint:source --skip-nx-cache
 WBS_RUN_SOLVER_ORPHAN_PROC=1 bunx nx run wbs-be-01:solver-image-smoke

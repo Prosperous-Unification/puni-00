@@ -178,6 +178,7 @@ export interface CheckCommand {
   readonly checkId: string;
   readonly command: string[];
   readonly skipChannel: SkipChannel;
+  readonly skipProbe?: { readonly command: string; readonly project: string };
 }
 
 export interface CheckPlan {
@@ -595,12 +596,48 @@ export function deriveCheckCommands(
     if (fact?.kind !== 'nx-target') {
       refuse('R15', `check has no executable nx-target fact: ${checkId}`);
     }
+    const skipChannel = skipChannelOf(fact.expectedConfiguration);
+    const options = isPlainObject(fact.expectedConfiguration)
+      ? fact.expectedConfiguration['options']
+      : undefined;
+    const declaredCommand = isPlainObject(options) ? options['command'] : undefined;
     return {
       checkId,
-      command: ['bunx', 'nx', 'run', `${fact.project}:${fact.target}`, '--skip-nx-cache'],
-      skipChannel: skipChannelOf(fact.expectedConfiguration),
+      command: [
+        'bunx',
+        'nx',
+        'run',
+        `${fact.project}:${fact.target}`,
+        '--skip-nx-cache',
+        '--outputStyle=stream-without-prefixes',
+      ],
+      skipChannel,
+      ...(skipChannel === 'bun-test' && typeof declaredCommand === 'string'
+        ? { skipProbe: { command: declaredCommand, project: fact.project } }
+        : {}),
     };
   });
+}
+
+/** Resolve the declared Bun test command used to observe skips that Nx does not pipe reliably. */
+export function resolveSkipProbe(
+  check: CheckCommand,
+  projects: readonly { name: string; root: string }[],
+): string[] | undefined {
+  if (check.skipProbe === undefined) return undefined;
+  const roots = projects
+    .filter(({ name }) => name === check.skipProbe?.project)
+    .map(({ root }) => root);
+  // Proof: changing the skip fact's project to `missing` made the production preparation test
+  // refuse here instead of running a guessed command from the repository root.
+  if (roots.length !== 1) {
+    refuse(
+      'R15',
+      `check skip probe project unresolved: ${check.checkId} (${check.skipProbe.project})`,
+    );
+  }
+  const quotedRoot = `'${roots[0].replaceAll("'", "'\"'\"'")}'`;
+  return ['bash', '-c', check.skipProbe.command.replaceAll('{projectRoot}', quotedRoot)];
 }
 
 /**

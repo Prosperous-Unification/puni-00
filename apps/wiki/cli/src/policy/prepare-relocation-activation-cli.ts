@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
@@ -6,6 +7,7 @@ import { parseOrThrow, type } from '@shared/validation';
 import { RelativePath } from '../contracts/records';
 import { hashBytes } from '../evidence/content-manifest';
 import { readCandidate } from '../inventory/read-candidate';
+import { extractNxRelationships } from '../relationships/nx';
 import { prepareActivation, selectActivation, verifyActivation } from './activation';
 import {
   assertPinnedRuntime,
@@ -17,6 +19,7 @@ import {
   readRelocationPolicy,
   RelocationRefusal,
   type RelocationSources,
+  resolveSkipProbe,
 } from './relocation-activation';
 import {
   buildValidatorBundle,
@@ -175,27 +178,45 @@ function assertOutsideCandidate(repository: string, path: string, flag: string):
 
 function runCheck(
   repository: string,
-  check: { checkId: string; command: string[] },
+  check: { checkId: string; command: string[]; skipProbe?: string[] },
   work: string,
 ): CheckRun {
   const startedAt = new Date().toISOString();
+  // Proof: without explicit streaming, the skip negative observed empty captured streams and
+  // prepared a complete activation for an Nx target whose Bun test summary reported one skip.
   const invocation = Bun.spawnSync(check.command, {
     cwd: repository,
-    env: process.env,
+    env: {
+      ...process.env,
+      NX_DAEMON: 'false',
+      NX_ISOLATE_PLUGINS: 'false',
+      NX_NO_CLOUD: 'true',
+    },
     stderr: 'pipe',
     stdout: 'pipe',
   });
+  const skipProbe =
+    invocation.exitCode === 0 && check.skipProbe !== undefined
+      ? Bun.spawnSync(check.skipProbe, {
+          cwd: repository,
+          env: process.env,
+          stderr: 'pipe',
+          stdout: 'pipe',
+        })
+      : undefined;
   const endedAt = new Date().toISOString();
-  const stdoutPath = writeBytes(join(work, 'checks', `${check.checkId}.stdout`), invocation.stdout);
-  const stderrPath = writeBytes(join(work, 'checks', `${check.checkId}.stderr`), invocation.stderr);
+  const stdout = Buffer.concat([invocation.stdout, skipProbe?.stdout ?? new Uint8Array()]);
+  const stderr = Buffer.concat([invocation.stderr, skipProbe?.stderr ?? new Uint8Array()]);
+  const stdoutPath = writeBytes(join(work, 'checks', `${check.checkId}.stdout`), stdout);
+  const stderrPath = writeBytes(join(work, 'checks', `${check.checkId}.stderr`), stderr);
   return {
     checkId: check.checkId,
     command: check.command,
     startedAt,
     endedAt,
-    exitCode: invocation.exitCode,
-    stdout: invocation.stdout,
-    stderr: invocation.stderr,
+    exitCode: skipProbe?.exitCode ?? invocation.exitCode,
+    stdout,
+    stderr,
     stdoutPath,
     stderrPath,
   };
@@ -398,7 +419,10 @@ export async function prepareRelocationActivation(argv: readonly string[]): Prom
   const modulesRoot = join(repository, 'node_modules');
   const trustedModules = trustedModuleNames(modulesRoot);
   const checks = planRelocationChecks(sources);
-  const runs = checks.checks.map((check) => runCheck(repository, check, work));
+  const projects = extractNxRelationships(repository).relationships.projects;
+  const runs = checks.checks.map((check) =>
+    runCheck(repository, { ...check, skipProbe: resolveSkipProbe(check, projects) }, work),
+  );
   const plan = planRelocationActivation(
     sources,
     runs,

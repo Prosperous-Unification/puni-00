@@ -1,17 +1,23 @@
-# Tool Wiki
+# Twilight Bureaucrat
 
-<!-- module-index {"schemaVersion":1,"moduleId":"module.infra.tool-wiki","memberships":[{"kind":"directory-prefix","prefix":"src","exclusions":[]},{"kind":"path","path":"project.json"},{"kind":"path","path":"tsconfig.json"},{"kind":"path","path":"tsconfig.lib.json"},{"kind":"path","path":"tsconfig.spec.json"}],"relationshipSelectors":["declarations.facts","typescript.imports","typescript.reverse-edges"],"applicableChecks":["check.wiki-cli.test","check.wiki-cli.lint-source","check.wiki-cli.typecheck"],"inapplicableSections":[],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"bin/tool-wiki-lint.sh"},{"kind":"path","path":"bin/h2puni-gate.sh"},{"kind":"path","path":".github/workflows/trusted-wiki.yml"},{"kind":"path","path":".github/workflows/ci.yml"},{"kind":"path","path":"lefthook.yml"},{"kind":"path","path":"nx.json"}],"knowledgeLimit":"Only the launcher, host gate, trusted workflow, candidate CI workflow, hook, and Nx callers needed by the bootstrap activation are declared; their surrounding directories are not claimed as reviewed."}} -->
+<!-- module-index {"schemaVersion":1,"moduleId":"module.infra.tool-wiki","memberships":[{"kind":"directory-prefix","prefix":"src","exclusions":[]},{"kind":"path","path":"project.json"},{"kind":"path","path":"package.json"},{"kind":"path","path":"NOTICE"},{"kind":"path","path":"tsconfig.json"},{"kind":"path","path":"tsconfig.lib.json"},{"kind":"path","path":"tsconfig.spec.json"}],"relationshipSelectors":["declarations.facts","typescript.imports","typescript.reverse-edges"],"applicableChecks":["check.wiki-cli.test","check.wiki-cli.lint-source","check.wiki-cli.typecheck"],"inapplicableSections":[],"externalConsumers":{"kind":"declared","memberships":[{"kind":"path","path":"bin/tool-wiki-lint.sh"},{"kind":"path","path":"bin/h2puni-gate.sh"},{"kind":"path","path":".github/workflows/trusted-wiki.yml"},{"kind":"path","path":".github/workflows/ci.yml"},{"kind":"path","path":"lefthook.yml"},{"kind":"path","path":"nx.json"}],"knowledgeLimit":"Only the launcher, host gate, trusted workflow, candidate CI workflow, hook, and Nx callers needed by the bootstrap activation are declared; their surrounding directories are not claimed as reviewed."}} -->
 
-This project owns the finite Tool Wiki ledger, trusted policy and activation logic, review
+This project owns the finite Twilight Bureaucrat ledger, trusted policy and activation logic, review
 provenance, and admission coordinator. The index covers source, tests, fixtures, and project
 configuration as one initial enforced tooling boundary. It does not claim exhaustive repository
 coverage; the six historical pilot modules remain named review debt outside this boundary.
 
+Version-1 record IDs, module IDs, role filenames, and `TOOL_WIKI_*`
+environment variables retain their legacy spelling so existing evidence and
+immutable activations keep their identity.
+
 ## Checks
 
-The bootstrap obligation requires the uncached `wiki-cli:test`, `wiki-cli:lint:source`, and
-`wiki-cli:typecheck` Nx targets declared in [project.json](project.json). The diagnostic
-`wiki-cli:lint` target cannot certify itself and is not one of these receipts.
+The bootstrap obligation requires the uncached `twilight-bureaucrat:test`,
+`twilight-bureaucrat:lint:source`, and `twilight-bureaucrat:typecheck` Nx
+targets declared in [project.json](project.json). The diagnostic
+`twilight-bureaucrat:lint` target cannot certify itself and is not one of
+these receipts.
 
 ## Trust boundary
 

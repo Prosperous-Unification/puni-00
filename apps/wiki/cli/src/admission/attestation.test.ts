@@ -57,7 +57,7 @@ function fixture() {
   const tree = git(repository, ['rev-parse', 'HEAD^{tree}']);
   const checkReceipt = {
     candidateManifest: '',
-    command: ['bunx', 'nx', 'run', 'wiki-cli:test', '--skip-nx-cache'],
+    command: ['bunx', 'nx', 'run', 'twilight-bureaucrat:test', '--skip-nx-cache'],
     cwdIdentity: 'repository.root',
     elapsedMs: 1,
     endedAt: '2026-09-12T00:00:00.001Z',
