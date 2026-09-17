@@ -84,6 +84,7 @@ bunx nx run tool-fleet:plan -- \
   --operation retire \
   --node workers-agent-a \
   --backup-receipt backup-workers-20260917 \
+  --backup-receipt-sha256 <reviewed-backup-receipt-sha256> \
   --inventory-sha256 <reviewed-static-inventory-sha256> \
   --known-hosts-sha256 <reviewed-known-hosts-sha256> \
   --output .puni/fleet/retire-workers-agent-a.json
@@ -91,17 +92,21 @@ bunx nx run tool-fleet:plan -- \
 
 Create the exact static inventory and pinned SSH host-key artifacts as
 `.puni/fleet/retire-workers-agent-a.json.inventory.json` and
-`.puni/fleet/retire-workers-agent-a.json.known_hosts`. The reviewed hashes bind
-retirement to those bytes. This applies to cloud and external SSH nodes; cloud
-nodes also require the live dynamic provider identity to match.
+`.puni/fleet/retire-workers-agent-a.json.known_hosts`, with the structured
+backup receipt at `.puni/fleet/retire-workers-agent-a.json.backup-receipt.json`.
+The reviewed hashes bind retirement to those bytes. This applies to cloud and
+external SSH nodes; cloud nodes also require the live dynamic provider identity
+to match.
 
 Apply requires the printed digest and runs each step under the cluster Lease.
-The playbook checks the live provider ID and Kubernetes UID before cordoning,
-honors PDB and local-storage drain failures, waits for volume detach, disables
-k3s, removes its credentials and membership, and verifies the services remain
-disabled. The adapter removes enrollment membership before writing the
-owner-only retirement receipt. Any failed step leaves a recoverable journal and
-no receipt.
+The playbook checks the explicit Kubernetes context, live provider ID,
+Kubernetes UID, Ready capability floors, etcd voter majority, registration
+endpoint placement, hostPath and local-PV topology before each mutation. It
+honors PDB failures, waits for workload recovery and volume detach, disables
+k3s, removes its credentials, and asks k3s to remove the exact embedded-etcd
+member before deleting the Node. The adapter persists an authoritative
+enrollment exclusion before writing the owner-only retirement receipt. Any
+failed step leaves a recoverable journal and no receipt.
 
 ```sh
 bunx nx run tool-fleet:apply -- \
@@ -110,15 +115,24 @@ bunx nx run tool-fleet:apply -- \
 ```
 
 A disappeared node cannot use normal retirement. Replacement planning requires
-an exact external fence for the observed provider identity in `powered-off` or
-`deleted` state before retained storage can move to a new writer. Upgrade
-planning accepts only an exact pinned k3s version newer than the installed
-version, requires every node Ready and a snapshot/token recovery identity for
-each server cluster, and orders servers before agents. The upgrade playbook is
-serial, checksum-bound, drains without universal force flags, snapshots etcd on
-servers, and proves Ready before uncordoning.
+an exact owner-only fence receipt at `<plan>.fence-receipt.json` for the observed
+provider identity in `powered-off` or `deleted` state. Apply rechecks that fence
+against the live provider before writing the enrollment exclusion and a
+replacement authorization consumed by a distinct provisioning plan.
 
-Provider shutdown or deletion is a separate reviewed operation after a
-completed retirement receipt. Retirement never destroys a provider instance or
-retained application storage. A server downgrade uses the recovery procedure;
-the ordinary upgrade planner refuses it.
+Upgrade planning reads `<plan>.upgrade-evidence.json`, binds every installed
+node version and the server-cluster snapshot identities, accepts only the exact
+locked k3s version, and orders servers before agents. The production adapter
+binds static inventory and host keys, rechecks the Kubernetes UID and Ready
+condition in the explicit context, and applies one serial transition. The
+playbook is checksum-bound, drains without universal force flags, snapshots
+etcd on servers, and proves Ready before uncordoning.
+
+Provider deletion is a separate saved Terraform plan after a completed
+retirement receipt. The destroy decoder allows only the exact retired server,
+its network edge, and its retained-volume attachment; it refuses retained
+volume, primary-IP, shared-infrastructure, and other-node deletion. Apply binds
+the saved-plan, variables, backend-evidence, and remote-state hashes and rechecks
+direct provider ownership before consuming the plan. Retirement never destroys
+a provider instance or retained application storage. A server downgrade uses
+the recovery procedure; the ordinary upgrade planner refuses it.

@@ -65,11 +65,8 @@ export function planReplacement(
     observationDigest: observation.digest,
     steps: [
       'record verified external fence',
-      'detach retained storage from old provider identity',
-      'provision replacement with a new provider identity',
-      'enroll replacement and prove capabilities',
-      'reassign retained storage to the sole replacement writer',
-      'record replaced identity and surviving service evidence',
+      'persist authoritative enrollment exclusion',
+      'record replacement authorization for a distinct provisioning plan',
     ],
   };
 }

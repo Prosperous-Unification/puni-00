@@ -1,11 +1,12 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { chmod, open, readFile, stat, unlink } from 'node:fs/promises';
+import { chmod, mkdir, open, readFile, stat, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import type { ApplyDependencies, ApplyObservation, OperationLease } from './apply';
 import { decodeFleetNode, readToolchain } from './contracts';
 import type { OperationPlan } from './plan';
 import {
+  decodeTerraformDestroyPlan,
   decodeTerraformPlan,
   decodeTerraformStateIdentity,
   type ProvisioningInstance,
@@ -52,6 +53,7 @@ function requireRecord(input: unknown, context: string): Record<string, unknown>
   if (typeof input !== 'object' || input === null || Array.isArray(input)) {
     throw new Error(`${context} is not an object`);
   }
+  // This cast is safe at the parsed-JSON boundary because the checks above exclude null and arrays.
   return input as Record<string, unknown>;
 }
 
@@ -371,6 +373,98 @@ export async function prepareTerraformPlan(
     };
     await removePlanCandidate(candidatePath);
     return evidence;
+  } catch (cause) {
+    if (wroteReviewedVariables) await unlink(reviewedVariablesPath);
+    await removePlanCandidate(candidatePath, cause);
+    throw cause;
+  }
+}
+
+/** Create a saved destroy plan that can delete only one retired server and its attachment edges. */
+export async function prepareTerraformDestroyPlan(
+  root: string,
+  nodeId: string,
+  providerIdentity: string,
+  cloudAccount: string,
+  backendEvidencePath: string,
+  variablesPath: string,
+  outputPath: string,
+  run?: RunCommand,
+): Promise<TerraformPlanEvidence> {
+  const commandRunner = run ?? createProductionCommandRunner(root);
+  const backendSource = await readFile(backendEvidencePath);
+  const terraformBackendEvidenceSha256 = createHash('sha256').update(backendSource).digest('hex');
+  await readBackendEvidence(
+    backendEvidencePath,
+    terraformBackendEvidenceSha256,
+    cloudAccount,
+    run === undefined,
+  );
+  const terraformRoot = join(root, 'infra/terraform');
+  const candidatePath = `${outputPath}.${randomBytes(8).toString('hex')}.new`;
+  const reviewedVariablesPath = outputPath.endsWith('.tfplan')
+    ? `${outputPath.slice(0, -'.tfplan'.length)}.tfvars.json`
+    : `${outputPath}.tfvars.json`;
+  let wroteReviewedVariables = false;
+  const terraform = (arguments_: readonly string[]) =>
+    requireCommand(
+      commandRunner,
+      { executable: 'terraform', arguments: arguments_, cwd: terraformRoot },
+      'Terraform destroy planning command',
+    );
+  try {
+    const variables = await readFile(variablesPath);
+    const variablesDestination = await open(reviewedVariablesPath, 'wx', 0o600);
+    try {
+      await variablesDestination.writeFile(variables);
+      await variablesDestination.sync();
+    } finally {
+      await variablesDestination.close();
+    }
+    wroteReviewedVariables = true;
+    await terraform(['init', '-input=false', '-lockfile=readonly']);
+    const validation = requireRecord(
+      parseJson(await terraform(['validate', '-json']), 'Terraform destroy validation'),
+      'Terraform destroy validation',
+    );
+    if (validation['valid'] !== true) {
+      throw new Error(
+        `Terraform destroy validation failed: ${JSON.stringify(validation['diagnostics'])}`,
+      );
+    }
+    const stateSource = await terraform(['state', 'pull']);
+    const state = decodeTerraformState(stateSource, nodeId);
+    if (state.managedInstance?.instanceId !== providerIdentity) {
+      throw new Error('Terraform state does not own the exact provider destroy target');
+    }
+    await terraform([
+      'plan',
+      '-input=false',
+      '-lock=true',
+      `-var-file=${reviewedVariablesPath}`,
+      `-out=${candidatePath}`,
+    ]);
+    decodeTerraformDestroyPlan(
+      parseJson(await terraform(['show', '-json', candidatePath]), 'Terraform destroy saved plan'),
+      nodeId,
+    );
+    const savedPlan = await readFile(candidatePath);
+    const destination = await open(outputPath, 'wx', 0o600);
+    try {
+      await destination.writeFile(savedPlan);
+      await destination.sync();
+    } finally {
+      await destination.close();
+    }
+    await chmod(outputPath, 0o600);
+    await removePlanCandidate(candidatePath);
+    return {
+      terraformPlanSha256: createHash('sha256').update(savedPlan).digest('hex'),
+      terraformVariablesSha256: createHash('sha256').update(variables).digest('hex'),
+      terraformBackendEvidenceSha256,
+      terraformStateLineage: state.identity.lineage,
+      terraformStateSerial: state.identity.serial,
+    };
   } catch (cause) {
     if (wroteReviewedVariables) await unlink(reviewedVariablesPath);
     await removePlanCandidate(candidatePath, cause);
@@ -841,6 +935,7 @@ function createEnrollmentApplyDependencies(
   });
 
   async function inspect(): Promise<EnrollmentInventory> {
+    await requireEnrollmentAllowed(root, request.nodeId);
     const inventory = await readEnrollmentInventory(
       inventoryPath,
       request.inventorySha256,
@@ -952,6 +1047,35 @@ function requirePlanIdentity(plan: OperationPlan, prefix: string): string {
   return identity.slice(prefix.length);
 }
 
+function retirementExclusionPath(root: string, nodeId: string): string {
+  const nodeSha256 = createHash('sha256').update(nodeId).digest('hex');
+  return join(root, '.puni/fleet/retired', `${nodeSha256}.json`);
+}
+
+async function requireEnrollmentAllowed(root: string, nodeId: string): Promise<void> {
+  const path = retirementExclusionPath(root, nodeId);
+  try {
+    const exclusion = requireRecord(
+      parseJson(await readFile(path, 'utf8'), 'Retired membership exclusion'),
+      'Retired membership exclusion',
+    );
+    if (
+      exclusion['schemaVersion'] !== 1 ||
+      exclusion['nodeId'] !== nodeId ||
+      typeof exclusion['providerIdentity'] !== 'string' ||
+      exclusion['state'] !== 'retired'
+    ) {
+      throw new Error('Retired membership exclusion is malformed or names another identity');
+    }
+    // Proof: the production re-enrollment negative persists an exact retirement exclusion and
+    // reaches neither discovery nor host configuration for that logical membership.
+    throw new Error(`Enrollment of retired membership ${nodeId} requires replacement transition`);
+  } catch (cause) {
+    if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return;
+    throw cause;
+  }
+}
+
 function createRetirementApplyDependencies(
   root: string,
   plan: OperationPlan,
@@ -968,6 +1092,17 @@ function createRetirementApplyDependencies(
     throw new Error('Retirement plan has invalid surviving control-plane policy');
   }
   const kubernetesNodeUid = requirePlanIdentity(plan, 'kubernetes:');
+  const capabilityFloors = Object.fromEntries(
+    plan.targetIdentities
+      .filter((identity) => identity.startsWith('capability-floor:'))
+      .map((identity) => {
+        const match = /^capability-floor:([^:]+):(\d+)$/.exec(identity);
+        if (match === null || Number(match[2]) < 1) {
+          throw new Error(`Retirement plan has invalid capability floor identity: ${identity}`);
+        }
+        return [match[1], Number(match[2])];
+      }),
+  );
   const providerIdentity = plan.targetIdentities.find(
     (identity) => identity.startsWith('hcloud:') || identity.startsWith('ssh:'),
   );
@@ -975,8 +1110,10 @@ function createRetirementApplyDependencies(
   const reviewedProviderIdentity: string = providerIdentity;
   const inventoryPath = `${planPath}.inventory.json`;
   const knownHostsPath = `${planPath}.known_hosts`;
+  const backupReceiptPath = `${planPath}.backup-receipt.json`;
   const providerInventoryPath = join(root, `infra/ansible/inventory/${cluster}.hcloud.yml`);
-  const retiredNodePath = `${planPath}.retired-node.json`;
+  const etcdRemovalPath = `${planPath}.etcd-removal.json`;
+  const retiredNodePath = retirementExclusionPath(root, request.nodeId);
   const receiptPath = `${planPath}.retirement-receipt.json`;
   const playbookTags = new Map<string, string>([
     ['verify replacement capacity, storage topology, and backup status', 'preflight'],
@@ -986,15 +1123,21 @@ function createRetirementApplyDependencies(
     ['verify no unmanaged or local-state workload remains', 'preflight'],
     ['stop and disable k3s service', 'deconfigure'],
     ['remove enrollment configuration and node credentials', 'deconfigure'],
-    ['remove Kubernetes and etcd membership', 'membership'],
     ['verify retired node cannot re-register', 'verify'],
+    ['remove embedded etcd membership', 'etcd-membership'],
+    ['remove Kubernetes membership', 'kubernetes-membership'],
   ]);
   const retirementVariables = JSON.stringify({
     puni_api_endpoint_host: new URL(apiEndpoint).hostname,
     puni_backup_receipt: request.backupReceipt,
     puni_control_plane_target: plan.affectedCapabilities.includes('control-plane'),
+    puni_kube_context: cluster,
     puni_kubernetes_node_uid: kubernetesNodeUid,
+    puni_kubernetes_provider_id: reviewedProviderIdentity.startsWith('hcloud:')
+      ? `hcloud://${reviewedProviderIdentity.slice('hcloud:'.length)}`
+      : '',
     puni_minimum_surviving_control_planes: minimumControlPlanes,
+    puni_required_capability_floors: capabilityFloors,
     puni_node_name: request.nodeId,
     puni_provider_identity: reviewedProviderIdentity.startsWith('hcloud:')
       ? `hcloud://${reviewedProviderIdentity.slice('hcloud:'.length)}`
@@ -1019,7 +1162,47 @@ function createRetirementApplyDependencies(
     cwd: join(root, 'infra/ansible'),
   });
 
-  async function inspect(): Promise<void> {
+  async function inspect(): Promise<boolean> {
+    const backupSource = await readFile(backupReceiptPath);
+    if (createHash('sha256').update(backupSource).digest('hex') !== request.backupReceiptSha256) {
+      // Proof: the changed-backup-receipt production negative stops before identity observation or
+      // any retirement mutation.
+      throw new Error('Retirement backup receipt differs from the reviewed SHA-256');
+    }
+    if (((await stat(backupReceiptPath)).mode & 0o077) !== 0) {
+      throw new Error('Retirement backup receipt must be owner-only');
+    }
+    const backup = requireRecord(
+      parseJson(backupSource.toString('utf8'), 'Retirement backup receipt'),
+      'Retirement backup receipt',
+    );
+    if (
+      Object.keys(backup).sort().join('\0') !==
+        [
+          'nodeId',
+          'providerIdentity',
+          'receiptId',
+          'schemaVersion',
+          'snapshotId',
+          'state',
+          'verifiedAt',
+        ]
+          .sort()
+          .join('\0') ||
+      backup['schemaVersion'] !== 1 ||
+      backup['receiptId'] !== request.backupReceipt ||
+      backup['nodeId'] !== request.nodeId ||
+      backup['providerIdentity'] !== reviewedProviderIdentity ||
+      backup['state'] !== 'complete' ||
+      typeof backup['snapshotId'] !== 'string' ||
+      backup['snapshotId'].length === 0 ||
+      typeof backup['verifiedAt'] !== 'string' ||
+      !Number.isFinite(Date.parse(backup['verifiedAt'])) ||
+      new Date(Date.parse(backup['verifiedAt'])).toISOString() !== backup['verifiedAt'] ||
+      Date.parse(backup['verifiedAt']) > Date.parse(plan.observedAt)
+    ) {
+      throw new Error('Retirement backup receipt is incomplete or names another target');
+    }
     const inventory = await readEnrollmentInventory(
       inventoryPath,
       request.inventorySha256,
@@ -1027,6 +1210,32 @@ function createRetirementApplyDependencies(
       request.nodeId,
     );
     await readKnownHosts(knownHostsPath, request.knownHostsSha256, inventory.address);
+    const nodeResponse = await run({
+      executable: 'kubectl',
+      arguments: ['--context', cluster, 'get', 'node', request.nodeId, '-o', 'json'],
+    });
+    if (nodeResponse.exitCode !== 0) {
+      if (!/notfound/i.test(nodeResponse.stderr)) {
+        throw new Error(`Retirement Kubernetes observation failed: ${nodeResponse.stderr}`);
+      }
+      await requirePersistedState(etcdRemovalPath, 'etcd-removed');
+      return false;
+    }
+    const node = requireRecord(
+      parseJson(nodeResponse.stdout, 'Retirement Kubernetes node'),
+      'Retirement Kubernetes node',
+    );
+    const metadata = requireRecord(node['metadata'], 'Retirement Kubernetes node metadata');
+    const spec = requireRecord(node['spec'], 'Retirement Kubernetes node spec');
+    if (
+      metadata['uid'] !== kubernetesNodeUid ||
+      (reviewedProviderIdentity.startsWith('hcloud:') &&
+        spec['providerID'] !== `hcloud://${reviewedProviderIdentity.slice('hcloud:'.length)}`)
+    ) {
+      // Proof: the same-name Kubernetes-node production negative refuses before cordon, drain, or
+      // membership deletion can address the replacement Node object.
+      throw new Error('Live Kubernetes identity differs from reviewed retirement target');
+    }
     const fact = await requireCommand(
       run,
       {
@@ -1038,6 +1247,8 @@ function createRetirementApplyDependencies(
           providerInventoryPath,
           '--limit',
           request.nodeId,
+          '--extra-vars',
+          `puni_node_name=${request.nodeId}`,
           join(root, 'infra/ansible/playbooks/discover.yml'),
         ],
         cwd: join(root, 'infra/ansible'),
@@ -1053,28 +1264,36 @@ function createRetirementApplyDependencies(
     ) {
       throw new Error('Retirement inventory differs from reviewed provider identity');
     }
-    if (!reviewedProviderIdentity.startsWith('hcloud:')) return;
-    const expectedInstanceId = reviewedProviderIdentity.slice('hcloud:'.length);
-    const live = decodeProviderOwnership(
-      await requireCommand(
-        run,
-        {
-          executable: 'ansible-inventory',
-          arguments: ['--inventory', providerInventoryPath, '--list'],
-          cwd: join(root, 'infra/ansible'),
-        },
-        'Observe retirement provider identity',
-      ),
-    ).filter((instance) => instance.nodeId === request.nodeId);
-    if (
-      live.length !== 1 ||
-      live[0]?.instanceId !== expectedInstanceId ||
-      live[0].state !== 'running'
-    ) {
-      // Proof: the same-name replacement retirement negative reaches no playbook when the live
-      // provider identity differs from the reviewed instance.
-      throw new Error('Live hcloud identity differs from reviewed retirement target');
+    if (reviewedProviderIdentity.startsWith('hcloud:')) {
+      const expectedInstanceId = reviewedProviderIdentity.slice('hcloud:'.length);
+      const live = decodeProviderOwnership(
+        await requireCommand(
+          run,
+          {
+            executable: 'ansible-inventory',
+            arguments: ['--inventory', providerInventoryPath, '--list'],
+            cwd: join(root, 'infra/ansible'),
+          },
+          'Observe retirement provider identity',
+        ),
+      ).filter((instance) => instance.nodeId === request.nodeId);
+      if (
+        live.length !== 1 ||
+        live[0]?.instanceId !== expectedInstanceId ||
+        live[0].state !== 'running'
+      ) {
+        // Proof: the same-name replacement retirement negative reaches no playbook when the live
+        // provider identity differs from the reviewed instance.
+        throw new Error('Live hcloud identity differs from reviewed retirement target');
+      }
     }
+    const preflight = await requireCommand(
+      run,
+      play('preflight'),
+      `Refresh retirement capacity and storage safety for ${request.nodeId}`,
+    );
+    requireAnsibleRecap(preflight, request.nodeId);
+    return true;
   }
 
   async function persist(path: string, state: string): Promise<void> {
@@ -1087,6 +1306,7 @@ function createRetirementApplyDependencies(
       planSha256: plan.planSha256,
       state,
     })}\n`;
+    await mkdir(dirname(path), { recursive: true, mode: 0o700 });
     try {
       const destination = await open(path, 'wx', 0o600);
       try {
@@ -1102,6 +1322,39 @@ function createRetirementApplyDependencies(
       ) {
         throw new Error(`Cannot persist exact retirement ${state}`, { cause });
       }
+    }
+  }
+
+  async function requirePersistedState(path: string, state: string): Promise<void> {
+    let source: string;
+    try {
+      source = await readFile(path, 'utf8');
+    } catch (cause) {
+      throw new Error(`Required retirement ${state} evidence is absent`, { cause });
+    }
+    const record = requireRecord(parseJson(source, `Retirement ${state}`), `Retirement ${state}`);
+    if (
+      Object.keys(record).sort().join('\0') !==
+        [
+          'backupReceipt',
+          'kubernetesNodeUid',
+          'nodeId',
+          'planSha256',
+          'providerIdentity',
+          'schemaVersion',
+          'state',
+        ]
+          .sort()
+          .join('\0') ||
+      record['schemaVersion'] !== 1 ||
+      record['nodeId'] !== request.nodeId ||
+      record['providerIdentity'] !== reviewedProviderIdentity ||
+      record['kubernetesNodeUid'] !== kubernetesNodeUid ||
+      record['backupReceipt'] !== request.backupReceipt ||
+      record['planSha256'] !== plan.planSha256 ||
+      record['state'] !== state
+    ) {
+      throw new Error(`Required retirement ${state} evidence differs from reviewed identity`);
     }
   }
 
@@ -1125,7 +1378,7 @@ function createRetirementApplyDependencies(
       };
     },
     applyEffect: async (_operationPlan, effect, _stepId, beforeMutation) => {
-      await inspect();
+      const nodePresent = await inspect();
       const tag = playbookTags.get(effect);
       if (tag !== undefined) {
         await beforeMutation();
@@ -1135,19 +1388,625 @@ function createRetirementApplyDependencies(
           `Retirement ${tag} for ${request.nodeId}`,
         );
         requireAnsibleRecap(stdout, request.nodeId);
+        if (effect === 'remove Kubernetes membership') {
+          const removed = await run({
+            executable: 'kubectl',
+            arguments: ['--context', cluster, 'get', 'node', request.nodeId, '-o', 'json'],
+          });
+          if (removed.exitCode === 0 || !/notfound/i.test(removed.stderr)) {
+            // Proof: the false-success membership production negative returns a successful Ansible
+            // recap while retaining the exact Node; the adapter refuses before exclusion/receipt.
+            throw new Error('Retirement did not remove exact Kubernetes membership');
+          }
+        }
         return {};
       }
-      if (effect === 'remove node from enrollment inventory') {
+      if (effect === 'record etcd membership removal') {
         await beforeMutation();
-        await persist(retiredNodePath, 'retired-membership-candidate');
+        await persist(etcdRemovalPath, 'etcd-removed');
+        return {};
+      }
+      if (effect === 'remove Kubernetes membership' && !nodePresent) return {};
+      if (effect === 'persist authoritative enrollment exclusion') {
+        await beforeMutation();
+        await persist(retiredNodePath, 'retired');
         return {};
       }
       if (effect === 'record auditable retirement receipt') {
+        await requirePersistedState(retiredNodePath, 'retired');
         await beforeMutation();
         await persist(receiptPath, 'retired');
         return {};
       }
       throw new Error(`Unsupported retirement effect: ${effect}`);
+    },
+  };
+}
+
+function createReplacementApplyDependencies(
+  root: string,
+  plan: OperationPlan,
+  request: Extract<OperationPlan['request'], { kind: 'replace' }>,
+  planPath: string,
+  run: RunCommand,
+  now: () => Date,
+  executionOwner: string,
+): ApplyDependencies {
+  const cluster = requirePlanIdentity(plan, 'cluster:');
+  const providerIdentity = plan.targetIdentities.find(
+    (identity) => identity.startsWith('hcloud:') || identity.startsWith('ssh:'),
+  );
+  if (providerIdentity === undefined) throw new Error('Replacement plan has no provider identity');
+  const reviewedProviderIdentity: string = providerIdentity;
+  const fenceId = requirePlanIdentity(plan, 'fence:');
+  const fencePath = `${planPath}.fence-receipt.json`;
+  const exclusionPath = retirementExclusionPath(root, request.nodeId);
+  const authorizationPath = `${planPath}.replacement-authorization.json`;
+
+  async function readFence(): Promise<'powered-off' | 'deleted'> {
+    const source = await readFile(fencePath);
+    if (createHash('sha256').update(source).digest('hex') !== request.fenceReceiptSha256) {
+      throw new Error('External fence receipt differs from the reviewed SHA-256');
+    }
+    if (((await stat(fencePath)).mode & 0o077) !== 0) {
+      throw new Error('External fence receipt must be owner-only');
+    }
+    const receipt = requireRecord(
+      parseJson(source.toString('utf8'), 'External fence receipt'),
+      'External fence receipt',
+    );
+    const state = receipt['state'];
+    if (
+      Object.keys(receipt).sort().join('\0') !==
+        ['fenceId', 'nodeId', 'providerIdentity', 'schemaVersion', 'state', 'verifiedAt']
+          .sort()
+          .join('\0') ||
+      receipt['schemaVersion'] !== 1 ||
+      receipt['nodeId'] !== request.nodeId ||
+      receipt['providerIdentity'] !== reviewedProviderIdentity ||
+      receipt['fenceId'] !== fenceId ||
+      (state !== 'powered-off' && state !== 'deleted') ||
+      typeof receipt['verifiedAt'] !== 'string' ||
+      !Number.isFinite(Date.parse(receipt['verifiedAt'])) ||
+      new Date(Date.parse(receipt['verifiedAt'])).toISOString() !== receipt['verifiedAt'] ||
+      Date.parse(receipt['verifiedAt']) > Date.parse(plan.observedAt)
+    ) {
+      throw new Error('External fence receipt differs from reviewed replacement identity');
+    }
+    if (reviewedProviderIdentity.startsWith('hcloud:')) {
+      const inventory = requireRecord(
+        parseJson(
+          await requireCommand(
+            run,
+            {
+              executable: 'ansible-inventory',
+              arguments: [
+                '--inventory',
+                join(root, `infra/ansible/inventory/${cluster}.hcloud.yml`),
+                '--list',
+              ],
+              cwd: join(root, 'infra/ansible'),
+            },
+            'Observe fenced replacement provider identity',
+          ),
+          'Replacement provider inventory',
+        ),
+        'Replacement provider inventory',
+      );
+      const meta = requireRecord(inventory['_meta'], 'Replacement provider inventory _meta');
+      const hostvars = requireRecord(meta['hostvars'], 'Replacement provider inventory hosts');
+      const matches = Object.values(hostvars)
+        .map((host) => requireRecord(host, 'Replacement provider host'))
+        .filter((host) => host['puni_logical_node'] === request.nodeId);
+      const expectedId = reviewedProviderIdentity.slice('hcloud:'.length);
+      if (
+        (state === 'deleted' && matches.length !== 0) ||
+        (state === 'powered-off' &&
+          (matches.length !== 1 ||
+            matches[0]?.['puni_instance_id'] !== expectedId ||
+            matches[0]?.['puni_provider_state'] !== 'off'))
+      ) {
+        // Proof: the running-or-replaced-provider production negative refuses replacement
+        // authorization even when a stale receipt claims a completed fence.
+        throw new Error('Live provider does not confirm the reviewed external fence');
+      }
+    }
+    return state;
+  }
+
+  async function persist(path: string, state: string): Promise<void> {
+    const source = `${JSON.stringify({
+      schemaVersion: 1,
+      nodeId: request.nodeId,
+      providerIdentity: reviewedProviderIdentity,
+      fenceId,
+      planSha256: plan.planSha256,
+      state,
+    })}\n`;
+    await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+    try {
+      const destination = await open(path, 'wx', 0o600);
+      try {
+        await destination.writeFile(source);
+        await destination.sync();
+      } finally {
+        await destination.close();
+      }
+    } catch (cause) {
+      if (
+        !(cause instanceof Error && 'code' in cause && cause.code === 'EEXIST') ||
+        (await readFile(path, 'utf8')) !== source
+      ) {
+        throw new Error(`Cannot persist exact replacement ${state}`, { cause });
+      }
+    }
+  }
+
+  return {
+    now,
+    acquireLease: (operationPlan) => acquireLease(run, operationPlan, executionOwner, now()),
+    ownsLease: async (lease) => {
+      const current = await readLease(run, plan);
+      return (
+        current?.holder === lease.owner && now().getTime() < Date.parse(leaseExpiresAt(current))
+      );
+    },
+    renewLease: (operationPlan, lease) => renewLease(run, operationPlan, lease, now()),
+    releaseLease: (operationPlan, lease) => releaseLease(run, operationPlan, lease),
+    observe: async () => {
+      await readFence();
+      return {
+        digest: plan.observationDigest,
+        targetIdentities: plan.targetIdentities,
+        providerState: 'ready',
+      };
+    },
+    applyEffect: async (_operationPlan, effect, _stepId, beforeMutation) => {
+      await readFence();
+      if (effect === 'record verified external fence') return {};
+      if (effect === 'persist authoritative enrollment exclusion') {
+        await beforeMutation();
+        await persist(exclusionPath, 'retired');
+        return {};
+      }
+      if (effect === 'record replacement authorization for a distinct provisioning plan') {
+        await beforeMutation();
+        await persist(authorizationPath, 'replacement-authorized');
+        return {};
+      }
+      throw new Error(`Unsupported replacement effect: ${effect}`);
+    },
+  };
+}
+
+function createUpgradeApplyDependencies(
+  root: string,
+  plan: OperationPlan,
+  request: Extract<OperationPlan['request'], { kind: 'upgrade' }>,
+  planPath: string,
+  run: RunCommand,
+  now: () => Date,
+  executionOwner: string,
+): ApplyDependencies {
+  const cluster = requirePlanIdentity(plan, 'cluster:');
+  const kubernetesNodeUid = requirePlanIdentity(plan, 'kubernetes:');
+  const reviewedProviderIdentity = plan.targetIdentities.find(
+    (identity) => identity.startsWith('hcloud:') || identity.startsWith('ssh:'),
+  );
+  if (reviewedProviderIdentity === undefined)
+    throw new Error('Upgrade plan has no provider identity');
+  const upgradeProviderIdentity: string = reviewedProviderIdentity;
+  const inventoryPath = `${planPath}.inventory.json`;
+  const knownHostsPath = `${planPath}.known_hosts`;
+  const evidencePath = `${planPath}.upgrade-evidence.json`;
+  const providerInventoryPath = join(root, `infra/ansible/inventory/${cluster}.hcloud.yml`);
+  const role = plan.affectedCapabilities.includes('control-plane') ? 'server' : 'agent';
+
+  async function evidence(): Promise<{
+    readonly fromVersion: string;
+    readonly snapshotId: string;
+  }> {
+    const source = await readFile(evidencePath);
+    if (createHash('sha256').update(source).digest('hex') !== request.upgradeEvidenceSha256) {
+      throw new Error('Upgrade evidence differs from the reviewed SHA-256');
+    }
+    if (((await stat(evidencePath)).mode & 0o077) !== 0) {
+      throw new Error('Upgrade evidence must be owner-only');
+    }
+    const document = requireRecord(
+      parseJson(source.toString('utf8'), 'Upgrade evidence'),
+      'Upgrade evidence',
+    );
+    if (
+      Object.keys(document).sort().join('\0') !==
+      ['installedVersions', 'schemaVersion', 'snapshotIds'].sort().join('\0')
+    ) {
+      throw new Error('Upgrade evidence contains unreviewed fields');
+    }
+    const installedVersions = requireRecord(
+      document['installedVersions'],
+      'Upgrade installed versions',
+    );
+    const snapshotIds = requireRecord(document['snapshotIds'], 'Upgrade snapshot receipts');
+    const fromVersion = installedVersions[request.nodeId];
+    const snapshotId = role === 'server' ? snapshotIds[cluster] : 'not-applicable';
+    if (
+      document['schemaVersion'] !== 1 ||
+      Object.values(installedVersions).some(
+        (version) => typeof version !== 'string' || !/^v\d+\.\d+\.\d+\+k3s\d+$/.test(version),
+      ) ||
+      Object.values(snapshotIds).some(
+        (snapshot) => typeof snapshot !== 'string' || snapshot.length === 0,
+      ) ||
+      typeof fromVersion !== 'string' ||
+      !/^v\d+\.\d+\.\d+\+k3s\d+$/.test(fromVersion) ||
+      typeof snapshotId !== 'string' ||
+      snapshotId.length === 0
+    ) {
+      throw new Error('Upgrade evidence lacks exact node version or server snapshot');
+    }
+    return { fromVersion, snapshotId };
+  }
+
+  async function inspect(): Promise<string> {
+    const recovery = await evidence();
+    const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
+    if (toolchain.binaries.k3s.version !== request.version) {
+      throw new Error('Upgrade target differs from the committed k3s lock');
+    }
+    const inventory = await readEnrollmentInventory(
+      inventoryPath,
+      request.inventorySha256,
+      knownHostsPath,
+      request.nodeId,
+    );
+    await readKnownHosts(knownHostsPath, request.knownHostsSha256, inventory.address);
+    const discovery = await requireCommand(
+      run,
+      {
+        executable: 'ansible-playbook',
+        arguments: [
+          '--inventory',
+          inventoryPath,
+          '--inventory',
+          providerInventoryPath,
+          '--limit',
+          request.nodeId,
+          '--extra-vars',
+          `puni_node_name=${request.nodeId}`,
+          join(root, 'infra/ansible/playbooks/discover.yml'),
+        ],
+        cwd: join(root, 'infra/ansible'),
+      },
+      `Verify upgrade identity of ${request.nodeId}`,
+    );
+    requireMachineFact(discovery, inventory);
+    if (
+      (upgradeProviderIdentity.startsWith('ssh:') &&
+        upgradeProviderIdentity !== `ssh:${inventory.machineId}`) ||
+      (upgradeProviderIdentity.startsWith('hcloud:') &&
+        upgradeProviderIdentity !== `hcloud:${inventory.providerIdentity}`)
+    ) {
+      throw new Error('Upgrade inventory differs from reviewed provider identity');
+    }
+    if (upgradeProviderIdentity.startsWith('hcloud:')) {
+      const live = decodeProviderOwnership(
+        await requireCommand(
+          run,
+          {
+            executable: 'ansible-inventory',
+            arguments: ['--inventory', providerInventoryPath, '--list'],
+            cwd: join(root, 'infra/ansible'),
+          },
+          'Observe upgrade provider identity',
+        ),
+      ).filter((instance) => instance.nodeId === request.nodeId);
+      if (
+        live.length !== 1 ||
+        live[0]?.instanceId !== upgradeProviderIdentity.slice('hcloud:'.length) ||
+        live[0].state !== 'running'
+      ) {
+        throw new Error('Live hcloud identity differs from reviewed upgrade target');
+      }
+    }
+    const nodeSource = await requireCommand(
+      run,
+      {
+        executable: 'kubectl',
+        arguments: ['--context', cluster, 'get', 'node', request.nodeId, '-o', 'json'],
+      },
+      `Observe upgrade Kubernetes identity of ${request.nodeId}`,
+    );
+    const node = requireRecord(
+      parseJson(nodeSource, 'Upgrade Kubernetes node'),
+      'Upgrade Kubernetes node',
+    );
+    const metadata = requireRecord(node['metadata'], 'Upgrade Kubernetes metadata');
+    const status = requireRecord(node['status'], 'Upgrade Kubernetes status');
+    const conditions = status['conditions'];
+    if (
+      metadata['uid'] !== kubernetesNodeUid ||
+      !Array.isArray(conditions) ||
+      !conditions.some((condition: unknown) => {
+        const record = requireRecord(condition, 'Upgrade Kubernetes condition');
+        return record['type'] === 'Ready' && record['status'] === 'True';
+      })
+    ) {
+      throw new Error('Upgrade target Kubernetes identity is not exact and Ready');
+    }
+    const variables = JSON.stringify({
+      puni_node_name: request.nodeId,
+      puni_kube_context: cluster,
+      puni_k3s_version: request.version,
+      puni_k3s_from_version: recovery.fromVersion,
+      puni_k3s_download_url: toolchain.binaries.k3s.url,
+      puni_k3s_sha256: toolchain.binaries.k3s.sha256,
+      puni_k3s_role: role,
+      puni_etcd_snapshot_receipt: recovery.snapshotId,
+    });
+    const versionOutput = await requireCommand(
+      run,
+      {
+        executable: 'ansible-playbook',
+        arguments: [
+          '--inventory',
+          inventoryPath,
+          '--inventory',
+          providerInventoryPath,
+          '--limit',
+          request.nodeId,
+          '--tags',
+          'version',
+          '--extra-vars',
+          variables,
+          join(root, 'infra/ansible/playbooks/upgrade.yml'),
+        ],
+        cwd: join(root, 'infra/ansible'),
+      },
+      `Observe installed k3s version on ${request.nodeId}`,
+    );
+    requireAnsibleRecap(versionOutput, request.nodeId);
+    const installed = /PUNI_K3S_VERSION=(v\d+\.\d+\.\d+\+k3s\d+)/.exec(versionOutput)?.[1];
+    if (installed !== recovery.fromVersion && installed !== request.version) {
+      throw new Error('Installed k3s version differs from reviewed upgrade transition');
+    }
+    return installed;
+  }
+
+  return {
+    now,
+    acquireLease: (operationPlan) => acquireLease(run, operationPlan, executionOwner, now()),
+    ownsLease: async (lease) => {
+      const current = await readLease(run, plan);
+      return (
+        current?.holder === lease.owner && now().getTime() < Date.parse(leaseExpiresAt(current))
+      );
+    },
+    renewLease: (operationPlan, lease) => renewLease(run, operationPlan, lease, now()),
+    releaseLease: (operationPlan, lease) => releaseLease(run, operationPlan, lease),
+    observe: async () => {
+      await inspect();
+      return {
+        digest: plan.observationDigest,
+        targetIdentities: plan.targetIdentities,
+        providerState: 'ready',
+      };
+    },
+    applyEffect: async (_operationPlan, effect, _stepId, beforeMutation) => {
+      const installed = await inspect();
+      if (effect !== plan.effects[0]) throw new Error(`Unsupported upgrade effect: ${effect}`);
+      if (installed === request.version) return {};
+      const recovery = await evidence();
+      const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
+      await beforeMutation();
+      const stdout = await requireCommand(
+        run,
+        {
+          executable: 'ansible-playbook',
+          arguments: [
+            '--inventory',
+            inventoryPath,
+            '--inventory',
+            providerInventoryPath,
+            '--limit',
+            request.nodeId,
+            '--extra-vars',
+            JSON.stringify({
+              puni_node_name: request.nodeId,
+              puni_kube_context: cluster,
+              puni_k3s_version: request.version,
+              puni_k3s_from_version: recovery.fromVersion,
+              puni_k3s_download_url: toolchain.binaries.k3s.url,
+              puni_k3s_sha256: toolchain.binaries.k3s.sha256,
+              puni_k3s_role: role,
+              puni_etcd_snapshot_receipt: recovery.snapshotId,
+            }),
+            join(root, 'infra/ansible/playbooks/upgrade.yml'),
+          ],
+          cwd: join(root, 'infra/ansible'),
+        },
+        `Upgrade ${request.nodeId}`,
+      );
+      requireAnsibleRecap(stdout, request.nodeId);
+      return {};
+    },
+  };
+}
+
+function createDestroyApplyDependencies(
+  root: string,
+  plan: OperationPlan,
+  request: Extract<OperationPlan['request'], { kind: 'destroy' }>,
+  planPath: string,
+  run: RunCommand,
+  now: () => Date,
+  executionOwner: string,
+  enforceBackendEnvironment: boolean,
+): ApplyDependencies {
+  const cluster = requirePlanIdentity(plan, 'cluster:');
+  const providerIdentity = requirePlanIdentity(plan, 'hcloud:');
+  const receiptPath = `${planPath}.retirement-receipt.json`;
+  const savedPlanPath = `${planPath}.tfplan`;
+  const variablesPath = `${planPath}.tfvars.json`;
+  const backendEvidencePath = `${planPath}.backend.json`;
+  const terraformRoot = join(root, 'infra/terraform');
+  const providerInventoryPath = join(root, `infra/ansible/inventory/${cluster}.hcloud.yml`);
+  const terraform = (arguments_: readonly string[]) =>
+    requireCommand(
+      run,
+      { executable: 'terraform', arguments: arguments_, cwd: terraformRoot },
+      'Terraform destroy command',
+    );
+
+  async function requireReceipt(): Promise<void> {
+    const source = await readFile(receiptPath);
+    if (createHash('sha256').update(source).digest('hex') !== request.retirementReceiptSha256) {
+      throw new Error('Retirement receipt differs from the reviewed SHA-256');
+    }
+    if (((await stat(receiptPath)).mode & 0o077) !== 0) {
+      throw new Error('Retirement receipt must be owner-only');
+    }
+    const receipt = requireRecord(
+      parseJson(source.toString('utf8'), 'Retirement receipt'),
+      'Retirement receipt',
+    );
+    if (
+      Object.keys(receipt).sort().join('\0') !==
+        [
+          'backupReceipt',
+          'kubernetesNodeUid',
+          'nodeId',
+          'planSha256',
+          'providerIdentity',
+          'schemaVersion',
+          'state',
+        ]
+          .sort()
+          .join('\0') ||
+      receipt['schemaVersion'] !== 1 ||
+      receipt['nodeId'] !== request.nodeId ||
+      receipt['providerIdentity'] !== `hcloud:${providerIdentity}` ||
+      receipt['state'] !== 'retired' ||
+      typeof receipt['planSha256'] !== 'string' ||
+      !/^[0-9a-f]{64}$/.test(receipt['planSha256'])
+    ) {
+      throw new Error('Retirement receipt does not authorize this exact provider destroy');
+    }
+  }
+
+  async function inspect(): Promise<{
+    readonly providerPresent: boolean;
+    readonly terraformState: { readonly lineage: string; readonly serial: number };
+  }> {
+    await requireReceipt();
+    const savedPlan = await readFile(savedPlanPath);
+    const variables = await readFile(variablesPath);
+    if (
+      createHash('sha256').update(savedPlan).digest('hex') !== request.terraformPlanSha256 ||
+      createHash('sha256').update(variables).digest('hex') !== request.terraformVariablesSha256
+    ) {
+      // Proof: changing either reviewed destroy artifact stops before Terraform init or apply.
+      throw new Error('Terraform destroy artifacts differ from their reviewed SHA-256');
+    }
+    if (
+      ((await stat(savedPlanPath)).mode & 0o077) !== 0 ||
+      ((await stat(variablesPath)).mode & 0o077) !== 0
+    ) {
+      throw new Error('Terraform destroy artifacts must be owner-only');
+    }
+    await readBackendEvidence(
+      backendEvidencePath,
+      request.terraformBackendEvidenceSha256,
+      request.cloudAccount,
+      enforceBackendEnvironment,
+    );
+    await terraform(['init', '-input=false', '-lockfile=readonly']);
+    decodeTerraformDestroyPlan(
+      parseJson(await terraform(['show', '-json', savedPlanPath]), 'Terraform destroy saved plan'),
+      request.nodeId,
+    );
+    const stateSource = await terraform(['state', 'pull']);
+    const stateInput = parseJson(stateSource, 'Terraform destroy state');
+    const terraformState = decodeTerraformStateIdentity(stateInput);
+    if (
+      terraformState.lineage !== request.terraformStateLineage ||
+      terraformState.serial < request.terraformStateSerial
+    ) {
+      throw new Error('Terraform destroy state lineage or serial differs from review');
+    }
+    const live = decodeProviderOwnership(
+      await requireCommand(
+        run,
+        {
+          executable: 'ansible-inventory',
+          arguments: ['--inventory', providerInventoryPath, '--list'],
+          cwd: join(root, 'infra/ansible'),
+        },
+        'Observe destroy provider identity',
+      ),
+    ).filter((instance) => instance.nodeId === request.nodeId);
+    if (
+      live.length > 1 ||
+      (live.length === 1 &&
+        (live[0]?.instanceId !== providerIdentity || live[0].state !== 'running'))
+    ) {
+      // Proof: a same-name replacement provider refuses the saved destroy plan before apply.
+      throw new Error('Live provider identity differs from reviewed destroy target');
+    }
+    if (live.length === 1) {
+      const state = decodeTerraformState(stateSource, request.nodeId);
+      if (state.managedInstance?.instanceId !== providerIdentity) {
+        throw new Error('Terraform state differs from reviewed destroy target');
+      }
+    }
+    return { providerPresent: live.length === 1, terraformState };
+  }
+
+  return {
+    now,
+    acquireLease: (operationPlan) => acquireLease(run, operationPlan, executionOwner, now()),
+    ownsLease: async (lease) => {
+      const current = await readLease(run, plan);
+      return (
+        current?.holder === lease.owner && now().getTime() < Date.parse(leaseExpiresAt(current))
+      );
+    },
+    renewLease: (operationPlan, lease) => renewLease(run, operationPlan, lease, now()),
+    releaseLease: (operationPlan, lease) => releaseLease(run, operationPlan, lease),
+    observe: async () => {
+      const live = await inspect();
+      return {
+        digest: live.providerPresent
+          ? plan.observationDigest
+          : createHash('sha256').update(`destroyed:hcloud:${providerIdentity}`).digest('hex'),
+        targetIdentities: plan.targetIdentities,
+        providerState: 'ready',
+        terraformState: live.terraformState,
+      };
+    },
+    applyEffect: async (_operationPlan, effect, _stepId, beforeMutation, recoveringActiveStep) => {
+      const live = await inspect();
+      if (effect === 'require completed retirement receipt') {
+        if (!live.providerPresent)
+          throw new Error('Provider instance was already absent before destroy');
+        return {};
+      }
+      if (effect === 'destroy provider instance') {
+        if (!live.providerPresent) {
+          if (recoveringActiveStep) return {};
+          throw new Error('Provider instance disappeared outside the reviewed destroy effect');
+        }
+        await beforeMutation();
+        await terraform(['apply', '-input=false', '-lock=true', savedPlanPath]);
+        const after = await inspect();
+        if (after.providerPresent || after.terraformState.serial <= live.terraformState.serial) {
+          // Proof: a false-success Terraform apply cannot complete while the exact provider still
+          // exists or the remote state serial has not advanced.
+          throw new Error('Terraform destroy did not remove the exact provider instance');
+        }
+        return { externalResourceId: providerIdentity };
+      }
+      throw new Error(`Unsupported destroy effect: ${effect}`);
     },
   };
 }
@@ -1185,9 +2044,38 @@ export function createProductionApplyDependencies(
       executionOwner,
     );
   }
-  if (plan.request.kind !== 'provision') {
-    throw new Error(
-      `Production apply for ${plan.request.kind} is introduced by its lifecycle task`,
+  if (plan.request.kind === 'replace') {
+    return createReplacementApplyDependencies(
+      root,
+      plan,
+      plan.request,
+      planPath,
+      commandRunner,
+      now,
+      executionOwner,
+    );
+  }
+  if (plan.request.kind === 'upgrade') {
+    return createUpgradeApplyDependencies(
+      root,
+      plan,
+      plan.request,
+      planPath,
+      commandRunner,
+      now,
+      executionOwner,
+    );
+  }
+  if (plan.request.kind === 'destroy') {
+    return createDestroyApplyDependencies(
+      root,
+      plan,
+      plan.request,
+      planPath,
+      commandRunner,
+      now,
+      executionOwner,
+      run === undefined,
     );
   }
   const request = plan.request;
@@ -1237,6 +2125,7 @@ export function createProductionApplyDependencies(
       ));
 
   async function observe(): Promise<ApplyObservation> {
+    await requireEnrollmentAllowed(root, request.nodeId);
     const savedPlan = await readFile(savedPlanPath);
     const digest = createHash('sha256').update(savedPlan).digest('hex');
     if (digest !== request.terraformPlanSha256) {

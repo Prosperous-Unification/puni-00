@@ -155,7 +155,11 @@ describe('planRetirement', () => {
   });
 });
 
-function retirementOperation(inventorySha256: string, knownHostsSha256: string): OperationPlan {
+function retirementOperation(
+  inventorySha256: string,
+  knownHostsSha256: string,
+  backupReceiptSha256: string,
+): OperationPlan {
   const fleet = fleetFixture();
   const observation = observationFixture(fleet);
   const retirement = planRetirement(fleet, observation, 'workers-agent-a');
@@ -169,6 +173,7 @@ function retirementOperation(inventorySha256: string, knownHostsSha256: string):
       kind: 'retire',
       nodeId: retirement.nodeId,
       backupReceipt: 'backup-workers-1',
+      backupReceiptSha256,
       inventorySha256,
       knownHostsSha256,
     },
@@ -179,6 +184,9 @@ function retirementOperation(inventorySha256: string, knownHostsSha256: string):
       `cluster:${retirement.clusterId}`,
       `api-endpoint:${retirement.apiEndpoint}`,
       `minimum-control-planes:${String(retirement.minimumSurvivingControlPlanes)}`,
+      ...Object.entries(retirement.requiredCapabilityFloors).map(
+        ([capability, floor]) => `capability-floor:${capability}:${String(floor)}`,
+      ),
     ],
     preconditions: ['fresh complete observation'],
     effects: retirement.steps,
@@ -189,7 +197,10 @@ function retirementOperation(inventorySha256: string, knownHostsSha256: string):
   });
 }
 
-async function prepareRetirement(directory: string): Promise<{
+async function prepareRetirement(
+  directory: string,
+  backupProviderIdentity = 'hcloud:2002',
+): Promise<{
   readonly plan: OperationPlan;
   readonly planPath: string;
 }> {
@@ -213,24 +224,48 @@ async function prepareRetirement(directory: string): Promise<{
     },
   })}\n`;
   const knownHostsSource = '10.0.0.22 ssh-ed25519 AAAAC3NzaRetirementKey\n';
+  const backupReceiptSource = `${JSON.stringify({
+    schemaVersion: 1,
+    receiptId: 'backup-workers-1',
+    nodeId: 'workers-agent-a',
+    providerIdentity: backupProviderIdentity,
+    snapshotId: 'snapshot-workers-20260917',
+    verifiedAt: '2026-09-17T08:55:00.000Z',
+    state: 'complete',
+  })}\n`;
   await writeFile(`${planPath}.inventory.json`, inventorySource, { mode: 0o600 });
   await writeFile(knownHostsPath, knownHostsSource, { mode: 0o600 });
+  await writeFile(`${planPath}.backup-receipt.json`, backupReceiptSource, { mode: 0o600 });
   return {
     planPath,
     plan: retirementOperation(
       createHash('sha256').update(inventorySource).digest('hex'),
       createHash('sha256').update(knownHostsSource).digest('hex'),
+      createHash('sha256').update(backupReceiptSource).digest('hex'),
     ),
   };
 }
 
 function retirementRunner(failingTag: string) {
   let holder: string | undefined;
+  let nodePresent = true;
   const calls: CommandRequest[] = [];
   const run = (request: CommandRequest): Promise<CommandResponse> =>
     Promise.resolve().then(() => {
       calls.push(request);
       if (request.executable === 'kubectl') {
+        if (request.arguments.includes('node') && request.arguments.includes('get')) {
+          return nodePresent
+            ? {
+                exitCode: 0,
+                stdout: JSON.stringify({
+                  metadata: { name: 'workers-agent-a', uid: 'uid-3' },
+                  spec: { providerID: 'hcloud://2002' },
+                }),
+                stderr: '',
+              }
+            : { exitCode: 1, stdout: '', stderr: 'Error from server (NotFound)' };
+        }
         if (request.arguments.includes('get')) {
           return holder === undefined
             ? { exitCode: 1, stdout: '', stderr: 'NotFound' }
@@ -277,6 +312,7 @@ function retirementRunner(failingTag: string) {
           };
         }
         const tag = request.arguments[request.arguments.indexOf('--tags') + 1];
+        if (tag === 'kubernetes-membership' && tag !== failingTag) nodePresent = false;
         return tag === failingTag
           ? { exitCode: 2, stdout: '', stderr: `${failingTag} injected failure` }
           : {
@@ -311,7 +347,7 @@ function retirementRunner(failingTag: string) {
 describe('production retirement', () => {
   it('uses hash-bound static enrollment evidence for an external SSH node', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'fleet-retirement-ssh-'));
-    const prepared = await prepareRetirement(directory);
+    const prepared = await prepareRetirement(directory, 'ssh:0123456789abcdef0123456789abcdef');
     const { planSha256: _planSha256, ...body } = prepared.plan;
     const plan = sealOperationPlan({
       ...body,
@@ -353,11 +389,103 @@ describe('production retirement', () => {
     // any retirement mutation through the production adapter.
   });
 
+  it('refuses changed backup evidence before observing the host', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-retirement-backup-'));
+    const { planPath, plan } = await prepareRetirement(directory);
+    await writeFile(`${planPath}.backup-receipt.json`, '{}\n', { mode: 0o600 });
+    const { calls, run } = retirementRunner('never');
+    const dependencies = createProductionApplyDependencies(
+      directory,
+      plan,
+      planPath,
+      run,
+      () => new Date('2026-09-17T09:00:00.000Z'),
+      'retirement-test',
+    );
+
+    expect(dependencies.observe(plan)).rejects.toThrow(/backup receipt.*SHA-256/i);
+    expect(calls).toHaveLength(0);
+    // Proof: changing the reviewed backup receipt reaches neither host observation nor retirement
+    // mutation through the production adapter.
+  });
+
+  it('persists an authoritative exclusion consumed by later enrollment', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-retirement-exclusion-'));
+    const { planPath, plan } = await prepareRetirement(directory);
+    const { run } = retirementRunner('never');
+    const dependencies = createProductionApplyDependencies(
+      directory,
+      plan,
+      planPath,
+      run,
+      () => new Date('2026-09-17T09:00:00.000Z'),
+      'retirement-test',
+    );
+    await applyOperation({
+      plan,
+      expectedSha256: plan.planSha256,
+      journalPath: `${planPath}.journal.json`,
+      dependencies,
+    });
+    const exclusionPath = join(
+      directory,
+      '.puni/fleet/retired',
+      `${createHash('sha256').update('workers-agent-a').digest('hex')}.json`,
+    );
+    expect(JSON.parse(await readFile(exclusionPath, 'utf8'))).toMatchObject({
+      nodeId: 'workers-agent-a',
+      providerIdentity: 'hcloud:2002',
+      state: 'retired',
+    });
+
+    const enroll = sealOperationPlan({
+      schemaVersion: 1,
+      desiredRevision: 'fleet-test-1',
+      observationDigest: 'a'.repeat(64),
+      observedAt: '2026-09-17T09:00:00.000Z',
+      expiresAt: '2026-09-18T00:00:00.000Z',
+      request: {
+        kind: 'enroll',
+        nodeId: 'workers-agent-a',
+        clusterId: 'workers',
+        inventorySha256: 'a'.repeat(64),
+        ansibleVariablesSha256: 'b'.repeat(64),
+        knownHostsSha256: 'c'.repeat(64),
+      },
+      targetIdentities: ['node:workers-agent-a', 'hcloud:2002', 'cluster:workers'],
+      preconditions: ['exact membership'],
+      effects: ['verify provider identity'],
+      affectedCapabilities: ['execution'],
+      storageImplication: 'unchanged',
+      downtimeImplication: 'none',
+      summary: 'refuse retired enrollment',
+    });
+    const enrollment = createProductionApplyDependencies(
+      directory,
+      enroll,
+      join(directory, 'enroll.json'),
+      run,
+    );
+    expect(enrollment.observe(enroll)).rejects.toThrow(/retired membership/i);
+    // Proof: the completed production retirement writes the shared exclusion registry, and the
+    // production enrollment adapter consumes it before SSH or provider observation.
+  });
+
   it('refuses a live provider identity that differs from the reviewed target', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'fleet-retirement-identity-'));
     const { planPath, plan } = await prepareRetirement(directory);
     const run = (request: CommandRequest): Promise<CommandResponse> =>
       Promise.resolve().then(() => {
+        if (request.executable === 'kubectl' && request.arguments.includes('node')) {
+          return {
+            exitCode: 0,
+            stdout: JSON.stringify({
+              metadata: { name: 'workers-agent-a', uid: 'uid-3' },
+              spec: { providerID: 'hcloud://2002' },
+            }),
+            stderr: '',
+          };
+        }
         if (
           request.executable === 'ansible-playbook' &&
           request.arguments.some((argument) => argument.endsWith('/discover.yml'))
@@ -404,6 +532,7 @@ describe('production retirement', () => {
   });
 
   for (const [tag, label] of [
+    ['preflight', 'a lost capability floor or target-affined persistent volume'],
     ['drain', 'a blocked disruption budget'],
     ['verify', 'a retained enabled service or credential'],
   ] as const) {
@@ -429,7 +558,11 @@ describe('production retirement', () => {
           journalPath,
           dependencies,
         }),
-      ).rejects.toThrow(new RegExp(`${tag}.*failed`, 'i'));
+      ).rejects.toThrow(
+        tag === 'preflight'
+          ? /capacity and storage safety.*failed/i
+          : new RegExp(`${tag}.*failed`, 'i'),
+      );
       expect(access(receiptPath)).rejects.toThrow();
       expect(
         calls.some(
@@ -439,8 +572,8 @@ describe('production retirement', () => {
             arguments_.includes('verify'),
         ),
       ).toBe(tag === 'verify');
-      // Proof: injected PDB drain and retained-service verification failures leave the production
-      // apply journal recoverable and cannot reach the completion-receipt effect.
+      // Proof: injected live capacity/storage, PDB drain, and retained-service verification
+      // failures leave the production apply journal recoverable and cannot reach the receipt.
     });
   }
 });

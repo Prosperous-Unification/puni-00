@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'bun:test';
 
 import {
+  decodeTerraformDestroyPlan,
   decodeTerraformPlan,
   decodeTerraformStateIdentity,
   planTerraformCommands,
@@ -25,6 +26,49 @@ const provisioningExpectation = {
 } as const;
 
 describe('Terraform provisioning boundary', () => {
+  it('allows only an exact server destroy and refuses retained storage deletion', () => {
+    expect(
+      decodeTerraformDestroyPlan(
+        {
+          terraform_version: '1.16.3',
+          resource_changes: [
+            {
+              address: 'hcloud_server.node["workers-agent-a"]',
+              change: {
+                actions: ['delete'],
+                before: { labels: { 'puni-logical-node': 'workers-agent-a' } },
+              },
+            },
+          ],
+        },
+        'workers-agent-a',
+      ).addresses,
+    ).toEqual(['hcloud_server.node["workers-agent-a"]']);
+    expect(() =>
+      decodeTerraformDestroyPlan(
+        {
+          terraform_version: '1.16.3',
+          resource_changes: [
+            {
+              address: 'hcloud_server.node["workers-agent-a"]',
+              change: {
+                actions: ['delete'],
+                before: { labels: { 'puni-logical-node': 'workers-agent-a' } },
+              },
+            },
+            {
+              address: 'hcloud_volume.retained["workers-agent-a"]',
+              change: { actions: ['delete'] },
+            },
+          ],
+        },
+        'workers-agent-a',
+      ),
+    ).toThrow(/unreviewed.*volume/i);
+    // Proof: adding retained-volume deletion to an otherwise valid provider-destroy plan makes the
+    // production decoder refuse the saved plan before apply.
+  });
+
   it('accepts only the reviewed create addresses and exact state identity', () => {
     const plan = decodeTerraformPlan(
       {

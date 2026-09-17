@@ -258,8 +258,23 @@ describe('planOperation', () => {
   } as const;
   const retireEvidence = {
     backupReceipt: 'backup-workers-1',
+    backupReceiptSha256: 'a'.repeat(64),
     inventorySha256: 'e'.repeat(64),
     knownHostsSha256: 'f'.repeat(64),
+  } as const;
+  const upgradeEvidence = {
+    upgradeEvidenceSha256: '6'.repeat(64),
+    inventorySha256: '7'.repeat(64),
+    knownHostsSha256: '8'.repeat(64),
+  } as const;
+  const destroyEvidence = {
+    retirementReceiptSha256: 'a'.repeat(64),
+    cloudAccount: 'puni-production',
+    terraformPlanSha256: 'b'.repeat(64),
+    terraformVariablesSha256: 'c'.repeat(64),
+    terraformBackendEvidenceSha256: 'd'.repeat(64),
+    terraformStateLineage: 'lineage-1',
+    terraformStateSerial: 7,
   } as const;
 
   it('decodes only exact persisted operation plans', () => {
@@ -283,8 +298,8 @@ describe('planOperation', () => {
     const requests = [
       { kind: 'enroll', nodeId: 'workers-b', clusterId: 'workers', ...enrollEvidence },
       { kind: 'retire', nodeId: 'workers-b', ...retireEvidence },
-      { kind: 'replace', nodeId: 'workers-b' },
-      { kind: 'upgrade', nodeId: 'workers-b', version: 'v1.36.5+k3s1' },
+      { kind: 'replace', nodeId: 'workers-b', fenceReceiptSha256: '9'.repeat(64) },
+      { kind: 'upgrade', nodeId: 'workers-b', version: 'v1.36.5+k3s1', ...upgradeEvidence },
       {
         kind: 'provision',
         nodeId: 'workers-c',
@@ -307,7 +322,7 @@ describe('planOperation', () => {
         terraformStateLineage: 'lineage-1',
         terraformStateSerial: 7,
       },
-      { kind: 'destroy', nodeId: 'workers-b', retirementReceiptSha256: 'a'.repeat(64) },
+      { kind: 'destroy', nodeId: 'workers-b', ...destroyEvidence },
     ] as const;
     for (const request of requests) {
       const plan = planOperation(fleet, observation, request);
@@ -328,7 +343,7 @@ describe('planOperation', () => {
     const destroyed = planOperation(fleet, observation, {
       kind: 'destroy',
       nodeId: 'workers-a',
-      retirementReceiptSha256: 'a'.repeat(64),
+      ...destroyEvidence,
     });
     expect(destroyed.storageImplication).toContain('system-disk-destruction');
     expect(destroyed.downtimeImplication).toContain('cluster-api-unavailable');
@@ -338,12 +353,14 @@ describe('planOperation', () => {
     const replacement = planOperation(fleet, observation, {
       kind: 'replace',
       nodeId: 'workers-b',
+      fenceReceiptSha256: '9'.repeat(64),
     });
     expect(replacement.storageImplication).toContain('transfer-or-explicit-loss-required');
     expect(() =>
       planOperation(fleet, observation, {
         kind: 'destroy',
         nodeId: 'workers-a',
+        ...destroyEvidence,
         retirementReceiptSha256: '',
       }),
     ).toThrow(/retirement receipt/i);
@@ -435,6 +452,7 @@ describe('planOperation', () => {
         kind: 'upgrade',
         nodeId: 'workers-b',
         version: 'latest',
+        ...upgradeEvidence,
       }),
     ).toThrow(/invalid k3s version/i);
     expect(() =>

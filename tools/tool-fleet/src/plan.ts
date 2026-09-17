@@ -18,11 +18,19 @@ export type OperationRequest =
       readonly kind: 'retire';
       readonly nodeId: string;
       readonly backupReceipt: string;
+      readonly backupReceiptSha256: string;
       readonly inventorySha256: string;
       readonly knownHostsSha256: string;
     }
-  | { readonly kind: 'replace'; readonly nodeId: string }
-  | { readonly kind: 'upgrade'; readonly nodeId: string; readonly version: string }
+  | { readonly kind: 'replace'; readonly nodeId: string; readonly fenceReceiptSha256: string }
+  | {
+      readonly kind: 'upgrade';
+      readonly nodeId: string;
+      readonly version: string;
+      readonly upgradeEvidenceSha256: string;
+      readonly inventorySha256: string;
+      readonly knownHostsSha256: string;
+    }
   | {
       readonly kind: 'provision';
       readonly nodeId: string;
@@ -49,6 +57,12 @@ export type OperationRequest =
       readonly kind: 'destroy';
       readonly nodeId: string;
       readonly retirementReceiptSha256: string;
+      readonly cloudAccount: string;
+      readonly terraformPlanSha256: string;
+      readonly terraformVariablesSha256: string;
+      readonly terraformBackendEvidenceSha256: string;
+      readonly terraformStateLineage: string;
+      readonly terraformStateSerial: number;
     };
 
 export interface OperationPlan {
@@ -282,17 +296,41 @@ export function planOperation(
       throw new Error(`Upgrade request has invalid k3s version: ${request.version}`);
     }
     if (
+      request.kind === 'upgrade' &&
+      (!/^[0-9a-f]{64}$/.test(request.upgradeEvidenceSha256) ||
+        !/^[0-9a-f]{64}$/.test(request.inventorySha256) ||
+        !/^[0-9a-f]{64}$/.test(request.knownHostsSha256))
+    ) {
+      throw new Error('Upgrade request lacks reviewed evidence, inventory, or host keys');
+    }
+    if (
       request.kind === 'retire' &&
       (request.backupReceipt.length === 0 ||
+        !/^[0-9a-f]{64}$/.test(request.backupReceiptSha256) ||
         !/^[0-9a-f]{64}$/.test(request.inventorySha256) ||
         !/^[0-9a-f]{64}$/.test(request.knownHostsSha256))
     ) {
       throw new Error('Retirement request requires backup, inventory, and host-key evidence');
     }
-    if (request.kind === 'destroy' && !/^[0-9a-f]{64}$/.test(request.retirementReceiptSha256)) {
+    if (
+      request.kind === 'destroy' &&
+      (!/^[0-9a-f]{64}$/.test(request.retirementReceiptSha256) ||
+        request.cloudAccount.length === 0 ||
+        !/^[0-9a-f]{64}$/.test(request.terraformPlanSha256) ||
+        !/^[0-9a-f]{64}$/.test(request.terraformVariablesSha256) ||
+        !/^[0-9a-f]{64}$/.test(request.terraformBackendEvidenceSha256) ||
+        request.terraformStateLineage.length === 0 ||
+        !Number.isSafeInteger(request.terraformStateSerial) ||
+        request.terraformStateSerial < 0)
+    ) {
       // Proof: the missing-receipt-digest planner negative refuses before a provider destruction
       // effect can be emitted without immutable completed-retirement evidence.
-      throw new Error('Destroy request requires a completed retirement receipt SHA-256');
+      throw new Error(
+        'Destroy request requires a retirement receipt and reviewed Terraform evidence',
+      );
+    }
+    if (request.kind === 'replace' && !/^[0-9a-f]{64}$/.test(request.fenceReceiptSha256)) {
+      throw new Error('Replacement request requires an external fence receipt SHA-256');
     }
     targetIdentities = [`node:${node.id}`, identifyNodeProvider(node), `cluster:${node.cluster}`];
     affectedCapabilities = [...node.capabilities].sort();

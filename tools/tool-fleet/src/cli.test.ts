@@ -6,7 +6,8 @@ import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, test } from 'bun:test';
 import { parse } from 'yaml';
 
-import { decodeFleet } from './contracts';
+import { decodeFleet, decodeFleetObservation } from './contracts';
+import { digestObservation } from './observation';
 import { observationFixture } from './testing/fleet';
 
 const root = join(import.meta.dir, '../../..');
@@ -56,6 +57,8 @@ function retirementEvidenceArguments(): string[] {
   return [
     '--backup-receipt',
     'backup-workers-1',
+    '--backup-receipt-sha256',
+    'a'.repeat(64),
     '--inventory-sha256',
     'e'.repeat(64),
     '--known-hosts-sha256',
@@ -80,6 +83,88 @@ test('the production plan command writes JSON and a human summary', async () => 
   expect(plan['desiredRevision']).toBe('local-v1');
 });
 
+test('the production plan command composes replacement only from an exact fence receipt', async () => {
+  const fixture = await createPlanFixture();
+  const observation = decodeFleetObservation(
+    JSON.parse(await readFile(fixture.observation, 'utf8')) as unknown,
+  );
+  const { digest: _digest, ...body } = observation;
+  const missing = {
+    ...body,
+    nodes: body.nodes.map((node) =>
+      node.desiredNodeId === 'workers-agent-a' ? { ...node, states: ['missing'] as const } : node,
+    ),
+  };
+  await writeFile(
+    fixture.observation,
+    `${JSON.stringify({ ...missing, digest: digestObservation(missing) })}\n`,
+  );
+  const fenceSource = `${JSON.stringify({
+    schemaVersion: 1,
+    nodeId: 'workers-agent-a',
+    providerIdentity: 'ssh:local-workers-agent-a',
+    state: 'powered-off',
+    fenceId: 'fence-local-workers-agent-a',
+    verifiedAt: '2026-09-17T09:00:00.000Z',
+  })}\n`;
+  await writeFile(`${fixture.output}.fence-receipt.json`, fenceSource, { mode: 0o600 });
+  const invocation = invokePlan([
+    ...buildBaseArguments(fixture),
+    '--operation',
+    'replace',
+    '--node',
+    'workers-agent-a',
+    '--fence-receipt-sha256',
+    createHash('sha256').update(fenceSource).digest('hex'),
+  ]);
+  expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+  const plan = JSON.parse(await readFile(fixture.output, 'utf8')) as {
+    effects: string[];
+    targetIdentities: string[];
+  };
+  expect(plan.effects).toContain('record verified external fence');
+  expect(plan.targetIdentities).toContain('fence:fence-local-workers-agent-a');
+});
+
+test('the production plan command selects the next serial upgrade from exact evidence', async () => {
+  const fixture = await createPlanFixture();
+  const evidenceSource = `${JSON.stringify({
+    schemaVersion: 1,
+    installedVersions: {
+      'platform-server': 'v1.36.3+k3s1',
+      'platform-observability': 'v1.36.3+k3s1',
+      'workers-server': 'v1.36.3+k3s1',
+      'workers-agent-a': 'v1.36.3+k3s1',
+      'arbitrary-fourth-host': 'v1.36.3+k3s1',
+    },
+    snapshotIds: {
+      platform: 'snapshot-platform-20260917',
+      workers: 'snapshot-workers-20260917',
+    },
+  })}\n`;
+  await writeFile(`${fixture.output}.upgrade-evidence.json`, evidenceSource, { mode: 0o600 });
+  const invocation = invokePlan([
+    ...buildBaseArguments(fixture),
+    '--operation',
+    'upgrade',
+    '--node',
+    'platform-server',
+    '--version',
+    'v1.36.4+k3s1',
+    '--upgrade-evidence-sha256',
+    createHash('sha256').update(evidenceSource).digest('hex'),
+    '--inventory-sha256',
+    '7'.repeat(64),
+    '--known-hosts-sha256',
+    '8'.repeat(64),
+  ]);
+  expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+  const plan = JSON.parse(await readFile(fixture.output, 'utf8')) as { effects: string[] };
+  expect(plan.effects).toEqual([
+    'upgrade platform-server from v1.36.3+k3s1 to v1.36.4+k3s1 with serial health gates',
+  ]);
+});
+
 describe('production plan input boundary', () => {
   test('binds destroy to an owner-only completed retirement receipt for the exact provider', async () => {
     const fixture = await createPlanFixture();
@@ -90,7 +175,7 @@ describe('production plan input boundary', () => {
       target.provider.kind === 'hcloud'
         ? `hcloud:${target.provider.instanceId}`
         : `ssh:${target.provider.machineId}`;
-    const receiptPath = join(fixture.directory, 'retirement-receipt.json');
+    const receiptPath = `${fixture.output}.retirement-receipt.json`;
     const receipt = `${JSON.stringify({
       schemaVersion: 1,
       nodeId: target.id,
@@ -102,31 +187,47 @@ describe('production plan input boundary', () => {
     })}\n`;
     await writeFile(receiptPath, receipt, { mode: 0o600 });
     const receiptSha256 = createHash('sha256').update(receipt).digest('hex');
+    const evidenceArguments = [
+      '--cloud-account',
+      'puni-production',
+      '--terraform-plan-sha256',
+      'b'.repeat(64),
+      '--terraform-variables-sha256',
+      'c'.repeat(64),
+      '--terraform-backend-evidence-sha256',
+      'd'.repeat(64),
+      '--terraform-state-lineage',
+      'lineage-1',
+      '--terraform-state-serial',
+      '7',
+    ];
     const invocation = invokePlan([
       ...buildBaseArguments(fixture),
       '--operation',
       'destroy',
       '--node',
       target.id,
-      '--retirement-receipt',
-      receiptPath,
       '--retirement-receipt-sha256',
       receiptSha256,
+      ...evidenceArguments,
     ]);
     expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
 
     const changedFixture = await createPlanFixture();
-    await writeFile(receiptPath, receipt.replace(target.id, 'another-node'), { mode: 0o600 });
+    await writeFile(
+      `${changedFixture.output}.retirement-receipt.json`,
+      receipt.replace(target.id, 'another-node'),
+      { mode: 0o600 },
+    );
     const changed = invokePlan([
       ...buildBaseArguments(changedFixture),
       '--operation',
       'destroy',
       '--node',
       target.id,
-      '--retirement-receipt',
-      receiptPath,
       '--retirement-receipt-sha256',
       receiptSha256,
+      ...evidenceArguments,
     ]);
     expect(changed.exitCode).not.toBe(0);
     expect(changed.stderr.toString()).toContain('differs from its reviewed SHA-256');
@@ -134,16 +235,20 @@ describe('production plan input boundary', () => {
     const wrongIdentityFixture = await createPlanFixture();
     const wrongIdentityReceipt = receipt.replace(target.id, 'another-node');
     const wrongIdentitySha256 = createHash('sha256').update(wrongIdentityReceipt).digest('hex');
+    await writeFile(
+      `${wrongIdentityFixture.output}.retirement-receipt.json`,
+      wrongIdentityReceipt,
+      { mode: 0o600 },
+    );
     const wrongIdentity = invokePlan([
       ...buildBaseArguments(wrongIdentityFixture),
       '--operation',
       'destroy',
       '--node',
       target.id,
-      '--retirement-receipt',
-      receiptPath,
       '--retirement-receipt-sha256',
       wrongIdentitySha256,
+      ...evidenceArguments,
     ]);
     expect(wrongIdentity.exitCode).not.toBe(0);
     expect(wrongIdentity.stderr.toString()).toContain('exact provider identity');

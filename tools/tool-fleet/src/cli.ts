@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFile, stat, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import { parse } from 'yaml';
 
@@ -9,6 +10,7 @@ import {
   decodeFleet,
   decodeFleetObservation,
   decodeObservation,
+  readToolchain,
 } from './contracts';
 import {
   decodeOperationPlan,
@@ -17,8 +19,10 @@ import {
   planOperation,
   sealOperationPlan,
 } from './plan';
-import { prepareTerraformPlan } from './production-apply';
+import { prepareTerraformDestroyPlan, prepareTerraformPlan } from './production-apply';
+import { type FenceEvidence, planReplacement } from './replace';
 import { planRetirement } from './retire';
+import { planUpgrade, type UpgradeEvidence } from './upgrade';
 
 function readFlags(argv: readonly string[]): ReadonlyMap<string, string> {
   const flags = new Map<string, string>();
@@ -118,31 +122,66 @@ function decodeRequest(flags: ReadonlyMap<string, string>): OperationRequest {
       };
     }
     case 'replace': {
-      requireExactFlags(flags, []);
-      return { kind, nodeId };
+      requireExactFlags(flags, ['--fence-receipt-sha256']);
+      return {
+        kind,
+        nodeId,
+        fenceReceiptSha256: requireFlag(flags, '--fence-receipt-sha256'),
+      };
     }
     case 'destroy': {
-      requireExactFlags(flags, ['--retirement-receipt', '--retirement-receipt-sha256']);
-      requireFlag(flags, '--retirement-receipt');
+      requireExactFlags(flags, [
+        '--cloud-account',
+        '--retirement-receipt-sha256',
+        '--terraform-plan-sha256',
+        '--terraform-variables-sha256',
+        '--terraform-backend-evidence-sha256',
+        '--terraform-state-lineage',
+        '--terraform-state-serial',
+      ]);
       return {
         kind,
         nodeId,
         retirementReceiptSha256: requireFlag(flags, '--retirement-receipt-sha256'),
+        cloudAccount: requireFlag(flags, '--cloud-account'),
+        terraformPlanSha256: requireFlag(flags, '--terraform-plan-sha256'),
+        terraformVariablesSha256: requireFlag(flags, '--terraform-variables-sha256'),
+        terraformBackendEvidenceSha256: requireFlag(flags, '--terraform-backend-evidence-sha256'),
+        terraformStateLineage: requireFlag(flags, '--terraform-state-lineage'),
+        terraformStateSerial: Number(requireFlag(flags, '--terraform-state-serial')),
       };
     }
     case 'retire': {
-      requireExactFlags(flags, ['--backup-receipt', '--inventory-sha256', '--known-hosts-sha256']);
+      requireExactFlags(flags, [
+        '--backup-receipt',
+        '--backup-receipt-sha256',
+        '--inventory-sha256',
+        '--known-hosts-sha256',
+      ]);
       return {
         kind,
         nodeId,
         backupReceipt: requireFlag(flags, '--backup-receipt'),
+        backupReceiptSha256: requireFlag(flags, '--backup-receipt-sha256'),
         inventorySha256: requireFlag(flags, '--inventory-sha256'),
         knownHostsSha256: requireFlag(flags, '--known-hosts-sha256'),
       };
     }
     case 'upgrade': {
-      requireExactFlags(flags, ['--version']);
-      return { kind, nodeId, version: requireFlag(flags, '--version') };
+      requireExactFlags(flags, [
+        '--inventory-sha256',
+        '--known-hosts-sha256',
+        '--upgrade-evidence-sha256',
+        '--version',
+      ]);
+      return {
+        kind,
+        nodeId,
+        version: requireFlag(flags, '--version'),
+        upgradeEvidenceSha256: requireFlag(flags, '--upgrade-evidence-sha256'),
+        inventorySha256: requireFlag(flags, '--inventory-sha256'),
+        knownHostsSha256: requireFlag(flags, '--known-hosts-sha256'),
+      };
     }
     case 'provision': {
       requireExactFlags(flags, [
@@ -218,11 +257,11 @@ async function readRequiredState(path: string, label: string): Promise<string> {
 }
 
 async function requireRetirementReceipt(
-  flags: ReadonlyMap<string, string>,
+  outputPath: string,
   fleet: ReturnType<typeof decodeFleet>,
   request: Extract<OperationRequest, { kind: 'destroy' }>,
 ): Promise<void> {
-  const path = requireFlag(flags, '--retirement-receipt');
+  const path = `${outputPath}.retirement-receipt.json`;
   const source = await readRequiredState(path, 'retirement receipt');
   if (createHash('sha256').update(source).digest('hex') !== request.retirementReceiptSha256) {
     // Proof: the changed-retirement-receipt production CLI negative refuses before persisting a
@@ -262,6 +301,116 @@ async function requireRetirementReceipt(
   }
 }
 
+async function requireFenceReceipt(
+  outputPath: string,
+  fleet: ReturnType<typeof decodeFleet>,
+  request: Extract<OperationRequest, { kind: 'replace' }>,
+): Promise<FenceEvidence> {
+  const path = `${outputPath}.fence-receipt.json`;
+  const source = await readRequiredState(path, 'external fence receipt');
+  if (createHash('sha256').update(source).digest('hex') !== request.fenceReceiptSha256) {
+    // Proof: the changed-fence-receipt production CLI negative refuses before replacement plan
+    // persistence or storage authority transfer.
+    throw new Error('External fence receipt differs from its reviewed SHA-256');
+  }
+  if (((await stat(path)).mode & 0o077) !== 0) {
+    throw new Error('External fence receipt must be owner-only');
+  }
+  let input: unknown;
+  try {
+    input = JSON.parse(source) as unknown;
+  } catch (cause) {
+    throw new Error(`Required external fence receipt at ${path} is malformed JSON`, { cause });
+  }
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+    throw new Error('External fence receipt is not an object');
+  }
+  const receipt: Record<string, unknown> = Object.fromEntries(Object.entries(input));
+  const node = fleet.nodes.find(({ id }) => id === request.nodeId);
+  if (node === undefined)
+    throw new Error(`Replacement targets unknown fleet node: ${request.nodeId}`);
+  const providerIdentity =
+    node.provider.kind === 'hcloud'
+      ? `hcloud:${node.provider.instanceId}`
+      : `ssh:${node.provider.machineId}`;
+  if (
+    Object.keys(receipt).sort().join('\0') !==
+      ['fenceId', 'nodeId', 'providerIdentity', 'schemaVersion', 'state', 'verifiedAt']
+        .sort()
+        .join('\0') ||
+    receipt['schemaVersion'] !== 1 ||
+    receipt['nodeId'] !== request.nodeId ||
+    receipt['providerIdentity'] !== providerIdentity ||
+    (receipt['state'] !== 'powered-off' && receipt['state'] !== 'deleted') ||
+    typeof receipt['fenceId'] !== 'string' ||
+    receipt['fenceId'].length === 0 ||
+    typeof receipt['verifiedAt'] !== 'string' ||
+    !Number.isFinite(Date.parse(receipt['verifiedAt'])) ||
+    new Date(Date.parse(receipt['verifiedAt'])).toISOString() !== receipt['verifiedAt']
+  ) {
+    throw new Error('External fence receipt is incomplete or names another provider identity');
+  }
+  return {
+    providerIdentity,
+    state: receipt['state'],
+    fenceId: receipt['fenceId'],
+  };
+}
+
+async function requireUpgradeEvidence(
+  outputPath: string,
+  request: Extract<OperationRequest, { kind: 'upgrade' }>,
+): Promise<UpgradeEvidence> {
+  const path = `${outputPath}.upgrade-evidence.json`;
+  const source = await readRequiredState(path, 'upgrade evidence');
+  if (createHash('sha256').update(source).digest('hex') !== request.upgradeEvidenceSha256) {
+    // Proof: the changed-upgrade-evidence production CLI negative refuses before an upgrade plan
+    // can drain a node from an unreviewed installed topology.
+    throw new Error('Upgrade evidence differs from its reviewed SHA-256');
+  }
+  if (((await stat(path)).mode & 0o077) !== 0)
+    throw new Error('Upgrade evidence must be owner-only');
+  let input: unknown;
+  try {
+    input = JSON.parse(source) as unknown;
+  } catch (cause) {
+    throw new Error(`Required upgrade evidence at ${path} is malformed JSON`, { cause });
+  }
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+    throw new Error('Upgrade evidence is not an object');
+  }
+  const document: Record<string, unknown> = Object.fromEntries(Object.entries(input));
+  if (
+    Object.keys(document).sort().join('\0') !==
+      ['installedVersions', 'schemaVersion', 'snapshotIds'].sort().join('\0') ||
+    document['schemaVersion'] !== 1 ||
+    typeof document['installedVersions'] !== 'object' ||
+    document['installedVersions'] === null ||
+    Array.isArray(document['installedVersions']) ||
+    typeof document['snapshotIds'] !== 'object' ||
+    document['snapshotIds'] === null ||
+    Array.isArray(document['snapshotIds'])
+  ) {
+    throw new Error('Upgrade evidence lacks exact installed-version and snapshot maps');
+  }
+  const installedVersions = Object.fromEntries(Object.entries(document['installedVersions']));
+  const snapshotIds = Object.fromEntries(Object.entries(document['snapshotIds']));
+  if (
+    Object.values(installedVersions).some(
+      (version) => typeof version !== 'string' || !/^v\d+\.\d+\.\d+\+k3s\d+$/.test(version),
+    ) ||
+    Object.values(snapshotIds).some(
+      (snapshotId) => typeof snapshotId !== 'string' || snapshotId.length === 0,
+    )
+  ) {
+    throw new Error('Upgrade evidence contains an invalid version or snapshot identity');
+  }
+  return {
+    installedVersions,
+    snapshotIds,
+  };
+}
+
 /** Run the fleet planning command and persist the exact digest-bearing JSON. */
 export async function runPlan(argv: readonly string[]): Promise<void> {
   const flags = readFlags(argv);
@@ -289,7 +438,11 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
   }
   const fleet = decodeFleet(fleetInput);
   const observation = decodeObservation(observationInput);
-  if (request.kind === 'destroy') await requireRetirementReceipt(flags, fleet, request);
+  if (request.kind === 'destroy') await requireRetirementReceipt(outputPath, fleet, request);
+  const replacementFence =
+    request.kind === 'replace' ? await requireFenceReceipt(outputPath, fleet, request) : undefined;
+  const upgradeEvidence =
+    request.kind === 'upgrade' ? await requireUpgradeEvidence(outputPath, request) : undefined;
   let plan = planOperation(fleet, observation, request);
   if (request.kind === 'retire') {
     const retirement = planRetirement(
@@ -307,9 +460,65 @@ export async function runPlan(argv: readonly string[]): Promise<void> {
         `cluster:${retirement.clusterId}`,
         `api-endpoint:${retirement.apiEndpoint}`,
         `minimum-control-planes:${String(retirement.minimumSurvivingControlPlanes)}`,
+        ...Object.entries(retirement.requiredCapabilityFloors).map(
+          ([capability, floor]) => `capability-floor:${capability}:${String(floor)}`,
+        ),
       ],
       effects: retirement.steps,
       affectedCapabilities: retirement.affectedCapabilities,
+    });
+  }
+  if (request.kind === 'replace') {
+    const replacement = planReplacement(
+      fleet,
+      decodeFleetObservation(observationInput),
+      request.nodeId,
+      replacementFence,
+    );
+    const { planSha256: _planSha256, ...body } = plan;
+    plan = sealOperationPlan({
+      ...body,
+      targetIdentities: [
+        `node:${replacement.nodeId}`,
+        replacement.oldProviderIdentity,
+        `cluster:${replacement.clusterId}`,
+        `fence:${replacement.fenceId}`,
+      ],
+      effects: replacement.steps,
+    });
+  }
+  if (request.kind === 'upgrade') {
+    const toolchain = await readToolchain(
+      join(import.meta.dir, '../../../infra/versions/toolchain.json'),
+    );
+    if (request.version !== toolchain.binaries.k3s.version) {
+      throw new Error(`Upgrade target ${request.version} differs from the locked k3s version`);
+    }
+    if (upgradeEvidence === undefined) throw new Error('Upgrade evidence is unavailable');
+    const detailedObservation = decodeFleetObservation(observationInput);
+    const upgrade = planUpgrade(fleet, detailedObservation, request.version, upgradeEvidence);
+    const next = upgrade.nodes[0];
+    if (next.nodeId !== request.nodeId) {
+      throw new Error(`Upgrade order requires ${next.nodeId} before ${request.nodeId}`);
+    }
+    const observed = detailedObservation.nodes.find(
+      ({ desiredNodeId }) => desiredNodeId === next.nodeId,
+    );
+    if (observed?.kubernetesNodeUid === undefined) {
+      throw new Error(`Upgrade target ${next.nodeId} lacks exact Kubernetes identity`);
+    }
+    const { planSha256: _planSha256, ...body } = plan;
+    plan = sealOperationPlan({
+      ...body,
+      targetIdentities: [
+        `node:${next.nodeId}`,
+        observed.providerIdentity,
+        `kubernetes:${observed.kubernetesNodeUid}`,
+        `cluster:${next.clusterId}`,
+      ],
+      effects: [
+        `upgrade ${next.nodeId} from ${next.fromVersion} to ${upgrade.toVersion} with serial health gates`,
+      ],
     });
   }
   try {
@@ -406,6 +615,35 @@ export async function runTerraformPlan(argv: readonly string[], root: string): P
       })(),
       budgetCapEur: Number(requireFlag(flags, '--budget-cap-eur')),
     },
+    requireFlag(flags, '--cloud-account'),
+    requireFlag(flags, '--backend-evidence'),
+    requireFlag(flags, '--variables'),
+    requireFlag(flags, '--output'),
+  );
+  process.stdout.write(`${JSON.stringify(evidence)}\n`);
+}
+
+/** Prepare the exact saved Terraform destroy artifact for a separately reviewed retired node. */
+export async function runTerraformDestroyPlan(
+  argv: readonly string[],
+  root: string,
+): Promise<void> {
+  const flags = readFlags(argv);
+  const allowed = new Set([
+    '--node',
+    '--provider-identity',
+    '--cloud-account',
+    '--backend-evidence',
+    '--variables',
+    '--output',
+  ]);
+  for (const flag of flags.keys()) {
+    if (!allowed.has(flag)) throw new Error(`Unexpected Terraform destroy plan flag: ${flag}`);
+  }
+  const evidence = await prepareTerraformDestroyPlan(
+    root,
+    requireFlag(flags, '--node'),
+    requireFlag(flags, '--provider-identity'),
     requireFlag(flags, '--cloud-account'),
     requireFlag(flags, '--backend-evidence'),
     requireFlag(flags, '--variables'),

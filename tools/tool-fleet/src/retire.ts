@@ -11,6 +11,7 @@ export interface RetirementPlan {
   readonly kubernetesNodeUid: string;
   readonly observationDigest: string;
   readonly affectedCapabilities: readonly Capability[];
+  readonly requiredCapabilityFloors: Readonly<Partial<Record<Capability, number>>>;
   readonly steps: readonly string[];
 }
 
@@ -102,6 +103,7 @@ function requireCapacity(fleet: Fleet, observation: FleetObservation, target: Fl
   }
   for (const [capability, floor] of Object.entries(cluster.requiredCapabilities)) {
     const remaining = survivors.filter(({ capabilities }) =>
+      // The fleet decoder restricts required-capability keys to the Capability vocabulary.
       capabilities.includes(capability as Capability),
     ).length;
     if (remaining < floor) {
@@ -135,6 +137,7 @@ export function planRetirement(
     kubernetesNodeUid: observed.kubernetesNodeUid,
     observationDigest: observation.digest,
     affectedCapabilities: [...desired.capabilities].sort(),
+    requiredCapabilityFloors: { ...cluster.requiredCapabilities },
     steps: [
       'verify replacement capacity, storage topology, and backup status',
       'cordon node',
@@ -143,9 +146,11 @@ export function planRetirement(
       'verify no unmanaged or local-state workload remains',
       'stop and disable k3s service',
       'remove enrollment configuration and node credentials',
-      'remove Kubernetes and etcd membership',
-      'remove node from enrollment inventory',
       'verify retired node cannot re-register',
+      'remove embedded etcd membership',
+      'record etcd membership removal',
+      'remove Kubernetes membership',
+      'persist authoritative enrollment exclusion',
       'record auditable retirement receipt',
     ],
   };

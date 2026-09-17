@@ -8,6 +8,64 @@ export interface ReviewedTerraformPlan {
   readonly addresses: readonly string[];
 }
 
+/** Refuse any destroy plan that deletes retained storage, shared infrastructure, or another node. */
+export function decodeTerraformDestroyPlan(input: unknown, nodeId: string): ReviewedTerraformPlan {
+  if (
+    !isRecord(input) ||
+    typeof input['terraform_version'] !== 'string' ||
+    !Array.isArray(input['resource_changes'])
+  ) {
+    throw new Error('Terraform destroy plan JSON is malformed');
+  }
+  const quotedNode = JSON.stringify(nodeId);
+  const allowed = new Set([
+    `hcloud_server.node[${quotedNode}]`,
+    `hcloud_server_network.node[${quotedNode}]`,
+    `hcloud_volume_attachment.retained[${quotedNode}]`,
+  ]);
+  const addresses: string[] = [];
+  let deletesServer = false;
+  for (const changeInput of input['resource_changes']) {
+    if (!isRecord(changeInput) || typeof changeInput['address'] !== 'string') {
+      throw new Error('Terraform destroy resource change is malformed');
+    }
+    const change = changeInput['change'];
+    const actions = isRecord(change) ? change['actions'] : undefined;
+    if (!Array.isArray(actions) || !actions.every((action) => typeof action === 'string')) {
+      throw new Error(`Terraform destroy actions are malformed for ${changeInput['address']}`);
+    }
+    const mutates = actions.some((action) => action !== 'no-op' && action !== 'read');
+    if (
+      (mutates &&
+        (!allowed.has(changeInput['address']) ||
+          actions.length !== 1 ||
+          actions[0] !== 'delete')) ||
+      actions.some((action) => !['delete', 'no-op', 'read'].includes(action))
+    ) {
+      // Proof: injecting a retained-volume or another-node deletion makes the production destroy
+      // decoder refuse before Terraform can consume the saved plan.
+      throw new Error(
+        `Terraform destroy plan contains an unreviewed change: ${changeInput['address']}`,
+      );
+    }
+    if (
+      changeInput['address'] === `hcloud_server.node[${quotedNode}]` &&
+      actions.length === 1 &&
+      actions[0] === 'delete'
+    ) {
+      const before = isRecord(change) ? change['before'] : undefined;
+      const labels = isRecord(before) ? before['labels'] : undefined;
+      if (!isRecord(labels) || labels['puni-logical-node'] !== nodeId) {
+        throw new Error('Terraform destroy server lacks exact logical-node ownership');
+      }
+      deletesServer = true;
+    }
+    if (mutates) addresses.push(changeInput['address']);
+  }
+  if (!deletesServer) throw new Error('Terraform destroy plan does not delete the reviewed server');
+  return { terraformVersion: input['terraform_version'], addresses };
+}
+
 export interface TerraformProvisioningExpectation {
   readonly nodeId: string;
   readonly operationId: string;

@@ -35,6 +35,9 @@ switch (command) {
   case 'terraform-plan':
     await (await import('./cli')).runTerraformPlan(process.argv.slice(3), root);
     break;
+  case 'terraform-destroy-plan':
+    await (await import('./cli')).runTerraformDestroyPlan(process.argv.slice(3), root);
+    break;
   case 'discover':
     await (await import('./discover')).runDiscover(process.argv.slice(3), root);
     break;

@@ -59,6 +59,11 @@
       "cache": false,
       "options": { "command": "bun tools/tool-fleet/src/entrypoint.ts terraform-plan" }
     },
+    "terraform-destroy-plan": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": { "command": "bun tools/tool-fleet/src/entrypoint.ts terraform-destroy-plan" }
+    },
     "discover": {
       "executor": "nx:run-commands",
       "cache": false,

@@ -9,30 +9,69 @@
       ansible.builtin.assert:
         that:
           - puni_node_name is defined
+          - puni_kube_context is defined
           - puni_k3s_version is match('^v[0-9]+\.[0-9]+\.[0-9]+\+k3s[0-9]+$')
           - puni_k3s_download_url is defined
           - puni_k3s_sha256 is match('^[0-9a-f]{64}$')
           - puni_k3s_role in ['server', 'agent']
           - puni_k3s_role != 'server' or (puni_etcd_snapshot_receipt | default('') | length > 0)
         fail_msg: Upgrade requires a locked version, checksum, role, and server snapshot receipt
+      tags: [always]
+
+    - name: Read exact installed k3s version
+      ansible.builtin.command:
+        argv: [k3s, --version]
+      register: puni_installed_k3s
+      changed_when: false
+      tags: [version]
+
+    - name: Require reviewed or already-applied k3s version
+      ansible.builtin.assert:
+        that:
+          - >-
+            (puni_installed_k3s.stdout | regex_search('v[0-9]+\\.[0-9]+\\.[0-9]+\\+k3s[0-9]+'))
+            in [puni_k3s_from_version, puni_k3s_version]
+        fail_msg: Installed k3s version differs from reviewed upgrade transition
+      tags: [version]
+
+    - name: Emit exact installed k3s version
+      ansible.builtin.debug:
+        msg: >-
+          PUNI_K3S_VERSION={{ puni_installed_k3s.stdout |
+          regex_search('v[0-9]+\\.[0-9]+\\.[0-9]+\\+k3s[0-9]+') }}
+      changed_when: false
+      tags: [version]
 
     - name: Snapshot etcd before a server upgrade
       ansible.builtin.command:
         argv: [k3s, etcd-snapshot, save, --name, 'pre-upgrade-{{ puni_node_name }}']
-      when: puni_k3s_role == 'server'
+      when:
+        - puni_k3s_role == 'server'
+        - puni_k3s_from_version != puni_k3s_version
       no_log: true
 
     - name: Cordon node
       ansible.builtin.command:
-        argv: [kubectl, cordon, '{{ puni_node_name }}']
+        argv: [kubectl, --context, '{{ puni_kube_context }}', cordon, '{{ puni_node_name }}']
       delegate_to: localhost
       become: false
+      when: puni_k3s_from_version != puni_k3s_version
 
     - name: Drain node respecting disruption budgets
       ansible.builtin.command:
-        argv: [kubectl, drain, '{{ puni_node_name }}', --ignore-daemonsets, --timeout=10m]
+        argv:
+          [
+            kubectl,
+            --context,
+            '{{ puni_kube_context }}',
+            drain,
+            '{{ puni_node_name }}',
+            --ignore-daemonsets,
+            --timeout=10m,
+          ]
       delegate_to: localhost
       become: false
+      when: puni_k3s_from_version != puni_k3s_version
 
     - name: Fetch exact k3s upgrade artifact
       ansible.builtin.get_url:
@@ -41,14 +80,18 @@
         checksum: 'sha256:{{ puni_k3s_sha256 }}'
         mode: '0755'
       notify: Restart upgraded k3s service
+      when: puni_k3s_from_version != puni_k3s_version
 
     - name: Apply service restart before health proof
       ansible.builtin.meta: flush_handlers
+      when: puni_k3s_from_version != puni_k3s_version
 
     - name: Wait for exact node to become Ready
       ansible.builtin.command:
         argv:
           - kubectl
+          - --context
+          - '{{ puni_kube_context }}'
           - wait
           - node/{{ puni_node_name }}
           - --for=condition=Ready
@@ -56,12 +99,14 @@
       delegate_to: localhost
       become: false
       changed_when: false
+      when: puni_k3s_from_version != puni_k3s_version
 
     - name: Uncordon node after health proof
       ansible.builtin.command:
-        argv: [kubectl, uncordon, '{{ puni_node_name }}']
+        argv: [kubectl, --context, '{{ puni_kube_context }}', uncordon, '{{ puni_node_name }}']
       delegate_to: localhost
       become: false
+      when: puni_k3s_from_version != puni_k3s_version
 
   handlers:
     - name: Restart upgraded k3s service

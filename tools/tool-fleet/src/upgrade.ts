@@ -5,17 +5,17 @@ export interface UpgradeNodePlan {
   readonly nodeId: string;
   readonly clusterId: string;
   readonly role: 'server' | 'agent';
+  readonly fromVersion: string;
   readonly steps: readonly string[];
 }
 
 export interface UpgradePlan {
-  readonly fromVersion: string;
   readonly toVersion: string;
   readonly nodes: readonly UpgradeNodePlan[];
 }
 
 export interface UpgradeEvidence {
-  readonly installedVersion: string;
+  readonly installedVersions: Readonly<Partial<Record<string, string>>>;
   readonly snapshotIds: Readonly<Partial<Record<string, string>>>;
 }
 
@@ -50,20 +50,6 @@ export function planUpgrade(
     throw new Error('Upgrade requires an exact current fleet observation');
   }
   const target = versionTuple(targetVersion);
-  const installed = versionTuple(evidence.installedVersion);
-  const direction = compareVersion(target, installed);
-  if (direction < 0) {
-    // Proof: the downgrade planner negative refuses a binary rollback that requires the separate
-    // documented etcd restore transaction.
-    throw new Error(
-      `k3s downgrade from ${evidence.installedVersion} to ${targetVersion} is unsupported`,
-    );
-  }
-  if (direction === 0) {
-    // Proof: the same-version planner negative refuses a drain that cannot change the installed
-    // release and therefore has no lifecycle benefit.
-    throw new Error(`k3s target ${targetVersion} is already installed`);
-  }
   const nodes = fleet.nodes.filter(({ lifecycle }) => lifecycle === 'present');
   for (const node of nodes) {
     const observed = observation.nodes.find(({ desiredNodeId }) => desiredNodeId === node.id);
@@ -73,7 +59,25 @@ export function planUpgrade(
       throw new Error(`Upgrade requires Ready evidence for ${node.id}`);
     }
   }
-  const servers = nodes.filter(({ capabilities }) => capabilities.includes('control-plane'));
+  const pending = nodes.filter((node) => {
+    const installedVersion = evidence.installedVersions[node.id];
+    if (installedVersion === undefined) {
+      throw new Error(`Upgrade lacks installed version evidence for ${node.id}`);
+    }
+    const direction = compareVersion(target, versionTuple(installedVersion));
+    if (direction < 0) {
+      // Proof: the downgrade planner negative refuses a binary rollback that requires the separate
+      // documented etcd restore transaction.
+      throw new Error(`k3s downgrade from ${installedVersion} to ${targetVersion} is unsupported`);
+    }
+    return direction > 0;
+  });
+  if (pending.length === 0) {
+    // Proof: the same-version planner negative refuses a drain that cannot change any installed
+    // release and therefore has no lifecycle benefit.
+    throw new Error(`k3s target ${targetVersion} is already installed on every node`);
+  }
+  const servers = pending.filter(({ capabilities }) => capabilities.includes('control-plane'));
   for (const clusterId of new Set(servers.map(({ cluster }) => cluster))) {
     const snapshotId = evidence.snapshotIds[clusterId];
     if (snapshotId === undefined || snapshotId.trim().length === 0) {
@@ -83,10 +87,9 @@ export function planUpgrade(
   }
   const ordered = [
     ...servers,
-    ...nodes.filter(({ capabilities }) => !capabilities.includes('control-plane')),
+    ...pending.filter(({ capabilities }) => !capabilities.includes('control-plane')),
   ];
   return {
-    fromVersion: evidence.installedVersion,
     toVersion: targetVersion,
     nodes: ordered.map((node) => {
       const role = node.capabilities.includes('control-plane') ? 'server' : 'agent';
@@ -94,6 +97,7 @@ export function planUpgrade(
         nodeId: node.id,
         clusterId: node.cluster,
         role,
+        fromVersion: evidence.installedVersions[node.id] ?? '',
         steps: [
           ...(role === 'server' ? ['prove etcd snapshot and token recovery material'] : []),
           'cordon and drain node respecting disruption budgets',
