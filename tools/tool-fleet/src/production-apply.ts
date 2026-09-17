@@ -1355,21 +1355,31 @@ function createRetirementApplyDependencies(
       );
       const observedMemberName = annotations['etcd.k3s.cattle.io/node-name'];
       const removedMemberName = annotations['etcd.k3s.cattle.io/removed-node-name'];
-      if (typeof observedMemberName !== 'string' || observedMemberName.length === 0) {
-        throw new Error('Retirement target lacks exact embedded etcd member identity');
-      }
       const persistedMemberName = await readEtcdMemberIdentity();
-      if (persistedMemberName === undefined && removedMemberName !== undefined) {
-        // Proof: the changed-marker recovery negative cannot adopt stale K3s removal state before
-        // the exact member identity has been persisted under the operation lease.
-        throw new Error('Removed etcd member marker has no persisted reviewed identity');
+      if (persistedMemberName === undefined) {
+        if (
+          typeof observedMemberName !== 'string' ||
+          observedMemberName.length === 0 ||
+          removedMemberName !== undefined
+        ) {
+          // Proof: the changed-marker recovery negative cannot adopt stale K3s removal state before
+          // the exact member identity has been persisted under the operation lease.
+          throw new Error(
+            'Retirement target lacks a persisted exact embedded etcd member identity',
+          );
+        }
+        liveEtcdMemberName = observedMemberName;
+      } else {
+        liveEtcdMemberName = persistedMemberName;
       }
-      liveEtcdMemberName = persistedMemberName ?? observedMemberName;
       if (
-        observedMemberName !== liveEtcdMemberName ||
+        (observedMemberName !== undefined && observedMemberName !== liveEtcdMemberName) ||
         (removedMemberName !== undefined && removedMemberName !== liveEtcdMemberName)
       ) {
         throw new Error('Live etcd member identity differs from persisted reviewed identity');
+      }
+      if (observedMemberName === undefined && removedMemberName === undefined) {
+        throw new Error('Live Kubernetes node has no embedded etcd membership state');
       }
     }
     const fact = await requireCommand(

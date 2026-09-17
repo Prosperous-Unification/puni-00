@@ -369,9 +369,8 @@ function retirementRunner(failingTag: string) {
                     name: 'workers-agent-a',
                     uid: 'uid-3',
                     annotations: {
-                      'etcd.k3s.cattle.io/node-name': 'etcd-workers-agent-a',
                       ...(removedMemberName === undefined
-                        ? {}
+                        ? { 'etcd.k3s.cattle.io/node-name': 'etcd-workers-agent-a' }
                         : { 'etcd.k3s.cattle.io/removed-node-name': removedMemberName }),
                     },
                   },
@@ -489,6 +488,8 @@ describe('production retirement', () => {
       () => Promise.resolve(),
       false,
     );
+    controlled.setRemovedMemberName('etcd-workers-agent-a');
+    expect(await dependencies.observe(plan)).toMatchObject({ providerState: 'ready' });
     controlled.setRemovedMemberName('stale-member-from-an-earlier-incarnation');
     expect(dependencies.observe(plan)).rejects.toThrow(/etcd member identity/i);
     // Proof: injecting an unrelated K3s removed-node-name after a lost response is rejected
