@@ -1,0 +1,13 @@
+[Unit]
+Description=Apply the isolated puni k3s firewall
+After=network-online.target
+Wants=network-online.target
+Before=k3s.service k3s-agent.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/nft -f /etc/nftables.d/puni-k3s-{{ puni_cluster_id }}.nft
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

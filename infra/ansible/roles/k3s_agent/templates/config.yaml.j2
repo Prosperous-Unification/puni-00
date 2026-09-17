@@ -7,6 +7,5 @@ node-taint:
   - puni.io/enrollment=pending:NoSchedule
 node-label:
 {% for capability in puni_node_capabilities %}
-  - puni.io/capability-{{ capability }}=true
+  - puni.dev/capability-{{ capability }}=true
 {% endfor %}
-

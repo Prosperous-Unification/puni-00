@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'bun:test';
 
 import {
+  decodeMachineId,
   decodeMachineList,
   decodeSshHostKey,
   type LabMachine,
@@ -100,6 +101,10 @@ describe('the disposable Ubuntu VM lab', () => {
     expect(() => decodeSshHostKey('', 'lab')).toThrow(/host key/i);
     expect(() => decodeSshHostKey('ssh-rsa AAAATEST', 'lab')).toThrow(/host key/i);
     expect(() => decodeSshHostKey('ssh-ed25519 ***', 'lab')).toThrow(/host key/i);
+    expect(decodeMachineId('0123456789abcdef0123456789abcdef\n', 'lab')).toBe(
+      '0123456789abcdef0123456789abcdef',
+    );
+    expect(() => decodeMachineId('different-host', 'lab')).toThrow(/machine identity/i);
   });
 
   it('rejects key material that could escape cloud-init or fail after launch', () => {
@@ -145,6 +150,20 @@ describe('the disposable Ubuntu VM lab', () => {
     );
   });
 
+  it('kills the subprocess group before a timed-out mutation can continue', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-lab-timeout-'));
+    const sentinel = join(directory, 'survived');
+    expect(
+      runLabCommand(
+        '/bin/sh',
+        ['-c', '(sleep 0.08; printf survived > "$1") & sleep 1', 'fleet-timeout', sentinel],
+        20,
+      ),
+    ).rejects.toThrow(/timed out after 20ms/i);
+    await Bun.sleep(150);
+    expect(Bun.file(sentinel).size).toBe(0);
+  });
+
   it('deletes only exact-prefix machines and refuses ambiguous provider names', () => {
     const request = parseLabRequest(['down', '--lab-id', 'review-42', '--profile', 'platform']);
     const machines: readonly LabMachine[] = [
@@ -172,19 +191,41 @@ describe('the disposable Ubuntu VM lab', () => {
     ).toThrow(/unexpected owned machine/i);
   });
 
-  it('requires an unchanged second Ansible convergence recap', () => {
+  it('requires complete second-pass recaps with only modeled probe changes', () => {
     expect(() => {
-      requireStableRecap('PLAY RECAP\nserver : ok=20 changed=0 unreachable=0 failed=0');
+      requireStableRecap(
+        'PLAY RECAP\nserver : ok=20 changed=0 unreachable=0 failed=0',
+        ['server'],
+        0,
+      );
     }).not.toThrow();
     expect(() => {
-      requireStableRecap('PLAY RECAP\nserver : ok=20 changed=1 unreachable=0 failed=0');
-    }).toThrow(/second convergence changed/i);
+      requireStableRecap(
+        'PLAY RECAP\nserver : ok=20 changed=1 unreachable=0 failed=0',
+        ['server'],
+        0,
+      );
+    }).toThrow(/unexpectedly/i);
     expect(() => {
-      requireStableRecap('PLAY RECAP\nserver : ok=19 changed=0 unreachable=0 failed=1');
+      requireStableRecap(
+        'PLAY RECAP\nserver : ok=19 changed=0 unreachable=0 failed=1',
+        ['server'],
+        0,
+      );
     }).toThrow(/failed host/i);
     expect(() => {
-      requireStableRecap('no recap');
+      requireStableRecap('no recap', ['server'], 0);
     }).toThrow(/missing PLAY RECAP/i);
+    expect(() => {
+      requireStableRecap('PLAY RECAP\n', ['server'], 0);
+    }).toThrow(/every expected host/i);
+    expect(() => {
+      requireStableRecap(
+        'PLAY RECAP\nserver : ok=20 changed=1 unreachable=0 failed=0',
+        ['server'],
+        1,
+      );
+    }).not.toThrow();
   });
 
   it('never invents a replacement token for existing machines', async () => {
@@ -238,6 +279,22 @@ describe('the disposable Ubuntu VM lab', () => {
 });
 
 describe('the Ansible host and k3s contract', () => {
+  it('renders an actual newline and a valid sudoers boundary', async () => {
+    const root = join(import.meta.dir, '../../..');
+    const template = await readFile(
+      join(root, 'infra/ansible/roles/base/templates/operator-sudoers.j2'),
+      'utf8',
+    );
+    const rendered = template.replace('{{ puni_operator_name }}', 'puni');
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-sudoers-'));
+    const sudoersPath = join(directory, 'puni');
+    await writeFile(sudoersPath, rendered);
+
+    expect(rendered).toBe('puni ALL=(root) NOPASSWD: ALL\n');
+    const validation = Bun.spawnSync(['/usr/sbin/visudo', '-cf', sudoersPath]);
+    expect(validation.exitCode).toBe(0);
+  });
+
   it('keeps required inputs explicit and bootstraps and joins separately', async () => {
     const root = join(import.meta.dir, '../../..');
     await requireAnsibleLayout(root);
@@ -248,6 +305,14 @@ describe('the Ansible host and k3s contract', () => {
       join(root, 'infra/ansible/roles/network/tasks/main.yml'),
       'utf8',
     );
+    const firewall = await readFile(
+      join(root, 'infra/ansible/roles/network/templates/k3s.nft.j2'),
+      'utf8',
+    );
+    const firewallService = await readFile(
+      join(root, 'infra/ansible/roles/network/templates/puni-k3s-firewall.service.j2'),
+      'utf8',
+    );
     const server = await readFile(
       join(root, 'infra/ansible/roles/k3s_server/tasks/main.yml'),
       'utf8',
@@ -256,6 +321,7 @@ describe('the Ansible host and k3s contract', () => {
       join(root, 'infra/ansible/roles/k3s_agent/tasks/main.yml'),
       'utf8',
     );
+    const labSource = await readFile(join(root, 'tools/tool-fleet/src/lab.ts'), 'utf8');
 
     expect(bootstrap).toContain('k3s_bootstrap_servers');
     expect(bootstrap).toContain('puni_k3s_cluster_init: true');
@@ -263,14 +329,21 @@ describe('the Ansible host and k3s contract', () => {
     expect(joinPlaybook).toContain('puni_k3s_cluster_init: false');
     expect(joinPlaybook).toContain('k3s_agents');
     expect(base).toContain('puni_operator_authorized_keys is defined');
+    expect(base).toContain('content: |');
     expect(base).toContain('puni_swap_enabled is defined');
     expect(base).toContain("ansible_distribution_version == '24.04'");
     expect(network).toContain('nft -c -f');
+    expect(network).toContain('puni-k3s-firewall');
     expect(network).toContain('-M do');
+    expect(firewall).toContain('destroy table inet puni_k3s');
+    expect(firewall).toContain('tcp dport { 6443, 2379, 2380, 10250 } reject');
+    expect(firewall).toContain('udp dport 8472 drop');
+    expect(firewallService).toContain('WantedBy=multi-user.target');
     expect(server).toContain("checksum: 'sha256:{{ puni_k3s_sha256 }}'");
     expect(server).toContain('no_log: true');
     expect(agent).toContain("checksum: 'sha256:{{ puni_k3s_sha256 }}'");
     expect(agent).toContain('no_log: true');
+    expect(labSource).toContain("'--kill-after=0.1s'");
   });
 
   it('ships no role defaults for required security or identity state', async () => {
@@ -302,6 +375,14 @@ describe('the Ansible host and k3s contract', () => {
     expect(agentConfig).toContain('puni.io/enrollment=pending:NoSchedule');
     expect(validation).toContain('kubectl wait --for=condition=Ready');
     expect(validation).toContain('deployment/coredns');
+    expect(validation).toContain('kubectl patch deployment coredns');
+    expect(validation).toContain('"key":"puni.io/enrollment"');
+    expect(validation).toContain('hostvars[item.item].puni_machine_id');
+    expect(validation).toContain(
+      'dns-network-{{ ansible_loop.index }}-{{ puni_validation_run_id }}',
+    );
     expect(validation).toContain('puni.io/enrollment:NoSchedule-');
+    expect(serverConfig).toContain('puni.dev/capability-{{ capability }}=true');
+    expect(agentConfig).toContain('puni.dev/capability-{{ capability }}=true');
   });
 });

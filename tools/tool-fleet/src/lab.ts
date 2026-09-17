@@ -234,13 +234,24 @@ export async function runLabCommand(
   arguments_: readonly string[],
   timeoutMs = COMMAND_TIMEOUT_MS,
 ): Promise<CommandOutcome> {
-  const child = Bun.spawn([executable, ...arguments_], { stdout: 'pipe', stderr: 'pipe' });
+  const child = Bun.spawn([executable, ...arguments_], {
+    detached: true,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const timedOut = new Promise<never>((_resolve, reject) => {
     timeout = setTimeout(() => {
-      child.kill('SIGKILL');
-      // Proof: removing the kill/deadline let a deliberately sleeping production subprocess keep
-      // the lab command pending beyond its injected one-millisecond deadline.
+      try {
+        // Proof: killing only the direct process let its descendant write a mutation sentinel after
+        // the production lab command reported its injected timeout.
+        process.kill(-child.pid, 'SIGKILL');
+      } catch (cause) {
+        reject(
+          new Error(`${executable} timed out and its process group could not be killed`, { cause }),
+        );
+        return;
+      }
       reject(new Error(`${executable} timed out after ${String(timeoutMs)}ms`));
     }, timeoutMs);
   });
@@ -400,6 +411,34 @@ async function observeInterfaces(
   return interfaces;
 }
 
+/** Decode the independently observed Linux machine identity used for enrollment matching. */
+export function decodeMachineId(stdout: string, machineName: string): string {
+  const machineId = stdout.trim();
+  if (!/^[0-9a-f]{32}$/.test(machineId)) {
+    // Proof: accepting malformed provider-observed identity let a different Kubernetes machine
+    // satisfy enrollment validation under the expected node name.
+    throw new Error(`Fleet lab ${machineName} returned an invalid machine identity`);
+  }
+  return machineId;
+}
+
+async function observeMachineIds(
+  machines: readonly LabMachine[],
+): Promise<ReadonlyMap<string, string>> {
+  const machineIds = new Map<string, string>();
+  for (const machine of machines) {
+    const identity = await requireSuccess('multipass', [
+      'exec',
+      machine.name,
+      '--',
+      'cat',
+      '/etc/machine-id',
+    ]);
+    machineIds.set(machine.name, decodeMachineId(identity.stdout, machine.name));
+  }
+  return machineIds;
+}
+
 async function writeKnownHosts(
   bootstrap: LabBootstrap,
   machines: readonly LabMachine[],
@@ -487,16 +526,22 @@ async function writeLabState(
   const serverAddress = primaryAddress(server);
   const enrolledAddresses = machines.map(primaryAddress);
   const interfaces = await observeInterfaces(machines);
+  const machineIds = await observeMachineIds(machines);
   const hosts: Record<string, unknown> = {};
   for (const machine of machines) {
     const privateInterface = interfaces.get(machine.name);
     if (privateInterface === undefined) {
       throw new Error(`Fleet lab ${machine.name} has no observed private interface`);
     }
+    const machineId = machineIds.get(machine.name);
+    if (machineId === undefined) {
+      throw new Error(`Fleet lab ${machine.name} has no observed machine identity`);
+    }
     hosts[machine.name] = {
       ansible_host: primaryAddress(machine),
       puni_node_name: machine.name,
       puni_node_ip: primaryAddress(machine),
+      puni_machine_id: machineId,
       puni_private_interface: privateInterface,
       puni_node_capabilities: machine.name.includes('-server-')
         ? request.profile === 'workers'
@@ -550,32 +595,69 @@ async function writeLabState(
   return inventoryPath;
 }
 
-/** Refuse an absent recap, failed host, or change during the required second convergence. */
-export function requireStableRecap(stdout: string): void {
-  if (!stdout.includes('PLAY RECAP')) {
+/** Require complete expected-host recaps and only the explicitly modeled probe mutations. */
+export function requireStableRecap(
+  stdout: string,
+  expectedHosts: readonly string[],
+  expectedChanges: number,
+): void {
+  const marker = stdout.indexOf('PLAY RECAP');
+  if (marker < 0) {
     // Proof: accepting output with no recap made a truncated production Ansible run look stable.
     throw new Error('Ansible output is missing PLAY RECAP');
   }
-  if (/unreachable=[1-9]|failed=[1-9]/.test(stdout)) {
-    // Proof: accepting `failed=1` made the second-convergence production decoder report a broken
-    // host as stable.
-    throw new Error('Ansible recap reports an unreachable or failed host');
+  const recaps = new Map<string, { changed: number; unreachable: number; failed: number }>();
+  const pattern =
+    /^(\S+)\s*:\s+ok=\d+\s+changed=(\d+)\s+unreachable=(\d+)\s+failed=(\d+)(?:\s|$)/gm;
+  for (const match of stdout.slice(marker).matchAll(pattern)) {
+    const host = match[1];
+    const changed = match[2];
+    const unreachable = match[3];
+    const failed = match[4];
+    recaps.set(host, {
+      changed: Number.parseInt(changed, 10),
+      unreachable: Number.parseInt(unreachable, 10),
+      failed: Number.parseInt(failed, 10),
+    });
   }
-  if (/changed=[1-9]/.test(stdout)) {
-    // Proof: accepting `changed=1` made the second-convergence production decoder report an
-    // idempotent lab despite an unexplained mutation.
-    throw new Error('Ansible second convergence changed host state');
+  if (recaps.size !== expectedHosts.length || expectedHosts.some((host) => !recaps.has(host))) {
+    // Proof: accepting an empty or partial recap certified convergence without every expected host.
+    throw new Error('Ansible PLAY RECAP does not contain every expected host');
+  }
+  for (const [host, recap] of recaps) {
+    if (recap.unreachable !== 0 || recap.failed !== 0) {
+      // Proof: accepting `failed=1` made the second-convergence production decoder report a broken
+      // host as stable.
+      throw new Error(`Ansible recap reports an unreachable or failed host: ${host}`);
+    }
+    if (recap.changed !== expectedChanges) {
+      // Proof: accepting an unmodeled change made the second-convergence production decoder report
+      // stable host configuration despite unexplained mutation.
+      throw new Error(`Ansible second convergence changed host state unexpectedly: ${host}`);
+    }
   }
 }
 
 async function converge(
   root: string,
   inventoryPath: string,
+  profile: LabProfile,
+  machines: readonly LabMachine[],
   requireStable: boolean,
 ): Promise<void> {
   const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
   const image = `${toolchain.controller.image}@${toolchain.controller.digest}`;
+  const serverNames = machines
+    .filter(({ name }) => name.endsWith('-server-1'))
+    .map(({ name }) => name);
+  const agentNames = machines
+    .filter(({ name }) => name.includes('-agent-'))
+    .map(({ name }) => name);
+  const validationRunId = randomBytes(8).toString('hex');
   for (const playbook of ['bootstrap.yml', 'join.yml', 'validate-enrollment.yml']) {
+    const expectedHosts = playbook === 'join.yml' ? agentNames : serverNames;
+    const expectedChanges =
+      playbook === 'validate-enrollment.yml' ? (profile === 'workers' ? 2 : 1) : 0;
     const outcome = await requireSuccess('docker', [
       'run',
       '--rm',
@@ -588,15 +670,24 @@ async function converge(
       '--workdir',
       root,
       image,
+      'timeout',
+      '--signal=TERM',
+      // Proof: removing the container-side kill deadline made the locked-controller invocation
+      // contract test fail, leaving a disconnected Docker workload able to continue mutation.
+      '--kill-after=0.1s',
+      `${String(COMMAND_TIMEOUT_MS / 1000)}s`,
       'ansible-playbook',
       '--inventory',
       inventoryPath,
+      ...(playbook === 'validate-enrollment.yml'
+        ? ['--extra-vars', JSON.stringify({ puni_validation_run_id: validationRunId })]
+        : []),
       join(root, 'infra/ansible/playbooks', playbook),
     ]);
     if (/failed=[1-9]/.test(outcome.stdout)) {
       throw new Error(`Ansible ${playbook} reported a failed host`);
     }
-    if (requireStable) requireStableRecap(outcome.stdout);
+    if (requireStable) requireStableRecap(outcome.stdout, expectedHosts, expectedChanges);
   }
 }
 
@@ -648,6 +739,6 @@ export async function runVmLab(arguments_: readonly string[], root: string): Pro
     bootstrap,
     ownedBefore.length === 0,
   );
-  await converge(root, inventoryPath, false);
-  await converge(root, inventoryPath, true);
+  await converge(root, inventoryPath, request.profile, after, false);
+  await converge(root, inventoryPath, request.profile, after, true);
 }

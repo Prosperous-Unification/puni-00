@@ -41,7 +41,8 @@
 - name: Write the private server token
   ansible.builtin.copy:
     dest: /etc/rancher/k3s/server-token
-    content: '{{ puni_k3s_server_token }}\n'
+    content: |
+      {{ puni_k3s_server_token }}
     owner: root
     group: root
     mode: '0600'
@@ -50,7 +51,8 @@
 - name: Write the private agent token
   ansible.builtin.copy:
     dest: /etc/rancher/k3s/agent-token
-    content: '{{ puni_k3s_agent_token }}\n'
+    content: |
+      {{ puni_k3s_agent_token }}
     owner: root
     group: root
     mode: '0600'

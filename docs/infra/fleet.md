@@ -51,7 +51,8 @@ bunx nx run tool-fleet:lab -- down --lab-id f3-review --profile platform
 VM's host key through Multipass, writes owner-only state under
 `.puni/fleet-labs/`, and runs bootstrap, join, and enrollment validation twice
 through the digest-locked controller. The second pass refuses any nonzero
-`changed` recap. A retained cluster token is reused; an existing lab with a
+unmodeled `changed` recap; fresh validation Jobs have an exact profile-specific
+allowance. A retained cluster token is reused; an existing lab with a
 missing or malformed token refuses instead of inventing a replacement.
 
 The roles disable swap, install chrony and prerequisites, bound journald,

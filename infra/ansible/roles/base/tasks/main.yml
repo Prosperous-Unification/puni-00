@@ -11,6 +11,8 @@
       - puni_operator_authorized_keys | length > 0
       - puni_swap_enabled is defined
       - puni_swap_enabled == false
+      - puni_machine_id is defined
+      - puni_machine_id is match('^[0-9a-f]{32}$')
     fail_msg: Host support, operator identity, keys, and the disabled-swap policy are required
 
 - name: Install host prerequisites
@@ -47,15 +49,17 @@
 - name: Install the exact operator authorized keys
   ansible.builtin.copy:
     dest: '/home/{{ puni_operator_name }}/.ssh/authorized_keys'
-    content: '{{ puni_operator_authorized_keys | join("\n") }}\n'
+    content: |
+      {{ puni_operator_authorized_keys | join('\n') }}
     owner: '{{ puni_operator_name }}'
     group: '{{ puni_operator_name }}'
     mode: '0600'
 
 - name: Install the operator sudo boundary
-  ansible.builtin.copy:
+  # Proof: replacing the template newline with literal `\n` made the rendered-output visudo test fail.
+  ansible.builtin.template:
+    src: operator-sudoers.j2
     dest: '/etc/sudoers.d/90-{{ puni_operator_name }}-fleet'
-    content: '{{ puni_operator_name }} ALL=(root) NOPASSWD: ALL\n'
     owner: root
     group: root
     mode: '0440'

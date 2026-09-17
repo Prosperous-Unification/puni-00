@@ -1,3 +1,4 @@
+destroy table inet puni_k3s
 table inet puni_k3s {
   set enrolled_ipv4 {
     type ipv4_addr
@@ -7,11 +8,11 @@ table inet puni_k3s {
 
   chain input {
     type filter hook input priority -5; policy accept;
+    iifname "lo" accept
     tcp dport 22 accept comment "retain SSH recovery"
     iifname "{{ puni_private_interface }}" ip saddr @enrolled_ipv4 tcp dport { 6443, 2379, 2380, 10250 } accept
-    iifname "{{ puni_private_interface }}" tcp dport { 6443, 2379, 2380, 10250 } reject with tcp reset
+    tcp dport { 6443, 2379, 2380, 10250 } reject with tcp reset
     iifname "{{ puni_private_interface }}" ip saddr @enrolled_ipv4 udp dport 8472 accept
-    iifname "{{ puni_private_interface }}" udp dport 8472 drop
+    udp dport 8472 drop
   }
 }
-

@@ -71,7 +71,15 @@ function successfulRunner(instanceId = '1001') {
         response({
           items: [
             {
-              metadata: { name: 'platform-a', uid: 'uid-platform-a', labels: {} },
+              metadata: {
+                name: 'platform-a',
+                uid: 'uid-platform-a',
+                labels: {
+                  'puni.dev/capability-control-plane': 'true',
+                  'puni.dev/capability-product': 'true',
+                  'puni.dev/capability-ingress': 'true',
+                },
+              },
               spec: { providerID: `hcloud://${instanceId}` },
               status: { conditions: [{ type: 'Ready', status: 'True' }], nodeInfo: {} },
             },
@@ -135,6 +143,7 @@ describe('observeFleet', () => {
     expect(observation.complete).toBe(true);
     expect(observation.desiredRevision).toBe('fleet-discovery-v1');
     expect(observation.sources).toHaveLength(5);
+    expect(observation.nodes[0]?.capabilities).toEqual(['control-plane', 'product', 'ingress']);
     expect(observation.storage).toEqual([
       {
         clusterId: 'platform',
@@ -319,7 +328,7 @@ describe('observeFleet', () => {
         states: ['missing', 'ready'],
         identitySource: 'kubernetes-nodes:platform',
         kubernetesNodeUid: 'uid-platform-a',
-        capabilities: [],
+        capabilities: ['control-plane', 'product', 'ingress'],
         storageAttachments: [
           'pvc:default/claim-platform-a@pv:pv-platform-a#volumeattachment:attachment-platform-a',
         ],
@@ -814,7 +823,7 @@ PLAY RECAP *********************************************************************
                     metadata: {
                       name: 'platform-a',
                       uid: 'uid-platform-a',
-                      labels: { 'puni.dev/capabilities': 'database' },
+                      labels: { 'puni.dev/capability-database': 'true' },
                     },
                     spec: {},
                     status: { conditions: [], nodeInfo: {} },
@@ -823,6 +832,26 @@ PLAY RECAP *********************************************************************
               })
             : successfulRunner()(command),
         /kubernetes-nodes:platform.*unknown observed capability.*database/i,
+      ],
+      [
+        'disabled capability label',
+        async (command) =>
+          command.source === 'kubernetes-nodes:platform'
+            ? response({
+                items: [
+                  {
+                    metadata: {
+                      name: 'platform-a',
+                      uid: 'uid-platform-a',
+                      labels: { 'puni.dev/capability-product': 'false' },
+                    },
+                    spec: {},
+                    status: { conditions: [], nodeInfo: {} },
+                  },
+                ],
+              })
+            : successfulRunner()(command),
+        /kubernetes-nodes:platform.*non-true observed capability label/i,
       ],
       [
         'storage list',

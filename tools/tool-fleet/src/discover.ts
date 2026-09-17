@@ -309,13 +309,17 @@ function parseCapabilities(
 ): { readonly values: readonly Capability[]; readonly observed: boolean } {
   if (labelsInput === undefined) return { values: [], observed: false };
   const labels = requireRecord(labelsInput, source, 'metadata.labels');
-  const encoded = labels['puni.dev/capabilities'];
-  if (encoded === undefined) return { values: [], observed: false };
-  const values = requireString(encoded, source, 'metadata.labels[puni.dev/capabilities]').split(
-    ',',
-  );
-  const decoded: Capability[] = [];
-  for (const value of values) {
+  const prefix = 'puni.dev/capability-';
+  const capabilityLabels = Object.entries(labels).filter(([key]) => key.startsWith(prefix));
+  if (capabilityLabels.length === 0) return { values: [], observed: false };
+  const decoded = new Set<Capability>();
+  for (const [key, enabled] of capabilityLabels) {
+    const value = key.slice(prefix.length);
+    if (enabled !== 'true') {
+      // Proof: accepting a false-valued capability label made production discovery report a
+      // capability that k3s had not enabled on the node.
+      throw new Error(`${source} has non-true observed capability label: ${key}`);
+    }
     switch (value) {
       case 'control-plane':
       case 'product':
@@ -323,7 +327,7 @@ function parseCapabilities(
       case 'observability':
       case 'forge':
       case 'execution':
-        decoded.push(value);
+        decoded.add(value);
         break;
       default:
         // Proof: accepting this value made the observed-capability negative attach `database` to a
@@ -331,7 +335,18 @@ function parseCapabilities(
         throw new Error(`${source} has unknown observed capability: ${value}`);
     }
   }
-  return { values: decoded, observed: true };
+  const capabilityOrder: readonly Capability[] = [
+    'control-plane',
+    'product',
+    'ingress',
+    'observability',
+    'forge',
+    'execution',
+  ];
+  return {
+    values: capabilityOrder.filter((capability) => decoded.has(capability)),
+    observed: true,
+  };
 }
 
 function parseKubernetesNodes(input: unknown, source: DiscoverySource): readonly KubernetesNode[] {

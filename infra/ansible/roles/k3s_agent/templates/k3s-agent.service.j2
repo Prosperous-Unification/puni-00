@@ -1,7 +1,7 @@
 [Unit]
 Description=Lightweight Kubernetes Agent
-After=network-online.target
-Wants=network-online.target
+After=network-online.target puni-k3s-firewall.service
+Wants=network-online.target puni-k3s-firewall.service
 
 [Service]
 Type=exec
@@ -15,4 +15,3 @@ RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
-

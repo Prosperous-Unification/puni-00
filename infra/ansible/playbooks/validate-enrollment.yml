@@ -12,7 +12,9 @@
         that:
           - puni_validation_image is defined
           - puni_validation_image is match('^.+@sha256:[0-9a-f]{64}$')
-        fail_msg: A digest-pinned validation image is required
+          - puni_validation_run_id is defined
+          - puni_validation_run_id is match('^[0-9a-f]{16}$')
+        fail_msg: A digest-pinned validation image and unique run identity are required
 
     - name: Wait for every expected node to become Ready
       ansible.builtin.command: >-
@@ -23,17 +25,38 @@
     - name: Read every Kubernetes node identity
       ansible.builtin.command: >-
         k3s kubectl get node {{ item }}
-        -o jsonpath={.metadata.uid}:{.status.nodeInfo.machineID}
+        -o 'jsonpath={.metadata.uid}|{.status.nodeInfo.machineID}|{.status.addresses[?(@.type=="InternalIP")].address}'
       loop: '{{ puni_all_nodes }}'
       register: puni_node_identities
       changed_when: false
 
     - name: Require stable Kubernetes and machine identities
+      # Proof: accepting nonempty identity instead of the independently observed value made the enrollment contract test fail.
       ansible.builtin.assert:
         that:
-          - item.stdout is match('^[^:]+:.+$')
-        fail_msg: 'Node {{ item.item }} lacks Kubernetes or machine identity'
+          - item.stdout.split('|') | length == 3
+          - item.stdout.split('|')[0] | length > 0
+          - item.stdout.split('|')[1] == hostvars[item.item].puni_machine_id
+          - item.stdout.split('|')[2] == hostvars[item.item].puni_node_ip
+        fail_msg: 'Node {{ item.item }} does not match its independently observed machine identity and address'
       loop: '{{ puni_node_identities.results }}'
+
+    - name: Wait for the packaged CoreDNS deployment to exist
+      ansible.builtin.command: >-
+        k3s kubectl wait --for=create deployment/coredns
+        --namespace kube-system --timeout=180s
+      changed_when: false
+
+    - name: Allow CoreDNS to start while enrollment remains restricted
+      # Proof: replacing this patch with a read made the taint-safe DNS bootstrap contract test fail.
+      ansible.builtin.command: >-
+        k3s kubectl patch deployment coredns --namespace kube-system
+        --type=strategic --patch-file=-
+      args:
+        stdin: |
+          {"spec":{"template":{"spec":{"tolerations":[{"key":"puni.io/enrollment","operator":"Exists","effect":"NoSchedule"}]}}}}
+      register: puni_coredns_toleration
+      changed_when: "'(no change)' not in puni_coredns_toleration.stdout"
 
     - name: Wait for cluster DNS
       ansible.builtin.command: >-
@@ -41,7 +64,8 @@
         --namespace kube-system --timeout=180s
       changed_when: false
 
-    - name: Apply the cross-node DNS and pod-network probe
+    - name: Apply fresh DNS and pod-network probes from every enrolling node
+      # Proof: replacing per-run per-node names with one historical Job made the fresh-probe contract test fail.
       ansible.builtin.command: k3s kubectl apply -f -
       args:
         stdin: |
@@ -58,7 +82,7 @@
             labels:
               app: receiver
           spec:
-            nodeName: {{ groups['k3s_agents'][0] }}
+            nodeName: {{ groups['k3s_bootstrap_servers'][0] }}
             tolerations:
               - key: puni.io/enrollment
                 operator: Exists
@@ -79,16 +103,18 @@
             ports:
               - port: 8080
                 targetPort: 8080
+          {% for node in puni_all_nodes %}
           ---
           apiVersion: batch/v1
           kind: Job
           metadata:
-            name: dns-and-network
+            name: dns-network-{{ loop.index }}-{{ puni_validation_run_id }}
             namespace: {{ puni_probe_namespace }}
           spec:
+            ttlSecondsAfterFinished: 300
             template:
               spec:
-                nodeName: {{ groups['k3s_bootstrap_servers'][0] }}
+                nodeName: {{ node }}
                 tolerations:
                   - key: puni.io/enrollment
                     operator: Exists
@@ -100,13 +126,18 @@
                     image: {{ puni_validation_image }}
                     imagePullPolicy: IfNotPresent
                     command: [sh, -c, 'test "$(wget -qO- http://receiver.{{ puni_probe_namespace }}.svc.cluster.local:8080)" = ok']
+          {% endfor %}
       register: puni_network_probe_apply
       changed_when: "'created' in puni_network_probe_apply.stdout or 'configured' in puni_network_probe_apply.stdout"
 
-    - name: Wait for the cross-node DNS and pod-network probe
+    - name: Wait for every fresh DNS and pod-network probe
       ansible.builtin.command: >-
         k3s kubectl wait --for=condition=Complete
-        job/dns-and-network --namespace {{ puni_probe_namespace }} --timeout=180s
+        job/dns-network-{{ ansible_loop.index }}-{{ puni_validation_run_id }}
+        --namespace {{ puni_probe_namespace }} --timeout=180s
+      loop: '{{ puni_all_nodes }}'
+      loop_control:
+        extended: true
       changed_when: false
 
     - name: Read enrollment taints
@@ -130,9 +161,10 @@
           apiVersion: batch/v1
           kind: Job
           metadata:
-            name: worker-scheduling
+            name: worker-scheduling-{{ puni_validation_run_id }}
             namespace: {{ puni_probe_namespace }}
           spec:
+            ttlSecondsAfterFinished: 300
             template:
               spec:
                 restartPolicy: Never
@@ -148,14 +180,16 @@
     - name: Wait for the worker scheduling proof
       ansible.builtin.command: >-
         k3s kubectl wait --for=condition=Complete
-        job/worker-scheduling --namespace {{ puni_probe_namespace }} --timeout=180s
+        job/worker-scheduling-{{ puni_validation_run_id }}
+        --namespace {{ puni_probe_namespace }} --timeout=180s
       when: puni_cluster_id == 'workers'
       changed_when: false
 
     - name: Read the worker activity node
       ansible.builtin.command: >-
         k3s kubectl get pods --namespace {{ puni_probe_namespace }}
-        --selector job-name=worker-scheduling -o jsonpath={.items[0].spec.nodeName}
+        --selector job-name=worker-scheduling-{{ puni_validation_run_id }}
+        -o jsonpath={.items[0].spec.nodeName}
       register: puni_worker_probe_node
       when: puni_cluster_id == 'workers'
       changed_when: false

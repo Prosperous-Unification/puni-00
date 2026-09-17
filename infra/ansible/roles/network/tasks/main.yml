@@ -48,26 +48,29 @@
   register: puni_firewall_candidate
 
 - name: Validate the new firewall before changing active rules
+  # Proof: breaking the isolated transaction made the committed firewall contract test fail before activation.
   ansible.builtin.command: >-
     unshare --net nft -c -f /etc/nftables.d/puni-k3s-{{ puni_cluster_id }}.nft
   changed_when: false
 
-- name: Inspect the owned firewall table
-  ansible.builtin.command: nft list table inet puni_k3s
-  register: puni_firewall_table
-  changed_when: false
-  failed_when: puni_firewall_table.rc not in [0, 1]
+- name: Install the persistent isolated k3s firewall service
+  # Proof: removing multi-user enablement made the reboot-persistence contract test fail.
+  ansible.builtin.template:
+    src: puni-k3s-firewall.service.j2
+    dest: /etc/systemd/system/puni-k3s-firewall.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - Reload systemd for fleet firewall
+    - Restart fleet firewall
 
-- name: Remove only the previous owned firewall table
-  ansible.builtin.command: nft delete table inet puni_k3s
-  when: puni_firewall_candidate.changed and puni_firewall_table.rc == 0
-  changed_when: true
-
-- name: Activate the validated owned firewall table
-  ansible.builtin.command: >-
-    nft -f /etc/nftables.d/puni-k3s-{{ puni_cluster_id }}.nft
-  when: puni_firewall_candidate.changed or puni_firewall_table.rc == 1
-  changed_when: true
+- name: Start the persistent isolated k3s firewall
+  ansible.builtin.systemd_service:
+    name: puni-k3s-firewall
+    state: started
+    enabled: true
+    daemon_reload: true
 
 - name: Verify private-path MTU without fragmentation
   ansible.builtin.command: >-
