@@ -100,8 +100,9 @@ to match.
 
 Apply requires the printed digest and runs each step under the cluster Lease.
 The playbook checks the explicit Kubernetes context, live provider ID,
-Kubernetes UID, Ready capability floors, a linearizable etcd MemberList, and
-the Ready/EtcdIsVoter conditions of every surviving member, registration
+Kubernetes UID, Ready capability floors, a linearizable etcd MemberList, an
+unambiguous member-to-node mapping, and fresh linearizable health from every
+counted surviving voter, registration
 endpoint placement, hostPath and local-PV topology before each mutation. It
 honors PDB failures, waits for workload recovery and volume detach, asks k3s to
 remove the exact embedded-etcd member, then disables k3s and removes its

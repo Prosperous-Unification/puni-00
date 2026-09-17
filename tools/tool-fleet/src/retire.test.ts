@@ -94,8 +94,9 @@ fi
 
     const members = {
       members: [
-        { name: 'target', isLearner: false, clientURLs: ['https://target:2379'] },
+        { ID: '1', name: 'target', isLearner: false, clientURLs: ['https://target:2379'] },
         ...Array.from({ length: 6 }, (_, position) => ({
+          ID: String(position + 2),
           name: `survivor-${String(position + 1)}`,
           isLearner: false,
           clientURLs: [`https://survivor-${String(position + 1)}:2379`],
@@ -118,36 +119,65 @@ fi
     );
     expect(membership.exitCode).toBe(0);
     const voters = membership.stdout.toString().trim();
-    const quorumCommand = shell('Require a healthy surviving majority of actual etcd voters')
+    const voterNodes = Array.from({ length: 6 }, (_, position) => ({
+      metadata: {
+        name: `node-${String(position + 1)}`,
+        annotations: {
+          'etcd.k3s.cattle.io/node-name': `survivor-${String(position + 1)}`,
+        },
+      },
+    }));
+    const mappingCommand = shell('Map every surviving etcd voter to one exact Kubernetes node')
       .replace("'{{ puni_kube_context }}'", "'workers'")
       .replace("'{{ puni_etcd_member_name }}'", "'target'")
-      .replace("'{{ puni_minimum_surviving_control_planes | int }}'", '3')
       .replace("'{{ puni_actual_etcd_voters.stdout }}'", `'${voters}'`);
-    const runQuorum = async (healthyNames: readonly string[]) => {
+    const runMapping = async (nodes: readonly (typeof voterNodes)[number][]) => {
       await writeFile(
         kubectl,
-        `#!/bin/bash
-printf '%s\\n' '${JSON.stringify({
-          items: healthyNames.map((name) => ({
-            metadata: { annotations: { 'etcd.k3s.cattle.io/node-name': name } },
-            status: {
-              conditions: [
-                { type: 'Ready', status: 'True' },
-                { type: 'EtcdIsVoter', status: 'True' },
-              ],
-            },
-          })),
-        })}'
-`,
+        `#!/bin/bash\nprintf '%s\\n' '${JSON.stringify({ items: nodes })}'\n`,
       );
-      return Bun.spawnSync(['/bin/bash', '-c', quorumCommand], {
+      return Bun.spawnSync(['/bin/bash', '-c', mappingCommand], {
         env: { ...process.env, PATH: `${directory}:${process.env['PATH'] ?? ''}` },
       });
     };
+    expect((await runMapping(voterNodes)).exitCode).toBe(0);
+    const firstNode = voterNodes[0];
     expect(
-      (await runQuorum(['survivor-1', 'survivor-2', 'survivor-3', 'survivor-4'])).exitCode,
-    ).toBe(0);
-    expect((await runQuorum(['survivor-1', 'survivor-2', 'survivor-3'])).exitCode).not.toBe(0);
+      (
+        await runMapping([
+          ...voterNodes,
+          { ...firstNode, metadata: { ...firstNode.metadata, name: 'duplicate-node' } },
+        ])
+      ).exitCode,
+    ).not.toBe(0);
+
+    const probes = (healthyCount: number) =>
+      Array.from({ length: 6 }, (_, position) => ({
+        rc: position < healthyCount ? 0 : 22,
+        puni_surviving_etcd_node: { memberId: String(position + 2) },
+      }));
+    const quorumCommand = shell(
+      'Require a freshly healthy surviving majority of distinct etcd voters',
+    )
+      .replace("'{{ puni_actual_etcd_voters.stdout }}'", `'${voters}'`)
+      .replace("'{{ puni_minimum_surviving_control_planes | int }}'", '3');
+    const runQuorum = (healthyCount: number) =>
+      Bun.spawnSync(
+        [
+          '/bin/bash',
+          '-c',
+          quorumCommand.replace(
+            "'{{ puni_surviving_etcd_health.results | to_json }}'",
+            `'${JSON.stringify(probes(healthyCount))}'`,
+          ),
+        ],
+        { env: process.env },
+      );
+    expect(runQuorum(4).exitCode).toBe(0);
+    expect(runQuorum(3).exitCode).not.toBe(0);
+    expect(shell('Probe fresh linearizable health on every surviving etcd voter')).toContain(
+      'https://127.0.0.1:2382/health?serializable=false',
+    );
     // Proof: the exact production shells fail when a later empty attachment query follows a
     // Pending workload and when only three survivors of seven actual etcd voters are healthy.
   });

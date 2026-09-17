@@ -107,23 +107,77 @@
           'etcd.k3s.cattle.io/removed-node-name'] | default('') | length == 0
       tags: [always]
 
-    # K3s publishes EtcdIsVoter=False for an unhealthy voter or a member with alarms. Binding those
-    # conditions to every name in the actual MemberList prevents ghost members shrinking quorum.
-    - name: Require a healthy surviving majority of actual etcd voters
+    - name: Map every surviving etcd voter to one exact Kubernetes node
       ansible.builtin.shell:
         cmd: >-
           set -euo pipefail;
           kubectl --context '{{ puni_kube_context }}' get nodes -o json |
-          jq -e --arg target '{{ puni_etcd_member_name }}'
-          --argjson minimum '{{ puni_minimum_surviving_control_planes | int }}'
+          jq -c --arg target '{{ puni_etcd_member_name }}'
           --argjson voters '{{ puni_actual_etcd_voters.stdout }}'
-          '[.items[] as $node | $voters[] |
-          select(.name != $target) as $member |
-          select($node.metadata.annotations["etcd.k3s.cattle.io/node-name"] == $member.name) |
-          select(([ $node.status.conditions[]? |
-          select(.type == "Ready" and .status == "True") ] | length) == 1) |
-          select(([ $node.status.conditions[]? |
-          select(.type == "EtcdIsVoter" and .status == "True") ] | length) == 1)] as $healthy |
+          '. as $nodes |
+          [$voters[] | select(.name != $target) as $member |
+          [$nodes.items[] |
+          select(.metadata.annotations["etcd.k3s.cattle.io/node-name"] == $member.name)] as $matches |
+          select(($matches | length) == 1) |
+          {memberId: $member.ID, memberName: $member.name,
+          nodeName: $matches[0].metadata.name}] as $mapped |
+          if (($mapped | length) == (($voters | length) - 1) and
+          ([$mapped[].memberId] | all(. != null)) and
+          ([$mapped[].memberId] | unique | length) == ($mapped | length) and
+          ([$mapped[].memberName] | unique | length) == ($mapped | length) and
+          ([$mapped[].nodeName] | unique | length) == ($mapped | length))
+          then $mapped else error("ambiguous or incomplete etcd voter mapping") end'
+      args:
+        executable: /bin/bash
+      delegate_to: localhost
+      become: false
+      register: puni_surviving_etcd_nodes
+      changed_when: false
+      when:
+        - puni_control_plane_target | bool
+        - not (puni_etcd_membership_removed | bool)
+        - >-
+          (puni_retirement_node.stdout | from_json).metadata.annotations[
+          'etcd.k3s.cattle.io/removed-node-name'] | default('') != puni_etcd_member_name
+      tags: [always]
+
+    - name: Probe fresh linearizable health on every surviving etcd voter
+      ansible.builtin.shell:
+        cmd: >-
+          set -euo pipefail;
+          curl --fail --silent --show-error
+          --cacert /var/lib/rancher/k3s/server/tls/etcd/server-ca.crt
+          --cert /var/lib/rancher/k3s/server/tls/etcd/server-client.crt
+          --key /var/lib/rancher/k3s/server/tls/etcd/server-client.key
+          https://127.0.0.1:2382/health?serializable=false |
+          jq -e '.health == true or .health == "true"' >/dev/null
+      args:
+        executable: /bin/bash
+      delegate_to: '{{ puni_surviving_etcd_node.nodeName }}'
+      loop: '{{ puni_surviving_etcd_nodes.stdout | from_json }}'
+      loop_control:
+        loop_var: puni_surviving_etcd_node
+      register: puni_surviving_etcd_health
+      changed_when: false
+      failed_when: false
+      ignore_unreachable: true
+      when:
+        - puni_control_plane_target | bool
+        - not (puni_etcd_membership_removed | bool)
+        - >-
+          (puni_retirement_node.stdout | from_json).metadata.annotations[
+          'etcd.k3s.cattle.io/removed-node-name'] | default('') != puni_etcd_member_name
+      tags: [always]
+
+    # Proof: four distinct healthy member IDs pass for seven voters while three fail; duplicate
+    # Kubernetes annotations are rejected by the mapping task before this count.
+    - name: Require a freshly healthy surviving majority of distinct etcd voters
+      ansible.builtin.shell:
+        cmd: >-
+          jq -ne --argjson voters '{{ puni_actual_etcd_voters.stdout }}'
+          --argjson probes '{{ puni_surviving_etcd_health.results | to_json }}'
+          --argjson minimum '{{ puni_minimum_surviving_control_planes | int }}'
+          '([$probes[] | select(.rc == 0) | .puni_surviving_etcd_node.memberId] | unique) as $healthy |
           ($healthy | length) >= $minimum and
           ($healthy | length) >= ((($voters | length) / 2 | floor) + 1)'
       args:
