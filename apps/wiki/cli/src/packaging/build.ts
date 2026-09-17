@@ -40,10 +40,13 @@ async function buildToolkit(repository: string, destination: string): Promise<Ui
     ),
   } as const;
   const modulesRoot = join(repository, 'node_modules');
+  // The package manager owns this trusted manifest boundary; only the two optional dependency
+  // maps read below are claimed, and each selected version is rechecked before release.
   const rootManifest = JSON.parse(await readFile(join(repository, 'package.json'), 'utf8')) as {
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
   };
+  // `assertPinnedTypeScript` below validates the only claimed field before it affects the build.
   const installedTypeScript = JSON.parse(
     await readFile(join(packageDirectory(modulesRoot, 'typescript'), 'package.json'), 'utf8'),
   ) as { version?: string };

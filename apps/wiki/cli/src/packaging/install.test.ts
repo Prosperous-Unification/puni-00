@@ -1,10 +1,12 @@
 import {
   cpSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   renameSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -83,6 +85,35 @@ function installTarball(tarball: string): { consumer: string; executable: string
 
 function invoke(executable: string, argv: readonly string[], cwd: string) {
   return run([process.execPath, executable, ...argv], cwd);
+}
+
+function invokeWithoutWorkspace(executable: string, argv: readonly string[], cwd: string) {
+  const bubblewrap = Bun.which('bwrap');
+  if (bubblewrap === null) {
+    throw new Error('bwrap is required to prove package execution without the source workspace');
+  }
+  return run(
+    [
+      bubblewrap,
+      '--die-with-parent',
+      '--new-session',
+      '--ro-bind',
+      '/',
+      '/',
+      '--dev',
+      '/dev',
+      '--proc',
+      '/proc',
+      '--tmpfs',
+      workspace,
+      '--chdir',
+      cwd,
+      process.execPath,
+      executable,
+      ...argv,
+    ],
+    cwd,
+  );
 }
 
 function bindInstalledToolkit(installed: string): void {
@@ -204,14 +235,11 @@ describe('packed Twilight Bureaucrat installation', () => {
     expect(help.stdout.toString()).toContain('twilight-bureaucrat validate-record');
     const fixture = join(consumer, 'benchmark-corpus.v1.json');
     cpSync(join(packageSource, 'src/contracts/fixtures/benchmark-corpus.v1.json'), fixture);
-    const unavailableSource = `${packageSource}.unavailable-${String(process.pid)}`;
-    renameSync(packageSource, unavailableSource);
-    let validation: ReturnType<typeof invoke>;
-    try {
-      validation = invoke(executable, ['validate-record', 'benchmark-corpus', fixture], consumer);
-    } finally {
-      renameSync(unavailableSource, packageSource);
-    }
+    const validation = invokeWithoutWorkspace(
+      executable,
+      ['validate-record', 'benchmark-corpus', fixture],
+      consumer,
+    );
     expect(validation.exitCode, validation.stderr.toString()).toBe(0);
     expect(validation.stdout.toString()).toBe('valid benchmark-corpus\n');
     expect(hashBytes(readFileSync(packedTarball))).toMatch(/^[0-9a-f]{64}$/);
@@ -225,7 +253,7 @@ describe('packed Twilight Bureaucrat installation', () => {
 
   test('prepares certified admission and the old activation refuses a newer commit', () => {
     const { consumer, executable } = installTarball(packedTarball);
-    const fixture = createRelocationCandidate();
+    const fixture = createRelocationCandidate({ materializeModules: true });
     const out = scratch('twilight-bureaucrat-activation-');
     const prepared = invoke(executable, preparationArguments(fixture, out), consumer);
     const output = `${prepared.stdout.toString()}${prepared.stderr.toString()}`;
@@ -233,10 +261,14 @@ describe('packed Twilight Bureaucrat installation', () => {
     expect(output).toContain(`toolkit activation: ${fixture.candidateRevision}`);
     expect(output).toContain('"certified":true');
 
-    const validator = join(fixture.repository, 'src/new/cli.ts');
-    write(validator, `${readFileSync(validator, 'utf8')}\nexport const changed = true;\n`);
+    const policyPath = join(fixture.repository, 'docs/wiki-policy/policy.json');
+    const policy = JSON.parse(readFileSync(policyPath, 'utf8')) as {
+      obligations: { checkIds: string[] }[];
+    };
+    policy.obligations[0].checkIds = [];
+    write(policyPath, `${JSON.stringify(policy)}\n`);
     git(fixture.repository, ['add', '--all']);
-    git(fixture.repository, ['commit', '--message', 'change candidate after activation']);
+    git(fixture.repository, ['commit', '--message', 'skip failed check after activation']);
     const changedRevision = git(fixture.repository, ['rev-parse', 'HEAD']);
     const stale = run(
       [process.execPath, executable, 'lint', 'committed', fixture.repository, changedRevision],
@@ -270,6 +302,39 @@ describe('packed Twilight Bureaucrat installation', () => {
       'toolkit role differs from toolkit.json: validator.mjs',
     );
   }, 300_000);
+
+  test('installed execution refuses every invalid package-manifest state', () => {
+    const { consumer, executable } = installTarball(packedTarball);
+    const manifest = join(consumer, 'node_modules/twilight-bureaucrat/dist/package-manifest.json');
+    const source = readFileSync(manifest);
+    const invokeValidation = () =>
+      invoke(executable, ['validate-record', 'benchmark-corpus', 'absent'], consumer);
+
+    renameSync(manifest, `${manifest}.saved`);
+    const missing = invokeValidation();
+    expect(missing.exitCode).not.toBe(0);
+    expect(missing.stderr.toString()).toContain('installed package manifest is unreadable');
+    renameSync(`${manifest}.saved`, manifest);
+
+    renameSync(manifest, `${manifest}.saved`);
+    mkdirSync(manifest);
+    const unreadable = invokeValidation();
+    expect(unreadable.exitCode).not.toBe(0);
+    expect(unreadable.stderr.toString()).toContain('installed package manifest is unreadable');
+    rmSync(manifest, { recursive: true });
+    renameSync(`${manifest}.saved`, manifest);
+
+    writeFileSync(manifest, '{');
+    const malformed = invokeValidation();
+    expect(malformed.exitCode).not.toBe(0);
+    expect(malformed.stderr.toString()).toContain('installed package manifest is malformed');
+
+    writeFileSync(manifest, '{}\n');
+    const invalid = invokeValidation();
+    expect(invalid.exitCode).not.toBe(0);
+    expect(invalid.stderr.toString()).toContain('installed package manifest is invalid');
+    writeFileSync(manifest, source);
+  }, 120_000);
 
   test('a self-consistent substituted toolkit is refused by the package identity', async () => {
     const repackedRoot = scratch('twilight-bureaucrat-substituted-toolkit-');
@@ -362,7 +427,7 @@ describe('packed Twilight Bureaucrat installation', () => {
 
   test('installed preparation refuses a candidate target that reports skipped tests', () => {
     const { consumer, executable } = installTarball(packedTarball);
-    const fixture = createRelocationCandidate({ skippingCheck: true });
+    const fixture = createRelocationCandidate({ materializeModules: true, skippingCheck: true });
     const out = scratch('twilight-bureaucrat-skipping-check-');
     const refused = invoke(executable, preparationArguments(fixture, out), consumer);
     expect(refused.exitCode).not.toBe(0);

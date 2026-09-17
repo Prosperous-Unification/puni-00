@@ -134,6 +134,9 @@ describe('package release planner', () => {
     );
     expect(workflow.match(/ref: \$\{\{ github\.sha \}\}/g)).toHaveLength(2);
     expect(workflow).not.toContain('ref: ${{ github.ref }}');
+    expect(workflow).toContain(
+      'git fetch --no-tags origin "+refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"',
+    );
     expect(workflow).toContain('github-release-absent --status "$status"');
     expect(workflow).toContain('verify-registry --record "$record"');
     expect(workflow).toContain('bun add --exact --ignore-scripts twilight-bureaucrat@0.1.0');
@@ -225,6 +228,48 @@ describe('package release planner', () => {
         ),
       ),
     ).toContain('published registry integrity differs from release record');
+
+    expect(
+      await refusal(
+        verifyPublishedPackage(
+          record,
+          () => ({
+            exitCode: 0,
+            stderr: new Uint8Array(),
+            stdout: new TextEncoder().encode('{'),
+          }),
+          () => Promise.resolve(),
+        ),
+      ),
+    ).toContain('published registry metadata is malformed');
+
+    expect(
+      await refusal(
+        verifyPublishedPackage(
+          record,
+          () => ({
+            exitCode: 1,
+            stderr: new TextEncoder().encode('registry timed out'),
+            stdout: new Uint8Array(),
+          }),
+          () => Promise.resolve(),
+        ),
+      ),
+    ).toContain('cannot read published registry package: registry timed out');
+
+    expect(
+      await refusal(
+        verifyPublishedPackage(
+          record,
+          () => ({
+            exitCode: 1,
+            stderr: new TextEncoder().encode('404 Not Found'),
+            stdout: new Uint8Array(),
+          }),
+          () => Promise.resolve(),
+        ),
+      ),
+    ).toContain('published registry package did not become readable');
 
     const invalidRecord = join(release.root, 'invalid-release.json');
     writeFileSync(invalidRecord, '{}\n');
@@ -361,6 +406,42 @@ describe('package release planner', () => {
         ),
       ),
     ).toContain('release tag is not at HEAD');
+  });
+
+  test('prepares from a SHA-only checkout after fetching the immutable event tag', async () => {
+    const release = fixture();
+    const checkout = join(release.root, 'sha-checkout');
+    run(['git', 'clone', '--no-local', '--no-tags', release.repository, checkout], release.root);
+    run(['git', 'checkout', '--detach', release.sourceRevision], checkout);
+    expect(
+      await refusal(
+        preparePackageRelease(
+          {
+            eventRevision: release.sourceRevision,
+            record: join(release.root, 'before-fetch.json'),
+            repository: checkout,
+            tag: release.tag,
+            tarball: release.tarball,
+          },
+          absent,
+        ),
+      ),
+    ).toContain('release tag is unknown');
+    run(
+      ['git', 'fetch', '--no-tags', 'origin', `+refs/tags/${release.tag}:refs/tags/${release.tag}`],
+      checkout,
+    );
+    const planned = await preparePackageRelease(
+      {
+        eventRevision: release.sourceRevision,
+        record: join(release.root, 'after-fetch.json'),
+        repository: checkout,
+        tag: release.tag,
+        tarball: release.tarball,
+      },
+      absent,
+    );
+    expect(planned.sourceRevision).toBe(release.sourceRevision);
   });
 
   test('refuses a missing packaged asset and a version that already exists', async () => {

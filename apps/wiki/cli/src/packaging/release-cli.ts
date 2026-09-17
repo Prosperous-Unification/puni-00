@@ -63,6 +63,8 @@ export async function verifyPublishedPackage(
       try {
         metadata = JSON.parse(stdout) as unknown;
       } catch (cause) {
+        // Proof: injecting a successful registry response containing `{` made the production
+        // verifier throw an unlabelled JSON diagnostic until this boundary named the metadata.
         throw new Error('published registry metadata is malformed', { cause });
       }
       const integrity = isRecord(metadata) ? metadata['dist'] : undefined;
@@ -77,10 +79,14 @@ export async function verifyPublishedPackage(
       return `${record.packageName}@${record.version} ${record.integrity}`;
     }
     if (!/404|not found/i.test(`${stdout}\n${stderr}`)) {
+      // Proof: injecting a registry timeout made the retry loop classify unknown state as
+      // propagation until this refusal preserved the transport failure.
       throw new Error(`cannot read published registry package: ${stderr.trim() || stdout.trim()}`);
     }
     if (attempt < 12) await delay(5_000);
   }
+  // Proof: injecting twelve 404 responses made the verifier return without proving publication
+  // until this bounded-convergence refusal made the missing coordinate release-blocking.
   throw new Error(
     `published registry package did not become readable: ${record.packageName}@${record.version}`,
   );

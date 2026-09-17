@@ -1,5 +1,6 @@
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -261,6 +262,37 @@ const fixtureTargets = {
 
 type FixtureTarget = keyof typeof fixtureTargets;
 
+function materializeFixtureModules(repository: string): void {
+  const pending = ['nx', 'typescript'];
+  const modules = new Set<string>();
+  while (pending.length > 0) {
+    const name = pending.shift();
+    if (name === undefined || modules.has(name)) continue;
+    const manifestPath = join(workspaceRoot, 'node_modules', name, 'package.json');
+    if (!existsSync(manifestPath)) continue;
+    modules.add(name);
+    // Fixture input comes from the installed package manager tree; only dependency maps are read,
+    // and absent/non-object values contribute no package names through Object.keys below.
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      dependencies?: Record<string, string>;
+      optionalDependencies?: Record<string, string>;
+    };
+    pending.push(
+      ...Object.keys({
+        ...manifest.dependencies,
+        ...manifest.optionalDependencies,
+      }),
+    );
+  }
+  for (const name of [...modules].sort()) {
+    const destination = join(repository, 'node_modules', name);
+    mkdirSync(dirname(destination), { recursive: true });
+    cpSync(join(workspaceRoot, 'node_modules', name), destination, { recursive: true });
+  }
+  mkdirSync(join(repository, 'node_modules/.bin'), { recursive: true });
+  symlinkSync('../nx/dist/bin/nx.js', join(repository, 'node_modules/.bin/nx'));
+}
+
 function declarations(target: FixtureTarget): object {
   return {
     schemaVersion: 1,
@@ -306,6 +338,8 @@ export function createRelocationCandidate(
     failingCheck?: boolean;
     /** Point it at a `bun test` target that reports one skipped test and still exits 0. */
     skippingCheck?: boolean;
+    /** Install an independent candidate dependency tree instead of linking the source checkout. */
+    materializeModules?: boolean;
     minimumMode?: 'observe' | 'enforce';
   } = {},
 ): RelocationFixture {
@@ -316,7 +350,6 @@ export function createRelocationCandidate(
   git(repository, ['init', '--initial-branch=main']);
   git(repository, ['config', 'user.email', 'relocation@example.test']);
   git(repository, ['config', 'user.name', 'Relocation Fixture']);
-  symlinkSync(join(workspaceRoot, 'node_modules'), join(repository, 'node_modules'), 'dir');
   write(join(repository, '.gitignore'), 'node_modules\n.nx\n');
   write(
     join(repository, '.bun-version'),
@@ -330,6 +363,11 @@ export function createRelocationCandidate(
       devDependencies: { nx: '23.2.0', typescript: 'npm:@typescript/typescript6@6.0.2' },
     })}\n`,
   );
+  if (options.materializeModules === true) {
+    materializeFixtureModules(repository);
+  } else {
+    symlinkSync(join(workspaceRoot, 'node_modules'), join(repository, 'node_modules'), 'dir');
+  }
   write(join(repository, 'nx.json'), `${JSON.stringify({ targetDefaults: {} })}\n`);
   cpSync(
     join(workspaceRoot, 'bin', 'tool-wiki-lint.sh'),
