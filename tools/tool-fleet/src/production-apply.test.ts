@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { access, mkdtemp, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdtemp, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -31,11 +31,14 @@ const ansibleVariablesSource = `${JSON.stringify({
   puni_node_name: 'workers-c',
   puni_cluster_id: 'workers',
   puni_node_ip: '10.0.0.23',
-  puni_machine_id: '0123456789abcdef0123456789abcdef',
   puni_node_capabilities: ['execution'],
 })}\n`;
+const terraformVariablesSource = '{"nodes":{}}\n';
 
-function operationPlan(terraformPlanSha256: string): OperationPlan {
+function operationPlan(
+  terraformPlanSha256: string,
+  terraformVariablesSha256 = createHash('sha256').update(terraformVariablesSource).digest('hex'),
+): OperationPlan {
   return sealOperationPlan({
     schemaVersion: 1,
     desiredRevision: 'fleet-2026-09-17',
@@ -58,6 +61,7 @@ function operationPlan(terraformPlanSha256: string): OperationPlan {
       budgetCapEur: 20,
       providerOwnershipId: 'provision-workers-c-20260917',
       terraformPlanSha256,
+      terraformVariablesSha256,
       terraformBackendEvidenceSha256: createHash('sha256')
         .update(backendEvidenceSource)
         .digest('hex'),
@@ -197,7 +201,7 @@ function providerInventory(present: boolean): string {
 }
 
 function machineFact(host: string, address: string, machineId: string): string {
-  return `PUNI_MACHINE_FACT=${JSON.stringify({ address, machineId })}\nPLAY RECAP\n${host} : ok=3 changed=0 unreachable=0 failed=0`;
+  return `PUNI_MACHINE_FACT=${JSON.stringify({ address, machineId, name: host })}\nPLAY RECAP\n${host} : ok=3 changed=0 unreachable=0 failed=0`;
 }
 
 async function rejectionMessage(promise: Promise<unknown>): Promise<string> {
@@ -356,7 +360,7 @@ describe('production apply adapter', () => {
         return Promise.resolve({
           exitCode: 0,
           stdout:
-            'ok: [external-c] => {"msg":"PUNI_MACHINE_FACT={\\"address\\":\\"10.0.0.44\\",\\"machineId\\":\\"abcdefabcdefabcdefabcdefabcdefab\\"}"}\nPUNI_MACHINE_FACT={"address":"10.0.0.44","machineId":"abcdefabcdefabcdefabcdefabcdefab"}\nPLAY RECAP\nexternal-c : ok=3 changed=0 unreachable=0 failed=0',
+            'ok: [external-c] => {"msg":"PUNI_MACHINE_FACT={\\"address\\":\\"10.0.0.44\\",\\"machineId\\":\\"abcdefabcdefabcdefabcdefabcdefab\\",\\"name\\":\\"external-c\\"}"}\nPUNI_MACHINE_FACT={"address":"10.0.0.44","machineId":"abcdefabcdefabcdefabcdefabcdefab","name":"external-c"}\nPLAY RECAP\nexternal-c : ok=3 changed=0 unreachable=0 failed=0',
           stderr: '',
         });
       }
@@ -442,6 +446,7 @@ describe('production apply adapter', () => {
 
     expect(evidence).toEqual({
       terraformPlanSha256: createHash('sha256').update('saved plan bytes').digest('hex'),
+      terraformVariablesSha256: createHash('sha256').update('{"nodes":{}}\n').digest('hex'),
       terraformBackendEvidenceSha256: createHash('sha256')
         .update(backendEvidenceSource)
         .digest('hex'),
@@ -449,6 +454,12 @@ describe('production apply adapter', () => {
       terraformStateSerial: 7,
     });
     expect(Bun.file(outputPath).size).toBe(16);
+    expect(await Bun.file(join(directory, 'operation.json.tfvars.json')).text()).toBe(
+      '{"nodes":{}}\n',
+    );
+    expect(calls.find((request) => request.arguments[0] === 'plan')?.arguments).toContain(
+      `-var-file=${join(directory, 'operation.json.tfvars.json')}`,
+    );
     expect(calls.map((request) => request.arguments[0])).toEqual([
       'init',
       'validate',
@@ -461,7 +472,9 @@ describe('production apply adapter', () => {
   it('stops Terraform preparation when validation reports invalid', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'fleet-terraform-invalid-'));
     const backendPath = join(directory, 'backend.json');
+    const variablesPath = join(directory, 'nodes.tfvars.json');
     await writeFile(backendPath, backendEvidenceSource, { mode: 0o600 });
+    await writeFile(variablesPath, terraformVariablesSource, { mode: 0o600 });
     let planCalls = 0;
     const run = (request: CommandRequest): Promise<CommandResponse> => {
       if (request.arguments[0] === 'validate') {
@@ -494,7 +507,7 @@ describe('production apply adapter', () => {
           },
           'production',
           backendPath,
-          '/reviewed/nodes.tfvars',
+          variablesPath,
           join(directory, 'operation.tfplan'),
           run,
         ),
@@ -585,6 +598,16 @@ describe('production apply adapter', () => {
       ),
     ).toBe(true);
     expect(calls.some((request) => request.executable === 'ansible-playbook')).toBe(true);
+    expect(await Bun.file(`${planPath}.machine-id`).text()).toBe(
+      '0123456789abcdef0123456789abcdef\n',
+    );
+    expect(
+      calls.some(
+        (request) =>
+          request.executable === 'ansible-playbook' &&
+          request.arguments.includes('puni_machine_id=0123456789abcdef0123456789abcdef'),
+      ),
+    ).toBe(true);
     expect(
       calls.some(
         (request) =>
@@ -599,13 +622,57 @@ describe('production apply adapter', () => {
     const directory = await mkdtemp(join(tmpdir(), 'fleet-response-lost-'));
     const planPath = join(directory, 'operation.json');
     const savedPlan = new TextEncoder().encode('reviewed terraform plan');
-    await writeFile(`${planPath}.tfplan`, savedPlan);
     await writeFile(`${planPath}.backend.json`, backendEvidenceSource, { mode: 0o600 });
-    const plan = operationPlan(createHash('sha256').update(savedPlan).digest('hex'));
+    const variablesPath = join(directory, 'nodes.tfvars.json');
+    const variablesSource = '{"nodes":{"workers-c":{"name":"workers-c"}}}\n';
+    await writeFile(variablesPath, variablesSource, { mode: 0o600 });
+    await prepareTerraformPlan(
+      '/repo',
+      {
+        nodeId: 'workers-c',
+        clusterId: 'workers',
+        operationId: 'provision-workers-c-20260917',
+        region: 'fsn1',
+        machineType: 'cx33',
+        image: 'ubuntu-24.04',
+        network: 'private',
+        sshKeyIds: ['operator'],
+        retainedStorage: false,
+        k3sRole: 'agent',
+        budgetCapEur: 20,
+      },
+      'production',
+      `${planPath}.backend.json`,
+      variablesPath,
+      `${planPath}.tfplan`,
+      async (request) => {
+        if (request.arguments[0] === 'validate') {
+          return { exitCode: 0, stdout: '{"valid":true,"diagnostics":[]}', stderr: '' };
+        }
+        if (request.arguments[0] === 'plan') {
+          const outputPath = request.arguments
+            .find((argument) => argument.startsWith('-out='))
+            ?.slice('-out='.length);
+          if (outputPath === undefined) throw new Error('Test plan request has no output');
+          await writeFile(outputPath, savedPlan);
+        }
+        if (request.arguments[0] === 'show') {
+          return { exitCode: 0, stdout: terraformShow(), stderr: '' };
+        }
+        if (request.arguments[0] === 'state') {
+          return { exitCode: 0, stdout: terraformState('running', false), stderr: '' };
+        }
+        return { exitCode: 0, stdout: '', stderr: '' };
+      },
+    );
+    const plan = operationPlan(
+      createHash('sha256').update(savedPlan).digest('hex'),
+      createHash('sha256').update(variablesSource).digest('hex'),
+    );
     let leaseExists = false;
     let imports = 0;
     let applies = 0;
-    const run = (request: CommandRequest): Promise<CommandResponse> => {
+    const run = async (request: CommandRequest): Promise<CommandResponse> => {
       if (request.executable === 'kubectl' && request.arguments.includes('get')) {
         return Promise.resolve(
           leaseExists
@@ -624,13 +691,62 @@ describe('production apply adapter', () => {
           stderr: '',
         });
       }
-      if (request.executable === 'terraform' && request.arguments[0] === 'import') imports += 1;
+      if (request.executable === 'terraform' && request.arguments[0] === 'import') {
+        imports += 1;
+        const reviewedVariables = request.arguments
+          .find((argument) => argument.startsWith('-var-file='))
+          ?.slice('-var-file='.length);
+        if (reviewedVariables === undefined) throw new Error('Import has no reviewed variables');
+        expect(await Bun.file(reviewedVariables).text()).toBe(variablesSource);
+      }
       if (request.executable === 'terraform' && request.arguments[0] === 'apply') applies += 1;
       if (request.executable === 'ansible-inventory') {
         return Promise.resolve({ exitCode: 0, stdout: providerInventory(true), stderr: '' });
       }
       return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
     };
+
+    await writeFile(`${planPath}.tfvars.json`, '{"nodes":{"tampered":{}}}\n', { mode: 0o600 });
+    expect(
+      await rejectionMessage(
+        applyOperation({
+          plan,
+          expectedSha256: plan.planSha256,
+          journalPath: `${planPath}.journal.json`,
+          dependencies: createProductionApplyDependencies(
+            '/repo',
+            plan,
+            planPath,
+            run,
+            () => new Date('2026-09-17T09:01:00.000Z'),
+            'execution-owner',
+          ),
+        }),
+      ),
+    ).toMatch(/import variables.*reviewed SHA-256/i);
+    // Proof: changing the preparation-produced variable bytes stops before Terraform import.
+    expect(imports).toBe(0);
+    await writeFile(`${planPath}.tfvars.json`, variablesSource, { mode: 0o600 });
+    await chmod(`${planPath}.tfvars.json`, 0o644);
+    expect(
+      await rejectionMessage(
+        applyOperation({
+          plan,
+          expectedSha256: plan.planSha256,
+          journalPath: `${planPath}.journal.json`,
+          dependencies: createProductionApplyDependencies(
+            '/repo',
+            plan,
+            planPath,
+            run,
+            () => new Date('2026-09-17T09:01:00.000Z'),
+            'execution-owner',
+          ),
+        }),
+      ),
+    ).toMatch(/import variables must be owner-only/i);
+    expect(imports).toBe(0);
+    await chmod(`${planPath}.tfvars.json`, 0o600);
 
     expect(
       await rejectionMessage(
@@ -656,8 +772,9 @@ describe('production apply adapter', () => {
     await writeFile(`${freshPlanPath}.tfplan`, savedPlan);
     await writeFile(`${freshPlanPath}.backend.json`, backendEvidenceSource, { mode: 0o600 });
     await writeFile(`${freshPlanPath}.ansible-vars.json`, ansibleVariablesSource, { mode: 0o600 });
+    await writeFile(`${freshPlanPath}.machine-id`, `${'0'.repeat(32)}\n`, { mode: 0o600 });
     leaseExists = false;
-    let observedMachineId = 'ffffffffffffffffffffffffffffffff';
+    const observedMachineId = 'ffffffffffffffffffffffffffffffff';
     let joinCalls = 0;
     const recoveredRun = (request: CommandRequest): Promise<CommandResponse> => {
       if (request.executable === 'kubectl' && request.arguments.includes('get')) {
@@ -719,9 +836,28 @@ describe('production apply adapter', () => {
           ),
         }),
       ),
-    ).toMatch(/machine identity/i);
+    ).toMatch(/observed machine identity/i);
     expect(joinCalls).toBe(0);
-    observedMachineId = '0123456789abcdef0123456789abcdef';
+    await unlink(`${freshPlanPath}.machine-id`);
+    expect(
+      await rejectionMessage(
+        applyOperation({
+          plan,
+          expectedSha256: plan.planSha256,
+          journalPath: `${freshPlanPath}.journal.json`,
+          dependencies: createProductionApplyDependencies(
+            '/repo',
+            plan,
+            freshPlanPath,
+            recoveredRun,
+            () => new Date('2026-09-17T09:01:00.000Z'),
+            'execution-owner',
+          ),
+        }),
+      ),
+    ).toMatch(/resume without persisted observed machine identity/i);
+    expect(joinCalls).toBe(0);
+    await writeFile(`${freshPlanPath}.machine-id`, `${observedMachineId}\n`, { mode: 0o600 });
     const receipt = await applyOperation({
       plan,
       expectedSha256: plan.planSha256,

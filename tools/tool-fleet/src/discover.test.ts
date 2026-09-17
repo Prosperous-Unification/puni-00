@@ -423,13 +423,7 @@ describe('observeFleet', () => {
           observedAt: now.toISOString(),
           stdout: `
 TASK [Emit fleet machine fact] *************************************************
-ok: [10.0.0.99] => {
-    "msg": {
-        "address": "10.0.0.99",
-        "machineId": "machine-platform-a",
-        "name": "different-display-name"
-    }
-}
+ok: [10.0.0.99] => {"msg":"PUNI_MACHINE_FACT={\\"address\\":\\"10.0.0.99\\",\\"machineId\\":\\"machine-platform-a\\",\\"name\\":\\"different-display-name\\"}"}
 
 PLAY RECAP *********************************************************************
 10.0.0.99 : ok=3 changed=0 unreachable=0 failed=0
@@ -471,7 +465,7 @@ PLAY RECAP *********************************************************************
                 stderr: '',
                 observedAt: now.toISOString(),
                 stdout:
-                  'TASK [Emit fleet machine fact]\nok: [host] => {\n    "msg": {bad}\n}\nPLAY RECAP',
+                  'TASK [Emit fleet machine fact]\nok: [host] => {"msg":"PUNI_MACHINE_FACT={bad}"}\nPLAY RECAP',
               })
             : run(command),
         root: '/repo',
@@ -1267,6 +1261,7 @@ it('commits strict uncached private inventories and a read-only machine identity
   }
   const playbook = await readFile(join(root, 'infra/ansible/playbooks/discover.yml'), 'utf8');
   expect(playbook).toContain('src: /etc/machine-id');
+  expect(playbook).toContain('puni_display_name | default(puni_node_name, true)');
   expect(playbook.match(/changed_when: false/g)).toHaveLength(3);
   expect(playbook).not.toMatch(/shell:|command:/);
 });

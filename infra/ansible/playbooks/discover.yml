@@ -20,5 +20,5 @@
       ansible.builtin.debug:
         msg: >-
           PUNI_MACHINE_FACT={{ {'machineId': puni_machine_identity.content | b64decode | trim,
-          'address': ansible_host} | to_json }}
+          'address': ansible_host, 'name': puni_display_name | default(puni_node_name, true)} | to_json }}
       changed_when: false

@@ -271,6 +271,30 @@ function parseSshOutput(stdout: string, source: DiscoverySource): readonly SshHo
     const input: unknown = JSON.parse(stdout);
     return parseSshHosts(input, source);
   } catch (cause) {
+    const marker = /PUNI_MACHINE_FACT=(\{(?:\\.|[^}\r\n])+\})/.exec(stdout);
+    if (marker?.[1] !== undefined) {
+      let markerInput: unknown;
+      try {
+        markerInput = JSON.parse(marker[1].replaceAll('\\"', '"')) as unknown;
+      } catch (parseCause) {
+        throw new Error(`${source} emitted a malformed machine identity fact`, {
+          cause: parseCause,
+        });
+      }
+      const markerFact = requireRecord(markerInput, source, 'machine identity fact');
+      return [
+        {
+          displayName: requireString(markerFact['name'], source, 'machine identity fact.name'),
+          machineId: requireString(
+            markerFact['machineId'],
+            source,
+            'machine identity fact.machineId',
+          ),
+          address: requireString(markerFact['address'], source, 'machine identity fact.address'),
+          source,
+        },
+      ];
+    }
     const match =
       /TASK \[Emit fleet machine fact\][\s\S]*?ok: \[[^\]]+\] => \{\s*"msg": (\{[\s\S]*?\})\s*\}\s*PLAY RECAP/.exec(
         stdout,

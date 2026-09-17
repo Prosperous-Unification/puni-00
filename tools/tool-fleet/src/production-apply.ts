@@ -19,6 +19,7 @@ const leaseDurationSeconds = 300;
 
 export interface TerraformPlanEvidence {
   readonly terraformPlanSha256: string;
+  readonly terraformVariablesSha256: string;
   readonly terraformBackendEvidenceSha256: string;
   readonly terraformStateLineage: string;
   readonly terraformStateSerial: number;
@@ -303,7 +304,9 @@ export async function prepareTerraformPlan(
   );
   const terraformRoot = join(root, 'infra/terraform');
   const candidatePath = `${outputPath}.${randomBytes(8).toString('hex')}.new`;
-  const reviewedVariablesPath = `${outputPath}.tfvars.json`;
+  const reviewedVariablesPath = outputPath.endsWith('.tfplan')
+    ? `${outputPath.slice(0, -'.tfplan'.length)}.tfvars.json`
+    : `${outputPath}.tfvars.json`;
   let wroteReviewedVariables = false;
   const terraform = (arguments_: readonly string[]) =>
     requireCommand(
@@ -312,6 +315,15 @@ export async function prepareTerraformPlan(
       'Terraform planning command',
     );
   try {
+    const variables = await readFile(variablesPath);
+    const variablesDestination = await open(reviewedVariablesPath, 'wx', 0o600);
+    try {
+      await variablesDestination.writeFile(variables);
+      await variablesDestination.sync();
+    } finally {
+      await variablesDestination.close();
+    }
+    wroteReviewedVariables = true;
     await terraform(['init', '-input=false', '-lockfile=readonly']);
     const validation = requireRecord(
       parseJson(await terraform(['validate', '-json']), 'Terraform validation'),
@@ -325,7 +337,7 @@ export async function prepareTerraformPlan(
       'plan',
       '-input=false',
       '-lock=true',
-      `-var-file=${variablesPath}`,
+      `-var-file=${reviewedVariablesPath}`,
       `-out=${candidatePath}`,
     ]);
     const shown = parseJson(
@@ -341,15 +353,6 @@ export async function prepareTerraformPlan(
       await terraform(['state', 'pull']),
       expected.nodeId,
     ).identity;
-    const variables = await readFile(variablesPath);
-    const variablesDestination = await open(reviewedVariablesPath, 'wx', 0o600);
-    try {
-      await variablesDestination.writeFile(variables);
-      await variablesDestination.sync();
-    } finally {
-      await variablesDestination.close();
-    }
-    wroteReviewedVariables = true;
     const savedPlan = await readFile(candidatePath);
     const destination = await open(outputPath, 'wx', 0o600);
     try {
@@ -361,6 +364,7 @@ export async function prepareTerraformPlan(
     await chmod(outputPath, 0o600);
     const evidence = {
       terraformPlanSha256: createHash('sha256').update(savedPlan).digest('hex'),
+      terraformVariablesSha256: createHash('sha256').update(variables).digest('hex'),
       terraformBackendEvidenceSha256,
       terraformStateLineage: state.lineage,
       terraformStateSerial: state.serial,
@@ -630,7 +634,8 @@ async function readAnsibleVariables(
     readonly capabilities: readonly string[];
   },
   expectedAddress: string,
-): Promise<string> {
+  expectedMachineId?: string,
+): Promise<void> {
   const source = await readFile(path);
   if (createHash('sha256').update(source).digest('hex') !== expectedSha256) {
     // Proof: changing one enrollment-variable byte makes the production apply negative reach no
@@ -649,15 +654,15 @@ async function readAnsibleVariables(
     variables['puni_node_name'] !== expected.nodeId ||
     variables['puni_cluster_id'] !== expected.clusterId ||
     variables['puni_node_ip'] !== expectedAddress ||
-    typeof variables['puni_machine_id'] !== 'string' ||
-    !/^[0-9a-f]{32}$/.test(variables['puni_machine_id']) ||
+    (expectedMachineId === undefined
+      ? 'puni_machine_id' in variables
+      : variables['puni_machine_id'] !== expectedMachineId) ||
     !Array.isArray(capabilities) ||
     !capabilities.every((capability) => typeof capability === 'string') ||
     [...capabilities].sort().join('\0') !== [...expected.capabilities].sort().join('\0')
   ) {
     throw new Error('Ansible enrollment variables differ from reviewed node identity');
   }
-  return variables['puni_machine_id'];
 }
 
 function requireAnsibleRecap(stdout: string, expectedHost?: string): void {
@@ -703,6 +708,7 @@ function decodeProviderOwnership(source: string): readonly ProvisioningInstance[
 }
 
 interface EnrollmentInventory {
+  readonly displayName: string;
   readonly address: string;
   readonly machineId: string;
   readonly providerIdentity: string;
@@ -757,7 +763,7 @@ async function readEnrollmentInventory(
     // inventory stops the existing-host enrollment path before SSH configuration.
     throw new Error('Enrollment inventory lacks exact host identity or SSH host-key policy');
   }
-  return { address, machineId, providerIdentity };
+  return { displayName: nodeId, address, machineId, providerIdentity };
 }
 
 async function readKnownHosts(
@@ -781,7 +787,10 @@ async function readKnownHosts(
     throw new Error('SSH known hosts must be owner-only');
 }
 
-function requireMachineFact(stdout: string, inventory: EnrollmentInventory): void {
+function requireMachineFact(
+  stdout: string,
+  inventory: Omit<EnrollmentInventory, 'machineId'> & { readonly machineId?: string },
+): string {
   requireAnsibleRecap(stdout);
   const marker = /PUNI_MACHINE_FACT=(\{(?:\\.|[^}\r\n])+\})/.exec(stdout);
   if (marker?.[1] === undefined) throw new Error('Controlled SSH fact document is absent');
@@ -790,14 +799,18 @@ function requireMachineFact(stdout: string, inventory: EnrollmentInventory): voi
     'Controlled SSH fact',
   );
   if (
-    Object.keys(fact).sort().join('\0') !== ['address', 'machineId'].join('\0') ||
-    fact['machineId'] !== inventory.machineId ||
+    Object.keys(fact).sort().join('\0') !== ['address', 'machineId', 'name'].join('\0') ||
+    fact['name'] !== inventory.displayName ||
+    typeof fact['machineId'] !== 'string' ||
+    !/^[0-9a-f]{32}$/.test(fact['machineId']) ||
+    (inventory.machineId !== undefined && fact['machineId'] !== inventory.machineId) ||
     fact['address'] !== inventory.address
   ) {
     // Proof: a containing machine ID or address in unrelated SSH output no longer satisfies the
     // exact controlled fact document used at the enrollment boundary.
     throw new Error('Controlled SSH fact differs from reviewed machine identity');
   }
+  return fact['machineId'];
 }
 
 function createEnrollmentApplyDependencies(
@@ -844,6 +857,7 @@ function createEnrollmentApplyDependencies(
         capabilities: plan.affectedCapabilities,
       },
       inventory.address,
+      inventory.machineId,
     );
     const fact = await requireCommand(
       run,
@@ -972,9 +986,11 @@ export function createProductionApplyDependencies(
   };
   const terraformRoot = join(root, 'infra/terraform');
   const savedPlanPath = `${planPath}.tfplan`;
+  const terraformVariablesPath = `${planPath}.tfvars.json`;
   const backendEvidencePath = `${planPath}.backend.json`;
   const ansibleVariablesPath = `${planPath}.ansible-vars.json`;
   const desiredNodePath = `${planPath}.desired-node.json`;
+  const machineIdentityPath = `${planPath}.machine-id`;
   const terraform = (arguments_: readonly string[]) =>
     requireCommand(
       commandRunner,
@@ -1057,7 +1073,7 @@ export function createProductionApplyDependencies(
     renewLease: (operationPlan, lease) => renewLease(commandRunner, operationPlan, lease, now()),
     releaseLease: (operationPlan, lease) => releaseLease(commandRunner, operationPlan, lease),
     observe: () => observe(),
-    applyEffect: async (_operationPlan, effect, _stepId, beforeMutation) => {
+    applyEffect: async (_operationPlan, effect, _stepId, beforeMutation, recoveringActiveStep) => {
       if (effect === 'create provider instance') {
         const ownership = reconcileProvisioningOwnership(
           request.nodeId,
@@ -1067,11 +1083,25 @@ export function createProductionApplyDependencies(
         if (ownership.kind === 'import') {
           const state = decodeTerraformState(await terraform(['state', 'pull']), request.nodeId);
           if (state.managedInstance === undefined) {
+            const variables = await readFile(terraformVariablesPath);
+            if (
+              createHash('sha256').update(variables).digest('hex') !==
+              request.terraformVariablesSha256
+            ) {
+              // Proof: changing the preparation-produced variable bytes makes response-lost
+              // recovery stop before Terraform import can mutate state.
+              throw new Error('Terraform import variables differ from the reviewed SHA-256');
+            }
+            if (((await stat(terraformVariablesPath)).mode & 0o077) !== 0) {
+              // Proof: the valid-byte mode-0644 recovery negative stops before Terraform import;
+              // reviewed variables must remain private trusted state.
+              throw new Error('Terraform import variables must be owner-only');
+            }
             await beforeMutation();
             await terraform([
               'import',
               '-input=false',
-              `-var-file=${planPath}.tfvars.json`,
+              `-var-file=${terraformVariablesPath}`,
               `hcloud_server.node[${JSON.stringify(request.nodeId)}]`,
               ownership.instanceId,
             ]);
@@ -1184,12 +1214,21 @@ export function createProductionApplyDependencies(
           // before Ansible can configure the host.
           throw new Error('Durable desired membership differs from provisioned identity');
         }
-        const machineId = await readAnsibleVariables(
+        await readAnsibleVariables(
           ansibleVariablesPath,
           request.ansibleVariablesSha256,
           request,
           privateAddress,
         );
+        if (recoveringActiveStep) {
+          try {
+            await readFile(machineIdentityPath, 'utf8');
+          } catch (cause) {
+            // Proof: deleting the trusted identity after a lost enrollment response used to let a
+            // different machine be adopted; recovery now fails closed on the missing sidecar.
+            throw new Error('Cannot resume without persisted observed machine identity', { cause });
+          }
+        }
         const discoveryOutput = await requireCommand(
           commandRunner,
           {
@@ -1207,11 +1246,29 @@ export function createProductionApplyDependencies(
           },
           `Observe machine identity of ${request.nodeId}`,
         );
-        requireMachineFact(discoveryOutput, {
+        const machineId = requireMachineFact(discoveryOutput, {
+          displayName: request.nodeId,
           address: privateAddress,
-          machineId,
           providerIdentity: instanceId,
         });
+        try {
+          const destination = await open(machineIdentityPath, 'wx', 0o600);
+          try {
+            await destination.writeFile(`${machineId}\n`);
+            await destination.sync();
+          } finally {
+            await destination.close();
+          }
+        } catch (cause) {
+          if (
+            !(cause instanceof Error && 'code' in cause && cause.code === 'EEXIST') ||
+            (await readFile(machineIdentityPath, 'utf8')) !== `${machineId}\n`
+          ) {
+            // Proof: changing the persisted post-purchase machine identity makes a resumed
+            // enrollment stop before configuring the replacement host.
+            throw new Error('Cannot persist exact observed machine identity', { cause });
+          }
+        }
         await beforeMutation();
         const joinOutput = await requireCommand(
           commandRunner,
@@ -1224,6 +1281,8 @@ export function createProductionApplyDependencies(
               request.nodeId,
               '--extra-vars',
               `@${ansibleVariablesPath}`,
+              '--extra-vars',
+              `puni_machine_id=${machineId}`,
               join(root, 'infra/ansible/playbooks/join.yml'),
             ],
             cwd: join(root, 'infra/ansible'),
@@ -1241,6 +1300,8 @@ export function createProductionApplyDependencies(
               join(root, `infra/ansible/inventory/${request.clusterId}.hcloud.yml`),
               '--extra-vars',
               `@${ansibleVariablesPath}`,
+              '--extra-vars',
+              `puni_machine_id=${machineId}`,
               join(root, 'infra/ansible/playbooks/validate-enrollment.yml'),
             ],
             cwd: join(root, 'infra/ansible'),

@@ -33,6 +33,7 @@ export interface ApplyDependencies {
     effect: string,
     stepId: string,
     beforeMutation: () => Promise<void>,
+    recoveringActiveStep: boolean,
   ) => Promise<{ readonly externalResourceId?: string }>;
 }
 
@@ -194,10 +195,10 @@ function requireObservedTransition(
 export async function applyOperation(request: ApplyRequest): Promise<OperationReceipt> {
   const { plan, expectedSha256, journalPath, dependencies } = request;
   requireCurrentPlan(plan, expectedSha256, dependencies.now());
-  const existingJournal = await readExistingJournal(journalPath);
-  if (existingJournal !== undefined) {
-    requireKnownProgress(plan, existingJournal);
-    if (existingJournal.state === 'complete') return completedReceipt(existingJournal);
+  const earlyJournal = await readExistingJournal(journalPath);
+  if (earlyJournal !== undefined) {
+    requireKnownProgress(plan, earlyJournal);
+    if (earlyJournal.state === 'complete') return completedReceipt(earlyJournal);
   }
   let lease = await dependencies.acquireLease(plan);
   try {
@@ -205,6 +206,11 @@ export async function applyOperation(request: ApplyRequest): Promise<OperationRe
       // Proof: the expired-lease production-path negative obtains a lease ending at the current
       // instant, releases it, and records zero adapter mutations.
       throw new Error(`Operation lease expired at ${lease.expiresAt}`);
+    }
+    const existingJournal = await readExistingJournal(journalPath);
+    if (existingJournal !== undefined) {
+      requireKnownProgress(plan, existingJournal);
+      if (existingJournal.state === 'complete') return completedReceipt(existingJournal);
     }
     let journal: OperationJournal;
     if (existingJournal === undefined) {
@@ -242,10 +248,14 @@ export async function applyOperation(request: ApplyRequest): Promise<OperationRe
       }
       lease = await dependencies.renewLease(plan, lease);
       const beforeMutation = async (): Promise<void> => {
+        requireCurrentPlan(plan, expectedSha256, dependencies.now());
         lease = await dependencies.renewLease(plan, lease);
         if (!(await dependencies.ownsLease(lease))) {
           throw new Error('Operation lease is no longer owned at mutation boundary');
         }
+        // Proof: advancing the controlled clock while an adapter reads prerequisites used to allow
+        // one mutation after the reviewed plan expired; validity is checked again at the boundary.
+        requireCurrentPlan(plan, expectedSha256, dependencies.now());
       };
       const observation = await dependencies.observe(plan);
       if (
@@ -288,6 +298,7 @@ export async function applyOperation(request: ApplyRequest): Promise<OperationRe
       }
       const effect = plan.effects[position];
       const currentStepId = stepId(position);
+      const recoveringActiveStep = journal.activeStep !== undefined;
       const beforeObservationSha256 = observationSha256(observation);
       journal = {
         ...journal,
@@ -308,6 +319,7 @@ export async function applyOperation(request: ApplyRequest): Promise<OperationRe
           effect,
           currentStepId,
           beforeMutation,
+          recoveringActiveStep,
         );
       } catch (cause) {
         journal = { ...journal, state: 'recoverable', updatedAt: dependencies.now().toISOString() };

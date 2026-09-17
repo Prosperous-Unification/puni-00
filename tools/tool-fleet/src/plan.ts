@@ -33,6 +33,7 @@ export type OperationRequest =
       readonly budgetCapEur: number;
       readonly providerOwnershipId: string;
       readonly terraformPlanSha256: string;
+      readonly terraformVariablesSha256: string;
       readonly terraformBackendEvidenceSha256: string;
       readonly ansibleVariablesSha256: string;
       readonly terraformStateLineage: string;
@@ -142,6 +143,7 @@ function requireProvisioningRequest(
     !Number.isFinite(request.budgetCapEur) ||
     request.budgetCapEur <= 0 ||
     !/^[0-9a-f]{64}$/.test(request.terraformPlanSha256) ||
+    !/^[0-9a-f]{64}$/.test(request.terraformVariablesSha256) ||
     !/^[0-9a-f]{64}$/.test(request.terraformBackendEvidenceSha256) ||
     !/^[0-9a-f]{64}$/.test(request.ansibleVariablesSha256) ||
     request.terraformStateLineage.length === 0 ||
@@ -158,6 +160,14 @@ function requireProvisioningRequest(
     (request.k3sRole === 'agent' && request.capabilities.includes('control-plane'))
   ) {
     throw new Error('Provision request has invalid role or capability intent');
+  }
+  if (
+    request.capabilities.includes('control-plane') &&
+    request.capabilities.includes('execution')
+  ) {
+    // Proof: the production planner negative requests a worker server combining control-plane and
+    // execution; this invariant refuses it before capacity can be purchased.
+    throw new Error('Provision request cannot combine control-plane and execution capabilities');
   }
   if (!fleet.clusters.some(({ id }) => id === request.clusterId)) {
     // Proof: disabling this guard let the provisioning production planner emit effects for an

@@ -31,6 +31,7 @@ function operationPlan(): OperationPlan {
       budgetCapEur: 20,
       providerOwnershipId: 'provision-workers-c-20260917',
       terraformPlanSha256: 'f'.repeat(64),
+      terraformVariablesSha256: 'c'.repeat(64),
       terraformBackendEvidenceSha256: 'd'.repeat(64),
       ansibleVariablesSha256: 'e'.repeat(64),
       terraformStateLineage: 'lineage-1',
@@ -131,6 +132,76 @@ describe('applyOperation', () => {
     // previous execution's Lease; the production executor now performs zero acquisitions.
     expect(acquisitions).toBe(0);
     expect(second).toEqual(first);
+  });
+
+  it('refreshes recoverable journal progress after acquiring the Lease', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-apply-journal-race-'));
+    const journalPath = join(directory, 'journal.json');
+    const plan = operationPlan();
+    const completed = await applyOperation({
+      plan,
+      expectedSha256: plan.planSha256,
+      journalPath,
+      dependencies: dependencies(),
+    });
+    await writeOperationJournal(journalPath, {
+      ...completed,
+      state: 'recoverable',
+      completedSteps: [],
+      updatedAt: '2026-09-17T09:02:00.000Z',
+    });
+    let mutations = 0;
+    const receipt = await applyOperation({
+      plan,
+      expectedSha256: plan.planSha256,
+      journalPath,
+      dependencies: dependencies({
+        acquireLease: async () => {
+          await writeOperationJournal(journalPath, completed);
+          return { owner: 'second-owner', expiresAt: '2026-09-17T09:20:00.000Z' };
+        },
+        applyEffect: () => {
+          mutations += 1;
+          return Promise.resolve({});
+        },
+      }),
+    });
+    // Proof: using the journal read before Lease acquisition replayed all three controlled effects;
+    // refreshing it under the Lease observes completion and executes zero mutations.
+    expect(mutations).toBe(0);
+    expect(receipt).toEqual(completed);
+  });
+
+  it('rechecks plan expiry at the adapter mutation boundary', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-apply-boundary-expiry-'));
+    const journalPath = join(directory, 'journal.json');
+    const plan = operationPlan();
+    let clockReads = 0;
+    let mutations = 0;
+    const now = () => {
+      clockReads += 1;
+      return new Date(clockReads < 6 ? '2026-09-17T09:01:00.000Z' : '2026-09-17T09:30:00.000Z');
+    };
+    expect(
+      await rejectionMessage(
+        applyOperation({
+          plan,
+          expectedSha256: plan.planSha256,
+          journalPath,
+          dependencies: dependencies({
+            now,
+            applyEffect: async (_plan, _effect, _stepId, beforeMutation) => {
+              await beforeMutation();
+              mutations += 1;
+              return {};
+            },
+          }),
+        }),
+      ),
+    ).toMatch(/expired/i);
+    // Proof: omitting the boundary expiry check incremented this counter after the clock crossed
+    // the reviewed plan expiry; the production callback now refuses first.
+    expect(mutations).toBe(0);
   });
 
   it('persists a recoverable active step when the postcondition changes identity', async () => {
