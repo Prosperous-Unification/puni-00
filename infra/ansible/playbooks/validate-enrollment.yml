@@ -51,10 +51,11 @@
       changed_when: false
 
     - name: Allow CoreDNS to start while enrollment remains restricted
-      # Proof: replacing this patch with a read made the taint-safe DNS bootstrap contract test fail.
+      # Proof: kubectl v1.36.4 treated `--patch-file=-` as a literal missing file in the live
+      # Ubuntu cluster and exited 1 before CoreDNS could be scheduled.
       ansible.builtin.command: >-
         k3s kubectl patch deployment coredns --namespace kube-system
-        --type=strategic --patch-file=-
+        --type=strategic --patch-file=/dev/stdin
       args:
         stdin: |
           {"spec":{"template":{"spec":{"tolerations":[{"key":"puni.io/enrollment","operator":"Exists","effect":"NoSchedule"}]}}}}
@@ -95,7 +96,17 @@
               - name: receiver
                 image: {{ puni_validation_image }}
                 imagePullPolicy: IfNotPresent
-                command: [sh, -c, 'mkdir -p /www; echo ok >/www/index.html; exec httpd -f -p 8080 -h /www']
+                # Proof: the pinned k3s image exited 127 for both standalone and BusyBox `httpd`
+                # in the live Ubuntu cluster; its inetd applet serves the bounded response instead.
+                command:
+                  - sh
+                  - -c
+                  - |
+                    printf 'HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nok\n' >/response
+                    printf '#!/bin/sh\ncat /response\n' >/serve
+                    chmod 0500 /serve
+                    printf '8080 stream tcp nowait root /serve serve\n' >/inetd.conf
+                    exec busybox inetd -f /inetd.conf
           ---
           apiVersion: v1
           kind: Service

@@ -70,6 +70,16 @@
     path: /etc/sudoers.d/90-cloud-init-users
     state: absent
 
+- name: Create the journald configuration directory
+  # Proof: a clean Ubuntu 24.04 VM omitted this directory and the production bootstrap exited 2
+  # before the bounded journald policy could be installed.
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
 - name: Render bounded journald storage
   ansible.builtin.template:
     src: journald-fleet.conf.j2

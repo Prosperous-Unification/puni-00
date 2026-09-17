@@ -1,14 +1,19 @@
 ---
 - name: Require server identity, artifact, endpoint, and secret inputs
+  # Proof: accepting a bare bootstrap credential for a joining node produced a live k3s warning
+  # that the cluster CA was not trusted; joins require the generated CA-bound server token.
   ansible.builtin.assert:
     that:
       - puni_k3s_version is defined
       - puni_k3s_url is defined
       - puni_k3s_sha256 is defined
       - puni_k3s_sha256 | length == 64
-      - puni_k3s_server_token is defined
-      - puni_k3s_agent_token is defined
+      - puni_k3s_server_credential is defined
+      - puni_k3s_server_credential is match('^[0-9a-f]{64}$')
+      - puni_k3s_agent_credential is defined
+      - puni_k3s_agent_credential is match('^[0-9a-f]{64}$')
       - puni_k3s_cluster_init is defined
+      - puni_k3s_cluster_init or (puni_k3s_server_token is defined and puni_k3s_server_token is match('^K10[0-9a-f]{64}::server:[0-9a-f]{64}$'))
       - puni_node_name is defined
       - puni_node_ip is defined
       - puni_private_interface is defined
@@ -44,7 +49,7 @@
   ansible.builtin.copy:
     dest: /etc/rancher/k3s/server-token
     content: |
-      {{ puni_k3s_server_token }}
+      {{ puni_k3s_server_credential if puni_k3s_cluster_init else puni_k3s_server_token }}
     owner: root
     group: root
     mode: '0600'
@@ -54,7 +59,7 @@
   ansible.builtin.copy:
     dest: /etc/rancher/k3s/agent-token
     content: |
-      {{ puni_k3s_agent_token }}
+      {{ puni_k3s_agent_credential }}
     owner: root
     group: root
     mode: '0600'

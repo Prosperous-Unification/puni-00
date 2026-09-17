@@ -1,5 +1,7 @@
 ---
 - name: Require agent identity, artifact, endpoint, and secret inputs
+  # Proof: the 64-hex bootstrap credential let the live agent reach authentication without first
+  # binding the server certificate to the cluster CA; only the generated CA-bound token may join.
   ansible.builtin.assert:
     that:
       - puni_k3s_version is defined
@@ -7,6 +9,7 @@
       - puni_k3s_sha256 is defined
       - puni_k3s_sha256 | length == 64
       - puni_k3s_agent_token is defined
+      - puni_k3s_agent_token is match('^K10[0-9a-f]{64}::node:[0-9a-f]{64}$')
       - puni_registration_url is defined
       - puni_node_name is defined
       - puni_node_ip is defined
@@ -32,6 +35,8 @@
     mode: '0700'
 
 - name: Write the private agent token
+  # Proof: changing this token without notifying the service left the old credential active until
+  # reboot; the live wrong-token drill now restarts the agent and makes enrollment validation fail.
   ansible.builtin.copy:
     dest: /etc/rancher/k3s/agent-token
     content: |
@@ -40,6 +45,7 @@
     group: root
     mode: '0600'
   no_log: true
+  notify: Restart k3s agent
 
 - name: Render the k3s agent configuration
   ansible.builtin.template:

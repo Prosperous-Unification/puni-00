@@ -44,6 +44,11 @@ interface LabBootstrap {
   readonly publicKey: string;
 }
 
+interface K3sEnrollmentTokens {
+  readonly server: string;
+  readonly agent: string;
+}
+
 const LAB_ID = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
 const MULTIPASS_VERSION = '1.16.4';
 const COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
@@ -422,6 +427,18 @@ export function decodeMachineId(stdout: string, machineName: string): string {
   return machineId;
 }
 
+/** Decode a k3s token that binds the expected enrollment principal to the cluster CA. */
+export function decodeSecureK3sToken(stdout: string, principal: 'node' | 'server'): string {
+  const token = stdout.trim();
+  const pattern = new RegExp(`^K10[0-9a-f]{64}::${principal}:[0-9a-f]{64}$`);
+  if (!pattern.test(token)) {
+    // Proof: accepting the retained 64-hex bootstrap credential made a live agent join warn that
+    // the cluster CA was not trusted; the production decoder negative requires the CA-bound form.
+    throw new Error(`Fleet lab did not receive a CA-bound ${principal} enrollment token`);
+  }
+  return token;
+}
+
 async function observeMachineIds(
   machines: readonly LabMachine[],
 ): Promise<ReadonlyMap<string, string>> {
@@ -437,6 +454,29 @@ async function observeMachineIds(
     machineIds.set(machine.name, decodeMachineId(identity.stdout, machine.name));
   }
   return machineIds;
+}
+
+async function observeK3sEnrollmentTokens(serverName: string): Promise<K3sEnrollmentTokens> {
+  const serverToken = await requireSuccess('multipass', [
+    'exec',
+    serverName,
+    '--',
+    'sudo',
+    'cat',
+    '/var/lib/rancher/k3s/server/node-token',
+  ]);
+  const agentToken = await requireSuccess('multipass', [
+    'exec',
+    serverName,
+    '--',
+    'sudo',
+    'cat',
+    '/var/lib/rancher/k3s/server/agent-token',
+  ]);
+  return {
+    server: decodeSecureK3sToken(serverToken.stdout, 'server'),
+    agent: decodeSecureK3sToken(agentToken.stdout, 'node'),
+  };
 }
 
 async function writeKnownHosts(
@@ -518,6 +558,7 @@ async function writeLabState(
   machines: readonly LabMachine[],
   bootstrap: LabBootstrap,
   allowTokenCreate: boolean,
+  enrollmentTokens?: K3sEnrollmentTokens,
 ): Promise<string> {
   const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
   const token = await readOrCreateClusterToken(bootstrap.stateDirectory, allowTokenCreate);
@@ -575,8 +616,14 @@ async function writeLabState(
         puni_k3s_url: toolchain.binaries.k3s.url,
         puni_k3s_sha256: toolchain.binaries.k3s.sha256,
         puni_validation_image: `${toolchain.runtimeImages.k3dNode.name}@${toolchain.runtimeImages.k3dNode.digest}`,
-        puni_k3s_server_token: token,
-        puni_k3s_agent_token: token,
+        puni_k3s_server_credential: token,
+        puni_k3s_agent_credential: token,
+        ...(enrollmentTokens === undefined
+          ? {}
+          : {
+              puni_k3s_server_token: enrollmentTokens.server,
+              puni_k3s_agent_token: enrollmentTokens.agent,
+            }),
         puni_registration_url: `https://${serverAddress}:6443`,
         puni_registration_host: serverName,
         puni_tls_sans: [serverAddress],
@@ -646,6 +693,7 @@ async function converge(
   profile: LabProfile,
   machines: readonly LabMachine[],
   requireStable: boolean,
+  playbooks: readonly ('bootstrap.yml' | 'join.yml' | 'validate-enrollment.yml')[],
 ): Promise<void> {
   const toolchain = await readToolchain(join(root, 'infra/versions/toolchain.json'));
   const image = `${toolchain.controller.image}@${toolchain.controller.digest}`;
@@ -656,7 +704,7 @@ async function converge(
     .filter(({ name }) => name.includes('-agent-'))
     .map(({ name }) => name);
   const validationRunId = randomBytes(8).toString('hex');
-  for (const playbook of ['bootstrap.yml', 'join.yml', 'validate-enrollment.yml']) {
+  for (const playbook of playbooks) {
     const expectedHosts = playbook === 'join.yml' ? agentNames : serverNames;
     const expectedChanges =
       playbook === 'validate-enrollment.yml' ? (profile === 'workers' ? 2 : 1) : 0;
@@ -733,14 +781,27 @@ export async function runVmLab(arguments_: readonly string[], root: string): Pro
     throw new Error('Multipass did not start every expected lab machine');
   }
   if (bootstrap === undefined) throw new Error('Fleet lab up lost its bootstrap state');
+  const serverName = `${operation.prefix}-server-1`;
   await writeKnownHosts(bootstrap, after);
-  const inventoryPath = await writeLabState(
+  let inventoryPath = await writeLabState(
     root,
     request,
     after,
     bootstrap,
     ownedBefore.length === 0,
   );
-  await converge(root, inventoryPath, request.profile, after, false);
-  await converge(root, inventoryPath, request.profile, after, true);
+  await converge(root, inventoryPath, request.profile, after, false, ['bootstrap.yml']);
+  let enrollmentTokens = await observeK3sEnrollmentTokens(serverName);
+  inventoryPath = await writeLabState(root, request, after, bootstrap, false, enrollmentTokens);
+  await converge(root, inventoryPath, request.profile, after, false, [
+    'join.yml',
+    'validate-enrollment.yml',
+  ]);
+  await converge(root, inventoryPath, request.profile, after, true, ['bootstrap.yml']);
+  enrollmentTokens = await observeK3sEnrollmentTokens(serverName);
+  inventoryPath = await writeLabState(root, request, after, bootstrap, false, enrollmentTokens);
+  await converge(root, inventoryPath, request.profile, after, true, [
+    'join.yml',
+    'validate-enrollment.yml',
+  ]);
 }

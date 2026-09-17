@@ -7,6 +7,7 @@ import { describe, expect, it } from 'bun:test';
 import {
   decodeMachineId,
   decodeMachineList,
+  decodeSecureK3sToken,
   decodeSshHostKey,
   type LabMachine,
   parseLabRequest,
@@ -238,6 +239,21 @@ describe('the disposable Ubuntu VM lab', () => {
     expect(readOrCreateClusterToken(stateDirectory, false)).rejects.toThrow(/malformed/i);
   });
 
+  it('accepts only CA-bound k3s enrollment tokens for the intended principal', () => {
+    const caHash = 'a'.repeat(64);
+    const credential = 'b'.repeat(64);
+    const agentToken = `K10${caHash}::node:${credential}`;
+    const serverToken = `K10${caHash}::server:${credential}`;
+
+    expect(decodeSecureK3sToken(`${agentToken}\n`, 'node')).toBe(agentToken);
+    expect(decodeSecureK3sToken(serverToken, 'server')).toBe(serverToken);
+    expect(() => decodeSecureK3sToken(credential, 'node')).toThrow(/CA-bound.*node/i);
+    expect(() => decodeSecureK3sToken(agentToken, 'server')).toThrow(/CA-bound.*server/i);
+    expect(() => decodeSecureK3sToken(`K10${'g'.repeat(64)}::node:${credential}`, 'node')).toThrow(
+      /CA-bound.*node/i,
+    );
+  });
+
   it('wires ownership refusal through the production lab command', () => {
     for (const arguments_ of [
       ['status', '--lab-id', '../prod', '--profile', 'platform'],
@@ -340,6 +356,7 @@ describe('the Ansible host and k3s contract', () => {
     expect(base).toContain('content: |');
     expect(base).toContain('puni_swap_enabled is defined');
     expect(base).toContain("ansible_distribution_version == '24.04'");
+    expect(base).toContain('path: /etc/systemd/journald.conf.d');
     expect(network).toContain('nft -c -f');
     expect(network).toContain('puni-k3s-firewall');
     expect(network).toContain('notify: Restart fleet firewall');
@@ -352,9 +369,14 @@ describe('the Ansible host and k3s contract', () => {
     expect(serverService).toContain('Requires=puni-k3s-firewall.service');
     expect(agentService).toContain('Requires=puni-k3s-firewall.service');
     expect(server).toContain("checksum: 'sha256:{{ puni_k3s_sha256 }}'");
+    expect(server).toContain("puni_k3s_server_credential is match('^[0-9a-f]{64}$')");
+    expect(server).toContain("puni_k3s_server_token is match('^K10[0-9a-f]{64}::server:");
     expect(server).toContain('no_log: true');
     expect(agent).toContain("checksum: 'sha256:{{ puni_k3s_sha256 }}'");
+    expect(agent).toContain("puni_k3s_agent_token is match('^K10[0-9a-f]{64}::node:");
+    expect(agent).toContain('notify: Restart k3s agent');
     expect(agent).toContain('no_log: true');
+    expect(labSource).toContain('observeK3sEnrollmentTokens(serverName)');
     expect(labSource).toContain("'--kill-after=0.1s'");
   });
 
@@ -388,6 +410,8 @@ describe('the Ansible host and k3s contract', () => {
     expect(validation).toContain('kubectl wait --for=condition=Ready');
     expect(validation).toContain('deployment/coredns');
     expect(validation).toContain('kubectl patch deployment coredns');
+    expect(validation).toContain('--patch-file=/dev/stdin');
+    expect(validation).toContain('exec busybox inetd -f /inetd.conf');
     expect(validation).toContain('"key":"puni.io/enrollment"');
     expect(validation.match(/key: puni\.io\/worker-control-plane/g)).toHaveLength(2);
     expect(validation).toContain('../tasks/require-enrollment-identity.yml');
