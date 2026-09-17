@@ -16,6 +16,8 @@ function readFlags(argv: readonly string[]): ReadonlyMap<string, string> {
     const flag = argv[position];
     const value = argv[position + 1];
     if (!flag.startsWith('--')) {
+      // Proof: disabling this refusal made the positional-argument production CLI negative reach
+      // the operation allowlist and lose the exact location of the malformed input.
       throw new Error(`Invalid fleet plan argument at position ${String(position + 1)}`);
     }
     if (flags.has(flag)) {
@@ -117,6 +119,8 @@ function decodeRequest(flags: ReadonlyMap<string, string>): OperationRequest {
       };
     }
     default:
+      // Proof: removing this refusal made the unknown-operation production CLI negative reach the
+      // planner with an undefined request instead of naming the unsupported operation.
       throw new Error(`Unknown fleet operation: ${kind}`);
   }
 }

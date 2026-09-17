@@ -132,8 +132,11 @@ export function planOperation(
   } else {
     const node = requireNode(fleet, request.nodeId);
     const cluster = fleet.clusters.find(({ id }) => id === node.cluster);
-    if (cluster === undefined)
+    if (cluster === undefined) {
+      // Proof: disabling this defensive refusal made the production planner negative reach an
+      // undefined control-plane policy instead of naming the inconsistent desired node.
       throw new Error(`Desired node names unknown cluster: ${node.cluster}`);
+    }
     if (request.kind === 'enroll' && request.clusterId !== node.cluster) {
       // Proof: disabling this guard made the wrong-cluster enrollment production negative pass.
       throw new Error(`Enroll request cluster differs from desired node cluster: ${node.cluster}`);

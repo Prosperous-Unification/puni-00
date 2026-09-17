@@ -88,6 +88,31 @@ describe('production plan input boundary', () => {
       },
       {
         argv: [
+          'fleet',
+          fixture.fleet,
+          '--observation',
+          fixture.observation,
+          '--output',
+          fixture.output,
+          '--operation',
+          'retire',
+          '--node',
+          'workers-agent-a',
+        ],
+        diagnostic: 'Invalid fleet plan argument at position 1',
+      },
+      {
+        argv: [
+          ...buildBaseArguments(fixture),
+          '--operation',
+          'reconcile',
+          '--node',
+          'workers-agent-a',
+        ],
+        diagnostic: 'Unknown fleet operation: reconcile',
+      },
+      {
+        argv: [
           ...buildBaseArguments(fixture),
           '--operation',
           'retire',

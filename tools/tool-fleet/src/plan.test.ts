@@ -252,6 +252,12 @@ describe('planOperation', () => {
       /unknown fleet node/i,
     );
     expect(() =>
+      planOperation({ ...fleet, clusters: [] }, observation, {
+        kind: 'retire',
+        nodeId: 'workers-b',
+      }),
+    ).toThrow(/desired node names unknown cluster/i);
+    expect(() =>
       planOperation(fleet, observation, {
         kind: 'provision',
         nodeId: 'workers-c',
