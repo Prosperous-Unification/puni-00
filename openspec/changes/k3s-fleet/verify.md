@@ -245,3 +245,50 @@ registry TLS/auth/offline-GC/restart-pull migration, production cloud storage,
 staging ACME/DNS, and the complete cluster-specific Flux source graph have not
 been exercised. No production secret or cloud credential was available, and no
 production resource was changed.
+
+### F6 Astra repair
+
+The exact-SHA Astra review of `240aad8e` found six blockers. Live server-side
+dry-runs proved the trusted policy admitted a privileged untrusted-image init
+container, an explicit projected service-account token, host IPC, omitted
+`allowPrivilegeEscalation`, and a root/NET_ADMIN/Unconfined container. It also
+proved the node kubeconfig still named `127.0.0.1`, the image validator accepted
+an ignored Helm value, chart reconciliation did not consume the archive hashes,
+and the network negative could fail at destination ingress.
+
+After the repairs, `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run
+tool-fleet:check --skip-nx-cache` passed 143 tests with 743 assertions, lint,
+typecheck, the toolchain lock reader and the platform validator.
+
+The repaired admission policy covers regular, init and ephemeral containers and
+the ephemeral-container subresource. It requires the approved digest for every
+container, explicit non-root/no-escalation/RuntimeDefault-or-Localhost/drop-ALL
+security contexts, no added capabilities, no host IPC/PID/network, no unsafe
+sysctls, no projected service-account token, and only Restricted volume types
+plus the exact reviewed host directory. Both positive fixtures passed. All five
+Astra bypass fixtures and the privileged ephemeral-container patch were denied
+by the live API before a workload ran.
+
+The platform playbook now transforms only the expected k3s loopback server into
+`https://kubernetes.default.svc:443`, stores the resulting kubeconfig owner-only,
+and sets `KUBECONFIG` explicitly for the final Flux CLI call. A temporary
+in-cluster Job using the exact k3s image mounted that transformed Secret, called
+`get --raw=/readyz`, completed, and printed `ok`; its Job, Secret and local
+credential file were deleted afterward. The digest-locked controller's
+network-disabled `ansible-playbook --syntax-check` accepted the changed playbook.
+
+The four checksum-matched chart archives are now vendored and selected through
+the immutable `puni-platform` GitRepository rather than mutable HTTP chart
+repositories. All four HelmRelease resources passed live server-side CRD
+validation. Helm v4.3.0 rendered the vendored archives with all enabled runtime
+digests, and the production validator hashes each archive and decodes each
+effective image value instead of searching raw YAML. Moving Traefik's digest to
+`unusedDigest`, changing one archive byte, selecting the upstream chart name,
+and disabling the controller-reachable kubeconfig check each made its focused
+negative fail before the production guard was restored.
+
+The repaired network drill has two positive controls: telemetry egress from a
+worker and access to the denied destination from an unrestricted control
+namespace. Both completed. The isolated worker failed specifically with
+`BackoffLimitExceeded`; adding a temporary WBS egress allowance made that same
+Job complete, and deleting the allowance restored the exact failure.

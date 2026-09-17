@@ -7,11 +7,11 @@ spec:
   interval: 30m
   chart:
     spec:
-      chart: traefik
+      chart: ./infra/platform/charts/traefik-41.6.0.tgz
       version: 41.6.0
       sourceRef:
-        kind: HelmRepository
-        name: traefik
+        kind: GitRepository
+        name: puni-platform
         namespace: flux-system
   values:
     image:

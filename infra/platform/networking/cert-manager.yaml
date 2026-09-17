@@ -7,11 +7,11 @@ spec:
   interval: 30m
   chart:
     spec:
-      chart: cert-manager
+      chart: ./infra/platform/charts/cert-manager-v1.21.2.tgz
       version: v1.21.2
       sourceRef:
-        kind: HelmRepository
-        name: jetstack
+        kind: GitRepository
+        name: puni-platform
         namespace: flux-system
   values:
     crds:

@@ -27,8 +27,8 @@ account impersonation grant.
 
 Run the committed admission probes with server-side dry-run after applying the
 policy overlay. `solver-allowed.yaml` and `forge-allowed.yaml` must succeed. Every
-other manifest in `infra/platform/conformance/admission/` must be denied with its
-specific admission or Restricted Pod Security diagnostic:
+other YAML manifest in `infra/platform/conformance/admission/` must be denied with
+its specific admission or Restricted Pod Security diagnostic:
 
 ```sh
 kubectl apply -k infra/platform/policy
@@ -39,10 +39,22 @@ kubectl auth can-i impersonate serviceaccounts/dev-environment-controller -n pun
 kubectl auth can-i create pods -n puni-forge --as=system:serviceaccount:puni-forge:dev-environment-controller
 ```
 
+The ephemeral-container subresource needs an existing Pod. Create the approved
+solver fixture only on a cluster where its product-capability selector is
+intentionally unschedulable, require this dry-run patch to be denied, then delete
+the pending Pod:
+
+```sh
+kubectl apply -f infra/platform/conformance/admission/solver-allowed.yaml
+kubectl patch pod allowed-solver -n wbs-solver --subresource=ephemeralcontainers --type=merge --dry-run=server --patch-file=infra/platform/conformance/admission/solver-ephemeral-container-patch.json
+kubectl delete pod allowed-solver -n wbs-solver
+```
+
 The three authorization answers must be `no`, `no`, then `yes`. For the live
 network-policy probe, apply `receivers.yaml`, wait for both Deployments, then apply
-`probes.yaml`. The `allowed-egress` Job must complete and `denied-egress` must
-reach `BackoffLimitExceeded`:
+`probes.yaml`. Both positive controls must complete: one proves the telemetry
+allowance and one proves the denied destination is reachable. The worker probe
+must fail specifically with `BackoffLimitExceeded`:
 
 ```sh
 kubectl apply -f infra/platform/conformance/network/receivers.yaml
@@ -50,7 +62,9 @@ kubectl wait --for=condition=Available deployment/allowed-receiver -n observabil
 kubectl wait --for=condition=Available deployment/denied-receiver -n wbs --timeout=2m
 kubectl apply -f infra/platform/conformance/network/probes.yaml
 kubectl wait --for=condition=Complete job/allowed-egress -n workers --timeout=2m
+kubectl wait --for=condition=Complete job/receiver-control -n network-control --timeout=2m
 kubectl wait --for=condition=Failed job/denied-egress -n workers --timeout=2m
+test "$(kubectl get job denied-egress -n workers -o jsonpath='{.status.conditions[?(@.type=="Failed")].reason}')" = BackoffLimitExceeded
 ```
 
 The in-cluster registry is pinned to the amd64 manifest for Distribution 2.8.3.

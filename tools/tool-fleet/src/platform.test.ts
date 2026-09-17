@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, it } from 'bun:test';
 
-import { assertTrustedWorkload, validatePlatform } from './platform';
+import { validatePlatform } from './platform';
 
 const repositoryRoot = join(import.meta.dir, '../../..');
 
@@ -20,6 +20,11 @@ async function mutablePlatform(): Promise<string> {
   await cp(join(repositoryRoot, 'infra/platform'), join(root, 'infra/platform'), {
     recursive: true,
   });
+  await mkdir(join(root, 'infra/ansible/playbooks'), { recursive: true });
+  await cp(
+    join(repositoryRoot, 'infra/ansible/playbooks/platform.yml'),
+    join(root, 'infra/ansible/playbooks/platform.yml'),
+  );
   return root;
 }
 
@@ -55,15 +60,34 @@ describe('validatePlatform', () => {
     expect(validatePlatform(root)).rejects.toThrow(/traefik.*version.*toolchain lock/i);
   });
 
+  it('rejects a chart source that bypasses the vendored archive', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/networking/traefik.yaml',
+      'chart: ./infra/platform/charts/traefik-41.6.0.tgz',
+      'chart: traefik',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/traefik.*vendored chart archive/);
+  });
+
   it('rejects a chart image digest that differs from the toolchain lock', async () => {
     const root = await mutablePlatform();
     await replaceManifestText(
       root,
       'infra/platform/networking/traefik.yaml',
-      'sha256:f86a2cab1b5c649070c49f883c743dd32d8485a56e3368c5f93b9e91f1e91259',
-      `sha256:${'b'.repeat(64)}`,
+      'digest: sha256:f86a2cab1b5c649070c49f883c743dd32d8485a56e3368c5f93b9e91f1e91259',
+      'unusedDigest: sha256:f86a2cab1b5c649070c49f883c743dd32d8485a56e3368c5f93b9e91f1e91259',
     );
-    expect(validatePlatform(root)).rejects.toThrow(/traefik.*controller image digest/);
+    expect(validatePlatform(root)).rejects.toThrow(/traefik values.*image\.digest/);
+  });
+
+  it('rejects changed vendored chart bytes', async () => {
+    const root = await mutablePlatform();
+    const path = join(root, 'infra/platform/charts/traefik-41.6.0.tgz');
+    const chart = await readFile(path);
+    await writeFile(path, Buffer.concat([chart, Buffer.from([0])]));
+    expect(validatePlatform(root)).rejects.toThrow(/traefik chart archive.*toolchain lock/);
   });
 
   it('rejects a registry image digest that differs from the toolchain lock', async () => {
@@ -116,86 +140,15 @@ describe('validatePlatform', () => {
     );
     expect(validatePlatform(root)).rejects.toThrow(/workers-local.*wrong cluster kubeconfig/);
   });
-});
 
-describe('assertTrustedWorkload', () => {
-  const policy = {
-    namespace: 'wbs-solver',
-    serviceAccount: 'wbs-backend',
-    controller: 'Deployment/wbs-backend',
-    image: `registry.puni.test/wbs-be@sha256:${'a'.repeat(64)}`,
-    hostPath: '/run/puni/solver',
-    nodeCapability: 'puni.dev/capability-product',
-  } as const;
-
-  const workload = {
-    namespace: 'wbs-solver',
-    serviceAccount: 'wbs-backend',
-    controller: 'Deployment/wbs-backend',
-    image: `registry.puni.test/wbs-be@sha256:${'a'.repeat(64)}`,
-    hostPaths: ['/run/puni/solver'],
-    nodeSelector: { 'puni.dev/capability-product': 'true' },
-    privileged: false,
-    allowPrivilegeEscalation: false,
-    hostNetwork: false,
-    hostPid: false,
-    automountServiceAccountToken: false,
-  } as const;
-
-  it('accepts only the exact reviewed solver boundary', () => {
-    expect(() => {
-      assertTrustedWorkload(policy, workload);
-    }).not.toThrow();
-  });
-
-  it('rejects an alternate host path before the workload runs', () => {
-    expect(() => {
-      assertTrustedWorkload(policy, { ...workload, hostPaths: ['/run/puni'] });
-    }).toThrow(/exact host path/);
-  });
-
-  it('rejects an untrusted service account before the workload runs', () => {
-    expect(() => {
-      assertTrustedWorkload(policy, { ...workload, serviceAccount: 'default' });
-    }).toThrow(/service account/);
-  });
-
-  it('rejects the wrong trusted namespace before the workload runs', () => {
-    expect(() => {
-      assertTrustedWorkload(policy, { ...workload, namespace: 'wbs' });
-    }).toThrow(/namespace/);
-  });
-
-  it('rejects an untrusted controller before the workload runs', () => {
-    expect(() => {
-      assertTrustedWorkload(policy, { ...workload, controller: 'Pod/manual' });
-    }).toThrow(/controller/);
-  });
-
-  it('rejects an unreviewed image before the workload runs', () => {
-    expect(() => {
-      assertTrustedWorkload(policy, {
-        ...workload,
-        image: `registry.puni.test/wbs-be@sha256:${'b'.repeat(64)}`,
-      });
-    }).toThrow(/image digest/);
-  });
-
-  it('rejects a workload outside its required capability before it runs', () => {
-    expect(() => {
-      assertTrustedWorkload(policy, { ...workload, nodeSelector: {} });
-    }).toThrow(/node capability/);
-  });
-
-  it('rejects privilege escalation before the workload runs', () => {
-    expect(() => {
-      assertTrustedWorkload(policy, { ...workload, allowPrivilegeEscalation: true });
-    }).toThrow(/privilege escalation/);
-  });
-
-  it('rejects an automounted API credential before the workload runs', () => {
-    expect(() => {
-      assertTrustedWorkload(policy, { ...workload, automountServiceAccountToken: true });
-    }).toThrow(/API credential/);
+  it('rejects a Flux bootstrap that gives controllers a loopback kubeconfig', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/ansible/playbooks/platform.yml',
+      'server: https://kubernetes.default.svc:443',
+      'server: https://127.0.0.1:6443',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/controller-reachable kubeconfig/);
   });
 });

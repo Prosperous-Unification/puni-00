@@ -5,6 +5,13 @@ metadata:
   labels:
     pod-security.kubernetes.io/enforce: restricted
 ---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: network-control
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata: { name: allowed-receiver, namespace: observability }
@@ -84,3 +91,18 @@ metadata: { name: denied-receiver, namespace: wbs }
 spec:
   selector: { app: denied-receiver }
   ports: [{ port: 8080, targetPort: 8080 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: conformance-receiver, namespace: wbs }
+spec:
+  podSelector: { matchLabels: { app: denied-receiver } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values: [workers, network-control]
+      ports: [{ protocol: TCP, port: 8080 }]

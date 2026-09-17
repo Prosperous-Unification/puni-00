@@ -27,6 +27,8 @@ spec:
       puni.dev/workload: worker
   policyTypes: [Egress]
   egress:
+    # Proof: temporarily allowing the WBS receiver made the denied-egress conformance Job
+    # complete on 2026-09-17; restoring this telemetry-only destination made it fail again.
     - to:
         - namespaceSelector:
             matchLabels:

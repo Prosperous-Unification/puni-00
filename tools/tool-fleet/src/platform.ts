@@ -38,11 +38,12 @@ const HelmRelease = type({
       spec: {
         chart: 'string>0',
         version: 'string>0',
-        sourceRef: { kind: "'HelmRepository'", name: 'string>0', namespace: "'flux-system'" },
+        sourceRef: { kind: "'GitRepository'", name: "'puni-platform'", namespace: "'flux-system'" },
         '+': 'delete',
       },
       '+': 'delete',
     },
+    values: 'unknown',
     '+': 'delete',
   },
   '+': 'delete',
@@ -67,81 +68,6 @@ const RegistryDeployment = type({
   },
   '+': 'delete',
 });
-
-export interface TrustedWorkloadPolicy {
-  readonly namespace: string;
-  readonly serviceAccount: string;
-  readonly controller: string;
-  readonly image: string;
-  readonly hostPath: string;
-  readonly nodeCapability: string;
-}
-
-export interface TrustedWorkload {
-  readonly namespace: string;
-  readonly serviceAccount: string;
-  readonly controller: string;
-  readonly image: string;
-  readonly hostPaths: readonly string[];
-  readonly nodeSelector: Readonly<Record<string, string>>;
-  readonly privileged: boolean;
-  readonly allowPrivilegeEscalation: boolean;
-  readonly hostNetwork: boolean;
-  readonly hostPid: boolean;
-  readonly automountServiceAccountToken: boolean;
-}
-
-/** Require the exact narrow boundary granted to a trusted host-path workload. */
-export function assertTrustedWorkload(
-  policy: TrustedWorkloadPolicy,
-  workload: TrustedWorkload,
-): void {
-  if (workload.namespace !== policy.namespace) {
-    // Proof: removing this guard made the wrong-namespace production negative stop throwing on
-    // 2026-09-17.
-    throw new Error('Trusted namespace does not match');
-  }
-  if (workload.serviceAccount !== policy.serviceAccount) {
-    // Proof: removing this guard made the default-service-account production negative stop
-    // throwing on 2026-09-17.
-    throw new Error('Trusted service account does not match');
-  }
-  if (workload.controller !== policy.controller) {
-    // Proof: removing this guard made the manual-controller production negative stop throwing on
-    // 2026-09-17.
-    throw new Error('Trusted controller does not match');
-  }
-  if (workload.image !== policy.image) {
-    // Proof: removing this guard made the changed-image-digest production negative stop throwing
-    // on 2026-09-17.
-    throw new Error('Trusted image digest does not match');
-  }
-  if (workload.hostPaths.length !== 1 || workload.hostPaths[0] !== policy.hostPath) {
-    // Proof: removing this guard made the broader-parent production negative stop throwing on
-    // 2026-09-17.
-    throw new Error('Trusted workload must use the exact host path');
-  }
-  if (workload.nodeSelector[policy.nodeCapability] !== 'true') {
-    // Proof: removing this guard made the missing-node-capability production negative stop
-    // throwing on 2026-09-17.
-    throw new Error('Trusted workload is not bound to its required node capability');
-  }
-  if (
-    workload.privileged ||
-    workload.allowPrivilegeEscalation ||
-    workload.hostNetwork ||
-    workload.hostPid
-  ) {
-    // Proof: removing this guard made the privilege-escalation production negative stop throwing
-    // on 2026-09-17.
-    throw new Error('Trusted workload requests privilege escalation or host isolation bypass');
-  }
-  if (workload.automountServiceAccountToken) {
-    // Proof: removing this guard made the automounted-token production negative stop throwing on
-    // 2026-09-17.
-    throw new Error('Trusted workload must not automount an API credential');
-  }
-}
 
 async function readYaml(path: string): Promise<unknown> {
   try {
@@ -172,11 +98,114 @@ const clusterPaths = [
 ] as const;
 
 const releases = [
-  ['cert-manager', 'certManager', 'networking/cert-manager.yaml'],
-  ['hcloud-ccm', 'hcloudCcm', 'storage/production/hcloud-ccm.yaml'],
-  ['hcloud-csi', 'hcloudCsi', 'storage/production/hcloud-csi.yaml'],
-  ['traefik', 'traefik', 'networking/traefik.yaml'],
+  [
+    'cert-manager',
+    'certManager',
+    'networking/cert-manager.yaml',
+    'charts/cert-manager-v1.21.2.tgz',
+  ],
+  [
+    'hcloud-ccm',
+    'hcloudCcm',
+    'storage/production/hcloud-ccm.yaml',
+    'charts/hcloud-cloud-controller-manager-1.37.0.tgz',
+  ],
+  ['hcloud-csi', 'hcloudCsi', 'storage/production/hcloud-csi.yaml', 'charts/hcloud-csi-2.23.0.tgz'],
+  ['traefik', 'traefik', 'networking/traefik.yaml', 'charts/traefik-41.6.0.tgz'],
 ] as const;
+
+const TraefikValues = type({ image: { digest: 'string>0', '+': 'delete' }, '+': 'delete' });
+const CertManagerValues = type({
+  image: { digest: 'string>0', '+': 'delete' },
+  webhook: { image: { digest: 'string>0', '+': 'delete' }, '+': 'delete' },
+  cainjector: { image: { digest: 'string>0', '+': 'delete' }, '+': 'delete' },
+  acmesolver: { image: { digest: 'string>0', '+': 'delete' }, '+': 'delete' },
+  startupapicheck: { image: { digest: 'string>0', '+': 'delete' }, '+': 'delete' },
+  '+': 'delete',
+});
+const HcloudCcmValues = type({ image: { tag: 'string>0', '+': 'delete' }, '+': 'delete' });
+const HcloudCsiValues = type({
+  controller: {
+    image: {
+      csiAttacher: { name: 'string>0', '+': 'delete' },
+      csiResizer: { name: 'string>0', '+': 'delete' },
+      csiProvisioner: { name: 'string>0', '+': 'delete' },
+      livenessProbe: { name: 'string>0', '+': 'delete' },
+      hcloudCSIDriver: { name: 'string>0', '+': 'delete' },
+      '+': 'delete',
+    },
+    '+': 'delete',
+  },
+  node: {
+    image: {
+      csiNodeDriverRegistrar: { name: 'string>0', '+': 'delete' },
+      livenessProbe: { name: 'string>0', '+': 'delete' },
+      hcloudCSIDriver: { name: 'string>0', '+': 'delete' },
+      '+': 'delete',
+    },
+    '+': 'delete',
+  },
+  '+': 'delete',
+});
+
+function referenceDigest(reference: string): string {
+  const separator = reference.lastIndexOf('@');
+  if (separator === -1) throw new Error(`Image reference omits its digest: ${reference}`);
+  return reference.slice(separator + 1);
+}
+
+function releaseImageDigests(
+  releaseName: string,
+  values: unknown,
+): Readonly<Record<string, string>> {
+  if (releaseName === 'traefik') {
+    const parsed = TraefikValues(values);
+    if (parsed instanceof type.errors)
+      throw new Error(`traefik values are invalid: ${parsed.summary}`);
+    return { controller: parsed.image.digest };
+  }
+  if (releaseName === 'cert-manager') {
+    const parsed = CertManagerValues(values);
+    if (parsed instanceof type.errors) {
+      throw new Error(`cert-manager values are invalid: ${parsed.summary}`);
+    }
+    return {
+      controller: parsed.image.digest,
+      webhook: parsed.webhook.image.digest,
+      caInjector: parsed.cainjector.image.digest,
+      acmeSolver: parsed.acmesolver.image.digest,
+      startupApiCheck: parsed.startupapicheck.image.digest,
+    };
+  }
+  if (releaseName === 'hcloud-ccm') {
+    const parsed = HcloudCcmValues(values);
+    if (parsed instanceof type.errors) {
+      throw new Error(`hcloud-ccm values are invalid: ${parsed.summary}`);
+    }
+    return { controller: referenceDigest(parsed.image.tag) };
+  }
+  const parsed = HcloudCsiValues(values);
+  if (parsed instanceof type.errors)
+    throw new Error(`hcloud-csi values are invalid: ${parsed.summary}`);
+  const controllerLiveness = referenceDigest(parsed.controller.image.livenessProbe.name);
+  const nodeLiveness = referenceDigest(parsed.node.image.livenessProbe.name);
+  if (controllerLiveness !== nodeLiveness) {
+    throw new Error('hcloud-csi liveness probe digests differ between controller and node');
+  }
+  const controllerDriver = referenceDigest(parsed.controller.image.hcloudCSIDriver.name);
+  const nodeDriver = referenceDigest(parsed.node.image.hcloudCSIDriver.name);
+  if (controllerDriver !== nodeDriver) {
+    throw new Error('hcloud-csi driver digests differ between controller and node');
+  }
+  return {
+    controller: controllerDriver,
+    csiAttacher: referenceDigest(parsed.controller.image.csiAttacher.name),
+    csiResizer: referenceDigest(parsed.controller.image.csiResizer.name),
+    csiProvisioner: referenceDigest(parsed.controller.image.csiProvisioner.name),
+    livenessProbe: controllerLiveness,
+    csiNodeDriverRegistrar: referenceDigest(parsed.node.image.csiNodeDriverRegistrar.name),
+  };
+}
 
 const stageDependencies = {
   controllers: '',
@@ -229,7 +258,7 @@ export async function validatePlatform(
   }
 
   const releaseNames: string[] = [];
-  for (const [releaseName, lockName, relativePath] of releases) {
+  for (const [releaseName, lockName, relativePath, chartPath] of releases) {
     const releasePath = join(root, 'infra/platform', relativePath);
     const releaseSource = await readFile(releasePath, 'utf8');
     const release = HelmRelease(parse(releaseSource));
@@ -237,15 +266,28 @@ export async function validatePlatform(
       throw new Error(`${releaseName} HelmRelease is invalid: ${release.summary}`);
     }
     if (release.metadata.name !== releaseName) throw new Error(`${releaseName} name is invalid`);
+    if (release.spec.chart.spec.chart !== `./infra/platform/${chartPath}`) {
+      // Proof: removing this guard made the upstream-name Traefik source negative resolve instead
+      // of requiring the vendored archive on 2026-09-17.
+      throw new Error(`${releaseName} does not consume its vendored chart archive`);
+    }
     if (release.spec.chart.spec.version !== toolchain.charts[lockName].version) {
       // Proof: removing this guard made the changed-chart-version production negative resolve
       // instead of reject on 2026-09-17.
       throw new Error(`${releaseName} chart version differs from the toolchain lock`);
     }
+    const chart = await readFile(join(root, 'infra/platform', chartPath));
+    const chartSha256 = createHash('sha256').update(chart).digest('hex');
+    if (chartSha256 !== toolchain.charts[lockName].sha256) {
+      // Proof: changing one byte of the vendored Traefik archive made the production platform
+      // validator reject it on 2026-09-17.
+      throw new Error(`${releaseName} chart archive differs from the toolchain lock`);
+    }
+    const configuredDigests = releaseImageDigests(releaseName, release.spec.values);
     for (const image of toolchain.charts[lockName].images) {
-      if (!releaseSource.includes(image.digest)) {
-        // Proof: removing this guard made the changed-Traefik-image production negative resolve
-        // instead of reject on 2026-09-17.
+      if (configuredDigests[image.role] !== image.digest) {
+        // Proof: moving the Traefik digest to ignored `image.unusedDigest` made the production
+        // validator reject the missing effective value on 2026-09-17.
         throw new Error(`${releaseName} omits locked ${image.role} image digest`);
       }
     }
@@ -275,6 +317,20 @@ export async function validatePlatform(
     // Proof: removing this guard made the changed-Flux-install production negative resolve instead
     // of reject on 2026-09-17.
     throw new Error('Flux install manifest differs from the toolchain lock');
+  }
+
+  const platformPlaybook = await readFile(
+    join(root, 'infra/ansible/playbooks/platform.yml'),
+    'utf8',
+  );
+  if (
+    !platformPlaybook.includes('server: https://kubernetes.default.svc:443') ||
+    platformPlaybook.includes('--from-file=value.yaml=/etc/rancher/k3s/k3s.yaml') ||
+    !platformPlaybook.includes('KUBECONFIG: /etc/rancher/k3s/k3s.yaml')
+  ) {
+    // Proof: restoring the raw node-local kubeconfig made the production validator's bootstrap
+    // negative resolve before this controller-reachability guard was restored on 2026-09-17.
+    throw new Error('Flux bootstrap must use a controller-reachable kubeconfig explicitly');
   }
   return { clusters, releases: releaseNames };
 }

@@ -9,11 +9,11 @@ spec:
     - name: hcloud-ccm
   chart:
     spec:
-      chart: hcloud-csi
+      chart: ./infra/platform/charts/hcloud-csi-2.23.0.tgz
       version: 2.23.0
       sourceRef:
-        kind: HelmRepository
-        name: hcloud
+        kind: GitRepository
+        name: puni-platform
         namespace: flux-system
   values:
     controller:

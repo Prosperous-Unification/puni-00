@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: host-ipc-solver
+  namespace: wbs-solver
+  labels:
+    puni.dev/controller: wbs-backend
+spec:
+  serviceAccountName: wbs-backend
+  automountServiceAccountToken: false
+  nodeSelector:
+    puni.dev/capability-product: 'true'
+  restartPolicy: Never
+  containers:
+    - name: backend
+      image: registry.puni.test/wbs-be@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      command: [sleep, '1']
+      securityContext:
+        privileged: false
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        capabilities: { drop: [ALL] }
+        seccompProfile: { type: RuntimeDefault }
+      volumeMounts:
+        - { name: solver, mountPath: /run/puni/solver }
+  volumes:
+    - name: solver
+      hostPath: { path: /run/puni/solver, type: Directory }
+  hostIPC: true

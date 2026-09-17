@@ -164,6 +164,30 @@
         stdin: '{{ puni_sops_age.stdout }}'
       no_log: true
 
+    - name: Read the node-local cluster kubeconfig
+      ansible.builtin.slurp:
+        src: /etc/rancher/k3s/k3s.yaml
+      register: puni_node_kubeconfig
+      no_log: true
+
+    - name: Require the expected node-local API endpoint
+      ansible.builtin.assert:
+        that: "'server: https://127.0.0.1:6443' in (puni_node_kubeconfig.content | b64decode)"
+        fail_msg: The k3s kubeconfig has an unreviewed API endpoint
+      no_log: true
+
+    - name: Write the controller-reachable cluster kubeconfig
+      ansible.builtin.copy:
+        content: >-
+          {{ (puni_node_kubeconfig.content | b64decode) |
+             replace('server: https://127.0.0.1:6443',
+                     'server: https://kubernetes.default.svc:443') }}
+        dest: '/var/cache/puni/flux/{{ puni_cluster_id }}-kubeconfig.yaml'
+        owner: root
+        group: root
+        mode: '0600'
+      no_log: true
+
     - name: Render the exact cluster kubeconfig credential
       ansible.builtin.command:
         argv:
@@ -174,7 +198,7 @@
           - generic
           - '{{ puni_cluster_id }}-kubeconfig'
           - --namespace=flux-system
-          - --from-file=value.yaml=/etc/rancher/k3s/k3s.yaml
+          - '--from-file=value.yaml=/var/cache/puni/flux/{{ puni_cluster_id }}-kubeconfig.yaml'
           - --dry-run=client
           - --output=yaml
       register: puni_cluster_kubeconfig
@@ -241,4 +265,6 @@
           - --namespace=flux-system
           - --with-source
           - --timeout=10m
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       changed_when: false

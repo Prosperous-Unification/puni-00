@@ -12,49 +12,107 @@ spec:
       - apiGroups: ['']
         apiVersions: [v1]
         operations: [CREATE, UPDATE]
-        resources: [pods]
+        resources: [pods, pods/ephemeralcontainers]
   validations:
     # Proof: replacing exact membership with a path-prefix check admitted
     # /srv/puni/worktrees/puni-00/subdirectory in a live server-side dry-run on 2026-09-17.
     - expression: >-
         !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
         (!has(object.spec.volumes) || object.spec.volumes.all(volume,
-          !has(volume.hostPath) ||
-          (volume.hostPath.type == 'Directory' &&
+          has(volume.configMap) || has(volume.csi) || has(volume.downwardAPI) ||
+          has(volume.emptyDir) || has(volume.ephemeral) || has(volume.persistentVolumeClaim) ||
+          has(volume.projected) || has(volume.secret) ||
+          (has(volume.hostPath) && volume.hostPath.type == 'Directory' &&
            ((object.metadata.namespace == 'wbs-solver' && volume.hostPath.path == '/run/puni/solver') ||
             (object.metadata.namespace == 'puni-forge' &&
              volume.hostPath.path in params.data.forgeWorktreeRoots.split(','))))))
-      message: trusted workloads may mount only their exact directory roots
+      message: trusted workloads may use only Restricted volume types or their exact directory root
     - expression: >-
         object.metadata.namespace != 'wbs-solver' ||
         (object.spec.serviceAccountName == 'wbs-backend' &&
          object.metadata.labels['puni.dev/controller'] == 'wbs-backend' &&
          object.spec.nodeSelector['puni.dev/capability-product'] == 'true')
       message: solver workloads require the approved controller, service account, and product node
+    # Proof: adding a privileged init container with another image was admitted before every
+    # container type was included in both image and security checks on 2026-09-17.
     - expression: >-
         object.metadata.namespace != 'wbs-solver' ||
-        object.spec.containers.all(container, container.image == params.data.solverImage)
-      message: solver workloads require the approved backend image digest
+        (object.spec.containers.all(container, container.image == params.data.solverImage) &&
+         (!has(object.spec.initContainers) ||
+          object.spec.initContainers.all(container, container.image == params.data.solverImage)) &&
+         (!has(object.spec.ephemeralContainers) ||
+          object.spec.ephemeralContainers.all(container, container.image == params.data.solverImage)))
+      message: solver workloads require the approved backend image digest for every container
     - expression: >-
         object.metadata.namespace != 'puni-forge' ||
         (object.spec.serviceAccountName == 'dev-environment-controller' &&
          object.metadata.labels['puni.dev/controller'] == 'dev-environment' &&
          object.spec.nodeSelector['puni.dev/capability-forge'] == 'true' &&
-         object.spec.containers.all(container, container.image == params.data.forgeImage))
+         object.spec.containers.all(container, container.image == params.data.forgeImage) &&
+         (!has(object.spec.initContainers) ||
+          object.spec.initContainers.all(container, container.image == params.data.forgeImage)) &&
+         (!has(object.spec.ephemeralContainers) ||
+          object.spec.ephemeralContainers.all(container, container.image == params.data.forgeImage)))
       message: source workloads require the approved controller, service account, image, and forge node
     # Proof: removing the explicit token check admitted a trusted solver Pod without
     # automountServiceAccountToken=false in a live server-side dry-run on 2026-09-17.
+    # Proof: a projected serviceAccountToken, hostIPC, omitted privilege-escalation control,
+    # and root/NET_ADMIN/Unconfined container were each admitted before this complete guard.
     - expression: >-
         !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
         (has(object.spec.automountServiceAccountToken) &&
          !object.spec.automountServiceAccountToken &&
          (!has(object.spec.hostNetwork) || !object.spec.hostNetwork) &&
          (!has(object.spec.hostPID) || !object.spec.hostPID) &&
+         (!has(object.spec.hostIPC) || !object.spec.hostIPC) &&
+         (!has(object.spec.securityContext) ||
+          !has(object.spec.securityContext.sysctls) || object.spec.securityContext.sysctls.size() == 0) &&
+         (!has(object.spec.volumes) || object.spec.volumes.all(volume,
+           !has(volume.projected) || !has(volume.projected.sources) ||
+           volume.projected.sources.all(source, !has(source.serviceAccountToken)))) &&
          object.spec.containers.all(container,
            has(container.securityContext) &&
            (!has(container.securityContext.privileged) || !container.securityContext.privileged) &&
-           (!has(container.securityContext.allowPrivilegeEscalation) || !container.securityContext.allowPrivilegeEscalation)))
-      message: trusted workloads may not receive API credentials or bypass host or privilege isolation
+           has(container.securityContext.allowPrivilegeEscalation) &&
+           !container.securityContext.allowPrivilegeEscalation &&
+           has(container.securityContext.runAsNonRoot) && container.securityContext.runAsNonRoot &&
+           (!has(container.securityContext.runAsUser) || container.securityContext.runAsUser != 0) &&
+           has(container.securityContext.seccompProfile) &&
+           container.securityContext.seccompProfile.type in ['RuntimeDefault', 'Localhost'] &&
+           has(container.securityContext.capabilities) &&
+           has(container.securityContext.capabilities.drop) &&
+           'ALL' in container.securityContext.capabilities.drop &&
+           (!has(container.securityContext.capabilities.add) ||
+            container.securityContext.capabilities.add.size() == 0)) &&
+         (!has(object.spec.initContainers) || object.spec.initContainers.all(container,
+           has(container.securityContext) &&
+           (!has(container.securityContext.privileged) || !container.securityContext.privileged) &&
+           has(container.securityContext.allowPrivilegeEscalation) &&
+           !container.securityContext.allowPrivilegeEscalation &&
+           has(container.securityContext.runAsNonRoot) && container.securityContext.runAsNonRoot &&
+           (!has(container.securityContext.runAsUser) || container.securityContext.runAsUser != 0) &&
+           has(container.securityContext.seccompProfile) &&
+           container.securityContext.seccompProfile.type in ['RuntimeDefault', 'Localhost'] &&
+           has(container.securityContext.capabilities) &&
+           has(container.securityContext.capabilities.drop) &&
+           'ALL' in container.securityContext.capabilities.drop &&
+           (!has(container.securityContext.capabilities.add) ||
+            container.securityContext.capabilities.add.size() == 0))) &&
+         (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(container,
+           has(container.securityContext) &&
+           (!has(container.securityContext.privileged) || !container.securityContext.privileged) &&
+           has(container.securityContext.allowPrivilegeEscalation) &&
+           !container.securityContext.allowPrivilegeEscalation &&
+           has(container.securityContext.runAsNonRoot) && container.securityContext.runAsNonRoot &&
+           (!has(container.securityContext.runAsUser) || container.securityContext.runAsUser != 0) &&
+           has(container.securityContext.seccompProfile) &&
+           container.securityContext.seccompProfile.type in ['RuntimeDefault', 'Localhost'] &&
+           has(container.securityContext.capabilities) &&
+           has(container.securityContext.capabilities.drop) &&
+           'ALL' in container.securityContext.capabilities.drop &&
+           (!has(container.securityContext.capabilities.add) ||
+            container.securityContext.capabilities.add.size() == 0))))
+      message: trusted workloads must preserve Restricted-equivalent isolation without API tokens
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding

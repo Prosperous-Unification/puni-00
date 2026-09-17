@@ -16,6 +16,9 @@ spec:
       securityContext:
         privileged: false
         allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        capabilities: { drop: [ALL] }
+        seccompProfile: { type: RuntimeDefault }
       volumeMounts:
         - name: worktree
           mountPath: /workspace
