@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: puni-registry
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: registry
+  namespace: puni-registry
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry
+  namespace: puni-registry
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: puni-registry
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app.kubernetes.io/name: registry }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: registry }
+    spec:
+      serviceAccountName: registry
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: registry
+          image: docker.io/library/registry:2.8.3@sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278
+          ports: [{ name: registry, containerPort: 5000 }]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          readinessProbe:
+            httpGet: { path: /v2/, port: registry }
+          volumeMounts:
+            - { name: storage, mountPath: /var/lib/registry }
+      volumes:
+        - name: storage
+          persistentVolumeClaim: { claimName: registry }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: registry
+  namespace: puni-registry
+spec:
+  selector: { app.kubernetes.io/name: registry }
+  ports: [{ name: registry, port: 5000, targetPort: registry }]

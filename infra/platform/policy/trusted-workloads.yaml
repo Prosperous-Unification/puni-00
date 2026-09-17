@@ -1,0 +1,42 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: puni-trusted-hostpath
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ['']
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  validations:
+    - expression: >-
+        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        object.spec.volumes.all(volume,
+          !has(volume.hostPath) ||
+          (volume.hostPath.type == 'Directory' &&
+           ((object.metadata.namespace == 'wbs-solver' && volume.hostPath.path == '/run/puni/solver') ||
+            (object.metadata.namespace == 'puni-forge' && volume.hostPath.path.startsWith('/srv/puni/worktrees/')))))
+      message: trusted workloads may mount only their exact directory roots
+    - expression: >-
+        object.metadata.namespace != 'wbs-solver' ||
+        (object.spec.serviceAccountName == 'wbs-backend' &&
+         object.metadata.labels['puni.dev/controller'] == 'wbs-backend' &&
+         object.spec.nodeSelector['puni.dev/capability-product'] == 'true')
+      message: solver workloads require the approved controller, service account, and product node
+    - expression: >-
+        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        (!object.spec.hostNetwork && !object.spec.hostPID &&
+         object.spec.containers.all(container,
+           !container.securityContext.privileged &&
+           !container.securityContext.allowPrivilegeEscalation))
+      message: trusted workloads may not bypass host or privilege isolation
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: puni-trusted-hostpath
+spec:
+  policyName: puni-trusted-hostpath
+  validationActions: [Deny, Audit]

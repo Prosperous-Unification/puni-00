@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: puni-cluster-identity
+  namespace: flux-system
+data:
+  puni.dev/cluster-id: platform-production

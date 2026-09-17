@@ -81,6 +81,11 @@
       "role": "node",
       "name": "docker.io/rancher/k3s:v1.36.4-k3s1",
       "digest": "sha256:edad48e12bf81c3a09ac1c05c0c0ffaaa22145980b989d6fae84543a76b83657"
+    },
+    "registry": {
+      "role": "registry",
+      "name": "docker.io/library/registry:2.8.3",
+      "digest": "sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278"
     }
   },
   "controller": {

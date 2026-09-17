@@ -7,8 +7,11 @@ const toolchainPath = join(root, 'infra/versions/toolchain.json');
 switch (command) {
   case 'check':
     {
-      const { readToolchain } = await import('./contracts');
-      await readToolchain(toolchainPath);
+      const [{ readToolchain }, { validatePlatform }] = await Promise.all([
+        import('./contracts'),
+        import('./platform'),
+      ]);
+      await Promise.all([readToolchain(toolchainPath), validatePlatform(root)]);
     }
     break;
   case 'build':

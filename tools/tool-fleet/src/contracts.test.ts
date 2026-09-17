@@ -82,7 +82,7 @@ const validToolchain = {
       arch: 'amd64',
     },
   },
-  runtimeImages: { k3dNode: image('node') },
+  runtimeImages: { k3dNode: image('node'), registry: image('registry') },
   controller: {
     image: 'registry.example.test/puni/fleet-controller:1.0.0',
     digest: `sha256:${sha256}`,
@@ -162,6 +162,13 @@ describe('readToolchain', () => {
     expect(readToolchain(await writeToolchain({ ...validToolchain, binaries }))).rejects.toThrow(
       /terragrunt/,
     );
+  });
+
+  it('rejects a missing registry image lock', async () => {
+    const { registry: _removed, ...runtimeImages } = validToolchain.runtimeImages;
+    expect(
+      readToolchain(await writeToolchain({ ...validToolchain, runtimeImages })),
+    ).rejects.toThrow(/registry/);
   });
 
   it('requires a separately locked Terraform executable digest', async () => {

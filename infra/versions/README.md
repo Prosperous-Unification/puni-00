@@ -12,3 +12,10 @@ Kubernetes 1.33 through 1.36 for v1.21, so this baseline is inside its published
 compatibility range. The k3d node image is locked separately from the host k3s
 binary. Every chart records the exact enabled image roles and components that
 the platform profile disables; the reader rejects a missing or extra role.
+
+The replacement registry remains on Distribution 2.8.3 during the migration.
+[Docker Hub](https://hub.docker.com/layers/library/registry/2.8.3/images/sha256-46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278)
+identifies the exact linux/amd64 manifest recorded in `runtimeImages.registry`.
+The Kubernetes workload runs that image as UID/GID 1000; a network-disabled
+container probe executed `registry --version` and wrote its storage path under
+that identity.

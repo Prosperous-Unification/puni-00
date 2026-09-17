@@ -82,7 +82,13 @@ const ToolchainSchema = type({
     },
     '+': 'reject',
   },
-  runtimeImages: { k3dNode: ImageLock, '+': 'reject' },
+  runtimeImages: {
+    k3dNode: ImageLock,
+    // Proof: removing this required lock made the missing-registry-image production-reader
+    // negative fail before a mutable registry workload could be rendered.
+    registry: ImageLock,
+    '+': 'reject',
+  },
   controller: {
     image: 'string>0',
     digest,

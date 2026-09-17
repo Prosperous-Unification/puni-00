@@ -1,0 +1,231 @@
+---
+- name: Bootstrap Flux ownership on one exact k3s cluster
+  hosts: k3s_bootstrap_servers
+  become: true
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Require exact platform bootstrap inputs
+      ansible.builtin.assert:
+        that:
+          - puni_cluster_id in ['platform-local', 'platform-production', 'workers-local', 'workers-production']
+          - puni_flux_url is match('^https://')
+          - puni_flux_sha256 is match('^[0-9a-f]{64}$')
+          - puni_flux_version is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+          - puni_platform_repository_url is match('^ssh://')
+          - puni_platform_revision is match('^[0-9a-f]{40}$')
+          - puni_flux_read_key_path is defined
+          - puni_flux_known_hosts_path is defined
+          - puni_sops_age_key_path is defined
+        fail_msg: Exact cluster, Flux artifact, source revision, read key, host trust, and SOPS key are required
+
+    - name: Inspect owner-only bootstrap secrets
+      ansible.builtin.stat:
+        path: '{{ item }}'
+      loop:
+        - '{{ puni_flux_read_key_path }}'
+        - '{{ puni_flux_known_hosts_path }}'
+        - '{{ puni_sops_age_key_path }}'
+      register: puni_platform_secret_files
+      no_log: true
+
+    - name: Refuse absent or exposed bootstrap secrets
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isreg
+          - item.stat.mode == '0600'
+        fail_msg: Platform bootstrap secret is absent, not a regular file, or not owner-only
+      loop: '{{ puni_platform_secret_files.results }}'
+      no_log: true
+
+    - name: Create the pinned Flux download directory
+      ansible.builtin.file:
+        path: /var/cache/puni/flux
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Download the pinned Flux archive
+      ansible.builtin.get_url:
+        url: '{{ puni_flux_url }}'
+        dest: '/var/cache/puni/flux/flux-{{ puni_flux_version }}.tar.gz'
+        checksum: 'sha256:{{ puni_flux_sha256 }}'
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Install the pinned Flux client
+      ansible.builtin.unarchive:
+        src: '/var/cache/puni/flux/flux-{{ puni_flux_version }}.tar.gz'
+        dest: /usr/local/bin
+        remote_src: true
+        include: [flux]
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Read the installed Flux version
+      ansible.builtin.command:
+        argv: [/usr/local/bin/flux, version, --client]
+      register: puni_installed_flux
+      changed_when: false
+
+    - name: Require the exact installed Flux version
+      ansible.builtin.assert:
+        that: puni_flux_version in puni_installed_flux.stdout
+        fail_msg: Installed Flux version differs from the reviewed toolchain
+
+    - name: Render Flux controllers from the pinned client
+      ansible.builtin.command:
+        argv: [/usr/local/bin/flux, install, --export]
+      register: puni_flux_controllers
+      changed_when: false
+
+    - name: Reconcile Flux controllers
+      ansible.builtin.command:
+        argv: [k3s, kubectl, apply, -f, '-']
+        stdin: '{{ puni_flux_controllers.stdout }}'
+      register: puni_flux_install
+      changed_when: "' configured' in puni_flux_install.stdout or ' created' in puni_flux_install.stdout"
+
+    - name: Wait for Flux controllers
+      ansible.builtin.command:
+        argv:
+          - k3s
+          - kubectl
+          - rollout
+          - status
+          - deployment
+          - --all
+          - --namespace
+          - flux-system
+          - --timeout=300s
+      changed_when: false
+
+    - name: Render the read-only repository credential
+      ansible.builtin.command:
+        argv:
+          - k3s
+          - kubectl
+          - create
+          - secret
+          - generic
+          - puni-platform-auth
+          - --namespace=flux-system
+          - '--from-file=identity={{ puni_flux_read_key_path }}'
+          - '--from-file=known_hosts={{ puni_flux_known_hosts_path }}'
+          - --dry-run=client
+          - --output=yaml
+      register: puni_flux_auth
+      changed_when: false
+      no_log: true
+
+    - name: Reconcile the read-only repository credential
+      ansible.builtin.command:
+        argv: [k3s, kubectl, apply, -f, '-']
+        stdin: '{{ puni_flux_auth.stdout }}'
+      no_log: true
+
+    - name: Render the SOPS recovery credential
+      ansible.builtin.command:
+        argv:
+          - k3s
+          - kubectl
+          - create
+          - secret
+          - generic
+          - sops-age
+          - --namespace=flux-system
+          - '--from-file=age.agekey={{ puni_sops_age_key_path }}'
+          - --dry-run=client
+          - --output=yaml
+      register: puni_sops_age
+      changed_when: false
+      no_log: true
+
+    - name: Reconcile the SOPS recovery credential
+      ansible.builtin.command:
+        argv: [k3s, kubectl, apply, -f, '-']
+        stdin: '{{ puni_sops_age.stdout }}'
+      no_log: true
+
+    - name: Render the exact cluster kubeconfig credential
+      ansible.builtin.command:
+        argv:
+          - k3s
+          - kubectl
+          - create
+          - secret
+          - generic
+          - '{{ puni_cluster_id }}-kubeconfig'
+          - --namespace=flux-system
+          - --from-file=value.yaml=/etc/rancher/k3s/k3s.yaml
+          - --dry-run=client
+          - --output=yaml
+      register: puni_cluster_kubeconfig
+      changed_when: false
+      no_log: true
+
+    - name: Reconcile the exact cluster kubeconfig credential
+      ansible.builtin.command:
+        argv: [k3s, kubectl, apply, -f, '-']
+        stdin: '{{ puni_cluster_kubeconfig.stdout }}'
+      no_log: true
+
+    - name: Render the immutable Git source
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/flux
+          - create
+          - source
+          - git
+          - puni-platform
+          - '--url={{ puni_platform_repository_url }}'
+          - '--commit={{ puni_platform_revision }}'
+          - --secret-ref=puni-platform-auth
+          - --namespace=flux-system
+          - --export
+      register: puni_platform_source
+      changed_when: false
+
+    - name: Reconcile the immutable Git source
+      ansible.builtin.command:
+        argv: [k3s, kubectl, apply, -f, '-']
+        stdin: '{{ puni_platform_source.stdout }}'
+
+    - name: Render the cluster ownership root
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/flux
+          - create
+          - kustomization
+          - puni-cluster
+          - --source=GitRepository/puni-platform
+          - '--path=./infra/clusters/{{ puni_cluster_id | replace("-", "/") }}'
+          - --prune=true
+          - --wait=true
+          - --timeout=10m
+          - --interval=10m
+          - --namespace=flux-system
+          - --export
+      register: puni_cluster_root
+      changed_when: false
+
+    - name: Reconcile the cluster ownership root
+      ansible.builtin.command:
+        argv: [k3s, kubectl, apply, -f, '-']
+        stdin: '{{ puni_cluster_root.stdout }}'
+
+    - name: Wait for the exact cluster ownership root
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/flux
+          - reconcile
+          - kustomization
+          - puni-cluster
+          - --namespace=flux-system
+          - --with-source
+          - --timeout=10m
+      changed_when: false
