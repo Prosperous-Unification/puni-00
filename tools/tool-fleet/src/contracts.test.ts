@@ -192,6 +192,25 @@ describe('readToolchain', () => {
     expect(readToolchain(path)).rejects.toThrow(/certManager image roles/);
   });
 
+  it('rejects image roles that use a delimiter to hide a missing role', async () => {
+    const certManager = validToolchain.charts.certManager;
+    const path = await writeToolchain({
+      ...validToolchain,
+      charts: {
+        ...validToolchain.charts,
+        certManager: {
+          ...certManager,
+          images: certManager.images
+            .filter(({ role }) => role !== 'caInjector')
+            .map((lock) =>
+              lock.role === 'acmeSolver' ? { ...lock, role: 'acmeSolver\ncaInjector' } : lock,
+            ),
+        },
+      },
+    });
+    expect(readToolchain(path)).rejects.toThrow(/certManager image roles/);
+  });
+
   it('rejects absent, unreadable, and malformed required state', async () => {
     const directory = await scratchAsync('tool-fleet-contract-');
     expect(readToolchain(join(directory, 'missing.json'))).rejects.toThrow(/toolchain/i);

@@ -138,12 +138,29 @@ const requiredImageRoles = {
 } as const satisfies Record<keyof Toolchain['charts'], readonly string[]>;
 
 function assertCompleteImageLocks(toolchain: Toolchain): void {
-  for (const [chartName, expectedRoles] of Object.entries(requiredImageRoles)) {
-    const chart = toolchain.charts[chartName as keyof Toolchain['charts']];
+  const chartNames = [
+    'hcloudCcm',
+    'hcloudCsi',
+    'traefik',
+    'certManager',
+    'eckOperator',
+    'elasticsearch',
+    'kibana',
+    'kubePrometheusStack',
+    'opentelemetryCollector',
+    'velero',
+  ] as const satisfies readonly (keyof Toolchain['charts'])[];
+  for (const chartName of chartNames) {
+    const chart = toolchain.charts[chartName];
+    const expectedRoles = [...requiredImageRoles[chartName]].sort();
     const actualRoles = chart.images.map(({ role }) => role).sort();
-    if (actualRoles.join('\n') !== [...expectedRoles].sort().join('\n')) {
-      // Proof: removing this comparison let a cert-manager lock without its
-      // webhook pass; the production reader negative then failed on 2026-09-17.
+    if (
+      actualRoles.length !== expectedRoles.length ||
+      actualRoles.some((role, position) => role !== expectedRoles[position])
+    ) {
+      // Proof: replacing this element comparison with newline joins let one
+      // role hide a missing role; the production reader negative failed on
+      // 2026-09-17.
       throw new Error(`${chartName} image roles must be exactly: ${expectedRoles.join(', ')}`);
     }
   }

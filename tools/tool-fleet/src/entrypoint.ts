@@ -1,37 +1,18 @@
-import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { readToolchain } from './contracts';
+import { buildController } from './controller';
 
 const command = process.argv[2];
 const root = join(import.meta.dir, '../../..');
 const toolchainPath = join(root, 'infra/versions/toolchain.json');
-
-async function buildController(): Promise<void> {
-  await readToolchain(toolchainPath);
-  const destination = join(root, 'dist/tool-fleet/controller.oci');
-  await mkdir(join(root, 'dist/tool-fleet'), { recursive: true });
-  const build = Bun.spawnSync([
-    'docker',
-    'buildx',
-    'build',
-    '--file',
-    join(root, 'infra/controller/Containerfile'),
-    '--output',
-    `type=oci,dest=${destination}`,
-    root,
-  ]);
-  if (build.exitCode !== 0) {
-    throw new Error(`Controller build failed: ${build.stderr.toString()}`);
-  }
-}
 
 switch (command) {
   case 'check':
     await readToolchain(toolchainPath);
     break;
   case 'build':
-    await buildController();
+    await buildController(root, (await readToolchain(toolchainPath)).controller.digest);
     break;
   case 'lab':
     throw new Error('Fleet lab is unavailable until F3 supplies the VM and k3d harness');
