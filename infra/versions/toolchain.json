@@ -1,0 +1,199 @@
+{
+  "schemaVersion": 1,
+  "supportedHosts": [{ "distribution": "ubuntu", "version": "24.04", "arch": "amd64" }],
+  "binaries": {
+    "terraform": {
+      "version": "1.16.3",
+      "url": "https://releases.hashicorp.com/terraform/1.16.3/terraform_1.16.3_linux_amd64.zip",
+      "sha256": "093b6ae9a2228af5029c41606bc96eb583553528aad1bfe7e0b4d62fc91e25d8",
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "k3s": {
+      "version": "v1.37.0+k3s1",
+      "url": "https://github.com/k3s-io/k3s/releases/download/v1.37.0%2Bk3s1/k3s",
+      "sha256": "39eed8f53f277497dfc2542f66eab0ed68a94dfc598946dbebfb50366916c7a2",
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "k3d": {
+      "version": "v5.9.0",
+      "url": "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-linux-amd64",
+      "sha256": "06d8f25bc3a971c4eb29e0ff08429b180402db0f4dec838c9eac427e296800a0",
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "flux": {
+      "version": "v2.9.5",
+      "url": "https://github.com/fluxcd/flux2/releases/download/v2.9.5/flux_2.9.5_linux_amd64.tar.gz",
+      "sha256": "b853df82adfd7736f580692f9f734473d571606307139f8fd20c2a80dd1ff473",
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "kubectl": {
+      "version": "v1.37.0",
+      "url": "https://dl.k8s.io/v1.37.0/bin/linux/amd64/kubectl",
+      "sha256": "6129359f4e1f3848a5572ccb0b26cf28b8ca08cef38c95a765b2f64a2c961a2f",
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "helm": {
+      "version": "v4.3.0",
+      "url": "https://get.helm.sh/helm-v4.3.0-linux-amd64.tar.gz",
+      "sha256": "86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb",
+      "os": "linux",
+      "arch": "amd64"
+    },
+    "multipass": {
+      "version": "1.16.4+snap.18737",
+      "url": "https://api.snapcraft.io/api/v1/snaps/download/mA11087v6dR3IEcQLgICQVjuvhUUBUKM_18737.snap",
+      "sha256": "1502aed73351c5463e3fcec16e7c9a3621621bdffd61387b54e5d60e45b2242b",
+      "os": "linux",
+      "arch": "amd64"
+    }
+  },
+  "terraform": { "hcloudProvider": "1.69.0" },
+  "controller": {
+    "image": "ghcr.io/prosperous-unification/fleet-controller:0.1.0",
+    "digest": "sha256:6d063abc13ee0393fbc98298de7464ad311bf8f6ec376bcdc2d8746c0a3c199b",
+    "python": "3.14.6",
+    "ansibleCore": "2.21.3",
+    "collections": {
+      "communityGeneral": "13.4.0",
+      "hetznerHcloud": "7.0.1",
+      "kubernetesCore": "6.6.0"
+    }
+  },
+  "charts": {
+    "hcloudCcm": {
+      "version": "1.37.0",
+      "url": "https://charts.hetzner.cloud/hcloud-cloud-controller-manager-1.37.0.tgz",
+      "sha256": "8e1e04e628f3bfbf390a2d90d51248d9a84ceea8409d352dcba6a0d8ebf77a36",
+      "images": [
+        {
+          "name": "docker.io/hetznercloud/hcloud-cloud-controller-manager:v1.37.0",
+          "digest": "sha256:c139e7220dbcda3f451ce16c27da7747914eddc257568963528b2aeb1e1d478e"
+        }
+      ]
+    },
+    "hcloudCsi": {
+      "version": "2.23.0",
+      "url": "https://charts.hetzner.cloud/hcloud-csi-2.23.0.tgz",
+      "sha256": "b041e5f4d0b6f09067efb266930ba740e02527abd2eca56a683d8c60e448d7cb",
+      "images": [
+        {
+          "name": "docker.io/hetznercloud/hcloud-csi-driver:v2.23.0",
+          "digest": "sha256:024ea4b07161b2f2cb27449be60de8cf942ac80424d1d213696db237cdf7f7f4"
+        },
+        {
+          "name": "registry.k8s.io/sig-storage/csi-attacher:v4.11.0",
+          "digest": "sha256:b74b05b39501565022883fc128002b4cb857a7bb6c858606bcb3fdedba0b0b80"
+        },
+        {
+          "name": "registry.k8s.io/sig-storage/csi-resizer:v2.1.0",
+          "digest": "sha256:589e525cddef6d768e68da1f0bc9ffd0a24bf3add3dd010648eb7189976fde79"
+        },
+        {
+          "name": "registry.k8s.io/sig-storage/csi-provisioner:v6.2.0",
+          "digest": "sha256:6be9f63ca4caa6c46aae55aa372500949d8a21473d72f819da1f746076b32d4e"
+        },
+        {
+          "name": "registry.k8s.io/sig-storage/livenessprobe:v2.18.0",
+          "digest": "sha256:c4cc074199c045dd73ab85f28897e2a32f4d6f38ffdba4f3b13b8007ccbd3570"
+        },
+        {
+          "name": "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.16.0",
+          "digest": "sha256:ab482308a4921e28a6df09a16ab99a457e9af9641ff44fb1be1a690d07ce8b70"
+        }
+      ]
+    },
+    "traefik": {
+      "version": "41.6.0",
+      "url": "https://traefik.github.io/charts/traefik/traefik-41.6.0.tgz",
+      "sha256": "cd7254ea853da73bdb88edc896f079b88d43ffa0bfe699fdbf21081361eac365",
+      "images": [
+        {
+          "name": "docker.io/library/traefik:v3.7.13",
+          "digest": "sha256:f86a2cab1b5c649070c49f883c743dd32d8485a56e3368c5f93b9e91f1e91259"
+        }
+      ]
+    },
+    "certManager": {
+      "version": "v1.21.2",
+      "url": "https://charts.jetstack.io/charts/cert-manager-v1.21.2.tgz",
+      "sha256": "73a56e1728edd6c99f1f31082618c3259d279a76b7ebd3d4bdc5475c2442d34a",
+      "images": [
+        {
+          "name": "quay.io/jetstack/cert-manager-controller:v1.21.2",
+          "digest": "sha256:70f532fd9cfde0b09d55687200942399d89838bc2d5d5b45152eb799a15912b8"
+        }
+      ]
+    },
+    "eckOperator": {
+      "version": "3.5.0",
+      "url": "https://helm.elastic.co/helm/eck-operator/eck-operator-3.5.0.tgz",
+      "sha256": "eda9ec502c786fc1ad293e7f4235fdef43b2c741dcc977ab1f62377d72b5173f",
+      "images": [
+        {
+          "name": "docker.elastic.co/eck/eck-operator:3.5.0",
+          "digest": "sha256:b6f261372d9d9af7b00aab03efea25263314d16063c4d440ac322e52c2fdf314"
+        }
+      ]
+    },
+    "elasticsearch": {
+      "version": "0.20.0",
+      "url": "https://helm.elastic.co/helm/eck-elasticsearch/eck-elasticsearch-0.20.0.tgz",
+      "sha256": "1ab952a3df85a481277afa62154b449ce0c37e83b0b717df42074c68ba753fc8",
+      "images": [
+        {
+          "name": "docker.elastic.co/elasticsearch/elasticsearch:9.3.8",
+          "digest": "sha256:f96812864b81e62a9ce7562c4f4bbef1186bb4e8798f814bc6a5f2b84b51b540"
+        }
+      ]
+    },
+    "kibana": {
+      "version": "0.20.0",
+      "url": "https://helm.elastic.co/helm/eck-kibana/eck-kibana-0.20.0.tgz",
+      "sha256": "2b74d63c7c6d7d1e8ced6c563374856050b2bde2c7eaefb37f5c097cecf818f3",
+      "images": [
+        {
+          "name": "docker.elastic.co/kibana/kibana:9.3.8",
+          "digest": "sha256:a9f4af21536422d9a3bb924bad5990b24859db0c9a0474558f283244a2bcd481"
+        }
+      ]
+    },
+    "kubePrometheusStack": {
+      "version": "91.4.1",
+      "url": "https://github.com/prometheus-community/helm-charts/releases/download/kube-prometheus-stack-91.4.1/kube-prometheus-stack-91.4.1.tgz",
+      "sha256": "1bd5e7a88e758ed3ec22db0fe6e72b1352f3f0e7e5a93c79979f7edf361becdb",
+      "images": [
+        {
+          "name": "quay.io/prometheus-operator/prometheus-operator:v0.94.0",
+          "digest": "sha256:cf153f64d6c38113fceb2cda7642365ea887f71edd7888f054e43e54cf177e55"
+        }
+      ]
+    },
+    "opentelemetryCollector": {
+      "version": "0.173.1",
+      "url": "https://github.com/open-telemetry/opentelemetry-helm-charts/releases/download/opentelemetry-collector-0.173.1/opentelemetry-collector-0.173.1.tgz",
+      "sha256": "66897a36e9eeda71ce227236fb952c0501ce7d7f6387e0318ca15046950ee04d",
+      "images": [
+        {
+          "name": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.160.0",
+          "digest": "sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6"
+        }
+      ]
+    },
+    "velero": {
+      "version": "12.2.0",
+      "url": "https://github.com/vmware-tanzu/helm-charts/releases/download/velero-12.2.0/velero-12.2.0.tgz",
+      "sha256": "5e6b516dc6ce83f0b46ef0440c09a5f061e68861c5c8bfdc86484e886a1ba391",
+      "images": [
+        {
+          "name": "docker.io/velero/velero:v1.18.2",
+          "digest": "sha256:37396519f399536e5f01427d723565ae69294ec3fb5625cf1c87c09eaa9de16b"
+        }
+      ]
+    }
+  }
+}

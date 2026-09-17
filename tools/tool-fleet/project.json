@@ -1,0 +1,30 @@
+{
+  "name": "tool-fleet",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "tools/tool-fleet/src",
+  "projectType": "library",
+  "tags": ["scope:infra", "type:scripts", "runtime:bun", "ring:adapter"],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test --preload ../test/scratch/preload.ts",
+        "cwd": "tools/tool-fleet"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx eslint tools/tool-fleet/src" }
+    },
+    "lint:fast": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx eslint tools/tool-fleet/src --cache --cache-location .nx/eslintcache-tool-fleet"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": { "command": "bunx tsc --build --force tools/tool-fleet/tsconfig.json" }
+    }
+  }
+}

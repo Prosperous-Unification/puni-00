@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "profile",
+    "cloudProjectId",
+    "cloudNetworkId",
+    "adminSshCidrs",
+    "adminSshKeyFingerprints",
+    "desiredHostAllocations",
+    "apiEndpoint",
+    "dnsHostnames",
+    "dnsOwner",
+    "registryUrl",
+    "encryptedSecretReferences",
+    "objectStoreEndpoints",
+    "failureDomains",
+    "alertDestination"
+  ],
+  "properties": {
+    "profile": { "enum": ["local", "production"] },
+    "cloudProjectId": { "type": "string", "minLength": 1 },
+    "cloudNetworkId": { "type": "string", "minLength": 1 },
+    "adminSshCidrs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "adminSshKeyFingerprints": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "desiredHostAllocations": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "apiEndpoint": { "type": "string", "minLength": 1 },
+    "dnsHostnames": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "dnsOwner": { "type": "string", "minLength": 1 },
+    "registryUrl": { "type": "string", "minLength": 1 },
+    "encryptedSecretReferences": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "objectStoreEndpoints": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "failureDomains": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "alertDestination": { "type": "string", "minLength": 1 }
+  }
+}

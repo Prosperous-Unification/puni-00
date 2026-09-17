@@ -1,0 +1,8 @@
+FROM ghcr.io/ansible/community-ansible-dev-tools@sha256:70f705fee2386deb320598ea011812292598111cca85f0107ee9479062628e79
+
+USER root
+COPY infra/controller/requirements.yml /tmp/fleet-requirements.yml
+RUN ansible-galaxy collection install --force --requirements-file /tmp/fleet-requirements.yml \
+  && rm /tmp/fleet-requirements.yml
+
+USER 1000
