@@ -783,6 +783,13 @@ describe('consumer activation from a toolkit', () => {
     expect(() => prepareToolkitActivation(preparerArguments(drifted))).toThrow(
       'toolkit was built with another Bun: 1.3.9',
     );
+
+    const substituted = await realToolkit();
+    // Proof: omitting the installed package identity let an explicit toolkit override replace the
+    // reviewed package toolkit and continue to the deliberately absent candidate repository.
+    expect(() =>
+      prepareToolkitActivation(preparerArguments(substituted), undefined, 'f'.repeat(64)),
+    ).toThrow('selected toolkit differs from package manifest');
   }, 300_000);
 
   test('toolkit mode keeps the refusals that measure the candidate alone', async () => {

@@ -156,7 +156,7 @@ function assertOutsideCandidate(repository: string, path: string, flag: string):
   return resolved;
 }
 
-interface Toolkit {
+export interface Toolkit {
   readonly directory: string;
   readonly tag: string;
   readonly sourceRevision: string;
@@ -173,7 +173,7 @@ interface Toolkit {
  * @throws {@link RelocationRefusal} `R19` naming the role whose bytes differ, the closure whose
  * digest differs, or the Bun version the toolkit was built with.
  */
-function readToolkit(directory: string): Toolkit {
+export function readToolkit(directory: string): Toolkit {
   const canonical = realpathSync(directory);
   const descriptorBytes = readFileSync(join(canonical, 'toolkit.json'));
   const descriptor = parseOrThrow(
@@ -239,7 +239,11 @@ function readToolkit(directory: string): Toolkit {
 
 function runCheck(
   repository: string,
-  check: { checkId: string; command: string[]; skipProbe?: string[] },
+  check: {
+    checkId: string;
+    command: string[];
+    skipProbe?: { command: string[]; cwd: string; env: Readonly<Record<string, string>> };
+  },
   work: string,
 ): CheckRun {
   const startedAt = new Date().toISOString();
@@ -258,9 +262,18 @@ function runCheck(
   });
   const skipProbe =
     invocation.exitCode === 0 && check.skipProbe !== undefined
-      ? Bun.spawnSync(check.skipProbe, {
-          cwd: repository,
-          env: process.env,
+      ? Bun.spawnSync(check.skipProbe.command, {
+          // Proof: forcing this to the repository root made the installed preparation run a
+          // relative preload from the wrong directory; the production negative reported a failed
+          // check instead of detecting the skipped candidate test.
+          cwd: resolve(repository, check.skipProbe.cwd),
+          env: {
+            ...process.env,
+            ...check.skipProbe.env,
+            NX_DAEMON: 'false',
+            NX_ISOLATE_PLUGINS: 'false',
+            NX_NO_CLOUD: 'true',
+          },
           stderr: 'pipe',
           stdout: 'pipe',
         })
@@ -365,6 +378,7 @@ function archive(
 export function prepareToolkitActivation(
   argv: readonly string[],
   defaultToolkit?: string,
+  expectedToolkitIdentity?: string,
 ): string[] {
   const options = readArguments(argv, defaultToolkit);
   const repository = realpathSync(resolve(options['candidate-repository']));
@@ -375,6 +389,15 @@ export function prepareToolkitActivation(
     throw new Error(`activation destination already selects a version: ${destination}`);
   }
   const toolkit = readToolkit(resolve(options.toolkit));
+  // Proof: replacing this comparison with the selected digest let an explicit `--toolkit`
+  // override substitute a different self-consistent toolkit for the one bound by the installed
+  // package manifest; the override negative then prepared with the substituted toolkit.
+  if (expectedToolkitIdentity !== undefined && toolkit.digest !== expectedToolkitIdentity) {
+    throw new RelocationRefusal(
+      'R19',
+      `selected toolkit differs from package manifest: ${toolkit.digest} != ${expectedToolkitIdentity}`,
+    );
+  }
   assertCommittedCandidate(repository, sha);
   assertPinnedRuntime(
     Bun.version,

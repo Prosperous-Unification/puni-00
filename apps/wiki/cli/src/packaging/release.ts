@@ -8,6 +8,7 @@ const ReleaseTag = /^twilight-bureaucrat-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[
 const CommitIdentity = /^[0-9a-f]{40}$/;
 const Digest = /^[0-9a-f]{64}$/;
 const requiredMembers = [
+  'package/LICENSE',
   'package/package.json',
   'package/dist/bin.mjs',
   'package/dist/package-manifest.json',
@@ -27,6 +28,8 @@ export interface PackageReleaseRequest {
   readonly repository: string;
   readonly tag: string;
   readonly tarball: string;
+  /** Immutable event commit checked out by the release runner. */
+  readonly eventRevision?: string;
 }
 
 export interface PackageReleaseRecord {
@@ -105,6 +108,7 @@ function readObject(text: string, subject: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new Error(`${subject} is not an object`);
   }
+  // The object/null/array boundary above proves the only structural claim made by this cast.
   return value as Record<string, unknown>;
 }
 
@@ -131,7 +135,13 @@ function parseRecord(text: string): PackageReleaseRecord {
   ) {
     throw new Error('package release record has invalid fields');
   }
+  // Every field of PackageReleaseRecord is checked above before this boundary value escapes.
   return value as unknown as PackageReleaseRecord;
+}
+
+/** Read a transferred release record through its complete schema boundary. */
+export function readPackageReleaseRecord(recordPath: string): PackageReleaseRecord {
+  return parseRecord(readFileSync(recordPath, 'utf8'));
 }
 
 /** Bind a clean tagged checkout and an accepted package tarball into the cross-job release record. */
@@ -146,6 +156,13 @@ export async function preparePackageRelease(
   if (match === null) throw new Error(`release tag is malformed: ${request.tag}`);
   const version = `${match[1]}.${match[2]}.${match[3]}`;
   const sourceRevision = resolveTag(repository, request.tag);
+  // Proof: injecting another valid commit as the workflow event revision made the planner bind a
+  // mutable tag checkout until this comparison refused the tag/event identity mismatch.
+  if (request.eventRevision !== undefined && sourceRevision !== request.eventRevision) {
+    throw new Error(
+      `release tag differs from workflow event: ${sourceRevision} != ${request.eventRevision}`,
+    );
+  }
   const head = gitText(repository, ['rev-parse', 'HEAD'], 'cannot resolve release HEAD');
   // Proof: committing after the tag made the production planner accept an older source identity
   // until this equality check was restored; the misplaced-tag negative then failed.
@@ -171,6 +188,16 @@ export async function preparePackageRelease(
     throw new Error(
       `release tag version differs from source package: ${version} != ${String(sourceManifest['version'])}`,
     );
+  }
+  // Proof: setting the fixture package back to UNLICENSED made a complete tagged tarball eligible
+  // until this boundary enforced the documented distribution-rights prerequisite.
+  if (
+    typeof sourceManifest['license'] !== 'string' ||
+    sourceManifest['license'].trim() === '' ||
+    sourceManifest['license'] === 'UNLICENSED' ||
+    !existsSync(join(repository, 'apps/wiki/cli/LICENSE'))
+  ) {
+    throw new Error('package publication requires a source distribution license');
   }
 
   const tarball = realpathSync(resolve(request.tarball));
@@ -233,9 +260,17 @@ export async function preparePackageRelease(
 export function verifyPackageRelease(
   recordPath: string,
   tarballPath: string,
+  eventRevision?: string,
 ): PackageReleaseRecord {
-  const record = parseRecord(readFileSync(recordPath, 'utf8'));
+  const record = readPackageReleaseRecord(recordPath);
   const tarball = realpathSync(resolve(tarballPath));
+  // Proof: passing another valid event SHA made the publish verifier accept an artifact prepared
+  // by a different workflow revision until this comparison bound the second job to the first.
+  if (eventRevision !== undefined && record.sourceRevision !== eventRevision) {
+    throw new Error(
+      `package release record differs from workflow event: ${record.sourceRevision} != ${eventRevision}`,
+    );
+  }
   // Proof: copying unchanged bytes under another filename let the publish boundary select an
   // unrecorded artifact name until this comparison was restored.
   if (basename(tarball) !== record.tarball)

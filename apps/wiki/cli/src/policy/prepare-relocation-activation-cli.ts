@@ -178,7 +178,11 @@ function assertOutsideCandidate(repository: string, path: string, flag: string):
 
 function runCheck(
   repository: string,
-  check: { checkId: string; command: string[]; skipProbe?: string[] },
+  check: {
+    checkId: string;
+    command: string[];
+    skipProbe?: { command: string[]; cwd: string; env: Readonly<Record<string, string>> };
+  },
   work: string,
 ): CheckRun {
   const startedAt = new Date().toISOString();
@@ -197,9 +201,18 @@ function runCheck(
   });
   const skipProbe =
     invocation.exitCode === 0 && check.skipProbe !== undefined
-      ? Bun.spawnSync(check.skipProbe, {
-          cwd: repository,
-          env: process.env,
+      ? Bun.spawnSync(check.skipProbe.command, {
+          // Proof: forcing this to the repository root made the production relocation run its
+          // relative preload from the wrong directory, so the check receipt measured another
+          // invocation context than the reviewed Nx target.
+          cwd: resolve(repository, check.skipProbe.cwd),
+          env: {
+            ...process.env,
+            ...check.skipProbe.env,
+            NX_DAEMON: 'false',
+            NX_ISOLATE_PLUGINS: 'false',
+            NX_NO_CLOUD: 'true',
+          },
           stderr: 'pipe',
           stdout: 'pipe',
         })

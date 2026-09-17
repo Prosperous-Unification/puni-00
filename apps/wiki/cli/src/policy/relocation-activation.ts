@@ -178,7 +178,18 @@ export interface CheckCommand {
   readonly checkId: string;
   readonly command: string[];
   readonly skipChannel: SkipChannel;
-  readonly skipProbe?: { readonly command: string; readonly project: string };
+  readonly skipProbe?: {
+    readonly command: string;
+    readonly project: string;
+    readonly cwd?: string;
+    readonly env: Readonly<Record<string, string>>;
+  };
+}
+
+export interface SkipProbeInvocation {
+  readonly command: string[];
+  readonly cwd: string;
+  readonly env: Readonly<Record<string, string>>;
 }
 
 export interface CheckPlan {
@@ -601,6 +612,20 @@ export function deriveCheckCommands(
       ? fact.expectedConfiguration['options']
       : undefined;
     const declaredCommand = isPlainObject(options) ? options['command'] : undefined;
+    const declaredCwd = isPlainObject(options) ? options['cwd'] : undefined;
+    const declaredEnvironment = isPlainObject(options) ? options['env'] : undefined;
+    const env: Record<string, string> = {};
+    if (declaredEnvironment !== undefined) {
+      if (!isPlainObject(declaredEnvironment)) {
+        refuse('R15', `check environment is not a string map: ${checkId}`);
+      }
+      for (const [name, value] of Object.entries(declaredEnvironment)) {
+        if (typeof value !== 'string') {
+          refuse('R15', `check environment is not a string map: ${checkId} (${name})`);
+        }
+        env[name] = value;
+      }
+    }
     return {
       checkId,
       command: [
@@ -613,7 +638,14 @@ export function deriveCheckCommands(
       ],
       skipChannel,
       ...(skipChannel === 'bun-test' && typeof declaredCommand === 'string'
-        ? { skipProbe: { command: declaredCommand, project: fact.project } }
+        ? {
+            skipProbe: {
+              command: declaredCommand,
+              project: fact.project,
+              ...(typeof declaredCwd === 'string' ? { cwd: declaredCwd } : {}),
+              env,
+            },
+          }
         : {}),
     };
   });
@@ -623,7 +655,7 @@ export function deriveCheckCommands(
 export function resolveSkipProbe(
   check: CheckCommand,
   projects: readonly { name: string; root: string }[],
-): string[] | undefined {
+): SkipProbeInvocation | undefined {
   if (check.skipProbe === undefined) return undefined;
   const roots = projects
     .filter(({ name }) => name === check.skipProbe?.project)
@@ -637,7 +669,11 @@ export function resolveSkipProbe(
     );
   }
   const quotedRoot = `'${roots[0].replaceAll("'", "'\"'\"'")}'`;
-  return ['bash', '-c', check.skipProbe.command.replaceAll('{projectRoot}', quotedRoot)];
+  return {
+    command: ['bash', '-c', check.skipProbe.command.replaceAll('{projectRoot}', quotedRoot)],
+    cwd: check.skipProbe.cwd ?? '.',
+    env: check.skipProbe.env,
+  };
 }
 
 /**

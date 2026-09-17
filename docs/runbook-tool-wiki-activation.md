@@ -17,7 +17,9 @@ Tag the reviewed commit `twilight-bureaucrat-vMAJOR.MINOR.PATCH` and push it. Th
 the tarball digest to the tag and source commit, and transfers that exact tarball to a protected
 `twilight-bureaucrat-release` environment. The publish job verifies the transfer, runs
 `bun publish <tarball> --dry-run`, publishes that file, and retains it with `release.json` as release
-assets. It refuses an existing registry version or GitHub release and never rebuilds after transfer.
+assets. It then waits for the registry coordinate, compares its integrity to `release.json`, and
+installs that coordinate with lifecycle scripts disabled in a fresh consumer. It refuses an existing
+registry version or GitHub release and never rebuilds after transfer.
 
 Before the first tag, administrators must restrict `twilight-bureaucrat-v*`, create the protected
 environment, verify ownership of the `twilight-bureaucrat` registry name, and install its
@@ -33,13 +35,14 @@ bun apps/wiki/cli/src/packaging/release-cli.ts prepare \
   --tag twilight-bureaucrat-vX.Y.Z \
   --repository "$PWD" \
   --tarball dist/twilight-bureaucrat-pack/twilight-bureaucrat-X.Y.Z.tgz \
-  --record /tmp/twilight-bureaucrat-release.json
+  --record /tmp/twilight-bureaucrat-release.json \
+  --source-revision "$(git rev-parse HEAD)"
 ```
 
-Preparation refuses a malformed or misplaced tag, a dirty checkout, tag/source/package version
-drift, missing package assets, source identity drift, an existing registry version, and unknown
-registry state. The publish boundary refuses a tarball whose filename, SHA-256 or npm integrity
-differs from the transfer record.
+Preparation refuses a malformed or misplaced tag, a dirty checkout, event/tag/source/package
+version drift, missing package assets or distribution license, source identity drift, an existing
+registry version, and unknown registry state. The publish boundary refuses a tarball whose
+filename, SHA-256 or npm integrity differs from the transfer record.
 
 A consumer then produces its **own** per-commit activation from that toolkit with
 `prepare-activation.mjs`, supplying its policy, mapping, review record and audit strata. The whole

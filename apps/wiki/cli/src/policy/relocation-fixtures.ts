@@ -256,7 +256,7 @@ export function fixtureMapping(
 const fixtureTargets = {
   check: { command: "printf 'relocation fixture check\\n'" },
   fail: { command: 'exit 3' },
-  skip: { command: 'bun test {projectRoot}/skip.test.ts' },
+  skip: { command: 'bun test --preload ./preload.ts skip.test.ts', cwd: 'src/new' },
 } as const;
 
 type FixtureTarget = keyof typeof fixtureTargets;
@@ -277,7 +277,7 @@ function declarations(target: FixtureTarget): object {
         target,
         expectedConfiguration: {
           executor: 'nx:run-commands',
-          options: { command: fixtureTargets[target].command },
+          options: fixtureTargets[target],
         },
       },
     ],
@@ -348,9 +348,9 @@ export function createRelocationCandidate(
     `${JSON.stringify({
       name: 'fixture',
       targets: Object.fromEntries(
-        Object.entries(fixtureTargets).map(([target, { command }]) => [
+        Object.entries(fixtureTargets).map(([target, options]) => [
           target,
-          { executor: 'nx:run-commands', options: { command } },
+          { executor: 'nx:run-commands', options },
         ]),
       ),
     })}\n`,
@@ -361,11 +361,13 @@ export function createRelocationCandidate(
       "test('runs', () => {\n  expect(1).toBe(1);\n});\n\n" +
       "test.skip('is skipped', () => {\n  expect(1).toBe(2);\n});\n",
   );
+  write(join(repository, 'src/old/preload.ts'), 'export {};\n');
   write(
     join(repository, 'src/old/README.md'),
     indexSource('module.fixture.module', [
       { kind: 'path', path: 'cli.ts' },
       { kind: 'path', path: 'project.json' },
+      { kind: 'path', path: 'preload.ts' },
       { kind: 'path', path: 'skip.test.ts' },
       { kind: 'path', path: 'policy/snapshot-validator.ts' },
     ]),

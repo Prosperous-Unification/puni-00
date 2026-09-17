@@ -1,4 +1,11 @@
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -7,7 +14,11 @@ import { afterAll, describe, expect, test } from 'bun:test';
 
 import { serializeCanonical } from '../evidence/content-manifest';
 import { preparePackageRelease, type RegistryVersionState, verifyPackageRelease } from './release';
-import { lookupRegistryVersion } from './release-cli';
+import {
+  assertGitHubReleaseAbsent,
+  lookupRegistryVersion,
+  verifyPublishedPackage,
+} from './release-cli';
 
 const scratchRoots: string[] = [];
 
@@ -29,6 +40,7 @@ function fixture(
     missingAsset?: boolean;
     missingTrustedModules?: boolean;
     packedVersion?: string;
+    unlicensed?: boolean;
     version?: string;
   } = {},
 ) {
@@ -43,8 +55,14 @@ function fixture(
   run(['git', 'config', 'user.name', 'Release Fixture'], repository);
   writeFileSync(
     join(repository, 'apps/wiki/cli/package.json'),
-    `${JSON.stringify({ name: 'twilight-bureaucrat', version })}\n`,
+    `${JSON.stringify({
+      name: 'twilight-bureaucrat',
+      version,
+      license: options.unlicensed ? 'UNLICENSED' : 'MIT',
+    })}\n`,
   );
+  if (!options.unlicensed)
+    writeFileSync(join(repository, 'apps/wiki/cli/LICENSE'), 'fixture license\n');
   run(['git', 'add', '--all'], repository);
   run(['git', 'commit', '--message', 'release package'], repository);
   const sourceRevision = run(['git', 'rev-parse', 'HEAD'], repository);
@@ -57,9 +75,11 @@ function fixture(
     `${JSON.stringify({
       name: 'twilight-bureaucrat',
       version: packedVersion,
+      license: options.unlicensed ? 'UNLICENSED' : 'MIT',
       bin: { 'twilight-bureaucrat': 'dist/bin.mjs' },
     })}\n`,
   );
+  if (!options.unlicensed) writeFileSync(join(packageRoot, 'LICENSE'), 'fixture license\n');
   writeFileSync(join(packageRoot, 'dist/bin.mjs'), '#!/usr/bin/env bun\n');
   writeFileSync(
     join(packageRoot, 'dist/package-manifest.json'),
@@ -107,6 +127,28 @@ afterAll(async () => {
 });
 
 describe('package release planner', () => {
+  test('workflow pins both checkouts and performs executable release-state proofs', () => {
+    const workflow = readFileSync(
+      join(import.meta.dir, '../../../../../.github/workflows/twilight-bureaucrat-release.yml'),
+      'utf8',
+    );
+    expect(workflow.match(/ref: \$\{\{ github\.sha \}\}/g)).toHaveLength(2);
+    expect(workflow).not.toContain('ref: ${{ github.ref }}');
+    expect(workflow).toContain('github-release-absent --status "$status"');
+    expect(workflow).toContain('verify-registry --record "$record"');
+    expect(workflow).toContain('bun add --exact --ignore-scripts twilight-bureaucrat@0.1.0');
+  });
+
+  test('distinguishes an absent GitHub release from existing and unknown states', () => {
+    assertGitHubReleaseAbsent('404');
+    expect(() => {
+      assertGitHubReleaseAbsent('200');
+    }).toThrow('GitHub release already exists');
+    expect(() => {
+      assertGitHubReleaseAbsent('500');
+    }).toThrow('cannot determine GitHub release state: HTTP 500');
+  });
+
   test('distinguishes an absent version from unknown registry state', async () => {
     expect(
       await lookupRegistryVersion('twilight-bureaucrat', '0.1.0', () => ({
@@ -143,6 +185,46 @@ describe('package release planner', () => {
     expect(planned.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(planned.integrity).toMatch(/^sha512-/);
     expect(verifyPackageRelease(record, release.tarball)).toEqual(planned);
+
+    let registryAttempts = 0;
+    expect(
+      await verifyPublishedPackage(
+        record,
+        () => {
+          registryAttempts += 1;
+          return registryAttempts === 1
+            ? {
+                exitCode: 1,
+                stderr: new TextEncoder().encode('404 Not Found'),
+                stdout: new Uint8Array(),
+              }
+            : {
+                exitCode: 0,
+                stderr: new Uint8Array(),
+                stdout: new TextEncoder().encode(
+                  JSON.stringify({ dist: { integrity: planned.integrity } }),
+                ),
+              };
+        },
+        () => Promise.resolve(),
+      ),
+    ).toBe(`twilight-bureaucrat@0.1.0 ${planned.integrity}`);
+
+    expect(
+      await refusal(
+        verifyPublishedPackage(
+          record,
+          () => ({
+            exitCode: 0,
+            stderr: new Uint8Array(),
+            stdout: new TextEncoder().encode(
+              JSON.stringify({ dist: { integrity: `sha512-${'x'.repeat(32)}` } }),
+            ),
+          }),
+          () => Promise.resolve(),
+        ),
+      ),
+    ).toContain('published registry integrity differs from release record');
 
     const invalidRecord = join(release.root, 'invalid-release.json');
     writeFileSync(invalidRecord, '{}\n');
@@ -197,6 +279,39 @@ describe('package release planner', () => {
         ),
       ),
     ).toContain('release checkout is dirty: untracked.txt');
+  });
+
+  test('refuses publication without distribution rights or the workflow event commit', async () => {
+    const unlicensed = fixture({ unlicensed: true });
+    expect(
+      await refusal(
+        preparePackageRelease(
+          {
+            record: join(unlicensed.root, 'release.json'),
+            repository: unlicensed.repository,
+            tag: unlicensed.tag,
+            tarball: unlicensed.tarball,
+          },
+          absent,
+        ),
+      ),
+    ).toContain('package publication requires a source distribution license');
+
+    const wrongEvent = fixture();
+    expect(
+      await refusal(
+        preparePackageRelease(
+          {
+            eventRevision: 'f'.repeat(40),
+            record: join(wrongEvent.root, 'release.json'),
+            repository: wrongEvent.repository,
+            tag: wrongEvent.tag,
+            tarball: wrongEvent.tarball,
+          },
+          absent,
+        ),
+      ),
+    ).toContain('release tag differs from workflow event');
   });
 
   test('refuses malformed, unknown and misplaced release tags', async () => {

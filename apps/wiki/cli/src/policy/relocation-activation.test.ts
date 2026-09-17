@@ -238,11 +238,34 @@ describe('relocation activation prepared from a candidate SHA', () => {
           checkId: 'check.fixture.module',
           command: ['bunx', 'nx', 'run', 'missing:test'],
           skipChannel: 'bun-test',
-          skipProbe: { command: 'bun test {projectRoot}', project: 'missing' },
+          skipProbe: { command: 'bun test {projectRoot}', env: {}, project: 'missing' },
         },
         [],
       ),
     ).toThrow('check skip probe project unresolved: check.fixture.module (missing)');
+  });
+
+  test('preserves the declared target working directory and environment for the skip probe', () => {
+    expect(
+      resolveSkipProbe(
+        {
+          checkId: 'check.fixture.module',
+          command: ['bunx', 'nx', 'run', 'fixture:test'],
+          skipChannel: 'bun-test',
+          skipProbe: {
+            command: 'bun test --preload ./preload.ts {projectRoot}',
+            cwd: 'apps/fixture',
+            env: { FIXTURE_MODE: 'strict' },
+            project: 'fixture',
+          },
+        },
+        [{ name: 'fixture', root: 'apps/fixture' }],
+      ),
+    ).toEqual({
+      command: ['bash', '-c', "bun test --preload ./preload.ts 'apps/fixture'"],
+      cwd: 'apps/fixture',
+      env: { FIXTURE_MODE: 'strict' },
+    });
   });
 
   test('prepares an activation the candidate certifies through its own launcher', () => {

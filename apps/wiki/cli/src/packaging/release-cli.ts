@@ -1,6 +1,11 @@
-import { resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
-import { preparePackageRelease, type RegistryVersionState, verifyPackageRelease } from './release';
+import {
+  preparePackageRelease,
+  readPackageReleaseRecord,
+  type RegistryVersionState,
+  verifyPackageRelease,
+} from './release';
 
 interface RegistryInvocation {
   readonly exitCode: number;
@@ -9,6 +14,15 @@ interface RegistryInvocation {
 }
 
 type RegistryRunner = (command: string[]) => RegistryInvocation;
+
+/** Accept only GitHub's authoritative absence response; every other state blocks creation. */
+export function assertGitHubReleaseAbsent(status: string): void {
+  if (status === '404') return;
+  // Proof: injecting 500 made the workflow adapter continue as if the release were absent until
+  // this refusal distinguished lookup failure from GitHub's explicit 404 response.
+  if (status !== '200') throw new Error(`cannot determine GitHub release state: HTTP ${status}`);
+  throw new Error('GitHub release already exists');
+}
 
 /** Read one immutable package coordinate without treating registry failures as absence. */
 export function lookupRegistryVersion(
@@ -24,6 +38,52 @@ export function lookupRegistryVersion(
   // Proof: injecting a registry timeout exited nonzero and was misclassified as an available name
   // until this branch preserved unknown registry state as a release-blocking failure.
   return Promise.reject(new Error(`cannot determine registry version state: ${diagnostic.trim()}`));
+}
+
+type Delay = (milliseconds: number) => Promise<void>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Wait for the published coordinate, then compare registry integrity to the tested tarball. */
+export async function verifyPublishedPackage(
+  recordPath: string,
+  run: RegistryRunner = (command) => Bun.spawnSync(command, { stderr: 'pipe', stdout: 'pipe' }),
+  delay: Delay = Bun.sleep,
+): Promise<string> {
+  const transferred = readPackageReleaseRecord(recordPath);
+  const record = verifyPackageRelease(recordPath, join(dirname(recordPath), transferred.tarball));
+  for (let attempt = 1; attempt <= 12; attempt += 1) {
+    const invocation = run(['bun', 'info', `${record.packageName}@${record.version}`, '--json']);
+    const stdout = new TextDecoder().decode(invocation.stdout);
+    const stderr = new TextDecoder().decode(invocation.stderr);
+    if (invocation.exitCode === 0) {
+      let metadata: unknown;
+      try {
+        metadata = JSON.parse(stdout) as unknown;
+      } catch (cause) {
+        throw new Error('published registry metadata is malformed', { cause });
+      }
+      const integrity = isRecord(metadata) ? metadata['dist'] : undefined;
+      const publishedIntegrity = isRecord(integrity) ? integrity['integrity'] : undefined;
+      // Proof: injecting another valid sha512 integrity made post-publication verification pass
+      // until this comparison joined the registry coordinate back to the tested tarball.
+      if (publishedIntegrity !== record.integrity) {
+        throw new Error(
+          `published registry integrity differs from release record: ${String(publishedIntegrity)}`,
+        );
+      }
+      return `${record.packageName}@${record.version} ${record.integrity}`;
+    }
+    if (!/404|not found/i.test(`${stdout}\n${stderr}`)) {
+      throw new Error(`cannot read published registry package: ${stderr.trim() || stdout.trim()}`);
+    }
+    if (attempt < 12) await delay(5_000);
+  }
+  throw new Error(
+    `published registry package did not become readable: ${record.packageName}@${record.version}`,
+  );
 }
 
 function readFlags(argv: readonly string[], names: readonly string[]): Record<string, string> {
@@ -49,23 +109,43 @@ export async function runPackageRelease(argv: readonly string[]): Promise<string
   if (argv.length === 0) throw new Error('unknown package release command: (absent)');
   const [command, ...arguments_] = argv;
   if (command === 'prepare') {
-    const flags = readFlags(arguments_, ['tag', 'repository', 'tarball', 'record']);
+    const flags = readFlags(arguments_, [
+      'tag',
+      'repository',
+      'tarball',
+      'record',
+      'source-revision',
+    ]);
     const release = await preparePackageRelease(
       {
         record: resolve(flags['record']),
         repository: resolve(flags['repository']),
         tag: flags['tag'],
         tarball: resolve(flags['tarball']),
+        eventRevision: flags['source-revision'],
       },
       lookupRegistryVersion,
     );
     return JSON.stringify(release);
   }
   if (command === 'verify') {
-    const flags = readFlags(arguments_, ['tarball', 'record']);
+    const flags = readFlags(arguments_, ['tarball', 'record', 'source-revision']);
     return JSON.stringify(
-      verifyPackageRelease(resolve(flags['record']), resolve(flags['tarball'])),
+      verifyPackageRelease(
+        resolve(flags['record']),
+        resolve(flags['tarball']),
+        flags['source-revision'],
+      ),
     );
+  }
+  if (command === 'github-release-absent') {
+    const flags = readFlags(arguments_, ['status']);
+    assertGitHubReleaseAbsent(flags['status']);
+    return 'GitHub release is absent';
+  }
+  if (command === 'verify-registry') {
+    const flags = readFlags(arguments_, ['record']);
+    return verifyPublishedPackage(resolve(flags['record']));
   }
   throw new Error(`unknown package release command: ${command}`);
 }
