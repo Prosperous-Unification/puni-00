@@ -19,8 +19,39 @@ Ordinary `wbs` and `workers` namespaces enforce Restricted Pod Security and
 default-deny networking. The `wbs-solver` and `puni-forge` namespaces admit their
 narrow host-path exception through the committed admission policy. Solver pods
 may mount only `/run/puni/solver` as a directory, and source pods may mount only
-a directory below `/srv/puni/worktrees/`. Neither may request privilege
-escalation, host networking, host PID, Docker sockets or an API token.
+the roots listed in the `puni-trusted-workload` ConfigMap. Neither may request
+privilege escalation, host networking, host PID, Docker sockets or an API token.
+The forge controller service account alone receives the namespaced pod-management
+Role; ordinary authenticated users receive no trusted-namespace Role or service
+account impersonation grant.
+
+Run the committed admission probes with server-side dry-run after applying the
+policy overlay. `solver-allowed.yaml` and `forge-allowed.yaml` must succeed. Every
+other manifest in `infra/platform/conformance/admission/` must be denied with its
+specific admission or Restricted Pod Security diagnostic:
+
+```sh
+kubectl apply -k infra/platform/policy
+kubectl apply --dry-run=server -f infra/platform/conformance/admission/solver-allowed.yaml
+kubectl apply --dry-run=server -f infra/platform/conformance/admission/forge-allowed.yaml
+kubectl auth can-i create pods -n puni-forge --as=ordinary --as-group=system:authenticated
+kubectl auth can-i impersonate serviceaccounts/dev-environment-controller -n puni-forge --as=ordinary --as-group=system:authenticated
+kubectl auth can-i create pods -n puni-forge --as=system:serviceaccount:puni-forge:dev-environment-controller
+```
+
+The three authorization answers must be `no`, `no`, then `yes`. For the live
+network-policy probe, apply `receivers.yaml`, wait for both Deployments, then apply
+`probes.yaml`. The `allowed-egress` Job must complete and `denied-egress` must
+reach `BackoffLimitExceeded`:
+
+```sh
+kubectl apply -f infra/platform/conformance/network/receivers.yaml
+kubectl wait --for=condition=Available deployment/allowed-receiver -n observability --timeout=2m
+kubectl wait --for=condition=Available deployment/denied-receiver -n wbs --timeout=2m
+kubectl apply -f infra/platform/conformance/network/probes.yaml
+kubectl wait --for=condition=Complete job/allowed-egress -n workers --timeout=2m
+kubectl wait --for=condition=Failed job/denied-egress -n workers --timeout=2m
+```
 
 The in-cluster registry is pinned to the amd64 manifest for Distribution 2.8.3.
 Keep the existing external registry as the build and pull endpoint until TLS,

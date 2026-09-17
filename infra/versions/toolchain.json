@@ -86,6 +86,36 @@
       "role": "registry",
       "name": "docker.io/library/registry:2.8.3",
       "digest": "sha256:46faa9a1ae6813194b53921a370f2f4f8c5e1aae228a89bceafef5847a6a3278"
+    },
+    "networkProbe": {
+      "role": "network-probe",
+      "name": "docker.io/library/busybox:1.36.1",
+      "digest": "sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+    },
+    "fluxHelmController": {
+      "role": "flux-helm-controller",
+      "name": "ghcr.io/fluxcd/helm-controller:v1.6.4",
+      "digest": "sha256:8ff15409e46d354338045f483d58ca9cb35dffa2f87e4addd1f5eba1e6a9175f"
+    },
+    "fluxKustomizeController": {
+      "role": "flux-kustomize-controller",
+      "name": "ghcr.io/fluxcd/kustomize-controller:v1.9.5",
+      "digest": "sha256:a3a955eb2bc432c2eaa94d2d3714e3beae7fdf17586fd23aadf71ab597ac3339"
+    },
+    "fluxNotificationController": {
+      "role": "flux-notification-controller",
+      "name": "ghcr.io/fluxcd/notification-controller:v1.9.4",
+      "digest": "sha256:840f318265ee26f0d2c48a158bf7896b22aa4e998e320a18646309f0e40b15da"
+    },
+    "fluxSourceController": {
+      "role": "flux-source-controller",
+      "name": "ghcr.io/fluxcd/source-controller:v1.9.5",
+      "digest": "sha256:6f20d232d596a758c923d2861f23511718fc303b8a2e36a1434a7c736b9f4268"
+    }
+  },
+  "manifests": {
+    "fluxInstall": {
+      "sha256": "80779d11e7f0050ed01a3f072556fdabefa38f5f6cb623e9df44381c9ec1d592"
     }
   },
   "controller": {

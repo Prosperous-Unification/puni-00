@@ -12,6 +12,7 @@
           - puni_flux_url is match('^https://')
           - puni_flux_sha256 is match('^[0-9a-f]{64}$')
           - puni_flux_version is match('^v[0-9]+\.[0-9]+\.[0-9]+$')
+          - puni_flux_install_sha256 is match('^[0-9a-f]{64}$')
           - puni_platform_repository_url is match('^ssh://')
           - puni_platform_revision is match('^[0-9a-f]{40}$')
           - puni_flux_read_key_path is defined
@@ -77,16 +78,28 @@
         that: puni_flux_version in puni_installed_flux.stdout
         fail_msg: Installed Flux version differs from the reviewed toolchain
 
-    - name: Render Flux controllers from the pinned client
+    - name: Copy the digest-locked Flux installation
+      ansible.builtin.copy:
+        src: '{{ playbook_dir }}/../../platform/flux/install.yaml'
+        dest: /var/cache/puni/flux/install.yaml
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Read the Flux installation digest
       ansible.builtin.command:
-        argv: [/usr/local/bin/flux, install, --export]
-      register: puni_flux_controllers
+        argv: [sha256sum, /var/cache/puni/flux/install.yaml]
+      register: puni_flux_install_digest
       changed_when: false
+
+    - name: Require the reviewed Flux installation bytes
+      ansible.builtin.assert:
+        that: puni_flux_install_digest.stdout.split()[0] == puni_flux_install_sha256
+        fail_msg: Flux installation manifest differs from the reviewed toolchain
 
     - name: Reconcile Flux controllers
       ansible.builtin.command:
-        argv: [k3s, kubectl, apply, -f, '-']
-        stdin: '{{ puni_flux_controllers.stdout }}'
+        argv: [k3s, kubectl, apply, -f, /var/cache/puni/flux/install.yaml]
       register: puni_flux_install
       changed_when: "' configured' in puni_flux_install.stdout or ' created' in puni_flux_install.stdout"
 

@@ -82,7 +82,16 @@ const validToolchain = {
       arch: 'amd64',
     },
   },
-  runtimeImages: { k3dNode: image('node'), registry: image('registry') },
+  runtimeImages: {
+    k3dNode: image('node'),
+    registry: image('registry'),
+    networkProbe: image('network-probe'),
+    fluxHelmController: image('flux-helm-controller'),
+    fluxKustomizeController: image('flux-kustomize-controller'),
+    fluxNotificationController: image('flux-notification-controller'),
+    fluxSourceController: image('flux-source-controller'),
+  },
+  manifests: { fluxInstall: { sha256 } },
   controller: {
     image: 'registry.example.test/puni/fleet-controller:1.0.0',
     digest: `sha256:${sha256}`,
@@ -169,6 +178,25 @@ describe('readToolchain', () => {
     expect(
       readToolchain(await writeToolchain({ ...validToolchain, runtimeImages })),
     ).rejects.toThrow(/registry/);
+  });
+
+  it('rejects a missing network probe image lock', async () => {
+    const { networkProbe: _removed, ...runtimeImages } = validToolchain.runtimeImages;
+    expect(
+      readToolchain(await writeToolchain({ ...validToolchain, runtimeImages })),
+    ).rejects.toThrow(/networkProbe/);
+  });
+
+  it('rejects a missing Flux controller image lock', async () => {
+    const { fluxSourceController: _removed, ...runtimeImages } = validToolchain.runtimeImages;
+    expect(
+      readToolchain(await writeToolchain({ ...validToolchain, runtimeImages })),
+    ).rejects.toThrow(/fluxSourceController/);
+  });
+
+  it('rejects a missing Flux install manifest lock', async () => {
+    const { manifests: _removed, ...toolchain } = validToolchain;
+    expect(readToolchain(await writeToolchain(toolchain))).rejects.toThrow(/manifests/);
   });
 
   it('requires a separately locked Terraform executable digest', async () => {

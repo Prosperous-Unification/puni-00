@@ -1,0 +1,25 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: source-workload-manager
+  namespace: puni-forge
+rules:
+  - apiGroups: ['']
+    resources: [pods]
+    verbs: [create, delete, get, list, patch, update, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: source-workload-manager
+  namespace: puni-forge
+# Proof: removing this binding made the live controller-service-account can-i create pods probe
+# answer no on 2026-09-17; restoring it returned yes while the ordinary-user probes stayed no.
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: source-workload-manager
+subjects:
+  - kind: ServiceAccount
+    name: dev-environment-controller
+    namespace: puni-forge

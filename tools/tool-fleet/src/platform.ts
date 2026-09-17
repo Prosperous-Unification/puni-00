@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -229,7 +230,9 @@ export async function validatePlatform(
 
   const releaseNames: string[] = [];
   for (const [releaseName, lockName, relativePath] of releases) {
-    const release = HelmRelease(await readYaml(join(root, 'infra/platform', relativePath)));
+    const releasePath = join(root, 'infra/platform', relativePath);
+    const releaseSource = await readFile(releasePath, 'utf8');
+    const release = HelmRelease(parse(releaseSource));
     if (release instanceof type.errors) {
       throw new Error(`${releaseName} HelmRelease is invalid: ${release.summary}`);
     }
@@ -238,6 +241,13 @@ export async function validatePlatform(
       // Proof: removing this guard made the changed-chart-version production negative resolve
       // instead of reject on 2026-09-17.
       throw new Error(`${releaseName} chart version differs from the toolchain lock`);
+    }
+    for (const image of toolchain.charts[lockName].images) {
+      if (!releaseSource.includes(image.digest)) {
+        // Proof: removing this guard made the changed-Traefik-image production negative resolve
+        // instead of reject on 2026-09-17.
+        throw new Error(`${releaseName} omits locked ${image.role} image digest`);
+      }
     }
     releaseNames.push(releaseName);
   }
@@ -257,6 +267,14 @@ export async function validatePlatform(
     // Proof: removing this guard made the changed-registry-digest production negative resolve
     // instead of reject on 2026-09-17.
     throw new Error('Registry image differs from the toolchain lock');
+  }
+
+  const fluxInstall = await readFile(join(root, 'infra/platform/flux/install.yaml'));
+  const fluxInstallSha256 = createHash('sha256').update(fluxInstall).digest('hex');
+  if (fluxInstallSha256 !== toolchain.manifests.fluxInstall.sha256) {
+    // Proof: removing this guard made the changed-Flux-install production negative resolve instead
+    // of reject on 2026-09-17.
+    throw new Error('Flux install manifest differs from the toolchain lock');
   }
   return { clusters, releases: releaseNames };
 }

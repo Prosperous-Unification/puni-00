@@ -200,3 +200,48 @@ Absent configuration is also a production-reader negative. No unattended Terragr
 An exact-SHA Astra high-effort review of `97e605f4ebfee782089be9f51dab0e3cc53d66e9` found no blocking defects. Its focused retirement suite passed 54 tests with 301 assertions. The exact wrong-member-ID shell exited 1, and removing the identity guard made it exit 0 before restoration. Live cluster/provider lifecycle drills, remote-backend acceptance, and the canonical host gate remain outside that review.
 
 The required `bin/h2puni-gate.sh 97e605f4ebfee782089be9f51dab0e3cc53d66e9` invocation refused before printing its running-SHA marker because `/home/puni1/.cache`, the canonical Linux heavy-lock parent, does not exist on this runner. Creating the directory was unavailable because host sudo requires an interactive password. This is a blocked gate attempt, not verification evidence.
+
+## F6 platform checkpoint
+
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:check --skip-nx-cache`
+passed 149 tests with 747 assertions, lint, typecheck, the toolchain lock reader and
+the platform graph validator. The exact locked kubectl rendered the networking,
+policy, local-storage and production-storage Kustomizations. Helm v4.3.0, after
+its downloaded archive matched the toolchain SHA-256, rendered Traefik 41.6.0,
+cert-manager v1.21.2, hcloud CCM 1.37.0 and hcloud CSI 2.23.0 from their
+checksum-matched chart archives with all enabled image digests pinned.
+
+A disposable two-node k3d cluster ran the exact k3s v1.36.4+k3s1 image with
+bundled Traefik and ServiceLB disabled. The SHA-256-matched Flux v2.9.5 CLI
+installed the checked-in manifest; all four Flux controller Deployments became
+Ready and their runtime image IDs matched the four toolchain digests. Flux then
+reconciled cert-manager and Traefik. The live run exposed and repaired Traefik
+41.6.0's placement of `dnsPolicy` under `deployment` and its requirement for a
+nonzero DaemonSet `maxUnavailable` with host networking. The final Traefik Pod
+and the cert-manager controller, webhook and CA injector Pods were Ready with
+the locked runtime image IDs.
+
+Live server-side admission dry-runs accepted the exact solver and forge
+boundaries. They denied an alternate solver parent, a nested forge path, an
+untrusted service account, a changed image digest and a trusted Pod without
+`automountServiceAccountToken: false`. Restricted Pod Security denied a
+privileged Pod in the ordinary `wbs` namespace. Live authorization checks for
+an ordinary authenticated user returned `no` for forge Pod creation and trusted
+service-account impersonation; the forge controller service account returned
+`yes` for Pod creation. The committed network conformance manifests produced a
+completed telemetry-egress Job and a `BackoffLimitExceeded` cross-namespace Job
+whose connection attempts failed under the default-deny policy.
+
+The R5 mutations removed eight trusted-workload checks, made the registry and
+network-probe locks optional, removed Flux controller and manifest locks,
+disabled the chart-image and Flux-manifest hash guards, replaced exact forge-root
+membership with prefix acceptance, and removed the forge RoleBinding. Their
+targeted tests or live probes failed before each check was restored. The exact
+Flux install manifest hash is
+`80779d11e7f0050ed01a3f072556fdabefa38f5f6cb623e9df44381c9ec1d592`.
+
+F6 remains incomplete. Live SOPS decryption and missing-key reconciliation,
+registry TLS/auth/offline-GC/restart-pull migration, production cloud storage,
+staging ACME/DNS, and the complete cluster-specific Flux source graph have not
+been exercised. No production secret or cloud credential was available, and no
+production resource was changed.

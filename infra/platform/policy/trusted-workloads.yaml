@@ -4,6 +4,9 @@ metadata:
   name: puni-trusted-hostpath
 spec:
   failurePolicy: Fail
+  paramKind:
+    apiVersion: v1
+    kind: ConfigMap
   matchConstraints:
     resourceRules:
       - apiGroups: ['']
@@ -11,13 +14,16 @@ spec:
         operations: [CREATE, UPDATE]
         resources: [pods]
   validations:
+    # Proof: replacing exact membership with a path-prefix check admitted
+    # /srv/puni/worktrees/puni-00/subdirectory in a live server-side dry-run on 2026-09-17.
     - expression: >-
         !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
-        object.spec.volumes.all(volume,
+        (!has(object.spec.volumes) || object.spec.volumes.all(volume,
           !has(volume.hostPath) ||
           (volume.hostPath.type == 'Directory' &&
            ((object.metadata.namespace == 'wbs-solver' && volume.hostPath.path == '/run/puni/solver') ||
-            (object.metadata.namespace == 'puni-forge' && volume.hostPath.path.startsWith('/srv/puni/worktrees/')))))
+            (object.metadata.namespace == 'puni-forge' &&
+             volume.hostPath.path in params.data.forgeWorktreeRoots.split(','))))))
       message: trusted workloads may mount only their exact directory roots
     - expression: >-
         object.metadata.namespace != 'wbs-solver' ||
@@ -26,12 +32,29 @@ spec:
          object.spec.nodeSelector['puni.dev/capability-product'] == 'true')
       message: solver workloads require the approved controller, service account, and product node
     - expression: >-
+        object.metadata.namespace != 'wbs-solver' ||
+        object.spec.containers.all(container, container.image == params.data.solverImage)
+      message: solver workloads require the approved backend image digest
+    - expression: >-
+        object.metadata.namespace != 'puni-forge' ||
+        (object.spec.serviceAccountName == 'dev-environment-controller' &&
+         object.metadata.labels['puni.dev/controller'] == 'dev-environment' &&
+         object.spec.nodeSelector['puni.dev/capability-forge'] == 'true' &&
+         object.spec.containers.all(container, container.image == params.data.forgeImage))
+      message: source workloads require the approved controller, service account, image, and forge node
+    # Proof: removing the explicit token check admitted a trusted solver Pod without
+    # automountServiceAccountToken=false in a live server-side dry-run on 2026-09-17.
+    - expression: >-
         !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
-        (!object.spec.hostNetwork && !object.spec.hostPID &&
+        (has(object.spec.automountServiceAccountToken) &&
+         !object.spec.automountServiceAccountToken &&
+         (!has(object.spec.hostNetwork) || !object.spec.hostNetwork) &&
+         (!has(object.spec.hostPID) || !object.spec.hostPID) &&
          object.spec.containers.all(container,
-           !container.securityContext.privileged &&
-           !container.securityContext.allowPrivilegeEscalation))
-      message: trusted workloads may not bypass host or privilege isolation
+           has(container.securityContext) &&
+           (!has(container.securityContext.privileged) || !container.securityContext.privileged) &&
+           (!has(container.securityContext.allowPrivilegeEscalation) || !container.securityContext.allowPrivilegeEscalation)))
+      message: trusted workloads may not receive API credentials or bypass host or privilege isolation
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding
@@ -39,4 +62,8 @@ metadata:
   name: puni-trusted-hostpath
 spec:
   policyName: puni-trusted-hostpath
+  paramRef:
+    name: puni-trusted-workload
+    namespace: wbs-solver
+    parameterNotFoundAction: Deny
   validationActions: [Deny, Audit]

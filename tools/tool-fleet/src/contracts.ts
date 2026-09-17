@@ -87,6 +87,22 @@ const ToolchainSchema = type({
     // Proof: removing this required lock made the missing-registry-image production-reader
     // negative fail before a mutable registry workload could be rendered.
     registry: ImageLock,
+    // Proof: making this optional made the missing-network-probe-image production-reader negative
+    // resolve instead of reject on 2026-09-17.
+    networkProbe: ImageLock,
+    // Proof: making fluxSourceController optional made the missing-Flux-controller production-reader
+    // negative resolve instead of reject on 2026-09-17; all four controller roles use the same
+    // required exact ImageLock boundary.
+    fluxHelmController: ImageLock,
+    fluxKustomizeController: ImageLock,
+    fluxNotificationController: ImageLock,
+    fluxSourceController: ImageLock,
+    '+': 'reject',
+  },
+  manifests: {
+    // Proof: making this optional made the missing-Flux-install-lock production-reader negative
+    // resolve instead of reject on 2026-09-17.
+    fluxInstall: { sha256, '+': 'reject' },
     '+': 'reject',
   },
   controller: {

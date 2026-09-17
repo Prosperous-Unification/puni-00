@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: allowed-receiver, namespace: observability }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: allowed-receiver } }
+  template:
+    metadata: { labels: { app: allowed-receiver } }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: receiver
+          image: docker.io/library/busybox:1.36.1@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+          command:
+            [
+              sh,
+              -c,
+              'mkdir -p /tmp/www; echo telemetry-ok >/tmp/www/index.html; httpd -f -p 4317 -h /tmp/www',
+            ]
+          resources:
+            requests: { cpu: 10m, memory: 8Mi }
+            limits: { cpu: 100m, memory: 32Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts: [{ name: scratch, mountPath: /tmp }]
+      volumes: [{ name: scratch, emptyDir: {} }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: allowed-receiver, namespace: observability }
+spec:
+  selector: { app: allowed-receiver }
+  ports: [{ port: 4317, targetPort: 4317 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: denied-receiver, namespace: wbs }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: denied-receiver } }
+  template:
+    metadata: { labels: { app: denied-receiver } }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: receiver
+          image: docker.io/library/busybox:1.36.1@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+          command:
+            [
+              sh,
+              -c,
+              'mkdir -p /tmp/www; echo forbidden >/tmp/www/index.html; httpd -f -p 8080 -h /tmp/www',
+            ]
+          resources:
+            requests: { cpu: 10m, memory: 8Mi }
+            limits: { cpu: 100m, memory: 32Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts: [{ name: scratch, mountPath: /tmp }]
+      volumes: [{ name: scratch, emptyDir: {} }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: denied-receiver, namespace: wbs }
+spec:
+  selector: { app: denied-receiver }
+  ports: [{ port: 8080, targetPort: 8080 }]

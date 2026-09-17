@@ -55,6 +55,17 @@ describe('validatePlatform', () => {
     expect(validatePlatform(root)).rejects.toThrow(/traefik.*version.*toolchain lock/i);
   });
 
+  it('rejects a chart image digest that differs from the toolchain lock', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/networking/traefik.yaml',
+      'sha256:f86a2cab1b5c649070c49f883c743dd32d8485a56e3368c5f93b9e91f1e91259',
+      `sha256:${'b'.repeat(64)}`,
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/traefik.*controller image digest/);
+  });
+
   it('rejects a registry image digest that differs from the toolchain lock', async () => {
     const root = await mutablePlatform();
     await replaceManifestText(
@@ -64,6 +75,13 @@ describe('validatePlatform', () => {
       `sha256:${'b'.repeat(64)}`,
     );
     expect(validatePlatform(root)).rejects.toThrow(/Registry image.*toolchain lock/);
+  });
+
+  it('rejects changed Flux install bytes', async () => {
+    const root = await mutablePlatform();
+    const path = join(root, 'infra/platform/flux/install.yaml');
+    await writeFile(path, `${await readFile(path, 'utf8')}\n`);
+    expect(validatePlatform(root)).rejects.toThrow(/Flux install manifest.*toolchain lock/);
   });
 
   it('rejects a production reconciliation graph without the SOPS age key', async () => {

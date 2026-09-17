@@ -3,4 +3,6 @@ kind: Kustomization
 resources:
   - namespaces.yaml
   - network-policy.yaml
+  - trusted-rbac.yaml
+  - trusted-images.yaml
   - trusted-workloads.yaml

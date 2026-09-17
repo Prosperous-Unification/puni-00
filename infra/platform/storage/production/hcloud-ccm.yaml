@@ -13,3 +13,7 @@ spec:
         kind: HelmRepository
         name: hcloud
         namespace: flux-system
+  values:
+    image:
+      repository: docker.io/hetznercloud/hcloud-cloud-controller-manager
+      tag: v1.37.0@sha256:c139e7220dbcda3f451ce16c27da7747914eddc257568963528b2aeb1e1d478e
