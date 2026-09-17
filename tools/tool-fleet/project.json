@@ -4,6 +4,19 @@
   "sourceRoot": "tools/tool-fleet/src",
   "projectType": "library",
   "tags": ["scope:infra", "type:scripts", "runtime:bun", "ring:adapter"],
+  "namedInputs": {
+    "default": [
+      "{projectRoot}/**/*",
+      "{workspaceRoot}/infra/**/*",
+      "{workspaceRoot}/deploy/k8s/**/*",
+      "sharedGlobals"
+    ],
+    "production": [
+      "default",
+      "!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)",
+      "!{projectRoot}/tsconfig.spec.json"
+    ]
+  },
   "targets": {
     "test": {
       "executor": "nx:run-commands",
@@ -25,6 +38,32 @@
     "typecheck": {
       "executor": "nx:run-commands",
       "options": { "command": "bunx tsc --build --force tools/tool-fleet/tsconfig.json" }
+    },
+    "check": {
+      "executor": "nx:run-commands",
+      "dependsOn": ["test", "lint", "typecheck"],
+      "options": { "command": "bun tools/tool-fleet/src/entrypoint.ts check" }
+    },
+    "lab": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": { "command": "bun tools/tool-fleet/src/entrypoint.ts lab" }
+    },
+    "plan": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": { "command": "bun tools/tool-fleet/src/entrypoint.ts plan" }
+    },
+    "apply": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": { "command": "bun tools/tool-fleet/src/entrypoint.ts apply" }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "outputs": ["{workspaceRoot}/dist/tool-fleet/controller.oci"],
+      "options": { "command": "bun tools/tool-fleet/src/entrypoint.ts build" }
     }
   }
 }

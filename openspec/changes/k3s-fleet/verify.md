@@ -2,17 +2,27 @@
 
 ## Commands and results
 
-- `bunx nx run tool-fleet:test --skip-nx-cache` with Nx daemon/plugin isolation disabled (2026-09-17): 6 passed, 0 failed.
-- `bunx nx run tool-fleet:typecheck --skip-nx-cache` (2026-09-17): exit 0.
+- `bunx nx run tool-fleet:test --skip-nx-cache` with Nx daemon/plugin isolation disabled (2026-09-17): 9 passed, 0 failed after the reviewed lock repair.
+- `bunx nx run tool-fleet:check --skip-nx-cache` with Nx daemon/plugin isolation disabled (2026-09-17): test 9/9, lint, typecheck, and committed-lock validation passed.
+- `bunx nx show projects --affected --files=infra/versions/toolchain.json` (2026-09-17): included `tool-fleet`.
+- `bunx nx run tool-fleet:build --skip-nx-cache` (2026-09-17): produced `dist/tool-fleet/controller.oci`; its OCI index named the locked manifest digest.
+- F0 invocations of `tool-fleet:{lab,plan,apply}` each exited nonzero and named its F3, F1, or F4 prerequisite rather than reporting placeholder success.
 - Official release, chart-index, Snap Store, Galaxy, and OCI registry lookups on 2026-09-17 produced `infra/versions/toolchain.json`.
 - `docker buildx build --output type=oci ...` built the controller manifest `sha256:6d063abc13ee0393fbc98298de7464ad311bf8f6ec376bcdc2d8746c0a3c199b` with Python 3.14.6, ansible-core 2.21.3, community.general 13.4.0, hetzner.hcloud 7.0.1, and kubernetes.core 6.6.0. Registry publication remains pending.
 
 ## Failure proofs
 
-| Check                    | Injected fault                                           | Production-path test                        | Observed result                                                                                             |
-| ------------------------ | -------------------------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Toolchain checksum       | Replaced the SHA-256 schema with an accepting expression | `readToolchain rejects an invalid checksum` | Failed because the malformed checksum resolved; restored the exact SHA-256 guard and the full target passed |
-| Observation completeness | Pending                                                  | Pending                                     | Pending                                                                                                     |
-| Identity recheck         | Pending                                                  | Pending                                     | Pending                                                                                                     |
-| Lease ownership          | Pending                                                  | Pending                                     | Pending                                                                                                     |
-| Retirement de-enrollment | Pending                                                  | Pending                                     | Pending                                                                                                     |
+| Check                    | Injected fault                                           | Production-path test                                                     | Observed result                                                                                             |
+| ------------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Toolchain checksum       | Replaced the SHA-256 schema with an accepting expression | `readToolchain rejects an invalid checksum`                              | Failed because the malformed checksum resolved; restored the exact SHA-256 guard and the full target passed |
+| Required lock            | Made the k3s property optional                           | `readToolchain rejects a missing required binary lock`                   | Failed because the missing lock resolved; restored the required property                                    |
+| Unknown lock key         | Removed the root exactness guard                         | `readToolchain rejects unknown keys`                                     | Failed because `releaseChannel` resolved; restored exact parsing                                            |
+| Exact version            | Replaced the exact-version expression with `/.+/`        | `readToolchain rejects a release channel in place of an exact version`   | Failed because `latest` resolved; restored exact syntax                                                     |
+| Supported platform       | Widened binary locks to Darwin arm64                     | `readToolchain rejects an artifact for an unsupported platform`          | Failed because the unsupported artifact resolved; restored Linux amd64 literals                             |
+| Chart image closure      | Removed the image-role completeness call                 | `readToolchain rejects an incomplete chart image closure`                | Failed because cert-manager without its webhook resolved; restored the guard                                |
+| Required state read      | Removed the contextual read guard                        | `readToolchain rejects absent, unreadable, and malformed required state` | Failed on the absent-file assertion with raw ENOENT; restored contextual refusal                            |
+| Malformed state parse    | Removed the contextual JSON parse guard                  | `readToolchain rejects absent, unreadable, and malformed required state` | Failed on malformed input with a raw parser error; restored contextual refusal                              |
+| Observation completeness | Pending                                                  | Pending                                                                  | Pending                                                                                                     |
+| Identity recheck         | Pending                                                  | Pending                                                                  | Pending                                                                                                     |
+| Lease ownership          | Pending                                                  | Pending                                                                  | Pending                                                                                                     |
+| Retirement de-enrollment | Pending                                                  | Pending                                                                  | Pending                                                                                                     |

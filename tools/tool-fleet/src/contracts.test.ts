@@ -7,6 +7,14 @@ import { describe, expect, it } from 'bun:test';
 import { readToolchain } from './contracts';
 
 const sha256 = 'a'.repeat(64);
+const image = (role: string) => ({ role, name: `${role}:1.0.0`, digest: `sha256:${sha256}` });
+const chart = (roles: readonly string[]) => ({
+  version: '1.0.0',
+  url: 'https://example.test/chart.tgz',
+  sha256,
+  images: roles.map(image),
+  disabledComponents: [],
+});
 
 const validToolchain = {
   schemaVersion: 1,
@@ -56,7 +64,17 @@ const validToolchain = {
       arch: 'amd64',
     },
   },
-  terraform: { hcloudProvider: '1.0.0' },
+  terraform: {
+    hcloudProvider: {
+      version: '1.0.0',
+      source: 'registry.terraform.io/hetznercloud/hcloud',
+      url: 'https://example.test/hcloud.zip',
+      sha256,
+      os: 'linux',
+      arch: 'amd64',
+    },
+  },
+  runtimeImages: { k3dNode: image('node') },
   controller: {
     image: 'registry.example.test/puni/fleet-controller:1.0.0',
     digest: `sha256:${sha256}`,
@@ -65,66 +83,32 @@ const validToolchain = {
     collections: { communityGeneral: '10.0.0', hetznerHcloud: '4.0.0', kubernetesCore: '5.0.0' },
   },
   charts: {
-    hcloudCcm: {
-      version: '1.0.0',
-      url: 'https://charts.example.test/ccm.tgz',
-      sha256,
-      images: [{ name: 'ccm', digest: `sha256:${sha256}` }],
-    },
-    hcloudCsi: {
-      version: '1.0.0',
-      url: 'https://charts.example.test/csi.tgz',
-      sha256,
-      images: [{ name: 'csi', digest: `sha256:${sha256}` }],
-    },
-    traefik: {
-      version: '1.0.0',
-      url: 'https://charts.example.test/traefik.tgz',
-      sha256,
-      images: [{ name: 'traefik', digest: `sha256:${sha256}` }],
-    },
-    certManager: {
-      version: '1.0.0',
-      url: 'https://charts.example.test/cert-manager.tgz',
-      sha256,
-      images: [{ name: 'controller', digest: `sha256:${sha256}` }],
-    },
-    eckOperator: {
-      version: '1.0.0',
-      url: 'https://charts.example.test/eck.tgz',
-      sha256,
-      images: [{ name: 'operator', digest: `sha256:${sha256}` }],
-    },
-    elasticsearch: {
-      version: '1.0.0',
-      url: 'https://charts.example.test/elasticsearch.tgz',
-      sha256,
-      images: [{ name: 'elasticsearch', digest: `sha256:${sha256}` }],
-    },
-    kibana: {
-      version: '1.0.0',
-      url: 'https://charts.example.test/kibana.tgz',
-      sha256,
-      images: [{ name: 'kibana', digest: `sha256:${sha256}` }],
-    },
-    kubePrometheusStack: {
-      version: '1.0.0',
-      url: 'https://charts.example.test/prometheus.tgz',
-      sha256,
-      images: [{ name: 'prometheus', digest: `sha256:${sha256}` }],
-    },
-    opentelemetryCollector: {
-      version: '1.0.0',
-      url: 'https://charts.example.test/otel.tgz',
-      sha256,
-      images: [{ name: 'collector', digest: `sha256:${sha256}` }],
-    },
-    velero: {
-      version: '1.0.0',
-      url: 'https://charts.example.test/velero.tgz',
-      sha256,
-      images: [{ name: 'velero', digest: `sha256:${sha256}` }],
-    },
+    hcloudCcm: chart(['controller']),
+    hcloudCsi: chart([
+      'controller',
+      'csiAttacher',
+      'csiNodeDriverRegistrar',
+      'csiProvisioner',
+      'csiResizer',
+      'livenessProbe',
+    ]),
+    traefik: chart(['controller']),
+    certManager: chart(['acmeSolver', 'caInjector', 'controller', 'startupApiCheck', 'webhook']),
+    eckOperator: chart(['operator']),
+    elasticsearch: chart(['node']),
+    kibana: chart(['node']),
+    kubePrometheusStack: chart([
+      'admissionWebhook',
+      'admissionWebhookCertgen',
+      'alertmanager',
+      'configReloader',
+      'kubeStateMetrics',
+      'nodeExporter',
+      'operator',
+      'prometheus',
+    ]),
+    opentelemetryCollector: chart(['collector']),
+    velero: chart(['server']),
   },
 };
 
@@ -142,7 +126,7 @@ describe('readToolchain', () => {
     expect(toolchain.supportedHosts).toEqual([
       { distribution: 'ubuntu', version: '24.04', arch: 'amd64' },
     ]);
-    expect(toolchain.binaries.k3s.version).toBe('v1.37.0+k3s1');
+    expect(toolchain.binaries.k3s.version).toBe('v1.36.4+k3s1');
   });
 
   it('reads the complete exact toolchain', async () => {
@@ -150,16 +134,12 @@ describe('readToolchain', () => {
     expect((await readToolchain(path)).binaries.k3s.version).toBe('v1.0.0+k3s1');
   });
 
-  // Proof: deleting the k3s lock from the production input must refuse before
-  // any installer can select an unpinned release channel.
   it('rejects a missing required binary lock', async () => {
     const { k3s: _removed, ...binaries } = validToolchain.binaries;
     const path = await writeToolchain({ ...validToolchain, binaries });
     expect(readToolchain(path)).rejects.toThrow(/k3s/);
   });
 
-  // Proof: shortening the checksum to a non-SHA-256 value must refuse before
-  // any downloader treats the artifact as verified.
   it('rejects an invalid checksum', async () => {
     const path = await writeToolchain({
       ...validToolchain,
@@ -171,18 +151,53 @@ describe('readToolchain', () => {
     expect(readToolchain(path)).rejects.toThrow(/sha256/);
   });
 
-  // Proof: adding an unknown lock key must refuse rather than allow an
-  // operator typo to look configured while the required key stays unchanged.
   it('rejects unknown keys', async () => {
     const path = await writeToolchain({ ...validToolchain, releaseChannel: 'stable' });
     expect(readToolchain(path)).rejects.toThrow(/releaseChannel/);
   });
 
-  it('rejects unreadable and malformed required state', async () => {
+  it('rejects a release channel in place of an exact version', async () => {
+    const path = await writeToolchain({
+      ...validToolchain,
+      binaries: {
+        ...validToolchain.binaries,
+        k3s: { ...validToolchain.binaries.k3s, version: 'latest' },
+      },
+    });
+    expect(readToolchain(path)).rejects.toThrow(/version/i);
+  });
+
+  it('rejects an artifact for an unsupported platform', async () => {
+    const path = await writeToolchain({
+      ...validToolchain,
+      binaries: {
+        ...validToolchain.binaries,
+        k3s: { ...validToolchain.binaries.k3s, os: 'darwin', arch: 'arm64' },
+      },
+    });
+    expect(readToolchain(path)).rejects.toThrow(/os|arch/i);
+  });
+
+  it('rejects an incomplete chart image closure', async () => {
+    const path = await writeToolchain({
+      ...validToolchain,
+      charts: {
+        ...validToolchain.charts,
+        certManager: {
+          ...validToolchain.charts.certManager,
+          images: validToolchain.charts.certManager.images.filter(({ role }) => role !== 'webhook'),
+        },
+      },
+    });
+    expect(readToolchain(path)).rejects.toThrow(/certManager image roles/);
+  });
+
+  it('rejects absent, unreadable, and malformed required state', async () => {
     const directory = await scratchAsync('tool-fleet-contract-');
     expect(readToolchain(join(directory, 'missing.json'))).rejects.toThrow(/toolchain/i);
+    expect(readToolchain(directory)).rejects.toThrow(/toolchain/i);
     const path = join(directory, 'toolchain.json');
     await writeFile(path, '{');
-    expect(readToolchain(path)).rejects.toThrow(/JSON/);
+    expect(readToolchain(path)).rejects.toThrow(/required toolchain.*valid JSON/i);
   });
 });

@@ -1,26 +1,34 @@
 import { readFile } from 'node:fs/promises';
 
-import { parseOrThrow, type } from '@shared/validation';
+import { type } from 'arktype';
 
+// Proof: replacing this checksum expression with an accepting expression made
+// the invalid-checksum production-reader negative fail on 2026-09-17.
 const sha256 = /^[0-9a-f]{64}$/;
 const digest = /^sha256:[0-9a-f]{64}$/;
+// Proof: replacing this exact-version expression with /.+/ made the release
+// channel production-reader negative fail on 2026-09-17.
+const exactVersion = /^v?\d+\.\d+\.\d+(?:[+-][0-9A-Za-z.-]+)?$/;
 
 const BinaryLock = type({
-  version: 'string>0',
+  version: exactVersion,
   url: 'string.url',
   sha256,
-  os: "'linux'|'darwin'",
-  arch: "'amd64'|'arm64'",
+  // Proof: widening these literals to Darwin/arm64 made the unsupported
+  // platform production-reader negative fail on 2026-09-17.
+  os: "'linux'",
+  arch: "'amd64'",
   '+': 'reject',
 });
 
-const ImageLock = type({ name: 'string>0', digest, '+': 'reject' });
+const ImageLock = type({ role: 'string>0', name: 'string>0', digest, '+': 'reject' });
 
 const ChartLock = type({
-  version: 'string>0',
+  version: exactVersion,
   url: 'string.url',
   sha256,
   images: ImageLock.array().atLeastLength(1),
+  disabledComponents: 'string[]',
   '+': 'reject',
 });
 
@@ -36,6 +44,8 @@ const ToolchainSchema = type({
     .atLeastLength(1),
   binaries: {
     terraform: BinaryLock,
+    // Proof: making k3s optional made the missing-lock production-reader
+    // negative fail on 2026-09-17.
     k3s: BinaryLock,
     k3d: BinaryLock,
     flux: BinaryLock,
@@ -44,16 +54,28 @@ const ToolchainSchema = type({
     multipass: BinaryLock,
     '+': 'reject',
   },
-  terraform: { hcloudProvider: 'string>0', '+': 'reject' },
+  terraform: {
+    hcloudProvider: {
+      version: exactVersion,
+      source: "'registry.terraform.io/hetznercloud/hcloud'",
+      url: 'string.url',
+      sha256,
+      os: "'linux'",
+      arch: "'amd64'",
+      '+': 'reject',
+    },
+    '+': 'reject',
+  },
+  runtimeImages: { k3dNode: ImageLock, '+': 'reject' },
   controller: {
     image: 'string>0',
     digest,
-    python: 'string>0',
-    ansibleCore: 'string>0',
+    python: exactVersion,
+    ansibleCore: exactVersion,
     collections: {
-      communityGeneral: 'string>0',
-      hetznerHcloud: 'string>0',
-      kubernetesCore: 'string>0',
+      communityGeneral: exactVersion,
+      hetznerHcloud: exactVersion,
+      kubernetesCore: exactVersion,
       '+': 'reject',
     },
     '+': 'reject',
@@ -71,23 +93,76 @@ const ToolchainSchema = type({
     velero: ChartLock,
     '+': 'reject',
   },
+  // Proof: removing this root exactness guard made the unknown-key
+  // production-reader negative fail on 2026-09-17.
   '+': 'reject',
 });
 
 export type Toolchain = typeof ToolchainSchema.infer;
 
+function parseToolchain(input: unknown): Toolchain {
+  const toolchain = ToolchainSchema(input);
+  if (toolchain instanceof type.errors) {
+    throw new Error(`Toolchain validation failed: ${toolchain.summary}`, { cause: toolchain });
+  }
+  return toolchain;
+}
+
+const requiredImageRoles = {
+  hcloudCcm: ['controller'],
+  hcloudCsi: [
+    'controller',
+    'csiAttacher',
+    'csiNodeDriverRegistrar',
+    'csiProvisioner',
+    'csiResizer',
+    'livenessProbe',
+  ],
+  traefik: ['controller'],
+  certManager: ['acmeSolver', 'caInjector', 'controller', 'startupApiCheck', 'webhook'],
+  eckOperator: ['operator'],
+  elasticsearch: ['node'],
+  kibana: ['node'],
+  kubePrometheusStack: [
+    'admissionWebhook',
+    'admissionWebhookCertgen',
+    'alertmanager',
+    'configReloader',
+    'kubeStateMetrics',
+    'nodeExporter',
+    'operator',
+    'prometheus',
+  ],
+  opentelemetryCollector: ['collector'],
+  velero: ['server'],
+} as const satisfies Record<keyof Toolchain['charts'], readonly string[]>;
+
+function assertCompleteImageLocks(toolchain: Toolchain): void {
+  for (const [chartName, expectedRoles] of Object.entries(requiredImageRoles)) {
+    const chart = toolchain.charts[chartName as keyof Toolchain['charts']];
+    const actualRoles = chart.images.map(({ role }) => role).sort();
+    if (actualRoles.join('\n') !== [...expectedRoles].sort().join('\n')) {
+      // Proof: removing this comparison let a cert-manager lock without its
+      // webhook pass; the production reader negative then failed on 2026-09-17.
+      throw new Error(`${chartName} image roles must be exactly: ${expectedRoles.join(', ')}`);
+    }
+  }
+}
+
 /**
  * Read the complete immutable fleet toolchain lock.
  *
- * Missing, unreadable, malformed, incomplete, or extended input throws. The
- * caller may therefore use the returned value without release-channel or
- * architecture fallbacks.
+ * Missing, unreadable, malformed, incomplete, extended, inexact, or
+ * unsupported-platform input throws. The caller may use the returned value
+ * without release-channel or architecture fallback.
  */
 export async function readToolchain(path: string): Promise<Toolchain> {
   let source: string;
   try {
     source = await readFile(path, 'utf8');
   } catch (cause) {
+    // Proof: reading without this contextual guard made the absent/unreadable
+    // production-reader negative fail on 2026-09-17.
     throw new Error(`Cannot read required toolchain at ${path}`, { cause });
   }
 
@@ -95,8 +170,14 @@ export async function readToolchain(path: string): Promise<Toolchain> {
   try {
     input = JSON.parse(source);
   } catch (cause) {
+    // Proof: parsing without this contextual guard made the malformed-state
+    // production-reader negative fail on 2026-09-17.
     throw new Error(`Required toolchain at ${path} is not valid JSON`, { cause });
   }
 
-  return parseOrThrow(ToolchainSchema, input);
+  // Proof: accepting unknown keys or a missing k3s lock made their production
+  // reader negatives fail on 2026-09-17; exact parsing restored both failures.
+  const toolchain = parseToolchain(input);
+  assertCompleteImageLocks(toolchain);
+  return toolchain;
 }
