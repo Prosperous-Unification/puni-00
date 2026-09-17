@@ -1311,12 +1311,13 @@ await import(${JSON.stringify(productionSnapshotter)});
     }
 
     const releaseWorkflow = readFileSync(
-      join(workspace, '.github', 'workflows', 'wiki-release.yml'),
+      join(workspace, '.github', 'workflows', 'twilight-bureaucrat-release.yml'),
       'utf8',
     );
     // Proof: `contents: write` in ci.yml or trusted-wiki.yml failed here. A release token reachable
-    // from the admission workflow would let a candidate publish the archive that judges it.
-    expect(releaseWorkflow).toContain('permissions:\n  contents: write');
+    // from the admission workflow would let a candidate publish the package that judges it.
+    expect(releaseWorkflow).toContain('permissions:\n  contents: read');
+    expect(releaseWorkflow).toContain('    permissions:\n      contents: write');
     expect(ci).toContain('permissions:\n  contents: read');
     expect(trustedCi).toContain('permissions:\n  contents: read');
     expect(releaseWorkflow.match(/contents: write/g)).toHaveLength(1);
@@ -1325,7 +1326,13 @@ await import(${JSON.stringify(productionSnapshotter)});
     );
     expect(releaseActionRefs.length).toBeGreaterThan(0);
     expect(releaseActionRefs.every((ref) => /^[0-9a-f]{40}$/.test(ref))).toBe(true);
-    expect(releaseWorkflow).toContain('twilight-bureaucrat:release');
+    expect(releaseWorkflow).toContain('twilight-bureaucrat:test:package');
+    expect(releaseWorkflow).toContain('bun publish');
+    expect(releaseWorkflow).toContain("- 'twilight-bureaucrat-v*'");
+    expect(releaseWorkflow).toContain('environment: twilight-bureaucrat-release');
+    expect(releaseWorkflow).toContain('release-cli.ts verify');
+    expect(releaseWorkflow).toContain('--dry-run');
+    expect(releaseWorkflow).toContain('overwrite_files: false');
     expect(releaseWorkflow).toContain(`bun-version: ${pinnedRuntime}`);
     for (const check of [
       'twilight-bureaucrat:test',
@@ -1334,8 +1341,11 @@ await import(${JSON.stringify(productionSnapshotter)});
     ]) {
       expect(releaseWorkflow).toContain(`bunx nx run ${check} --skip-nx-cache`);
     }
-    expect(releaseWorkflow.indexOf('Bootstrap checks for the tagged commit')).toBeLessThan(
-      releaseWorkflow.indexOf('name: Pack the toolkit'),
+    expect(releaseWorkflow.indexOf('Verify tagged source and packed installation')).toBeLessThan(
+      releaseWorkflow.indexOf('name: Bind the tested tarball'),
+    );
+    expect(releaseWorkflow.indexOf('release-cli.ts verify')).toBeLessThan(
+      releaseWorkflow.indexOf('bun publish'),
     );
     expect(workspacePackage.scripts['lint']).toBe(
       'nx run-many -t lint --exclude=twilight-bureaucrat && nx run twilight-bureaucrat:lint:source',

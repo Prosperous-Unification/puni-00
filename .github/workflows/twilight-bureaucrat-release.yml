@@ -1,0 +1,113 @@
+name: twilight-bureaucrat-release
+
+on:
+  push:
+    tags:
+      - 'twilight-bureaucrat-v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: twilight-bureaucrat-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.2
+
+      - run: bun install --frozen-lockfile
+
+      - name: Refuse an existing immutable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "release already exists: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+      - name: Verify tagged source and packed installation
+        run: |
+          set -euo pipefail
+          bunx nx run twilight-bureaucrat:test --skip-nx-cache
+          bunx nx run twilight-bureaucrat:lint:source --skip-nx-cache
+          bunx nx run twilight-bureaucrat:typecheck --skip-nx-cache
+          bunx nx run twilight-bureaucrat:test:package --skip-nx-cache
+
+      - name: Bind the tested tarball
+        run: |
+          set -euo pipefail
+          transfer="$RUNNER_TEMP/twilight-bureaucrat-release"
+          mkdir "$transfer"
+          cp dist/twilight-bureaucrat-pack/twilight-bureaucrat-0.1.0.tgz "$transfer/"
+          bun apps/wiki/cli/src/packaging/release-cli.ts prepare \
+            --tag "$GITHUB_REF_NAME" \
+            --repository "$GITHUB_WORKSPACE" \
+            --tarball "$transfer/twilight-bureaucrat-0.1.0.tgz" \
+            --record "$transfer/release.json"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: twilight-bureaucrat-release
+          path: ${{ runner.temp }}/twilight-bureaucrat-release
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: twilight-bureaucrat-release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.2
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: twilight-bureaucrat-release
+          path: ${{ runner.temp }}/twilight-bureaucrat-release
+
+      - name: Verify transferred package
+        run: |
+          bun apps/wiki/cli/src/packaging/release-cli.ts verify \
+            --tarball "$RUNNER_TEMP/twilight-bureaucrat-release/twilight-bureaucrat-0.1.0.tgz" \
+            --record "$RUNNER_TEMP/twilight-bureaucrat-release/release.json"
+
+      - name: Registry dry run
+        run: bun publish "$RUNNER_TEMP/twilight-bureaucrat-release/twilight-bureaucrat-0.1.0.tgz" --dry-run
+
+      - name: Publish tested package
+        env:
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: bun publish "$RUNNER_TEMP/twilight-bureaucrat-release/twilight-bureaucrat-0.1.0.tgz" --access public
+
+      - name: Retain tested package and identity
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          files: |
+            ${{ runner.temp }}/twilight-bureaucrat-release/twilight-bureaucrat-0.1.0.tgz
+            ${{ runner.temp }}/twilight-bureaucrat-release/release.json
+          fail_on_unmatched_files: true
+          overwrite_files: false
+          body: |
+            Twilight Bureaucrat ${{ github.ref_name }}. The attached tarball is the exact artifact
+            accepted by the package-install suite and published to the registry.

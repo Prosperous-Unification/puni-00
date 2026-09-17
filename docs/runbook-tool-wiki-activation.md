@@ -7,34 +7,39 @@ review debt. Tasks 6 and 7 remain open.
 
 ## Release
 
-A **release is a toolkit**, not a certification: it carries the roles that are identical for every
-repository and every commit — `launcher.sh`, `snapshotter.ts`, `validator.mjs`, the standalone
-`prepare-activation.mjs` and `trusted-node-modules/` — with `toolkit.json` and `SHA256SUMS`. It
-certifies no commit, because an activation binds one candidate identity and a consumer's candidates
-are its own commits. The decision is
-[ADR 0026](adr/0026-a-wiki-release-is-a-toolkit-not-a-certification.md).
+`twilight-bureaucrat` is the distribution envelope for the reusable toolkit. The package carries
+the launcher, snapshotter, validator, activation preparers and trusted TypeScript closure. Installing
+it certifies no consumer commit; an activation still binds one candidate identity. The distinction
+is recorded in [ADR 0026](adr/0026-a-wiki-release-is-a-toolkit-not-a-certification.md).
 
-Tag the reviewed commit `wiki-vMAJOR.MINOR.PATCH` and push it; `.github/workflows/wiki-release.yml`
-runs the three uncached bootstrap checks, then the target, then uploads the assets. It is the only
-workflow in this repository with `contents: write`. Before the first tag, a `wiki-v*` tag ruleset
-restricting who may push one is an administrative prerequisite — that workflow publishes, and no
-repository file can restrict who triggers it.
+Tag the reviewed commit `twilight-bureaucrat-vMAJOR.MINOR.PATCH` and push it. The
+`twilight-bureaucrat-release.yml` workflow runs the uncached source and packed-install checks, binds
+the tarball digest to the tag and source commit, and transfers that exact tarball to a protected
+`twilight-bureaucrat-release` environment. The publish job verifies the transfer, runs
+`bun publish <tarball> --dry-run`, publishes that file, and retains it with `release.json` as release
+assets. It refuses an existing registry version or GitHub release and never rebuilds after transfer.
 
-To pack one by hand, from a clean checkout whose HEAD the tag names, after a fresh install so the
-runtime closure the toolkit ships is the one the tag's lockfile pins:
+Before the first tag, administrators must restrict `twilight-bureaucrat-v*`, create the protected
+environment, verify ownership of the `twilight-bureaucrat` registry name, and install its
+least-privilege `NPM_TOKEN`. Publication remains pending while the package is `UNLICENSED`; add the
+actual repository license before granting the environment approval.
+
+To reproduce the prepared artifact without publishing:
 
 ```sh
 bun install --frozen-lockfile
-bunx nx run twilight-bureaucrat:release -- --tag wiki-vX.Y.Z --destination <dir outside the checkout>
+bunx nx run twilight-bureaucrat:test:package --skip-nx-cache
+bun apps/wiki/cli/src/packaging/release-cli.ts prepare \
+  --tag twilight-bureaucrat-vX.Y.Z \
+  --repository "$PWD" \
+  --tarball dist/twilight-bureaucrat-pack/twilight-bureaucrat-X.Y.Z.tgz \
+  --record /tmp/twilight-bureaucrat-release.json
 ```
 
-It refuses a malformed tag (`T1`), a tag no commit resolves (`T2`), a tag that is not at HEAD
-(`T3`), a dirty checkout (`T4`), an operator Bun other than `.bun-version` (`T5`), a bundle that is
-not standalone (`T6`), a destination inside the checkout being released (`T7`), a destination that
-already holds a toolkit or an archive path that already exists (`T8`), and an installed `typescript`
-that is not the version `package.json` pins (`T9`) — `node_modules/` is git-ignored, so `T4` cannot
-see it. An absent or symlinked trusted node module is the same `R19` the relocation command raises.
-It writes no archive on refusal, and prints the tag, the commit and the archive's SHA-256.
+Preparation refuses a malformed or misplaced tag, a dirty checkout, tag/source/package version
+drift, missing package assets, source identity drift, an existing registry version, and unknown
+registry state. The publish boundary refuses a tarball whose filename, SHA-256 or npm integrity
+differs from the transfer record.
 
 A consumer then produces its **own** per-commit activation from that toolkit with
 `prepare-activation.mjs`, supplying its policy, mapping, review record and audit strata. The whole

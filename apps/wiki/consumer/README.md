@@ -1,5 +1,10 @@
 # Running the Tool Wiki in your repository
 
+The reusable toolkit is distributed as the `twilight-bureaucrat` package. Its installed
+`twilight-bureaucrat prepare-activation` command resolves the packaged toolkit from its own module
+directory; it does not load this source checkout. The current trusted workflow template continues
+to consume a separately prepared immutable activation until package adoption completes.
+
 The Tool Wiki is released as a **toolkit**: the parts that are the same for every repository and
 every commit — the launcher, the snapshotter, the validator bundle and the TypeScript runtime
 closure — plus a standalone preparer. It certifies nothing on its own.

@@ -12,7 +12,7 @@
         "^production",
         "{workspaceRoot}/.github/workflows/ci.yml",
         "{workspaceRoot}/.github/workflows/trusted-wiki.yml",
-        "{workspaceRoot}/.github/workflows/wiki-release.yml",
+        "{workspaceRoot}/.github/workflows/twilight-bureaucrat-release.yml",
         "{workspaceRoot}/apps/wiki/consumer/**/*",
         "{projectRoot}/package.json",
         "{projectRoot}/NOTICE"
@@ -47,7 +47,7 @@
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
-        "command": "bun src/policy/release-cli.ts",
+        "command": "bun src/packaging/release-cli.ts",
         "cwd": "apps/wiki/cli"
       }
     },

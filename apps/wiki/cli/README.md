@@ -25,6 +25,15 @@ Candidate changes can propose future validator or policy bytes, but they cannot 
 activation that evaluates the same candidate. Immutable activation packages and final integration
 bindings are created and retained outside the candidate tree.
 
+## Package release
+
+`twilight-bureaucrat-vMAJOR.MINOR.PATCH` tags drive the protected package-release workflow. It
+tests the installed tarball outside this checkout, records its SHA-256 and npm integrity, transfers
+the same file between jobs, verifies it again, and runs a registry dry run before publication. The
+registry name, protected environment, token and repository license are external prerequisites; the
+current `UNLICENSED` package is prepared but not authorized for publication. Operational details
+live in [the activation runbook](../../../docs/runbook-tool-wiki-activation.md#release).
+
 ## Experiment evidence
 
 `experiments/export.ts` accepts a complete journal and its reconciled report, then emits canonical
