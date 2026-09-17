@@ -1,0 +1,70 @@
+---
+- name: Upgrade k3s one node at a time
+  hosts: all
+  become: true
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Require exact upgrade and artifact evidence
+      ansible.builtin.assert:
+        that:
+          - puni_node_name is defined
+          - puni_k3s_version is match('^v[0-9]+\.[0-9]+\.[0-9]+\+k3s[0-9]+$')
+          - puni_k3s_download_url is defined
+          - puni_k3s_sha256 is match('^[0-9a-f]{64}$')
+          - puni_k3s_role in ['server', 'agent']
+          - puni_k3s_role != 'server' or (puni_etcd_snapshot_receipt | default('') | length > 0)
+        fail_msg: Upgrade requires a locked version, checksum, role, and server snapshot receipt
+
+    - name: Snapshot etcd before a server upgrade
+      ansible.builtin.command:
+        argv: [k3s, etcd-snapshot, save, --name, 'pre-upgrade-{{ puni_node_name }}']
+      when: puni_k3s_role == 'server'
+      no_log: true
+
+    - name: Cordon node
+      ansible.builtin.command:
+        argv: [kubectl, cordon, '{{ puni_node_name }}']
+      delegate_to: localhost
+      become: false
+
+    - name: Drain node respecting disruption budgets
+      ansible.builtin.command:
+        argv: [kubectl, drain, '{{ puni_node_name }}', --ignore-daemonsets, --timeout=10m]
+      delegate_to: localhost
+      become: false
+
+    - name: Fetch exact k3s upgrade artifact
+      ansible.builtin.get_url:
+        url: '{{ puni_k3s_download_url }}'
+        dest: /usr/local/bin/k3s
+        checksum: 'sha256:{{ puni_k3s_sha256 }}'
+        mode: '0755'
+      notify: Restart upgraded k3s service
+
+    - name: Apply service restart before health proof
+      ansible.builtin.meta: flush_handlers
+
+    - name: Wait for exact node to become Ready
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - wait
+          - node/{{ puni_node_name }}
+          - --for=condition=Ready
+          - --timeout=5m
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Uncordon node after health proof
+      ansible.builtin.command:
+        argv: [kubectl, uncordon, '{{ puni_node_name }}']
+      delegate_to: localhost
+      become: false
+
+  handlers:
+    - name: Restart upgraded k3s service
+      ansible.builtin.systemd_service:
+        name: '{{ "k3s" if puni_k3s_role == "server" else "k3s-agent" }}'
+        state: restarted

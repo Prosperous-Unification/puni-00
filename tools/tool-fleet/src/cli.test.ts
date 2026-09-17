@@ -1,8 +1,13 @@
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
 import { describe, expect, test } from 'bun:test';
+import { parse } from 'yaml';
+
+import { decodeFleet } from './contracts';
+import { observationFixture } from './testing/fleet';
 
 const root = join(import.meta.dir, '../../..');
 
@@ -10,18 +15,19 @@ async function createPlanFixture() {
   const directory = await scratchAsync('tool-fleet-plan-cli-');
   const observation = join(directory, 'observation.json');
   const output = join(directory, 'operation.json');
-  await writeFile(
-    observation,
-    `${JSON.stringify({
-      schemaVersion: 1,
-      observedAt: '2026-09-17T09:00:00.000Z',
-      digest: 'a'.repeat(64),
-      complete: true,
-    })}\n`,
-  );
+  const fleetPath = join(directory, 'fleet.yaml');
+  const fleetInput = parse(
+    await readFile(join(root, 'infra/fleet/examples/local.yaml'), 'utf8'),
+  ) as { clusters: { id: string; requiredCapabilities: Record<string, number> }[] };
+  const workers = fleetInput.clusters.find(({ id }) => id === 'workers');
+  if (workers === undefined) throw new Error('CLI fixture has no workers cluster');
+  workers.requiredCapabilities['execution'] = 1;
+  await writeFile(fleetPath, `${JSON.stringify(fleetInput)}\n`);
+  const fleet = decodeFleet(fleetInput);
+  await writeFile(observation, `${JSON.stringify(observationFixture(fleet))}\n`);
   return {
     directory,
-    fleet: join(root, 'infra/fleet/examples/local.yaml'),
+    fleet: fleetPath,
     observation,
     output,
   };
@@ -46,6 +52,17 @@ function buildBaseArguments(fixture: Awaited<ReturnType<typeof createPlanFixture
   ];
 }
 
+function retirementEvidenceArguments(): string[] {
+  return [
+    '--backup-receipt',
+    'backup-workers-1',
+    '--inventory-sha256',
+    'e'.repeat(64),
+    '--known-hosts-sha256',
+    'f'.repeat(64),
+  ];
+}
+
 test('the production plan command writes JSON and a human summary', async () => {
   const fixture = await createPlanFixture();
   const invocation = invokePlan([
@@ -54,6 +71,7 @@ test('the production plan command writes JSON and a human summary', async () => 
     'retire',
     '--node',
     'workers-agent-a',
+    ...retirementEvidenceArguments(),
   ]);
   expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
   expect(invocation.stdout.toString()).toContain('retire workers-agent-a');
@@ -63,6 +81,74 @@ test('the production plan command writes JSON and a human summary', async () => 
 });
 
 describe('production plan input boundary', () => {
+  test('binds destroy to an owner-only completed retirement receipt for the exact provider', async () => {
+    const fixture = await createPlanFixture();
+    const fleet = decodeFleet(parse(await readFile(fixture.fleet, 'utf8')) as unknown);
+    const target = fleet.nodes.find(({ id }) => id === 'workers-agent-a');
+    if (target === undefined) throw new Error('CLI fixture destroy target is absent');
+    const providerIdentity =
+      target.provider.kind === 'hcloud'
+        ? `hcloud:${target.provider.instanceId}`
+        : `ssh:${target.provider.machineId}`;
+    const receiptPath = join(fixture.directory, 'retirement-receipt.json');
+    const receipt = `${JSON.stringify({
+      schemaVersion: 1,
+      nodeId: target.id,
+      providerIdentity,
+      kubernetesNodeUid: 'uid-workers-agent-a',
+      backupReceipt: 'backup-workers-1',
+      planSha256: 'a'.repeat(64),
+      state: 'retired',
+    })}\n`;
+    await writeFile(receiptPath, receipt, { mode: 0o600 });
+    const receiptSha256 = createHash('sha256').update(receipt).digest('hex');
+    const invocation = invokePlan([
+      ...buildBaseArguments(fixture),
+      '--operation',
+      'destroy',
+      '--node',
+      target.id,
+      '--retirement-receipt',
+      receiptPath,
+      '--retirement-receipt-sha256',
+      receiptSha256,
+    ]);
+    expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+
+    const changedFixture = await createPlanFixture();
+    await writeFile(receiptPath, receipt.replace(target.id, 'another-node'), { mode: 0o600 });
+    const changed = invokePlan([
+      ...buildBaseArguments(changedFixture),
+      '--operation',
+      'destroy',
+      '--node',
+      target.id,
+      '--retirement-receipt',
+      receiptPath,
+      '--retirement-receipt-sha256',
+      receiptSha256,
+    ]);
+    expect(changed.exitCode).not.toBe(0);
+    expect(changed.stderr.toString()).toContain('differs from its reviewed SHA-256');
+
+    const wrongIdentityFixture = await createPlanFixture();
+    const wrongIdentityReceipt = receipt.replace(target.id, 'another-node');
+    const wrongIdentitySha256 = createHash('sha256').update(wrongIdentityReceipt).digest('hex');
+    const wrongIdentity = invokePlan([
+      ...buildBaseArguments(wrongIdentityFixture),
+      '--operation',
+      'destroy',
+      '--node',
+      target.id,
+      '--retirement-receipt',
+      receiptPath,
+      '--retirement-receipt-sha256',
+      wrongIdentitySha256,
+    ]);
+    expect(wrongIdentity.exitCode).not.toBe(0);
+    expect(wrongIdentity.stderr.toString()).toContain('exact provider identity');
+  });
+
   test('refuses missing, duplicate, valueless, unknown, and operation-inapplicable flags', async () => {
     const fixture = await createPlanFixture();
     const cases = [
@@ -79,6 +165,7 @@ describe('production plan input boundary', () => {
           'workers-agent-a',
           '--node',
           'workers-agent-b',
+          ...retirementEvidenceArguments(),
         ],
         diagnostic: 'Duplicate fleet plan flag: --node',
       },
@@ -118,6 +205,7 @@ describe('production plan input boundary', () => {
           'retire',
           '--node',
           'workers-agent-a',
+          ...retirementEvidenceArguments(),
           '--unknown-flag',
           'ignored',
         ],
@@ -130,6 +218,7 @@ describe('production plan input boundary', () => {
           'retire',
           '--node',
           'workers-agent-a',
+          ...retirementEvidenceArguments(),
           '--version',
           'v1.36.5+k3s1',
         ],
@@ -246,6 +335,7 @@ describe('production plan input boundary', () => {
         'retire',
         '--node',
         'workers-agent-a',
+        ...retirementEvidenceArguments(),
       ]);
       expect(invocation.exitCode).not.toBe(0);
       expect(invocation.stderr.toString()).toContain(pair.diagnostic);
@@ -261,6 +351,7 @@ describe('production plan input boundary', () => {
       'retire',
       '--node',
       'workers-agent-a',
+      ...retirementEvidenceArguments(),
     ]);
     expect(invocation.exitCode).not.toBe(0);
     expect(invocation.stderr.toString()).toContain('Cannot create new operation plan');

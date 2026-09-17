@@ -67,3 +67,58 @@ The VM run is the required proof for systemd, SSH, nftables, mounts, and MTU.
 Ansible syntax and unit checks do not replace it. Hetzner CSI attachment,
 provider firewall, public DNS/TLS, and distinct-cloud-host failure remain cloud
 drills rather than claims made by this local lab.
+
+## Retirement, replacement, and upgrade
+
+Retirement planning consumes the detailed observation, including the exact
+provider identity, Kubernetes node UID, Ready state, storage attachments, and
+observed capability labels. It refuses missing or unhealthy targets, attached
+storage, the sole control plane, an unproven HA replacement set, and any
+required capability floor that would be lost. The operator must also name a
+backup receipt. Planning remains read-only:
+
+```sh
+bunx nx run tool-fleet:plan -- \
+  --fleet infra/fleet/desired.yaml \
+  --observation .puni/fleet/observation.json \
+  --operation retire \
+  --node workers-agent-a \
+  --backup-receipt backup-workers-20260917 \
+  --inventory-sha256 <reviewed-static-inventory-sha256> \
+  --known-hosts-sha256 <reviewed-known-hosts-sha256> \
+  --output .puni/fleet/retire-workers-agent-a.json
+```
+
+Create the exact static inventory and pinned SSH host-key artifacts as
+`.puni/fleet/retire-workers-agent-a.json.inventory.json` and
+`.puni/fleet/retire-workers-agent-a.json.known_hosts`. The reviewed hashes bind
+retirement to those bytes. This applies to cloud and external SSH nodes; cloud
+nodes also require the live dynamic provider identity to match.
+
+Apply requires the printed digest and runs each step under the cluster Lease.
+The playbook checks the live provider ID and Kubernetes UID before cordoning,
+honors PDB and local-storage drain failures, waits for volume detach, disables
+k3s, removes its credentials and membership, and verifies the services remain
+disabled. The adapter removes enrollment membership before writing the
+owner-only retirement receipt. Any failed step leaves a recoverable journal and
+no receipt.
+
+```sh
+bunx nx run tool-fleet:apply -- \
+  --plan .puni/fleet/retire-workers-agent-a.json \
+  --expect-sha256 <printed-plan-sha256>
+```
+
+A disappeared node cannot use normal retirement. Replacement planning requires
+an exact external fence for the observed provider identity in `powered-off` or
+`deleted` state before retained storage can move to a new writer. Upgrade
+planning accepts only an exact pinned k3s version newer than the installed
+version, requires every node Ready and a snapshot/token recovery identity for
+each server cluster, and orders servers before agents. The upgrade playbook is
+serial, checksum-bound, drains without universal force flags, snapshots etcd on
+servers, and proves Ready before uncordoning.
+
+Provider shutdown or deletion is a separate reviewed operation after a
+completed retirement receipt. Retirement never destroys a provider instance or
+retained application storage. A server downgrade uses the recovery procedure;
+the ordinary upgrade planner refuses it.

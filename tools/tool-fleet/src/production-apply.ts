@@ -943,6 +943,215 @@ function createEnrollmentApplyDependencies(
   };
 }
 
+function requirePlanIdentity(plan: OperationPlan, prefix: string): string {
+  const matches = plan.targetIdentities.filter((identity) => identity.startsWith(prefix));
+  const identity = matches.at(0);
+  if (matches.length !== 1 || identity === undefined) {
+    throw new Error(`Operation plan requires one ${prefix} identity`);
+  }
+  return identity.slice(prefix.length);
+}
+
+function createRetirementApplyDependencies(
+  root: string,
+  plan: OperationPlan,
+  request: Extract<OperationPlan['request'], { kind: 'retire' }>,
+  planPath: string,
+  run: RunCommand,
+  now: () => Date,
+  executionOwner: string,
+): ApplyDependencies {
+  const cluster = requirePlanIdentity(plan, 'cluster:');
+  const apiEndpoint = requirePlanIdentity(plan, 'api-endpoint:');
+  const minimumControlPlanes = Number(requirePlanIdentity(plan, 'minimum-control-planes:'));
+  if (!Number.isSafeInteger(minimumControlPlanes) || minimumControlPlanes < 1) {
+    throw new Error('Retirement plan has invalid surviving control-plane policy');
+  }
+  const kubernetesNodeUid = requirePlanIdentity(plan, 'kubernetes:');
+  const providerIdentity = plan.targetIdentities.find(
+    (identity) => identity.startsWith('hcloud:') || identity.startsWith('ssh:'),
+  );
+  if (providerIdentity === undefined) throw new Error('Retirement plan has no provider identity');
+  const reviewedProviderIdentity: string = providerIdentity;
+  const inventoryPath = `${planPath}.inventory.json`;
+  const knownHostsPath = `${planPath}.known_hosts`;
+  const providerInventoryPath = join(root, `infra/ansible/inventory/${cluster}.hcloud.yml`);
+  const retiredNodePath = `${planPath}.retired-node.json`;
+  const receiptPath = `${planPath}.retirement-receipt.json`;
+  const playbookTags = new Map<string, string>([
+    ['verify replacement capacity, storage topology, and backup status', 'preflight'],
+    ['cordon node', 'cordon'],
+    ['evict workloads respecting disruption budgets', 'drain'],
+    ['wait for workload rescheduling and volume detach', 'detach'],
+    ['verify no unmanaged or local-state workload remains', 'preflight'],
+    ['stop and disable k3s service', 'deconfigure'],
+    ['remove enrollment configuration and node credentials', 'deconfigure'],
+    ['remove Kubernetes and etcd membership', 'membership'],
+    ['verify retired node cannot re-register', 'verify'],
+  ]);
+  const retirementVariables = JSON.stringify({
+    puni_api_endpoint_host: new URL(apiEndpoint).hostname,
+    puni_backup_receipt: request.backupReceipt,
+    puni_control_plane_target: plan.affectedCapabilities.includes('control-plane'),
+    puni_kubernetes_node_uid: kubernetesNodeUid,
+    puni_minimum_surviving_control_planes: minimumControlPlanes,
+    puni_node_name: request.nodeId,
+    puni_provider_identity: reviewedProviderIdentity.startsWith('hcloud:')
+      ? `hcloud://${reviewedProviderIdentity.slice('hcloud:'.length)}`
+      : reviewedProviderIdentity,
+  });
+
+  const play = (tag: string): CommandRequest => ({
+    executable: 'ansible-playbook',
+    arguments: [
+      '--inventory',
+      inventoryPath,
+      '--inventory',
+      providerInventoryPath,
+      '--limit',
+      request.nodeId,
+      '--tags',
+      tag,
+      '--extra-vars',
+      retirementVariables,
+      join(root, 'infra/ansible/playbooks/retire.yml'),
+    ],
+    cwd: join(root, 'infra/ansible'),
+  });
+
+  async function inspect(): Promise<void> {
+    const inventory = await readEnrollmentInventory(
+      inventoryPath,
+      request.inventorySha256,
+      knownHostsPath,
+      request.nodeId,
+    );
+    await readKnownHosts(knownHostsPath, request.knownHostsSha256, inventory.address);
+    const fact = await requireCommand(
+      run,
+      {
+        executable: 'ansible-playbook',
+        arguments: [
+          '--inventory',
+          inventoryPath,
+          '--inventory',
+          providerInventoryPath,
+          '--limit',
+          request.nodeId,
+          join(root, 'infra/ansible/playbooks/discover.yml'),
+        ],
+        cwd: join(root, 'infra/ansible'),
+      },
+      `Verify retirement identity of ${request.nodeId}`,
+    );
+    requireMachineFact(fact, inventory);
+    if (
+      (reviewedProviderIdentity.startsWith('ssh:') &&
+        reviewedProviderIdentity !== `ssh:${inventory.machineId}`) ||
+      (reviewedProviderIdentity.startsWith('hcloud:') &&
+        reviewedProviderIdentity !== `hcloud:${inventory.providerIdentity}`)
+    ) {
+      throw new Error('Retirement inventory differs from reviewed provider identity');
+    }
+    if (!reviewedProviderIdentity.startsWith('hcloud:')) return;
+    const expectedInstanceId = reviewedProviderIdentity.slice('hcloud:'.length);
+    const live = decodeProviderOwnership(
+      await requireCommand(
+        run,
+        {
+          executable: 'ansible-inventory',
+          arguments: ['--inventory', providerInventoryPath, '--list'],
+          cwd: join(root, 'infra/ansible'),
+        },
+        'Observe retirement provider identity',
+      ),
+    ).filter((instance) => instance.nodeId === request.nodeId);
+    if (
+      live.length !== 1 ||
+      live[0]?.instanceId !== expectedInstanceId ||
+      live[0].state !== 'running'
+    ) {
+      // Proof: the same-name replacement retirement negative reaches no playbook when the live
+      // provider identity differs from the reviewed instance.
+      throw new Error('Live hcloud identity differs from reviewed retirement target');
+    }
+  }
+
+  async function persist(path: string, state: string): Promise<void> {
+    const source = `${JSON.stringify({
+      schemaVersion: 1,
+      nodeId: request.nodeId,
+      providerIdentity: reviewedProviderIdentity,
+      kubernetesNodeUid,
+      backupReceipt: request.backupReceipt,
+      planSha256: plan.planSha256,
+      state,
+    })}\n`;
+    try {
+      const destination = await open(path, 'wx', 0o600);
+      try {
+        await destination.writeFile(source);
+        await destination.sync();
+      } finally {
+        await destination.close();
+      }
+    } catch (cause) {
+      if (
+        !(cause instanceof Error && 'code' in cause && cause.code === 'EEXIST') ||
+        (await readFile(path, 'utf8')) !== source
+      ) {
+        throw new Error(`Cannot persist exact retirement ${state}`, { cause });
+      }
+    }
+  }
+
+  return {
+    now,
+    acquireLease: (operationPlan) => acquireLease(run, operationPlan, executionOwner, now()),
+    ownsLease: async (lease) => {
+      const current = await readLease(run, plan);
+      return (
+        current?.holder === lease.owner && now().getTime() < Date.parse(leaseExpiresAt(current))
+      );
+    },
+    renewLease: (operationPlan, lease) => renewLease(run, operationPlan, lease, now()),
+    releaseLease: (operationPlan, lease) => releaseLease(run, operationPlan, lease),
+    observe: async () => {
+      await inspect();
+      return {
+        digest: plan.observationDigest,
+        targetIdentities: plan.targetIdentities,
+        providerState: 'ready',
+      };
+    },
+    applyEffect: async (_operationPlan, effect, _stepId, beforeMutation) => {
+      await inspect();
+      const tag = playbookTags.get(effect);
+      if (tag !== undefined) {
+        await beforeMutation();
+        const stdout = await requireCommand(
+          run,
+          play(tag),
+          `Retirement ${tag} for ${request.nodeId}`,
+        );
+        requireAnsibleRecap(stdout, request.nodeId);
+        return {};
+      }
+      if (effect === 'remove node from enrollment inventory') {
+        await beforeMutation();
+        await persist(retiredNodePath, 'retired-membership-candidate');
+        return {};
+      }
+      if (effect === 'record auditable retirement receipt') {
+        await beforeMutation();
+        await persist(receiptPath, 'retired');
+        return {};
+      }
+      throw new Error(`Unsupported retirement effect: ${effect}`);
+    },
+  };
+}
+
 /** Build the fixed production adapters used by the persisted-plan apply CLI. */
 export function createProductionApplyDependencies(
   root: string,
@@ -956,6 +1165,17 @@ export function createProductionApplyDependencies(
   const commandRunner = run ?? createProductionCommandRunner(root);
   if (plan.request.kind === 'enroll') {
     return createEnrollmentApplyDependencies(
+      root,
+      plan,
+      plan.request,
+      planPath,
+      commandRunner,
+      now,
+      executionOwner,
+    );
+  }
+  if (plan.request.kind === 'retire') {
+    return createRetirementApplyDependencies(
       root,
       plan,
       plan.request,

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 import { type } from 'arktype';
 
-import { serializeObservation } from './observation';
+import { type DiscoverySource, type FleetObservation, serializeObservation } from './observation';
 
 // Proof: replacing this checksum expression with an accepting expression made
 // the invalid-checksum production-reader negative fail on 2026-09-17.
@@ -543,6 +543,41 @@ export function decodeObservation(input: unknown): Observation {
     throw new Error(`Observation validation failed: ${decoded.summary}`, { cause: decoded });
   }
   return decoded;
+}
+
+/** Decode the complete observed topology required by lifecycle planning. */
+export function decodeFleetObservation(input: unknown): FleetObservation {
+  decodeObservation(input);
+  const detailed = DetailedObservationSchema(input);
+  if (detailed instanceof type.errors) {
+    throw new Error(`Detailed fleet observation is required: ${detailed.summary}`, {
+      cause: detailed,
+    });
+  }
+  const discoverySource = (name: string): DiscoverySource => {
+    for (const prefix of [
+      'provider:',
+      'kubernetes-nodes:',
+      'kubernetes-pvcs:',
+      'kubernetes-pvs:',
+      'kubernetes-volumeattachments:',
+      'ssh-facts:',
+    ] as const) {
+      if (name.startsWith(prefix)) return `${prefix}${name.slice(prefix.length)}`;
+    }
+    throw new Error(`Detailed fleet observation has unknown source ${name}`);
+  };
+  return {
+    ...detailed,
+    sources: detailed.sources.map((source) => ({
+      ...source,
+      name: discoverySource(source.name),
+    })),
+    nodes: detailed.nodes.map((node) => ({
+      ...node,
+      identitySource: discoverySource(node.identitySource),
+    })),
+  };
 }
 
 function identifyProvider(node: FleetNode): string {

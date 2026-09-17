@@ -14,7 +14,13 @@ export type OperationRequest =
       readonly ansibleVariablesSha256: string;
       readonly knownHostsSha256: string;
     }
-  | { readonly kind: 'retire'; readonly nodeId: string }
+  | {
+      readonly kind: 'retire';
+      readonly nodeId: string;
+      readonly backupReceipt: string;
+      readonly inventorySha256: string;
+      readonly knownHostsSha256: string;
+    }
   | { readonly kind: 'replace'; readonly nodeId: string }
   | { readonly kind: 'upgrade'; readonly nodeId: string; readonly version: string }
   | {
@@ -39,7 +45,11 @@ export type OperationRequest =
       readonly terraformStateLineage: string;
       readonly terraformStateSerial: number;
     }
-  | { readonly kind: 'destroy'; readonly nodeId: string };
+  | {
+      readonly kind: 'destroy';
+      readonly nodeId: string;
+      readonly retirementReceiptSha256: string;
+    };
 
 export interface OperationPlan {
   readonly schemaVersion: 1;
@@ -270,6 +280,19 @@ export function planOperation(
     if (request.kind === 'upgrade' && !/^v\d+\.\d+\.\d+\+k3s\d+$/.test(request.version)) {
       // Proof: disabling this guard made the release-channel upgrade production negative pass.
       throw new Error(`Upgrade request has invalid k3s version: ${request.version}`);
+    }
+    if (
+      request.kind === 'retire' &&
+      (request.backupReceipt.length === 0 ||
+        !/^[0-9a-f]{64}$/.test(request.inventorySha256) ||
+        !/^[0-9a-f]{64}$/.test(request.knownHostsSha256))
+    ) {
+      throw new Error('Retirement request requires backup, inventory, and host-key evidence');
+    }
+    if (request.kind === 'destroy' && !/^[0-9a-f]{64}$/.test(request.retirementReceiptSha256)) {
+      // Proof: the missing-receipt-digest planner negative refuses before a provider destruction
+      // effect can be emitted without immutable completed-retirement evidence.
+      throw new Error('Destroy request requires a completed retirement receipt SHA-256');
     }
     targetIdentities = [`node:${node.id}`, identifyNodeProvider(node), `cluster:${node.cluster}`];
     affectedCapabilities = [...node.capabilities].sort();

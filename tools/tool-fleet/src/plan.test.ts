@@ -256,6 +256,11 @@ describe('planOperation', () => {
     ansibleVariablesSha256: 'c'.repeat(64),
     knownHostsSha256: 'd'.repeat(64),
   } as const;
+  const retireEvidence = {
+    backupReceipt: 'backup-workers-1',
+    inventorySha256: 'e'.repeat(64),
+    knownHostsSha256: 'f'.repeat(64),
+  } as const;
 
   it('decodes only exact persisted operation plans', () => {
     const plan = planOperation(fleet, observation, {
@@ -277,7 +282,7 @@ describe('planOperation', () => {
   it('emits deterministic JSON-ready plans for every explicit operation kind', () => {
     const requests = [
       { kind: 'enroll', nodeId: 'workers-b', clusterId: 'workers', ...enrollEvidence },
-      { kind: 'retire', nodeId: 'workers-b' },
+      { kind: 'retire', nodeId: 'workers-b', ...retireEvidence },
       { kind: 'replace', nodeId: 'workers-b' },
       { kind: 'upgrade', nodeId: 'workers-b', version: 'v1.36.5+k3s1' },
       {
@@ -302,7 +307,7 @@ describe('planOperation', () => {
         terraformStateLineage: 'lineage-1',
         terraformStateSerial: 7,
       },
-      { kind: 'destroy', nodeId: 'workers-b' },
+      { kind: 'destroy', nodeId: 'workers-b', retirementReceiptSha256: 'a'.repeat(64) },
     ] as const;
     for (const request of requests) {
       const plan = planOperation(fleet, observation, request);
@@ -320,7 +325,11 @@ describe('planOperation', () => {
   });
 
   it('reports destructive storage and single-server downtime explicitly', () => {
-    const destroyed = planOperation(fleet, observation, { kind: 'destroy', nodeId: 'workers-a' });
+    const destroyed = planOperation(fleet, observation, {
+      kind: 'destroy',
+      nodeId: 'workers-a',
+      retirementReceiptSha256: 'a'.repeat(64),
+    });
     expect(destroyed.storageImplication).toContain('system-disk-destruction');
     expect(destroyed.downtimeImplication).toContain('cluster-api-unavailable');
     expect(destroyed.summary).toContain(destroyed.storageImplication);
@@ -331,6 +340,13 @@ describe('planOperation', () => {
       nodeId: 'workers-b',
     });
     expect(replacement.storageImplication).toContain('transfer-or-explicit-loss-required');
+    expect(() =>
+      planOperation(fleet, observation, {
+        kind: 'destroy',
+        nodeId: 'workers-a',
+        retirementReceiptSha256: '',
+      }),
+    ).toThrow(/retirement receipt/i);
   });
 
   it('refuses incomplete observation and implicit or invalid targets', () => {
@@ -338,16 +354,21 @@ describe('planOperation', () => {
       planOperation(
         fleet,
         { ...observation, complete: false },
-        { kind: 'retire', nodeId: 'workers-b' },
+        { kind: 'retire', nodeId: 'workers-b', ...retireEvidence },
       ),
     ).toThrow(/complete observation/i);
-    expect(() => planOperation(fleet, observation, { kind: 'retire', nodeId: 'missing' })).toThrow(
-      /unknown fleet node/i,
-    );
+    expect(() =>
+      planOperation(fleet, observation, {
+        kind: 'retire',
+        nodeId: 'missing',
+        ...retireEvidence,
+      }),
+    ).toThrow(/unknown fleet node/i);
     expect(() =>
       planOperation({ ...fleet, clusters: [] }, observation, {
         kind: 'retire',
         nodeId: 'workers-b',
+        ...retireEvidence,
       }),
     ).toThrow(/desired node names unknown cluster/i);
     expect(() =>
@@ -420,7 +441,7 @@ describe('planOperation', () => {
       planOperation(
         fleet,
         { ...observation, digest: 'unknown' },
-        { kind: 'retire', nodeId: 'workers-b' },
+        { kind: 'retire', nodeId: 'workers-b', ...retireEvidence },
       ),
     ).toThrow(/observation SHA-256/i);
     expect(() =>

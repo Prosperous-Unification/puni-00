@@ -51,10 +51,32 @@
         {
           "type": "object",
           "additionalProperties": false,
+          "required": ["kind", "nodeId", "backupReceipt", "inventorySha256", "knownHostsSha256"],
+          "properties": {
+            "kind": { "const": "retire" },
+            "nodeId": { "$ref": "#/$defs/name" },
+            "backupReceipt": { "$ref": "#/$defs/name" },
+            "inventorySha256": { "$ref": "#/$defs/sha256" },
+            "knownHostsSha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
           "required": ["kind", "nodeId"],
           "properties": {
-            "kind": { "enum": ["retire", "replace", "destroy"] },
+            "kind": { "const": "replace" },
             "nodeId": { "$ref": "#/$defs/name" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "nodeId", "retirementReceiptSha256"],
+          "properties": {
+            "kind": { "const": "destroy" },
+            "nodeId": { "$ref": "#/$defs/name" },
+            "retirementReceiptSha256": { "$ref": "#/$defs/sha256" }
           }
         },
         {
