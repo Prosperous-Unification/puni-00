@@ -23,6 +23,7 @@
       - conntrack
       - curl
       - iptables
+      - jq
       - nftables
       - nfs-common
       - open-iscsi

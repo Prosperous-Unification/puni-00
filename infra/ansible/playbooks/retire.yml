@@ -15,6 +15,7 @@
           - puni_backup_receipt | length > 0
           - puni_control_plane_target is defined
           - puni_etcd_membership_removed is defined
+          - puni_etcd_member_name is defined
           - puni_api_endpoint_host is defined
           - puni_minimum_surviving_control_planes | int >= 1
           - puni_required_capability_floors is defined
@@ -53,7 +54,7 @@
     - name: Require exact healthy etcd voter identity for a retiring server
       ansible.builtin.assert:
         that:
-          - (puni_retirement_node.stdout | from_json).metadata.annotations['etcd.k3s.cattle.io/node-name'] | length > 0
+          - (puni_retirement_node.stdout | from_json).metadata.annotations['etcd.k3s.cattle.io/node-name'] == puni_etcd_member_name
           - (puni_retirement_node.stdout | from_json).metadata.annotations['etcd.k3s.cattle.io/node-address'] | length > 0
           - >-
             ((puni_retirement_node.stdout | from_json).status.conditions |
@@ -68,9 +69,19 @@
           'etcd.k3s.cattle.io/removed-node-name'] | default('') | length == 0
       tags: [always]
 
+    - name: Require exact removed etcd voter identity during recovery
+      ansible.builtin.assert:
+        that:
+          - >-
+            ((puni_retirement_node.stdout | from_json).metadata.annotations[
+            'etcd.k3s.cattle.io/removed-node-name'] | default('')) in ['', puni_etcd_member_name]
+        fail_msg: Removed etcd member marker differs from the persisted reviewed identity
+      when: puni_control_plane_target | bool
+      tags: [always]
+
     # Proof: a seven-member fixture with an omitted Kubernetes Node passed the annotation-derived
-    # denominator; the linearizable MemberList plus every surviving endpoint health request fails.
-    - name: Require a healthy surviving majority from actual etcd membership
+    # denominator; the linearizable MemberList supplies the actual voting denominator.
+    - name: Read actual embedded etcd voting membership
       ansible.builtin.shell:
         cmd: >-
           set -euo pipefail;
@@ -78,28 +89,15 @@
           --cacert /var/lib/rancher/k3s/server/tls/etcd/server-ca.crt
           --cert /var/lib/rancher/k3s/server/tls/etcd/server-client.crt
           --key /var/lib/rancher/k3s/server/tls/etcd/server-client.key
-          --header 'Content-Type: application/json' --data '{}'
-          https://127.0.0.1:2379/v3/cluster/member/list)";
-          target='{{ (puni_retirement_node.stdout | from_json).metadata.annotations[
-          "etcd.k3s.cattle.io/node-name"] }}';
+          --header 'Content-Type: application/json' --data '{"linearizable":true}'
+          https://127.0.0.1:2382/v3/cluster/member/list)";
+          target='{{ puni_etcd_member_name }}';
           voters="$(jq -c '[.members[] | select(.isLearner != true)]' <<<"$members")";
           test "$(jq --arg target "$target" '[.[] | select(.name == $target)] | length' <<<"$voters")" -eq 1;
-          member_count="$(jq 'length' <<<"$voters")";
-          healthy=0;
-          while IFS= read -r endpoint; do
-          curl --fail --silent --show-error
-          --cacert /var/lib/rancher/k3s/server/tls/etcd/server-ca.crt
-          --cert /var/lib/rancher/k3s/server/tls/etcd/server-client.crt
-          --key /var/lib/rancher/k3s/server/tls/etcd/server-client.key
-          "$endpoint/health?serializable=false" |
-          jq -e '.health == true or .health == "true"' >/dev/null;
-          healthy=$((healthy + 1));
-          done < <(jq -r --arg target "$target"
-          '.[] | select(.name != $target) | .clientURLs[]' <<<"$voters");
-          test "$healthy" -ge '{{ puni_minimum_surviving_control_planes | int }}';
-          test "$healthy" -ge "$((member_count / 2 + 1))"
+          printf '%s\n' "$voters"
       args:
         executable: /bin/bash
+      register: puni_actual_etcd_voters
       changed_when: false
       when:
         - puni_control_plane_target | bool
@@ -107,6 +105,38 @@
         - >-
           (puni_retirement_node.stdout | from_json).metadata.annotations[
           'etcd.k3s.cattle.io/removed-node-name'] | default('') | length == 0
+      tags: [always]
+
+    # K3s publishes EtcdIsVoter=False for an unhealthy voter or a member with alarms. Binding those
+    # conditions to every name in the actual MemberList prevents ghost members shrinking quorum.
+    - name: Require a healthy surviving majority of actual etcd voters
+      ansible.builtin.shell:
+        cmd: >-
+          set -euo pipefail;
+          kubectl --context '{{ puni_kube_context }}' get nodes -o json |
+          jq -e --arg target '{{ puni_etcd_member_name }}'
+          --argjson minimum '{{ puni_minimum_surviving_control_planes | int }}'
+          --argjson voters '{{ puni_actual_etcd_voters.stdout }}'
+          '[.items[] as $node | $voters[] |
+          select(.name != $target) as $member |
+          select($node.metadata.annotations["etcd.k3s.cattle.io/node-name"] == $member.name) |
+          select(([ $node.status.conditions[]? |
+          select(.type == "Ready" and .status == "True") ] | length) == 1) |
+          select(([ $node.status.conditions[]? |
+          select(.type == "EtcdIsVoter" and .status == "True") ] | length) == 1)] as $healthy |
+          ($healthy | length) >= $minimum and
+          ($healthy | length) >= ((($voters | length) / 2 | floor) + 1)'
+      args:
+        executable: /bin/bash
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      when:
+        - puni_control_plane_target | bool
+        - not (puni_etcd_membership_removed | bool)
+        - >-
+          (puni_retirement_node.stdout | from_json).metadata.annotations[
+          'etcd.k3s.cattle.io/removed-node-name'] | default('') != puni_etcd_member_name
       tags: [always]
 
     # Proof: the healthy-survivor probe failed with jq exit 5 when the floor entry replaced the
@@ -335,15 +365,14 @@
       changed_when: false
       until: >-
         (puni_etcd_removed_node.stdout | from_json).metadata.annotations['etcd.k3s.cattle.io/removed-node-name'] |
-        default('') ==
-        (puni_retirement_node.stdout | from_json).metadata.annotations['etcd.k3s.cattle.io/node-name']
+        default('') == puni_etcd_member_name
       retries: 60
       delay: 2
       when:
         - puni_control_plane_target | bool
         - >-
           (puni_retirement_node.stdout | from_json).metadata.annotations[
-          'etcd.k3s.cattle.io/removed-node-name'] | default('') | length == 0
+          'etcd.k3s.cattle.io/removed-node-name'] | default('') != puni_etcd_member_name
       tags: [etcd-membership]
 
     - name: Remove exact Kubernetes membership

@@ -45,7 +45,8 @@ describe('planRetirement', () => {
     expect(playbook).toContain('volumeattachments.storage.k8s.io');
     expect(playbook).toContain('set -euo pipefail;');
     expect(playbook).toContain('/v3/cluster/member/list');
-    expect(playbook).toContain('/health?serializable=false');
+    expect(playbook).toContain('https://127.0.0.1:2382/v3/cluster/member/list');
+    expect(playbook).toContain(`--data '{"linearizable":true}'`);
     expect(playbook).toContain("'etcd.k3s.cattle.io/removed-node-name'");
     expect(playbook).toContain('- /etc/rancher/k3s');
     expect(playbook).toContain('- /var/lib/rancher/k3s/server/tls');
@@ -91,7 +92,6 @@ fi
     );
     expect(detach.exitCode).not.toBe(0);
 
-    const curl = join(directory, 'curl');
     const members = {
       members: [
         { name: 'target', isLearner: false, clientURLs: ['https://target:2379'] },
@@ -102,27 +102,52 @@ fi
         })),
       ],
     };
-    await writeFile(
-      curl,
-      `#!/bin/bash
-endpoint="\${!#}"
-if [[ "$endpoint" == *"/v3/cluster/member/list" ]]; then
-  printf '%s\\n' '${JSON.stringify(members)}'
-elif [[ "$endpoint" =~ survivor-[123]:2379/health ]]; then
-  printf '%s\\n' '{"health":true}'
-else
-  exit 22
-fi
-`,
-    );
+    const curl = join(directory, 'curl');
+    await writeFile(curl, `#!/bin/bash\nprintf '%s\\n' '${JSON.stringify(members)}'\n`);
     await chmod(curl, 0o700);
-    const quorumCommand = shell('Require a healthy surviving majority from actual etcd membership')
-      .replace(/target='{{.*?}}';/, "target='target';")
-      .replace("'{{ puni_minimum_surviving_control_planes | int }}'", '3');
-    const quorum = Bun.spawnSync(['/bin/bash', '-c', quorumCommand], {
-      env: { ...process.env, PATH: `${directory}:${process.env['PATH'] ?? ''}` },
-    });
-    expect(quorum.exitCode).not.toBe(0);
+    const membership = Bun.spawnSync(
+      [
+        '/bin/bash',
+        '-c',
+        shell('Read actual embedded etcd voting membership').replace(
+          "target='{{ puni_etcd_member_name }}';",
+          "target='target';",
+        ),
+      ],
+      { env: { ...process.env, PATH: `${directory}:${process.env['PATH'] ?? ''}` } },
+    );
+    expect(membership.exitCode).toBe(0);
+    const voters = membership.stdout.toString().trim();
+    const quorumCommand = shell('Require a healthy surviving majority of actual etcd voters')
+      .replace("'{{ puni_kube_context }}'", "'workers'")
+      .replace("'{{ puni_etcd_member_name }}'", "'target'")
+      .replace("'{{ puni_minimum_surviving_control_planes | int }}'", '3')
+      .replace("'{{ puni_actual_etcd_voters.stdout }}'", `'${voters}'`);
+    const runQuorum = async (healthyNames: readonly string[]) => {
+      await writeFile(
+        kubectl,
+        `#!/bin/bash
+printf '%s\\n' '${JSON.stringify({
+          items: healthyNames.map((name) => ({
+            metadata: { annotations: { 'etcd.k3s.cattle.io/node-name': name } },
+            status: {
+              conditions: [
+                { type: 'Ready', status: 'True' },
+                { type: 'EtcdIsVoter', status: 'True' },
+              ],
+            },
+          })),
+        })}'
+`,
+      );
+      return Bun.spawnSync(['/bin/bash', '-c', quorumCommand], {
+        env: { ...process.env, PATH: `${directory}:${process.env['PATH'] ?? ''}` },
+      });
+    };
+    expect(
+      (await runQuorum(['survivor-1', 'survivor-2', 'survivor-3', 'survivor-4'])).exitCode,
+    ).toBe(0);
+    expect((await runQuorum(['survivor-1', 'survivor-2', 'survivor-3'])).exitCode).not.toBe(0);
     // Proof: the exact production shells fail when a later empty attachment query follows a
     // Pending workload and when only three survivors of seven actual etcd voters are healthy.
   });
@@ -329,6 +354,7 @@ async function prepareRetirement(
 function retirementRunner(failingTag: string) {
   let holder: string | undefined;
   let nodePresent = true;
+  let removedMemberName: string | undefined;
   const calls: CommandRequest[] = [];
   const run = (request: CommandRequest): Promise<CommandResponse> =>
     Promise.resolve().then(() => {
@@ -339,7 +365,16 @@ function retirementRunner(failingTag: string) {
             ? {
                 exitCode: 0,
                 stdout: JSON.stringify({
-                  metadata: { name: 'workers-agent-a', uid: 'uid-3' },
+                  metadata: {
+                    name: 'workers-agent-a',
+                    uid: 'uid-3',
+                    annotations: {
+                      'etcd.k3s.cattle.io/node-name': 'etcd-workers-agent-a',
+                      ...(removedMemberName === undefined
+                        ? {}
+                        : { 'etcd.k3s.cattle.io/removed-node-name': removedMemberName }),
+                    },
+                  },
                   spec: { providerID: 'hcloud://2002' },
                 }),
                 stderr: '',
@@ -421,10 +456,45 @@ function retirementRunner(failingTag: string) {
       }
       throw new Error(`Unexpected command ${request.executable}`);
     });
-  return { calls, removeNode: () => (nodePresent = false), run };
+  return {
+    calls,
+    removeNode: () => (nodePresent = false),
+    run,
+    setRemovedMemberName: (memberName: string) => (removedMemberName = memberName),
+  };
 }
 
 describe('production retirement', () => {
+  it('binds response-lost etcd removal recovery to the persisted exact member name', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-retirement-etcd-identity-'));
+    const prepared = await prepareRetirement(directory);
+    const { planSha256: _planSha256, ...body } = prepared.plan;
+    const plan = sealOperationPlan({
+      ...body,
+      affectedCapabilities: ['control-plane', ...prepared.plan.affectedCapabilities],
+    });
+    const controlled = retirementRunner('never');
+    const dependencies = createProductionApplyDependencies(
+      directory,
+      plan,
+      prepared.planPath,
+      controlled.run,
+      () => new Date('2026-09-17T09:00:00.000Z'),
+      'retirement-test',
+    );
+    await dependencies.applyEffect(
+      plan,
+      'remove embedded etcd membership',
+      'effect-9',
+      () => Promise.resolve(),
+      false,
+    );
+    controlled.setRemovedMemberName('stale-member-from-an-earlier-incarnation');
+    expect(dependencies.observe(plan)).rejects.toThrow(/etcd member identity/i);
+    // Proof: injecting an unrelated K3s removed-node-name after a lost response is rejected
+    // against the identity persisted before the membership mutation.
+  });
+
   it('recovers a lost Kubernetes deletion response without deleting membership twice', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'fleet-retirement-delete-recovery-'));
     const { planPath, plan } = await prepareRetirement(directory);

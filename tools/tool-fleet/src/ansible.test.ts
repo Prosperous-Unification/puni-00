@@ -455,6 +455,7 @@ describe('the Ansible host and k3s contract', () => {
     expect(base).toContain('content: |');
     expect(base).toContain('puni_swap_enabled is defined');
     expect(base).toContain("ansible_distribution_version == '24.04'");
+    expect(base).toContain('- jq');
     expect(base).toContain('path: /etc/systemd/journald.conf.d');
     expect(network).toContain('nft -c -f');
     expect(network).toContain('puni-k3s-firewall');

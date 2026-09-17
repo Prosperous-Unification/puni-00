@@ -1217,6 +1217,7 @@ function createRetirementApplyDependencies(
   const knownHostsPath = `${planPath}.known_hosts`;
   const backupReceiptPath = `${planPath}.backup-receipt.json`;
   const providerInventoryPath = join(root, `infra/ansible/inventory/${cluster}.hcloud.yml`);
+  const etcdIdentityPath = `${planPath}.etcd-member.json`;
   const etcdRemovalPath = `${planPath}.etcd-removal.json`;
   const retiredNodePath = retirementExclusionPath(root, request.nodeId);
   const receiptPath = `${planPath}.retirement-receipt.json`;
@@ -1248,6 +1249,8 @@ function createRetirementApplyDependencies(
       ? `hcloud://${reviewedProviderIdentity.slice('hcloud:'.length)}`
       : reviewedProviderIdentity,
   };
+  const controlPlaneTarget = plan.affectedCapabilities.includes('control-plane');
+  let liveEtcdMemberName = controlPlaneTarget ? undefined : 'not-applicable';
 
   const play = (tag: string, etcdMembershipRemoved = false): CommandRequest => ({
     executable: 'ansible-playbook',
@@ -1263,6 +1266,7 @@ function createRetirementApplyDependencies(
       '--extra-vars',
       JSON.stringify({
         ...retirementVariables,
+        puni_etcd_member_name: liveEtcdMemberName,
         puni_etcd_membership_removed: etcdMembershipRemoved,
       }),
       join(root, 'infra/ansible/playbooks/retire.yml'),
@@ -1343,6 +1347,30 @@ function createRetirementApplyDependencies(
       // Proof: the same-name Kubernetes-node production negative refuses before cordon, drain, or
       // membership deletion can address the replacement Node object.
       throw new Error('Live Kubernetes identity differs from reviewed retirement target');
+    }
+    if (controlPlaneTarget) {
+      const annotations = requireRecord(
+        metadata['annotations'],
+        'Retirement Kubernetes node annotations',
+      );
+      const observedMemberName = annotations['etcd.k3s.cattle.io/node-name'];
+      const removedMemberName = annotations['etcd.k3s.cattle.io/removed-node-name'];
+      if (typeof observedMemberName !== 'string' || observedMemberName.length === 0) {
+        throw new Error('Retirement target lacks exact embedded etcd member identity');
+      }
+      const persistedMemberName = await readEtcdMemberIdentity();
+      if (persistedMemberName === undefined && removedMemberName !== undefined) {
+        // Proof: the changed-marker recovery negative cannot adopt stale K3s removal state before
+        // the exact member identity has been persisted under the operation lease.
+        throw new Error('Removed etcd member marker has no persisted reviewed identity');
+      }
+      liveEtcdMemberName = persistedMemberName ?? observedMemberName;
+      if (
+        observedMemberName !== liveEtcdMemberName ||
+        (removedMemberName !== undefined && removedMemberName !== liveEtcdMemberName)
+      ) {
+        throw new Error('Live etcd member identity differs from persisted reviewed identity');
+      }
     }
     const fact = await requireCommand(
       run,
@@ -1434,6 +1462,82 @@ function createRetirementApplyDependencies(
     }
   }
 
+  async function persistEtcdMemberIdentity(): Promise<void> {
+    if (!controlPlaneTarget) return;
+    if (liveEtcdMemberName === undefined) {
+      throw new Error('Cannot persist an unobserved embedded etcd member identity');
+    }
+    const source = `${JSON.stringify({
+      schemaVersion: 1,
+      nodeId: request.nodeId,
+      providerIdentity: reviewedProviderIdentity,
+      kubernetesNodeUid,
+      planSha256: plan.planSha256,
+      memberName: liveEtcdMemberName,
+    })}\n`;
+    await mkdir(dirname(etcdIdentityPath), { recursive: true, mode: 0o700 });
+    try {
+      const destination = await open(etcdIdentityPath, 'wx', 0o600);
+      try {
+        await destination.writeFile(source);
+        await destination.sync();
+      } finally {
+        await destination.close();
+      }
+    } catch (cause) {
+      if (
+        !(cause instanceof Error && 'code' in cause && cause.code === 'EEXIST') ||
+        (await readFile(etcdIdentityPath, 'utf8')) !== source
+      ) {
+        throw new Error('Cannot persist exact embedded etcd member identity', { cause });
+      }
+    }
+    if ((await readEtcdMemberIdentity()) !== liveEtcdMemberName) {
+      throw new Error('Persisted embedded etcd member identity changed unexpectedly');
+    }
+  }
+
+  async function readEtcdMemberIdentity(): Promise<string | undefined> {
+    let source: string;
+    try {
+      source = await readFile(etcdIdentityPath, 'utf8');
+    } catch (cause) {
+      if (cause instanceof Error && 'code' in cause && cause.code === 'ENOENT') return undefined;
+      throw new Error('Cannot inspect embedded etcd member identity', { cause });
+    }
+    if (((await stat(etcdIdentityPath)).mode & 0o077) !== 0) {
+      throw new Error('Embedded etcd member identity must be owner-only');
+    }
+    const record = requireRecord(
+      parseJson(source, 'Embedded etcd member identity'),
+      'Embedded etcd member identity',
+    );
+    const memberName = record['memberName'];
+    if (
+      Object.keys(record).sort().join('\0') !==
+        [
+          'kubernetesNodeUid',
+          'memberName',
+          'nodeId',
+          'planSha256',
+          'providerIdentity',
+          'schemaVersion',
+        ]
+          .sort()
+          .join('\0') ||
+      record['schemaVersion'] !== 1 ||
+      record['nodeId'] !== request.nodeId ||
+      record['providerIdentity'] !== reviewedProviderIdentity ||
+      record['kubernetesNodeUid'] !== kubernetesNodeUid ||
+      record['planSha256'] !== plan.planSha256 ||
+      typeof memberName !== 'string' ||
+      memberName.length === 0
+    ) {
+      throw new Error('Embedded etcd member identity differs from reviewed retirement target');
+    }
+    return memberName;
+  }
+
   async function requirePersistedState(path: string, state: string): Promise<void> {
     let source: string;
     try {
@@ -1506,6 +1610,9 @@ function createRetirementApplyDependencies(
       if (tag !== undefined) {
         const etcdMembershipRemoved = await persistedStateExists(etcdRemovalPath, 'etcd-removed');
         await beforeMutation();
+        if (effect === 'remove embedded etcd membership') {
+          await persistEtcdMemberIdentity();
+        }
         const stdout = await requireCommand(
           run,
           play(tag, etcdMembershipRemoved),
