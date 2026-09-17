@@ -781,7 +781,7 @@ export async function runVmLab(arguments_: readonly string[], root: string): Pro
     throw new Error('Multipass did not start every expected lab machine');
   }
   if (bootstrap === undefined) throw new Error('Fleet lab up lost its bootstrap state');
-  const serverName = `${operation.prefix}-server-1`;
+  const serverName = `${operation.prefix}server-1`;
   await writeKnownHosts(bootstrap, after);
   let inventoryPath = await writeLabState(
     root,

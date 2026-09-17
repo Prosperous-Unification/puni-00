@@ -376,6 +376,7 @@ describe('the Ansible host and k3s contract', () => {
     expect(agent).toContain("puni_k3s_agent_token is match('^K10[0-9a-f]{64}::node:");
     expect(agent).toContain('notify: Restart k3s agent');
     expect(agent).toContain('no_log: true');
+    expect(labSource).toContain('`${operation.prefix}server-1`');
     expect(labSource).toContain('observeK3sEnrollmentTokens(serverName)');
     expect(labSource).toContain("'--kill-after=0.1s'");
   });
