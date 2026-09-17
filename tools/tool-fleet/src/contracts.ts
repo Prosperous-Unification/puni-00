@@ -198,3 +198,217 @@ export async function readToolchain(path: string): Promise<Toolchain> {
   assertCompleteImageLocks(toolchain);
   return toolchain;
 }
+
+// Proof: widening this union to nonempty string made the unknown-capability production decoder
+// negative fail by accepting `database`.
+const CapabilitySchema = type(
+  "'control-plane' | 'product' | 'ingress' | 'observability' | 'forge' | 'execution'",
+);
+const fleetCapabilities = [
+  'control-plane',
+  'product',
+  'ingress',
+  'observability',
+  'forge',
+  'execution',
+] as const;
+const LifecycleSchema = type("'present' | 'draining' | 'retired'");
+const RequiredCapabilitiesSchema = type({
+  'control-plane?': 'number.integer>=1',
+  'product?': 'number.integer>=1',
+  'ingress?': 'number.integer>=1',
+  'observability?': 'number.integer>=1',
+  'forge?': 'number.integer>=1',
+  'execution?': 'number.integer>=1',
+  '+': 'reject',
+});
+const HcloudProviderSchema = type({
+  kind: "'hcloud'",
+  // Proof: making this identity optional made the absent-instance production decoder negative pass
+  // and construct `hcloud:undefined`; restored schema owns the provider boundary.
+  instanceId: 'string>0',
+  '+': 'reject',
+});
+const SshProviderSchema = type({
+  kind: "'ssh'",
+  machineId: 'string>0',
+  address: 'string>0',
+  '+': 'reject',
+});
+const FleetNodeSchema = type({
+  id: 'string>0',
+  cluster: 'string>0',
+  capabilities: CapabilitySchema.array().atLeastLength(1),
+  lifecycle: LifecycleSchema,
+  provider: HcloudProviderSchema.or(SshProviderSchema),
+  '+': 'reject',
+});
+const ClusterSchema = type({
+  id: 'string>0',
+  purpose: "'platform' | 'workers'",
+  apiEndpoint: 'string.url',
+  controlPlane: "'single' | 'ha'",
+  // Proof: making this policy optional changed the missing-policy production decoder negative to a
+  // later untyped access; restored schema refuses the absent policy at the input boundary.
+  requiredCapabilities: RequiredCapabilitiesSchema,
+  '+': 'reject',
+});
+const FleetSchema = type({
+  schemaVersion: '1',
+  revision: 'string>0',
+  clusters: ClusterSchema.array().atLeastLength(1),
+  nodes: FleetNodeSchema.array(),
+  '+': 'reject',
+});
+
+export type Capability = typeof CapabilitySchema.infer;
+export type Lifecycle = typeof LifecycleSchema.infer;
+export type FleetNode = typeof FleetNodeSchema.infer;
+export type Cluster = typeof ClusterSchema.infer;
+export type Fleet = typeof FleetSchema.infer;
+
+export interface Observation {
+  readonly schemaVersion: 1;
+  readonly observedAt: string;
+  readonly digest: string;
+  readonly complete: boolean;
+}
+
+const ObservationSchema = type({
+  schemaVersion: '1',
+  // Proof: widening this to string made the malformed-time production decoder negative fail.
+  observedAt: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/,
+  // Proof: widening this to string made the invalid-digest production decoder negative fail.
+  digest: sha256,
+  complete: 'boolean',
+  // Proof: accepting undeclared keys made the candidate-hint production decoder negative fail.
+  '+': 'reject',
+});
+
+/** Decode the observation identity needed to bind an operation plan. */
+export function decodeObservation(input: unknown): Observation {
+  const decoded = ObservationSchema(input);
+  if (decoded instanceof type.errors) {
+    throw new Error(`Observation validation failed: ${decoded.summary}`, { cause: decoded });
+  }
+  return decoded;
+}
+
+function providerIdentity(node: FleetNode): string {
+  return node.provider.kind === 'hcloud'
+    ? `hcloud:${node.provider.instanceId}`
+    : `ssh:${node.provider.machineId}`;
+}
+
+/**
+ * Decode desired fleet state and enforce identities and placement rules that
+ * cannot be expressed as independent object fields.
+ *
+ * Duplicate logical/provider identities, unknown cluster references, invalid
+ * server topology, and cross-cluster capability placement throw.
+ */
+export function decodeFleet(input: unknown): Fleet {
+  const decoded = FleetSchema(input);
+  if (decoded instanceof type.errors) {
+    throw new Error(`Fleet validation failed: ${decoded.summary}`, { cause: decoded });
+  }
+
+  const clusters = new Map<string, Cluster>();
+  for (const cluster of decoded.clusters) {
+    // Proof: disabling this guard made the duplicate-cluster production decoder negative pass and
+    // let the later declaration silently replace the first cluster policy.
+    if (clusters.has(cluster.id)) throw new Error(`Duplicate cluster id: ${cluster.id}`);
+    if (cluster.purpose === 'platform' && cluster.requiredCapabilities.execution !== undefined) {
+      // Proof: disabling this guard made the wrong-purpose policy production decoder negative pass.
+      throw new Error(`Platform cluster ${cluster.id} cannot require execution capability`);
+    }
+    if (
+      cluster.purpose === 'workers' &&
+      (cluster.requiredCapabilities.product !== undefined ||
+        cluster.requiredCapabilities.ingress !== undefined ||
+        cluster.requiredCapabilities.observability !== undefined ||
+        cluster.requiredCapabilities.forge !== undefined)
+    ) {
+      // Proof: disabling this guard made the workers-platform-policy production decoder negative
+      // pass and allowed a worker cluster to claim platform capacity.
+      throw new Error(`Workers cluster ${cluster.id} cannot require platform capabilities`);
+    }
+    clusters.set(cluster.id, cluster);
+  }
+
+  const nodes = new Map<string, FleetNode>();
+  const providers = new Map<string, string>();
+  for (const node of decoded.nodes) {
+    if (nodes.has(node.id)) {
+      // Proof: accepting a repeated logical id made the duplicate-node production decoder
+      // negative fail; restored uniqueness prevents one desired node hiding another.
+      throw new Error(`Duplicate node id: ${node.id}`);
+    }
+    nodes.set(node.id, node);
+    const cluster = clusters.get(node.cluster);
+    // Proof: disabling this guard made the unknown-cluster production decoder negative advance to
+    // an uncontextualized property failure instead of refusing the invalid desired identity.
+    if (cluster === undefined)
+      throw new Error(`Node ${node.id} names unknown cluster ${node.cluster}`);
+    if (new Set(node.capabilities).size !== node.capabilities.length) {
+      // Proof: disabling this guard made the duplicate-capability production decoder negative pass.
+      throw new Error(`Node ${node.id} has a duplicate capability`);
+    }
+    const identity = providerIdentity(node);
+    const owner = providers.get(identity);
+    if (owner !== undefined) {
+      // Proof: reusing one cloud identity across clusters made the cross-cluster duplicate
+      // production decoder negative fail; restored ownership names both logical nodes.
+      throw new Error(`Duplicate provider identity ${identity}: ${owner} and ${node.id}`);
+    }
+    providers.set(identity, node.id);
+    if (node.capabilities.includes('execution') && cluster.purpose !== 'workers') {
+      // Proof: allowing execution on the platform cluster made the placement negative fail.
+      throw new Error(`Execution capability for ${node.id} must belong to workers`);
+    }
+    if (
+      cluster.purpose === 'workers' &&
+      node.capabilities.some((capability) =>
+        ['product', 'ingress', 'observability', 'forge'].includes(capability),
+      )
+    ) {
+      // Proof: disabling this guard made the workers-node placement production decoder negative
+      // pass with a product capability assigned to the execution cluster.
+      throw new Error(`Platform capability for ${node.id} must belong to platform`);
+    }
+  }
+
+  for (const cluster of decoded.clusters) {
+    const serverCount = decoded.nodes.filter(
+      (node) =>
+        node.cluster === cluster.id &&
+        node.lifecycle !== 'retired' &&
+        node.capabilities.includes('control-plane'),
+    ).length;
+    const validTopology = cluster.controlPlane === 'single' ? serverCount === 1 : serverCount >= 3;
+    if (!validTopology) {
+      // Proof: disabling this guard made the zero-server production decoder negative pass.
+      throw new Error(
+        `${cluster.id} ${cluster.controlPlane} control plane has ${String(serverCount)} servers`,
+      );
+    }
+    for (const capability of fleetCapabilities) {
+      const floor = cluster.requiredCapabilities[capability];
+      if (floor === undefined) continue;
+      const actual = decoded.nodes.filter(
+        (node) =>
+          node.cluster === cluster.id &&
+          node.lifecycle !== 'retired' &&
+          node.capabilities.includes(capability),
+      ).length;
+      if (actual < floor) {
+        // Proof: disabling this guard made the retired-last-capability production decoder negative
+        // pass even though desired state could not satisfy its explicit floor.
+        throw new Error(
+          `${cluster.id} capability ${capability} requires ${String(floor)} but provides ${String(actual)}`,
+        );
+      }
+    }
+  }
+  return decoded;
+}

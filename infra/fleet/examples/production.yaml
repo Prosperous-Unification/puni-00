@@ -1,0 +1,39 @@
+schemaVersion: 1
+revision: production-example-v1
+clusters:
+  - id: platform
+    purpose: platform
+    apiEndpoint: https://platform.example.invalid:6443
+    controlPlane: single
+    requiredCapabilities: { product: 1, ingress: 1, observability: 1 }
+  - id: workers
+    purpose: workers
+    apiEndpoint: https://workers.example.invalid:6443
+    controlPlane: single
+    requiredCapabilities: { execution: 2 }
+nodes:
+  - id: platform-a
+    cluster: platform
+    capabilities: [control-plane, product, ingress]
+    lifecycle: present
+    provider: { kind: hcloud, instanceId: 'replace-with-provider-id' }
+  - id: platform-observability-b
+    cluster: platform
+    capabilities: [observability]
+    lifecycle: present
+    provider: { kind: ssh, machineId: replace-with-machine-id, address: 10.0.0.12 }
+  - id: workers-a
+    cluster: workers
+    capabilities: [control-plane]
+    lifecycle: present
+    provider: { kind: hcloud, instanceId: 'replace-with-worker-server-id' }
+  - id: workers-b
+    cluster: workers
+    capabilities: [execution]
+    lifecycle: present
+    provider: { kind: hcloud, instanceId: 'replace-with-worker-agent-b-id' }
+  - id: arbitrary-fourth-host
+    cluster: workers
+    capabilities: [execution]
+    lifecycle: present
+    provider: { kind: ssh, machineId: replace-with-fourth-machine-id, address: 10.0.1.14 }

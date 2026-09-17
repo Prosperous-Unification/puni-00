@@ -1,0 +1,58 @@
+schemaVersion: 1
+revision: local-v1
+clusters:
+  - id: platform
+    purpose: platform
+    apiEndpoint: https://127.0.0.1:6443
+    controlPlane: single
+    requiredCapabilities:
+      product: 1
+      ingress: 1
+      observability: 1
+  - id: workers
+    purpose: workers
+    apiEndpoint: https://127.0.0.1:7443
+    controlPlane: single
+    requiredCapabilities:
+      execution: 2
+nodes:
+  - id: platform-server
+    cluster: platform
+    capabilities: [control-plane, product, ingress]
+    lifecycle: present
+    provider:
+      kind: ssh
+      machineId: local-platform-server
+      address: 127.0.0.1
+  - id: platform-observability
+    cluster: platform
+    capabilities: [observability]
+    lifecycle: present
+    provider:
+      kind: ssh
+      machineId: local-platform-observability
+      address: 127.0.0.2
+  - id: workers-server
+    cluster: workers
+    capabilities: [control-plane]
+    lifecycle: present
+    provider:
+      kind: ssh
+      machineId: local-workers-server
+      address: 127.0.0.3
+  - id: workers-agent-a
+    cluster: workers
+    capabilities: [execution]
+    lifecycle: present
+    provider:
+      kind: ssh
+      machineId: local-workers-agent-a
+      address: 127.0.0.4
+  - id: arbitrary-fourth-host
+    cluster: workers
+    capabilities: [execution]
+    lifecycle: present
+    provider:
+      kind: ssh
+      machineId: local-arbitrary-fourth-host
+      address: 127.0.0.5

@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import { runPlan } from './cli';
 import { readToolchain } from './contracts';
 import { buildController } from './controller';
 
@@ -17,7 +18,8 @@ switch (command) {
   case 'lab':
     throw new Error('Fleet lab is unavailable until F3 supplies the VM and k3d harness');
   case 'plan':
-    throw new Error('Fleet planning is unavailable until F1 supplies desired-state contracts');
+    await runPlan(process.argv.slice(3));
+    break;
   case 'apply':
     throw new Error('Fleet apply is unavailable until F4 supplies persisted operation plans');
   default:
