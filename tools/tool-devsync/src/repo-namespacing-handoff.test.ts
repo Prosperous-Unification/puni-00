@@ -656,7 +656,7 @@ test('every legacy source occurrence and relevant text family is pinned', async 
     // the two above it where they were. The renamed gate pins in toolchain-pins.test.ts, the
     // re-measured list in pixels-workflow.test.ts and ci.yml itself moved none of theirs,
     // checked line by line (2026-09-16).
-    digest: 'e1e6f5c008eae349a7e3fcc3a0be28ede6c0e42281700ba1e1ba8d0731137edb',
+    digest: 'b803d1930e75c9fca6eb470e1b9f17bad2b30f2f669efce866b6fca074cb8487',
     occurrences: 257,
     unclassified: [],
   });
