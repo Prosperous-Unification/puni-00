@@ -177,12 +177,14 @@ describe('planUpgrade', () => {
             hosts: {
               'platform-a': {
                 ansible_host: '10.0.0.11',
+                ansible_user: 'puni',
                 puni_machine_id: '0123456789abcdef0123456789abcdef',
                 puni_provider_identity: '1001',
                 ansible_ssh_common_args: `-o UserKnownHostsFile=${knownHostsPath} -o StrictHostKeyChecking=yes`,
               },
             },
           },
+          k3s_bootstrap_servers: { hosts: {} },
         },
       },
     })}\n`;

@@ -94,9 +94,11 @@ Create the exact static inventory and pinned SSH host-key artifacts as
 `.puni/fleet/retire-workers-agent-a.json.inventory.json` and
 `.puni/fleet/retire-workers-agent-a.json.known_hosts`, with the structured
 backup receipt at `.puni/fleet/retire-workers-agent-a.json.backup-receipt.json`.
-The reviewed hashes bind retirement to those bytes. This applies to cloud and
-external SSH nodes; cloud nodes also require the live dynamic provider identity
-to match.
+The reviewed hashes bind retirement to those bytes. Control-plane retirement
+inventory includes every cluster server's exact address, user, machine/provider
+identity, SSH policy, and host key so fresh etcd health probes can delegate to
+surviving voters. This applies to cloud and external SSH nodes; cloud nodes also
+require the live dynamic provider identity to match.
 
 Apply requires the printed digest and runs each step under the cluster Lease.
 The playbook checks the explicit Kubernetes context, live provider ID,

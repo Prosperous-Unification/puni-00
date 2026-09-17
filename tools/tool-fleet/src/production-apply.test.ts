@@ -304,6 +304,7 @@ describe('production apply adapter', () => {
             hosts: {
               'external-c': {
                 ansible_host: '10.0.0.44',
+                ansible_user: 'puni',
                 puni_machine_id: 'abcdefabcdefabcdefabcdefabcdefab',
                 puni_provider_identity: 'abcdefabcdefabcdefabcdefabcdefab',
                 ansible_ssh_common_args: `-o UserKnownHostsFile=${knownHostsPath} -o StrictHostKeyChecking=yes`,
@@ -311,6 +312,7 @@ describe('production apply adapter', () => {
             },
           },
           k3s_join_servers: { hosts: {} },
+          k3s_bootstrap_servers: { hosts: {} },
         },
       },
     })}\n`;

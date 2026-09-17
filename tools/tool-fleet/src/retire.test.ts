@@ -335,6 +335,7 @@ function retirementOperation(
 async function prepareRetirement(
   directory: string,
   backupProviderIdentity = 'hcloud:2002',
+  includeSurvivingServers = false,
 ): Promise<{
   readonly plan: OperationPlan;
   readonly planPath: string;
@@ -348,17 +349,47 @@ async function prepareRetirement(
           hosts: {
             'workers-agent-a': {
               ansible_host: '10.0.0.22',
+              ansible_user: 'puni',
               puni_machine_id: '0123456789abcdef0123456789abcdef',
               puni_provider_identity: '2002',
               ansible_ssh_common_args: `-o UserKnownHostsFile=${knownHostsPath} -o StrictHostKeyChecking=yes`,
             },
           },
         },
-        k3s_join_servers: { hosts: {} },
+        k3s_join_servers: {
+          hosts: includeSurvivingServers
+            ? Object.fromEntries(
+                [
+                  ['workers-server-b', '10.0.0.23', '2003', '1123456789abcdef0123456789abcdef'],
+                  ['workers-server-c', '10.0.0.24', '2004', '2123456789abcdef0123456789abcdef'],
+                ].map(([nodeId, address, providerIdentity, machineId]) => [
+                  nodeId,
+                  {
+                    ansible_host: address,
+                    ansible_user: 'puni',
+                    puni_machine_id: machineId,
+                    puni_provider_identity: providerIdentity,
+                    ansible_ssh_common_args: `-o UserKnownHostsFile=${knownHostsPath} -o StrictHostKeyChecking=yes`,
+                  },
+                ]),
+              )
+            : {},
+        },
+        k3s_bootstrap_servers: { hosts: {} },
       },
     },
   })}\n`;
-  const knownHostsSource = '10.0.0.22 ssh-ed25519 AAAAC3NzaRetirementKey\n';
+  const knownHostsSource = [
+    '10.0.0.22 ssh-ed25519 AAAAC3NzaRetirementKey',
+    ...(includeSurvivingServers
+      ? [
+          '10.0.0.23 ssh-ed25519 AAAAC3NzaSurvivorBKey',
+          '10.0.0.24 ssh-ed25519 AAAAC3NzaSurvivorCKey',
+        ]
+      : []),
+  ]
+    .join('\n')
+    .concat('\n');
   const backupReceiptSource = `${JSON.stringify({
     schemaVersion: 1,
     receiptId: 'backup-workers-1',
@@ -494,9 +525,39 @@ function retirementRunner(failingTag: string) {
 }
 
 describe('production retirement', () => {
+  it('requires reviewed SSH host keys for every delegated etcd voter probe', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-retirement-etcd-connections-'));
+    const prepared = await prepareRetirement(directory, 'hcloud:2002', true);
+    const knownHostsSource = '10.0.0.22 ssh-ed25519 AAAAC3NzaRetirementKey\n';
+    await writeFile(`${prepared.planPath}.known_hosts`, knownHostsSource, { mode: 0o600 });
+    if (prepared.plan.request.kind !== 'retire') throw new Error('Expected retirement plan');
+    const { planSha256: _planSha256, ...body } = prepared.plan;
+    const plan = sealOperationPlan({
+      ...body,
+      request: {
+        ...prepared.plan.request,
+        knownHostsSha256: createHash('sha256').update(knownHostsSource).digest('hex'),
+      },
+      affectedCapabilities: ['control-plane', ...prepared.plan.affectedCapabilities],
+    });
+    const controlled = retirementRunner('never');
+    const dependencies = createProductionApplyDependencies(
+      directory,
+      plan,
+      prepared.planPath,
+      controlled.run,
+      () => new Date('2026-09-17T09:00:00.000Z'),
+      'retirement-test',
+    );
+    expect(dependencies.observe(plan)).rejects.toThrow(/known-hosts evidence/i);
+    expect(controlled.calls).toHaveLength(0);
+    // Proof: omitting either survivor's reviewed SSH host key refuses before Ansible can delegate
+    // a fresh etcd health probe to that voter.
+  });
+
   it('binds response-lost etcd removal recovery to the persisted exact member name', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'fleet-retirement-etcd-identity-'));
-    const prepared = await prepareRetirement(directory);
+    const prepared = await prepareRetirement(directory, 'hcloud:2002', true);
     const { planSha256: _planSha256, ...body } = prepared.plan;
     const plan = sealOperationPlan({
       ...body,

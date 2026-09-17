@@ -804,6 +804,7 @@ function decodeProviderOwnership(source: string): readonly ProvisioningInstance[
 interface EnrollmentInventory {
   readonly displayName: string;
   readonly address: string;
+  readonly addresses: readonly string[];
   readonly machineId: string;
   readonly providerIdentity: string;
 }
@@ -813,6 +814,7 @@ async function readEnrollmentInventory(
   expectedSha256: string,
   knownHostsPath: string,
   nodeId: string,
+  allowClusterServers = false,
 ): Promise<EnrollmentInventory> {
   const source = await readFile(path);
   if (createHash('sha256').update(source).digest('hex') !== expectedSha256) {
@@ -832,9 +834,17 @@ async function readEnrollmentInventory(
     children['k3s_join_servers'],
     'Enrollment inventory k3s_join_servers',
   );
+  const bootstrapServerGroup = requireRecord(
+    children['k3s_bootstrap_servers'],
+    'Enrollment inventory k3s_bootstrap_servers',
+  );
   const agentHosts = requireRecord(agentGroup['hosts'], 'Enrollment inventory agent hosts');
   const serverHosts = requireRecord(serverGroup['hosts'], 'Enrollment inventory server hosts');
-  const candidates = [agentHosts[nodeId], serverHosts[nodeId]].filter(
+  const bootstrapServerHosts = requireRecord(
+    bootstrapServerGroup['hosts'],
+    'Enrollment inventory bootstrap server hosts',
+  );
+  const candidates = [agentHosts[nodeId], serverHosts[nodeId], bootstrapServerHosts[nodeId]].filter(
     (candidate) => candidate !== undefined,
   );
   const host = requireRecord(candidates[0], `Enrollment inventory host ${nodeId}`);
@@ -842,8 +852,42 @@ async function readEnrollmentInventory(
   const machineId = host['puni_machine_id'];
   const providerIdentity = host['puni_provider_identity'];
   const sshArguments = host['ansible_ssh_common_args'];
+  const inventoryHosts = [
+    ...Object.entries(agentHosts),
+    ...Object.entries(serverHosts),
+    ...Object.entries(bootstrapServerHosts),
+  ];
+  const addresses = inventoryHosts.map(([inventoryNodeId, inventoryHostInput]) => {
+    const inventoryHost = requireRecord(
+      inventoryHostInput,
+      `Enrollment inventory host ${inventoryNodeId}`,
+    );
+    const inventoryAddress = inventoryHost['ansible_host'];
+    const inventoryMachineId = inventoryHost['puni_machine_id'];
+    const inventoryProviderIdentity = inventoryHost['puni_provider_identity'];
+    const inventoryUser = inventoryHost['ansible_user'];
+    if (
+      typeof inventoryAddress !== 'string' ||
+      inventoryAddress.length === 0 ||
+      typeof inventoryMachineId !== 'string' ||
+      !/^[0-9a-f]{32}$/.test(inventoryMachineId) ||
+      typeof inventoryProviderIdentity !== 'string' ||
+      inventoryProviderIdentity.length === 0 ||
+      typeof inventoryUser !== 'string' ||
+      inventoryUser.length === 0 ||
+      inventoryHost['ansible_ssh_common_args'] !==
+        `-o UserKnownHostsFile=${knownHostsPath} -o StrictHostKeyChecking=yes`
+    ) {
+      throw new Error(`Enrollment inventory host ${inventoryNodeId} lacks exact SSH identity`);
+    }
+    return inventoryAddress;
+  });
   if (
-    Object.keys(agentHosts).length + Object.keys(serverHosts).length !== 1 ||
+    (!allowClusterServers && inventoryHosts.length !== 1) ||
+    (allowClusterServers && inventoryHosts.length < 1) ||
+    new Set(inventoryHosts.map(([inventoryNodeId]) => inventoryNodeId)).size !==
+      inventoryHosts.length ||
+    new Set(addresses).size !== addresses.length ||
     candidates.length !== 1 ||
     typeof address !== 'string' ||
     address.length === 0 ||
@@ -853,25 +897,29 @@ async function readEnrollmentInventory(
     providerIdentity.length === 0 ||
     sshArguments !== `-o UserKnownHostsFile=${knownHostsPath} -o StrictHostKeyChecking=yes`
   ) {
-    // Proof: a changed machine ID, address, provider identity, or host-key path in the reviewed
-    // inventory stops the existing-host enrollment path before SSH configuration.
+    // Proof: changed target identity and incomplete retirement-cluster SSH evidence stop before
+    // configuration or a delegated etcd voter probe.
     throw new Error('Enrollment inventory lacks exact host identity or SSH host-key policy');
   }
-  return { displayName: nodeId, address, machineId, providerIdentity };
+  return { displayName: nodeId, address, addresses, machineId, providerIdentity };
 }
 
 async function readKnownHosts(
   path: string,
   expectedSha256: string,
-  expectedAddress: string,
+  expectedAddress: string | readonly string[],
 ): Promise<void> {
   const source = await readFile(path);
+  const expectedAddresses =
+    typeof expectedAddress === 'string' ? [expectedAddress] : expectedAddress;
   if (
     createHash('sha256').update(source).digest('hex') !== expectedSha256 ||
-    !source
-      .toString('utf8')
-      .split('\n')
-      .some((line) => line.startsWith(`${expectedAddress} `))
+    !expectedAddresses.every((address) =>
+      source
+        .toString('utf8')
+        .split('\n')
+        .some((line) => line.startsWith(`${address} `)),
+    )
   ) {
     // Proof: changing the pinned SSH host key or binding it to another address makes existing-host
     // enrollment reach no Ansible mutation.
@@ -883,7 +931,9 @@ async function readKnownHosts(
 
 function requireMachineFact(
   stdout: string,
-  inventory: Omit<EnrollmentInventory, 'machineId'> & { readonly machineId?: string },
+  inventory: Omit<EnrollmentInventory, 'addresses' | 'machineId'> & {
+    readonly machineId?: string;
+  },
 ): string {
   requireAnsibleRecap(stdout);
   const marker = /PUNI_MACHINE_FACT=(\{(?:\\.|[^}\r\n])+\})/.exec(stdout);
@@ -1320,8 +1370,9 @@ function createRetirementApplyDependencies(
       request.inventorySha256,
       knownHostsPath,
       request.nodeId,
+      controlPlaneTarget,
     );
-    await readKnownHosts(knownHostsPath, request.knownHostsSha256, inventory.address);
+    await readKnownHosts(knownHostsPath, request.knownHostsSha256, inventory.addresses);
     const nodeResponse = await run({
       executable: 'kubectl',
       arguments: ['--context', cluster, 'get', 'node', request.nodeId, '-o', 'json'],
