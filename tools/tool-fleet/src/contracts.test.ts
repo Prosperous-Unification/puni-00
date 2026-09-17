@@ -24,6 +24,7 @@ const validToolchain = {
       version: '1.0.0',
       url: 'https://example.test/terraform',
       sha256,
+      executableSha256: sha256,
       os: 'linux',
       arch: 'amd64',
     },
@@ -147,6 +148,17 @@ describe('readToolchain', () => {
     const { k3s: _removed, ...binaries } = validToolchain.binaries;
     const path = await writeToolchain({ ...validToolchain, binaries });
     expect(readToolchain(path)).rejects.toThrow(/k3s/);
+  });
+
+  it('requires a separately locked Terraform executable digest', async () => {
+    const { executableSha256: _removed, ...terraform } = validToolchain.binaries.terraform;
+    const path = await writeToolchain({
+      ...validToolchain,
+      binaries: { ...validToolchain.binaries, terraform },
+    });
+    // Proof: using only the archive digest made the production runner compare the extracted
+    // executable against unrelated ZIP bytes and reject every valid Terraform installation.
+    expect(readToolchain(path)).rejects.toThrow(/executableSha256/);
   });
 
   it('rejects a missing controller Python dependency closure', async () => {

@@ -25,11 +25,14 @@ export interface ApplyDependencies {
   readonly now: () => Date;
   readonly acquireLease: (plan: OperationPlan) => Promise<OperationLease>;
   readonly ownsLease: (lease: OperationLease) => Promise<boolean>;
+  readonly renewLease: (plan: OperationPlan, lease: OperationLease) => Promise<OperationLease>;
+  readonly releaseLease: (plan: OperationPlan, lease: OperationLease) => Promise<void>;
   readonly observe: (plan: OperationPlan) => Promise<ApplyObservation>;
   readonly applyEffect: (
     plan: OperationPlan,
     effect: string,
     stepId: string,
+    beforeMutation: () => Promise<void>,
   ) => Promise<{ readonly externalResourceId?: string }>;
 }
 
@@ -144,143 +147,223 @@ function observationSha256(observation: ApplyObservation): string {
   return createHash('sha256').update(JSON.stringify(observation)).digest('hex');
 }
 
+function journalObservation(
+  observation: ApplyObservation,
+): CompletedOperationStep['beforeObservation'] {
+  return {
+    ...observation,
+    targetIdentities: [...observation.targetIdentities],
+  };
+}
+
+function requireObservedTransition(
+  before: ApplyObservation,
+  after: ApplyObservation,
+  plan: OperationPlan,
+  position: number,
+  journal: OperationJournal,
+  externalResourceId?: string,
+): void {
+  const providerIdentity = after.targetIdentities.find((identity) =>
+    identity.startsWith('hcloud:'),
+  );
+  const afterTerraformState = after.terraformState;
+  if (
+    after.providerState !== 'ready' ||
+    (plan.request.kind === 'provision' &&
+      position === 0 &&
+      providerIdentity !== undefined &&
+      (externalResourceId === undefined || providerIdentity !== `hcloud:${externalResourceId}`)) ||
+    (!sameIdentities(after.targetIdentities, before.targetIdentities) &&
+      !matchesProvisioningIdentity(after, plan, position, journal))
+  ) {
+    // Proof: the post-effect wrong-identity production-path negative leaves the active step
+    // recoverable instead of certifying a mutation against an unreviewed target.
+    throw new Error('Operation postcondition has unexpected identity or provider state');
+  }
+  if (
+    before.terraformState !== undefined &&
+    (afterTerraformState?.lineage !== before.terraformState.lineage ||
+      afterTerraformState.serial < before.terraformState.serial)
+  ) {
+    throw new Error('Operation postcondition regressed Terraform state');
+  }
+}
+
 /** Apply only the ordered effects in a reviewed plan, journaling durable progress before and after each mutation. */
 export async function applyOperation(request: ApplyRequest): Promise<OperationReceipt> {
   const { plan, expectedSha256, journalPath, dependencies } = request;
   requireCurrentPlan(plan, expectedSha256, dependencies.now());
-  const lease = await dependencies.acquireLease(plan);
-  if (dependencies.now().getTime() >= Date.parse(lease.expiresAt)) {
-    // Proof: the expired-lease production-path negative obtains a lease ending at the current
-    // instant and records zero adapter mutations.
-    throw new Error(`Operation lease expired at ${lease.expiresAt}`);
+  const existingJournal = await readExistingJournal(journalPath);
+  if (existingJournal !== undefined) {
+    requireKnownProgress(plan, existingJournal);
+    if (existingJournal.state === 'complete') return completedReceipt(existingJournal);
   }
-  let journal = await readExistingJournal(journalPath);
-  if (journal === undefined) {
-    journal = {
-      schemaVersion: 1,
-      operationId: plan.planSha256,
-      planSha256: plan.planSha256,
-      state: 'running',
-      leaseOwner: lease.owner,
-      completedSteps: [],
-      updatedAt: dependencies.now().toISOString(),
-    };
-    await writeOperationJournal(journalPath, journal);
-  } else {
-    requireKnownProgress(plan, journal);
-    if (journal.state === 'complete') return completedReceipt(journal);
-    journal = {
-      ...journal,
-      state: 'running',
-      leaseOwner: lease.owner,
-      updatedAt: dependencies.now().toISOString(),
-    };
-    await writeOperationJournal(journalPath, journal);
-  }
-
-  for (
-    let position = journal.completedSteps.length;
-    position < plan.effects.length;
-    position += 1
-  ) {
-    requireCurrentPlan(plan, expectedSha256, dependencies.now());
-    if (!(await dependencies.ownsLease(lease))) {
-      journal = { ...journal, state: 'recoverable', updatedAt: dependencies.now().toISOString() };
-      await writeOperationJournal(journalPath, journal);
-      // Proof: expiring the controlled lease after one effect persists recoverable progress and
-      // stops before the second mutation.
-      throw new Error('Operation lease is no longer owned');
+  let lease = await dependencies.acquireLease(plan);
+  try {
+    if (dependencies.now().getTime() >= Date.parse(lease.expiresAt)) {
+      // Proof: the expired-lease production-path negative obtains a lease ending at the current
+      // instant, releases it, and records zero adapter mutations.
+      throw new Error(`Operation lease expired at ${lease.expiresAt}`);
     }
-    const observation = await dependencies.observe(plan);
-    if (
-      position === 0 &&
-      observation.digest !== plan.observationDigest &&
-      !(
+    let journal: OperationJournal;
+    if (existingJournal === undefined) {
+      journal = {
+        schemaVersion: 1,
+        operationId: plan.planSha256,
+        planSha256: plan.planSha256,
+        state: 'running',
+        leaseOwner: lease.owner,
+        completedSteps: [],
+        updatedAt: dependencies.now().toISOString(),
+      };
+      await writeOperationJournal(journalPath, journal);
+    } else {
+      journal = {
+        ...existingJournal,
+        state: 'running',
+        leaseOwner: lease.owner,
+        updatedAt: dependencies.now().toISOString(),
+      };
+      await writeOperationJournal(journalPath, journal);
+    }
+    for (
+      let position = journal.completedSteps.length;
+      position < plan.effects.length;
+      position += 1
+    ) {
+      requireCurrentPlan(plan, expectedSha256, dependencies.now());
+      if (!(await dependencies.ownsLease(lease))) {
+        journal = { ...journal, state: 'recoverable', updatedAt: dependencies.now().toISOString() };
+        await writeOperationJournal(journalPath, journal);
+        // Proof: expiring the controlled lease after one effect persists recoverable progress and
+        // stops before the second mutation.
+        throw new Error('Operation lease is no longer owned');
+      }
+      lease = await dependencies.renewLease(plan, lease);
+      const beforeMutation = async (): Promise<void> => {
+        lease = await dependencies.renewLease(plan, lease);
+        if (!(await dependencies.ownsLease(lease))) {
+          throw new Error('Operation lease is no longer owned at mutation boundary');
+        }
+      };
+      const observation = await dependencies.observe(plan);
+      if (
+        position === 0 &&
+        observation.digest !== plan.observationDigest &&
+        !(
+          plan.request.kind === 'provision' &&
+          observation.targetIdentities.some((identity) => identity.startsWith('hcloud:'))
+        )
+      ) {
+        // Proof: the stale-observation production-path negative changes only the observed digest and
+        // records zero adapter mutations.
+        throw new Error('Operation observation digest is stale');
+      }
+      if (
+        !sameIdentities(observation.targetIdentities, plan.targetIdentities) &&
+        !matchesProvisioningIdentity(observation, plan, position, journal)
+      ) {
+        // Proof: the wrong-instance production-path negative records zero adapter mutations.
+        throw new Error('Operation target identities changed after review');
+      }
+      if (observation.providerState === 'pending-deletion') {
+        throw new Error('Operation target is pending deletion');
+      }
+      if (
         plan.request.kind === 'provision' &&
-        observation.targetIdentities.some((identity) => identity.startsWith('hcloud:'))
-      )
-    ) {
-      // Proof: the stale-observation production-path negative changes only the observed digest and
-      // records zero adapter mutations.
-      throw new Error('Operation observation digest is stale');
-    }
-    if (
-      !sameIdentities(observation.targetIdentities, plan.targetIdentities) &&
-      !matchesProvisioningIdentity(observation, plan, position, journal)
-    ) {
-      // Proof: the wrong-instance production-path negative records zero adapter mutations.
-      throw new Error('Operation target identities changed after review');
-    }
-    if (observation.providerState === 'pending-deletion') {
-      throw new Error('Operation target is pending deletion');
-    }
-    if (
-      plan.request.kind === 'provision' &&
-      (observation.terraformState?.lineage !== plan.request.terraformStateLineage ||
-        observation.terraformState.serial < plan.request.terraformStateSerial ||
-        (position === 0 && observation.terraformState.serial !== plan.request.terraformStateSerial))
-    ) {
-      // Proof: the wrong-lineage and stale-serial production-path negatives stop before mutation.
-      throw new Error('Terraform state lineage or serial differs from the reviewed operation');
-    }
-    if (!(await dependencies.ownsLease(lease))) {
-      journal = { ...journal, state: 'recoverable', updatedAt: dependencies.now().toISOString() };
+        (observation.terraformState?.lineage !== plan.request.terraformStateLineage ||
+          observation.terraformState.serial < plan.request.terraformStateSerial ||
+          (position === 0 &&
+            observation.terraformState.serial !== plan.request.terraformStateSerial))
+      ) {
+        // Proof: the wrong-lineage and stale-serial production-path negatives stop before mutation.
+        throw new Error('Terraform state lineage or serial differs from the reviewed operation');
+      }
+      if (!(await dependencies.ownsLease(lease))) {
+        journal = { ...journal, state: 'recoverable', updatedAt: dependencies.now().toISOString() };
+        await writeOperationJournal(journalPath, journal);
+        // Proof: the slow-observation negative loses its Lease during the read and reaches no effect.
+        throw new Error('Operation lease expired during precondition observation');
+      }
+      const effect = plan.effects[position];
+      const currentStepId = stepId(position);
+      const beforeObservationSha256 = observationSha256(observation);
+      journal = {
+        ...journal,
+        activeStep: {
+          stepId: currentStepId,
+          effect,
+          beforeObservationSha256,
+          beforeObservation: journalObservation(observation),
+        },
+        updatedAt: dependencies.now().toISOString(),
+      };
       await writeOperationJournal(journalPath, journal);
-      // Proof: the slow-observation negative loses its Lease during the read and reaches no effect.
-      throw new Error('Operation lease expired during precondition observation');
-    }
-    const effect = plan.effects[position];
-    const currentStepId = stepId(position);
-    const beforeObservationSha256 = observationSha256(observation);
-    journal = {
-      ...journal,
-      activeStep: { stepId: currentStepId, effect, beforeObservationSha256 },
-      updatedAt: dependencies.now().toISOString(),
-    };
-    await writeOperationJournal(journalPath, journal);
-    let effectEvidence: { readonly externalResourceId?: string };
-    try {
-      effectEvidence = await dependencies.applyEffect(plan, effect, currentStepId);
-    } catch (cause) {
-      journal = { ...journal, state: 'recoverable', updatedAt: dependencies.now().toISOString() };
+      let effectEvidence: { readonly externalResourceId?: string };
+      try {
+        await beforeMutation();
+        effectEvidence = await dependencies.applyEffect(
+          plan,
+          effect,
+          currentStepId,
+          beforeMutation,
+        );
+      } catch (cause) {
+        journal = { ...journal, state: 'recoverable', updatedAt: dependencies.now().toISOString() };
+        await writeOperationJournal(journalPath, journal);
+        // Proof: the provider-timeout production-path negative persists recoverable state before the
+        // effect failure reaches the caller.
+        const detail = cause instanceof Error ? `: ${cause.message}` : '';
+        throw new Error(`Operation effect failed: ${effect}${detail}`, { cause });
+      }
+      let afterObservation: ApplyObservation;
+      try {
+        afterObservation = await dependencies.observe(plan);
+        requireObservedTransition(
+          observation,
+          afterObservation,
+          plan,
+          position,
+          journal,
+          effectEvidence.externalResourceId,
+        );
+      } catch (cause) {
+        journal = { ...journal, state: 'recoverable', updatedAt: dependencies.now().toISOString() };
+        await writeOperationJournal(journalPath, journal);
+        // Proof: the post-effect observation negative leaves the active step durable and recoverable,
+        // so a successful external mutation cannot be mistaken for an unstarted step.
+        const detail = cause instanceof Error ? `: ${cause.message}` : '';
+        throw new Error(`Cannot observe completed operation effect: ${effect}${detail}`, { cause });
+      }
+      const completedStep: CompletedOperationStep = {
+        stepId: currentStepId,
+        effect,
+        beforeObservationSha256,
+        beforeObservation: journalObservation(observation),
+        afterObservationSha256: observationSha256(afterObservation),
+        afterObservation: journalObservation(afterObservation),
+        ...(effectEvidence.externalResourceId === undefined
+          ? {}
+          : { externalResourceId: effectEvidence.externalResourceId }),
+      };
+      const { activeStep: _completedActiveStep, ...journalWithoutActiveStep } = journal;
+      journal = {
+        ...journalWithoutActiveStep,
+        completedSteps: [...journal.completedSteps, completedStep],
+        updatedAt: dependencies.now().toISOString(),
+      };
       await writeOperationJournal(journalPath, journal);
-      // Proof: the provider-timeout production-path negative persists recoverable state before the
-      // effect failure reaches the caller.
-      throw new Error(`Operation effect failed: ${effect}`, { cause });
     }
-    let afterObservation: ApplyObservation;
-    try {
-      afterObservation = await dependencies.observe(plan);
-    } catch (cause) {
-      journal = { ...journal, state: 'recoverable', updatedAt: dependencies.now().toISOString() };
-      await writeOperationJournal(journalPath, journal);
-      // Proof: the post-effect observation negative leaves the active step durable and recoverable,
-      // so a successful external mutation cannot be mistaken for an unstarted step.
-      throw new Error(`Cannot observe completed operation effect: ${effect}`, { cause });
-    }
-    const completedStep: CompletedOperationStep = {
-      stepId: currentStepId,
-      effect,
-      beforeObservationSha256,
-      afterObservationSha256: observationSha256(afterObservation),
-      ...(effectEvidence.externalResourceId === undefined
-        ? {}
-        : { externalResourceId: effectEvidence.externalResourceId }),
-    };
-    const { activeStep: _completedActiveStep, ...journalWithoutActiveStep } = journal;
-    journal = {
-      ...journalWithoutActiveStep,
-      completedSteps: [...journal.completedSteps, completedStep],
-      updatedAt: dependencies.now().toISOString(),
-    };
-    await writeOperationJournal(journalPath, journal);
-  }
 
-  const complete: OperationJournal = {
-    ...journal,
-    state: 'complete',
-    updatedAt: dependencies.now().toISOString(),
-  };
-  await writeOperationJournal(journalPath, complete);
-  return completedReceipt(complete);
+    const complete: OperationJournal = {
+      ...journal,
+      state: 'complete',
+      updatedAt: dependencies.now().toISOString(),
+    };
+    await writeOperationJournal(journalPath, complete);
+    return completedReceipt(complete);
+  } finally {
+    await dependencies.releaseLease(plan, lease);
+  }
 }

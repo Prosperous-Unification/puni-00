@@ -25,6 +25,16 @@ const BinaryLock = type({
   '+': 'reject',
 });
 
+const TerraformBinaryLock = type({
+  version: exactVersion,
+  url: 'string.url',
+  sha256,
+  executableSha256: sha256,
+  os: "'linux'",
+  arch: "'amd64'",
+  '+': 'reject',
+});
+
 const ImageLock = type({ role: 'string>0', name: 'string>0', digest, '+': 'reject' });
 
 const ChartLock = type({
@@ -47,7 +57,7 @@ const ToolchainSchema = type({
     .array()
     .atLeastLength(1),
   binaries: {
-    terraform: BinaryLock,
+    terraform: TerraformBinaryLock,
     // Proof: making k3s optional made the missing-lock production-reader
     // negative fail on 2026-09-17.
     k3s: BinaryLock,
@@ -285,6 +295,15 @@ export type Lifecycle = typeof LifecycleSchema.infer;
 export type FleetNode = typeof FleetNodeSchema.infer;
 export type Cluster = typeof ClusterSchema.infer;
 export type Fleet = typeof FleetSchema.infer;
+
+/** Decode one exact desired membership record before an operation can consume it. */
+export function decodeFleetNode(input: unknown): FleetNode {
+  const node = FleetNodeSchema(input);
+  if (node instanceof type.errors) {
+    throw new Error(`Fleet node validation failed: ${node.summary}`, { cause: node });
+  }
+  return node;
+}
 
 export interface Observation {
   readonly schemaVersion: 1;

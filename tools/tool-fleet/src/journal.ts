@@ -7,11 +7,25 @@ import { type } from 'arktype';
 const sha256 = /^[0-9a-f]{64}$/;
 const instant = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
+const ObservationSchema = type({
+  digest: 'string>0',
+  targetIdentities: 'string[]',
+  providerState: "'ready'|'pending-deletion'",
+  'terraformState?': {
+    lineage: 'string>0',
+    serial: 'number.integer>=0',
+    '+': 'reject',
+  },
+  '+': 'reject',
+});
+
 const CompletedStepSchema = type({
   stepId: 'string>0',
   effect: 'string>0',
   beforeObservationSha256: sha256,
+  beforeObservation: ObservationSchema,
   afterObservationSha256: sha256,
+  afterObservation: ObservationSchema,
   'externalResourceId?': 'string>0',
   '+': 'reject',
 });
@@ -20,6 +34,7 @@ const ActiveStepSchema = type({
   stepId: 'string>0',
   effect: 'string>0',
   beforeObservationSha256: sha256,
+  beforeObservation: ObservationSchema,
   '+': 'reject',
 });
 

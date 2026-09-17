@@ -22,6 +22,14 @@
       loop: '{{ puni_all_nodes }}'
       changed_when: false
 
+    - name: Observe every machine identity through its controlled SSH channel
+      ansible.builtin.slurp:
+        src: /etc/machine-id
+      delegate_to: '{{ item }}'
+      loop: '{{ puni_all_nodes }}'
+      register: puni_machine_identities
+      changed_when: false
+
     - name: Read every Kubernetes node identity
       ansible.builtin.command: >-
         k3s kubectl get node {{ item }}
@@ -31,18 +39,18 @@
       changed_when: false
 
     - name: Require stable Kubernetes and machine identities
-      # Proof: the pinned-controller negative supplies a different intended machine ID to this exact
-      # included assertion and exits 2 before enrollment taints can be removed.
+      # Proof: replacing the delegated SSH identity with the Kubernetes-reported identity makes the
+      # Ansible production-contract negative fail before this comparison can become self-certifying.
       ansible.builtin.include_tasks: ../tasks/require-enrollment-identity.yml
-      loop: '{{ puni_node_identities.results }}'
+      loop: '{{ puni_node_identities.results | zip(puni_machine_identities.results) }}'
       loop_control:
         loop_var: puni_node_identity
       vars:
-        puni_enrollment_uid: "{{ puni_node_identity.stdout.split('|')[0] }}"
-        puni_enrollment_machine_id: "{{ puni_node_identity.stdout.split('|')[1] }}"
-        puni_enrollment_address: "{{ puni_node_identity.stdout.split('|')[2] }}"
-        puni_expected_machine_id: '{{ hostvars[puni_node_identity.item].puni_machine_id }}'
-        puni_expected_address: '{{ hostvars[puni_node_identity.item].puni_node_ip }}'
+        puni_enrollment_uid: "{{ puni_node_identity.0.stdout.split('|')[0] }}"
+        puni_enrollment_machine_id: "{{ puni_node_identity.0.stdout.split('|')[1] }}"
+        puni_enrollment_address: "{{ puni_node_identity.0.stdout.split('|')[2] }}"
+        puni_expected_machine_id: '{{ puni_node_identity.1.content | b64decode | trim }}'
+        puni_expected_address: '{{ hostvars[puni_node_identity.0.item].ansible_host }}'
 
     - name: Wait for the packaged CoreDNS deployment to exist
       ansible.builtin.command: >-

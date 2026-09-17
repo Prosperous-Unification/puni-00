@@ -70,6 +70,28 @@ const observation: Observation = {
   complete: true,
 };
 
+const provisionRequest = {
+  kind: 'provision' as const,
+  nodeId: 'workers-c',
+  clusterId: 'workers',
+  cloudAccount: 'puni-production',
+  region: 'fsn1',
+  machineType: 'cx33',
+  image: 'ubuntu-24.04',
+  network: 'puni-private',
+  sshKeyIds: ['admin-primary'],
+  retainedStorage: false,
+  k3sRole: 'agent' as const,
+  capabilities: ['execution'] as const,
+  budgetCapEur: 20,
+  providerOwnershipId: 'provision-workers-c-20260917',
+  terraformPlanSha256: 'f'.repeat(64),
+  terraformBackendEvidenceSha256: 'd'.repeat(64),
+  ansibleVariablesSha256: 'e'.repeat(64),
+  terraformStateLineage: 'lineage-1',
+  terraformStateSerial: 7,
+};
+
 describe('fleet contracts', () => {
   it('decodes only an exact observation identity', () => {
     expect(decodeObservation(observation)).toEqual(observation);
@@ -205,6 +227,28 @@ describe('fleet contracts', () => {
 });
 
 describe('planOperation', () => {
+  it('refuses provisioning that violates cluster purpose, role, or single-server topology', () => {
+    const fleet = decodeFleet(fleetInput);
+    expect(() =>
+      planOperation(fleet, observation, {
+        ...provisionRequest,
+        clusterId: 'platform',
+      }),
+    ).toThrow(/cluster purpose/i);
+    expect(() =>
+      planOperation(fleet, observation, {
+        ...provisionRequest,
+        k3sRole: 'server',
+      }),
+    ).toThrow(/server role/i);
+    expect(() =>
+      planOperation(fleet, observation, {
+        ...provisionRequest,
+        k3sRole: 'server',
+        capabilities: ['control-plane'],
+      }),
+    ).toThrow(/single-server topology/i);
+  });
   const fleet: Fleet = decodeFleet(fleetInput);
   const enrollEvidence = {
     inventorySha256: 'b'.repeat(64),

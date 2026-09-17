@@ -10,6 +10,7 @@ import { type OperationPlan, sealOperationPlan } from './plan';
 import {
   type CommandRequest,
   type CommandResponse,
+  controllerRequest,
   createProductionApplyDependencies,
   prepareTerraformPlan,
   runBoundedCommand,
@@ -88,6 +89,29 @@ function lease(holder: string): string {
       leaseDurationSeconds: 300,
     },
   });
+}
+
+function leaseMutation(request: CommandRequest, fallbackHolder: string): CommandResponse {
+  const manifest = JSON.parse(request.stdin ?? '{}') as {
+    metadata?: { resourceVersion?: unknown };
+    spec?: {
+      holderIdentity?: unknown;
+      renewTime?: unknown;
+      leaseDurationSeconds?: unknown;
+    };
+  };
+  return {
+    exitCode: 0,
+    stdout: JSON.stringify({
+      metadata: { resourceVersion: manifest.metadata?.resourceVersion ?? '9' },
+      spec: {
+        holderIdentity: manifest.spec?.holderIdentity ?? fallbackHolder,
+        renewTime: manifest.spec?.renewTime ?? '2026-09-17T09:01:00.000Z',
+        leaseDurationSeconds: manifest.spec?.leaseDurationSeconds ?? 300,
+      },
+    }),
+    stderr: '',
+  };
 }
 
 function terraformState(status = 'running', present = true): string {
@@ -172,6 +196,10 @@ function providerInventory(present: boolean): string {
   });
 }
 
+function machineFact(host: string, address: string, machineId: string): string {
+  return `PUNI_MACHINE_FACT=${JSON.stringify({ address, machineId })}\nPLAY RECAP\n${host} : ok=3 changed=0 unreachable=0 failed=0`;
+}
+
 async function rejectionMessage(promise: Promise<unknown>): Promise<string> {
   try {
     await promise;
@@ -182,6 +210,17 @@ async function rejectionMessage(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('production apply adapter', () => {
+  it('keeps controller stdin attached for Kubernetes Lease manifests', () => {
+    const request = controllerRequest('/repo', 'controller', 'sha256:abc', {
+      executable: 'kubectl',
+      arguments: ['replace', '-f', '-'],
+      stdin: '{"kind":"Lease"}',
+    });
+    // Proof: removing --interactive made the locked Docker controller deliver zero bytes to
+    // kubectl even though the subprocess adapter supplied the Lease manifest.
+    expect(request.arguments).toContain('--interactive');
+    expect(request.stdin).toBe('{"kind":"Lease"}');
+  });
   it('kills a signal-ignoring process group at the production command deadline', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'fleet-command-timeout-'));
     const sentinel = join(directory, 'survived');
@@ -217,7 +256,7 @@ describe('production apply adapter', () => {
         throw new Error('Test Lease manifest has no holder');
       }
       holder = manifest.spec.holderIdentity;
-      return Promise.resolve({ exitCode: 0, stdout: lease(holder), stderr: '' });
+      return Promise.resolve(leaseMutation(request, holder));
     };
     const first = createProductionApplyDependencies(
       '/repo',
@@ -245,18 +284,21 @@ describe('production apply adapter', () => {
     const planPath = join(directory, 'operation.json');
     const knownHostsPath = `${planPath}.known_hosts`;
     const inventorySource = `${JSON.stringify({
-      _meta: {
-        hostvars: {
-          'external-c': {
-            ansible_host: '10.0.0.44',
-            puni_machine_id: 'abcdefabcdefabcdefabcdefabcdefab',
-            puni_provider_identity: 'abcdefabcdefabcdefabcdefabcdefab',
-            ansible_ssh_common_args: `-o UserKnownHostsFile=${knownHostsPath} -o StrictHostKeyChecking=yes`,
+      all: {
+        children: {
+          k3s_agents: {
+            hosts: {
+              'external-c': {
+                ansible_host: '10.0.0.44',
+                puni_machine_id: 'abcdefabcdefabcdefabcdefabcdefab',
+                puni_provider_identity: 'abcdefabcdefabcdefabcdefabcdefab',
+                ansible_ssh_common_args: `-o UserKnownHostsFile=${knownHostsPath} -o StrictHostKeyChecking=yes`,
+              },
+            },
           },
+          k3s_join_servers: { hosts: {} },
         },
       },
-      k3s_agents: { hosts: ['external-c'] },
-      k3s_join_servers: { hosts: [] },
     })}\n`;
     const variablesSource = `${JSON.stringify({
       puni_node_name: 'external-c',
@@ -308,13 +350,13 @@ describe('production apply adapter', () => {
       }
       if (request.executable === 'kubectl') {
         leaseExists = true;
-        return Promise.resolve({ exitCode: 0, stdout: lease('execution-owner'), stderr: '' });
+        return Promise.resolve(leaseMutation(request, 'execution-owner'));
       }
       if (request.arguments.some((argument) => argument.endsWith('/discover.yml'))) {
         return Promise.resolve({
           exitCode: 0,
           stdout:
-            'ok: [external-c] => {"msg":{"name":"external-c","machineId":"abcdefabcdefabcdefabcdefabcdefab","address":"10.0.0.44"}}\nPLAY RECAP\nexternal-c : ok=3 changed=0 unreachable=0 failed=0',
+            'ok: [external-c] => {"msg":"PUNI_MACHINE_FACT={\\"address\\":\\"10.0.0.44\\",\\"machineId\\":\\"abcdefabcdefabcdefabcdefabcdefab\\"}"}\nPUNI_MACHINE_FACT={"address":"10.0.0.44","machineId":"abcdefabcdefabcdefabcdefabcdefab"}\nPLAY RECAP\nexternal-c : ok=3 changed=0 unreachable=0 failed=0',
           stderr: '',
         });
       }
@@ -348,7 +390,9 @@ describe('production apply adapter', () => {
     const directory = await mkdtemp(join(tmpdir(), 'fleet-terraform-plan-'));
     const outputPath = join(directory, 'operation.json.tfplan');
     const backendPath = join(directory, 'backend.json');
+    const variablesPath = join(directory, 'nodes.tfvars.json');
     await writeFile(backendPath, backendEvidenceSource, { mode: 0o600 });
+    await writeFile(variablesPath, '{"nodes":{}}\n', { mode: 0o600 });
     const calls: CommandRequest[] = [];
     const run = async (request: CommandRequest): Promise<CommandResponse> => {
       calls.push(request);
@@ -391,7 +435,7 @@ describe('production apply adapter', () => {
       },
       'production',
       backendPath,
-      '/reviewed/nodes.tfvars',
+      variablesPath,
       outputPath,
       run,
     );
@@ -479,9 +523,9 @@ describe('production apply adapter', () => {
             : { exitCode: 1, stdout: '', stderr: 'NotFound' },
         );
       }
-      if (request.executable === 'kubectl' && request.arguments.includes('create')) {
+      if (request.executable === 'kubectl') {
         leaseExists = true;
-        return Promise.resolve({ exitCode: 0, stdout: lease('execution-owner'), stderr: '' });
+        return Promise.resolve(leaseMutation(request, 'execution-owner'));
       }
       if (request.executable === 'terraform' && request.arguments[0] === 'state') {
         return Promise.resolve({
@@ -510,7 +554,9 @@ describe('production apply adapter', () => {
       if (request.executable === 'ansible-playbook') {
         return Promise.resolve({
           exitCode: 0,
-          stdout: 'PLAY RECAP\nworkers-c : ok=12 changed=1 unreachable=0 failed=0 skipped=0',
+          stdout: request.arguments.some((argument) => argument.endsWith('/discover.yml'))
+            ? machineFact('workers-c', '10.0.0.23', '0123456789abcdef0123456789abcdef')
+            : 'PLAY RECAP\nworkers-c : ok=12 changed=1 unreachable=0 failed=0 skipped=0',
           stderr: '',
         });
       }
@@ -539,6 +585,14 @@ describe('production apply adapter', () => {
       ),
     ).toBe(true);
     expect(calls.some((request) => request.executable === 'ansible-playbook')).toBe(true);
+    expect(
+      calls.some(
+        (request) =>
+          request.executable === 'kubectl' &&
+          request.arguments.includes('replace') &&
+          request.stdin?.includes('1970-01-01T00:00:00.000Z') === true,
+      ),
+    ).toBe(true);
   });
 
   it('imports an operation-owned server after a lost response and requires a fresh plan', async () => {
@@ -561,7 +615,7 @@ describe('production apply adapter', () => {
       }
       if (request.executable === 'kubectl') {
         leaseExists = true;
-        return Promise.resolve({ exitCode: 0, stdout: lease('execution-owner'), stderr: '' });
+        return Promise.resolve(leaseMutation(request, 'execution-owner'));
       }
       if (request.executable === 'terraform' && request.arguments[0] === 'state') {
         return Promise.resolve({
@@ -596,6 +650,156 @@ describe('production apply adapter', () => {
       ),
     ).toMatch(/create provider instance/i);
     expect(imports).toBe(1);
+    expect(applies).toBe(0);
+
+    const freshPlanPath = join(directory, 'fresh-operation.json');
+    await writeFile(`${freshPlanPath}.tfplan`, savedPlan);
+    await writeFile(`${freshPlanPath}.backend.json`, backendEvidenceSource, { mode: 0o600 });
+    await writeFile(`${freshPlanPath}.ansible-vars.json`, ansibleVariablesSource, { mode: 0o600 });
+    leaseExists = false;
+    let observedMachineId = 'ffffffffffffffffffffffffffffffff';
+    let joinCalls = 0;
+    const recoveredRun = (request: CommandRequest): Promise<CommandResponse> => {
+      if (request.executable === 'kubectl' && request.arguments.includes('get')) {
+        return Promise.resolve(
+          leaseExists
+            ? { exitCode: 0, stdout: lease('execution-owner'), stderr: '' }
+            : { exitCode: 1, stdout: '', stderr: 'NotFound' },
+        );
+      }
+      if (request.executable === 'kubectl') {
+        leaseExists = true;
+        return Promise.resolve(leaseMutation(request, 'execution-owner'));
+      }
+      if (request.executable === 'terraform' && request.arguments[0] === 'state') {
+        return Promise.resolve({
+          exitCode: 0,
+          stdout: terraformState('running', true),
+          stderr: '',
+        });
+      }
+      if (request.executable === 'terraform' && request.arguments[0] === 'show') {
+        return Promise.resolve({ exitCode: 0, stdout: terraformShow(), stderr: '' });
+      }
+      if (request.executable === 'terraform' && request.arguments[0] === 'output') {
+        return Promise.resolve({ exitCode: 0, stdout: output(), stderr: '' });
+      }
+      if (request.executable === 'terraform' && request.arguments[0] === 'import') imports += 1;
+      if (request.executable === 'terraform' && request.arguments[0] === 'apply') applies += 1;
+      if (request.executable === 'ansible-inventory') {
+        return Promise.resolve({ exitCode: 0, stdout: providerInventory(true), stderr: '' });
+      }
+      if (request.executable === 'ansible-playbook') {
+        if (!request.arguments.some((argument) => argument.endsWith('/discover.yml'))) {
+          joinCalls += 1;
+        }
+        return Promise.resolve({
+          exitCode: 0,
+          stdout: request.arguments.some((argument) => argument.endsWith('/discover.yml'))
+            ? machineFact('workers-c', '10.0.0.23', observedMachineId)
+            : 'PLAY RECAP\nworkers-c : ok=12 changed=0 unreachable=0 failed=0 skipped=0',
+          stderr: '',
+        });
+      }
+      return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
+    };
+    expect(
+      await rejectionMessage(
+        applyOperation({
+          plan,
+          expectedSha256: plan.planSha256,
+          journalPath: `${freshPlanPath}.journal.json`,
+          dependencies: createProductionApplyDependencies(
+            '/repo',
+            plan,
+            freshPlanPath,
+            recoveredRun,
+            () => new Date('2026-09-17T09:01:00.000Z'),
+            'execution-owner',
+          ),
+        }),
+      ),
+    ).toMatch(/machine identity/i);
+    expect(joinCalls).toBe(0);
+    observedMachineId = '0123456789abcdef0123456789abcdef';
+    const receipt = await applyOperation({
+      plan,
+      expectedSha256: plan.planSha256,
+      journalPath: `${freshPlanPath}.journal.json`,
+      dependencies: createProductionApplyDependencies(
+        '/repo',
+        plan,
+        freshPlanPath,
+        recoveredRun,
+        () => new Date('2026-09-17T09:01:00.000Z'),
+        'execution-owner',
+      ),
+    });
+    // Proof: treating every observed operation-owned server as unmanaged attempted a second
+    // import forever; managed state now continues through the saved plan and enrollment.
+    expect(receipt.state).toBe('complete');
+    expect(imports).toBe(1);
+    expect(applies).toBe(1);
+    expect(joinCalls).toBe(2);
+  });
+
+  it('refuses exit-zero provider inventory diagnostics before provisioning', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-inventory-diagnostic-'));
+    const planPath = join(directory, 'operation.json');
+    const savedPlan = new TextEncoder().encode('reviewed terraform plan');
+    await writeFile(`${planPath}.tfplan`, savedPlan);
+    await writeFile(`${planPath}.backend.json`, backendEvidenceSource, { mode: 0o600 });
+    const plan = operationPlan(createHash('sha256').update(savedPlan).digest('hex'));
+    let leaseExists = false;
+    let applies = 0;
+    const run = (request: CommandRequest): Promise<CommandResponse> => {
+      if (request.executable === 'kubectl' && request.arguments.includes('get')) {
+        return Promise.resolve(
+          leaseExists
+            ? { exitCode: 0, stdout: lease('execution-owner'), stderr: '' }
+            : { exitCode: 1, stdout: '', stderr: 'NotFound' },
+        );
+      }
+      if (request.executable === 'kubectl') {
+        leaseExists = true;
+        return Promise.resolve(leaseMutation(request, 'execution-owner'));
+      }
+      if (request.executable === 'terraform' && request.arguments[0] === 'state') {
+        return Promise.resolve({
+          exitCode: 0,
+          stdout: terraformState('running', false),
+          stderr: '',
+        });
+      }
+      if (request.executable === 'terraform' && request.arguments[0] === 'apply') applies += 1;
+      if (request.executable === 'ansible-inventory') {
+        return Promise.resolve({
+          exitCode: 0,
+          stdout: providerInventory(false),
+          stderr: '[WARNING]: hcloud plugin failed authentication',
+        });
+      }
+      return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
+    };
+    expect(
+      await rejectionMessage(
+        applyOperation({
+          plan,
+          expectedSha256: plan.planSha256,
+          journalPath: `${planPath}.journal.json`,
+          dependencies: createProductionApplyDependencies(
+            '/repo',
+            plan,
+            planPath,
+            run,
+            () => new Date('2026-09-17T09:01:00.000Z'),
+            'execution-owner',
+          ),
+        }),
+      ),
+    ).toMatch(/inventory diagnostics/i);
+    // Proof: accepting this exit-zero warning classified failed discovery as absence and would
+    // reach Terraform apply; the production adapter records zero provider mutations.
     expect(applies).toBe(0);
   });
 
@@ -644,7 +848,7 @@ describe('production apply adapter', () => {
         );
       }
       if (request.executable === 'kubectl') {
-        return Promise.resolve({ exitCode: 0, stdout: lease('execution-owner'), stderr: '' });
+        return Promise.resolve(leaseMutation(request, 'execution-owner'));
       }
       mutations += 1;
       return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' });
@@ -673,7 +877,7 @@ describe('production apply adapter', () => {
     );
     const deleting = (request: CommandRequest): Promise<CommandResponse> => {
       if (request.executable === 'kubectl') {
-        return Promise.resolve({ exitCode: 0, stdout: lease('execution-owner'), stderr: '' });
+        return Promise.resolve(leaseMutation(request, 'execution-owner'));
       }
       if (request.executable === 'terraform' && request.arguments[0] === 'state') {
         return Promise.resolve({ exitCode: 0, stdout: terraformState('deleting'), stderr: '' });

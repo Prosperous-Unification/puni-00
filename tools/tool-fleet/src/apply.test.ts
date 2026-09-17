@@ -56,6 +56,8 @@ function dependencies(overrides: Partial<ApplyDependencies> = {}): ApplyDependen
     acquireLease: () =>
       Promise.resolve({ owner: 'operation-owner', expiresAt: '2026-09-17T09:20:00.000Z' }),
     ownsLease: () => Promise.resolve(true),
+    renewLease: (_plan, lease) => Promise.resolve(lease),
+    releaseLease: () => Promise.resolve(),
     observe: (plan) =>
       Promise.resolve({
         digest: plan.observationDigest,
@@ -101,6 +103,69 @@ describe('applyOperation', () => {
     expect(receipt.state).toBe('complete');
     expect(receipt.completedSteps).toHaveLength(plan.effects.length);
     expect((await readOperationJournal(journalPath)).state).toBe('complete');
+  });
+
+  it('returns a completed journal without reacquiring a Lease', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-apply-complete-'));
+    const journalPath = join(directory, 'journal.json');
+    const plan = operationPlan();
+    const first = await applyOperation({
+      plan,
+      expectedSha256: plan.planSha256,
+      journalPath,
+      dependencies: dependencies(),
+    });
+    let acquisitions = 0;
+    const second = await applyOperation({
+      plan,
+      expectedSha256: plan.planSha256,
+      journalPath,
+      dependencies: dependencies({
+        acquireLease: () => {
+          acquisitions += 1;
+          return Promise.reject(new Error('completed work must not acquire'));
+        },
+      }),
+    });
+    // Proof: acquiring before this completed-journal read made the second invocation fail on the
+    // previous execution's Lease; the production executor now performs zero acquisitions.
+    expect(acquisitions).toBe(0);
+    expect(second).toEqual(first);
+  });
+
+  it('persists a recoverable active step when the postcondition changes identity', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'fleet-apply-postcondition-'));
+    const journalPath = join(directory, 'journal.json');
+    const plan = operationPlan();
+    let observations = 0;
+    expect(
+      await rejectionMessage(
+        applyOperation({
+          plan,
+          expectedSha256: plan.planSha256,
+          journalPath,
+          dependencies: dependencies({
+            observe: () => {
+              observations += 1;
+              return Promise.resolve({
+                digest: plan.observationDigest,
+                targetIdentities:
+                  observations === 1
+                    ? plan.targetIdentities
+                    : ['hcloud:wrong-instance', 'cluster:workers'],
+                providerState: 'ready',
+                terraformState: { lineage: 'lineage-1', serial: 7 },
+              });
+            },
+          }),
+        }),
+      ),
+    ).toMatch(/postcondition/i);
+    const journal = await readOperationJournal(journalPath);
+    expect(journal.state).toBe('recoverable');
+    expect(journal.activeStep?.beforeObservation.targetIdentities).toEqual([
+      ...plan.targetIdentities,
+    ]);
   });
 
   it('refuses stale plans, digest mismatch, identity drift, and pending deletion before mutation', async () => {
@@ -179,7 +244,7 @@ describe('applyOperation', () => {
     const directory = await mkdtemp(join(tmpdir(), 'fleet-apply-lease-'));
     const journalPath = join(directory, 'journal.json');
     const plan = operationPlan();
-    const leaseChecks = [true, true, false];
+    const leaseChecks = [true, true, true, false];
     const effects: string[] = [];
 
     expect(
@@ -315,7 +380,19 @@ describe('applyOperation', () => {
           stepId: 'unreviewed-step',
           effect: 'unknown effect',
           beforeObservationSha256: 'b'.repeat(64),
+          beforeObservation: {
+            digest: plan.observationDigest,
+            targetIdentities: [...plan.targetIdentities],
+            providerState: 'ready',
+            terraformState: { lineage: 'lineage-1', serial: 7 },
+          },
           afterObservationSha256: 'c'.repeat(64),
+          afterObservation: {
+            digest: plan.observationDigest,
+            targetIdentities: [...plan.targetIdentities],
+            providerState: 'ready',
+            terraformState: { lineage: 'lineage-1', serial: 7 },
+          },
         },
       ],
       updatedAt: '2026-09-17T09:02:00.000Z',

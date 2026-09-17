@@ -3,7 +3,7 @@ import { chmod, open, readFile, stat, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import type { ApplyDependencies, ApplyObservation, OperationLease } from './apply';
-import { readToolchain } from './contracts';
+import { decodeFleetNode, readToolchain } from './contracts';
 import type { OperationPlan } from './plan';
 import {
   decodeTerraformPlan,
@@ -166,7 +166,7 @@ export async function runBoundedCommand(
   }
 }
 
-function controllerRequest(
+export function controllerRequest(
   root: string,
   image: string,
   digest: string,
@@ -175,6 +175,7 @@ function controllerRequest(
   const arguments_: string[] = [
     'run',
     '--rm',
+    ...(request.stdin === undefined ? [] : ['--interactive']),
     '--network',
     'host',
     '--volume',
@@ -231,7 +232,7 @@ function createProductionCommandRunner(root: string): RunCommand {
       const digest = createHash('sha256')
         .update(await readFile(executable))
         .digest('hex');
-      if (digest !== toolchain.binaries.terraform.sha256) {
+      if (digest !== toolchain.binaries.terraform.executableSha256) {
         // Proof: the wrong-Terraform-binary production negative reaches no init, plan, or apply.
         throw new Error('Terraform executable differs from the locked SHA-256');
       }
@@ -256,6 +257,11 @@ async function requireCommand(
   }
   if (response.exitCode !== 0) {
     throw new Error(`${context} failed with exit ${String(response.exitCode)}: ${response.stderr}`);
+  }
+  if (request.executable === 'ansible-inventory' && response.stderr.trim().length > 0) {
+    // Proof: the exit-zero inventory-warning production negative cannot turn a failed provider
+    // plugin into an empty list that would authorize another machine purchase.
+    throw new Error(`${context} reported inventory diagnostics: ${response.stderr}`);
   }
   return response.stdout;
 }
@@ -297,6 +303,8 @@ export async function prepareTerraformPlan(
   );
   const terraformRoot = join(root, 'infra/terraform');
   const candidatePath = `${outputPath}.${randomBytes(8).toString('hex')}.new`;
+  const reviewedVariablesPath = `${outputPath}.tfvars.json`;
+  let wroteReviewedVariables = false;
   const terraform = (arguments_: readonly string[]) =>
     requireCommand(
       commandRunner,
@@ -333,6 +341,15 @@ export async function prepareTerraformPlan(
       await terraform(['state', 'pull']),
       expected.nodeId,
     ).identity;
+    const variables = await readFile(variablesPath);
+    const variablesDestination = await open(reviewedVariablesPath, 'wx', 0o600);
+    try {
+      await variablesDestination.writeFile(variables);
+      await variablesDestination.sync();
+    } finally {
+      await variablesDestination.close();
+    }
+    wroteReviewedVariables = true;
     const savedPlan = await readFile(candidatePath);
     const destination = await open(outputPath, 'wx', 0o600);
     try {
@@ -351,6 +368,7 @@ export async function prepareTerraformPlan(
     await removePlanCandidate(candidatePath);
     return evidence;
   } catch (cause) {
+    if (wroteReviewedVariables) await unlink(reviewedVariablesPath);
     await removePlanCandidate(candidatePath, cause);
     throw cause;
   }
@@ -477,6 +495,53 @@ async function acquireLease(
   return { owner: acquired.holder, expiresAt: leaseExpiresAt(acquired) };
 }
 
+async function renewLease(
+  run: RunCommand,
+  plan: OperationPlan,
+  lease: OperationLease,
+  now: Date,
+): Promise<OperationLease> {
+  const current = await readLease(run, plan);
+  if (current?.holder !== lease.owner) {
+    throw new Error('Operation Lease cannot be renewed because ownership changed');
+  }
+  const manifest = leaseManifest(plan, lease.owner, now.toISOString(), current.resourceVersion);
+  const source = await requireCommand(
+    run,
+    kubectlLeaseRequest(plan, 'replace', manifest),
+    `Renew operation Lease for ${clusterId(plan)}`,
+  );
+  const renewed = decodeLease(source);
+  if (renewed.holder !== lease.owner) throw new Error('Renewed Lease has a different owner');
+  return { owner: renewed.holder, expiresAt: leaseExpiresAt(renewed) };
+}
+
+async function releaseLease(
+  run: RunCommand,
+  plan: OperationPlan,
+  lease: OperationLease,
+): Promise<void> {
+  const current = await readLease(run, plan);
+  if (current === undefined) return;
+  if (current.holder !== lease.owner) {
+    throw new Error('Operation Lease ownership changed before release');
+  }
+  const releasedAt = new Date(0).toISOString();
+  const source = await requireCommand(
+    run,
+    kubectlLeaseRequest(
+      plan,
+      'replace',
+      leaseManifest(plan, lease.owner, releasedAt, current.resourceVersion),
+    ),
+    `Release operation Lease for ${clusterId(plan)}`,
+  );
+  const released = decodeLease(source);
+  if (released.holder !== lease.owner || Date.parse(leaseExpiresAt(released)) > Date.now()) {
+    throw new Error('Kubernetes did not persist the released Lease state');
+  }
+}
+
 function decodeTerraformState(
   source: string,
   nodeId: string,
@@ -565,7 +630,7 @@ async function readAnsibleVariables(
     readonly capabilities: readonly string[];
   },
   expectedAddress: string,
-): Promise<void> {
+): Promise<string> {
   const source = await readFile(path);
   if (createHash('sha256').update(source).digest('hex') !== expectedSha256) {
     // Proof: changing one enrollment-variable byte makes the production apply negative reach no
@@ -592,6 +657,7 @@ async function readAnsibleVariables(
   ) {
     throw new Error('Ansible enrollment variables differ from reviewed node identity');
   }
+  return variables['puni_machine_id'];
 }
 
 function requireAnsibleRecap(stdout: string, expectedHost?: string): void {
@@ -659,28 +725,26 @@ async function readEnrollmentInventory(
     parseJson(source.toString('utf8'), 'Enrollment inventory'),
     'Enrollment inventory',
   );
-  const meta = requireRecord(document['_meta'], 'Enrollment inventory _meta');
-  const hostvars = requireRecord(meta['hostvars'], 'Enrollment inventory hostvars');
-  const host = requireRecord(hostvars[nodeId], `Enrollment inventory host ${nodeId}`);
-  const agentGroup = requireRecord(document['k3s_agents'], 'Enrollment inventory k3s_agents');
+  const all = requireRecord(document['all'], 'Enrollment inventory all group');
+  const children = requireRecord(all['children'], 'Enrollment inventory child groups');
+  const agentGroup = requireRecord(children['k3s_agents'], 'Enrollment inventory k3s_agents');
   const serverGroup = requireRecord(
-    document['k3s_join_servers'],
+    children['k3s_join_servers'],
     'Enrollment inventory k3s_join_servers',
   );
-  const agentHosts = agentGroup['hosts'];
-  const serverHosts = serverGroup['hosts'];
-  const groupMemberships =
-    (Array.isArray(agentHosts) ? agentHosts.filter((hostName) => hostName === nodeId).length : 0) +
-    (Array.isArray(serverHosts) ? serverHosts.filter((hostName) => hostName === nodeId).length : 0);
+  const agentHosts = requireRecord(agentGroup['hosts'], 'Enrollment inventory agent hosts');
+  const serverHosts = requireRecord(serverGroup['hosts'], 'Enrollment inventory server hosts');
+  const candidates = [agentHosts[nodeId], serverHosts[nodeId]].filter(
+    (candidate) => candidate !== undefined,
+  );
+  const host = requireRecord(candidates[0], `Enrollment inventory host ${nodeId}`);
   const address = host['ansible_host'];
   const machineId = host['puni_machine_id'];
   const providerIdentity = host['puni_provider_identity'];
   const sshArguments = host['ansible_ssh_common_args'];
   if (
-    Object.keys(hostvars).length !== 1 ||
-    !Array.isArray(agentHosts) ||
-    !Array.isArray(serverHosts) ||
-    groupMemberships !== 1 ||
+    Object.keys(agentHosts).length + Object.keys(serverHosts).length !== 1 ||
+    candidates.length !== 1 ||
     typeof address !== 'string' ||
     address.length === 0 ||
     typeof machineId !== 'string' ||
@@ -719,7 +783,19 @@ async function readKnownHosts(
 
 function requireMachineFact(stdout: string, inventory: EnrollmentInventory): void {
   requireAnsibleRecap(stdout);
-  if (!stdout.includes(inventory.machineId) || !stdout.includes(inventory.address)) {
+  const marker = /PUNI_MACHINE_FACT=(\{(?:\\.|[^}\r\n])+\})/.exec(stdout);
+  if (marker?.[1] === undefined) throw new Error('Controlled SSH fact document is absent');
+  const fact = requireRecord(
+    parseJson(marker[1].replaceAll('\\"', '"'), 'Controlled SSH fact'),
+    'Controlled SSH fact',
+  );
+  if (
+    Object.keys(fact).sort().join('\0') !== ['address', 'machineId'].join('\0') ||
+    fact['machineId'] !== inventory.machineId ||
+    fact['address'] !== inventory.address
+  ) {
+    // Proof: a containing machine ID or address in unrelated SSH output no longer satisfies the
+    // exact controlled fact document used at the enrollment boundary.
     throw new Error('Controlled SSH fact differs from reviewed machine identity');
   }
 }
@@ -741,6 +817,8 @@ function createEnrollmentApplyDependencies(
     arguments: [
       '--inventory',
       inventoryPath,
+      '--inventory',
+      join(root, `infra/ansible/inventory/${request.clusterId}.hcloud.yml`),
       ...(limit ? ['--limit', request.nodeId] : []),
       '--extra-vars',
       `@${variablesPath}`,
@@ -817,6 +895,8 @@ function createEnrollmentApplyDependencies(
         current?.holder === lease.owner && now().getTime() < Date.parse(leaseExpiresAt(current))
       );
     },
+    renewLease: (operationPlan, lease) => renewLease(run, operationPlan, lease, now()),
+    releaseLease: (operationPlan, lease) => releaseLease(run, operationPlan, lease),
     observe: async () => {
       await inspect();
       return {
@@ -825,15 +905,17 @@ function createEnrollmentApplyDependencies(
         providerState: 'ready',
       };
     },
-    applyEffect: async (_operationPlan, effect) => {
+    applyEffect: async (_operationPlan, effect, _stepId, beforeMutation) => {
       await inspect();
       if (effect === 'verify provider identity') return {};
       if (effect === 'configure host') {
+        await beforeMutation();
         const stdout = await requireCommand(run, playbook('join'), `Configure ${request.nodeId}`);
         requireAnsibleRecap(stdout, request.nodeId);
         return {};
       }
       if (effect === 'join cluster') {
+        await beforeMutation();
         const stdout = await requireCommand(
           run,
           playbook('validate-enrollment', false),
@@ -972,8 +1054,10 @@ export function createProductionApplyDependencies(
         current?.holder === lease.owner && now().getTime() < Date.parse(leaseExpiresAt(current))
       );
     },
+    renewLease: (operationPlan, lease) => renewLease(commandRunner, operationPlan, lease, now()),
+    releaseLease: (operationPlan, lease) => releaseLease(commandRunner, operationPlan, lease),
     observe: () => observe(),
-    applyEffect: async (_operationPlan, effect) => {
+    applyEffect: async (_operationPlan, effect, _stepId, beforeMutation) => {
       if (effect === 'create provider instance') {
         const ownership = reconcileProvisioningOwnership(
           request.nodeId,
@@ -981,16 +1065,28 @@ export function createProductionApplyDependencies(
           await providerOwnership(),
         );
         if (ownership.kind === 'import') {
-          await terraform([
-            'import',
-            `hcloud_server.node[${JSON.stringify(request.nodeId)}]`,
-            ownership.instanceId,
-          ]);
-          // Proof: the response-lost production negative imports the exact operation-owned server
-          // and refuses the stale saved create plan before a second purchase.
-          throw new Error(
-            `Imported operation-owned provider instance ${ownership.instanceId}; create and review a fresh Terraform plan`,
-          );
+          const state = decodeTerraformState(await terraform(['state', 'pull']), request.nodeId);
+          if (state.managedInstance === undefined) {
+            await beforeMutation();
+            await terraform([
+              'import',
+              '-input=false',
+              `-var-file=${planPath}.tfvars.json`,
+              `hcloud_server.node[${JSON.stringify(request.nodeId)}]`,
+              ownership.instanceId,
+            ]);
+            // Proof: the response-lost production negative imports the exact operation-owned server
+            // and refuses the stale saved create plan before a second purchase.
+            throw new Error(
+              `Imported operation-owned provider instance ${ownership.instanceId}; create and review a fresh Terraform plan`,
+            );
+          }
+          if (
+            state.managedInstance.instanceId !== ownership.instanceId ||
+            state.managedInstance.operationId !== request.providerOwnershipId
+          ) {
+            throw new Error('Terraform state differs from the operation-owned provider instance');
+          }
         }
         const shown = parseJson(
           await terraform(['show', '-json', savedPlanPath]),
@@ -1001,6 +1097,7 @@ export function createProductionApplyDependencies(
           provisioningTerraformAddresses(request.nodeId, request.clusterId),
           terraformExpectation,
         );
+        await beforeMutation();
         await terraform(['apply', '-input=false', '-lock=true', savedPlanPath]);
         const { instanceId } = outputNodeIdentity(
           await terraform(['output', '-json', 'node_identities']),
@@ -1032,7 +1129,7 @@ export function createProductionApplyDependencies(
         return { externalResourceId: instanceId };
       }
       if (effect === 'record desired membership') {
-        const { instanceId, privateAddress } = outputNodeIdentity(
+        const { instanceId } = outputNodeIdentity(
           await terraform(['output', '-json', 'node_identities']),
           request.nodeId,
         );
@@ -1043,11 +1140,11 @@ export function createProductionApplyDependencies(
             capabilities: [...request.capabilities].sort(),
             lifecycle: 'present',
             provider: { kind: 'hcloud', instanceId },
-            privateAddress,
           },
           undefined,
           2,
         )}\n`;
+        await beforeMutation();
         try {
           const destination = await open(desiredNodePath, 'wx', 0o600);
           try {
@@ -1067,16 +1164,55 @@ export function createProductionApplyDependencies(
         return { externalResourceId: instanceId };
       }
       if (effect === 'enroll configured host') {
-        const { privateAddress } = outputNodeIdentity(
+        const { instanceId, privateAddress } = outputNodeIdentity(
           await terraform(['output', '-json', 'node_identities']),
           request.nodeId,
         );
-        await readAnsibleVariables(
+        const desiredNode = decodeFleetNode(
+          parseJson(await readFile(desiredNodePath, 'utf8'), 'Desired membership'),
+        );
+        if (
+          desiredNode.id !== request.nodeId ||
+          desiredNode.cluster !== request.clusterId ||
+          desiredNode.lifecycle !== 'present' ||
+          JSON.stringify(desiredNode.capabilities) !==
+            JSON.stringify([...request.capabilities].sort()) ||
+          desiredNode.provider.kind !== 'hcloud' ||
+          desiredNode.provider.instanceId !== instanceId
+        ) {
+          // Proof: changing the durable desired membership after it is recorded stops enrollment
+          // before Ansible can configure the host.
+          throw new Error('Durable desired membership differs from provisioned identity');
+        }
+        const machineId = await readAnsibleVariables(
           ansibleVariablesPath,
           request.ansibleVariablesSha256,
           request,
           privateAddress,
         );
+        const discoveryOutput = await requireCommand(
+          commandRunner,
+          {
+            executable: 'ansible-playbook',
+            arguments: [
+              '--inventory',
+              join(root, `infra/ansible/inventory/${request.clusterId}.hcloud.yml`),
+              '--limit',
+              request.nodeId,
+              '--extra-vars',
+              `@${ansibleVariablesPath}`,
+              join(root, 'infra/ansible/playbooks/discover.yml'),
+            ],
+            cwd: join(root, 'infra/ansible'),
+          },
+          `Observe machine identity of ${request.nodeId}`,
+        );
+        requireMachineFact(discoveryOutput, {
+          address: privateAddress,
+          machineId,
+          providerIdentity: instanceId,
+        });
+        await beforeMutation();
         const joinOutput = await requireCommand(
           commandRunner,
           {
@@ -1095,6 +1231,7 @@ export function createProductionApplyDependencies(
           `Enroll ${request.nodeId}`,
         );
         requireAnsibleRecap(joinOutput, request.nodeId);
+        await beforeMutation();
         const validationOutput = await requireCommand(
           commandRunner,
           {

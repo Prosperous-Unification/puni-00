@@ -164,6 +164,35 @@ function requireProvisioningRequest(
     // unknown cluster; the invalid-provisioning negative then failed.
     throw new Error(`Provision request names unknown cluster: ${request.clusterId}`);
   }
+  const cluster = fleet.clusters.find(({ id }) => id === request.clusterId);
+  if (cluster === undefined)
+    throw new Error(`Provision request names unknown cluster: ${request.clusterId}`);
+  if (
+    (cluster.purpose === 'platform' && request.capabilities.includes('execution')) ||
+    (cluster.purpose === 'workers' &&
+      request.capabilities.some((capability) =>
+        ['product', 'ingress', 'observability', 'forge'].includes(capability),
+      )) ||
+    (request.k3sRole === 'server' && !request.capabilities.includes('control-plane'))
+  ) {
+    // Proof: the cross-purpose provisioning negatives stop paid capacity before an invalid
+    // capability or server role can enter desired membership.
+    throw new Error('Provision request violates cluster purpose or server role');
+  }
+  if (
+    cluster.controlPlane === 'single' &&
+    request.k3sRole === 'server' &&
+    fleet.nodes.some(
+      (node) =>
+        node.cluster === cluster.id &&
+        node.lifecycle !== 'retired' &&
+        node.capabilities.includes('control-plane'),
+    )
+  ) {
+    // Proof: the single-server provisioning negative prevents a second server from being bought
+    // for a topology whose contract permits exactly one control-plane member.
+    throw new Error(`Cluster ${cluster.id} has single-server topology`);
+  }
   if (fleet.nodes.some(({ id }) => id === request.nodeId)) {
     // Proof: disabling this guard made the provisioning-collision production negative pass.
     throw new Error(`Provision request reuses fleet node id: ${request.nodeId}`);

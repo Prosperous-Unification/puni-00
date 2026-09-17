@@ -5,7 +5,10 @@ label_selector: puni-fleet=puni,puni-cluster=platform
 connect_with: private_ipv4
 groups:
   k3s_agents: "hcloud_labels['puni-k3s-role'] == 'agent'"
-  k3s_join_servers: "hcloud_labels['puni-k3s-role'] == 'server'"
+  k3s_join_servers: >-
+    hcloud_labels['puni-k3s-role'] == 'server' and
+    hcloud_labels.get('puni-k3s-bootstrap', 'false') != 'true'
+  k3s_bootstrap_servers: "hcloud_labels.get('puni-k3s-bootstrap', 'false') == 'true'"
 compose:
   puni_cluster: hcloud_labels['puni-cluster']
   puni_instance_id: hcloud_id | string

@@ -515,7 +515,8 @@ describe('the Ansible host and k3s contract', () => {
     expect(validation).toContain('"key":"puni.io/enrollment"');
     expect(validation.match(/key: puni\.io\/worker-control-plane/g)).toHaveLength(2);
     expect(validation).toContain('../tasks/require-enrollment-identity.yml');
-    expect(validation).toContain('hostvars[puni_node_identity.item].puni_machine_id');
+    expect(validation).toContain('puni_node_identity.1.content | b64decode | trim');
+    expect(validation).toContain('hostvars[puni_node_identity.0.item].ansible_host');
     expect(validation).toContain(
       'dns-network-{{ ansible_loop.index }}-{{ puni_validation_run_id }}',
     );

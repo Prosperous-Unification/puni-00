@@ -18,8 +18,7 @@
 
     - name: Emit fleet machine fact
       ansible.builtin.debug:
-        msg:
-          name: '{{ puni_display_name }}'
-          machineId: '{{ puni_machine_identity.content | b64decode | trim }}'
-          address: '{{ ansible_host }}'
+        msg: >-
+          PUNI_MACHINE_FACT={{ {'machineId': puni_machine_identity.content | b64decode | trim,
+          'address': ansible_host} | to_json }}
       changed_when: false

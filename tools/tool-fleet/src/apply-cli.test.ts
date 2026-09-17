@@ -38,6 +38,8 @@ function dependencies(): ApplyDependencies {
     now: () => new Date('2026-09-17T09:01:00.000Z'),
     acquireLease: () => Promise.resolve({ owner: 'owner', expiresAt: '2026-09-17T09:20:00.000Z' }),
     ownsLease: () => Promise.resolve(true),
+    renewLease: (_plan, lease) => Promise.resolve(lease),
+    releaseLease: () => Promise.resolve(),
     observe: (plan) =>
       Promise.resolve({
         digest: plan.observationDigest,

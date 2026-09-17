@@ -6,6 +6,7 @@
       "version": "1.16.3",
       "url": "https://releases.hashicorp.com/terraform/1.16.3/terraform_1.16.3_linux_amd64.zip",
       "sha256": "093b6ae9a2228af5029c41606bc96eb583553528aad1bfe7e0b4d62fc91e25d8",
+      "executableSha256": "591ffb463268fced7c25fd20fc7e9fe0f2a3c824eab59d847e99729b825d1ac7",
       "os": "linux",
       "arch": "amd64"
     },
