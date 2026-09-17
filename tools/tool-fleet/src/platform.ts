@@ -15,38 +15,58 @@ const PlatformIdentity = type({
   '+': 'reject',
 });
 
+// Proof: changing the Flux stage spec's unknown-key policy to delete admitted an `images`
+// transform in the production validator on 2026-09-17.
 const FluxStage = type({
   apiVersion: "'kustomize.toolkit.fluxcd.io/v1'",
   kind: "'Kustomization'",
-  metadata: { name: 'string>0', namespace: "'flux-system'" },
+  metadata: { name: 'string>0', namespace: "'flux-system'", '+': 'reject' },
   spec: {
+    interval: 'string>0',
     path: 'string>0',
-    kubeConfig: { secretRef: { name: 'string>0' } },
-    decryption: { provider: "'sops'", secretRef: { name: 'string>0' } },
-    'dependsOn?': type({ name: 'string>0' }).array().atLeastLength(1),
-    '+': 'delete',
+    prune: 'true',
+    sourceRef: { kind: "'GitRepository'", name: "'puni-platform'", '+': 'reject' },
+    kubeConfig: { secretRef: { name: 'string>0', '+': 'reject' }, '+': 'reject' },
+    decryption: {
+      provider: "'sops'",
+      secretRef: { name: 'string>0', '+': 'reject' },
+      '+': 'reject',
+    },
+    'dependsOn?': type({ name: 'string>0', '+': 'reject' }).array().atLeastLength(1),
+    'wait?': 'true',
+    'timeout?': 'string>0',
+    '+': 'reject',
   },
-  '+': 'delete',
+  '+': 'reject',
 });
 
+// Proof: changing the HelmRelease spec's unknown-key policy to delete admitted a post-renderer
+// that replaced Traefik's locked image in the production validator on 2026-09-17.
 const HelmRelease = type({
   apiVersion: "'helm.toolkit.fluxcd.io/v2'",
   kind: "'HelmRelease'",
-  metadata: { name: 'string>0', namespace: 'string>0' },
+  metadata: { name: 'string>0', namespace: 'string>0', '+': 'reject' },
   spec: {
+    interval: 'string>0',
+    'dependsOn?': type({ name: 'string>0', '+': 'reject' }).array().atLeastLength(1),
     chart: {
       spec: {
         chart: 'string>0',
         version: 'string>0',
-        sourceRef: { kind: "'GitRepository'", name: "'puni-platform'", namespace: "'flux-system'" },
-        '+': 'delete',
+        sourceRef: {
+          kind: "'GitRepository'",
+          name: "'puni-platform'",
+          namespace: "'flux-system'",
+          '+': 'reject',
+        },
+        '+': 'reject',
       },
-      '+': 'delete',
+      '+': 'reject',
     },
     values: 'unknown',
-    '+': 'delete',
+    '+': 'reject',
   },
-  '+': 'delete',
+  '+': 'reject',
 });
 
 const RegistryDeployment = type({
@@ -269,6 +289,14 @@ const stageDependencies = {
   platform: 'storage,policy',
 } as const;
 
+function platformStagePath(stageName: string, environment: string): string {
+  if (stageName === 'controllers') return './infra/platform/networking';
+  if (stageName === 'storage') return `./infra/platform/storage/${environment}`;
+  if (stageName === 'policy') return './infra/platform/policy';
+  if (stageName === 'platform') return './infra/platform/registry';
+  throw new Error(`Unknown platform stage ${stageName}`);
+}
+
 /** Validate the checked-in cluster identities and locked Flux platform graph. */
 export async function validatePlatform(
   root: string,
@@ -294,6 +322,12 @@ export async function validatePlatform(
       }
       if (stage.metadata.name !== stageName) {
         throw new Error(`${expectedCluster} Flux stage name does not match ${stageName}`);
+      }
+      const expectedPath = platformStagePath(stageName, environment);
+      if (stage.spec.path !== expectedPath) {
+        // Proof: removing this comparison made the changed-stage-path production negative resolve
+        // instead of reject on 2026-09-17.
+        throw new Error(`${expectedCluster} Flux ${stageName} stage uses the wrong platform path`);
       }
       if (stage.spec.kubeConfig.secretRef.name !== `${expectedCluster}-kubeconfig`) {
         // Proof: removing this guard made the cross-cluster-kubeconfig production negative resolve

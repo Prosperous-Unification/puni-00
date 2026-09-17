@@ -349,3 +349,21 @@ negative resolve instead of reject; the strict policy was restored before the
 
 The final uncached tool-fleet check after this repair passed 146 tests with 749
 assertions, lint, typecheck, the toolchain lock reader and platform validation.
+
+The exact-SHA Astra review of `6c48ca5f` confirmed strict chart values closed the
+inner override, then found that HelmRelease `postRenderers` could still replace
+the rendered container image. The exact vendored Helm render followed by the
+same Kustomize JSON patch produced `docker.io/library/traefik:latest`.
+
+HelmRelease metadata, chart, source and spec objects now reject every unmodeled
+field, including `postRenderers`, `valuesFrom` and chart `valuesFiles`. Flux
+Kustomization metadata, source, secret and spec objects do the same, excluding
+`images`, patches and post-build substitutions; each stage must also select its
+exact platform path. Removing each of the Helm spec, Flux spec and path guards
+made its named production negative resolve instead of reject. All three guards
+were restored before the focused platform suite passed 17 tests with 31
+assertions.
+
+The final uncached check after the outer-rendering repair passed 149 tests with
+755 assertions, lint, typecheck, the toolchain lock reader and platform
+validation.

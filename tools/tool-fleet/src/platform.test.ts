@@ -115,6 +115,17 @@ describe('validatePlatform', () => {
     expect(validatePlatform(root)).rejects.toThrow(/traefik values.*oci_meta.*must be removed/i);
   });
 
+  it('rejects a Helm post-renderer that overrides the locked image', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/networking/traefik.yaml',
+      '  interval: 30m\n  chart:',
+      '  interval: 30m\n  postRenderers:\n    - kustomize:\n        patches: []\n  chart:',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/traefik HelmRelease.*postRenderers/i);
+  });
+
   it('rejects changed vendored chart bytes', async () => {
     const root = await mutablePlatform();
     const path = join(root, 'infra/platform/charts/traefik-41.6.0.tgz');
@@ -172,6 +183,32 @@ describe('validatePlatform', () => {
       'name: platform-local-kubeconfig',
     );
     expect(validatePlatform(root)).rejects.toThrow(/workers-local.*wrong cluster kubeconfig/);
+  });
+
+  it('rejects a Flux stage that transforms reconciled images', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/clusters/platform/local/controllers.yaml',
+      '  prune: true\n  sourceRef:',
+      '  prune: true\n  images:\n    - name: docker.io/library/traefik\n      newTag: latest\n  sourceRef:',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(
+      /platform-local Flux controllers graph.*images/i,
+    );
+  });
+
+  it('rejects a Flux stage that selects another platform path', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/clusters/platform/local/controllers.yaml',
+      'path: ./infra/platform/networking',
+      'path: ./infra/platform/registry',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(
+      /platform-local.*controllers.*wrong platform path/,
+    );
   });
 
   it('rejects a Flux bootstrap that gives controllers a loopback kubeconfig', async () => {
