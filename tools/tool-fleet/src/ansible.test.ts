@@ -254,6 +254,105 @@ describe('the disposable Ubuntu VM lab', () => {
     );
   });
 
+  it('retrieves generated tokens from the created server before joining', async () => {
+    const repositoryRoot = join(import.meta.dir, '../../..');
+    const root = await mkdtemp(join(tmpdir(), 'fleet-lab-generated-token-'));
+    const executableDirectory = join(root, 'bin');
+    const providerState = join(root, 'provider-state');
+    const providerLog = join(root, 'provider-log');
+    const publicKeyPath = join(root, 'id.pub');
+    const privateKeyPath = join(root, 'id');
+    await mkdir(join(root, 'infra/ansible/playbooks'), { recursive: true });
+    await mkdir(join(root, 'infra/local'), { recursive: true });
+    await mkdir(join(root, 'infra/versions'), { recursive: true });
+    await mkdir(executableDirectory);
+    await writeFile(join(root, 'infra/ansible/ansible.cfg'), '[defaults]\n');
+    for (const playbook of ['bootstrap.yml', 'join.yml', 'validate-enrollment.yml']) {
+      await writeFile(join(root, 'infra/ansible/playbooks', playbook), '---\n');
+    }
+    await writeFile(
+      join(root, 'infra/local/cloud-init.yaml'),
+      '#cloud-config\nssh_authorized_keys:\n  - __PUNI_SSH_PUBLIC_KEY__\n',
+    );
+    await writeFile(
+      join(root, 'infra/versions/toolchain.json'),
+      await readFile(join(repositoryRoot, 'infra/versions/toolchain.json')),
+    );
+    await writeFile(publicKeyPath, 'ssh-ed25519 AAAATEST fleet-lab\n');
+    await writeFile(privateKeyPath, ['-----BEGIN OPENSSH', ' PRIVATE KEY-----\nAAAA\n'].join(''));
+    const multipass = join(executableDirectory, 'multipass');
+    await writeFile(
+      multipass,
+      `#!/usr/bin/env bun
+import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+const arguments_ = process.argv.slice(2);
+appendFileSync(process.env.FLEET_FAKE_LOG, JSON.stringify(arguments_) + '\\n');
+if (arguments_[0] === 'version') process.stdout.write('multipass 1.16.4\\nmultipassd 1.16.4\\n');
+else if (arguments_[0] === 'launch') appendFileSync(process.env.FLEET_FAKE_STATE, arguments_[arguments_.indexOf('--name') + 1] + '\\n');
+else if (arguments_[0] === 'list') {
+  const names = existsSync(process.env.FLEET_FAKE_STATE) ? readFileSync(process.env.FLEET_FAKE_STATE, 'utf8').trim().split('\\n').filter(Boolean) : [];
+  process.stdout.write(JSON.stringify({ list: names.map((name, position) => ({ name, state: 'Running', ipv4: [\`10.55.0.\${String(position + 11)}\`] })) }));
+} else if (arguments_[0] === 'exec') {
+  const machine = arguments_[1];
+  const command = arguments_.slice(3).join(' ');
+  if (command.includes('/etc/ssh/ssh_host_ed25519_key.pub')) process.stdout.write('ssh-ed25519 AAAATEST\\n');
+  else if (command.includes('ip -j route get')) process.stdout.write('[{"dev":"ens4"}]\\n');
+  else if (command.includes('/etc/machine-id')) process.stdout.write(machine.includes('server') ? 'a'.repeat(32) + '\\n' : 'b'.repeat(32) + '\\n');
+  else if (command.includes('/server/node-token')) process.stdout.write('K10' + 'c'.repeat(64) + '::server:' + 'd'.repeat(64) + '\\n');
+  else if (command.includes('/server/agent-token')) process.stdout.write('K10' + 'c'.repeat(64) + '::node:' + 'e'.repeat(64) + '\\n');
+  else process.exit(41);
+} else process.exit(42);
+`,
+    );
+    const docker = join(executableDirectory, 'docker');
+    await writeFile(
+      docker,
+      `#!/usr/bin/env bun
+const command = process.argv.slice(2).join(' ');
+const host = command.includes('join.yml') ? 'puni-fleet-review-platform-agent-1' : 'puni-fleet-review-platform-server-1';
+const changed = command.includes('validate-enrollment.yml') ? 1 : 0;
+process.stdout.write(\`PLAY RECAP\\n\${host} : ok=20 changed=\${String(changed)} unreachable=0 failed=0\\n\`);
+`,
+    );
+    await chmod(multipass, 0o700);
+    await chmod(docker, 0o700);
+    const runnerPath = join(root, 'run-lab.ts');
+    await writeFile(
+      runnerPath,
+      `import { runVmLab } from ${JSON.stringify(join(repositoryRoot, 'tools/tool-fleet/src/lab.ts'))};
+await runVmLab(${JSON.stringify([
+        'up',
+        '--lab-id',
+        'review',
+        '--profile',
+        'platform',
+        '--ssh-public-key',
+        publicKeyPath,
+        '--ssh-private-key',
+        privateKeyPath,
+      ])}, ${JSON.stringify(root)});
+`,
+    );
+    const invocation = Bun.spawnSync({
+      cmd: [process.execPath, runnerPath],
+      env: {
+        ...process.env,
+        PATH: `${executableDirectory}:${process.env['PATH'] ?? ''}`,
+        FLEET_FAKE_STATE: providerState,
+        FLEET_FAKE_LOG: providerLog,
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(invocation.stderr.toString()).toBe('');
+    expect(invocation.exitCode).toBe(0);
+    const invocations = await readFile(providerLog, 'utf8');
+    expect(invocations).toContain('puni-fleet-review-platform-server-1');
+    expect(invocations).not.toContain('platform--server-1');
+    expect(invocations).toContain('/var/lib/rancher/k3s/server/node-token');
+    expect(invocations).toContain('/var/lib/rancher/k3s/server/agent-token');
+  });
+
   it('wires ownership refusal through the production lab command', () => {
     for (const arguments_ of [
       ['status', '--lab-id', '../prod', '--profile', 'platform'],
