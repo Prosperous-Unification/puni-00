@@ -50,6 +50,7 @@ export const toolkitRoles = [
   'snapshotter.ts',
   'validator.mjs',
   'prepare-activation.mjs',
+  'prepare-relocation-activation.mjs',
 ] as const;
 
 export type ToolkitRole = (typeof toolkitRoles)[number];

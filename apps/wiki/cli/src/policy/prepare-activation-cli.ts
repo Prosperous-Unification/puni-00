@@ -41,11 +41,11 @@ const flags = [
 type Flag = (typeof flags)[number];
 
 /**
- * Nothing defaults. A consumer's layout is its own: the policy and mapping paths, the review
- * record and the audit strata are all operator input, and a tool that guessed any of them would be
- * attesting on the operator's behalf.
+ * A package executable may supply only its own installed toolkit directory. A consumer's layout is
+ * its own: the policy and mapping paths, review record and audit strata remain operator input, and
+ * a tool that guessed any of them would be attesting on the operator's behalf.
  */
-function readArguments(argv: readonly string[]): Record<Flag, string> {
+function readArguments(argv: readonly string[], defaultToolkit?: string): Record<Flag, string> {
   const selected = new Map<string, string>();
   for (let index = 0; index < argv.length; index += 2) {
     const name = argv[index];
@@ -64,7 +64,7 @@ function readArguments(argv: readonly string[]): Record<Flag, string> {
   // record, so the cast is discharged before the value escapes this function.
   const resolved = {} as Record<Flag, string>;
   for (const flag of flags) {
-    const value = selected.get(flag);
+    const value = selected.get(flag) ?? (flag === 'toolkit' ? defaultToolkit : undefined);
     if (value === undefined) throw new Error(`missing required flag: --${flag}`);
     resolved[flag] = value;
   }
@@ -187,7 +187,9 @@ function readToolkit(directory: string): Toolkit {
     const expected = digests.get(role);
     // Proof: forcing this refusal false prepared an activation whose `launcher.sh` had been
     // replaced after packing while `toolkit.json` still named the reviewed digest; the altered-role
-    // negative expected this message and received a prepared activation at exit 0.
+    // negative expected this message and received a prepared activation at exit 0. The packaged
+    // executable negative also appends bytes to its installed `validator.mjs` and reaches this
+    // refusal before resolving the deliberately unknown candidate commit.
     if (expected === undefined || hashBytes(bytes) !== expected) {
       throw new RelocationRefusal(
         'R19',
@@ -353,8 +355,11 @@ function archive(
  * `docs/adr/0026-a-wiki-release-is-a-toolkit-not-a-certification.md`.
  * @throws {@link RelocationRefusal} `R1`-`R3`, `R10`, `R14`-`R17` and `R19`-`R21`.
  */
-export function prepareToolkitActivation(argv: readonly string[]): string[] {
-  const options = readArguments(argv);
+export function prepareToolkitActivation(
+  argv: readonly string[],
+  defaultToolkit?: string,
+): string[] {
+  const options = readArguments(argv, defaultToolkit);
   const repository = realpathSync(resolve(options['candidate-repository']));
   const sha = options['candidate-sha'];
   const destination = assertOutsideCandidate(repository, options.destination, '--destination');
@@ -494,7 +499,7 @@ export function prepareToolkitActivation(argv: readonly string[]): string[] {
 
 if (import.meta.main) {
   try {
-    const lines = prepareToolkitActivation(process.argv.slice(2));
+    const lines = prepareToolkitActivation(process.argv.slice(2), import.meta.dir);
     process.stdout.write(`${lines.join('\n')}\n`);
   } catch (cause) {
     process.stderr.write(`${cause instanceof Error ? cause.message : String(cause)}\n`);

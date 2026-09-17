@@ -55,7 +55,7 @@ function git(repository: string, argv: string[]): string {
 }
 
 /**
- * A checkout with this repository's release layout: the four role sources the target reads, a
+ * A checkout with this repository's release layout: the role sources the target reads, a
  * pinned `.bun-version`, and a `node_modules/typescript` the trusted closure walks. The TypeScript
  * stand-in keeps the 24 MB real closure out of every case that only measures the descriptors.
  */
@@ -80,6 +80,10 @@ function releaseCheckout(): { repository: string; destinationParent: string } {
   write(
     join(repository, 'apps/wiki/cli/src/policy/prepare-activation-cli.ts'),
     'process.stdout.write("prepare\\n");\n',
+  );
+  write(
+    join(repository, 'apps/wiki/cli/src/policy/prepare-relocation-activation-cli.ts'),
+    'process.stdout.write("prepare relocation\\n");\n',
   );
   write(
     join(repository, 'package.json'),
@@ -165,6 +169,7 @@ describe('wiki-cli release target', () => {
       './SHA256SUMS',
       './launcher.sh',
       './prepare-activation.mjs',
+      './prepare-relocation-activation.mjs',
       './snapshotter.ts',
       './toolkit.json',
       './validator.mjs',
@@ -461,6 +466,7 @@ async function realToolkit(): Promise<string> {
     ),
     'validator.mjs': await buildValidatorBundle(join(workspace, 'apps/wiki/cli/src/cli.ts')),
     'prepare-activation.mjs': new TextEncoder().encode('// not executed by this test\n'),
+    'prepare-relocation-activation.mjs': new TextEncoder().encode('// not executed by this test\n'),
   };
   for (const role of toolkitRoles) writeBytes(join(directory, role), roleBytes[role]);
   chmodSync(join(directory, 'launcher.sh'), 0o555);

@@ -165,12 +165,19 @@ export async function releaseToolkit(argv: readonly string[]): Promise<string[]>
     'prepare-activation.mjs': await buildValidatorBundle(
       join(repository, 'apps/wiki/cli/src/policy/prepare-activation-cli.ts'),
     ),
+    'prepare-relocation-activation.mjs': await buildValidatorBundle(
+      join(repository, 'apps/wiki/cli/src/policy/prepare-relocation-activation-cli.ts'),
+    ),
   } satisfies Record<ToolkitRole, Uint8Array>;
 
   mkdirSync(destination, { recursive: true });
   for (const role of toolkitRoles) writeBytes(join(destination, role), roleBytes[role]);
   chmodSync(join(destination, 'launcher.sh'), 0o555);
-  for (const role of ['validator.mjs', 'prepare-activation.mjs'] as const) {
+  for (const role of [
+    'validator.mjs',
+    'prepare-activation.mjs',
+    'prepare-relocation-activation.mjs',
+  ] as const) {
     try {
       assertStandaloneValidator(join(destination, role));
     } catch (cause) {

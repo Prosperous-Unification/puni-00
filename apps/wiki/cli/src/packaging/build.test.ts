@@ -1,10 +1,22 @@
-import { copyFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import { hashBytes } from '../evidence/content-manifest';
 import { buildPackage } from './build';
+
+const toolkitRoles = [
+  'SHA256SUMS',
+  'launcher.sh',
+  'prepare-activation.mjs',
+  'prepare-relocation-activation.mjs',
+  'snapshotter.ts',
+  'toolkit.json',
+  'trusted-node-modules/typescript/package.json',
+  'validator.mjs',
+] as const;
 
 const scratchRoots: string[] = [];
 
@@ -50,6 +62,24 @@ describe('buildPackage', () => {
     await buildPackage(packageRoot);
     const executable = join(packageRoot, 'dist/bin.mjs');
 
+    for (const role of toolkitRoles) {
+      expect((await stat(join(packageRoot, 'dist/toolkit', role))).isFile()).toBe(true);
+    }
+    const packageManifest = JSON.parse(
+      await readFile(join(packageRoot, 'dist/package-manifest.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    expect(packageManifest).toMatchObject({ packageVersion: '0.1.0', schemaVersion: 1 });
+    expect(packageManifest['sourceRevision']).toMatch(/^[0-9a-f]{40}$/);
+    expect(packageManifest['toolkitIdentity']).toMatch(/^[0-9a-f]{64}$/);
+    expect(packageManifest['toolkitIdentity']).toBe(
+      hashBytes(await readFile(join(packageRoot, 'dist/toolkit/toolkit.json'))),
+    );
+    expect((await readdir(join(packageRoot, 'dist'))).sort()).toEqual([
+      'bin.mjs',
+      'package-manifest.json',
+      'toolkit',
+    ]);
+
     const version = invoke(executable, ['--version'], externalRoot);
     expect(version.exitCode, version.stderr.toString()).toBe(0);
     expect(version.stdout.toString()).toBe('0.1.0\n');
@@ -72,5 +102,58 @@ describe('buildPackage', () => {
     );
     expect(validation.exitCode, validation.stderr.toString()).toBe(0);
     expect(validation.stdout.toString()).toBe('valid benchmark-corpus\n');
-  });
+
+    const lint = invoke(
+      executable,
+      ['lint', 'working', resolve(import.meta.dir, '../../../../..'), 'HEAD'],
+      externalRoot,
+    );
+    expect(lint.exitCode, lint.stderr.toString()).toBe(0);
+    expect(lint.stdout.toString()).toContain('"status":"inactive"');
+
+    const preparer = invoke(executable, ['prepare-activation'], externalRoot);
+    expect(preparer.exitCode).not.toBe(0);
+    expect(preparer.stderr.toString()).toContain('missing required flag: --candidate-repository');
+
+    const relocationPreparer = invoke(executable, ['prepare-relocation-activation'], externalRoot);
+    expect(relocationPreparer.exitCode).not.toBe(0);
+    expect(relocationPreparer.stderr.toString()).toContain(
+      'missing required flag: --candidate-repository',
+    );
+
+    await writeFile(join(packageRoot, 'dist/toolkit/validator.mjs'), '\ncorrupted\n', {
+      flag: 'a',
+    });
+    const corruptToolkit = invoke(
+      executable,
+      [
+        'prepare-activation',
+        '--candidate-repository',
+        resolve(import.meta.dir, '../../../../..'),
+        '--candidate-sha',
+        '0'.repeat(40),
+        '--candidate-policy',
+        'policy.json',
+        '--candidate-mapping',
+        'mapping.json',
+        '--review-record',
+        join(externalRoot, 'review.json'),
+        '--audit-strata',
+        join(externalRoot, 'strata.json'),
+        '--destination',
+        join(externalRoot, 'activation'),
+        '--work',
+        join(externalRoot, 'work'),
+        '--resource-lane',
+        'package-test',
+        '--cwd-identity',
+        'package-test',
+      ],
+      externalRoot,
+    );
+    expect(corruptToolkit.exitCode).not.toBe(0);
+    expect(corruptToolkit.stderr.toString()).toContain(
+      'toolkit role differs from toolkit.json: validator.mjs',
+    );
+  }, 20_000);
 });
