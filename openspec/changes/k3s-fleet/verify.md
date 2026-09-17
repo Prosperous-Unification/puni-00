@@ -292,3 +292,41 @@ worker and access to the denied destination from an unrestricted control
 namespace. Both completed. The isolated worker failed specifically with
 `BackoffLimitExceeded`; adding a temporary WBS egress allowance made that same
 Job complete, and deleting the allowance restored the exact failure.
+
+The exact-SHA Astra follow-up on `d6fd5815` closed the token, kubeconfig, vendored
+chart and network findings. It found two remaining production bypasses: the
+trusted-hostpath policy still allowed Kubernetes 1.36 Baseline fields outside
+its earlier examples, and the hcloud CSI validator ignored the chart's tag
+suffix when deciding whether an image was locked.
+
+The admission policy now covers all Kubernetes 1.36 Restricted controls except
+its intentional exact hostPath roots. The live 1.36.4 API accepted the solver
+and forge positive fixtures and denied host ports; pod and container AppArmor
+and SELinux overrides; pod root and Unconfined seccomp overrides; the deprecated
+Unconfined AppArmor annotation; Unmasked procMount; and HTTP/TCP host selection
+in probes and lifecycle hooks. The complete committed negative set also remained
+denied. Windows HostProcess necessarily enables host networking, which the same
+policy already denies.
+
+For the R5 production mutation, the four new policy validations were removed
+from the live disposable cluster. All eleven new manifests were then accepted
+by server-side dry-run. Reapplying the checked-in policy made those same inputs
+fail before a workload could run. The checked-in policy was the final live state.
+
+The image validator now compares each complete effective image reference with
+the toolchain lock and requires every hcloud CSI tag suffix to be empty. Helm
+v4.3.0 rendered a mutated `csiAttacher.tag: v0` as the invalid reference
+`csi-attacher:v4.11.0@sha256:b74…:v0`; the production validator rejects that
+value. Removing the empty-tag schema made the named test resolve instead of
+reject, and weakening the full-reference comparison to digest-only did the same
+for a substituted Traefik repository. Both guards were restored before the
+focused platform suite passed 13 tests with 23 assertions.
+
+The first two full check attempts exposed an existing discovery integration test
+whose real subprocess matrix took 5.00 seconds under load and collided with
+Bun's default 5-second test deadline. Its behavioral subprocess deadlines remain
+unchanged; the enclosing test budget is now 10 seconds. A fresh uncached
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-fleet:check
+--skip-nx-cache` then passed 145 tests with 747 assertions, lint, typecheck, the
+toolchain lock reader and the platform validator. The formerly flaky integration
+test completed in 5.33 seconds during that passing run.

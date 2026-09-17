@@ -58,6 +58,8 @@ spec:
     # automountServiceAccountToken=false in a live server-side dry-run on 2026-09-17.
     # Proof: a projected serviceAccountToken, hostIPC, omitted privilege-escalation control,
     # and root/NET_ADMIN/Unconfined container were each admitted before this complete guard.
+    # Kubernetes requires hostNetwork for Windows HostProcess Pods, so rejecting hostNetwork
+    # also excludes pod-level and container-level windowsOptions.hostProcess.
     - expression: >-
         !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
         (has(object.spec.automountServiceAccountToken) &&
@@ -113,6 +115,140 @@ spec:
            (!has(container.securityContext.capabilities.add) ||
             container.securityContext.capabilities.add.size() == 0))))
       message: trusted workloads must preserve Restricted-equivalent isolation without API tokens
+    # Proof: hostPort 18080 was accepted by the live API before this Baseline control was added
+    # for every applicable container type on 2026-09-17.
+    - expression: >-
+        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        (object.spec.containers.all(container,
+           !has(container.ports) || container.ports.all(port, !has(port.hostPort) || port.hostPort == 0)) &&
+         (!has(object.spec.initContainers) || object.spec.initContainers.all(container,
+           !has(container.ports) || container.ports.all(port, !has(port.hostPort) || port.hostPort == 0))) &&
+         (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(container,
+           !has(container.ports) || container.ports.all(port, !has(port.hostPort) || port.hostPort == 0))))
+      message: trusted workloads may not bind host ports
+    # Proof: pod and container Unconfined AppArmor, unsafe SELinux labels, pod-level root and
+    # Unconfined seccomp, and Unmasked procMount were accepted before this guard on 2026-09-17.
+    - expression: >-
+        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        ((!has(object.spec.securityContext) ||
+          ((!has(object.spec.securityContext.appArmorProfile) ||
+            object.spec.securityContext.appArmorProfile.type in ['RuntimeDefault', 'Localhost']) &&
+           (!has(object.spec.securityContext.seLinuxOptions) ||
+            ((!has(object.spec.securityContext.seLinuxOptions.user) ||
+              object.spec.securityContext.seLinuxOptions.user == '') &&
+             (!has(object.spec.securityContext.seLinuxOptions.role) ||
+              object.spec.securityContext.seLinuxOptions.role == '') &&
+             (!has(object.spec.securityContext.seLinuxOptions.type) ||
+              object.spec.securityContext.seLinuxOptions.type in
+                ['', 'container_t', 'container_init_t', 'container_kvm_t', 'container_engine_t']))) &&
+           (!has(object.spec.securityContext.runAsUser) || object.spec.securityContext.runAsUser != 0) &&
+           (!has(object.spec.securityContext.seccompProfile) ||
+            object.spec.securityContext.seccompProfile.type in ['RuntimeDefault', 'Localhost']))) &&
+         object.spec.containers.all(container,
+           (!has(container.securityContext.appArmorProfile) ||
+            container.securityContext.appArmorProfile.type in ['RuntimeDefault', 'Localhost']) &&
+           (!has(container.securityContext.seLinuxOptions) ||
+            ((!has(container.securityContext.seLinuxOptions.user) ||
+              container.securityContext.seLinuxOptions.user == '') &&
+             (!has(container.securityContext.seLinuxOptions.role) ||
+              container.securityContext.seLinuxOptions.role == '') &&
+             (!has(container.securityContext.seLinuxOptions.type) ||
+              container.securityContext.seLinuxOptions.type in
+                ['', 'container_t', 'container_init_t', 'container_kvm_t', 'container_engine_t']))) &&
+           (!has(container.securityContext.procMount) || container.securityContext.procMount == 'Default')) &&
+         (!has(object.spec.initContainers) || object.spec.initContainers.all(container,
+           (!has(container.securityContext.appArmorProfile) ||
+            container.securityContext.appArmorProfile.type in ['RuntimeDefault', 'Localhost']) &&
+           (!has(container.securityContext.seLinuxOptions) ||
+            ((!has(container.securityContext.seLinuxOptions.user) ||
+              container.securityContext.seLinuxOptions.user == '') &&
+             (!has(container.securityContext.seLinuxOptions.role) ||
+              container.securityContext.seLinuxOptions.role == '') &&
+             (!has(container.securityContext.seLinuxOptions.type) ||
+              container.securityContext.seLinuxOptions.type in
+                ['', 'container_t', 'container_init_t', 'container_kvm_t', 'container_engine_t']))) &&
+           (!has(container.securityContext.procMount) || container.securityContext.procMount == 'Default'))) &&
+         (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(container,
+           (!has(container.securityContext.appArmorProfile) ||
+            container.securityContext.appArmorProfile.type in ['RuntimeDefault', 'Localhost']) &&
+           (!has(container.securityContext.seLinuxOptions) ||
+            ((!has(container.securityContext.seLinuxOptions.user) ||
+              container.securityContext.seLinuxOptions.user == '') &&
+             (!has(container.securityContext.seLinuxOptions.role) ||
+              container.securityContext.seLinuxOptions.role == '') &&
+             (!has(container.securityContext.seLinuxOptions.type) ||
+              container.securityContext.seLinuxOptions.type in
+                ['', 'container_t', 'container_init_t', 'container_kvm_t', 'container_engine_t']))) &&
+           (!has(container.securityContext.procMount) || container.securityContext.procMount == 'Default'))))
+      message: trusted workloads must use Baseline pod and container security profiles
+    # Proof: the deprecated Unconfined AppArmor annotation was accepted by the live API before
+    # annotation values were restricted to runtime/default or localhost profiles on 2026-09-17.
+    - expression: >-
+        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        !has(object.metadata.annotations) || object.metadata.annotations.all(key,
+          !key.startsWith('container.apparmor.security.beta.kubernetes.io/') ||
+          object.metadata.annotations[key] == 'runtime/default' ||
+          object.metadata.annotations[key].startsWith('localhost/'))
+      message: trusted workloads may not disable AppArmor through legacy annotations
+    # Proof: loopback HTTP hosts in a liveness probe and preStop hook were accepted by the live
+    # API before every current probe and lifecycle host field was checked on 2026-09-17.
+    - expression: >-
+        !(object.metadata.namespace in ['wbs-solver', 'puni-forge']) ||
+        (object.spec.containers.all(container,
+           (!has(container.livenessProbe) ||
+            ((!has(container.livenessProbe.httpGet) || !has(container.livenessProbe.httpGet.host) ||
+              container.livenessProbe.httpGet.host == '') &&
+             (!has(container.livenessProbe.tcpSocket) || !has(container.livenessProbe.tcpSocket.host) ||
+              container.livenessProbe.tcpSocket.host == ''))) &&
+           (!has(container.readinessProbe) ||
+            ((!has(container.readinessProbe.httpGet) || !has(container.readinessProbe.httpGet.host) ||
+              container.readinessProbe.httpGet.host == '') &&
+             (!has(container.readinessProbe.tcpSocket) || !has(container.readinessProbe.tcpSocket.host) ||
+              container.readinessProbe.tcpSocket.host == ''))) &&
+           (!has(container.startupProbe) ||
+            ((!has(container.startupProbe.httpGet) || !has(container.startupProbe.httpGet.host) ||
+              container.startupProbe.httpGet.host == '') &&
+             (!has(container.startupProbe.tcpSocket) || !has(container.startupProbe.tcpSocket.host) ||
+              container.startupProbe.tcpSocket.host == ''))) &&
+           (!has(container.lifecycle) ||
+            ((!has(container.lifecycle.postStart) ||
+              ((!has(container.lifecycle.postStart.httpGet) || !has(container.lifecycle.postStart.httpGet.host) ||
+                container.lifecycle.postStart.httpGet.host == '') &&
+               (!has(container.lifecycle.postStart.tcpSocket) || !has(container.lifecycle.postStart.tcpSocket.host) ||
+                container.lifecycle.postStart.tcpSocket.host == ''))) &&
+             (!has(container.lifecycle.preStop) ||
+              ((!has(container.lifecycle.preStop.httpGet) || !has(container.lifecycle.preStop.httpGet.host) ||
+                container.lifecycle.preStop.httpGet.host == '') &&
+               (!has(container.lifecycle.preStop.tcpSocket) || !has(container.lifecycle.preStop.tcpSocket.host) ||
+                container.lifecycle.preStop.tcpSocket.host == '')))))) &&
+         (!has(object.spec.initContainers) || object.spec.initContainers.all(container,
+           (!has(container.livenessProbe) ||
+            ((!has(container.livenessProbe.httpGet) || !has(container.livenessProbe.httpGet.host) ||
+              container.livenessProbe.httpGet.host == '') &&
+             (!has(container.livenessProbe.tcpSocket) || !has(container.livenessProbe.tcpSocket.host) ||
+              container.livenessProbe.tcpSocket.host == ''))) &&
+           (!has(container.readinessProbe) ||
+            ((!has(container.readinessProbe.httpGet) || !has(container.readinessProbe.httpGet.host) ||
+              container.readinessProbe.httpGet.host == '') &&
+             (!has(container.readinessProbe.tcpSocket) || !has(container.readinessProbe.tcpSocket.host) ||
+              container.readinessProbe.tcpSocket.host == ''))) &&
+           (!has(container.startupProbe) ||
+            ((!has(container.startupProbe.httpGet) || !has(container.startupProbe.httpGet.host) ||
+              container.startupProbe.httpGet.host == '') &&
+             (!has(container.startupProbe.tcpSocket) || !has(container.startupProbe.tcpSocket.host) ||
+              container.startupProbe.tcpSocket.host == ''))) &&
+           (!has(container.lifecycle) ||
+            ((!has(container.lifecycle.postStart) ||
+              ((!has(container.lifecycle.postStart.httpGet) || !has(container.lifecycle.postStart.httpGet.host) ||
+                container.lifecycle.postStart.httpGet.host == '') &&
+               (!has(container.lifecycle.postStart.tcpSocket) || !has(container.lifecycle.postStart.tcpSocket.host) ||
+                container.lifecycle.postStart.tcpSocket.host == ''))) &&
+             (!has(container.lifecycle.preStop) ||
+              ((!has(container.lifecycle.preStop.httpGet) || !has(container.lifecycle.preStop.httpGet.host) ||
+                container.lifecycle.preStop.httpGet.host == '') &&
+               (!has(container.lifecycle.preStop.tcpSocket) || !has(container.lifecycle.preStop.tcpSocket.host) ||
+                container.lifecycle.preStop.tcpSocket.host == ''))))))))
+      message: trusted workload probes and lifecycle hooks may not select a host
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding

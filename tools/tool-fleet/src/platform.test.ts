@@ -82,6 +82,28 @@ describe('validatePlatform', () => {
     expect(validatePlatform(root)).rejects.toThrow(/traefik values.*image\.digest/);
   });
 
+  it('rejects a CSI tag that changes the rendered image reference', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/storage/production/hcloud-csi.yaml',
+      "csiAttacher:\n          name: registry.k8s.io/sig-storage/csi-attacher:v4.11.0@sha256:b74b05b39501565022883fc128002b4cb857a7bb6c858606bcb3fdedba0b0b80\n          tag: ''",
+      'csiAttacher:\n          name: registry.k8s.io/sig-storage/csi-attacher:v4.11.0@sha256:b74b05b39501565022883fc128002b4cb857a7bb6c858606bcb3fdedba0b0b80\n          tag: v0',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/hcloud-csi values.*csiAttacher\.tag/);
+  });
+
+  it('rejects an image repository that differs from the toolchain lock', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/networking/traefik.yaml',
+      'repository: library/traefik',
+      'repository: untrusted/traefik',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/traefik.*locked controller image reference/);
+  });
+
   it('rejects changed vendored chart bytes', async () => {
     const root = await mutablePlatform();
     const path = join(root, 'infra/platform/charts/traefik-41.6.0.tgz');

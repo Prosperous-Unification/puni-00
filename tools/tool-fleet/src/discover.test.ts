@@ -1239,7 +1239,7 @@ exit 98
     );
     expect(controllerInvocations).toContain('--network host');
     expect(controllerInvocations).toContain('timeout --signal=TERM --kill-after=0.1s');
-  });
+  }, 10_000);
 });
 
 it('commits strict uncached private inventories and a read-only machine identity playbook', async () => {

@@ -114,33 +114,52 @@ const releases = [
   ['traefik', 'traefik', 'networking/traefik.yaml', 'charts/traefik-41.6.0.tgz'],
 ] as const;
 
-const TraefikValues = type({ image: { digest: 'string>0', '+': 'delete' }, '+': 'delete' });
-const CertManagerValues = type({
-  image: { digest: 'string>0', '+': 'delete' },
-  webhook: { image: { digest: 'string>0', '+': 'delete' }, '+': 'delete' },
-  cainjector: { image: { digest: 'string>0', '+': 'delete' }, '+': 'delete' },
-  acmesolver: { image: { digest: 'string>0', '+': 'delete' }, '+': 'delete' },
-  startupapicheck: { image: { digest: 'string>0', '+': 'delete' }, '+': 'delete' },
+const ImageValues = type({
+  repository: 'string>0',
+  tag: 'string>0',
+  digest: 'string>0',
   '+': 'delete',
 });
-const HcloudCcmValues = type({ image: { tag: 'string>0', '+': 'delete' }, '+': 'delete' });
+const TraefikValues = type({
+  image: {
+    registry: 'string>0',
+    repository: 'string>0',
+    tag: 'string>0',
+    digest: 'string>0',
+    '+': 'delete',
+  },
+  '+': 'delete',
+});
+const CertManagerValues = type({
+  image: ImageValues,
+  webhook: { image: ImageValues, '+': 'delete' },
+  cainjector: { image: ImageValues, '+': 'delete' },
+  acmesolver: { image: ImageValues, '+': 'delete' },
+  startupapicheck: { image: ImageValues, '+': 'delete' },
+  '+': 'delete',
+});
+const HcloudCcmValues = type({
+  image: { repository: 'string>0', tag: 'string>0', '+': 'delete' },
+  '+': 'delete',
+});
+const HcloudCsiImage = type({ name: 'string>0', tag: "''", '+': 'delete' });
 const HcloudCsiValues = type({
   controller: {
     image: {
-      csiAttacher: { name: 'string>0', '+': 'delete' },
-      csiResizer: { name: 'string>0', '+': 'delete' },
-      csiProvisioner: { name: 'string>0', '+': 'delete' },
-      livenessProbe: { name: 'string>0', '+': 'delete' },
-      hcloudCSIDriver: { name: 'string>0', '+': 'delete' },
+      csiAttacher: HcloudCsiImage,
+      csiResizer: HcloudCsiImage,
+      csiProvisioner: HcloudCsiImage,
+      livenessProbe: HcloudCsiImage,
+      hcloudCSIDriver: HcloudCsiImage,
       '+': 'delete',
     },
     '+': 'delete',
   },
   node: {
     image: {
-      csiNodeDriverRegistrar: { name: 'string>0', '+': 'delete' },
-      livenessProbe: { name: 'string>0', '+': 'delete' },
-      hcloudCSIDriver: { name: 'string>0', '+': 'delete' },
+      csiNodeDriverRegistrar: HcloudCsiImage,
+      livenessProbe: HcloudCsiImage,
+      hcloudCSIDriver: HcloudCsiImage,
       '+': 'delete',
     },
     '+': 'delete',
@@ -148,13 +167,11 @@ const HcloudCsiValues = type({
   '+': 'delete',
 });
 
-function referenceDigest(reference: string): string {
-  const separator = reference.lastIndexOf('@');
-  if (separator === -1) throw new Error(`Image reference omits its digest: ${reference}`);
-  return reference.slice(separator + 1);
+function imageReference(repository: string, tag: string, digest: string): string {
+  return `${repository}:${tag}@${digest}`;
 }
 
-function releaseImageDigests(
+function releaseImageReferences(
   releaseName: string,
   values: unknown,
 ): Readonly<Record<string, string>> {
@@ -162,7 +179,13 @@ function releaseImageDigests(
     const parsed = TraefikValues(values);
     if (parsed instanceof type.errors)
       throw new Error(`traefik values are invalid: ${parsed.summary}`);
-    return { controller: parsed.image.digest };
+    return {
+      controller: imageReference(
+        `${parsed.image.registry}/${parsed.image.repository}`,
+        parsed.image.tag,
+        parsed.image.digest,
+      ),
+    };
   }
   if (releaseName === 'cert-manager') {
     const parsed = CertManagerValues(values);
@@ -170,11 +193,27 @@ function releaseImageDigests(
       throw new Error(`cert-manager values are invalid: ${parsed.summary}`);
     }
     return {
-      controller: parsed.image.digest,
-      webhook: parsed.webhook.image.digest,
-      caInjector: parsed.cainjector.image.digest,
-      acmeSolver: parsed.acmesolver.image.digest,
-      startupApiCheck: parsed.startupapicheck.image.digest,
+      controller: imageReference(parsed.image.repository, parsed.image.tag, parsed.image.digest),
+      webhook: imageReference(
+        parsed.webhook.image.repository,
+        parsed.webhook.image.tag,
+        parsed.webhook.image.digest,
+      ),
+      caInjector: imageReference(
+        parsed.cainjector.image.repository,
+        parsed.cainjector.image.tag,
+        parsed.cainjector.image.digest,
+      ),
+      acmeSolver: imageReference(
+        parsed.acmesolver.image.repository,
+        parsed.acmesolver.image.tag,
+        parsed.acmesolver.image.digest,
+      ),
+      startupApiCheck: imageReference(
+        parsed.startupapicheck.image.repository,
+        parsed.startupapicheck.image.tag,
+        parsed.startupapicheck.image.digest,
+      ),
     };
   }
   if (releaseName === 'hcloud-ccm') {
@@ -182,28 +221,28 @@ function releaseImageDigests(
     if (parsed instanceof type.errors) {
       throw new Error(`hcloud-ccm values are invalid: ${parsed.summary}`);
     }
-    return { controller: referenceDigest(parsed.image.tag) };
+    return { controller: `${parsed.image.repository}:${parsed.image.tag}` };
   }
   const parsed = HcloudCsiValues(values);
   if (parsed instanceof type.errors)
     throw new Error(`hcloud-csi values are invalid: ${parsed.summary}`);
-  const controllerLiveness = referenceDigest(parsed.controller.image.livenessProbe.name);
-  const nodeLiveness = referenceDigest(parsed.node.image.livenessProbe.name);
+  const controllerLiveness = parsed.controller.image.livenessProbe.name;
+  const nodeLiveness = parsed.node.image.livenessProbe.name;
   if (controllerLiveness !== nodeLiveness) {
     throw new Error('hcloud-csi liveness probe digests differ between controller and node');
   }
-  const controllerDriver = referenceDigest(parsed.controller.image.hcloudCSIDriver.name);
-  const nodeDriver = referenceDigest(parsed.node.image.hcloudCSIDriver.name);
+  const controllerDriver = parsed.controller.image.hcloudCSIDriver.name;
+  const nodeDriver = parsed.node.image.hcloudCSIDriver.name;
   if (controllerDriver !== nodeDriver) {
     throw new Error('hcloud-csi driver digests differ between controller and node');
   }
   return {
     controller: controllerDriver,
-    csiAttacher: referenceDigest(parsed.controller.image.csiAttacher.name),
-    csiResizer: referenceDigest(parsed.controller.image.csiResizer.name),
-    csiProvisioner: referenceDigest(parsed.controller.image.csiProvisioner.name),
+    csiAttacher: parsed.controller.image.csiAttacher.name,
+    csiResizer: parsed.controller.image.csiResizer.name,
+    csiProvisioner: parsed.controller.image.csiProvisioner.name,
     livenessProbe: controllerLiveness,
-    csiNodeDriverRegistrar: referenceDigest(parsed.node.image.csiNodeDriverRegistrar.name),
+    csiNodeDriverRegistrar: parsed.node.image.csiNodeDriverRegistrar.name,
   };
 }
 
@@ -283,12 +322,16 @@ export async function validatePlatform(
       // validator reject it on 2026-09-17.
       throw new Error(`${releaseName} chart archive differs from the toolchain lock`);
     }
-    const configuredDigests = releaseImageDigests(releaseName, release.spec.values);
+    const configuredReferences = releaseImageReferences(releaseName, release.spec.values);
     for (const image of toolchain.charts[lockName].images) {
-      if (configuredDigests[image.role] !== image.digest) {
+      if (configuredReferences[image.role] !== `${image.name}@${image.digest}`) {
         // Proof: moving the Traefik digest to ignored `image.unusedDigest` made the production
         // validator reject the missing effective value on 2026-09-17.
-        throw new Error(`${releaseName} omits locked ${image.role} image digest`);
+        // Proof: setting a CSI image tag to `v0` produced an invalid rendered reference before
+        // the schema required the chart's tag suffix to remain empty on 2026-09-17.
+        // Proof: substituting Traefik's repository while retaining its digest made the production
+        // validator's repository negative fail on 2026-09-17.
+        throw new Error(`${releaseName} differs from the locked ${image.role} image reference`);
       }
     }
     releaseNames.push(releaseName);

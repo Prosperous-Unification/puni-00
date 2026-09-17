@@ -21,6 +21,11 @@ narrow host-path exception through the committed admission policy. Solver pods
 may mount only `/run/puni/solver` as a directory, and source pods may mount only
 the roots listed in the `puni-trusted-workload` ConfigMap. Neither may request
 privilege escalation, host networking, host PID, Docker sockets or an API token.
+Apart from those exact host directories, the policy enforces the Kubernetes 1.36
+[Restricted Pod Security Standard](https://v1-36.docs.kubernetes.io/docs/concepts/security/pod-security-standards/),
+including pod, regular-container, init-container and ephemeral-container security
+profiles plus host ports and probe or lifecycle hosts. Windows HostProcess requires
+host networking, which this Linux-only trusted workload policy rejects.
 The forge controller service account alone receives the namespaced pod-management
 Role; ordinary authenticated users receive no trusted-namespace Role or service
 account impersonation grant.
