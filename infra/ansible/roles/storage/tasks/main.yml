@@ -1,0 +1,17 @@
+---
+- name: Require declared storage mounts
+  ansible.builtin.assert:
+    that:
+      - puni_required_mounts is defined
+      - puni_required_mounts | length > 0
+    fail_msg: At least one required mount and capacity floor must be declared
+
+- name: Verify each required mount and capacity floor
+  ansible.builtin.assert:
+    that:
+      - item.path is defined
+      - item.minimum_bytes is defined
+      - ansible_mounts | selectattr('mount', 'equalto', item.path) | list | length == 1
+      - (ansible_mounts | selectattr('mount', 'equalto', item.path) | first).size_available | int >= item.minimum_bytes | int
+    fail_msg: 'Required mount {{ item.path | default("unknown") }} is absent or below its floor'
+  loop: '{{ puni_required_mounts }}'

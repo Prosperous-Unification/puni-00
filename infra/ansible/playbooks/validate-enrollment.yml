@@ -1,0 +1,168 @@
+---
+- name: Validate the complete cluster before making nodes schedulable
+  hosts: k3s_bootstrap_servers
+  become: true
+  gather_facts: false
+  vars:
+    puni_all_nodes: "{{ groups['k3s_bootstrap_servers'] + groups['k3s_join_servers'] + groups['k3s_agents'] }}"
+    puni_probe_namespace: puni-f3-validation
+  tasks:
+    - name: Require the pinned pod validation image
+      ansible.builtin.assert:
+        that:
+          - puni_validation_image is defined
+          - puni_validation_image is match('^.+@sha256:[0-9a-f]{64}$')
+        fail_msg: A digest-pinned validation image is required
+
+    - name: Wait for every expected node to become Ready
+      ansible.builtin.command: >-
+        k3s kubectl wait --for=condition=Ready node/{{ item }} --timeout=180s
+      loop: '{{ puni_all_nodes }}'
+      changed_when: false
+
+    - name: Read every Kubernetes node identity
+      ansible.builtin.command: >-
+        k3s kubectl get node {{ item }}
+        -o jsonpath={.metadata.uid}:{.status.nodeInfo.machineID}
+      loop: '{{ puni_all_nodes }}'
+      register: puni_node_identities
+      changed_when: false
+
+    - name: Require stable Kubernetes and machine identities
+      ansible.builtin.assert:
+        that:
+          - item.stdout is match('^[^:]+:.+$')
+        fail_msg: 'Node {{ item.item }} lacks Kubernetes or machine identity'
+      loop: '{{ puni_node_identities.results }}'
+
+    - name: Wait for cluster DNS
+      ansible.builtin.command: >-
+        k3s kubectl rollout status deployment/coredns
+        --namespace kube-system --timeout=180s
+      changed_when: false
+
+    - name: Apply the cross-node DNS and pod-network probe
+      ansible.builtin.command: k3s kubectl apply -f -
+      args:
+        stdin: |
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: {{ puni_probe_namespace }}
+          ---
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: receiver
+            namespace: {{ puni_probe_namespace }}
+            labels:
+              app: receiver
+          spec:
+            nodeName: {{ groups['k3s_agents'][0] }}
+            tolerations:
+              - key: puni.io/enrollment
+                operator: Exists
+            containers:
+              - name: receiver
+                image: {{ puni_validation_image }}
+                imagePullPolicy: IfNotPresent
+                command: [sh, -c, 'mkdir -p /www; echo ok >/www/index.html; exec httpd -f -p 8080 -h /www']
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: receiver
+            namespace: {{ puni_probe_namespace }}
+          spec:
+            selector:
+              app: receiver
+            ports:
+              - port: 8080
+                targetPort: 8080
+          ---
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: dns-and-network
+            namespace: {{ puni_probe_namespace }}
+          spec:
+            template:
+              spec:
+                nodeName: {{ groups['k3s_bootstrap_servers'][0] }}
+                tolerations:
+                  - key: puni.io/enrollment
+                    operator: Exists
+                  - key: puni.io/worker-control-plane
+                    operator: Exists
+                restartPolicy: Never
+                containers:
+                  - name: probe
+                    image: {{ puni_validation_image }}
+                    imagePullPolicy: IfNotPresent
+                    command: [sh, -c, 'test "$(wget -qO- http://receiver.{{ puni_probe_namespace }}.svc.cluster.local:8080)" = ok']
+      register: puni_network_probe_apply
+      changed_when: "'created' in puni_network_probe_apply.stdout or 'configured' in puni_network_probe_apply.stdout"
+
+    - name: Wait for the cross-node DNS and pod-network probe
+      ansible.builtin.command: >-
+        k3s kubectl wait --for=condition=Complete
+        job/dns-and-network --namespace {{ puni_probe_namespace }} --timeout=180s
+      changed_when: false
+
+    - name: Read enrollment taints
+      ansible.builtin.command: >-
+        k3s kubectl get node {{ item }} -o jsonpath={.spec.taints}
+      loop: '{{ puni_all_nodes }}'
+      register: puni_enrollment_taints
+      changed_when: false
+
+    - name: Remove enrollment taints after all validation passed
+      ansible.builtin.command: >-
+        k3s kubectl taint node {{ item.item }} puni.io/enrollment:NoSchedule-
+      loop: '{{ puni_enrollment_taints.results }}'
+      when: "'puni.io/enrollment' in item.stdout"
+      changed_when: true
+
+    - name: Apply the worker scheduling proof
+      ansible.builtin.command: k3s kubectl apply -f -
+      args:
+        stdin: |
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: worker-scheduling
+            namespace: {{ puni_probe_namespace }}
+          spec:
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: activity
+                    image: {{ puni_validation_image }}
+                    imagePullPolicy: IfNotPresent
+                    command: [sh, -c, 'true']
+      register: puni_worker_probe_apply
+      when: puni_cluster_id == 'workers'
+      changed_when: "'created' in puni_worker_probe_apply.stdout or 'configured' in puni_worker_probe_apply.stdout"
+
+    - name: Wait for the worker scheduling proof
+      ansible.builtin.command: >-
+        k3s kubectl wait --for=condition=Complete
+        job/worker-scheduling --namespace {{ puni_probe_namespace }} --timeout=180s
+      when: puni_cluster_id == 'workers'
+      changed_when: false
+
+    - name: Read the worker activity node
+      ansible.builtin.command: >-
+        k3s kubectl get pods --namespace {{ puni_probe_namespace }}
+        --selector job-name=worker-scheduling -o jsonpath={.items[0].spec.nodeName}
+      register: puni_worker_probe_node
+      when: puni_cluster_id == 'workers'
+      changed_when: false
+
+    - name: Refuse worker activity on its control-plane server
+      ansible.builtin.assert:
+        that:
+          - puni_worker_probe_node.stdout not in groups['k3s_bootstrap_servers']
+        fail_msg: Worker activity landed on the NoSchedule worker server
+      when: puni_cluster_id == 'workers'

@@ -4,6 +4,7 @@ import { runPlan } from './cli';
 import { readToolchain } from './contracts';
 import { buildController } from './controller';
 import { runDiscover } from './discover';
+import { runVmLab } from './lab';
 
 const command = process.argv[2];
 const root = join(import.meta.dir, '../../..');
@@ -25,7 +26,8 @@ switch (command) {
     }
     break;
   case 'lab':
-    throw new Error('Fleet lab is unavailable until F3 supplies the VM and k3d harness');
+    await runVmLab(process.argv.slice(3), root);
+    break;
   case 'plan':
     await runPlan(process.argv.slice(3));
     break;

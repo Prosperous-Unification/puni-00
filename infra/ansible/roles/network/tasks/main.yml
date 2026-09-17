@@ -1,0 +1,77 @@
+---
+- name: Require private-network inputs
+  ansible.builtin.assert:
+    that:
+      - puni_cluster_id is defined
+      - puni_cluster_id | length > 0
+      - puni_node_ip is defined
+      - puni_node_ip is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}$')
+      - puni_private_interface is defined
+      - puni_private_interface in ansible_interfaces
+      - puni_private_mtu is defined
+      - puni_private_mtu | int >= 1280
+      - puni_enrolled_private_addresses is defined
+      - puni_enrolled_private_addresses | length > 0
+    fail_msg: Cluster, private address/interface/MTU, and enrolled peers are required
+
+- name: Create the fleet nftables directory
+  ansible.builtin.file:
+    path: /etc/nftables.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Render persistent private-interface MTU setup
+  ansible.builtin.template:
+    src: private-mtu.service.j2
+    dest: /etc/systemd/system/puni-private-mtu.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart private MTU setup
+
+- name: Start persistent private-interface MTU setup
+  ansible.builtin.systemd_service:
+    name: puni-private-mtu
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Render the isolated k3s firewall candidate
+  ansible.builtin.template:
+    src: k3s.nft.j2
+    dest: '/etc/nftables.d/puni-k3s-{{ puni_cluster_id }}.nft'
+    owner: root
+    group: root
+    mode: '0600'
+  register: puni_firewall_candidate
+
+- name: Validate the new firewall before changing active rules
+  ansible.builtin.command: >-
+    unshare --net nft -c -f /etc/nftables.d/puni-k3s-{{ puni_cluster_id }}.nft
+  changed_when: false
+
+- name: Inspect the owned firewall table
+  ansible.builtin.command: nft list table inet puni_k3s
+  register: puni_firewall_table
+  changed_when: false
+  failed_when: puni_firewall_table.rc not in [0, 1]
+
+- name: Remove only the previous owned firewall table
+  ansible.builtin.command: nft delete table inet puni_k3s
+  when: puni_firewall_candidate.changed and puni_firewall_table.rc == 0
+  changed_when: true
+
+- name: Activate the validated owned firewall table
+  ansible.builtin.command: >-
+    nft -f /etc/nftables.d/puni-k3s-{{ puni_cluster_id }}.nft
+  when: puni_firewall_candidate.changed or puni_firewall_table.rc == 1
+  changed_when: true
+
+- name: Verify private-path MTU without fragmentation
+  ansible.builtin.command: >-
+    ping -I {{ puni_private_interface }} -M do
+    -s {{ puni_private_mtu | int - 28 }} -c 1 -W 3 {{ item }}
+  loop: '{{ puni_enrolled_private_addresses | difference([puni_node_ip]) }}'
+  changed_when: false

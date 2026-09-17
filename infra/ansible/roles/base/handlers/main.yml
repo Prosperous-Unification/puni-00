@@ -1,0 +1,9 @@
+---
+- name: Restart journald
+  ansible.builtin.service:
+    name: systemd-journald
+    state: restarted
+
+- name: Apply k3s sysctls
+  ansible.builtin.command: sysctl --system
+  changed_when: true

@@ -1,0 +1,12 @@
+server: {{ puni_registration_url }}
+token-file: /etc/rancher/k3s/agent-token
+node-name: {{ puni_node_name }}
+node-ip: {{ puni_node_ip }}
+flannel-iface: {{ puni_private_interface }}
+node-taint:
+  - puni.io/enrollment=pending:NoSchedule
+node-label:
+{% for capability in puni_node_capabilities %}
+  - puni.io/capability-{{ capability }}=true
+{% endfor %}
+

@@ -1,0 +1,13 @@
+#cloud-config
+users:
+  - default
+  - name: puni
+    groups: [sudo]
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    ssh_authorized_keys:
+      - __PUNI_SSH_PUBLIC_KEY__
+ssh_pwauth: false
+disable_root: true
+package_update: false

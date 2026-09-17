@@ -60,6 +60,7 @@ playwright-report/
 *.db-shm
 # SDD scratch workspace (ledger, briefs, review packages)
 .superpowers/
+.puni/fleet-labs/
 
 # Reviewer transcripts and one-off prompts. Ephemeral by design: the codex
 # transcript for one review ran to 4,460 lines of tool traffic, and it was
