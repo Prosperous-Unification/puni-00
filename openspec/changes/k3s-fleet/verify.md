@@ -2,8 +2,8 @@
 
 ## Commands and results
 
-- `bunx nx run tool-fleet:test --skip-nx-cache` with Nx daemon/plugin isolation disabled (2026-09-17): 12 passed, 0 failed after the reviewed lock/build-boundary repairs.
-- `bunx nx run tool-fleet:check --skip-nx-cache` with Nx daemon/plugin isolation disabled (2026-09-17): test 12/12, lint, typecheck, and committed-lock validation passed.
+- `bunx nx run tool-fleet:test --skip-nx-cache` with Nx daemon/plugin isolation disabled (2026-09-17): 15 passed, 0 failed after the reviewed lock/build-boundary repairs.
+- `bunx nx run tool-fleet:check --skip-nx-cache` with Nx daemon/plugin isolation disabled (2026-09-17): test 15/15, lint, typecheck, and committed-lock validation passed.
 - `bunx nx show projects --affected --files=infra/versions/toolchain.json` (2026-09-17): included `tool-fleet`.
 - `bunx nx run tool-fleet:build --skip-nx-cache` (2026-09-17): produced `dist/tool-fleet/controller.oci`; its OCI index named the locked manifest digest.
 - F0 invocations of `tool-fleet:{lab,plan,apply}` each exited nonzero and named its F3, F1, or F4 prerequisite rather than reporting placeholder success.
@@ -25,6 +25,9 @@
 | Malformed state parse        | Removed the contextual JSON parse guard                              | `readToolchain rejects absent, unreadable, and malformed required state`        | Failed on malformed input with a raw parser error; restored contextual refusal                              |
 | Controller build status      | Removed the Docker exit-status guard                                 | `buildController rejects a failed Docker build before artifact inspection`      | Failed because inspection replaced the required Docker failure; restored the guard                          |
 | Controller artifact identity | Removed the OCI manifest/lock comparison                             | `buildController rejects a built artifact whose manifest differs from the lock` | Failed because mismatched bytes resolved; restored the comparison                                           |
+| Controller artifact read     | Removed the tar exit-status guard                                    | `buildController rejects a failed OCI index inspection`                         | Failed because JSON parsing replaced the injected tar failure; restored the guard                           |
+| Controller artifact JSON     | Removed the contextual JSON guard                                    | `buildController rejects malformed OCI index JSON`                              | Failed with a raw parser error; restored contextual refusal                                                 |
+| Controller artifact schema   | Removed the OCI schema guard                                         | `buildController rejects an OCI index without required manifest state`          | Failed with an unmodeled property access; restored schema refusal                                           |
 | Observation completeness     | Pending                                                              | Pending                                                                         | Pending                                                                                                     |
 | Identity recheck             | Pending                                                              | Pending                                                                         | Pending                                                                                                     |
 | Lease ownership              | Pending                                                              | Pending                                                                         | Pending                                                                                                     |

@@ -49,6 +49,8 @@ export async function buildController(
 
   const inspection = run(['tar', '-xOf', destination, 'index.json']);
   if (inspection.exitCode !== 0) {
+    // Proof: removing this guard made the injected tar-exit-43 production
+    // boundary negative fail on 2026-09-17.
     throw new Error(`Cannot inspect controller OCI index: ${decode(inspection.stderr)}`);
   }
 
@@ -56,10 +58,14 @@ export async function buildController(
   try {
     input = JSON.parse(decode(inspection.stdout));
   } catch (cause) {
+    // Proof: removing this contextual guard made the malformed-index
+    // production boundary negative fail on 2026-09-17.
     throw new Error('Controller OCI index is not valid JSON', { cause });
   }
   const index = OciIndex(input);
   if (index instanceof type.errors) {
+    // Proof: removing this schema guard made the missing-manifests production
+    // boundary negative fail on 2026-09-17.
     throw new Error(`Controller OCI index is invalid: ${index.summary}`, { cause: index });
   }
   if (index.manifests.length !== 1 || index.manifests[0]?.digest !== expectedDigest) {

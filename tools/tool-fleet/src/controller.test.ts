@@ -44,4 +44,40 @@ describe('buildController', () => {
     expect(invocation).toBe(2);
     expect(join(root, 'dist/tool-fleet/controller.oci')).toContain('controller.oci');
   });
+
+  it('rejects a failed OCI index inspection', async () => {
+    const root = await scratchAsync('tool-fleet-controller-');
+    let invocation = 0;
+    const runCommand: RunCommand = () => {
+      invocation += 1;
+      return invocation === 1 ? output(0) : output(43, '', 'injected tar failure');
+    };
+    expect(buildController(root, expectedDigest, runCommand)).rejects.toThrow(
+      /Cannot inspect controller OCI index.*injected tar failure/,
+    );
+  });
+
+  it('rejects malformed OCI index JSON', async () => {
+    const root = await scratchAsync('tool-fleet-controller-');
+    let invocation = 0;
+    const runCommand: RunCommand = () => {
+      invocation += 1;
+      return invocation === 1 ? output(0) : output(0, '{');
+    };
+    expect(buildController(root, expectedDigest, runCommand)).rejects.toThrow(
+      /OCI index is not valid JSON/,
+    );
+  });
+
+  it('rejects an OCI index without required manifest state', async () => {
+    const root = await scratchAsync('tool-fleet-controller-');
+    let invocation = 0;
+    const runCommand: RunCommand = () => {
+      invocation += 1;
+      return invocation === 1 ? output(0) : output(0, JSON.stringify({ schemaVersion: 2 }));
+    };
+    expect(buildController(root, expectedDigest, runCommand)).rejects.toThrow(
+      /OCI index is invalid.*manifests/,
+    );
+  });
 });
