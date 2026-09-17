@@ -1,6 +1,9 @@
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
 import { type } from 'arktype';
+
+import { serializeObservation } from './observation';
 
 // Proof: replacing this checksum expression with an accepting expression made
 // the invalid-checksum production-reader negative fail on 2026-09-17.
@@ -9,6 +12,7 @@ const digest = /^sha256:[0-9a-f]{64}$/;
 // Proof: replacing this exact-version expression with /.+/ made the release
 // channel production-reader negative fail on 2026-09-17.
 const exactVersion = /^v?\d+\.\d+\.\d+(?:[+-][0-9A-Za-z.-]+)?$/;
+const pythonPackageVersion = /^\d+\.\d+(?:\.\d+)?(?:\.post\d+)?$/;
 
 const BinaryLock = type({
   version: exactVersion,
@@ -71,6 +75,18 @@ const ToolchainSchema = type({
     image: 'string>0',
     digest,
     python: exactVersion,
+    // Proof: making this dependency closure optional made the missing-Python-packages
+    // production-reader negative fail on 2026-09-17.
+    pythonPackages: {
+      certifi: pythonPackageVersion,
+      charsetNormalizer: pythonPackageVersion,
+      idna: pythonPackageVersion,
+      pythonDateutil: pythonPackageVersion,
+      requests: pythonPackageVersion,
+      six: pythonPackageVersion,
+      urllib3: pythonPackageVersion,
+      '+': 'reject',
+    },
     ansibleCore: exactVersion,
     collections: {
       communityGeneral: exactVersion,
@@ -248,6 +264,9 @@ const ClusterSchema = type({
   purpose: "'platform' | 'workers'",
   apiEndpoint: 'string.url',
   controlPlane: "'single' | 'ha'",
+  // Proof: making bootstrap optional made a missing intent reach topology handling without saying
+  // whether an unavailable Kubernetes API could mean the cluster does not exist yet.
+  bootstrap: "'required' | 'complete'",
   // Proof: making this policy optional changed the missing-policy production decoder negative to a
   // later untyped access; restored schema refuses the absent policy at the input boundary.
   requiredCapabilities: RequiredCapabilitiesSchema,
@@ -295,9 +314,52 @@ const ObservationSchema = type({
   '+': 'reject',
 });
 
+function isUnknownRecord(input: unknown): input is Record<string, unknown> {
+  return typeof input === 'object' && input !== null && !Array.isArray(input);
+}
+
 /** Decode the observation identity needed to bind an operation plan. */
 export function decodeObservation(input: unknown): Observation {
-  const decoded = ObservationSchema(input);
+  let identityInput = input;
+  if (isUnknownRecord(input) && 'desiredRevision' in input) {
+    const allowed = new Set([
+      'schemaVersion',
+      'desiredRevision',
+      'observedAt',
+      'digest',
+      'complete',
+      'sources',
+      'clusters',
+      'nodes',
+    ]);
+    const unexpected = Object.keys(input).find((key) => !allowed.has(key));
+    if (unexpected !== undefined) {
+      throw new Error(`Observation validation failed: unexpected ${unexpected}`);
+    }
+    if (
+      typeof input['desiredRevision'] !== 'string' ||
+      input['desiredRevision'].length === 0 ||
+      !Array.isArray(input['sources']) ||
+      !Array.isArray(input['clusters']) ||
+      !Array.isArray(input['nodes'])
+    ) {
+      throw new Error('Observation validation failed: detailed observation is incomplete');
+    }
+    const { digest: claimedDigest, ...body } = input;
+    const actualDigest = createHash('sha256').update(serializeObservation(body)).digest('hex');
+    if (claimedDigest !== actualDigest) {
+      // Proof: disabling this comparison made a changed node identity with the old digest pass the
+      // production observation decoder and authorize planning from unbound detail.
+      throw new Error('Observation validation failed: detailed observation digest differs');
+    }
+    identityInput = {
+      schemaVersion: input['schemaVersion'],
+      observedAt: input['observedAt'],
+      digest: input['digest'],
+      complete: input['complete'],
+    };
+  }
+  const decoded = ObservationSchema(identityInput);
   if (decoded instanceof type.errors) {
     throw new Error(`Observation validation failed: ${decoded.summary}`, { cause: decoded });
   }
@@ -405,7 +467,9 @@ export function decodeFleet(input: unknown): Fleet {
         node.capabilities.includes('control-plane'),
     ).length;
     const validTopology = cluster.controlPlane === 'single' ? serverCount === 1 : serverCount >= 3;
-    if (!validTopology) {
+    // Proof: removing the bootstrap exemption made the explicit empty-bootstrap production
+    // observation negative fail before provider inspection with a zero-server topology error.
+    if (cluster.bootstrap === 'complete' && !validTopology) {
       // Proof: disabling this guard made the zero-server production decoder negative pass.
       throw new Error(
         `${cluster.id} ${cluster.controlPlane} control plane has ${String(serverCount)} servers`,
@@ -420,7 +484,9 @@ export function decodeFleet(input: unknown): Fleet {
           node.lifecycle !== 'retired' &&
           node.capabilities.includes(capability),
       ).length;
-      if (actual < floor) {
+      // Proof: removing the bootstrap exemption made the explicit empty-bootstrap production
+      // observation negative fail on the future capability floor before discovery.
+      if (cluster.bootstrap === 'complete' && actual < floor) {
         // Proof: disabling this guard made the retired-last-capability production decoder negative
         // pass even though desired state could not satisfy its explicit floor.
         throw new Error(

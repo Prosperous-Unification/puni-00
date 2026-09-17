@@ -12,6 +12,7 @@ const fleetInput = {
       purpose: 'platform',
       apiEndpoint: 'https://platform.example.test:6443',
       controlPlane: 'single',
+      bootstrap: 'complete',
       requiredCapabilities: { product: 1, ingress: 1, observability: 1 },
     },
     {
@@ -19,6 +20,7 @@ const fleetInput = {
       purpose: 'workers',
       apiEndpoint: 'https://workers.example.test:6443',
       controlPlane: 'single',
+      bootstrap: 'complete',
       requiredCapabilities: { execution: 2 },
     },
   ],
@@ -161,6 +163,11 @@ describe('fleet contracts', () => {
     const floorNodes = unmetFloor['nodes'] as Record<string, unknown>[];
     floorNodes[4] = { ...floorNodes[4], lifecycle: 'retired' };
     expect(() => decodeFleet(unmetFloor)).toThrow(/execution.*requires 2.*provides 1/i);
+
+    const missingBootstrap = structuredClone(fleetInput) as unknown as Record<string, unknown>;
+    const bootstrapClusters = missingBootstrap['clusters'] as Record<string, unknown>[];
+    delete bootstrapClusters[0]?.['bootstrap'];
+    expect(() => decodeFleet(missingBootstrap)).toThrow(/bootstrap/i);
   });
 
   it('rejects duplicate capabilities and policy for the wrong cluster purpose', () => {

@@ -2,7 +2,23 @@ FROM ghcr.io/ansible/community-ansible-dev-tools@sha256:70f705fee2386deb320598ea
 
 USER root
 COPY infra/controller/requirements.yml /tmp/fleet-requirements.yml
-RUN ansible-galaxy collection install --force --requirements-file /tmp/fleet-requirements.yml \
-  && rm /tmp/fleet-requirements.yml
+COPY infra/controller/requirements-python.txt /tmp/fleet-requirements-python.txt
+# Proof: installing into root's default collection path produced manifest
+# sha256:6d063a..., where USER 1000 reported hetzner.hcloud.hcloud as unknown.
+RUN ansible-galaxy collection install --force \
+  --collections-path /usr/share/ansible/collections \
+  --requirements-file /tmp/fleet-requirements.yml \
+  && rm /tmp/fleet-requirements.yml \
+  && install -d -o 1000 -g 0 -m 0700 /runner/.ansible \
+  && install -d -o 1000 -g 0 -m 0700 /runner/.ansible/tmp
+RUN python -m pip install --no-cache-dir --require-hashes \
+  --requirement /tmp/fleet-requirements-python.txt \
+  && rm /tmp/fleet-requirements-python.txt
 
+ENV HOME=/runner
 USER 1000
+# Proof: the prior private-path image failed the collection lookup after the user switch, and the
+# first shared-path image failed the hcloud plugin import because requests was absent.
+RUN ansible-doc --type inventory hetzner.hcloud.hcloud >/dev/null \
+  && ansible-doc --type module kubernetes.core.k8s_info >/dev/null \
+  && python -c 'import dateutil, requests'

@@ -79,6 +79,15 @@ const validToolchain = {
     image: 'registry.example.test/puni/fleet-controller:1.0.0',
     digest: `sha256:${sha256}`,
     python: '3.12.0',
+    pythonPackages: {
+      certifi: '2026.7.22',
+      charsetNormalizer: '3.5.1',
+      idna: '3.19',
+      pythonDateutil: '2.9.0.post0',
+      requests: '2.34.2',
+      six: '1.17.0',
+      urllib3: '2.8.0',
+    },
     ansibleCore: '2.18.0',
     collections: { communityGeneral: '10.0.0', hetznerHcloud: '4.0.0', kubernetesCore: '5.0.0' },
   },
@@ -138,6 +147,12 @@ describe('readToolchain', () => {
     const { k3s: _removed, ...binaries } = validToolchain.binaries;
     const path = await writeToolchain({ ...validToolchain, binaries });
     expect(readToolchain(path)).rejects.toThrow(/k3s/);
+  });
+
+  it('rejects a missing controller Python dependency closure', async () => {
+    const { pythonPackages: _removed, ...controller } = validToolchain.controller;
+    const path = await writeToolchain({ ...validToolchain, controller });
+    expect(readToolchain(path)).rejects.toThrow(/pythonPackages/);
   });
 
   it('rejects an invalid checksum', async () => {

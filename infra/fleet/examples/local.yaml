@@ -5,6 +5,7 @@ clusters:
     purpose: platform
     apiEndpoint: https://127.0.0.1:6443
     controlPlane: single
+    bootstrap: complete
     requiredCapabilities:
       product: 1
       ingress: 1
@@ -13,6 +14,7 @@ clusters:
     purpose: workers
     apiEndpoint: https://127.0.0.1:7443
     controlPlane: single
+    bootstrap: complete
     requiredCapabilities:
       execution: 2
 nodes:

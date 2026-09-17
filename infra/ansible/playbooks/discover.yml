@@ -1,0 +1,25 @@
+---
+- name: Read controlled machine identity
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Read machine identity
+      ansible.builtin.slurp:
+        src: /etc/machine-id
+      register: puni_machine_identity
+      changed_when: false
+
+    - name: Require machine identity
+      ansible.builtin.assert:
+        that:
+          - puni_machine_identity.content | b64decode | trim | length > 0
+        fail_msg: /etc/machine-id is required for fleet identity
+      changed_when: false
+
+    - name: Emit fleet machine fact
+      ansible.builtin.debug:
+        msg:
+          name: '{{ puni_display_name }}'
+          machineId: '{{ puni_machine_identity.content | b64decode | trim }}'
+          address: '{{ ansible_host }}'
+      changed_when: false

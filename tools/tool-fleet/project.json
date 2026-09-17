@@ -54,6 +54,11 @@
       "cache": false,
       "options": { "command": "bun tools/tool-fleet/src/entrypoint.ts plan" }
     },
+    "discover": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": { "command": "bun tools/tool-fleet/src/entrypoint.ts discover" }
+    },
     "apply": {
       "executor": "nx:run-commands",
       "cache": false,

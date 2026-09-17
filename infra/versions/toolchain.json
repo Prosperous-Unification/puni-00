@@ -71,8 +71,17 @@
   },
   "controller": {
     "image": "ghcr.io/prosperous-unification/fleet-controller:0.1.0",
-    "digest": "sha256:6d063abc13ee0393fbc98298de7464ad311bf8f6ec376bcdc2d8746c0a3c199b",
+    "digest": "sha256:1969d0074e2dded270bb38af87171cf789b0f38842ef2cd741182b64b963a42d",
     "python": "3.14.6",
+    "pythonPackages": {
+      "certifi": "2026.7.22",
+      "charsetNormalizer": "3.5.1",
+      "idna": "3.19",
+      "pythonDateutil": "2.9.0.post0",
+      "requests": "2.34.2",
+      "six": "1.17.0",
+      "urllib3": "2.8.0"
+    },
     "ansibleCore": "2.21.3",
     "collections": {
       "communityGeneral": "13.4.0",

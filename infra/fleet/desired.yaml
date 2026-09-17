@@ -5,11 +5,13 @@ clusters:
     purpose: platform
     apiEndpoint: https://platform.example.invalid:6443
     controlPlane: single
+    bootstrap: complete
     requiredCapabilities: { product: 1, ingress: 1, observability: 1 }
   - id: workers
     purpose: workers
     apiEndpoint: https://workers.example.invalid:6443
     controlPlane: single
+    bootstrap: complete
     requiredCapabilities: { execution: 2 }
 nodes:
   - id: platform-pending
