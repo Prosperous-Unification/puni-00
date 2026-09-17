@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import { hashBytes } from '../evidence/content-manifest';
@@ -93,6 +93,9 @@ export async function buildPackage(
   }
   const outputDirectory = join(destination, 'dist');
   const executable = join(outputDirectory, 'bin.mjs');
+  // Proof: rebuilding over the generated 0555 launcher failed with EACCES in the focused package
+  // test and in the exact-commit Nx pack target until the owned output was recreated as a unit.
+  await rm(outputDirectory, { force: true, recursive: true });
   await mkdir(outputDirectory, { recursive: true });
   const toolkitDirectory = join(outputDirectory, 'toolkit');
   await mkdir(toolkitDirectory, { recursive: true });

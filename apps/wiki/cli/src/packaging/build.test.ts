@@ -155,5 +155,8 @@ describe('buildPackage', () => {
     expect(corruptToolkit.stderr.toString()).toContain(
       'toolkit role differs from toolkit.json: validator.mjs',
     );
+
+    await buildPackage(packageRoot);
+    expect(invoke(executable, ['--version'], externalRoot).stdout.toString()).toBe('0.1.0\n');
   }, 20_000);
 });
