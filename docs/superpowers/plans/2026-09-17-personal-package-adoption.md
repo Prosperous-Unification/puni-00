@@ -205,7 +205,7 @@ Complete each slice with a focused failing test, minimal implementation, passing
 bun add --exact caught-object-report-json@9.0.1 application-exception@0.3.0 di-bag@0.3.0
 bun add --dev --exact 'typescript@npm:@typescript/typescript6@6.0.3'
 bunx nx run tool-devsync:test --skip-nx-cache
-bunx nx run wiki-cli:typecheck
+bunx nx run twilight-bureaucrat:typecheck
 ```
 
 - [ ] Verify the lock resolves a compatible CORJ for application-exception and one application-exception identity per bundle; a duplicate package copy can invalidate `isTypedException`/constructor assumptions. Keep npm registry URLs and the `npm:` alias syntax; never run npm as a task runner.
