@@ -13,6 +13,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { renderTemplate, siteCaddyTmpl, tierComposeTmpl } from '@tools/compose';
+import type { Tier } from '@tools/deploy-contract';
 import { parseAllDocuments } from 'yaml';
 
 import {
@@ -249,7 +250,7 @@ async function compose(args: readonly string[]): Promise<string> {
   return sh(['docker', 'compose', '-p', PROJECT, ...files, ...args], null, 600_000);
 }
 
-async function upOld(images: Record<'be' | 'gw' | 'fe', string>): Promise<void> {
+async function upOld(images: Record<Tier, string>): Promise<void> {
   mkdirSync(join(old, 'data'), { recursive: true });
   mkdirSync(join(old, 'caddy'), { recursive: true });
   mkdirSync(join(old, 'logs'), { recursive: true });
