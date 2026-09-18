@@ -8,6 +8,7 @@ import {
   parseManagedContainerEvidence,
   parseManagedContainerId,
   parseManagedContainerList,
+  parsePodContainerIdentity,
 } from './solver-supervisor-docker-output';
 import type {
   ManagedContainerAttachment,
@@ -148,6 +149,24 @@ export class BunManagedContainerDriver implements ManagedContainerDriver {
   ): Promise<BackendContainerIdentity> {
     return parseBackendContainerIdentity(
       await this.run(inspectBackendContainerArgs(containerId)),
+      containerId,
+      allowedNamePatterns,
+    );
+  }
+
+  /**
+   * Reads a k3s pod container's runtime identity through the root-owned helper installed by the
+   * Ansible solver role; the supervisor itself has no containerd access.
+   */
+  async inspectPod(
+    containerId: string,
+    allowedNamePatterns: readonly RegExp[],
+  ): Promise<BackendContainerIdentity> {
+    if (!/^[0-9a-f]{64}$/.test(containerId)) {
+      throw new Error('managed solver command: pod peer id is not a full container id');
+    }
+    return parsePodContainerIdentity(
+      await this.run(['sudo', '-n', '/usr/local/libexec/puni-cri-peer', containerId]),
       containerId,
       allowedNamePatterns,
     );

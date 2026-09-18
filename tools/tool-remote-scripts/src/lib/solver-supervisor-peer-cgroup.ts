@@ -3,6 +3,15 @@ import { open } from 'node:fs/promises';
 const MAX_CGROUP_BYTES = 64 * 1024;
 const SYSTEMD_DOCKER_SCOPE = /(?:^|\/)docker-([0-9a-f]{64})\.scope(?:\/|$)/;
 const CGROUPFS_DOCKER_PATH = /(?:^|\/)docker\/([0-9a-f]{64})(?:\/|$)/;
+// The whole path must be one kubelet-created container scope under the kubepods hierarchy with
+// a QoS class that agrees between the slice and the pod slice; no prefix or suffix is accepted.
+const CRI_POD_SCOPE =
+  /^\/kubepods\.slice\/(?:kubepods-(besteffort|burstable)\.slice\/kubepods-\1-pod[0-9a-f]{8}(?:_[0-9a-f]{4}){3}_[0-9a-f]{12}\.slice|kubepods-pod[0-9a-f]{8}(?:_[0-9a-f]{4}){3}_[0-9a-f]{12}\.slice)\/cri-containerd-([0-9a-f]{64})\.scope$/;
+
+export interface PeerContainer {
+  readonly runtime: 'docker' | 'cri-containerd';
+  readonly id: string;
+}
 
 function defect(message: string): Error {
   return new Error(`supervisor peer cgroup: ${message}`);
@@ -64,12 +73,22 @@ export async function readSupervisorPeerCgroup(
 
 /** Resolves only a full Docker id carried by the kernel's peer PID cgroup. */
 export function dockerContainerIdFromPeerCgroup(raw: string): string {
+  const peer = peerContainerFromCgroup(raw);
+  if (peer.runtime !== 'docker') throw defect('no full Docker container id found');
+  return peer.id;
+}
+
+/**
+ * Resolves the one container that owns the kernel's peer PID cgroup: a Docker container or an
+ * exact k3s containerd pod container. Anything else, including every host process, refuses.
+ */
+export function peerContainerFromCgroup(raw: string): PeerContainer {
   const bytes = new TextEncoder().encode(raw).byteLength;
   if (bytes > MAX_CGROUP_BYTES) {
     throw defect(`input bytes ${String(bytes)} exceed ${String(MAX_CGROUP_BYTES)}`);
   }
 
-  const ids = new Set<string>();
+  const peers = new Map<string, PeerContainer>();
   for (const line of raw.split('\n')) {
     if (line === '') continue;
     const fields = /^\d+:[^:]*:(\/.*)$/.exec(line);
@@ -77,16 +96,20 @@ export function dockerContainerIdFromPeerCgroup(raw: string): string {
     const path = fields[1];
     const systemd = SYSTEMD_DOCKER_SCOPE.exec(path)?.[1];
     const cgroupfs = CGROUPFS_DOCKER_PATH.exec(path)?.[1];
-    if (systemd !== undefined) ids.add(systemd);
-    if (cgroupfs !== undefined) ids.add(cgroupfs);
+    // Proof: solver-supervisor-peer-cgroup.test.ts refuses a cri-containerd scope outside
+    // kubepods, with a child suffix, under a prefix, and with a QoS mismatch; widening this
+    // expression to a substring match accepted those host-controlled paths.
+    const cri = CRI_POD_SCOPE.exec(path)?.[2];
+    if (systemd !== undefined) peers.set(`docker:${systemd}`, { runtime: 'docker', id: systemd });
+    if (cgroupfs !== undefined)
+      peers.set(`docker:${cgroupfs}`, { runtime: 'docker', id: cgroupfs });
+    if (cri !== undefined) peers.set(`cri:${cri}`, { runtime: 'cri-containerd', id: cri });
   }
-  if (ids.size !== 1) {
+  if (peers.size !== 1) {
     throw defect(
-      ids.size === 0
-        ? 'no full Docker container id found'
-        : 'conflicting Docker container ids found',
+      peers.size === 0 ? 'no full container id found' : 'conflicting container ids found',
     );
   }
-  for (const id of ids) return id;
-  throw defect('no full Docker container id found');
+  for (const peer of peers.values()) return peer;
+  throw defect('no full container id found');
 }

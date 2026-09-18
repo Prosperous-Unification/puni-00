@@ -169,6 +169,43 @@ describe('the concrete managed-container driver', () => {
     ]);
   });
 
+  it('inspects a CRI pod peer through the root-owned identity helper only', async () => {
+    const recorder = new SpawnRecorder();
+    const pod = (extra: Record<string, unknown> = {}): string =>
+      `${JSON.stringify({
+        id: CALLER_ID,
+        namespace: 'wbs-solver',
+        pod: 'wbs-backend-6bbbdbc995-r7rqz',
+        container: 'backend',
+        state: 'CONTAINER_RUNNING',
+        image: `registry.example/wbs-be@sha256:${'b'.repeat(64)}`,
+        ...extra,
+      })}\n`;
+    recorder.replies.push({ stdout: pod() });
+    const driver = new BunManagedContainerDriver(recorder.spawn);
+    expect(await driver.inspectPod(CALLER_ID, [/^k8s_wbs-solver_backend$/])).toEqual({
+      id: CALLER_ID,
+      name: 'k8s_wbs-solver_backend',
+      image: `registry.example/wbs-be@sha256:${'b'.repeat(64)}`,
+      callerAlias: 'wbs-backend-6bbbdbc995-r7rqz',
+    });
+    expect(recorder.argv).toEqual([['sudo', '-n', '/usr/local/libexec/puni-cri-peer', CALLER_ID]]);
+
+    // Proof: dropping the id comparison, the running check, or the name policy in
+    // parsePodContainerIdentity let each of these pods authenticate.
+    for (const [reply, message] of [
+      [pod({ id: 'e'.repeat(64) }), /does not equal expected peer id/],
+      [pod({ state: 'CONTAINER_EXITED' }), /not running/],
+      [pod({ namespace: 'workers' }), /not allowed/],
+      [pod({ container: 'sidecar' }), /not allowed/],
+      [pod({ extra: 1 }), /unknown key/],
+      [pod({ pod: 'Bad_Name' }), /pod name is malformed/],
+    ] as const) {
+      recorder.replies.push({ stdout: reply });
+      expect(driver.inspectPod(CALLER_ID, [/^k8s_wbs-solver_backend$/])).rejects.toThrow(message);
+    }
+  });
+
   it('attaches with piped input and exposes both output streams and process closure', async () => {
     const recorder = new SpawnRecorder();
     recorder.replies.push({ stdout: 'answer', stderr: 'warning' });

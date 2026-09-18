@@ -41,6 +41,7 @@ export async function serveSupervisorConnection(
   const frame = await channel.readStart({
     now: options.now(),
     peerCallerId: identity.id,
+    ...(identity.callerAlias === undefined ? {} : { peerCallerAlias: identity.callerAlias }),
     maxSearchWorkers: options.maxSearchWorkers,
     maxMemoryLimitMb: options.maxMemoryLimitMb,
   });
