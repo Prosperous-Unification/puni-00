@@ -1,0 +1,197 @@
+---
+# Host-owned WBS solver supervisor for a product-capable node. The backend pod mounts the exact
+# directory /run/puni/solver (F6 admission), which resolves to the supervisor's systemd runtime
+# directory /run/user/<uid>/wbs-solver, the only socket path the supervisor config accepts.
+- name: Require a product node and the exact supervisor inputs
+  ansible.builtin.assert:
+    that:
+      - puni_node_capabilities is defined
+      - "'product' in puni_node_capabilities"
+      - puni_solver_uid is defined
+      - puni_solver_uid | int >= 1000
+      - puni_solver_bun_url is defined
+      - puni_solver_bun_sha256 is match('^[0-9a-f]{64}$')
+      - puni_solver_bun_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+      - puni_solver_bundle is defined
+      - puni_solver_bundle_sha256 is match('^[0-9a-f]{64}$')
+      - puni_solver_dev_source_sha is match('^[0-9a-f]{40}$')
+      - puni_solver_images is defined
+      - puni_solver_images | length > 0
+    fail_msg: The solver supervisor needs a product node, pinned Bun and bundle, and image rules
+  # Proof: running the solver play with capabilities [observability] failed this assertion on
+  # the live QEMU lab agent before any package, user, or unit changed.
+
+- name: Verify the supervisor bundle on the controller
+  ansible.builtin.stat:
+    path: '{{ puni_solver_bundle }}'
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  become: false
+  register: puni_solver_bundle_stat
+
+- name: Require the reviewed supervisor bundle bytes
+  ansible.builtin.assert:
+    that:
+      - puni_solver_bundle_stat.stat.exists
+      - puni_solver_bundle_stat.stat.checksum == puni_solver_bundle_sha256
+    fail_msg: The solver supervisor bundle differs from its reviewed SHA-256
+  # Proof: a one-byte-different bundle SHA-256 failed this assertion on the live lab before copy.
+
+- name: Install the container runtime the supervisor drives
+  ansible.builtin.apt:
+    name: [docker.io, unzip]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the solver group
+  ansible.builtin.group:
+    name: wbs-solver
+    gid: '{{ puni_solver_uid }}'
+
+- name: Create the solver account
+  ansible.builtin.user:
+    name: wbs-solver
+    uid: '{{ puni_solver_uid }}'
+    group: wbs-solver
+    groups: [docker]
+    home: /var/lib/wbs-solver
+    shell: /usr/sbin/nologin
+    system: true
+
+- name: Keep the solver user manager running without a login
+  ansible.builtin.command:
+    argv: [loginctl, enable-linger, wbs-solver]
+    creates: /var/lib/systemd/linger/wbs-solver
+
+- name: Create solver directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: wbs-solver
+    group: wbs-solver
+    mode: '0750'
+  loop:
+    - /var/lib/wbs-solver/.local/lib/wbs-solver
+    - /var/lib/wbs-solver/.config/wbs-solver
+    - /var/lib/wbs-solver/.config/systemd/user
+
+- name: Fetch the pinned Bun runtime
+  ansible.builtin.get_url:
+    url: '{{ puni_solver_bun_url }}'
+    dest: /var/cache/puni-bun-linux-x64.zip
+    checksum: 'sha256:{{ puni_solver_bun_sha256 }}'
+    mode: '0644'
+
+- name: Unpack the pinned Bun runtime
+  ansible.builtin.unarchive:
+    src: /var/cache/puni-bun-linux-x64.zip
+    dest: /var/cache
+    remote_src: true
+    creates: /var/cache/bun-linux-x64/bun
+
+- name: Install the pinned Bun runtime
+  ansible.builtin.copy:
+    src: /var/cache/bun-linux-x64/bun
+    dest: /var/lib/wbs-solver/.local/lib/wbs-solver/bun
+    remote_src: true
+    owner: wbs-solver
+    group: wbs-solver
+    mode: '0755'
+  notify: Restart solver supervisor
+
+- name: Read the installed Bun version
+  ansible.builtin.command:
+    argv: [/var/lib/wbs-solver/.local/lib/wbs-solver/bun, --version]
+  register: puni_solver_bun
+  changed_when: false
+
+- name: Require the pinned Bun version
+  ansible.builtin.assert:
+    that:
+      - puni_solver_bun.stdout | trim == puni_solver_bun_version
+    fail_msg: The supervisor Bun runtime differs from the pinned version
+
+- name: Install the supervisor bundle
+  ansible.builtin.copy:
+    src: '{{ puni_solver_bundle }}'
+    dest: /var/lib/wbs-solver/.local/lib/wbs-solver/solver-supervisor.js
+    owner: wbs-solver
+    group: wbs-solver
+    mode: '0644'
+  notify: Restart solver supervisor
+
+- name: Render the supervisor config
+  ansible.builtin.copy:
+    content: "{{ puni_solver_config | to_nice_json }}\n"
+    dest: /var/lib/wbs-solver/.config/wbs-solver/solver-supervisor.json
+    owner: wbs-solver
+    group: wbs-solver
+    mode: '0640'
+  vars:
+    puni_solver_config:
+      socketPath: '/run/user/{{ puni_solver_uid }}/wbs-solver/supervisor.sock'
+      maxSearchWorkers: 1
+      maxMemoryLimitMb: 512
+      pidsLimit: 128
+      maxManagedContainers: 4
+      devSourceSha: '{{ puni_solver_dev_source_sha }}'
+      images: '{{ puni_solver_images }}'
+  notify: Restart solver supervisor
+
+- name: Render the supervisor user unit
+  ansible.builtin.template:
+    src: wbs-solver-supervisor.service.j2
+    dest: /var/lib/wbs-solver/.config/systemd/user/wbs-solver-supervisor.service
+    owner: wbs-solver
+    group: wbs-solver
+    mode: '0644'
+  notify: Restart solver supervisor
+
+- name: Link the exact admitted directory to the supervisor runtime directory
+  ansible.builtin.template:
+    src: puni-solver.conf.j2
+    dest: /etc/tmpfiles.d/puni-solver.conf
+    owner: root
+    group: root
+    mode: '0644'
+  register: puni_solver_tmpfiles
+
+- name: Apply the runtime-directory link
+  ansible.builtin.command:
+    argv: [systemd-tmpfiles, --create, /etc/tmpfiles.d/puni-solver.conf]
+  when: puni_solver_tmpfiles.changed
+
+# The operator's sudo rule is root-only, so the root manager reaches the user manager with -M.
+# Proof: become_user wbs-solver failed "Missing sudo password" on the live QEMU lab server.
+- name: Read supervisor enablement
+  ansible.builtin.command:
+    argv: [systemctl, --user, -M, wbs-solver@, is-enabled, wbs-solver-supervisor]
+  register: puni_solver_enabled
+  changed_when: false
+  failed_when: puni_solver_enabled.rc not in [0, 1]
+
+- name: Enable and start the supervisor
+  ansible.builtin.command:
+    argv: [systemctl, --user, -M, wbs-solver@, enable, --now, wbs-solver-supervisor]
+  when: puni_solver_enabled.stdout | trim != 'enabled'
+
+- name: Read supervisor activity
+  ansible.builtin.command:
+    argv: [systemctl, --user, -M, wbs-solver@, is-active, wbs-solver-supervisor]
+  register: puni_solver_active
+  changed_when: false
+  failed_when: puni_solver_active.rc not in [0, 3]
+
+- name: Start the supervisor
+  ansible.builtin.command:
+    argv: [systemctl, --user, -M, wbs-solver@, start, wbs-solver-supervisor]
+  when: puni_solver_active.stdout | trim != 'active'
+
+- name: Flush supervisor restarts before proving the socket
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the supervisor socket through the admitted directory
+  ansible.builtin.wait_for:
+    path: /run/puni/solver/supervisor.sock
+    timeout: 60

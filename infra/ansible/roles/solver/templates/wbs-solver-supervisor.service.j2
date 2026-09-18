@@ -1,0 +1,17 @@
+[Unit]
+Description=WBS host-owned solver supervisor
+
+[Service]
+Type=simple
+ExecStart=/var/lib/wbs-solver/.local/lib/wbs-solver/bun /var/lib/wbs-solver/.local/lib/wbs-solver/solver-supervisor.js --config=/var/lib/wbs-solver/.config/wbs-solver/solver-supervisor.json
+# A terminated Bun listener leaves its socket inode behind; remove it before a restart.
+ExecStopPost=/bin/rm -f %t/wbs-solver/supervisor.sock
+Restart=always
+RestartSec=1s
+RuntimeDirectory=wbs-solver
+RuntimeDirectoryMode=0750
+# The backend pod mounts this directory, not the socket inode; keep it across restarts.
+RuntimeDirectoryPreserve=restart
+
+[Install]
+WantedBy=default.target
