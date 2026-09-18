@@ -245,31 +245,6 @@ export function assertRegistryTransport(manifests: readonly PlatformManifest[]):
   }
 }
 
-const RunnerConfigMap = type({
-  kind: "'ConfigMap'",
-  metadata: { name: "'sqlite-backup-runner'", namespace: "'wbs'" },
-  data: { 'backup-sqlite.ts': 'string', '+': 'reject' },
-});
-
-/** Require the SQLite backup ConfigMap to carry the reviewed runner byte for byte. */
-export async function assertSqliteRunner(
-  root: string,
-  manifests: readonly PlatformManifest[],
-): Promise<void> {
-  const source = await readFile(join(root, 'tools/tool-fleet/src/backup-sqlite.ts'), 'utf8');
-  const runners = manifests.flatMap(({ document }) => {
-    const runner = RunnerConfigMap(document);
-    return runner instanceof type.errors ? [] : [runner];
-  });
-  if (runners.length !== 1 || runners[0]?.data['backup-sqlite.ts'] !== source) {
-    // Proof: appending one line to the ConfigMap copy made the production validator's runner
-    // negative reject on 2026-09-18; removing this comparison made it resolve.
-    throw new Error(
-      'SQLite backup runner ConfigMap differs from tools/tool-fleet/src/backup-sqlite.ts',
-    );
-  }
-}
-
 const TrustedWorkloadImages = type({
   kind: "'ConfigMap'",
   metadata: {

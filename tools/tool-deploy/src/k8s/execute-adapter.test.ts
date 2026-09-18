@@ -245,3 +245,47 @@ describe('parseLease', () => {
     ).toThrow('lacks holderIdentity, renewTime');
   });
 });
+
+describe('backend rollouts through the kubectl adapter', () => {
+  it('moves the backup CronJob with every backend rollout', async () => {
+    const root = scratchSync('wbs-k3s-kubectl-');
+    roots.push(root);
+    const kubectl = fakeKubectl(root);
+    const effects = kubectlEffects({
+      kubectl: kubectl.path,
+      kubeconfig: null,
+      context: 'lab',
+      namespaces: { app: 'wbs', backend: 'wbs-solver' },
+      stateDir: root,
+      overlay: root,
+      anonymousProjectsStatus: 200,
+      rolloutTimeoutSeconds: 5,
+      jobTimeoutSeconds: 5,
+      drainTimeoutMs: 1000,
+      leaseDurationSeconds: 20,
+      log: () => undefined,
+    });
+    const image = (tier: string) => `registry.example/${tier}@sha256:${'1'.repeat(64)}`;
+    await effects.rolloutTiers({
+      sourceSha: 'a'.repeat(40),
+      images: {
+        backend: image('be'),
+        gateway: image('gw'),
+        frontend: image('fe'),
+        mcp: image('mcp'),
+      },
+    });
+    const calls = readFileSync(kubectl.log, 'utf8').split('\n');
+    const cron = calls.findIndex((line) => line.includes('patch cronjob sqlite-backup'));
+    expect(cron).toBeGreaterThanOrEqual(0);
+    expect(calls[cron]).toContain(`"name":"backup","image":"${image('be')}"`);
+    expect(cron).toBeLessThan(
+      calls.findIndex((line) => line.includes('patch deployment wbs-backend')),
+    );
+    const verify = calls.findIndex((line) => line.includes('patch cronjob sqlite-backup-verify'));
+    expect(calls[verify]).toContain(`"name":"verify","image":"${image('be')}"`);
+    expect(verify).toBeLessThan(
+      calls.findIndex((line) => line.includes('patch deployment wbs-backend')),
+    );
+  });
+});

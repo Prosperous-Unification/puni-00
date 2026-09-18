@@ -38,6 +38,8 @@ export interface ObjectStore {
   /** Stores bytes and returns the store's version id for them. */
   put(key: string, body: Uint8Array<ArrayBuffer>, contentType: string): Promise<string>;
   get(key: string): Promise<Uint8Array<ArrayBuffer>>;
+  /** Every key under `prefix`; a store that cannot list throws. */
+  list(prefix: string): Promise<readonly string[]>;
 }
 
 async function sha256File(path: string): Promise<string> {
@@ -218,6 +220,45 @@ export async function restoreSqlite(options: {
   return report;
 }
 
+/** Newest report a scheduled verification accepts: one missed daily run plus slack. */
+export const verificationMaxAgeMs = 26 * 3_600_000;
+
+/**
+ * Restore the newest report under `<prefix>/<database>/` into `targetPath` and prove it.
+ *
+ * Report keys embed their capture time, so the lexically greatest key is the newest. Throws
+ * when there is no report, when the newest report's `capturedAt` is older than `maxAgeMs`, or
+ * when {@link restoreSqlite} refuses its bytes, integrity or migration set.
+ */
+export async function verifyLatestBackup(options: {
+  readonly database: string;
+  readonly prefix: string;
+  readonly targetPath: string;
+  readonly store: ObjectStore;
+  readonly now: Date;
+  readonly maxAgeMs: number;
+}): Promise<BackupReport> {
+  const reports = (await options.store.list(`${options.prefix}/${options.database}/`))
+    .filter((key) => key.endsWith('.db.report.json'))
+    .sort();
+  const newest = reports.at(-1);
+  if (newest === undefined) {
+    throw new Error(`No SQLite backup report under ${options.prefix}/${options.database}/`);
+  }
+  const report = await restoreSqlite({
+    reportKey: newest,
+    targetPath: options.targetPath,
+    store: options.store,
+  });
+  const age = options.now.getTime() - Date.parse(report.capturedAt);
+  if (!(age <= options.maxAgeMs)) {
+    // Proof: with this comparison removed, the stale-report negative verified a report 30 hours
+    // old, and on k3d on 2026-09-18 the age check was what failed a report dated 2026-09-01.
+    throw new Error(`Newest SQLite backup ${newest} is ${String(Math.round(age / 1000))} s old`);
+  }
+  return report;
+}
+
 /**
  * An S3-compatible store that requires bucket versioning.
  *
@@ -245,6 +286,17 @@ export function createS3Store(client: S3Client): ObjectStore {
     },
     async get(key) {
       return new Uint8Array(await client.file(key).arrayBuffer());
+    },
+    async list(prefix) {
+      const keys: string[] = [];
+      let startAfter: string | undefined;
+      for (;;) {
+        const page = await client.list({ prefix, maxKeys: 1000, startAfter });
+        const batch = (page.contents ?? []).map(({ key }) => key);
+        keys.push(...batch);
+        if (page.isTruncated !== true || batch.length === 0) return keys;
+        startAfter = batch.at(-1);
+      }
     },
   };
 }
@@ -288,7 +340,17 @@ if (import.meta.main) {
       store: storeFromEnv(),
     });
     console.log(JSON.stringify(report));
+  } else if (mode === 'verify') {
+    const report = await verifyLatestBackup({
+      database: requireEnv('BACKUP_DATABASE_NAME'),
+      prefix: requireEnv('BACKUP_PREFIX'),
+      targetPath: requireEnv('RESTORE_TARGET_PATH'),
+      store: storeFromEnv(),
+      now: new Date(),
+      maxAgeMs: verificationMaxAgeMs,
+    });
+    console.log(JSON.stringify(report));
   } else {
-    throw new Error('Usage: backup-sqlite.ts backup|restore');
+    throw new Error('Usage: backup-sqlite.ts backup|restore|verify');
   }
 }

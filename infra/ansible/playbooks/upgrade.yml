@@ -108,12 +108,7 @@
     - name: Require every non-terminal workload Ready
       ansible.builtin.shell:
         cmd: >-
-          set -euo pipefail;
-          kubectl --context '{{ puni_kube_context }}' get pods --all-namespaces --output=json |
-          jq -e '[.items[] | select(.status.phase != "Succeeded") |
-          select(.status.phase != "Running" or
-          ([.status.conditions[]? | select(.type == "Ready" and .status == "True")] | length) != 1)] |
-          length == 0'
+          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' pods-ready '{{ puni_kube_context }}'
         executable: /bin/bash
       delegate_to: localhost
       become: false
@@ -124,10 +119,7 @@
     - name: Require every persistent volume attachment healthy
       ansible.builtin.shell:
         cmd: >-
-          set -euo pipefail;
-          kubectl --context '{{ puni_kube_context }}'
-          get volumeattachments.storage.k8s.io --output=json |
-          jq -e 'all(.items[]; .status.attached == true)'
+          python3 '{{ playbook_dir }}/../scripts/cluster-checks.py' attachments-healthy '{{ puni_kube_context }}'
         executable: /bin/bash
       delegate_to: localhost
       become: false

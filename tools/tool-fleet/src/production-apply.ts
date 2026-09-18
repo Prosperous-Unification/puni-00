@@ -517,6 +517,11 @@ function leaseManifest(
   renewedAt: string,
   resourceVersion?: string,
 ): string {
+  // Lease times are Kubernetes MicroTime. Proof: the live QEMU lab API server rejected the
+  // millisecond ISO string with BadRequest; the production-apply tests' fake API now does too.
+  const microTime = renewedAt.replace(/\.(\d{3})Z$/, '.$1000Z');
+  if (!/\.\d{6}Z$/.test(microTime))
+    throw new Error(`Lease time is not an ISO instant: ${renewedAt}`);
   return JSON.stringify({
     apiVersion: 'coordination.k8s.io/v1',
     kind: 'Lease',
@@ -528,8 +533,8 @@ function leaseManifest(
     spec: {
       holderIdentity: holder,
       leaseDurationSeconds,
-      acquireTime: renewedAt,
-      renewTime: renewedAt,
+      acquireTime: microTime,
+      renewTime: microTime,
     },
   });
 }
@@ -760,7 +765,12 @@ async function readAnsibleVariables(
 }
 
 function requireAnsibleRecap(stdout: string, expectedHost?: string): void {
-  if (/no hosts matched/i.test(stdout) || !stdout.includes('PLAY RECAP')) {
+  // join.yml's server play matches no host when an agent enrolls; the exact host recap below then
+  // decides. Proof: the live QEMU lab agent enrollment was refused on that skipped server play.
+  if (
+    (expectedHost === undefined && /no hosts matched/i.test(stdout)) ||
+    !stdout.includes('PLAY RECAP')
+  ) {
     // Proof: the zero-host Ansible production negative exits zero but cannot advance enrollment.
     throw new Error('Ansible completed without a controlled host recap');
   }
@@ -885,6 +895,9 @@ async function readEnrollmentInventory(
   if (
     (!allowClusterServers && inventoryHosts.length !== 1) ||
     (allowClusterServers && inventoryHosts.length < 1) ||
+    // Cluster servers may accompany the target for delegated validation; no other agent may.
+    // Proof: dropping this clause made the enrollment negative with a second agent reach discovery.
+    (allowClusterServers && Object.keys(agentHosts).some((agent) => agent !== nodeId)) ||
     new Set(inventoryHosts.map(([inventoryNodeId]) => inventoryNodeId)).size !==
       inventoryHosts.length ||
     new Set(addresses).size !== addresses.length ||
@@ -986,13 +999,17 @@ function createEnrollmentApplyDependencies(
 
   async function inspect(): Promise<EnrollmentInventory> {
     await requireEnrollmentAllowed(root, request.nodeId);
+    // Enrollment validation runs on the cluster's bootstrap server, so an SSH-provider cluster
+    // lists its servers here. Proof: the live QEMU lab enrollment of a replacement SSH node was
+    // refused "lacks exact host identity" while the inventory could hold only the target.
     const inventory = await readEnrollmentInventory(
       inventoryPath,
       request.inventorySha256,
       knownHostsPath,
       request.nodeId,
+      true,
     );
-    await readKnownHosts(knownHostsPath, request.knownHostsSha256, inventory.address);
+    await readKnownHosts(knownHostsPath, request.knownHostsSha256, inventory.addresses);
     await readAnsibleVariables(
       variablesPath,
       request.ansibleVariablesSha256,

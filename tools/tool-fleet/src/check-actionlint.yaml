@@ -1,0 +1,5 @@
+# actionlint settings for `tool-fleet:check`. `puni-deploy` is the label of the protected,
+# persistent deploy runner that only `deploy-k3s.yml`'s environment-gated job may target.
+self-hosted-runner:
+  labels:
+    - puni-deploy

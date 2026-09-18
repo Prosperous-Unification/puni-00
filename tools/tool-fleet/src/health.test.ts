@@ -85,7 +85,7 @@ function healthy(): ClusterSnapshot {
       cronJobs: {
         items: [
           {
-            metadata: { name: 'sqlite-backup', namespace: 'wbs' },
+            metadata: { name: 'sqlite-backup', namespace: 'wbs-solver' },
             spec: {},
             status: { lastSuccessfulTime: '2026-09-18T11:17:00Z' },
           },

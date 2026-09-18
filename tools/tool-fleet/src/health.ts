@@ -272,7 +272,7 @@ function evaluateBackups(
 ): HealthFinding[] {
   const findings: HealthFinding[] = [];
   const sqlite = backups.cronJobs.items.find(
-    ({ metadata }) => metadata.namespace === 'wbs' && metadata.name === 'sqlite-backup',
+    ({ metadata }) => metadata.namespace === 'wbs-solver' && metadata.name === 'sqlite-backup',
   );
   const sqliteAge = hoursSince(sqlite?.status?.lastSuccessfulTime, now);
   if (
@@ -284,7 +284,7 @@ function evaluateBackups(
     findings.push({
       rule: 'backup-fresh',
       severity: 'critical',
-      subject: 'wbs/sqlite-backup',
+      subject: 'wbs-solver/sqlite-backup',
       detail:
         sqlite === undefined
           ? 'CronJob is absent'

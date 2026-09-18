@@ -827,6 +827,8 @@ describe('lint:fast cache locations', () => {
 const TRACKED_WORKFLOWS = [
   '.github/workflows/ci.yml',
   '.github/workflows/trusted-wiki.yml',
+  '.github/workflows/infra-check.yml',
+  '.github/workflows/deploy-k3s.yml',
 ] as const;
 
 /** Whether a source names this workflow, with its path written either way. */
@@ -889,6 +891,8 @@ describe('every suite that reads a CI workflow declares it', () => {
     // and `trusted-wiki.yml` not — `gate-entrypoints.test.ts` reads both — it failed again
     // on `["tool-wiki:test does not declare .github/workflows/trusted-wiki.yml"]`.
     // Reverting `tool-git-hooks/project.json` alone reproduces the first line.
+    // Proof: with deploy-k3s.yml removed from tool-deploy:test's inputs this failed on
+    // `["tool-deploy:test does not declare .github/workflows/deploy-k3s.yml"]` (2026-09-18).
     expect(undeclared).toEqual([]);
   });
 });

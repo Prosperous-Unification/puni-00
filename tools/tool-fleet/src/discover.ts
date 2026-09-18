@@ -1,5 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { parse } from 'yaml';
 
@@ -11,6 +11,15 @@ import {
   type FleetNode,
   readToolchain,
 } from './contracts';
+import {
+  type LabProviderInventory,
+  type LabProviderSource,
+  labSshDiscoveryArguments,
+  observeLabProvider,
+  readLabDiscoveryHosts,
+  requireLabFleet,
+  requireLabNodes,
+} from './lab-provider';
 import {
   digestObservation,
   type DiscoverySource,
@@ -86,6 +95,10 @@ interface ObserveOptions {
   readonly now?: () => Date;
   readonly maxSourceAgeMs?: number;
   readonly timeoutMs?: number;
+  /** Selects the local {@link LabProviderSource}; never valid for a production fleet. */
+  readonly labProvider?: LabProviderSource;
+  /** Reads the lab provider inventory; tests replace the process observation. */
+  readonly observeLab?: (source: LabProviderSource) => Promise<LabProviderInventory>;
 }
 
 function buildControllerCommand(
@@ -590,7 +603,15 @@ function buildDiscoveryCommand(
       timeoutMs,
     };
   }
-  const resource = kind === 'nodes' ? 'nodes' : kind;
+  // Proof: the first live lab discovery passed the source kind `pvs` to kubectl, which exited
+  // "the server doesn't have a resource type"; restoring `pvs` fails the resource-name assertion
+  // in `lab-provider.test.ts`.
+  const resource = {
+    nodes: 'nodes',
+    pvcs: 'persistentvolumeclaims',
+    pvs: 'persistentvolumes',
+    volumeattachments: 'volumeattachments',
+  }[kind];
   return {
     source: `kubernetes-${kind}:${cluster.id}`,
     executable: 'kubectl',
@@ -710,9 +731,20 @@ export async function observeFleet(
 
   for (const cluster of fleet.clusters) {
     const providerCommand = buildDiscoveryCommand(options.root, cluster, 'provider', timeoutMs);
-    const providerSource = await readJsonSource(providerCommand, run, now, maxSourceAgeMs);
-    sources.push({ name: providerCommand.source, observedAt: providerSource.observedAt });
-    const providerHosts = parseProviderHosts(providerSource.input, providerCommand.source);
+    const labProvider = options.labProvider;
+    let labRunning: ReadonlySet<string> | undefined;
+    let providerHosts: readonly ProviderHost[] = [];
+    if (labProvider === undefined) {
+      const providerSource = await readJsonSource(providerCommand, run, now, maxSourceAgeMs);
+      sources.push({ name: providerCommand.source, observedAt: providerSource.observedAt });
+      providerHosts = parseProviderHosts(providerSource.input, providerCommand.source);
+    } else {
+      requireLabNodes(fleet, cluster, labProvider, await readLabDiscoveryHosts(labProvider));
+      const observedAt = now().toISOString();
+      const inventory = await (options.observeLab ?? observeLabProvider)(labProvider);
+      sources.push({ name: providerCommand.source, observedAt });
+      labRunning = new Set(inventory.running);
+    }
     for (const host of providerHosts) {
       if (host.clusterId !== cluster.id) {
         // Proof: disabling this refusal made the provider-cluster negative merge a workers host
@@ -803,13 +835,19 @@ export async function observeFleet(
     const sshHosts: SshHost[] = [];
     for (const node of fleet.nodes) {
       if (node.cluster !== cluster.id || node.provider.kind !== 'ssh') continue;
-      const sshCommand = buildSshDiscoveryCommand(
-        options.root,
-        cluster,
-        node.id,
-        node.provider,
-        timeoutMs,
-      );
+      // The lab provider's observed absence is the modeled `missing`, as for a deleted server.
+      // Proof: removing this skip made `reports a machine the lab provider saw stop as missing
+      // without reading its SSH facts` issue the stopped machine's SSH-fact command.
+      if (labRunning !== undefined && !labRunning.has(node.id)) continue;
+      const sshCommand =
+        labProvider === undefined
+          ? buildSshDiscoveryCommand(options.root, cluster, node.id, node.provider, timeoutMs)
+          : {
+              source: `ssh-facts:${cluster.id}/${node.id}` as const,
+              executable: 'ansible-playbook',
+              arguments: labSshDiscoveryArguments(options.root, labProvider, node.id),
+              timeoutMs,
+            };
       const sshSource = await readSource(sshCommand, run, now, maxSourceAgeMs);
       sources.push({ name: sshCommand.source, observedAt: sshSource.observedAt });
       sshHosts.push(...parseSshOutput(sshSource.stdout, sshCommand.source));
@@ -1009,7 +1047,9 @@ function readDiscoveryFlags(argv: readonly string[]): ReadonlyMap<string, string
     flags.set(flag, value);
   }
   for (const flag of flags.keys()) {
-    if (!['--fleet', '--output', '--max-source-age-ms', '--timeout-ms'].includes(flag)) {
+    if (
+      !['--fleet', '--output', '--max-source-age-ms', '--timeout-ms', '--lab-state'].includes(flag)
+    ) {
       // Proof: disabling this refusal made the unknown-flag production CLI negative persist an
       // observation while ignoring unreviewed input.
       throw new Error(`Unexpected fleet discover flag: ${flag}`);
@@ -1065,10 +1105,14 @@ export async function runDiscover(argv: readonly string[], root: string): Promis
     // YAML parser diagnostic without its required fleet path.
     throw new Error(`Required fleet at ${fleetPath} is malformed YAML`, { cause });
   }
-  const observation = await observeFleet(decodeFleet(fleetInput), {
+  const fleet = decodeFleet(fleetInput);
+  const labState = flags.get('--lab-state');
+  if (labState !== undefined) requireLabFleet(fleet, fleetPath, root);
+  const observation = await observeFleet(fleet, {
     root,
     maxSourceAgeMs: positiveMilliseconds(flags, '--max-source-age-ms', 30_000),
     timeoutMs: positiveMilliseconds(flags, '--timeout-ms', 30_000),
+    ...(labState === undefined ? {} : { labProvider: { stateDirectory: resolve(labState) } }),
   });
   try {
     await writeFile(outputPath, `${JSON.stringify(observation, undefined, 2)}\n`, {

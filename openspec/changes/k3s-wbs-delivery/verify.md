@@ -138,3 +138,186 @@ restored):
   staging/prod apply** are plan-only in F8 and belong to F11.
 - **The MCP production image** has no Dagger target. The lab Dockerfile is not a production
   path.
+
+## F8 solver in the Ubuntu VM lab (2026-09-18, worktree `change/tbf-vm`)
+
+Lab: rootless QEMU platform profile (`tool-fleet:lab -- up --provider qemu --lab-id f8 --profile
+platform`, exit 0 at `dee87bcc`); product-capable `server-1`, observability agent. Role:
+`infra/ansible/roles/solver` via `playbooks/solver.yml` (commit `47f4986e`), Bun 1.4.2
+(`bun-linux-x64.zip` SHA-256 `36368fae…a913`), bundle from `bunx nx run tool-remote-scripts:build`
+(SHA-256 `2fe2ddb9…b696`). What ran is a minimal backend, stated precisely: a Deployment in
+`wbs-solver` shaped like `deploy/k8s/wbs/base/backend.yaml` (service account, controller label,
+product node selector, uid 10001, Restricted security context, `/run/puni/solver` Directory
+hostPath at `/run/wbs-solver`) running `docker.io/oven/bun@sha256:d888c0ae…` with a probe that
+connects to the socket every 5 s. The real WBS backend image was not deployed.
+
+| Step                                                                                                                                          | Result                                                                                                                                                                                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Solver play on the observability agent                                                                                                        | exit 2 at the first assertion; nothing installed                                                                                                                                                                                     |
+| Solver play with a one-byte-different bundle SHA-256                                                                                          | refused before copy; no user or package on the node                                                                                                                                                                                  |
+| Solver play on server-1                                                                                                                       | first run exposed `become_user` needing a sudo password (fixed: `systemctl --user -M`); then exit 0; rerun `changed=0`                                                                                                               |
+| Runtime link                                                                                                                                  | `/run/puni/solver -> /run/user/10001/wbs-solver`, socket `srwxrwxr-x wbs-solver`                                                                                                                                                     |
+| Admission (F6 policy applied with `kubectl apply -k infra/platform/policy`, `solverImages` set to the probe digest), server-side Pod dry-runs | exact `/run/puni/solver` admitted; `/run/puni`, `/run/user/10001/wbs-solver`, `/run/puni/solver/supervisor.sock`, `/var/run/docker.sock`, `/` denied ("exact directory root"); other digest denied ("approved backend image digest") |
+| Pod on server-1 connects                                                                                                                      | reached socket inode 48; supervisor logged "connection refused: supervisor peer cgroup: no full Docker container id found"                                                                                                           |
+| Socket replacement                                                                                                                            | supervisor restart: inode 48 → 50; the running pod's next attempt used inode 50 and reached the new listener (pid 9986)                                                                                                              |
+| Node reboot                                                                                                                                   | link recreated by tmpfiles, supervisor active via linger, pod restarted and reached new inode 37                                                                                                                                     |
+| Node removal while the pod runs                                                                                                               | retirement workload check (`cluster-checks.py workloads`) exit 1 "wbs-solver/wbs-backend… needs a maintenance transaction"; exit 0 after scaling the backend to 0                                                                    |
+
+Faults found along the way: the F6 policy's `solverImages` regex rejects `name:tag@digest`
+(the bun lock uses a tag), so the digest-only form is required; Restricted container fields
+(`runAsNonRoot`, `seccompProfile`) are required per container, not only per pod.
+
+Not verified, with the reason:
+
+- **A real solve from a k3s pod is blocked by the supervisor.** It identifies peers only by a
+  Docker cgroup (`solver-supervisor-peer-cgroup.ts`); the k3s pod's cgroup is
+  `…/cri-containerd-900f7bfb….scope`, so every pod connection is refused, approved or not. The
+  supervisor also drives solver containers through the Docker CLI, so the role installs
+  `docker.io` next to k3s containerd. A containerd/Kubernetes peer identity in
+  `tools/tool-remote-scripts` is needed before the backend can solve in k3s.
+- **"Refusal of an unapproved workload"** is observed only in that general form; the
+  supervisor could not distinguish approved and unapproved k3s pods.
+- **Solver state transfer** has no mechanism; scaling the backend to zero stood in for it.
+- A Docker-peer solve (`be-01-blue` container on the node) was not attempted: 1.6 GB image
+  and 2 GiB VM memory.
+
+## F11 commands and results (2026-09-18, worktree `change/tbf-f11`)
+
+Commits: `1be744b5` descriptor/promotion/publish, `d86292bb` workflows, `19556f26` fleet check,
+`fb4f771a` merge of `9088797e`, `3a60d6c5` solverImages order, `e89955fb` cutover,
+`e75a4e1f` restore-marker fix. Locked tools: kubectl v1.36.4 and helm v4.3.0 from the
+toolchain URLs, shellcheck 0.11.0 and actionlint 1.7.12 from `check-tools.json`, each
+`sha256` verified by `check-provision.ts` (the actionlint and shellcheck digests were also
+compared with the GitHub release API's asset digests); k3d v5.9.0 `sha256sum -c` OK.
+
+| Command                                                                        | SHA / tree                 | Result                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------ | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run-many -t lint typecheck -p tool-deploy tool-fleet --skip-nx-cache` | `fb4f771a`                 | exit 0                                                                                                                                                                                                                                                                                                                                                                |
+| `bun test` in tool-deploy / tool-fleet                                         | `e75a4e1f`                 | 233 pass 0 fail / 204 pass 0 fail                                                                                                                                                                                                                                                                                                                                     |
+| `bunx nx format:check --all`                                                   | before each commit         | exit 0                                                                                                                                                                                                                                                                                                                                                                |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                       | docs tree after `e75a4e1f` | 95 items, 95 passed                                                                                                                                                                                                                                                                                                                                                   |
+| `bunx nx run tool-fleet:check:faults`                                          | `e75a4e1f`                 | exit 0: clean copy exit 0; each of 9 faults exit 1 naming its family (schema; yaml [+kustomize]; ansible-syntax; ansible-inventory; kustomize; helm; shellcheck; workflows; executables). Pending inventory `network:` applied to copies only                                                                                                                         |
+| `bunx nx run tool-fleet:check`                                                 | `e75a4e1f`                 | **exit 1**: test/lint/typecheck pass; every family passes except `ansible-inventory` on both committed inventories: `Could not set puni_private_ipv4 … 'hcloud_private_ipv4' is undefined` (see findings)                                                                                                                                                             |
+| `bunx nx run tool-deploy:rehearse:cutover` (`K3D`, `KUBECTL` locked), run 4    | `e75a4e1f`                 | exit 0; all assertions below; `puni-f11-*` containers, images, Compose network, cluster and registry deleted. The Docker network `k3d-puni-f11-cutover` remained and was removed by hand; `40cc30e7` adds it to the cleanup. Run 5 on `e1f86f02` (after merging `e170c948`): exit 0, all 18 assertions passed, and no `puni-f11` container, network or image remained |
+
+Cutover rehearsal, run 4 (06:43–06:45Z): old side = `tier.compose.tmpl`/`site.caddy.tmpl`
+rendered for be/gw/fe plus a Caddy edge importing `log-redact.caddy`, the images' own
+`migrate-cli`/`migrate-status-cli`. Two known projects written through the edge (HTTP 200).
+Fence: POST 503, GET 200, `/ws` 503. Gateway drained at 0 connections. Writer stopped. Export
+`e2fe3457…`: 44 migrations, newest `20260912120000_add_work_item_facts` equal to the status CLI,
+integrity `ok`, no FK violations, both known rows. **Tampered export** (one byte appended):
+the restore Job failed with "copied export is …, not e2fe3457…" and wrote nothing. Real restore:
+same SHA-256, migrations and per-table counts, owner UID 10001. Tiers rolled out, release record
+written and read back by `currentRelease`, F8 smoke Job 5/5 ok, `GET /api/projects` with
+`Host: wbs.f11.test` served both rows. After the (simulated) switch the old edge still refused
+writes; the pre-switch rollback (start be/gw, restore the site file, reload) accepted a new write
+and left the old migration status unchanged. Fence to k3s serving: 06:44:11 → 06:45:16 (65 s),
+30 s of which is `docker stop --time 30` on gw-01 (it did not exit on SIGTERM).
+
+Faults the rehearsal found (fixed, then re-observed passing): run 1 asserted every exported
+migration against `migrate-status-cli`, which prints only the newest (my assumption, corrected);
+run 3's refused tampered restore left `cutover-incoming.done`, so the real restore Job read the
+stale bytes and exited before the copy (`e75a4e1f`: refused bytes are deleted, a stale marker is
+refused).
+
+### R5 failure proofs (each guard disabled, the named test observed failing, then restored and passing)
+
+| Check                                              | Test observed failing                                                                                                      |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Digest-pinned tier image in a candidate            | `refuses a tag-only tier image`                                                                                            |
+| Gate run is for the descriptor's commit            | `refuses gate evidence for another commit`                                                                                 |
+| `pixels` job passed                                | `refuses a run whose browser job did not pass`                                                                             |
+| `requireDeploymentAdmission` on every tier (seal)  | `refuses an admission record for another commit` (call replaced by a pass-through)                                         |
+| Fresh admission has the descriptor's activation    | `refuses a fresh admission from another activation`                                                                        |
+| Prod digests equal the staging proof's             | `refuses a production digest staging did not prove`                                                                        |
+| State directory is 0700                            | `refuses a state directory others can read`                                                                                |
+| Descriptor SHA-256 is the requested one            | `refuses a descriptor other than the one named`                                                                            |
+| Prod reads the staging proof                       | `refuses production before staging proved the descriptor`                                                                  |
+| Resume only the recorded request                   | `refuses to resume a journal recorded against another cluster context`                                                     |
+| Publish only while the WBS unit is suspended       | `refuses to publish the desired revision while the WBS unit is not suspended`                                              |
+| Publish only from `previousRevision`               | `refuses to move a deploy branch someone else moved`                                                                       |
+| `solverImages` candidate first                     | `admits the candidate then the rollback digest, once when they are equal`                                                  |
+| Strict YAML                                        | `refuses duplicate keys and malformed YAML`                                                                                |
+| New executable needs a shellchecking target        | `refuses a new executable no target shellchecks`                                                                           |
+| Inventory lists exactly its own cluster            | `refuses an inventory that lists a foreign-cluster host`                                                                   |
+| Locked tool digest                                 | `refuses a download whose digest differs from the lock, installing nothing`                                                |
+| Export integrity / FK / restored bytes / owner UID | `refuses an export whose integrity_check …`, `… foreign key violations`, `… different bytes`, `… backend UID does not own` |
+| Workflow: main-only dispatch (run block)           | `refuses a dispatch from any ref but main` (exit 0 instead of 78)                                                          |
+| Workflow: installed-package route (run block)      | `refuses admission on the archive-launcher route` (exit 127 instead of 78)                                                 |
+
+Live family-level negatives are the `check:faults` rows above; the restore SHA-256 refusal was
+observed live in the rehearsal.
+
+### tool-devsync baseline
+
+Before merging `9088797e`, the suite showed 15 failures on this branch; three were F11's
+(`tool-deploy:test` reading `ci.yml`, the overlays and be-01 without declaring them) and were
+cleared by the `tool-deploy` test inputs. After the merge two more were F11's and are fixed:
+`cutover-rehearsal.ts` spelled the tier union itself (`b4e302cb`), and the index checker could
+not resolve the then-untracked `cutover-plan.md`. At `577c1b4d`: `tool-devsync` 216 pass 0 fail,
+`tool-deploy` 233/0, `tool-fleet` 204/0, and `gate-entrypoints.test.ts` (with the target's
+`TOOL_WIKI_TRUSTED_NODE_MODULES`) 57/0. The cutover rehearsal ran at `e75a4e1f`; `b4e302cb` only
+changed a type annotation in it.
+
+## Backup move and Fable review repairs (2026-09-18)
+
+Commits: `bbf365a9` merge of `e170c948`; `e1f86f02` tracked workflows; `ece5efb2` SQLite backup
+shipped with the release; `bb152e74` fleet check green (inventory `network:`, loaded controller,
+strict rendered YAML); `62d94f56` digest binding, gate event, mainline, recovery, publish before
+reopen, downgrade and proof age, `refs/wbs/desired`; `4bbdec10` runner hook, workflow inputs,
+cutover plan. Runs below are on `4bbdec10` unless stated.
+
+| Command                                                                  | Result                                                                                                                                                     |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun test` tool-deploy / tool-fleet / tool-devsync                       | 254/0, 243/0, 245/0                                                                                                                                        |
+| `gate-entrypoints.test.ts` (`TOOL_WIKI_TRUSTED_NODE_MODULES` set)        | 57/0                                                                                                                                                       |
+| lint + typecheck tool-deploy, tool-fleet, tool-dagger                    | exit 0                                                                                                                                                     |
+| `bunx nx format:check --all`                                             | exit 0                                                                                                                                                     |
+| `bun tools/tool-fleet/src/check-cli.ts` (the `tool-fleet:check` command) | **exit 0**, every family passed (26 executables, 3 overlays with a matching backup)                                                                        |
+| `bunx nx run tool-fleet:check:faults`                                    | exit 0: clean copy passes; 11 faults each fail naming their family, incl. inventory without `network:` and a backup path mismatch                          |
+| `bunx nx run tool-deploy:test:backup` (k3d `puni-f11-backup`)            | exit 0, 13 assertions (below)                                                                                                                              |
+| `bunx nx run tool-deploy:rehearse:cutover`                               | exit 0, 18 assertions                                                                                                                                      |
+| `bunx nx run tool-deploy:test:k3s` (F8 lab, now with the backup CronJob) | exit 0, 35 assertions; `solverImages` observed candidate-first; the lab's k3d network was left and removed by hand, cleanup added to `lab.ts` (not re-run) |
+
+Backup lab, live: F6 admission denied the job pod under the old `bun:1.4.2-alpine` image
+("approved backend image digest") and admitted it under the release backend digest; the
+rendered CronJob ran that digest; `kubectl create job --from=cronjob/sqlite-backup` succeeded
+against a real `wbs-data` PVC holding a row written through the API, uploaded a versioned
+object to the local object store with `sourceRevision` from `wbs-release`/`sourceSha` and 44
+migrations; the runner's `restore` mode (backend image, backend identity) rebuilt a fresh PVC,
+and the restored file carried the known row, the reported SHA-256, integrity `ok`, no FK
+violations and the reported migration set.
+
+Faults found on the way (fixed, then re-observed passing): the base-file unit test of the
+backup judge passed while the real rendered overlays failed (`kubectl kustomize` re-sorts map
+keys); the judge now compares canonically.
+
+R5 failure proofs added (guard disabled, named test observed failing, restored passing):
+backup judge namespace, image, `PUNI_SOURCE_REVISION` and runner bytes (`check-backup.test.ts`);
+coordinator moves the CronJob image with the backend (`moves the backup CronJob …`); loaded
+controller manifest digest (`refuses a loaded archive …`); tier built from another commit;
+pull_request gate run; registry label (`refuses an image built from another commit`) and the
+deploy-time call (`refuses a descriptor whose image the registry labels …`; the run went on to
+the cluster without it); commit on main and downgrade (`source.test.ts`); proof age; malformed
+`recovers` (CLI and workflow block); publish before reopen (with the publish moved back into
+`reconcile-desired` it ran after `reopenWrites`); runner hook (a PR workflow ref started).
+
+Flux in the rehearsal (review M5): not feasible here. Flux's source-controller needs a smart-HTTP
+or SSH Git server for the WBS `GitRepository`; the toolchain lock carries no Git server image,
+and an unpinned one would break the lock rule. The suspend/resume order is unit-tested against
+the fake (publish only while suspended, resume only onto the served revision) and written into
+the cutover plan's steps 6, 8 and the rollback.
+
+### Not verified, with prepared next steps
+
+- **Registry labels on real images**: `tool-dagger` now adds `WBS_SHA`, but no Dagger publish has
+  run; until one does, every real image lacks the label and descriptor sealing refuses it.
+- **Workflows in real GitHub Actions**: neither `infra-check` nor `deploy-k3s` has run. Unverified:
+  `docker load` of the controller OCI on `ubuntu-latest`, artifact download across runs, the
+  protected environments, and the `puni-deploy` runner.
+- **Staging rollout/rollback through `deploy-k3s`**: blocked on the installed-package admission
+  route (P5 flip), the WBS Flux unit and deploy repository, the environments/secrets/variables in
+  [deployment.md](../../../docs/infra/deployment.md#cicd), and a production MCP image.
+- **h2puni gate**: `bin/h2puni-gate.sh <sha>` not run from this worktree (the gate host is h2puni).
+- **Production cutover**: plan only ([cutover-plan.md](../../../docs/infra/cutover-plan.md));
+  no authorization, nothing applied.

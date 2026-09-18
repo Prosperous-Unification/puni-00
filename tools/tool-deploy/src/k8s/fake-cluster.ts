@@ -280,6 +280,14 @@ export class FakeCluster implements ReleaseEffects {
     this.record = identity;
     return Promise.resolve();
   }
+  /** Publishing moves the served source to the desired revision, only while suspended. */
+  publishDesired(request: ReleaseRequest) {
+    this.enter('publishDesired');
+    if (request.flux === null) return Promise.resolve();
+    if (!this.fluxSuspended) throw new Error('published while the WBS unit was not suspended');
+    this.fluxRevision = request.flux.desiredRevision;
+    return Promise.resolve();
+  }
   reconcileDesired() {
     this.enter('reconcileDesired');
     return Promise.resolve();

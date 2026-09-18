@@ -13,6 +13,8 @@ import {
   type ObjectStore,
   restoreSqlite,
   snapshotSqlite,
+  verificationMaxAgeMs,
+  verifyLatestBackup,
   verifySqlite,
 } from './backup-sqlite';
 
@@ -56,6 +58,9 @@ function memoryStore(): ObjectStore & { readonly objects: Map<string, Uint8Array
       const body = objects.get(key);
       if (body === undefined) return Promise.reject(new Error(`missing ${key}`));
       return Promise.resolve(body);
+    },
+    list(prefix) {
+      return Promise.resolve([...objects.keys()].filter((key) => key.startsWith(prefix)));
     },
   };
 }
@@ -209,5 +214,67 @@ describe('createS3Store', () => {
     } finally {
       await server.stop(true);
     }
+  });
+});
+
+describe('verifyLatestBackup', () => {
+  async function backedUp(now: Date) {
+    const directory = await scratchAsync('sqlite-verify-');
+    const db = createLiveDatabase(join(directory, 'live.db'));
+    db.close();
+    const store = memoryStore();
+    for (const offset of [2, 1]) {
+      await backupSqlite({
+        database: 'wbs',
+        sourcePath: join(directory, 'live.db'),
+        scratchDirectory: directory,
+        prefix: 'sqlite',
+        sourceRevision: 'a'.repeat(40),
+        store,
+        now: new Date(now.getTime() - offset * 3_600_000),
+      });
+    }
+    return { directory, store };
+  }
+
+  it('restores the newest report and accepts it inside the window', async () => {
+    const now = new Date('2026-09-18T12:00:00Z');
+    const { directory, store } = await backedUp(now);
+    const report = await verifyLatestBackup({
+      database: 'wbs',
+      prefix: 'sqlite',
+      targetPath: join(directory, 'verify.db'),
+      store,
+      now,
+      maxAgeMs: verificationMaxAgeMs,
+    });
+    expect(report.capturedAt).toBe('2026-09-18T11:00:00.000Z');
+  });
+
+  it('refuses a newest report older than the window and an empty prefix', async () => {
+    const now = new Date('2026-09-18T12:00:00Z');
+    const { directory, store } = await backedUp(now);
+    const stale = await rejectionOf(
+      verifyLatestBackup({
+        database: 'wbs',
+        prefix: 'sqlite',
+        targetPath: join(directory, 'stale.db'),
+        store,
+        now: new Date(now.getTime() + 30 * 3_600_000),
+        maxAgeMs: verificationMaxAgeMs,
+      }),
+    );
+    expect(stale.message).toContain('s old');
+    const empty = await rejectionOf(
+      verifyLatestBackup({
+        database: 'other',
+        prefix: 'sqlite',
+        targetPath: join(directory, 'none.db'),
+        store,
+        now,
+        maxAgeMs: verificationMaxAgeMs,
+      }),
+    );
+    expect(empty.message).toContain('No SQLite backup report');
   });
 });

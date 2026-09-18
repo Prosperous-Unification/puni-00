@@ -75,7 +75,7 @@ describe('validatePlatform', () => {
         'otel-agent',
         'velero',
       ],
-      workloadImages: 11,
+      workloadImages: 8,
       secrets: 0,
     });
   });
@@ -368,17 +368,6 @@ describe('validatePlatform', () => {
     expect(validatePlatform(root)).rejects.toThrow(/REGISTRY_AUTH=htpasswd/);
   });
 
-  it('rejects a SQLite runner ConfigMap that differs from the reviewed source', async () => {
-    const root = await mutablePlatform();
-    await replaceManifestText(
-      root,
-      'infra/platform/backup/sqlite/runner.yaml',
-      "    export const restoreProcedureVersion = 'sqlite-restore/1';",
-      "    export const restoreProcedureVersion = 'sqlite-restore/1';\n    console.log('changed');",
-    );
-    expect(validatePlatform(root)).rejects.toThrow(/SQLite backup runner ConfigMap differs/);
-  });
-
   it('rejects a plain workload image outside the toolchain lock', async () => {
     const root = await mutablePlatform();
     await replaceManifestText(
@@ -396,11 +385,11 @@ describe('validatePlatform', () => {
     const root = await mutablePlatform();
     await replaceManifestText(
       root,
-      'infra/platform/backup/sqlite/cronjob.yaml',
-      '          containers:\n',
-      '          initContainers:\n            - { name: fetch, image: docker.io/library/alpine:3 }\n          containers:\n',
+      'infra/platform/backup/local/object-store.yaml',
+      '      automountServiceAccountToken: false\n      securityContext:\n        runAsNonRoot: true\n        runAsUser: 1000\n        seccompProfile: { type: RuntimeDefault }\n      containers:\n',
+      '      automountServiceAccountToken: false\n      securityContext:\n        runAsNonRoot: true\n        runAsUser: 1000\n        seccompProfile: { type: RuntimeDefault }\n      initContainers:\n        - { name: fetch, image: docker.io/library/alpine:3 }\n      containers:\n',
     );
-    expect(validatePlatform(root)).rejects.toThrow(/CronJob\/sqlite-backup container fetch/);
+    expect(validatePlatform(root)).rejects.toThrow(/Job\/object-store-buckets container fetch/);
   });
 
   it('rejects a changed Velero plugin image', async () => {
@@ -508,9 +497,9 @@ describe('validatePlatform', () => {
 
   it('rejects a consumed Secret that is neither listed nor declared', async () => {
     const root = await mutablePlatform();
-    await removeExternalSecret(root, 'platform-local', 'sqlite-backup-s3');
+    await removeExternalSecret(root, 'platform-local', 'elastic-s3-credentials');
     expect(validatePlatform(root)).rejects.toThrow(
-      /platform-local consumes Secret wbs\/sqlite-backup-s3, which is neither listed nor declared/,
+      /platform-local consumes Secret observability\/elastic-s3-credentials, which is neither listed nor declared/,
     );
   });
 
