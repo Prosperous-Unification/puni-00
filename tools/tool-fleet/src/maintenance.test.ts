@@ -141,4 +141,19 @@ describe('planMaintenance', () => {
     await writeFile(path, JSON.stringify({ operation: 'reboot-everything' }));
     expect(planMaintenance(path)).rejects.toThrow(/Unknown maintenance operation/);
   });
+
+  it('names an absent, unreadable or malformed evidence file', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'puni-maintenance-'));
+    const path = join(directory, 'input.json');
+    expect(planMaintenance(path)).rejects.toThrow(
+      `Cannot read required maintenance input at ${path}`,
+    );
+    expect(planMaintenance(directory)).rejects.toThrow(
+      `Cannot read required maintenance input at ${directory}`,
+    );
+    await writeFile(path, '{"operation":');
+    expect(planMaintenance(path)).rejects.toThrow(
+      `Required maintenance input at ${path} is malformed JSON`,
+    );
+  });
 });

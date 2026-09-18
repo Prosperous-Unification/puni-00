@@ -1,5 +1,7 @@
 # Fleet identities and ownership
 
+Operator commands and what has been tested: [infrastructure operator guide](README.md).
+
 The fleet uses stable logical node IDs for desired state. Hetzner instance IDs,
 machine IDs, Kubernetes node UIDs and cluster IDs are observed identities. A
 hostname is display text and never joins records or authorizes mutation.
@@ -32,7 +34,9 @@ tool-fleet:build entrypoint builds the pinned controller OCI artifact locally.
 with the exact Multipass and controller versions in
 `infra/versions/toolchain.json`. A platform lab has one embedded-etcd server
 and one agent. A workers lab has one tainted server and two execution agents.
-The lab ID must be a short lowercase DNS-style label; VM names are derived as
+`--provider qemu --qemu-prefix <dir>` runs the same lab rootless on QEMU/KVM with the build
+locked in `infra/local/qemu-lab.lock.json`; every recorded VM drill used that provider, and the
+default Multipass provider has not run live. The lab ID must be a short lowercase DNS-style label; VM names are derived as
 `puni-fleet-<lab>-<profile>-<role>-<number>`. The command never accepts an
 arbitrary VM name, and `down` passes only exact expected names to `multipass
 delete --purge`.

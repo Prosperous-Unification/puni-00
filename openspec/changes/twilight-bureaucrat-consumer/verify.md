@@ -19,6 +19,12 @@ All runs 2026-09-18 on the `change/tbf-p5` worktree, not h2puni. The h2puni full
 - Runbook upgrade and recovery order corrected: a pull request is judged by its base's pin against the selected activation, so the pin merges first (admitted under the old matching pair), then the variables change; the refuse-by-name window between is documented; any base/activation mismatch is repaired through the variables, never through a pull request.
 - `bun test ... src/packaging/consumer-bootstrap.test.ts src/policy/gate-entrypoints.test.ts`: 78 pass, 0 fail, 415 assertions. `tool-git-hooks:test`: 127 pass. `tool-devsync` suite: 202 pass, 12 fail, all 12 in the `8d98168d` baseline set. `twilight-bureaucrat:lint:source` and `:typecheck` exit 0.
 
+## F12 status (2026-09-18)
+
+`requireDeploymentAdmission` is consumed by F11's descriptor seal and by `deploy:k3s`; its
+proofs are in the k3s-wbs-delivery verify.md (F11 R5 table). The remaining P5 steps depend on
+P4 publication and are listed below; no CI run, h2puni gate or activation flip has happened.
+
 ## Next commands after publication
 
 1. Push `twilight-bureaucrat-v0.1.0` once the P4 prerequisites exist; compare `bun info twilight-bureaucrat@0.1.0 dist.integrity` with the release record.

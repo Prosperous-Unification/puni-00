@@ -1,5 +1,7 @@
 # Local k3s lab and source-run dev environments
 
+Operator commands and what has been tested: [infrastructure operator guide](README.md).
+
 Three ways to run WBS on one machine, fastest first:
 
 | Loop                                         | Use it for                                                                                            |

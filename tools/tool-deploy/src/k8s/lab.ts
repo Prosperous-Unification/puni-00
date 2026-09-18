@@ -607,10 +607,17 @@ async function main(): Promise<void> {
       stderr: 'inherit',
       env: process.env,
     });
+    const migratedBy = Date.now() + 900_000;
     for (;;) {
       const journal = fileJournal(journalPath).read();
       if (journal?.state.phase === 'migrated') break;
       if (coordinator.exitCode !== null) throw new Error('coordinator exited before the rollout');
+      if (Date.now() > migratedBy) {
+        coordinator.kill('SIGKILL');
+        throw new Error(
+          `coordinator did not reach migrated within 900s; journal at ${String(journal?.state.phase)}`,
+        );
+      }
       await Bun.sleep(200);
     }
     await Bun.sleep(1500);

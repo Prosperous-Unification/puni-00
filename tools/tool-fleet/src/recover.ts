@@ -568,19 +568,40 @@ export function planVolumeRebind(
 /** Runs one kubectl invocation and returns stdout; a non-zero exit throws. */
 export type Kubectl = (arguments_: readonly string[], stdin?: string) => Promise<string>;
 
-/** A kubectl adapter bound to one explicit kubeconfig; no ambient context is used. */
-export function createKubectl(kubectlPath: string, kubeconfig: string): Kubectl {
+/** Default bound on one kubectl call; an unreachable API server otherwise blocks forever. */
+export const KUBECTL_TIMEOUT_MS = 5 * 60 * 1000;
+
+/**
+ * A kubectl adapter bound to one explicit kubeconfig; no ambient context is used.
+ *
+ * Every call is killed after `timeoutMs` and throws naming the deadline, so `tool-fleet:health`,
+ * `recover` and `synthetic` cannot hang on a silent API server.
+ */
+export function createKubectl(
+  kubectlPath: string,
+  kubeconfig: string,
+  timeoutMs: number = KUBECTL_TIMEOUT_MS,
+): Kubectl {
   return async (arguments_, stdin) => {
     const child = Bun.spawn([kubectlPath, `--kubeconfig=${kubeconfig}`, ...arguments_], {
       stdin: stdin === undefined ? 'ignore' : new TextEncoder().encode(stdin),
       stdout: 'pipe',
       stderr: 'pipe',
+      // Proof: without this bound `createKubectl > kills a call that outlives its deadline` hit
+      // the 5 s test timeout against a kubectl that never exits (2026-09-18).
+      timeout: timeoutMs,
+      killSignal: 'SIGKILL',
     });
     const [stdout, stderr, exitCode] = await Promise.all([
       new Response(child.stdout).text(),
       new Response(child.stderr).text(),
       child.exited,
     ]);
+    if (child.signalCode !== null) {
+      throw new Error(
+        `kubectl ${arguments_.join(' ')} was killed (${child.signalCode}) after ${String(timeoutMs)}ms: ${stderr}`,
+      );
+    }
     if (exitCode !== 0) {
       throw new Error(`kubectl ${arguments_.join(' ')} exited ${String(exitCode)}: ${stderr}`);
     }

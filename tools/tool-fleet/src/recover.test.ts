@@ -9,6 +9,7 @@ import { parse } from 'yaml';
 import {
   ageRecipientOf,
   type ColdRestoreInputs,
+  createKubectl,
   decodeAttachments,
   decodeBech32,
   decodeRecoveryManifest,
@@ -468,5 +469,28 @@ describe('restore.yml', () => {
     expect(playbook).toContain('--etcd-s3=false');
     expect(playbook).toContain('ansible_play_hosts_all | length == 1');
     expect(playbook).not.toMatch(/\brm\b|state: absent/);
+  });
+});
+
+describe('createKubectl', () => {
+  it('kills a call that outlives its deadline and names it', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'tool-fleet-kubectl-'));
+    const hanging = join(directory, 'kubectl');
+    await writeFile(hanging, '#!/bin/sh\nexec sleep 30\n');
+    await chmod(hanging, 0o700);
+    const started = Date.now();
+    const refusal: unknown = await createKubectl(
+      hanging,
+      join(directory, 'kubeconfig'),
+      200,
+    )(['get', 'nodes']).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(refusal).toBeInstanceOf(Error);
+    expect((refusal as Error).message).toMatch(
+      /kubectl get nodes was killed \(SIGKILL\) after 200ms/,
+    );
+    expect(Date.now() - started).toBeLessThan(4000);
   });
 });

@@ -92,3 +92,32 @@ bunx @fission-ai/openspec@1.12.0 validate --all --json |
 ## Handoff prompt
 
 > Execute `docs/superpowers/plans/2026-09-17-twilight-bureaucrat-and-fleet.md` using `executing-plans`, one task at a time. Start from sync commit `56076845` or a descendant. Target k3s immediately and model fleet membership dynamically. Read the linked contract and track before each task. Use Bun/Nx, preserve trusted activation semantics, run production-path negatives for safety checks, and record observed evidence. Implement scripts, manifests and local rehearsals through completion. Only apply paid/public/destructive operations when specifically authorized for the exact operation plan. Report missing external inputs with the concrete prepared artifact; do not substitute a fixed-host or Compose-first design.
+
+## Status
+
+As of 2026-09-18. Open means some implementation or required real-world acceptance has not
+run; the linked `verify.md` and its `tasks.md` name what is missing and the next command. No
+packet is archived.
+
+[pkg]: ../../../openspec/changes/twilight-bureaucrat-package/verify.md
+[consumer]: ../../../openspec/changes/twilight-bureaucrat-consumer/verify.md
+[fleet]: ../../../openspec/changes/k3s-fleet/verify.md
+[platform]: ../../../openspec/changes/k3s-platform/verify.md
+[delivery]: ../../../openspec/changes/k3s-wbs-delivery/verify.md
+
+| Task  | State | Evidence                  | Open                                                                                  |
+| ----- | ----- | ------------------------- | ------------------------------------------------------------------------------------- |
+| P0–P3 | done  | [package][pkg]            |                                                                                       |
+| P4    | open  | [package][pkg]            | registry publication (license, npm ownership, release environment, tag)               |
+| P5    | open  | [consumer][consumer]      | lock and activation flip after P4, h2puni gate, real CI runs                          |
+| F0–F2 | done  | [fleet][fleet]            | production discovery has never run live                                               |
+| F3    | done  | [fleet][fleet]            | QEMU/KVM lab only; Multipass provider and Hetzner MTU not run                         |
+| F4    | open  | [fleet][fleet]            | remote Terragrunt backend and a paid hcloud node                                      |
+| F5    | open  | [fleet][fleet]            | HA control-plane removal, live upgrade, PDB/local-PV/singleton drains                 |
+| F6    | open  | [platform][platform]      | production registry adoption, staging ACME, production Flux bootstrap                 |
+| F7    | open  | [platform][platform]      | OTLP mTLS, real receivers and buckets, escrow check, production-storage drills        |
+| F8    | open  | [delivery][delivery]      | real solve from a k3s pod, Hetzner CSI access mode, OIDC smoke                        |
+| F9    | open  | [platform][platform]      | full-graph `platform`/`fleet` measurement, per-environment namespaces                 |
+| F10   | open  | [platform][platform]      | maintenance on real hosts, live `sqlite-backup-verify` in `wbs-solver`, hcloud Retain |
+| F11   | open  | [delivery][delivery]      | GitHub Actions and staging runs, h2puni gate, authorized production cutover           |
+| F12   | done  | [platform][platform], F12 | [operator guide](../../infra/README.md)                                               |

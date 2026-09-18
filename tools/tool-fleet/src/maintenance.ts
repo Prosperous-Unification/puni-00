@@ -262,7 +262,21 @@ const PlanInput = type({ operation: 'string', '+': 'ignore' });
 
 /** Read one JSON evidence file and dispatch to the named planner. */
 export async function planMaintenance(path: string): Promise<MaintenancePlan> {
-  const input: unknown = JSON.parse(await readFile(path, 'utf8'));
+  let source: string;
+  try {
+    source = await readFile(path, 'utf8');
+  } catch (cause) {
+    // Proof: without this context `planMaintenance > names an absent or malformed evidence file`
+    // received a bare ENOENT/EISDIR that named no maintenance input (2026-09-18).
+    throw new Error(`Cannot read required maintenance input at ${path}`, { cause });
+  }
+  let input: unknown;
+  try {
+    input = JSON.parse(source);
+  } catch (cause) {
+    // Proof: without this context the same test received a JSON SyntaxError with no path.
+    throw new Error(`Required maintenance input at ${path} is malformed JSON`, { cause });
+  }
   const header = PlanInput(input);
   if (header instanceof type.errors)
     throw new Error(`Maintenance input is invalid: ${header.summary}`);

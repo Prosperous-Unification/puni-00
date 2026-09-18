@@ -5,6 +5,8 @@ staging. Running it needs a separate, explicit human authorization for this exac
 inputs filled in and its prerequisites checked. Until then every production mutation below is
 a command to review, not a command to run.
 
+Operator commands and what has been tested: [infrastructure operator guide](README.md).
+
 The move is a one-time transaction the F8 release coordinator cannot perform: the coordinator
 needs a running k3s release to start from. The steps are `CUTOVER_PHASES` in
 `tools/tool-deploy/src/k8s/cutover.ts`. `bunx nx run tool-deploy:rehearse:cutover` runs all of

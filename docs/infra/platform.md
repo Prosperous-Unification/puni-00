@@ -1,5 +1,7 @@
 # Platform reconciliation
 
+Operator commands and what has been tested: [infrastructure operator guide](README.md).
+
 Ansible installs k3s and bootstraps Flux. Flux then owns every long-lived
 platform object through one ordered graph per cluster. Do not apply the platform
 manifests from Ansible or by hand. Platform clusters reconcile these stages:
