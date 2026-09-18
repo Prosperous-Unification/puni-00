@@ -11,7 +11,6 @@ import {
   assertLockedWorkloadImages,
   assertRegistryTransport,
   assertSecretClosure,
-  assertSqliteRunner,
   assertStagePlacement,
   assertTrustedPolicyScope,
   assertTrustedWorkloadImages,
@@ -165,18 +164,12 @@ const platformKustomizations: readonly (readonly [string, readonly string[]])[] 
   ['alerts/base/kustomization.yaml', ['rules.yaml', 'probes.yaml']],
   ['alerts/local/kustomization.yaml', ['../base']],
   ['alerts/production/kustomization.yaml', ['../base', 'public-probes.yaml']],
-  ['backup/sqlite/kustomization.yaml', ['runner.yaml', 'cronjob.yaml']],
   ['backup/elastic/kustomization.yaml', ['snapshots.yaml']],
   ['backup/velero/local/kustomization.yaml', ['velero.yaml']],
   ['backup/velero/production/kustomization.yaml', ['velero.yaml']],
-  [
-    'backup/local/kustomization.yaml',
-    ['../sqlite', '../elastic', '../velero/local', 'object-store.yaml', 'sqlite-egress.yaml'],
-  ],
-  [
-    'backup/production/kustomization.yaml',
-    ['../sqlite', '../elastic', '../velero/production', 'sqlite-egress.yaml'],
-  ],
+  // The SQLite backup ships with the WBS release (deploy/k8s/wbs/base/backup.yaml).
+  ['backup/local/kustomization.yaml', ['../elastic', '../velero/local', 'object-store.yaml']],
+  ['backup/production/kustomization.yaml', ['../elastic', '../velero/production']],
 ];
 
 function requireNativeResources(
@@ -389,7 +382,6 @@ export async function validatePlatform(root: string): Promise<{
   assertRegistryTransport(manifests);
   assertTrustedWorkloadImages(manifests);
   assertTrustedPolicyScope(manifests);
-  await assertSqliteRunner(root, manifests);
 
   const fluxInstall = await readFile(join(root, 'infra/platform/flux/install.yaml'));
   const fluxInstallSha256 = createHash('sha256').update(fluxInstall).digest('hex');

@@ -42,9 +42,8 @@ authorization. Commands below reference inputs as shell variables.
       `wbs-solver/puni-trusted-workload` `data.solverImages` from reconciliation.
 - [ ] `ClusterIssuer letsencrypt-production` exists after staging issuance succeeded for both
       names (docs/infra/platform.md, "Certificates and DNS").
-- [ ] The F7 SQLite backup CronJob matches the k3s WBS deployment (namespace `wbs-solver`, PVC
-      `wbs-data`, database `/data/wbs.sqlite`, backend label `wbs-backend`, UID 10001); it does
-      not today, so backups would not run after the cutover.
+- [ ] Secret `wbs-solver/sqlite-backup-s3` exists for the release-shipped backup CronJob
+      (docs/infra/recovery.md, "SQLite").
 - [ ] A production MCP image built by Dagger (the lab Dockerfile is not a release path).
 - [ ] Staging has promoted `$DESCRIPTOR_SHA256` through `deploy-k3s.yml` (so the staging proof
       exists on the deploy runner) and the P5 admission route is `installed-package`.

@@ -5,6 +5,7 @@ kind: Kustomization
 resources:
   - storage.yaml
   - backend.yaml
+  - backup.yaml
   - gateway.yaml
   - frontend.yaml
   - mcp.yaml

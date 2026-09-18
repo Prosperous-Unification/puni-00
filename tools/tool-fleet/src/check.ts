@@ -5,6 +5,7 @@ import { join, relative } from 'node:path';
 import { type } from 'arktype';
 import { parse, parseAllDocuments } from 'yaml';
 
+import { judgeBackupJob, type K8sObject } from './check-backup';
 import { readToolchain } from './contracts';
 import { validatePlatform } from './platform';
 import { platformReleases } from './platform-releases';
@@ -19,6 +20,7 @@ export const CHECK_FAMILIES = [
   'ansible-syntax',
   'ansible-inventory',
   'kustomize',
+  'wbs-backup',
   'helm',
   'shellcheck',
   'workflows',
@@ -444,6 +446,46 @@ export async function runFleetChecks(
       }
     }
     log(`kustomize: ${String(directories.length)} kustomizations rendered`);
+    return problems;
+  });
+
+  await runFamily('wbs-backup', failures, async () => {
+    const runner = await readFile(join(root, 'tools/tool-fleet/src/backup-sqlite.ts'), 'utf8');
+    const overlays = [
+      ...new Set(
+        paths
+          .filter((path) => /^deploy\/k8s\/wbs\/overlays\/[^/]+\/kustomization\.yaml$/.test(path))
+          .map((path) => path.split('/')[4]),
+      ),
+    ].sort();
+    const problems: string[] = [];
+    let judged = 0;
+    for (const overlay of overlays) {
+      const rendered = await run(
+        [tools.kubectl, 'kustomize', join(root, 'deploy/k8s/wbs/overlays', overlay)],
+        { timeoutMs: 120_000 },
+      );
+      if (rendered.exitCode !== 0) {
+        problems.push(`overlay ${overlay} does not render: ${rendered.stderr.trim()}`);
+        continue;
+      }
+      const objects = parseAllDocuments(rendered.stdout).map(
+        // Boundary: kubectl rendered these; judgeBackupJob reads each field defensively.
+        (document) => document.toJS() as K8sObject,
+      );
+      const hasBackend = objects.some(
+        (each) => each.kind === 'Deployment' && each.metadata?.name === 'wbs-backend',
+      );
+      const hasBackup = objects.some(
+        (each) => each.kind === 'CronJob' && each.metadata?.name === 'sqlite-backup',
+      );
+      // The source-run dev overlay does not build on the release base: it has neither.
+      if (!hasBackend && !hasBackup) continue;
+      judged++;
+      problems.push(...judgeBackupJob(objects, runner).map((each) => `${overlay}: ${each}`));
+    }
+    if (judged === 0) problems.push('no WBS overlay renders the backend and its backup');
+    log(`wbs-backup: ${String(judged)} overlays render a backup matching their backend`);
     return problems;
   });
 

@@ -133,6 +133,14 @@ const FAULTS: readonly Fault[] = [
       ),
   },
   {
+    family: 'wbs-backup',
+    description: 'the backup CronJob reads another database path than the backend',
+    inject: (tree) =>
+      edit(tree, 'deploy/k8s/wbs/base/backup.yaml', (text) =>
+        text.replace('value: /data/wbs.sqlite }', 'value: /data/wbs.db }'),
+      ),
+  },
+  {
     family: 'helm',
     description: 'vendored Traefik chart gains a template that fails (lock re-pinned to it)',
     inject: async (tree) => {

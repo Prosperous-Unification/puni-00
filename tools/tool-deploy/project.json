@@ -75,6 +75,13 @@
         "command": "bun tools/tool-deploy/src/k8s/lab.ts"
       }
     },
+    "test:backup": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-deploy/src/k8s/backup-lab.ts"
+      }
+    },
     "lint": {
       "executor": "nx:run-commands",
       "options": {

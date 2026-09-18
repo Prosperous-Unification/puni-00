@@ -75,24 +75,24 @@ spec:
           # Covers a CronJob that succeeded long ago and one that has never succeeded.
           # Proof: the previous expression failed the never-succeeded promtool case on 2026-09-18.
           expr: >-
-            (time() - kube_cronjob_status_last_successful_time{namespace="wbs", cronjob="sqlite-backup"}
+            (time() - kube_cronjob_status_last_successful_time{namespace="wbs-solver", cronjob="sqlite-backup"}
               > 26 * 3600)
             or
-            ((time() - kube_cronjob_created{namespace="wbs", cronjob="sqlite-backup"} > 26 * 3600)
+            ((time() - kube_cronjob_created{namespace="wbs-solver", cronjob="sqlite-backup"} > 26 * 3600)
               unless on (namespace, cronjob)
-              kube_cronjob_status_last_successful_time{namespace="wbs", cronjob="sqlite-backup"})
+              kube_cronjob_status_last_successful_time{namespace="wbs-solver", cronjob="sqlite-backup"})
           for: 5m
           labels: { severity: critical }
           annotations:
             summary: No successful SQLite backup for more than 26 hours
         - alert: PuniSqliteBackupSuspended
-          expr: kube_cronjob_spec_suspend{namespace="wbs", cronjob="sqlite-backup"} == 1
+          expr: kube_cronjob_spec_suspend{namespace="wbs-solver", cronjob="sqlite-backup"} == 1
           for: 1h
           labels: { severity: critical }
           annotations:
             summary: The SQLite backup CronJob is suspended
         - alert: PuniSqliteBackupMissing
-          expr: absent(kube_cronjob_created{namespace="wbs", cronjob="sqlite-backup"})
+          expr: absent(kube_cronjob_created{namespace="wbs-solver", cronjob="sqlite-backup"})
           for: 1h
           labels: { severity: critical }
           annotations:

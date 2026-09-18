@@ -157,7 +157,7 @@ sops --config /dev/null --encrypt --age "$CLUSTER_AGE_RECIPIENT" \
 | `registry-ca` (production)       | `puni-registry` | `tls.crt`, `tls.key` of the private registry CA                      |
 | `alertmanager-puni`              | `observability` | `alertmanager.yaml`, including the real receiver and dead-man URL    |
 | `elastic-s3-credentials`         | `observability` | `s3.client.default.access_key`, `s3.client.default.secret_key`       |
-| `sqlite-backup-s3`               | `wbs`           | `endpoint`, `bucket`, `region`, `access-key-id`, `secret-access-key` |
+| `sqlite-backup-s3` (WBS release) | `wbs-solver`    | `endpoint`, `bucket`, `region`, `access-key-id`, `secret-access-key` |
 | `velero-credentials`             | `puni-backup`   | `cloud` (AWS credentials file)                                       |
 | `velero-repo-credentials`        | `puni-backup`   | `repository-password` (Kopia repository encryption)                  |
 | `object-store-root` (local only) | `puni-backup`   | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`                             |

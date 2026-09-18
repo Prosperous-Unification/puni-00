@@ -502,6 +502,8 @@ export const OBJECTS = {
   admissionParams: 'puni-trusted-workload',
   pvc: 'wbs-data',
   backendServiceAccount: 'wbs-backend',
+  /** deploy/k8s/wbs/base/backup.yaml; it runs the backend image, so it moves with it. */
+  backupCronJob: 'sqlite-backup',
 } as const;
 
 export interface KubectlSettings {
@@ -1017,8 +1019,45 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
     return parseTaskReport(logs);
   }
 
+  /** The SQLite backup CronJob's image; F6 admits its pods only with a backend digest. */
+  async function backupImage(): Promise<string> {
+    return (
+      await kubectl([
+        '-n',
+        backend,
+        'get',
+        'cronjob',
+        OBJECTS.backupCronJob,
+        '-o',
+        'jsonpath={.spec.jobTemplate.spec.template.spec.containers[?(@.name=="backup")].image}',
+      ])
+    ).trim();
+  }
+
   async function rollout(namespace: string, tier: K8sTier, image: string): Promise<void> {
     const deployment = OBJECTS.deployments[tier];
+    if (tier === 'backend') {
+      // Proof: execute-adapter.test.ts `moves the backup CronJob with every backend rollout`
+      // saw no cronjob patch with this block removed; its next run would then use a digest the
+      // coordinator may already have dropped from solverImages, and admission would deny it.
+      const cronPatch = {
+        spec: {
+          jobTemplate: {
+            spec: { template: { spec: { containers: [{ name: 'backup', image }] } } },
+          },
+        },
+      };
+      await kubectl([
+        '-n',
+        namespace,
+        'patch',
+        'cronjob',
+        OBJECTS.backupCronJob,
+        '--type=strategic',
+        '-p',
+        JSON.stringify(cronPatch),
+      ]);
+    }
     const patch = {
       spec: { replicas: 1, template: { spec: { containers: [{ name: tier, image }] } } },
     };
@@ -1087,6 +1126,13 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
           `${tier} runs ${running} but the release record says ${identity.images[tier]}`,
         );
       }
+    }
+    const backup = await backupImage();
+    if (backup !== identity.images.backend) {
+      throw new Error(
+        `CronJob ${OBJECTS.backupCronJob} runs ${backup} but the release record says ` +
+          identity.images.backend,
+      );
     }
     return identity;
   }
