@@ -1,0 +1,102 @@
+# Unprivileged infrastructure checks for pull requests. This workflow is the only place candidate
+# infrastructure code runs in CI: on GitHub-hosted, ephemeral `ubuntu-latest` runners, with a
+# read-only token and no secrets, variables or environments. The protected deploy runner and its
+# credentials belong to `deploy-k3s.yml`, which never runs candidate code.
+# `deploy-k3s-workflow.test.ts` pins these properties; `tool-fleet:check` actionlints this file.
+name: infra-check
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+      - 'deploy/**'
+      - 'tools/tool-fleet/**'
+      - 'tools/tool-deploy/**'
+      - 'tools/tool-remote-scripts/**'
+      - 'bin/publish-release.sh'
+      - '.github/workflows/infra-check.yml'
+      - '.github/workflows/deploy-k3s.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - 'deploy/**'
+      - 'tools/tool-fleet/**'
+      - 'tools/tool-deploy/**'
+      - '.github/workflows/infra-check.yml'
+      - '.github/workflows/deploy-k3s.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fleet-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # The check runs Ansible inside the digest-locked controller image, which is built, not
+      # pulled: `tool-fleet:build` refuses unless the built manifest equals the locked digest.
+      - name: Build and load the locked fleet controller
+        run: |
+          set -euo pipefail
+          bunx nx run tool-fleet:build --output-style=stream
+          docker load --input dist/tool-fleet/controller.oci
+
+      # Locked kubectl, helm, shellcheck and actionlint are downloaded and SHA-256 checked into
+      # the runner's tool cache by the check itself; nothing here installs an unpinned tool.
+      - name: tool-fleet:check (test, lint, typecheck, then every artifact family)
+        run: bunx nx run tool-fleet:check --output-style=stream
+
+      - name: tool-deploy test, lint, typecheck
+        run: bunx nx run-many -t test lint typecheck -p tool-deploy --output-style=stream
+
+  k3s-rehearsal:
+    # The F8 release transaction against a disposable k3d cluster on this ephemeral runner.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: fleet-check
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Locked k3d and kubectl
+        run: |
+          set -euo pipefail
+          lock=infra/versions/toolchain.json
+          mkdir -p "$RUNNER_TEMP/bin"
+          for tool in k3d kubectl; do
+            url=$(jq --exit-status --raw-output ".binaries.$tool.url" "$lock")
+            sum=$(jq --exit-status --raw-output ".binaries.$tool.sha256" "$lock")
+            curl --fail --location --proto '=https' --output "$RUNNER_TEMP/bin/$tool" "$url"
+            printf '%s  %s\n' "$sum" "$RUNNER_TEMP/bin/$tool" | sha256sum --check --strict
+            chmod 0755 "$RUNNER_TEMP/bin/$tool"
+          done
+
+      - name: tool-deploy:test:k3s
+        env:
+          K3D: ${{ runner.temp }}/bin/k3d
+          KUBECTL: ${{ runner.temp }}/bin/kubectl
+        run: bunx nx run tool-deploy:test:k3s --output-style=stream

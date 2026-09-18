@@ -1,0 +1,423 @@
+# Protected WBS delivery to k3s: staging deploys an immutable release descriptor, production
+# promotes the exact descriptor staging proved. Plan is the default; `apply` must be chosen.
+#
+# Trust layout (pinned by tools/tool-deploy/src/k8s/deploy-k3s-workflow.test.ts):
+#   resolve    ubuntu-latest, read-only. Refuses any ref but main; names the candidate source.
+#   admission  ubuntu-latest, no secrets. Installs the base-owned package BEFORE checking out the
+#              candidate, runs `admit.sh`, and uploads `admission.json` as a workflow artifact.
+#   describe   ubuntu-latest, read-only. Trusted main code seals (staging) or re-checks (prod) the
+#              descriptor against the admission record and the `ci` run's gate/pixels evidence.
+#   deploy     the protected environment on the persistent deploy runner. It checks out only
+#              `github.sha` (main), never the candidate, and runs `tool-deploy:deploy:k3s` with the
+#              journal, requests and staging proofs in the persistent 0700 state directory.
+# Environment protection (required reviewers, deployment branch main) is configured in GitHub,
+# not here; see docs/infra/deployment.md, "CI/CD".
+name: deploy-k3s
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'staging deploys a candidate; prod promotes a descriptor staging proved'
+        type: choice
+        options: [staging, prod]
+        required: true
+      cluster_context:
+        description: 'kube context in the environment kubeconfig (checked against its kube-system UID)'
+        type: string
+        required: true
+      release:
+        description: 'staging: release candidate JSON {schemaVersion, sourceSha, images{backend,gateway,frontend,mcp}, gateRunId}'
+        type: string
+        required: false
+      staging_run_id:
+        description: 'prod: the deploy-k3s run that promoted the descriptor to staging'
+        type: string
+        required: false
+      descriptor_sha256:
+        description: 'prod: required identity of the staged descriptor; staging: optional expected identity'
+        type: string
+        required: false
+      apply:
+        description: 'run the transaction; unchecked prints the plan only'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-k3s-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      source_sha: ${{ steps.candidate.outputs.source_sha }}
+    steps:
+      # Proof: deploy-k3s-workflow.test.ts runs this block with DISPATCH_REF=refs/heads/feature and
+      # observes exit 78 before any candidate is named.
+      - name: Refuse any ref but main
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [[ "$DISPATCH_REF" != refs/heads/main ]]; then
+            printf 'deploy-k3s runs only from refs/heads/main, not %s\n' "$DISPATCH_REF" >&2
+            exit 78
+          fi
+
+      - name: Fetch the staging descriptor (prod)
+        if: inputs.environment == 'prod'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-descriptor
+          path: ${{ runner.temp }}/staged
+          run-id: ${{ inputs.staging_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Name the candidate
+        id: candidate
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          RELEASE: ${{ inputs.release }}
+          STAGING_RUN_ID: ${{ inputs.staging_run_id }}
+          DESCRIPTOR_SHA256: ${{ inputs.descriptor_sha256 }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/candidate"
+          case "$ENVIRONMENT" in
+            staging)
+              printf '%s' "${RELEASE:?staging needs the release input}" > "$RUNNER_TEMP/candidate/release.json"
+              source_sha=$(jq --exit-status --raw-output '.sourceSha' "$RUNNER_TEMP/candidate/release.json")
+              ;;
+            prod)
+              : "${STAGING_RUN_ID:?prod needs staging_run_id}"
+              : "${DESCRIPTOR_SHA256:?prod needs descriptor_sha256}"
+              run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$STAGING_RUN_ID")
+              jq --exit-status '.path == ".github/workflows/deploy-k3s.yml" and .head_branch == "main" and .conclusion == "success"' <<<"$run" >/dev/null || {
+                printf 'run %s is not a successful deploy-k3s run on main\n' "$STAGING_RUN_ID" >&2
+                exit 78
+              }
+              cp "$RUNNER_TEMP/staged/descriptor.json" "$RUNNER_TEMP/candidate/descriptor.json"
+              source_sha=$(jq --exit-status --raw-output '.sourceSha' "$RUNNER_TEMP/candidate/descriptor.json")
+              ;;
+            *)
+              printf 'unknown environment %s\n' "$ENVIRONMENT" >&2
+              exit 78
+              ;;
+          esac
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]] || { printf 'source sha is not a full commit\n' >&2; exit 78; }
+          printf 'source_sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: candidate
+          path: ${{ runner.temp }}/candidate/
+          if-no-files-found: error
+
+  admission:
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Require immutable activation configuration
+        env:
+          ACTIVATION_ARCHIVE_SHA256: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256 }}
+          ACTIVATION_ARCHIVE_URL: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_URL }}
+          ACTIVATION_VERSION: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}
+        run: |
+          set -euo pipefail
+          : "${ACTIVATION_ARCHIVE_SHA256:?trusted activation archive digest is not configured}"
+          : "${ACTIVATION_ARCHIVE_URL:?trusted activation archive URL is not configured}"
+          : "${ACTIVATION_VERSION:?trusted activation version is not configured}"
+          [[ "$ACTIVATION_VERSION" =~ ^[0-9a-f]{40}$ ]] || {
+            printf 'activation version must be a full commit SHA\n' >&2
+            exit 78
+          }
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.2
+
+      # The same selection checks as trusted-wiki.yml's provisioning step (whose suite proves
+      # them); a copy, because a deployment admits against the same external authority.
+      - name: Provision immutable external activation
+        env:
+          ACTIVATION_ARCHIVE_SHA256: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_SHA256 }}
+          ACTIVATION_ARCHIVE_URL: ${{ vars.TOOL_WIKI_ACTIVATION_ARCHIVE_URL }}
+          ACTIVATION_VERSION: ${{ vars.TOOL_WIKI_ACTIVATION_VERSION }}
+        run: |
+          set -euo pipefail
+          : "${ACTIVATION_ARCHIVE_SHA256:?trusted activation archive digest is not configured}"
+          : "${ACTIVATION_ARCHIVE_URL:?trusted activation archive URL is not configured}"
+          : "${ACTIVATION_VERSION:?trusted activation version is not configured}"
+          archive="$RUNNER_TEMP/tool-wiki-activation.tar"
+          curl --fail --location --proto '=https' --tlsv1.2 --output "$archive" "$ACTIVATION_ARCHIVE_URL"
+          printf '%s  %s\n' "$ACTIVATION_ARCHIVE_SHA256" "$archive" | sha256sum --check --strict
+          activation_root="$RUNNER_TEMP/tool-wiki-activation/$ACTIVATION_VERSION"
+          mkdir -p "$activation_root"
+          chmod 0700 "$activation_root"
+          tar --extract --file "$archive" --directory "$activation_root" --no-same-owner --no-same-permissions
+          test -s "$activation_root/selected.json"
+          activation_root=$(realpath -- "$activation_root")
+          if ! selected_directory=$(jq --exit-status --raw-output \
+            'if (.directory|type) == "string" then .directory else empty end' \
+            "$activation_root/selected.json"); then
+            printf 'activation selection has no string directory: %s\n' \
+              "$activation_root/selected.json" >&2
+            exit 78
+          fi
+          if [[ ! "$selected_directory" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*(/[0-9A-Za-z][0-9A-Za-z._-]*)*$ ]]; then
+            printf 'activation selection names no version directory: %s\n' "$selected_directory" >&2
+            exit 78
+          fi
+          if ! version_directory=$(realpath -- "$activation_root/$selected_directory") ||
+            [[ "$version_directory" != "$activation_root"/* ]]; then
+            printf 'activation selection escapes the extracted archive root: %s\n' \
+              "$selected_directory" >&2
+            exit 78
+          fi
+          if ! certified_revision=$(jq --exit-status --raw-output \
+            'if (.sourceRevision|type) == "string" then .sourceRevision else empty end' \
+            "$version_directory/manifest.json"); then
+            printf 'activation manifest has no string sourceRevision: %s\n' \
+              "$version_directory/manifest.json" >&2
+            exit 78
+          fi
+          if [[ "$certified_revision" != "$ACTIVATION_VERSION" ]]; then
+            printf 'activation archive certifies %s, not the configured version %s\n' \
+              "$certified_revision" "$ACTIVATION_VERSION" >&2
+            exit 78
+          fi
+          # Provenance for whoever reads this log. Nothing on the admission path reads the
+          # descriptor, so its absence or contents change no decision.
+          if [[ -r "$activation_root/toolkit-release" ]]; then
+            printf 'toolkit release: %s\n' \
+              "$(head -c 200 -- "$activation_root/toolkit-release" | tr -dc '[:print:]')"
+          fi
+          printf 'TOOL_WIKI_ACTIVATION_ROOT=%s\n' "$activation_root" >> "$GITHUB_ENV"
+
+      # The package pin and lock come from main (this run's own commit), never the candidate,
+      # and are installed before the candidate checkout below exists.
+      - name: Check out base-owned package bootstrap
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          path: trusted-base
+          sparse-checkout: infra/ci/bureaucrat/
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Bootstrap trusted package
+        id: bootstrap
+        run: bash "$GITHUB_WORKSPACE/trusted-base/infra/ci/bureaucrat/bootstrap.sh" "$GITHUB_WORKSPACE/trusted-base/infra/ci/bureaucrat" "$RUNNER_TEMP/twilight-bureaucrat" >> "$GITHUB_OUTPUT"
+
+      - name: Check out exact candidate
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.resolve.outputs.source_sha }}
+          path: candidate
+          persist-credentials: false
+
+      # Deployment needs the package's admission record; the archive-launcher route certifies
+      # without writing one, so it cannot admit a deployment.
+      # Proof: deploy-k3s-workflow.test.ts runs this block with ADMISSION_ROUTE=archive-launcher
+      # and observes exit 78 with no admission.json written.
+      - name: Admit the candidate
+        env:
+          ADMISSION_ROUTE: ${{ steps.bootstrap.outputs.route }}
+          CANDIDATE_SHA: ${{ needs.resolve.outputs.source_sha }}
+          TOOL_WIKI_REQUIRE_CERTIFIED: '1'
+        run: |
+          set -euo pipefail
+          if [[ "$ADMISSION_ROUTE" != installed-package ]]; then
+            printf 'deployment admission requires the installed-package route, not %s\n' "$ADMISSION_ROUTE" >&2
+            exit 78
+          fi
+          bash "$RUNNER_TEMP/twilight-bureaucrat/admit.sh" "$RUNNER_TEMP/twilight-bureaucrat" \
+            "$GITHUB_WORKSPACE/candidate" "$CANDIDATE_SHA"
+          test -s "$RUNNER_TEMP/twilight-bureaucrat/admission.json"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: admission
+          path: ${{ runner.temp }}/twilight-bureaucrat/admission.json
+          if-no-files-found: error
+
+  describe:
+    needs: [resolve, admission]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      descriptor_sha256: ${{ steps.descriptor.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: admission
+          path: ${{ runner.temp }}/admission
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: candidate
+          path: ${{ runner.temp }}/candidate
+
+      - name: Observe the ci gate run
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "$ENVIRONMENT" == staging ]]; then
+            run_id=$(jq --exit-status --raw-output '.gateRunId' "$RUNNER_TEMP/candidate/release.json")
+          else
+            run_id=$(jq --exit-status --raw-output '.evidence.gate.runId' "$RUNNER_TEMP/candidate/descriptor.json")
+          fi
+          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")
+          jobs=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" --jq '.jobs[] | {name, conclusion}' | jq --slurp .)
+          jq --argjson jobs "$jobs" '{id, head_sha, path, event, status, conclusion, jobs: $jobs}' <<<"$run" > "$RUNNER_TEMP/gate-run.json"
+
+      - name: Seal or re-check the descriptor
+        id: descriptor
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          EXPECTED_SHA256: ${{ inputs.descriptor_sha256 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/descriptor"
+          if [[ "$ENVIRONMENT" == staging ]]; then
+            bun tools/tool-deploy/src/k8s/descriptor-cli.ts seal \
+              --candidate "$RUNNER_TEMP/candidate/release.json" \
+              --admission "$RUNNER_TEMP/admission/admission.json" \
+              --gate-run "$RUNNER_TEMP/gate-run.json" \
+              --out "$RUNNER_TEMP/descriptor/descriptor.json" > "$RUNNER_TEMP/sha256"
+          else
+            cp "$RUNNER_TEMP/candidate/descriptor.json" "$RUNNER_TEMP/descriptor/descriptor.json"
+            bun tools/tool-deploy/src/k8s/descriptor-cli.ts check \
+              --descriptor "$RUNNER_TEMP/descriptor/descriptor.json" \
+              --admission "$RUNNER_TEMP/admission/admission.json" \
+              --gate-run "$RUNNER_TEMP/gate-run.json" > "$RUNNER_TEMP/sha256"
+          fi
+          sha256=$(<"$RUNNER_TEMP/sha256")
+          if [[ -n "$EXPECTED_SHA256" && "$sha256" != "$EXPECTED_SHA256" ]]; then
+            printf 'descriptor is %s, not the requested %s\n' "$sha256" "$EXPECTED_SHA256" >&2
+            exit 78
+          fi
+          printf 'sha256=%s\n' "$sha256" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-descriptor
+          path: ${{ runner.temp }}/descriptor/descriptor.json
+          if-no-files-found: error
+
+  deploy:
+    needs: [resolve, admission, describe]
+    runs-on: [self-hosted, puni-deploy]
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      # Trusted code only: this run's own main commit. The candidate exists here solely as image
+      # digests inside the descriptor.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: admission
+          path: ${{ runner.temp }}/admission
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-descriptor
+          path: ${{ runner.temp }}/descriptor
+
+      - name: Credentials and the persistent deploy repository
+        env:
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+          DEPLOY_REPO_SSH_KEY: ${{ secrets.DEPLOY_REPO_SSH_KEY }}
+          DEPLOY_REPO_URL: ${{ vars.PUNI_DEPLOY_REPO_URL }}
+          STATE: ${{ vars.PUNI_DEPLOY_STATE }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          : "${KUBECONFIG_B64:?environment secret KUBECONFIG_B64 is not configured}"
+          : "${DEPLOY_REPO_SSH_KEY:?environment secret DEPLOY_REPO_SSH_KEY is not configured}"
+          : "${DEPLOY_REPO_URL:?environment variable PUNI_DEPLOY_REPO_URL is not configured}"
+          : "${STATE:?environment variable PUNI_DEPLOY_STATE is not configured}"
+          umask 077
+          printf '%s' "$KUBECONFIG_B64" | base64 --decode > "$RUNNER_TEMP/kubeconfig"
+          printf '%s\n' "$DEPLOY_REPO_SSH_KEY" > "$RUNNER_TEMP/deploy-key"
+          ssh_command="ssh -i $RUNNER_TEMP/deploy-key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          printf 'GIT_SSH_COMMAND=%s\n' "$ssh_command" >> "$GITHUB_ENV"
+          clone="$STATE/$ENVIRONMENT/deploy-repo"
+          if [[ ! -d "$clone/.git" ]]; then
+            GIT_SSH_COMMAND="$ssh_command" git clone --quiet "$DEPLOY_REPO_URL" "$clone"
+          fi
+
+      - name: tool-deploy:deploy:k3s
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          CLUSTER_CONTEXT: ${{ inputs.cluster_context }}
+          CLUSTER_UID: ${{ vars.PUNI_CLUSTER_UID }}
+          STATE: ${{ vars.PUNI_DEPLOY_STATE }}
+          DESCRIPTOR_SHA256: ${{ needs.describe.outputs.descriptor_sha256 }}
+          APPLY: ${{ inputs.apply }}
+          KUBECTL: ${{ vars.PUNI_KUBECTL }}
+        run: |
+          set -euo pipefail
+          : "${CLUSTER_UID:?environment variable PUNI_CLUSTER_UID is not configured}"
+          : "${KUBECTL:?environment variable PUNI_KUBECTL (the locked kubectl path) is not configured}"
+          mode=()
+          if [[ "$APPLY" == true ]]; then mode=(--apply); fi
+          bun tools/tool-deploy/src/k8s/deploy-k3s.ts \
+            --descriptor "$RUNNER_TEMP/descriptor/descriptor.json" \
+            --descriptor-sha256 "$DESCRIPTOR_SHA256" \
+            --admission "$RUNNER_TEMP/admission/admission.json" \
+            --environment "$ENVIRONMENT" \
+            --context "$CLUSTER_CONTEXT" \
+            --cluster-uid "$CLUSTER_UID" \
+            --state "$STATE" \
+            --deploy-repo "$STATE/$ENVIRONMENT/deploy-repo" \
+            --kubeconfig "$RUNNER_TEMP/kubeconfig" \
+            --kubectl "$KUBECTL" \
+            "${mode[@]}"
+
+      - name: Remove credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/kubeconfig" "$RUNNER_TEMP/deploy-key"
