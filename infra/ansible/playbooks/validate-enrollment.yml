@@ -236,3 +236,22 @@
           - puni_worker_probe_node.stdout not in groups['k3s_bootstrap_servers']
         fail_msg: Worker activity landed on the NoSchedule worker server
       when: puni_cluster_id == 'workers'
+
+    # The receiver is an owner-less pod pinned to the bootstrap server; left behind, it made the
+    # retirement workload check refuse that server in the live F8 lab. Validation removes what it
+    # created once every probe has passed; per-run Jobs remain owned by their Job controller.
+    - name: Remove the validation receiver after the probes passed
+      ansible.builtin.command:
+        argv:
+          - k3s
+          - kubectl
+          - --namespace
+          - '{{ puni_probe_namespace }}'
+          - delete
+          - pod/receiver
+          - service/receiver
+          - --ignore-not-found
+          - --wait=true
+          - --timeout=120s
+      register: puni_receiver_cleanup
+      changed_when: "'deleted' in puni_receiver_cleanup.stdout"

@@ -133,7 +133,7 @@ const command = process.argv.slice(2).join(' ');
 const args = process.argv.slice(2);
 const groups = JSON.parse(require('node:fs').readFileSync(args[args.indexOf('--inventory') + 1], 'utf8')).all.children;
 const hosts = Object.keys(command.includes('join.yml') ? groups.k3s_agents.hosts : groups.k3s_bootstrap_servers.hosts);
-const changed = command.includes('validate-enrollment.yml') ? 2 : 0;
+const changed = command.includes('validate-enrollment.yml') ? 3 : 0;
 process.stdout.write('PLAY RECAP\\n' + hosts.map((host) => host + ' : ok=20 changed=' + changed + ' unreachable=0 failed=0').join('\\n') + '\\n');
 `,
   );

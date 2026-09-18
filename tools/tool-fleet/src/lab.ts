@@ -964,8 +964,9 @@ async function converge(
   const validationRunId = randomBytes(8).toString('hex');
   for (const playbook of playbooks) {
     const expectedHosts = playbook === 'join.yml' ? agentNames : serverNames;
+    // Validation changes: fresh probe Jobs, the receiver cleanup, and on workers the scheduling proof.
     const expectedChanges =
-      playbook === 'validate-enrollment.yml' ? (profile === 'workers' ? 2 : 1) : 0;
+      playbook === 'validate-enrollment.yml' ? (profile === 'workers' ? 3 : 2) : 0;
     const outcome = await requireSuccess('docker', [
       'run',
       '--rm',

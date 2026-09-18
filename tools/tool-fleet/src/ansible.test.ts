@@ -312,7 +312,7 @@ else if (arguments_[0] === 'list') {
       `#!/usr/bin/env bun
 const command = process.argv.slice(2).join(' ');
 const host = command.includes('join.yml') ? 'puni-fleet-review-platform-agent-1' : 'puni-fleet-review-platform-server-1';
-const changed = command.includes('validate-enrollment.yml') ? 1 : 0;
+const changed = command.includes('validate-enrollment.yml') ? 2 : 0;
 process.stdout.write(\`PLAY RECAP\\n\${host} : ok=20 changed=\${String(changed)} unreachable=0 failed=0\\n\`);
 `,
     );
@@ -568,6 +568,12 @@ describe('the Ansible host and k3s contract', () => {
       'dns-network-{{ ansible_loop.index }}-{{ puni_validation_run_id }}',
     );
     expect(validation).toContain('puni.io/enrollment:NoSchedule-');
+    expect(validation).toContain('Remove the validation receiver after the probes passed');
+    const server = await readFile(
+      join(root, 'infra/ansible/roles/k3s_server/tasks/main.yml'),
+      'utf8',
+    );
+    expect(server).toContain('argv: [k3s, kubectl, create, namespace, puni-system]');
     expect(serverConfig).toContain('puni.dev/capability-{{ capability }}=true');
     expect(agentConfig).toContain('puni.dev/capability-{{ capability }}=true');
   });
