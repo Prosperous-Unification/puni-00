@@ -30,6 +30,13 @@ The physical source remains at `apps/wiki/cli` through P4 because the active exh
 
 Publication was not attempted. The exact tarball is ready, while the root license, npm ownership, protected `twilight-bureaucrat-release` environment, least-privilege `NPM_TOKEN`, tag ruleset and `twilight-bureaucrat-v0.1.0` tag remain external prerequisites. No registry version or release asset exists from this work.
 
+## F12 status (2026-09-18)
+
+Nothing new ran for this packet in F12. P0–P3 and the P4 release machinery are complete as
+recorded above; P4 stays open because no registry version exists. `tasks.md` names the prepared
+artifact and the next command. Not claimed: any GitHub Actions run of the release workflow,
+`actionlint` (not installed), or registry propagation.
+
 ## Failure proofs
 
 | Check                      | Injected fault                                                                    | Production-path test                                                                   | Observed result                                                                                                                                                                                                                                                               |

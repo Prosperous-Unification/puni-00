@@ -6,5 +6,5 @@
   - [x] Package/activation compatibility refusal; unconfigured, inactive and certified states preserved.
   - [x] Root compatibility route with recursion refusal; deployment admission descriptor contract.
   - [ ] Publish `twilight-bureaucrat@0.1.0` (P4 prerequisites), commit `infra/ci/bureaucrat/bun.lock`, prepare an activation from the installed package with real evidence, flip `admission`, then add the root pin and move hooks, CI diagnostic and gate to the route — runbook "Package-backed admission", "Flip".
-  - [ ] F11 wires `requireDeploymentAdmission` into deployment preparation.
-  - [ ] h2puni full gate and actual CI evidence.
+  - [x] F11 wires `requireDeploymentAdmission` into deployment preparation: `sealDescriptor` admits every tier digest and `deploy:k3s` re-admits the descriptor's package and activation ([k3s-wbs-delivery verify.md](../k3s-wbs-delivery/verify.md#r5-failure-proofs-each-guard-disabled-the-named-test-observed-failing-then-restored-and-passing)).
+  - [ ] h2puni full gate and actual CI evidence. Next: `bin/h2puni-gate.sh <merged sha>` on h2puni, then the first `ci` and `trusted-wiki` runs of that commit, including the `Twilight Bureaucrat packed package suite` step.

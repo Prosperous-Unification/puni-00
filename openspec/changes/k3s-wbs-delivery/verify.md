@@ -346,3 +346,13 @@ the `k3d-puni-f8-lab` network (re-run of the `lab.ts` line: no `f8` container or
 - **h2puni gate**: `bin/h2puni-gate.sh <sha>` not run from this worktree (the gate host is h2puni).
 - **Production cutover**: plan only ([cutover-plan.md](../../../docs/infra/cutover-plan.md));
   no authorization, nothing applied.
+
+## F12 status (2026-09-18)
+
+`tasks.md` now separates what ran from what is blocked. Flux suspend/resume against a live
+source is checked because the `d2f2ad4a` rehearsals above ran it; the solver admission and
+socket rows are checked from the VM lab section; a real solve, the Hetzner access mode, OIDC,
+GitHub Actions, staging, the h2puni gate and the production cutover stay open, each with its
+next command. F12 fixed the `descriptor -- seal` example in `docs/infra/deployment.md` (it
+lacked `--repository` and `--main-ref`) and bounded the `test:k3s` wait for the `migrated`
+phase at 900 s. The command-table runs are in the k3s-platform verify.md, F12.

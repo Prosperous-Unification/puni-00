@@ -257,3 +257,47 @@ Clean run with the confirmation naming the host: exit 0 in 23 s, `ok=25 changed=
 the replacement node Ready, the fenced node deleted, the agent still Ready, `drill-before`
 present, `drill-after` absent, both previous datastores kept as `db.pre-restore-fad717947757-*`.
 The VMs and lab state were deleted; the other agent's `puni-f3-*` VMs were left untouched.
+
+## F12 operator handoff (2026-09-18, worktree `change/tbf-f12` from `afc4ceb7`)
+
+[`docs/infra/README.md`](../../../docs/infra/README.md) holds the command table. Every target
+it names resolved through Nx on this host. Rows actually run, each through `bunx nx run`
+unless noted:
+
+| Row               | Command and result                                                                                                                                                                                                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local k3d up/down | locked k3d v5.9.0 and kubectl v1.36.4 fetched by the `docs/infra/local.md` "Tools" loop (`sha256sum -c` OK); `tool-fleet:lab -- up --id f12doc --profile app` exit 0 in 53 s, `status` exit 0 with one Ready `v1.36.4+k3s1` node, `down` exit 0 in 1.2 s; afterwards no `f12doc` container, network or volume, and an empty state directory |
+| Dev environment   | `tool-devsync:dev-env -- status --slug f12doc --cluster puni-f12doc-platform`: `not running`, exit 0                                                                                                                                                                                                                                        |
+| Health            | `tool-fleet:health` on that `app` lab: exit 1 naming the absent `kustomizations` resource; the rule set needs the Flux platform graph, which `app` does not install                                                                                                                                                                         |
+| Retire plan       | `tool-fleet:plan -- --operation retire --node workers-agent-a ...` over `infra/fleet/examples/local.yaml` (execution floor 1, as in `cli.test.ts`) and a synthetic observation: exit 0, owner-only plan, digest printed                                                                                                                     |
+| Apply             | `tool-fleet:apply` with that plan and an all-zero `--expect-sha256`: exit 1 "Operation plan digest differs from its reviewed SHA-256" before any effect                                                                                                                                                                                     |
+| VM lab status     | `tool-fleet:lab -- status --provider qemu --lab-id f12doc --profile platform`: exit 0, no machines                                                                                                                                                                                                                                          |
+| Refusal only      | `discover`, `terragrunt-plan`, `terragrunt-destroy-plan`, `plan --operation upgrade`, `recover`, `maintenance plan`, `synthetic`, `deploy:k3s`, `descriptor`, `cutover`: each exit 1 naming the missing input or printing usage                                                                                                             |
+
+Not run in F12: VM lab `up`, fleet `discover`/`apply` against any cluster, the release, backup
+and cutover rehearsals (their evidence is linked from the table), anything against Hetzner,
+GitHub Actions, staging or production.
+
+Script audit (bounded waits, error context, secret output, cleanup ownership), with the
+failure-injection tables of all five packets read rather than grepped:
+
+- `createKubectl` (`recover`, `health`, `synthetic`) spawned kubectl with no deadline, so a
+  silent API server hung the health check. It now kills a call after 5 min. Proof: with the
+  `timeout` removed, `createKubectl > kills a call that outlives its deadline and names it`
+  hit the 5 s test timeout; restored, it passes.
+- `maintenance plan` exposed a bare ENOENT or JSON SyntaxError. Proof: with the context
+  removed, `planMaintenance > names an absent, unreadable or malformed evidence file` received
+  `ENOENT: no such file or directory` and `JSON Parse error: Unexpected EOF`; restored, it passes.
+- `tool-fleet:lab` without a locked k3d threw `Executable not found in $PATH: "k3d"`. Proof:
+  with the context removed, `requireLabTools > names the locked version and variable of an
+absent tool` received the spawn ENOENT; restored, it names `k3d v5.9.0` and `K3D`.
+- The F8 rehearsal's wait for the `migrated` phase was bounded only by the coordinator
+  exiting; it now stops after 900 s. This is a rehearsal harness, so no production-path proof.
+- `docs/infra/deployment.md` showed `descriptor -- seal` without its required `--repository`
+  and `--main-ref`; fixed from the CLI's usage.
+- No secret value reaches an error or log in the fleet, deploy or dev-env adapters read here;
+  cleanup deletes only derived names or label-selected resources, as the lab tables record.
+
+Checks after the fixes: `tool-fleet:test` 338 pass, `tool-deploy:test` 256 pass,
+`tool-devsync:test` 263 pass; lint and typecheck for `tool-fleet` and `tool-deploy` exit 0;
+`bunx nx format:check --all` exit 0.
