@@ -481,6 +481,29 @@ describe('executeRelease', () => {
     expectRestored(rejected);
   });
 
+  it('never renews the Lease concurrently', async () => {
+    const fake = cluster();
+    let inFlight = 0;
+    let most = 0;
+    const renew = fake.renewLease.bind(fake);
+    fake.renewLease = async (holder: string) => {
+      inFlight++;
+      most = Math.max(most, inFlight);
+      await Bun.sleep(3);
+      try {
+        await renew(holder);
+      } finally {
+        inFlight--;
+      }
+    };
+    const final = await executeRelease(request(), memoryJournal(), fake, quiet, {
+      ...on(fake),
+      heartbeatMs: 1,
+    });
+    expect(final.phase).toBe('lease-released');
+    expect(most).toBe(1);
+  });
+
   it('admits the candidate and rollback digests before any backend pod starts', async () => {
     const fake = cluster();
     await executeRelease(request(), memoryJournal(), fake, quiet, on(fake));
