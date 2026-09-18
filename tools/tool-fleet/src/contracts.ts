@@ -272,6 +272,16 @@ const fleetCapabilities = [
   'forge',
   'execution',
 ] as const;
+
+/**
+ * Node capabilities each cluster purpose may carry. The fleet decoder rejects any other
+ * capability on a node, and the platform validator rejects a workload that selects one.
+ */
+export const purposeCapabilities = {
+  platform: ['control-plane', 'product', 'ingress', 'observability', 'forge'],
+  workers: ['control-plane', 'execution'],
+} as const satisfies Record<'platform' | 'workers', readonly (typeof fleetCapabilities)[number][]>;
+
 const LifecycleSchema = type("'present' | 'draining' | 'retired'");
 const RequiredCapabilitiesSchema = type({
   'control-plane?': 'number.integer>=1',
@@ -697,8 +707,8 @@ export function decodeFleet(input: unknown): Fleet {
     }
     if (
       cluster.purpose === 'workers' &&
-      node.capabilities.some((capability) =>
-        ['product', 'ingress', 'observability', 'forge'].includes(capability),
+      node.capabilities.some(
+        (capability) => !purposeCapabilities.workers.some((allowed) => allowed === capability),
       )
     ) {
       // Proof: disabling this guard made the workers-node placement production decoder negative

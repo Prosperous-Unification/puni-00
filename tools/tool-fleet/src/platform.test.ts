@@ -45,6 +45,18 @@ async function replaceManifestText(
   await writeFile(path, source.replace(before, after));
 }
 
+async function removeExternalSecret(root: string, cluster: string, name: string) {
+  const path = join(root, 'infra/platform/secrets', cluster, 'externally-provided.json');
+  const declared: unknown = JSON.parse(await readFile(path, 'utf8'));
+  if (!Array.isArray(declared)) throw new Error(`${path} is not a list`);
+  const kept = declared.filter(
+    (entry: unknown) =>
+      typeof entry !== 'object' || entry === null || Reflect.get(entry, 'name') !== name,
+  );
+  expect(kept.length).toBe(declared.length - 1);
+  await writeFile(path, JSON.stringify(kept));
+}
+
 describe('validatePlatform', () => {
   it('accepts the locked ordered platform graph for every cluster overlay', async () => {
     const platform = await validatePlatform(repositoryRoot);
@@ -60,6 +72,7 @@ describe('validatePlatform', () => {
         'kibana',
         'kube-prometheus-stack',
         'otel-collector',
+        'otel-agent',
         'velero',
       ],
       workloadImages: 8,
@@ -316,6 +329,7 @@ describe('validatePlatform', () => {
       join(directory, 'kustomization.yaml'),
       'apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n  - registry-auth.sops.yaml\n',
     );
+    await removeExternalSecret(root, 'platform-local', 'registry-auth');
     expect((await validatePlatform(root)).secrets).toBe(1);
     await writeFile(
       join(directory, 'registry-auth.sops.yaml'),
@@ -466,5 +480,70 @@ describe('validatePlatform', () => {
       ',registry.puni.test/wbs-be:rollback',
     );
     expect(validatePlatform(root)).rejects.toThrow(/one or two distinct digest-pinned/);
+  });
+
+  it('rejects a workers stage that selects a platform-only capability', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/telemetry/agent/agent.yaml',
+      '    tolerations:\n',
+      "    nodeSelector:\n      puni.dev/capability-observability: 'true'\n    tolerations:\n",
+    );
+    expect(validatePlatform(root)).rejects.toThrow(
+      /workers-local telemetry stage selects capability observability/,
+    );
+  });
+
+  it('rejects a collector OTLP port bound on the host', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/observability/otel/collector.yaml',
+      '      otlp:\n        enabled: true\n        hostPort: 0\n',
+      '      otlp:\n        enabled: true\n',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/otel-collector values.*ports\.otlp\.hostPort/);
+  });
+
+  it('rejects a consumed Secret that is neither listed nor declared', async () => {
+    const root = await mutablePlatform();
+    await removeExternalSecret(root, 'platform-local', 'sqlite-backup-s3');
+    expect(validatePlatform(root)).rejects.toThrow(
+      /platform-local consumes Secret wbs\/sqlite-backup-s3, which is neither listed nor declared/,
+    );
+  });
+
+  it('rejects a declared Secret that nothing consumes', async () => {
+    const root = await mutablePlatform();
+    await writeFile(
+      join(root, 'infra/platform/secrets/workers-local/externally-provided.json'),
+      JSON.stringify([{ namespace: 'wbs', name: 'sqlite-backup-s3', source: 'rehearsal' }]),
+    );
+    expect(validatePlatform(root)).rejects.toThrow(
+      /workers-local provides Secret wbs\/sqlite-backup-s3, which nothing consumes/,
+    );
+  });
+
+  it('rejects a trusted parameter ConfigMap that Flux would keep reverting', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/policy/trusted-images.yaml',
+      'kustomize.toolkit.fluxcd.io/ssa: IfNotPresent',
+      'kustomize.toolkit.fluxcd.io/ssa: Merge',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/ssa: IfNotPresent/);
+  });
+
+  it('rejects a trusted-hostpath policy that matches every namespace', async () => {
+    const root = await mutablePlatform();
+    await replaceManifestText(
+      root,
+      'infra/platform/policy/trusted-workloads.yaml',
+      '    namespaceSelector:\n      matchExpressions:\n        - { key: puni.dev/trusted-hostpath, operator: Exists }\n',
+      '',
+    );
+    expect(validatePlatform(root)).rejects.toThrow(/must match only namespaces labelled/);
   });
 });

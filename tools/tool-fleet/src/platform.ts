@@ -5,14 +5,19 @@ import { join } from 'node:path';
 import { type } from 'arktype';
 import { parse } from 'yaml';
 
-import { readToolchain } from './contracts';
+import { purposeCapabilities, readToolchain } from './contracts';
 import {
   assertEncryptedSecrets,
   assertLockedWorkloadImages,
   assertRegistryTransport,
+  assertSecretClosure,
   assertSqliteRunner,
+  assertStagePlacement,
+  assertTrustedPolicyScope,
   assertTrustedWorkloadImages,
   readPlatformManifests,
+  readStageManifests,
+  referencedSecrets,
 } from './platform-manifests';
 import { platformReleases } from './platform-releases';
 
@@ -121,6 +126,7 @@ const observabilityResources = (environment: string) => [
   '../prometheus',
   '../otel',
   'telemetry.yaml',
+  'otlp-ingress.yaml',
 ];
 
 const platformKustomizations: readonly (readonly [string, readonly string[]])[] = [
@@ -136,7 +142,7 @@ const platformKustomizations: readonly (readonly [string, readonly string[]])[] 
       'trusted-workloads.yaml',
     ],
   ],
-  ['registry/base/kustomization.yaml', ['registry.yaml']],
+  ['registry/base/kustomization.yaml', ['registry.yaml', 'network-policy.yaml']],
   ['registry/local/kustomization.yaml', ['../base', 'issuers.yaml']],
   ['registry/production/kustomization.yaml', ['../base', 'issuers.yaml']],
   ['storage/local/kustomization.yaml', ['storage-class.yaml']],
@@ -153,6 +159,9 @@ const platformKustomizations: readonly (readonly [string, readonly string[]])[] 
   ['observability/otel/kustomization.yaml', ['collector.yaml']],
   ['observability/local/kustomization.yaml', [...observabilityResources('local'), 'receiver.yaml']],
   ['observability/production/kustomization.yaml', observabilityResources('production')],
+  ['telemetry/agent/kustomization.yaml', ['agent.yaml']],
+  ['telemetry/local/kustomization.yaml', ['../agent', 'upstream.yaml']],
+  ['telemetry/production/kustomization.yaml', ['../agent', 'upstream.yaml']],
   ['alerts/base/kustomization.yaml', ['rules.yaml', 'probes.yaml']],
   ['alerts/local/kustomization.yaml', ['../base']],
   ['alerts/production/kustomization.yaml', ['../base', 'public-probes.yaml']],
@@ -206,18 +215,32 @@ async function requireSecretResources(root: string, cluster: string): Promise<vo
   }
 }
 
+/**
+ * The ordered Flux stages per cluster purpose. Workers nodes carry only control-plane and
+ * execution capabilities, so their graph has no ingress, registry, Elasticsearch, Prometheus
+ * or backup stage; an agent ships their telemetry to the platform cluster.
+ */
 const stageDependencies = {
-  target: '',
-  controllers: 'target',
-  storage: 'controllers',
-  policy: 'controllers',
-  secrets: 'policy',
-  platform: 'storage,secrets',
-  observability: 'platform',
-  // Rules and probes need the monitoring CRDs that the observability stage installs.
-  alerts: 'observability',
-  backup: 'alerts',
-} as const;
+  platform: {
+    target: '',
+    controllers: 'target',
+    storage: 'controllers',
+    policy: 'controllers',
+    secrets: 'policy',
+    platform: 'storage,secrets',
+    observability: 'platform',
+    // Rules and probes need the monitoring CRDs that the observability stage installs.
+    alerts: 'observability',
+    backup: 'alerts',
+  },
+  workers: {
+    target: '',
+    storage: 'target',
+    policy: 'target',
+    secrets: 'policy',
+    telemetry: 'storage,secrets',
+  },
+} as const satisfies Record<'platform' | 'workers', Record<string, string>>;
 
 function platformStagePath(stageName: string, cluster: string, environment: string): string {
   if (stageName === 'target') return './infra/platform/target';
@@ -228,6 +251,7 @@ function platformStagePath(stageName: string, cluster: string, environment: stri
   if (stageName === 'platform') return `./infra/platform/registry/${environment}`;
   if (stageName === 'observability') return `./infra/platform/observability/${environment}`;
   if (stageName === 'alerts') return `./infra/platform/alerts/${environment}`;
+  if (stageName === 'telemetry') return `./infra/platform/telemetry/${environment}`;
   if (stageName === 'backup') return `./infra/platform/backup/${environment}`;
   throw new Error(`Unknown platform stage ${stageName}`);
 }
@@ -252,7 +276,7 @@ export async function validatePlatform(root: string): Promise<{
     const clusterKustomizationPath = join(clusterRoot, 'kustomization.yaml');
     requireNativeResources(clusterKustomizationPath, await readYaml(clusterKustomizationPath), [
       'identity.yaml',
-      ...Object.keys(stageDependencies).map((stage) => `${stage}.yaml`),
+      ...Object.keys(stageDependencies[cluster]).map((stage) => `${stage}.yaml`),
     ]);
     const identity = PlatformIdentity(await readYaml(join(clusterRoot, 'identity.yaml')));
     if (identity instanceof type.errors) {
@@ -265,7 +289,8 @@ export async function validatePlatform(root: string): Promise<{
     }
     await requireSecretResources(root, expectedCluster);
 
-    for (const [stageName, expectedDependencies] of Object.entries(stageDependencies)) {
+    const graphManifests = [];
+    for (const [stageName, expectedDependencies] of Object.entries(stageDependencies[cluster])) {
       const stage = FluxStage(await readYaml(join(clusterRoot, `${stageName}.yaml`)));
       if (stage instanceof type.errors) {
         throw new Error(`${expectedCluster} Flux ${stageName} graph is invalid: ${stage.summary}`);
@@ -293,6 +318,14 @@ export async function validatePlatform(root: string): Promise<{
       if (dependencies !== expectedDependencies) {
         throw new Error(`${expectedCluster} ${stageName} dependency order is invalid`);
       }
+      const stageManifests = await readStageManifests(root, stage.spec.path);
+      assertStagePlacement(
+        expectedCluster,
+        stageName,
+        stageManifests,
+        purposeCapabilities[cluster],
+      );
+      if (stageName !== 'secrets') graphManifests.push(...stageManifests);
       const markers = (stage.spec.healthChecks ?? []).map(({ name }) => name).join(',');
       const expectedMarkers = stageName === 'target' ? `puni-cluster-${expectedCluster}` : '';
       // Flux ignores healthChecks when wait is true, so the target stage must not wait.
@@ -302,6 +335,7 @@ export async function validatePlatform(root: string): Promise<{
         throw new Error(`${expectedCluster} ${stageName} must gate on its own cluster marker`);
       }
     }
+    await assertSecretClosure(root, expectedCluster, referencedSecrets(graphManifests));
   }
 
   for (const [relativePath, resources] of platformKustomizations) {
@@ -354,6 +388,7 @@ export async function validatePlatform(root: string): Promise<{
   const secrets = assertEncryptedSecrets(manifests);
   assertRegistryTransport(manifests);
   assertTrustedWorkloadImages(manifests);
+  assertTrustedPolicyScope(manifests);
   await assertSqliteRunner(root, manifests);
 
   const fluxInstall = await readFile(join(root, 'infra/platform/flux/install.yaml'));
