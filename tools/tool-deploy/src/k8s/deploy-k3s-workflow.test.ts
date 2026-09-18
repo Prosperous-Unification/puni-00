@@ -124,6 +124,21 @@ describe('deploy-k3s.yml separates candidate code from credentials', () => {
     );
   });
 
+  it('neither saves nor restores an Actions cache in any job', () => {
+    // A cache saved at main scope while candidate bytes are on disk would be restored by every
+    // later main-scope run, including the protected deploy job. No step may touch the cache.
+    // Proof: deleting `no-cache: true` from the admission job's setup-bun failed this test, and
+    // CodeQL flagged that job as actions/cache-poisoning/poisonable-step.
+    for (const [name, job] of Object.entries(deploy.parsed.jobs)) {
+      for (const each of job.steps) {
+        expect(each.uses ?? '', name).not.toMatch(/^actions\/cache[@/]/);
+        if (each.uses?.startsWith('oven-sh/setup-bun@')) {
+          expect(each.with?.['no-cache'], name).toBe(true);
+        }
+      }
+    }
+  });
+
   it('carries admission.json from the admission job to the deploy job as an artifact', () => {
     const upload = jobs['admission'].steps.find((s) =>
       s.uses?.startsWith('actions/upload-artifact@'),

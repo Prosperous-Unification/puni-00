@@ -239,6 +239,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: trusted-base/.bun-version
+          no-cache: true
 
       - name: Bootstrap trusted package
         id: bootstrap
@@ -296,6 +297,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: .bun-version
+          no-cache: true
 
       - name: Install
         run: bun install --frozen-lockfile
@@ -383,6 +385,7 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version-file: .bun-version
+          no-cache: true
 
       - name: Install
         run: bun install --frozen-lockfile --ignore-scripts
