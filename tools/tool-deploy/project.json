@@ -22,12 +22,26 @@
         }
       ]
     },
+    "deploy:k3s": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-deploy/src/k8s/deploy-k3s.ts"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "inputs": ["default", "^production", "{workspaceRoot}/bin/assert-no-prod-release.sh"],
       "options": {
         "command": "bun test --preload ../test/scratch/preload.ts",
         "cwd": "tools/tool-deploy"
+      }
+    },
+    "test:k3s": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "bun tools/tool-deploy/src/k8s/lab.ts"
       }
     },
     "lint": {
@@ -59,5 +73,13 @@
         "parallel": false
       }
     }
+  },
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*", "{workspaceRoot}/deploy/k8s/**/*", "sharedGlobals"],
+    "production": [
+      "default",
+      "!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)",
+      "!{projectRoot}/tsconfig.spec.json"
+    ]
   }
 }

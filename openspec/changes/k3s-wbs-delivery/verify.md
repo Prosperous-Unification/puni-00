@@ -1,14 +1,112 @@
 # Verification
 
-## Commands and results
+## F8 commands and results (2026-09-18, worktree `change/tbf-f8`)
 
-Pending F8/F11 implementation and staging rehearsal.
+Tools: k3d v5.9.0 and kubectl v1.36.4 downloaded from the `infra/versions/toolchain.json`
+URLs, `sha256sum -c` OK for both; cluster image `rancher/k3s:v1.36.4-k3s1@sha256:edad48e1…`
+and registry `registry:2.8.3@sha256:46faa9a1…` from the same lock.
 
-## Failure proofs
+| Command                                                                                | SHA                    | Result                                                                                                                                   |
+| -------------------------------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `bunx nx run tool-deploy:lint` / `typecheck` / `test --skip-nx-cache`                  | pre-commit `a608c62c`  | exit 0 / 0 / 0; test 156 pass, 0 fail (k8s: 65 pass)                                                                                     |
+| `bunx nx format:check --all`                                                           | pre-commit             | exit 0                                                                                                                                   |
+| `kubectl kustomize deploy/k8s/wbs/overlays/{local,staging,prod}`                       | `eab2eda9`             | 25 / 23 / 23 objects rendered                                                                                                            |
+| `bunx nx run tool-deploy:deploy:k3s -- --request <staging sample> --journal <scratch>` | `a608c62c`             | exit 0, plan only: 17 forward steps printed, no cluster contacted, no journal written                                                    |
+| `bunx nx run tool-deploy:test:k3s` (`K3D`, `KUBECTL` = locked binaries), run 6         | `8d98168d` + worktree¹ | exit 0, all assertions below passed; `puni-f8-lab` and `k3d-puni-f8-registry` deleted afterwards                                         |
+| `bunx nx run tool-deploy:test:k3s`, run 7                                              | `a608c62c`             | exit 0 via Nx; 34 assertions passed (source `a608c62ce0b5…`); writer pods max 1 over 259 / 79 / 53 samples; cluster and registry deleted |
 
-| Check                | Injected fault | Production-path test | Observed result |
-| -------------------- | -------------- | -------------------- | --------------- |
-| Descriptor identity  | Pending        | Pending              | Pending         |
-| Release lease        | Pending        | Pending              | Pending         |
-| Migration rollback   | Pending        | Pending              | Pending         |
-| Coordinator recovery | Pending        | Pending              | Pending         |
+¹ Run 6 ran on the uncommitted tree that became `eab2eda9`/`a608c62c`. The only later change was
+formatting. Run 7 repeats the lab on the committed SHA.
+
+The lab builds be/gw/fe from their repository Dockerfiles, and MCP from
+`deploy/k8s/wbs/lab/mcp-01.Dockerfile`. It pushes them to the lab registry only. It also
+derives two candidates from v1: `v2`, which adds `20260918000000_lab_additive`
+(`ALTER TABLE work_item ADD lab_marker`), and `v2-unhealthy`, which is v2 with a CMD that exits
+before it serves (the injected health fault).
+
+Assertions observed live (run 6, repeated in run 7):
+
+- v1 was bootstrapped, and `POST /api/projects {name: f8-row-before}` returned HTTP 200.
+- **Verbatim F6 admission** (one `solverImage`): the coordinator refused at `validate` with
+  "does not approve". Writes stayed open. A server-side dry-run admitted the exact
+  `/run/puni/solver` Directory. It refused `/run/puni`, `/run/puni/solver/supervisor.sock`,
+  `/run/puni/solver/sub`, `/var/run/docker.sock` and `/` with "exact directory root", and
+  refused an unapproved backend digest with "approved backend image digest". It still
+  refused `/run/puni` after the approved-set patch.
+- **Induced health failure** (v1→v2-unhealthy): `rollout-backend` timed out at 90 s. The
+  rollback then ran stop-writer → schema (down.sql hashes checked, `migrate-down-cli`) →
+  tiers → smoke of the old release → reopen → Lease release. The release ended `rolled-back`.
+  Every tier ran the v1 digest. `work_item` had no `lab_marker`, the lab migration was not
+  recorded, and `f8-row-before` was present. The fence selector was exactly
+  `{app.kubernetes.io/name: wbs-backend}`, and there was no Lease. Writer pods: max 1 over
+  302 samples at 300 ms.
+- **Interrupted rollout**: `deploy:k3s --apply` was run as a subprocess and SIGKILLed 1.5 s
+  after the journal reached `migrated`, with `rollout-backend` in flight. Writes stayed
+  fenced while it was dead. The rerun of the same command printed the resumed rollback plan
+  from `rollback-started` and ended `rolled-back`, with the same restored-state assertions.
+  Writer pods: max 1 over 191 samples across the kill and resume. Journal history: intent-persisted through migrated, then rollback-started,
+  rollback-writer-stopped, rollback-schema-restored, rollback-tiers-restored,
+  rollback-verified, rollback-writes-reopened, rolled-back.
+- **Additive upgrade** (v1→v2): promoted. `lab_marker` existed, `f8-row-before` survived,
+  every tier ran the v2 digest, and `f8-row-after-promotion` was inserted with HTTP 200.
+  Writer pods: max 1 over 58 samples.
+- **Second coordinator**: with a Lease held by `another-release`, the next coordinator was
+  refused at `acquire-lease` with "held by another-release", and writes stayed open.
+
+## Faults the live lab found (each fixed, then re-observed passing)
+
+| Run | Fault observed                                                                                                                                                                                                                                                                                                | Fix                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 1   | be-01/gw-01 crashed on `AUTH_MODE=local is forbidden in production` (images set `NODE_ENV=production`); fe-01 `exec /usr/bin/caddy: operation not permitted` (file capability outside the dropped bounding set)                                                                                               | local overlay `NODE_ENV=lab`; frontend adds `NET_BIND_SERVICE` (Restricted permits it)                               |
+| 3   | `stop-writer` timed out after 90 s: completed bootstrap Job pods still carry `puni.dev/writer=true`                                                                                                                                                                                                           | writer list excludes `Succeeded`/`Failed` pods                                                                       |
+| 4   | Rollback smoke Job failed every check with "Unable to connect". A fresh pod's NetworkPolicy allowances converge after it starts (the same checks passed from a pod minutes later). The release ended **`rollback-failed`** live, with the fence selector still fenced and the Lease still held by the release | smoke checks retry for a bounded 15×2 s                                                                              |
+| 4   | Reopening with a JSON merge patch left `puni.dev/writes: fenced` in `matchLabels` (observed by `kubectl patch --type=merge` then `get` on the live policy), so writes would have stayed fenced after "reopen"                                                                                                 | JSON-patch `replace` of the whole `podSelector`; the lab asserts exact selector equality                             |
+| 5   | A third transaction at the same bytes as the second reused its completed capture/migrate Jobs (same names). It "promoted" without applying the migration: `the additive column exists after promotion` failed                                                                                                 | per-attempt `transactionId` in the journal names every Job and snapshot; a resumed attempt still reuses its own Jobs |
+
+## R5 failure proofs (unit, production functions)
+
+Each guard was replaced by `false` (or its effect removed) in turn. The named test was
+observed to fail, and passed again once the guard was restored (harness: bun test `-t <name>`).
+
+| Check                                          | Injected fault          | Test observed failing                                                             |
+| ---------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------- |
+| Full source SHA                                | guard removed           | `refuses an abbreviated source sha`                                               |
+| Digest-pinned images                           | guard removed           | `refuses a tag without a digest`                                                  |
+| Staging/prod name a Flux unit                  | guard removed           | `refuses staging without a named Flux unit`                                       |
+| Cluster identity (kube-system UID)             | guard removed           | `refuses a different cluster behind the same context`                             |
+| Expected current release                       | guard removed           | `refuses when the running release differs from expectedCurrent`                   |
+| Both backend digests admitted                  | guard removed           | `refuses a backend digest admission would deny` (live: verbatim F6 refusal above) |
+| Schema restore whenever capture exists         | branch disabled         | `rolls back after a crash following migrated` / `backend-ready` / `tiers-ready`   |
+| Edited down.sql refused                        | comparison removed      | `refuses an edited down migration` (unit and executor, which stays fenced)        |
+| Applied set equals capture + pending           | comparison removed      | `refuses a migration Job that completed without applying the captured set`        |
+| Recovery needs `recovers=`                     | guard removed           | `stops at recovery-required … recovers with a fresh capture`                      |
+| Candidate must not change an applied migration | comparison removed      | `refuses a capture whose applied migration the candidate edited`                  |
+| Subprocess deadline                            | kill removed            | `kills a subprocess past its deadline` (waited 5000 ms)                           |
+| Unknown journal phase                          | guard removed           | `rejects an unknown phase`                                                        |
+| Fence reopen replaces the selector             | merge patch (live)      | live policy kept `puni.dev/writes: fenced` (run 4 cluster)                        |
+| Per-attempt Job names                          | release-id names (live) | lab run 5, scenario 3 assertion failed                                            |
+
+Observed live as a refusal only, with no removal fault injected: the foreign Lease holder at
+`acquire-lease`. Two checks were neither fault-injected nor exercised: release-record drift
+in `observeCluster`, and writers still present before `rolloutBackend`.
+
+## Not verified, with prepared next steps
+
+- **Solver in the Ubuntu VM lab** (real solve, socket replacement and reconnect, refusal of
+  an alternate host path on a real node). This is blocked on this host: `multipass` is not
+  installed, and no Ansible role installs the solver supervisor
+  (`infra/ansible/roles/` has base/k3s_agent/k3s_server/network/storage only). Prepared
+  sequence once both exist:
+  `bunx nx run tool-fleet:lab -- up --lab-id f8-solver --profile platform --ssh-public-key … --ssh-private-key …`,
+  then install `deploy/solver-supervisor/wbs-solver-supervisor.service` with its runtime
+  directory `/run/puni/solver`, label the node `puni.dev/capability-product=true`, apply F6
+  policy with the approved-set change, bootstrap as `lab.ts` does, and run
+  `deploy:k3s --apply` plus an optimize request against a seeded project.
+- **The F6 approved-set change** is proven only as a lab patch (`APPROVED_SET_PATCH`). The
+  platform track has to adopt it in `infra/platform/policy/trusted-workloads.yaml`.
+- **Flux suspend/resume and GitRepository revision checks** are unit-tested with the fake
+  only. The lab has no Flux (`flux: null`, local).
+- **Hetzner CSI access mode (RWO vs RWOP), OIDC auth smoke (401 for anonymous), and
+  staging/prod apply** are plan-only in F8 and belong to F11.
+- **The MCP production image** has no Dagger target. The lab Dockerfile is not a production
+  path.

@@ -1,0 +1,16 @@
+# The one SQLite volume. ReadWriteOnce: the local-path lab provisioner and the Hetzner CSI
+# driver both implement it; ReadWriteOncePod stays unselected until it is tested on the
+# production CSI driver (F8). Retained across deploys; the backend Deployment never owns it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wbs-data
+  namespace: wbs-solver
+  labels:
+    app.kubernetes.io/part-of: wbs
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: storage-class-set-by-overlay
+  resources:
+    requests:
+      storage: 5Gi

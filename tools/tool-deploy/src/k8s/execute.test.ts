@@ -1,0 +1,330 @@
+import { describe, expect, it } from 'bun:test';
+
+import { executeRelease, ReleaseFailedError } from './execute';
+import { CrashSignal, FakeCluster, memoryJournal } from './fake-cluster';
+import {
+  FORWARD_PHASES,
+  type ReleaseIdentity,
+  releaseIdOf,
+  type ReleasePhase,
+  type ReleaseRequest,
+} from './release';
+
+const OLD_SHA = 'a'.repeat(40);
+const NEW_SHA = 'b'.repeat(40);
+const DESIRED = 'c'.repeat(40);
+
+function identity(sha: string, fill: string): ReleaseIdentity {
+  const digest = `sha256:${fill.repeat(64)}`;
+  return {
+    sourceSha: sha,
+    images: {
+      backend: `registry.puni.test/wbs-be@${digest}`,
+      gateway: `registry.puni.test/wbs-gw@${digest}`,
+      frontend: `registry.puni.test/wbs-fe@${digest}`,
+      mcp: `registry.puni.test/wbs-mcp@${digest}`,
+    },
+  };
+}
+
+const OLD = identity(OLD_SHA, '1');
+const NEW = identity(NEW_SHA, '2');
+
+function request(overrides: Partial<ReleaseRequest> = {}): ReleaseRequest {
+  return {
+    environment: 'staging',
+    cluster: { context: 'lab', uid: 'uid-lab' },
+    namespaces: { app: 'wbs', backend: 'wbs-solver' },
+    release: NEW,
+    expectedCurrent: OLD,
+    admission: { package: 'pkg@sha256:1', activation: 'act@sha256:1' },
+    flux: {
+      namespace: 'flux-system',
+      kustomization: 'wbs',
+      gitRepository: 'deploy',
+      desiredRevision: DESIRED,
+    },
+    recovers: null,
+    ...overrides,
+  };
+}
+
+function cluster(): FakeCluster {
+  const fake = new FakeCluster(OLD, ['0001_init'], DESIRED);
+  fake.approved = [OLD.images.backend, NEW.images.backend];
+  fake.migrationsByImage.set(OLD.images.backend, [
+    { name: '0001_init', hash: 'hash-0001_init', downSha256: 'down-1' },
+  ]);
+  fake.migrationsByImage.set(NEW.images.backend, [
+    { name: '0001_init', hash: 'hash-0001_init', downSha256: 'down-1' },
+    { name: '0002_add', hash: 'hash-0002_add', downSha256: 'down-2' },
+  ]);
+  fake.write('row-before');
+  return fake;
+}
+
+const quiet = (): void => undefined;
+
+function expectRestored(fake: FakeCluster): void {
+  expect(fake.images).toEqual({ ...OLD.images });
+  expect(fake.applied).toEqual(['0001_init']);
+  expect(fake.rows).toContain('row-before');
+  expect(fake.writesOpen).toBe(true);
+  expect(fake.backendReplicas).toBe(1);
+  expect(fake.fluxSuspended).toBe(false);
+  expect(fake.lease).toBeNull();
+  expect(fake.maxConcurrentWriters).toBeLessThanOrEqual(1);
+}
+
+async function failure(promise: Promise<unknown>): Promise<ReleaseFailedError> {
+  try {
+    await promise;
+  } catch (e: unknown) {
+    if (e instanceof ReleaseFailedError) return e;
+    throw e;
+  }
+  throw new Error('expected the release to fail');
+}
+
+async function rejection(promise: Promise<unknown>): Promise<string> {
+  return promise.then(
+    () => 'resolved',
+    (e: unknown) => (e instanceof Error ? e.message : String(e)),
+  );
+}
+
+describe('executeRelease', () => {
+  it('takes the exact phase order and promotes the release', async () => {
+    const fake = cluster();
+    const journal = memoryJournal();
+    const phases: string[] = [];
+    const recording = {
+      ...journal,
+      write: (r: Parameters<typeof journal.write>[0]) => {
+        phases.push(r.state.phase);
+        journal.write(r);
+      },
+    };
+    const final = await executeRelease(request(), recording, fake, quiet);
+    expect(final.phase).toBe('lease-released');
+    expect(phases).toEqual(
+      FORWARD_PHASES.filter((p) => !['requested', 'validated', 'lease-acquired'].includes(p)),
+    );
+    expect(fake.calls).toEqual([
+      'observeCluster',
+      'acquireLease',
+      'suspendFlux',
+      'closeWrites',
+      'drainGateway',
+      'stopWriter',
+      'capture',
+      'migrate',
+      'rolloutBackend',
+      'rolloutTiers',
+      'smoke',
+      'persistRelease',
+      'reopenWrites',
+      'reconcileDesired',
+      'resumeFlux',
+      'releaseLease',
+    ]);
+    expect(fake.images).toEqual({ ...NEW.images });
+    expect(fake.applied).toEqual(['0001_init', '0002_add']);
+    expect(fake.maxConcurrentWriters).toBe(1);
+  });
+
+  const beforeProof = FORWARD_PHASES.slice(
+    FORWARD_PHASES.indexOf('intent-persisted'),
+    FORWARD_PHASES.indexOf('smoke-passed'),
+  );
+  for (const phase of beforeProof) {
+    it(`rolls back after a crash following ${phase}`, async () => {
+      const fake = cluster();
+      const journal = memoryJournal();
+      journal.crashAfter = phase;
+      // Proof: CrashSignal escapes the executor instead of being handled as a step failure.
+      let crashed: unknown = null;
+      await executeRelease(request(), journal, fake, quiet).catch((e: unknown) => {
+        crashed = e;
+      });
+      expect(crashed).toBeInstanceOf(CrashSignal);
+      const failed = await failure(executeRelease(request(), journal, fake, quiet));
+      expect(failed.state.phase).toBe('rolled-back');
+      expect(failed.state.rollbackFrom).toBe(phase as never);
+      expectRestored(fake);
+      fake.write('row-after-rollback');
+    });
+  }
+
+  const afterProof = FORWARD_PHASES.slice(FORWARD_PHASES.indexOf('smoke-passed'), -1);
+  for (const phase of afterProof) {
+    it(`finishes the proven release after a crash following ${phase}`, async () => {
+      const fake = cluster();
+      const journal = memoryJournal();
+      journal.crashAfter = phase;
+      await executeRelease(request(), journal, fake, quiet).catch((e: unknown) => {
+        expect(e).toBeInstanceOf(CrashSignal);
+      });
+      const final = await executeRelease(request(), journal, fake, quiet);
+      expect(final.phase).toBe('lease-released');
+      expect(fake.images).toEqual({ ...NEW.images });
+      expect(fake.writesOpen).toBe(true);
+      expect(fake.fluxSuspended).toBe(false);
+      expect(fake.lease).toBeNull();
+      expect(fake.migrationJobRuns).toBe(1);
+    });
+  }
+
+  it('reclaims its own Lease after a crash before intent was persisted', async () => {
+    const fake = cluster();
+    fake.lease = releaseIdOf(NEW);
+    const final = await executeRelease(request(), memoryJournal(), fake, quiet);
+    expect(final.phase).toBe('lease-released');
+    expect(fake.lease).toBeNull();
+  });
+
+  it('refuses a second coordinator while another release holds the Lease', async () => {
+    const fake = cluster();
+    fake.lease = 'another-release';
+    expect(await rejection(executeRelease(request(), memoryJournal(), fake, quiet))).toContain(
+      'held by another-release',
+    );
+    expect(fake.calls).toEqual(['observeCluster', 'acquireLease']);
+    expect(fake.writesOpen).toBe(true);
+  });
+
+  for (const [label, arrange] of [
+    ['failed health', (fake: FakeCluster) => fake.unhealthy.add(NEW.images.backend)],
+    [
+      'failed smoke',
+      (fake: FakeCluster) => fake.faults.set('smoke', new Error('frontend index FAIL 502')),
+    ],
+    [
+      'a timeout',
+      (fake: FakeCluster) =>
+        fake.faults.set('migrate', new Error('job wbs-migrate did not happen within 600000ms')),
+    ],
+  ] as const) {
+    it(`rolls back to the captured schema and old digests before writes reopen on ${label}`, async () => {
+      const fake = cluster();
+      arrange(fake);
+      const failed = await failure(executeRelease(request(), memoryJournal(), fake, quiet));
+      expect(failed.state.phase).toBe('rolled-back');
+      expectRestored(fake);
+      // Writes reopen only after the old release verified.
+      const reopen = fake.calls.lastIndexOf('reopenWrites');
+      expect(fake.calls.lastIndexOf('smoke')).toBeLessThan(reopen);
+      expect(fake.calls.lastIndexOf('rollbackSchema')).toBeLessThan(reopen);
+    });
+  }
+
+  it('leaves writes fenced and prints the manual command when rollback fails', async () => {
+    const fake = cluster();
+    fake.unhealthy.add(NEW.images.backend);
+    fake.brokenEffects.add('rollbackSchema');
+    const journal = memoryJournal();
+    const failed = await failure(executeRelease(request(), journal, fake, quiet));
+    expect(failed.state.phase).toBe('rollback-failed');
+    expect(fake.writesOpen).toBe(false);
+    expect(fake.lease).toBe(releaseIdOf(NEW));
+    expect(fake.fluxSuspended).toBe(true);
+    expect(failed.message).toContain(
+      `manual command: kubectl --context lab create -f /state/wbs-manual-rollback-${failed.state.transactionId}.json # --to=0001_init`,
+    );
+    expect(failed.message).toContain(
+      'captured migration set: baseline 0001_init; applied [0001_init]; pending [0002_add]',
+    );
+    expect(failed.message).toContain('journal: /state/release.json');
+    // A restart refuses rather than reopening writes.
+    expect(await rejection(executeRelease(request(), journal, fake, quiet))).toContain(
+      'writes stay fenced',
+    );
+    expect(fake.writesOpen).toBe(false);
+  });
+
+  it('names the manual completion when a later rollback step fails', async () => {
+    const fake = cluster();
+    fake.unhealthy.add(NEW.images.backend);
+    fake.brokenEffects.add('smoke');
+    const failed = await failure(executeRelease(request(), memoryJournal(), fake, quiet));
+    expect(failed.state.phase).toBe('rollback-failed');
+    expect(failed.state.failure?.step).toBe('rollback-verify');
+    expect(failed.message).toContain(
+      `manual command: reopen writes and delete the Lease of ${releaseIdOf(NEW)}`,
+    );
+    expect(fake.writesOpen).toBe(false);
+  });
+
+  it('refuses an edited down migration and stays fenced', async () => {
+    const fake = cluster();
+    fake.unhealthy.add(NEW.images.backend);
+    const journal = memoryJournal();
+    // The image the rollback reads carries a different down.sql than capture recorded.
+    const original = fake.observeDownMigrations.bind(fake);
+    fake.observeDownMigrations = async (id, image) =>
+      (await original(id, image)).map((m) =>
+        m.name === '0002_add' ? { ...m, downSha256: 'edited' } : m,
+      );
+    const failed = await failure(executeRelease(request(), journal, fake, quiet));
+    expect(failed.state.phase).toBe('rollback-failed');
+    expect(failed.state.failure?.message).toContain('0002_add/down.sql is edited');
+    expect(fake.applied).toEqual(['0001_init', '0002_add']);
+    expect(fake.writesOpen).toBe(false);
+  });
+
+  it('refuses a migration Job that completed without applying the captured set', async () => {
+    const fake = cluster();
+    fake.migrate = () => Promise.resolve(['0001_init']);
+    const failed = await failure(executeRelease(request(), memoryJournal(), fake, quiet));
+    expect(failed.state.failure?.step).toBe('migrate');
+    expect(failed.state.phase).toBe('rolled-back');
+  });
+
+  it('stops at recovery-required after writes reopen and recovers with a fresh capture', async () => {
+    const fake = cluster();
+    fake.faults.set('resumeFlux', new Error('Flux source is at main@sha1:old'));
+    const journal = memoryJournal();
+    const failed = await failure(executeRelease(request(), journal, fake, quiet));
+    expect(failed.state.phase).toBe('recovery-required');
+    // No blind rollback: the new release keeps serving and accepts writes.
+    expect(fake.images).toEqual({ ...NEW.images });
+    fake.write('row-after-promotion');
+    const staleSnapshot = failed.state.snapshot?.path;
+
+    expect(
+      await rejection(
+        executeRelease(request({ release: OLD, expectedCurrent: NEW }), journal, fake, quiet),
+      ),
+    ).toContain('only a request with recovers=');
+
+    fake.migrationsByImage.set(OLD.images.backend, [
+      { name: '0001_init', hash: 'hash-0001_init', downSha256: 'down-1' },
+    ]);
+    const recovery = request({ release: OLD, expectedCurrent: NEW, recovers: releaseIdOf(NEW) });
+    const final = await executeRelease(recovery, journal, fake, quiet);
+    expect(final.phase).toBe('lease-released');
+    expect(final.snapshot?.path).not.toBe(staleSnapshot);
+    expect(fake.rows).toEqual(['row-before', 'row-after-promotion']);
+    expect(fake.images).toEqual({ ...OLD.images });
+    expect(fake.lease).toBeNull();
+  });
+
+  it('refuses a new release while another release journal is unfinished', async () => {
+    const fake = cluster();
+    const journal = memoryJournal();
+    journal.crashAfter = 'writes-closed';
+    await executeRelease(request(), journal, fake, quiet).catch(() => undefined);
+    const other = identity(NEW_SHA, '3');
+    expect(
+      await rejection(executeRelease(request({ release: other }), journal, fake, quiet)),
+    ).toContain('holds unfinished release');
+  });
+
+  it('records every phase it wrote in the journal history', async () => {
+    const journal = memoryJournal();
+    await executeRelease(request(), journal, cluster(), quiet);
+    const phases = journal.read()?.history.map((h) => h.phase) as ReleasePhase[];
+    expect(phases.at(0)).toBe('intent-persisted');
+    expect(phases.at(-1)).toBe('lease-released');
+  });
+});

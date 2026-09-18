@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Namespaces, the wbs-backend service account and trusted admission belong to
+# infra/platform/policy (F6); this base owns only WBS workloads.
+resources:
+  - storage.yaml
+  - backend.yaml
+  - gateway.yaml
+  - frontend.yaml
+  - mcp.yaml
+  - network-policy.yaml
