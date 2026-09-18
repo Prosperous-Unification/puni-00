@@ -1,4 +1,5 @@
 import { mkdirSync, rmSync } from 'node:fs';
+import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
@@ -10,6 +11,8 @@ import {
   type BackendTaskReport,
   captureFromReport,
   jobName,
+  kubectlEffects,
+  parseLease,
   parseTaskReport,
   run,
 } from './execute';
@@ -145,5 +148,100 @@ describe('run', () => {
       'exceeded 200ms and was killed',
     );
     expect(Date.now() - started).toBeLessThan(2000);
+  });
+});
+
+/** A kubectl stand-in: Jobs are absent, one backend pod runs, and every create is logged. */
+function fakeKubectl(root: string): { path: string; log: string } {
+  const path = join(root, 'kubectl');
+  const log = join(root, 'calls.log');
+  writeFileSync(
+    path,
+    [
+      '#!/usr/bin/env bash',
+      `echo "$*" >> ${log}`,
+      'case "$*" in',
+      '  *" get job "*) echo "Error from server (NotFound): jobs not found" >&2; exit 1 ;;',
+      '  *" get pods "*) echo "pod/wbs-backend-5c9f-abcde" ;;',
+      '  *) exit 0 ;;',
+      'esac',
+      '',
+    ].join('\n'),
+  );
+  chmodSync(path, 0o755);
+  writeFileSync(log, '');
+  return { path, log };
+}
+
+describe('schema Jobs through the kubectl adapter', () => {
+  for (const [name, start] of [
+    ['migrate', (effects: ReturnType<typeof kubectlEffects>) => effects.migrate('tx', 'img')],
+    [
+      'observeDownMigrations',
+      (effects: ReturnType<typeof kubectlEffects>) => effects.observeDownMigrations('tx', 'img'),
+    ],
+    [
+      'rollbackSchema',
+      (effects: ReturnType<typeof kubectlEffects>) => effects.rollbackSchema('tx', 'img', 'none'),
+    ],
+    ['capture', (effects: ReturnType<typeof kubectlEffects>) => effects.capture('tx', 'img')],
+  ] as const) {
+    it(`refuses every schema Job while a writer runs: ${name}`, async () => {
+      const root = scratchSync('wbs-k3s-kubectl-');
+      roots.push(root);
+      const kubectl = fakeKubectl(root);
+      const effects = kubectlEffects({
+        kubectl: kubectl.path,
+        kubeconfig: null,
+        context: 'lab',
+        namespaces: { app: 'wbs', backend: 'wbs-solver' },
+        stateDir: root,
+        overlay: root,
+        anonymousProjectsStatus: 200,
+        rolloutTimeoutSeconds: 5,
+        jobTimeoutSeconds: 5,
+        drainTimeoutMs: 1000,
+        leaseDurationSeconds: 20,
+        log: () => undefined,
+      });
+      expect(await rejection(start(effects))).toContain(
+        'writer pods exist (pod/wbs-backend-5c9f-abcde)',
+      );
+      expect(readFileSync(kubectl.log, 'utf8')).not.toContain(' create ');
+    });
+  }
+});
+
+describe('parseLease', () => {
+  it('reads holder, renewal, duration, park state and journal', () => {
+    const lease = parseLease(
+      JSON.stringify({
+        metadata: {
+          resourceVersion: '42',
+          annotations: { 'puni.dev/journal': '/j.json', 'puni.dev/parked': 'rollback-failed' },
+        },
+        spec: {
+          holderIdentity: 'tx#run',
+          renewTime: '2026-09-18T05:00:00.000000Z',
+          leaseDurationSeconds: 20,
+        },
+      }),
+    );
+    expect(lease).toEqual({
+      holder: 'tx#run',
+      renewedAtMs: Date.parse('2026-09-18T05:00:00.000Z'),
+      durationSeconds: 20,
+      parked: 'rollback-failed',
+      journal: '/j.json',
+      version: '42',
+    });
+  });
+
+  it('refuses a Lease without a renewal time', () => {
+    expect(() =>
+      parseLease(
+        JSON.stringify({ metadata: { resourceVersion: '1' }, spec: { holderIdentity: 'x' } }),
+      ),
+    ).toThrow('lacks holderIdentity, renewTime');
   });
 });

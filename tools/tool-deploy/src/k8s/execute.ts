@@ -1,15 +1,18 @@
+import { randomBytes } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 
 import { isTerminal, type JournalRecord, type ReleaseJournal } from './journal';
 import {
+  admittedBackendImages,
   assertDownMigrationsUnchanged,
   assertMigratedSet,
   assertObservedCluster,
   assertRequest,
   assertRestoredSet,
   completeStep,
+  decideLease,
   failStep,
   type FluxUnit,
   initialState,
@@ -17,6 +20,7 @@ import {
   type K8sTier,
   type MigrationCapture,
   type ObservedCluster,
+  type ObservedLease,
   planRelease,
   type ReleaseIdentity,
   releaseIdOf,
@@ -35,13 +39,31 @@ import {
  */
 export interface ReleaseEffects {
   observeCluster(request: ReleaseRequest): Promise<ObservedCluster>;
-  /** Creates the Lease for `holder`, or accepts one already held by a name in `accepted`. */
-  acquireLease(holder: string, accepted: readonly string[], journalPath: string): Promise<void>;
-  releaseLease(holders: readonly string[]): Promise<void>;
+  /** The release Lease with its optimistic-concurrency version, or `null` when absent. */
+  readLease(): Promise<(ObservedLease & { version: string }) | null>;
+  /** Creates the Lease; throws if another process created it first. */
+  createLease(holder: string, journalPath: string): Promise<void>;
+  /** Replaces the Lease at `version` with `holder`; throws if it changed since it was read. */
+  takeoverLease(holder: string, version: string, journalPath: string): Promise<void>;
+  /** Heartbeat: renews the Lease, and throws unless `holder` still holds it. */
+  renewLease(holder: string): Promise<void>;
+  /** Marks the Lease held with no live process, at a terminal phase an operator must resolve. */
+  parkLease(holder: string, phase: string): Promise<void>;
+  /** Deletes the Lease only if `holder` holds it. */
+  releaseLease(holder: string): Promise<void>;
+  /**
+   * Writes F6's `solverImages` admission list and reads it back; admission then accepts exactly
+   * these backend digests in `wbs-solver`.
+   */
+  admitBackendImages(images: readonly string[]): Promise<void>;
   /** Returns once Flux reports the unit suspended. */
   suspendFlux(unit: FluxUnit): Promise<void>;
-  /** Verifies the source carries the desired revision, resumes, and waits for it to apply. */
-  resumeFlux(unit: FluxUnit): Promise<void>;
+  /** The revision the unit's GitRepository artifact currently serves. */
+  fluxSourceRevision(unit: FluxUnit): Promise<string>;
+  /** Verifies the source is at `revision`, resumes, and waits for Flux to apply it. */
+  resumeFlux(unit: FluxUnit, revision: string): Promise<void>;
+  /** Exact command that resumes the unit once the deploy repository serves `revision`. */
+  manualFluxResumeCommand(unit: FluxUnit, revision: string): string;
   closeWrites(): Promise<void>;
   reopenWrites(): Promise<void>;
   drainGateway(): Promise<void>;
@@ -106,6 +128,12 @@ export function reportOf(state: ReleaseState, journalPath: string): string {
     lines.push('writes remain fenced and the Lease stays held');
     lines.push(`manual command: ${state.failure?.manualCommand ?? '(none recorded)'}`);
   }
+  if (state.phase === 'flux-revert-required') {
+    lines.push(
+      'the previous release is restored and serving with writes open; Flux stays suspended',
+    );
+    lines.push(`manual command: ${state.failure?.manualCommand ?? '(none recorded)'}`);
+  }
   if (state.phase === 'recovery-required') {
     lines.push(
       'writes were reopened on the new release; submit a recovery request with ' +
@@ -114,6 +142,12 @@ export function reportOf(state: ReleaseState, journalPath: string): string {
   }
   return lines.join('\n');
 }
+
+/** The rollback succeeded except that Flux cannot safely resume: see `flux-revert-required`. */
+export class FluxRevertRequiredError extends Error {}
+
+/** Another process holds, or took, the Lease; this one must stop without touching anything. */
+export class LeaseLostError extends Error {}
 
 function messageOf(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
@@ -129,7 +163,7 @@ async function perform(
   request: ReleaseRequest,
   state: ReleaseState,
   effects: ReleaseEffects,
-  journalPath: string,
+  lease: { claim: () => Promise<void>; holder: string },
 ): Promise<StepOutcome> {
   const flux = request.flux;
   switch (step.kind) {
@@ -137,13 +171,14 @@ async function perform(
       assertObservedCluster(request, await effects.observeCluster(request));
       return {};
     case 'acquire-lease':
-      await effects.acquireLease(
-        state.releaseId,
-        request.recovers === null ? [state.releaseId] : [state.releaseId, request.recovers],
-        journalPath,
-      );
+      await lease.claim();
       return {};
     case 'persist-intent':
+      return {};
+    case 'admit-images':
+      // Proof: skipping this write failed `admits the candidate and rollback digests before any
+      // backend pod starts`: the fake admission denied the candidate's capture Job.
+      await effects.admitBackendImages(admittedBackendImages(request));
       return {};
     case 'suspend-flux':
       if (flux !== null) await effects.suspendFlux(flux);
@@ -185,14 +220,27 @@ async function perform(
       await effects.reconcileDesired(request);
       return {};
     case 'resume-flux':
-    case 'rollback-resume-flux':
-      if (flux !== null) await effects.resumeFlux(flux);
+      if (flux !== null) await effects.resumeFlux(flux, flux.desiredRevision);
       return {};
+    case 'rollback-resume-flux': {
+      if (flux === null) return {};
+      const source = await effects.fluxSourceRevision(flux);
+      // Proof: without this guard `keeps Flux suspended when the source already serves the
+      // failed release` saw Flux re-apply the failed digests over the restored release;
+      // resuming onto `desiredRevision` failed `rolls back with Flux onto the previous revision
+      // only`.
+      if (!source.endsWith(flux.previousRevision)) {
+        throw new FluxRevertRequiredError(
+          `WBS Flux source ${flux.namespace}/${flux.gitRepository} serves ${source}, not the ` +
+            `previous release's ${flux.previousRevision}; resuming would re-apply the failed release`,
+        );
+      }
+      await effects.resumeFlux(flux, flux.previousRevision);
+      return {};
+    }
     case 'release-lease':
     case 'rollback-release-lease':
-      await effects.releaseLease(
-        request.recovers === null ? [state.releaseId] : [state.releaseId, request.recovers],
-      );
+      await effects.releaseLease(lease.holder);
       return {};
     case 'rollback-schema': {
       const capture = requireCapture(state);
@@ -250,8 +298,13 @@ function startingState(request: ReleaseRequest, journal: ReleaseJournal): Releas
           `only a request with recovers=${existing.state.releaseId} may proceed`,
       );
     }
-    // `rollback-failed` is returned as-is so planning refuses with its manual command.
-    if (existing.state.phase === 'rollback-failed') return existing.state;
+    // Returned as-is so planning refuses with the recorded manual command.
+    if (
+      existing.state.phase === 'rollback-failed' ||
+      existing.state.phase === 'flux-revert-required'
+    ) {
+      return existing.state;
+    }
     return initialState(request);
   }
   if (existing.state.releaseId !== requestedId) {
@@ -266,54 +319,167 @@ function startingState(request: ReleaseRequest, journal: ReleaseJournal): Releas
   return settleInterrupted(existing.state);
 }
 
+export interface ExecuteOptions {
+  clock?: () => number;
+  sleep?: (ms: number) => Promise<void>;
+  /** Heartbeat period; the effects' Lease duration must be several of these. */
+  heartbeatMs?: number;
+}
+
+const PARKED_PHASES: ReadonlySet<string> = new Set([
+  'rollback-failed',
+  'recovery-required',
+  'flux-revert-required',
+]);
+
 /**
  * Runs or resumes one release transaction to a terminal phase, writing the journal after every
  * step. A journal write that throws propagates immediately: the durable record is then the last
  * successful write, exactly as if the process had died, and the next run resumes from it.
+ *
+ * The Lease holder is `<transactionId>#<run>`, unique to this process. A resumed run claims
+ * the Lease before its first journal write or mutation, every step first renews it, and a
+ * background heartbeat keeps it renewed while a step runs; losing it throws
+ * {@link LeaseLostError} with nothing journaled, like a crash.
  */
 export async function executeRelease(
   request: ReleaseRequest,
   journal: ReleaseJournal,
   effects: ReleaseEffects,
   log: (line: string) => void,
+  options: ExecuteOptions = {},
 ): Promise<ReleaseState> {
+  const clock = options.clock ?? Date.now;
+  const sleep = options.sleep ?? ((ms: number) => Bun.sleep(ms));
+  const heartbeatMs = options.heartbeatMs ?? 5000;
   assertRequest(request);
+  const existing = journal.read();
   let state = startingState(request, journal);
-  const history: { phase: string; at: string }[] = [...(journal.read()?.history ?? [])];
+  planRelease(request, state);
+  const holder = `${state.transactionId}#${randomBytes(4).toString('hex')}`;
+  const held = { value: false, lost: null as unknown };
+
+  const claim = async (): Promise<void> => {
+    let waited = false;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const observed = await effects.readLease();
+      const decision = decideLease(
+        observed,
+        {
+          holder,
+          journalTransaction: existing?.state.transactionId ?? null,
+          journalPath: journal.path,
+        },
+        clock(),
+      );
+      if (decision.kind === 'wait') {
+        if (waited || observed === null) {
+          throw new LeaseLostError(
+            `Lease is still renewed by ${observed?.holder ?? '(none)'}; another coordinator ` +
+              'runs this transaction',
+          );
+        }
+        waited = true;
+        log(
+          `[k3s-release ${state.releaseId}] waiting ${String(decision.ms)}ms for ${observed.holder} to lapse`,
+        );
+        await sleep(decision.ms + 1000);
+        continue;
+      }
+      try {
+        if (decision.kind === 'create') await effects.createLease(holder, journal.path);
+        if (decision.kind === 'takeover' && observed !== null) {
+          await effects.takeoverLease(holder, observed.version, journal.path);
+        }
+      } catch (e: unknown) {
+        // Another process created or replaced the Lease between our read and write; re-read.
+        log(`[k3s-release ${state.releaseId}] Lease write lost a race: ${messageOf(e)}`);
+        continue;
+      }
+      held.value = true;
+      return;
+    }
+    throw new LeaseLostError('the Lease kept changing under this coordinator; refusing to run');
+  };
+
+  const history: { phase: string; at: string }[] = [...(existing?.history ?? [])];
   const record = (next: ReleaseState): void => {
-    history.push({ phase: next.phase, at: new Date().toISOString() });
+    history.push({ phase: next.phase, at: new Date(clock()).toISOString() });
     const entry: JournalRecord = { schemaVersion: 1, request, state: next, history };
     journal.write(entry);
   };
+  // Proof: recording before claiming let `refuses to resume a transaction whose live
+  // coordinator still renews the Lease` overwrite the live coordinator's journal.
+  if (state.phase !== 'requested') await claim();
   if (state.phase !== 'requested' && history.at(-1)?.phase !== state.phase) record(state);
 
-  planRelease(request, state);
-  for (;;) {
-    if (isTerminal(state)) break;
-    const steps = planRelease(request, state);
-    if (steps.length === 0) break;
-    const step = steps[0];
-    log(`[k3s-release ${state.releaseId}] ${step.kind}`);
-    let outcome: StepOutcome;
-    try {
-      outcome = await perform(step, request, state, effects, journal.path);
-    } catch (e: unknown) {
-      // Nothing is durable before intent: validation and Lease failures change no state.
-      if (state.phase === 'requested' || state.phase === 'validated') throw e;
-      log(`[k3s-release ${state.releaseId}] ${step.kind} failed: ${messageOf(e)}`);
-      state = failStep(
-        state,
-        step,
-        messageOf(e),
-        manualCommandFor(step.kind, request, state, effects),
-      );
-      record(state);
-      continue;
+  const heartbeat = setInterval(() => {
+    if (!held.value) return;
+    effects.renewLease(holder).catch((e: unknown) => {
+      held.lost = e;
+    });
+  }, heartbeatMs);
+  try {
+    for (;;) {
+      if (isTerminal(state)) break;
+      const steps = planRelease(request, state);
+      if (steps.length === 0) break;
+      const step = steps[0];
+      if (held.value) {
+        if (held.lost !== null) throw new LeaseLostError(`Lease lost: ${messageOf(held.lost)}`);
+        // Proof: without this renewal `stops when another process takes the Lease` kept mutating
+        // after its Lease was taken over.
+        try {
+          await effects.renewLease(holder);
+        } catch (e: unknown) {
+          throw new LeaseLostError(`Lease lost before ${step.kind}: ${messageOf(e)}`);
+        }
+      }
+      log(`[k3s-release ${state.releaseId}] ${step.kind}`);
+      let outcome: StepOutcome;
+      try {
+        outcome = await perform(step, request, state, effects, { claim, holder });
+      } catch (e: unknown) {
+        // Nothing is durable before intent: validation and Lease failures change no state.
+        if (state.phase === 'requested' || state.phase === 'validated') throw e;
+        if (e instanceof LeaseLostError) throw e;
+        log(`[k3s-release ${state.releaseId}] ${step.kind} failed: ${messageOf(e)}`);
+        if (e instanceof FluxRevertRequiredError && request.flux !== null) {
+          state = {
+            ...state,
+            phase: 'flux-revert-required',
+            failure: {
+              step: step.kind,
+              message: e.message,
+              manualCommand: effects.manualFluxResumeCommand(
+                request.flux,
+                request.flux.previousRevision,
+              ),
+            },
+          };
+        } else {
+          state = failStep(
+            state,
+            step,
+            messageOf(e),
+            manualCommandFor(step.kind, request, state, effects),
+          );
+        }
+        record(state);
+        continue;
+      }
+      if (held.lost !== null)
+        throw new LeaseLostError(`Lease lost during ${step.kind}: ${messageOf(held.lost)}`);
+      state = completeStep(state, step, outcome);
+      if (step.kind === 'release-lease' || step.kind === 'rollback-release-lease')
+        held.value = false;
+      // `validated` and `lease-acquired` precede the intent record by design; the Lease itself is
+      // the durable evidence of the second, and its journal annotation lets a restart reclaim it.
+      if (step.kind !== 'validate' && step.kind !== 'acquire-lease') record(state);
     }
-    state = completeStep(state, step, outcome);
-    // `validated` and `lease-acquired` precede the intent record by design; the Lease itself is
-    // the durable evidence of the second, and its holder name lets a restart reclaim it.
-    if (step.kind !== 'validate' && step.kind !== 'acquire-lease') record(state);
+    if (held.value && PARKED_PHASES.has(state.phase)) await effects.parkLease(holder, state.phase);
+  } finally {
+    clearInterval(heartbeat);
   }
   if (state.phase !== 'lease-released') throw new ReleaseFailedError(state, journal.path);
   return state;
@@ -353,6 +519,8 @@ export interface KubectlSettings {
   rolloutTimeoutSeconds: number;
   jobTimeoutSeconds: number;
   drainTimeoutMs: number;
+  /** Lease lifetime without renewal; the executor's heartbeat must be several times shorter. */
+  leaseDurationSeconds: number;
   log: (line: string) => void;
 }
 
@@ -682,6 +850,39 @@ export function jobName(purpose: string, releaseId: string): string {
   return `wbs-${purpose}-${releaseId}`.slice(0, 63).replace(/-+$/, '');
 }
 
+/** Parses `kubectl get lease -o json`; a Lease without holder or renew time is malformed state. */
+export function parseLease(json: string): ObservedLease & { version: string } {
+  const lease = JSON.parse(json) as {
+    metadata?: { resourceVersion?: string; annotations?: Partial<Record<string, string>> };
+    spec?: { holderIdentity?: string; renewTime?: string; leaseDurationSeconds?: number };
+  };
+  const holder = lease.spec?.holderIdentity;
+  const renewTime = lease.spec?.renewTime;
+  const duration = lease.spec?.leaseDurationSeconds;
+  const version = lease.metadata?.resourceVersion;
+  if (
+    holder === undefined ||
+    renewTime === undefined ||
+    duration === undefined ||
+    version === undefined
+  ) {
+    throw new Error(
+      'the release Lease lacks holderIdentity, renewTime, leaseDurationSeconds or resourceVersion',
+    );
+  }
+  const renewedAtMs = Date.parse(renewTime);
+  if (Number.isNaN(renewedAtMs))
+    throw new Error(`the release Lease renewTime ${renewTime} is not a time`);
+  return {
+    holder,
+    renewedAtMs,
+    durationSeconds: duration,
+    parked: lease.metadata?.annotations?.['puni.dev/parked'] ?? null,
+    journal: lease.metadata?.annotations?.['puni.dev/journal'] ?? null,
+    version,
+  };
+}
+
 /** Real effects over kubectl. Every wait has an explicit ceiling from `settings`. */
 export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
   const { app, backend } = settings.namespaces;
@@ -759,6 +960,14 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
     if (existing.exitCode !== 0) {
       if (!existing.stderr.includes('NotFound')) {
         throw new Error(`reading job ${name} failed: ${existing.stderr.trim()}`);
+      }
+      // Proof: removing this guard let `refuses every schema Job while a writer runs` create the
+      // migrate, downs, rollback and capture Jobs beside a running backend pod.
+      if (namespace === backend) {
+        const writers = await writerPods();
+        if (writers.length > 0) {
+          throw new Error(`writer pods exist (${writers.join(', ')}); refusing to start ${name}`);
+        }
       }
       await kubectl(['create', '-f', '-'], JSON.stringify(manifest));
     }
@@ -878,6 +1087,33 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
   // the whole selector restored exactly `app.kubernetes.io/name: wbs-backend` (verify.md).
   const selectorPatch = (selector: object): string =>
     JSON.stringify([{ op: 'replace', path: '/spec/podSelector', value: selector }]);
+  const leaseManifest = (
+    holder: string,
+    journalPath: string,
+    version: string | null,
+    parked: string | null,
+  ): Record<string, unknown> => {
+    const now = new Date().toISOString().replace(/\.(\d{3})Z$/, '.$1000Z');
+    return {
+      apiVersion: 'coordination.k8s.io/v1',
+      kind: 'Lease',
+      metadata: {
+        name: OBJECTS.lease,
+        namespace: backend,
+        ...(version === null ? {} : { resourceVersion: version }),
+        annotations: {
+          'puni.dev/journal': journalPath,
+          ...(parked === null ? {} : { 'puni.dev/parked': parked }),
+        },
+      },
+      spec: {
+        holderIdentity: holder,
+        leaseDurationSeconds: settings.leaseDurationSeconds,
+        acquireTime: now,
+        renewTime: now,
+      },
+    };
+  };
   const writersSelector = { matchLabels: { 'app.kubernetes.io/name': 'wbs-backend' } };
   const fencedSelector = { matchLabels: { 'puni.dev/writes': 'fenced' } };
 
@@ -895,7 +1131,7 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
       ])) as {
         data?: Record<string, string>;
       };
-      const approved = params.data?.['solverImages'] ?? params.data?.['solverImage'];
+      const approved = params.data?.['solverImages'];
       if (approved === undefined)
         throw new Error(`${OBJECTS.admissionParams} approves no backend image`);
       // A recovery request inherits the suspension of the release it recovers.
@@ -910,79 +1146,101 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
       }
       return { uid, current: await currentRelease(), approvedBackendImages: approved.split(',') };
     },
-    async acquireLease(holder, accepted, journalPath) {
-      const lease = {
-        apiVersion: 'coordination.k8s.io/v1',
-        kind: 'Lease',
-        metadata: {
-          name: OBJECTS.lease,
-          namespace: backend,
-          annotations: { 'puni.dev/journal': journalPath },
-        },
-        spec: {
-          holderIdentity: holder,
-          leaseDurationSeconds: 3600,
-          acquireTime: new Date().toISOString().replace(/\.\d+Z$/, '.000000Z'),
-        },
-      };
-      const created = await run([...base, 'create', '-f', '-'], JSON.stringify(lease), callMs);
-      if (created.exitCode === 0) return;
-      if (!created.stderr.includes('AlreadyExists'))
-        throw new Error(`creating the Lease failed: ${created.stderr.trim()}`);
-      const current = (
-        await kubectl([
-          '-n',
-          backend,
-          'get',
-          'lease',
-          OBJECTS.lease,
-          '-o',
-          'jsonpath={.spec.holderIdentity}',
-        ])
-      ).trim();
-      // Only this release (or the release it recovers) may hold the Lease; the lab observes
-      // a foreign holder refused (verify.md).
-      if (!accepted.includes(current)) {
-        throw new Error(
-          `Lease ${backend}/${OBJECTS.lease} is held by ${current}; refusing to run concurrently`,
-        );
-      }
-      if (current !== holder) {
-        await kubectl([
-          '-n',
-          backend,
-          'patch',
-          'lease',
-          OBJECTS.lease,
-          '--type=merge',
-          '-p',
-          JSON.stringify({ spec: { holderIdentity: holder } }),
-        ]);
-      }
-    },
-    async releaseLease(holders) {
+    async readLease() {
       const found = await run(
-        [
-          ...base,
-          '-n',
-          backend,
-          'get',
-          'lease',
-          OBJECTS.lease,
-          '-o',
-          'jsonpath={.spec.holderIdentity}',
-        ],
+        [...base, '-n', backend, 'get', 'lease', OBJECTS.lease, '-o', 'json'],
         null,
         callMs,
       );
       if (found.exitCode !== 0) {
-        if (found.stderr.includes('NotFound')) return;
+        if (found.stderr.includes('NotFound')) return null;
         throw new Error(`reading the Lease failed: ${found.stderr.trim()}`);
       }
-      if (!holders.includes(found.stdout.trim())) {
-        throw new Error(`Lease is held by ${found.stdout.trim()}, not this release; leaving it`);
+      return parseLease(found.stdout);
+    },
+    async createLease(holder, journalPath) {
+      await kubectl(
+        ['create', '-f', '-'],
+        JSON.stringify(leaseManifest(holder, journalPath, null, null)),
+      );
+    },
+    async takeoverLease(holder, version, journalPath) {
+      await kubectl(
+        ['replace', '-f', '-'],
+        JSON.stringify(leaseManifest(holder, journalPath, version, null)),
+      );
+    },
+    async renewLease(holder) {
+      const observed = await this.readLease();
+      if (observed?.holder !== holder) {
+        throw new LeaseLostError(`Lease is held by ${observed?.holder ?? 'nobody'}, not ${holder}`);
+      }
+      await kubectl(
+        ['replace', '-f', '-'],
+        JSON.stringify(leaseManifest(holder, observed.journal ?? '', observed.version, null)),
+      );
+    },
+    async parkLease(holder, phase) {
+      const observed = await this.readLease();
+      if (observed?.holder !== holder) return;
+      await kubectl(
+        ['replace', '-f', '-'],
+        JSON.stringify(leaseManifest(holder, observed.journal ?? '', observed.version, phase)),
+      );
+    },
+    async releaseLease(holder) {
+      const observed = await this.readLease();
+      if (observed === null) return;
+      if (observed.holder !== holder) {
+        throw new Error(`Lease is held by ${observed.holder}, not this coordinator; leaving it`);
       }
       await kubectl(['-n', backend, 'delete', 'lease', OBJECTS.lease]);
+    },
+    async fluxSourceRevision(unit) {
+      return (
+        await kubectl([
+          '-n',
+          unit.namespace,
+          'get',
+          `gitrepositories.source.toolkit.fluxcd.io/${unit.gitRepository}`,
+          '-o',
+          'jsonpath={.status.artifact.revision}',
+        ])
+      ).trim();
+    },
+    manualFluxResumeCommand(unit, revision) {
+      const prefix = base.join(' ');
+      return (
+        `revert the deploy repository until GitRepository ${unit.namespace}/${unit.gitRepository} ` +
+        `serves ${revision}, then: ${prefix} -n ${unit.namespace} patch ` +
+        `kustomizations.kustomize.toolkit.fluxcd.io/${unit.kustomization} --type=merge ` +
+        `-p '{"spec":{"suspend":false}}' && ${prefix} -n ${backend} delete lease ${OBJECTS.lease}`
+      );
+    },
+    async admitBackendImages(images) {
+      const value = images.join(',');
+      await kubectl([
+        '-n',
+        backend,
+        'patch',
+        'configmap',
+        OBJECTS.admissionParams,
+        '--type=merge',
+        '-p',
+        JSON.stringify({ data: { solverImages: value } }),
+      ]);
+      const written = await kubectl([
+        '-n',
+        backend,
+        'get',
+        'configmap',
+        OBJECTS.admissionParams,
+        '-o',
+        'jsonpath={.data.solverImages}',
+      ]);
+      if (written.trim() !== value) {
+        throw new Error(`${OBJECTS.admissionParams} reads back ${written.trim()}, not ${value}`);
+      }
     },
     async suspendFlux(unit) {
       await kubectl([
@@ -997,22 +1255,11 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
       if (!(await fluxSuspended(unit)))
         throw new Error(`Flux unit ${unit.kustomization} did not report suspended`);
     },
-    async resumeFlux(unit) {
-      const revision = (
-        await kubectl([
-          '-n',
-          unit.namespace,
-          'get',
-          `gitrepositories.source.toolkit.fluxcd.io/${unit.gitRepository}`,
-          '-o',
-          'jsonpath={.status.artifact.revision}',
-        ])
-      ).trim();
-      // Resuming onto a source without the release would let Flux restore the old digests.
-      if (!revision.endsWith(unit.desiredRevision)) {
-        throw new Error(
-          `Flux source is at ${revision}, not the release's desired revision ${unit.desiredRevision}`,
-        );
+    async resumeFlux(unit, revision) {
+      const source = await this.fluxSourceRevision(unit);
+      // Resuming onto any other source would let Flux apply digests this step did not choose.
+      if (!source.endsWith(revision)) {
+        throw new Error(`Flux source is at ${source}, not ${revision}`);
       }
       await kubectl([
         '-n',
@@ -1024,7 +1271,7 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
         '{"spec":{"suspend":false}}',
       ]);
       await pollUntil(
-        `Flux unit ${unit.kustomization} applying ${unit.desiredRevision}`,
+        `Flux unit ${unit.kustomization} applying ${revision}`,
         settings.rolloutTimeoutSeconds * 1000,
         async () => {
           const applied = await kubectl([
@@ -1035,7 +1282,7 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
             '-o',
             'jsonpath={.status.lastAppliedRevision}',
           ]);
-          return applied.trim().endsWith(unit.desiredRevision);
+          return applied.trim().endsWith(revision);
         },
       );
     },
@@ -1114,8 +1361,6 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects {
       );
     },
     async capture(releaseId, image) {
-      if ((await writerPods()).length > 0)
-        throw new Error('a writer pod exists; refusing to capture');
       return captureFromReport(
         await backendTask('capture', releaseId, image, {
           PUNI_TASK: 'capture',
