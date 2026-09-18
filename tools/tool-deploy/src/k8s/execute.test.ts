@@ -143,6 +143,7 @@ describe('executeRelease', () => {
       'rolloutBackend',
       'rolloutTiers',
       'smoke',
+      'publishDesired',
       'persistRelease',
       'reopenWrites',
       'reconcileDesired',
@@ -459,6 +460,25 @@ describe('executeRelease', () => {
     expect(await rejection(executeRelease(request(), journal, fake, quiet, on(fake)))).toContain(
       'deploy repository is reverted',
     );
+  });
+
+  it('publishes the desired revision before writes reopen, and rolls back when the push fails', async () => {
+    const promoted = cluster(PREVIOUS);
+    await executeRelease(request(), memoryJournal(), promoted, quiet, on(promoted));
+    expect(promoted.calls.indexOf('publishDesired')).toBeLessThan(
+      promoted.calls.indexOf('reopenWrites'),
+    );
+    expect(promoted.fluxRevision).toBe(DESIRED);
+    expect(promoted.images).toEqual({ ...NEW.images });
+
+    const rejected = cluster(PREVIOUS);
+    rejected.brokenEffects.add('publishDesired');
+    const failed = await failure(
+      executeRelease(request(), memoryJournal(), rejected, quiet, on(rejected)),
+    );
+    expect(failed.state.phase).toBe('rolled-back');
+    expect(failed.state.failure?.step).toBe('persist-release');
+    expectRestored(rejected);
   });
 
   it('admits the candidate and rollback digests before any backend pod starts', async () => {

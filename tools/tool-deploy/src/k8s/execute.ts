@@ -96,6 +96,12 @@ export interface ReleaseEffects {
   rolloutTiers(identity: ReleaseIdentity): Promise<void>;
   smoke(releaseId: string, identity: ReleaseIdentity): Promise<void>;
   persistRelease(identity: ReleaseIdentity): Promise<void>;
+  /**
+   * Flux mode: moves the deploy branch to `flux.desiredRevision` while the WBS unit is
+   * suspended and waits for the source to serve it. Runs in `persist-release`, before writes
+   * reopen, so a failed push still rolls back (or ends `flux-revert-required`).
+   */
+  publishDesired(request: ReleaseRequest): Promise<void>;
   reconcileDesired(request: ReleaseRequest): Promise<void>;
 }
 
@@ -210,6 +216,10 @@ async function perform(
       await effects.smoke(state.transactionId, request.release);
       return {};
     case 'persist-release':
+      // Proof: execute.test.ts `publishes the desired revision before writes reopen, and rolls
+      // back when the push fails`; with the publish moved back into reconcile-desired it ran
+      // after reopenWrites (call 29 vs 27), where a failed push leaves recovery-required.
+      if (flux !== null) await effects.publishDesired(request);
       await effects.persistRelease(request.release);
       return {};
     case 'reopen-writes':
@@ -1521,41 +1531,49 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
       };
       await kubectl(['apply', '-f', '-'], JSON.stringify(record));
     },
+    async publishDesired(request) {
+      const unit = request.flux;
+      if (unit === null) return;
+      const revision = await sourceRevision(unit);
+      if (revision.endsWith(unit.desiredRevision)) return;
+      const repository = settings.deployRepository ?? null;
+      if (repository === null) {
+        throw new Error(
+          `Flux source is at ${revision}, not ${unit.desiredRevision}, and no deploy ` +
+            'repository is configured to publish it',
+        );
+      }
+      // Proof: deploy-repo.test.ts `refuses to publish the desired revision while the WBS unit
+      // is not suspended`; with this guard removed the bare remote's branch moved to the
+      // desired commit while Flux was live.
+      if (!(await fluxSuspended(unit))) {
+        throw new Error(
+          `refusing to publish ${unit.desiredRevision}: Flux unit ${unit.kustomization} is ` +
+            'not suspended, so it would apply the new release outside the transaction',
+        );
+      }
+      await publishRevision(repository, unit.desiredRevision, unit.previousRevision);
+      await kubectl([
+        '-n',
+        unit.namespace,
+        'annotate',
+        '--overwrite',
+        `gitrepositories.source.toolkit.fluxcd.io/${unit.gitRepository}`,
+        `reconcile.fluxcd.io/requestedAt=${new Date().toISOString()}`,
+      ]);
+      await pollUntil(
+        `Flux source ${unit.gitRepository} serving ${unit.desiredRevision}`,
+        settings.rolloutTimeoutSeconds * 1000,
+        async () => (await sourceRevision(unit)).endsWith(unit.desiredRevision),
+      );
+    },
     async reconcileDesired(request) {
       if (request.flux !== null) {
-        // Flux mode: the source must carry the release before resume-flux applies it. The
-        // coordinator publishes the prepared commit itself, here, so the deploy repository never
-        // names a release before the WBS unit is suspended (and never an unproven one).
-        const unit = request.flux;
-        const revision = await sourceRevision(unit);
-        if (revision.endsWith(unit.desiredRevision)) return;
-        const repository = settings.deployRepository ?? null;
-        if (repository === null) {
-          throw new Error(`Flux source is at ${revision}, not ${unit.desiredRevision}`);
+        // Flux mode: persist-release published the release; resume-flux applies it.
+        const revision = await sourceRevision(request.flux);
+        if (!revision.endsWith(request.flux.desiredRevision)) {
+          throw new Error(`Flux source is at ${revision}, not ${request.flux.desiredRevision}`);
         }
-        // Proof: deploy-repo.test.ts `refuses to publish the desired revision while the WBS unit
-        // is not suspended`; with this guard removed the bare remote's branch moved to the
-        // desired commit while Flux was live.
-        if (!(await fluxSuspended(unit))) {
-          throw new Error(
-            `refusing to publish ${unit.desiredRevision}: Flux unit ${unit.kustomization} is ` +
-              'not suspended, so it would apply the new release outside the transaction',
-          );
-        }
-        await publishRevision(repository, unit.desiredRevision, unit.previousRevision);
-        await kubectl([
-          '-n',
-          unit.namespace,
-          'annotate',
-          '--overwrite',
-          `gitrepositories.source.toolkit.fluxcd.io/${unit.gitRepository}`,
-          `reconcile.fluxcd.io/requestedAt=${new Date().toISOString()}`,
-        ]);
-        await pollUntil(
-          `Flux source ${unit.gitRepository} serving ${unit.desiredRevision}`,
-          settings.rolloutTimeoutSeconds * 1000,
-          async () => (await sourceRevision(unit)).endsWith(unit.desiredRevision),
-        );
         return;
       }
       await kubectl(['apply', '-f', '-'], await renderOverlay(settings, request.release));

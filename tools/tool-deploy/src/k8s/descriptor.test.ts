@@ -53,6 +53,7 @@ function gateRun(overrides: Partial<ObservedGateRun> = {}): ObservedGateRun {
     head_sha: sourceSha,
     path: '.github/workflows/ci.yml',
     event: 'push',
+    head_branch: 'main',
     status: 'completed',
     conclusion: 'success',
     jobs: [
@@ -75,25 +76,58 @@ function proofFor(descriptorSha: string, images = candidate.images): StagingProo
   };
 }
 
+/** tool-dagger's release.json for `candidate`, plus the MCP entry, as the operator submits it. */
+function submitted(overrides: Record<string, unknown> = {}) {
+  const entry = (name: string, hex: string) => ({
+    sha: sourceSha,
+    digest: `sha256:${hex.repeat(64)}`,
+    ref: `registry.infra.bulletpoints.club/${name}:${sourceSha}`,
+    image: image(name, hex),
+  });
+  return {
+    schemaVersion: 1,
+    sourceSha,
+    release: {
+      be: entry('wbs-be-01', '1'),
+      gw: entry('wbs-gw-01', '2'),
+      fe: entry('wbs-fe-01', '3'),
+      mcp: entry('wbs-mcp-01', '4'),
+      ...overrides,
+    },
+    gateRunId: 42,
+  };
+}
+
 describe('release candidate', () => {
-  it('accepts four digest-pinned tiers and a gate run', () => {
-    expect(parseReleaseCandidate(JSON.parse(JSON.stringify(candidate)))).toEqual(candidate);
+  it('reads tool-dagger release.json entries built from the source', () => {
+    expect(parseReleaseCandidate(submitted())).toEqual(candidate);
   });
 
-  it('refuses a tag-only tier image', () => {
-    const tagged = { ...candidate, images: { ...candidate.images, gateway: 'wbs-gw-01:latest' } };
-    expect(() => parseReleaseCandidate(tagged)).toThrow('images.gateway must be a digest-pinned');
+  it('refuses a tier built from another commit', () => {
+    const other = { ...submitted().release.gw, sha: '9'.repeat(40) };
+    expect(() => parseReleaseCandidate(submitted({ gw: other }))).toThrow(
+      `release.gw was built from ${'9'.repeat(40)}, not the source`,
+    );
+  });
+
+  it('refuses a tag-only image or one naming another digest or tier', () => {
+    const tagged = { ...submitted().release.gw, image: 'wbs-gw-01:latest' };
+    expect(() => parseReleaseCandidate(submitted({ gw: tagged }))).toThrow('release.gw image');
+    const swapped = { ...submitted().release.gw, image: image('wbs-fe-01', '2') };
+    expect(() => parseReleaseCandidate(submitted({ gw: swapped }))).toThrow('release.gw image');
+    const digest = { ...submitted().release.gw, digest: `sha256:${'8'.repeat(64)}` };
+    expect(() => parseReleaseCandidate(submitted({ gw: digest }))).toThrow('release.gw image');
   });
 
   it('refuses a candidate without the MCP tier', () => {
-    const { mcp: _mcp, ...three } = candidate.images;
-    expect(() => parseReleaseCandidate({ ...candidate, images: three })).toThrow(
+    const { mcp: _mcp, ...three } = submitted().release;
+    expect(() => parseReleaseCandidate({ ...submitted(), release: three })).toThrow(
       'must have exactly',
     );
   });
 
   it('refuses an admission claim smuggled into the candidate', () => {
-    expect(() => parseReleaseCandidate({ ...candidate, admission: admission() })).toThrow(
+    expect(() => parseReleaseCandidate({ ...submitted(), admission: admission() })).toThrow(
       'must have exactly',
     );
   });
@@ -120,6 +154,12 @@ describe('gate evidence', () => {
     expect(() => {
       assertGateEvidence(sourceSha, gateRun({ jobs }));
     }).toThrow('job pixels is skipped');
+  });
+
+  it('refuses a pull_request gate run', () => {
+    expect(() => {
+      assertGateEvidence(sourceSha, gateRun({ event: 'pull_request', head_branch: 'feature' }));
+    }).toThrow('run is a pull_request on feature, not a push to main');
   });
 
   it('refuses a run of some other workflow', () => {

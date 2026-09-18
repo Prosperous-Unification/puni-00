@@ -53,6 +53,7 @@ describe('prepareDesiredRevision', () => {
       'r1',
     );
     expect(first.previousRevision).toBe(repo.initial);
+    expect(git(repo.clone, 'rev-parse', 'refs/wbs/desired/r1')).toBe(first.desiredRevision);
     expect(second).toEqual(first);
     expect(git(repo.remote, 'rev-parse', 'main')).toBe(repo.initial);
     expect(
@@ -155,7 +156,7 @@ function fluxRequest(previousRevision: string, desiredRevision: string): Release
   };
 }
 
-describe('reconcile-desired publishes the desired revision', () => {
+describe('persist-release publishes the desired revision', () => {
   function effectsFor(repo: ReturnType<typeof deployRepository>, kubectl: string) {
     return kubectlEffects({
       kubectl,
@@ -180,7 +181,7 @@ describe('reconcile-desired publishes the desired revision', () => {
     writeFileSync(kubectl.suspended, 'true');
     const target = { path: repo.clone, remote: 'origin', branch: 'main' };
     const revisions = prepareDesiredRevision(target, 'a.yaml', 'a\n', 'r');
-    await effectsFor(repo, kubectl.path).reconcileDesired(
+    await effectsFor(repo, kubectl.path).publishDesired(
       fluxRequest(revisions.previousRevision, revisions.desiredRevision),
     );
     expect(git(repo.remote, 'rev-parse', 'main')).toBe(revisions.desiredRevision);
@@ -194,7 +195,7 @@ describe('reconcile-desired publishes the desired revision', () => {
     const target = { path: repo.clone, remote: 'origin', branch: 'main' };
     const revisions = prepareDesiredRevision(target, 'a.yaml', 'a\n', 'r');
     const outcome = await effectsFor(repo, kubectl.path)
-      .reconcileDesired(fluxRequest(revisions.previousRevision, revisions.desiredRevision))
+      .publishDesired(fluxRequest(revisions.previousRevision, revisions.desiredRevision))
       .then(
         () => 'published',
         (e: unknown) => String(e),

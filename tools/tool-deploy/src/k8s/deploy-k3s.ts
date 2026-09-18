@@ -16,11 +16,13 @@ import {
   assertProtectedStateDirectory,
   checkDescriptor,
   type CheckedDescriptor,
+  parseRecovers,
   readDeliveryTarget,
   requestFor,
   stagingProofFor,
   stagingProofPath,
 } from './promotion';
+import { assertImageRevisions, registryRevisionReader } from './registry';
 import {
   assertRequest,
   initialState,
@@ -29,12 +31,14 @@ import {
   type ReleaseRequest,
   settleInterrupted,
 } from './release';
+import { assertNotDowngrade } from './source';
 
 const USAGE =
   'usage: deploy-k3s --request <request.json> --journal <path> [--kubectl <path>] [--kubeconfig <path>] [--apply]\n' +
   '       deploy-k3s --descriptor <descriptor.json> --descriptor-sha256 <hex> --admission <admission.json>\n' +
   '                  --environment staging|prod --context <ctx> --cluster-uid <uid> --state <dir>\n' +
   '                  --deploy-repo <clone> [--deploy-remote origin] [--deploy-branch main]\n' +
+  '                  [--recovers <release id>] [--allow-downgrade] [--max-proof-age-days 14]\n' +
   '                  [--kubectl <path>] [--kubeconfig <path>] [--apply]\n' +
   '  Plans by default. --apply runs or resumes the transaction recorded in the journal.';
 
@@ -142,7 +146,18 @@ async function prepareFromDescriptor(
     admissionPath: required(args, '--admission'),
     environment,
     stateDirectory,
+    maxProofAgeDays: Number(flag(args, '--max-proof-age-days') ?? '14'),
+    now: new Date(),
   });
+  const recovers = parseRecovers(flag(args, '--recovers'));
+  // Review B1: every digest must carry the admitted source commit in its registry label.
+  // Proof: deploy-k3s.test.ts `refuses a descriptor whose image the registry labels with another
+  // commit`; with this call removed the run went on to read the cluster.
+  await assertImageRevisions(
+    checked.descriptor.images,
+    checked.descriptor.sourceSha,
+    registryRevisionReader(process.env['PUNI_REGISTRY_AUTH'] ?? null),
+  );
   const overlays = resolve(root, 'deploy/k8s/wbs/overlays');
   const target = readDeliveryTarget(overlays, environment);
   const context = required(args, '--context');
@@ -179,10 +194,17 @@ async function prepareFromDescriptor(
     // A journal for this release exists: resume exactly the request it bound. The cluster is
     // mid-transaction, so its release record no longer describes expectedCurrent.
     request = journal.request;
-    const expected = requestFor(checked, target, { context, uid }, request.expectedCurrent, {
-      previousRevision: request.flux?.previousRevision ?? '',
-      desiredRevision: request.flux?.desiredRevision ?? '',
-    });
+    const expected = requestFor(
+      checked,
+      target,
+      { context, uid },
+      request.expectedCurrent,
+      {
+        previousRevision: request.flux?.previousRevision ?? '',
+        desiredRevision: request.flux?.desiredRevision ?? '',
+      },
+      recovers,
+    );
     // Proof: deploy-k3s.test.ts `refuses to resume a journal recorded against another cluster
     // context`; with this comparison removed the run resumed the other context's transaction.
     if (JSON.stringify(expected) !== JSON.stringify(request)) {
@@ -197,6 +219,14 @@ async function prepareFromDescriptor(
     if (current === null) {
       throw new Error(`${context} records no WBS release; the first install is the cutover plan`);
     }
+    if (environment === 'prod') {
+      assertNotDowngrade(
+        root,
+        release.sourceSha,
+        current.sourceSha,
+        args.includes('--allow-downgrade'),
+      );
+    }
     const rendered = await renderOverlay(
       { kubectl, overlay: join(overlays, environment) },
       release,
@@ -207,7 +237,7 @@ async function prepareFromDescriptor(
       rendered,
       releaseId,
     );
-    request = requestFor(checked, target, { context, uid }, current, revisions);
+    request = requestFor(checked, target, { context, uid }, current, revisions, recovers);
     writeOwnerOnly(requestPath, `${JSON.stringify(request, null, 2)}\n`);
   }
   writeOwnerOnly(

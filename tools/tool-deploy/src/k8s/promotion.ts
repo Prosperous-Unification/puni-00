@@ -98,6 +98,9 @@ export interface DescriptorInputs {
   admissionPath: string;
   environment: 'staging' | 'prod';
   stateDirectory: string;
+  /** The oldest staging proof production accepts, in days (review m2). */
+  maxProofAgeDays: number;
+  now: Date;
 }
 
 export interface CheckedDescriptor {
@@ -122,9 +125,23 @@ export function checkDescriptor(inputs: DescriptorInputs): CheckedDescriptor {
     const proofPath = stagingProofPath(inputs.stateDirectory, sha256);
     // Proof: promotion.test.ts `refuses production before staging proved the descriptor`; with
     // this read skipped the production request was built from an unproven descriptor.
-    assertPromotable(descriptor, parseStagingProof(readJson(proofPath, 'staging proof')));
+    const proof = parseStagingProof(readJson(proofPath, 'staging proof'));
+    assertPromotable(descriptor, proof);
+    const ageDays = (inputs.now.getTime() - Date.parse(proof.completedAt)) / 86_400_000;
+    // Proof: promotion.test.ts `refuses a staging proof older than the bound`; with this check
+    // removed a 30-day-old proof promoted to production.
+    if (!(ageDays >= 0 && ageDays <= inputs.maxProofAgeDays)) {
+      throw new Error(
+        `staging proved ${checkedSha(descriptor)} ${ageDays.toFixed(1)} days ago; production ` +
+          `accepts proofs up to ${String(inputs.maxProofAgeDays)} days old; promote to staging again`,
+      );
+    }
   }
   return { descriptor, sha256 };
+}
+
+function checkedSha(descriptor: ReleaseDescriptor): string {
+  return descriptorSha256(descriptor).slice(0, 12);
 }
 
 export function stagingProofPath(stateDirectory: string, sha256: string): string {
@@ -138,6 +155,7 @@ export function requestFor(
   cluster: { context: string; uid: string },
   current: ReleaseIdentity,
   revisions: PreparedRevisions,
+  recovers: string | null = null,
 ): ReleaseRequest {
   return {
     environment: target.environment,
@@ -147,8 +165,22 @@ export function requestFor(
     expectedCurrent: current,
     admission: admissionStrings(checked.descriptor),
     flux: { ...target.flux, ...revisions },
-    recovers: null,
+    recovers,
   };
+}
+
+const RELEASE_ID = /^[0-9a-f]{12}-[0-9a-f]{12}$/;
+
+/**
+ * `--recovers`: the `recovery-required` release a recovery request replaces. The coordinator
+ * checks it against the journal; this only refuses a value that cannot be a release id.
+ */
+export function parseRecovers(value: string | null): string | null {
+  if (value === null) return null;
+  // Proof: promotion.test.ts `refuses a malformed recovers value`; with this check removed
+  // `latest` reached the request.
+  if (!RELEASE_ID.test(value)) throw new Error(`--recovers must be a release id, got ${value}`);
+  return value;
 }
 
 /** The staging proof written once a staging promotion reached `lease-released`. */

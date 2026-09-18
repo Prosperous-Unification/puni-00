@@ -78,6 +78,9 @@ export function prepareDesiredRevision(
       ['commit-tree', tree, '-p', previousRevision, '-m', `wbs: release ${releaseId}`],
       COMMIT_ENV,
     );
+    // A commit only an index references can be pruned before it is pushed (review m3).
+    // Proof: deploy-repo.test.ts `commits the manifest …` fails on rev-parse without this ref.
+    git(repository.path, ['update-ref', `refs/wbs/desired/${releaseId}`, desiredRevision]);
     return { previousRevision, desiredRevision };
   } finally {
     rmSync(scratch, { recursive: true, force: true });

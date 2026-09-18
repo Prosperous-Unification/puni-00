@@ -13,6 +13,7 @@ import {
 import {
   assertProtectedStateDirectory,
   checkDescriptor,
+  parseRecovers,
   readDeliveryTarget,
   requestFor,
   stagingProofFor,
@@ -62,6 +63,7 @@ const descriptor: ReleaseDescriptor = sealDescriptor(
     head_sha: sourceSha,
     path: '.github/workflows/ci.yml',
     event: 'push',
+    head_branch: 'main',
     status: 'completed',
     conclusion: 'success',
     jobs: [
@@ -72,7 +74,12 @@ const descriptor: ReleaseDescriptor = sealDescriptor(
 );
 const sha256 = descriptorSha256(descriptor);
 
-function inputs(root: string, environment: 'staging' | 'prod', expected = sha256) {
+function inputs(
+  root: string,
+  environment: 'staging' | 'prod',
+  expected = sha256,
+  now = new Date(86_400_000),
+) {
   const descriptorPath = join(root, 'descriptor.json');
   const admissionPath = join(root, 'admission.json');
   writeFileSync(descriptorPath, renderDescriptor(descriptor));
@@ -83,6 +90,8 @@ function inputs(root: string, environment: 'staging' | 'prod', expected = sha256
     admissionPath,
     environment,
     stateDirectory: root,
+    maxProofAgeDays: 14,
+    now,
   };
 }
 
@@ -138,6 +147,25 @@ describe('checkDescriptor', () => {
   it('refuses production before staging proved the descriptor', () => {
     const root = directory();
     expect(() => checkDescriptor(inputs(root, 'prod'))).toThrow('cannot read staging proof');
+  });
+
+  it('refuses a staging proof older than the bound', () => {
+    const root = directory();
+    const checked = checkDescriptor(inputs(root, 'staging'));
+    mkdirSync(join(root, 'staging', 'proofs'), { recursive: true });
+    writeFileSync(
+      stagingProofPath(root, sha256),
+      stagingProofFor(checked, { context: 's', uid: 'u' }, new Date(0)),
+    );
+    expect(() => checkDescriptor(inputs(root, 'prod', sha256, new Date(30 * 86_400_000)))).toThrow(
+      'accepts proofs up to 14 days old',
+    );
+  });
+
+  it('refuses a malformed recovers value', () => {
+    expect(parseRecovers(null)).toBeNull();
+    expect(parseRecovers('abcdef012345-abcdef012345')).toBe('abcdef012345-abcdef012345');
+    expect(() => parseRecovers('latest')).toThrow('--recovers must be a release id');
   });
 
   it('promotes to production once staging recorded its proof', () => {

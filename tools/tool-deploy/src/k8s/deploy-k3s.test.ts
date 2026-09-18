@@ -2,10 +2,11 @@ import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { scratchSync } from '@tools/test-scratch';
-import { afterEach, describe, expect, it, spyOn } from 'bun:test';
+import { afterAll, afterEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { main } from './deploy-k3s';
 import { descriptorSha256, renderDescriptor, sealDescriptor } from './descriptor';
+import { fakeRegistry } from './fake-registry';
 import { fileJournal } from './journal';
 import { checkDescriptor, readDeliveryTarget, requestFor } from './promotion';
 import { initialState } from './release';
@@ -17,8 +18,17 @@ afterEach(() => {
 });
 
 const sourceSha = 'a'.repeat(40);
-const image = (name: string, hex: string): string =>
-  `registry.example/${name}@sha256:${hex.repeat(64)}`;
+const registry = fakeRegistry({
+  'wbs-be-01': 'a'.repeat(40),
+  'wbs-gw-01': 'a'.repeat(40),
+  'wbs-fe-01': 'a'.repeat(40),
+  'wbs-mcp-01': 'a'.repeat(40),
+  'wbs-gw-01-other-commit': '9'.repeat(40),
+});
+afterAll(async () => {
+  await registry.stop();
+});
+const image = (name: string): string => registry.ref(name);
 function admission() {
   const activation = 'e'.repeat(40);
   return {
@@ -33,15 +43,34 @@ function admission() {
     activation: { version: activation, manifestIdentity: 'f'.repeat(64) },
   };
 }
+function candidateOf(sealed: { images: ReleaseIdentityImages }) {
+  return { schemaVersion: 1 as const, sourceSha, images: sealed.images, gateRunId: 7 };
+}
+function gateRunOf() {
+  return {
+    id: 7,
+    head_sha: sourceSha,
+    path: '.github/workflows/ci.yml',
+    event: 'push',
+    head_branch: 'main',
+    status: 'completed',
+    conclusion: 'success',
+    jobs: [
+      { name: 'gate', conclusion: 'success' },
+      { name: 'pixels', conclusion: 'success' },
+    ],
+  };
+}
+type ReleaseIdentityImages = ReturnType<typeof sealDescriptor>['images'];
 const descriptor = sealDescriptor(
   {
     schemaVersion: 1,
     sourceSha,
     images: {
-      backend: image('wbs-be-01', '1'),
-      gateway: image('wbs-gw-01', '2'),
-      frontend: image('wbs-fe-01', '3'),
-      mcp: image('wbs-mcp-01', '4'),
+      backend: image('wbs-be-01'),
+      gateway: image('wbs-gw-01'),
+      frontend: image('wbs-fe-01'),
+      mcp: image('wbs-mcp-01'),
     },
     gateRunId: 7,
   },
@@ -51,6 +80,7 @@ const descriptor = sealDescriptor(
     head_sha: sourceSha,
     path: '.github/workflows/ci.yml',
     event: 'push',
+    head_branch: 'main',
     status: 'completed',
     conclusion: 'success',
     jobs: [
@@ -76,6 +106,8 @@ function resumable(recordedContext: string) {
       admissionPath,
       environment: 'staging',
       stateDirectory: state,
+      maxProofAgeDays: 14,
+      now: new Date(),
     }),
     readDeliveryTarget(join(ROOT, 'deploy/k8s/wbs/overlays'), 'staging'),
     { context: recordedContext, uid: 'uid-staging' },
@@ -154,6 +186,32 @@ describe('deploy-k3s descriptor mode', () => {
           (e: unknown) => String(e),
         ),
       ).toContain('cannot resume');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('refuses a descriptor whose image the registry labels with another commit', async () => {
+    const { args } = resumable('staging');
+    const relabelled = sealDescriptor(
+      {
+        ...candidateOf(descriptor),
+        images: { ...descriptor.images, gateway: image('wbs-gw-01-other-commit') },
+      },
+      admission(),
+      gateRunOf(),
+    );
+    const at = args.indexOf('--descriptor') + 1;
+    writeFileSync(args[at], renderDescriptor(relabelled));
+    args[args.indexOf('--descriptor-sha256') + 1] = descriptorSha256(relabelled);
+    const spy = spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      expect(
+        await main(args, ROOT).then(
+          () => 'deployed',
+          (e: unknown) => String(e),
+        ),
+      ).toContain(`images are not built from ${sourceSha}: gateway`);
     } finally {
       spy.mockRestore();
     }
